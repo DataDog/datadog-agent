@@ -1,12 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // Package checks implements Compliance Agent checks
 package checks
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -20,6 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	cache "github.com/patrickmn/go-cache"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 )
 
 // ErrResourceNotSupported is returned when resource type is not supported by Builder
@@ -53,6 +57,14 @@ type BuilderOption func(*builder) error
 func WithInterval(interval time.Duration) BuilderOption {
 	return func(b *builder) error {
 		b.checkInterval = interval
+		return nil
+	}
+}
+
+// WithMaxEvents configures default max events per run
+func WithMaxEvents(max int) BuilderOption {
+	return func(b *builder) error {
+		b.maxEventsPerRun = max
 		return nil
 	}
 }
@@ -114,10 +126,38 @@ func WithAuditClient(cli env.AuditClient) BuilderOption {
 	}
 }
 
+type kubeClient struct {
+	dynamic.Interface
+	clusterID string
+}
+
+func (c *kubeClient) Resource(resource schema.GroupVersionResource) dynamic.NamespaceableResourceInterface {
+	return c.Interface.Resource(resource)
+}
+
+func (c *kubeClient) ClusterID() (string, error) {
+	if c.clusterID != "" {
+		return c.clusterID, nil
+	}
+
+	resourceDef := c.Resource(schema.GroupVersionResource{
+		Resource: "namespaces",
+		Version:  "v1",
+	})
+
+	resource, err := resourceDef.Get(context.TODO(), "kube-system", metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+
+	c.clusterID = string(resource.GetUID())
+	return c.clusterID, nil
+}
+
 // WithKubernetesClient allows specific Kubernetes client
-func WithKubernetesClient(cli env.KubeClient) BuilderOption {
+func WithKubernetesClient(cli env.KubeClient, clusterID string) BuilderOption {
 	return func(b *builder) error {
-		b.kubeClient = cli
+		b.kubeClient = &kubeClient{Interface: cli, clusterID: clusterID}
 		return nil
 	}
 }
@@ -191,10 +231,11 @@ func IsRuleID(ruleID string) RuleMatcher {
 // NewBuilder constructs a check builder
 func NewBuilder(reporter event.Reporter, options ...BuilderOption) (Builder, error) {
 	b := &builder{
-		reporter:      reporter,
-		checkInterval: 20 * time.Minute,
-		etcGroupPath:  "/etc/group",
-		status:        newStatus(),
+		reporter:        reporter,
+		checkInterval:   20 * time.Minute,
+		maxEventsPerRun: 30,
+		etcGroupPath:    "/etc/group",
+		status:          newStatus(),
 	}
 
 	for _, o := range options {
@@ -212,7 +253,8 @@ func NewBuilder(reporter event.Reporter, options ...BuilderOption) (Builder, err
 }
 
 type builder struct {
-	checkInterval time.Duration
+	checkInterval   time.Duration
+	maxEventsPerRun int
 
 	reporter   event.Reporter
 	valueCache *cache.Cache
@@ -227,7 +269,7 @@ type builder struct {
 
 	dockerClient env.DockerClient
 	auditClient  env.AuditClient
-	kubeClient   env.KubeClient
+	kubeClient   *kubeClient
 	isLeaderFunc func() bool
 
 	status *status
@@ -340,7 +382,8 @@ func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.Rul
 		return nil, ErrRuleDoesNotApply
 	}
 
-	return b.newCheck(meta, ruleScope, rule)
+	resourceReporter := b.getRuleResourceReporter(ruleScope, *rule)
+	return b.newCheck(meta, ruleScope, rule, resourceReporter)
 }
 
 func getRuleScope(meta *compliance.SuiteMeta, rule *compliance.Rule) (compliance.RuleScope, error) {
@@ -353,6 +396,78 @@ func getRuleScope(meta *compliance.SuiteMeta, rule *compliance.Rule) (compliance
 		return compliance.KubernetesClusterScope, nil
 	default:
 		return "", ErrRuleScopeNotSupported
+	}
+}
+
+func (b *builder) kubeResourceReporter(rule compliance.Rule, resourceType string) resourceReporter {
+	return func(report *compliance.Report) compliance.ReportResource {
+		var clusterID string
+		var err error
+
+		if b.kubeClient != nil {
+			clusterID, err = b.kubeClient.ClusterID()
+			if err != nil {
+				log.Debugf("failed to retrieve cluster id, defaulting to hostname")
+			}
+		}
+
+		if clusterID == "" {
+			clusterID = b.Hostname()
+		}
+
+		if !report.Aggregated && rule.ResourceType == "" && strings.HasPrefix(report.Resource.Type, "kube_") {
+			return compliance.ReportResource{
+				ID:   clusterID + "_" + report.Resource.ID,
+				Type: report.Resource.Type,
+			}
+		}
+
+		if rule.ResourceType != "" {
+			resourceType = rule.ResourceType
+		}
+
+		return compliance.ReportResource{
+			ID:   clusterID + "_" + resourceType,
+			Type: resourceType,
+		}
+	}
+}
+
+func (b *builder) getRuleResourceReporter(scope compliance.RuleScope, rule compliance.Rule) resourceReporter {
+	switch scope {
+	case compliance.DockerScope:
+		return func(report *compliance.Report) compliance.ReportResource {
+			if !report.Aggregated && rule.ResourceType == "" && strings.HasPrefix(report.Resource.Type, "docker_") {
+				return compliance.ReportResource{
+					ID:   b.Hostname() + "_" + report.Resource.ID,
+					Type: report.Resource.Type,
+				}
+			}
+
+			resourceType := rule.ResourceType
+			if resourceType == "" {
+				resourceType = "docker_daemon"
+			}
+
+			return compliance.ReportResource{
+				ID:   b.Hostname() + "_daemon",
+				Type: resourceType,
+			}
+		}
+
+	case compliance.KubernetesNodeScope:
+		return b.kubeResourceReporter(rule, "kubernetes_node")
+
+	case compliance.KubernetesClusterScope:
+		return b.kubeResourceReporter(rule, "kubernetes_cluster")
+
+	default:
+		return func(report *compliance.Report) compliance.ReportResource {
+			return compliance.ReportResource{
+				ID:   b.Hostname(),
+				Type: string(scope),
+			}
+		}
 	}
 }
 
@@ -389,16 +504,15 @@ func (b *builder) isKubernetesNodeEligible(hostSelector string) (bool, error) {
 		return false, err
 	}
 
-	nodeInstance := &eval.Instance{
-		Functions: eval.FunctionMap{
+	nodeInstance := eval.NewInstance(
+		eval.VarMap{
+			"node.labels": b.nodeLabelKeys(),
+		},
+		eval.FunctionMap{
 			"node.hasLabel": b.nodeHasLabel,
 			"node.label":    b.nodeLabel,
 		},
-
-		Vars: eval.VarMap{
-			"node.labels": b.nodeLabelKeys(),
-		},
-	}
+	)
 
 	result, err := expr.Evaluate(nodeInstance)
 	if err != nil {
@@ -428,12 +542,12 @@ func (b *builder) getNodeLabel(args ...interface{}) (string, bool, error) {
 	return v, ok, nil
 }
 
-func (b *builder) nodeHasLabel(_ *eval.Instance, args ...interface{}) (interface{}, error) {
+func (b *builder) nodeHasLabel(_ eval.Instance, args ...interface{}) (interface{}, error) {
 	_, ok, err := b.getNodeLabel(args...)
 	return ok, err
 }
 
-func (b *builder) nodeLabel(_ *eval.Instance, args ...interface{}) (interface{}, error) {
+func (b *builder) nodeLabel(_ eval.Instance, args ...interface{}) (interface{}, error) {
 	v, _, err := b.getNodeLabel(args...)
 	return v, err
 }
@@ -446,7 +560,7 @@ func (b *builder) nodeLabelKeys() []string {
 	return keys
 }
 
-func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.Rule) (compliance.Check, error) {
+func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.Rule, handler resourceReporter) (compliance.Check, error) {
 	checkable, err := newResourceCheckList(b, rule.ID, rule.Resources)
 
 	if err != nil {
@@ -468,10 +582,9 @@ func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.Rule
 
 		suiteMeta: meta,
 
-		// For now we are using rule scope (e.g. docker, kubernetesNode) as resource type
-		resourceType: string(ruleScope),
-		resourceID:   b.hostname,
-		checkable:    checkable,
+		resourceHandler: handler,
+		scope:           ruleScope,
+		checkable:       checkable,
 
 		eventNotify: notify,
 	}, nil
@@ -501,6 +614,10 @@ func (b *builder) EtcGroupPath() string {
 	return b.etcGroupPath
 }
 
+func (b *builder) MaxEventsPerRun() int {
+	return b.maxEventsPerRun
+}
+
 func (b *builder) NormalizeToHostRoot(path string) string {
 	if b.pathMapper == nil {
 		return path
@@ -523,21 +640,22 @@ func (b *builder) IsLeader() bool {
 }
 
 func (b *builder) EvaluateFromCache(ev eval.Evaluatable) (interface{}, error) {
-	instance := &eval.Instance{
-		Functions: eval.FunctionMap{
+	instance := eval.NewInstance(
+		nil,
+		eval.FunctionMap{
 			builderFuncShell:       b.withValueCache(builderFuncShell, evalCommandShell),
 			builderFuncExec:        b.withValueCache(builderFuncExec, evalCommandExec),
 			builderFuncProcessFlag: b.withValueCache(builderFuncProcessFlag, evalProcessFlag),
 			builderFuncJSON:        b.withValueCache(builderFuncJSON, b.evalValueFromFile(jsonGetter)),
 			builderFuncYAML:        b.withValueCache(builderFuncYAML, b.evalValueFromFile(yamlGetter)),
 		},
-	}
+	)
 
 	return ev.Evaluate(instance)
 }
 
 func (b *builder) withValueCache(funcName string, fn eval.Function) eval.Function {
-	return func(instance *eval.Instance, args ...interface{}) (interface{}, error) {
+	return func(instance eval.Instance, args ...interface{}) (interface{}, error) {
 		var sargs []string
 		for _, arg := range args {
 			sargs = append(sargs, fmt.Sprintf("%v", arg))
@@ -554,7 +672,7 @@ func (b *builder) withValueCache(funcName string, fn eval.Function) eval.Functio
 	}
 }
 
-func evalCommandShell(_ *eval.Instance, args ...interface{}) (interface{}, error) {
+func evalCommandShell(_ eval.Instance, args ...interface{}) (interface{}, error) {
 	if len(args) == 0 {
 		return nil, errors.New(`expecting at least one argument`)
 	}
@@ -597,7 +715,7 @@ func valueFromShellCommand(command string, shellAndArgs ...string) (interface{},
 	return stdout, nil
 }
 
-func evalCommandExec(_ *eval.Instance, args ...interface{}) (interface{}, error) {
+func evalCommandExec(_ eval.Instance, args ...interface{}) (interface{}, error) {
 	if len(args) == 0 {
 		return nil, errors.New(`expecting at least one argument`)
 	}
@@ -628,7 +746,7 @@ func valueFromBinaryCommand(name string, args ...string) (interface{}, error) {
 	return stdout, nil
 }
 
-func evalProcessFlag(_ *eval.Instance, args ...interface{}) (interface{}, error) {
+func evalProcessFlag(_ eval.Instance, args ...interface{}) (interface{}, error) {
 	if len(args) != 2 {
 		return nil, errors.New(`expecting two arguments`)
 	}
@@ -660,7 +778,7 @@ func valueFromProcessFlag(name string, flag string) (interface{}, error) {
 }
 
 func (b *builder) evalValueFromFile(get getter) eval.Function {
-	return func(_ *eval.Instance, args ...interface{}) (interface{}, error) {
+	return func(_ eval.Instance, args ...interface{}) (interface{}, error) {
 		if len(args) != 2 {
 			return nil, fmt.Errorf(`invalid number of arguments, expecting 1 got %d`, len(args))
 		}

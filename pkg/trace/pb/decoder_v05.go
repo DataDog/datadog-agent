@@ -3,48 +3,50 @@ package pb
 import (
 	"errors"
 	"fmt"
-	"io"
-	"sync"
-
-	"github.com/philhofer/fwd"
 	"github.com/tinylib/msgp/msgp"
 )
 
 // dictionaryString reads an int from decoder dc and returns the string
 // at that index from dict.
-func dictionaryString(dc *msgp.Reader, dict []string) (string, error) {
-	ui, err := dc.ReadUint32()
+func dictionaryString(bts []byte, dict []string) (string, []byte, error) {
+	var (
+		ui  uint32
+		err error
+	)
+	ui, bts, err = msgp.ReadUint32Bytes(bts)
 	if err != nil {
-		return "", err
+		return "", bts, err
 	}
 	idx := int(ui)
 	if idx >= len(dict) {
-		return "", fmt.Errorf("dictionary index %d out of range", idx)
+		return "", bts, fmt.Errorf("dictionary index %d out of range", idx)
 	}
-	return dict[idx], nil
+	return dict[idx], bts, nil
 }
 
-// DecodeMsgDictionary decodes a trace using the specification from the v0.5 endpoint.
+// UnmarshalMsgDictionary decodes a trace using the specification from the v0.5 endpoint.
 // For details, see the documentation for endpoint v0.5 in pkg/trace/api/version.go
-func (t *Traces) DecodeMsgDictionary(dc *msgp.Reader) error {
-	if _, err := dc.ReadArrayHeader(); err != nil {
+func (t *Traces) UnmarshalMsgDictionary(bts []byte) error {
+	var err error
+	if _, bts, err = msgp.ReadArrayHeaderBytes(bts); err != nil {
 		return err
 	}
 	// read dictionary
-	sz, err := dc.ReadArrayHeader()
-	if err != nil {
+	var sz uint32
+	if sz, bts, err = msgp.ReadArrayHeaderBytes(bts); err != nil {
 		return err
 	}
 	dict := make([]string, sz)
 	for i := range dict {
-		str, err := parseString(dc)
+		var str string
+		str, bts, err = parseStringBytes(bts)
 		if err != nil {
 			return err
 		}
 		dict[i] = str
 	}
 	// read traces
-	sz, err = dc.ReadArrayHeader()
+	sz, bts, err = msgp.ReadArrayHeaderBytes(bts)
 	if err != nil {
 		return err
 	}
@@ -54,7 +56,7 @@ func (t *Traces) DecodeMsgDictionary(dc *msgp.Reader) error {
 		*t = make(Traces, sz)
 	}
 	for i := range *t {
-		sz, err := dc.ReadArrayHeader()
+		sz, bts, err = msgp.ReadArrayHeaderBytes(bts)
 		if err != nil {
 			return err
 		}
@@ -67,7 +69,7 @@ func (t *Traces) DecodeMsgDictionary(dc *msgp.Reader) error {
 			if (*t)[i][j] == nil {
 				(*t)[i][j] = new(Span)
 			}
-			if err := (*t)[i][j].DecodeMsgDictionary(dc, dict); err != nil {
+			if bts, err = (*t)[i][j].UnmarshalMsgDictionary(bts, dict); err != nil {
 				return err
 			}
 		}
@@ -79,66 +81,70 @@ func (t *Traces) DecodeMsgDictionary(dc *msgp.Reader) error {
 // has.
 const spanPropertyCount = 12
 
-// DecodeMsgDictionary decodes a span from the given decoder dc, looking up strings
+// UnmarshalMsgDictionary decodes a span from the given decoder dc, looking up strings
 // in the given dictionary dict. For details, see the documentation for endpoint v0.5
 // in pkg/trace/api/version.go
-func (z *Span) DecodeMsgDictionary(dc *msgp.Reader, dict []string) error {
-	sz, err := dc.ReadArrayHeader()
+func (z *Span) UnmarshalMsgDictionary(bts []byte, dict []string) ([]byte, error) {
+	var (
+		sz  uint32
+		err error
+	)
+	sz, bts, err = msgp.ReadArrayHeaderBytes(bts)
 	if err != nil {
-		return err
+		return bts, err
 	}
 	if sz != spanPropertyCount {
-		return errors.New("encoded span needs exactly 12 elements in array")
+		return bts, errors.New("encoded span needs exactly 12 elements in array")
 	}
 	// Service (0)
-	z.Service, err = dictionaryString(dc, dict)
+	z.Service, bts, err = dictionaryString(bts, dict)
 	if err != nil {
-		return err
+		return bts, err
 	}
 	// Name (1)
-	z.Name, err = dictionaryString(dc, dict)
+	z.Name, bts, err = dictionaryString(bts, dict)
 	if err != nil {
-		return err
+		return bts, err
 	}
 	// Resource (2)
-	z.Resource, err = dictionaryString(dc, dict)
+	z.Resource, bts, err = dictionaryString(bts, dict)
 	if err != nil {
-		return err
+		return bts, err
 	}
 	// TraceID (3)
-	z.TraceID, err = parseUint64(dc)
+	z.TraceID, bts, err = parseUint64Bytes(bts)
 	if err != nil {
-		return err
+		return bts, err
 	}
 	// SpanID (4)
-	z.SpanID, err = parseUint64(dc)
+	z.SpanID, bts, err = parseUint64Bytes(bts)
 	if err != nil {
-		return err
+		return bts, err
 	}
 	// ParentID (5)
-	z.ParentID, err = parseUint64(dc)
+	z.ParentID, bts, err = parseUint64Bytes(bts)
 	if err != nil {
-		return err
+		return bts, err
 	}
 	// Start (6)
-	z.Start, err = parseInt64(dc)
+	z.Start, bts, err = parseInt64Bytes(bts)
 	if err != nil {
-		return err
+		return bts, err
 	}
 	// Duration (7)
-	z.Duration, err = parseInt64(dc)
+	z.Duration, bts, err = parseInt64Bytes(bts)
 	if err != nil {
-		return err
+		return bts, err
 	}
 	// Error (8)
-	z.Error, err = parseInt32(dc)
+	z.Error, bts, err = parseInt32Bytes(bts)
 	if err != nil {
-		return err
+		return bts, err
 	}
 	// Meta (9)
-	sz, err = dc.ReadMapHeader()
+	sz, bts, err = msgp.ReadMapHeaderBytes(bts)
 	if err != nil {
-		return err
+		return bts, err
 	}
 	if z.Meta == nil && sz > 0 {
 		z.Meta = make(map[string]string, sz)
@@ -149,20 +155,21 @@ func (z *Span) DecodeMsgDictionary(dc *msgp.Reader, dict []string) error {
 	}
 	for sz > 0 {
 		sz--
-		key, err := dictionaryString(dc, dict)
+		var key, val string
+		key, bts, err = dictionaryString(bts, dict)
 		if err != nil {
-			return err
+			return bts, err
 		}
-		val, err := dictionaryString(dc, dict)
+		val, bts, err = dictionaryString(bts, dict)
 		if err != nil {
-			return err
+			return bts, err
 		}
 		z.Meta[key] = val
 	}
 	// Metrics (10)
-	sz, err = dc.ReadMapHeader()
+	sz, bts, err = msgp.ReadMapHeaderBytes(bts)
 	if err != nil {
-		return err
+		return bts, err
 	}
 	if z.Metrics == nil && sz > 0 {
 		z.Metrics = make(map[string]float64, sz)
@@ -173,38 +180,24 @@ func (z *Span) DecodeMsgDictionary(dc *msgp.Reader, dict []string) error {
 	}
 	for sz > 0 {
 		sz--
-		key, err := dictionaryString(dc, dict)
+		var (
+			key string
+			val float64
+		)
+		key, bts, err = dictionaryString(bts, dict)
 		if err != nil {
-			return err
+			return bts, err
 		}
-		val, err := parseFloat64(dc)
+		val, bts, err = parseFloat64Bytes(bts)
 		if err != nil {
-			return err
+			return bts, err
 		}
 		z.Metrics[key] = val
 	}
 	// Type (11)
-	z.Type, err = dictionaryString(dc, dict)
+	z.Type, bts, err = dictionaryString(bts, dict)
 	if err != nil {
-		return err
+		return bts, err
 	}
-	return nil
+	return bts, nil
 }
-
-var readerPool = sync.Pool{New: func() interface{} { return &msgp.Reader{} }}
-
-// NewMsgpReader returns a *msgp.Reader that
-// reads from the provided reader. The
-// reader will be buffered.
-func NewMsgpReader(r io.Reader) *msgp.Reader {
-	p := readerPool.Get().(*msgp.Reader)
-	if p.R == nil {
-		p.R = fwd.NewReader(r)
-	} else {
-		p.R.Reset(r)
-	}
-	return p
-}
-
-// FreeMsgpReader marks reader r as done.
-func FreeMsgpReader(r *msgp.Reader) { readerPool.Put(r) }

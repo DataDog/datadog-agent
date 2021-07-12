@@ -1,27 +1,25 @@
+// +build linux
+
 package modules
 
 import (
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/pkg/errors"
 )
 
 // OOMKillProbe Factory
-var OOMKillProbe = api.Factory{
-	Name: "oom_kill_probe",
-	Fn: func(cfg *config.AgentConfig) (api.Module, error) {
-		if !cfg.CheckIsEnabled("OOM Kill") {
-			log.Info("OOM kill probe disabled")
-			return nil, api.ErrNotEnabled
-		}
-
+var OOMKillProbe = module.Factory{
+	Name: config.OOMKillProbeModule,
+	Fn: func(cfg *config.Config) (module.Module, error) {
 		log.Infof("Starting the OOM Kill probe")
-		okp, err := ebpf.NewOOMKillProbe(config.SysProbeConfigFromConfig(cfg))
+		okp, err := probe.NewOOMKillProbe(ebpf.NewConfig())
 		if err != nil {
 			return nil, errors.Wrapf(err, "unable to start the OOM kill probe")
 		}
@@ -29,13 +27,13 @@ var OOMKillProbe = api.Factory{
 	},
 }
 
-var _ api.Module = &oomKillModule{}
+var _ module.Module = &oomKillModule{}
 
 type oomKillModule struct {
-	*ebpf.OOMKillProbe
+	*probe.OOMKillProbe
 }
 
-func (o *oomKillModule) Register(httpMux *http.ServeMux) error {
+func (o *oomKillModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check/oom_kill", func(w http.ResponseWriter, req *http.Request) {
 		stats := o.OOMKillProbe.GetAndFlush()
 		utils.WriteAsJSON(w, stats)

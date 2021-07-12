@@ -1,0 +1,3 @@
+fixes:
+    - |
+      During a domain installation in a child domain, the Windows installer can now use a user from a parent domain.

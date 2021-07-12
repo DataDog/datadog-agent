@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package errors
 
@@ -11,6 +11,8 @@ type errorReason int
 
 const (
 	notFoundError errorReason = iota
+	retriableError
+	partialError
 	unknownError
 )
 
@@ -38,6 +40,32 @@ func NewNotFound(notFoundObject string) *AgentError {
 // IsNotFound returns true if the specified error was created by NewNotFound.
 func IsNotFound(err error) bool {
 	return reasonForError(err) == notFoundError
+}
+
+// NewRetriable returns a new error which indicates that the object passed in parameter couldn't be fetched and that the query can be retried.
+func NewRetriable(retriableObj interface{}, err error) *AgentError {
+	return &AgentError{
+		message:     fmt.Sprintf("couldn't fetch %q: %v", retriableObj, err),
+		errorReason: retriableError,
+	}
+}
+
+// IsRetriable returns true if the specified error was created by NewRetriable.
+func IsRetriable(err error) bool {
+	return reasonForError(err) == retriableError
+}
+
+// NewPartial returns a new error which indicates that the object passed in parameter couldn't be fetched completely and that the query should be retried.
+func NewPartial(partialObj interface{}) *AgentError {
+	return &AgentError{
+		message:     fmt.Sprintf("partially fetched %q, please retry", partialObj),
+		errorReason: partialError,
+	}
+}
+
+// IsPartial returns true if the specified error was created by NewPartial.
+func IsPartial(err error) bool {
+	return reasonForError(err) == partialError
 }
 
 func reasonForError(err error) errorReason {

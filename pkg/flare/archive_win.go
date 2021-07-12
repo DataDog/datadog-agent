@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build windows
 
@@ -9,10 +9,12 @@ package flare
 
 import (
 	"bytes"
+	"context"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -26,9 +28,10 @@ var (
 
 	eventLogChannelsToExport = map[string]string{
 		"System":      "Event/System/Provider[@Name=\"Service Control Manager\"]",
-		"Application": "Event/System/Provider[@Name=\"datadog-trace-agent\"]",
+		"Application": "Event/System/Provider[@Name=\"datadog-trace-agent\" or @Name=\"DatadogAgent\"]",
 		"Microsoft-Windows-WMI-Activity/Operational": "*",
 	}
+	execTimeout = 30 * time.Second
 )
 
 const (
@@ -58,6 +61,10 @@ func zipCounterStrings(tempDir, hostname string) error {
 			bufferSize += bufferIncrement
 			continue
 		}
+		// must set the length of the slice to the actual amount of data
+		// sz is in bytes, but it's a slice of uint16s, so divide the returned
+		// buffer size by two.
+		counterlist = counterlist[:(sz / 2)]
 		break
 	}
 	clist := winutil.ConvertWindowsStringList(counterlist)
@@ -81,7 +88,11 @@ func zipCounterStrings(tempDir, hostname string) error {
 }
 
 func zipTypeperfData(tempDir, hostname string) error {
-	cmd := exec.Command("typeperf", "-qx")
+	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+	defer cancelfunc()
+
+	cmd := exec.CommandContext(cancelctx, "typeperf", "-qx")
+
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err := cmd.Run()
@@ -96,6 +107,35 @@ func zipTypeperfData(tempDir, hostname string) error {
 
 	err = ioutil.WriteFile(f, out.Bytes(), os.ModePerm)
 	if err != nil {
+		return err
+	}
+	return nil
+}
+func zipLodctrOutput(tempDir, hostname string) error {
+	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+	defer cancelfunc()
+
+	cmd := exec.CommandContext(cancelctx, "lodctr.exe", "/q")
+
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		log.Warnf("Error running lodctr command %v", err)
+		// for some reason the lodctr command returns error 259 even when
+		// it succeeds.  Log the error in case it's some other error,
+		// but continue on.
+	}
+	f := filepath.Join(tempDir, hostname, "lodctr.txt")
+	err = ensureParentDirsExist(f)
+	if err != nil {
+		log.Warnf("Error in ensureParentDirsExist %v", err)
+		return err
+	}
+
+	err = ioutil.WriteFile(f, out.Bytes(), os.ModePerm)
+	if err != nil {
+		log.Warnf("Error writing file %v", err)
 		return err
 	}
 	return nil

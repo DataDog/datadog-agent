@@ -1,0 +1,13 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "exec.json",
+    "type": "object",
+    "anyOf": [
+        {
+            "$ref": "file:///container_event.json"
+        },
+        {
+            "$ref": "file:///host_event.json"
+        }
+    ]
+}

@@ -3,25 +3,46 @@
 package config
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/gopsutil/process"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	mocks "github.com/DataDog/datadog-agent/pkg/proto/pbgo/mocks"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
+	providerMocks "github.com/DataDog/datadog-agent/pkg/util/containers/providers/mock"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 )
 
 var originalConfig = config.Datadog
 
 func restoreGlobalConfig() {
+	providers.Deregister()
+
 	config.Datadog = originalConfig
+}
+
+func newConfig() {
+	providers.Register(providerMocks.FakeContainerImpl{})
+
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	config.InitConfig(config.Datadog)
+	// force timeout to 0s, otherwise each test waits 60s
+	config.Datadog.Set(key(ns, "grpc_connection_timeout_secs"), 0)
 }
 
 func TestBlacklist(t *testing.T) {
@@ -76,7 +97,7 @@ func TestBlacklist(t *testing.T) {
 }
 
 func TestOnlyEnvConfig(t *testing.T) {
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	newConfig()
 	defer restoreGlobalConfig()
 
 	// setting an API Key should be enough to generate valid config
@@ -93,10 +114,18 @@ func TestOnlyEnvConfig(t *testing.T) {
 	agentConfig, _ = NewAgentConfig("test", "", "")
 	assert.Equal(t, "apikey_from_env", agentConfig.APIEndpoints[0].APIKey)
 	assert.False(t, agentConfig.Enabled)
+
+	os.Setenv("DD_PROCESS_AGENT_MAX_PER_MESSAGE", "99")
+	agentConfig, _ = NewAgentConfig("test", "", "")
+	assert.Equal(t, 99, agentConfig.MaxPerMessage)
+
+	os.Setenv("DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "1234")
+	agentConfig, _ = NewAgentConfig("test", "", "")
+	assert.Equal(t, 1234, agentConfig.MaxCtrProcessesPerMessage)
 }
 
 func TestOnlyEnvConfigArgsScrubbingEnabled(t *testing.T) {
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	newConfig()
 	defer restoreGlobalConfig()
 
 	os.Setenv("DD_CUSTOM_SENSITIVE_WORDS", "*password*,consul_token,*api_key")
@@ -122,7 +151,7 @@ func TestOnlyEnvConfigArgsScrubbingEnabled(t *testing.T) {
 }
 
 func TestOnlyEnvConfigArgsScrubbingDisabled(t *testing.T) {
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	newConfig()
 	defer restoreGlobalConfig()
 
 	os.Setenv("DD_SCRUB_ARGS", "false")
@@ -144,14 +173,14 @@ func TestOnlyEnvConfigArgsScrubbingDisabled(t *testing.T) {
 	}
 
 	for i := range cases {
-		fp := &process.FilledProcess{Cmdline: cases[i].cmdline}
+		fp := &procutil.Process{Cmdline: cases[i].cmdline}
 		cases[i].cmdline = agentConfig.Scrubber.ScrubProcessCommand(fp)
 		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
 	}
 }
 
 func TestOnlyEnvConfigLogLevelOverride(t *testing.T) {
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	newConfig()
 	defer restoreGlobalConfig()
 
 	os.Setenv("DD_LOG_LEVEL", "error")
@@ -163,36 +192,14 @@ func TestOnlyEnvConfigLogLevelOverride(t *testing.T) {
 	assert.Equal(t, "error", agentConfig.LogLevel)
 }
 
-func TestDisablingDNSInspection(t *testing.T) {
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	defer restoreGlobalConfig()
-
-	t.Run("via YAML", func(t *testing.T) {
-		cfg, err := NewAgentConfig(
-			"test",
-			"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableDNS.yaml",
-			"",
-		)
-
-		assert.Nil(t, err)
-		assert.True(t, cfg.DisableDNSInspection)
-	})
-
-	t.Run("via ENV variable", func(t *testing.T) {
-		os.Setenv("DD_DISABLE_DNS_INSPECTION", "true")
-		defer os.Unsetenv("DD_DISABLE_DNS_INSPECTION")
-		cfg, err := NewAgentConfig("test", "", "")
-
-		assert.Nil(t, err)
-		assert.True(t, cfg.DisableDNSInspection)
-	})
-}
-
 func TestGetHostname(t *testing.T) {
+	ctx := context.Background()
 	cfg := NewDefaultAgentConfig(false)
-	h, err := getHostname(cfg.DDAgentBin)
+	h, err := getHostname(ctx, cfg.DDAgentBin, 0)
 	assert.Nil(t, err)
-	assert.NotEqual(t, "", h)
+	// verify we fall back to getting os hostname
+	expectedHostname, _ := os.Hostname()
+	assert.Equal(t, expectedHostname, h)
 }
 
 func TestDefaultConfig(t *testing.T) {
@@ -215,7 +222,7 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	newConfig()
 	defer restoreGlobalConfig()
 
 	assert := assert.New(t)
@@ -234,14 +241,14 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(true, agentConfig.AllowRealTime)
 	assert.Equal(true, agentConfig.Enabled)
 	assert.Equal(append(processChecks), agentConfig.EnabledChecks)
-	assert.Equal(8*time.Second, agentConfig.CheckIntervals["container"])
-	assert.Equal(30*time.Second, agentConfig.CheckIntervals["process"])
+	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
+	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
 	assert.Equal(100, agentConfig.Windows.ArgsRefreshInterval)
 	assert.Equal(false, agentConfig.Windows.AddNewArgs)
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
 	assert.Equal(5065, agentConfig.ProcessExpVarPort)
-	assert.False(agentConfig.DisableDNSInspection)
 
+	newConfig()
 	agentConfig, err = NewAgentConfig(
 		"test",
 		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml",
@@ -255,21 +262,17 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(10, agentConfig.QueueSize)
 	assert.Equal(true, agentConfig.AllowRealTime)
 	assert.Equal(true, agentConfig.Enabled)
-	assert.Equal(8*time.Second, agentConfig.CheckIntervals["container"])
-	assert.Equal(30*time.Second, agentConfig.CheckIntervals["process"])
+	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
+	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
 	assert.Equal(100, agentConfig.Windows.ArgsRefreshInterval)
 	assert.Equal(false, agentConfig.Windows.AddNewArgs)
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
-	assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeAddress)
-	assert.Equal(append(processChecks, "connections", "Network"), agentConfig.EnabledChecks)
-	assert.Equal(500, agentConfig.ClosedChannelSize)
-	assert.True(agentConfig.SysProbeBPFDebug)
-	assert.Empty(agentConfig.ExcludedBPFLinuxVersions)
-	assert.False(agentConfig.DisableTCPTracing)
-	assert.False(agentConfig.DisableUDPTracing)
-	assert.False(agentConfig.DisableIPv6Tracing)
-	assert.False(agentConfig.DisableDNSInspection)
+	if runtime.GOOS != "windows" {
+		assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeAddress)
+	}
+	assert.Equal(append(processChecks, ConnectionsCheckName, NetworkCheckName), agentConfig.EnabledChecks)
 
+	newConfig()
 	agentConfig, err = NewAgentConfig(
 		"test",
 		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml",
@@ -282,22 +285,27 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(10, agentConfig.QueueSize)
 	assert.Equal(true, agentConfig.AllowRealTime)
 	assert.Equal(true, agentConfig.Enabled)
-	assert.Equal(8*time.Second, agentConfig.CheckIntervals["container"])
-	assert.Equal(30*time.Second, agentConfig.CheckIntervals["process"])
+	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
+	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
 	assert.Equal(100, agentConfig.Windows.ArgsRefreshInterval)
 	assert.Equal(false, agentConfig.Windows.AddNewArgs)
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
-	assert.False(agentConfig.SysProbeBPFDebug)
-	assert.Equal(1000, agentConfig.ClosedChannelSize)
-	assert.Equal(agentConfig.ExcludedBPFLinuxVersions, []string{"5.5.0", "4.2.1"})
-	assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeAddress)
+	if runtime.GOOS != "windows" {
+		assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeAddress)
+	}
 	assert.Equal(append(processChecks), agentConfig.EnabledChecks)
-	assert.True(agentConfig.DisableTCPTracing)
-	assert.True(agentConfig.DisableUDPTracing)
-	assert.True(agentConfig.DisableIPv6Tracing)
-	assert.False(agentConfig.DisableDNSInspection)
-	assert.Equal(map[string][]string{"172.0.0.1/20": {"*"}, "*": {"443"}, "127.0.0.1": {"5005"}}, agentConfig.ExcludedSourceConnections)
-	assert.Equal(map[string][]string{"172.0.0.1/20": {"*"}, "*": {"*"}, "2001:db8::2:1": {"5005"}}, agentConfig.ExcludedDestinationConnections)
+
+	newConfig()
+	agentConfig, err = NewAgentConfig(
+		"test",
+		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml",
+		"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net-Windows.yaml",
+	)
+	assert.NoError(err)
+
+	if runtime.GOOS == "windows" {
+		assert.Equal("localhost:4444", agentConfig.SystemProbeAddress)
+	}
 }
 
 func TestProxyEnv(t *testing.T) {
@@ -353,27 +361,27 @@ func TestProxyEnv(t *testing.T) {
 }
 
 func TestEnvSiteConfig(t *testing.T) {
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	newConfig()
 	defer restoreGlobalConfig()
 
 	assert := assert.New(t)
 
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	newConfig()
 	agentConfig, err := NewAgentConfig("test", "./testdata/TestEnvSiteConfig.yaml", "")
 	assert.NoError(err)
 	assert.Equal("process.datadoghq.io", agentConfig.APIEndpoints[0].Endpoint.Hostname())
 
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	newConfig()
 	agentConfig, err = NewAgentConfig("test", "./testdata/TestEnvSiteConfig-2.yaml", "")
 	assert.NoError(err)
 	assert.Equal("process.datadoghq.eu", agentConfig.APIEndpoints[0].Endpoint.Hostname())
 
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	newConfig()
 	agentConfig, err = NewAgentConfig("test", "./testdata/TestEnvSiteConfig-3.yaml", "")
 	assert.NoError(err)
 	assert.Equal("burrito.com", agentConfig.APIEndpoints[0].Endpoint.Hostname())
 
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	newConfig()
 	os.Setenv("DD_PROCESS_AGENT_URL", "https://test.com")
 	agentConfig, err = NewAgentConfig("test", "./testdata/TestEnvSiteConfig-3.yaml", "")
 	assert.NoError(err)
@@ -383,7 +391,7 @@ func TestEnvSiteConfig(t *testing.T) {
 }
 
 func TestEnvProcessAdditionalEndpoints(t *testing.T) {
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	newConfig()
 	defer restoreGlobalConfig()
 
 	assert := assert.New(t)
@@ -410,7 +418,7 @@ func TestEnvProcessAdditionalEndpoints(t *testing.T) {
 }
 
 func TestEnvOrchestratorAdditionalEndpoints(t *testing.T) {
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	newConfig()
 	defer restoreGlobalConfig()
 
 	assert := assert.New(t)
@@ -431,13 +439,13 @@ func TestEnvOrchestratorAdditionalEndpoints(t *testing.T) {
 	)
 	assert.NoError(err)
 
-	for _, actual := range agentConfig.OrchestratorEndpoints {
+	for _, actual := range agentConfig.Orchestrator.OrchestratorEndpoints {
 		assert.Equal(expected[actual.APIKey], actual.Endpoint.Hostname(), actual)
 	}
 }
 
 func TestEnvAdditionalEndpointsMalformed(t *testing.T) {
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	newConfig()
 	defer restoreGlobalConfig()
 
 	assert := assert.New(t)
@@ -462,6 +470,9 @@ func TestEnvAdditionalEndpointsMalformed(t *testing.T) {
 
 func TestNetworkConfig(t *testing.T) {
 	t.Run("yaml", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
 		agentConfig, err := NewAgentConfig(
 			"test",
 			"./testdata/TestDDAgentConfigYamlOnly.yaml",
@@ -471,23 +482,28 @@ func TestNetworkConfig(t *testing.T) {
 
 		assert.True(t, agentConfig.EnableSystemProbe)
 		assert.True(t, agentConfig.Enabled)
-		assert.ElementsMatch(t, []string{"connections", "Network", "process", "rtprocess"}, agentConfig.EnabledChecks)
+		assert.ElementsMatch(t, []string{ConnectionsCheckName, NetworkCheckName, ProcessCheckName, RTProcessCheckName}, agentConfig.EnabledChecks)
 	})
 
 	t.Run("env", func(t *testing.T) {
-		os.Setenv("DD_SYSTEM_PROBE_NETWORK_CONFIG_ENABLED", "true")
-		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_CONFIG_ENABLED")
+		newConfig()
+		defer restoreGlobalConfig()
+
+		os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
+		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLED")
 
 		agentConfig, err := NewAgentConfig("test", "", "")
 		require.NoError(t, err)
 
 		assert.True(t, agentConfig.EnableSystemProbe)
 		assert.True(t, agentConfig.Enabled)
-		assert.ElementsMatch(t, []string{"connections", "Network", "process", "rtprocess"}, agentConfig.EnabledChecks)
+		assert.ElementsMatch(t, []string{ConnectionsCheckName, NetworkCheckName, ContainerCheckName, RTContainerCheckName}, agentConfig.EnabledChecks)
 	})
 }
 
 func TestSystemProbeNoNetwork(t *testing.T) {
+	newConfig()
+	defer restoreGlobalConfig()
 	agentConfig, err := NewAgentConfig(
 		"test",
 		"./testdata/TestDDAgentConfigYamlOnly.yaml",
@@ -497,7 +513,7 @@ func TestSystemProbeNoNetwork(t *testing.T) {
 
 	assert.True(t, agentConfig.EnableSystemProbe)
 	assert.True(t, agentConfig.Enabled)
-	assert.ElementsMatch(t, []string{"OOM Kill", "process", "rtprocess"}, agentConfig.EnabledChecks)
+	assert.ElementsMatch(t, []string{OOMKillCheckName, ProcessCheckName, RTProcessCheckName}, agentConfig.EnabledChecks)
 
 }
 
@@ -522,32 +538,109 @@ func TestIsAffirmative(t *testing.T) {
 	assert.False(t, value)
 }
 
-func TestEnablingDNSStatsCollection(t *testing.T) {
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	defer restoreGlobalConfig()
+func TestGetHostnameFromGRPC(t *testing.T) {
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	t.Run("via YAML", func(t *testing.T) {
-		cfg, err := NewAgentConfig(
-			"test",
-			"./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableDNSStats.yaml",
-			"",
-		)
+	mockClient := mocks.NewMockAgentClient(ctrl)
+
+	mockClient.EXPECT().GetHostname(
+		gomock.Any(),
+		&pb.HostnameRequest{},
+	).Return(&pb.HostnameReply{Hostname: "unit-test-hostname"}, nil)
+
+	t.Run("hostname returns from grpc", func(t *testing.T) {
+		hostname, err := getHostnameFromGRPC(ctx, func(ctx context.Context, opts ...grpc.DialOption) (pb.AgentClient, error) {
+			return mockClient, nil
+		}, defaultGRPCConnectionTimeout)
 
 		assert.Nil(t, err)
-		assert.True(t, cfg.CollectDNSStats)
+		assert.Equal(t, "unit-test-hostname", hostname)
 	})
 
-	t.Run("via ENV variable", func(t *testing.T) {
-		defer os.Unsetenv("DD_COLLECT_DNS_STATS")
+	t.Run("grpc client is unavailable", func(t *testing.T) {
+		grpcErr := errors.New("no grpc client")
+		hostname, err := getHostnameFromGRPC(ctx, func(ctx context.Context, opts ...grpc.DialOption) (pb.AgentClient, error) {
+			return nil, grpcErr
+		}, defaultGRPCConnectionTimeout)
 
-		os.Setenv("DD_COLLECT_DNS_STATS", "false")
-		cfg, err := NewAgentConfig("test", "", "")
-		assert.Nil(t, err)
-		assert.False(t, cfg.CollectDNSStats)
-
-		os.Setenv("DD_COLLECT_DNS_STATS", "true")
-		cfg, err = NewAgentConfig("test", "", "")
-		assert.Nil(t, err)
-		assert.True(t, cfg.CollectDNSStats)
+		assert.NotNil(t, err)
+		assert.Equal(t, grpcErr, errors.Unwrap(err))
+		assert.Empty(t, hostname)
 	})
+}
+
+func TestGetHostnameFromCmd(t *testing.T) {
+	t.Run("valid hostname", func(t *testing.T) {
+		h, err := getHostnameFromCmd("agent-success", fakeExecCommand)
+		assert.Nil(t, err)
+		assert.Equal(t, "unit_test_hostname", h)
+	})
+
+	t.Run("no hostname returned", func(t *testing.T) {
+		h, err := getHostnameFromCmd("agent-empty_hostname", fakeExecCommand)
+		assert.NotNil(t, err)
+		assert.Equal(t, "", h)
+	})
+}
+
+func TestInvalidHostname(t *testing.T) {
+	providers.Register(providerMocks.FakeContainerImpl{})
+	defer providers.Deregister()
+
+	// Input yaml file has an invalid hostname (localhost) so we expect to configure via environment
+	agentConfig, err := NewAgentConfig(
+		"test",
+		"./testdata/TestDDAgentConfigYamlOnly-InvalidHostname.yaml",
+		"",
+	)
+	assert.NoError(t, err)
+
+	expectedHostname, _ := os.Hostname()
+	assert.Equal(t, expectedHostname, agentConfig.HostName)
+}
+
+// TestGetHostnameShellCmd is a method that is called as a substitute for a dd-agent shell command,
+// the GO_TEST_PROCESS flag ensures that if it is called as part of the test suite, it is skipped.
+func TestGetHostnameShellCmd(t *testing.T) {
+	if os.Getenv("GO_TEST_PROCESS") != "1" {
+		return
+	}
+	defer os.Exit(0)
+
+	args := os.Args
+	for len(args) > 0 {
+		if args[0] == "--" {
+			args = args[1:]
+			break
+		}
+		args = args[1:]
+	}
+
+	if len(args) == 0 {
+		fmt.Fprintf(os.Stderr, "No command\n")
+		os.Exit(2)
+	}
+
+	cmd, args := args[0], args[1:]
+	switch cmd {
+	case "agent-success":
+		assert.EqualValues(t, []string{"hostname"}, args)
+		fmt.Fprintf(os.Stdout, "unit_test_hostname")
+	case "agent-empty_hostname":
+		assert.EqualValues(t, []string{"hostname"}, args)
+		fmt.Fprintf(os.Stdout, "")
+	}
+}
+
+// fakeExecCommand is a function that initialises a new exec.Cmd, one which will
+// simply call TestShellProcessSuccess rather than the command it is provided. It will
+// also pass through the command and its arguments as an argument to TestShellProcessSuccess
+func fakeExecCommand(command string, args ...string) *exec.Cmd {
+	cs := []string{"-test.run=TestGetHostnameShellCmd", "--", command}
+	cs = append(cs, args...)
+	cmd := exec.Command(os.Args[0], cs...)
+	cmd.Env = []string{"GO_TEST_PROCESS=1"}
+	return cmd
 }

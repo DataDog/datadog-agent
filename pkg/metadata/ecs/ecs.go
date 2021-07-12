@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build docker
 
 package ecs
 
 import (
+	"context"
 	"fmt"
 
 	payload "github.com/DataDog/agent-payload/gogen"
@@ -21,8 +22,8 @@ import (
 // GetPayload returns a payload.ECSMetadataPayload with metadata about the state
 // of the local ECS containers running on this node. This data is provided via
 // the local ECS agent.
-func GetPayload() (metadata.Payload, error) {
-	if ecsutil.IsFargateInstance() {
+func GetPayload(ctx context.Context) (metadata.Payload, error) {
+	if ecsutil.IsFargateInstance(ctx) {
 		return nil, fmt.Errorf("ECS metadata disabled on Fargate")
 	}
 
@@ -30,7 +31,7 @@ func GetPayload() (metadata.Payload, error) {
 	if err != nil {
 		return nil, err
 	}
-	tasks, err := metaV1.GetTasks()
+	tasks, err := metaV1.GetTasks(ctx)
 	if err != nil {
 		return nil, err
 	}

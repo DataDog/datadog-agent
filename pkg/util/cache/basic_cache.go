@@ -20,19 +20,13 @@ func NewBasicCache() *BasicCache {
 }
 
 // Add adds value to cache for specified key
-// Returns true if the value was added/changed, or false if it was already there.
-// If the value was added/changed, it updates the modified timestamp
-func (b *BasicCache) Add(k string, v interface{}) bool {
+// It will overwrite any existing value
+func (b *BasicCache) Add(k string, v interface{}) {
 	b.m.Lock()
 	defer b.m.Unlock()
 
-	current, found := b.cache[k]
-	if !found || current != v {
-		b.cache[k] = v
-		b.modified = time.Now().Unix()
-		return true
-	}
-	return false
+	b.cache[k] = v
+	b.modified = time.Now().Unix()
 }
 
 // Get gets interface for specified key and a boolean that's false when the key is not found

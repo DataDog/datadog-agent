@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 //go:generate go run ../../pkg/config/render_config.go dogstatsd ../../pkg/config/config_template.yaml ./dist/dogstatsd.yaml
 
@@ -28,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -152,6 +154,10 @@ func runAgent(ctx context.Context) (err error) {
 		return
 	}
 
+	if err := util.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
+
 	if !config.Datadog.IsSet("api_key") {
 		err = log.Critical("no API key configured, exiting")
 		return
@@ -175,9 +181,9 @@ func runAgent(ctx context.Context) (err error) {
 	}
 	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
 	f.Start() //nolint:errcheck
-	s := serializer.NewSerializer(f)
+	s := serializer.NewSerializer(f, nil)
 
-	hname, err := util.GetHostname()
+	hname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s", err)
 		hname = ""
@@ -199,12 +205,13 @@ func runAgent(ctx context.Context) (err error) {
 
 	// container tagging initialisation if origin detection is on
 	if config.Datadog.GetBool("dogstatsd_origin_detection") {
+		tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
 		tagger.Init()
 	}
 
-	aggregatorInstance := aggregator.InitAggregator(s, hname)
+	aggregatorInstance := aggregator.InitAggregator(s, nil, hname)
 
-	statsd, err = dogstatsd.NewServer(aggregatorInstance)
+	statsd, err = dogstatsd.NewServer(aggregatorInstance, nil)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return

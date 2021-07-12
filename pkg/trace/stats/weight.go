@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package stats
 
@@ -46,12 +46,11 @@ const keySamplingRateGlobal = "_sample_rate"
 // inverse of the sampling rate.
 func Weight(s *pb.Span) float64 {
 	if s == nil {
-		return 1.0
+		return 1
 	}
 	sampleRate, ok := s.Metrics[keySamplingRateGlobal]
 	if !ok || sampleRate <= 0.0 || sampleRate > 1.0 {
-		return 1.0
+		return 1
 	}
-
 	return 1.0 / sampleRate
 }

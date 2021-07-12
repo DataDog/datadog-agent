@@ -1,27 +1,29 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package rules
 
 import (
 	"sort"
 
+	"github.com/pkg/errors"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
 // RuleBucket groups rules with the same event type
 type RuleBucket struct {
-	rules  []*eval.Rule
+	rules  []*Rule
 	fields []eval.Field
 }
 
 // AddRule adds a rule to the bucket
-func (rb *RuleBucket) AddRule(rule *eval.Rule) error {
+func (rb *RuleBucket) AddRule(rule *Rule) error {
 	for _, r := range rb.rules {
 		if r.ID == rule.ID {
-			return ErrDuplicateRuleID{ID: r.ID}
+			return &ErrRuleLoad{Definition: rule.Definition, Err: errors.New("multiple definition with the same ID")}
 		}
 	}
 
@@ -40,7 +42,7 @@ func (rb *RuleBucket) AddRule(rule *eval.Rule) error {
 }
 
 // GetRules returns the bucket rules
-func (rb *RuleBucket) GetRules() []*eval.Rule {
+func (rb *RuleBucket) GetRules() []*Rule {
 	return rb.rules
 }
 
@@ -76,7 +78,7 @@ func (rb *RuleBucket) GetApprovers(event eval.Event, fieldCaps FieldCapabilities
 
 	approvers := make(Approvers)
 	for _, rule := range rb.rules {
-		truthTable, err := newTruthTable(rule, event)
+		truthTable, err := newTruthTable(rule.Rule, event)
 		if err != nil {
 			return nil, err
 		}

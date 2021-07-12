@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build clusterchecks
 
@@ -9,11 +9,45 @@ package cloudfoundry
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"code.cloudfoundry.org/bbs/models"
+	"github.com/cloudfoundry-community/go-cfclient"
 	"github.com/stretchr/testify/assert"
 )
+
+var v3App1 = cfclient.V3App{
+	Name:          "name_of_app_cc",
+	State:         "running",
+	Lifecycle:     cfclient.V3Lifecycle{},
+	GUID:          "random_app_guid",
+	CreatedAt:     "",
+	UpdatedAt:     "",
+	Relationships: nil,
+	Links:         nil,
+	Metadata:      cfclient.V3Metadata{},
+}
+
+var cfApp1 = CFApp{
+	Name: "name_of_app_cc",
+}
+
+var v3App2 = cfclient.V3App{
+	Name:          "app2",
+	State:         "running",
+	Lifecycle:     cfclient.V3Lifecycle{},
+	GUID:          "guid2",
+	CreatedAt:     "",
+	UpdatedAt:     "",
+	Relationships: nil,
+	Links:         nil,
+	Metadata:      cfclient.V3Metadata{},
+}
+
+var cfApp2 = CFApp{
+	Name: "app2",
+}
 
 var BBSModelA1 = models.ActualLRP{
 	ActualLRPNetInfo: models.ActualLRPNetInfo{
@@ -86,6 +120,14 @@ var BBSModelD1 = models.DesiredLRP{
 								Name:  "VCAP_SERVICES",
 								Value: "{\"broker\": [{\"name\": \"yyy\"}]}",
 							},
+							{
+								Name:  "CUSTOM_TAG_1",
+								Value: "TEST1",
+							},
+							{
+								Name:  "CUSTOM_TAG_2",
+								Value: "TEST2",
+							},
 						},
 					},
 				},
@@ -118,7 +160,7 @@ var BBSModelD1 = models.DesiredLRP{
 
 var ExpectedD1 = DesiredLRP{
 	AppGUID:         "random_app_guid",
-	AppName:         "name_of_the_app",
+	AppName:         "name_of_app_cc",
 	EnvAD:           ADConfig{"xxx": {}},
 	EnvVcapServices: map[string][]byte{"xxx": []byte("{\"name\":\"xxx\"}")},
 	EnvVcapApplication: map[string]string{
@@ -134,6 +176,31 @@ var ExpectedD1 = DesiredLRP{
 	ProcessGUID:      "0123456789012345678901234567890123456789",
 	SpaceGUID:        "random_space_guid",
 	SpaceName:        "name_of_the_space",
+	TagsFromEnv:      nil,
+}
+
+var ExpectedD2 = DesiredLRP{
+	AppGUID:         "random_app_guid",
+	AppName:         "name_of_app_cc",
+	EnvAD:           ADConfig{"xxx": {}},
+	EnvVcapServices: map[string][]byte{"xxx": []byte("{\"name\":\"xxx\"}")},
+	EnvVcapApplication: map[string]string{
+		"application_name":  "name_of_the_app",
+		"application_id":    "random_app_guid",
+		"organization_name": "name_of_the_org",
+		"organization_id":   "random_org_guid",
+		"space_name":        "name_of_the_space",
+		"space_id":          "random_space_guid",
+	},
+	OrganizationGUID: "random_org_guid",
+	OrganizationName: "name_of_the_org",
+	ProcessGUID:      "0123456789012345678901234567890123456789",
+	SpaceGUID:        "random_space_guid",
+	SpaceName:        "name_of_the_space",
+	TagsFromEnv: []string{
+		"CUSTOM_TAG_1:TEST1",
+		"CUSTOM_TAG_2:TEST2",
+	},
 }
 
 func TestADIdentifier(t *testing.T) {
@@ -176,13 +243,25 @@ func TestADIdentifier(t *testing.T) {
 	}
 }
 
+func TestCFAppFromV3App(t *testing.T) {
+	result := CFAppFromV3App(&v3App1)
+	assert.EqualValues(t, cfApp1, *result)
+}
+
 func TestActualLRPFromBBSModel(t *testing.T) {
 	result := ActualLRPFromBBSModel(&BBSModelA1)
 	assert.EqualValues(t, ExpectedA1, result)
 }
 
 func TestDesiredLRPFromBBSModel(t *testing.T) {
-	result := DesiredLRPFromBBSModel(&BBSModelD1)
+	includeList := []*regexp.Regexp{regexp.MustCompile("CUSTOM_*")}
+	excludeList := []*regexp.Regexp{regexp.MustCompile("NOT_CUSTOM_*")}
+	result := DesiredLRPFromBBSModel(&BBSModelD1, includeList, excludeList)
+	assert.EqualValues(t, ExpectedD2, result)
+
+	includeList = []*regexp.Regexp{}
+	excludeList = []*regexp.Regexp{}
+	result = DesiredLRPFromBBSModel(&BBSModelD1, includeList, excludeList)
 	assert.EqualValues(t, ExpectedD1, result)
 }
 
@@ -199,4 +278,43 @@ func TestGetVcapServicesMap(t *testing.T) {
 	result, err := getVcapServicesMap(input, "xxx")
 	assert.Nil(t, err)
 	assert.EqualValues(t, expected, result)
+}
+
+func TestIsAllowedTag(t *testing.T) {
+	// when both empty, exclude everything
+	includeList := []*regexp.Regexp{}
+	excludeList := []*regexp.Regexp{}
+
+	result := isAllowedTag("aRandomValue", includeList, excludeList)
+	assert.EqualValues(t, false, result)
+
+	// include strings in the includeList and not in the excludeList
+	includeList = []*regexp.Regexp{regexp.MustCompile("include.*")}
+	excludeList = []*regexp.Regexp{}
+
+	result = isAllowedTag("includeTag", includeList, excludeList)
+	assert.EqualValues(t, true, result)
+
+	result = isAllowedTag("excludeTag", includeList, excludeList)
+	assert.EqualValues(t, false, result)
+
+	// reject strings in the excludeList
+	includeList = []*regexp.Regexp{}
+	excludeList = []*regexp.Regexp{regexp.MustCompile("exclude.*")}
+
+	result = isAllowedTag("aRandomValue", includeList, excludeList)
+	assert.EqualValues(t, true, result)
+
+	result = isAllowedTag("excludeTag", includeList, excludeList)
+	assert.EqualValues(t, false, result)
+
+	// reject strings in the excludeList even if they exist in the includeList
+	includeList = []*regexp.Regexp{regexp.MustCompile("include.*")}
+	excludeList = []*regexp.Regexp{regexp.MustCompile("includeExclude.*")}
+
+	result = isAllowedTag("includeTag", includeList, excludeList)
+	assert.EqualValues(t, true, result)
+
+	result = isAllowedTag("includeExcludeTag", includeList, excludeList)
+	assert.EqualValues(t, false, result)
 }

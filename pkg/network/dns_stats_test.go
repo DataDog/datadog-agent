@@ -16,8 +16,8 @@ const (
 	DNSTimeoutSecs = 10
 )
 
-func getSampleDNSKey() dnsKey {
-	return dnsKey{
+func getSampleDNSKey() DNSKey {
+	return DNSKey{
 		serverIP:   util.AddressFromString("8.8.8.8"),
 		clientIP:   util.AddressFromString("1.1.1.1"),
 		clientPort: 1000,
@@ -33,24 +33,26 @@ func testLatency(
 	expectedFailureLatency uint64,
 	expectedTimeouts uint32,
 ) {
-	sk := newDNSStatkeeper(DNSTimeoutSecs * time.Second)
+	var d = "abc.com"
+	sk := newDNSStatkeeper(DNSTimeoutSecs*time.Second, 10000)
 	key := getSampleDNSKey()
-	qPkt := dnsPacketInfo{transactionID: 1, pktType: Query, key: key}
+	qPkt := dnsPacketInfo{transactionID: 1, pktType: Query, key: key, question: d, queryType: DNSTypeA}
 	then := time.Now()
 	sk.ProcessPacketInfo(qPkt, then)
 	stats := sk.GetAndResetAllStats()
 	assert.NotContains(t, stats, key)
 
 	now := then.Add(delta)
-	rPkt := dnsPacketInfo{transactionID: 1, key: key, pktType: respType}
+	rPkt := dnsPacketInfo{transactionID: 1, key: key, pktType: respType, queryType: DNSTypeA}
 
 	sk.ProcessPacketInfo(rPkt, now)
 	stats = sk.GetAndResetAllStats()
 	require.Contains(t, stats, key)
+	require.Contains(t, stats[key], d)
 
-	assert.Equal(t, expectedSuccessLatency, stats[key].successLatencySum)
-	assert.Equal(t, expectedFailureLatency, stats[key].failureLatencySum)
-	assert.Equal(t, expectedTimeouts, stats[key].timeouts)
+	assert.Equal(t, expectedSuccessLatency, stats[key][d][DNSTypeA].DNSSuccessLatencySum)
+	assert.Equal(t, expectedFailureLatency, stats[key][d][DNSTypeA].DNSFailureLatencySum)
+	assert.Equal(t, expectedTimeouts, stats[key][d][DNSTypeA].DNSTimeouts)
 }
 
 func TestSuccessLatency(t *testing.T) {
@@ -69,13 +71,14 @@ func TestTimeout(t *testing.T) {
 }
 
 func TestExpiredStateRemoval(t *testing.T) {
-	sk := newDNSStatkeeper(DNSTimeoutSecs * time.Second)
+	sk := newDNSStatkeeper(DNSTimeoutSecs*time.Second, 10000)
 	key := getSampleDNSKey()
-	qPkt1 := dnsPacketInfo{transactionID: 1, pktType: Query, key: key}
-	rPkt1 := dnsPacketInfo{transactionID: 1, key: key, pktType: SuccessfulResponse}
-	qPkt2 := dnsPacketInfo{transactionID: 2, pktType: Query, key: key}
-	qPkt3 := dnsPacketInfo{transactionID: 3, pktType: Query, key: key}
-	rPkt3 := dnsPacketInfo{transactionID: 3, key: key, pktType: SuccessfulResponse}
+	var d = "abc.com"
+	qPkt1 := dnsPacketInfo{transactionID: 1, pktType: Query, key: key, question: d, queryType: DNSTypeA}
+	rPkt1 := dnsPacketInfo{transactionID: 1, key: key, pktType: SuccessfulResponse, queryType: DNSTypeA}
+	qPkt2 := dnsPacketInfo{transactionID: 2, pktType: Query, key: key, question: d, queryType: DNSTypeA}
+	qPkt3 := dnsPacketInfo{transactionID: 3, pktType: Query, key: key, question: d, queryType: DNSTypeA}
+	rPkt3 := dnsPacketInfo{transactionID: 3, key: key, pktType: SuccessfulResponse, queryType: DNSTypeA}
 
 	sk.ProcessPacketInfo(qPkt1, time.Now())
 	sk.ProcessPacketInfo(rPkt1, time.Now())
@@ -88,10 +91,11 @@ func TestExpiredStateRemoval(t *testing.T) {
 
 	stats := sk.GetAndResetAllStats()
 	require.Contains(t, stats, key)
+	require.Contains(t, stats[key], d)
 
-	require.Contains(t, stats[key].countByRcode, uint8(0))
-	assert.Equal(t, uint32(2), stats[key].countByRcode[0])
-	assert.Equal(t, uint32(1), stats[key].timeouts)
+	require.Contains(t, stats[key][d][DNSTypeA].DNSCountByRcode, uint32(0))
+	assert.Equal(t, uint32(2), stats[key][d][DNSTypeA].DNSCountByRcode[0])
+	assert.Equal(t, uint32(1), stats[key][d][DNSTypeA].DNSTimeouts)
 }
 
 func BenchmarkStats(b *testing.B) {
@@ -111,7 +115,7 @@ func BenchmarkStats(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				sk := newDNSStatkeeper(1000 * time.Second)
+				sk := newDNSStatkeeper(1000*time.Second, 10000)
 				for j := 0; j < numPackets; j++ {
 					sk.ProcessPacketInfo(packets[j], ts)
 				}

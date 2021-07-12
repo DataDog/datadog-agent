@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package sender
 
@@ -38,7 +38,8 @@ func (p *MessageBuffer) AddMessage(message *message.Message) bool {
 
 // Clear reinitializes the buffer.
 func (p *MessageBuffer) Clear() {
-	p.messageBuffer = p.messageBuffer[:0]
+	// create a new buffer to avoid race conditions
+	p.messageBuffer = make([]*message.Message, 0, cap(p.messageBuffer))
 	p.contentSize = 0
 }
 
@@ -55,4 +56,9 @@ func (p *MessageBuffer) IsFull() bool {
 // IsEmpty returns true if the buffer is empty.
 func (p *MessageBuffer) IsEmpty() bool {
 	return len(p.messageBuffer) == 0
+}
+
+// ContentSizeLimit returns the configured content size limit. Messages above this limit are not accepted.
+func (p *MessageBuffer) ContentSizeLimit() int {
+	return p.contentSizeLimit
 }

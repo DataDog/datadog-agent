@@ -15,8 +15,8 @@ import (
 // WithRootNS executes a function within root network namespace and then switch back
 // to the previous namespace. If the thread is already in the root network namespace,
 // the function is executed without calling SYS_SETNS.
-func WithRootNS(procRoot string, fn func()) error {
-	rootNS, err := netns.GetFromPath(fmt.Sprintf("%s/1/ns/net", procRoot))
+func WithRootNS(procRoot string, fn func() error) error {
+	rootNS, err := GetRootNetNamespace(procRoot)
 	if err != nil {
 		return err
 	}
@@ -26,7 +26,7 @@ func WithRootNS(procRoot string, fn func()) error {
 
 // WithNS executes the given function in the given network namespace, and then
 // switches back to the previous namespace.
-func WithNS(procRoot string, ns netns.NsHandle, fn func()) error {
+func WithNS(procRoot string, ns netns.NsHandle, fn func() error) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -36,16 +36,19 @@ func WithNS(procRoot string, ns netns.NsHandle, fn func()) error {
 	}
 
 	if ns.Equal(prevNS) {
-		fn()
-		return nil
+		return fn()
 	}
 
 	if err := netns.Set(ns); err != nil {
 		return err
 	}
 
-	fn()
-	return netns.Set(prevNS)
+	fnErr := fn()
+	nsErr := netns.Set(prevNS)
+	if fnErr != nil {
+		return fnErr
+	}
+	return nsErr
 }
 
 // GetNetNamespaces returns a list of network namespaces on the machine. The caller
@@ -83,6 +86,17 @@ func GetNetNamespaces(procRoot string) ([]netns.NsHandle, error) {
 	return nss, nil
 }
 
+// GetCurrentIno returns the ino number for the current network namespace
+func GetCurrentIno() (uint32, error) {
+	curNS, err := netns.Get()
+	if err != nil {
+		return 0, err
+	}
+	defer curNS.Close()
+
+	return GetInoForNs(curNS)
+}
+
 // GetRootNetNamespace gets the root network namespace
 func GetRootNetNamespace(procRoot string) (netns.NsHandle, error) {
 	return GetNetNamespaceFromPid(procRoot, 1)
@@ -95,7 +109,7 @@ func GetNetNamespaceFromPid(procRoot string, pid int) (netns.NsHandle, error) {
 
 // GetNetNsInoFromPid gets the network namespace inode number for the given
 // `pid`
-func GetNetNsInoFromPid(procRoot string, pid int) (uint64, error) {
+func GetNetNsInoFromPid(procRoot string, pid int) (uint32, error) {
 	ns, err := GetNetNamespaceFromPid(procRoot, pid)
 	if err != nil {
 		return 0, err
@@ -107,7 +121,7 @@ func GetNetNsInoFromPid(procRoot string, pid int) (uint64, error) {
 }
 
 // GetInoForNs gets the inode number for the given network namespace
-func GetInoForNs(ns netns.NsHandle) (uint64, error) {
+func GetInoForNs(ns netns.NsHandle) (uint32, error) {
 	if ns.Equal(netns.None()) {
 		return 0, fmt.Errorf("net ns is none")
 	}
@@ -117,5 +131,5 @@ func GetInoForNs(ns netns.NsHandle) (uint64, error) {
 		return 0, err
 	}
 
-	return s.Ino, nil
+	return uint32(s.Ino), nil
 }

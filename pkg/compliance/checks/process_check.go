@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package checks
 
@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -27,7 +28,7 @@ var processReportedFields = []string{
 	compliance.ProcessFieldCmdLine,
 }
 
-func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Resource) (interface{}, error) {
+func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Resource) (resolved, error) {
 	if res.Process == nil {
 		return nil, fmt.Errorf("%s: expecting process resource in process check", id)
 	}
@@ -44,35 +45,32 @@ func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Reso
 
 	matchedProcesses := processes.findProcessesByName(process.Name)
 
-	var instances []*eval.Instance
+	var instances []resolvedInstance
 	for _, mp := range matchedProcesses {
-
 		flagValues := parseProcessCmdLine(mp.Cmdline)
-		instance := &eval.Instance{
-			Vars: eval.VarMap{
+		instance := eval.NewInstance(
+			eval.VarMap{
 				compliance.ProcessFieldName:    mp.Name,
 				compliance.ProcessFieldExe:     mp.Exe,
 				compliance.ProcessFieldCmdLine: mp.Cmdline,
 			},
-			Functions: eval.FunctionMap{
+			eval.FunctionMap{
 				compliance.ProcessFuncFlag:    processFlag(flagValues),
 				compliance.ProcessFuncHasFlag: processHasFlag(flagValues),
 			},
-		}
-		instances = append(instances, instance)
+		)
+		instances = append(instances, newResolvedInstance(instance, strconv.Itoa(int(mp.Pid)), "process"))
 	}
 
 	if len(instances) == 1 {
-		return instances[0], nil
+		return newResolvedInstance(instances[0], instances[0].ID(), instances[0].Type()), nil
 	}
 
-	return &instanceIterator{
-		instances: instances,
-	}, nil
+	return newResolvedInstances(instances), nil
 }
 
 func processFlag(flagValues map[string]string) eval.Function {
-	return func(_ *eval.Instance, args ...interface{}) (interface{}, error) {
+	return func(_ eval.Instance, args ...interface{}) (interface{}, error) {
 		flag, err := validateProcessFlagArg(args...)
 		if err != nil {
 			return nil, err
@@ -82,7 +80,7 @@ func processFlag(flagValues map[string]string) eval.Function {
 	}
 }
 func processHasFlag(flagValues map[string]string) eval.Function {
-	return func(_ *eval.Instance, args ...interface{}) (interface{}, error) {
+	return func(_ eval.Instance, args ...interface{}) (interface{}, error) {
 		flag, err := validateProcessFlagArg(args...)
 		if err != nil {
 			return nil, err

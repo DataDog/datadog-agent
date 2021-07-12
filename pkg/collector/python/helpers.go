@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build python
 
@@ -83,13 +83,23 @@ var (
 // newStickyLock registers the current thread with the interpreter and locks
 // the GIL. It also sticks the goroutine to the current thread so that a
 // subsequent call to `Unlock` will unregister the very same thread.
-func newStickyLock() *stickyLock {
+func newStickyLock() (*stickyLock, error) {
 	runtime.LockOSThread()
+
+	pyDestroyLock.RLock()
+	defer pyDestroyLock.RUnlock()
+
+	// Ensure that rtloader isn't destroyed while we are trying to acquire GIL
+	if rtloader == nil {
+		return nil, fmt.Errorf("error acquiring the GIL: rtloader is not initialized")
+	}
+
 	state := C.ensure_gil(rtloader)
+
 	return &stickyLock{
 		gstate: state,
 		locked: 1,
-	}
+	}, nil
 }
 
 // unlock deregisters the current thread from the interpreter, unlocks the GIL
@@ -97,7 +107,13 @@ func newStickyLock() *stickyLock {
 // Thread safe ; noop when called on an already-unlocked stickylock.
 func (sl *stickyLock) unlock() {
 	atomic.StoreUint32(&sl.locked, 0)
-	C.release_gil(rtloader, sl.gstate)
+
+	pyDestroyLock.RLock()
+	if rtloader != nil {
+		C.release_gil(rtloader, sl.gstate)
+	}
+	pyDestroyLock.RUnlock()
+
 	runtime.UnlockOSThread()
 }
 
@@ -120,11 +136,11 @@ func cStringArrayToSlice(array **C.char) []string {
 
 // GetPythonIntegrationList collects python datadog installed integrations list
 func GetPythonIntegrationList() ([]string, error) {
-	if rtloader == nil {
-		return nil, fmt.Errorf("rtloader is not initialized")
+	glock, err := newStickyLock()
+	if err != nil {
+		return nil, err
 	}
 
-	glock := newStickyLock()
 	defer glock.unlock()
 
 	integrationsList := C.get_integration_list(rtloader)
@@ -151,11 +167,11 @@ func GetPythonIntegrationList() ([]string, error) {
 
 // GetIntepreterMemoryUsage collects a python interpreter memory usage snapshot
 func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
-	if rtloader == nil {
-		return nil, fmt.Errorf("rtloader is not initialized")
+	glock, err := newStickyLock()
+	if err != nil {
+		return nil, err
 	}
 
-	glock := newStickyLock()
 	defer glock.unlock()
 
 	usage := C.get_interpreter_memory_usage(rtloader)
@@ -210,11 +226,10 @@ func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 
 // SetPythonPsutilProcPath sets python psutil.PROCFS_PATH
 func SetPythonPsutilProcPath(procPath string) error {
-	if rtloader == nil {
-		return fmt.Errorf("rtloader is not initialized")
+	glock, err := newStickyLock()
+	if err != nil {
+		return err
 	}
-
-	glock := newStickyLock()
 	defer glock.unlock()
 
 	module := TrackedCString(psutilModule)

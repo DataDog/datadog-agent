@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build linux
 
@@ -18,10 +18,4 @@ type ContainerResolver struct{}
 func (cr *ContainerResolver) GetContainerID(pid uint32) (utils.ContainerID, error) {
 	// Parse /proc/[pid]/moutinfo
 	return utils.GetProcContainerID(pid, pid)
-}
-
-// ResolveLabels resolves the label of a container from its container ID
-func (cr *ContainerResolver) ResolveLabels(containerID string) ([]string, error) {
-	// Do not use the tagger for now
-	return []string{}, nil
 }

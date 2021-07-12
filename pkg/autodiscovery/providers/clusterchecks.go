@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package providers
 
 import (
+	"context"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -26,7 +27,7 @@ type ClusterChecksConfigProvider struct {
 	graceDuration  time.Duration
 	heartbeat      time.Time
 	lastChange     int64
-	nodeName       string
+	identifier     string
 	flushedConfigs bool
 }
 
@@ -38,13 +39,16 @@ func NewClusterChecksConfigProvider(cfg config.ConfigurationProviders) (ConfigPr
 		graceDuration: defaultGraceDuration,
 	}
 
-	c.nodeName, _ = util.GetHostname()
-	if config.Datadog.GetBool("cloud_foundry") {
-		boshID := config.Datadog.GetString("bosh_id")
-		if boshID == "" {
-			log.Warn("configuration variable cloud_foundry is set to true, but bosh_id is empty, can't retrieve node name")
-		} else {
-			c.nodeName = boshID
+	c.identifier = config.Datadog.GetString("clc_runner_id")
+	if c.identifier == "" {
+		c.identifier, _ = util.GetHostname(context.TODO())
+		if config.Datadog.GetBool("cloud_foundry") {
+			boshID := config.Datadog.GetString("bosh_id")
+			if boshID == "" {
+				log.Warn("configuration variable cloud_foundry is set to true, but bosh_id is empty, can't retrieve node name")
+			} else {
+				c.identifier = boshID
+			}
 		}
 	}
 
@@ -53,7 +57,7 @@ func NewClusterChecksConfigProvider(cfg config.ConfigurationProviders) (ConfigPr
 	}
 
 	// Register in the cluster agent as soon as possible
-	c.IsUpToDate() //nolint:errcheck
+	c.IsUpToDate(context.TODO()) //nolint:errcheck
 
 	return c, nil
 }
@@ -77,7 +81,7 @@ func (c *ClusterChecksConfigProvider) withinGracePeriod() bool {
 
 // IsUpToDate queries the cluster-agent to update its status and
 // query if new configurations are available
-func (c *ClusterChecksConfigProvider) IsUpToDate() (bool, error) {
+func (c *ClusterChecksConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	if c.dcaClient == nil {
 		err := c.initClient()
 		if err != nil {
@@ -89,7 +93,7 @@ func (c *ClusterChecksConfigProvider) IsUpToDate() (bool, error) {
 		LastChange: c.lastChange,
 	}
 
-	reply, err := c.dcaClient.PostClusterCheckStatus(c.nodeName, status)
+	reply, err := c.dcaClient.PostClusterCheckStatus(ctx, c.identifier, status)
 	if err != nil {
 		if c.withinGracePeriod() {
 			// Return true to keep the configs during the grace period
@@ -110,7 +114,7 @@ func (c *ClusterChecksConfigProvider) IsUpToDate() (bool, error) {
 }
 
 // Collect retrieves configurations the cluster-agent dispatched to this agent
-func (c *ClusterChecksConfigProvider) Collect() ([]integration.Config, error) {
+func (c *ClusterChecksConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	if c.dcaClient == nil {
 		err := c.initClient()
 		if err != nil {
@@ -118,7 +122,7 @@ func (c *ClusterChecksConfigProvider) Collect() ([]integration.Config, error) {
 		}
 	}
 
-	reply, err := c.dcaClient.GetClusterCheckConfigs(c.nodeName)
+	reply, err := c.dcaClient.GetClusterCheckConfigs(ctx, c.identifier)
 	if err != nil {
 		if !c.flushedConfigs {
 			// On first error after grace period, mask the error once
@@ -137,4 +141,9 @@ func (c *ClusterChecksConfigProvider) Collect() ([]integration.Config, error) {
 
 func init() {
 	RegisterProvider("clusterchecks", NewClusterChecksConfigProvider)
+}
+
+// GetConfigErrors is not implemented for the ClusterChecksConfigProvider
+func (c *ClusterChecksConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
 }

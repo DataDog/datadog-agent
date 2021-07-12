@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
 package custommetrics
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -71,7 +72,7 @@ func NewConfigMapStore(client kubernetes.Interface, ns, name string) (Store, err
 	setLastUpdatedAnnotation(cm)
 
 	// FIXME: distinguish RBAC error
-	store.cm, err = client.CoreV1().ConfigMaps(ns).Create(cm)
+	store.cm, err = client.CoreV1().ConfigMaps(ns).Create(context.TODO(), cm, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +179,7 @@ func (c *configMapStore) doGetMetrics() (*MetricsBundle, error) {
 
 func (c *configMapStore) getConfigMap() error {
 	var err error
-	c.cm, err = c.client.ConfigMaps(c.namespace).Get(c.name, metav1.GetOptions{})
+	c.cm, err = c.client.ConfigMaps(c.namespace).Get(context.TODO(), c.name, metav1.GetOptions{})
 	if err != nil {
 		log.Infof("Could not get the configmap %s: %v", c.name, err)
 		return err
@@ -189,7 +190,7 @@ func (c *configMapStore) getConfigMap() error {
 func (c *configMapStore) updateConfigMap() error {
 	setLastUpdatedAnnotation(c.cm)
 	var err error
-	c.cm, err = c.client.ConfigMaps(c.namespace).Update(c.cm)
+	c.cm, err = c.client.ConfigMaps(c.namespace).Update(context.TODO(), c.cm, metav1.UpdateOptions{})
 	if err != nil {
 		log.Infof("Could not update the configmap %s: %v", c.name, err)
 		return err

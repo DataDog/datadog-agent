@@ -1,14 +1,16 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package ec2
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -17,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -43,12 +46,12 @@ var (
 )
 
 // GetInstanceID fetches the instance id for current host from the EC2 metadata API
-func GetInstanceID() (string, error) {
+func GetInstanceID(ctx context.Context) (string, error) {
 	if !config.IsCloudProviderEnabled(CloudProviderName) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
-	instanceID, err := getMetadataItemWithMaxLength("/instance-id", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+	instanceID, err := getMetadataItemWithMaxLength(ctx, "/instance-id", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 	if err != nil {
 		if instanceID, found := cache.Cache.Get(instanceIDCacheKey); found {
 			log.Debugf("Unable to get ec2 instanceID from aws metadata, returning cached instanceID '%s': %s", instanceID, err)
@@ -68,28 +71,36 @@ func GetLocalIPv4() ([]string, error) {
 	if !config.IsCloudProviderEnabled(CloudProviderName) {
 		return nil, fmt.Errorf("cloud provider is disabled by configuration")
 	}
-	ip, err := getMetadataItem("/local-ipv4")
+	ip, err := getMetadataItem(context.TODO(), "/local-ipv4")
 	if err != nil {
 		return nil, err
 	}
 	return []string{ip}, nil
 }
 
+// GetPublicIPv4 gets the public IPv4 for the currently running host using the EC2 metadata API.
+func GetPublicIPv4(ctx context.Context) (string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	}
+	return getMetadataItem(ctx, "/public-ipv4")
+}
+
 // IsRunningOn returns true if the agent is running on AWS
-func IsRunningOn() bool {
-	if _, err := GetHostname(); err == nil {
+func IsRunningOn(ctx context.Context) bool {
+	if _, err := GetHostname(ctx); err == nil {
 		return true
 	}
 	return false
 }
 
 // GetHostname fetches the hostname for current host from the EC2 metadata API
-func GetHostname() (string, error) {
+func GetHostname(ctx context.Context) (string, error) {
 	if !config.IsCloudProviderEnabled(CloudProviderName) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
-	hostname, err := getMetadataItemWithMaxLength("/hostname", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+	hostname, err := getMetadataItemWithMaxLength(ctx, "/hostname", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
 	if err != nil {
 		if hostname, found := cache.Cache.Get(hostnameCacheKey); found {
 			log.Debugf("Unable to get ec2 hostname from aws metadata, returning cached hostname '%s': %s", hostname, err)
@@ -106,11 +117,11 @@ func GetHostname() (string, error) {
 // GetNetworkID retrieves the network ID using the EC2 metadata endpoint. For
 // EC2 instances, the the network ID is the VPC ID, if the instance is found to
 // be a part of exactly one VPC.
-func GetNetworkID() (string, error) {
+func GetNetworkID(ctx context.Context) (string, error) {
 	if !config.IsCloudProviderEnabled(CloudProviderName) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
-	resp, err := getMetadataItem("/network/interfaces/macs")
+	resp, err := getMetadataItem(ctx, "/network/interfaces/macs")
 	if err != nil {
 		return "", err
 	}
@@ -123,7 +134,7 @@ func GetNetworkID() (string, error) {
 			continue
 		}
 		mac = strings.TrimSuffix(mac, "/")
-		id, err := getMetadataItem(fmt.Sprintf("/network/interfaces/macs/%s/vpc-id", mac))
+		id, err := getMetadataItem(ctx, fmt.Sprintf("/network/interfaces/macs/%s/vpc-id", mac))
 		if err != nil {
 			return "", err
 		}
@@ -140,18 +151,54 @@ func GetNetworkID() (string, error) {
 	}
 }
 
+// Subnet stores information about an AWS subnet
+type Subnet struct {
+	ID   string
+	Cidr string
+}
+
+// GetSubnetForHardwareAddr returns info about the subnet associated with a hardware
+// address (mac address) on the current host
+func GetSubnetForHardwareAddr(ctx context.Context, hwAddr net.HardwareAddr) (subnet Subnet, err error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		err = fmt.Errorf("cloud provider is disabled by configuration")
+		return
+	}
+
+	if len(hwAddr) == 0 {
+		err = fmt.Errorf("could not get subnet for empty hw addr")
+		return
+	}
+
+	var resp string
+	resp, err = getMetadataItem(ctx, fmt.Sprintf("/network/interfaces/macs/%s/subnet-id", hwAddr))
+	if err != nil {
+		return
+	}
+
+	subnet.ID = strings.TrimSpace(resp)
+
+	resp, err = getMetadataItem(ctx, fmt.Sprintf("/network/interfaces/macs/%s/subnet-ipv4-cidr-block", hwAddr))
+	if err != nil {
+		return
+	}
+
+	subnet.Cidr = strings.TrimSpace(resp)
+	return
+}
+
 // GetNTPHosts returns the NTP hosts for EC2 if it is detected as the cloud provider, otherwise an empty array.
 // Docs: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/set-time.html#configure_ntp
-func GetNTPHosts() []string {
-	if IsRunningOn() {
+func GetNTPHosts(ctx context.Context) []string {
+	if IsRunningOn(ctx) {
 		return []string{"169.254.169.123"}
 	}
 
 	return nil
 }
 
-func getMetadataItemWithMaxLength(endpoint string, maxLength int) (string, error) {
-	result, err := getMetadataItem(endpoint)
+func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, maxLength int) (string, error) {
+	result, err := getMetadataItem(ctx, endpoint)
 	if err != nil {
 		return result, err
 	}
@@ -161,8 +208,8 @@ func getMetadataItemWithMaxLength(endpoint string, maxLength int) (string, error
 	return result, err
 }
 
-func getMetadataItem(endpoint string) (string, error) {
-	res, err := doHTTPRequest(metadataURL+endpoint, http.MethodGet, map[string]string{}, config.Datadog.GetBool("ec2_prefer_imdsv2"))
+func getMetadataItem(ctx context.Context, endpoint string) (string, error) {
+	res, err := doHTTPRequest(ctx, metadataURL+endpoint, http.MethodGet, map[string]string{}, config.Datadog.GetBool("ec2_prefer_imdsv2"))
 	if err != nil {
 		return "", fmt.Errorf("unable to fetch EC2 API, %s", err)
 	}
@@ -177,13 +224,13 @@ func getMetadataItem(endpoint string) (string, error) {
 }
 
 // GetClusterName returns the name of the cluster containing the current EC2 instance
-func GetClusterName() (string, error) {
+func GetClusterName(ctx context.Context) (string, error) {
 	if !config.IsCloudProviderEnabled(CloudProviderName) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
-	tags, err := GetTags()
+	tags, err := fetchTagsFromCache(ctx)
 	if err != nil {
-		return "", fmt.Errorf("unable to retrieve clustername from EC2: %s", err)
+		return "", err
 	}
 
 	return extractClusterName(tags)
@@ -206,18 +253,19 @@ func extractClusterName(tags []string) (string, error) {
 	return clusterName, nil
 }
 
-func doHTTPRequest(url string, method string, headers map[string]string, useToken bool) (*http.Response, error) {
+func doHTTPRequest(ctx context.Context, url string, method string, headers map[string]string, useToken bool) (*http.Response, error) {
 	client := http.Client{
-		Timeout: time.Duration(config.Datadog.GetInt("ec2_metadata_timeout")) * time.Millisecond,
+		Transport: httputils.CreateHTTPTransport(),
+		Timeout:   time.Duration(config.Datadog.GetInt("ec2_metadata_timeout")) * time.Millisecond,
 	}
 
-	req, err := http.NewRequest(method, url, nil)
+	req, err := http.NewRequestWithContext(ctx, method, url, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	if useToken {
-		token, err := getToken()
+		token, err := getToken(ctx)
 		if err != nil {
 			log.Warnf("ec2_prefer_imdsv2 is set to true in the configuration but the agent was unable to proceed: %s", err)
 		} else {
@@ -238,7 +286,7 @@ func doHTTPRequest(url string, method string, headers map[string]string, useToke
 	return res, nil
 }
 
-func getToken() (string, error) {
+func getToken(ctx context.Context) (string, error) {
 
 	token.RLock()
 	// The token renewal window is open, refreshing the token
@@ -256,10 +304,11 @@ func getToken() (string, error) {
 	}
 
 	client := http.Client{
-		Timeout: time.Duration(config.Datadog.GetInt("ec2_metadata_timeout")) * time.Millisecond,
+		Transport: httputils.CreateHTTPTransport(),
+		Timeout:   time.Duration(config.Datadog.GetInt("ec2_metadata_timeout")) * time.Millisecond,
 	}
 
-	req, err := http.NewRequest(http.MethodPut, tokenURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, tokenURL, nil)
 	if err != nil {
 		return "", err
 	}
@@ -328,7 +377,7 @@ func isDefaultHostname(hostname string, useWindowsPrefix bool) bool {
 }
 
 // HostnameProvider gets the hostname
-func HostnameProvider() (string, error) {
+func HostnameProvider(ctx context.Context) (string, error) {
 	log.Debug("GetHostname trying EC2 metadata...")
-	return GetInstanceID()
+	return GetInstanceID(ctx)
 }

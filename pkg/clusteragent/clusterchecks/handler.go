@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build clusterchecks
 
@@ -40,7 +40,7 @@ type pluggableAutoConfig interface {
 	RemoveScheduler(string)
 }
 
-// The handler is the glue holding all components for cluster-checks management
+// Handler is the glue holding all components for cluster-checks management
 type Handler struct {
 	autoconfig           pluggableAutoConfig
 	dispatcher           *dispatcher

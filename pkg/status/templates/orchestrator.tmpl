@@ -2,7 +2,7 @@
 */}}=====================
 Orchestrator Explorer
 =====================
-
+  Collection Status: {{ .CollectionWorking }}
 {{- if .Error }}
   Error: {{ .Error }}
 {{- end }}
@@ -10,52 +10,41 @@ Orchestrator Explorer
   Disabled: {{ .Disabled }}
 {{- end }}
 {{- if .ClusterIDError }}
-  ClusterIDError: {{.ClusterIDError}}
+  Cluster ID error: {{.ClusterIDError}}
 {{- end }}
-
+{{- if .ClusterName }}
+  Cluster Name: {{.ClusterName}}
+{{- end }}
 {{- if .ClusterID }}
-  ClusterID: {{.ClusterID}}
+  Cluster ID: {{.ClusterID}}
 {{- end }}
 {{- if .ClusterNameError }}
-  ClusterIDError: {{.ClusterNameError}}
+  Cluster ID error: {{.ClusterNameError}}
 {{- end }}
 
-{{- if .ClusterName }}
-  ClusterName: {{.ClusterName}}
-{{- end }}
 {{- if .ContainerScrubbing }}
   {{.ContainerScrubbing}}
 {{- end}}
 {{- if and (not .Error) (not .Disabled) }}
+{{/* this line intentionally left blank */}}
   ======================
   Orchestrator Endpoints
   ======================
-{{- if .OrchestratorEndpoint }}
-    OrchestratorEndpoint: {{.OrchestratorEndpoint}}
-{{- end }}
-{{- if .OrchestratorAdditionalEndpoints }}
-    {{ range $key, $value := .OrchestratorAdditionalEndpoints }}OrchestratorAdditionalEndpoint: {{$key}}
-    {{/* this line intentionally left blank */}}
-    {{- end }}
+  {{- range $key, $values := .OrchestratorEndpoints}}
+  {{- if gt (len $values) 1}}
+  {{$key}} - API Keys ending with:
+  {{- range $values }}
+      - {{ . }}
+  {{- end}}
+  {{- else}}
+  {{$key}} - API Key ending with: {{index $values 0}}
+  {{- end}}
+  {{- end}}
 
-{{- end }}
-
-  ===============
-  Forwarder Stats
-  ===============
-{{- with .Transactions -}}
-    {{/* this line intentionally left blank */}}
-    Pods: {{.Pods}}
-    Deployments: {{.Deployments}}
-    ReplicaSets: {{.ReplicaSets}}
-    Services: {{.Services}}
-    Nodes: {{.Nodes}}
-{{- end -}}
-{{/* this line intentionally left blank */}}
-{{/* this line intentionally left blank */}}
 {{- if .LeaderError }}
-    LeaderError: {{.ClusterIDError}}
+    Leader election error: {{.ClusterIDError}}
 {{else}}
+{{/* this line intentionally left blank */}}
 {{- if .Leader }}
   ===========
   Cache Stats
@@ -71,9 +60,22 @@ Orchestrator Explorer
       Last Run: (Hits: {{.ServicesStats.CacheHits}} Miss: {{.ServicesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Services}} Miss: {{.CacheMiss.Services}})
     Nodes:
       Last Run: (Hits: {{.NodesStats.CacheHits}} Miss: {{.NodesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Nodes}} Miss: {{.CacheMiss.Nodes}})
+    Cluster:
+      Last Run: (Hits: {{.ClustersStats.CacheHits}} Miss: {{.ClustersStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Clusters}} Miss: {{.CacheMiss.Clusters}})
+    Job:
+      Last Run: (Hits: {{.JobsStats.CacheHits}} Miss: {{.JobsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Jobs}} Miss: {{.CacheMiss.Jobs}})
+    CronJob:
+      Last Run: (Hits: {{.CronJobsStats.CacheHits}} Miss: {{.CronJobsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.CronJobs}} Miss: {{.CacheMiss.CronJobs}})
+    DaemonSets:
+      Last Run: (Hits: {{.DaemonSetsStats.CacheHits}} Miss: {{.DaemonSetsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.DaemonSets}} Miss: {{.CacheMiss.DaemonSets}})
+    StatefulSets:
+      Last Run: (Hits: {{.StatefulSetsStats.CacheHits}} Miss: {{.StatefulSetsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.StatefulSets}} Miss: {{.CacheMiss.StatefulSets}})
 {{else}}
-  Status: Follower, redirecting to leader at: {{ .LeaderIP }}
+{{- if .LeaderName }}
+  Status: Follower, cluster agent leader is: {{ .LeaderName }}
+{{else}}
+  Leader election in progress, see dedicated section for more info
 {{- end}}
 {{- end}}
 {{- end}}
-{{/* this line intentionally left blank */}}
+{{- end}}

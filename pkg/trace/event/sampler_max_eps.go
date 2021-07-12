@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package event
 
@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -121,33 +122,50 @@ type rateCounter interface {
 
 // samplerBackendRateCounter is a rateCounter backed by a maxEPSSampler.Backend.
 type samplerBackendRateCounter struct {
-	backend sampler.Backend
+	backend *sampler.MemoryBackend
+	exit    chan struct{}
+	stopped chan struct{}
 }
 
 // newSamplerBackendRateCounter creates a new samplerBackendRateCounter based on exponential decay counters.
 func newSamplerBackendRateCounter() *samplerBackendRateCounter {
 	return &samplerBackendRateCounter{
-		// TODO: Allow these to be configurable or study better defaults based on intended target
 		backend: sampler.NewMemoryBackend(1*time.Second, 1.125),
+		exit:    make(chan struct{}),
+		stopped: make(chan struct{}),
 	}
 }
 
 // Start starts the decaying of the backend rate counter.
-func (sb *samplerBackendRateCounter) Start() {
-	go sb.backend.Run()
+func (s *samplerBackendRateCounter) Start() {
+	go func() {
+		defer watchdog.LogOnPanic()
+		decayTicker := time.NewTicker(s.backend.DecayPeriod)
+		defer decayTicker.Stop()
+		for {
+			select {
+			case <-decayTicker.C:
+				s.backend.DecayScore()
+			case <-s.exit:
+				close(s.stopped)
+				return
+			}
+		}
+	}()
 }
 
 // Stop stops the decaying of the backend rate counter.
-func (sb *samplerBackendRateCounter) Stop() {
-	sb.backend.Stop()
+func (s *samplerBackendRateCounter) Stop() {
+	close(s.exit)
+	<-s.stopped
 }
 
 // Count adds an event to the rate computation.
-func (sb *samplerBackendRateCounter) Count() {
-	sb.backend.CountSample()
+func (s *samplerBackendRateCounter) Count() {
+	s.backend.CountSample()
 }
 
 // GetRate gets the current event rate.
-func (sb *samplerBackendRateCounter) GetRate() float64 {
-	return sb.backend.GetUpperSampledScore()
+func (s *samplerBackendRateCounter) GetRate() float64 {
+	return s.backend.GetUpperSampledScore()
 }

@@ -2,7 +2,7 @@
 # Cookbook Name:: dd-security-agent-check
 # Recipe:: default
 #
-# Copyright (C) 2020 Datadog
+# Copyright (C) 2020-present Datadog
 #
 
 if node['platform_family'] != 'windows'
@@ -32,14 +32,31 @@ if node['platform_family'] != 'windows'
       apt_update
 
       package 'gnupg'
+
+      package 'unattended-upgrades' do
+        action :remove
+      end
     end
 
     if ['ubuntu', 'debian', 'centos'].include?(node[:platform])
       package 'xfsprogs'
     end
 
-    docker_service 'default' do
-      action [:create, :start]
+    if ['oracle'].include?(node[:platform])
+      docker_installation_package 'default' do
+        action :create
+        setup_docker_repo false
+        package_name 'docker-engine'
+        package_options %q|-y|
+      end
+
+      service 'docker' do
+        action [ :enable, :start ]
+      end
+    else
+      docker_service 'default' do
+        action [:create, :start]
+      end
     end
 
     docker_image 'centos' do
@@ -52,9 +69,10 @@ if node['platform_family'] != 'windows'
       tag '7'
       cap_add ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
       command "sleep 3600"
-      volumes ['/tmp/security-agent:/tmp/security-agent', '/proc:/host/proc']
-      env ['HOST_PROC=/host/proc']
+      volumes ['/tmp/security-agent:/tmp/security-agent', '/proc:/host/proc', '/etc/os-release:/host/etc/os-release']
+      env ['HOST_PROC=/host/proc', 'DOCKER_DD_AGENT=yes']
       privileged true
+      pid_mode 'host'
     end
 
     docker_exec 'debug_fs' do
@@ -64,7 +82,7 @@ if node['platform_family'] != 'windows'
 
     docker_exec 'install_xfs' do
       container 'docker-testsuite'
-      command ['yum', '-y', 'install', 'xfsprogs', 'e2fsprogs']
+      command ['yum', '-y', 'install', 'xfsprogs', 'e2fsprogs', 'glibc.i686']
     end
 
     for i in 0..7 do
@@ -78,7 +96,7 @@ if node['platform_family'] != 'windows'
   if not platform_family?('suse')
     package 'Install i386 libc' do
       case node[:platform]
-      when 'redhat', 'centos', 'fedora'
+      when 'redhat', 'centos', 'fedora', 'oracle'
         package_name 'glibc.i686'
       when 'ubuntu', 'debian'
         package_name 'libc6-i386'

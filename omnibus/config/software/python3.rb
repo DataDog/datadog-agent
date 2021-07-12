@@ -1,6 +1,6 @@
 name "python3"
 
-default_version "3.8.5"
+default_version "3.8.10"
 
 if ohai["platform"] != "windows"
   dependency "libffi"
@@ -14,13 +14,14 @@ if ohai["platform"] != "windows"
   dependency "libyaml"
 
   source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-         :sha256 => "015115023c382eb6ab83d512762fe3c5502fa0c6c52ffebc4831c4e1a06ffc49"
+         :sha256 => "b37ac74d2cbad2590e7cd0dd2b3826c29afe89a734090a87bf8c03c45066cb65"
 
   relative_path "Python-#{version}"
 
   python_configure = ["./configure",
                       "--prefix=#{install_dir}/embedded",
-                      "--with-ssl=#{install_dir}/embedded"]
+                      "--with-ssl=#{install_dir}/embedded",
+                      "--with-ensurepip=no"] # pip is installed separately by its own software def
 
   if mac_os_x?
     python_configure.push("--enable-ipv6",
@@ -64,20 +65,17 @@ if ohai["platform"] != "windows"
 
 else
   dependency "vc_redist_14"
-  #
-  # note for next version after 3.8.1, remove the `-withcrt` as the filename won't
-  # include that any more
-  #
+
   if windows_arch_i386?
     dependency "vc_ucrt_redist"
 
     source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x86.zip",
-            :sha256 => "3429dea4f0ad7ab03fb611948285386fa46ebf0f3f905cdde18a5419c87650e9"
+            :sha256 => "ac6acfa3d1f6a73e0e0580debdd5a813961d4054a7da6038780bf5d47e4ae647"
   else
 
     # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
     source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-amd64.zip",
-         :sha256 => "27adbfb9cba23d0403f0dd2a1e7681fb101ef263eefea17c225c65c25a4a30e5"
+         :sha256 => "3f1533fb5d3944c57f554c9e80f4d77d953eb64e9eca68bb055642f9a8fe5a23"
 
   end
   vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"

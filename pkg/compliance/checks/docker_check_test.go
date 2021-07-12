@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package checks
 
@@ -53,10 +53,10 @@ func TestDockerImageCheck(t *testing.T) {
 	assert.NoError(loadTestJSON("./testdata/docker/image-list.json", &images))
 	client.On("ImageList", mockCtx, types.ImageListOptions{All: true}).Return(images, nil)
 
-	// Only iterated images here (second item stops the iteration)
 	imageIDMap := map[string]string{
 		"sha256:09f3f4e9394f7620fb6f1025755c85dac07f7e7aa4fca4ba19e4a03590b63750": "./testdata/docker/image-09f3f4e9394f.json",
 		"sha256:f9b9909726890b00d2098081642edf32e5211b7ab53563929a47f250bcdc1d7c": "./testdata/docker/image-f9b990972689.json",
+		"sha256:89ec9da682137d6b18ab8244ca263b6771067f251562f884c7510c8f1e5ac910": "./testdata/docker/image-89ec9da68213.json",
 	}
 
 	for id, path := range imageIDMap {
@@ -67,17 +67,38 @@ func TestDockerImageCheck(t *testing.T) {
 
 	env := &mocks.Env{}
 	defer env.AssertExpectations(t)
+
 	env.On("DockerClient").Return(client)
 
 	dockerCheck, err := newResourceCheck(env, "rule-id", resource)
 	assert.NoError(err)
 
-	report, err := dockerCheck.check(env)
-	assert.NoError(err)
+	reports := dockerCheck.check(env)
 
-	assert.False(report.Passed)
-	assert.Equal("sha256:f9b9909726890b00d2098081642edf32e5211b7ab53563929a47f250bcdc1d7c", report.Data["image.id"])
-	assert.Equal([]string{"redis:latest"}, report.Data["image.tags"])
+	expected := map[string]struct {
+		Passed bool
+		Tags   []string
+	}{
+		"sha256:f9b9909726890b00d2098081642edf32e5211b7ab53563929a47f250bcdc1d7c": {
+			Passed: false,
+			Tags:   []string{"redis:latest"},
+		},
+		"sha256:09f3f4e9394f7620fb6f1025755c85dac07f7e7aa4fca4ba19e4a03590b63750": {
+			Passed: true,
+			Tags:   []string{"nginx-healthcheck:latest"},
+		},
+		"sha256:89ec9da682137d6b18ab8244ca263b6771067f251562f884c7510c8f1e5ac910": {
+			Passed: false,
+			Tags:   []string{"nginx:alpine"},
+		},
+	}
+
+	assert.Equal(len(reports), 3)
+
+	for _, report := range reports {
+		assert.Equal(expected[report.Data["image.id"].(string)].Passed, report.Passed, report.Data["image.id"])
+		assert.Equal(expected[report.Data["image.id"].(string)].Tags, report.Data["image.tags"], report.Data["image.id"])
+	}
 }
 
 func TestDockerNetworkCheck(t *testing.T) {
@@ -99,16 +120,16 @@ func TestDockerNetworkCheck(t *testing.T) {
 
 	env := &mocks.Env{}
 	defer env.AssertExpectations(t)
+
 	env.On("DockerClient").Return(client)
 
 	dockerCheck, err := newResourceCheck(env, "rule-id", resource)
 	assert.NoError(err)
 
-	report, err := dockerCheck.check(env)
-	assert.NoError(err)
+	reports := dockerCheck.check(env)
 
-	assert.True(report.Passed)
-	assert.Equal("bridge", report.Data["network.name"])
+	assert.True(reports[0].Passed)
+	assert.Equal("bridge", reports[0].Data["network.name"])
 }
 
 func TestDockerContainerCheck(t *testing.T) {
@@ -213,18 +234,18 @@ func TestDockerContainerCheck(t *testing.T) {
 
 			env := &mocks.Env{}
 			defer env.AssertExpectations(t)
+
 			env.On("DockerClient").Return(client)
 
 			dockerCheck, err := newResourceCheck(env, "rule-id", resource)
 			assert.NoError(err)
 
-			report, err := dockerCheck.check(env)
-			assert.NoError(err)
+			reports := dockerCheck.check(env)
 
-			assert.Equal(test.expectPassed, report.Passed)
-			assert.Equal("3c4bd9d35d42efb2314b636da42d4edb3882dc93ef0b1931ed0e919efdceec87", report.Data["container.id"])
-			assert.Equal("/sharp_cori", report.Data["container.name"])
-			assert.Equal("sha256:b4ceee5c3fa3cea2607d5e2bcc54d019be616e322979be8fc7a8d0d78b59a1f1", report.Data["container.image"])
+			assert.Equal(test.expectPassed, reports[0].Passed)
+			assert.Equal("3c4bd9d35d42efb2314b636da42d4edb3882dc93ef0b1931ed0e919efdceec87", reports[0].Data["container.id"])
+			assert.Equal("/sharp_cori", reports[0].Data["container.name"])
+			assert.Equal("sha256:b4ceee5c3fa3cea2607d5e2bcc54d019be616e322979be8fc7a8d0d78b59a1f1", reports[0].Data["container.image"])
 		})
 	}
 }
@@ -248,15 +269,15 @@ func TestDockerInfoCheck(t *testing.T) {
 
 	env := &mocks.Env{}
 	defer env.AssertExpectations(t)
+
 	env.On("DockerClient").Return(client)
 
 	dockerCheck, err := newResourceCheck(env, "rule-id", resource)
 	assert.NoError(err)
 
-	report, err := dockerCheck.check(env)
-	assert.NoError(err)
+	reports := dockerCheck.check(env)
 
-	assert.False(report.Passed)
+	assert.False(reports[0].Passed)
 }
 
 func TestDockerVersionCheck(t *testing.T) {
@@ -283,9 +304,8 @@ func TestDockerVersionCheck(t *testing.T) {
 	dockerCheck, err := newResourceCheck(env, "rule-id", resource)
 	assert.NoError(err)
 
-	report, err := dockerCheck.check(env)
-	assert.NoError(err)
+	reports := dockerCheck.check(env)
 
-	assert.False(report.Passed)
-	assert.Equal("19.03.6", report.Data["docker.version"])
+	assert.False(reports[0].Passed)
+	assert.Equal("19.03.6", reports[0].Data["docker.version"])
 }

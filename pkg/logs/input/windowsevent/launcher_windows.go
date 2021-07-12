@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build windows
 
@@ -18,6 +18,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"golang.org/x/sys/windows"
 )
 
@@ -81,6 +82,9 @@ func evtNextChannel(h evtEnumHandle) (ch string, err error) {
 	}
 	err = nil
 	// Call will set error anyway.  Clear it so we don't return an error
-	ch = ConvertWindowsString(buf)
+
+	// make sure size of buffer is set
+	buf = buf[:(bufUsed * 2)]
+	ch = winutil.ConvertWindowsString(buf)
 	return
 }

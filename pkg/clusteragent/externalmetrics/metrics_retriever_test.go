@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -36,13 +36,18 @@ func (p *mockedProcessor) ProcessEMList(emList []custommetrics.ExternalMetricVal
 	return nil
 }
 
+type ddmWithQuery struct {
+	ddm   model.DatadogMetricInternal
+	query string
+}
+
 type metricsFixture struct {
 	desc         string
 	maxAge       int64
-	storeContent []model.DatadogMetricInternal
+	storeContent []ddmWithQuery
 	queryResults map[string]autoscalers.Point
 	queryError   error
-	expected     []model.DatadogMetricInternal
+	expected     []ddmWithQuery
 }
 
 func (f *metricsFixture) run(t *testing.T, testTime time.Time) {
@@ -51,7 +56,8 @@ func (f *metricsFixture) run(t *testing.T, testTime time.Time) {
 	// Create and fill store
 	store := NewDatadogMetricsInternalStore()
 	for _, datadogMetric := range f.storeContent {
-		store.Set(datadogMetric.ID, datadogMetric, "utest")
+		datadogMetric.ddm.SetQueries(datadogMetric.query)
+		store.Set(datadogMetric.ddm.ID, datadogMetric.ddm, "utest")
 	}
 
 	// Create MetricsRetriever
@@ -64,19 +70,20 @@ func (f *metricsFixture) run(t *testing.T, testTime time.Time) {
 	metricsRetriever.retrieveMetricsValues()
 
 	for _, expectedDatadogMetric := range f.expected {
-		datadogMetric := store.Get(expectedDatadogMetric.ID)
+		expectedDatadogMetric.ddm.SetQueries(expectedDatadogMetric.query)
+		datadogMetric := store.Get(expectedDatadogMetric.ddm.ID)
 
 		// Update time will be set to a value (as metricsRetriever uses time.Now()) that should be > testTime
 		// Thus, aligning updateTime to have a working comparison
-		if !expectedDatadogMetric.Valid && datadogMetric != nil && datadogMetric.Active {
-			assert.Condition(t, func() bool { return datadogMetric.UpdateTime.After(expectedDatadogMetric.UpdateTime) })
+		if !expectedDatadogMetric.ddm.Valid && datadogMetric != nil && datadogMetric.Active {
+			assert.Condition(t, func() bool { return datadogMetric.UpdateTime.After(expectedDatadogMetric.ddm.UpdateTime) })
 
 			alignedTime := time.Now().UTC()
-			expectedDatadogMetric.UpdateTime = alignedTime
+			expectedDatadogMetric.ddm.UpdateTime = alignedTime
 			datadogMetric.UpdateTime = alignedTime
 		}
 
-		assert.Equal(t, &expectedDatadogMetric, datadogMetric)
+		assert.Equal(t, &expectedDatadogMetric.ddm, datadogMetric)
 	}
 }
 
@@ -90,22 +97,26 @@ func TestRetrieveMetricsBasic(t *testing.T) {
 		{
 			maxAge: 30,
 			desc:   "Test nominal case - no errors while retrieving metric values",
-			storeContent: []model.DatadogMetricInternal{
+			storeContent: []ddmWithQuery{
 				{
-					ID:         "metric0",
-					Active:     true,
-					Query:      "query-metric0",
-					UpdateTime: defaultPreviousUpdateTime,
-					Valid:      true,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric0",
+						Active:     true,
+						UpdateTime: defaultPreviousUpdateTime,
+						Valid:      true,
+						Error:      nil,
+					},
+					query: "query-metric0",
 				},
 				{
-					ID:         "metric1",
-					Active:     true,
-					Query:      "query-metric1",
-					UpdateTime: defaultPreviousUpdateTime,
-					Valid:      false,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric1",
+						Active:     true,
+						UpdateTime: defaultPreviousUpdateTime,
+						Valid:      false,
+						Error:      nil,
+					},
+					query: "query-metric1",
 				},
 			},
 			queryResults: map[string]autoscalers.Point{
@@ -121,24 +132,28 @@ func TestRetrieveMetricsBasic(t *testing.T) {
 				},
 			},
 			queryError: nil,
-			expected: []model.DatadogMetricInternal{
+			expected: []ddmWithQuery{
 				{
-					ID:         "metric0",
-					Active:     true,
-					Query:      "query-metric0",
-					Value:      10.0,
-					UpdateTime: defaultTestTime,
-					Valid:      true,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric0",
+						Active:     true,
+						Value:      10.0,
+						UpdateTime: defaultTestTime,
+						Valid:      true,
+						Error:      nil,
+					},
+					query: "query-metric0",
 				},
 				{
-					ID:         "metric1",
-					Active:     true,
-					Query:      "query-metric1",
-					Value:      11.0,
-					UpdateTime: defaultTestTime,
-					Valid:      true,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric1",
+						Active:     true,
+						Value:      11.0,
+						UpdateTime: defaultTestTime,
+						Valid:      true,
+						Error:      nil,
+					},
+					query: "query-metric1",
 				},
 			},
 		},
@@ -161,22 +176,26 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 		{
 			maxAge: 5,
 			desc:   "Test expired data from backend",
-			storeContent: []model.DatadogMetricInternal{
+			storeContent: []ddmWithQuery{
 				{
-					ID:         "metric0",
-					Active:     true,
-					Query:      "query-metric0",
-					UpdateTime: defaultPreviousUpdateTime,
-					Valid:      true,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric0",
+						Active:     true,
+						UpdateTime: defaultPreviousUpdateTime,
+						Valid:      true,
+						Error:      nil,
+					},
+					query: "query-metric0",
 				},
 				{
-					ID:         "metric1",
-					Active:     true,
-					Query:      "query-metric1",
-					UpdateTime: defaultPreviousUpdateTime,
-					Valid:      false,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric1",
+						Active:     true,
+						UpdateTime: defaultPreviousUpdateTime,
+						Valid:      false,
+						Error:      nil,
+					},
+					query: "query-metric1",
 				},
 			},
 			queryResults: map[string]autoscalers.Point{
@@ -192,48 +211,56 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 				},
 			},
 			queryError: nil,
-			expected: []model.DatadogMetricInternal{
+			expected: []ddmWithQuery{
 				{
-					ID:         "metric0",
-					Active:     true,
-					Query:      "query-metric0",
-					Value:      10.0,
-					UpdateTime: defaultTestTime,
-					Valid:      true,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric0",
+						Active:     true,
+						Value:      10.0,
+						UpdateTime: defaultTestTime,
+						Valid:      true,
+						Error:      nil,
+					},
+					query: "query-metric0",
 				},
 				{
-					ID:     "metric1",
-					Active: true,
-					Query:  "query-metric1",
-					Value:  11.0,
-					Valid:  false,
-					Error:  fmt.Errorf(invalidMetricOutdatedErrorMessage, "query-metric1"),
-					// UpdateTime not set as it will not be compared directly
+					ddm: model.DatadogMetricInternal{
+						ID:     "metric1",
+						Active: true,
+						Value:  11.0,
+						Valid:  false,
+						Error:  fmt.Errorf(invalidMetricOutdatedErrorMessage, "query-metric1"),
+						// UpdateTime not set as it will not be compared directly
+					},
+					query: "query-metric1",
 				},
 			},
 		},
 		{
 			maxAge: 30,
 			desc:   "Test backend error (single metric)",
-			storeContent: []model.DatadogMetricInternal{
+			storeContent: []ddmWithQuery{
 				{
-					ID:         "metric0",
-					Active:     true,
-					Query:      "query-metric0",
-					Value:      8.0,
-					UpdateTime: defaultPreviousUpdateTime,
-					Valid:      true,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric0",
+						Active:     true,
+						Value:      8.0,
+						UpdateTime: defaultPreviousUpdateTime,
+						Valid:      true,
+						Error:      nil,
+					},
+					query: "query-metric0",
 				},
 				{
-					ID:         "metric1",
-					Active:     true,
-					Query:      "query-metric1",
-					Value:      11.0,
-					UpdateTime: defaultPreviousUpdateTime,
-					Valid:      true,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric1",
+						Active:     true,
+						Value:      11.0,
+						UpdateTime: defaultPreviousUpdateTime,
+						Valid:      true,
+						Error:      nil,
+					},
+					query: "query-metric1",
 				},
 			},
 			queryResults: map[string]autoscalers.Point{
@@ -249,94 +276,110 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 				},
 			},
 			queryError: nil,
-			expected: []model.DatadogMetricInternal{
+			expected: []ddmWithQuery{
 				{
-					ID:         "metric0",
-					Active:     true,
-					Query:      "query-metric0",
-					Value:      10.0,
-					UpdateTime: defaultTestTime,
-					Valid:      true,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric0",
+						Active:     true,
+						Value:      10.0,
+						UpdateTime: defaultTestTime,
+						Valid:      true,
+						Error:      nil,
+					},
+					query: "query-metric0",
 				},
 				{
-					ID:     "metric1",
-					Active: true,
-					Query:  "query-metric1",
-					Value:  11.0,
-					Valid:  false,
-					Error:  fmt.Errorf(invalidMetricBackendErrorMessage, "query-metric1"),
-					// UpdateTime not set as it will not be compared directly
+					ddm: model.DatadogMetricInternal{
+						ID:     "metric1",
+						Active: true,
+						Value:  11.0,
+						Valid:  false,
+						Error:  fmt.Errorf(invalidMetricBackendErrorMessage, "query-metric1"),
+						// UpdateTime not set as it will not be compared directly
+					},
+					query: "query-metric1",
 				},
 			},
 		},
 		{
 			maxAge: 30,
 			desc:   "Test global error from backend",
-			storeContent: []model.DatadogMetricInternal{
+			storeContent: []ddmWithQuery{
 				{
-					ID:         "metric0",
-					Active:     true,
-					Query:      "query-metric0",
-					Value:      1.0,
-					UpdateTime: defaultPreviousUpdateTime,
-					Valid:      true,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric0",
+						Active:     true,
+						Value:      1.0,
+						UpdateTime: defaultPreviousUpdateTime,
+						Valid:      true,
+						Error:      nil,
+					},
+					query: "query-metric0",
 				},
 				{
-					ID:         "metric1",
-					Active:     true,
-					Query:      "query-metric1",
-					Value:      2.0,
-					UpdateTime: defaultPreviousUpdateTime,
-					Valid:      false,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric1",
+						Active:     true,
+						Value:      2.0,
+						UpdateTime: defaultPreviousUpdateTime,
+						Valid:      false,
+						Error:      nil,
+					},
+					query: "query-metric1",
 				},
 			},
 			queryResults: map[string]autoscalers.Point{},
 			queryError:   fmt.Errorf("Backend error 500"),
-			expected: []model.DatadogMetricInternal{
+			expected: []ddmWithQuery{
 				{
-					ID:     "metric0",
-					Active: true,
-					Query:  "query-metric0",
-					Value:  1.0,
-					Valid:  false,
-					Error:  fmt.Errorf(invalidMetricGlobalErrorMessage),
-					// UpdateTime not set as it will not be compared directly
+					ddm: model.DatadogMetricInternal{
+						ID:     "metric0",
+						Active: true,
+						Value:  1.0,
+						Valid:  false,
+						Error:  fmt.Errorf(invalidMetricGlobalErrorMessage),
+						// UpdateTime not set as it will not be compared directly
+					},
+					query: "query-metric0",
 				},
 				{
-					ID:     "metric1",
-					Active: true,
-					Query:  "query-metric1",
-					Value:  2.0,
-					Valid:  false,
-					Error:  fmt.Errorf(invalidMetricGlobalErrorMessage),
-					// UpdateTime not set as it will not be compared directly
+					ddm: model.DatadogMetricInternal{
+						ID:     "metric1",
+						Active: true,
+						Value:  2.0,
+						Valid:  false,
+						Error:  fmt.Errorf(invalidMetricGlobalErrorMessage),
+						// UpdateTime not set as it will not be compared directly
+					},
+					query: "query-metric1",
 				},
 			},
 		},
 		{
 			maxAge: 30,
 			desc:   "Test missing query response from backend",
-			storeContent: []model.DatadogMetricInternal{
+			storeContent: []ddmWithQuery{
 				{
-					ID:         "metric0",
-					Active:     true,
-					Query:      "query-metric0",
-					Value:      1.0,
-					UpdateTime: defaultPreviousUpdateTime,
-					Valid:      true,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric0",
+						Active:     true,
+						Value:      1.0,
+						UpdateTime: defaultPreviousUpdateTime,
+						Valid:      true,
+						Error:      nil,
+					},
+					query: "query-metric0",
 				},
 				{
-					ID:         "metric1",
-					Active:     true,
-					Query:      "query-metric1",
-					Value:      2.0,
-					UpdateTime: defaultPreviousUpdateTime,
-					Valid:      false,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric1",
+						Active:     true,
+						Value:      2.0,
+						UpdateTime: defaultPreviousUpdateTime,
+						Valid:      false,
+						Error:      nil,
+					},
+					query: "query-metric1",
 				},
 			},
 			queryResults: map[string]autoscalers.Point{
@@ -347,24 +390,28 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 				},
 			},
 			queryError: fmt.Errorf("Backend error 500"),
-			expected: []model.DatadogMetricInternal{
+			expected: []ddmWithQuery{
 				{
-					ID:         "metric0",
-					Active:     true,
-					Query:      "query-metric0",
-					Value:      10.0,
-					UpdateTime: defaultTestTime,
-					Valid:      true,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric0",
+						Active:     true,
+						Value:      10.0,
+						UpdateTime: defaultTestTime,
+						Valid:      true,
+						Error:      nil,
+					},
+					query: "query-metric0",
 				},
 				{
-					ID:     "metric1",
-					Active: true,
-					Query:  "query-metric1",
-					Value:  2.0,
-					Valid:  false,
-					Error:  fmt.Errorf(invalidMetricNoDataErrorMessage, "query-metric1"),
-					// UpdateTime not set as it will not be compared directly
+					ddm: model.DatadogMetricInternal{
+						ID:     "metric1",
+						Active: true,
+						Value:  2.0,
+						Valid:  false,
+						Error:  fmt.Errorf(invalidMetricNoDataErrorMessage, "query-metric1"),
+						// UpdateTime not set as it will not be compared directly
+					},
+					query: "query-metric1",
 				},
 			},
 		},
@@ -387,22 +434,26 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 		{
 			maxAge: 30,
 			desc:   "Test some metrics are not active",
-			storeContent: []model.DatadogMetricInternal{
+			storeContent: []ddmWithQuery{
 				{
-					ID:         "metric0",
-					Active:     true,
-					Query:      "query-metric0",
-					UpdateTime: defaultPreviousUpdateTime,
-					Valid:      true,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric0",
+						Active:     true,
+						UpdateTime: defaultPreviousUpdateTime,
+						Valid:      true,
+						Error:      nil,
+					},
+					query: "query-metric0",
 				},
 				{
-					ID:         "metric1",
-					Active:     false,
-					Query:      "query-metric1",
-					UpdateTime: defaultPreviousUpdateTime,
-					Valid:      false,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric1",
+						Active:     false,
+						UpdateTime: defaultPreviousUpdateTime,
+						Valid:      false,
+						Error:      nil,
+					},
+					query: "query-metric1",
 				},
 			},
 			queryResults: map[string]autoscalers.Point{
@@ -418,45 +469,53 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 				},
 			},
 			queryError: nil,
-			expected: []model.DatadogMetricInternal{
+			expected: []ddmWithQuery{
 				{
-					ID:         "metric0",
-					Active:     true,
-					Query:      "query-metric0",
-					Value:      10.0,
-					UpdateTime: defaultTestTime,
-					Valid:      true,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric0",
+						Active:     true,
+						Value:      10.0,
+						UpdateTime: defaultTestTime,
+						Valid:      true,
+						Error:      nil,
+					},
+					query: "query-metric0",
 				},
 				{
-					ID:         "metric1",
-					Active:     false,
-					Query:      "query-metric1",
-					UpdateTime: defaultPreviousUpdateTime,
-					Valid:      false,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric1",
+						Active:     false,
+						UpdateTime: defaultPreviousUpdateTime,
+						Valid:      false,
+						Error:      nil,
+					},
+					query: "query-metric1",
 				},
 			},
 		},
 		{
 			maxAge: 30,
 			desc:   "Test no active metrics",
-			storeContent: []model.DatadogMetricInternal{
+			storeContent: []ddmWithQuery{
 				{
-					ID:         "metric0",
-					Active:     false,
-					Query:      "query-metric0",
-					UpdateTime: defaultPreviousUpdateTime,
-					Valid:      true,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric0",
+						Active:     false,
+						UpdateTime: defaultPreviousUpdateTime,
+						Valid:      true,
+						Error:      nil,
+					},
+					query: "query-metric0",
 				},
 				{
-					ID:         "metric1",
-					Active:     false,
-					Query:      "query-metric1",
-					UpdateTime: defaultPreviousUpdateTime,
-					Valid:      false,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric1",
+						Active:     false,
+						UpdateTime: defaultPreviousUpdateTime,
+						Valid:      false,
+						Error:      nil,
+					},
+					query: "query-metric1",
 				},
 			},
 			queryResults: map[string]autoscalers.Point{
@@ -472,22 +531,26 @@ func TestRetrieveMetricsNotActive(t *testing.T) {
 				},
 			},
 			queryError: nil,
-			expected: []model.DatadogMetricInternal{
+			expected: []ddmWithQuery{
 				{
-					ID:         "metric0",
-					Active:     false,
-					Query:      "query-metric0",
-					UpdateTime: defaultPreviousUpdateTime,
-					Valid:      true,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric0",
+						Active:     false,
+						UpdateTime: defaultPreviousUpdateTime,
+						Valid:      true,
+						Error:      nil,
+					},
+					query: "query-metric0",
 				},
 				{
-					ID:         "metric1",
-					Active:     false,
-					Query:      "query-metric1",
-					UpdateTime: defaultPreviousUpdateTime,
-					Valid:      false,
-					Error:      nil,
+					ddm: model.DatadogMetricInternal{
+						ID:         "metric1",
+						Active:     false,
+						UpdateTime: defaultPreviousUpdateTime,
+						Valid:      false,
+						Error:      nil,
+					},
+					query: "query-metric1",
 				},
 			},
 		},

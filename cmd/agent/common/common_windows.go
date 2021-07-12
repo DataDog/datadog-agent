@@ -1,18 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package common
 
 import (
-	"fmt"
-	"io/ioutil"
-	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -23,7 +18,6 @@ import (
 
 	"github.com/cihub/seelog"
 	"golang.org/x/sys/windows/registry"
-	yaml "gopkg.in/yaml.v2"
 )
 
 var (
@@ -50,6 +44,8 @@ var (
 	DefaultJmxLogFile = "c:\\programdata\\datadog\\logs\\jmxfetch.log"
 	// DefaultCheckFlareDirectory a flare friendly location for checks to be written
 	DefaultCheckFlareDirectory = "c:\\programdata\\datadog\\logs\\checks\\"
+	// DefaultJMXFlareDirectory a flare friendly location for jmx command logs to be written
+	DefaultJMXFlareDirectory = "c:\\programdata\\datadog\\logs\\jmxinfo\\"
 )
 
 func init() {
@@ -140,239 +136,4 @@ func CheckAndUpgradeConfig() error {
 		}
 	}
 	return ImportConfig(DefaultConfPath, DefaultConfPath, false)
-}
-
-// ImportRegistryConfig imports settings from Windows registry into datadog.yaml
-func ImportRegistryConfig() error {
-
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
-		"SOFTWARE\\Datadog\\Datadog Agent",
-		registry.ALL_ACCESS)
-	if err != nil {
-		if err == registry.ErrNotExist {
-			log.Debug("Windows installation key not found, not updating config")
-			return nil
-		}
-		// otherwise, unexpected error
-		log.Warnf("Unexpected error getting registry config %s", err.Error())
-		return err
-	}
-	defer k.Close()
-
-	err = SetupConfigWithoutSecrets("", "")
-	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
-	}
-
-	// store the current datadog.yaml path
-	datadogYamlPath := config.Datadog.ConfigFileUsed()
-	validConfigFound := false
-	commandLineSettingFound := false
-	if config.Datadog.GetString("api_key") != "" {
-		validConfigFound = true
-	}
-
-	overrides := make(map[string]interface{})
-
-	var val string
-
-	if val, _, err = k.GetStringValue("api_key"); err == nil && val != "" {
-		overrides["api_key"] = val
-		log.Debug("Setting API key")
-		commandLineSettingFound = true
-	} else {
-		log.Debug("API key not found, not setting")
-	}
-	if val, _, err = k.GetStringValue("tags"); err == nil && val != "" {
-		overrides["tags"] = strings.Split(val, ",")
-		commandLineSettingFound = true
-		log.Debugf("Setting tags %s", val)
-	} else {
-		log.Debug("Tags not found, not setting")
-	}
-	if val, _, err = k.GetStringValue("hostname"); err == nil && val != "" {
-		overrides["hostname"] = val
-		commandLineSettingFound = true
-		log.Debugf("Setting hostname %s", val)
-	} else {
-		log.Debug("hostname not found in registry: using default value")
-	}
-	if val, _, err = k.GetStringValue("cmd_port"); err == nil && val != "" {
-		cmdPortInt, err := strconv.Atoi(val)
-		if err != nil {
-			log.Warnf("Not setting api port, invalid configuration %s %v", val, err)
-		} else if cmdPortInt <= 0 || cmdPortInt > 65534 {
-			log.Warnf("Not setting api port, invalid configuration %s", val)
-		} else {
-			overrides["cmd_port"] = cmdPortInt
-			commandLineSettingFound = true
-			log.Debugf("Setting cmd_port  %d", cmdPortInt)
-		}
-	} else {
-		log.Debug("cmd_port not found, not setting")
-	}
-	for key, cfg := range subServices {
-		if val, _, err = k.GetStringValue(key); err == nil {
-			val = strings.ToLower(val)
-			if enabled, ok := enabledVals[val]; ok {
-				// some of the entries require booleans, some
-				// of the entries require strings.
-				if enabled {
-					switch cfg {
-					case "logs_enabled":
-						overrides[cfg] = true
-					case "apm_config.enabled":
-						overrides[cfg] = true
-					case "process_config.enabled":
-						overrides[cfg] = "true"
-					}
-					log.Debugf("Setting %s to true", cfg)
-				} else {
-					switch cfg {
-					case "logs_enabled":
-						overrides[cfg] = false
-					case "apm_config.enabled":
-						overrides[cfg] = false
-					case "process_config.enabled":
-						overrides[cfg] = "disabled"
-					}
-					log.Debugf("Setting %s to false", cfg)
-				}
-				commandLineSettingFound = true
-			} else {
-				log.Warnf("Unknown setting %s = %s", key, val)
-			}
-		}
-	}
-	if val, _, err = k.GetStringValue("proxy_host"); err == nil && val != "" {
-		var u *url.URL
-		if u, err = url.Parse(val); err != nil {
-			log.Warnf("unable to import value of settings 'proxy_host': %v", err)
-		} else {
-			// set scheme if missing
-			if u.Scheme == "" {
-				u, _ = url.Parse("http://" + val)
-			}
-			if val, _, err = k.GetStringValue("proxy_port"); err == nil && val != "" {
-				u.Host = u.Host + ":" + val
-			}
-			if user, _, _ := k.GetStringValue("proxy_user"); err == nil && user != "" {
-				if pass, _, _ := k.GetStringValue("proxy_password"); err == nil && pass != "" {
-					u.User = url.UserPassword(user, pass)
-				} else {
-					u.User = url.User(user)
-				}
-			}
-		}
-		proxyMap := make(map[string]string)
-		proxyMap["http"] = u.String()
-		proxyMap["https"] = u.String()
-		overrides["proxy"] = proxyMap
-		commandLineSettingFound = true
-	} else {
-		log.Debug("proxy key not found, not setting proxy config")
-	}
-	if val, _, err = k.GetStringValue("site"); err == nil && val != "" {
-		overrides["site"] = val
-		log.Debugf("Setting site to %s", val)
-		commandLineSettingFound = true
-	}
-	if val, _, err = k.GetStringValue("dd_url"); err == nil && val != "" {
-		overrides["dd_url"] = val
-		log.Debugf("Setting dd_url to %s", val)
-		commandLineSettingFound = true
-	}
-	if val, _, err = k.GetStringValue("logs_dd_url"); err == nil && val != "" {
-		overrides["logs_config.logs_dd_url"] = val
-		log.Debugf("Setting logs_config.dd_url to %s", val)
-		commandLineSettingFound = true
-	}
-	if val, _, err = k.GetStringValue("process_dd_url"); err == nil && val != "" {
-		overrides["process_config.process_dd_url"] = val
-		log.Debugf("Setting process_config.process_dd_url to %s", val)
-		commandLineSettingFound = true
-	}
-	if val, _, err = k.GetStringValue("trace_dd_url"); err == nil && val != "" {
-		overrides["apm_config.apm_dd_url"] = val
-		log.Debugf("Setting apm_config.apm_dd_url to %s", val)
-		commandLineSettingFound = true
-	}
-	if val, _, err = k.GetStringValue("py_version"); err == nil && val != "" {
-		overrides["python_version"] = val
-		log.Debugf("Setting python version to %s", val)
-		commandLineSettingFound = true
-	}
-	if val, _, err = k.GetStringValue("hostname_fqdn"); err == nil && val != "" {
-		overrides["hostname_fqdn"] = val
-		log.Debugf("Setting hostname_fqdn to %s", val)
-		commandLineSettingFound = true
-	}
-
-	// we've read in the config from the registry; remove the registry keys so it's
-	// not repeated on next startup
-	valuenames := []string{"api_key",
-		"tags",
-		"site",
-		"dd_url",
-		"logs_dd_url",
-		"process_dd_url",
-		"trace_dd_url",
-		"py_version",
-		"hostname_fqdn",
-		"hostname",
-		"proxy_host",
-		"proxy_port",
-		"proxy_user",
-		"proxy_password",
-		"cmd_port"}
-	for _, valuename := range valuenames {
-		k.DeleteValue(valuename)
-	}
-	for valuename := range subServices {
-		k.DeleteValue(valuename)
-	}
-	if !commandLineSettingFound {
-		log.Debugf("No installation command line entries to update")
-		return nil
-	}
-	if validConfigFound {
-		// do this check after walking through all the registry keys.  Even though
-		// we aren't going to use the results, we can have a more accurate reason
-		// as to why (and how important it is)
-		if commandLineSettingFound {
-			log.Warnf("Install command line settings ignored, valid configuration already in place")
-			return fmt.Errorf("Install command line settings ignored, valid configuration already in place")
-		}
-		log.Debugf("Valid configuration file found,  not overwriting config")
-
-		// already had a valid config; don't assign the overrides
-		return nil
-	}
-	log.Debugf("Applying settings")
-
-	// apply overrides to the config
-	config.AddOverrides(overrides)
-
-	// build the global agent configuration
-	err = SetupConfigWithoutSecrets("", "")
-	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
-	}
-
-	// dump the current configuration to datadog.yaml
-	b, err := yaml.Marshal(config.Datadog.AllSettings())
-	if err != nil {
-		log.Errorf("unable to unmarshal config to YAML: %v", err)
-		return fmt.Errorf("unable to unmarshal config to YAML: %v", err)
-	}
-	// file permissions will be used only to create the file if doesn't exist,
-	// please note on Windows such permissions have no effect.
-	if err = ioutil.WriteFile(datadogYamlPath, b, 0640); err != nil {
-		log.Errorf("unable to unmarshal config to %s: %v", datadogYamlPath, err)
-		return fmt.Errorf("unable to unmarshal config to %s: %v", datadogYamlPath, err)
-	}
-
-	log.Debugf("Successfully wrote the config into %s\n", datadogYamlPath)
-
-	return nil
 }

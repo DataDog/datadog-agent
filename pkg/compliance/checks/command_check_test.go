@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build !windows
 
@@ -10,7 +10,6 @@ package checks
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -33,7 +32,6 @@ type commandFixture struct {
 	expectCommandArgs []string
 
 	expectReport *compliance.Report
-	expectError  error
 }
 
 func (f *commandFixture) mockRunCommand(t *testing.T) commandRunnerFunc {
@@ -56,10 +54,12 @@ func (f *commandFixture) run(t *testing.T) {
 	commandCheck, err := newResourceCheck(env, "rule-id", f.resource)
 	assert.NoError(err)
 
-	result, err := commandCheck.check(env)
-	assert.Equal(f.expectReport, result)
-	assert.Equal(f.expectError, err)
-
+	reports := commandCheck.check(env)
+	assert.Equal(f.expectReport.Passed, reports[0].Passed)
+	assert.Equal(f.expectReport.Data, reports[0].Data)
+	if f.expectReport.Error != nil {
+		assert.EqualError(f.expectReport.Error, reports[0].Error.Error())
+	}
 }
 
 func TestCommandCheck(t *testing.T) {
@@ -150,7 +150,10 @@ func TestCommandCheck(t *testing.T) {
 			commandError:      errors.New("some failure"),
 			expectCommandName: "myCommand",
 			expectCommandArgs: []string{"--foo=bar", "--baz"},
-			expectError:       fmt.Errorf("command 'Binary command: myCommand, args: [--foo=bar --baz]' execution failed, error: some failure"),
+			expectReport: &compliance.Report{
+				Passed: false,
+				Error:  errors.New("command 'Binary command: myCommand, args: [--foo=bar --baz]' execution failed, error: some failure"),
+			},
 		},
 		{
 			name: "non-zero return code",

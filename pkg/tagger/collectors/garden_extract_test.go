@@ -1,6 +1,7 @@
 package collectors
 
 import (
+	"context"
 	"testing"
 
 	"code.cloudfoundry.org/garden"
@@ -88,6 +89,10 @@ func (fakeDCAClient) GetNodeLabels(nodeName string) (map[string]string, error) {
 	panic("implement me")
 }
 
+func (fakeDCAClient) GetNamespaceLabels(nsName string) (map[string]string, error) {
+	panic("implement me")
+}
+
 func (fakeDCAClient) GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error) {
 	panic("implement me")
 }
@@ -96,15 +101,19 @@ func (fakeDCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string) ([
 	panic("implement me")
 }
 
-func (fakeDCAClient) PostClusterCheckStatus(nodeName string, status types.NodeStatus) (types.StatusResponse, error) {
+func (fakeDCAClient) PostClusterCheckStatus(ctx context.Context, identifier string, status types.NodeStatus) (types.StatusResponse, error) {
 	panic("implement me")
 }
 
-func (fakeDCAClient) GetClusterCheckConfigs(nodeName string) (types.ConfigResponse, error) {
+func (fakeDCAClient) GetClusterCheckConfigs(ctx context.Context, identifier string) (types.ConfigResponse, error) {
 	panic("implement me")
 }
 
-func (fakeDCAClient) GetEndpointsCheckConfigs(nodeName string) (types.ConfigResponse, error) {
+func (fakeDCAClient) GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error) {
+	panic("implement me")
+}
+
+func (fakeDCAClient) GetKubernetesClusterID() (string, error) {
 	panic("implement me")
 }
 

@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #ifndef DATADOG_AGENT_RTLOADER_DATADOG_AGENT_H
 #define DATADOG_AGENT_RTLOADER_DATADOG_AGENT_H
 
@@ -147,6 +147,7 @@ void _set_set_external_tags_cb(cb_set_external_tags_t);
 void _set_write_persistent_cache_cb(cb_write_persistent_cache_t);
 void _set_read_persistent_cache_cb(cb_read_persistent_cache_t);
 void _set_obfuscate_sql_cb(cb_obfuscate_sql_t);
+void _set_obfuscate_sql_exec_plan_cb(cb_obfuscate_sql_exec_plan_t);
 
 PyObject *_public_headers(PyObject *self, PyObject *args, PyObject *kwargs);
 

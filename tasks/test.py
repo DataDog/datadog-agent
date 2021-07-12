@@ -1,13 +1,14 @@
 """
 High level testing tasks
 """
-from __future__ import print_function
+
 
 import copy
 import operator
 import os
 import re
 import sys
+from contextlib import contextmanager
 
 import yaml
 from invoke import task
@@ -17,28 +18,12 @@ from .agent import integration_tests as agent_integration_tests
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .cluster_agent import integration_tests as dca_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
-from .go import fmt, generate, golangci_lint, ineffassign, lint, lint_licenses, misspell, staticcheck, vet
+from .go import fmt, generate, golangci_lint, ineffassign, lint, misspell, staticcheck, vet
+from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
-from .utils import get_build_flags
-
-# We use `basestring` in the code for compat with python2 unicode strings.
-# This makes the same code work in python3 as well.
-try:
-    basestring
-except NameError:
-    basestring = str
+from .utils import DEFAULT_BRANCH, get_build_flags
 
 PROFILE_COV = "profile.cov"
-
-DEFAULT_TOOL_TARGETS = [
-    "./pkg",
-    "./cmd",
-]
-
-DEFAULT_TEST_TARGETS = [
-    "./pkg",
-    "./cmd",
-]
 
 
 def ensure_bytes(s):
@@ -48,9 +33,59 @@ def ensure_bytes(s):
     return s
 
 
+@contextmanager
+def environ(env):
+    original_environ = os.environ.copy()
+    os.environ.update(env)
+    yield
+    for var in env.keys():
+        if var in original_environ:
+            os.environ[var] = original_environ[var]
+        else:
+            os.environ.pop(var)
+
+
+TOOL_LIST = [
+    'github.com/client9/misspell/cmd/misspell',
+    'github.com/frapposelli/wwhrd',
+    'github.com/fzipp/gocyclo',
+    'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
+    'github.com/golangci/golangci-lint/cmd/golangci-lint',
+    'github.com/gordonklaus/ineffassign',
+    'github.com/goware/modvendor',
+    'github.com/mgechev/revive',
+    'github.com/stormcat24/protodep',
+    'gotest.tools/gotestsum',
+    'honnef.co/go/tools/cmd/staticcheck',
+    'github.com/vektra/mockery/v2',
+]
+
+TOOL_LIST_PROTO = [
+    'github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway',
+    'github.com/golang/protobuf/protoc-gen-go',
+    'github.com/golang/mock/mockgen',
+]
+
+TOOLS = {
+    'internal/tools': TOOL_LIST,
+    'internal/tools/proto': TOOL_LIST_PROTO,
+}
+
+
+@task
+def install_tools(ctx):
+    """Install all Go tools for testing."""
+    with environ({'GO111MODULE': 'on'}):
+        for path, tools in TOOLS.items():
+            with ctx.cd(path):
+                for tool in tools:
+                    ctx.run("go install {}".format(tool))
+
+
 @task()
 def test(
     ctx,
+    module=None,
     targets=None,
     coverage=False,
     build_include=None,
@@ -65,28 +100,40 @@ def test(
     cpus=0,
     major_version='7',
     python_runtimes='3',
-    timeout=120,
+    timeout=180,
     arch="x64",
     cache=True,
     skip_linters=False,
-    go_mod="vendor",
+    save_result_json=None,
+    rerun_fails=None,
+    go_mod="mod",
 ):
     """
-    Run all the tools and tests on the given targets. If targets are not specified,
-    the value from `invoke.yaml` will be used.
+    Run all the tools and tests on the given module and targets.
+
+    A module should be provided as the path to one of the go modules in the repository.
+
+    Targets should be provided as a comma-separated list of relative paths within the given module.
+    If targets are provided but no module is set, the main module (".") is used.
+
+    If no module or target is set the tests are run against all modules and targets.
 
     Example invokation:
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
+        inv test --module=. --race
     """
-    if isinstance(targets, basestring):
+    if isinstance(module, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
-        tool_targets = test_targets = targets.split(',')
-    elif targets is None:
-        tool_targets = DEFAULT_TOOL_TARGETS
-        test_targets = DEFAULT_TEST_TARGETS
+        if isinstance(targets, str):
+            modules = [GoModule(module, targets=targets.split(','))]
+        else:
+            modules = [m for m in DEFAULT_MODULES.values() if m.path == module]
+    elif isinstance(targets, str):
+        modules = [GoModule(".", targets=targets.split(','))]
     else:
-        tool_targets = test_targets = targets
+        print("Using default modules and targets")
+        modules = DEFAULT_MODULES.values()
 
     build_include = (
         get_default_build_tags(build="test-with-process-tags", arch=arch)
@@ -104,29 +151,39 @@ def test(
     generate(ctx)
 
     if skip_linters:
-        print("--- [skipping linters]")
+        print("--- [skipping Go linters]")
     else:
-        print("--- Linting licenses:")
-        lint_licenses(ctx)
-
-        print("--- Linting filenames:")
-        lint_filenames(ctx)
-
         # Until all packages whitelisted in .golangci.yml are fixed and removed
         # from the 'skip-dirs' list we need to keep using the old functions that
         # lint without build flags (linting some file is better than no linting).
         print("--- Vetting and linting (legacy):")
-        vet(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch)
-        fmt(ctx, targets=tool_targets, fail_on_fmt=fail_on_fmt)
-        lint(ctx, targets=tool_targets)
-        misspell(ctx, targets=tool_targets)
-        ineffassign(ctx, targets=tool_targets)
-        staticcheck(ctx, targets=tool_targets)
+        for module in modules:
+            print("----- Module '{}'".format(module.full_path()))
+            if not module.condition():
+                print("----- Skipped")
+                continue
+
+            with ctx.cd(module.full_path()):
+                vet(ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch)
+                fmt(ctx, targets=module.targets, fail_on_fmt=fail_on_fmt)
+                lint(ctx, targets=module.targets)
+                misspell(ctx, targets=module.targets)
+                ineffassign(ctx, targets=module.targets)
+                staticcheck(ctx, targets=module.targets, build_tags=build_tags, arch=arch)
 
         # for now we only run golangci_lint on Unix as the Windows env need more work
         if sys.platform != 'win32':
             print("--- golangci_lint:")
-            golangci_lint(ctx, targets=tool_targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch)
+            for module in modules:
+                print("----- Module '{}'".format(module.full_path()))
+                if not module.condition():
+                    print("----- Skipped")
+                    continue
+
+                with ctx.cd(module.full_path()):
+                    golangci_lint(
+                        ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch
+                    )
 
     with open(PROFILE_COV, "w") as f_cov:
         f_cov.write("mode: count")
@@ -137,8 +194,7 @@ def test(
         python_home_2=python_home_2,
         python_home_3=python_home_3,
         major_version=major_version,
-        python_runtimes='3',
-        arch=arch,
+        python_runtimes=python_runtimes,
     )
 
     if sys.platform == 'win32':
@@ -175,7 +231,6 @@ def test(
         else:
             covermode_opt = "-covermode=count"
 
-    matches = ["{}/...".format(t) for t in test_targets]
     print("\n--- Running unit tests:")
 
     coverprofile = ""
@@ -185,8 +240,15 @@ def test(
     nocache = '-count=1' if not cache else ''
 
     build_tags.append("test")
-    cmd = 'gotestsum --format pkgname -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
-    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {pkg_folder}'
+    TMP_JSON = 'tmp.json'
+    if save_result_json and os.path.isfile(save_result_json):
+        # Remove existing file since we append to it.
+        # We don't need to do that for TMP_JSON since gotestsum overwrites the output.
+        print("Removing existing '{}' file".format(save_result_json))
+        os.remove(save_result_json)
+
+    cmd = 'gotestsum {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache}'
     args = {
         "go_mod": go_mod,
         "go_build_tags": " ".join(build_tags),
@@ -196,12 +258,43 @@ def test(
         "build_cpus": build_cpus_opt,
         "covermode_opt": covermode_opt,
         "coverprofile": coverprofile,
-        "pkg_folder": ' '.join(matches),
         "timeout": timeout,
         "verbose": '-v' if verbose else '',
         "nocache": nocache,
+        "json_flag": '--jsonfile "{}" '.format(TMP_JSON) if save_result_json else "",
+        "rerun_fails": "--rerun-fails={}".format(rerun_fails) if rerun_fails else "",
     }
-    ctx.run(cmd.format(**args), env=env, out_stream=test_profiler)
+
+    failed_modules = []
+    for module in modules:
+        print("----- Module '{}'".format(module.full_path()))
+        if not module.condition():
+            print("----- Skipped")
+            continue
+
+        with ctx.cd(module.full_path()):
+            res = ctx.run(
+                cmd.format(
+                    packages=' '.join("{}/...".format(t) if not t.endswith("/...") else t for t in module.targets),
+                    **args
+                ),
+                env=env,
+                out_stream=test_profiler,
+                warn=True,
+            )
+
+        if res.exited is None or res.exited > 0:
+            failed_modules.append(module.full_path())
+
+        if save_result_json:
+            with open(save_result_json, 'ab') as json_file, open(
+                os.path.join(module.full_path(), TMP_JSON), 'rb'
+            ) as module_file:
+                json_file.write(module_file.read())
+
+    if failed_modules:
+        # Exit if any of the modules failed
+        raise Exit(code=1, message="Unit tests failed in the following modules: {}".format(', '.join(failed_modules)))
 
     if coverage:
         print("\n--- Test coverage:")
@@ -213,12 +306,16 @@ def test(
 
 
 @task
-def lint_teamassignment(ctx):
+def lint_teamassignment(_):
     """
     Make sure PRs are assigned a team label
     """
+    branch = os.environ.get("CIRCLE_BRANCH")
     pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
-    if pr_url:
+
+    if branch == DEFAULT_BRANCH:
+        print("Running on {}, skipping check for team assignment.".format(DEFAULT_BRANCH))
+    elif pr_url:
         import requests
 
         pr_id = pr_url.rsplit('/')[-1]
@@ -234,18 +331,23 @@ def lint_teamassignment(ctx):
         print("PR {} requires team assignment".format(pr_url))
         raise Exit(code=1)
 
-    # The PR has not been created yet
+    # No PR is associated with this build: given that we have the "run only on PRs" setting activated,
+    # this can only happen when we're building on a tag. We don't need to check for a team assignment.
     else:
-        print("PR not yet created, skipping check for team assignment")
+        print("PR not found, skipping check for team assignment.")
 
 
 @task
-def lint_milestone(ctx):
+def lint_milestone(_):
     """
     Make sure PRs are assigned a milestone
     """
+    branch = os.environ.get("CIRCLE_BRANCH")
     pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
-    if pr_url:
+
+    if branch == DEFAULT_BRANCH:
+        print("Running on {}, skipping check for milestone.".format(DEFAULT_BRANCH))
+    elif pr_url:
         import requests
 
         pr_id = pr_url.rsplit('/')[-1]
@@ -253,15 +355,16 @@ def lint_milestone(ctx):
         res = requests.get("https://api.github.com/repos/DataDog/datadog-agent/issues/{}".format(pr_id))
         pr = res.json()
         if pr.get("milestone"):
-            print("Milestone: %s" % pr["milestone"].get("title", "NO_TITLE"))
+            print("Milestone: {}".format(pr["milestone"].get("title", "NO_TITLE")))
             return
 
-        print("PR %s requires a milestone" % pr_url)
+        print("PR {} requires a milestone.".format(pr_url))
         raise Exit(code=1)
 
-    # The PR has not been created yet
+    # No PR is associated with this build: given that we have the "run only on PRs" setting activated,
+    # this can only happen when we're building on a tag. We don't need to check for a milestone.
     else:
-        print("PR not yet created, skipping check for milestone")
+        print("PR not found, skipping check for milestone.")
 
 
 @task
@@ -270,9 +373,13 @@ def lint_releasenote(ctx):
     Lint release notes with Reno
     """
 
-    # checking if a releasenote has been added/changed
+    branch = os.environ.get("CIRCLE_BRANCH")
     pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
-    if pr_url:
+
+    if branch == DEFAULT_BRANCH:
+        print("Running on {}, skipping release note check.".format(DEFAULT_BRANCH))
+    # Check if a releasenote has been added/changed
+    elif pr_url:
         import requests
 
         pr_id = pr_url.rsplit('/')[-1]
@@ -294,6 +401,7 @@ def lint_releasenote(ctx):
                 [
                     f['filename'].startswith("releasenotes/notes/")
                     or f['filename'].startswith("releasenotes-dca/notes/")
+                    or f['filename'].startswith("releasenotes-installscript/notes/")
                     for f in files
                 ]
             ):
@@ -307,41 +415,10 @@ def lint_releasenote(ctx):
                     ", or apply the label 'changelog/no-changelog' to the PR."
                 )
                 raise Exit(code=1)
-
-    # The PR has not been created yet, let's compare with master (the usual base branch of the future PR)
+    # No PR is associated with this build: given that we have the "run only on PRs" setting activated,
+    # this can only happen when we're building on a tag. We don't need to check for release notes.
     else:
-        branch = os.environ.get("CIRCLE_BRANCH")
-        if branch is None:
-            print("No branch found, skipping reno linting")
-        else:
-            if re.match(r".*/.*", branch) is None:
-                print("{} is not a feature branch, skipping reno linting".format(branch))
-            else:
-                import requests
-
-                # Then check that in the diff with master, at least one note was touched
-                url = "https://api.github.com/repos/DataDog/datadog-agent/compare/master...{}".format(branch)
-                # traverse paginated github response
-                while True:
-                    res = requests.get(url)
-                    files = res.json().get("files", {})
-                    if any(
-                        [
-                            f['filename'].startswith("releasenotes/notes/")
-                            or f['filename'].startswith("releasenotes-dca/notes/")
-                            for f in files
-                        ]
-                    ):
-                        break
-
-                    if 'next' in res.links:
-                        url = res.links['next']['url']
-                    else:
-                        print(
-                            "Error: No releasenote was found for this PR. Please add one using 'reno'"
-                            ", or apply the label 'changelog/no-changelog' to the PR."
-                        )
-                        raise Exit(code=1)
+        print("PR not found, skipping release note check.")
 
     ctx.run("reno lint")
 
@@ -446,7 +523,7 @@ class TestProfiler:
 
 @task
 def make_simple_gitlab_yml(
-    ctx, jobs_to_process, yml_file_src='.gitlab-ci.yml', yml_file_dest='.gitlab-ci.yml', dont_include_deps=False
+    _, jobs_to_process, yml_file_src='.gitlab-ci.yml', yml_file_dest='.gitlab-ci.yml', dont_include_deps=False
 ):
     """
     Replaces .gitlab-ci.yml with one containing only the steps needed to run the given jobs.
@@ -500,7 +577,7 @@ def make_simple_gitlab_yml(
 
 
 @task
-def make_kitchen_gitlab_yml(ctx):
+def make_kitchen_gitlab_yml(_):
     """
     Replaces .gitlab-ci.yml with one containing only the steps needed to run kitchen-tests
     """
@@ -563,7 +640,7 @@ def make_kitchen_gitlab_yml(ctx):
 
 
 @task
-def check_gitlab_broken_dependencies(ctx):
+def check_gitlab_broken_dependencies(_):
     """
     Checks that a gitlab job doesn't depend on (need) other jobs that will be excluded from the build,
     since this would make gitlab fail when triggering a pipeline with those jobs excluded.
@@ -594,7 +671,9 @@ def lint_python(ctx):
 
     print(
         """Remember to set up pre-commit to lint your files before committing:
-    https://github.com/DataDog/datadog-agent/blob/master/docs/dev/agent_dev_env.md#pre-commit-hooks"""
+    https://github.com/DataDog/datadog-agent/blob/{}/docs/dev/agent_dev_env.md#pre-commit-hooks""".format(
+            DEFAULT_BRANCH
+        )
     )
 
     ctx.run("flake8 .")

@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package listeners
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -20,6 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
@@ -39,8 +42,10 @@ type DockerListenerTestSuite struct {
 func (suite *DockerListenerTestSuite) SetupSuite() {
 	config.Datadog.SetDefault("ac_include", []string{"name:.*redis.*"})
 	config.Datadog.SetDefault("ac_exclude", []string{"image:datadog/docker-library:redis.*"})
+	config.DetectFeatures()
 	containers.ResetSharedFilter()
 
+	tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
 	tagger.Init()
 
 	config.SetupLogger(
@@ -168,12 +173,13 @@ func (suite *DockerListenerTestSuite) TestListenBeforeStart() {
 
 // Common section for both scenarios
 func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
+	ctx := context.Background()
 	expectedADIDs := make(map[string][]string)
 	var includedIDs, excludedIDs []string
 	var excludedEntity string
 
 	for _, container := range containerIDs {
-		inspect, err := suite.dockerutil.Inspect(container, false)
+		inspect, err := suite.dockerutil.Inspect(ctx, container, false)
 		assert.Nil(suite.T(), err)
 		entity := fmt.Sprintf("docker://%s", container)
 		if strings.Contains(inspect.Name, "excluded") {
@@ -188,7 +194,8 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 			expectedADIDs[entity] = []string{
 				entity,
 				"datadog/docker-library",
-				"docker-library"}
+				"docker-library",
+			}
 		}
 	}
 
@@ -198,13 +205,13 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 	assert.Len(suite.T(), services, 2)
 
 	for _, service := range services {
-		pid, err := service.GetPid()
+		pid, err := service.GetPid(ctx)
 		assert.Nil(suite.T(), err)
 		assert.True(suite.T(), pid > 0)
-		hosts, err := service.GetHosts()
+		hosts, err := service.GetHosts(ctx)
 		assert.Nil(suite.T(), err)
 		assert.Len(suite.T(), hosts, 1)
-		ports, err := service.GetPorts()
+		ports, err := service.GetPorts(ctx)
 		assert.Nil(suite.T(), err)
 		assert.Len(suite.T(), ports, 1)
 
@@ -212,13 +219,14 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 		expectedTags, found := expectedADIDs[entity]
 		assert.True(suite.T(), found, "entity not found in expected ones")
 
-		tags, err := service.GetTags()
+		tags, hash, err := service.GetTags()
 		assert.Nil(suite.T(), err)
+		assert.NotEqual(suite.T(), "", hash)
 		assert.Contains(suite.T(), tags, "docker_image:datadog/docker-library:redis_3_2_11-alpine")
 		assert.Contains(suite.T(), tags, "image_name:datadog/docker-library")
 		assert.Contains(suite.T(), tags, "image_tag:redis_3_2_11-alpine")
 
-		adIDs, err := service.GetADIdentifiers()
+		adIDs, err := service.GetADIdentifiers(ctx)
 		assert.Nil(suite.T(), err)
 		assert.Equal(suite.T(), expectedTags, adIDs)
 	}

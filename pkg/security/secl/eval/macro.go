@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package eval
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 	"github.com/pkg/errors"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 )
 
 //MacroID - ID of a Macro
@@ -62,11 +63,11 @@ func macroToEvaluator(macro *ast.Macro, model Model, opts *Opts, field Field) (*
 
 	switch {
 	case macro.Expression != nil:
-		eval, _, _, err = nodeToEvaluator(macro.Expression, opts, state)
+		eval, _, err = nodeToEvaluator(macro.Expression, opts, state)
 	case macro.Array != nil:
-		eval, _, _, err = nodeToEvaluator(macro.Array, opts, state)
+		eval, _, err = nodeToEvaluator(macro.Array, opts, state)
 	case macro.Primary != nil:
-		eval, _, _, err = nodeToEvaluator(macro.Primary, opts, state)
+		eval, _, err = nodeToEvaluator(macro.Primary, opts, state)
 	}
 
 	if err != nil {

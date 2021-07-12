@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
 	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/windows"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
@@ -25,10 +26,10 @@ var elog debug.Log
 const ServiceName = "datadog-process-agent"
 
 // opts are the command-line options
-var defaultConfigPath = "c:\\programdata\\datadog\\datadog.yaml"
-var defaultSysProbeConfigPath = "c:\\programdata\\datadog\\system-probe.yaml"
-var defaultConfdPath = "c:\\programdata\\datadog\\conf.d"
-var defaultLogFilePath = "c:\\programdata\\datadog\\logs\\process-agent.log"
+var defaultConfigPath = flags.DefaultConfPath
+var defaultSysProbeConfigPath = flags.DefaultSysProbeConfPath
+var defaultConfdPath = flags.DefaultConfdPath
+var defaultLogFilePath = flags.DefaultLogFilePath
 
 var winopts struct {
 	installService   bool
@@ -67,7 +68,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 					// Testing deadlock from https://code.google.com/p/winsvc/issues/detail?id=4
 					time.Sleep(100 * time.Millisecond)
 					changes <- c.CurrentStatus
-				case svc.Stop, svc.Shutdown:
+				case svc.Stop, svc.PreShutdown, svc.Shutdown:
 					elog.Info(0x40000006, ServiceName)
 					changes <- svc.Status{State: svc.StopPending}
 					///// FIXME:  Need a way to indicate to rest of service to shut
@@ -75,7 +76,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 					close(exit)
 					break
 				default:
-					elog.Warning(0xc000000A, string(c.Cmd))
+					elog.Warning(0xc000000A, fmt.Sprint(c.Cmd))
 				}
 			}
 		}

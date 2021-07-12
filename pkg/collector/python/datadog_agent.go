@@ -1,22 +1,26 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build python
 
 package python
 
 import (
+	"context"
+	"sync"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
+	"github.com/mailru/easyjson/jlexer"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
+	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -45,7 +49,7 @@ func GetVersion(agentVersion **C.char) {
 // GetHostname exposes the current hostname of the agent to Python checks.
 //export GetHostname
 func GetHostname(hostname **C.char) {
-	goHostname, err := util.GetHostname()
+	goHostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s\n", err)
 		goHostname = ""
@@ -57,8 +61,8 @@ func GetHostname(hostname **C.char) {
 // GetClusterName exposes the current clustername (if it exists) of the agent to Python checks.
 //export GetClusterName
 func GetClusterName(clusterName **C.char) {
-	goHostname, _ := util.GetHostname()
-	goClusterName := clustername.GetClusterName(goHostname)
+	goHostname, _ := util.GetHostname(context.TODO())
+	goClusterName := clustername.GetClusterName(context.TODO(), goHostname)
 	// clusterName will be free by rtloader when it's done with it
 	*clusterName = TrackedCString(goClusterName)
 }
@@ -188,14 +192,51 @@ func ReadPersistentCache(key *C.char) *C.char {
 	return TrackedCString(data)
 }
 
-var obfuscator = obfuscate.NewObfuscator(nil)
+var (
+	// one obfuscator instance is shared across all python checks. It is not threadsafe but that is ok because
+	// the GIL is always locked when calling c code from python which means that the exported functions in this file
+	// will only ever be called by one goroutine at a time
+	obfuscator       *obfuscate.Obfuscator
+	obfuscatorLoader sync.Once
+)
+
+// lazyInitObfuscator initializes the obfuscator the first time it is used. We can't initialize during the package init
+// because the obfuscator depends on config.Datadog and it isn't guaranteed to be initialized during package init, but
+// will definitely be initialized by the time one of the python checks runs
+func lazyInitObfuscator() *obfuscate.Obfuscator {
+	obfuscatorLoader.Do(func() {
+		var cfg traceconfig.ObfuscationConfig
+		if err := config.Datadog.UnmarshalKey("apm_config.obfuscation", &cfg); err != nil {
+			log.Errorf("Failed to unmarshal apm_config.obfuscation: %s", err.Error())
+			cfg = traceconfig.ObfuscationConfig{}
+		}
+		if !cfg.SQLExecPlan.Enabled {
+			cfg.SQLExecPlan = defaultSQLPlanObfuscateSettings
+		}
+		if !cfg.SQLExecPlanNormalize.Enabled {
+			cfg.SQLExecPlanNormalize = defaultSQLPlanNormalizeSettings
+		}
+		obfuscator = obfuscate.NewObfuscator(&cfg)
+	})
+	return obfuscator
+}
 
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
-// fails
+// fails. An optional configuration may be passed to change the behavior of the obfuscator.
 //export ObfuscateSQL
-func ObfuscateSQL(rawQuery *C.char, errResult **C.char) *C.char {
+func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
+	var sqlOpts obfuscate.SQLOptions
+	if opts != nil {
+		jl := &jlexer.Lexer{Data: []byte(C.GoString(opts))}
+		sqlOpts.UnmarshalEasyJSON(jl)
+		if jl.Error() != nil {
+			log.Errorf("Failed to unmarshal obfuscation options: %s", jl.Error())
+			*errResult = TrackedCString(jl.Error().Error())
+			return nil
+		}
+	}
 	s := C.GoString(rawQuery)
-	obfuscatedQuery, err := obfuscator.ObfuscateSQLString(s)
+	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLStringWithOptions(s, sqlOpts)
 	if err != nil {
 		// memory will be freed by caller
 		*errResult = TrackedCString(err.Error())
@@ -203,4 +244,191 @@ func ObfuscateSQL(rawQuery *C.char, errResult **C.char) *C.char {
 	}
 	// memory will be freed by caller
 	return TrackedCString(obfuscatedQuery.Query)
+}
+
+// ObfuscateSQLExecPlan obfuscates the provided json query execution plan, writing the error into errResult if the
+// operation fails
+//export ObfuscateSQLExecPlan
+func ObfuscateSQLExecPlan(jsonPlan *C.char, normalize C.bool, errResult **C.char) *C.char {
+	obfuscatedJSONPlan, err := lazyInitObfuscator().ObfuscateSQLExecPlan(
+		C.GoString(jsonPlan),
+		bool(normalize),
+	)
+	if err != nil {
+		// memory will be freed by caller
+		*errResult = TrackedCString(err.Error())
+		return nil
+	}
+	// memory will be freed by caller
+	return TrackedCString(obfuscatedJSONPlan)
+}
+
+// defaultSQLPlanNormalizeSettings are the default JSON obfuscator settings for both obfuscating and normalizing SQL
+// execution plans
+var defaultSQLPlanNormalizeSettings = traceconfig.JSONObfuscationConfig{
+	Enabled: true,
+	ObfuscateSQLValues: []string{
+		// mysql
+		"attached_condition",
+		// postgres
+		"Cache Key",
+		"Conflict Filter",
+		"Function Call",
+		"Filter",
+		"Hash Cond",
+		"Index Cond",
+		"Join Filter",
+		"Merge Cond",
+		"Output",
+		"Recheck Cond",
+		"Repeatable Seed",
+		"Sampling Parameters",
+		"TID Cond",
+	},
+	KeepValues: []string{
+		// mysql
+		"access_type",
+		"backward_index_scan",
+		"cacheable",
+		"delete",
+		"dependent",
+		"first_match",
+		"key",
+		"key_length",
+		"possible_keys",
+		"ref",
+		"select_id",
+		"table_name",
+		"update",
+		"used_columns",
+		"used_key_parts",
+		"using_MRR",
+		"using_filesort",
+		"using_index",
+		"using_join_buffer",
+		"using_temporary_table",
+		// postgres
+		"Actual Loops",
+		"Actual Rows",
+		"Actual Startup Time",
+		"Actual Total Time",
+		"Alias",
+		"Async Capable",
+		"Average Sort Space Used",
+		"Cache Evictions",
+		"Cache Hits",
+		"Cache Misses",
+		"Cache Overflows",
+		"Calls",
+		"Command",
+		"Conflict Arbiter Indexes",
+		"Conflict Resolution",
+		"Conflicting Tuples",
+		"Constraint Name",
+		"CTE Name",
+		"Custom Plan Provider",
+		"Deforming",
+		"Emission",
+		"Exact Heap Blocks",
+		"Execution Time",
+		"Expressions",
+		"Foreign Delete",
+		"Foreign Insert",
+		"Foreign Update",
+		"Full-sort Group",
+		"Function Name",
+		"Generation",
+		"Group Count",
+		"Grouping Sets",
+		"Group Key",
+		"HashAgg Batches",
+		"Hash Batches",
+		"Hash Buckets",
+		"Heap Fetches",
+		"I/O Read Time",
+		"I/O Write Time",
+		"Index Name",
+		"Inlining",
+		"Join Type",
+		"Local Dirtied Blocks",
+		"Local Hit Blocks",
+		"Local Read Blocks",
+		"Local Written Blocks",
+		"Lossy Heap Blocks",
+		"Node Type",
+		"Optimization",
+		"Original Hash Batches",
+		"Original Hash Buckets",
+		"Parallel Aware",
+		"Parent Relationship",
+		"Partial Mode",
+		"Peak Memory Usage",
+		"Peak Sort Space Used",
+		"Planned Partitions",
+		"Planning Time",
+		"Pre-sorted Groups",
+		"Presorted Key",
+		"Query Identifier",
+		"Relation Name",
+		"Rows Removed by Conflict Filter",
+		"Rows Removed by Filter",
+		"Rows Removed by Index Recheck",
+		"Rows Removed by Join Filter",
+		"Sampling Method",
+		"Scan Direction",
+		"Schema",
+		"Settings",
+		"Shared Dirtied Blocks",
+		"Shared Hit Blocks",
+		"Shared Read Blocks",
+		"Shared Written Blocks",
+		"Single Copy",
+		"Sort Key",
+		"Sort Method",
+		"Sort Methods Used",
+		"Sort Space Type",
+		"Sort Space Used",
+		"Strategy",
+		"Subplan Name",
+		"Subplans Removed",
+		"Target Tables",
+		"Temp Read Blocks",
+		"Temp Written Blocks",
+		"Time",
+		"Timing",
+		"Total",
+		"Trigger",
+		"Trigger Name",
+		"Triggers",
+		"Tuples Inserted",
+		"Tuplestore Name",
+		"WAL Bytes",
+		"WAL FPI",
+		"WAL Records",
+		"Worker",
+		"Worker Number",
+		"Workers",
+		"Workers Launched",
+		"Workers Planned",
+	},
+}
+
+// defaultSQLPlanObfuscateSettings builds upon sqlPlanNormalizeSettings by including cost & row estimates in the keep
+// list
+var defaultSQLPlanObfuscateSettings = traceconfig.JSONObfuscationConfig{
+	Enabled: true,
+	KeepValues: append([]string{
+		// mysql
+		"cost_info",
+		"filtered",
+		"rows_examined_per_join",
+		"rows_examined_per_scan",
+		"rows_produced_per_join",
+		// postgres
+		"Plan Rows",
+		"Plan Width",
+		"Startup Cost",
+		"Total Cost",
+	}, defaultSQLPlanNormalizeSettings.KeepValues...),
+	ObfuscateSQLValues: defaultSQLPlanNormalizeSettings.ObfuscateSQLValues,
 }

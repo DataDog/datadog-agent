@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // Package agent implements the api endpoints for the `/agent` prefix.
 // This group of endpoints is meant to provide high-level functionalities
@@ -11,24 +11,25 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
-	"html"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"sort"
+	"time"
 
 	"github.com/gorilla/mux"
 
-	"gopkg.in/yaml.v2"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
-	"github.com/DataDog/datadog-agent/cmd/agent/app/settings"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/logs"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -38,6 +39,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type contextKey struct {
+	key string
+}
+
+// ConnContextKey key to reference the http connection from the request context
+var ConnContextKey = &contextKey{"http-connection"}
+
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
@@ -45,6 +53,7 @@ func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
+	r.HandleFunc("/stream-logs", streamLogs).Methods("POST")
 	r.HandleFunc("/dogstatsd-stats", getDogstatsdStats).Methods("GET")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
@@ -53,10 +62,10 @@ func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/gui/csrf-token", getCSRFToken).Methods("GET")
 	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
-	r.HandleFunc("/config", getFullRuntimeConfig).Methods("GET")
-	r.HandleFunc("/config/list-runtime", getRuntimeConfigurableSettings).Methods("GET")
-	r.HandleFunc("/config/{setting}", getRuntimeConfig).Methods("GET")
-	r.HandleFunc("/config/{setting}", setRuntimeConfig).Methods("POST")
+	r.HandleFunc("/config", settingshttp.Server.GetFull("")).Methods("GET")
+	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
+	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
+	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
 
@@ -72,7 +81,7 @@ func stopAgent(w http.ResponseWriter, r *http.Request) {
 
 func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	hname, err := util.GetHostname()
+	hname, err := util.GetHostname(r.Context())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s\n", err) // or something like this
 		hname = ""
@@ -177,6 +186,74 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write(jsonStats)
+}
+
+func streamLogs(w http.ResponseWriter, r *http.Request) {
+	log.Info("Got a request for stream logs.")
+	w.Header().Set("Transfer-Encoding", "chunked")
+
+	logMessageReceiver := logs.GetMessageReceiver()
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		log.Errorf("Expected a Flusher type, got: %v", w)
+		return
+	}
+
+	if logMessageReceiver == nil {
+		http.Error(w, "The logs agent is not running", 405)
+		flusher.Flush()
+		log.Info("Logs agent is not running - can't stream logs")
+		return
+	}
+
+	if !logMessageReceiver.SetEnabled(true) {
+		http.Error(w, "Another client is already streaming logs.", 405)
+		flusher.Flush()
+		log.Info("Logs are already streaming. Dropping connection.")
+		return
+	}
+	defer logMessageReceiver.SetEnabled(false)
+
+	var filters diagnostic.Filters
+
+	if r.Body != http.NoBody {
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
+			return
+		}
+
+		if err := json.Unmarshal(body, &filters); err != nil {
+			http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
+			return
+		}
+	}
+
+	conn := GetConnection(r)
+
+	// Override the default server timeouts so the connection never times out
+	_ = conn.SetDeadline(time.Time{})
+	_ = conn.SetWriteDeadline(time.Time{})
+
+	done := make(chan struct{})
+	defer close(done)
+	logChan := logMessageReceiver.Filter(&filters, done)
+	flushTimer := time.NewTicker(time.Second)
+	for {
+		// Handlers for detecting a closed connection (from either the server or client)
+		select {
+		case <-w.(http.CloseNotifier).CloseNotify():
+			return
+		case <-r.Context().Done():
+			return
+		case line := <-logChan:
+			fmt.Fprint(w, line)
+		case <-flushTimer.C:
+			// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.
+			flusher.Flush()
+		}
+	}
 }
 
 func getDogstatsdStats(w http.ResponseWriter, r *http.Request) {
@@ -294,90 +371,6 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonConfig)
 }
 
-func getFullRuntimeConfig(w http.ResponseWriter, r *http.Request) {
-	runtimeConfig, err := yaml.Marshal(config.Datadog.AllSettings())
-	if err != nil {
-		log.Errorf("Unable to marshal runtime config response: %s", err)
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), 500)
-		return
-	}
-
-	scrubbed, err := log.CredentialsCleanerBytes(runtimeConfig)
-	if err != nil {
-		log.Errorf("Unable to scrub sensitive data from runtime config: %s", err)
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), 500)
-		return
-	}
-
-	w.Write(scrubbed)
-}
-
-func getRuntimeConfig(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	setting := vars["setting"]
-	log.Infof("Got a request to read a setting value: %s", setting)
-
-	val, err := settings.GetRuntimeSetting(setting)
-	if err != nil {
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		switch err.(type) {
-		case *settings.SettingNotFoundError:
-			http.Error(w, string(body), 400)
-		default:
-			http.Error(w, string(body), 500)
-		}
-		return
-	}
-	body, err := json.Marshal(map[string]interface{}{"value": val})
-	if err != nil {
-		log.Errorf("Unable to marshal runtime setting value response: %s", err)
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), 500)
-		return
-	}
-	w.Write(body)
-}
-
-func setRuntimeConfig(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	setting := vars["setting"]
-	log.Infof("Got a request to change a setting: %s", setting)
-	r.ParseForm() //nolint:errcheck
-	value := html.UnescapeString(r.Form.Get("value"))
-
-	if err := settings.SetRuntimeSetting(setting, value); err != nil {
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		switch err.(type) {
-		case *settings.SettingNotFoundError:
-			http.Error(w, string(body), 400)
-		default:
-			http.Error(w, string(body), 500)
-		}
-		return
-	}
-}
-
-func getRuntimeConfigurableSettings(w http.ResponseWriter, r *http.Request) {
-
-	configurableSettings := make(map[string]settings.RuntimeSettingResponse)
-	for name, setting := range settings.RuntimeSettings() {
-		configurableSettings[name] = settings.RuntimeSettingResponse{
-			Description: setting.Description(),
-			Hidden:      setting.Hidden(),
-		}
-	}
-	body, err := json.Marshal(configurableSettings)
-	if err != nil {
-		log.Errorf("Unable to marshal runtime configurable settings list response: %s", err)
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), 500)
-		return
-	}
-	w.Write(body)
-}
-
 func getTaggerList(w http.ResponseWriter, r *http.Request) {
 	// query at the highest cardinality between checks and dogstatsd cardinalities
 	cardinality := collectors.TagCardinality(max(int(tagger.ChecksCardinality), int(tagger.DogstatsdCardinality)))
@@ -417,4 +410,9 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// GetConnection returns the connection for the request
+func GetConnection(r *http.Request) net.Conn {
+	return r.Context().Value(ConnContextKey).(net.Conn)
 }

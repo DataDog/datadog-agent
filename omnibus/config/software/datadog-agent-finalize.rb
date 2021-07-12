@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2020 Datadog, Inc.
+# Copyright 2016-present Datadog, Inc.
 
 # This software definition doesn"t build anything, it"s the place where we create
 # files outside the omnibus installation directory, so that we can add them to
@@ -82,7 +82,7 @@ build do
             # Fix pip after building on extended toolchain in CentOS builder
             if redhat?
               unless arm?
-                rhel_toolchain_root = "/opt/centos/devtoolset-1.1/root"
+                rhel_toolchain_root = "/opt/rh/devtoolset-1.1/root"
                 # lets be cautious - we first search for the expected toolchain path, if its not there, bail out
                 command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec grep -inH '#{rhel_toolchain_root}' {} \\; |  egrep '.*'"
                 # replace paths with expected target toolchain location
@@ -130,6 +130,7 @@ build do
             move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
             move "#{install_dir}/etc/datadog-agent/runtime-security.d", "/etc/datadog-agent", :force=>true
+            move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "/etc/datadog-agent", :force=>true
             move "#{install_dir}/etc/datadog-agent/compliance.d", "/etc/datadog-agent"
 
             # Move SELinux policy
@@ -188,9 +189,14 @@ build do
             strip_exclude("*psycopg2*")
             strip_exclude("*cffi_backend*")
 
+            # We get the following error when the aerospike lib is stripped:
+            # The `aerospike` client is not installed: /opt/datadog-agent/embedded/lib/python2.7/site-packages/aerospike.so: ELF load command address/offset not properly aligned
+            strip_exclude("*aerospike*")
+
             # Do not strip eBPF programs
-            strip_exclude("*tracer-ebpf*")
+            strip_exclude("*tracer*")
             strip_exclude("*offset-guess*")
+            strip_exclude("*http*")
             strip_exclude("*runtime-security*")
         end
 
@@ -200,6 +206,9 @@ build do
 
             # remove windows specific configs
             delete "#{install_dir}/etc/conf.d/winproc.d"
+            
+            # remove docker configuration
+            delete "#{install_dir}/etc/conf.d/docker.d"
 
             if ENV['HARDENED_RUNTIME_MAC'] == 'true'
                 hardened_runtime = "-o runtime --entitlements #{entitlements_file} "

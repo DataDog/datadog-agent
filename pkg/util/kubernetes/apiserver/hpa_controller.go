@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	v1alpha12 "github.com/DataDog/watermarkpodautoscaler/pkg/client/listers/datadoghq/v1alpha1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -54,7 +53,7 @@ type AutoscalersController struct {
 	autoscalersLister       autoscalerslister.HorizontalPodAutoscalerLister
 	autoscalersListerSynced cache.InformerSynced
 	wpaEnabled              bool
-	wpaLister               v1alpha12.WatermarkPodAutoscalerLister
+	wpaLister               cache.GenericLister
 	wpaListerSynced         cache.InformerSynced
 
 	// Autoscalers that need to be added to the cache.

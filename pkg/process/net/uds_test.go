@@ -11,8 +11,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
 func testSocketExistsNewUDSListener(t *testing.T, socketPath string) {
@@ -23,7 +21,7 @@ func testSocketExistsNewUDSListener(t *testing.T, socketPath string) {
 	assert.NoError(t, err)
 
 	// Create a new socket using UDSListener
-	l, err := NewListener(&config.AgentConfig{SystemProbeAddress: socketPath})
+	l, err := NewListener(socketPath)
 	require.NoError(t, err)
 
 	l.Stop()
@@ -36,12 +34,12 @@ func testSocketExistsAsRegularFileNewUDSListener(t *testing.T, socketPath string
 	defer f.Close()
 
 	// Create a new socket using UDSListener
-	_, err = NewListener(&config.AgentConfig{SystemProbeAddress: socketPath})
+	_, err = NewListener(socketPath)
 	require.Error(t, err)
 }
 
 func testWorkingNewUDSListener(t *testing.T, socketPath string) {
-	s, err := NewListener(&config.AgentConfig{SystemProbeAddress: socketPath})
+	s, err := NewListener(socketPath)
 	require.NoError(t, err)
 	defer s.Stop()
 

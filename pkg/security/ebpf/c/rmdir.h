@@ -11,131 +11,149 @@ struct rmdir_event_t {
     struct file_t file;
 };
 
+int __attribute__((always_inline)) rmdir_approvers(struct syscall_cache_t *syscall) {
+    return basename_approver(syscall, syscall->rmdir.dentry, EVENT_RMDIR);
+}
+int __attribute__((always_inline)) unlink_approvers(struct syscall_cache_t *syscall);
+
 SYSCALL_KPROBE0(rmdir) {
     struct syscall_cache_t syscall = {
-        .type = SYSCALL_RMDIR,
+        .type = EVENT_RMDIR,
+        .policy = fetch_policy(EVENT_RMDIR),
     };
 
-    cache_syscall(&syscall, EVENT_RMDIR);
+    cache_syscall(&syscall);
 
     return 0;
 }
 
+int __attribute__((always_inline)) rmdir_predicate(u64 type) {
+    return type == EVENT_RMDIR || type == EVENT_UNLINK;
+}
+
+// security_inode_rmdir is shared between rmdir and unlink syscalls
 SEC("kprobe/security_inode_rmdir")
 int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_RMDIR | SYSCALL_UNLINK);
+    struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
     if (!syscall)
         return 0;
 
-    u64 event_type = 0;
     struct path_key_t key = {};
     struct dentry *dentry = NULL;
 
-    u32 path_id = get_path_id(1);
-
     switch (syscall->type) {
-        case SYSCALL_RMDIR:
-            event_type = EVENT_RMDIR;
+        case EVENT_RMDIR:
+            if (syscall->rmdir.file.path_key.ino) {
+                return 0;
+            }
 
             // we resolve all the information before the file is actually removed
             dentry = (struct dentry *)PT_REGS_PARM2(ctx);
-
-            // if second pass, ex: overlayfs, just cache the inode that will be used in ret
-            if (syscall->rmdir.path_key.ino) {
-                syscall->rmdir.real_inode = get_dentry_ino(dentry);
-                return 0;
-            }
-
-            syscall->rmdir.path_key.ino = get_dentry_ino(dentry);
-            syscall->rmdir.overlay_numlower = get_overlay_numlower(dentry);
-            syscall->rmdir.path_key.path_id = path_id;
+            set_file_inode(dentry, &syscall->rmdir.file, 1);
+            fill_file_metadata(dentry, &syscall->rmdir.file.metadata);
 
             // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-            key = syscall->rmdir.path_key;
+            key = syscall->rmdir.file.path_key;
+
+            syscall->rmdir.dentry = dentry;
+            if (filter_syscall(syscall, rmdir_approvers)) {
+                return mark_as_discarded(syscall);
+            }
 
             break;
-        case SYSCALL_UNLINK:
-            event_type = EVENT_UNLINK;
+        case EVENT_UNLINK:
+            if (syscall->unlink.file.path_key.ino) {
+                return 0;
+            }
 
             // we resolve all the information before the file is actually removed
             dentry = (struct dentry *) PT_REGS_PARM2(ctx);
-
-            // if second pass, ex: overlayfs, just cache the inode that will be used in ret
-            if (syscall->unlink.path_key.ino) {
-                syscall->unlink.real_inode = get_dentry_ino(dentry);
-                return 0;
-            }
-
-            syscall->unlink.overlay_numlower = get_overlay_numlower(dentry);
-            syscall->unlink.path_key.ino = get_dentry_ino(dentry);
-            syscall->unlink.path_key.path_id = path_id;
+            set_file_inode(dentry, &syscall->unlink.file, 1);
+            fill_file_metadata(dentry, &syscall->unlink.file.metadata);
 
             // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-            key = syscall->unlink.path_key;
+            key = syscall->unlink.file.path_key;
+
+            syscall->unlink.dentry = dentry;
+            syscall->policy = fetch_policy(EVENT_RMDIR);
+            if (filter_syscall(syscall, rmdir_approvers)) {
+                return mark_as_discarded(syscall);
+            }
 
             break;
+        default:
+            return 0;
     }
 
-    if (discarded_by_process(syscall->policy.mode, event_type)) {
-        invalidate_inode(ctx, key.mount_id, key.ino, 1);
-
-        return 0;
+    if (is_discarded_by_process(syscall->policy.mode, syscall->type)) {
+        return mark_as_discarded(syscall);
     }
 
     if (dentry != NULL) {
-        int ret = resolve_dentry(dentry, key, syscall->policy.mode != NO_FILTER ? event_type : 0);
-        if (ret == DENTRY_DISCARDED) {
-            invalidate_inode(ctx, key.mount_id, key.ino, 1);
+        syscall->resolver.key = key;
+        syscall->resolver.dentry = dentry;
+        syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? syscall->type : 0;
+        syscall->resolver.callback = DR_SECURITY_INODE_RMDIR_CALLBACK_KPROBE_KEY;
+        syscall->resolver.iteration = 0;
+        syscall->resolver.ret = 0;
 
-            pop_syscall(syscall->type);
-        }
+        resolve_dentry(ctx, DR_KPROBE);
     }
+    return 0;
+}
+
+SEC("kprobe/dr_security_inode_rmdir_callback")
+int __attribute__((always_inline)) dr_security_inode_rmdir_callback(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
+    if (!syscall)
+        return 0;
+
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        return mark_as_discarded(syscall);
+    }
+    return 0;
+}
+
+int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
+    struct syscall_cache_t *syscall = pop_syscall_with(rmdir_predicate);
+    if (!syscall)
+        return 0;
+
+    if (IS_UNHANDLED_ERROR(retval)) {
+        return 0;
+    }
+
+    int pass_to_userspace = !syscall->discarded && is_event_enabled(EVENT_RMDIR);
+    if (pass_to_userspace) {
+        struct rmdir_event_t event = {
+            .syscall.retval = retval,
+            .file = syscall->rmdir.file,
+        };
+
+        struct proc_cache_t *entry = fill_process_context(&event.process);
+        fill_container_context(entry, &event.container);
+
+        send_event(ctx, EVENT_RMDIR, event);
+    }
+
+    invalidate_inode(ctx, syscall->rmdir.file.path_key.mount_id, syscall->rmdir.file.path_key.ino, !pass_to_userspace);
 
     return 0;
 }
 
+SEC("tracepoint/syscalls/sys_exit_rmdir")
+int tracepoint_syscalls_sys_exit_rmdir(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_rmdir_ret(args, args->ret);
+}
+
 SYSCALL_KRETPROBE(rmdir) {
-    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_RMDIR | SYSCALL_UNLINK);
-    if (!syscall)
-        return 0;
-
     int retval = PT_REGS_RC(ctx);
+    return sys_rmdir_ret(ctx, retval);
+}
 
-    // add an real entry to reach the first dentry with the proper inode
-    u64 inode = syscall->rmdir.path_key.ino;
-    if (syscall->rmdir.real_inode) {
-        inode = syscall->rmdir.real_inode;
-        link_dentry_inode(syscall->rmdir.path_key, inode);
-    }
-
-    if (IS_UNHANDLED_ERROR(retval)) {
-        invalidate_inode(ctx, syscall->rmdir.path_key.mount_id, inode, 0);
-        return 0;
-    }
-
-    int enabled = is_event_enabled(EVENT_RMDIR);
-    if (enabled) {
-        struct rmdir_event_t event = {
-            .event.type = EVENT_RMDIR,
-            .event.timestamp = bpf_ktime_get_ns(),
-            .syscall.retval = retval,
-            .file = {
-                .inode = inode,
-                .mount_id = syscall->rmdir.path_key.mount_id,
-                .overlay_numlower = syscall->rmdir.overlay_numlower,
-                .path_id = syscall->rmdir.path_key.path_id,
-            }
-        };
-
-        struct proc_cache_t *entry = fill_process_data(&event.process);
-        fill_container_data(entry, &event.container);
-
-        send_event(ctx, event);
-    }
-
-    invalidate_inode(ctx, syscall->rmdir.path_key.mount_id, inode, !enabled);
-
-    return 0;
+SEC("tracepoint/handle_sys_rmdir_exit")
+int tracepoint_handle_sys_rmdir_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_rmdir_ret(args, args->ret);
 }
 
 #endif

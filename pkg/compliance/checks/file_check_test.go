@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build !windows
 
@@ -31,6 +31,7 @@ func TestFileCheck(t *testing.T) {
 
 	normalizePath := func(t *testing.T, env *mocks.Env, file *compliance.File) {
 		t.Helper()
+		env.On("MaxEventsPerRun").Return(30).Maybe()
 		env.On("NormalizeToHostRoot", file.Path).Return(file.Path)
 		env.On("RelativeToHostRoot", file.Path).Return(file.Path)
 	}
@@ -73,6 +74,7 @@ func TestFileCheck(t *testing.T) {
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
 				_, filePaths := createTempFiles(t, 1)
 
+				env.On("MaxEventsPerRun").Return(30).Maybe()
 				env.On("NormalizeToHostRoot", file.Path).Return(filePaths[0])
 				env.On("RelativeToHostRoot", filePaths[0]).Return(file.Path)
 			},
@@ -91,6 +93,8 @@ func TestFileCheck(t *testing.T) {
 				Condition: "file.permissions == 0644",
 			},
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
+				env.On("MaxEventsPerRun").Return(30).Maybe()
+
 				tempDir, filePaths := createTempFiles(t, 2)
 				for _, filePath := range filePaths {
 					env.On("RelativeToHostRoot", filePath).Return(path.Join("/etc/", path.Base(filePath)))
@@ -129,6 +133,7 @@ func TestFileCheck(t *testing.T) {
 				Condition: `file.jq(".\"log-driver\"") == "json-file"`,
 			},
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
+				env.On("MaxEventsPerRun").Return(30).Maybe()
 				env.On("NormalizeToHostRoot", file.Path).Return("./testdata/file/daemon.json")
 				env.On("RelativeToHostRoot", "./testdata/file/daemon.json").Return(file.Path)
 			},
@@ -148,6 +153,7 @@ func TestFileCheck(t *testing.T) {
 				Condition: `file.jq(".experimental") == "true"`,
 			},
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
+				env.On("MaxEventsPerRun").Return(30).Maybe()
 				env.On("NormalizeToHostRoot", file.Path).Return("./testdata/file/daemon.json")
 				env.On("RelativeToHostRoot", "./testdata/file/daemon.json").Return(file.Path)
 			},
@@ -168,6 +174,7 @@ func TestFileCheck(t *testing.T) {
 			},
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
 				path := "/etc/docker/daemon.json"
+				env.On("MaxEventsPerRun").Return(30).Maybe()
 				env.On("EvaluateFromCache", mock.Anything).Return(path, nil)
 				env.On("NormalizeToHostRoot", path).Return("./testdata/file/daemon.json")
 				env.On("RelativeToHostRoot", "./testdata/file/daemon.json").Return(path)
@@ -188,6 +195,7 @@ func TestFileCheck(t *testing.T) {
 				Condition: `file.jq(".experimental") == "false"`,
 			},
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
+				env.On("MaxEventsPerRun").Return(30).Maybe()
 				env.On("EvaluateFromCache", mock.Anything).Return("", nil)
 			},
 			expectError: errors.New(`failed to resolve path: empty path from process.flag("dockerd", "--config-file")`),
@@ -201,6 +209,7 @@ func TestFileCheck(t *testing.T) {
 				Condition: `file.jq(".experimental") == "false"`,
 			},
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
+				env.On("MaxEventsPerRun").Return(30).Maybe()
 				env.On("EvaluateFromCache", mock.Anything).Return(true, nil)
 			},
 			expectError: errors.New(`failed to resolve path: expected string from process.flag("dockerd", "--config-file") got "true"`),
@@ -214,6 +223,7 @@ func TestFileCheck(t *testing.T) {
 				Condition: `file.jq(".experimental") == "false"`,
 			},
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
+				env.On("MaxEventsPerRun").Return(30).Maybe()
 				env.On("EvaluateFromCache", mock.Anything).Return(nil, errors.New("1:1: unknown function process.unknown()"))
 			},
 			expectError: errors.New(`failed to resolve path: 1:1: unknown function process.unknown()`),
@@ -227,6 +237,7 @@ func TestFileCheck(t *testing.T) {
 				Condition: `file.jq(".[\"default-ulimits\"].nofile.Hard") == "64000"`,
 			},
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
+				env.On("MaxEventsPerRun").Return(30).Maybe()
 				env.On("NormalizeToHostRoot", file.Path).Return("./testdata/file/daemon.json")
 				env.On("RelativeToHostRoot", "./testdata/file/daemon.json").Return(file.Path)
 			},
@@ -246,6 +257,7 @@ func TestFileCheck(t *testing.T) {
 				Condition: `file.yaml(".apiVersion") == "v1"`,
 			},
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
+				env.On("MaxEventsPerRun").Return(30).Maybe()
 				env.On("NormalizeToHostRoot", file.Path).Return("./testdata/file/pod.yaml")
 				env.On("RelativeToHostRoot", "./testdata/file/pod.yaml").Return(file.Path)
 			},
@@ -265,6 +277,7 @@ func TestFileCheck(t *testing.T) {
 				Condition: `file.regexp("[a-zA-Z0-9-_/]+ /boot/efi [a-zA-Z0-9-_/]+") != ""`,
 			},
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
+				env.On("MaxEventsPerRun").Return(30).Maybe()
 				env.On("NormalizeToHostRoot", file.Path).Return("./testdata/file/mounts")
 				env.On("RelativeToHostRoot", "./testdata/file/mounts").Return(file.Path)
 			},
@@ -289,13 +302,13 @@ func TestFileCheck(t *testing.T) {
 			fileCheck, err := newResourceCheck(env, "rule-id", test.resource)
 			assert.NoError(err)
 
-			report, err := fileCheck.check(env)
+			reports := fileCheck.check(env)
 
 			if test.expectError != nil {
-				assert.EqualError(err, test.expectError.Error())
+				assert.EqualError(reports[0].Error, test.expectError.Error())
 			} else {
 				assert.NoError(err)
-				test.validate(t, test.resource.File, report)
+				test.validate(t, test.resource.File, reports[0])
 			}
 		})
 	}

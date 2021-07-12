@@ -3,6 +3,7 @@ package network
 import (
 	"fmt"
 	"net"
+	"runtime"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -26,7 +27,7 @@ var (
 )
 
 func TestBeautifyKey(t *testing.T) {
-	var buf [ConnectionByteKeyMaxLen]byte
+	buf := make([]byte, ConnectionByteKeyMaxLen)
 	for _, c := range []ConnectionStats{
 		testConn,
 		{
@@ -57,7 +58,7 @@ func TestBeautifyKey(t *testing.T) {
 }
 
 func TestConnStatsByteKey(t *testing.T) {
-	var buf [ConnectionByteKeyMaxLen]byte
+	buf := make([]byte, ConnectionByteKeyMaxLen)
 	addrA := util.AddressFromString("127.0.0.1")
 	addrB := util.AddressFromString("127.0.0.2")
 
@@ -115,4 +116,18 @@ func TestConnStatsByteKey(t *testing.T) {
 		}
 		assert.NotEqual(t, keyA, keyB)
 	}
+}
+
+func BenchmarkByteKey(b *testing.B) {
+	buf := make([]byte, ConnectionByteKeyMaxLen)
+	addrA := util.AddressFromString("127.0.0.1")
+	addrB := util.AddressFromString("127.0.0.2")
+	c := ConnectionStats{Pid: 1, Dest: addrB, Family: 0, Type: 1, Source: addrA}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = c.ByteKey(buf)
+	}
+	runtime.KeepAlive(buf)
 }

@@ -8,8 +8,7 @@ struct umount_event_t {
     struct process_context_t process;
     struct container_context_t container;
     struct syscall_t syscall;
-    int mount_id;
-
+    u32 mount_id;
 };
 
 SYSCALL_KPROBE0(umount) {
@@ -19,34 +18,54 @@ SYSCALL_KPROBE0(umount) {
 SEC("kprobe/security_sb_umount")
 int kprobe__security_sb_umount(struct pt_regs *ctx) {
     struct syscall_cache_t syscall = {
-        .type = SYSCALL_UMOUNT,
+        .type = EVENT_UMOUNT,
         .umount = {
             .vfs = (struct vfsmount *)PT_REGS_PARM1(ctx),
         }
     };
 
-    cache_syscall(&syscall, EVENT_UMOUNT);
+    cache_syscall(&syscall);
     return 0;
 }
 
-SYSCALL_KRETPROBE(umount) {
-    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_UMOUNT);
+int __attribute__((always_inline)) sys_umount_ret(void *ctx, int retval) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_UMOUNT);
     if (!syscall)
         return 0;
 
+    if (retval)
+        return 0;
+
+    int mount_id = get_vfsmount_mount_id(syscall->umount.vfs);
+
     struct umount_event_t event = {
-        .event.type = EVENT_UMOUNT,
-        .event.timestamp = bpf_ktime_get_ns(),
-        .syscall .retval = PT_REGS_RC(ctx),
-        .mount_id = get_vfsmount_mount_id(syscall->umount.vfs),
+        .syscall .retval = retval,
+        .mount_id = mount_id
     };
 
-    struct proc_cache_t *entry = fill_process_data(&event.process);
-    fill_container_data(entry, &event.container);
+    struct proc_cache_t *entry = fill_process_context(&event.process);
+    fill_container_context(entry, &event.container);
 
-    send_mountpoints_events(ctx, event);
+    send_event(ctx, EVENT_UMOUNT, event);
+
+    umounted(ctx, mount_id);
 
     return 0;
+}
+
+SEC("tracepoint/syscalls/sys_exit_umount")
+int handle_sys_umount_exit(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_umount_ret(args, args->ret);
+}
+
+SYSCALL_KRETPROBE(umount) {
+    int retval = PT_REGS_RC(ctx);
+    return sys_umount_ret(ctx, retval);
+}
+
+SEC("tracepoint/handle_sys_umount_exit")
+int tracepoint_handle_sys_umount_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_umount_ret(args, args->ret);
 }
 
 #endif

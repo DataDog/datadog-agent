@@ -1,22 +1,24 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build docker
 
 package collectors
 
 import (
+	"context"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func (c *ECSCollector) parseTasks(tasks []v1.Task, targetDockerID string, containerHandlers ...func(containerID string, tags *utils.TagList)) ([]*TagInfo, error) {
+func (c *ECSCollector) parseTasks(ctx context.Context, tasks []v1.Task, targetDockerID string, containerHandlers ...func(ctx context.Context, containerID string, tags *utils.TagList) error) ([]*TagInfo, error) {
 	var output []*TagInfo
 	now := time.Now()
 	for _, task := range tasks {
@@ -40,9 +42,17 @@ func (c *ECSCollector) parseTasks(tasks []v1.Task, targetDockerID string, contai
 					tags.AddLow("ecs_cluster_name", c.clusterName)
 				}
 
+				var expiryDate time.Time
 				for _, fn := range containerHandlers {
 					if fn != nil {
-						fn(container.DockerID, tags)
+						err := fn(ctx, container.DockerID, tags)
+						if err != nil {
+							log.Warnf("container handler func failed: %s", err)
+
+							// cache result for 1 sencond
+							// it prevents tagger to aggresivelly retry fetch
+							expiryDate = time.Now().Add(1 * time.Second)
+						}
 					}
 				}
 
@@ -56,6 +66,7 @@ func (c *ECSCollector) parseTasks(tasks []v1.Task, targetDockerID string, contai
 					HighCardTags:         high,
 					OrchestratorCardTags: orch,
 					LowCardTags:          low,
+					ExpiryDate:           expiryDate,
 				}
 				output = append(output, info)
 			}

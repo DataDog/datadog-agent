@@ -87,6 +87,45 @@ func TestTraces(t *testing.T) {
 			payloadsEqual(t, append(p[:2], p[3:]...), v)
 		})
 	})
+
+	t.Run("filter_tags", func(t *testing.T) {
+		if err := r.RunAgent([]byte(`apm_config:
+  filter_tags:
+    require: ["env:prod", "db:mysql"]
+    reject: ["outcome:success"]`)); err != nil {
+			t.Fatal(err)
+		}
+		defer r.KillAgent()
+
+		p := testutil.GeneratePayload(4, &testutil.TraceConfig{
+			MinSpans: 4,
+			Keep:     true,
+		}, nil)
+		for _, span := range p[0] {
+			span.Meta = map[string]string{
+				"env": "prod",
+				"db":  "mysql",
+			}
+		}
+		for _, span := range p[1] {
+			span.Meta = map[string]string{
+				"env": "prod",
+				"db":  "mysql",
+			}
+		}
+		for _, span := range p[3] {
+			span.Meta = map[string]string{
+				"outcome": "success",
+				"db":      "mysql",
+			}
+		}
+		if err := r.Post(p); err != nil {
+			t.Fatal(err)
+		}
+		waitForTrace(t, &r, func(v pb.TracePayload) {
+			payloadsEqual(t, p[:2], v)
+		})
+	})
 }
 
 // payloadsEqual validates that the traces in from are the same as the ones in to.

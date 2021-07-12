@@ -1,7 +1,7 @@
 """
 Dogstatsd tasks
 """
-from __future__ import absolute_import, print_function
+
 
 import os
 import shutil
@@ -26,7 +26,7 @@ from .utils import (
 # constants
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
 STATIC_BIN_PATH = os.path.join(".", "bin", "static")
-MAX_BINARY_SIZE = 20 * 1024
+MAX_BINARY_SIZE = 21 * 1024
 DOGSTATSD_TAG = "datadog/dogstatsd:master"
 
 
@@ -40,7 +40,7 @@ def build(
     build_exclude=None,
     major_version='7',
     arch="x64",
-    go_mod="vendor",
+    go_mod="mod",
 ):
     """
     Build Dogstatsd
@@ -62,7 +62,7 @@ def build(
             env["GOARCH"] = "386"
             windres_target = "pe-i386"
 
-        ver = get_version_numeric_only(ctx, env, major_version=major_version)
+        ver = get_version_numeric_only(ctx, major_version=major_version)
         maj_ver, min_ver, patch_ver = ver.split(".")
 
         ctx.run(
@@ -119,7 +119,7 @@ def build(
 
 
 @task
-def refresh_assets(ctx):
+def refresh_assets(_):
     """
     Clean up and refresh Collector's assets and config files
     """
@@ -148,7 +148,7 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, 
 
 
 @task
-def system_tests(ctx, skip_build=False, go_mod="vendor", arch="x64"):
+def system_tests(ctx, skip_build=False, go_mod="mod", arch="x64"):
     """
     Run the system testsuite.
     """
@@ -199,6 +199,7 @@ def omnibus_build(
     release_version="nightly",
     major_version='7',
     omnibus_s3_cache=False,
+    go_mod_cache=None,
 ):
     """
     Build the Dogstatsd packages with Omnibus Installer.
@@ -220,24 +221,41 @@ def omnibus_build(
 
     with ctx.cd("omnibus"):
         env = load_release_versions(ctx, release_version)
+
         cmd = "bundle install"
         if gem_path:
             cmd += " --path {}".format(gem_path)
         ctx.run(cmd, env=env)
+
         omnibus = "bundle exec omnibus.bat" if sys.platform == 'win32' else "bundle exec omnibus"
         cmd = "{omnibus} build dogstatsd --log-level={log_level} {populate_s3_cache} {overrides}"
         args = {"omnibus": omnibus, "log_level": log_level, "overrides": overrides_cmd, "populate_s3_cache": ""}
+
         if omnibus_s3_cache:
             args['populate_s3_cache'] = " --populate-s3-cache "
+
         env['PACKAGE_VERSION'] = get_version(
             ctx, include_git=True, url_safe=True, git_sha_length=7, major_version=major_version
         )
         env['MAJOR_VERSION'] = major_version
+
+        integrations_core_version = os.environ.get('INTEGRATIONS_CORE_VERSION')
+        # Only overrides the env var if the value is a non-empty string.
+        if integrations_core_version:
+            env['INTEGRATIONS_CORE_VERSION'] = integrations_core_version
+
+        # If the host has a GOMODCACHE set, try to reuse it
+        if not go_mod_cache and os.environ.get('GOMODCACHE'):
+            go_mod_cache = os.environ.get('GOMODCACHE')
+
+        if go_mod_cache:
+            env['OMNIBUS_GOMODCACHE'] = go_mod_cache
+
         ctx.run(cmd.format(**args), env=env)
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="vendor", arch="x64"):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod", arch="x64"):
     """
     Run integration tests for dogstatsd
     """

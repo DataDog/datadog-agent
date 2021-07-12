@@ -8,6 +8,9 @@ Param(
 $ErrorActionPreference = 'Stop';
 Set-Location c:\mnt
 
+# Install chocolatey binary
+$env:chocolateyUseWindowsCompression = 'true'; Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+
 # Install dev tools, including invoke
 pip3 install -r requirements.txt
 
@@ -54,7 +57,7 @@ if ($rawAgentVersion -match $releaseCandidatePattern) {
     exit 3
 }
 
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DataDog/datadog-agent/master/LICENSE" -OutFile $licensePath
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DataDog/datadog-agent/main/LICENSE" -OutFile $licensePath
 
 Write-Host "Generating Chocolatey $installMethod package version $agentVersion in $outputDirectory"
 

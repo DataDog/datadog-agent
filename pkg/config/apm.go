@@ -14,13 +14,23 @@ import (
 func setupAPM(config Config) {
 	config.SetKnown("apm_config.obfuscation.elasticsearch.enabled")
 	config.SetKnown("apm_config.obfuscation.elasticsearch.keep_values")
+	config.SetKnown("apm_config.obfuscation.elasticsearch.obfuscate_sql_values")
 	config.SetKnown("apm_config.obfuscation.mongodb.enabled")
 	config.SetKnown("apm_config.obfuscation.mongodb.keep_values")
+	config.SetKnown("apm_config.obfuscation.mongodb.obfuscate_sql_values")
+	config.SetKnown("apm_config.obfuscation.sql_exec_plan.enabled")
+	config.SetKnown("apm_config.obfuscation.sql_exec_plan.keep_values")
+	config.SetKnown("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values")
+	config.SetKnown("apm_config.obfuscation.sql_exec_plan_normalize.enabled")
+	config.SetKnown("apm_config.obfuscation.sql_exec_plan_normalize.keep_values")
+	config.SetKnown("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values")
 	config.SetKnown("apm_config.obfuscation.http.remove_query_string")
 	config.SetKnown("apm_config.obfuscation.http.remove_paths_with_digits")
 	config.SetKnown("apm_config.obfuscation.remove_stack_traces")
 	config.SetKnown("apm_config.obfuscation.redis.enabled")
 	config.SetKnown("apm_config.obfuscation.memcached.enabled")
+	config.SetKnown("apm_config.filter_tags.require")
+	config.SetKnown("apm_config.filter_tags.reject")
 	config.SetKnown("apm_config.extra_sample_rate")
 	config.SetKnown("apm_config.dd_agent_bin")
 	config.SetKnown("apm_config.trace_writer.connection_limit")
@@ -33,6 +43,7 @@ func setupAPM(config Config) {
 	config.SetKnown("apm_config.log_throttling")
 	config.SetKnown("apm_config.bucket_size_seconds")
 	config.SetKnown("apm_config.watchdog_check_delay")
+	config.SetKnown("apm_config.sync_flushing")
 
 	if runtime.GOARCH == "386" && runtime.GOOS == "windows" {
 		// on Windows-32 bit, the trace agent isn't installed.  Set the default to disabled
@@ -43,7 +54,11 @@ func setupAPM(config Config) {
 	}
 
 	config.BindEnvAndSetDefault("apm_config.receiver_port", 8126, "DD_APM_RECEIVER_PORT", "DD_RECEIVER_PORT")
+	config.BindEnvAndSetDefault("apm_config.windows_pipe_buffer_size", 1_000_000, "DD_APM_WINDOWS_PIPE_BUFFER_SIZE")                          //nolint:errcheck
+	config.BindEnvAndSetDefault("apm_config.windows_pipe_security_descriptor", "D:AI(A;;GA;;;WD)", "DD_APM_WINDOWS_PIPE_SECURITY_DESCRIPTOR") //nolint:errcheck
+	config.BindEnvAndSetDefault("apm_config.remote_tagger", false, "DD_APM_REMOTE_TAGGER")                                                    //nolint:errcheck
 
+	config.BindEnv("apm_config.max_catalog_services", "DD_APM_MAX_CATALOG_SERVICES")                     //nolint:errcheck
 	config.BindEnv("apm_config.receiver_timeout", "DD_APM_RECEIVER_TIMEOUT")                             //nolint:errcheck
 	config.BindEnv("apm_config.max_payload_size", "DD_APM_MAX_PAYLOAD_SIZE")                             //nolint:errcheck
 	config.BindEnv("apm_config.log_file", "DD_APM_LOG_FILE")                                             //nolint:errcheck
@@ -63,6 +78,13 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.analyzed_spans", "DD_APM_ANALYZED_SPANS")                                 //nolint:errcheck
 	config.BindEnv("apm_config.ignore_resources", "DD_APM_IGNORE_RESOURCES", "DD_IGNORE_RESOURCE")       //nolint:errcheck
 	config.BindEnv("apm_config.receiver_socket", "DD_APM_RECEIVER_SOCKET")                               //nolint:errcheck
+	config.BindEnv("apm_config.windows_pipe_name", "DD_APM_WINDOWS_PIPE_NAME")                           //nolint:errcheck
+	config.BindEnv("apm_config.sync_flushing", "DD_APM_SYNC_FLUSHING")                                   //nolint:errcheck
+	config.BindEnv("apm_config.filter_tags.require", "DD_APM_FILTER_TAGS_REQUIRE")                       //nolint:errcheck
+	config.BindEnv("apm_config.filter_tags.reject", "DD_APM_FILTER_TAGS_REJECT")                         //nolint:errcheck
+	config.BindEnv("apm_config.internal_profiling.enabled", "DD_APM_INTERNAL_PROFILING_ENABLED")         //nolint:errcheck
+	config.BindEnv("experimental.otlp.http_port", "DD_OTLP_HTTP_PORT")                                   //nolint:errcheck
+	config.BindEnv("experimental.otlp.grpc_port", "DD_OTLP_GRPC_PORT")                                   //nolint:errcheck
 
 	config.SetEnvKeyTransformer("apm_config.ignore_resources", func(in string) interface{} {
 		r, err := splitCSVString(in, ',')
@@ -71,6 +93,14 @@ func setupAPM(config Config) {
 			return []string{}
 		}
 		return r
+	})
+
+	config.SetEnvKeyTransformer("apm_config.filter_tags.require", func(in string) interface{} {
+		return strings.Split(in, " ")
+	})
+
+	config.SetEnvKeyTransformer("apm_config.filter_tags.reject", func(in string) interface{} {
+		return strings.Split(in, " ")
 	})
 
 	config.SetEnvKeyTransformer("apm_config.replace_tags", func(in string) interface{} {

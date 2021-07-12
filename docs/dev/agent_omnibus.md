@@ -95,7 +95,6 @@ It takes a while on the first run since it has to download the ~12GB Docker imag
 Start the build by running:
 ```
 set PY_RUNTIMES="3"
-set NEW_BUILDER=true
 set MAJOR_VERSION=7
 set RELEASE_VERSION=nightly
 set TARGET_ARCH=x64

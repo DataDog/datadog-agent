@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -18,11 +18,11 @@ import (
 	vpaclientset "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
-	ksmbuild "k8s.io/kube-state-metrics/pkg/builder"
-	ksmtypes "k8s.io/kube-state-metrics/pkg/builder/types"
-	"k8s.io/kube-state-metrics/pkg/metric_generator"
-	"k8s.io/kube-state-metrics/pkg/options"
-	"k8s.io/kube-state-metrics/pkg/watch"
+	ksmbuild "k8s.io/kube-state-metrics/v2/pkg/builder"
+	ksmtypes "k8s.io/kube-state-metrics/v2/pkg/builder/types"
+	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
+	"k8s.io/kube-state-metrics/v2/pkg/options"
+	"k8s.io/kube-state-metrics/v2/pkg/watch"
 )
 
 // Builder struct represents the metric store generator
@@ -82,7 +82,7 @@ func (b *Builder) WithVPAClient(c vpaclientset.Interface) {
 }
 
 // WithMetrics sets the metrics property of a Builder.
-func (b *Builder) WithMetrics(r *prometheus.Registry) {
+func (b *Builder) WithMetrics(r prometheus.Registerer) {
 	b.ksmBuilder.WithMetrics(r)
 	b.metrics = watch.NewListWatchMetrics(r)
 }
@@ -103,9 +103,14 @@ func (b *Builder) DefaultGenerateStoreFunc() ksmtypes.BuildStoreFunc {
 	return b.GenerateStore
 }
 
-// WithCustomGenerateStoreFunc configures a constom generate store function
+// WithGenerateStoreFunc configures a constom generate store function
 func (b *Builder) WithGenerateStoreFunc(f ksmtypes.BuildStoreFunc) {
 	b.ksmBuilder.WithGenerateStoreFunc(f)
+}
+
+// WithAllowLabels configures which labels can be returned for metrics
+func (b *Builder) WithAllowLabels(l map[string][]string) {
+	b.ksmBuilder.WithAllowLabels(l)
 }
 
 // Build initializes and registers all enabled stores.

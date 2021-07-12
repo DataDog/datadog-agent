@@ -120,13 +120,51 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
     fi
 else
     # macOS
-    mkdir -p $LOG_DIR
+
+    # On Mac, the real log folder is located under /opt/datadog-agent/logs, because some MacOS versions deletes
+    # /var/log on upgrade. The old log folder now becomes a symbolic link to the new folder.
+    REAL_LOG_DIR=/opt/datadog-agent/logs
+    LOG_BASE_DIR=/var/log
+
+    mkdir -p $REAL_LOG_DIR
 
     CONF_DIR="$INSTALL_DIR/etc"
     APP_DIR="/Applications/Datadog Agent.app"
 
-    LOG_FILE="$LOG_DIR/preinstall.log"
+    LOG_FILE="$REAL_LOG_DIR/preinstall.log"
     exec > $LOG_FILE 2>&1
+
+    if [ -d $LOG_DIR ]; then
+        # Old log folder exists
+        echo "Old log folder exists."
+
+        if [ -L $LOG_DIR ]; then
+            # Old log folder is a symblic link already. Nothing to do here.
+            echo "Old log folder is a link, nothing to do here."
+            true
+        else
+            # Old log folder is not a link, copy the files to the new folder.
+            echo "Old log folder is not a link, copying everything to the new location."
+            cp -Rf $LOG_DIR/* $REAL_LOG_DIR
+
+            # Remove the old one
+            echo "Removing the old log folder."
+            rm -rf $LOG_DIR
+
+            # Create a link
+            echo "Creating a link from old log folder to the new location."
+            ln -s $REAL_LOG_DIR $LOG_DIR
+        fi
+    else
+        # Old log folder does not exist. Try to create its base folder in case it does not exist either.
+        echo "Old log folder does not exist. Creating its base folder."
+        mkdir -p $LOG_BASE_DIR
+
+        # Create a link
+        echo "Creating a link from old log folder to the new location."
+        ln -s $REAL_LOG_DIR $LOG_DIR
+    fi
+    echo "Log folder migration has completed."
 
     # Determine current user if he is using the Graphical installer
     # shellcheck disable=SC2009

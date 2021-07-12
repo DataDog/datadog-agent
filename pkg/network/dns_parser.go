@@ -1,9 +1,8 @@
-// +build linux_bpf
-
 package network
 
 import (
 	"bytes"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/google/gopacket"
@@ -16,20 +15,27 @@ const maxIPBufferSize = 200
 var (
 	errTruncated      = errors.New("the packet is truncated")
 	errSkippedPayload = errors.New("the packet does not contain relevant DNS response")
+
+	// recordedRecordTypes defines a map of DNS types that we'd like to capture.
+	// add additional types here to add DNSQueryTypes that will be recorded
+	recordedQueryTypes = map[layers.DNSType]struct{}{
+		layers.DNSTypeA:    {},
+		layers.DNSTypeAAAA: {}}
 )
 
 type dnsParser struct {
-	decoder         *gopacket.DecodingLayerParser
-	layers          []gopacket.LayerType
-	ipv4Payload     *layers.IPv4
-	ipv6Payload     *layers.IPv6
-	udpPayload      *layers.UDP
-	tcpPayload      *tcpWithDNSSupport
-	dnsPayload      *layers.DNS
-	collectDNSStats bool
+	decoder           *gopacket.DecodingLayerParser
+	layers            []gopacket.LayerType
+	ipv4Payload       *layers.IPv4
+	ipv6Payload       *layers.IPv6
+	udpPayload        *layers.UDP
+	tcpPayload        *tcpWithDNSSupport
+	dnsPayload        *layers.DNS
+	collectDNSStats   bool
+	collectDNSDomains bool
 }
 
-func newDNSParser(collectDNStats bool) *dnsParser {
+func newDNSParser(layerType gopacket.LayerType, collectDNSStats bool, collectDNSDomains bool) *dnsParser {
 	ipv4Payload := &layers.IPv4{}
 	ipv6Payload := &layers.IPv6{}
 	udpPayload := &layers.UDP{}
@@ -46,13 +52,14 @@ func newDNSParser(collectDNStats bool) *dnsParser {
 	}
 
 	return &dnsParser{
-		decoder:         gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, stack...),
-		ipv4Payload:     ipv4Payload,
-		ipv6Payload:     ipv6Payload,
-		udpPayload:      udpPayload,
-		tcpPayload:      tcpPayload,
-		dnsPayload:      dnsPayload,
-		collectDNSStats: collectDNStats,
+		decoder:           gopacket.NewDecodingLayerParser(layerType, stack...),
+		ipv4Payload:       ipv4Payload,
+		ipv6Payload:       ipv6Payload,
+		udpPayload:        udpPayload,
+		tcpPayload:        tcpPayload,
+		dnsPayload:        dnsPayload,
+		collectDNSStats:   collectDNSStats,
+		collectDNSDomains: collectDNSDomains,
 	}
 }
 
@@ -104,7 +111,6 @@ func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInf
 				pktInfo.key.clientPort = uint16(p.udpPayload.SrcPort)
 			} else {
 				pktInfo.key.clientPort = uint16(p.udpPayload.DstPort)
-
 			}
 			pktInfo.key.protocol = UDP
 		case layers.LayerTypeTCP:
@@ -133,13 +139,17 @@ func (p *dnsParser) parseAnswerInto(
 	}
 
 	question := dns.Questions[0]
-	if question.Type != layers.DNSTypeA || question.Class != layers.DNSClassIN {
+	if question.Class != layers.DNSClassIN || !isWantedQueryType(question.Type) {
 		return errSkippedPayload
 	}
 
 	// Only consider responses
 	if !dns.QR {
 		pktInfo.pktType = Query
+		pktInfo.queryType = QueryType(question.Type)
+		if p.collectDNSDomains {
+			pktInfo.question = string(question.Name)
+		}
 		return nil
 	}
 
@@ -149,44 +159,43 @@ func (p *dnsParser) parseAnswerInto(
 		return nil
 	}
 
-	var alias []byte
-	domainQueried := question.Name
-
-	// Retrieve the CNAME record, if available.
-	alias = p.extractCNAME(domainQueried, dns.Answers)
-	if alias == nil {
-		alias = p.extractCNAME(domainQueried, dns.Additionals)
-	}
-
-	// Get IPs
-	p.extractIPsInto(alias, domainQueried, dns.Answers, t)
-	p.extractIPsInto(alias, domainQueried, dns.Additionals, t)
-	t.dns = string(domainQueried)
+	pktInfo.queryType = QueryType(question.Type)
+	alias := p.extractCNAME(question.Name, dns.Answers)
+	p.extractIPsInto(alias, dns.Answers, t)
+	t.dns = string(bytes.ToLower(question.Name))
 
 	pktInfo.pktType = SuccessfulResponse
 	return nil
 }
 
 func (*dnsParser) extractCNAME(domainQueried []byte, records []layers.DNSResourceRecord) []byte {
+	alias := domainQueried
 	for _, record := range records {
-		if record.Type == layers.DNSTypeCNAME && record.Class == layers.DNSClassIN &&
-			bytes.Equal(domainQueried, record.Name) {
-			return record.CNAME
-		}
-	}
-
-	return nil
-}
-
-func (*dnsParser) extractIPsInto(alias, domainQueried []byte, records []layers.DNSResourceRecord, t *translation) {
-	for _, record := range records {
-		if record.Type != layers.DNSTypeA || record.Class != layers.DNSClassIN {
+		if record.Class != layers.DNSClassIN {
 			continue
 		}
-
-		if bytes.Equal(domainQueried, record.Name) ||
-			(alias != nil && bytes.Equal(alias, record.Name)) {
-			t.add(util.AddressFromNetIP(record.IP))
+		if record.Type == layers.DNSTypeCNAME && bytes.Equal(alias, record.Name) {
+			alias = record.CNAME
 		}
 	}
+	return alias
+}
+
+func (*dnsParser) extractIPsInto(alias []byte, records []layers.DNSResourceRecord, t *translation) {
+	for _, record := range records {
+		if record.Class != layers.DNSClassIN {
+			continue
+		}
+		if len(record.IP) == 0 {
+			continue
+		}
+		if bytes.Equal(alias, record.Name) {
+			t.add(util.AddressFromNetIP(record.IP), time.Duration(record.TTL)*time.Second)
+		}
+	}
+}
+
+func isWantedQueryType(checktype layers.DNSType) bool {
+	_, ok := recordedQueryTypes[checktype]
+	return ok
 }

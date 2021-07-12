@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package clustername
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"regexp"
@@ -14,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
@@ -42,7 +44,7 @@ type clusterNameData struct {
 }
 
 // Provider is a generic function to grab the clustername and return it
-type Provider func() (string, error)
+type Provider func(context.Context) (string, error)
 
 // ProviderCatalog holds all the various kinds of clustername providers
 var ProviderCatalog map[string]Provider
@@ -62,7 +64,7 @@ func init() {
 	}
 }
 
-func getClusterName(data *clusterNameData, hostname string) string {
+func getClusterName(ctx context.Context, data *clusterNameData, hostname string) string {
 	data.mutex.Lock()
 	defer data.mutex.Unlock()
 
@@ -86,7 +88,7 @@ func getClusterName(data *clusterNameData, hostname string) string {
 		if data.clusterName == "" {
 			for cloudProvider, getClusterNameFunc := range ProviderCatalog {
 				log.Debugf("Trying to auto discover the cluster name from the %s API...", cloudProvider)
-				clusterName, err := getClusterNameFunc()
+				clusterName, err := getClusterNameFunc(ctx)
 				if err != nil {
 					log.Debugf("Unable to auto discover the cluster name from the %s API: %s", cloudProvider, err)
 					// try the next cloud provider
@@ -101,7 +103,7 @@ func getClusterName(data *clusterNameData, hostname string) string {
 		}
 
 		if data.clusterName == "" {
-			clusterName, err := hostinfo.GetNodeClusterNameLabel()
+			clusterName, err := hostinfo.GetNodeClusterNameLabel(ctx)
 			if err != nil {
 				log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
 			} else {
@@ -114,8 +116,8 @@ func getClusterName(data *clusterNameData, hostname string) string {
 }
 
 // GetClusterName returns a k8s cluster name if it exists, either directly specified or autodiscovered
-func GetClusterName(hostname string) string {
-	return getClusterName(defaultClusterNameData, hostname)
+func GetClusterName(ctx context.Context, hostname string) string {
+	return getClusterName(ctx, defaultClusterNameData, hostname)
 }
 
 func resetClusterName(data *clusterNameData) {
@@ -138,12 +140,24 @@ func GetClusterID() (string, error) {
 		return cachedClusterID.(string), nil
 	}
 
+	// in older setups the cluster ID was exposed as an env var from a configmap created by the cluster agent
 	clusterID, found := os.LookupEnv(clusterIDEnv)
 	if !found {
-		err := fmt.Errorf("Cluster ID env variable %s is missing, kubernetes cluster cannot be identified", clusterIDEnv)
-		return "", err
-	} else if len(clusterID) != 36 {
-		err := fmt.Errorf("Unexpected value %s for env variable %s, ignoring it", clusterID, clusterIDEnv)
+		log.Debugf("Cluster ID env variable %s is missing, calling the Cluster Agent", clusterIDEnv)
+
+		dcaClient, err := clusteragent.GetClusterAgentClient()
+		if err != nil {
+			return "", err
+		}
+		clusterID, err = dcaClient.GetKubernetesClusterID()
+		if err != nil {
+			return "", err
+		}
+		log.Debugf("Cluster ID retrieved from the Cluster Agent, set to %s", clusterID)
+	}
+
+	if len(clusterID) != 36 {
+		err := fmt.Errorf("Unexpected value for Cluster ID: %s, ignoring it", clusterID)
 		return "", err
 	}
 

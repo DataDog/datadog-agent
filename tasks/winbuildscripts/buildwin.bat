@@ -1,66 +1,36 @@
 if not exist c:\mnt\ goto nomntdir
 
 @echo c:\mnt found, continuing
-@echo PARAMS %*
-@echo RELEASE_VERSION %RELEASE_VERSION%
-@echo MAJOR_VERSION %MAJOR_VERSION%
-@echo PY_RUNTIMES %PY_RUNTIMES%
-
-if NOT DEFINED RELEASE_VERSION set RELEASE_VERSION=%~1
-if NOT DEFINED MAJOR_VERSION set MAJOR_VERSION=%~2
-if NOT DEFINED PY_RUNTIMES set PY_RUNTIMES=%~3
-
-REM don't use `OUTDIR` as an environment variable. It will confuse the VC build
-set PKG_OUTDIR=c:\mnt\build-out\%CI_JOB_ID%
-
-set OMNIBUS_BUILD=agent.omnibus-build
-set OMNIBUS_ARGS=--python-runtimes "%PY_RUNTIMES%"
-
-if "%OMNIBUS_TARGET%" == "iot" set OMNIBUS_ARGS=--iot
-if "%OMNIBUS_TARGET%" == "dogstatsd" set OMNIBUS_BUILD=dogstatsd.omnibus-build && set OMNIBUS_ARGS=
-if "%OMNIBUS_TARGET%" == "agent_binaries" set OMNIBUS_ARGS=%OMNIBUS_ARGS% --agent-binaries
 
 mkdir \dev\go\src\github.com\DataDog\datadog-agent
-if not exist \dev\go\src\github.com\DataDog\datadog-agent exit /b 1
-cd \dev\go\src\github.com\DataDog\datadog-agent || exit /b 2
-xcopy /e/s/h/q c:\mnt\*.* || exit /b 3
+if not exist \dev\go\src\github.com\DataDog\datadog-agent exit /b 2
+cd \dev\go\src\github.com\DataDog\datadog-agent || exit /b 3
+xcopy /e/s/h/q c:\mnt\*.* || exit /b 4
 
-SET PATH=%PATH%;%GOPATH%/bin
+REM
+REM after copying files in from the host, execute the build
+REM using `dobuild.bat`
+REM
+call %~p0dobuild.bat %*
+if not %ERRORLEVEL% == 0 exit /b %ERRORLEVEL%
 
-@echo GOPATH %GOPATH%
-@echo PATH %PATH%
-@echo VSTUDIO_ROOT %VSTUDIO_ROOT%
-@echo TARGET_ARCH %TARGET_ARCH%
-
-REM Section to pre-install libyajl2 gem with fix for gcc10 compatibility
-Powershell -C "ridk enable; ./tasks/winbuildscripts/libyajl2_install.ps1"
-
-
-if "%TARGET_ARCH%" == "x64" (
-    @echo IN x64 BRANCH
-    call ridk enable
-)
-
-if "%TARGET_ARCH%" == "x86" (
-    @echo IN x86 BRANCH
-    REM Use 64-bit toolchain to build gems
-    Powershell -C "ridk enable; cd omnibus; bundle install"
-)
-
-pip3 install -r requirements.txt || exit /b 4
-
-inv -e deps --verbose || exit /b 5
-
-@echo "inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION%"
-inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION% || exit /b 6
-
-dir \omnibus\pkg
-
+REM show output package directories (for debugging)
 dir \omnibus-ruby\pkg\
 
-if not exist %PKG_OUTDIR% mkdir %PKG_OUTDIR% || exit /b 7
-if exist \omnibus-ruby\pkg\*.msi copy \omnibus-ruby\pkg\*.msi %PKG_OUTDIR% || exit /b 8
-if exist \omnibus-ruby\pkg\*.zip copy \omnibus-ruby\pkg\*.zip %PKG_OUTDIR% || exit /b 9
+dir \dev\go\src\github.com\DataDog\datadog-agent\omnibus\pkg\
+
+REM copy resulting packages to expected location for collection by gitlab.
+if not exist c:\mnt\omnibus\pkg\ mkdir c:\mnt\omnibus\pkg\ || exit /b 5
+copy \dev\go\src\github.com\DataDog\datadog-agent\omnibus\pkg\* c:\mnt\omnibus\pkg\ || exit /b 6
+
+REM copy wixpdb file for debugging purposes
+if exist \omnibus-ruby\pkg\*.wixpdb copy \omnibus-ruby\pkg\*.wixpdb c:\mnt\omnibus\pkg\ || exit /b 7
+
+REM copy customaction pdb file for debugging purposes
+if exist \omnibus-ruby\pkg\*.pdb copy \omnibus-ruby\pkg\*.pdb c:\mnt\omnibus\pkg\ || exit /b 8
+
+REM show output binary directories (for debugging)
+dir C:\opt\datadog-agent\bin\agent\
 
 goto :EOF
 

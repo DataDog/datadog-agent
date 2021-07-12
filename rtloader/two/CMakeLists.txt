@@ -64,7 +64,8 @@ if(WIN32)
   else()
     set_target_properties(datadog-agent-two PROPERTIES LINK_FLAGS "-static")
   endif()
-
+elseif(APPLE)
+  set_target_properties(datadog-agent-two PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 endif()
 
 target_link_libraries(datadog-agent-two ${Python2_LIBRARIES} datadog-agent-rtloader)

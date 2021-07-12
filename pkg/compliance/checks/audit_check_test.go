@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package checks
 
@@ -29,7 +29,6 @@ func TestAuditCheck(t *testing.T) {
 		hostPath     string
 		setup        setupEnvFunc
 		expectReport *compliance.Report
-		expectError  error
 	}{
 		{
 			name:  "no file rules",
@@ -82,8 +81,11 @@ func TestAuditCheck(t *testing.T) {
 				},
 				Condition: `audit.enabled && audit.permissions =~ "w"`,
 			},
-			hostPath:    "./missing-file.json",
-			expectError: errors.New("rule-id: audit resource path does not exist"),
+			hostPath: "./missing-file.json",
+			expectReport: &compliance.Report{
+				Passed: false,
+				Error:  errors.New("rule-id: audit resource path does not exist"),
+			},
 		},
 
 		{
@@ -132,6 +134,8 @@ func TestAuditCheck(t *testing.T) {
 
 			env := &mocks.Env{}
 			defer env.AssertExpectations(t)
+
+			env.On("MaxEventsPerRun").Return(30).Maybe()
 			env.On("AuditClient").Return(client)
 
 			env.On("NormalizeToHostRoot", mock.AnythingOfType("string")).Return(test.hostPath)
@@ -143,10 +147,13 @@ func TestAuditCheck(t *testing.T) {
 			auditCheck, err := newResourceCheck(env, "rule-id", test.resource)
 			assert.NoError(err)
 
-			result, err := auditCheck.check(env)
+			result := auditCheck.check(env)
 
-			assert.Equal(test.expectError, err)
-			assert.Equal(test.expectReport, result)
+			assert.Equal(test.expectReport.Passed, result[0].Passed)
+			assert.Equal(test.expectReport.Data, result[0].Data)
+			if test.expectReport.Error != nil {
+				assert.EqualError(test.expectReport.Error, result[0].Error.Error())
+			}
 		})
 	}
 }

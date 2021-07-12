@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build clusterchecks
 
@@ -100,20 +100,20 @@ func TestScheduleReschedule(t *testing.T) {
 
 	// Register to node1
 	dispatcher.addConfig(config, "node1")
-	configs1, _, err := dispatcher.getNodeConfigs("node1")
+	configs1, _, err := dispatcher.getClusterCheckConfigs("node1")
 	assert.NoError(t, err)
 	assert.Len(t, configs1, 1)
 	assert.Contains(t, configs1, config)
 
 	// Move to node2
 	dispatcher.addConfig(config, "node2")
-	configs2, _, err := dispatcher.getNodeConfigs("node2")
+	configs2, _, err := dispatcher.getClusterCheckConfigs("node2")
 	assert.NoError(t, err)
 	assert.Len(t, configs2, 1)
 	assert.Contains(t, configs2, config)
 
 	// De-registered from previous node
-	configs1, _, err = dispatcher.getNodeConfigs("node1")
+	configs1, _, err = dispatcher.getClusterCheckConfigs("node1")
 	assert.NoError(t, err)
 	assert.Len(t, configs1, 0)
 
@@ -163,7 +163,7 @@ func TestDescheduleRescheduleSameNode(t *testing.T) {
 
 	// Schedule to node1
 	dispatcher.addConfig(config, "node1")
-	configs1, _, err := dispatcher.getNodeConfigs("node1")
+	configs1, _, err := dispatcher.getClusterCheckConfigs("node1")
 	assert.NoError(t, err)
 	assert.Len(t, configs1, 1)
 	assert.Contains(t, configs1, config)
@@ -176,7 +176,7 @@ func TestDescheduleRescheduleSameNode(t *testing.T) {
 
 	// Re-schedule to node1
 	dispatcher.addConfig(config, "node1")
-	configs2, _, err := dispatcher.getNodeConfigs("node1")
+	configs2, _, err := dispatcher.getClusterCheckConfigs("node1")
 	assert.NoError(t, err)
 	assert.Len(t, configs2, 1)
 	assert.Contains(t, configs2, config)
@@ -308,7 +308,7 @@ func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 	assert.Equal(t, []string{"A"}, extractCheckNames(allConfigs))
 
 	// Ensure it's running correctly
-	configsA, _, err := dispatcher.getNodeConfigs("nodeA")
+	configsA, _, err := dispatcher.getClusterCheckConfigs("nodeA")
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(configsA))
 
@@ -337,7 +337,7 @@ func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 	assert.Equal(t, []string{"A"}, extractCheckNames(danglingConfig))
 
 	// Make sure make sure the dangling check is rescheduled on the new node
-	configsB, _, err := dispatcher.getNodeConfigs("nodeB")
+	configsB, _, err := dispatcher.getClusterCheckConfigs("nodeB")
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(configsB))
 }
@@ -362,11 +362,11 @@ func TestDispatchFourConfigsTwoNodes(t *testing.T) {
 	assert.Equal(t, 4, len(allConfigs))
 	assert.Equal(t, []string{"A", "B", "C", "D"}, extractCheckNames(allConfigs))
 
-	configsA, _, err := dispatcher.getNodeConfigs("nodeA")
+	configsA, _, err := dispatcher.getClusterCheckConfigs("nodeA")
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(configsA))
 
-	configsB, _, err := dispatcher.getNodeConfigs("nodeB")
+	configsB, _, err := dispatcher.getClusterCheckConfigs("nodeB")
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(configsB))
 
@@ -412,7 +412,7 @@ func TestReset(t *testing.T) {
 
 	// Register to node1
 	dispatcher.addConfig(config, "node1")
-	configs1, _, err := dispatcher.getNodeConfigs("node1")
+	configs1, _, err := dispatcher.getClusterCheckConfigs("node1")
 	assert.NoError(t, err)
 	assert.Len(t, configs1, 1)
 	assert.Contains(t, configs1, config)
@@ -422,7 +422,7 @@ func TestReset(t *testing.T) {
 	stored, err := dispatcher.getAllConfigs()
 	assert.NoError(t, err)
 	assert.Len(t, stored, 0)
-	_, _, err = dispatcher.getNodeConfigs("node1")
+	_, _, err = dispatcher.getClusterCheckConfigs("node1")
 	assert.EqualError(t, err, "node node1 is unknown")
 
 	requireNotLocked(t, dispatcher.store)

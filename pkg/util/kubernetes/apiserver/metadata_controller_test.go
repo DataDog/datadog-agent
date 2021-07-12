@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
 package apiserver
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -329,7 +330,7 @@ func TestMetadataController(t *testing.T) {
 		},
 	}
 	node.Name = "ip-172-31-119-125"
-	_, err := c.Nodes().Create(node)
+	_, err := c.Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	pod := &v1.Pod{
@@ -348,7 +349,7 @@ func TestMetadataController(t *testing.T) {
 	}
 	pod.Name = "nginx"
 	pod.Labels = map[string]string{"app": "nginx"}
-	pendingPod, err := c.Pods("default").Create(pod)
+	pendingPod, err := c.Pods("default").Create(context.TODO(), pod, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	pendingPod.Status = v1.PodStatus{
@@ -371,7 +372,7 @@ func TestMetadataController(t *testing.T) {
 			},
 		},
 	}
-	_, err = c.Pods("default").UpdateStatus(pendingPod)
+	_, err = c.Pods("default").UpdateStatus(context.TODO(), pendingPod, metav1.UpdateOptions{})
 	require.NoError(t, err)
 
 	svc := &v1.Service{
@@ -383,7 +384,7 @@ func TestMetadataController(t *testing.T) {
 		},
 	}
 	svc.Name = "nginx-1"
-	_, err = c.Services("default").Create(svc)
+	_, err = c.Services("default").Create(context.TODO(), svc, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	ep := &v1.Endpoints{
@@ -412,16 +413,16 @@ func TestMetadataController(t *testing.T) {
 		},
 	}
 	ep.Name = "nginx-1"
-	_, err = c.Endpoints("default").Create(ep)
+	_, err = c.Endpoints("default").Create(context.TODO(), ep, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	// Add a new service/endpoint on the nginx Pod
 	svc.Name = "nginx-2"
-	_, err = c.Services("default").Create(svc)
+	_, err = c.Services("default").Create(context.TODO(), svc, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	ep.Name = "nginx-2"
-	_, err = c.Endpoints("default").Create(ep)
+	_, err = c.Endpoints("default").Create(context.TODO(), ep, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	metaController, informerFactory := newFakeMetadataController(client)
@@ -474,6 +475,7 @@ func newFakeMetadataController(client kubernetes.Interface) (*MetadataController
 
 	metaController := NewMetadataController(
 		informerFactory.Core().V1().Nodes(),
+		informerFactory.Core().V1().Namespaces(),
 		informerFactory.Core().V1().Endpoints(),
 	)
 

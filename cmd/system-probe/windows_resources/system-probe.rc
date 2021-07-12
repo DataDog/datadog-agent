@@ -35,7 +35,7 @@ BEGIN
             VALUE "FileDescription", "Datadog System Probe"
             VALUE "FileVersion", FILE_VERSION_STRING
             VALUE "InternalName", "system-probe"
-            VALUE "LegalCopyright", "Copyright (C) 2020"
+            VALUE "LegalCopyright", "Copyright (C) 2020-present"
             VALUE "OriginalFilename", "system-probe.exe"
             VALUE "ProductName", "Datadog System Probe"
             VALUE "ProductVersion", FILE_VERSION_STRING

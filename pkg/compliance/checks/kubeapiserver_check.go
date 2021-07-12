@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package checks
 
@@ -30,7 +30,12 @@ var kubeResourceReportedFields = []string{
 	compliance.KubeResourceFieldKind,
 }
 
-func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res compliance.Resource) (interface{}, error) {
+type kubeUnstructureResolvedResource struct {
+	compliance.KubeUnstructuredResource
+	eval.Instance
+}
+
+func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res compliance.Resource) (resolved, error) {
 	if res.KubeApiserver == nil {
 		return nil, fmt.Errorf("expecting Kubeapiserver resource in Kubeapiserver check")
 	}
@@ -71,13 +76,13 @@ func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res com
 		if len(api.ResourceName) == 0 {
 			return nil, fmt.Errorf("unable to use 'get' apirequest without resource name")
 		}
-		resource, err := resourceAPI.Get(kubeResource.APIRequest.ResourceName, metav1.GetOptions{})
+		resource, err := resourceAPI.Get(ctx, kubeResource.APIRequest.ResourceName, metav1.GetOptions{})
 		if err != nil {
 			return nil, fmt.Errorf("unable to get Kube resource:'%v', ns:'%s' name:'%s', err: %v", resourceSchema, kubeResource.Namespace, api.ResourceName, err)
 		}
 		resources = []unstructured.Unstructured{*resource}
 	case "list":
-		list, err := resourceAPI.List(metav1.ListOptions{
+		list, err := resourceAPI.List(ctx, metav1.ListOptions{
 			LabelSelector: kubeResource.LabelSelector,
 			FieldSelector: kubeResource.FieldSelector,
 		})
@@ -89,44 +94,30 @@ func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res com
 
 	log.Debugf("%s: Got %d resources", ruleID, len(resources))
 
-	return &kubeResourceIterator{
-		resources: resources,
-	}, nil
-}
-
-type kubeResourceIterator struct {
-	resources []unstructured.Unstructured
-	index     int
-}
-
-func (it *kubeResourceIterator) Next() (*eval.Instance, error) {
-	if !it.Done() {
-		resource := it.resources[it.index]
-		it.index++
-
-		instance := &eval.Instance{
-			Vars: eval.VarMap{
-				compliance.KubeResourceFieldKind:      resource.GetObjectKind().GroupVersionKind().Kind,
-				compliance.KubeResourceFieldGroup:     resource.GetObjectKind().GroupVersionKind().Group,
-				compliance.KubeResourceFieldVersion:   resource.GetObjectKind().GroupVersionKind().Version,
-				compliance.KubeResourceFieldNamespace: resource.GetNamespace(),
-				compliance.KubeResourceFieldName:      resource.GetName(),
-			},
-			Functions: eval.FunctionMap{
-				compliance.KubeResourceFuncJQ: kubeResourceJQ(resource),
-			},
+	instances := make([]resolvedInstance, len(resources))
+	for i, resource := range resources {
+		instances[i] = &kubeUnstructureResolvedResource{
+			KubeUnstructuredResource: compliance.KubeUnstructuredResource{Unstructured: resource},
+			Instance: eval.NewInstance(
+				eval.VarMap{
+					compliance.KubeResourceFieldKind:      resource.GetObjectKind().GroupVersionKind().Kind,
+					compliance.KubeResourceFieldGroup:     resource.GetObjectKind().GroupVersionKind().Group,
+					compliance.KubeResourceFieldVersion:   resource.GetObjectKind().GroupVersionKind().Version,
+					compliance.KubeResourceFieldNamespace: resource.GetNamespace(),
+					compliance.KubeResourceFieldName:      resource.GetName(),
+				},
+				eval.FunctionMap{
+					compliance.KubeResourceFuncJQ: kubeResourceJQ(resource),
+				},
+			),
 		}
-		return instance, nil
 	}
-	return nil, errors.New("out of bounds iteration")
-}
 
-func (it *kubeResourceIterator) Done() bool {
-	return it.index >= len(it.resources)
+	return newResolvedInstances(instances), nil
 }
 
 func kubeResourceJQ(resource unstructured.Unstructured) eval.Function {
-	return func(_ *eval.Instance, args ...interface{}) (interface{}, error) {
+	return func(_ eval.Instance, args ...interface{}) (interface{}, error) {
 		if len(args) != 1 {
 			return nil, fmt.Errorf(`invalid number of arguments, expecting 1 got %d`, len(args))
 		}

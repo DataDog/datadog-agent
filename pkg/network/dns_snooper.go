@@ -1,23 +1,17 @@
-// +build linux_bpf
-
 package network
 
 import (
-	"fmt"
-	"reflect"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/ebpf/manager"
-	"github.com/google/gopacket/afpacket"
+	"github.com/google/gopacket"
 )
 
 const (
-	dnsCacheTTL              = 3 * time.Minute
 	dnsCacheExpirationPeriod = 1 * time.Minute
 	dnsCacheSize             = 100000
 )
@@ -26,7 +20,17 @@ var _ ReverseDNS = &SocketFilterSnooper{}
 
 // SocketFilterSnooper is a DNS traffic snooper built on top of an eBPF SOCKET_FILTER
 type SocketFilterSnooper struct {
-	source          *packetSource
+	// Telemetry is at the beginning of the struct to keep all fields 64-bit aligned.
+	// see https://staticcheck.io/docs/checks#SA1027
+	decodingErrors int64
+	truncatedPkts  int64
+
+	// DNS telemetry, values calculated *till* the last tick in pollStats
+	queries   int64
+	successes int64
+	errors    int64
+
+	source          PacketSource
 	parser          *dnsParser
 	cache           *reverseDNSCache
 	statKeeper      *dnsStatKeeper
@@ -36,59 +40,48 @@ type SocketFilterSnooper struct {
 
 	// cache translation object to avoid allocations
 	translation *translation
+}
 
-	// packet telemetry
-	captured       int64
-	processed      int64
-	dropped        int64
-	polls          int64
-	decodingErrors int64
-	truncatedPkts  int64
+// PacketSource reads raw packet data
+type PacketSource interface {
+	// VisitPackets reads all new raw packets that are available, invoking the given callback for each packet.
+	// If no packet is available, VisitPacket returns immediately.
+	// The format of the packet is dependent on the implementation of PacketSource -- i.e. it may be an ethernet frame, or a IP frame.
+	// The data buffer is reused between invocations of VisitPacket and thus should not be pointed to.
+	// If the cancel channel is closed, VisitPackets will stop reading.
+	VisitPackets(cancel <-chan struct{}, visitor func(data []byte, timestamp time.Time) error) error
 
-	// DNS telemetry, values calculated *till* the last tick in pollStats
-	queries   int64
-	successes int64
-	errors    int64
+	// Stats returns a map of counters, meant to be reported as telemetry
+	Stats() map[string]int64
+
+	// PacketType returns the type of packet this source reads
+	PacketType() gopacket.LayerType
+
+	// Close closes the packet source
+	Close()
 }
 
 // NewSocketFilterSnooper returns a new SocketFilterSnooper
-func NewSocketFilterSnooper(
-	rootPath string,
-	filter *manager.Probe,
-	collectDNSStats bool,
-	collectLocalDNS bool,
-	dnsTimeout time.Duration,
-) (*SocketFilterSnooper, error) {
-
-	var (
-		packetSrc *packetSource
-		srcErr    error
-	)
-
-	// Create the RAW_SOCKET inside the root network namespace
-	nsErr := util.WithRootNS(rootPath, func() {
-		packetSrc, srcErr = newPacketSource(filter)
-	})
-	if nsErr != nil {
-		return nil, nsErr
-	}
-	if srcErr != nil {
-		return nil, srcErr
-	}
-
-	cache := newReverseDNSCache(dnsCacheSize, dnsCacheTTL, dnsCacheExpirationPeriod)
+func NewSocketFilterSnooper(cfg *config.Config, source PacketSource) (*SocketFilterSnooper, error) {
+	cache := newReverseDNSCache(dnsCacheSize, dnsCacheExpirationPeriod)
 	var statKeeper *dnsStatKeeper
-	if collectDNSStats {
-		statKeeper = newDNSStatkeeper(dnsTimeout)
+	if cfg.CollectDNSStats {
+		statKeeper = newDNSStatkeeper(cfg.DNSTimeout, cfg.MaxDNSStats)
+		log.Infof("DNS Stats Collection has been enabled. Maximum number of stats objects: %d", cfg.MaxDNSStats)
+		if cfg.CollectDNSDomains {
+			log.Infof("DNS domain collection has been enabled")
+		}
+	} else {
+		log.Infof("DNS Stats Collection has been disabled.")
 	}
 	snooper := &SocketFilterSnooper{
-		source:          packetSrc,
-		parser:          newDNSParser(collectDNSStats),
+		source:          source,
+		parser:          newDNSParser(source.PacketType(), cfg.CollectDNSStats, cfg.CollectDNSDomains),
 		cache:           cache,
 		statKeeper:      statKeeper,
 		translation:     new(translation),
 		exit:            make(chan struct{}),
-		collectLocalDNS: collectLocalDNS,
+		collectLocalDNS: cfg.CollectLocalDNS,
 	}
 
 	// Start consuming packets
@@ -98,40 +91,47 @@ func NewSocketFilterSnooper(
 		snooper.wg.Done()
 	}()
 
-	// Start polling socket stats
+	// Start logging DNS stats
 	snooper.wg.Add(1)
 	go func() {
-		snooper.pollStats()
+		snooper.logDNSStats()
 		snooper.wg.Done()
 	}()
-
 	return snooper, nil
 }
 
 // Resolve IPs to DNS addresses
 func (s *SocketFilterSnooper) Resolve(connections []ConnectionStats) map[util.Address][]string {
-	return s.cache.Get(connections, time.Now())
+	return s.cache.Get(connections)
 }
 
-func (s *SocketFilterSnooper) GetDNSStats() map[dnsKey]dnsStats {
+// GetDNSStats gets the latest DNSStats keyed by unique DNSKey, and domain
+func (s *SocketFilterSnooper) GetDNSStats() map[DNSKey]map[string]map[QueryType]DNSStats {
 	if s.statKeeper == nil {
 		return nil
 	}
 	return s.statKeeper.GetAndResetAllStats()
 }
 
+// GetStats returns stats for use with telemetry
 func (s *SocketFilterSnooper) GetStats() map[string]int64 {
 	stats := s.cache.Stats()
-	stats["socket_polls"] = atomic.LoadInt64(&s.polls)
-	stats["packets_processed"] = atomic.LoadInt64(&s.processed)
-	stats["packets_captured"] = atomic.LoadInt64(&s.captured)
-	stats["packets_dropped"] = atomic.LoadInt64(&s.dropped)
+
+	for key, value := range s.source.Stats() {
+		stats[key] = value
+	}
+
 	stats["decoding_errors"] = atomic.LoadInt64(&s.decodingErrors)
 	stats["truncated_packets"] = atomic.LoadInt64(&s.truncatedPkts)
+	stats["timestamp_micro_secs"] = time.Now().UnixNano() / 1000
 	stats["queries"] = atomic.LoadInt64(&s.queries)
 	stats["successes"] = atomic.LoadInt64(&s.successes)
 	stats["errors"] = atomic.LoadInt64(&s.errors)
-	stats["timestamp_micro_secs"] = time.Now().UnixNano() / 1000
+	if s.statKeeper != nil {
+		numStats, droppedStats := s.statKeeper.GetNumStats()
+		stats["num_stats"] = int64(numStats)
+		stats["dropped_stats"] = int64(droppedStats)
+	}
 	return stats
 }
 
@@ -152,7 +152,7 @@ func (s *SocketFilterSnooper) Close() {
 // The *translation is recycled and re-used in subsequent calls and it should not be accessed concurrently.
 // The second parameter `ts` is the time when the packet was captured off the wire. This is used for latency calculation
 // and much more reliable than calling time.Now() at the user layer.
-func (s *SocketFilterSnooper) processPacket(data []byte, ts time.Time) {
+func (s *SocketFilterSnooper) processPacket(data []byte, ts time.Time) error {
 	t := s.getCachedTranslation()
 	pktInfo := dnsPacketInfo{}
 
@@ -165,7 +165,7 @@ func (s *SocketFilterSnooper) processPacket(data []byte, ts time.Time) {
 			atomic.AddInt64(&s.decodingErrors, 1)
 			log.Tracef("error decoding DNS payload: %v", err)
 		}
-		return
+		return nil
 	}
 
 	if s.statKeeper != nil && (s.collectLocalDNS || !pktInfo.key.serverIP.IsLoopback()) {
@@ -173,18 +173,24 @@ func (s *SocketFilterSnooper) processPacket(data []byte, ts time.Time) {
 	}
 
 	if pktInfo.pktType == SuccessfulResponse {
-		s.cache.Add(t, time.Now())
+		s.cache.Add(t)
 		atomic.AddInt64(&s.successes, 1)
 	} else if pktInfo.pktType == FailedResponse {
 		atomic.AddInt64(&s.errors, 1)
 	} else {
 		atomic.AddInt64(&s.queries, 1)
 	}
+
+	return nil
 }
 
 func (s *SocketFilterSnooper) pollPackets() {
 	for {
-		data, captureInfo, err := s.source.ZeroCopyReadPacketData()
+		err := s.source.VisitPackets(s.exit, s.processPacket)
+
+		if err != nil {
+			log.Warnf("error reading packet: %s", err)
+		}
 
 		// Properly synchronizes termination process
 		select {
@@ -193,51 +199,27 @@ func (s *SocketFilterSnooper) pollPackets() {
 		default:
 		}
 
-		if err == nil {
-			s.processPacket(data, captureInfo.Timestamp)
-			continue
-		}
-
-		// Immediately retry for EAGAIN
-		if err == syscall.EAGAIN {
-			continue
-		}
-
 		// Sleep briefly and try again
 		time.Sleep(5 * time.Millisecond)
 	}
 }
 
-func (s *SocketFilterSnooper) pollStats() {
-	ticker := time.NewTicker(5 * time.Second)
+func (s *SocketFilterSnooper) logDNSStats() {
+	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
 
 	var (
-		prevPolls     int64
-		prevProcessed int64
-		prevCaptured  int64
-		prevDropped   int64
+		queries   int64
+		successes int64
+		errors    int64
 	)
-
 	for {
 		select {
 		case <-ticker.C:
-			sourceStats, _ := s.source.Stats()
-			_, socketStats, err := s.source.SocketStats()
-			if err != nil {
-				log.Errorf("error polling socket stats: %s", err)
-				continue
-			}
-
-			atomic.AddInt64(&s.polls, sourceStats.Polls-prevPolls)
-			atomic.AddInt64(&s.processed, sourceStats.Packets-prevProcessed)
-			atomic.AddInt64(&s.captured, int64(socketStats.Packets())-prevCaptured)
-			atomic.AddInt64(&s.dropped, int64(socketStats.Drops())-prevDropped)
-
-			prevPolls = sourceStats.Polls
-			prevProcessed = sourceStats.Packets
-			prevCaptured = int64(socketStats.Packets())
-			prevDropped = int64(socketStats.Drops())
+			queries = atomic.SwapInt64(&s.queries, 0)
+			successes = atomic.SwapInt64(&s.successes, 0)
+			errors = atomic.SwapInt64(&s.errors, 0)
+			log.Infof("DNS Stats. Queries :%d, Successes :%d, Errors: %d", queries, successes, errors)
 		case <-s.exit:
 			return
 		}
@@ -249,53 +231,10 @@ func (s *SocketFilterSnooper) getCachedTranslation() *translation {
 
 	// Recycle buffer if necessary
 	if t.ips == nil || len(t.ips) > maxIPBufferSize {
-		t.ips = make([]util.Address, 30)
+		t.ips = make(map[util.Address]time.Time, 30)
 	}
-	t.ips = t.ips[:0]
-
+	for k := range t.ips {
+		delete(t.ips, k)
+	}
 	return t
-}
-
-// packetSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER
-type packetSource struct {
-	*afpacket.TPacket
-	socketFilter *manager.Probe
-	socketFD     int
-}
-
-func newPacketSource(filter *manager.Probe) (*packetSource, error) {
-	rawSocket, err := afpacket.NewTPacket(
-		afpacket.OptPollTimeout(1*time.Second),
-		// This setup will require ~4Mb that is mmap'd into the process virtual space
-		// More information here: https://www.kernel.org/doc/Documentation/networking/packet_mmap.txt
-		afpacket.OptFrameSize(4096),
-		afpacket.OptBlockSize(4096*128),
-		afpacket.OptNumBlocks(8),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("error creating raw socket: %s", err)
-	}
-
-	// The underlying socket file descriptor is private, hence the use of reflection
-	socketFD := int(reflect.ValueOf(rawSocket).Elem().FieldByName("fd").Int())
-
-	// Attaches DNS socket filter to the RAW_SOCKET
-	filter.SocketFD = socketFD
-	if err := filter.Attach(); err != nil {
-		return nil, fmt.Errorf("error attaching filter to socket: %s", err)
-	}
-
-	return &packetSource{
-		TPacket:      rawSocket,
-		socketFilter: filter,
-		socketFD:     socketFD,
-	}, nil
-}
-
-func (p *packetSource) Close() {
-	if err := p.socketFilter.Detach(); err != nil {
-		log.Errorf("error detaching socket filter: %s", err)
-	}
-
-	p.TPacket.Close()
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017-2020 Datadog, Inc.
+// Copyright 2017-present Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -9,12 +9,13 @@ package autoscalers
 
 import (
 	"reflect"
+	"regexp"
 
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 )
 
 // InspectHPA returns the list of external metrics from the hpa to use for autoscaling.
@@ -24,6 +25,11 @@ func InspectHPA(hpa *autoscalingv2.HorizontalPodAutoscaler) (emList []custommetr
 		case autoscalingv2.ExternalMetricSourceType:
 			if metricSpec.External == nil {
 				log.Errorf("Missing required \"external\" section in the %s/%s Ref, skipping processing", hpa.Namespace, hpa.Name)
+				continue
+			}
+
+			if !IsValidMetricName(metricSpec.External.MetricName) {
+				log.Errorf("Metric name \"%s\" in %s/%s is invalid, skipping processing", metricSpec.External.MetricName, hpa.Namespace, hpa.Name)
 				continue
 			}
 
@@ -126,6 +132,14 @@ func AutoscalerMetricsUpdate(new, old *autoscalingv2.HorizontalPodAutoscaler) bo
 	}
 
 	return old.ResourceVersion == new.ResourceVersion || oldAnn != newAnn
+}
+
+// IsValidMetricName will return true if the metric name follows the Datadog metric naming conventions.
+// See https://docs.datadoghq.com/developers/metrics/#naming-custom-metrics
+func IsValidMetricName(metricName string) bool {
+	metricNamingConvention := regexp.MustCompile("^[a-zA-Z][a-zA-Z0-9_.]{0,199}$")
+
+	return metricNamingConvention.Match([]byte(metricName))
 }
 
 // WPAutoscalerMetricsUpdate will return true if the applied configuration of the Autoscaler has changed.

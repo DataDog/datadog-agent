@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 // +build windows
 
 package pdhutil
@@ -17,6 +17,7 @@ var (
 	pfnMakeCounterSetInstances          = makeCounterSetIndexes
 	pfnPdhOpenQuery                     = PdhOpenQuery
 	pfnPdhAddCounter                    = PdhAddCounter
+	pfnPdhAddEnglishCounter             = PdhAddEnglishCounter
 	pfnPdhCollectQueryData              = PdhCollectQueryData
 	pfnPdhEnumObjectItems               = pdhEnumObjectItems
 	pfnPdhRemoveCounter                 = PdhRemoveCounter
@@ -86,7 +87,30 @@ func (p *PdhCounterSet) Initialize(className string) error {
 	return nil
 }
 
+// GetUnlocalizedCounter wraps the PdhAddEnglishCounter call that takes unlocalized counter names (as opposed to the other functions which use PdhAddCounter)
+func GetUnlocalizedCounter(className, counterName, instance string) (PdhSingleInstanceCounterSet, error) {
+	var p PdhSingleInstanceCounterSet
+	winerror := pfnPdhOpenQuery(uintptr(0), uintptr(0), &p.query)
+	if ERROR_SUCCESS != winerror {
+		return p, fmt.Errorf("Failed to open PDH query handle %d", winerror)
+	}
+	path, err := pfnPdhMakeCounterPath("", className, instance, counterName)
+	if err != nil {
+		return p, fmt.Errorf("Failed tomake counter path %s: %v", counterName, err)
+	}
+	winerror = pfnPdhAddEnglishCounter(p.query, path, uintptr(0), &p.singleCounter)
+	if ERROR_SUCCESS != winerror {
+		return p, fmt.Errorf("Failed to add english counter %d", winerror)
+	}
+	winerror = pfnPdhCollectQueryData(p.query)
+	if ERROR_SUCCESS != winerror {
+		return p, fmt.Errorf("Failed to collect query data %d", winerror)
+	}
+	return p, nil
+}
+
 // GetSingleInstanceCounter returns a single instance counter object for the given counter class
+// TODO: Replace usages of this with GetUnlocalizedCounter using an empty string as instance
 func GetSingleInstanceCounter(className, counterName string) (*PdhSingleInstanceCounterSet, error) {
 	var p PdhSingleInstanceCounterSet
 	if err := p.Initialize(className); err != nil {
@@ -113,6 +137,7 @@ func GetSingleInstanceCounter(className, counterName string) (*PdhSingleInstance
 }
 
 // GetMultiInstanceCounter returns a multi-instance counter object for the given counter class
+// TODO: Replace usages of this with a function similar to GetUnlocalizedCounter for multi-instance counters, that uses PdhAddEnglishCounter
 func GetMultiInstanceCounter(className, counterName string, requestedInstances *[]string, verifyfn CounterInstanceVerify) (*PdhMultiInstanceCounterSet, error) {
 	var p PdhMultiInstanceCounterSet
 	if err := p.Initialize(className); err != nil {

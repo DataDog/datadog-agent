@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package log
 
@@ -28,6 +28,18 @@ var blankRegex = regexp.MustCompile(`^\s*$`)
 var singleLineReplacers, multiLineReplacers []Replacer
 
 func init() {
+	hintedAPIKeyReplacer := Replacer{
+		// If hinted, mask the value regardless if it doesn't match 32-char hexadecimal string
+		Regex: regexp.MustCompile(`(api_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{5})\b`),
+		Hints: []string{"api_key", "apikey"},
+		Repl:  []byte(`$1***************************$2`),
+	}
+	hintedAPPKeyReplacer := Replacer{
+		// If hinted, mask the value regardless if it doesn't match 40-char hexadecimal string
+		Regex: regexp.MustCompile(`(ap(?:p|plication)_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{5})\b`),
+		Hints: []string{"app_key", "appkey", "application_key"},
+		Repl:  []byte(`$1***********************************$2`),
+	}
 	apiKeyReplacer := Replacer{
 		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
 		Repl:  []byte(`***************************$1`),
@@ -53,8 +65,8 @@ func init() {
 		Repl:  []byte(`$1 ********`),
 	}
 	snmpReplacer := Replacer{
-		Regex: matchYAMLKey(`(community_string|authKey|privKey)`),
-		Hints: []string{"community_string", "authKey", "privKey"},
+		Regex: matchYAMLKey(`(community_string|authKey|privKey|community|authentication_key|privacy_key)`),
+		Hints: []string{"community_string", "authKey", "privKey", "community", "authentication_key", "privacy_key"},
 		Repl:  []byte(`$1 ********`),
 	}
 	certReplacer := Replacer{
@@ -62,7 +74,7 @@ func init() {
 		Hints: []string{"BEGIN"},
 		Repl:  []byte(`********`),
 	}
-	singleLineReplacers = []Replacer{apiKeyReplacer, appKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
+	singleLineReplacers = []Replacer{hintedAPIKeyReplacer, hintedAPPKeyReplacer, apiKeyReplacer, appKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
 	multiLineReplacers = []Replacer{certReplacer}
 }
 
@@ -77,7 +89,7 @@ func matchYAMLKey(key string) *regexp.Regexp {
 // matchYAMLKeyEnding returns a regexp matching a single YAML line with a key ending by the string passed as argument.
 // The returned regexp catches only the key and not the value.
 func matchYAMLKeyEnding(ending string) *regexp.Regexp {
-	return regexp.MustCompile(fmt.Sprintf(`(\s*(\w|_)*%s\s*:).+`, ending))
+	return regexp.MustCompile(fmt.Sprintf(`(^\s*(\w|_)*%s\s*:).+`, ending))
 }
 
 func matchCert() *regexp.Regexp {
@@ -130,22 +142,7 @@ func credentialsCleaner(file io.Reader) ([]byte, error) {
 	for scanner.Scan() {
 		b := scanner.Bytes()
 		if !commentRegex.Match(b) && !blankRegex.Match(b) && string(b) != "" {
-			for _, repl := range singleLineReplacers {
-				containsHint := false
-				for _, hint := range repl.Hints {
-					if strings.Contains(string(b), hint) {
-						containsHint = true
-						break
-					}
-				}
-				if len(repl.Hints) == 0 || containsHint {
-					if repl.ReplFunc != nil {
-						b = repl.Regex.ReplaceAllFunc(b, repl.ReplFunc)
-					} else {
-						b = repl.Regex.ReplaceAll(b, repl.Repl)
-					}
-				}
-			}
+			b = scrubCredentials(b, singleLineReplacers)
 			if !first {
 				cleanedFile = append(cleanedFile, byte('\n'))
 			}
@@ -160,22 +157,34 @@ func credentialsCleaner(file io.Reader) ([]byte, error) {
 	}
 
 	// Then we apply multiline replacers on the cleaned file
-	for _, repl := range multiLineReplacers {
+	cleanedFile = scrubCredentials(cleanedFile, multiLineReplacers)
+
+	return cleanedFile, nil
+}
+
+// scrubCredentials obfuscate sensitive information based on Replacer Regex
+func scrubCredentials(data []byte, replacers []Replacer) []byte {
+	for _, repl := range replacers {
 		containsHint := false
 		for _, hint := range repl.Hints {
-			if strings.Contains(string(cleanedFile), hint) {
+			if strings.Contains(string(data), hint) {
 				containsHint = true
 				break
 			}
 		}
 		if len(repl.Hints) == 0 || containsHint {
 			if repl.ReplFunc != nil {
-				cleanedFile = repl.Regex.ReplaceAllFunc(cleanedFile, repl.ReplFunc)
+				data = repl.Regex.ReplaceAllFunc(data, repl.ReplFunc)
 			} else {
-				cleanedFile = repl.Regex.ReplaceAll(cleanedFile, repl.Repl)
+				data = repl.Regex.ReplaceAll(data, repl.Repl)
 			}
 		}
 	}
+	return data
+}
 
-	return cleanedFile, nil
+// SanitizeURL sanitizes credentials from a message containing a URL, and returns
+// a string that can be logged safely.
+func SanitizeURL(message string) string {
+	return string(scrubCredentials([]byte(message), singleLineReplacers))
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package writer
 
@@ -178,6 +178,16 @@ func (s *sender) backoff() {
 // Stop stops the sender. It attempts to wait for all inflight payloads to complete
 // with a timeout of 5 seconds.
 func (s *sender) Stop() {
+	s.WaitForInflight()
+	s.mu.Lock()
+	s.closed = true
+	s.mu.Unlock()
+	close(s.queue)
+}
+
+// WaitForInflight blocks until all in progress payloads are sent,
+// or the timeout is reached.
+func (s *sender) WaitForInflight() {
 	timeout := time.After(5 * time.Second)
 outer:
 	for {
@@ -191,10 +201,6 @@ outer:
 			time.Sleep(10 * time.Millisecond)
 		}
 	}
-	s.mu.Lock()
-	s.closed = true
-	s.mu.Unlock()
-	close(s.queue)
 }
 
 // Push pushes p onto the sender's queue, to be written to the destination.
@@ -247,6 +253,13 @@ func (s *sender) sendPayload(p *payload) {
 			return
 		}
 		atomic.AddInt32(&s.attempt, 1)
+
+		if r := atomic.AddInt32(&p.retries, 1); (r&(r-1)) == 0 && r > 3 {
+			// Only log a warning if the retry attempt is a power of 2
+			// and larger than 3, to avoid alerting the user unnecessarily.
+			// e.g. attempts 4, 8, 16, etc.
+			log.Warnf("Retried payload %d times: %s", r, err.Error())
+		}
 		select {
 		case s.queue <- p:
 			s.recordEvent(eventTypeRetry, stats)
@@ -270,6 +283,19 @@ func (s *sender) sendPayload(p *payload) {
 		// this is a fatal error, we have to drop this payload
 		s.releasePayload(p, eventTypeRejected, stats)
 	}
+}
+
+// waitForSenders blocks until all senders have sent their inflight payloads
+func waitForSenders(senders []*sender) {
+	var wg sync.WaitGroup
+	for _, s := range senders {
+		wg.Add(1)
+		go func(s *sender) {
+			defer wg.Done()
+			s.WaitForInflight()
+		}(s)
+	}
+	wg.Wait()
 }
 
 // releasePayload releases the payload p and records the specified event. The payload
@@ -321,8 +347,7 @@ func (s *sender) do(req *http.Request) error {
 	io.Copy(ioutil.Discard, resp.Body)
 	resp.Body.Close()
 
-	if resp.StatusCode/100 == 5 {
-		// 5xx errors can be retried
+	if isRetriable(resp.StatusCode) {
 		return &retriableError{
 			fmt.Errorf("server responded with %q", resp.Status),
 		}
@@ -335,10 +360,20 @@ func (s *sender) do(req *http.Request) error {
 	return nil
 }
 
+// isRetriable reports whether the give HTTP status code should be retried.
+func isRetriable(code int) bool {
+	if code == http.StatusRequestTimeout {
+		return true
+	}
+	// 5xx errors can be retried
+	return code/100 == 5
+}
+
 // payloads specifies a payload to be sent by the sender.
 type payload struct {
 	body    *bytes.Buffer     // request body
 	headers map[string]string // request headers
+	retries int32             // number of retries sending this payload
 }
 
 // ppool is a pool of payloads.
@@ -357,6 +392,7 @@ func newPayload(headers map[string]string) *payload {
 	p := ppool.Get().(*payload)
 	p.body.Reset()
 	p.headers = headers
+	p.retries = 0
 	return p
 }
 
@@ -398,7 +434,11 @@ func stopSenders(senders []*sender) {
 }
 
 // sendPayloads sends the payload p to all senders.
-func sendPayloads(senders []*sender, p *payload) {
+func sendPayloads(senders []*sender, p *payload, syncMode bool) {
+	if syncMode {
+		defer waitForSenders(senders)
+	}
+
 	if len(senders) == 1 {
 		// fast path
 		senders[0].Push(p)

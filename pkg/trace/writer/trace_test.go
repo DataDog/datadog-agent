@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package writer
 
@@ -157,4 +157,89 @@ func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledS
 			assert.Contains(t, all.Transactions, event)
 		}
 	}
+}
+
+func TestTraceWriterFlushSync(t *testing.T) {
+	srv := newTestServer()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints: []*config.Endpoint{{
+			APIKey: "123",
+			Host:   srv.URL,
+		}},
+		TraceWriter:         &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+		SynchronousFlushing: true,
+	}
+	t.Run("ok", func(t *testing.T) {
+		testSpans := []*SampledSpans{
+			randomSampledSpans(20, 8),
+			randomSampledSpans(10, 0),
+			randomSampledSpans(40, 5),
+		}
+		tw := NewTraceWriter(cfg)
+		go tw.Run()
+		for _, ss := range testSpans {
+			tw.In <- ss
+		}
+
+		// No payloads should be sent before flushing
+		assert.Equal(t, 0, srv.Accepted())
+		tw.FlushSync()
+		// Now all trace payloads should be sent
+		assert.Equal(t, 1, srv.Accepted())
+		payloadsContain(t, srv.Payloads(), testSpans)
+	})
+}
+
+func TestTraceWriterSyncStop(t *testing.T) {
+	srv := newTestServer()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints: []*config.Endpoint{{
+			APIKey: "123",
+			Host:   srv.URL,
+		}},
+		TraceWriter:         &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+		SynchronousFlushing: true,
+	}
+	t.Run("ok", func(t *testing.T) {
+		testSpans := []*SampledSpans{
+			randomSampledSpans(20, 8),
+			randomSampledSpans(10, 0),
+			randomSampledSpans(40, 5),
+		}
+		tw := NewTraceWriter(cfg)
+		go tw.Run()
+		for _, ss := range testSpans {
+			tw.In <- ss
+		}
+
+		// No payloads should be sent before flushing
+		assert.Equal(t, 0, srv.Accepted())
+		tw.Stop()
+		// Now all trace payloads should be sent
+		assert.Equal(t, 1, srv.Accepted())
+		payloadsContain(t, srv.Payloads(), testSpans)
+	})
+}
+
+func TestTraceWriterSyncNoop(t *testing.T) {
+	srv := newTestServer()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints: []*config.Endpoint{{
+			APIKey: "123",
+			Host:   srv.URL,
+		}},
+		TraceWriter:         &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+		SynchronousFlushing: false,
+	}
+	t.Run("ok", func(t *testing.T) {
+		tw := NewTraceWriter(cfg)
+		err := tw.FlushSync()
+		assert.NotNil(t, err)
+	})
 }

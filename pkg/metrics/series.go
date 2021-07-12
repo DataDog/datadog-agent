@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package metrics
 
@@ -11,6 +11,8 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
@@ -91,6 +93,44 @@ func (series Series) Marshal() ([]byte, error) {
 	}
 
 	return proto.Marshal(payload)
+}
+
+// MarshalStrings converts the timeseries to a sorted slice of string slices
+func (series Series) MarshalStrings() ([]string, [][]string) {
+	var headers = []string{"Metric", "Type", "Timestamp", "Value", "Tags"}
+	var payload = make([][]string, len(series))
+
+	for _, serie := range series {
+		payload = append(payload, []string{
+			serie.Name,
+			serie.MType.String(),
+			strconv.FormatFloat(serie.Points[0].Ts, 'f', 0, 64),
+			strconv.FormatFloat(serie.Points[0].Value, 'f', -1, 64),
+			strings.Join(serie.Tags, ", "),
+		})
+	}
+
+	sort.Slice(payload, func(i, j int) bool {
+		// edge cases
+		if len(payload[i]) == 0 && len(payload[j]) == 0 {
+			return false
+		}
+		if len(payload[i]) == 0 || len(payload[j]) == 0 {
+			return len(payload[i]) == 0
+		}
+		// sort by metric name
+		if payload[i][0] != payload[j][0] {
+			return payload[i][0] < payload[j][0]
+		}
+		// then by timestamp
+		if payload[i][2] != payload[j][2] {
+			return payload[i][2] < payload[j][2]
+		}
+		// finally by tags (last field) as tie breaker
+		return payload[i][len(payload[i])-1] < payload[j][len(payload[j])-1]
+	})
+
+	return headers, payload
 }
 
 // populateDeviceField removes any `device:` tag in the series tags and uses the value to
@@ -194,6 +234,11 @@ func (series Series) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 		payloads = append(payloads, current)
 	}
 	return payloads, nil
+}
+
+// MarshalSplitCompress not implemented
+func (series Series) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
+	return nil, fmt.Errorf("Series MarshalSplitCompress is not implemented")
 }
 
 // UnmarshalJSON is a custom unmarshaller for Point (used for testing)

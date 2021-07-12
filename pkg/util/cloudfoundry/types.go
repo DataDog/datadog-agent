@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build clusterchecks
 
@@ -10,9 +10,11 @@ package cloudfoundry
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cloudfoundry-community/go-cfclient"
 
 	"code.cloudfoundry.org/bbs/models"
 )
@@ -118,6 +120,18 @@ type DesiredLRP struct {
 	ProcessGUID        string
 	SpaceGUID          string
 	SpaceName          string
+	TagsFromEnv        []string
+}
+
+// CFApp carries the necessary data about a CF App obtained from the CC API
+type CFApp struct {
+	Name string
+}
+
+func CFAppFromV3App(app *cfclient.V3App) *CFApp {
+	return &CFApp{
+		Name: app.Name,
+	}
 }
 
 // ActualLRPFromBBSModel creates a new ActualLRP from BBS's ActualLRP model
@@ -139,7 +153,7 @@ func ActualLRPFromBBSModel(bbsLRP *models.ActualLRP) ActualLRP {
 }
 
 // DesiredLRPFromBBSModel creates a new DesiredLRP from BBS's DesiredLRP model
-func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP) DesiredLRP {
+func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList []*regexp.Regexp) DesiredLRP {
 	envAD := ADConfig{}
 	envVS := map[string][]byte{}
 	envVA := map[string]string{}
@@ -169,27 +183,32 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP) DesiredLRP {
 		}
 	}
 
+	var tagsFromEnv []string
 	var err error
 	for _, envVars := range actionEnvs {
 		for _, ev := range envVars {
 			if ev.Name == EnvAdVariableName {
 				err = json.Unmarshal([]byte(ev.Value), &envAD)
 				if err != nil {
-					log.Errorf("Failed unmarshalling %s env variable for LRP %s: %s",
+					_ = log.Errorf("Failed unmarshalling %s env variable for LRP %s: %s",
 						EnvAdVariableName, bbsLRP.ProcessGuid, err.Error())
 				}
 			} else if ev.Name == EnvVcapServicesVariableName {
 				envVS, err = getVcapServicesMap(ev.Value, bbsLRP.ProcessGuid)
 				if err != nil {
-					log.Errorf("Failed unmarshalling %s env variable for LRP %s: %s",
+					_ = log.Errorf("Failed unmarshalling %s env variable for LRP %s: %s",
 						EnvVcapServicesVariableName, bbsLRP.ProcessGuid, err.Error())
 				}
 			} else if ev.Name == EnvVcapApplicationName {
 				envVA, err = getVcapApplicationMap(ev.Value)
 				if err != nil {
-					log.Errorf("Failed unmarshalling %s env variable for LRP %s: %s",
+					_ = log.Errorf("Failed unmarshalling %s env variable for LRP %s: %s",
 						EnvVcapApplicationName, bbsLRP.ProcessGuid, err.Error())
 				}
+			}
+
+			if isAllowedTag(ev.Name, includeList, excludeList) {
+				tagsFromEnv = append(tagsFromEnv, fmt.Sprintf("%s:%s", ev.Name, ev.Value))
 			}
 		}
 		if len(envAD) > 0 {
@@ -209,12 +228,27 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP) DesiredLRP {
 		var ok bool
 		extractVA[key], ok = envVA[key]
 		if !ok || extractVA[key] == "" {
-			log.Errorf("Couldn't extract %s from LRP %s", key, bbsLRP.ProcessGuid)
+			log.Tracef("Couldn't extract %s from LRP %s", key, bbsLRP.ProcessGuid)
 		}
 	}
+	appName := extractVA[ApplicationNameKey]
+	appGUID := extractVA[ApplicationIDKey]
+
+	// try to get updated app name from CC API in case of app renames
+	ccCache, err := GetGlobalCCCache()
+	if err == nil {
+		if ccApp, err := ccCache.GetApp(appGUID); err != nil {
+			log.Debugf("Could not find app %s in cc cache", appGUID)
+		} else {
+			appName = ccApp.Name
+		}
+	} else {
+		log.Debugf("Could not get Cloud Foundry CCAPI cache: %v", err)
+	}
+
 	d := DesiredLRP{
-		AppGUID:            extractVA[ApplicationIDKey],
-		AppName:            extractVA[ApplicationNameKey],
+		AppGUID:            appGUID,
+		AppName:            appName,
 		EnvAD:              envAD,
 		EnvVcapServices:    envVS,
 		EnvVcapApplication: envVA,
@@ -223,6 +257,7 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP) DesiredLRP {
 		ProcessGUID:        bbsLRP.ProcessGuid,
 		SpaceGUID:          extractVA[SpaceIDKey],
 		SpaceName:          extractVA[SpaceNameKey],
+		TagsFromEnv:        tagsFromEnv,
 	}
 	return d
 }
@@ -244,8 +279,37 @@ func (dlrp *DesiredLRP) GetTagsFromDLRP() []string {
 			tags = append(tags, fmt.Sprintf("%s:%s", k, v))
 		}
 	}
+	tags = append(tags, dlrp.TagsFromEnv...)
 	sort.Strings(tags)
 	return tags
+}
+
+func isAllowedTag(value string, includeList, excludeList []*regexp.Regexp) bool {
+	// Return false if a key is in excluded
+	// Return true if a key is included or there are no excludeList nor includeList patterns
+	// excludeList takes precedence, i.e. return false if a key matches both a includeList and excludeList pattern
+
+	// If there is no includeList nor excludeList, return false
+	if len(includeList) == 0 && len(excludeList) == 0 {
+		return false
+	}
+
+	// If there is no includeList, assume at first the value is allowed, then refine decision based on excludeList.
+	allowed := len(includeList) == 0
+
+	for _, re := range includeList {
+		if re.Match([]byte(value)) {
+			allowed = true
+			break
+		}
+	}
+	for _, re := range excludeList {
+		if re.Match([]byte(value)) {
+			allowed = false
+			break
+		}
+	}
+	return allowed
 }
 
 func getVcapServicesMap(vcap, processGUID string) (map[string][]byte, error) {
@@ -268,12 +332,12 @@ func getVcapServicesMap(vcap, processGUID string) (map[string][]byte, error) {
 			if name, ok := inst["name"]; ok {
 				nameStr, success := name.(string)
 				if !success {
-					log.Errorf("Failed converting name of instance %v of LRP %s to string", name, processGUID)
+					_ = log.Errorf("Failed converting name of instance %v of LRP %s to string", name, processGUID)
 					continue
 				}
 				serializedInst, err := json.Marshal(inst)
 				if err != nil {
-					log.Errorf("Failed serializing instance %s of LRP %s to JSON", nameStr, processGUID)
+					_ = log.Errorf("Failed serializing instance %s of LRP %s to JSON", nameStr, processGUID)
 					continue
 				}
 				ret[nameStr] = serializedInst
@@ -298,15 +362,17 @@ func getVcapApplicationMap(vcap string) (map[string]string, error) {
 		return res, err
 	}
 
-	// Keep only needed keys
+	// Keep only needed keys, if they are present
 	for _, key := range envVcapApplicationKeys {
 		val, ok := vcMap[key]
 		if !ok {
-			return res, fmt.Errorf("could not find key %s in VCAP_APPLICATION env var", key)
+			log.Tracef("Could not find key %s in VCAP_APPLICATION env var", key)
+			continue
 		}
 		valString, ok := val.(string)
 		if !ok {
-			return res, fmt.Errorf("could not parse the value of %s as a string", key)
+			log.Debugf("Could not parse the value of %s as a string", key)
+			continue
 		}
 		res[key] = valString
 	}

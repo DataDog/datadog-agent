@@ -32,17 +32,17 @@ func TestIdentifyRandomString(t *testing.T) {
 }
 
 func TestParseTags(t *testing.T) {
-	parser := newParser()
+	p := newParser(newFloat64ListPool())
 	rawTags := []byte("tag:test,mytag,good:boy")
-	tags := parser.parseTags(rawTags)
+	tags := p.parseTags(rawTags)
 	expectedTags := []string{"tag:test", "mytag", "good:boy"}
 	assert.ElementsMatch(t, expectedTags, tags)
 }
 
 func TestParseTagsEmpty(t *testing.T) {
-	parser := newParser()
+	p := newParser(newFloat64ListPool())
 	rawTags := []byte("")
-	tags := parser.parseTags(rawTags)
+	tags := p.parseTags(rawTags)
 	assert.Nil(t, tags)
 }
 
@@ -54,7 +54,38 @@ func TestUnsafeParseFloat(t *testing.T) {
 	float, err := strconv.ParseFloat(rawFloat, 64)
 	assert.NoError(t, err)
 
-	assert.Equal(t, unsafeFloat, float)
+	assert.Equal(t, float, unsafeFloat)
+}
+
+func TestUnsafeParseFloatList(t *testing.T) {
+	p := newParser(newFloat64ListPool())
+	unsafeFloats, err := p.parseFloat64List([]byte("1.1234:21.5:13"))
+	assert.NoError(t, err)
+	assert.Len(t, unsafeFloats, 3)
+	assert.Equal(t, []float64{1.1234, 21.5, 13}, unsafeFloats)
+
+	unsafeFloats, err = p.parseFloat64List([]byte("1.1234"))
+	assert.NoError(t, err)
+	assert.Len(t, unsafeFloats, 1)
+	assert.Equal(t, []float64{1.1234}, unsafeFloats)
+
+	unsafeFloats, err = p.parseFloat64List([]byte("1.1234:41:"))
+	assert.NoError(t, err)
+	assert.Len(t, unsafeFloats, 2)
+	assert.Equal(t, []float64{1.1234, 41}, unsafeFloats)
+
+	unsafeFloats, err = p.parseFloat64List([]byte("1.1234::41"))
+	assert.NoError(t, err)
+	assert.Len(t, unsafeFloats, 2)
+	assert.Equal(t, []float64{1.1234, 41}, unsafeFloats)
+
+	unsafeFloats, err = p.parseFloat64List([]byte(":1.1234::41"))
+	assert.NoError(t, err)
+	assert.Len(t, unsafeFloats, 2)
+	assert.Equal(t, []float64{1.1234, 41}, unsafeFloats)
+
+	_, err = p.parseFloat64List([]byte(""))
+	assert.Error(t, err)
 }
 
 func TestUnsafeParseInt(t *testing.T) {
@@ -65,5 +96,5 @@ func TestUnsafeParseInt(t *testing.T) {
 	integer, err := strconv.ParseInt(rawInt, 10, 64)
 	assert.NoError(t, err)
 
-	assert.Equal(t, unsafeInteger, integer)
+	assert.Equal(t, integer, unsafeInteger)
 }

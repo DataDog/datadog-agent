@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -69,7 +69,7 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 	}
 
 	// Read configuration files received from the command line arguments '-c'
-	if err := MergeConfigurationFiles(configName, confPathArray); err != nil {
+	if err := MergeConfigurationFiles(configName, confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
 		return err
 	}
 
@@ -79,11 +79,12 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
+		log.Info("Waiting for APIClient")
 		apiCl, err := apiserver.WaitForAPIClient(ctx)
 		if err != nil {
 			return err
 		}
-		options = append(options, checks.MayFail(checks.WithKubernetesClient(apiCl.DynamicCl)))
+		options = append(options, checks.MayFail(checks.WithKubernetesClient(apiCl.DynamicCl, "")))
 	} else {
 		options = append(options, []checks.BuilderOption{
 			checks.WithHostRootMount(os.Getenv("HOST_ROOT")),
@@ -106,7 +107,7 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 		ruleID = args[0]
 	}
 
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		return err
 	}
@@ -170,6 +171,9 @@ func (r *runCheckReporter) Report(event *event.Event) {
 
 	var buf bytes.Buffer
 	_ = json.Indent(&buf, data, "", "  ")
+	r.ReportRaw(buf.Bytes())
+}
 
-	fmt.Println(buf.String())
+func (r *runCheckReporter) ReportRaw(content []byte, tags ...string) {
+	fmt.Println(string(content))
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package checks
 
@@ -24,7 +24,7 @@ var commandReportedFields = []string{
 	compliance.CommandFieldExitCode,
 }
 
-func resolveCommand(ctx context.Context, _ env.Env, ruleID string, res compliance.Resource) (interface{}, error) {
+func resolveCommand(ctx context.Context, _ env.Env, ruleID string, res compliance.Resource) (resolved, error) {
 	if res.Command == nil {
 		return nil, fmt.Errorf("%s: expecting command resource in command check", ruleID)
 	}
@@ -58,10 +58,11 @@ func resolveCommand(ctx context.Context, _ env.Env, ruleID string, res complianc
 		return nil, fmt.Errorf("command '%v' execution failed, error: %v", command, err)
 	}
 
-	return &eval.Instance{
-		Vars: eval.VarMap{
+	return newResolvedInstance(eval.NewInstance(
+		eval.VarMap{
 			compliance.CommandFieldExitCode: exitCode,
 			compliance.CommandFieldStdout:   string(stdout),
-		},
-	}, nil
+		}, nil),
+		execCommand.Name, "command",
+	), nil
 }

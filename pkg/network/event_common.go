@@ -6,8 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/dustin/go-humanize"
+	humanize "github.com/dustin/go-humanize"
 )
 
 // ConnectionType will be either TCP or UDP
@@ -76,14 +77,41 @@ func (d ConnectionDirection) String() string {
 	}
 }
 
-// Connections wraps a collection of ConnectionStats
-type Connections struct {
-	DNS       map[util.Address][]string
-	Conns     []ConnectionStats
-	Telemetry *ConnectionsTelemetry
+// EphemeralPortType will be either EphemeralUnknown, EphemeralTrue, EphemeralFalse
+type EphemeralPortType uint8
+
+const (
+	// EphemeralUnknown indicates inability to determine whether the port is in the ephemeral range or not
+	EphemeralUnknown EphemeralPortType = 0
+
+	// EphemeralTrue means the port has been detected to be in the configured ephemeral range
+	EphemeralTrue EphemeralPortType = 1
+
+	// EphemeralFalse means the port has been detected to not be in the configured ephemeral range
+	EphemeralFalse EphemeralPortType = 2
+)
+
+func (e EphemeralPortType) String() string {
+	switch e {
+	case EphemeralTrue:
+		return "ephemeral"
+	case EphemeralFalse:
+		return "not ephemeral"
+	default:
+		return "unspecified"
+	}
 }
 
-// ConnectionsTelemetry stores telemetry from the system probe
+// Connections wraps a collection of ConnectionStats
+type Connections struct {
+	DNS                         map[util.Address][]string
+	Conns                       []ConnectionStats
+	ConnTelemetry               *ConnectionsTelemetry
+	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
+	HTTP                        map[http.Key]http.RequestStats
+}
+
+// ConnectionsTelemetry stores telemetry from the system probe related to connections collection
 type ConnectionsTelemetry struct {
 	MonotonicKprobesTriggered          int64
 	MonotonicKprobesMissed             int64
@@ -95,6 +123,15 @@ type ConnectionsTelemetry struct {
 	MonotonicUDPSendsProcessed         int64
 	MonotonicUDPSendsMissed            int64
 	ConntrackSamplingPercent           int64
+	DNSStatsDropped                    int64
+}
+
+// RuntimeCompilationTelemetry stores telemetry related to the runtime compilation of various assets
+type RuntimeCompilationTelemetry struct {
+	RuntimeCompilationEnabled  bool
+	RuntimeCompilationResult   int32
+	KernelHeaderFetchResult    int32
+	RuntimeCompilationDuration int64
 }
 
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
@@ -107,6 +144,12 @@ type ConnectionStats struct {
 
 	MonotonicRecvBytes uint64
 	LastRecvBytes      uint64
+
+	MonotonicSentPackets uint64
+	LastSentPackets      uint64
+
+	MonotonicRecvPackets uint64
+	LastRecvPackets      uint64
 
 	// Last time the stats for this connection were updated
 	LastUpdateEpoch uint64
@@ -132,19 +175,33 @@ type ConnectionStats struct {
 	Pid   uint32
 	NetNS uint32
 
-	SPort                  uint16
-	DPort                  uint16
-	Type                   ConnectionType
-	Family                 ConnectionFamily
-	Direction              ConnectionDirection
-	IPTranslation          *IPTranslation
-	IntraHost              bool
-	DNSSuccessfulResponses uint32
-	DNSFailedResponses     uint32
-	DNSTimeouts            uint32
-	DNSSuccessLatencySum   uint64
-	DNSFailureLatencySum   uint64
-	DNSCountByRcode        map[uint32]uint32
+	SPort                       uint16
+	DPort                       uint16
+	Type                        ConnectionType
+	Family                      ConnectionFamily
+	Direction                   ConnectionDirection
+	SPortIsEphemeral            EphemeralPortType
+	IPTranslation               *IPTranslation
+	IntraHost                   bool
+	DNSSuccessfulResponses      uint32
+	DNSFailedResponses          uint32
+	DNSTimeouts                 uint32
+	DNSSuccessLatencySum        uint64
+	DNSFailureLatencySum        uint64
+	DNSCountByRcode             map[uint32]uint32
+	DNSStatsByDomainByQueryType map[string]map[QueryType]DNSStats
+
+	Via *Via
+}
+
+// Via has info about the routing decision for a flow
+type Via struct {
+	Subnet Subnet
+}
+
+// Subnet stores info about a subnet
+type Subnet struct {
+	Alias string
 }
 
 // IPTranslation can be associated with a connection to show the connection is NAT'd
@@ -165,7 +222,7 @@ func (c ConnectionStats) String() string {
 //     4B      2B      2B     .5B     .5B      4/16B        4/16B   = 17/41B
 //    32b     16b     16b      4b      4b     32/128b      32/128b
 // |  PID  | SPORT | DPORT | Family | Type |  SrcAddr  |  DestAddr
-func (c ConnectionStats) ByteKey(buf [ConnectionByteKeyMaxLen]byte) ([]byte, error) {
+func (c ConnectionStats) ByteKey(buf []byte) ([]byte, error) {
 	n := 0
 	// Byte-packing to improve creation speed
 	// PID (32 bits) + SPort (16 bits) + DPort (16 bits) = 64 bits
@@ -177,8 +234,8 @@ func (c ConnectionStats) ByteKey(buf [ConnectionByteKeyMaxLen]byte) ([]byte, err
 	buf[n] = uint8(c.Family)<<4 | uint8(c.Type)
 	n++
 
-	n += copy(buf[n:], c.Source.Bytes()) // 4 or 16 bytes
-	n += copy(buf[n:], c.Dest.Bytes())   // 4 or 16 bytes
+	n += c.Source.WriteTo(buf[n:]) // 4 or 16 bytes
+	n += c.Dest.WriteTo(buf[n:])   // 4 or 16 bytes
 	return buf[:n], nil
 }
 
@@ -252,4 +309,21 @@ func printAddress(address util.Address, names []string) string {
 	}
 
 	return strings.Join(names, ",")
+}
+
+// DNSKey is an identifier for a set of DNS connections
+type DNSKey struct {
+	serverIP   util.Address
+	clientIP   util.Address
+	clientPort uint16
+	// ConnectionType will be either TCP or UDP
+	protocol ConnectionType
+}
+
+// DNSStats holds statistics corresponding to a particular domain
+type DNSStats struct {
+	DNSTimeouts          uint32
+	DNSSuccessLatencySum uint64
+	DNSFailureLatencySum uint64
+	DNSCountByRcode      map[uint32]uint32
 }

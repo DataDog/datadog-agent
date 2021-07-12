@@ -5,6 +5,8 @@ import os
 
 from invoke import Collection
 
+from tasks.utils import generate_config
+
 from . import (
     agent,
     android,
@@ -29,11 +31,27 @@ from . import (
     uninstallcmd,
 )
 from .build_tags import audit_tag_impact
-from .go import cyclo, deps, fmt, generate, generate_licenses, golangci_lint, lint, lint_licenses, reset, vet
+from .go import (
+    check_mod_tidy,
+    cyclo,
+    deps,
+    deps_vendored,
+    fmt,
+    generate,
+    generate_licenses,
+    generate_protobuf,
+    golangci_lint,
+    lint,
+    lint_licenses,
+    reset,
+    tidy_all,
+    vet,
+)
 from .test import (
     check_gitlab_broken_dependencies,
     e2e_tests,
     install_shellcheck,
+    install_tools,
     integration_tests,
     lint_filenames,
     lint_milestone,
@@ -57,8 +75,10 @@ ns.add_task(golangci_lint)
 ns.add_task(test)
 ns.add_task(integration_tests)
 ns.add_task(deps)
+ns.add_task(deps_vendored)
 ns.add_task(lint_licenses)
 ns.add_task(generate_licenses)
+ns.add_task(generate_protobuf)
 ns.add_task(reset)
 ns.add_task(lint_teamassignment)
 ns.add_task(lint_releasenote)
@@ -72,6 +92,10 @@ ns.add_task(make_simple_gitlab_yml)
 ns.add_task(check_gitlab_broken_dependencies)
 ns.add_task(generate)
 ns.add_task(install_shellcheck)
+ns.add_task(install_tools)
+ns.add_task(check_mod_tidy)
+ns.add_task(tidy_all)
+ns.add_task(generate_config)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)

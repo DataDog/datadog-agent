@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubelet
 
 package kubelet
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -419,6 +420,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 }
 
 func (suite *PodwatcherTestSuite) TestPullChanges() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
@@ -437,7 +439,7 @@ func (suite *PodwatcherTestSuite) TestPullChanges() {
 	<-kubelet.Requests // Throwing away the first /spec GET
 
 	ResetCache() // If we want to be sure to get a /pods request after
-	pods, err := watcher.PullChanges()
+	pods, err := watcher.PullChanges(ctx)
 	require.Nil(suite.T(), err)
 	<-kubelet.Requests // Throwing away /pods GET
 	require.Len(suite.T(), pods, 7)
@@ -573,6 +575,40 @@ func (suite *PodwatcherTestSuite) TestPodWatcherAnnotationsValueChange() {
 	changes, err = watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 2)
+}
+
+func (suite *PodwatcherTestSuite) TestPodWatcherContainerCreating() {
+	sourcePods, err := loadPodsFixture("./testdata/podlist_container_creating.json")
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), sourcePods, 1)
+
+	watcher := &PodWatcher{
+		lastSeen:       make(map[string]time.Time),
+		lastSeenReady:  make(map[string]time.Time),
+		expiryDuration: 5 * time.Minute,
+	}
+
+	changes, err := watcher.computeChanges(sourcePods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 0)
+}
+
+func (suite *PodwatcherTestSuite) TestPodWatcherContainerCreatingTags() {
+	sourcePods, err := loadPodsFixture("./testdata/podlist_container_creating.json")
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), sourcePods, 1)
+
+	watcher := &PodWatcher{
+		lastSeen:       make(map[string]time.Time),
+		lastSeenReady:  make(map[string]time.Time),
+		tagsDigest:     make(map[string]string),
+		oldPhase:       make(map[string]string),
+		expiryDuration: 5 * time.Minute,
+	}
+
+	changes, err := watcher.computeChanges(sourcePods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 1)
 }
 
 func TestPodwatcherTestSuite(t *testing.T) {

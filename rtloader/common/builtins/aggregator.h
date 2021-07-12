@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 #ifndef DATADOG_AGENT_RTLOADER_THREE_AGGREGATOR_H
 #define DATADOG_AGENT_RTLOADER_THREE_AGGREGATOR_H
 
@@ -56,6 +56,13 @@
 
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
+/*! \fn void _set_submit_event_platform_event_cb(cb_submit_event_platform_event_t)
+    \brief Sets the submit event callback to be used by rtloader for event-platform event submission.
+    \param cb A function pointer with cb_submit_event_platform_event_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
 
 #include <Python.h>
 #include <rtloader_types.h>
@@ -77,6 +84,7 @@ void _set_submit_metric_cb(cb_submit_metric_t cb);
 void _set_submit_service_check_cb(cb_submit_service_check_t cb);
 void _set_submit_event_cb(cb_submit_event_t cb);
 void _set_submit_histogram_bucket_cb(cb_submit_histogram_bucket_t cb);
+void _set_submit_event_platform_event_cb(cb_submit_event_platform_event_t cb);
 
 #ifdef __cplusplus
 }

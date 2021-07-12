@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package listeners
 
@@ -12,11 +12,12 @@ import (
 	"os"
 	"strings"
 	"sync"
-
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -25,15 +26,6 @@ var (
 	udsPacketReadingErrors   = expvar.Int{}
 	udsPackets               = expvar.Int{}
 	udsBytes                 = expvar.Int{}
-
-	tlmUDSPackets = telemetry.NewCounter("dogstatsd", "uds_packets",
-		[]string{"state"}, "Dogstatsd UDS packets count")
-
-	tlmUDSOriginDetectionError = telemetry.NewCounter("dogstatsd", "uds_origin_detection_error",
-		nil, "Dogstatsd UDS origin detection error count")
-
-	tlmUDSPacketsBytes = telemetry.NewCounter("dogstatsd", "uds_packets_bytes",
-		nil, "Dogstatsd UDS packets bytes")
 )
 
 func init() {
@@ -48,15 +40,16 @@ func init() {
 // back packets ready to be processed.
 // Origin detection will be implemented for UDS.
 type UDSListener struct {
-	conn             *net.UnixConn
-	packetsBuffer    *packetsBuffer
-	sharedPacketPool *PacketPool
-	oobPool          *sync.Pool // For origin detection ancilary data
-	OriginDetection  bool
+	conn                    *net.UnixConn
+	packetsBuffer           *packets.Buffer
+	sharedPacketPoolManager *packets.PoolManager
+	oobPoolManager          *packets.PoolManager
+	trafficCapture          *replay.TrafficCapture
+	OriginDetection         bool
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
-func NewUDSListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDSListener, error) {
+func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, capture *replay.TrafficCapture) (*UDSListener, error) {
 	socketPath := config.Datadog.GetString("dogstatsd_socket")
 	originDetection := config.Datadog.GetBool("dogstatsd_origin_detection")
 
@@ -106,17 +99,35 @@ func NewUDSListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDSL
 	listener := &UDSListener{
 		OriginDetection: originDetection,
 		conn:            conn,
-		packetsBuffer: newPacketsBuffer(uint(config.Datadog.GetInt("dogstatsd_packet_buffer_size")),
+		packetsBuffer: packets.NewBuffer(uint(config.Datadog.GetInt("dogstatsd_packet_buffer_size")),
 			config.Datadog.GetDuration("dogstatsd_packet_buffer_flush_timeout"), packetOut),
-		sharedPacketPool: sharedPacketPool,
+		sharedPacketPoolManager: sharedPacketPoolManager,
+		trafficCapture:          capture,
+	}
+
+	if listener.trafficCapture != nil {
+		err = listener.trafficCapture.Writer.RegisterSharedPoolManager(listener.sharedPacketPoolManager)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Init the oob buffer pool if origin detection is enabled
 	if originDetection {
-		listener.oobPool = &sync.Pool{
+
+		pool := &sync.Pool{
 			New: func() interface{} {
-				return make([]byte, getUDSAncillarySize())
+				s := make([]byte, getUDSAncillarySize())
+				return &s
 			},
+		}
+
+		listener.oobPoolManager = packets.NewPoolManager(pool)
+		if listener.trafficCapture != nil {
+			err = listener.trafficCapture.Writer.RegisterOOBPoolManager(listener.oobPoolManager)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -126,33 +137,86 @@ func NewUDSListener(packetOut chan Packets, sharedPacketPool *PacketPool) (*UDSL
 
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *UDSListener) Listen() {
+	t1 := time.Now()
+	var t2 time.Time
 	log.Infof("dogstatsd-uds: starting to listen on %s", l.conn.LocalAddr())
 	for {
 		var n int
 		var err error
 		// retrieve an available packet from the packet pool,
 		// which will be pushed back by the server when processed.
-		packet := l.sharedPacketPool.Get()
+		packet := l.sharedPacketPoolManager.Get().(*packets.Packet)
 		udsPackets.Add(1)
+
+		var capBuff *replay.CaptureBuffer
+		if l.trafficCapture != nil && l.trafficCapture.IsOngoing() {
+			capBuff = replay.CapPool.Get().(*replay.CaptureBuffer)
+			capBuff.Pb.Ancillary = nil
+			capBuff.Pb.Payload = nil
+			capBuff.ContainerID = ""
+		}
+
 		if l.OriginDetection {
-			// Read datagram + credentials in ancilary data
-			oob := l.oobPool.Get().([]byte)
+			// Read datagram + credentials in ancillary data
+			oob := l.oobPoolManager.Get().(*[]byte)
+			oobS := *oob
 			var oobn int
-			n, oobn, _, _, err = l.conn.ReadMsgUnix(packet.buffer, oob)
+
+			t2 = time.Now()
+			tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "uds")
+
+			n, oobn, _, _, err = l.conn.ReadMsgUnix(packet.Buffer, oobS)
+
+			t1 = time.Now()
+
 			// Extract container id from credentials
-			container, taggingErr := processUDSOrigin(oob[:oobn])
+			pid, container, taggingErr := processUDSOrigin(oobS[:oobn])
+
+			if capBuff != nil {
+				capBuff.Pb.Timestamp = time.Now().UnixNano()
+				capBuff.Pid = int32(pid)
+				capBuff.Oob = oob
+				capBuff.Buff = packet
+				capBuff.Pb.AncillarySize = int32(oobn)
+				capBuff.Pb.Ancillary = oobS[:oobn]
+				capBuff.Pb.PayloadSize = int32(n)
+				capBuff.Pb.Payload = packet.Buffer[:n]
+				capBuff.Pb.Pid = int32(pid)
+			}
+
 			if taggingErr != nil {
 				log.Warnf("dogstatsd-uds: error processing origin, data will not be tagged : %v", taggingErr)
 				udsOriginDetectionErrors.Add(1)
 				tlmUDSOriginDetectionError.Inc()
 			} else {
 				packet.Origin = container
+				if capBuff != nil {
+					capBuff.ContainerID = container
+				}
 			}
 			// Return the buffer back to the pool for reuse
-			l.oobPool.Put(oob)
+			l.oobPoolManager.Put(oob)
 		} else {
+			t2 = time.Now()
+			tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "uds")
+
 			// Read only datagram contents with no credentials
-			n, _, err = l.conn.ReadFromUnix(packet.buffer)
+			n, _, err = l.conn.ReadFromUnix(packet.Buffer)
+
+			t1 = time.Now()
+
+			if capBuff != nil {
+				capBuff.Pb.Timestamp = time.Now().UnixNano()
+				capBuff.Buff = packet
+				capBuff.Pb.Pid = 0
+				capBuff.Pb.AncillarySize = int32(0)
+				capBuff.Pb.PayloadSize = int32(n)
+				capBuff.Pb.Payload = packet.Buffer[:n]
+			}
+		}
+
+		if capBuff != nil {
+			l.trafficCapture.Writer.Enqueue(capBuff)
 		}
 
 		if err != nil {
@@ -170,16 +234,17 @@ func (l *UDSListener) Listen() {
 
 		udsBytes.Add(int64(n))
 		tlmUDSPacketsBytes.Add(float64(n))
-		packet.Contents = packet.buffer[:n]
+		packet.Contents = packet.Buffer[:n]
+		packet.Source = packets.UDS
 
 		// packetsBuffer handles the forwarding of the packets to the dogstatsd server intake channel
-		l.packetsBuffer.append(packet)
+		l.packetsBuffer.Append(packet)
 	}
 }
 
 // Stop closes the UDS connection and stops listening
 func (l *UDSListener) Stop() {
-	l.packetsBuffer.close()
+	l.packetsBuffer.Close()
 	l.conn.Close()
 
 	// Socket cleanup on exit

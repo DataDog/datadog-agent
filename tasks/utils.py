@@ -1,7 +1,7 @@
 """
 Miscellaneous functions, no tasks here
 """
-from __future__ import print_function
+
 
 import json
 import os
@@ -9,8 +9,11 @@ import re
 import sys
 from subprocess import check_output
 
+from invoke import task
+
 # constants
 ORG_PATH = "github.com/DataDog"
+DEFAULT_BRANCH = "main"
 REPO_PATH = "{}/datadog-agent".format(ORG_PATH)
 
 
@@ -71,7 +74,6 @@ def get_build_flags(
     python_home_3=None,
     major_version='7',
     python_runtimes='3',
-    arch="x64",
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -85,6 +87,9 @@ def get_build_flags(
 
     if sys.platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
+    else:
+        # for pkg/ebpf/compiler on linux
+        env['CGO_LDFLAGS_ALLOW'] = "-Wl,--wrap=.*"
 
     if embedded_path is None:
         # fall back to local dev path
@@ -255,20 +260,36 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
     # and it will match beta.0
     # git_sha: for the output, 6.0.0-beta.0-1-g4f19118, this will match g4f19118
     version, pre, git_sha = version_match.group('version', 'pre', 'git_sha')
+
+    # When we're on a tag, `git describe --tags --candidates=50` doesn't include a commit sha.
+    # We need it, so we fetch it another way.
+    if not git_sha:
+        cmd = "git rev-parse HEAD"
+        # The git sha shown by `git describe --tags --candidates=50` is the first 7 characters of the sha,
+        # therefore we keep the same number of characters.
+        git_sha = ctx.run(cmd, hide=True).stdout.strip()[:7]
+
     return version, pre, commit_number, git_sha
 
 
-def get_version(
-    ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, env=os.environ, major_version='7'
-):
+def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, major_version='7'):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
 
     version = ""
     version, pre, commits_since_version, git_sha = query_version(
         ctx, git_sha_length, prefix, major_version_hint=major_version
     )
+
+    is_nightly = os.getenv("DEB_RPM_BUCKET_BRANCH") == "nightly"
     if pre:
         version = "{0}-{1}".format(version, pre)
+
+    if not commits_since_version and is_nightly and include_git:
+        if url_safe:
+            version = "{0}.git.{1}.{2}".format(version, 0, git_sha)
+        else:
+            version = "{0}+git.{1}.{2}".format(version, 0, git_sha)
+
     if commits_since_version and include_git:
         if url_safe:
             version = "{0}.git.{1}.{2}".format(version, commits_since_version, git_sha)
@@ -279,14 +300,14 @@ def get_version(
     return str(version)
 
 
-def get_version_numeric_only(ctx, env=os.environ, major_version='7'):
+def get_version_numeric_only(ctx, major_version='7'):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
 
     version, _, _, _ = query_version(ctx, major_version_hint=major_version)
     return version
 
 
-def load_release_versions(ctx, target_version):
+def load_release_versions(_, target_version):
     with open("release.json", "r") as f:
         versions = json.load(f)
         if target_version in versions:
@@ -294,3 +315,36 @@ def load_release_versions(ctx, target_version):
             # environment when running a subprocess.
             return {str(k): str(v) for k, v in versions[target_version].items()}
     raise Exception("Could not find '{}' version in release.json".format(target_version))
+
+
+@task()
+def generate_config(ctx, build_type, output_file, env=None):
+    """
+    Generates the datadog.yaml configuration file.
+    """
+    args = {
+        "go_file": "./pkg/config/render_config.go",
+        "build_type": build_type,
+        "template_file": "./pkg/config/config_template.yaml",
+        "output_file": output_file,
+    }
+    cmd = "go run {go_file} {build_type} {template_file} {output_file}"
+    return ctx.run(cmd.format(**args), env=env or {})
+
+
+def bundle_files(ctx, bindata_files, dir_prefix, go_dir, pkg, tag, split=True):
+    assets_cmd = (
+        "go run github.com/shuLhan/go-bindata/cmd/go-bindata -tags '{bundle_tag}' {split}"
+        + " -pkg {pkg} -prefix '{dir_prefix}' -modtime 1 -o '{go_dir}' '{bindata_files}'"
+    )
+    ctx.run(
+        assets_cmd.format(
+            dir_prefix=dir_prefix,
+            go_dir=go_dir,
+            bundle_tag=tag,
+            pkg=pkg,
+            split="-split" if split else "",
+            bindata_files="' '".join(bindata_files),
+        )
+    )
+    ctx.run("gofmt -w -s {go_dir}".format(go_dir=go_dir))

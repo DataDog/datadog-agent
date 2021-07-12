@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package obfuscate
 
@@ -9,12 +9,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"os"
 	"strconv"
 	"sync/atomic"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -54,30 +54,6 @@ func TestSQLResourceQuery(t *testing.T) {
 	assert.Equal("SELECT * FROM users WHERE id = 42", span.Meta["sql.query"])
 }
 
-func TestSQLTableNames(t *testing.T) {
-	t.Run("on", func(t *testing.T) {
-		os.Setenv("DD_APM_FEATURES", "table_names")
-		defer os.Unsetenv("DD_APM_FEATURES")
-
-		span := &pb.Span{
-			Resource: "SELECT * FROM users WHERE id = 42",
-			Type:     "sql",
-		}
-		NewObfuscator(nil).Obfuscate(span)
-		assert.Equal(t, "users", span.Meta["sql.tables"])
-
-	})
-
-	t.Run("off", func(t *testing.T) {
-		span := &pb.Span{
-			Resource: "SELECT * FROM users WHERE id = 42",
-			Type:     "sql",
-		}
-		NewObfuscator(nil).Obfuscate(span)
-		assert.Empty(t, span.Meta["sql.tables"])
-	})
-}
-
 func TestSQLResourceWithoutQuery(t *testing.T) {
 	assert := assert.New(t)
 	span := &pb.Span{
@@ -88,6 +64,91 @@ func TestSQLResourceWithoutQuery(t *testing.T) {
 	NewObfuscator(nil).Obfuscate(span)
 	assert.Equal("SELECT * FROM users WHERE id = ?", span.Resource)
 	assert.Equal("SELECT * FROM users WHERE id = ?", span.Meta["sql.query"])
+}
+
+func TestKeepSQLAlias(t *testing.T) {
+	q := `SELECT username AS person FROM users WHERE id=4`
+
+	t.Run("off", func(t *testing.T) {
+		oq, err := NewObfuscator(nil).ObfuscateSQLString(q)
+		assert.NoError(t, err)
+		assert.Equal(t, "SELECT username FROM users WHERE id = ?", oq.Query)
+	})
+
+	t.Run("on", func(t *testing.T) {
+		defer testutil.WithFeatures("keep_sql_alias")()
+		oq, err := NewObfuscator(nil).ObfuscateSQLString(q)
+		assert.NoError(t, err)
+		assert.Equal(t, "SELECT username AS person FROM users WHERE id = ?", oq.Query)
+	})
+}
+
+func TestDollarQuotedFunc(t *testing.T) {
+	q := `SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users`
+
+	t.Run("off", func(t *testing.T) {
+		oq, err := NewObfuscator(nil).ObfuscateSQLString(q)
+		assert.NoError(t, err)
+		assert.Equal(t, "SELECT ? FROM users", oq.Query)
+	})
+
+	t.Run("on", func(t *testing.T) {
+		defer testutil.WithFeatures("dollar_quoted_func")()
+		oq, err := NewObfuscator(nil).ObfuscateSQLString(q)
+		assert.NoError(t, err)
+		assert.Equal(t, `SELECT $func$INSERT INTO table VALUES ( ? )$func$ FROM users`, oq.Query)
+	})
+
+	t.Run("AS", func(t *testing.T) {
+		defer testutil.WithFeatures("keep_sql_alias,dollar_quoted_func")()
+		oq, err := NewObfuscator(nil).ObfuscateSQLString(`CREATE OR REPLACE FUNCTION pg_temp.sequelize_upsert(OUT created boolean, OUT primary_key text) AS $func$ BEGIN INSERT INTO "school" ("id","organization_id","name","created_at","updated_at") VALUES ('dc4e9444-d7c9-40a9-bcef-68e4cc594e61','ec647f56-f27a-49a1-84af-021ad0a19f21','Test','2021-03-31 16:30:43.915 +00:00','2021-03-31 16:30:43.915 +00:00'); created := true; EXCEPTION WHEN unique_violation THEN UPDATE "school" SET "id"='dc4e9444-d7c9-40a9-bcef-68e4cc594e61',"organization_id"='ec647f56-f27a-49a1-84af-021ad0a19f21',"name"='Test',"updated_at"='2021-03-31 16:30:43.915 +00:00' WHERE ("id" = 'dc4e9444-d7c9-40a9-bcef-68e4cc594e61'); created := false; END; $func$ LANGUAGE plpgsql; SELECT * FROM pg_temp.sequelize_upsert();`)
+		assert.NoError(t, err)
+		assert.Equal(t, `CREATE OR REPLACE FUNCTION pg_temp.sequelize_upsert ( OUT created boolean, OUT primary_key text ) AS $func$BEGIN INSERT INTO school ( id, organization_id, name, created_at, updated_at ) VALUES ( ? ) created := ? EXCEPTION WHEN unique_violation THEN UPDATE school SET id = ? organization_id = ? name = ? updated_at = ? WHERE ( id = ? ) created := ? END$func$ LANGUAGE plpgsql SELECT * FROM pg_temp.sequelize_upsert ( )`, oq.Query)
+	})
+}
+
+func TestScanDollarQuotedString(t *testing.T) {
+	for _, tt := range []struct {
+		in  string
+		out string
+		err bool
+	}{
+		{`$tag$abc$tag$`, `abc`, false},
+		{`$func$abc$func$`, `abc`, false},
+		{`$tag$textwith\n\rnewlinesand\r\\\$tag$`, `textwith\n\rnewlinesand\r\\\`, false},
+		{`$tag$ab$tactac$tx$tag$`, `ab$tactac$tx`, false},
+		{`$$abc$$`, `abc`, false},
+		{`$$abc`, `abc`, true},
+		{`$$abc$`, `abc`, true},
+	} {
+		t.Run("", func(t *testing.T) {
+			tok := NewSQLTokenizer(tt.in, false)
+			kind, str := tok.Scan()
+			if tt.err {
+				if kind != LexError {
+					t.Fatalf("Expected error, got %s", kind)
+				}
+				return
+			}
+			assert.Equal(t, string(str), tt.out)
+			assert.Equal(t, DollarQuotedString, kind)
+		})
+	}
+
+	t.Run("dollar_quoted_func", func(t *testing.T) {
+		t.Run("off", func(t *testing.T) {
+			tok := NewSQLTokenizer("$func$abc$func$", false)
+			kind, _ := tok.Scan()
+			assert.Equal(t, DollarQuotedString, kind)
+		})
+
+		t.Run("on", func(t *testing.T) {
+			defer testutil.WithFeatures("dollar_quoted_func")()
+			tok := NewSQLTokenizer("$func$abc$func$", false)
+			kind, _ := tok.Scan()
+			assert.Equal(t, DollarQuotedFunc, kind)
+		})
+	})
 }
 
 func TestSQLResourceWithError(t *testing.T) {
@@ -116,12 +177,9 @@ func TestSQLResourceWithError(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		// copy test cases as Quantize mutates
-		testSpan := tc.span
-
 		NewObfuscator(nil).Obfuscate(&tc.span)
 		assert.Equal("Non-parsable SQL query", tc.span.Resource)
-		assert.Equal(testSpan.Resource, tc.span.Meta["sql.query"])
+		assert.Equal("Non-parsable SQL query", tc.span.Meta["sql.query"])
 	}
 }
 
@@ -173,69 +231,157 @@ func TestSQLUTF8(t *testing.T) {
 	}
 }
 
-func TestSQLTableFinder(t *testing.T) {
+func TestSQLTableNames(t *testing.T) {
 	t.Run("on", func(t *testing.T) {
-		os.Setenv("DD_APM_FEATURES", "table_names")
-		defer os.Unsetenv("DD_APM_FEATURES")
+		defer testutil.WithFeatures("table_names")()
 
+		span := &pb.Span{
+			Resource: "SELECT * FROM users WHERE id = 42",
+			Type:     "sql",
+		}
+		NewObfuscator(nil).Obfuscate(span)
+		assert.Equal(t, "users", span.Meta["sql.tables"])
+
+	})
+
+	t.Run("off", func(t *testing.T) {
+		span := &pb.Span{
+			Resource: "SELECT * FROM users WHERE id = 42",
+			Type:     "sql",
+		}
+		NewObfuscator(nil).Obfuscate(span)
+		assert.Empty(t, span.Meta["sql.tables"])
+	})
+}
+
+func TestSQLQuantizeTableNames(t *testing.T) {
+	t.Run("on", func(t *testing.T) {
 		for _, tt := range []struct {
-			query  string
-			tables string
+			query      string
+			obfuscated string
 		}{
 			{
-				"select * from users where id = 42",
-				"users",
+				"REPLACE INTO sales_2019_07_01 (`itemID`, `date`, `qty`, `price`) VALUES ((SELECT itemID FROM item1001 WHERE `sku` = [sku]), CURDATE(), [qty], 0.00)",
+				"REPLACE INTO sales_?_?_? ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item? WHERE sku = [ sku ] ), CURDATE ( ), [ qty ], ? )",
 			},
+		} {
+			t.Run("", func(t *testing.T) {
+				assert := assert.New(t)
+				oq, err := NewObfuscator(nil).ObfuscateSQLStringWithOptions(tt.query, SQLOptions{QuantizeSQLTables: true})
+				assert.NoError(err)
+				assert.Empty(oq.TablesCSV)
+				assert.Equal(tt.obfuscated, oq.Query)
+			})
+		}
+	})
+
+	t.Run("off", func(t *testing.T) {
+		for _, tt := range []struct {
+			query      string
+			obfuscated string
+		}{
 			{
-				"select * from `backslashes` where id = 42",
-				"backslashes",
-			},
-			{
-				`select * from "double-quotes" where id = 42`,
-				"double-quotes",
-			},
-			{
-				"SELECT host, status FROM ec2_status WHERE org_id = 42",
-				"ec2_status",
-			},
-			{
-				"SELECT * FROM (SELECT * FROM nested_table)",
-				"nested_table",
-			},
-			{
-				"-- get user \n--\n select * \n   from users \n    where\n       id = 214325346",
-				"users",
-			},
-			{
-				"SELECT articles.* FROM articles WHERE articles.id = 1 LIMIT 1, 20",
-				"articles",
-			},
-			{
-				"UPDATE user_dash_pref SET json_prefs = %(json_prefs)s, modified = '2015-08-27 22:10:32.492912' WHERE user_id = %(user_id)s AND url = %(url)s",
-				"user_dash_pref",
-			},
-			{
-				"SELECT DISTINCT host.id AS host_id FROM host JOIN host_alias ON host_alias.host_id = host.id WHERE host.org_id = %(org_id_1)s AND host.name NOT IN (%(name_1)s) AND host.name IN (%(name_2)s, %(name_3)s, %(name_4)s, %(name_5)s)",
-				"host,host_alias",
-			},
-			{
-				`update Orders set created = "2019-05-24 00:26:17", gross = 30.28, payment_type = "eventbrite", mg_fee = "3.28", fee_collected = "3.28", event = 59366262, status = "10", survey_type = 'direct', tx_time_limit = 480, invite = "", ip_address = "69.215.148.82", currency = 'USD', gross_USD = "30.28", tax_USD = 0.00, journal_activity_id = 4044659812798558774, eb_tax = 0.00, eb_tax_USD = 0.00, cart_uuid = "160b450e7df511e9810e0a0c06de92f8", changed = '2019-05-24 00:26:17' where id = ?`,
-				"Orders",
-			},
-			{
-				"SELECT * FROM clients WHERE (clients.first_name = 'Andy') LIMIT 1 BEGIN INSERT INTO owners (created_at, first_name, locked, orders_count, updated_at) VALUES ('2011-08-30 05:22:57', 'Andy', 1, NULL, '2011-08-30 05:22:57') COMMIT",
-				"clients,owners",
-			},
-			{
-				"DELETE FROM table WHERE table.a=1",
-				"table",
+				"REPLACE INTO sales_2019_07_01 (`itemID`, `date`, `qty`, `price`) VALUES ((SELECT itemID FROM item1001 WHERE `sku` = [sku]), CURDATE(), [qty], 0.00)",
+				"REPLACE INTO sales_2019_07_01 ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item1001 WHERE sku = [ sku ] ), CURDATE ( ), [ qty ], ? )",
 			},
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
 				oq, err := NewObfuscator(nil).ObfuscateSQLString(tt.query)
 				assert.NoError(err)
+				assert.Empty(oq.TablesCSV)
+				assert.Equal(tt.obfuscated, oq.Query)
+			})
+		}
+	})
+}
+
+func TestSQLTableFinderAndQuantizeTableNames(t *testing.T) {
+	t.Run("on", func(t *testing.T) {
+		defer testutil.WithFeatures("table_names")()
+
+		for _, tt := range []struct {
+			query      string
+			tables     string
+			obfuscated string
+		}{
+			{
+				"select * from users where id = 42",
+				"users",
+				"select * from users where id = ?",
+			},
+			{
+				"select * from `backslashes` where id = 42",
+				"backslashes",
+				"select * from backslashes where id = ?",
+			},
+			{
+				`select * from "double-quotes" where id = 42`,
+				"double-quotes",
+				`select * from double-quotes where id = ?`,
+			},
+			{
+				"SELECT host, status FROM ec2_status WHERE org_id = 42",
+				"ec2_status",
+				"SELECT host, status FROM ec?_status WHERE org_id = ?",
+			},
+			{
+				"SELECT * FROM (SELECT * FROM nested_table)",
+				"nested_table",
+				"SELECT * FROM ( SELECT * FROM nested_table )",
+			},
+			{
+				"   -- get user \n--\n select * \n   from users \n    where\n       id = 214325346    ",
+				"users",
+				"select * from users where id = ?",
+			},
+			{
+				"SELECT articles.* FROM articles WHERE articles.id = 1 LIMIT 1, 20",
+				"articles",
+				"SELECT articles.* FROM articles WHERE articles.id = ? LIMIT ?",
+			},
+			{
+				"UPDATE user_dash_pref SET json_prefs = %(json_prefs)s, modified = '2015-08-27 22:10:32.492912' WHERE user_id = %(user_id)s AND url = %(url)s",
+				"user_dash_pref",
+				"UPDATE user_dash_pref SET json_prefs = ? modified = ? WHERE user_id = ? AND url = ?",
+			},
+			{
+				"SELECT DISTINCT host.id AS host_id FROM host JOIN host_alias ON host_alias.host_id = host.id WHERE host.org_id = %(org_id_1)s AND host.name NOT IN (%(name_1)s) AND host.name IN (%(name_2)s, %(name_3)s, %(name_4)s, %(name_5)s)",
+				"host,host_alias",
+				"SELECT DISTINCT host.id FROM host JOIN host_alias ON host_alias.host_id = host.id WHERE host.org_id = ? AND host.name NOT IN ( ? ) AND host.name IN ( ? )",
+			},
+			{
+				`update Orders set created = "2019-05-24 00:26:17", gross = 30.28, payment_type = "eventbrite", mg_fee = "3.28", fee_collected = "3.28", event = 59366262, status = "10", survey_type = 'direct', tx_time_limit = 480, invite = "", ip_address = "69.215.148.82", currency = 'USD', gross_USD = "30.28", tax_USD = 0.00, journal_activity_id = 4044659812798558774, eb_tax = 0.00, eb_tax_USD = 0.00, cart_uuid = "160b450e7df511e9810e0a0c06de92f8", changed = '2019-05-24 00:26:17' where id = ?`,
+				"Orders",
+				`update Orders set created = ? gross = ? payment_type = ? mg_fee = ? fee_collected = ? event = ? status = ? survey_type = ? tx_time_limit = ? invite = ? ip_address = ? currency = ? gross_USD = ? tax_USD = ? journal_activity_id = ? eb_tax = ? eb_tax_USD = ? cart_uuid = ? changed = ? where id = ?`,
+			},
+			{
+				"SELECT * FROM clients WHERE (clients.first_name = 'Andy') LIMIT 1 BEGIN INSERT INTO owners (created_at, first_name, locked, orders_count, updated_at) VALUES ('2011-08-30 05:22:57', 'Andy', 1, NULL, '2011-08-30 05:22:57') COMMIT",
+				"clients,owners",
+				"SELECT * FROM clients WHERE ( clients.first_name = ? ) LIMIT ? BEGIN INSERT INTO owners ( created_at, first_name, locked, orders_count, updated_at ) VALUES ( ? ) COMMIT",
+			},
+			{
+				"DELETE FROM table WHERE table.a=1",
+				"table",
+				"DELETE FROM table WHERE table.a = ?",
+			},
+			{
+				"SELECT wp_woocommerce_order_items.order_id FROM wp_woocommerce_order_items LEFT JOIN ( SELECT meta_value FROM wp_postmeta WHERE meta_key = ? ) ON wp_woocommerce_order_items.order_id = a.post_id WHERE wp_woocommerce_order_items.order_id = ?",
+				"wp_woocommerce_order_items,wp_postmeta",
+				"SELECT wp_woocommerce_order_items.order_id FROM wp_woocommerce_order_items LEFT JOIN ( SELECT meta_value FROM wp_postmeta WHERE meta_key = ? ) ON wp_woocommerce_order_items.order_id = a.post_id WHERE wp_woocommerce_order_items.order_id = ?",
+			},
+			{
+				"REPLACE INTO sales_2019_07_01 (`itemID`, `date`, `qty`, `price`) VALUES ((SELECT itemID FROM item1001 WHERE `sku` = [sku]), CURDATE(), [qty], 0.00)",
+				"sales_2019_07_01,item1001",
+				"REPLACE INTO sales_?_?_? ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item? WHERE sku = [ sku ] ), CURDATE ( ), [ qty ], ? )",
+			},
+		} {
+			t.Run("", func(t *testing.T) {
+				assert := assert.New(t)
+				oq, err := NewObfuscator(nil).ObfuscateSQLStringWithOptions(tt.query, SQLOptions{QuantizeSQLTables: true})
+				assert.NoError(err)
 				assert.Equal(tt.tables, oq.TablesCSV)
+				assert.Equal(tt.obfuscated, oq.Query)
 			})
 		}
 	})
@@ -563,6 +709,23 @@ ORDER BY [b].[Name]`,
 			"SELECT * FROM foo LEFT JOIN bar ON ? = foo.b WHERE foo.name = ?",
 		},
 		{
+			"SELECT org_id,metric_key,metric_type,interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY(ARRAY[?,?,?,?,?])",
+			"SELECT org_id, metric_key, metric_type, interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( ARRAY [ ? ] )",
+		},
+		{
+			`SELECT wp_woocommerce_order_items.order_id As No_Commande
+			FROM  wp_woocommerce_order_items
+			LEFT JOIN
+				(
+					SELECT meta_value As Prenom
+					FROM wp_postmeta
+					WHERE meta_key = '_shipping_first_name'
+				) AS a
+			ON wp_woocommerce_order_items.order_id = a.post_id
+			WHERE  wp_woocommerce_order_items.order_id =2198`,
+			"SELECT wp_woocommerce_order_items.order_id FROM wp_woocommerce_order_items LEFT JOIN ( SELECT meta_value FROM wp_postmeta WHERE meta_key = ? ) ON wp_woocommerce_order_items.order_id = a.post_id WHERE wp_woocommerce_order_items.order_id = ?",
+		},
+		{
 			`SELECT a :: VARCHAR(255) FROM foo WHERE foo.name = 'String'`,
 			`SELECT a :: VARCHAR ( ? ) FROM foo WHERE foo.name = ?`,
 		},
@@ -570,10 +733,95 @@ ORDER BY [b].[Name]`,
 			"SELECT MIN(`scoped_49a39c4cc9ae4fdda07bcf49e99f8224`.`scoped_8720d2c0e0824ec2910ab9479085839c`) AS `MIN_BECR_DATE_CREATED` FROM (SELECT `49a39c4cc9ae4fdda07bcf49e99f8224`.`submittedOn` AS `scoped_8720d2c0e0824ec2910ab9479085839c`, `49a39c4cc9ae4fdda07bcf49e99f8224`.`domain` AS `scoped_847e4dcfa1c54d72aad6dbeb231c46de`, `49a39c4cc9ae4fdda07bcf49e99f8224`.`eventConsumer` AS `scoped_7b2f7b8da15646d1b75aa03901460eb2`, `49a39c4cc9ae4fdda07bcf49e99f8224`.`eventType` AS `scoped_77a1b9308b384a9391b69d24335ba058` FROM (`SorDesignTime`.`businessEventConsumerRegistry_947a74dad4b64be9847d67f466d26f5e` AS `49a39c4cc9ae4fdda07bcf49e99f8224`) WHERE (`49a39c4cc9ae4fdda07bcf49e99f8224`.`systemData.ClientID`) = ('35c1ccc0-a83c-4812-a189-895e9d4dd223')) AS `scoped_49a39c4cc9ae4fdda07bcf49e99f8224` WHERE ((`scoped_49a39c4cc9ae4fdda07bcf49e99f8224`.`scoped_847e4dcfa1c54d72aad6dbeb231c46de`) = ('Benefits') AND ((`scoped_49a39c4cc9ae4fdda07bcf49e99f8224`.`scoped_7b2f7b8da15646d1b75aa03901460eb2`) = ('benefits') AND (`scoped_49a39c4cc9ae4fdda07bcf49e99f8224`.`scoped_77a1b9308b384a9391b69d24335ba058`) = ('DMXSync'))); ",
 			"SELECT MIN ( scoped_49a39c4cc9ae4fdda07bcf49e99f8224 . scoped_8720d2c0e0824ec2910ab9479085839c ) FROM ( SELECT 49a39c4cc9ae4fdda07bcf49e99f8224 . submittedOn, 49a39c4cc9ae4fdda07bcf49e99f8224 . domain, 49a39c4cc9ae4fdda07bcf49e99f8224 . eventConsumer, 49a39c4cc9ae4fdda07bcf49e99f8224 . eventType FROM ( SorDesignTime . businessEventConsumerRegistry_947a74dad4b64be9847d67f466d26f5e ) WHERE ( 49a39c4cc9ae4fdda07bcf49e99f8224 . systemData.ClientID ) = ( ? ) ) WHERE ( ( scoped_49a39c4cc9ae4fdda07bcf49e99f8224 . scoped_847e4dcfa1c54d72aad6dbeb231c46de ) = ( ? ) AND ( ( scoped_49a39c4cc9ae4fdda07bcf49e99f8224 . scoped_7b2f7b8da15646d1b75aa03901460eb2 ) = ( ? ) AND ( scoped_49a39c4cc9ae4fdda07bcf49e99f8224 . scoped_77a1b9308b384a9391b69d24335ba058 ) = ( ? ) ) )",
 		},
+		{
+			"{call px_cu_se_security_pg.sps_get_my_accounts_count(?, ?, ?, ?)}",
+			"{ call px_cu_se_security_pg.sps_get_my_accounts_count ( ? ) }",
+		},
+		{
+			`{call px_cu_se_security_pg.sps_get_my_accounts_count(1, 2, 'one', 'two')};`,
+			"{ call px_cu_se_security_pg.sps_get_my_accounts_count ( ? ) }",
+		},
+		{
+			`{call curly_fun('{{', '}}', '}', '}')};`,
+			"{ call curly_fun ( ? ) }",
+		},
+		{
+			`SELECT id, name FROM emp WHERE name LIKE {fn UCASE('Smith')}`,
+			`SELECT id, name FROM emp WHERE name LIKE ?`,
+		},
+		{
+			`DROP TABLE IF EXISTS django_site;
+DROP TABLE IF EXISTS knowledgebase_article;
+
+CREATE TABLE django_site (
+    id integer PRIMARY KEY,
+    domain character varying(100) NOT NULL,
+    name character varying(50) NOT NULL,
+    uuid uuid NOT NULL,
+    disabled boolean DEFAULT false NOT NULL
+);
+
+CREATE TABLE knowledgebase_article (
+    id integer PRIMARY KEY,
+    title character varying(255) NOT NULL,
+    site_id integer NOT NULL,
+    CONSTRAINT knowledgebase_article_site_id_fkey FOREIGN KEY (site_id) REFERENCES django_site(id)
+);
+
+INSERT INTO django_site(id, domain, name, uuid, disabled) VALUES (1, 'foo.domain', 'Foo', 'cb4776c1-edf3-4041-96a8-e152f5ae0f91', false);
+INSERT INTO knowledgebase_article(id, title, site_id) VALUES(1, 'title', 1);`,
+			`DROP TABLE IF EXISTS django_site DROP TABLE IF EXISTS knowledgebase_article CREATE TABLE django_site ( id integer PRIMARY KEY, domain character varying ( ? ) NOT ? name character varying ( ? ) NOT ? uuid uuid NOT ? disabled boolean DEFAULT ? NOT ? ) CREATE TABLE knowledgebase_article ( id integer PRIMARY KEY, title character varying ( ? ) NOT ? site_id integer NOT ? CONSTRAINT knowledgebase_article_site_id_fkey FOREIGN KEY ( site_id ) REFERENCES django_site ( id ) ) INSERT INTO django_site ( id, domain, name, uuid, disabled ) VALUES ( ? ) INSERT INTO knowledgebase_article ( id, title, site_id ) VALUES ( ? )`,
+		},
+		{
+			`
+SELECT set_config('foo.bar', (SELECT foo.bar FROM sometable WHERE sometable.uuid = %(some_id)s)::text, FALSE);
+SELECT
+    othertable.id,
+    othertable.title
+FROM othertable
+INNER JOIN sometable ON sometable.id = othertable.site_id
+WHERE
+    sometable.uuid = %(some_id)s
+LIMIT 1
+;`,
+			`SELECT set_config ( ? ( SELECT foo.bar FROM sometable WHERE sometable.uuid = ? ) :: text, ? ) SELECT othertable.id, othertable.title FROM othertable INNER JOIN sometable ON sometable.id = othertable.site_id WHERE sometable.uuid = ? LIMIT ?`,
+		},
+		{
+			`CREATE OR REPLACE FUNCTION pg_temp.sequelize_upsert(OUT created boolean, OUT primary_key text) AS $func$ BEGIN INSERT INTO "school" ("id","organization_id","name","created_at","updated_at") VALUES ('dc4e9444-d7c9-40a9-bcef-68e4cc594e61','ec647f56-f27a-49a1-84af-021ad0a19f21','Test','2021-03-31 16:30:43.915 +00:00','2021-03-31 16:30:43.915 +00:00'); created := true; EXCEPTION WHEN unique_violation THEN UPDATE "school" SET "id"='dc4e9444-d7c9-40a9-bcef-68e4cc594e61',"organization_id"='ec647f56-f27a-49a1-84af-021ad0a19f21',"name"='Test',"updated_at"='2021-03-31 16:30:43.915 +00:00' WHERE ("id" = 'dc4e9444-d7c9-40a9-bcef-68e4cc594e61'); created := false; END; $func$ LANGUAGE plpgsql; SELECT * FROM pg_temp.sequelize_upsert();`,
+			`CREATE OR REPLACE FUNCTION pg_temp.sequelize_upsert ( OUT created boolean, OUT primary_key text ) LANGUAGE plpgsql SELECT * FROM pg_temp.sequelize_upsert ( )`,
+		},
+		{
+			`INSERT INTO table (field1, field2) VALUES (1, $$someone's string123$with other things$$)`,
+			`INSERT INTO table ( field1, field2 ) VALUES ( ? )`,
+		},
+		{
+			`INSERT INTO table (field1) VALUES ($some tag$this text confuses$some other text$some ta not quite$some tag$)`,
+			`INSERT INTO table ( field1 ) VALUES ( ? )`,
+		},
+		{
+			`INSERT INTO table (field1) VALUES ($tag$random \wqejks "sadads' text$tag$)`,
+			`INSERT INTO table ( field1 ) VALUES ( ? )`,
+		},
+		{
+			query:    `SELECT nspname FROM pg_class where nspname !~ '.*toIgnore.*'`,
+			expected: `SELECT nspname FROM pg_class where nspname !~ ?`,
+		},
+		{
+			query:    `SELECT nspname FROM pg_class where nspname !~* '.*toIgnoreInsensitive.*'`,
+			expected: `SELECT nspname FROM pg_class where nspname !~* ?`,
+		},
+		{
+			query:    `SELECT nspname FROM pg_class where nspname ~ '.*matching.*'`,
+			expected: `SELECT nspname FROM pg_class where nspname ~ ?`,
+		},
+		{
+			query:    `SELECT nspname FROM pg_class where nspname ~* '.*matchingInsensitive.*'`,
+			expected: `SELECT nspname FROM pg_class where nspname ~* ?`,
+		},
 	}
 
 	for _, c := range cases {
-		t.Run("", func(t *testing.T) {
+		t.Run(c.query, func(t *testing.T) {
 			s := SQLSpan(c.query)
 			NewObfuscator(nil).Obfuscate(s)
 			assert.Equal(t, c.expected, s.Resource)
@@ -919,7 +1167,7 @@ func TestSQLErrors(t *testing.T) {
 
 		{
 			"USING $A FROM users",
-			`at position 7: prepared statements must start with digits, got "A" (65)`,
+			`at position 20: unexpected EOF in string`,
 		},
 
 		{
@@ -1085,25 +1333,25 @@ var ComplexQuery = `WITH
  sales AS
  (SELECT sf.*
   FROM gosalesdw.sls_order_method_dim AS md,
-       gosalesdw.sls_product_dim AS pd, 
+       gosalesdw.sls_product_dim AS pd,
        gosalesdw.emp_employee_dim AS ed,
        gosalesdw.sls_sales_fact AS sf
-  WHERE pd.product_key = sf.product_key  
+  WHERE pd.product_key = sf.product_key
     AND pd.product_number > 10000
-    AND pd.base_product_key > 30 
-    AND md.order_method_key = sf.order_method_key 
-    AND md.order_method_code > 5 
-    AND ed.employee_key = sf.employee_key 
+    AND pd.base_product_key > 30
+    AND md.order_method_key = sf.order_method_key
+    AND md.order_method_code > 5
+    AND ed.employee_key = sf.employee_key
     AND ed.manager_code1 > 20),
  inventory AS
  (SELECT if.*
-  FROM gosalesdw.go_branch_dim AS bd, 
+  FROM gosalesdw.go_branch_dim AS bd,
     gosalesdw.dist_inventory_fact AS if
-  WHERE if.branch_key = bd.branch_key 
+  WHERE if.branch_key = bd.branch_key
     AND bd.branch_code > 20)
-SELECT sales.product_key AS PROD_KEY, 
+SELECT sales.product_key AS PROD_KEY,
  SUM(CAST (inventory.quantity_shipped AS BIGINT)) AS INV_SHIPPED,
- SUM(CAST (sales.quantity AS BIGINT)) AS PROD_QUANTITY, 
+ SUM(CAST (sales.quantity AS BIGINT)) AS PROD_QUANTITY,
  RANK() OVER ( ORDER BY SUM(CAST (sales.quantity AS BIGINT)) DESC) AS PROD_RANK
 FROM sales, inventory
  WHERE sales.product_key = inventory.product_key
@@ -1127,7 +1375,7 @@ func BenchmarkObfuscateSQLString(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				_, err := obf.ObfuscateSQLString(bm.query)
+				_, err := obf.ObfuscateSQLStringWithOptions(bm.query, SQLOptions{QuantizeSQLTables: true})
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -1136,6 +1384,7 @@ func BenchmarkObfuscateSQLString(b *testing.B) {
 	}
 
 	b.Run("random", func(b *testing.B) {
+		b.ReportAllocs()
 		var j uint64
 		for i := 0; i < b.N; i++ {
 			_, err := obf.ObfuscateSQLString(fmt.Sprintf("SELECT * FROM users WHERE id=%d", atomic.AddUint64(&j, 1)))
@@ -1191,7 +1440,7 @@ func BenchmarkQueryCacheTippingPoint(b *testing.B) {
 		"xlong":       "select top ? percent IdTrebEmpresa, CodCli, NOMEMP, Baixa, CASE WHEN IdCentreTreball IS ? THEN ? ELSE CONVERT ( VARCHAR ( ? ) IdCentreTreball ) END, CASE WHEN NOMESTAB IS ? THEN ? ELSE NOMESTAB END, TIPUS, CASE WHEN IdLloc IS ? THEN ? ELSE CONVERT ( VARCHAR ( ? ) IdLloc ) END, CASE WHEN NomLlocComplert IS ? THEN ? ELSE NomLlocComplert END, CASE WHEN DesLloc IS ? THEN ? ELSE DesLloc END, IdLlocTreballUnic From ( SELECT ?, dbo.Treb_Empresa.IdTrebEmpresa, dbo.Treb_Empresa.IdTreballador, dbo.Treb_Empresa.CodCli, dbo.Clients.NOMEMP, dbo.Treb_Empresa.Baixa, dbo.Treb_Empresa.IdCentreTreball, dbo.Cli_Establiments.NOMESTAB, ?, ?, dbo.Treb_Empresa.DataInici, dbo.Treb_Empresa.DataFi, CASE WHEN dbo.Treb_Empresa.DesLloc IS ? THEN ? ELSE dbo.Treb_Empresa.DesLloc END DesLloc, dbo.Treb_Empresa.IdLlocTreballUnic FROM dbo.Clients WITH ( NOLOCK ) INNER JOIN dbo.Treb_Empresa WITH ( NOLOCK ) ON dbo.Clients.CODCLI = dbo.Treb_Empresa.CodCli LEFT OUTER JOIN dbo.Cli_Establiments WITH ( NOLOCK ) ON dbo.Cli_Establiments.Id_ESTAB_CLI = dbo.Treb_Empresa.IdCentreTreball AND dbo.Cli_Establiments.CODCLI = dbo.Treb_Empresa.CodCli WHERE dbo.Treb_Empresa.IdTreballador = ? AND Treb_Empresa.IdTecEIRLLlocTreball IS ? AND IdMedEIRLLlocTreball IS ? AND IdLlocTreballTemporal IS ? UNION ALL SELECT ?, dbo.Treb_Empresa.IdTrebEmpresa, dbo.Treb_Empresa.IdTreballador, dbo.Treb_Empresa.CodCli, dbo.Clients.NOMEMP, dbo.Treb_Empresa.Baixa, dbo.Treb_Empresa.IdCentreTreball, dbo.Cli_Establiments.NOMESTAB, dbo.Treb_Empresa.IdTecEIRLLlocTreball, dbo.fn_NomLlocComposat ( dbo.Treb_Empresa.IdTecEIRLLlocTreball ), dbo.Treb_Empresa.DataInici, dbo.Treb_Empresa.DataFi, CASE WHEN dbo.Treb_Empresa.DesLloc IS ? THEN ? ELSE dbo.Treb_Empresa.DesLloc END DesLloc, dbo.Treb_Empresa.IdLlocTreballUnic FROM dbo.Clients WITH ( NOLOCK ) INNER JOIN dbo.Treb_Empresa WITH ( NOLOCK ) ON dbo.Clients.CODCLI = dbo.Treb_Empresa.CodCli LEFT OUTER JOIN dbo.Cli_Establiments WITH ( NOLOCK ) ON dbo.Cli_Establiments.Id_ESTAB_CLI = dbo.Treb_Empresa.IdCentreTreball AND dbo.Cli_Establiments.CODCLI = dbo.Treb_Empresa.CodCli WHERE ( dbo.Treb_Empresa.IdTreballador = ? ) AND ( NOT ( dbo.Treb_Empresa.IdTecEIRLLlocTreball IS ? ) ) UNION ALL SELECT ?, dbo.Treb_Empresa.IdTrebEmpresa, dbo.Treb_Empresa.IdTreballador, dbo.Treb_Empresa.CodCli, dbo.Clients.NOMEMP, dbo.Treb_Empresa.Baixa, dbo.Treb_Empresa.IdCentreTreball, dbo.Cli_Establiments.NOMESTAB, dbo.Treb_Empresa.IdMedEIRLLlocTreball, dbo.fn_NomMedEIRLLlocComposat ( dbo.Treb_Empresa.IdMedEIRLLlocTreball ), dbo.Treb_Empresa.DataInici, dbo.Treb_Empresa.DataFi, CASE WHEN dbo.Treb_Empresa.DesLloc IS ? THEN ? ELSE dbo.Treb_Empresa.DesLloc END DesLloc, dbo.Treb_Empresa.IdLlocTreballUnic FROM dbo.Clients WITH ( NOLOCK ) INNER JOIN dbo.Treb_Empresa WITH ( NOLOCK ) ON dbo.Clients.CODCLI = dbo.Treb_Empresa.CodCli LEFT OUTER JOIN dbo.Cli_Establiments WITH ( NOLOCK ) ON dbo.Cli_Establiments.Id_ESTAB_CLI = dbo.Treb_Empresa.IdCentreTreball AND dbo.Cli_Establiments.CODCLI = dbo.Treb_Empresa.CodCli WHERE ( dbo.Treb_Empresa.IdTreballador = ? ) AND ( Treb_Empresa.IdTecEIRLLlocTreball IS ? ) AND ( NOT ( dbo.Treb_Empresa.IdMedEIRLLlocTreball IS ? ) ) UNION ALL SELECT ?, dbo.Treb_Empresa.IdTrebEmpresa, dbo.Treb_Empresa.IdTreballador, dbo.Treb_Empresa.CodCli, dbo.Clients.NOMEMP, dbo.Treb_Empresa.Baixa, dbo.Treb_Empresa.IdCentreTreball, dbo.Cli_Establiments.NOMESTAB, dbo.Treb_Empresa.IdLlocTreballTemporal, dbo.Lloc_Treball_Temporal.NomLlocTreball, dbo.Treb_Empresa.DataInici, dbo.Treb_Empresa.DataFi, CASE WHEN dbo.Treb_Empresa.DesLloc IS ? THEN ? ELSE dbo.Treb_Empresa.DesLloc END DesLloc, dbo.Treb_Empresa.IdLlocTreballUnic FROM dbo.Clients WITH ( NOLOCK ) INNER JOIN dbo.Treb_Empresa WITH ( NOLOCK ) ON dbo.Clients.CODCLI = dbo.Treb_Empresa.CodCli INNER JOIN dbo.Lloc_Treball_Temporal WITH ( NOLOCK ) ON dbo.Treb_Empresa.IdLlocTreballTemporal = dbo.Lloc_Treball_Temporal.IdLlocTreballTemporal LEFT OUTER JOIN dbo.Cli_Establiments WITH ( NOLOCK ) ON dbo.Cli_Establiments.Id_ESTAB_CLI = dbo.Treb_Empresa.IdCentreTreball AND dbo.Cli_Establiments.CODCLI = dbo.Treb_Empresa.CodCli WHERE dbo.Treb_Empresa.IdTreballador = ? AND Treb_Empresa.IdTecEIRLLlocTreball IS ? AND IdMedEIRLLlocTreball IS ? ) Where ? = %d",
 	} {
 		b.Run(fmt.Sprintf("%s-%d", name, len(queryfmt)), func(b *testing.B) {
-			b.Run("off", bench1KQueries((*Obfuscator).obfuscateSQLString, 1, queryfmt))
+			b.Run("off", bench1KQueries((*Obfuscator).ObfuscateSQLString, 1, queryfmt))
 			b.Run("0%", bench1KQueries((*Obfuscator).ObfuscateSQLString, 0, queryfmt))
 			b.Run("1%", bench1KQueries((*Obfuscator).ObfuscateSQLString, 0.01, queryfmt))
 			b.Run("5%", bench1KQueries((*Obfuscator).ObfuscateSQLString, 0.05, queryfmt))
@@ -1245,6 +1494,10 @@ func TestCassQuantizer(t *testing.T) {
 		{
 			"SELECT timestamp, processes FROM process_snapshot.minutely WHERE org_id = ? AND host = ? AND timestamp >= ? AND timestamp <= ?",
 			"SELECT timestamp, processes FROM process_snapshot.minutely WHERE org_id = ? AND host = ? AND timestamp >= ? AND timestamp <= ?",
+		},
+		{
+			"SELECT count(*) AS totcount FROM (SELECT \"c1\", \"c2\",\"c3\",\"c4\",\"c5\",\"c6\",\"c7\",\"c8\", \"c9\", \"c10\",\"c11\",\"c12\",\"c13\",\"c14\", \"c15\",\"c16\",\"c17\",\"c18\", \"c19\",\"c20\",\"c21\",\"c22\",\"c23\", \"c24\",\"c25\",\"c26\", \"c27\" FROM (SELECT bar.y AS \"c2\", foo.x AS \"c3\", foo.z AS \"c4\", DECODE(foo.a, NULL,NULL, foo.a ||?|| foo.b) AS \"c5\" , foo.c AS \"c6\", bar.d AS \"c1\", bar.e AS \"c7\", bar.f AS \"c8\", bar.g AS \"c9\", TO_DATE(TO_CHAR(TO_DATE(bar.h,?),?),?) AS \"c10\", TO_DATE(TO_CHAR(TO_DATE(bar.i,?),?),?) AS \"c11\", CASE WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? ELSE NULL END AS \"c12\", DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?)),NULL) as \"c13\", bar.k AS \"c14\", bar.l ||?||bar.m AS \"c15\", DECODE(bar.n, NULL, NULL,bar.n ||?||bar.o) AS \"c16\", bar.p AS \"c17\", bar.q AS \"c18\", bar.r AS \"c19\", bar.s AS \"c20\", qux.a AS \"c21\", TO_CHAR(TO_DATE(qux.b,?),?) AS \"c22\", DECODE(qux.l,NULL,NULL, qux.l ||?||qux.m) AS \"c23\", bar.a AS \"c24\", TO_CHAR(TO_DATE(bar.j,?),?) AS \"c25\", DECODE(bar.c , ?,?,?, ?, bar.c ) AS \"c26\", bar.y AS y, bar.d, bar.d AS \"c27\" FROM blort.bar , ( SELECT * FROM (SELECT a,a,l,m,b,c, RANK() OVER (PARTITION BY c ORDER BY b DESC) RNK FROM blort.d WHERE y IN (:p)) WHERE RNK = ?) qux, blort.foo WHERE bar.c = qux.c(+) AND bar.x = foo.x AND bar.y IN (:p) and bar.x IN (:x)) )\nSELECT count(*) AS totcount FROM (SELECT \"c1\", \"c2\",\"c3\",\"c4\",\"c5\",\"c6\",\"c7\",\"c8\", \"c9\", \"c10\",\"c11\",\"c12\",\"c13\",\"c14\", \"c15\",\"c16\",\"c17\",\"c18\", \"c19\",\"c20\",\"c21\",\"c22\",\"c23\", \"c24\",\"c25\",\"c26\", \"c27\" FROM (SELECT bar.y AS \"c2\", foo.x AS \"c3\", foo.z AS \"c4\", DECODE(foo.a, NULL,NULL, foo.a ||?|| foo.b) AS \"c5\" , foo.c AS \"c6\", bar.d AS \"c1\", bar.e AS \"c7\", bar.f AS \"c8\", bar.g AS \"c9\", TO_DATE(TO_CHAR(TO_DATE(bar.h,?),?),?) AS \"c10\", TO_DATE(TO_CHAR(TO_DATE(bar.i,?),?),?) AS \"c11\", CASE WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? ELSE NULL END AS \"c12\", DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?)),NULL) as \"c13\", bar.k AS \"c14\", bar.l ||?||bar.m AS \"c15\", DECODE(bar.n, NULL, NULL,bar.n ||?||bar.o) AS \"c16\", bar.p AS \"c17\", bar.q AS \"c18\", bar.r AS \"c19\", bar.s AS \"c20\", qux.a AS \"c21\", TO_CHAR(TO_DATE(qux.b,?),?) AS \"c22\", DECODE(qux.l,NULL,NULL, qux.l ||?||qux.m) AS \"c23\", bar.a AS \"c24\", TO_CHAR(TO_DATE(bar.j,?),?) AS \"c25\", DECODE(bar.c , ?,?,?, ?, bar.c ) AS \"c26\", bar.y AS y, bar.d, bar.d AS \"c27\" FROM blort.bar , ( SELECT * FROM (SELECT a,a,l,m,b,c, RANK() OVER (PARTITION BY c ORDER BY b DESC) RNK FROM blort.d WHERE y IN (:p)) WHERE RNK = ?) qux, blort.foo WHERE bar.c = qux.c(+) AND bar.x = foo.x AND bar.y IN (:p) and bar.x IN (:x)) )",
+			"SELECT count ( * ) FROM ( SELECT c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, c23, c24, c25, c26, c27 FROM ( SELECT bar.y, foo.x, foo.z, DECODE ( foo.a, ? foo.a | | ? | | foo.b ), foo.c, bar.d, bar.e, bar.f, bar.g, TO_DATE ( TO_CHAR ( TO_DATE ( bar.h, ? ) ) ), TO_DATE ( TO_CHAR ( TO_DATE ( bar.i, ? ) ) ), CASE WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? ELSE ? END, DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ), bar.k, bar.l | | ? | | bar.m, DECODE ( bar.n, ? bar.n | | ? | | bar.o ), bar.p, bar.q, bar.r, bar.s, qux.a, TO_CHAR ( TO_DATE ( qux.b, ? ) ), DECODE ( qux.l, ? qux.l | | ? | | qux.m ), bar.a, TO_CHAR ( TO_DATE ( bar.j, ? ) ), DECODE ( bar.c, ? bar.c ), bar.y, bar.d, bar.d FROM blort.bar, ( SELECT * FROM ( SELECT a, a, l, m, b, c, RANK ( ) OVER ( PARTITION BY c ORDER BY b DESC ) RNK FROM blort.d WHERE y IN ( :p ) ) WHERE RNK = ? ) qux, blort.foo WHERE bar.c = qux.c ( + ) AND bar.x = foo.x AND bar.y IN ( :p ) and bar.x IN ( :x ) ) ) SELECT count ( * ) FROM ( SELECT c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, c23, c24, c25, c26, c27 FROM ( SELECT bar.y, foo.x, foo.z, DECODE ( foo.a, ? foo.a | | ? | | foo.b ), foo.c, bar.d, bar.e, bar.f, bar.g, TO_DATE ( TO_CHAR ( TO_DATE ( bar.h, ? ) ) ), TO_DATE ( TO_CHAR ( TO_DATE ( bar.i, ? ) ) ), CASE WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? ELSE ? END, DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ), bar.k, bar.l | | ? | | bar.m, DECODE ( bar.n, ? bar.n | | ? | | bar.o ), bar.p, bar.q, bar.r, bar.s, qux.a, TO_CHAR ( TO_DATE ( qux.b, ? ) ), DECODE ( qux.l, ? qux.l | | ? | | qux.m ), bar.a, TO_CHAR ( TO_DATE ( bar.j, ? ) ), DECODE ( bar.c, ? bar.c ), bar.y, bar.d, bar.d FROM blort.bar, ( SELECT * FROM ( SELECT a, a, l, m, b, c, RANK ( ) OVER ( PARTITION BY c ORDER BY b DESC ) RNK FROM blort.d WHERE y IN ( :p ) ) WHERE RNK = ? ) qux, blort.foo WHERE bar.c = qux.c ( + ) AND bar.x = foo.x AND bar.y IN ( :p ) and bar.x IN ( :x ) ) )",
 		},
 	}
 

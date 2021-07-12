@@ -8,6 +8,7 @@ import (
 // Address is an IP abstraction that is family (v4/v6) agnostic
 type Address interface {
 	Bytes() []byte
+	WriteTo([]byte) int
 	String() string
 	IsLoopback() bool
 }
@@ -35,6 +36,22 @@ func NetIPFromAddress(addr Address) net.IP {
 	return net.IP(addr.Bytes())
 }
 
+// ToLowHigh converts an address into a pair of uint64 numbers
+func ToLowHigh(addr Address) (l, h uint64) {
+	if addr == nil {
+		return
+	}
+
+	switch b := addr.Bytes(); len(b) {
+	case 4:
+		return uint64(binary.LittleEndian.Uint32(b[:4])), uint64(0)
+	case 16:
+		return binary.LittleEndian.Uint64(b[8:]), binary.LittleEndian.Uint64(b[:8])
+	}
+
+	return
+}
+
 type v4Address [4]byte
 
 // V4Address creates an Address using the uint32 representation of an v4 IP
@@ -57,6 +74,11 @@ func V4AddressFromBytes(buf []byte) Address {
 // Bytes returns a byte array of the underlying array
 func (a v4Address) Bytes() []byte {
 	return a[:]
+}
+
+// WriteTo writes the address byte representation into the supplied buffer
+func (a v4Address) WriteTo(b []byte) int {
+	return copy(b, a[:])
 }
 
 // String returns the human readable string representation of an IP
@@ -89,6 +111,11 @@ func V6AddressFromBytes(buf []byte) Address {
 // Bytes returns a byte array of the underlying array
 func (a v6Address) Bytes() []byte {
 	return a[:]
+}
+
+// WriteTo writes the address byte representation into the supplied buffer
+func (a v6Address) WriteTo(b []byte) int {
+	return copy(b, a[:])
 }
 
 // String returns the human readable string representation of an IP

@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package autodiscovery
 
 import (
+	"context"
 	"expvar"
 	"fmt"
 	"sync"
@@ -32,6 +33,8 @@ var (
 	acErrors              *expvar.Map
 	errorStats            = newAcErrorStats()
 )
+
+var secretsDecrypt = secrets.Decrypt
 
 func init() {
 	acErrors = expvar.NewMap("autoconfig")
@@ -92,6 +95,8 @@ func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 // It waits for service events to trigger template resolution and
 // checks the tags on existing services are up to date.
 func (ac *AutoConfig) serviceListening() {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	tagFreshnessTicker := time.NewTicker(15 * time.Second) // we can miss tags for one run
 	defer tagFreshnessTicker.Stop()
 
@@ -99,24 +104,27 @@ func (ac *AutoConfig) serviceListening() {
 		select {
 		case <-ac.listenerStop:
 			ac.healthListening.Deregister() //nolint:errcheck
+			cancel()
 			return
-		case <-ac.healthListening.C:
+		case healthDeadline := <-ac.healthListening.C:
+			cancel()
+			ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
 		case svc := <-ac.newService:
-			ac.processNewService(svc)
+			ac.processNewService(ctx, svc)
 		case svc := <-ac.delService:
 			ac.processDelService(svc)
 		case <-tagFreshnessTicker.C:
-			ac.checkTagFreshness()
+			ac.checkTagFreshness(ctx)
 		}
 	}
 }
 
-func (ac *AutoConfig) checkTagFreshness() {
+func (ac *AutoConfig) checkTagFreshness(ctx context.Context) {
 	// check if services tags are up to date
 	var servicesToRefresh []listeners.Service
 	for _, service := range ac.store.getServices() {
 		previousHash := ac.store.getTagsHashForService(service.GetTaggerEntity())
-		currentHash := tagger.GetEntityHash(service.GetTaggerEntity())
+		currentHash := tagger.GetEntityHash(service.GetTaggerEntity(), tagger.ChecksCardinality)
 		// Since an empty hash is a valid value, and we are not able to differentiate
 		// an empty tagger or store with an empty value.
 		// So we only look at the difference between current and previous
@@ -128,7 +136,7 @@ func (ac *AutoConfig) checkTagFreshness() {
 	for _, service := range servicesToRefresh {
 		log.Debugf("Tags changed for service %s, rescheduling associated checks if any", service.GetTaggerEntity())
 		ac.processDelService(service)
-		ac.processNewService(service)
+		ac.processNewService(ctx, service)
 	}
 }
 
@@ -211,7 +219,7 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 	var resolvedConfigs []integration.Config
 
 	for _, pd := range ac.providers {
-		cfgs, err := pd.provider.Collect()
+		cfgs, err := pd.provider.Collect(context.TODO())
 		if err != nil {
 			log.Debugf("Unexpected error returned when collecting configurations from provider %v: %v", pd.provider, err)
 		}
@@ -420,30 +428,35 @@ func (ac *AutoConfig) RemoveScheduler(name string) {
 }
 
 func decryptConfig(conf integration.Config) (integration.Config, error) {
+	if config.Datadog.GetBool("secret_backend_skip_checks") {
+		log.Tracef("'secret_backend_skip_checks' is enabled, not decrypting configuration %q", conf.Name)
+		return conf, nil
+	}
+
 	var err error
 
 	// init_config
-	conf.InitConfig, err = secrets.Decrypt(conf.InitConfig, conf.Name)
+	conf.InitConfig, err = secretsDecrypt(conf.InitConfig, conf.Name)
 	if err != nil {
 		return conf, fmt.Errorf("error while decrypting secrets in 'init_config': %s", err)
 	}
 
 	// instances
 	for idx := range conf.Instances {
-		conf.Instances[idx], err = secrets.Decrypt(conf.Instances[idx], conf.Name)
+		conf.Instances[idx], err = secretsDecrypt(conf.Instances[idx], conf.Name)
 		if err != nil {
 			return conf, fmt.Errorf("error while decrypting secrets in an instance: %s", err)
 		}
 	}
 
 	// metrics
-	conf.MetricConfig, err = secrets.Decrypt(conf.MetricConfig, conf.Name)
+	conf.MetricConfig, err = secretsDecrypt(conf.MetricConfig, conf.Name)
 	if err != nil {
 		return conf, fmt.Errorf("error while decrypting secrets in 'metrics': %s", err)
 	}
 
 	// logs
-	conf.LogsConfig, err = secrets.Decrypt(conf.LogsConfig, conf.Name)
+	conf.LogsConfig, err = secretsDecrypt(conf.LogsConfig, conf.Name)
 	if err != nil {
 		return conf, fmt.Errorf("error while decrypting secrets 'logs': %s", err)
 	}
@@ -528,7 +541,7 @@ func (ac *AutoConfig) resolveTemplate(tpl integration.Config) []integration.Conf
 // resolveTemplateForService calls the config resolver for the template against the service,
 // decrypts secrets and stores the resolved config and service mapping if successful
 func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, error) {
-	config, err := configresolver.Resolve(tpl, svc)
+	config, tagsHash, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
 		newErr := fmt.Errorf("error resolving template %s for service %s: %v", tpl.Name, svc.GetEntity(), err)
 		errorStats.setResolveWarning(tpl.Name, newErr.Error())
@@ -544,7 +557,7 @@ func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc list
 	ac.store.addConfigForTemplate(tpl.Digest(), resolvedConfig)
 	ac.store.setTagsHashForService(
 		svc.GetTaggerEntity(),
-		tagger.GetEntityHash(svc.GetTaggerEntity()),
+		tagsHash,
 	)
 	errorStats.removeResolveWarnings(tpl.Name)
 	return resolvedConfig, nil
@@ -576,17 +589,17 @@ func GetResolveWarnings() map[string][]string {
 
 // processNewService takes a service, tries to match it against templates and
 // triggers scheduling events if it finds a valid config for it.
-func (ac *AutoConfig) processNewService(svc listeners.Service) {
+func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Service) {
 	// in any case, register the service and store its tag hash
 	ac.store.setServiceForEntity(svc, svc.GetEntity())
 	ac.store.setTagsHashForService(
 		svc.GetTaggerEntity(),
-		tagger.GetEntityHash(svc.GetTaggerEntity()),
+		tagger.GetEntityHash(svc.GetTaggerEntity(), tagger.ChecksCardinality),
 	)
 
 	// get all the templates matching service identifiers
 	var templates []integration.Config
-	ADIdentifiers, err := svc.GetADIdentifiers()
+	ADIdentifiers, err := svc.GetADIdentifiers(ctx)
 	if err != nil {
 		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetEntity(), err)
 		return
@@ -643,4 +656,16 @@ func (ac *AutoConfig) processDelService(svc listeners.Service) {
 			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
 		},
 	})
+}
+
+// GetAutodiscoveryErrors fetches AD errors from each ConfigProvider
+func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet {
+	errors := map[string]map[string]providers.ErrorMsgSet{}
+	for _, pd := range ac.providers {
+		configErrors := pd.provider.GetConfigErrors()
+		if len(configErrors) > 0 {
+			errors[pd.provider.String()] = configErrors
+		}
+	}
+	return errors
 }

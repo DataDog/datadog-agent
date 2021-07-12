@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package agent
 
 import (
+	"context"
 	"math"
 	"time"
 
@@ -43,7 +44,7 @@ type labelsFetcher struct {
 }
 
 func (f *labelsFetcher) fetch() (err error) {
-	f.nodeLabels, err = hostinfo.GetNodeLabels()
+	f.nodeLabels, err = hostinfo.GetNodeLabels(context.TODO())
 	return
 }
 

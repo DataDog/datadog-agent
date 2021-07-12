@@ -1,15 +1,18 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package pipeline
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
@@ -23,13 +26,13 @@ type Pipeline struct {
 }
 
 // NewPipeline returns a new Pipeline
-func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *Pipeline {
+func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, diagnosticMessageReceiver diagnostic.MessageReceiver, serverless bool) *Pipeline {
 	var destinations *client.Destinations
 	if endpoints.UseHTTP {
-		main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext)
+		main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
 		additionals := []client.Destination{}
 		for _, endpoint := range endpoints.Additionals {
-			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext))
+			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend))
 		}
 		destinations = client.NewDestinations(main, additionals)
 	} else {
@@ -44,15 +47,17 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	senderChan := make(chan *message.Message, config.ChanSize)
 
 	var strategy sender.Strategy
-	if endpoints.UseHTTP {
-		strategy = sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait)
+	if endpoints.UseHTTP || serverless {
+		strategy = sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs")
 	} else {
 		strategy = sender.StreamStrategy
 	}
 	sender := sender.NewSender(senderChan, outputChan, destinations, strategy)
 
 	var encoder processor.Encoder
-	if endpoints.UseHTTP {
+	if serverless {
+		encoder = processor.JSONServerlessEncoder
+	} else if endpoints.UseHTTP {
 		encoder = processor.JSONEncoder
 	} else if endpoints.UseProto {
 		encoder = processor.ProtoEncoder
@@ -61,7 +66,7 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	}
 
 	inputChan := make(chan *message.Message, config.ChanSize)
-	processor := processor.New(inputChan, senderChan, processingRules, encoder)
+	processor := processor.New(inputChan, senderChan, processingRules, encoder, diagnosticMessageReceiver)
 
 	return &Pipeline{
 		InputChan: inputChan,
@@ -80,4 +85,10 @@ func (p *Pipeline) Start() {
 func (p *Pipeline) Stop() {
 	p.processor.Stop()
 	p.sender.Stop()
+}
+
+// Flush flushes synchronously the processor and sender managed by this pipeline.
+func (p *Pipeline) Flush(ctx context.Context) {
+	p.processor.Flush(ctx) // flush messages in the processor into the sender
+	p.sender.Flush(ctx)    // flush the sender
 }

@@ -1,17 +1,19 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubelet
 
 package collectors
 
 import (
+	"context"
+	"errors"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	agenterr "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,7 +41,11 @@ type KubeletCollector struct {
 }
 
 // Detect tries to connect to the kubelet
-func (c *KubeletCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
+func (c *KubeletCollector) Detect(ctx context.Context, out chan<- []*TagInfo) (CollectionMode, error) {
+	if !config.IsKubernetes() {
+		return NoCollection, errors.New("the Agent is not running in Kubernetes")
+	}
+
 	watcher, err := kubelet.NewPodWatcher(5*time.Minute, true)
 	if err != nil {
 		return NoCollection, err
@@ -66,9 +72,9 @@ func (c *KubeletCollector) init(watcher *kubelet.PodWatcher, out chan<- []*TagIn
 
 // Pull triggers a podlist refresh and sends new info. It also triggers
 // container deletion computation every 'expireFreq'
-func (c *KubeletCollector) Pull() error {
+func (c *KubeletCollector) Pull(ctx context.Context) error {
 	// Compute new/updated pods
-	updatedPods, err := c.watcher.PullChanges()
+	updatedPods, err := c.watcher.PullChanges(ctx)
 	if err != nil {
 		return err
 	}
@@ -100,8 +106,8 @@ func (c *KubeletCollector) Pull() error {
 
 // Fetch fetches tags for a given entity by iterating on the whole podlist
 // TODO: optimize if called too often on production
-func (c *KubeletCollector) Fetch(entity string) ([]string, []string, []string, error) {
-	pod, err := c.watcher.GetPodForEntityID(entity)
+func (c *KubeletCollector) Fetch(ctx context.Context, entity string) ([]string, []string, []string, error) {
+	pod, err := c.watcher.GetPodForEntityID(ctx, entity)
 	if err != nil {
 		return []string{}, []string{}, []string{}, err
 	}
@@ -119,7 +125,7 @@ func (c *KubeletCollector) Fetch(entity string) ([]string, []string, []string, e
 		}
 	}
 	// entity not found in updates
-	return []string{}, []string{}, []string{}, errors.NewNotFound(entity)
+	return []string{}, []string{}, []string{}, agenterr.NewNotFound(entity)
 }
 
 // parseExpires transforms event from the PodWatcher to TagInfo objects

@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package net
 
 import (
+	"context"
 	"expvar"
 	"fmt"
 	"math"
@@ -76,7 +77,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 	defaultPort := 123
 	defaultOffsetThreshold := 60
 
-	defaultHosts := util.GetCloudProviderNTPHosts()
+	defaultHosts := util.GetCloudProviderNTPHosts(context.TODO())
 
 	// Default to our domains on pool.ntp.org if no cloud provider detected
 	if defaultHosts == nil {

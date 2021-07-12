@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -26,7 +26,7 @@ type DatadogMetricInternalObserver struct {
 	DeleteFunc DatadogMetricInternalObserverFunc
 }
 
-// DatadogMetricsStore stores DatadogMetric with `Name` as a key
+// DatadogMetricsInternalStore stores DatadogMetric with `Name` as a key
 type DatadogMetricsInternalStore struct {
 	store         map[string]model.DatadogMetricInternal
 	lock          sync.RWMutex
@@ -83,7 +83,7 @@ func (ds *DatadogMetricsInternalStore) GetAll() []model.DatadogMetricInternal {
 	return ds.GetFiltered(func(model.DatadogMetricInternal) bool { return true })
 }
 
-// GetAll returns a copy of all store values matched by the `filter` function
+// GetFiltered returns a copy of all store values matched by the `filter` function
 func (ds *DatadogMetricsInternalStore) GetFiltered(filter func(model.DatadogMetricInternal) bool) []model.DatadogMetricInternal {
 	ds.lock.RLock()
 	defer ds.lock.RUnlock()

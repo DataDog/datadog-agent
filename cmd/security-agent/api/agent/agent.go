@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // Package agent implements the api endpoints for the `/agent` prefix.
 // This group of endpoints is meant to provide high-level functionalities
@@ -63,7 +63,7 @@ func (a *Agent) stopAgent(w http.ResponseWriter, r *http.Request) {
 
 func (a *Agent) getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	hname, err := util.GetHostname()
+	hname, err := util.GetHostname(r.Context())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s\n", err) // or something like this
 		hname = ""

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build python
 
@@ -113,7 +113,7 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 
 // SubmitHistogramBucket is the method exposed to Python scripts to submit metrics
 //export SubmitHistogramBucket
-func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char) {
+func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char, flushFirstValue C.bool) {
 	goCheckID := C.GoString(checkID)
 	sender, err := aggregator.GetSender(chk.ID(goCheckID))
 	if err != nil || sender == nil {
@@ -128,6 +128,19 @@ func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 	_monotonic := (monotonic != 0)
 	_hostname := C.GoString(hostname)
 	_tags := cStringArrayToSlice(tags)
+	_flushFirstValue := bool(flushFirstValue)
 
-	sender.HistogramBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags)
+	sender.HistogramBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
+}
+
+// SubmitEventPlatformEvent is the method exposed to Python scripts to submit event platform events
+//export SubmitEventPlatformEvent
+func SubmitEventPlatformEvent(checkID *C.char, rawEvent *C.char, eventType *C.char) {
+	_checkID := C.GoString(checkID)
+	sender, err := aggregator.GetSender(chk.ID(_checkID))
+	if err != nil || sender == nil {
+		log.Errorf("Error submitting event platform event to the Sender: %v", err)
+		return
+	}
+	sender.EventPlatformEvent(C.GoString(rawEvent), C.GoString(eventType))
 }

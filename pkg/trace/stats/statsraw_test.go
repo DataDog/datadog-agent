@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package stats
 
@@ -15,31 +15,46 @@ import (
 )
 
 func TestGrain(t *testing.T) {
-	srb := NewRawBucket(0, 1e9)
 	assert := assert.New(t)
-
 	s := pb.Span{Service: "thing", Name: "other", Resource: "yo"}
-	aggr, tgs := assembleGrain(&srb.keyBuf, "default", s.Resource, s.Service, nil)
-
-	assert.Equal("env:default,resource:yo,service:thing", aggr)
-	assert.Equal(TagSet{Tag{"env", "default"}, Tag{"resource", "yo"}, Tag{"service", "thing"}}, tgs)
+	aggr := NewAggregationFromSpan(&s, "default", "default", "cid")
+	assert.Equal(Aggregation{
+		PayloadAggregationKey: PayloadAggregationKey{
+			Env:         "default",
+			Hostname:    "default",
+			ContainerID: "cid",
+		},
+		BucketsAggregationKey: BucketsAggregationKey{
+			Service:  "thing",
+			Name:     "other",
+			Resource: "yo",
+		},
+	}, aggr)
 }
 
 func TestGrainWithExtraTags(t *testing.T) {
-	srb := NewRawBucket(0, 1e9)
 	assert := assert.New(t)
-
-	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{"meta2": "two", "meta1": "ONE"}}
-	aggr, tgs := assembleGrain(&srb.keyBuf, "default", s.Resource, s.Service, s.Meta)
-
-	assert.Equal("env:default,resource:yo,service:thing,meta1:ONE,meta2:two", aggr)
-	assert.Equal(TagSet{Tag{"env", "default"}, Tag{"resource", "yo"}, Tag{"service", "thing"}, Tag{"meta1", "ONE"}, Tag{"meta2", "two"}}, tgs)
+	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{tagHostname: "host-id", tagVersion: "v0", tagStatusCode: "418", tagOrigin: "synthetics-browser"}}
+	aggr := NewAggregationFromSpan(&s, "default", "default", "cid")
+	assert.Equal(Aggregation{
+		PayloadAggregationKey: PayloadAggregationKey{
+			Hostname:    "host-id",
+			Version:     "v0",
+			Env:         "default",
+			ContainerID: "cid",
+		},
+		BucketsAggregationKey: BucketsAggregationKey{
+			Service:    "thing",
+			Resource:   "yo",
+			Name:       "other",
+			StatusCode: 418,
+			Synthetics: true,
+		},
+	}, aggr)
 }
 
 func BenchmarkHandleSpanRandom(b *testing.B) {
 	sb := NewRawBucket(0, 1e9)
-	aggr := []string{}
-
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
@@ -47,7 +62,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		traceutil.ComputeTopLevel(benchTrace)
 		wt := NewWeightedTrace(benchTrace, root)
 		for _, span := range wt {
-			sb.HandleSpan(span, "dev", aggr, nil)
+			sb.HandleSpan(span, "dev", "hostname", "cid")
 		}
 	}
 }

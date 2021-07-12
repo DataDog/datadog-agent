@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 //
 // +build clusterchecks
 
 package providers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/bhmj/jsonslice"
 )
 
@@ -47,12 +49,12 @@ func (cf CloudFoundryConfigProvider) String() string {
 }
 
 // IsUpToDate returns true if the last collection time was later than last BBS Cache refresh time
-func (cf CloudFoundryConfigProvider) IsUpToDate() (bool, error) {
+func (cf CloudFoundryConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return cf.lastCollected.After(cf.bbsCache.LastUpdated()), nil
 }
 
 // Collect collects AD config templates from all relevant BBS API information
-func (cf CloudFoundryConfigProvider) Collect() ([]integration.Config, error) {
+func (cf CloudFoundryConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	log.Debug("Collecting configs via the CloudFoundryProvider")
 	cf.lastCollected = time.Now()
 	allActualLRPs, desiredLRPs := cf.bbsCache.GetAllLRPs()
@@ -212,4 +214,9 @@ func (cf CloudFoundryConfigProvider) renderExtractedConfigs(configs []integratio
 
 func init() {
 	RegisterProvider(names.CloudFoundryBBS, NewCloudFoundryConfigProvider)
+}
+
+// GetConfigErrors is not implemented for the CloudFoundryConfigProvider
+func (cf CloudFoundryConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
 }

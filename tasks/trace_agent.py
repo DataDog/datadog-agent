@@ -15,22 +15,18 @@ def build(
     ctx,
     rebuild=False,
     race=False,
-    precompile_only=False,
     build_include=None,
     build_exclude=None,
     major_version='7',
     python_runtimes='3',
     arch="x64",
-    go_mod="vendor",
+    go_mod="mod",
 ):
     """
     Build the trace agent.
     """
 
-    # get env prior to windows sources so we only have to set the target architecture once
-    ldflags, gcflags, env = get_build_flags(
-        ctx, arch=arch, major_version=major_version, python_runtimes=python_runtimes
-    )
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
 
     # generate windows resources
     if sys.platform == 'win32':
@@ -39,7 +35,7 @@ def build(
             env["GOARCH"] = "386"
             windres_target = "pe-i386"
 
-        ver = get_version_numeric_only(ctx, env, major_version=major_version)
+        ver = get_version_numeric_only(ctx, major_version=major_version)
         maj_ver, min_ver, patch_ver = ver.split(".")
 
         ctx.run(
@@ -83,7 +79,7 @@ def build(
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="vendor"):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod"):
     """
     Run integration tests for trace agent
     """
@@ -132,7 +128,7 @@ def cross_compile(ctx, tag=""):
 
     ctx.run("git checkout $V", env=env)
     ctx.run("mkdir -p ./bin/trace-agent/$V", env=env)
-    ctx.run("go generate -mod=vendor ./pkg/trace/info", env=env)
+    ctx.run("go generate -mod=mod ./pkg/trace/info", env=env)
     ctx.run("go get -u github.com/karalabe/xgo")
     ctx.run(
         "xgo -dest=bin/trace-agent/$V -go=1.11 -out=trace-agent-$V -targets=windows-6.1/amd64,linux/amd64,darwin-10.11/amd64 ./cmd/trace-agent",

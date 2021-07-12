@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package flare
 
@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/mholt/archiver"
+	"github.com/mholt/archiver/v3"
 	"gopkg.in/yaml.v2"
 )
 
@@ -113,6 +113,16 @@ func CreatePerformanceProfile(prefix, debugURL string, cpusec int, target *Profi
 			Name: prefix + "-2nd-heap.pprof",
 			URL:  debugURL + "/heap",
 		},
+		{
+			// mutex profile
+			Name: prefix + "-mutex.pprof",
+			URL:  debugURL + "/mutex",
+		},
+		{
+			// goroutine blocking profile
+			Name: prefix + "-block.pprof",
+			URL:  debugURL + "/block",
+		},
 	} {
 		b, err := apiutil.DoGet(c, prof.URL)
 		if err != nil {
@@ -143,7 +153,7 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 
 	// Get hostname, if there's an error in getting the hostname,
 	// set the hostname to unknown
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		hostname = "unknown"
 	}
@@ -264,6 +274,10 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 	if err != nil {
 		log.Errorf("Could not write typeperf data: %s", err)
 	}
+	err = zipLodctrOutput(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not write lodctr data: %s", err)
+	}
 
 	err = zipCounterStrings(tempDir, hostname)
 	if err != nil {
@@ -301,7 +315,8 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 		log.Errorf("Could not write permissions.log file: %s", err)
 	}
 
-	err = archiver.Zip.Make(zipFilePath, []string{filepath.Join(tempDir, hostname)})
+	// File format is determined based on `zipFilePath` extension
+	err = archiver.Archive([]string{filepath.Join(tempDir, hostname)}, zipFilePath)
 	if err != nil {
 		return "", err
 	}
@@ -580,15 +595,13 @@ func zipDiagnose(tempDir, hostname string) error {
 	return err
 }
 
-func zipRegistryJSON(tempDir, hostname string) error {
-	originalPath := filepath.Join(config.Datadog.GetString("logs_config.run_path"), "registry.json")
+func zipFile(originalPath, zippedPath string) error {
 	original, err := os.Open(originalPath)
 	if err != nil {
 		return err
 	}
 	defer original.Close()
 
-	zippedPath := filepath.Join(tempDir, hostname, "registry.json")
 	err = ensureParentDirsExist(zippedPath)
 	if err != nil {
 		return err
@@ -600,32 +613,35 @@ func zipRegistryJSON(tempDir, hostname string) error {
 	}
 	defer zipped.Close()
 
-	_, err = io.Copy(zipped, original)
+	// use read/write instead of io.Copy
+	// see: https://github.com/golang/go/issues/44272
+	buf := make([]byte, 256)
+	for {
+		n, err := original.Read(buf)
+		if err != nil && err != io.EOF {
+			return err
+		}
+		if n == 0 {
+			break
+		}
+
+		if _, err := zipped.Write(buf[:n]); err != nil {
+			return err
+		}
+	}
 	return err
+}
+
+func zipRegistryJSON(tempDir, hostname string) error {
+	originalPath := filepath.Join(config.Datadog.GetString("logs_config.run_path"))
+	zippedPath := filepath.Join(tempDir, hostname, "registry.json")
+	return zipFile(originalPath, zippedPath)
 }
 
 func zipVersionHistory(tempDir, hostname string) error {
 	originalPath := filepath.Join(config.Datadog.GetString("run_path"), "version-history.json")
-	original, err := os.Open(originalPath)
-	if err != nil {
-		return err
-	}
-	defer original.Close()
-
 	zippedPath := filepath.Join(tempDir, hostname, "version-history.json")
-	err = ensureParentDirsExist(zippedPath)
-	if err != nil {
-		return err
-	}
-
-	zipped, err := os.OpenFile(zippedPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer zipped.Close()
-
-	_, err = io.Copy(zipped, original)
-	return err
+	return zipFile(originalPath, zippedPath)
 }
 
 func zipConfigCheck(tempDir, hostname string) error {
@@ -729,26 +745,8 @@ func zipHealth(tempDir, hostname string) error {
 
 func zipInstallInfo(tempDir, hostname string) error {
 	originalPath := filepath.Join(config.FileUsedDir(), "install_info")
-	original, err := os.Open(originalPath)
-	if err != nil {
-		return err
-	}
-	defer original.Close()
-
 	zippedPath := filepath.Join(tempDir, hostname, "install_info")
-	err = ensureParentDirsExist(zippedPath)
-	if err != nil {
-		return err
-	}
-
-	zipped, err := os.OpenFile(zippedPath, os.O_RDWR|os.O_CREATE, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	defer zipped.Close()
-
-	_, err = io.Copy(zipped, original)
-	return err
+	return zipFile(originalPath, zippedPath)
 }
 
 func zipTelemetry(tempDir, hostname string) error {
@@ -895,8 +893,8 @@ func getFirstSuffix(s string) string {
 
 func getArchivePath() string {
 	dir := os.TempDir()
-	t := time.Now()
-	timeString := t.Format("2006-01-02-15-04-05")
+	t := time.Now().UTC()
+	timeString := strings.ReplaceAll(t.Format(time.RFC3339), ":", "-")
 	fileName := strings.Join([]string{"datadog", "agent", timeString}, "-")
 	fileName = strings.Join([]string{fileName, "zip"}, ".")
 	filePath := filepath.Join(dir, fileName)

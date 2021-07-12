@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package host
 
@@ -31,7 +31,8 @@ type Meta struct {
 
 // NetworkMeta is metadata about the host's network
 type NetworkMeta struct {
-	ID string `json:"network-id"`
+	ID         string `json:"network-id"`
+	PublicIPv4 string `json:"public-ipv4,omitempty"`
 }
 
 // LogsMeta is metadata about the host's logs agent
@@ -39,8 +40,9 @@ type LogsMeta struct {
 	Transport string `json:"transport"`
 }
 
-type tags struct {
-	System              []string `json:"system,omitempty"`
+// Tags contains the detected host tags
+type Tags struct {
+	System              []string `json:"system"`
 	GoogleCloudPlatform []string `json:"google cloud platform,omitempty"`
 }
 
@@ -51,6 +53,12 @@ type InstallMethod struct {
 	InstallerVersion *string `json:"installer_version"`
 }
 
+// ProxyMeta is metatdata about the proxy configuration
+type ProxyMeta struct {
+	NoProxyNonexactMatch bool `json:"no-proxy-nonexact-match"`
+	ProxyBehaviorChanged bool `json:"proxy-behavior-changed"`
+}
+
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
 	Os            string            `json:"os"`
@@ -58,9 +66,10 @@ type Payload struct {
 	PythonVersion string            `json:"python"`
 	SystemStats   *systemStats      `json:"systemStats"`
 	Meta          *Meta             `json:"meta"`
-	HostTags      *tags             `json:"host-tags"`
+	HostTags      *Tags             `json:"host-tags"`
 	ContainerMeta map[string]string `json:"container-meta,omitempty"`
 	NetworkMeta   *NetworkMeta      `json:"network"`
 	LogsMeta      *LogsMeta         `json:"logs"`
 	InstallMethod *InstallMethod    `json:"install-method"`
+	ProxyMeta     *ProxyMeta        `json:"proxy-info"`
 }

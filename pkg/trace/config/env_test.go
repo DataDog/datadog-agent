@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -253,6 +253,30 @@ func TestLoadEnv(t *testing.T) {
 		assert.Contains(cfg.ReplaceTags, rule2)
 	})
 
+	env = "DD_APM_FILTER_TAGS_REQUIRE"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, `important1 important2:value1`)
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		cfg, err := Load("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.Equal(cfg.RequireTags, []*Tag{{K: "important1", V: ""}, {K: "important2", V: "value1"}})
+	})
+
+	env = "DD_APM_FILTER_TAGS_REJECT"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, `bad1:value1`)
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		cfg, err := Load("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.Equal(cfg.RejectTags, []*Tag{{K: "bad1", V: "value1"}})
+	})
+
 	for _, envKey := range []string{
 		"DD_CONNECTION_LIMIT", // deprecated
 		"DD_APM_CONNECTION_LIMIT",
@@ -281,7 +305,7 @@ func TestLoadEnv(t *testing.T) {
 			defer os.Unsetenv(envKey)
 			cfg, err := Load("./testdata/full.yaml")
 			assert.NoError(err)
-			assert.Equal(6., cfg.MaxTPS)
+			assert.Equal(6., cfg.TargetTPS)
 		})
 	}
 
@@ -325,6 +349,30 @@ func TestLoadEnv(t *testing.T) {
 		_, err = Load("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.Equal("my-site.com", config.Datadog.GetString("apm_config.profiling_dd_url"))
+	})
+
+	env = "DD_OTLP_HTTP_PORT"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, "50061")
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		_, err = Load("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.Equal(50061, config.Datadog.GetInt("experimental.otlp.http_port"))
+	})
+
+	env = "DD_OTLP_GRPC_PORT"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, "50066")
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		_, err = Load("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.Equal(50066, config.Datadog.GetInt("experimental.otlp.grpc_port"))
 	})
 
 	env = "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS"

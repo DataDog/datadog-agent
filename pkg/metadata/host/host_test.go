@@ -1,22 +1,25 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 // +build !windows
 
 package host
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"path"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/host"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +27,8 @@ import (
 )
 
 func TestGetPayload(t *testing.T) {
-	p := GetPayload(util.HostnameData{Hostname: "myhostname", Provider: ""})
+	ctx := context.Background()
+	p := GetPayload(ctx, util.HostnameData{Hostname: "myhostname", Provider: ""})
 	assert.NotEmpty(t, p.Os)
 	assert.NotEmpty(t, p.AgentFlavor)
 	assert.NotEmpty(t, p.PythonVersion)
@@ -70,7 +74,8 @@ func TestGetHostInfo(t *testing.T) {
 }
 
 func TestGetMeta(t *testing.T) {
-	meta := getMeta(util.HostnameData{})
+	ctx := context.Background()
+	meta := getMeta(ctx, util.HostnameData{})
 	assert.NotEmpty(t, meta.SocketHostname)
 	assert.NotEmpty(t, meta.Timezones)
 	assert.NotEmpty(t, meta.SocketFqdn)
@@ -164,4 +169,20 @@ install_methodlol:
 	require.Equal(t, "undefined", installMethod.ToolVersion)
 	assert.Nil(t, installMethod.Tool)
 	assert.Nil(t, installMethod.InstallerVersion)
+}
+
+func TestGetProxyMeta(t *testing.T) {
+
+	config.Datadog.Set("no_proxy_nonexact_match", false)
+	meta := getProxyMeta()
+	assert.Equal(t, meta.NoProxyNonexactMatch, false)
+
+	config.Datadog.Set("no_proxy_nonexact_match", true)
+	meta = getProxyMeta()
+	assert.Equal(t, meta.NoProxyNonexactMatch, true)
+	assert.Equal(t, meta.ProxyBehaviorChanged, false)
+
+	httputils.NoProxyIgnoredWarningMap["http://someUrl.com"] = true
+	meta = getProxyMeta()
+	assert.Equal(t, meta.ProxyBehaviorChanged, true)
 }

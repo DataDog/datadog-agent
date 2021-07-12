@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package rules
 
@@ -10,8 +10,9 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/pkg/errors"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
 type testProcess struct {
@@ -48,6 +49,10 @@ func (e *testEvent) GetType() string {
 	return e.kind
 }
 
+func (e *testEvent) GetTags() []string {
+	return nil
+}
+
 func (e *testEvent) GetPointer() unsafe.Pointer {
 	return unsafe.Pointer(e)
 }
@@ -75,7 +80,11 @@ func (m *testModel) ValidateField(key string, value eval.FieldValue) error {
 	return nil
 }
 
-func (m *testModel) GetEvaluator(key string) (eval.Evaluator, error) {
+func (m *testModel) GetIterator(field eval.Field) (eval.Iterator, error) {
+	return nil, &eval.ErrIteratorNotSupported{Field: field}
+}
+
+func (m *testModel) GetEvaluator(key string, regID eval.RegisterID) (eval.Evaluator, error) {
 	switch key {
 
 	case "process.name":

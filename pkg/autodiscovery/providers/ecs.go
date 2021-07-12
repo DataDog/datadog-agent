@@ -1,11 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017-2020 Datadog, Inc.
+// Copyright 2017-present Datadog, Inc.
 
 package providers
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -46,14 +48,14 @@ func (p *ECSConfigProvider) String() string {
 }
 
 // IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to ECS' data.
-func (p *ECSConfigProvider) IsUpToDate() (bool, error) {
+func (p *ECSConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
 // Collect finds all running containers in the agent's task, reads their labels
 // and extract configuration templates from them for auto discovery.
-func (p *ECSConfigProvider) Collect() ([]integration.Config, error) {
-	meta, err := p.client.GetTask()
+func (p *ECSConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
+	meta, err := p.client.GetTask(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -84,4 +86,9 @@ func parseECSContainers(containers []v2.Container) ([]integration.Config, error)
 
 func init() {
 	RegisterProvider("ecs", NewECSConfigProvider)
+}
+
+// GetConfigErrors is not implemented for the ECSConfigProvider
+func (p *ECSConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
 }

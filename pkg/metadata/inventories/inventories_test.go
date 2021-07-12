@@ -1,12 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 // +build !windows
 
 package inventories
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -86,6 +87,7 @@ func waitForCalledSignal(calledSignal chan interface{}) bool {
 }
 
 func TestGetPayload(t *testing.T) {
+	ctx := context.Background()
 	defer func() { clearMetadata() }()
 
 	startNow := time.Now()
@@ -97,7 +99,7 @@ func TestGetPayload(t *testing.T) {
 	SetCheckMetadata("check1_instance1", "check_provided_key2", "Hi")
 	SetCheckMetadata("non_running_checkid", "check_provided_key1", "this_should_be_kept")
 
-	p := GetPayload("testHostname", &mockAutoConfig{}, &mockCollector{})
+	p := GetPayload(ctx, "testHostname", &mockAutoConfig{}, &mockCollector{})
 
 	assert.Equal(t, startNow.UnixNano(), p.Timestamp)
 
@@ -132,7 +134,7 @@ func TestGetPayload(t *testing.T) {
 	startNow = startNow.Add(1000 * time.Second)
 	SetCheckMetadata("check1_instance1", "check_provided_key1", 456)
 
-	p = GetPayload("testHostname", &mockAutoConfig{}, &mockCollector{})
+	p = GetPayload(ctx, "testHostname", &mockAutoConfig{}, &mockCollector{})
 
 	assert.Equal(t, startNow.UnixNano(), p.Timestamp) //updated startNow is returned
 
@@ -256,4 +258,25 @@ func TestSetup(t *testing.T) {
 	SetAgentMetadata("key", "yet_another_value")
 	assert.True(t, waitForCalledSignal(ms.sendNowCalled))
 	assert.True(t, ms.lastSendNowDelay > time.Duration(0))
+}
+
+func Test_createCheckInstanceMetadata_returnsNewMetadata(t *testing.T) {
+	defer clearMetadata()
+
+	const (
+		checkID        = "a-check-id"
+		configProvider = "a-config-provider"
+		metadataKey    = "a-metadata-key"
+	)
+
+	checkMetadataCache[checkID] = &checkMetadataCacheEntry{
+		CheckInstanceMetadata: CheckInstanceMetadata{
+			metadataKey: "a-metadata-value",
+		},
+	}
+
+	md := createCheckInstanceMetadata(checkID, configProvider)
+	(*md)[metadataKey] = "a-different-metadata-value"
+
+	assert.NotEqual(t, checkMetadataCache[checkID].CheckInstanceMetadata[metadataKey], (*md)[metadataKey])
 }

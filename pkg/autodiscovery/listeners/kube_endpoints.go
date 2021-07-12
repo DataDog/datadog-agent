@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build clusterchecks
 // +build kubeapiserver
@@ -9,17 +9,20 @@
 package listeners
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	infov1 "k8s.io/client-go/informers/core/v1"
 	listv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -36,7 +39,8 @@ type KubeEndpointsListener struct {
 	endpointsLister   listv1.EndpointsLister
 	serviceInformer   infov1.ServiceInformer
 	serviceLister     listv1.ServiceLister
-	endpoints         map[types.UID][]*KubeEndpointService
+	endpoints         map[k8stypes.UID][]*KubeEndpointService
+	promInclAnnot     types.PrometheusAnnotations
 	newService        chan<- Service
 	delService        chan<- Service
 	m                 sync.RWMutex
@@ -59,6 +63,7 @@ func init() {
 }
 
 func NewKubeEndpointsListener() (ServiceListener, error) {
+	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
@@ -75,11 +80,12 @@ func NewKubeEndpointsListener() (ServiceListener, error) {
 	}
 
 	return &KubeEndpointsListener{
-		endpoints:         make(map[types.UID][]*KubeEndpointService),
+		endpoints:         make(map[k8stypes.UID][]*KubeEndpointService),
 		endpointsInformer: endpointsInformer,
 		endpointsLister:   endpointsInformer.Lister(),
 		serviceInformer:   serviceInformer,
 		serviceLister:     serviceInformer.Lister(),
+		promInclAnnot:     getPrometheusIncludeAnnotations(),
 	}, nil
 }
 
@@ -249,8 +255,9 @@ func (l *KubeEndpointsListener) isEndpointsAnnotated(kep *v1.Endpoints) bool {
 	ksvc, err := l.serviceLister.Services(kep.Namespace).Get(kep.Name)
 	if err != nil {
 		log.Tracef("Cannot get Kubernetes service: %s", err)
+		return false
 	}
-	return isServiceAnnotated(ksvc, kubeEndpointsAnnotationFormat)
+	return isServiceAnnotated(ksvc, kubeEndpointsAnnotationFormat) || l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations())
 }
 
 func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, alreadyExistingService, checkServiceAnnotations bool) {
@@ -362,18 +369,18 @@ func (s *KubeEndpointService) GetEntity() string {
 	return s.entity
 }
 
-// GetEntity returns the unique entity name linked to that service
+// GetTaggerEntity returns the unique entity name linked to that service
 func (s *KubeEndpointService) GetTaggerEntity() string {
 	return s.entity
 }
 
 // GetADIdentifiers returns the service AD identifiers
-func (s *KubeEndpointService) GetADIdentifiers() ([]string, error) {
+func (s *KubeEndpointService) GetADIdentifiers(context.Context) ([]string, error) {
 	return []string{s.entity}, nil
 }
 
 // GetHosts returns the pod hosts
-func (s *KubeEndpointService) GetHosts() (map[string]string, error) {
+func (s *KubeEndpointService) GetHosts(context.Context) (map[string]string, error) {
 	if s.hosts == nil {
 		return map[string]string{}, nil
 	}
@@ -381,12 +388,12 @@ func (s *KubeEndpointService) GetHosts() (map[string]string, error) {
 }
 
 // GetPid is not supported
-func (s *KubeEndpointService) GetPid() (int, error) {
+func (s *KubeEndpointService) GetPid(context.Context) (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetPorts returns the endpoint's ports
-func (s *KubeEndpointService) GetPorts() ([]ContainerPort, error) {
+func (s *KubeEndpointService) GetPorts(context.Context) ([]ContainerPort, error) {
 	if s.ports == nil {
 		return []ContainerPort{}, nil
 	}
@@ -394,15 +401,15 @@ func (s *KubeEndpointService) GetPorts() ([]ContainerPort, error) {
 }
 
 // GetTags retrieves tags
-func (s *KubeEndpointService) GetTags() ([]string, error) {
+func (s *KubeEndpointService) GetTags() ([]string, string, error) {
 	if s.tags == nil {
-		return []string{}, nil
+		return []string{}, "", nil
 	}
-	return s.tags, nil
+	return s.tags, "", nil
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
-func (s *KubeEndpointService) GetHostname() (string, error) {
+func (s *KubeEndpointService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
 }
 
@@ -412,13 +419,13 @@ func (s *KubeEndpointService) GetCreationTime() integration.CreationTime {
 }
 
 // IsReady returns if the service is ready
-func (s *KubeEndpointService) IsReady() bool {
+func (s *KubeEndpointService) IsReady(context.Context) bool {
 	return true
 }
 
 // GetCheckNames returns slice of check names defined in kubernetes annotations or docker labels
 // KubeEndpointService doesn't implement this method
-func (s *KubeEndpointService) GetCheckNames() []string {
+func (s *KubeEndpointService) GetCheckNames(context.Context) []string {
 	return nil
 }
 

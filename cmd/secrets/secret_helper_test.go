@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build secrets
 
@@ -96,7 +96,7 @@ func TestReadSecrets(t *testing.T) {
 					"value": "secret1-value"
 				},
 				"secret5": {
-					"error": "not following symlink \"/etc/passwd\" outside of \"testdata/read-secrets\""
+					"error": "not following symlink \"$TESTDATA/secret5-target\" outside of \"testdata/read-secrets\""
 				},
 				"secret6": {
 					"error": "secret exceeds max allowed size"
@@ -107,6 +107,7 @@ func TestReadSecrets(t *testing.T) {
 	}
 
 	path := filepath.Join("testdata", "read-secrets")
+	testdata, _ := filepath.Abs("testdata")
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			if test.skipWindows && runtime.GOOS == "windows" {
@@ -117,7 +118,7 @@ func TestReadSecrets(t *testing.T) {
 			out := string(w.Bytes())
 
 			if test.out != "" {
-				assert.JSONEq(t, test.out, out)
+				assert.JSONEq(t, strings.ReplaceAll(test.out, "$TESTDATA", testdata), out)
 			} else {
 				assert.Empty(t, out)
 			}

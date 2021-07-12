@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build clusterchecks
 // +build kubeapiserver
@@ -9,6 +9,7 @@
 package providers
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -18,6 +19,7 @@ import (
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -30,8 +32,6 @@ type endpointResolveMode string
 const (
 	kubeEndpointAnnotationPrefix = "ad.datadoghq.com/endpoints."
 	kubeEndpointResolvePath      = "resolve"
-	kubePodKind                  = "Pod"
-	KubePodPrefix                = "kubernetes_pod://"
 
 	kubeEndpointResolveAuto endpointResolveMode = "auto"
 	kubeEndpointResolveIP   endpointResolveMode = "ip"
@@ -57,6 +57,7 @@ type configInfo struct {
 // NewKubeEndpointsConfigProvider returns a new ConfigProvider connected to apiserver.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
 func NewKubeEndpointsConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
+	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
@@ -98,7 +99,7 @@ func (k *kubeEndpointsConfigProvider) String() string {
 }
 
 // Collect retrieves services from the apiserver, builds Config objects and returns them
-func (k *kubeEndpointsConfigProvider) Collect() ([]integration.Config, error) {
+func (k *kubeEndpointsConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	services, err := k.serviceLister.List(labels.Everything())
 	if err != nil {
 		return nil, err
@@ -123,7 +124,7 @@ func (k *kubeEndpointsConfigProvider) Collect() ([]integration.Config, error) {
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
-func (k *kubeEndpointsConfigProvider) IsUpToDate() (bool, error) {
+func (k *kubeEndpointsConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return k.upToDate, nil
 }
 
@@ -258,7 +259,7 @@ func generateConfigs(tpl integration.Config, resolveMode endpointResolveMode, ke
 	case "":
 		fallthrough
 	case kubeEndpointResolveAuto:
-		resolveFunc = resolveConfigAuto
+		resolveFunc = utils.ResolveEndpointConfigAuto
 	}
 
 	for i := range kep.Subsets {
@@ -289,26 +290,11 @@ func generateConfigs(tpl integration.Config, resolveMode endpointResolveMode, ke
 	return generatedConfigs
 }
 
-func resolveConfigAuto(conf *integration.Config, addr v1.EndpointAddress) {
-	log.Debugf("using 'auto' resolve for config: %s, entity: %s", conf.Name, conf.Entity)
-	if targetRef := addr.TargetRef; targetRef != nil && targetRef.Kind == kubePodKind {
-		// The endpoint is backed by a pod.
-		// We add the pod uid as AD identifiers so the check can get the pod tags.
-		podUID := string(targetRef.UID)
-		conf.ADIdentifiers = append(conf.ADIdentifiers, getPodEntity(podUID))
-		if nodeName := addr.NodeName; nodeName != nil {
-			// Set the node name to schedule the endpoint check on the correct node.
-			// This field needs to be set only when the endpoint is backed by a pod.
-			conf.NodeName = *nodeName
-		}
-	}
-}
-
-// getPodEntity returns pod entity
-func getPodEntity(podUID string) string {
-	return KubePodPrefix + podUID
-}
-
 func init() {
 	RegisterProvider(KubeEndpointsProviderName, NewKubeEndpointsConfigProvider)
+}
+
+// GetConfigErrors is not implemented for the kubeEndpointsConfigProvider
+func (k *kubeEndpointsConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
 }

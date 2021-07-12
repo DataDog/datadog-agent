@@ -1,23 +1,21 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package agent
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"io"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,6 +30,8 @@ type RuntimeSecurityAgent struct {
 	wg            sync.WaitGroup
 	connected     atomic.Value
 	eventReceived uint64
+	telemetry     *telemetry
+	cancel        context.CancelFunc
 }
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
@@ -47,21 +47,33 @@ func NewRuntimeSecurityAgent(hostname string, reporter event.Reporter) (*Runtime
 		return nil, err
 	}
 
+	tel, err := newTelemetry()
+	if err != nil {
+		return nil, errors.Errorf("failed to initialize the telemetry reporter")
+	}
+
 	return &RuntimeSecurityAgent{
-		conn:     conn,
-		reporter: reporter,
-		hostname: hostname,
+		conn:      conn,
+		reporter:  reporter,
+		hostname:  hostname,
+		telemetry: tel,
 	}, nil
 }
 
 // Start the runtime security agent
 func (rsa *RuntimeSecurityAgent) Start() {
+	ctx, cancel := context.WithCancel(context.Background())
+	rsa.cancel = cancel
+
 	// Start the system-probe events listener
 	go rsa.StartEventListener()
+	// Send Runtime Security Agent telemetry
+	go rsa.telemetry.run(ctx)
 }
 
 // Stop the runtime recurity agent
 func (rsa *RuntimeSecurityAgent) Stop() {
+	rsa.cancel()
 	rsa.running.Store(false)
 	rsa.wg.Wait()
 	rsa.conn.Close()
@@ -77,7 +89,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 
 	rsa.running.Store(true)
 	for rsa.running.Load() == true {
-		stream, err := apiClient.GetEvents(context.Background(), &api.GetParams{})
+		stream, err := apiClient.GetEvents(context.Background(), &api.GetEventParams{})
 		if err != nil {
 			rsa.connected.Store(false)
 
@@ -100,7 +112,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 			if err == io.EOF || in == nil {
 				break
 			}
-			log.Infof("Got message from rule `%s` for event `%s` with tags `%+v` ", in.RuleID, string(in.Data), in.Tags)
+			log.Tracef("Got message from rule `%s` for event `%s`", in.RuleID, string(in.Data))
 
 			atomic.AddUint64(&rsa.eventReceived, 1)
 
@@ -110,23 +122,10 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 	}
 }
 
-// SendSecurityEvent sends a security event with the provided status
-func (rsa *RuntimeSecurityAgent) SendSecurityEvent(evt *api.SecurityEventMessage, status string) {
-	event := &event.Event{
-		AgentRuleID:  evt.RuleID,
-		ResourceID:   rsa.hostname,
-		ResourceType: "host",
-		Tags:         evt.Tags,
-		Data:         json.RawMessage(evt.GetData()),
-	}
-
-	rsa.reporter.Report(event)
-}
-
 // DispatchEvent dispatches a security event message to the subsytems of the runtime security agent
 func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 	// For now simply log to Datadog
-	rsa.SendSecurityEvent(evt, message.StatusAlert)
+	rsa.reporter.ReportRaw(evt.GetData(), evt.GetTags()...)
 }
 
 // GetStatus returns the current status on the agent

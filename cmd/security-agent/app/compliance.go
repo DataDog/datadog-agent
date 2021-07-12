@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package app
 
@@ -19,12 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ddgostatsd "github.com/DataDog/datadog-go/statsd"
 )
@@ -60,21 +57,27 @@ func init() {
 	eventCmd.Flags().StringSliceVarP(&eventArgs.data, "data", "d", []string{}, "Data KV fields")
 }
 
+func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, error) {
+	logsConfigComplianceKeys := config.NewLogsConfigKeys("compliance_config.endpoints.", coreconfig.Datadog)
+	return newLogContext(logsConfigComplianceKeys, "compliance-http-intake.logs.", "compliance")
+}
+
 func eventRun(cmd *cobra.Command, args []string) error {
 	// Read configuration files received from the command line arguments '-c'
-	if err := secagentcommon.MergeConfigurationFiles("datadog", confPathArray); err != nil {
+	if err := secagentcommon.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
 		return err
 	}
 
 	stopper := restart.NewSerialStopper()
 	defer stopper.Stop()
 
-	endpoints, dstContext, err := newLogContext()
+	endpoints, dstContext, err := newLogContextCompliance()
 	if err != nil {
 		return err
 	}
 
-	reporter, err := newComplianceReporter(stopper, eventArgs.sourceName, eventArgs.sourceType, endpoints, dstContext)
+	runPath := coreconfig.Datadog.GetString("compliance_config.run_path")
+	reporter, err := event.NewLogReporter(stopper, eventArgs.sourceName, eventArgs.sourceType, runPath, endpoints, dstContext)
 	if err != nil {
 		return fmt.Errorf("failed to set up compliance log reporter: %w", err)
 	}
@@ -94,37 +97,20 @@ func eventRun(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func newComplianceReporter(stopper restart.Stopper, sourceName, sourceType string, endpoints *config.Endpoints, context *client.DestinationsContext) (event.Reporter, error) {
-	health := health.RegisterLiveness("compliance")
-
-	// setup the auditor
-	auditor := auditor.New(coreconfig.Datadog.GetString("compliance_config.run_path"), "compliance-registry.json", health)
-	auditor.Start()
-	stopper.Add(auditor)
-
-	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, nil, endpoints, context)
-	pipelineProvider.Start()
-	stopper.Add(pipelineProvider)
-
-	logSource := config.NewLogSource(
-		sourceName,
-		&config.LogsConfig{
-			Type:    sourceType,
-			Service: sourceName,
-			Source:  sourceName,
-		},
-	)
-	return event.NewReporter(logSource, pipelineProvider.NextPipelineChan()), nil
-}
-
-func startCompliance(hostname string, endpoints *config.Endpoints, context *client.DestinationsContext, stopper restart.Stopper, statsdClient *ddgostatsd.Client) error {
+func startCompliance(hostname string, stopper restart.Stopper, statsdClient *ddgostatsd.Client) error {
 	enabled := coreconfig.Datadog.GetBool("compliance_config.enabled")
 	if !enabled {
 		return nil
 	}
 
-	reporter, err := newComplianceReporter(stopper, "compliance-agent", "compliance", endpoints, context)
+	endpoints, context, err := newLogContextCompliance()
+	if err != nil {
+		log.Error(err)
+	}
+	stopper.Add(context)
+
+	runPath := coreconfig.Datadog.GetString("compliance_config.run_path")
+	reporter, err := event.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, context)
 	if err != nil {
 		return err
 	}
@@ -136,10 +122,12 @@ func startCompliance(hostname string, endpoints *config.Endpoints, context *clie
 	runner.SetScheduler(scheduler)
 
 	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
+	checkMaxEvents := coreconfig.Datadog.GetInt("compliance_config.check_max_events_per_run")
 	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
 
 	options := []checks.BuilderOption{
 		checks.WithInterval(checkInterval),
+		checks.WithMaxEvents(checkMaxEvents),
 		checks.WithHostname(hostname),
 		checks.WithHostRootMount(os.Getenv("HOST_ROOT")),
 		checks.MayFail(checks.WithDocker()),

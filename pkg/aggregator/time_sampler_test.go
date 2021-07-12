@@ -1,7 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
+
+// +build test
 
 package aggregator
 
@@ -249,13 +251,13 @@ func TestCounterExpirySeconds(t *testing.T) {
 	// Counter2 should still report
 	assert.Equal(t, 1, len(series))
 	assert.Equal(t, 1, len(sampler.counterLastSampledByContext))
-	assert.Equal(t, 2, len(sampler.contextResolver.contextsByKey))
+	assert.Equal(t, 2, len(sampler.contextResolver.resolver.contextsByKey))
 
 	series, _ = sampler.flush(1800.0)
 	// Everything stopped reporting and is expired
 	assert.Equal(t, 0, len(series))
 	assert.Equal(t, 0, len(sampler.counterLastSampledByContext))
-	assert.Equal(t, 0, len(sampler.contextResolver.contextsByKey))
+	assert.Equal(t, 0, len(sampler.contextResolver.resolver.contextsByKey))
 }
 
 func TestSketch(t *testing.T) {

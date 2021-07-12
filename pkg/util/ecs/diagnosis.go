@@ -1,13 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build docker
 
 package ecs
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -29,7 +31,7 @@ func diagnoseECS() error {
 	}
 	log.Info("successfully detected ECS metadata server endpoint")
 
-	if _, err = client.GetTasks(); err != nil {
+	if _, err = client.GetTasks(context.TODO()); err != nil {
 		log.Error(err)
 		return err
 	}
@@ -47,7 +49,7 @@ func diagnoseECSTags() error {
 	}
 	log.Info("successfully detected ECS metadata server endpoint for resource tags")
 
-	if _, err = client.GetTaskWithTags(); err != nil {
+	if _, err = client.GetTaskWithTags(context.TODO()); err != nil {
 		log.Error(err)
 		return err
 	}
@@ -64,7 +66,7 @@ func diagnoseFargate() error {
 		return err
 	}
 
-	if _, err := client.GetTask(); err != nil {
+	if _, err := client.GetTask(context.TODO()); err != nil {
 		log.Error(err)
 		return err
 	}

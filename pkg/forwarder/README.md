@@ -78,9 +78,7 @@ have a number of dedicated `Worker` to process `Transaction`. We process new
 transactions first and then (when the workers have time) we retry the erroneous
 ones (newest transactions are retried first).
 
-We start dropping transactions (oldest first) when the number of transactions
-in the retry queue is bigger than `forwarder_retry_queue_max_size` if 
-`forwarder_retry_queue_max_size` is greater than zero otherwise when the sum
+We start dropping transactions (oldest first) when the sum
 of all the payload sizes is bigger than `forwarder_retry_queue_payloads_max_size` 
 (see the agent configuration).
 

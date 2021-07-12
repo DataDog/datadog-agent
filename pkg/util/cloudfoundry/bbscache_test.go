@@ -1,15 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build clusterchecks
 
 package cloudfoundry
 
 import (
-	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -19,9 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type testBBSClient struct {
-}
-
 func (t testBBSClient) ActualLRPs(lager.Logger, models.ActualLRPFilter) ([]*models.ActualLRP, error) {
 	return []*models.ActualLRP{&BBSModelA1, &BBSModelA2}, nil
 }
@@ -30,82 +25,67 @@ func (t testBBSClient) DesiredLRPs(lager.Logger, models.DesiredLRPFilter) ([]*mo
 	return []*models.DesiredLRP{&BBSModelD1}, nil
 }
 
-var c *BBSCache
-
-func TestMain(m *testing.M) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	c, _ = ConfigureGlobalBBSCache(ctx, "url", "", "", "", time.Second, &testBBSClient{})
-	for range []int{0, 1} {
-		if c.GetPollSuccesses() == 0 {
-			time.Sleep(time.Second)
-		}
-	}
-	code := m.Run()
-	os.Exit(code)
-}
-
 func TestBBSCachePolling(t *testing.T) {
-	assert.NotZero(t, c.GetPollAttempts())
-	assert.NotZero(t, c.GetPollSuccesses())
+	assert.NotZero(t, bc.GetPollAttempts())
+	assert.NotZero(t, bc.GetPollSuccesses())
 }
 
 func TestBBSCache_GetDesiredLRPFor(t *testing.T) {
-	dlrp, _ := c.GetDesiredLRPFor("0123456789012345678901234567890123456789")
+	dlrp, _ := bc.GetDesiredLRPFor("0123456789012345678901234567890123456789")
 	assert.EqualValues(t, ExpectedD1, dlrp)
 }
 
 func TestBBSCache_GetActualLRPsForCell(t *testing.T) {
-	alrp, _ := c.GetActualLRPsForCell("cell123")
+	alrp, _ := bc.GetActualLRPsForCell("cell123")
 	assert.EqualValues(t, []*ActualLRP{&ExpectedA1}, alrp)
-	alrp, _ = c.GetActualLRPsForCell("cell1234")
+	alrp, _ = bc.GetActualLRPsForCell("cell1234")
 	assert.EqualValues(t, []*ActualLRP{&ExpectedA2}, alrp)
 }
 
 func TestBBSCache_GetTagsForNode(t *testing.T) {
 	expectedTags := map[string][]string{
 		"0123456789012345678": {
-			"container_name:name_of_the_app_4",
+			"container_name:name_of_app_cc_4",
 			"app_instance_index:4",
 			"app_instance_guid:0123456789012345678",
 			"app_guid:random_app_guid",
 			"app_id:random_app_guid",
-			"app_name:name_of_the_app",
+			"app_name:name_of_app_cc",
 			"org_id:random_org_guid",
 			"org_name:name_of_the_org",
 			"space_id:random_space_guid",
 			"space_name:name_of_the_space",
 		},
 	}
-	tags, err := c.GetTagsForNode("cell123")
+	tags, err := bc.GetTagsForNode("cell123")
 	assert.Nil(t, err)
 	assert.Equal(t, expectedTags, tags)
 	expectedTags = map[string][]string{
 		"0123456789012345679": {
-			"container_name:name_of_the_app_3",
+			"container_name:name_of_app_cc_3",
 			"app_instance_index:3",
 			"app_instance_guid:0123456789012345679",
 			"app_guid:random_app_guid",
 			"app_id:random_app_guid",
-			"app_name:name_of_the_app",
+			"app_name:name_of_app_cc",
 			"org_id:random_org_guid",
 			"org_name:name_of_the_org",
 			"space_id:random_space_guid",
 			"space_name:name_of_the_space",
 		},
 	}
-	tags, err = c.GetTagsForNode("cell1234")
+	tags, err = bc.GetTagsForNode("cell1234")
 	assert.Nil(t, err)
 	assert.Equal(t, expectedTags, tags)
 }
 
 func TestBBSCache_GetActualLRPsForProcessGUID(t *testing.T) {
-	alrps, _ := c.GetActualLRPsForProcessGUID("0123456789012345678901234567890123456789")
+	alrps, _ := bc.GetActualLRPsForProcessGUID("0123456789012345678901234567890123456789")
 	assert.EqualValues(t, []*ActualLRP{&ExpectedA1, &ExpectedA2}, alrps)
 }
 
 func TestBBSCache_GetAllLRPs(t *testing.T) {
-	a, d := c.GetAllLRPs()
+	a, d := bc.GetAllLRPs()
 	assert.EqualValues(t, map[string]*DesiredLRP{ExpectedD1.ProcessGUID: &ExpectedD1}, d)
 	assert.EqualValues(t, map[string][]*ActualLRP{ExpectedD1.ProcessGUID: {&ExpectedA1, &ExpectedA2}}, a)
 }

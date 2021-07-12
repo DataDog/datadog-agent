@@ -14,7 +14,8 @@ import (
 	"github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util/api"
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +38,7 @@ func TestSendConnectionsMessage(t *testing.T) {
 
 		assert.Equal(t, "/api/v1/collector", req.uri)
 
-		assert.Equal(t, cfg.HostName, req.headers.Get(api.HostHeader))
+		assert.Equal(t, cfg.HostName, req.headers.Get(headers.HostHeader))
 		assert.Equal(t, cfg.APIEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
 
 		reqBody, err := process.DecodeMessage(req.body)
@@ -70,9 +71,9 @@ func TestSendContainerMessage(t *testing.T) {
 
 		assert.Equal(t, "/api/v1/container", req.uri)
 
-		assert.Equal(t, cfg.HostName, req.headers.Get(api.HostHeader))
+		assert.Equal(t, cfg.HostName, req.headers.Get(headers.HostHeader))
 		assert.Equal(t, cfg.APIEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
-		assert.Equal(t, "1", req.headers.Get(api.ContainerCountHeader))
+		assert.Equal(t, "1", req.headers.Get(headers.ContainerCountHeader))
 
 		reqBody, err := process.DecodeMessage(req.body)
 		require.NoError(t, err)
@@ -101,11 +102,11 @@ func TestSendProcMessage(t *testing.T) {
 
 		assert.Equal(t, "/api/v1/collector", req.uri)
 
-		assert.Equal(t, cfg.HostName, req.headers.Get(api.HostHeader))
+		assert.Equal(t, cfg.HostName, req.headers.Get(headers.HostHeader))
 		assert.Equal(t, cfg.APIEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
-		assert.Equal(t, "1", req.headers.Get(api.ContainerCountHeader))
+		assert.Equal(t, "1", req.headers.Get(headers.ContainerCountHeader))
 		assert.Equal(t, "1", req.headers.Get("X-DD-Agent-Attempts"))
-		assert.NotEmpty(t, req.headers.Get(api.TimestampHeader))
+		assert.NotEmpty(t, req.headers.Get(headers.TimestampHeader))
 
 		reqBody, err := process.DecodeMessage(req.body)
 		require.NoError(t, err)
@@ -137,10 +138,10 @@ func TestSendProcMessageWithRetry(t *testing.T) {
 
 		timestamps := make(map[string]struct{})
 		for _, req := range requests {
-			assert.Equal(t, cfg.HostName, req.headers.Get(api.HostHeader))
+			assert.Equal(t, cfg.HostName, req.headers.Get(headers.HostHeader))
 			assert.Equal(t, cfg.APIEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
-			assert.Equal(t, "1", req.headers.Get(api.ContainerCountHeader))
-			timestamps[req.headers.Get(api.TimestampHeader)] = struct{}{}
+			assert.Equal(t, "1", req.headers.Get(headers.ContainerCountHeader))
+			timestamps[req.headers.Get(headers.TimestampHeader)] = struct{}{}
 
 			reqBody, err := process.DecodeMessage(req.body)
 			require.NoError(t, err)
@@ -189,6 +190,9 @@ func TestRTProcMessageNotRetried(t *testing.T) {
 func TestSendPodMessage(t *testing.T) {
 	clusterID := "d801b2b1-4811-11ea-8618-121d4d0938a3"
 
+	cfg := config.NewDefaultAgentConfig(false)
+	cfg.Orchestrator.OrchestrationCollectionEnabled = true
+
 	orig := os.Getenv("DD_ORCHESTRATOR_CLUSTER_ID")
 	_ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", clusterID)
 	defer func() { _ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", orig) }()
@@ -203,16 +207,16 @@ func TestSendPodMessage(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, config.NewDefaultAgentConfig(false), &endpointConfig{}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
+	runCollectorTest(t, check, cfg, &endpointConfig{}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/orchestrator", req.uri)
 
-		assert.Equal(t, cfg.HostName, req.headers.Get(api.HostHeader))
-		assert.Equal(t, cfg.OrchestratorEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
-		assert.Equal(t, "0", req.headers.Get(api.ContainerCountHeader))
+		assert.Equal(t, cfg.HostName, req.headers.Get(headers.HostHeader))
+		assert.Equal(t, cfg.Orchestrator.OrchestratorEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
+		assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
 		assert.Equal(t, "1", req.headers.Get("X-DD-Agent-Attempts"))
-		assert.NotEmpty(t, req.headers.Get(api.TimestampHeader))
+		assert.NotEmpty(t, req.headers.Get(headers.TimestampHeader))
 
 		reqBody, err := process.DecodeMessage(req.body)
 		require.NoError(t, err)
@@ -220,7 +224,7 @@ func TestSendPodMessage(t *testing.T) {
 		cp, ok := reqBody.Body.(*process.CollectorPod)
 		require.True(t, ok)
 
-		assert.Equal(t, clusterID, req.headers.Get(api.ClusterIDHeader))
+		assert.Equal(t, clusterID, req.headers.Get(headers.ClusterIDHeader))
 		assert.Equal(t, cfg.HostName, cp.HostName)
 	})
 }
@@ -324,14 +328,14 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, cfg *config.A
 	collectorAddr, orchestratorAddr := ep.start()
 	defer ep.stop()
 
-	cfg.APIEndpoints = make([]api.Endpoint, len(apiKeys))
+	cfg.APIEndpoints = make([]apicfg.Endpoint, len(apiKeys))
 	for index, key := range apiKeys {
-		cfg.APIEndpoints[index] = api.Endpoint{APIKey: key, Endpoint: collectorAddr}
+		cfg.APIEndpoints[index] = apicfg.Endpoint{APIKey: key, Endpoint: collectorAddr}
 	}
 
-	cfg.OrchestratorEndpoints = make([]api.Endpoint, len(orchAPIKeys))
+	cfg.Orchestrator.OrchestratorEndpoints = make([]apicfg.Endpoint, len(orchAPIKeys))
 	for index, key := range orchAPIKeys {
-		cfg.OrchestratorEndpoints[index] = api.Endpoint{APIKey: key, Endpoint: orchestratorAddr}
+		cfg.Orchestrator.OrchestratorEndpoints[index] = apicfg.Endpoint{APIKey: key, Endpoint: orchestratorAddr}
 	}
 
 	cfg.HostName = testHostName

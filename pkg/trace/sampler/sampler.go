@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // Package sampler contains all the logic of the agent-side trace sampling
 //
@@ -85,17 +85,6 @@ func SetSamplingPriority(s *pb.Span, priority SamplingPriority) {
 // GetGlobalRate gets the cumulative sample rate of the trace to which this span belongs to.
 func GetGlobalRate(s *pb.Span) float64 {
 	return getMetricDefault(s, KeySamplingRateGlobal, 1.0)
-}
-
-// SetGlobalRate sets the cumulative sample rate of the trace to which this span belongs to.
-func SetGlobalRate(s *pb.Span, rate float64) {
-	setMetric(s, KeySamplingRateGlobal, rate)
-}
-
-// AddGlobalRate updates the cumulative sample rate of the trace to which this span belongs to with the provided
-// rate which is assumed to belong to an independent sampler. The combination is done by simple multiplications.
-func AddGlobalRate(s *pb.Span, rate float64) {
-	setMetric(s, KeySamplingRateGlobal, GetGlobalRate(s)*rate)
 }
 
 // GetClientRate gets the rate at which the trace this span belongs to was sampled by the tracer.

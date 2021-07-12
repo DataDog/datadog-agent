@@ -24,121 +24,123 @@ spec:
       serviceAccountName: datadog
       imagePullSecrets: []
       initContainers:
-        - name: init-volume
-          image: "gcr.io/datadoghq/agent:7.23.1"
-          imagePullPolicy: IfNotPresent
-          command: ["bash", "-c"]
-          args:
-            - cp -r /etc/datadog-agent /opt
-          volumeMounts:
-            - name: config
-              mountPath: /opt/datadog-agent
-          resources: {}
-        - name: init-config
-          image: "gcr.io/datadoghq/agent:7.23.1"
-          imagePullPolicy: IfNotPresent
-          command: ["bash", "-c"]
-          args:
-            - for script in $(find /etc/cont-init.d/ -type f -name '*.sh' | sort) ; do bash $script ; done
-          volumeMounts:
-            - name: config
-              mountPath: /etc/datadog-agent
-          resources: {}
-      containers:
-        - name: agent
-          image: "gcr.io/datadoghq/agent:7.23.1"
-          command: ["bash", "-c"]
-          args:
-            - rm -rf /etc/datadog-agent/conf.d && touch /etc/datadog-agent/datadog.yaml && exec agent run
-          imagePullPolicy: IfNotPresent
-          env:
-            - name: DD_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: "datadog"
-                  key: api-key
-            - name: KUBERNETES
-              value: "yes"
-            - name: DD_LOG_LEVEL
-              value: "INFO"
-            - name: DD_EXTRA_CONFIG_PROVIDERS
-              value: "clusterchecks"
-            - name: DD_HEALTH_PORT
-              value: "5555"
-            # Cluster checks
-            - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
-              value: datadog-cluster-agent
-            - name: DD_CLUSTER_AGENT_AUTH_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: datadog-cluster-agent
-                  key: token
-            - name: DD_CLUSTER_AGENT_ENABLED
-              value: "true"
-            # Safely run alongside the daemonset
-            - name: DD_ENABLE_METADATA_COLLECTION
-              value: "false"
-            # Expose CLC stats
-            - name: DD_CLC_RUNNER_ENABLED
-              value: "true"
-            - name: DD_CLC_RUNNER_HOST
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
-            # Remove unused features
-            - name: DD_USE_DOGSTATSD
-              value: "false"
-            - name: DD_PROCESS_AGENT_ENABLED
-              value: "false"
-            - name: DD_LOGS_ENABLED
-              value: "false"
-            - name: DD_APM_ENABLED
-              value: "false"
-            - name: DD_HOSTNAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
-          resources: {}
-          volumeMounts:
-            - name: installinfo
-              subPath: install_info
-              mountPath: /etc/datadog-agent/install_info
-              readOnly: true
-            - name: config
-              mountPath: /etc/datadog-agent
-          livenessProbe:
-            failureThreshold: 6
-            httpGet:
-              path: /live
-              port: 5555
-              scheme: HTTP
-            initialDelaySeconds: 15
-            periodSeconds: 15
-            successThreshold: 1
-            timeoutSeconds: 5
-          readinessProbe:
-            failureThreshold: 6
-            httpGet:
-              path: /ready
-              port: 5555
-              scheme: HTTP
-            initialDelaySeconds: 15
-            periodSeconds: 15
-            successThreshold: 1
-            timeoutSeconds: 5
-      volumes:
-        - name: installinfo
-          configMap:
-            name: datadog-installinfo
+      - name: init-volume
+        image: "gcr.io/datadoghq/agent:7.26.0"
+        imagePullPolicy: IfNotPresent
+        command: ["bash", "-c"]
+        args:
+        - cp -r /etc/datadog-agent /opt
+        volumeMounts:
         - name: config
-          emptyDir: {}
+          mountPath: /opt/datadog-agent
+        resources: {}
+      - name: init-config
+        image: "gcr.io/datadoghq/agent:7.26.0"
+        imagePullPolicy: IfNotPresent
+        command: ["bash", "-c"]
+        args:
+        - for script in $(find /etc/cont-init.d/ -type f -name '*.sh' | sort) ; do
+          bash $script ; done
+        volumeMounts:
+        - name: config
+          mountPath: /etc/datadog-agent
+        resources: {}
+      containers:
+      - name: agent
+        image: "gcr.io/datadoghq/agent:7.26.0"
+        command: ["bash", "-c"]
+        args:
+        - rm -rf /etc/datadog-agent/conf.d && touch /etc/datadog-agent/datadog.yaml
+          && exec agent run
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: DD_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: "datadog"
+              key: api-key
+        - name: KUBERNETES
+          value: "yes"
+        - name: DD_LOG_LEVEL
+          value: "INFO"
+        - name: DD_EXTRA_CONFIG_PROVIDERS
+          value: "clusterchecks"
+        - name: DD_HEALTH_PORT
+          value: "5555"
+        - # Cluster checks (cluster-agent communication)
+          name: DD_CLUSTER_AGENT_ENABLED
+          value: "true"
+        - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
+          value: datadog-cluster-agent
+        - name: DD_CLUSTER_AGENT_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: datadog-cluster-agent
+              key: token
+        - # Safely run alongside the daemonset
+          name: DD_ENABLE_METADATA_COLLECTION
+          value: "false"
+        - # Expose CLC stats
+          name: DD_CLC_RUNNER_ENABLED
+          value: "true"
+        - name: DD_CLC_RUNNER_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - # Remove unused features
+          name: DD_USE_DOGSTATSD
+          value: "false"
+        - name: DD_PROCESS_AGENT_ENABLED
+          value: "false"
+        - name: DD_LOGS_ENABLED
+          value: "false"
+        - name: DD_APM_ENABLED
+          value: "false"
+        - name: DD_HOSTNAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        resources: {}
+        volumeMounts:
+        - name: installinfo
+          subPath: install_info
+          mountPath: /etc/datadog-agent/install_info
+          readOnly: true
+        - name: config
+          mountPath: /etc/datadog-agent
+        livenessProbe:
+          failureThreshold: 6
+          httpGet:
+            path: /live
+            port: 5555
+            scheme: HTTP
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          successThreshold: 1
+          timeoutSeconds: 5
+        readinessProbe:
+          failureThreshold: 6
+          httpGet:
+            path: /ready
+            port: 5555
+            scheme: HTTP
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          successThreshold: 1
+          timeoutSeconds: 5
+      volumes:
+      - name: installinfo
+        configMap:
+          name: datadog-installinfo
+      - name: config
+        emptyDir: {}
       affinity:
         # Ensure we only run one worker per node, to avoid name collisions
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
-                matchLabels:
-                  app: datadog-clusterchecks
-              topologyKey: kubernetes.io/hostname
+          - labelSelector:
+              matchLabels:
+                app: datadog-clusterchecks
+            topologyKey: kubernetes.io/hostname
       nodeSelector:
         kubernetes.io/os: linux

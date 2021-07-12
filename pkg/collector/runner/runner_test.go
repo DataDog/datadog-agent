@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package runner
 
@@ -58,8 +58,8 @@ func (c *TestCheck) ID() check.ID {
 	defer c.Unlock()
 	return check.ID(fmt.Sprintf("%s:%s", c.String(), c.id))
 }
-func (c *TestCheck) GetWarnings() []error                      { return nil }
-func (c *TestCheck) GetMetricStats() (map[string]int64, error) { return make(map[string]int64), nil }
+func (c *TestCheck) GetWarnings() []error                 { return nil }
+func (c *TestCheck) GetStats() (check.SenderStats, error) { return check.NewSenderStats(), nil }
 func (c *TestCheck) HasRun() bool {
 	c.Lock()
 	defer c.Unlock()

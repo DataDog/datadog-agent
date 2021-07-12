@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package inventories
 
 import (
+	"context"
 	"strings"
 	"sync"
 	"time"
@@ -99,16 +100,20 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 }
 
 func createCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceMetadata {
+	const transientFields = 3
 
 	var checkInstanceMetadata CheckInstanceMetadata
-	lastUpdated := agentStartupTime
+	var lastUpdated time.Time
 
-	entry, found := checkMetadataCache[checkID]
-	if found {
-		checkInstanceMetadata = entry.CheckInstanceMetadata
+	if entry, found := checkMetadataCache[checkID]; found {
+		checkInstanceMetadata = make(CheckInstanceMetadata, len(entry.CheckInstanceMetadata)+transientFields)
+		for k, v := range entry.CheckInstanceMetadata {
+			checkInstanceMetadata[k] = v
+		}
 		lastUpdated = entry.LastUpdated
 	} else {
-		checkInstanceMetadata = make(CheckInstanceMetadata)
+		checkInstanceMetadata = make(CheckInstanceMetadata, transientFields)
+		lastUpdated = agentStartupTime
 	}
 
 	checkInstanceMetadata["last_updated"] = lastUpdated.UnixNano()
@@ -119,7 +124,7 @@ func createCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceM
 }
 
 // CreatePayload fills and returns the inventory metadata payload
-func CreatePayload(hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
+func CreatePayload(ctx context.Context, hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
 	checkCacheMutex.Lock()
 	defer checkCacheMutex.Unlock()
 
@@ -166,12 +171,12 @@ func CreatePayload(hostname string, ac AutoConfigInterface, coll CollectorInterf
 }
 
 // GetPayload returns a new inventory metadata payload and updates lastGetPayload
-func GetPayload(hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
+func GetPayload(ctx context.Context, hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
 	lastGetPayloadMutex.Lock()
 	defer lastGetPayloadMutex.Unlock()
 	lastGetPayload = timeNow()
 
-	return CreatePayload(hostname, ac, coll)
+	return CreatePayload(ctx, hostname, ac, coll)
 }
 
 // StartMetadataUpdatedGoroutine starts a routine that listens to the metadataUpdatedC

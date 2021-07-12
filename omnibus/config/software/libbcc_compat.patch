@@ -46,44 +46,11 @@ That’s why it was not possible to patch libbcc directly to make it use the
 other version of those symbols.
 Instead, I’m using wrapper functions.
 
-The reference to `GLIBC_2.26` comes from `reallocarray`.
-Unfortunately, that function has been introduced in the glibc at that version
-and the glibc doesn’t provide any older version of that symbol.
-Fortunately, libbcc provides a alternative definition of it.
-However, forcing the use of the alternative definition doesn’t work as it
-generates a double symbol definition.
-That’s why I had to rename `reallocarray` into `my_reallocarray` everywhere.
-
-diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 7bd0f3b..2c5eb36 100644
---- a/CMakeLists.txt
-+++ b/CMakeLists.txt
-@@ -13,6 +13,8 @@ enable_testing()
- if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/cc/libbpf/src)
-   execute_process(COMMAND git submodule update --init --recursive
-                   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-+  execute_process(COMMAND sed -i -E s/\\<reallocarray\\>/my_reallocarray/ scripts/check-reallocarray.sh include/tools/libc_compat.h src/libbpf.c
-+                  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/cc/libbpf)
- endif()
-
- include(cmake/GetGitRevisionDescription.cmake)
 diff --git a/src/cc/CMakeLists.txt b/src/cc/CMakeLists.txt
-index c53c542..8244f77 100644
+index 931de2d9..1cd1212f 100644
 --- a/src/cc/CMakeLists.txt
 +++ b/src/cc/CMakeLists.txt
-@@ -46,9 +46,11 @@ set(libbpf_uapi libbpf/include/uapi/linux})
-
- add_library(bpf-static STATIC libbpf.c perf_reader.c ${libbpf_sources})
- set_target_properties(bpf-static PROPERTIES OUTPUT_NAME bcc_bpf)
-+set_target_properties(bpf-static PROPERTIES COMPILE_DEFINITIONS COMPAT_NEED_REALLOCARRAY)
- add_library(bpf-shared SHARED libbpf.c perf_reader.c ${libbpf_sources})
- set_target_properties(bpf-shared PROPERTIES VERSION ${REVISION_LAST} SOVERSION 0)
- set_target_properties(bpf-shared PROPERTIES OUTPUT_NAME bcc_bpf)
-+set_target_properties(bpf-shared PROPERTIES COMPILE_DEFINITIONS COMPAT_NEED_REALLOCARRAY)
-
- set(bcc_common_sources bcc_common.cc bpf_module.cc bcc_btf.cc exported_files.cc)
- if (${LLVM_PACKAGE_VERSION} VERSION_EQUAL 6 OR ${LLVM_PACKAGE_VERSION} VERSION_GREATER 6)
-@@ -71,7 +73,7 @@ set(bcc_api_headers bcc_common.h bpf_module.h bcc_exception.h bcc_syms.h bcc_pro
+@@ -90,7 +92,7 @@ endif()
  if(ENABLE_CLANG_JIT)
  add_library(bcc-shared SHARED
    link_all.cc ${bcc_common_sources} ${bcc_table_sources} ${bcc_sym_sources}
@@ -91,22 +58,22 @@ index c53c542..8244f77 100644
 +  ${bcc_util_sources} wrapper.c)
  set_target_properties(bcc-shared PROPERTIES VERSION ${REVISION_LAST} SOVERSION 0)
  set_target_properties(bcc-shared PROPERTIES OUTPUT_NAME bcc)
-
-@@ -133,7 +135,7 @@ endif()
+ 
+@@ -148,7 +150,7 @@ endif()
  add_subdirectory(frontends)
-
+ 
  # Link against LLVM libraries
 -target_link_libraries(bcc-shared ${bcc_common_libs_for_s})
-+target_link_libraries(bcc-shared ${bcc_common_libs_for_s} -Wl,--wrap=exp -Wl,--wrap=log -Wl,--wrap=pow -Wl,--wrap=exp2 -Wl,--wrap=log2)
++target_link_libraries(bcc-shared ${bcc_common_libs_for_s} -Wl,--wrap=exp -Wl,--wrap=log -Wl,--wrap=pow -Wl,--wrap=exp2 -Wl,--wrap=log2 -Wl,--wrap=log2f -Wl,--wrap=fmemopen)
  target_link_libraries(bcc-static ${bcc_common_libs_for_a} bcc-loader-static)
  set(bcc-lua-static ${bcc-lua-static} ${bcc_common_libs_for_lua})
-
+ 
 diff --git a/src/cc/wrapper.c b/src/cc/wrapper.c
 new file mode 100644
 index 0000000..c01fbe2
 --- /dev/null
 +++ b/src/cc/wrapper.c
-@@ -0,0 +1,31 @@
+@@ -0,0 +1,54 @@
 +#ifdef __x86_64__
 +#define GLIBC_VERS "GLIBC_2.2.5"
 +#elif defined(__aarch64__)
@@ -114,6 +81,9 @@ index 0000000..c01fbe2
 +#else
 +#error Unknown architecture
 +#endif
++
++#include <stddef.h>
++#include <stdio.h>
 +
 +#define define_wrapper1_for(func)                               \
 +double __ ## func ## _prior_glibc(double x);                    \
@@ -133,8 +103,28 @@ index 0000000..c01fbe2
 +  return __ ## func ## _prior_glibc(x, y);                      \
 +}
 +
++#define define_wrapper3_for(func)                               \
++double __ ## func ## _prior_glibc(float x);                     \
++                                                                \
++asm(".symver __" #func "_prior_glibc, " #func "@" GLIBC_VERS);  \
++                                                                \
++double __wrap_ ## func (float x) {                              \
++  return __ ## func ## _prior_glibc(x);                         \
++}
++
++#define define_fmemopen_wrapper_for(func)                                      \
++FILE *__ ## func ## _prior_glibc(void *buf, size_t size, const char *mode);    \
++                                                                               \
++asm(".symver __" #func "_prior_glibc, " #func "@" GLIBC_VERS);                 \
++                                                                               \
++FILE *__wrap_## func (void *buf, size_t size, const char *mode) {           \
++ return __ ## func ## _prior_glibc(buf, size, mode);                           \
++}                                                                              \
++
 +define_wrapper1_for(exp)
 +define_wrapper1_for(log)
 +define_wrapper2_for(pow)
 +define_wrapper1_for(exp2)
 +define_wrapper1_for(log2)
++define_wrapper3_for(log2f)
++define_fmemopen_wrapper_for(fmemopen)

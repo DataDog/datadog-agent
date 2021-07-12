@@ -1,16 +1,8 @@
 ## Provides autodetected defaults, for ECS Fargate environments,
 ## please see datadog.yaml.example for all supported options
 
-# Autodiscovery for ECS Fargate, use docker for classic ECS+EC2
-listeners:
-  - name: ecs
-config_providers:
-  - name: ecs
-    polling: true
-
 # Enable APM by setting the DD_APM_ENABLED envvar to true, or override this configuration
 apm_config:
-  enabled: false
   apm_non_local_traffic: true
 
 # Use java container support

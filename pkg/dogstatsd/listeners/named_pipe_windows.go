@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 // +build windows
 
 package listeners
@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/Microsoft/go-winio"
@@ -27,26 +29,29 @@ const pipeNamePrefix = `\\.\pipe\`
 // It listens to a given pipe name and sends back packets ready to be processed.
 // Origin detection is not implemented for named pipe.
 type NamedPipeListener struct {
-	pipe          net.Listener
-	packetManager *packetManager
-	connections   *namedPipeConnections
+	pipe           net.Listener
+	packetManager  *packets.PacketManager
+	connections    *namedPipeConnections
+	trafficCapture *replay.TrafficCapture // Currently ignored
 }
 
 // NewNamedPipeListener returns an named pipe Statsd listener
-func NewNamedPipeListener(pipeName string, packetOut chan Packets, sharedPacketPool *PacketPool) (*NamedPipeListener, error) {
+func NewNamedPipeListener(pipeName string, packetOut chan packets.Packets,
+	sharedPacketPoolManager *packets.PoolManager, capture *replay.TrafficCapture) (*NamedPipeListener, error) {
+
 	bufferSize := config.Datadog.GetInt("dogstatsd_buffer_size")
 	return newNamedPipeListener(
 		pipeName,
 		bufferSize,
-		newPacketManagerFromConfig(
-			packetOut,
-			sharedPacketPool))
+		packets.NewPacketManagerFromConfig(packetOut, sharedPacketPoolManager),
+		capture)
 }
 
 func newNamedPipeListener(
 	pipeName string,
 	bufferSize int,
-	packetManager *packetManager) (*NamedPipeListener, error) {
+	packetManager *packets.PacketManager,
+	capture *replay.TrafficCapture) (*NamedPipeListener, error) {
 
 	config := winio.PipeConfig{
 		InputBufferSize:  int32(bufferSize),
@@ -69,6 +74,7 @@ func newNamedPipeListener(
 			allConnsClosed:  make(chan struct{}),
 			activeConnCount: 0,
 		},
+		trafficCapture: capture,
 	}
 
 	log.Debugf("dogstatsd-named-pipes: %s successfully initialized", pipe.Addr())
@@ -121,13 +127,13 @@ func (l *NamedPipeListener) Listen() {
 		switch {
 		case err == nil:
 			l.connections.newConn <- conn
-			buffer := l.packetManager.createBuffer()
+			buffer := l.packetManager.CreateBuffer()
 			go l.listenConnection(conn, buffer)
 
 		case err.Error() == "use of closed network connection":
 			{
 				// Called when the pipe listener is closed from Stop()
-				log.Info("dogstatsd-named-pipes: stop listening")
+				log.Debug("dogstatsd-named-pipes: stop listening")
 				return
 			}
 		default:
@@ -137,20 +143,23 @@ func (l *NamedPipeListener) Listen() {
 }
 
 func (l *NamedPipeListener) listenConnection(conn net.Conn, buffer []byte) {
-	log.Infof("dogstatsd-named-pipes: start listening a new named pipe client on %s", conn.LocalAddr())
+	log.Debugf("dogstatsd-named-pipes: start listening a new named pipe client on %s", conn.LocalAddr())
 	startWriteIndex := 0
+	var t1, t2 time.Time
 	for {
 		bytesRead, err := conn.Read(buffer[startWriteIndex:])
 
+		t1 = time.Now()
+
 		if err != nil {
 			if err == io.EOF {
-				log.Infof("dogstatsd-named-pipes: client disconnected from %s", conn.LocalAddr())
+				log.Debugf("dogstatsd-named-pipes: client disconnected from %s", conn.LocalAddr())
 				break
 			}
 
 			// NamedPipeListener.Stop uses a timeout to stop listening.
 			if err == winio.ErrTimeout {
-				log.Infof("dogstatsd-named-pipes: stop listening a named pipe client on %s", conn.LocalAddr())
+				log.Debugf("dogstatsd-named-pipes: stop listening a named pipe client on %s", conn.LocalAddr())
 				break
 			}
 			log.Errorf("dogstatsd-named-pipes: error reading packet: %v", err.Error())
@@ -164,8 +173,8 @@ func (l *NamedPipeListener) listenConnection(conn net.Conn, buffer []byte) {
 			if messageSize > 0 {
 				namedPipeTelemetry.onReadSuccess(messageSize)
 
-				// packetAssembler merges multiple packets together and sends them when its buffer is full
-				l.packetManager.packetAssembler.addMessage(buffer[:messageSize])
+				// PacketAssembler merges multiple packets together and sends them when its buffer is full
+				l.packetManager.PacketAssembler.AddMessage(buffer[:messageSize])
 			}
 
 			startWriteIndex = endIndex - messageSize
@@ -177,6 +186,9 @@ func (l *NamedPipeListener) listenConnection(conn net.Conn, buffer []byte) {
 				copy(buffer, buffer[messageSize:endIndex])
 			}
 		}
+
+		t2 = time.Now()
+		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "named_pipe")
 	}
 	l.connections.connToClose <- conn
 }
@@ -189,7 +201,7 @@ func (l *NamedPipeListener) Stop() {
 	// Wait until all connections are closed
 	<-l.connections.allConnsClosed
 
-	l.packetManager.close()
+	l.packetManager.Close()
 	l.pipe.Close()
 }
 

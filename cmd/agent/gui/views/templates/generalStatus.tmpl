@@ -8,7 +8,7 @@
       {{- if .runnerStats.Workers}}
         <br>Check Workers: {{.runnerStats.Workers}}
       {{end}}
-      <br>Agent start: {{.agent_start}}
+      <br>Agent start: {{ formatUnixTime .agent_start_nano }}
       {{- if .config.log_file}}
         <br>Log File: {{.config.log_file}}
       {{end}}
@@ -24,7 +24,7 @@
   <div class="stat">
     <span class="stat_title">System Info</span>
     <span class="stat_data">
-      System UTC Time: {{.time}}
+      System time: {{ formatUnixTime .time_nano }}
       {{- if .ntpOffset}}
         <br>NTP Offset: {{ humanizeDuration .ntpOffset "s"}}
         {{- if ntpWarning .ntpOffset}}
@@ -101,6 +101,45 @@
     {{- end }}
     </span>
   </div>
+
+  {{- if .TransportWarnings }}
+    <div class="stat">
+      <span class="stat_title">Transport Proxy Warnings</span>
+      {{- if .NoProxyIgnoredWarningMap }}
+      <span class="stat_data">
+      The following hosts used a proxy - but will ignore the proxy in future Agent versions with the no_proxy setting.
+      Enable the new behavior now with no_proxy_nonexact_match: true
+        <span class="stat_data">
+        {{- range $key, $value := .NoProxyIgnoredWarningMap }}
+          {{ $key }}<br>
+        {{- end }}
+        </span>
+      </span>
+      {{- end }}
+      {{- if .NoProxyUsedInFuture }}
+      <span class="stat_data">
+      The following hosts did not use a proxy - but will use the proxy in future Agent versions with the no_proxy setting.
+      Enable the new behavior now with no_proxy_nonexact_match: true
+        <span class="stat_data">
+        {{- range $key, $value := .NoProxyUsedInFuture }}
+          {{ $key }}<br>
+        {{- end }}
+        </span>
+      </span>
+      {{- end }}
+      {{- if .NoProxyChanged }}
+      <span class="stat_data">
+      The following hosts' proxy behavior will change in a future Agent version. Please check the Agent logs for more details.
+      Enable the new behavior now with no_proxy_nonexact_match: true
+        <span class="stat_data">
+        {{- range $key, $value := .NoProxyChanged }}
+          {{ $key }}<br>
+        {{- end }}
+        </span>
+      </span>
+      {{- end }}
+    </div>
+  {{- end }}
 
   <div class="stat">
     <span class="stat_title">JMX Status</span>
@@ -291,6 +330,7 @@
         <span class="stat_subtitle">{{ .name }}</span>
         <span class="stat_subdata">
           {{- range .sources }}
+            <span class="stat_subdata">
             Type: {{ .type }}</br>
             {{- range $key, $value := .configuration }}
             {{$key}}: {{$value}}</br>
@@ -302,18 +342,31 @@
             {{- end }}
             {{- end }}
             {{- if .inputs }}
-            Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}</br>
+            Inputs:
+            <ul>
+              {{- range $input := .inputs }}
+                <li>{{$input}}
+              {{- end }}
+            </ul>
+            {{- end }}
             BytesRead: {{ .bytes_read }}</br>
-            {{- if .info }}
-            Container Info:</br>
+            Average Latency (ms): {{ .all_time_avg_latency }}</br>
+            24h Average Latency (ms): {{ .recent_avg_latency }}</br>
+            Peak Latency (ms): {{ .all_time_peak_latency }}</br>
+            24h Peak Latency (ms): {{ .recent_peak_latency }}</br>
+            {{- if .info }} 
+            {{- range $key, $value := .info }} {{ $len := len $value }} {{ if eq $len 1 }}
+            {{$key}}: {{index $value 0}}</br> {{ else }}
+            {{$key}}:</br>
               <span class="stat_subdata">
-                {{- range $inf := .info }}
+                {{- range $inf := $value }}
                   {{ $inf }}</br>
                 {{- end }}
               </span>
             {{- end }}
             {{- end }}
-            BytesRead: {{ .bytes_read }}</br>
+            {{- end }}
+            </span>
           {{- end }}
         </span>
       {{- end }}
@@ -364,6 +417,11 @@
         {{- if .SketchesFlushErrors}}
           Sketches Flush Errors: {{.SketchesFlushErrors}}<br>
         {{- end -}}
+        {{- if .EventPlatformEvents }}
+        {{- range $k, $v := .EventPlatformEvents }}
+          {{ $k }}: {{humanize $v}}
+        {{- end }}
+        {{- end }}
         {{- if .HostnameUpdate}}
           Hostname Update: {{humanize .HostnameUpdate}}<br>
         {{- end }}

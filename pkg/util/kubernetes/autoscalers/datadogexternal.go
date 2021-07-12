@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017-2020 Datadog, Inc.
+// Copyright 2017-present Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -10,6 +10,7 @@ package autoscalers
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -55,9 +56,11 @@ type Point struct {
 }
 
 const (
-	value         = 1
-	timestamp     = 0
-	queryEndpoint = "/api/v1/query"
+	value                 = 1
+	timestamp             = 0
+	queryEndpoint         = "/api/v1/query"
+	metricsEndpointPrefix = "https://api."
+	metricsEndpointConfig = "external_metrics_provider.endpoint"
 )
 
 // queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
@@ -85,7 +88,7 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, bucketSize int64) (
 		}
 
 		// Perform matching between query and reply, using query order and `QueryIndex` from API reply (QueryIndex is 0-based)
-		var queryIndex int = 0
+		var queryIndex int
 		if ddQueriesLen > 1 {
 			if serie.QueryIndex != nil && *serie.QueryIndex < ddQueriesLen {
 				queryIndex = *serie.QueryIndex
@@ -182,19 +185,38 @@ func (p *Processor) updateRateLimitingMetrics() error {
 
 // NewDatadogClient generates a new client to query metrics from Datadog
 func NewDatadogClient() (*datadog.Client, error) {
-	apiKey := config.Datadog.GetString("api_key")
-	appKey := config.Datadog.GetString("app_key")
+	apiKey := config.SanitizeAPIKey(config.Datadog.GetString("external_metrics_provider.api_key"))
+	if apiKey == "" {
+		apiKey = config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
+	}
+
+	appKey := config.SanitizeAPIKey(config.Datadog.GetString("external_metrics_provider.app_key"))
+	if appKey == "" {
+		appKey = config.SanitizeAPIKey(config.Datadog.GetString("app_key"))
+	}
+
+	// DATADOG_HOST used to be the only way to set the external metrics
+	// endpoint, so we need to keep backwards compatibility. In order of
+	// priority, we use:
+	//   - DD_EXTERNAL_METRICS_PROVIDER_ENDPOINT
+	//   - DATADOG_HOST
+	//   - DD_SITE
+	endpoint := os.Getenv("DATADOG_HOST")
+	if config.Datadog.GetString(metricsEndpointConfig) != "" || endpoint == "" {
+		endpoint = config.GetMainEndpoint(metricsEndpointPrefix, metricsEndpointConfig)
+	}
 
 	if appKey == "" || apiKey == "" {
 		return nil, errors.New("missing the api/app key pair to query Datadog")
 	}
 
-	log.Infof("Initialized the Datadog Client for HPA")
+	log.Infof("Initialized the Datadog Client for HPA with endpoint %q", endpoint)
 
 	client := datadog.NewClient(apiKey, appKey)
 	client.HttpClient.Transport = httputils.CreateHTTPTransport()
 	client.RetryTimeout = 3 * time.Second
 	client.ExtraHeader["User-Agent"] = "Datadog-Cluster-Agent"
+	client.SetBaseUrl(endpoint)
 
 	return client, nil
 }

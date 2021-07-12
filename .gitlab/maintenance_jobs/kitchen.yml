@@ -1,0 +1,43 @@
+---
+# Once a day, before the nightly build, cleans up the artifacts used during kitchen tests which might have been left over
+# This can happen when a kitchen test fails and is never retried, since that pipeline's cleanup job won't run
+periodic_kitchen_cleanup_s3:
+  stage: maintenance_jobs
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  tags: ["runner:main", "size:large"]
+  rules:
+    !reference [.on_testing_cleanup]
+  script:
+    - aws s3 rm --recursive s3://$DEB_TESTING_S3_BUCKET/pool
+    - aws s3 rm --recursive s3://$DEB_TESTING_S3_BUCKET/dists
+    - aws s3 rm --recursive s3://$RPM_TESTING_S3_BUCKET/testing/
+    - aws s3 rm --recursive s3://$RPM_TESTING_S3_BUCKET/suse/testing/
+    - aws s3 rm --recursive s3://$WIN_S3_BUCKET/pipelines/A6/
+    - aws s3 rm --recursive s3://$WIN_S3_BUCKET/pipelines/A7/
+
+# Once a day, before the nightly build, kills any VMs that might have been left over by kitchen
+periodic_kitchen_cleanup_azure:
+  stage: maintenance_jobs
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  tags: ["runner:main", "size:large"]
+  rules:
+    !reference [.on_testing_cleanup]
+  script:
+    - export ARM_SUBSCRIPTION_ID=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_subscription_id --with-decryption --query "Parameter.Value" --out text`
+    - export ARM_CLIENT_ID=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_client_id --with-decryption --query "Parameter.Value" --out text`
+    - export ARM_CLIENT_SECRET=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_client_secret --with-decryption --query "Parameter.Value" --out text`
+    - export ARM_TENANT_ID=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_tenant_id --with-decryption --query "Parameter.Value" --out text`
+    # Remove kitchen resources for all existing test suite prefixes
+    # Legacy resource group prefixes
+    # TODO: remove them once we're not using them at all anymore
+    - RESOURCE_GROUP_PREFIX=kitchen-dd-agent python3.6 /deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-dd-security-agent python3.6 /deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-dd-system-probe python3.6 /deploy_scripts/cleanup_azure.py
+    # New resource group prefixes
+    - RESOURCE_GROUP_PREFIX=kitchen-chef python3.6 /deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-install-script python3.6 /deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-upgrade python3.6 /deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-step-by-step python3.6 /deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-win python3.6 /deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-security-agent python3.6 /deploy_scripts/cleanup_azure.py
+    - RESOURCE_GROUP_PREFIX=kitchen-system-probe python3.6 /deploy_scripts/cleanup_azure.py

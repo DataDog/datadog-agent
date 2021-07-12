@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package info
 
@@ -21,12 +21,14 @@ type TraceWriterInfo struct {
 
 // StatsWriterInfo represents statistics from the stats writer.
 type StatsWriterInfo struct {
-	Payloads     int64
-	StatsBuckets int64
-	Errors       int64
-	Retries      int64
-	Splits       int64
-	Bytes        int64
+	Payloads       int64
+	ClientPayloads int64
+	StatsBuckets   int64
+	StatsEntries   int64
+	Errors         int64
+	Retries        int64
+	Splits         int64
+	Bytes          int64
 }
 
 // UpdateTraceWriterInfo updates internal trace writer stats

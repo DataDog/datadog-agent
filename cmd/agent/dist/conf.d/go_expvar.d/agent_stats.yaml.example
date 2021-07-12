@@ -96,6 +96,7 @@ instances:
       - path: aggregator/FlushCount/Series/LastFlush
       - path: aggregator/FlushCount/Events/LastFlush
       - path: aggregator/FlushCount/Sketches/LastFlush
+      - path: aggregator/DogstatsdContexts
       - path: aggregator/SeriesFlushed
         type: rate
       - path: aggregator/ServiceCheckFlushed

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -129,6 +129,7 @@ func (le *LeaderEngine) init() error {
 	}
 	log.Debugf("LeaderLeaseDuration: %s", le.LeaseDuration.String())
 
+	// Using GetAPIClient (no retry) as LeaderElection is already wrapped in a retrier
 	apiClient, err := apiserver.GetAPIClient()
 	if err != nil {
 		log.Errorf("Not Able to set up a client for the Leader Election: %s", err)
@@ -138,7 +139,7 @@ func (le *LeaderEngine) init() error {
 	le.coreClient = apiClient.Cl.CoreV1().(*corev1.CoreV1Client)
 
 	// check if we can get ConfigMap.
-	_, err = le.coreClient.ConfigMaps(le.LeaderNamespace).Get(defaultLeaseName, metav1.GetOptions{})
+	_, err = le.coreClient.ConfigMaps(le.LeaderNamespace).Get(context.TODO(), defaultLeaseName, metav1.GetOptions{})
 	if err != nil && errors.IsNotFound(err) == false {
 		log.Errorf("Cannot retrieve ConfigMap from the %s namespace: %s", le.LeaderNamespace, err)
 		return err
@@ -220,7 +221,7 @@ func (le *LeaderEngine) GetLeaderIP() (string, error) {
 		return "", nil
 	}
 
-	endpointList, err := le.coreClient.Endpoints(le.LeaderNamespace).Get(le.ServiceName, metav1.GetOptions{})
+	endpointList, err := le.coreClient.Endpoints(le.LeaderNamespace).Get(context.TODO(), le.ServiceName, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -247,7 +248,7 @@ func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error
 	c := client.Cl.CoreV1()
 
 	leaderNamespace := common.GetResourcesNamespace()
-	leaderElectionCM, err := c.ConfigMaps(leaderNamespace).Get(defaultLeaseName, metav1.GetOptions{})
+	leaderElectionCM, err := c.ConfigMaps(leaderNamespace).Get(context.TODO(), defaultLeaseName, metav1.GetOptions{})
 	if err != nil {
 		return led, err
 	}

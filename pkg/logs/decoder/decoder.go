@@ -1,12 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package decoder
 
 import (
 	"bytes"
+	"sync/atomic"
+	"time"
 
 	dd_conf "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -46,19 +48,21 @@ func NewDecodedInput(content []byte, rawDataLen int) *DecodedInput {
 
 // Message represents a structured line.
 type Message struct {
-	Content    []byte
-	Status     string
-	RawDataLen int
-	Timestamp  string
+	Content            []byte
+	Status             string
+	RawDataLen         int
+	Timestamp          string
+	IngestionTimestamp int64
 }
 
 // NewMessage returns a new output.
 func NewMessage(content []byte, status string, rawDataLen int, timestamp string) *Message {
 	return &Message{
-		Content:    content,
-		Status:     status,
-		RawDataLen: rawDataLen,
-		Timestamp:  timestamp,
+		Content:            content,
+		Status:             status,
+		RawDataLen:         rawDataLen,
+		Timestamp:          timestamp,
+		IngestionTimestamp: time.Now().UnixNano(),
 	}
 }
 
@@ -66,6 +70,10 @@ func NewMessage(content []byte, status string, rawDataLen int, timestamp string)
 // a lineHandler that emits outputs
 // Input->[decoder]->[parser]->[handler]->Message
 type Decoder struct {
+	// The number of raw lines decoded from the input before they are processed.
+	// Needs to be first to ensure 64 bit alignment
+	linesDecoded int64
+
 	InputChan       chan *Input
 	OutputChan      chan *Message
 	matcher         EndLineMatcher
@@ -90,7 +98,19 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 
 	for _, rule := range source.Config.ProcessingRules {
 		if rule.Type == config.MultiLine {
-			lineHandler = NewMultiLineHandler(outputChan, rule.Regex, defaultFlushTimeout, lineLimit)
+			lh := NewMultiLineHandler(outputChan, rule.Regex, config.AggregationTimeout(), lineLimit)
+
+			// Since a single source can have multiple file tailers - each with their own decoder instance,
+			// Make sure we keep track of the multiline match count info from all of the decoders so the
+			// status page displays it correctly.
+			if existingInfo, ok := source.GetInfo(lh.countInfo.InfoKey()).(*config.CountInfo); ok {
+				// override the new decoders info to the instance we are already using
+				lh.countInfo = existingInfo
+			} else {
+				// this is the first decoder we have seen for this source - use it's count info
+				source.RegisterInfo(lh.countInfo)
+			}
+			lineHandler = lh
 		}
 	}
 	if lineHandler == nil {
@@ -107,7 +127,7 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 	}
 
 	if parser.SupportsPartialLine() {
-		lineParser = NewMultiLineParser(defaultFlushTimeout, parser, lineHandler, lineLimit)
+		lineParser = NewMultiLineParser(config.AggregationTimeout(), parser, lineHandler, lineLimit)
 	} else {
 		lineParser = NewSingleLineParser(parser, lineHandler)
 	}
@@ -139,6 +159,11 @@ func (d *Decoder) Start() {
 // Stop stops the Decoder
 func (d *Decoder) Stop() {
 	close(d.InputChan)
+}
+
+// GetLineCount returns the number of decoded lines
+func (d *Decoder) GetLineCount() int64 {
+	return atomic.LoadInt64(&d.linesDecoded)
 }
 
 // run lets the Decoder handle data coming from InputChan
@@ -185,4 +210,5 @@ func (d *Decoder) sendLine() {
 	d.lineBuffer.Reset()
 	d.lineParser.Handle(NewDecodedInput(content, d.rawDataLen))
 	d.rawDataLen = 0
+	atomic.AddInt64(&d.linesDecoded, 1)
 }

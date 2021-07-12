@@ -2,6 +2,245 @@
 Release Notes
 =============
 
+.. _Release Notes_dca-1.13.1_dca-1.13.X:
+
+dca-1.13.1
+==========
+
+.. _Release Notes_dca-1.13.1_dca-1.13.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2021-07-05
+Pinned to datadog-agent v7.29.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7290>`_.
+
+Bug Fixes
+---------
+
+- Fix the embedded security policy version to match the one from the agent.
+
+
+.. _Release Notes_dca-1.13.0_dca-1.13.X:
+
+dca-1.13.0
+==========
+
+.. _Release Notes_dca-1.13.0_dca-1.13.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2021-06-22
+Pinned to datadog-agent v7.29.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7290>`_.
+
+
+.. _Release Notes_dca-1.13.0_dca-1.13.X_New Features:
+
+New Features
+------------
+
+- Collect the DaemonSet resources for the orchestrator explorer.
+
+
+.. _Release Notes_dca-1.13.0_dca-1.13.X_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The Cluster Agent exposes a new metric `external_metrics.datadog_metrics` to track the validity of DatadogMetric objects.
+
+- Add additional status information in orchestrator section output. Whether collection works and whether cluster name is set.
+
+
+.. _Release Notes_dca-1.13.0_dca-1.13.X_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Autodetect EC2 cluster name
+
+- Decrease the Admission Controller timeout to avoid edge cases where high timeouts can cause ignoring the ``failurePolicy`` (see kubernetes/kubernetes#71508).
+
+- The Cluster Agent's admission controller now requires the pod label ``admission.datadoghq.com/enabled=true`` to inject standard labels. This optimizes the number of mutation webhook requests.
+
+
+.. _Release Notes_dca-1.12.0_dca-1.12.X:
+
+dca-1.12.0
+==========
+
+.. _Release Notes_dca-1.12.0_dca-1.12.X_Prelude:
+
+Prelude
+-------
+
+  Pinned to datadog-agent v7.28.0-rc.5
+
+.. _Release Notes_dca-1.12.0_dca-1.12.X_New Features:
+
+New Features
+------------
+
+- The cluster-agent container now tries to remove any folder beginning by ``..`` in paths of
+  files mounted in ``/conf.d`` while copying them to the cluster-agent config folder
+
+- collect cluster resource for orchestrator explorer.
+
+- It's now possible to template the kube_cluster_name tag in DatadogMetric queries
+  Example: avg:nginx.net.request_per_s{kube_container_name:nginx,kube_cluster_name:%%tag_kube_cluster_name%%}
+
+- It's now possible to template any environment variable (as seen by the Datadog Cluster Agent) as tag in DatadogMetric queries
+  Example: avg:nginx.net.request_per_s{kube_container_name:nginx,kube_cluster_name:%%env_DD_CLUSTER_NAME%%}
+
+
+.. _Release Notes_dca-1.12.0_dca-1.12.X_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- It is now possible to configure a custom timeout for the MutatingWebhookConfigurations
+  objects controlled by the Cluster Agent via DD_ADMISSION_CONTROLLER_TIMEOUT_SECONDS. (Default: 30 seconds)
+
+- The Datadog Cluster Agent's Admission Controller now uses a namespaced secrets informer.
+  It no longer needs permissions to watch secrets at the cluster scope.
+
+- The cluster agent now uses the same configuration than the security agent for
+  the logs endpoints configuration. The parameters (such as `logs_dd_url` can be
+  either be specified in the `compliance_config.endpoints` section or through
+  environment variables (such as DD_COMPLIANCE_CONFIG_ENDPOINTS_LOGS_DD_URL).
+
+- Improve the resilience of the connection of controllers to the External Metrics Server by moving to a dynamic client for the WPA controller.
+
+
+.. _Release Notes_dca-1.12.0_dca-1.12.X_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Change base Docker image used to build the Cluster Agent imges, moving from debian:bullseye to ubuntu:20.10.
+  In the future the Cluster Agent will follow Ubuntu stable versions.
+
+
+.. _Release Notes_dca-1.12.0_dca-1.12.X_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a potential file descriptors leak.
+
+- The Cluster Agent can now be configured to use tls 1.2 via DD_FORCE_TLS_12=true
+
+- Fix "Error creating expvar server" error log when running the Datadog Cluster Agent CLI commands.
+
+- Fix a bug preventing the
+  "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_ADDITIONAL_ENDPOINTS" environment
+  variable to be read.
+
+
+.. _Release Notes_dca-1.11.0_dca-1.11.X:
+
+dca-1.11.0
+==========
+
+.. _Release Notes_dca-1.11.0_dca-1.11.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2021-03-02
+Pinned to datadog-agent v7.26.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7260--6260>`_.
+
+
+.. _Release Notes_dca-1.11.0_dca-1.11.X_New Features:
+
+New Features
+------------
+
+- Support Prometheus Autodiscovery for Kubernetes Services.
+
+
+.. _Release Notes_dca-1.11.0_dca-1.11.X_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add `external_metrics_provider.api_key` and `external_metrics_provider.app_key` parameters overriding default `api_key` and `app_key` if set.
+
+- Add a new external_metrics_provider.endpoint config in datadog-cluster.yaml
+  and a DD_EXTERNAL_METRICS_PROVIDER_ENDPOINT environment variable to
+  override the default Datadog API endpoint to query external metrics from,
+  in place of the global DATADOG_HOST. It also makes the external metrics
+  provider respect DD_SITE if DD_EXTERNAL_METRICS_PROVIDER_ENDPOINT is not
+  set.
+
+- Node schedulability is now a dedicated tag on kubernetes node resources.
+
+
+.. _Release Notes_dca-1.11.0_dca-1.11.X_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix dual shipping for orchestrator resources in the cluster agent.
+
+
+.. _Release Notes_dca-1.10.0_dca-1.10.X:
+
+1.10.0
+==========
+
+Prelude
+-------
+
+Released on: 2021-03-02
+    Pinned to datadog-agent v7.24.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7240--6240>`_..
+
+.. _Release Notes_dca-1.10.0_dca-1.10.X_New Features:
+
+New Features
+------------
+
+- Add a new command 'datadog-cluster-agent health' to show the cluster
+  agent's health, similar to the already existing `agent health`.
+
+- collect node information for the orchestrator explorer
+
+- Fill DatadogMetric `AutoscalerReferences` field to ease usage/investigation of DatadogMetrics
+
+- The Cluster Agent can now collect stats from Cluster Level Check runners
+  to optimize its dispatching logic and rebalance the scheduled checks.
+
+- Allow providing custom tags to orchestrator resources.
+
+
+.. _Release Notes_dca-1.10.0_dca-1.10.X_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add new configuration parameter to allow 'GroupExec' permission on the secret-backend command.
+  The new parameter ('secret_backend_command_allow_group_exec_perm') is now enabled by default in the cluster-agent image.
+
+- Add resolve option to endpoint checks through new annotation `ad.datadoghq.com/endpoints.resolve`. With `ip` value, it allows endpoint checks to target static pods
+
+- Expose metrics for the cluster level checks advanced dispatching.
+
+
+.. _Release Notes_dca-1.10.0_dca-1.10.X_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix 'readsecret.sh' permission in Cluster-Agent dockerfiles that removes `other` permission.
+
+- Fix issue in Cluster Agent when using external metrics without DatadogMetrics where multiple HPAs using the same metricName + Labels would prevent all HPAs (except 1st one) to get values from Datadog
+
+- Ensure that leader election runs if orchestrator_explorer and leader_election are enabled.
+
+- Rename node role tag from "node_role" to "kube_node_role" in orchestrator_explorer collection.
+
+
 .. _Release Notes_dca-1.9.1_dca-1.9.x:
 
 1.9.1
@@ -13,7 +252,7 @@ Prelude
 -------
 
 Released on: 2020-10-21
-Pinned to datadog-agent v7.23.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7231>`_..
+Pinned to datadog-agent v7.23.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7231>`_..
 
 .. _Release Notes_dca-1.9.1_dca-1.9.x_Bug Fixes:
 
@@ -36,7 +275,7 @@ Prelude
 -------
 
 Released on: 2020-10-13
-Pinned to datadog-agent v7.23.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7230--6230>`_..
+Pinned to datadog-agent v7.23.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7230--6230>`_..
 
 New Features
 ------------
@@ -57,7 +296,7 @@ Bug Fixes
 ---------
 
 - Fix transformer for gibiBytes and gigaBytes (#6437).
-- Fix `cluster-agent` commands to allow executing the `readsecret.sh` script for the secret backend feature (#6445). 
+- Fix `cluster-agent` commands to allow executing the `readsecret.sh` script for the secret backend feature (#6445).
 - Fix issue with External Metrics when several HPAs use the same query (#6412).
 
 .. _Release Notes_1.8.0:
@@ -99,7 +338,7 @@ Prelude
 Released on: 2020-07-20
 
 This version contains the changes released with version 7.21.0 of the core agent.
-Please refer to the `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7210--6210>`_.
+Please refer to the `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7210--6210>`_.
 
 New Features
 ------------
@@ -126,7 +365,7 @@ Prelude
 Released on: 2020-06-11
 
 This version contains the changes released with version 7.20.0 of the core agent.
-Please refer to the `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7200--6200>`_.
+Please refer to the `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7200--6200>`_.
 
 Bug Fixes
 ---------
@@ -198,7 +437,7 @@ Prelude
 Released on: 2020-01-28
 
 This version contains the changes released with version 7.17.0 of the core agent.
-Please refer to the `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7170>`_.
+Please refer to the `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7170>`_.
 
 New Features
 ------------
@@ -235,7 +474,7 @@ Prelude
 Released on: 2019-11-06
 
 This version contains the changes released with version 6.15.0 of the core agent.
-Please refer to the `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#6150>`_.
+Please refer to the `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#6150>`_.
 
 New Features
 ------------

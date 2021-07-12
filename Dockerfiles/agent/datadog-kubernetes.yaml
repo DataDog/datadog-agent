@@ -1,13 +1,6 @@
 ## Provides autodetected defaults, for kubernetes environments,
 ## please see datadog.yaml.example for all supported options
 
-# Autodiscovery for Kubernetes
-listeners:
-  - name: kubelet
-config_providers:
-  - name: kubelet
-    polling: true
-
 apm_config:
   apm_non_local_traffic: true
   max_memory: 0

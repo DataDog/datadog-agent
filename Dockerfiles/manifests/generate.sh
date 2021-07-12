@@ -10,7 +10,7 @@ fi
 
 cd "$(dirname "$0")"
 
-helm repo add datadog https://helm.datadoghq.com
+#helm repo add datadog https://helm.datadoghq.com
 helm repo update
 
 TMPDIR=$(mktemp -d)
@@ -34,8 +34,13 @@ datadog:
     enabled: true
   processAgent:
     enabled: true
-  systemProbe:
+  networkMonitoring:
     enabled: true
+  securityAgent:
+    compliance:
+      enabled: true
+    runtime:
+      enabled: true
 EOF
 
 cat > "$TMPDIR/values-cluster-agent.yaml" <<EOF
@@ -85,6 +90,15 @@ datadog:
     enabled: true
 clusterAgent:
   enabled: true
+EOF
+
+cat > "$TMPDIR/values-security-agent.yaml" <<EOF
+datadog:
+  securityAgent:
+    compliance:
+      enabled: true
+    runtime:
+      enabled: true
 EOF
 
 cat > "$TMPDIR/cleanup_instructions.yaml" <<EOF

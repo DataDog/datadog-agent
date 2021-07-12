@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017-2020 Datadog, Inc.
+// Copyright 2017-present Datadog, Inc.
 
 // +build clusterchecks
 
 package listeners
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -22,6 +23,7 @@ func init() {
 	Register("cloudfoundry-bbs", NewCloudFoundryListener)
 }
 
+// exported for testing purposes
 const (
 	CfServiceContainerIP = "container-ip"
 )
@@ -212,32 +214,32 @@ func (s *CloudFoundryService) GetTaggerEntity() string {
 }
 
 // GetADIdentifiers returns a set of AD identifiers for a container.
-func (s *CloudFoundryService) GetADIdentifiers() ([]string, error) {
+func (s *CloudFoundryService) GetADIdentifiers(context.Context) ([]string, error) {
 	return []string{s.adIdentifier.String()}, nil
 }
 
 // GetHosts returns the container's hosts
-func (s *CloudFoundryService) GetHosts() (map[string]string, error) {
+func (s *CloudFoundryService) GetHosts(context.Context) (map[string]string, error) {
 	return s.containerIPs, nil
 }
 
 // GetPorts returns the container's ports
-func (s *CloudFoundryService) GetPorts() ([]ContainerPort, error) {
+func (s *CloudFoundryService) GetPorts(context.Context) ([]ContainerPort, error) {
 	return s.containerPorts, nil
 }
 
 // GetTags returns the list of container tags
-func (s *CloudFoundryService) GetTags() ([]string, error) {
-	return s.tags, nil
+func (s *CloudFoundryService) GetTags() ([]string, string, error) {
+	return s.tags, "", nil
 }
 
 // GetPid returns nil and an error because pids are currently not supported in CF
-func (s *CloudFoundryService) GetPid() (int, error) {
+func (s *CloudFoundryService) GetPid(context.Context) (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetHostname returns nil and an error because hostnames are not supported in CF
-func (s *CloudFoundryService) GetHostname() (string, error) {
+func (s *CloudFoundryService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
 }
 
@@ -247,12 +249,12 @@ func (s *CloudFoundryService) GetCreationTime() integration.CreationTime {
 }
 
 // IsReady always returns true on CF
-func (s *CloudFoundryService) IsReady() bool {
+func (s *CloudFoundryService) IsReady(context.Context) bool {
 	return true
 }
 
 // GetCheckNames always returns empty slice on CF
-func (s *CloudFoundryService) GetCheckNames() []string {
+func (s *CloudFoundryService) GetCheckNames(context.Context) []string {
 	return []string{}
 }
 

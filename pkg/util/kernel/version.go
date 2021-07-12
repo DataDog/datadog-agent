@@ -8,10 +8,10 @@ import (
 	"github.com/DataDog/ebpf"
 )
 
-var hostVersion Version = 0
-
 // Version is a numerical representation of a kernel version
 type Version uint32
+
+var hostVersion Version
 
 // String returns a string representing the version in x.x.x format
 func (v Version) String() string {

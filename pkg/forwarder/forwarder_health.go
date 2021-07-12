@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package forwarder
 
@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -42,7 +43,7 @@ func init() {
 
 func initForwarderHealthExpvars() {
 	apiKeyStatus.Init()
-	forwarderExpvars.Set("APIKeyStatus", &apiKeyStatus)
+	transaction.ForwarderExpvars.Set("APIKeyStatus", &apiKeyStatus)
 }
 
 // forwarderHealth report the health status of the Forwarder. A Forwarder is

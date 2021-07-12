@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package clusteragent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -48,13 +49,15 @@ type DCAClientInterface interface {
 
 	GetVersion() (version.Version, error)
 	GetNodeLabels(nodeName string) (map[string]string, error)
+	GetNamespaceLabels(nsName string) (map[string]string, error)
 	GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error)
 	GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error)
 	GetCFAppsMetadataForNode(nodename string) (map[string][]string, error)
 
-	PostClusterCheckStatus(nodeName string, status types.NodeStatus) (types.StatusResponse, error)
-	GetClusterCheckConfigs(nodeName string) (types.ConfigResponse, error)
-	GetEndpointsCheckConfigs(nodeName string) (types.ConfigResponse, error)
+	PostClusterCheckStatus(ctx context.Context, nodeName string, status types.NodeStatus) (types.StatusResponse, error)
+	GetClusterCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
+	GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
+	GetKubernetesClusterID() (string, error)
 }
 
 // DCAClient is required to query the API of Datadog cluster agent
@@ -270,6 +273,39 @@ func (c *DCAClient) GetNodeLabels(nodeName string) (map[string]string, error) {
 	return labels, err
 }
 
+// GetNamespaceLabels returns the namespace labels from the Cluster Agent.
+func (c *DCAClient) GetNamespaceLabels(nsName string) (map[string]string, error) {
+	const dcaNamespaceMeta = "api/v1/tags/namespace"
+	var err error
+	var labels map[string]string
+
+	// https://host:port/api/v1/tags/namespace/{nsName}
+	rawURL := fmt.Sprintf("%s/%s/%s", c.clusterAgentAPIEndpoint, dcaNamespaceMeta, nsName)
+
+	req, err := http.NewRequest("GET", rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header = c.clusterAgentAPIRequestHeaders
+
+	resp, err := c.clusterAgentAPIClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(body, &labels)
+	return labels, err
+}
+
 // GetCFAppsMetadataForNode returns the CF application tags from the Cluster Agent.
 func (c *DCAClient) GetCFAppsMetadataForNode(nodename string) (map[string][]string, error) {
 	const dcaCFAppsMeta = "api/v1/tags/cf/apps"
@@ -407,4 +443,41 @@ func (c *DCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string) ([]
 	}
 
 	return metadataNames, nil
+}
+
+// GetKubernetesClusterID queries the datadog cluster agent to get the Kubernetes cluster ID
+// Prefer calling clustername.GetClusterID which has a cached response
+func (c *DCAClient) GetKubernetesClusterID() (string, error) {
+	const dcaClusterIDPath = "api/v1/cluster/id"
+	var clusterID string
+	var err error
+
+	if c == nil {
+		return "", fmt.Errorf("cluster agent's client is not properly initialized")
+	}
+
+	// https://host:port/api/v1/cluster/id
+	rawURL := fmt.Sprintf("%s/%s", c.clusterAgentAPIEndpoint, dcaClusterIDPath)
+	req, err := http.NewRequest("GET", rawURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header = c.clusterAgentAPIRequestHeaders
+
+	resp, err := c.clusterAgentAPIClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
+	}
+
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	err = json.Unmarshal(b, &clusterID)
+	return clusterID, err
 }

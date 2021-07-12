@@ -1,12 +1,16 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
+
+// +build test
 
 package aggregator
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/util"
+
 	// stdlib
 	"math"
 	"testing"
@@ -22,11 +26,13 @@ import (
 
 func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
 	k := ckey.NewKeyGenerator()
-	return k.Generate(sample.GetName(), sample.GetHost(), sample.GetTags())
+	tb := util.NewTagsBuilder()
+	sample.GetTags(tb)
+	return k.Generate(sample.GetName(), sample.GetHost(), tb.Get())
 }
 
 func TestCheckGaugeSampling(t *testing.T) {
-	checkSampler := newCheckSampler()
+	checkSampler := newCheckSampler(1)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -85,7 +91,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 }
 
 func TestCheckRateSampling(t *testing.T) {
-	checkSampler := newCheckSampler()
+	checkSampler := newCheckSampler(1)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -133,8 +139,8 @@ func TestCheckRateSampling(t *testing.T) {
 	}
 }
 
-func TestHistogramIntervalSampling(t *testing.T) {
-	checkSampler := newCheckSampler()
+func TestHistogramCountSampling(t *testing.T) {
+	checkSampler := newCheckSampler(1)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -166,6 +172,7 @@ func TestHistogramIntervalSampling(t *testing.T) {
 	checkSampler.addSample(&mSample3)
 
 	checkSampler.commit(12349.0)
+	require.Len(t, checkSampler.contextResolver.expireCountByKey, 1)
 	series, _ := checkSampler.flush()
 
 	// Check that the `.count` metric returns a raw count of the samples, with no interval normalization
@@ -189,24 +196,25 @@ func TestHistogramIntervalSampling(t *testing.T) {
 	}
 
 	assert.True(t, foundCount)
+	checkSampler.commit(12349.0)
+	require.Len(t, checkSampler.contextResolver.expireCountByKey, 0)
 }
 
 func TestCheckHistogramBucketSampling(t *testing.T) {
-	checkSampler := newCheckSampler()
-	checkSampler.bucketExpiry = 10 * time.Millisecond
+	checkSampler := newCheckSampler(1)
 
 	bucket1 := &metrics.HistogramBucket{
-		Name:       "my.histogram",
-		Value:      4.0,
-		LowerBound: 10.0,
-		UpperBound: 20.0,
-		Tags:       []string{"foo", "bar"},
-		Timestamp:  12345.0,
-		Monotonic:  true,
+		Name:            "my.histogram",
+		Value:           4.0,
+		LowerBound:      10.0,
+		UpperBound:      20.0,
+		Tags:            []string{"foo", "bar"},
+		Timestamp:       12345.0,
+		Monotonic:       true,
+		FlushFirstValue: true,
 	}
 	checkSampler.addBucket(bucket1)
 	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
-	assert.Equal(t, len(checkSampler.lastSeenBucket), 1)
 
 	checkSampler.commit(12349.0)
 	_, flushed := checkSampler.flush()
@@ -237,9 +245,11 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 	}
 	checkSampler.addBucket(bucket2)
 	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
-	assert.Equal(t, len(checkSampler.lastSeenBucket), 1)
 
 	checkSampler.commit(12401.0)
+	assert.Len(t, checkSampler.lastBucketValue, 1)
+	checkSampler.commit(12401.0)
+	assert.Len(t, checkSampler.lastBucketValue, 0)
 	_, flushed = checkSampler.flush()
 
 	expSketch = &quantile.Sketch{}
@@ -261,12 +271,62 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 	time.Sleep(11 * time.Millisecond)
 	checkSampler.flush()
 	assert.Equal(t, len(checkSampler.lastBucketValue), 0)
-	assert.Equal(t, len(checkSampler.lastSeenBucket), 0)
+}
+
+func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
+	checkSampler := newCheckSampler(1)
+
+	bucket1 := &metrics.HistogramBucket{
+		Name:            "my.histogram",
+		Value:           4.0,
+		LowerBound:      10.0,
+		UpperBound:      20.0,
+		Tags:            []string{"foo", "bar"},
+		Timestamp:       12345.0,
+		Monotonic:       true,
+		FlushFirstValue: false,
+	}
+	checkSampler.addBucket(bucket1)
+	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
+
+	checkSampler.commit(12349.0)
+	_, flushed := checkSampler.flush()
+	assert.Equal(t, 0, len(flushed))
+
+	bucket2 := &metrics.HistogramBucket{
+		Name:       "my.histogram",
+		Value:      6.0,
+		LowerBound: 10.0,
+		UpperBound: 20.0,
+		Tags:       []string{"foo", "bar"},
+		Timestamp:  12400.0,
+		Monotonic:  true,
+	}
+	checkSampler.addBucket(bucket2)
+	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
+
+	checkSampler.commit(12401.0)
+	_, flushed = checkSampler.flush()
+
+	expSketch := &quantile.Sketch{}
+	// linear interpolated values (only 2 since we stored the delta)
+	expSketch.Insert(quantile.Default(), 10.0, 15.0)
+
+	assert.Equal(t, 1, len(flushed))
+	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
+	metrics.AssertSketchSeriesApproxEqual(t, metrics.SketchSeries{
+		Name: "my.histogram",
+		Tags: []string{"foo", "bar"},
+		Points: []metrics.SketchPoint{
+			{Ts: 12400.0, Sketch: expSketch},
+		},
+		ContextKey: generateContextKey(bucket1),
+	}, flushed[0], .03)
+
 }
 
 func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
-	checkSampler := newCheckSampler()
-	checkSampler.bucketExpiry = 10 * time.Millisecond
+	checkSampler := newCheckSampler(1)
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:       "my.histogram",

@@ -1,0 +1,239 @@
+---
+# FIXME: our current Gitlab version doesn't support importing a file more than once
+# For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
+# See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
+# include:
+#   - /.gitlab/kitchen_common/testing.yml
+
+
+# Kitchen: OSes
+# -------------
+
+# Used for Agent 5 upgrade tests, as Agent 5 RPMs aren't built to be
+# installable in FIPS mode.
+.kitchen_os_centos_all_non_fips:
+  variables:
+    KITCHEN_PLATFORM: "centos"
+    KITCHEN_OSVERS: "centos-69,centos-77,rhel-81"
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+
+.kitchen_os_centos_6_7_non_fips:
+  variables:
+    KITCHEN_PLATFORM: "centos"
+    KITCHEN_OSVERS: "centos-69,centos-77"
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+
+.kitchen_os_centos_8_fips:
+  variables:
+    KITCHEN_FIPS: "true"
+    KITCHEN_PLATFORM: "centos"
+    # For now, we only test FIPS on 8.1
+    KITCHEN_OSVERS: "rhel-81"
+    DEFAULT_KITCHEN_OSVERS: "rhel-81"
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export KITCHEN_PLATFORM_SUFFIX="${KITCHEN_PLATFORM_SUFFIX}fips"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+
+# Kitchen: scenarios (os * agent)
+# -------------------------------
+
+.kitchen_scenario_centos_all_non_fips_a6:
+  extends:
+    - .kitchen_agent_a6
+    - .kitchen_os_centos_all_non_fips
+  needs: ["deploy_rpm_testing-a6"]
+
+.kitchen_scenario_centos_all_non_fips_a7:
+  extends:
+    - .kitchen_agent_a7
+    - .kitchen_os_centos_all_non_fips
+  needs: ["deploy_rpm_testing-a7"]
+
+.kitchen_scenario_centos_6_7_non_fips_a6:
+  extends:
+    - .kitchen_os_centos_6_7_non_fips
+    - .kitchen_agent_a6
+  needs: ["deploy_rpm_testing-a6"]
+
+.kitchen_scenario_centos_6_7_non_fips_a7:
+  extends:
+    - .kitchen_agent_a7
+    - .kitchen_os_centos_6_7_non_fips
+  needs: ["deploy_rpm_testing-a7"]
+
+.kitchen_scenario_centos_8_fips_a6:
+  extends:
+    - .kitchen_agent_a6
+    - .kitchen_os_centos_8_fips
+  needs: ["deploy_rpm_testing-a6"]
+
+.kitchen_scenario_centos_8_fips_a7:
+  extends:
+    - .kitchen_agent_a7
+    - .kitchen_os_centos_8_fips
+  needs: ["deploy_rpm_testing-a7"]
+
+# Kitchen: final test matrix (tests * scenarios)
+# ----------------------------------------------
+
+# We do install_script, step_by_step, upgrade6, upgrade7 and upgrade7_iot
+# with FIPS on for CentOS/RHEL 8, while we do these with FIPS off
+# for CentOS/RHEL 6/7.
+kitchen_centos_install_script_agent-a6:
+  extends:
+    - .kitchen_scenario_centos_6_7_non_fips_a6
+    - .kitchen_test_install_script_agent
+
+kitchen_centos_install_script_agent-a7:
+  extends:
+    - .kitchen_scenario_centos_6_7_non_fips_a7
+    - .kitchen_test_install_script_agent
+
+kitchen_centos_fips_install_script_agent-a6:
+  extends:
+    - .kitchen_scenario_centos_8_fips_a6
+    - .kitchen_test_install_script_agent
+
+kitchen_centos_fips_install_script_agent-a7:
+  # Run install script test on branches, on a reduced number of platforms
+  rules:
+    !reference [.on_default_kitchen_tests_a7]
+  extends:
+    - .kitchen_scenario_centos_8_fips_a7
+    - .kitchen_test_install_script_agent
+
+kitchen_centos_install_script_iot_agent-a7:
+  extends:
+    - .kitchen_scenario_centos_6_7_non_fips_a7
+    - .kitchen_test_install_script_iot_agent
+
+kitchen_centos_fips_install_script_iot_agent-a7:
+  extends:
+    - .kitchen_scenario_centos_8_fips_a7
+    - .kitchen_test_install_script_iot_agent
+
+kitchen_centos_install_script_dogstatsd-a7:
+  extends:
+    - .kitchen_scenario_centos_6_7_non_fips_a7
+    - .kitchen_test_install_script_dogstatsd
+
+kitchen_centos_fips_install_script_dogstatsd-a7:
+  extends:
+    - .kitchen_scenario_centos_8_fips_a7
+    - .kitchen_test_install_script_dogstatsd
+
+# We only want to run step-by-step tests on deploy pipelines,
+# which is why they have a different rule (if_deploy_6/7)
+
+kitchen_centos_step_by_step_agent-a6:
+  extends:
+    - .kitchen_scenario_centos_6_7_non_fips_a6
+    - .kitchen_test_step_by_step_agent
+  rules:
+    !reference [.on_deploy_a6]
+
+kitchen_centos_fips_step_by_step_agent-a6:
+  extends:
+    - .kitchen_scenario_centos_8_fips_a6
+    - .kitchen_test_step_by_step_agent
+  rules:
+    !reference [.on_deploy_a6]
+
+kitchen_centos_step_by_step_agent-a7:
+  extends:
+    - .kitchen_scenario_centos_6_7_non_fips_a7
+    - .kitchen_test_step_by_step_agent
+  rules:
+    !reference [.on_deploy_a7]
+
+kitchen_centos_fips_step_by_step_agent-a7:
+  extends:
+    - .kitchen_scenario_centos_8_fips_a7
+    - .kitchen_test_step_by_step_agent
+  rules:
+    !reference [.on_deploy_a7]
+
+# Agent 5 RPMs won't install on CentOS/RHEL 8 in FIPS mode, so we always
+# run upgrade5 on all systems with FIPS off
+kitchen_centos_upgrade5_agent-a6:
+  extends:
+    - .kitchen_scenario_centos_all_non_fips_a6
+    - .kitchen_test_upgrade5_agent
+
+kitchen_centos_upgrade5_agent-a7:
+  extends:
+    - .kitchen_scenario_centos_all_non_fips_a7
+    - .kitchen_test_upgrade5_agent
+
+# TODO: in Agent 7.29 development cycle (after 7.28 is released), delete
+# the below 4 jobs and uncoment the 8 commented jobs. The update jobs
+# will only work correctly on FIPS once we release 7.28, which is built
+# to be installable in FIPS mode (because 7.28 has to be installed first
+# to be updated to 7.29).
+kitchen_centos_upgrade6_agent-a6:
+  extends:
+    - .kitchen_scenario_centos_all_non_fips_a6
+    - .kitchen_test_upgrade6_agent
+
+kitchen_centos_upgrade6_agent-a7:
+  extends:
+    - .kitchen_scenario_centos_all_non_fips_a7
+    - .kitchen_test_upgrade6_agent
+
+kitchen_centos_upgrade7_agent-a7:
+  extends:
+    - .kitchen_scenario_centos_all_non_fips_a7
+    - .kitchen_test_upgrade7_agent
+
+kitchen_centos_upgrade7_iot_agent-a7:
+  extends:
+    - .kitchen_scenario_centos_all_non_fips_a7
+    - .kitchen_test_upgrade7_iot_agent
+
+# kitchen_centos_upgrade6_agent-a6:
+#   extends:
+#     - .kitchen_scenario_centos_6_7_non_fips_a6
+#     - .kitchen_test_upgrade6_agent
+#
+# kitchen_centos_upgrade6_agent-a7:
+#   extends:
+#     - .kitchen_scenario_centos_6_7_non_fips_a7
+#     - .kitchen_test_upgrade6_agent
+#
+# kitchen_centos_upgrade7_agent-a7:
+#   extends:
+#     - .kitchen_scenario_centos_6_7_non_fips_a7
+#     - .kitchen_test_upgrade7_agent
+#
+# kitchen_centos_fips_upgrade6_agent-a6:
+#   extends:
+#     - .kitchen_scenario_centos_8_fips_a6
+#     - .kitchen_test_upgrade6_agent
+#
+# kitchen_centos_fips_upgrade6_agent-a7:
+#   extends:
+#     - .kitchen_scenario_centos_8_fips_a7
+#     - .kitchen_test_upgrade6_agent
+#
+# kitchen_centos_fips_upgrade7_agent-a7:
+#   extends:
+#     - .kitchen_scenario_centos_8_fips_a7
+#     - .kitchen_test_upgrade7_agent
+#
+# kitchen_centos_upgrade7_iot_agent-a7:
+#   extends:
+#     - .kitchen_scenario_centos_6_7_non_fips_a7
+#     - .kitchen_test_upgrade7_iot_agent
+#
+# kitchen_centos_fips_upgrade7_iot_agent-a7:
+#   extends:
+#     - .kitchen_scenario_centos_8_fips_a7
+#     - .kitchen_test_upgrade7_iot_agent

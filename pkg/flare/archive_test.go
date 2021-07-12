@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package flare
 
@@ -250,8 +250,9 @@ func TestCleanDirectoryName(t *testing.T) {
 func TestZipTaggerList(t *testing.T) {
 	tagMap := make(map[string]response.TaggerListEntity)
 	tagMap["random_entity_name"] = response.TaggerListEntity{
-		Sources: []string{"docker_source_name"},
-		Tags:    []string{"docker_image:custom-agent:latest", "image_name:custom-agent"},
+		Tags: map[string][]string{
+			"docker_source_name": {"docker_image:custom-agent:latest", "image_name:custom-agent"},
+		},
 	}
 	resp := response.TaggerListResponse{
 		Entities: tagMap,

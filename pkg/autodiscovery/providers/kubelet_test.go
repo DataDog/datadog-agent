@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubelet
 
@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -24,6 +25,7 @@ func TestParseKubeletPodlist(t *testing.T) {
 		desc        string
 		pod         *kubelet.Pod
 		expectedCfg []integration.Config
+		expectedErr ErrorMsgSet
 	}{
 		{
 			desc: "No annotations",
@@ -44,6 +46,7 @@ func TestParseKubeletPodlist(t *testing.T) {
 				},
 			},
 			expectedCfg: nil,
+			expectedErr: nil,
 		},
 		{
 			desc: "New + old, new takes over",
@@ -82,6 +85,7 @@ func TestParseKubeletPodlist(t *testing.T) {
 					Source:        "kubelet:container_id://3b8efe0c50e8",
 				},
 			},
+			expectedErr: nil,
 		},
 		{
 			desc: "New annotation prefix, two templates",
@@ -135,6 +139,7 @@ func TestParseKubeletPodlist(t *testing.T) {
 					Source:        "kubelet:container_id://4ac8352d70bf1",
 				},
 			},
+			expectedErr: nil,
 		},
 		{
 			desc: "Legacy annotation prefix, two checks in one template",
@@ -177,6 +182,7 @@ func TestParseKubeletPodlist(t *testing.T) {
 					Source:        "kubelet:container_id://3b8efe0c50e8",
 				},
 			},
+			expectedErr: nil,
 		},
 		{
 			desc: "Custom check ID",
@@ -213,14 +219,63 @@ func TestParseKubeletPodlist(t *testing.T) {
 					Source:        "kubelet:container_id://4ac8352d70bf1",
 				},
 			},
+			expectedErr: nil,
+		},
+		{
+			desc: "Non-duplicate errors",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "nginx-1752f8c774-wtjql",
+					Namespace: "testNamespace",
+					Annotations: map[string]string{
+						"ad.datadoghq.com/nonmatching.check_names":  "[\"http_check\"]",
+						"ad.datadoghq.com/nonmatching.init_configs": "[{}]",
+						"ad.datadoghq.com/nonmatching.instances":    "[{\"name\": \"Other service\", \"url\": \"http://%%host_external%%\", \"timeout\": 1}]",
+					},
+				},
+				Status: kubelet.Status{
+					Containers: []kubelet.ContainerStatus{
+						{
+							Name: "nginx",
+							ID:   "container_id://4ac8352d70bf1",
+						},
+						{
+							Name: "apache",
+							ID:   "container_id://3b8efe0c50e8",
+						},
+					},
+					AllContainers: []kubelet.ContainerStatus{
+						{
+							Name: "nginx",
+							ID:   "container_id://4ac8352d70bf1",
+						},
+						{
+							Name: "apache",
+							ID:   "container_id://3b8efe0c50e8",
+						},
+					},
+				},
+			},
+			expectedCfg: nil,
+			expectedErr: ErrorMsgSet{
+				"annotation ad.datadoghq.com/nonmatching.check_names is invalid: nonmatching doesn't match a container identifier [apache nginx]":  {},
+				"annotation ad.datadoghq.com/nonmatching.init_configs is invalid: nonmatching doesn't match a container identifier [apache nginx]": {},
+				"annotation ad.datadoghq.com/nonmatching.instances is invalid: nonmatching doesn't match a container identifier [apache nginx]":    {},
+			},
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.desc), func(t *testing.T) {
-			checks, err := parseKubeletPodlist([]*kubelet.Pod{tc.pod})
+			m, err := NewKubeletConfigProvider(config.ConfigurationProviders{Name: "kubernetes"})
 			assert.NoError(t, err)
+			checks, err := m.(*KubeletConfigProvider).parseKubeletPodlist([]*kubelet.Pod{tc.pod})
+			assert.NoError(t, err)
+
 			assert.Equal(t, len(tc.expectedCfg), len(checks))
 			assert.EqualValues(t, tc.expectedCfg, checks)
 
+			namespacedName := tc.pod.Metadata.Namespace + "/" + tc.pod.Metadata.Name
+			assert.Equal(t, len(tc.expectedErr), len(m.(*KubeletConfigProvider).configErrors[namespacedName]))
+			assert.EqualValues(t, tc.expectedErr, m.(*KubeletConfigProvider).configErrors[namespacedName])
 		})
 	}
 }

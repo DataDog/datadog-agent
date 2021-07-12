@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package app
 
@@ -49,12 +49,12 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Read configuration files received from the command line arguments '-c'
-	err := common.MergeConfigurationFiles("datadog", confPathArray)
+	err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed)
 	if err != nil {
 		return err
 	}
 
-	err = config.SetupLogger(loggerName, config.GetEnv("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+	err = config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
 	if err != nil {
 		return log.Errorf("Cannot setup logger, exiting: %v", err)
 	}

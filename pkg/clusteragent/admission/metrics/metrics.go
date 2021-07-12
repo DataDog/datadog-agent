@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -9,6 +9,7 @@ package metrics
 
 import "github.com/DataDog/datadog-agent/pkg/telemetry"
 
+// Metric names
 const (
 	SecretControllerName   = "secrets"
 	WebhooksControllerName = "webhooks"
@@ -16,6 +17,7 @@ const (
 	ConfigMutationType     = "agent_config"
 )
 
+// Telemetry metrics
 var (
 	ReconcileSuccess = telemetry.NewGaugeWithOpts("admission_webhooks", "reconcile_success",
 		[]string{"controller"}, "Number of reconcile success per controller.",

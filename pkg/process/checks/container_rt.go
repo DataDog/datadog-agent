@@ -1,7 +1,6 @@
 package checks
 
 import (
-	"runtime"
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
@@ -10,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	containercollectors "github.com/DataDog/datadog-agent/pkg/util/containers/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 // RTContainer is a singleton RTContainerCheck.
@@ -28,7 +28,7 @@ func (r *RTContainerCheck) Init(_ *config.AgentConfig, sysInfo *model.SystemInfo
 }
 
 // Name returns the name of the RTContainerCheck.
-func (r *RTContainerCheck) Name() string { return "rtcontainer" }
+func (r *RTContainerCheck) Name() string { return config.RTContainerCheckName }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (r *RTContainerCheck) RealTime() bool { return true }
@@ -68,7 +68,7 @@ func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 		messages = append(messages, &model.CollectorContainerRealTime{
 			HostName:          cfg.HostName,
 			Stats:             chunked[i],
-			NumCpus:           int32(runtime.NumCPU()),
+			NumCpus:           int32(system.HostCPUCount()),
 			TotalMemory:       r.sysInfo.TotalMemory,
 			GroupId:           groupID,
 			GroupSize:         int32(groupSize),
@@ -106,7 +106,7 @@ func fmtContainerStats(
 		lastCtr = fillNilRates(lastCtr)
 
 		ifStats := ctr.Network.SumInterfaces()
-		cpus := runtime.NumCPU()
+		cpus := system.HostCPUCount()
 		sys2, sys1 := ctr.CPU.SystemUsage, lastCtr.CPU.SystemUsage
 		chunk = append(chunk, &model.ContainerStat{
 			Id:          ctr.ID,

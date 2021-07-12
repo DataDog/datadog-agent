@@ -1,21 +1,23 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
 import (
+	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/viper"
 	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 )
 
 // safeConfig implements Config:
@@ -123,6 +125,17 @@ func (c *safeConfig) GetInt(key string) int {
 	return val
 }
 
+// GetInt32 wraps Viper for concurrent access
+func (c *safeConfig) GetInt32(key string) int32 {
+	c.RLock()
+	defer c.RUnlock()
+	val, err := c.Viper.GetInt32E(key)
+	if err != nil {
+		log.Warnf("failed to get configuration value for key %q: %s", key, err)
+	}
+	return val
+}
+
 // GetInt64 wraps Viper for concurrent access
 func (c *safeConfig) GetInt64(key string) int64 {
 	c.RLock()
@@ -176,6 +189,28 @@ func (c *safeConfig) GetStringSlice(key string) []string {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
 	return val
+}
+
+// GetFloat64SliceE loads a key as a []float64
+func (c *safeConfig) GetFloat64SliceE(key string) ([]float64, error) {
+	c.RLock()
+	defer c.RUnlock()
+
+	// We're using GetStringSlice because viper can only parse list of string from env variables
+	list, err := c.Viper.GetStringSliceE(key)
+	if err != nil {
+		return nil, fmt.Errorf("'%v' is not a list", key)
+	}
+
+	res := []float64{}
+	for _, item := range list {
+		nb, err := strconv.ParseFloat(item, 64)
+		if err != nil {
+			return nil, fmt.Errorf("value '%v' from '%v' is not a float64", item, key)
+		}
+		res = append(res, nb)
+	}
+	return res, nil
 }
 
 // GetStringMap wraps Viper for concurrent access

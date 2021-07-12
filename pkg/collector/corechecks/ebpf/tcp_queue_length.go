@@ -1,11 +1,11 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // FIXME: we require the `cgo` build tag because of this dep relationship:
 // github.com/DataDog/datadog-agent/pkg/process/net depends on `github.com/DataDog/agent-payload/process`,
-// which has a hard dependency on `github.com/DataDog/zstd`, which requires CGO.
+// which has a hard dependency on `github.com/DataDog/zstd_0`, which requires CGO.
 // Should be removed once `github.com/DataDog/agent-payload/process` can be imported with CGO disabled.
 // +build cgo
 // +build linux
@@ -19,8 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
 	dd_config "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/tcpqueuelength"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -60,10 +60,7 @@ func (t *TCPQueueLengthConfig) Parse(data []byte) error {
 	// default values
 	t.CollectTCPQueueLength = true
 
-	if err := yaml.Unmarshal(data, t); err != nil {
-		return err
-	}
-	return nil
+	return yaml.Unmarshal(data, t)
 }
 
 //Configure parses the check configuration and init the check
@@ -100,7 +97,7 @@ func (t *TCPQueueLengthCheck) Run() error {
 		return err
 	}
 
-	stats, ok := data.(tcpqueuelength.Stats)
+	stats, ok := data.(probe.TCPQueueLengthStats)
 	if !ok {
 		return log.Errorf("Raw data has incorrect type")
 	}

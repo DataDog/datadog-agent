@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package legacy
 
@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	warningNewKubeCheck       string = "Warning: The Kubernetes integration has been overhauled, please see https://github.com/DataDog/datadog-agent/blob/master/docs/agent/changes.md#kubernetes-support"
+	warningNewKubeCheck       string = "Warning: The Kubernetes integration has been overhauled, please see https://github.com/DataDog/datadog-agent/blob/main/docs/agent/changes.md#kubernetes-support"
 	deprecationAPIServerCreds string = "please use kubernetes_kubeconfig_path instead"
 	deprecationHisto          string = "please contact support to determine the best alternative for you"
 	deprecationFiltering      string = "Agent6 now collects metrics from all available namespaces"

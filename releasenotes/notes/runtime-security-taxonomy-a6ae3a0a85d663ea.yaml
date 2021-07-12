@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Events sent by the runtime security agent to the backend use
+    a new taxonomy.

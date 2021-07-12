@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package ast
 
@@ -71,8 +71,26 @@ func TestCompareComplex(t *testing.T) {
 	print(t, rule)
 }
 
-func TestBoolAnd(t *testing.T) {
+func TestRegister(t *testing.T) {
+	rule, err := ParseRule(`process.ancestors[A].filename == "/usr/bin/vipw" && process.ancestors[A].pid == 44`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
+
+func TestIntAnd(t *testing.T) {
 	rule, err := ParseRule(`3 & 3`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
+
+func TestBoolAnd(t *testing.T) {
+	rule, err := ParseRule(`true and true`)
 	if err != nil {
 		t.Error(err)
 	}
@@ -141,11 +159,57 @@ func TestMultiline(t *testing.T) {
 	}
 
 	expr = `process.filename == "/usr/bin/vipw" && (
-	process.filename == "/usr/bin/test" ||
+	process.filename == "/usr/bin/test" || # blah blah
+	# blah blah
 	process.filename == "/ust/bin/false"
 	)`
 
 	if _, err := ParseRule(expr); err != nil {
 		t.Error(err)
 	}
+}
+
+func TestPattern(t *testing.T) {
+	rule, err := ParseRule(`process.name == ~"/usr/bin/ls"`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
+
+func TestArrayPattern(t *testing.T) {
+	rule, err := ParseRule(`process.name in [~"/usr/bin/ls", "/usr/sbin/ls"]`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
+
+func TestRegexp(t *testing.T) {
+	rule, err := ParseRule(`process.name == r"/usr/bin/ls"`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
+
+func TestArrayRegexp(t *testing.T) {
+	rule, err := ParseRule(`process.name in [r"/usr/bin/ls", "/usr/sbin/ls"]`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
+}
+
+func TestDuration(t *testing.T) {
+	rule, err := ParseRule(`process.start > 10s`)
+	if err != nil {
+		t.Error(err)
+	}
+
+	print(t, rule)
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017-2020 Datadog, Inc.
+// Copyright 2017-present Datadog, Inc.
 
 // +build docker
 // +build kubeapiserver
@@ -14,6 +14,7 @@ The leader election spawn an endless go routine to acquire the lead.
 */
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -88,7 +89,7 @@ func (suite *apiserverSuite) SetupTest() {
 			require.FailNow(suite.T(), "timeout after %s", setupTimeout.String())
 
 		case <-tick.C:
-			_, err := coreClient.Pods("").List(metav1.ListOptions{Limit: 1})
+			_, err := coreClient.Pods("").List(context.TODO(), metav1.ListOptions{Limit: 1})
 			if err == nil {
 				return
 			}
@@ -173,7 +174,7 @@ func (suite *apiserverSuite) TestLeaderElectionMulti() {
 	client := c.Cl.CoreV1()
 
 	require.Nil(suite.T(), err)
-	cmList, err := client.ConfigMaps(metav1.NamespaceDefault).List(metav1.ListOptions{})
+	cmList, err := client.ConfigMaps(metav1.NamespaceDefault).List(context.TODO(), metav1.ListOptions{})
 	require.Nil(suite.T(), err)
 	// 1 ConfigMap
 	require.Len(suite.T(), cmList.Items, 1)

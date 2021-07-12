@@ -1,16 +1,17 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package flare
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
-	"github.com/mholt/archiver"
+	"github.com/mholt/archiver/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -30,7 +31,7 @@ func CreateSecurityAgentArchive(local bool, logFilePath string, runtimeStatus ma
 
 	// Get hostname, if there's an error in getting the hostname,
 	// set the hostname to unknown
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		hostname = "unknown"
 	}
@@ -83,12 +84,38 @@ func CreateSecurityAgentArchive(local bool, logFilePath string, runtimeStatus ma
 		return "", err
 	}
 
+	err = zipLinuxKernelSymbols(tempDir, hostname)
+	if err != nil {
+		return "", err
+	}
+
+	err = zipLinuxPid1MountInfo(tempDir, hostname)
+	if err != nil {
+		return "", err
+	}
+
+	err = zipLinuxKrobeEvents(tempDir, hostname)
+	if err != nil {
+		log.Infof("Error while getting kprobe_events: %s", err)
+	}
+
+	err = zipLinuxTracingAvailableEvents(tempDir, hostname)
+	if err != nil {
+		log.Infof("Error while getting kprobe_events: %s", err)
+	}
+
+	err = zipLinuxTracingAvailableFilterFunctions(tempDir, hostname)
+	if err != nil {
+		log.Infof("Error while getting kprobe_events: %s", err)
+	}
+
 	err = permsInfos.commit(tempDir, hostname, os.ModePerm)
 	if err != nil {
 		log.Infof("Error while creating permissions.log infos file: %s", err)
 	}
 
-	err = archiver.Zip.Make(zipFilePath, []string{filepath.Join(tempDir, hostname)})
+	// File format is determined based on `zipFilePath` extension
+	err = archiver.Archive([]string{filepath.Join(tempDir, hostname)}, zipFilePath)
 	if err != nil {
 		return "", err
 	}

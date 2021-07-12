@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package forwarder
 
@@ -21,30 +21,12 @@ func init() {
 	rand.Seed(10)
 }
 
-func TestRandomBetween(t *testing.T) {
-	getRandomMinMax := func() (float64, float64) {
-		a := float64(rand.Intn(10))
-		b := float64(rand.Intn(10))
-		min := math.Min(a, b)
-		max := math.Max(a, b)
-		return min, max
-	}
-
-	for i := 1; i < 100; i++ {
-		min, max := getRandomMinMax()
-		between := randomBetween(min, max)
-
-		assert.True(t, min <= between)
-		assert.True(t, max >= between)
-	}
-}
-
 func TestMinBackoffFactorValid(t *testing.T) {
 	mockConfig := config.Mock()
 	e := newBlockedEndpoints()
 
 	// Verify default
-	defaultValue := e.minBackoffFactor
+	defaultValue := e.backoffPolicy.MinBackoffFactor
 	assert.Equal(t, float64(2), defaultValue)
 
 	// Reset original value when finished
@@ -53,12 +35,12 @@ func TestMinBackoffFactorValid(t *testing.T) {
 	// Verify configuration updates global var
 	mockConfig.Set("forwarder_backoff_factor", 4)
 	e = newBlockedEndpoints()
-	assert.Equal(t, float64(4), e.minBackoffFactor)
+	assert.Equal(t, float64(4), e.backoffPolicy.MinBackoffFactor)
 
 	// Verify invalid values recover gracefully
 	mockConfig.Set("forwarder_backoff_factor", 1.5)
 	e = newBlockedEndpoints()
-	assert.Equal(t, defaultValue, e.minBackoffFactor)
+	assert.Equal(t, defaultValue, e.backoffPolicy.MinBackoffFactor)
 }
 
 func TestBaseBackoffTimeValid(t *testing.T) {
@@ -66,7 +48,7 @@ func TestBaseBackoffTimeValid(t *testing.T) {
 	e := newBlockedEndpoints()
 
 	// Verify default
-	defaultValue := e.baseBackoffTime
+	defaultValue := e.backoffPolicy.BaseBackoffTime
 	assert.Equal(t, float64(2), defaultValue)
 
 	// Reset original value when finished
@@ -75,12 +57,12 @@ func TestBaseBackoffTimeValid(t *testing.T) {
 	// Verify configuration updates global var
 	mockConfig.Set("forwarder_backoff_base", 4)
 	e = newBlockedEndpoints()
-	assert.Equal(t, float64(4), e.baseBackoffTime)
+	assert.Equal(t, float64(4), e.backoffPolicy.BaseBackoffTime)
 
 	// Verify invalid values recover gracefully
 	mockConfig.Set("forwarder_backoff_base", 0)
 	e = newBlockedEndpoints()
-	assert.Equal(t, defaultValue, e.baseBackoffTime)
+	assert.Equal(t, defaultValue, e.backoffPolicy.BaseBackoffTime)
 }
 
 func TestMaxBackoffTimeValid(t *testing.T) {
@@ -88,7 +70,7 @@ func TestMaxBackoffTimeValid(t *testing.T) {
 	e := newBlockedEndpoints()
 
 	// Verify default
-	defaultValue := e.maxBackoffTime
+	defaultValue := e.backoffPolicy.MaxBackoffTime
 	assert.Equal(t, float64(64), defaultValue)
 
 	// Reset original value when finished
@@ -97,12 +79,12 @@ func TestMaxBackoffTimeValid(t *testing.T) {
 	// Verify configuration updates global var
 	mockConfig.Set("forwarder_backoff_max", 128)
 	e = newBlockedEndpoints()
-	assert.Equal(t, float64(128), e.maxBackoffTime)
+	assert.Equal(t, float64(128), e.backoffPolicy.MaxBackoffTime)
 
 	// Verify invalid values recover gracefully
 	mockConfig.Set("forwarder_backoff_max", 0)
 	e = newBlockedEndpoints()
-	assert.Equal(t, defaultValue, e.maxBackoffTime)
+	assert.Equal(t, defaultValue, e.backoffPolicy.MaxBackoffTime)
 }
 
 func TestRecoveryIntervalValid(t *testing.T) {
@@ -110,7 +92,7 @@ func TestRecoveryIntervalValid(t *testing.T) {
 	e := newBlockedEndpoints()
 
 	// Verify default
-	defaultValue := e.recoveryInterval
+	defaultValue := e.backoffPolicy.RecoveryInterval
 	recoveryReset := config.Datadog.GetBool("forwarder_recovery_reset")
 	assert.Equal(t, 2, defaultValue)
 	assert.Equal(t, false, recoveryReset)
@@ -122,17 +104,17 @@ func TestRecoveryIntervalValid(t *testing.T) {
 	// Verify configuration updates global var
 	mockConfig.Set("forwarder_recovery_interval", 1)
 	e = newBlockedEndpoints()
-	assert.Equal(t, 1, e.recoveryInterval)
+	assert.Equal(t, 1, e.backoffPolicy.RecoveryInterval)
 
 	// Verify invalid values recover gracefully
 	mockConfig.Set("forwarder_recovery_interval", 0)
 	e = newBlockedEndpoints()
-	assert.Equal(t, defaultValue, e.recoveryInterval)
+	assert.Equal(t, defaultValue, e.backoffPolicy.RecoveryInterval)
 
 	// Verify reset error count
 	mockConfig.Set("forwarder_recovery_reset", true)
 	e = newBlockedEndpoints()
-	assert.Equal(t, e.maxErrors, e.recoveryInterval)
+	assert.Equal(t, e.backoffPolicy.MaxErrors, e.backoffPolicy.RecoveryInterval)
 }
 
 // Test we increase delay on average
@@ -166,7 +148,7 @@ func TestMaxGetBackoffDuration(t *testing.T) {
 	e := newBlockedEndpoints()
 	backoffDuration := e.getBackoffDuration(100)
 
-	assert.Equal(t, time.Duration(e.maxBackoffTime)*time.Second, backoffDuration)
+	assert.Equal(t, time.Duration(e.backoffPolicy.MaxBackoffTime)*time.Second, backoffDuration)
 }
 
 func TestMaxErrors(t *testing.T) {
@@ -187,7 +169,7 @@ func TestMaxErrors(t *testing.T) {
 		previousBackoffDuration = backoffDuration
 	}
 
-	assert.Equal(t, e.maxErrors, attempts)
+	assert.Equal(t, e.backoffPolicy.MaxErrors, attempts)
 }
 
 func TestBlock(t *testing.T) {
@@ -208,10 +190,10 @@ func TestMaxBlock(t *testing.T) {
 	e.close("test")
 	now := time.Now()
 
-	maxBackoffDuration := time.Duration(e.maxBackoffTime) * time.Second
+	maxBackoffDuration := time.Duration(e.backoffPolicy.MaxBackoffTime) * time.Second
 
 	assert.Contains(t, e.errorPerEndpoint, "test")
-	assert.Equal(t, e.maxErrors, e.errorPerEndpoint["test"].nbError)
+	assert.Equal(t, e.backoffPolicy.MaxErrors, e.errorPerEndpoint["test"].nbError)
 	assert.True(t, now.Add(maxBackoffDuration).After(e.errorPerEndpoint["test"].until) ||
 		now.Add(maxBackoffDuration).Equal(e.errorPerEndpoint["test"].until))
 }
@@ -227,7 +209,7 @@ func TestUnblock(t *testing.T) {
 	e.close("test")
 
 	e.recover("test")
-	assert.True(t, e.errorPerEndpoint["test"].nbError == int(math.Max(0, float64(5-e.recoveryInterval))))
+	assert.True(t, e.errorPerEndpoint["test"].nbError == int(math.Max(0, float64(5-e.backoffPolicy.RecoveryInterval))))
 }
 
 func TestMaxUnblock(t *testing.T) {

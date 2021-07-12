@@ -1,12 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://wwt.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package traps
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -62,6 +63,6 @@ func (t *Tailer) run() {
 		}
 		origin := message.NewOrigin(t.source)
 		origin.SetTags(traps.GetTags(packet))
-		t.outputChan <- message.NewMessage(content, origin, message.StatusInfo)
+		t.outputChan <- message.NewMessage(content, origin, message.StatusInfo, time.Now().UnixNano())
 	}
 }

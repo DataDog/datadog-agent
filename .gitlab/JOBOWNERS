@@ -1,0 +1,45 @@
+*                                    @DataDog/agent-platform
+
+# Deps build
+build_libbcc*                        @DataDog/agent-network
+build_clang*                         @DataDog/agent-network
+
+# Source test
+# Notifications are handled separately for more fine-grained control on go tests
+tests_*                              @DataDog/multiple
+tests_ebpf                           @DataDog/agent-network
+
+# Binary build
+build_system-probe*                  @DataDog/agent-network
+cluster_agent_cloudfoundry-build*    @Datadog/integrations-tools-and-libs
+cluster_agent-build*                 @DataDog/container-integrations
+
+# Image build
+docker_build*                        @DataDog/container-integrations
+
+# Image scan
+scan_*_docker_hub*                   @DataDog/container-integrations
+dca_scan_*_docker_hub*               @DataDog/container-integrations
+
+# Check deploy
+# Do not notify on these jobs, they're expected to fail on duplicate
+# deploy pipelines
+check_already_deployed_version_*     @DataDog/do-not-notify
+
+# Image deploy
+dev_*_docker_hub*                    @DataDog/container-integrations
+dev_*_google_container_repository*   @DataDog/container-integrations
+docker_trigger_internal*             @DataDog/container-integrations
+twistlock_scan*                      @DataDog/container-integrations
+
+# Deploy
+deploy_*docker_hub*                  @DataDog/container-integrations
+deploy_*google_container_repository* @DataDog/container-integrations
+
+# Functional test
+kitchen_*_sysprobe*                  @DataDog/agent-network
+kitchen_*_security_agent*            @DataDog/agent-security
+cleanup_kitchen_functional_test      @DataDog/agent-network @DataDog/agent-security
+
+# E2E
+k8s-e2e-*                         @DataDog/container-integrations

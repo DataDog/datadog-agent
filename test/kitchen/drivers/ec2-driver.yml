@@ -1,0 +1,102 @@
+provisioner:
+  name: chef_solo
+  product_name: chef
+  # allow overriding of chef version since we need >= 15 for arm64 testing
+  product_version: <%= ENV['CHEF_VERSION'] ||= '14.12.9' %>
+  chef_license: accept
+  install_strategy: always
+  # the following settings make it possible to do a reboot during setup
+  # (necessary for FIPS tests which reboot to enable FIPS mode)
+  max_retries: 3
+  wait_for_retry: 90
+  client_rb:
+    client_fork: false
+
+driver:
+  name: ec2
+  aws_ssh_key_id: <%= ENV['KITCHEN_EC2_SSH_ID'] %>
+  security_group_ids: <%= [ENV['KITCHEN_EC2_SG_IDS']] || ["sg-7fedd80a","sg-46506837"] %>
+  region: <%= ENV['KITCHEN_EC2_REGION'] ||= "us-east-1" %>
+  instance_type: <%= ENV['KITCHEN_EC2_INSTANCE_TYPE'] ||= 't3.xlarge' %>
+  associate_public_ip: false
+  subnet_id: <%= ENV['KITCHEN_EC2_SUBNET'] ||= 'subnet-b89e00e2' %>
+  iam_profile_name: <%= ENV['KITCHEN_EC2_IAM_PROFILE_NAME'] ||= null %>
+  spot_price: <%= ENV['KITCHEN_EC2_SPOT_PRICE'] %>
+  block_duration_minutes: <%= ENV['KITCHEN_EC2_SPOT_DURATION'] ||= '60' %>
+  tags:
+    created-by: test-kitchen
+    creator: <%= ENV['KITCHEN_EC2_TAG_CREATOR'] || "kitchen-user" %>
+
+platforms:
+# Loop through two lists and output a total matrix of all possible platform + chef versions,
+# for both drivers
+
+
+<%
+    # TEST_PLATFORMS syntax is `short_name1,ami|...`
+    ec2_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
+
+    windows_platforms = []
+    sles11_platforms = []
+    sles15_platforms = []
+
+    idx = 0
+    ec2_test_platforms.each do |platform|
+      idx += 1
+
+      host = "ec2"
+      platform_name = platform[0] + "-#{host}"
+
+      windows = platform_name.include?("win")
+      sles11 = platform_name.include?("sles-11")
+      sles15 = platform_name.include?("sles-15")
+      windows2008 = windows && platform_name.include?("2008")
+
+      if windows
+        windows_platforms << platform_name
+      else
+        if sles15
+          sles15_platforms << platform_name
+        end
+        if sles11
+          sles11_platforms << platform_name
+        end
+      end
+
+      vm_username = ENV['VM_USERNAME'] ? ENV['VM_USERNAME'] : "datadog"
+      vm_password = ENV['SERVER_PASSWORD']
+
+%>
+
+- name: <%= platform_name %>
+  driver:
+    <% if windows %>
+    connection_timeout: 20
+    connection_retries: 40
+    retryable_tries: 600
+    connection_retry_sleep: 20
+    max_wait_until_ready: 1200
+    <% end %>
+    image_id: <%= platform[1] %>
+    block_device_mappings:
+      - device_name: /dev/sda1
+        ebs:
+          volume_type: gp2
+          volume_size: 40
+          delete_on_termination: true
+
+  transport:
+    <% if windows %>
+    name: winrm
+    elevated: true
+    <% else %>
+    connection_retries: 30
+    connection_retry_sleep: 2
+    <% end %>
+    <% if sles15 %>
+    username: ec2-user
+    <% end %>
+    ssh_key: <%= ENV['KITCHEN_EC2_SSH_KEY'] %>
+    
+
+<% end %>

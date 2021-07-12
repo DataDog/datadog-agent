@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package checks
 
@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/Masterminds/sprig"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // getter applies jq query to get string value from json or yaml raw data
@@ -38,10 +38,11 @@ func jsonGetter(data []byte, query string) (string, error) {
 
 // yamlGetter retrieves a property from a YAML file (jq style syntax)
 func yamlGetter(data []byte, query string) (string, error) {
-	var yamlContent map[string]interface{}
+	var yamlContent interface{}
 	if err := yaml.Unmarshal(data, &yamlContent); err != nil {
 		return "", err
 	}
+	yamlContent = jsonquery.NormalizeYAMLForGoJQ(yamlContent)
 	value, _, err := jsonquery.RunSingleOutput(query, yamlContent)
 	return value, err
 }
@@ -99,10 +100,10 @@ func wrapErrorWithID(id string, err error) error {
 }
 
 // instanceToEventData converts an instance to event data filtering out fields not on the allowedFields list
-func instanceToEventData(instance *eval.Instance, allowedFields []string) event.Data {
+func instanceToEventData(instance eval.Instance, allowedFields []string) event.Data {
 	data := event.Data{}
 
-	for k, v := range instance.Vars {
+	for k, v := range instance.Vars() {
 		allow := false
 		for _, a := range allowedFields {
 			if k == a {
@@ -120,21 +121,28 @@ func instanceToEventData(instance *eval.Instance, allowedFields []string) event.
 
 // instanceToReport converts an instance and passed status to report
 // filtering out fields not on the allowedFields list
-func instanceToReport(instance *eval.Instance, passed bool, allowedFields []string) *compliance.Report {
+func instanceToReport(instance resolvedInstance, passed bool, allowedFields []string) *compliance.Report {
 	var data event.Data
+	var resourceReport compliance.ReportResource
 
 	if instance != nil {
 		data = instanceToEventData(instance, allowedFields)
+		resourceReport = compliance.ReportResource{
+			ID:   instance.ID(),
+			Type: instance.Type(),
+		}
 	}
 
 	return &compliance.Report{
-		Passed: passed,
-		Data:   data,
+		Resource: resourceReport,
+		Passed:   passed,
+		Data:     data,
 	}
 }
 
-// instanceToReport converts an evaluated instanceResult to report
+// instanceToReports converts an evaluated instanceResult to reports
 // filtering out fields not on the allowedFields list
 func instanceResultToReport(result *eval.InstanceResult, allowedFields []string) *compliance.Report {
-	return instanceToReport(result.Instance, result.Passed, allowedFields)
+	resolvedInstance, _ := result.Instance.(resolvedInstance)
+	return instanceToReport(resolvedInstance, result.Passed, allowedFields)
 }

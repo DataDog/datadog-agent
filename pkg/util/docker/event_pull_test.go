@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build docker
 
 package docker
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -171,8 +172,10 @@ func TestProcessContainerEvent(t *testing.T) {
 			err: nil,
 		},
 	} {
+		ctx := context.Background()
+
 		t.Logf("test case %d", nb)
-		event, err := dockerUtil.processContainerEvent(tc.source)
+		event, err := dockerUtil.processContainerEvent(ctx, tc.source)
 		assert.Equal(tc.event, event)
 
 		if tc.err == nil {

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package scheduler
 
@@ -111,7 +111,6 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 				log.Warnf("Invalid configuration: %v", err)
 				continue
 			}
-
 			for _, source := range s.sources.GetSources() {
 				if identifier == source.Config.Identifier {
 					s.sources.RemoveSource(source)
@@ -217,8 +216,14 @@ func (s *Scheduler) toSources(config integration.Config) ([]*logsConfig.LogSourc
 		if service != nil {
 			// a config defined in a docker label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.
-			cfg.Type = service.Type
-			cfg.Identifier = service.Identifier // used for matching a source with a service
+			if cfg.Type == logsConfig.FileType && (config.Provider == names.Kubernetes || config.Provider == names.Docker) {
+				// cfg.Type is not overwritten as tailing a file from a Docker or Kubernetes AD configuration
+				// is explicitly supported (other combinations may be supported later)
+				cfg.Identifier = service.Identifier
+			} else {
+				cfg.Type = service.Type
+				cfg.Identifier = service.Identifier // used for matching a source with a service
+			}
 		}
 
 		source := logsConfig.NewLogSource(configName, cfg)

@@ -1,19 +1,31 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package eval
 
 import (
+	"container/list"
 	"fmt"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 )
+
+// NewOptsWithParams initializes a new Opts instance with Constants parameters
+func NewOptsWithParams(constants map[string]interface{}, legacyAttributes map[Field]Field) *Opts {
+	return &Opts{
+		Constants:        constants,
+		Macros:           make(map[MacroID]*Macro),
+		LegacyAttributes: legacyAttributes,
+	}
+}
 
 func parseRule(expr string, model Model, opts *Opts) (*Rule, error) {
 	rule := &Rule{
@@ -35,10 +47,9 @@ func parseRule(expr string, model Model, opts *Opts) (*Rule, error) {
 func eval(t *testing.T, event *testEvent, expr string) (bool, *ast.Rule, error) {
 	model := &testModel{}
 
-	ctx := &Context{}
-	ctx.SetObject(unsafe.Pointer(event))
+	ctx := NewContext(unsafe.Pointer(event))
 
-	opts := NewOptsWithParams(testConstants)
+	opts := NewOptsWithParams(testConstants, nil)
 	rule, err := parseRule(expr, model, opts)
 	if err != nil {
 		return false, nil, err
@@ -163,9 +174,16 @@ func TestSimpleBool(t *testing.T) {
 		Expected bool
 	}{
 		{Expr: `(444 == 444) && ("test" == "test")`, Expected: true},
+		{Expr: `(444 == 444) and ("test" == "test")`, Expected: true},
 		{Expr: `(444 != 444) && ("test" == "test")`, Expected: false},
 		{Expr: `(444 != 555) && ("test" == "test")`, Expected: true},
 		{Expr: `(444 != 555) && ("test" != "aaaa")`, Expected: true},
+		{Expr: `(444 != 555) && # blah blah
+		# blah blah
+		("test" != "aaaa")`, Expected: true},
+		{Expr: `(444 != 555) && # blah blah
+		# blah blah
+		("test" == "aaaa")`, Expected: false},
 	}
 
 	for _, test := range tests {
@@ -189,7 +207,10 @@ func TestPrecedence(t *testing.T) {
 	}{
 		{Expr: `false || (true != true)`, Expected: false},
 		{Expr: `false || true`, Expected: true},
+		{Expr: `false or true`, Expected: true},
 		{Expr: `1 == 1 & 1`, Expected: true},
+		{Expr: `not true && false`, Expected: false},
+		{Expr: `not (true && false)`, Expected: true},
 	}
 
 	for _, test := range tests {
@@ -273,6 +294,16 @@ func TestRegexp(t *testing.T) {
 		{Expr: `process.name =~ "*/bin"`, Expected: false},
 		{Expr: `process.name =~ "/usr/*/c$t"`, Expected: true},
 		{Expr: `process.name =~ "/usr/*/bin/*"`, Expected: false},
+		{Expr: `process.name == ~"/usr/bin/*"`, Expected: true},
+		{Expr: `process.name == ~"/usr/sbin/*"`, Expected: false},
+		{Expr: `process.name =~ ~"/usr/bin/*"`, Expected: true},
+		{Expr: `process.name =~ "/usr/bin/c$t"`, Expected: true},
+		{Expr: `process.name =~ "/usr/bin/c$taaa"`, Expected: false},
+		{Expr: `process.name =~ r".*/bin/.*"`, Expected: true},
+		{Expr: `process.name =~ r".*/[usr]+/bin/.*"`, Expected: true},
+		{Expr: `process.name =~ r".*/[abc]+/bin/.*"`, Expected: false},
+		{Expr: `process.name == r".*/bin/.*"`, Expected: true},
+		{Expr: `r".*/bin/.*" == process.name`, Expected: true},
 	}
 
 	for _, test := range tests {
@@ -290,7 +321,7 @@ func TestRegexp(t *testing.T) {
 func TestInArray(t *testing.T) {
 	event := &testEvent{
 		process: testProcess{
-			name: "a",
+			name: "aaa",
 			uid:  3,
 		},
 	}
@@ -300,12 +331,12 @@ func TestInArray(t *testing.T) {
 		Expected bool
 	}{
 		{Expr: `"a" in [ "a", "b", "c" ]`, Expected: true},
-		{Expr: `process.name in [ "c", "b", "a" ]`, Expected: true},
-		{Expr: `"d" in [ "a", "b", "c" ]`, Expected: false},
+		{Expr: `process.name in [ "c", "b", "aaa" ]`, Expected: true},
+		{Expr: `"d" in [ "aaa", "b", "c" ]`, Expected: false},
 		{Expr: `process.name in [ "c", "b", "z" ]`, Expected: false},
-		{Expr: `"a" not in [ "a", "b", "c" ]`, Expected: false},
-		{Expr: `process.name not in [ "c", "b", "a" ]`, Expected: false},
-		{Expr: `"d" not in [ "a", "b", "c" ]`, Expected: true},
+		{Expr: `"aaa" not in [ "aaa", "b", "c" ]`, Expected: false},
+		{Expr: `process.name not in [ "c", "b", "aaa" ]`, Expected: false},
+		{Expr: `"d" not in [ "aaa", "b", "c" ]`, Expected: true},
 		{Expr: `process.name not in [ "c", "b", "z" ]`, Expected: true},
 		{Expr: `3 in [ 1, 2, 3 ]`, Expected: true},
 		{Expr: `process.uid in [ 1, 2, 3 ]`, Expected: true},
@@ -315,6 +346,16 @@ func TestInArray(t *testing.T) {
 		{Expr: `3 not in [ 1, 2, 3 ]`, Expected: false},
 		{Expr: `4 not in [ 1, 2, 3 ]`, Expected: true},
 		{Expr: `4 not in [ 3, 2, 1 ]`, Expected: true},
+		{Expr: `process.name in [ ~"*a*" ]`, Expected: true},
+		{Expr: `process.name in [ ~"*d*" ]`, Expected: false},
+		{Expr: `process.name in [ ~"*d*", "aaa" ]`, Expected: true},
+		{Expr: `process.name in [ ~"*d*", "aa*" ]`, Expected: false},
+		{Expr: `process.name in [ ~"*d*", ~"aa*" ]`, Expected: true},
+		{Expr: `process.name in [ r".*d.*", r"aa.*" ]`, Expected: true},
+		{Expr: `process.name in [ r".*d.*", r"ab.*" ]`, Expected: false},
+		{Expr: `process.name not in [ r".*d.*", r"ab.*" ]`, Expected: true},
+		{Expr: `process.name in [ "bbb", "aaa" ]`, Expected: true},
+		{Expr: `process.name not in [ "bbb", "aaa" ]`, Expected: false},
 	}
 
 	for _, test := range tests {
@@ -370,7 +411,7 @@ func TestPartial(t *testing.T) {
 
 	tests := []struct {
 		Expr        string
-		Field       string
+		Field       Field
 		IsDiscarder bool
 	}{
 		{Expr: `true || process.name == "/usr/bin/cat"`, Field: "process.name", IsDiscarder: false},
@@ -402,19 +443,20 @@ func TestPartial(t *testing.T) {
 		{Expr: `!(open.filename in [ "test1", "xyz" ] && false) && !(process.name == "abc")`, Field: "open.filename", IsDiscarder: false},
 		{Expr: `(open.filename not in [ "test1", "xyz" ] && true) && !(process.name == "abc")`, Field: "open.filename", IsDiscarder: true},
 		{Expr: `open.filename == open.filename`, Field: "open.filename", IsDiscarder: false},
-		{Expr: `open.filename != open.filename`, Field: "open.filename", IsDiscarder: true},
+		{Expr: `open.filename != open.filename`, Field: "open.filename", IsDiscarder: false},
 		{Expr: `open.filename == "test1" && process.uid == 456`, Field: "process.uid", IsDiscarder: true},
 		{Expr: `open.filename == "test1" && process.uid == 123`, Field: "process.uid", IsDiscarder: false},
 		{Expr: `open.filename == "test1" && !process.is_root`, Field: "process.is_root", IsDiscarder: true},
 		{Expr: `open.filename == "test1" && process.is_root`, Field: "process.is_root", IsDiscarder: false},
+		{Expr: `open.filename =~ "*test1*"`, Field: "open.filename", IsDiscarder: true},
 	}
 
-	ctx := &Context{}
-	ctx.SetObject(unsafe.Pointer(&event))
+	ctx := NewContext(unsafe.Pointer(&event))
 
 	for _, test := range tests {
 		model := &testModel{}
 		opts := &Opts{Constants: testConstants}
+
 		rule, err := parseRule(test.Expr, model, opts)
 		if err != nil {
 			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
@@ -450,7 +492,7 @@ func TestMacroList(t *testing.T) {
 		t.Fatalf("%s\n%s", err, macro.Expression)
 	}
 
-	opts := NewOptsWithParams(make(map[string]interface{}))
+	opts := NewOptsWithParams(make(map[string]interface{}), nil)
 	opts.Macros = map[string]*Macro{
 		"list": macro,
 	}
@@ -462,8 +504,7 @@ func TestMacroList(t *testing.T) {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
 
-	ctx := &Context{}
-	ctx.SetObject(unsafe.Pointer(&testEvent{}))
+	ctx := NewContext(unsafe.Pointer(&testEvent{}))
 
 	if !rule.Eval(ctx) {
 		t.Fatalf("should return true")
@@ -495,7 +536,7 @@ func TestMacroExpression(t *testing.T) {
 		t.Fatalf("%s\n%s", err, macro.Expression)
 	}
 
-	opts := NewOptsWithParams(make(map[string]interface{}))
+	opts := NewOptsWithParams(make(map[string]interface{}), nil)
 	opts.Macros = map[string]*Macro{
 		"is_passwd": macro,
 	}
@@ -507,9 +548,7 @@ func TestMacroExpression(t *testing.T) {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
 
-	ctx := &Context{}
-	ctx.SetObject(unsafe.Pointer(event))
-
+	ctx := NewContext(unsafe.Pointer(event))
 	if !rule.Eval(ctx) {
 		t.Fatalf("should return true")
 	}
@@ -540,7 +579,7 @@ func TestMacroPartial(t *testing.T) {
 		t.Fatalf("%s\n%s", err, macro.Expression)
 	}
 
-	opts := NewOptsWithParams(make(map[string]interface{}))
+	opts := NewOptsWithParams(make(map[string]interface{}), nil)
 	opts.Macros = map[string]*Macro{
 		"is_passwd": macro,
 	}
@@ -556,8 +595,7 @@ func TestMacroPartial(t *testing.T) {
 		t.Fatalf("error while generating partials `%s`: %s", expr, err)
 	}
 
-	ctx := &Context{}
-	ctx.SetObject(unsafe.Pointer(event))
+	ctx := NewContext(unsafe.Pointer(event))
 
 	result, err := rule.PartialEval(ctx, "open.filename")
 	if err != nil {
@@ -606,7 +644,7 @@ func TestNestedMacros(t *testing.T) {
 
 	model := &testModel{}
 
-	opts := NewOptsWithParams(make(map[string]interface{}))
+	opts := NewOptsWithParams(make(map[string]interface{}), nil)
 	opts.Macros = map[string]*Macro{
 		"sensitive_files":     macro1,
 		"is_sensitive_opened": macro2,
@@ -627,9 +665,7 @@ func TestNestedMacros(t *testing.T) {
 		t.Fatalf("error while evaluating `%s`: %s", expr, err)
 	}
 
-	ctx := &Context{}
-	ctx.SetObject(unsafe.Pointer(event))
-
+	ctx := NewContext(unsafe.Pointer(event))
 	if !rule.Eval(ctx) {
 		t.Fatalf("should return true")
 	}
@@ -642,7 +678,304 @@ func TestFieldValidator(t *testing.T) {
 	}
 }
 
-func BenchmarkComplex(b *testing.B) {
+func TestLegacyField(t *testing.T) {
+	model := &testModel{}
+	opts := NewOptsWithParams(testConstants, legacyAttributes)
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `process.legacy_name == "/tmp/secrets"`, Expected: true},
+		{Expr: `process.random_name == "/tmp/secrets"`, Expected: false},
+		{Expr: `process.name == "/tmp/secrets"`, Expected: true},
+	}
+
+	for _, test := range tests {
+		_, err := parseRule(test.Expr, model, opts)
+		if err == nil != test.Expected {
+			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, err == nil, test.Expr)
+		}
+	}
+}
+
+func TestRegisterSyntaxError(t *testing.T) {
+	model := &testModel{}
+	opts := NewOptsWithParams(testConstants, nil)
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `process.list[_].key == 10 && process.list[_].value == "AAA"`, Expected: true},
+		{Expr: `process.list[].key == 10 && process.list.value == "AAA"`, Expected: false},
+		{Expr: `process.list[_].key == 10 && process.list.value == "AAA"`, Expected: true},
+		{Expr: `process.list.key[] == 10 && process.list.value == "AAA"`, Expected: false},
+		{Expr: `process[].list.key == 10 && process.list.value == "AAA"`, Expected: false},
+		{Expr: `[]process.list.key == 10 && process.list.value == "AAA"`, Expected: false},
+		//{Expr: `process.list[A].key == 10 && process.list[A].value == "AAA" && process.array[B].key == 10 && process.array[B].value == "AAA"`, Expected: false},
+	}
+
+	for _, test := range tests {
+		_, err := parseRule(test.Expr, model, opts)
+		if err == nil != test.Expected {
+			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, err == nil, test.Expr)
+		}
+	}
+}
+
+func TestRegister(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{},
+	}
+
+	event.process.list = list.New()
+	event.process.list.PushBack(&testItem{key: 10, value: "AAA"})
+	event.process.list.PushBack(&testItem{key: 100, value: "BBB"})
+	event.process.list.PushBack(&testItem{key: 200, value: "CCC"})
+
+	event.process.array = []*testItem{
+		{key: 1000, value: "EEEE", flag: true},
+		{key: 1002, value: "DDDD", flag: false},
+	}
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `process.list[_].key == 10`, Expected: true},
+		{Expr: `process.list[_].key == 9999`, Expected: false},
+		{Expr: `process.list[_].key != 10`, Expected: false},
+		{Expr: `process.list[_].key != 9999`, Expected: true},
+
+		{Expr: `process.list[_].key >= 200`, Expected: true},
+		{Expr: `process.list[_].key > 100`, Expected: true},
+		{Expr: `process.list[_].key <= 200`, Expected: true},
+		{Expr: `process.list[_].key < 100`, Expected: true},
+
+		{Expr: `10 == process.list[_].key`, Expected: true},
+		{Expr: `9999 == process.list[_].key`, Expected: false},
+		{Expr: `10 != process.list[_].key`, Expected: false},
+		{Expr: `9999 != process.list[_].key`, Expected: true},
+
+		{Expr: `9999 in process.list[_].key`, Expected: false},
+		{Expr: `9999 not in process.list[_].key`, Expected: true},
+		{Expr: `10 in process.list[_].key`, Expected: true},
+		{Expr: `10 not in process.list[_].key`, Expected: false},
+
+		{Expr: `process.list[_].key > 10`, Expected: true},
+		{Expr: `process.list[_].key > 9999`, Expected: false},
+		{Expr: `process.list[_].key < 10`, Expected: false},
+		{Expr: `process.list[_].key < 9999`, Expected: true},
+
+		{Expr: `5 < process.list[_].key`, Expected: true},
+		{Expr: `9999 < process.list[_].key`, Expected: false},
+		{Expr: `10 > process.list[_].key`, Expected: false},
+		{Expr: `9999 > process.list[_].key`, Expected: true},
+
+		{Expr: `true in process.array[_].flag`, Expected: true},
+		{Expr: `false not in process.array[_].flag`, Expected: false},
+
+		{Expr: `process.array[_].flag == true`, Expected: true},
+		{Expr: `process.array[_].flag != false`, Expected: false},
+
+		{Expr: `"AAA" in process.list[_].value`, Expected: true},
+		{Expr: `"ZZZ" in process.list[_].value`, Expected: false},
+		{Expr: `"AAA" not in process.list[_].value`, Expected: false},
+		{Expr: `"ZZZ" not in process.list[_].value`, Expected: true},
+
+		{Expr: `~"AA*" in process.list[_].value`, Expected: true},
+		{Expr: `~"ZZ*" in process.list[_].value`, Expected: false},
+		{Expr: `~"AA*" not in process.list[_].value`, Expected: false},
+		{Expr: `~"ZZ*" not in process.list[_].value`, Expected: true},
+
+		{Expr: `r"[A]{1,3}" in process.list[_].value`, Expected: true},
+		{Expr: `process.list[_].value in [r"[A]{1,3}", "nnnnn"]`, Expected: true},
+
+		{Expr: `process.list[_].value == ~"AA*"`, Expected: true},
+		{Expr: `process.list[_].value == ~"ZZ*"`, Expected: false},
+		{Expr: `process.list[_].value != ~"AA*"`, Expected: false},
+		{Expr: `process.list[_].value != ~"ZZ*"`, Expected: true},
+
+		{Expr: `process.list[_].value =~ "AA*"`, Expected: true},
+		{Expr: `process.list[_].value =~ "ZZ*"`, Expected: false},
+		{Expr: `process.list[_].value !~ "AA*"`, Expected: false},
+		{Expr: `process.list[_].value !~ "ZZ*"`, Expected: true},
+
+		{Expr: `process.list[_].value in [~"AA*", "nnnnn"]`, Expected: true},
+		{Expr: `process.list[_].value in [~"ZZ*", "nnnnn"]`, Expected: false},
+		{Expr: `process.list[_].value not in [~"AA*", "nnnnn"]`, Expected: false},
+		{Expr: `process.list[_].value not in [~"ZZ*", "nnnnn"]`, Expected: true},
+
+		{Expr: `process.list[_].key == 10 && process.list[_].value == "AAA"`, Expected: true},
+		{Expr: `process.list[_].key == 9999 && process.list[_].value == "AAA"`, Expected: false},
+		{Expr: `process.list[_].key == 100 && process.list[_].value == "BBB"`, Expected: true},
+		{Expr: `process.list[_].key == 200 && process.list[_].value == "CCC"`, Expected: true},
+		{Expr: `process.list.key == 200 && process.list.value == "AAA"`, Expected: true},
+		{Expr: `process.list[_].key == 10 && process.list.value == "AAA"`, Expected: true},
+
+		{Expr: `process.array[_].key == 1000 && process.array[_].value == "EEEE"`, Expected: true},
+		{Expr: `process.array[_].key == 1002 && process.array[_].value == "EEEE"`, Expected: true},
+
+		//{Expr: `process.list[A].key == 200 && process.list[A].value == "CCC"`, Expected: true},
+		//{Expr: `process.list[A].key == 200 && process.list[B].value == "BBB"`, Expected: true},
+		//{Expr: `process.list[A].key == 200 || process.list[B].value == "AA"`, Expected: true},
+		//{Expr: `process.array[A].key == 1002 && process.array[B].value == "DDDD"`, Expected: true},
+		//{Expr: `process.list[_].key == 10 && process.list[_].value == "AA" && process.array[A].key == 1002 && process.array[A].value == "DDDD"`, Expected: true},
+	}
+
+	for _, test := range tests {
+		result, _, err := eval(t, event, test.Expr)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+
+		if result != test.Expected {
+			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, result, test.Expr)
+		}
+	}
+}
+
+func TestRegisterPartial(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{},
+	}
+
+	event.process.list = list.New()
+	event.process.list.PushBack(&testItem{key: 10, value: "AA"})
+	event.process.list.PushBack(&testItem{key: 100, value: "BBB"})
+	event.process.list.PushBack(&testItem{key: 200, value: "CCC"})
+
+	event.process.array = []*testItem{
+		{key: 1000, value: "EEEE"},
+		{key: 1002, value: "DDDD"},
+	}
+
+	tests := []struct {
+		Expr        string
+		Field       Field
+		IsDiscarder bool
+	}{
+		{Expr: `process.list[_].key == 10 && process.list[_].value == "AA"`, Field: "process.list.key", IsDiscarder: false},
+		{Expr: `process.list[_].key == 55 && process.list[_].value == "AA"`, Field: "process.list.key", IsDiscarder: true},
+		{Expr: `process.list[_].key == 55 && process.list[_].value == "AA"`, Field: "process.list.value", IsDiscarder: false},
+		{Expr: `process.list[_].key == 10 && process.list[_].value == "ZZZ"`, Field: "process.list.value", IsDiscarder: true},
+		//{Expr: `process.list[A].key == 10 && process.list[B].value == "ZZZ"`, Field: "process.list.key", IsDiscarder: false},
+		//{Expr: `process.list[A].key == 55 && process.list[B].value == "AA"`, Field: "process.list.key", IsDiscarder: true},
+	}
+
+	ctx := NewContext(unsafe.Pointer(event))
+
+	for _, test := range tests {
+		model := &testModel{}
+		opts := &Opts{Constants: testConstants}
+
+		rule, err := parseRule(test.Expr, model, opts)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+		if err := rule.GenPartials(); err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+
+		result, err := rule.PartialEval(ctx, test.Field)
+		if err != nil {
+			t.Fatalf("error while partial evaluating `%s` for `%s`: %s", test.Expr, test.Field, err)
+		}
+
+		if !result != test.IsDiscarder {
+			t.Fatalf("expected result `%t` for `%s`, got `%t`\n%s", test.IsDiscarder, test.Field, result, test.Expr)
+		}
+	}
+}
+
+func TestOptimizer(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{
+			uid: 44,
+			gid: 44,
+		},
+	}
+
+	event.process.list = list.New()
+	event.process.list.PushBack(&testItem{key: 10, value: "AA"})
+
+	tests := []struct {
+		Expr      string
+		Evaluated func() bool
+	}{
+		{Expr: `process.list[_].key == 44 && process.gid == 55`, Evaluated: func() bool { return event.listEvaluated }},
+		{Expr: `process.gid == 55 && process.list[_].key == 44`, Evaluated: func() bool { return event.listEvaluated }},
+		{Expr: `process.uid in [66, 77, 88] && process.gid == 55`, Evaluated: func() bool { return event.uidEvaluated }},
+		{Expr: `process.gid == 55 && process.uid in [66, 77, 88]`, Evaluated: func() bool { return event.uidEvaluated }},
+	}
+
+	for _, test := range tests {
+		_, _, err := eval(t, event, test.Expr)
+		if err != nil {
+			t.Fatalf("error while evaluating: %s", err)
+		}
+
+		if test.Evaluated() {
+			t.Fatalf("not optimized: %s", test.Expr)
+		}
+	}
+}
+
+func TestDuration(t *testing.T) {
+	// time reliability issue
+	if runtime.GOARCH == "386" && runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
+	event := &testEvent{
+		process: testProcess{
+			createdAt: time.Now().UnixNano(),
+		},
+	}
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `process.created_at < 2s`, Expected: true},
+		{Expr: `process.created_at > 2s`, Expected: false},
+	}
+
+	for _, test := range tests {
+		result, _, err := eval(t, event, test.Expr)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+
+		if result != test.Expected {
+			t.Errorf("expected result `%t` not found, got `%t`\nnow: %v, create_at: %v\n%s", test.Expected, result, time.Now().UnixNano(), event.process.createdAt, test.Expr)
+		}
+	}
+
+	time.Sleep(4 * time.Second)
+
+	tests = []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `process.created_at < 2s`, Expected: false},
+		{Expr: `process.created_at > 2s`, Expected: true},
+	}
+
+	for _, test := range tests {
+		result, _, err := eval(t, event, test.Expr)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+
+		if result != test.Expected {
+			t.Errorf("expected result `%t` not found, got `%t`\nnow: %v, create_at: %v\n%s", test.Expected, result, time.Now().UnixNano(), event.process.createdAt, test.Expr)
+		}
+	}
+}
+
+func BenchmarkArray(b *testing.B) {
 	event := &testEvent{
 		process: testProcess{
 			name: "/usr/bin/ls",
@@ -650,8 +983,47 @@ func BenchmarkComplex(b *testing.B) {
 		},
 	}
 
-	ctx := &Context{}
-	ctx.SetObject(unsafe.Pointer(event))
+	var values []string
+	for i := 0; i != 255; i++ {
+		values = append(values, fmt.Sprintf(`~"/usr/bin/aaa-%d"`, i))
+	}
+
+	for i := 0; i != 255; i++ {
+		values = append(values, fmt.Sprintf(`"/usr/bin/aaa-%d"`, i))
+	}
+
+	base := fmt.Sprintf(`(process.name in [%s, ~"/usr/bin/ls"])`, strings.Join(values, ","))
+	var exprs []string
+
+	for i := 0; i != 100; i++ {
+		exprs = append(exprs, base)
+	}
+
+	expr := strings.Join(exprs, " && ")
+
+	rule, err := parseRule(expr, &testModel{}, &Opts{})
+	if err != nil {
+		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
+	}
+
+	evaluator := rule.GetEvaluator()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ctx := NewContext(unsafe.Pointer(event))
+		if evaluator.Eval(ctx) != true {
+			b.Fatal("unexpected result")
+		}
+	}
+}
+
+func BenchmarkComplex(b *testing.B) {
+	event := &testEvent{
+		process: testProcess{
+			name: "/usr/bin/ls",
+			uid:  1,
+		},
+	}
 
 	base := `(process.name == "/usr/bin/ls" && process.uid == 1)`
 	var exprs []string
@@ -669,7 +1041,9 @@ func BenchmarkComplex(b *testing.B) {
 
 	evaluator := rule.GetEvaluator()
 
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
+		ctx := NewContext(unsafe.Pointer(event))
 		if evaluator.Eval(ctx) != true {
 			b.Fatal("unexpected result")
 		}
@@ -684,8 +1058,7 @@ func BenchmarkPartial(b *testing.B) {
 		},
 	}
 
-	ctx := &Context{}
-	ctx.SetObject(unsafe.Pointer(event))
+	ctx := NewContext(unsafe.Pointer(event))
 
 	base := `(process.name == "/usr/bin/ls" && process.uid != 0)`
 	var exprs []string
@@ -713,9 +1086,46 @@ func BenchmarkPartial(b *testing.B) {
 
 	evaluator := rule.GetEvaluator()
 
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		if ok, _ := evaluator.PartialEval(ctx, "process.name"); ok {
 			b.Fatal("unexpected result")
 		}
+	}
+}
+
+func BenchmarkPool(b *testing.B) {
+	event := &testEvent{
+		process: testProcess{
+			name: "/usr/bin/ls",
+			uid:  1,
+		},
+	}
+
+	pool := NewContextPool()
+
+	base := `(process.name == "/usr/bin/ls" && process.uid == 1)`
+	var exprs []string
+
+	for i := 0; i != 100; i++ {
+		exprs = append(exprs, base)
+	}
+
+	expr := strings.Join(exprs, " && ")
+
+	rule, err := parseRule(expr, &testModel{}, &Opts{})
+	if err != nil {
+		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
+	}
+
+	evaluator := rule.GetEvaluator()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ctx := pool.Get(unsafe.Pointer(event))
+		if evaluator.Eval(ctx) != true {
+			b.Fatal("unexpected result")
+		}
+		pool.pool.Put(ctx)
 	}
 }

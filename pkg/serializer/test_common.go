@@ -1,7 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
+
+// +build test
 
 package serializer
 
@@ -46,8 +48,12 @@ func (s *MockSerializer) SendHostMetadata(m marshaler.Marshaler) error {
 	return s.Called(m).Error(0)
 }
 
-// SendJSONToV1Intake serializes a payload and sends it to the forwarder. Some code sends
-// arbitrary payload the v1 API.
-func (s *MockSerializer) SendJSONToV1Intake(data interface{}) error {
+// SendProcessesMetadata serializes a legacy process metadata payload and sends it to the forwarder.
+func (s *MockSerializer) SendProcessesMetadata(data interface{}) error {
 	return s.Called(data).Error(0)
+}
+
+// SendOrchestratorMetadata serializes & send orchestrator metadata payloads
+func (s *MockSerializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID, payloadType string) error {
+	return s.Called(msgs, hostName, clusterID, payloadType).Error(0)
 }

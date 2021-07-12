@@ -22,7 +22,7 @@ docker push datadog/datadog-agent-runner-circle:go1147
 ```
 
 Once your image is pushed, update this file:
-https://github.com/DataDog/datadog-agent/blob/master/.circleci/config.yml.
+https://github.com/DataDog/datadog-agent/blob/main/.circleci/config.yml.
 Change `image: datadog/datadog-agent-runner-circle:goXXXX` for the tag you
 just pushed.
 

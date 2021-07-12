@@ -16,7 +16,7 @@ typedef __int64 LONG64;
 typedef unsigned char       uint8_t;
 
 // define a version signature so that the driver won't load out of date structures, etc.
-#define DD_NPMDRIVER_VERSION       0x07
+#define DD_NPMDRIVER_VERSION       0x09
 #define DD_NPMDRIVER_SIGNATURE     ((uint64_t)0xDDFD << 32 | DD_NPMDRIVER_VERSION)
 
 // for more information on defining control codes, see
@@ -46,6 +46,11 @@ typedef unsigned char       uint8_t;
 
 #define DDNPMDRIVER_IOCTL_GET_FLOWS  CTL_CODE(FILE_DEVICE_NETWORK, \
                                               0x805, \
+                                              METHOD_BUFFERED,\
+                                              FILE_ANY_ACCESS)
+
+#define DDNPMDRIVER_IOCTL_SET_MAX_FLOWS  CTL_CODE(FILE_DEVICE_NETWORK, \
+                                              0x806, \
                                               METHOD_BUFFERED,\
                                               FILE_ANY_ACCESS)
 
@@ -80,6 +85,13 @@ typedef struct _flow_handle_stats {
     volatile LONG64         num_flow_search_misses; // number of times we missed a flow even after searching the list
 
     volatile LONG64         num_flow_collisions;
+
+    // num_flow_structures and peak_num_flow_structures valid only on per-handle stats;
+    // will not be kept for global stats.  
+    volatile LONG64         num_flow_structures;      // total number of flow structures
+    volatile LONG64         peak_num_flow_structures; // high water mark of numFlowStructures
+
+    volatile LONG64         num_flows_missed_max_exceeded;
 } FLOW_STATS;
 
 typedef struct _transport_handle_stats {
@@ -122,7 +134,7 @@ typedef struct _filterAddress
     uint8_t                   v4_address[4];    // address in network byte order, so v4_address[0] = top network tuple
     uint8_t                   v4_padding[4];    // pad out to 64 bit boundary
     uint8_t                   v6_address[16];
-    uint64_t                  mask; // number of mask bits.
+    uint64_t                  mask; // number of mask bits.  
 } FILTER_ADDRESS;
 
 #define     DIRECTION_INBOUND    ((uint64_t)0)
@@ -161,7 +173,7 @@ typedef struct _filterDefinition
  * PACKET_HEADER structure
  *
  * provided by the driver during the upcall with implementation specific
- * information in the header.
+ * information in the header.  
  */
 
 typedef struct _udpFlowData {
@@ -186,7 +198,7 @@ typedef struct _perFlowData {
     uint8_t           localAddress[16];  // only first 4 bytes valid for AF_INET, in network byte order
     uint8_t           remoteAddress[16]; // ditto
 
-    // stats common to all
+    // stats common to all 
 
     uint64_t packetsOut;
     uint64_t monotonicSentBytes;              // total bytes including ip header
@@ -240,6 +252,7 @@ typedef struct filterPacketHeader
     uint64_t        pktSize;                //! size of packet
     uint64_t        af;		                //! address family of packet
     uint64_t        ownerPid;               //! (-1) if not available
+    uint64_t        timestamp;              // timestamp in ns since unix epoch
 
     // data follows
 } PACKET_HEADER, *PPACKET_HEADER;

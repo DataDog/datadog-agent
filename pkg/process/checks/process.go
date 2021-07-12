@@ -1,28 +1,33 @@
 package checks
 
 import (
+	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/net"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	agentutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/cpu"
-	"github.com/DataDog/gopsutil/process"
-
-	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 const emptyCtrID = ""
 
 // Process is a singleton ProcessCheck.
-var Process = &ProcessCheck{}
+var Process = &ProcessCheck{probe: procutil.NewProcessProbe()}
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
+
+// ctrProcMsgFactory builds a CollectorProc
+type ctrProcMsgFactory func([]*model.Process, ...*model.Container) *model.CollectorProc
 
 // ProcessCheck collects full state, including cmdline args and related metadata,
 // for live and running processes. The instance will store some state between
@@ -30,20 +35,29 @@ var errEmptyCPUTime = errors.New("empty CPU time information returned")
 type ProcessCheck struct {
 	sync.RWMutex
 
+	probe *procutil.Probe
+
 	sysInfo         *model.SystemInfo
 	lastCPUTime     cpu.TimesStat
-	lastProcs       map[int32]*process.FilledProcess
+	lastProcs       map[int32]*procutil.Process
 	lastCtrRates    map[string]util.ContainerRateMetrics
 	lastCtrIDForPID map[int32]string
 	lastRun         time.Time
 	networkID       string
+
+	notInitializedLogLimit *util.LogLimit
+
+	// lastPIDs is []int32 that holds PIDs that the check fetched last time,
+	// will be reused by RTProcessCheck to get stats
+	lastPIDs atomic.Value
 }
 
 // Init initializes the singleton ProcessCheck.
 func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	p.sysInfo = info
+	p.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
 
-	networkID, err := agentutil.GetNetworkID()
+	networkID, err := agentutil.GetNetworkID(context.TODO())
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}
@@ -51,7 +65,7 @@ func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 }
 
 // Name returns the name of the ProcessCheck.
-func (p *ProcessCheck) Name() string { return "process" }
+func (p *ProcessCheck) Name() string { return config.ProcessCheckName }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (p *ProcessCheck) RealTime() bool { return false }
@@ -75,10 +89,37 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	if len(cpuTimes) == 0 {
 		return nil, errEmptyCPUTime
 	}
-	procs, err := getAllProcesses(cfg)
+
+	var sysProbeUtil *net.RemoteSysProbeUtil
+	// if the Process module is disabled, we allow Probe to collect
+	// fields that require elevated permission to collect with best effort
+	if !cfg.CheckIsEnabled(config.ProcessModuleCheckName) {
+		procutil.WithPermission(true)(p.probe)
+	} else {
+		procutil.WithPermission(false)(p.probe)
+		if pu, err := net.GetRemoteSystemProbeUtil(); err == nil {
+			sysProbeUtil = pu
+		} else if p.notInitializedLogLimit.ShouldLog() {
+			log.Warnf("could not initialize system-probe connection in process check: %v (will only log every 10 minutes)", err)
+		}
+	}
+
+	procs, err := getAllProcesses(p.probe)
 	if err != nil {
 		return nil, err
 	}
+
+	// stores lastPIDs to be used by RTProcess
+	lastPIDs := make([]int32, 0, len(procs))
+	for pid := range procs {
+		lastPIDs = append(lastPIDs, pid)
+	}
+	p.lastPIDs.Store(lastPIDs)
+
+	if sysProbeUtil != nil {
+		mergeProcWithSysprobeStats(lastPIDs, procs, sysProbeUtil)
+	}
+
 	ctrList, _ := util.GetContainers()
 
 	// Keep track of containers addresses
@@ -95,7 +136,9 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 		return nil, nil
 	}
 
-	procsByCtr := fmtProcesses(cfg, procs, p.lastProcs, ctrByProc, cpuTimes[0], p.lastCPUTime, p.lastRun)
+	connsByPID := Connections.getLastConnectionsByPID()
+	procsByCtr := fmtProcesses(cfg, procs, p.lastProcs, ctrByProc, cpuTimes[0], p.lastCPUTime, p.lastRun, connsByPID)
+
 	ctrs := fmtContainers(ctrList, p.lastCtrRates, p.lastRun)
 
 	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, ctrs, cfg, p.sysInfo, groupID, p.networkID)
@@ -114,6 +157,14 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	return messages, nil
 }
 
+// GetLastPIDs returns the lastPIDs as []int32 slice
+func (p *ProcessCheck) GetLastPIDs() []int32 {
+	if result := p.lastPIDs.Load(); result != nil {
+		return result.([]int32)
+	}
+	return nil
+}
+
 func createProcCtrMessages(
 	procsByCtr map[string][]*model.Process,
 	containers []*model.Container,
@@ -122,8 +173,8 @@ func createProcCtrMessages(
 	groupID int32,
 	networkID string,
 ) ([]model.MessageBody, int, int) {
-	totalProcs, totalContainers := 0, 0
-	msgs := make([]*model.CollectorProc, 0)
+	var totalProcs, totalContainers int
+	var msgs []*model.CollectorProc
 
 	// we first split non-container processes in chunks
 	chunks := chunkProcesses(procsByCtr[emptyCtrID], cfg.MaxPerMessage)
@@ -138,26 +189,21 @@ func createProcCtrMessages(
 		})
 	}
 
-	ctrProcs := make([]*model.Process, 0)
-	ctrs := make([]*model.Container, 0, len(containers))
-	for _, ctr := range containers {
-		if procs, ok := procsByCtr[ctr.Id]; ok {
-			ctrProcs = append(ctrProcs, procs...)
-		}
-		ctrs = append(ctrs, ctr)
-	}
+	procCtrMessages := packProcCtrMessages(cfg.MaxCtrProcessesPerMessage, procsByCtr, containers,
+		func(p []*model.Process, c ...*model.Container) *model.CollectorProc {
+			return &model.CollectorProc{
+				HostName:          cfg.HostName,
+				NetworkId:         networkID,
+				Info:              sysInfo,
+				Processes:         p,
+				Containers:        c,
+				GroupId:           groupID,
+				ContainerHostType: cfg.ContainerHostType,
+			}
+		},
+	)
 
-	if len(ctrs) > 0 {
-		msgs = append(msgs, &model.CollectorProc{
-			HostName:          cfg.HostName,
-			NetworkId:         networkID,
-			Info:              sysInfo,
-			Processes:         ctrProcs,
-			Containers:        ctrs,
-			GroupId:           groupID,
-			ContainerHostType: cfg.ContainerHostType,
-		})
-	}
+	msgs = append(msgs, procCtrMessages...)
 
 	// fill in GroupSize for each CollectorProc and convert them to final messages
 	// also count containers and processes
@@ -170,6 +216,54 @@ func createProcCtrMessages(
 	}
 
 	return messages, totalProcs, totalContainers
+}
+
+// packProcCtrMessages packs container processes into messages using the next-fit bin packing algorithm. The
+// container and its processes are placed into a CollectorProc up to the provided capacity. Some containers may have
+// more processes than the supplied capacity, for these they simply get packed into its own message.
+func packProcCtrMessages(
+	capacity int,
+	procsByCtr map[string][]*model.Process,
+	containers []*model.Container,
+	msgFn ctrProcMsgFactory,
+) []*model.CollectorProc {
+	var msgs []*model.CollectorProc
+	var ctrs []*model.Container
+	var ctrProcs []*model.Process
+
+	space := capacity
+
+	for _, ctr := range containers {
+		procs := procsByCtr[ctr.Id]
+
+		if len(procs) > capacity {
+			// this container has more process then the msg capacity, so we send it separately
+			msgs = append(msgs, msgFn(procs, ctr))
+			continue
+		}
+
+		if len(procs) > space {
+			// there is not enough space to fit the next set of container processes, so complete the payload with
+			// the previous container processes and reset
+			msgs = append(msgs, msgFn(ctrProcs, ctrs...))
+			ctrs = nil
+			ctrProcs = nil
+			space = capacity
+		}
+
+		ctrs = append(ctrs, ctr)
+		ctrProcs = append(ctrProcs, procs...)
+		space -= len(procs)
+	}
+
+	if len(ctrs) > 0 {
+		// create messages with any remaining containers and processes
+		msgs = append(msgs, msgFn(ctrProcs, ctrs...))
+	}
+
+	log.Tracef("Created %d container process messages", len(msgs))
+
+	return msgs
 }
 
 // chunkProcesses split non-container processes into chunks and return a list of chunks
@@ -205,12 +299,14 @@ func ctrIDForPID(ctrList []*containers.Container) map[int32]string {
 // non-container processes would be in a single group with key as empty string ""
 func fmtProcesses(
 	cfg *config.AgentConfig,
-	procs, lastProcs map[int32]*process.FilledProcess,
+	procs, lastProcs map[int32]*procutil.Process,
 	ctrByProc map[int32]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
+	connsByPID map[int32][]*model.Connection,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
+	connCheckIntervalS := int(cfg.CheckIntervals[config.ConnectionsCheckName] / time.Second)
 
 	for _, fp := range procs {
 		if skipProcess(cfg, fp, lastProcs) {
@@ -225,15 +321,16 @@ func fmtProcesses(
 			NsPid:                  fp.NsPid,
 			Command:                formatCommand(fp),
 			User:                   formatUser(fp),
-			Memory:                 formatMemory(fp),
-			Cpu:                    formatCPU(fp, fp.CpuTime, lastProcs[fp.Pid].CpuTime, syst2, syst1),
-			CreateTime:             fp.CreateTime,
-			OpenFdCount:            fp.OpenFdCount,
-			State:                  model.ProcessState(model.ProcessState_value[fp.Status]),
-			IoStat:                 formatIO(fp, lastProcs[fp.Pid].IOStat, lastRun),
-			VoluntaryCtxSwitches:   uint64(fp.CtxSwitches.Voluntary),
-			InvoluntaryCtxSwitches: uint64(fp.CtxSwitches.Involuntary),
+			Memory:                 formatMemory(fp.Stats),
+			Cpu:                    formatCPU(fp.Stats, fp.Stats.CPUTime, lastProcs[fp.Pid].Stats.CPUTime, syst2, syst1),
+			CreateTime:             fp.Stats.CreateTime,
+			OpenFdCount:            fp.Stats.OpenFdCount,
+			State:                  model.ProcessState(model.ProcessState_value[fp.Stats.Status]),
+			IoStat:                 formatIO(fp.Stats, lastProcs[fp.Pid].Stats.IOStat, lastRun),
+			VoluntaryCtxSwitches:   uint64(fp.Stats.CtxSwitches.Voluntary),
+			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[fp.Pid],
+			Networks:               formatNetworks(connsByPID[fp.Pid], connCheckIntervalS),
 		}
 		_, ok := procsByCtr[proc.ContainerId]
 		if !ok {
@@ -247,7 +344,7 @@ func fmtProcesses(
 	return procsByCtr
 }
 
-func formatCommand(fp *process.FilledProcess) *model.Command {
+func formatCommand(fp *procutil.Process) *model.Command {
 	return &model.Command{
 		Args:   fp.Cmdline,
 		Cwd:    fp.Cwd,
@@ -258,8 +355,8 @@ func formatCommand(fp *process.FilledProcess) *model.Command {
 	}
 }
 
-func formatIO(fp *process.FilledProcess, lastIO *process.IOCountersStat, before time.Time) *model.IOStat {
-	// This will be nill for Mac
+func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.Time) *model.IOStat {
+	// This will be nil for Mac
 	if fp.IOStat == nil {
 		return &model.IOStat{}
 	}
@@ -268,26 +365,23 @@ func formatIO(fp *process.FilledProcess, lastIO *process.IOCountersStat, before 
 	if before.IsZero() || diff <= 0 {
 		return &model.IOStat{}
 	}
-	// Reading 0 as a counter means the file could not be opened due to permissions. We distinguish this from a real 0 in rates.
-	var readRate float32
-	readRate = -1
-	if fp.IOStat.ReadCount != 0 {
-		readRate = calculateRate(fp.IOStat.ReadCount, lastIO.ReadCount, before)
+	// Reading -1 as counter means the file could not be opened due to permissions.
+	// In that case we set the rate as -1 to distinguish from a real 0 in rates.
+	readRate := float32(-1)
+	if fp.IOStat.ReadCount >= 0 {
+		readRate = calculateRate(uint64(fp.IOStat.ReadCount), uint64(lastIO.ReadCount), before)
 	}
-	var writeRate float32
-	writeRate = -1
-	if fp.IOStat.WriteCount != 0 {
-		writeRate = calculateRate(fp.IOStat.WriteCount, lastIO.WriteCount, before)
+	writeRate := float32(-1)
+	if fp.IOStat.WriteCount >= 0 {
+		writeRate = calculateRate(uint64(fp.IOStat.WriteCount), uint64(lastIO.WriteCount), before)
 	}
-	var readBytesRate float32
-	readBytesRate = -1
-	if fp.IOStat.ReadBytes != 0 {
-		readBytesRate = calculateRate(fp.IOStat.ReadBytes, lastIO.ReadBytes, before)
+	readBytesRate := float32(-1)
+	if fp.IOStat.ReadBytes >= 0 {
+		readBytesRate = calculateRate(uint64(fp.IOStat.ReadBytes), uint64(lastIO.ReadBytes), before)
 	}
-	var writeBytesRate float32
-	writeBytesRate = -1
-	if fp.IOStat.WriteBytes != 0 {
-		writeBytesRate = calculateRate(fp.IOStat.WriteBytes, lastIO.WriteBytes, before)
+	writeBytesRate := float32(-1)
+	if fp.IOStat.WriteBytes >= 0 {
+		writeBytesRate = calculateRate(uint64(fp.IOStat.WriteBytes), uint64(lastIO.WriteBytes), before)
 	}
 	return &model.IOStat{
 		ReadRate:       readRate,
@@ -297,7 +391,7 @@ func formatIO(fp *process.FilledProcess, lastIO *process.IOCountersStat, before 
 	}
 }
 
-func formatMemory(fp *process.FilledProcess) *model.MemoryStat {
+func formatMemory(fp *procutil.Stats) *model.MemoryStat {
 	ms := &model.MemoryStat{
 		Rss:  fp.MemInfo.RSS,
 		Vms:  fp.MemInfo.VMS,
@@ -314,12 +408,22 @@ func formatMemory(fp *process.FilledProcess) *model.MemoryStat {
 	return ms
 }
 
+func formatNetworks(conns []*model.Connection, interval int) *model.ProcessNetworks {
+	connRate := float32(len(conns)) / float32(interval)
+	totalTraffic := uint64(0)
+	for _, conn := range conns {
+		totalTraffic += conn.LastBytesSent + conn.LastBytesReceived
+	}
+	bytesRate := float32(totalTraffic) / float32(interval)
+	return &model.ProcessNetworks{ConnectionRate: connRate, BytesRate: bytesRate}
+}
+
 // skipProcess will skip a given process if it's blacklisted or hasn't existed
 // for multiple collections.
 func skipProcess(
 	cfg *config.AgentConfig,
-	fp *process.FilledProcess,
-	lastProcs map[int32]*process.FilledProcess,
+	fp *procutil.Process,
+	lastProcs map[int32]*procutil.Process,
 ) bool {
 	if len(fp.Cmdline) == 0 {
 		return true
@@ -342,8 +446,26 @@ func (p *ProcessCheck) createTimesforPIDs(pids []int32) map[int32]int64 {
 	createTimeForPID := make(map[int32]int64)
 	for _, pid := range pids {
 		if p, ok := p.lastProcs[pid]; ok {
-			createTimeForPID[pid] = p.CreateTime
+			createTimeForPID[pid] = p.Stats.CreateTime
 		}
 	}
 	return createTimeForPID
+}
+
+// mergeProcWithSysprobeStats takes a process by PID map and fill the stats from system probe into the processes in the map
+func mergeProcWithSysprobeStats(pids []int32, procs map[int32]*procutil.Process, pu *net.RemoteSysProbeUtil) {
+	pStats, err := pu.GetProcStats(pids)
+	if err == nil {
+		for pid, proc := range procs {
+			if s, ok := pStats.StatsByPID[pid]; ok {
+				proc.Stats.OpenFdCount = s.OpenFDCount
+				proc.Stats.IOStat.ReadCount = s.ReadCount
+				proc.Stats.IOStat.WriteCount = s.WriteCount
+				proc.Stats.IOStat.ReadBytes = s.ReadBytes
+				proc.Stats.IOStat.WriteBytes = s.WriteBytes
+			}
+		}
+	} else {
+		log.Debugf("cannot do GetProcStats from system-probe for process check: %s", err)
+	}
 }

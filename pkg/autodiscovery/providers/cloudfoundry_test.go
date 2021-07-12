@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build clusterchecks
 
 package providers
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -58,18 +59,19 @@ func (b bbsCacheFake) GetTagsForNode(nodename string) (map[string][]string, erro
 var testBBSCache = &bbsCacheFake{}
 
 func TestCloudFoundryConfigProvider_IsUpToDate(t *testing.T) {
+	ctx := context.Background()
 	now := time.Now()
 	then := now.Add(time.Duration(1))
 	testBBSCache.Updated = now
 
 	p := CloudFoundryConfigProvider{bbsCache: testBBSCache, lastCollected: then}
-	upToDate, err := p.IsUpToDate()
+	upToDate, err := p.IsUpToDate(ctx)
 	assert.Nil(t, err)
 	assert.EqualValues(t, true, upToDate)
 
 	testBBSCache.Updated = then
 	p.lastCollected = now
-	upToDate, err = p.IsUpToDate()
+	upToDate, err = p.IsUpToDate(ctx)
 	assert.Nil(t, err)
 	assert.EqualValues(t, false, upToDate)
 }
@@ -364,10 +366,11 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 		},
 	} {
 		t.Run(tc.tc, func(t *testing.T) {
+			ctx := context.Background()
 			p := CloudFoundryConfigProvider{bbsCache: testBBSCache}
 			testBBSCache.ActualLRPs = tc.aLRP
 			testBBSCache.DesiredLRPs = tc.dLRP
-			result, err := p.Collect()
+			result, err := p.Collect(ctx)
 			assert.Nil(t, err)
 			assert.Equal(t, len(tc.expected), len(result))
 			for _, c := range result {

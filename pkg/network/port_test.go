@@ -17,7 +17,7 @@ import (
 	"github.com/vishvananda/netns"
 )
 
-var testRootNs uint64
+var testRootNs uint32
 
 func TestMain(m *testing.M) {
 	rootNs, err := util.GetRootNetNamespace("/proc")
@@ -32,8 +32,7 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
-func TestReadInitialState(t *testing.T) {
-
+func TestReadInitialTCPState(t *testing.T) {
 	err := exec.Command("testdata/setup_netns.sh").Run()
 	require.NoError(t, err, "setup_netns.sh failed")
 
@@ -56,41 +55,36 @@ func TestReadInitialState(t *testing.T) {
 		34567,
 		34568,
 	}
+
+	ns, err := netns.GetFromName("test")
+	require.NoError(t, err)
+	defer ns.Close()
+
+	nsIno, err := util.GetInoForNs(ns)
+	require.NoError(t, err)
+
 	require.Eventually(t, func() bool {
-		ns, err := netns.GetFromName("test")
-		if err != nil {
-			return false
-		}
-
-		defer ns.Close()
-
-		nsIno, err := util.GetInoForNs(ns)
-		if err != nil {
-			return false
-		}
-
-		pm := NewPortMapping("/proc", true, true)
-		err = pm.ReadInitialState()
+		initialPorts, err := ReadInitialState("/proc", TCP, true)
 		require.NoError(t, err)
 		for _, p := range ports[:2] {
-			if !pm.IsListening(testRootNs, p) {
-				t.Errorf("pm.IsListening(testRootNs) returned false for port %d", p)
+			if _, ok := initialPorts[PortMapping{testRootNs, p}]; !ok {
+				t.Errorf("PortMapping(testRootNs) returned false for port %d", p)
 				return false
 			}
 		}
 		for _, p := range ports[2:] {
-			if !pm.IsListening(nsIno, p) {
-				t.Errorf("pm.IsListening(test ns) returned false for port %d", p)
+			if _, ok := initialPorts[PortMapping{nsIno, p}]; !ok {
+				t.Errorf("PortMapping(test ns) returned false for port %d", p)
 				return false
 			}
 		}
 
-		if pm.IsListening(testRootNs, 999) {
-			t.Errorf("expected IsListening(testRootNs, 999) to return false, but returned true")
+		if _, ok := initialPorts[PortMapping{testRootNs, 999}]; ok {
+			t.Errorf("expected PortMapping(testRootNs, 999) to not be in the map, but it was")
 			return false
 		}
-		if pm.IsListening(nsIno, 999) {
-			t.Errorf("expected IsListening(nsIno, 999) to return false, but returned true")
+		if _, ok := initialPorts[PortMapping{nsIno, 999}]; ok {
+			t.Errorf("expected PortMapping(nsIno, 999) to not be in the map, but it was")
 			return false
 		}
 
@@ -98,20 +92,64 @@ func TestReadInitialState(t *testing.T) {
 	}, 3*time.Second, time.Second, "tcp/tcp6 ports are listening")
 }
 
-func TestAddRemove(t *testing.T) {
-	ports := NewPortMapping("/proc", true, true)
+func TestReadInitialUDPState(t *testing.T) {
+	err := exec.Command("testdata/setup_netns.sh").Run()
+	require.NoError(t, err, "setup_netns.sh failed")
 
-	const testNs uint64 = 1234
+	defer func() {
+		err := exec.Command("testdata/teardown_netns.sh").Run()
+		assert.NoError(t, err, "failed to teardown netns")
+	}()
 
-	require.False(t, ports.IsListening(testNs, 123))
+	l, err := net.ListenUDP("udp", &net.UDPAddr{})
+	require.NoError(t, err)
+	defer func() { _ = l.Close() }()
 
-	ports.AddMapping(testNs, 123)
+	l6, err := net.ListenUDP("udp6", &net.UDPAddr{})
+	require.NoError(t, err)
+	defer func() { _ = l.Close() }()
 
-	require.True(t, ports.IsListening(testNs, 123))
+	ports := []uint16{
+		getPortUDP(t, l),
+		getPortUDP(t, l6),
+		34567,
+		34568,
+	}
 
-	ports.RemoveMapping(testNs, 123)
+	ns, err := netns.GetFromName("test")
+	require.NoError(t, err)
+	defer ns.Close()
 
-	require.False(t, ports.IsListening(testNs, 123))
+	nsIno, err := util.GetInoForNs(ns)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		initialPorts, err := ReadInitialState("/proc", UDP, true)
+		require.NoError(t, err)
+		for _, p := range ports[:2] {
+			if _, ok := initialPorts[PortMapping{testRootNs, p}]; !ok {
+				t.Errorf("PortMapping(testRootNs, p) returned false for port %d", p)
+				return false
+			}
+		}
+		for _, p := range ports[2:] {
+			if _, ok := initialPorts[PortMapping{nsIno, p}]; !ok {
+				t.Errorf("PortMapping(nsIno, p) returned false for port %d", p)
+				return false
+			}
+		}
+
+		if _, ok := initialPorts[PortMapping{testRootNs, 999}]; ok {
+			t.Errorf("expected IsListening(testRootNs, 999) to return false, but returned true")
+			return false
+		}
+		if _, ok := initialPorts[PortMapping{nsIno, 999}]; ok {
+			t.Errorf("expected IsListening(testRootNs, 999) to return false, but returned true")
+			return false
+		}
+
+		return true
+	}, 3*time.Second, time.Second, "udp/udp6 ports are listening")
 }
 
 func getPort(t *testing.T, listener net.Listener) uint16 {
@@ -120,4 +158,8 @@ func getPort(t *testing.T, listener net.Listener) uint16 {
 	port, err := strconv.Atoi(listenerURL.Port())
 	require.NoError(t, err)
 	return uint16(port)
+}
+
+func getPortUDP(_ *testing.T, udpConn *net.UDPConn) uint16 {
+	return uint16(udpConn.LocalAddr().(*net.UDPAddr).Port)
 }

@@ -1,36 +1,41 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build windows
 
 package winutil
 
 import (
-	"bytes"
+	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 // ConvertWindowsStringList Converts a windows-style C list of strings
 // (single null terminated elements
 // double-null indicates the end of the list) to an array of Go strings
 func ConvertWindowsStringList(winput []uint16) []string {
-	var retstrings []string
-	var buffer bytes.Buffer
+
+	if len(winput) < 2 {
+		return nil
+	}
+	val := make([]string, 0, 5)
+	from := 0
 
 	for i := 0; i < (len(winput) - 1); i++ {
 		if winput[i] == 0 {
-			retstrings = append(retstrings, buffer.String())
-			buffer.Reset()
+			val = append(val, windows.UTF16ToString(winput[from:i]))
+			from = i + 1
 
 			if winput[i+1] == 0 {
-				return retstrings
+				return val
 			}
-			continue
 		}
-		buffer.WriteString(string(rune(winput[i])))
 	}
-	return retstrings
+	return val
+
 }
 
 // ConvertWindowsString converts a windows c-string
@@ -38,15 +43,10 @@ func ConvertWindowsStringList(winput []uint16) []string {
 // of uint8, the underlying data is expected to be
 // uint16 (unicode)
 func ConvertWindowsString(winput []uint8) string {
-	var retstring string
-	for i := 0; i < len(winput); i += 2 {
-		dbyte := (uint16(winput[i+1]) << 8) + uint16(winput[i])
-		if dbyte == 0 {
-			break
-		}
-		retstring += string(rune(dbyte))
-	}
-	return retstring
+
+	p := (*[1 << 29]uint16)(unsafe.Pointer(&winput[0]))[: len(winput)/2 : len(winput)/2]
+	return windows.UTF16ToString(p)
+
 }
 
 // ConvertWindowsString16 converts a windows c-string
@@ -54,23 +54,5 @@ func ConvertWindowsString(winput []uint8) string {
 // of uint8, the underlying data is expected to be
 // uint16 (unicode)
 func ConvertWindowsString16(winput []uint16) string {
-	var retstring string
-	for i := 0; i < len(winput); i++ {
-		dbyte := winput[i]
-		if dbyte == 0 {
-			break
-		}
-		retstring += string(rune(dbyte))
-	}
-	return retstring
-}
-
-// ConvertASCIIString converts a c-string into
-// a go string
-func ConvertASCIIString(input []byte) string {
-	var retstring string
-	for _, b := range input {
-		retstring += string(b)
-	}
-	return retstring
+	return windows.UTF16ToString(winput)
 }

@@ -1,11 +1,11 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2019 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // FIXME: we require the `cgo` build tag because of this dep relationship:
 // github.com/DataDog/datadog-agent/pkg/process/net depends on `github.com/DataDog/agent-payload/process`,
-// which has a hard dependency on `github.com/DataDog/zstd`, which requires CGO.
+// which has a hard dependency on `github.com/DataDog/zstd_0`, which requires CGO.
 // Should be removed once `github.com/DataDog/agent-payload/process` can be imported with CGO disabled.
 // +build cgo
 // +build linux
@@ -16,6 +16,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
+
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -23,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	dd_config "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/oomkill"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -63,10 +64,7 @@ func (c *OOMKillConfig) Parse(data []byte) error {
 	// default values
 	c.CollectOOMKill = true
 
-	if err := yaml.Unmarshal(data, c); err != nil {
-		return err
-	}
-	return nil
+	return yaml.Unmarshal(data, c)
 }
 
 // Configure parses the check configuration and init the check
@@ -106,7 +104,7 @@ func (m *OOMKillCheck) Run() error {
 
 	triggerType := ""
 	triggerTypeText := ""
-	oomkillStats, ok := data.([]oomkill.Stats)
+	oomkillStats, ok := data.([]probe.OOMKillStats)
 	if !ok {
 		return log.Errorf("Raw data has incorrect type")
 	}

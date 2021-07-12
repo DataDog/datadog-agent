@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build clusterchecks
 
 package listeners
 
 import (
+	"context"
 	"encoding/json"
 	"sync"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -70,7 +72,7 @@ func (b *bbsCacheFake) GetTagsForNode(nodename string) (map[string][]string, err
 var testBBSCache = &bbsCacheFake{}
 
 func TestCloudFoundryListener(t *testing.T) {
-	var lastRefreshCount int64 = 0
+	var lastRefreshCount int64
 	newSvc := make(chan Service, 10)
 	delSvc := make(chan Service, 10)
 	cfl := CloudFoundryListener{
@@ -435,6 +437,7 @@ func TestCloudFoundryListener(t *testing.T) {
 			},
 		},
 	} {
+		ctx := context.Background()
 		// NOTE: we don't use t.Run here, since the executions are chained (every test case is expected to delete some
 		// services created by the previous test case), so once something is wrong, we just fail the whole test case
 		testBBSCache.Lock()
@@ -459,7 +462,7 @@ func TestCloudFoundryListener(t *testing.T) {
 
 		for range tc.expNew {
 			s := (<-newSvc).(*CloudFoundryService)
-			adID, err := s.GetADIdentifiers()
+			adID, err := s.GetADIdentifiers(ctx)
 			assert.Nil(t, err)
 			// we make the comparison easy by leaving out the ADIdentifier structs out
 			oldID := s.adIdentifier
@@ -469,7 +472,7 @@ func TestCloudFoundryListener(t *testing.T) {
 		}
 		for range tc.expDel {
 			s := (<-delSvc).(*CloudFoundryService)
-			adID, err := s.GetADIdentifiers()
+			adID, err := s.GetADIdentifiers(ctx)
 			assert.Nil(t, err)
 			s.adIdentifier = cloudfoundry.ADIdentifier{}
 			assert.Equal(t, tc.expDel[adID[0]], s)

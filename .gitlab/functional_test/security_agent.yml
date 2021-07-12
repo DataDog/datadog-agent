@@ -1,0 +1,90 @@
+---
+# FIXME: our current Gitlab version doesn't support importing a file more than once
+# For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
+# See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
+# include:
+#   - /.gitlab/kitchen_common/testing.yml
+
+.kitchen_test_security_agent:
+  extends:
+    - .kitchen_common
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_north_central_us
+  rules:
+    !reference [.manual]
+  stage: functional_test
+  needs: ["tests_ebpf_x64"]
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+  script:
+    - bash -l tasks/run-test-kitchen.sh security-agent-test $AGENT_MAJOR_VERSION
+
+.kitchen_stress_security_agent:
+  extends:
+    - .kitchen_common
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_north_central_us
+  rules:
+    !reference [.manual]
+  stage: functional_test
+  needs: ["tests_ebpf_x64"]
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+  script:
+    - bash -l tasks/run-test-kitchen.sh security-agent-stress $AGENT_MAJOR_VERSION
+
+kitchen_centos_security_agent:
+  extends: .kitchen_test_security_agent
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export KITCHEN_PLATFORM="centos"
+    - export KITCHEN_OSVERS="centos-77,rhel-81"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+
+kitchen_ubuntu_security_agent:
+  extends: .kitchen_test_security_agent
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export KITCHEN_PLATFORM=ubuntu
+    - export KITCHEN_OSVERS="ubuntu-18-04,ubuntu-20-04"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+
+kitchen_ubuntu_security_agent_stress:
+  extends: .kitchen_stress_security_agent
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export KITCHEN_PLATFORM="ubuntu"
+    - export KITCHEN_OSVERS="ubuntu-20-04"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+
+kitchen_suse_security_agent:
+  extends: .kitchen_test_security_agent
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export KITCHEN_PLATFORM="suse"
+    - export KITCHEN_OSVERS="sles-12,sles-15"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+
+kitchen_debian_security_agent:
+  extends: .kitchen_test_security_agent
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export KITCHEN_PLATFORM="debian"
+    - export KITCHEN_OSVERS="debian-10"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+
+kitchen_oracle_security_agent:
+  extends: .kitchen_test_security_agent
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export KITCHEN_PLATFORM="oracle"
+    - export KITCHEN_OSVERS="oracle-7-9"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh

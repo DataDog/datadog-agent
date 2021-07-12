@@ -4,40 +4,110 @@
 #include <linux/tty.h>
 #include <linux/sched.h>
 
+#include "container.h"
+
+struct proc_cache_t {
+    struct container_context_t container;
+    struct file_t executable;
+
+    u64 exec_timestamp;
+    char tty_name[TTY_NAME_LEN];
+    char comm[TASK_COMM_LEN];
+};
+
+static __attribute__((always_inline)) u32 copy_tty_name(char src[TTY_NAME_LEN], char dst[TTY_NAME_LEN]) {
+    if (src[0] == 0) {
+        return 0;
+    }
+
+#pragma unroll
+    for (int i = 0; i < TTY_NAME_LEN; i++)
+    {
+        dst[i] = src[i];
+    }
+    return TTY_NAME_LEN;
+}
+
+void __attribute__((always_inline)) copy_proc_cache_except_comm(struct proc_cache_t* src, struct proc_cache_t* dst) {
+    copy_container_id(src->container.container_id, dst->container.container_id);
+    dst->executable = src->executable;
+    dst->exec_timestamp = src->exec_timestamp;
+    copy_tty_name(src->tty_name, dst->tty_name);
+}
+
+void __attribute__((always_inline)) copy_proc_cache(struct proc_cache_t *src, struct proc_cache_t *dst) {
+    copy_proc_cache_except_comm(src, dst);
+    bpf_probe_read(dst->comm, TASK_COMM_LEN, src->comm);
+    return;
+}
+
 struct bpf_map_def SEC("maps/proc_cache") proc_cache = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(u32),
     .value_size = sizeof(struct proc_cache_t),
-    .max_entries = 4095,
+    .max_entries = 4096,
     .pinning = 0,
     .namespace = "",
 };
 
-struct bpf_map_def SEC("maps/pid_cookie") pid_cookie = {
+static void __attribute__((always_inline)) fill_container_context(struct proc_cache_t *entry, struct container_context_t *context) {
+    if (entry) {
+        copy_container_id(entry->container.container_id, context->container_id);
+    }
+}
+
+struct credentials_t {
+    u32 uid;
+    u32 gid;
+    u32 euid;
+    u32 egid;
+    u32 fsuid;
+    u32 fsgid;
+    u64 cap_effective;
+    u64 cap_permitted;
+};
+
+void __attribute__((always_inline)) copy_credentials(struct credentials_t* src, struct credentials_t* dst) {
+    *dst = *src;
+}
+
+struct pid_cache_t {
+    u32 cookie;
+    u32 ppid;
+    u64 fork_timestamp;
+    u64 exit_timestamp;
+    struct credentials_t credentials;
+};
+
+void __attribute__((always_inline)) copy_pid_cache_except_exit_ts(struct pid_cache_t* src, struct pid_cache_t* dst) {
+    dst->cookie = src->cookie;
+    dst->ppid = src->ppid;
+    dst->fork_timestamp = src->fork_timestamp;
+    dst->credentials = src->credentials;
+}
+
+struct bpf_map_def SEC("maps/pid_cache") pid_cache = {
     .type = BPF_MAP_TYPE_LRU_HASH,
     .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = 4097,
+    .value_size = sizeof(struct pid_cache_t),
+    .max_entries = 4096,
     .pinning = 0,
     .namespace = "",
 };
 
-struct proc_cache_t * __attribute__((always_inline)) get_pid_cache(u32 tgid) {
+struct proc_cache_t * __attribute__((always_inline)) get_proc_cache(u32 tgid) {
     struct proc_cache_t *entry = NULL;
 
-    u32 *cookie = (u32 *) bpf_map_lookup_elem(&pid_cookie, &tgid);
-    if (cookie) {
-        // Select the old cache entry
-        u32 cookie_key = *cookie;
-        entry = bpf_map_lookup_elem(&proc_cache, &cookie_key);
+    struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
+    if (pid_entry) {
+        // Select the cache entry
+        u32 cookie = pid_entry->cookie;
+        entry = bpf_map_lookup_elem(&proc_cache, &cookie);
     }
     return entry;
 }
 
-static struct proc_cache_t * __attribute__((always_inline)) fill_process_data(struct process_context_t *data) {
-    // Comm
-    bpf_get_current_comm(&data->comm, sizeof(data->comm));
-
+static struct proc_cache_t * __attribute__((always_inline)) fill_process_context(struct process_context_t *data) {
     // Pid & Tid
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
@@ -46,12 +116,7 @@ static struct proc_cache_t * __attribute__((always_inline)) fill_process_data(st
     data->pid = tgid;
     data->tid = pid_tgid;
 
-    // UID & GID
-    u64 userid = bpf_get_current_uid_gid();
-    data->uid = userid >> 32;
-    data->gid = userid;
-
-    return NULL;
+    return get_proc_cache(tgid);
 }
 
 #endif

@@ -11,11 +11,5 @@ if (-Not (Test-Path env:DOCKER_HOST) -And -Not (Test-Path \\.\pipe\docker_engine
 # by the 50-* scripts
 # Don't override datadog.yaml if it exists
 if (-not (Test-Path C:\ProgramData\Datadog\datadog.yaml)) { 
-    Write-Output "Autodiscovery enabled for Kubernetes"
     cp C:\ProgramData\Datadog\datadog-docker.yaml C:\ProgramData\Datadog\datadog.yaml
-}
-
-# Enable the docker corecheck
-if (-Not (Test-Path C:\ProgramData\Datadog\conf.d\docker.d\conf.yaml.default) -And (Test-Path C:\ProgramData\Datadog\conf.d\docker.d\conf.yaml.example)) { 
-    mv C:\ProgramData\Datadog\conf.d\docker.d\conf.yaml.example C:\ProgramData\Datadog\conf.d\docker.d\conf.yaml.default
 }

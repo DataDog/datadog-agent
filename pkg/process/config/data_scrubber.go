@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/gopsutil/process"
 )
 
 var (
@@ -106,19 +106,19 @@ func CompileStringsToRegex(words []string) []*regexp.Regexp {
 }
 
 // createProcessKey returns an unique identifier for a given process
-func createProcessKey(p *process.FilledProcess) string {
+func createProcessKey(p *procutil.Process) string {
 	var b bytes.Buffer
 	b.WriteString("p:")
 	b.WriteString(strconv.Itoa(int(p.Pid)))
 	b.WriteString("|c:")
-	b.WriteString(strconv.Itoa(int(p.CreateTime)))
+	b.WriteString(strconv.Itoa(int(p.Stats.CreateTime)))
 
 	return b.String()
 }
 
 // ScrubProcessCommand uses a cache memory to avoid scrubbing already known
 // process' cmdlines
-func (ds *DataScrubber) ScrubProcessCommand(p *process.FilledProcess) []string {
+func (ds *DataScrubber) ScrubProcessCommand(p *procutil.Process) []string {
 	if ds.StripAllArguments {
 		return ds.stripArguments(p.Cmdline)
 	}

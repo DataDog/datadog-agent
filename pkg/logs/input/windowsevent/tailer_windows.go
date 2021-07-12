@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build windows
 
@@ -19,6 +19,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"golang.org/x/sys/windows"
 )
 
@@ -136,10 +137,11 @@ func EvtRender(h C.ULONGLONG) (richEvt *richEvent, err error) {
 	if ret == 0 {
 		return
 	}
+	buf = buf[:bufUsed]
 	// Call will set error anyway.  Clear it so we don't return an error
 	err = nil
 
-	xml := ConvertWindowsString(buf)
+	xml := winutil.ConvertWindowsString(buf)
 
 	richEvt = enrichEvent(h, xml)
 
@@ -219,22 +221,6 @@ const (
 	EvtSubscribeStartAtOldestRecord
 	EvtSubscribeStartAfterBookmark
 )
-
-// ConvertWindowsString converts a windows c-string
-// into a go string.  Even though the input is array
-// of uint8, the underlying data is expected to be
-// uint16 (unicode)
-func ConvertWindowsString(winput []uint8) string {
-	var retstring string
-	for i := 0; i < len(winput); i += 2 {
-		dbyte := (uint16(winput[i+1]) << 8) + uint16(winput[i])
-		if dbyte == 0 {
-			break
-		}
-		retstring += string(rune(dbyte))
-	}
-	return retstring
-}
 
 // LPWSTRToString converts a C.LPWSTR to a string. It also truncates the
 // strings to 128kB as a basic protection mechanism to avoid allocating an

@@ -1,11 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package providers
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -30,6 +32,9 @@ type ProviderCache struct {
 	NumAdTemplates    int
 }
 
+// ErrorMsgSet contains a unique list of configuration errors for a provider
+type ErrorMsgSet map[string]struct{}
+
 // NewCPCache instantiate a ProviderCache.
 func NewCPCache() *ProviderCache {
 	return &ProviderCache{
@@ -48,7 +53,8 @@ func NewCPCache() *ProviderCache {
 // or data needed to access the resource providing the configuration.
 // IsUpToDate checks the local cache of the CP and returns accordingly.
 type ConfigProvider interface {
-	Collect() ([]integration.Config, error)
+	Collect(context.Context) ([]integration.Config, error)
 	String() string
-	IsUpToDate() (bool, error)
+	IsUpToDate(context.Context) (bool, error)
+	GetConfigErrors() map[string]ErrorMsgSet
 }

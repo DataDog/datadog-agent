@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build orchestrator
 
@@ -80,6 +80,7 @@ func TestExtractPodMessage(t *testing.T) {
 							},
 						},
 					},
+					QOSClass: v1.PodQOSGuaranteed,
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					UID:               types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
@@ -99,6 +100,7 @@ func TestExtractPodMessage(t *testing.T) {
 							UID:  types.UID("1234567890"),
 						},
 					},
+					ResourceVersion: "1234",
 				},
 				Spec: v1.PodSpec{
 					NodeName:   "node",
@@ -119,12 +121,14 @@ func TestExtractPodMessage(t *testing.T) {
 							Uid:  "1234567890",
 						},
 					},
+					ResourceVersion: "1234",
 				},
 				Phase:             "Running",
 				NominatedNodeName: "nominated",
 				NodeName:          "node",
 				RestartCount:      42,
 				Status:            "chillin",
+				QOSClass:          "Guaranteed",
 				ContainerStatuses: []*model.ContainerStatus{
 					{
 						State:        "Running",
@@ -181,6 +185,7 @@ func TestExtractPodMessage(t *testing.T) {
 							Name: "bazName",
 						},
 					},
+					QOSClass: v1.PodQOSBurstable,
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "pod",
@@ -203,6 +208,7 @@ func TestExtractPodMessage(t *testing.T) {
 				},
 				RestartCount: 10,
 				Status:       "chillin",
+				QOSClass:     "Burstable",
 				ContainerStatuses: []*model.ContainerStatus{
 					{
 						Name:        "fooName",
@@ -263,6 +269,7 @@ func TestExtractPodMessage(t *testing.T) {
 							Name: "bazName",
 						},
 					},
+					QOSClass: v1.PodQOSBestEffort,
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "pod",
@@ -309,6 +316,7 @@ func TestExtractPodMessage(t *testing.T) {
 						Name: "bazName",
 					},
 				},
+				QOSClass: "BestEffort",
 			},
 		},
 		"partial pod with resourceRequirements": {
@@ -487,191 +495,6 @@ func TestConvertResourceRequirements(t *testing.T) {
 	}
 }
 
-func TestScrubContainer(t *testing.T) {
-	scrubber := NewDefaultDataScrubber()
-	tests := getScrubCases()
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			ScrubContainer(&tc.input, scrubber)
-			assert.Equal(t, tc.expected, tc.input)
-		})
-	}
-}
-
-func getScrubCases() map[string]struct {
-	input    v1.Container
-	expected v1.Container
-} {
-	tests := map[string]struct {
-		input    v1.Container
-		expected v1.Container
-	}{
-		"sensitive CLI": {
-			input: v1.Container{
-				Command: []string{"mysql", "--password", "afztyerbzio1234"},
-			},
-			expected: v1.Container{
-				Command: []string{"mysql", "--password", "********"},
-			},
-		},
-		"empty container": {
-			input:    v1.Container{},
-			expected: v1.Container{},
-		},
-		"empty container empty slices": {
-			input: v1.Container{
-				Command: []string{},
-				Args:    []string{},
-			},
-			expected: v1.Container{
-				Command: []string{},
-				Args:    []string{},
-			},
-		},
-		"non sensitive CLI": {
-			input: v1.Container{
-				Command: []string{"mysql", "--arg", "afztyerbzio1234"},
-			},
-			expected: v1.Container{
-				Command: []string{"mysql", "--arg", "afztyerbzio1234"},
-			},
-		},
-		"non sensitive CLI joined": {
-			input: v1.Container{
-				Command: []string{"mysql --arg afztyerbzio1234"},
-			},
-			expected: v1.Container{
-				Command: []string{"mysql --arg afztyerbzio1234"},
-			},
-		},
-		"sensitive CLI joined": {
-			input: v1.Container{
-				Command: []string{"mysql --password afztyerbzio1234"},
-			},
-			expected: v1.Container{
-				Command: []string{"mysql", "--password", "********"},
-			},
-		},
-		"sensitive env var": {
-			input: v1.Container{
-				Env: []v1.EnvVar{{Name: "password", Value: "kqhkiG9w0BAQEFAASCAl8wggJbAgEAAoGBAOLJ"}},
-			},
-			expected: v1.Container{
-				Env: []v1.EnvVar{{Name: "password", Value: "********"}},
-			},
-		},
-		"command with sensitive arg": {
-			input: v1.Container{
-				Command: []string{"mysql"},
-				Args:    []string{"--password", "afztyerbzio1234"},
-			},
-			expected: v1.Container{
-				Command: []string{"mysql"},
-				Args:    []string{"--password", "********"},
-			},
-		},
-		"command with no sensitive arg": {
-			input: v1.Container{
-				Command: []string{"mysql"},
-				Args:    []string{"--debug", "afztyerbzio1234"},
-			},
-			expected: v1.Container{
-				Command: []string{"mysql"},
-				Args:    []string{"--debug", "afztyerbzio1234"},
-			},
-		},
-		"sensitive command with no sensitive arg": {
-			input: v1.Container{
-				Command: []string{"mysql --password 123"},
-				Args:    []string{"--debug", "123"},
-			},
-			expected: v1.Container{
-				Command: []string{"mysql", "--password", "********"},
-				Args:    []string{"--debug", "123"},
-			},
-		},
-		"sensitive command with no sensitive arg joined": {
-			input: v1.Container{
-				Command: []string{"mysql --password 123"},
-				Args:    []string{"--debug 123"},
-			},
-			expected: v1.Container{
-				Command: []string{"mysql", "--password", "********"},
-				Args:    []string{"--debug", "123"},
-			},
-		},
-		"sensitive command with no sensitive arg split": {
-			input: v1.Container{
-				Command: []string{"mysql", "--password", "123"},
-				Args:    []string{"--debug", "123"},
-			},
-			expected: v1.Container{
-				Command: []string{"mysql", "--password", "********"},
-				Args:    []string{"--debug", "123"},
-			},
-		},
-		"sensitive command with no sensitive arg mixed": {
-			input: v1.Container{
-				Command: []string{"mysql", "--password", "123"},
-				Args:    []string{"--debug", "123"},
-			},
-			expected: v1.Container{
-				Command: []string{"mysql", "--password", "********"},
-				Args:    []string{"--debug", "123"},
-			},
-		},
-		"sensitive pass in args": {
-			input: v1.Container{
-				Command: []string{"agent --password"},
-				Args:    []string{"token123"},
-			},
-			expected: v1.Container{
-				Command: []string{"agent", "--password"},
-				Args:    []string{"********"},
-			},
-		},
-		"sensitive arg no command": {
-			input: v1.Container{
-				Args: []string{"password", "--password", "afztyerbzio1234"},
-			},
-			expected: v1.Container{
-				Args: []string{"password", "--password", "********"},
-			},
-		},
-		"sensitive arg joined": {
-			input: v1.Container{
-				Args: []string{"pwd pwd afztyerbzio1234 --password 1234"},
-			},
-			expected: v1.Container{
-				Args: []string{"pwd", "pwd", "********", "--password", "********"},
-			},
-		},
-		"sensitive container": {
-			input: v1.Container{
-				Name:    "test container",
-				Image:   "random",
-				Command: []string{"decrypt", "--password", "afztyerbzio1234", "--access_token", "yolo123"},
-				Env: []v1.EnvVar{
-					{Name: "hostname", Value: "password"},
-					{Name: "pwd", Value: "yolo"},
-				},
-				Args: []string{"--password", "afztyerbzio1234"},
-			},
-			expected: v1.Container{
-				Name:    "test container",
-				Image:   "random",
-				Command: []string{"decrypt", "--password", "********", "--access_token", "********"},
-				Env: []v1.EnvVar{
-					{Name: "hostname", Value: "password"},
-					{Name: "pwd", Value: "********"},
-				},
-				Args: []string{"--password", "********"},
-			},
-		},
-	}
-	return tests
-}
-
 func TestComputeStatus(t *testing.T) {
 	for nb, tc := range []struct {
 		pod    *v1.Pod
@@ -741,6 +564,48 @@ func TestComputeStatus(t *testing.T) {
 	}
 }
 
+func TestFillPodResourceVersion(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		input *model.Pod
+	}{
+		{
+			name: "ordered",
+			input: &model.Pod{
+				Metadata: &model.Metadata{
+					Name:        "pod",
+					Namespace:   "default",
+					Labels:      []string{"app:my-app", "chart_name:webscale-app", "team:one-team"},
+					Annotations: []string{"kubernetes.io/config.seen:2021-03-01T03:22:49.057675874Z", "kubernetes.io/config.source:api"},
+				},
+				RestartCount: 5,
+				Status:       "running",
+				Tags:         []string{"kube_namespace:default", "kube_service:my-app", "pod_name:name"},
+			},
+		},
+		{
+			name: "unordered",
+			input: &model.Pod{
+				Metadata: &model.Metadata{
+					Name:        "pod",
+					Namespace:   "default",
+					Labels:      []string{"chart_name:webscale-app", "team:one-team", "app:my-app"},
+					Annotations: []string{"kubernetes.io/config.source:api", "kubernetes.io/config.seen:2021-03-01T03:22:49.057675874Z"},
+				},
+				RestartCount: 5,
+				Status:       "running",
+				Tags:         []string{"pod_name:name", "kube_service:my-app", "kube_namespace:default"},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := fillPodResourceVersion(tc.input)
+			assert.NoError(t, err)
+			assert.Equal(t, "4669378970017265057", tc.input.Metadata.ResourceVersion)
+		})
+	}
+}
+
 func TestGetConditionMessage(t *testing.T) {
 	for nb, tc := range []struct {
 		pod     *v1.Pod
@@ -793,6 +658,14 @@ func TestGetConditionMessage(t *testing.T) {
 				},
 			},
 			message: "bar",
+		}, {
+			pod: &v1.Pod{
+				Status: v1.PodStatus{
+					Conditions: []v1.PodCondition{},
+					Message:    "Pod The node was low on resource: [DiskPressure]",
+				},
+			},
+			message: "Pod The node was low on resource: [DiskPressure]",
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d", nb), func(t *testing.T) {

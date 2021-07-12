@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package agent
 
@@ -17,6 +17,9 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/local"
+	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/flags"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -24,7 +27,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
+	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 )
 
 const messageAgentDisabled = `trace-agent not enabled. Set the environment variable
@@ -113,6 +119,10 @@ func Run(ctx context.Context) {
 		defer os.Remove(flags.PIDFilePath)
 	}
 
+	if err := util.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
+
 	err = metrics.Configure(cfg, []string{"version:" + info.Version})
 	if err != nil {
 		osutil.Exitf("cannot configure dogstatsd: %v", err)
@@ -124,11 +134,27 @@ func Run(ctx context.Context) {
 
 	rand.Seed(time.Now().UTC().UnixNano())
 
+	var t tagger.Tagger
+	if coreconfig.Datadog.GetBool("apm_config.remote_tagger") {
+		t = remote.NewTagger()
+	} else {
+		t = local.NewTagger(collectors.DefaultCatalog)
+	}
+	tagger.SetDefaultTagger(t)
 	tagger.Init()
-	defer tagger.Stop()
+	defer func() {
+		err := tagger.Stop()
+		if err != nil {
+			log.Error(err)
+		}
+	}()
 
 	agnt := NewAgent(ctx, cfg)
 	log.Infof("Trace agent running on host %s", cfg.Hostname)
+	if coreconfig.Datadog.GetBool("apm_config.internal_profiling.enabled") {
+		runProfiling(cfg)
+		defer profiling.Stop()
+	}
 	agnt.Run()
 
 	// collect memory profile
@@ -147,4 +173,33 @@ func Run(ctx context.Context) {
 		}
 		f.Close()
 	}
+}
+
+// runProfiling enables the profiler.
+func runProfiling(cfg *config.AgentConfig) {
+	if !coreconfig.Datadog.GetBool("apm_config.internal_profiling.enabled") {
+		// fail safe
+		return
+	}
+	site := "datadoghq.com"
+	if v := coreconfig.Datadog.GetString("site"); v != "" {
+		site = v
+	}
+	addr := fmt.Sprintf("https://intake.profile.%s/v1/input", site)
+	if v := coreconfig.Datadog.GetString("internal_profiling.profile_dd_url"); v != "" {
+		addr = v
+	}
+	period := profiling.DefaultProfilingPeriod
+	if v := coreconfig.Datadog.GetDuration("internal_profiling.period"); v != 0 {
+		period = v
+	}
+	cpudur := profiler.DefaultDuration
+	if v := coreconfig.Datadog.GetDuration("internal_profiling.cpu_duration"); v != 0 {
+		cpudur = v
+	}
+	mutexFraction := coreconfig.Datadog.GetInt("internal_profiling.mutex_profile_fraction")
+	blockRate := coreconfig.Datadog.GetInt("internal_profiling.block_profile_rate")
+	routines := coreconfig.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces")
+	profiling.Start(addr, cfg.DefaultEnv, "trace-agent", period, cpudur, mutexFraction, blockRate, routines, fmt.Sprintf("version:%s", info.Version))
+	log.Infof("Internal profiling enabled: [Target:%q][Env:%q][Period:%s][CPU:%s][Mutex:%d][Block:%d][Routines:%v].", addr, cfg.DefaultEnv, period, cpudur, mutexFraction, blockRate, routines)
 }

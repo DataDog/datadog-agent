@@ -12,16 +12,23 @@ struct link_event_t {
     struct file_t target;
 };
 
+int __attribute__((always_inline)) link_approvers(struct syscall_cache_t *syscall) {
+    return basename_approver(syscall, syscall->link.src_dentry, EVENT_LINK) ||
+           basename_approver(syscall, syscall->link.target_dentry, EVENT_LINK);
+}
+
 int __attribute__((always_inline)) trace__sys_link() {
+    struct policy_t policy = fetch_policy(EVENT_LINK);
+    if (is_discarded_by_process(policy.mode, EVENT_LINK)) {
+        return 0;
+    }
+
     struct syscall_cache_t syscall = {
-        .type = SYSCALL_LINK,
+        .type = EVENT_LINK,
+        .policy = policy,
     };
 
-    cache_syscall(&syscall, EVENT_LINK);
-
-    if (discarded_by_process(syscall.policy.mode, EVENT_LINK)) {
-        pop_syscall(SYSCALL_LINK);
-    }
+    cache_syscall(&syscall);
 
     return 0;
 }
@@ -36,85 +43,143 @@ SYSCALL_KPROBE0(linkat) {
 
 SEC("kprobe/vfs_link")
 int kprobe__vfs_link(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(SYSCALL_LINK);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
     if (!syscall)
         return 0;
 
-    struct dentry *dentry = (struct dentry *)PT_REGS_PARM1(ctx);
-
-    // if second pass, ex: overlayfs, just cache the inode that will be used in ret
     if (syscall->link.target_dentry) {
-        syscall->link.real_src_inode = get_dentry_ino(dentry);
         return 0;
     }
 
+    struct dentry *src_dentry = (struct dentry *)PT_REGS_PARM1(ctx);
+
+    syscall->link.src_dentry = src_dentry;
     syscall->link.target_dentry = (struct dentry *)PT_REGS_PARM3(ctx);
-    syscall->link.src_overlay_numlower = get_overlay_numlower(dentry);
+    if (filter_syscall(syscall, link_approvers)) {
+        return discard_syscall(syscall);
+    }
+
+    fill_file_metadata(src_dentry, &syscall->link.src_file.metadata);
+    syscall->link.target_file.metadata = syscall->link.src_file.metadata;
+
     // this is a hard link, source and target dentries are on the same filesystem & mount point
     // target_path was set by kprobe/filename_create before we reach this point.
-    syscall->link.src_key = get_dentry_key_path(dentry, syscall->link.target_path);
-    // we generate a fake target key as the inode is the same
-    syscall->link.target_key.ino = FAKE_INODE_MSW<<32 | bpf_get_prandom_u32();
-    syscall->link.target_key.mount_id = syscall->link.src_key.mount_id;
+    syscall->link.src_file.path_key.mount_id = get_path_mount_id(syscall->link.target_path);
+    set_file_inode(src_dentry, &syscall->link.src_file, 1);
 
-    syscall->link.src_key.path_id = get_path_id(0);
-    int ret = resolve_dentry(dentry, syscall->link.src_key, syscall->policy.mode != NO_FILTER ? EVENT_LINK : 0);
-    if (ret == DENTRY_DISCARDED) {
-        pop_syscall(SYSCALL_LINK);
+    // we generate a fake target key as the inode is the same
+    syscall->link.target_file.path_key.ino = FAKE_INODE_MSW<<32 | bpf_get_prandom_u32();
+    syscall->link.target_file.path_key.mount_id = syscall->link.src_file.path_key.mount_id;
+    if (is_overlayfs(src_dentry))
+        syscall->link.target_file.flags |= UPPER_LAYER;
+
+    syscall->resolver.dentry = src_dentry;
+    syscall->resolver.key = syscall->link.src_file.path_key;
+    syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_LINK : 0;
+    syscall->resolver.callback = DR_LINK_SRC_CALLBACK_KPROBE_KEY;
+    syscall->resolver.iteration = 0;
+    syscall->resolver.ret = 0;
+
+    resolve_dentry(ctx, DR_KPROBE);
+    return 0;
+}
+
+SEC("kprobe/dr_link_src_callback")
+int __attribute__((always_inline)) dr_link_src_callback(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
+    if (!syscall)
+        return 0;
+
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        return discard_syscall(syscall);
     }
 
     return 0;
 }
 
-int __attribute__((always_inline)) trace__sys_link_ret(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(SYSCALL_LINK);
-    if (!syscall)
-        return 0;
-
-    int retval = PT_REGS_RC(ctx);
+int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_type) {
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
-    // add an real entry to reach the first dentry with the proper inode
-    u64 inode = syscall->link.src_key.ino;
-    if (syscall->link.real_src_inode) {
-        inode = syscall->link.real_src_inode;
-        link_dentry_inode(syscall->link.src_key, inode);
-    }
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
+    if (!syscall)
+        return 0;
+
+    syscall->resolver.dentry = syscall->link.target_dentry;
+    syscall->resolver.key = syscall->link.target_file.path_key;
+    syscall->resolver.discarder_type = 0;
+    syscall->resolver.callback = dr_type == DR_KPROBE ? DR_LINK_DST_CALLBACK_KPROBE_KEY : DR_LINK_DST_CALLBACK_TRACEPOINT_KEY;
+    syscall->resolver.iteration = 0;
+    syscall->resolver.ret = 0;
+
+    resolve_dentry(ctx, dr_type);
+
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall(EVENT_LINK);
+    return 0;
+}
+
+int __attribute__((always_inline)) kprobe_sys_link_ret(struct pt_regs *ctx) {
+    int retval = PT_REGS_RC(ctx);
+    return sys_link_ret(ctx, retval, DR_KPROBE);
+}
+
+SEC("tracepoint/syscalls/sys_exit_link")
+int tracepoint_syscalls_sys_exit_link(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_link_ret(args, args->ret, DR_TRACEPOINT);
+}
+
+SYSCALL_KRETPROBE(link) {
+    return kprobe_sys_link_ret(ctx);
+}
+
+SEC("tracepoint/syscalls/sys_exit_linkat")
+int tracepoint_syscalls_sys_exit_linkat(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_link_ret(args, args->ret, DR_TRACEPOINT);
+}
+
+SYSCALL_KRETPROBE(linkat) {
+    return kprobe_sys_link_ret(ctx);
+}
+
+SEC("tracepoint/handle_sys_link_exit")
+int tracepoint_handle_sys_link_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_link_ret(args, args->ret, DR_TRACEPOINT);
+}
+
+int __attribute__((always_inline)) dr_link_dst_callback(void *ctx, int retval) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_LINK);
+    if (!syscall)
+        return 0;
+
+    if (IS_UNHANDLED_ERROR(retval))
+        return 0;
 
     struct link_event_t event = {
         .event.type = EVENT_LINK,
         .event.timestamp = bpf_ktime_get_ns(),
         .syscall.retval = retval,
-        .source = {
-            .inode = inode,
-            .mount_id = syscall->link.src_key.mount_id,
-            .overlay_numlower = syscall->link.src_overlay_numlower,
-            .path_id = syscall->link.src_key.path_id,
-        },
-        .target = {
-            .inode = syscall->link.target_key.ino,
-            .mount_id = syscall->link.target_key.mount_id,
-            .overlay_numlower = get_overlay_numlower(syscall->link.target_dentry),
-        }
+        .source = syscall->link.src_file,
+        .target = syscall->link.target_file,
     };
 
-    struct proc_cache_t *entry = fill_process_data(&event.process);
-    fill_container_data(entry, &event.container);
+    struct proc_cache_t *entry = fill_process_context(&event.process);
+    fill_container_context(entry, &event.container);
 
-    resolve_dentry(syscall->link.target_dentry, syscall->link.target_key, 0);
-
-    send_event(ctx, event);
+    send_event(ctx, EVENT_LINK, event);
 
     return 0;
 }
 
-SYSCALL_KRETPROBE(link) {
-    return trace__sys_link_ret(ctx);
+SEC("kprobe/dr_link_dst_callback")
+int __attribute__((always_inline)) kprobe_dr_link_dst_callback(struct pt_regs *ctx) {
+    int ret = PT_REGS_RC(ctx);
+    return dr_link_dst_callback(ctx, ret);
 }
 
-SYSCALL_KRETPROBE(linkat) {
-    return trace__sys_link_ret(ctx);
+SEC("tracepoint/dr_link_dst_callback")
+int __attribute__((always_inline)) tracepoint_dr_link_dst_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+    return dr_link_dst_callback(args, args->ret);
 }
 
 #endif

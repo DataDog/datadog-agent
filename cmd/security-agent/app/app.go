@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package app
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -31,6 +32,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -40,8 +44,10 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// loggerName is the name of the security agent logger
-const loggerName coreconfig.LoggerName = "SECURITY"
+const (
+	// loggerName is the name of the security agent logger
+	loggerName coreconfig.LoggerName = "SECURITY"
+)
 
 var (
 	// SecurityAgentCmd is the entry point for security agent CLI commands
@@ -50,6 +56,7 @@ var (
 		Short: "Datadog Security Agent at your service.",
 		Long: `
 Datadog Security Agent takes care of running compliance and security checks.`,
+		SilenceUsage: true, // don't print usage on errors
 	}
 
 	startCmd = &cobra.Command{
@@ -87,7 +94,9 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 	pidfilePath   string
 	confPathArray []string
 	flagNoColor   bool
-	stopCh        chan struct{}
+
+	srv     *api.Server
+	stopper restart.Stopper
 )
 
 func init() {
@@ -107,13 +116,16 @@ func init() {
 	SecurityAgentCmd.AddCommand(startCmd)
 }
 
-func newLogContext() (*config.Endpoints, *client.DestinationsContext, error) {
-	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpoints(); err == nil {
-		httpConnectivity = logshttp.CheckConnectivity(endpoints.Main)
+func newLogContext(logsConfig *config.LogsConfigKeys, intakeTrackType, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, config.DefaultIntakeProtocol)
+	if err != nil {
+		endpoints, err = config.BuildHTTPEndpoints(intakeTrackType, config.DefaultIntakeProtocol)
+		if err == nil {
+			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
+			endpoints, err = config.BuildEndpoints(httpConnectivity, intakeTrackType, config.DefaultIntakeProtocol)
+		}
 	}
 
-	endpoints, err := config.BuildEndpoints(httpConnectivity)
 	if err != nil {
 		return nil, nil, log.Errorf("Invalid endpoints: %v", err)
 	}
@@ -125,13 +137,31 @@ func newLogContext() (*config.Endpoints, *client.DestinationsContext, error) {
 }
 
 func start(cmd *cobra.Command, args []string) error {
-	defer log.Flush()
+	// Main context passed to components
+	ctx, cancel := context.WithCancel(context.Background())
+	defer StopAgent(cancel)
 
-	// Read configuration files received from the command line arguments '-c'
-	if err := common.MergeConfigurationFiles("datadog", confPathArray); err != nil {
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	go handleSignals(stopCh)
+
+	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
 		return err
 	}
 
+	err := RunAgent(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Block here until we receive a stop signal
+	<-stopCh
+
+	return nil
+}
+
+// RunAgent initialized resources and starts API server
+func RunAgent(ctx context.Context) (err error) {
 	// Setup logger
 	syslogURI := coreconfig.GetSyslogURI()
 	logFile := coreconfig.Datadog.GetString("security_agent.log_file")
@@ -140,7 +170,7 @@ func start(cmd *cobra.Command, args []string) error {
 		logFile = ""
 	}
 
-	err := coreconfig.SetupLogger(
+	err = coreconfig.SetupLogger(
 		loggerName,
 		coreconfig.Datadog.GetString("log_level"),
 		logFile,
@@ -152,6 +182,10 @@ func start(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)
 		return nil
+	}
+
+	if err := util.SetupCoreDump(); err != nil {
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
 	if pidfilePath != "" {
@@ -185,11 +219,16 @@ func start(cmd *cobra.Command, args []string) error {
 	if coreconfig.Datadog.GetBool("telemetry.enabled") {
 		http.Handle("/telemetry", telemetry.Handler())
 	}
-	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux) //nolint:errcheck
+	go func() {
+		err := http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
+		if err != nil && err != http.ErrServerClosed {
+			log.Errorf("Error creating expvar server on port %v: %v", port, err)
+		}
+	}()
 
 	// get hostname
 	// FIXME: use gRPC cross-agent communication API to retrieve hostname
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
@@ -202,22 +241,15 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
 	f.Start() //nolint:errcheck
-	s := serializer.NewSerializer(f)
+	s := serializer.NewSerializer(f, nil)
 
-	aggregatorInstance := aggregator.InitAggregator(s, hostname)
+	aggregatorInstance := aggregator.InitAggregator(s, nil, hostname)
 	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", version.AgentVersion))
 
-	stopper := restart.NewSerialStopper()
-	defer stopper.Stop()
-
-	endpoints, dstContext, err := newLogContext()
-	if err != nil {
-		log.Error(err)
-	}
-	stopper.Add(dstContext)
+	stopper = restart.NewSerialStopper()
 
 	// Retrieve statsd host and port from the datadog agent configuration file
-	statsdHost := coreconfig.Datadog.GetString("bind_host")
+	statsdHost := coreconfig.GetBindHost()
 	statsdPort := coreconfig.Datadog.GetInt("dogstatsd_port")
 
 	// Create a statsd Client
@@ -227,17 +259,23 @@ func start(cmd *cobra.Command, args []string) error {
 		return log.Criticalf("Error creating statsd Client: %s", err)
 	}
 
-	if err = startCompliance(hostname, endpoints, dstContext, stopper, statsdClient); err != nil {
+	// Initialize the remote tagger
+	if coreconfig.Datadog.GetBool("security_agent.remote_tagger") {
+		tagger.SetDefaultTagger(remote.NewTagger())
+		tagger.Init()
+	}
+
+	if err = startCompliance(hostname, stopper, statsdClient); err != nil {
 		return err
 	}
 
 	// start runtime security agent
-	runtimeAgent, err := startRuntimeSecurity(hostname, endpoints, dstContext, stopper, statsdClient)
+	runtimeAgent, err := startRuntimeSecurity(hostname, stopper, statsdClient)
 	if err != nil {
 		return err
 	}
 
-	srv, err := api.NewServer(runtimeAgent)
+	srv, err = api.NewServer(runtimeAgent)
 	if err != nil {
 		return log.Errorf("Error while creating api server, exiting: %v", err)
 	}
@@ -245,21 +283,57 @@ func start(cmd *cobra.Command, args []string) error {
 	if err = srv.Start(); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
-	defer srv.Stop()
 
 	log.Infof("Datadog Security Agent is now running.")
 
+	return
+}
+
+// handleSignals handles OS signals, and sends a message on stopCh when an interrupt
+// signal is received.
+func handleSignals(stopCh chan struct{}) {
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM, syscall.SIGPIPE)
 
 	// Block here until we receive the interrupt signal
-	<-signalCh
+	for signo := range signalCh {
+		switch signo {
+		case syscall.SIGPIPE:
+			// By default systemd redirects the stdout to journald. When journald is stopped or crashes we receive a SIGPIPE signal.
+			// Go ignores SIGPIPE signals unless it is when stdout or stdout is closed, in this case the agent is stopped.
+			// We never want dogstatsd to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
+		default:
+			log.Infof("Received signal '%s', shutting down...", signo)
+			stopCh <- struct{}{}
+			return
+		}
+	}
+}
 
-	if stopCh != nil {
-		close(stopCh)
+// StopAgent stops the API server and clean up resources
+func StopAgent(cancel context.CancelFunc) {
+	// retrieve the agent health before stopping the components
+	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
+	health, err := health.GetReadyNonBlocking()
+	if err != nil {
+		log.Warnf("Security Agent health unknown: %s", err)
+	} else if len(health.Unhealthy) > 0 {
+		log.Warnf("Some components were unhealthy: %v", health.Unhealthy)
+	}
+
+	// gracefully shut down any component
+	cancel()
+
+	// stop metaScheduler and statsd if they are instantiated
+	if stopper != nil {
+		stopper.Stop()
+	}
+
+	if srv != nil {
+		srv.Stop()
 	}
 
 	log.Info("See ya!")
-	return nil
+	log.Flush()
 }

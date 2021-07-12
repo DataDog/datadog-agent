@@ -1,0 +1,22 @@
+---
+build_serverless-deb_x64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main", "size:large"]
+  needs: ["linux_x64_go_deps"]
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    - cd cmd/serverless && go build -mod=mod -a -v -tags serverless
+
+build_serverless-deb_arm64:
+  rules:
+    !reference [.on_all_builds]
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+  needs: ["linux_arm64_go_deps"]
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    - cd cmd/serverless && go build -mod=mod -a -v -tags serverless

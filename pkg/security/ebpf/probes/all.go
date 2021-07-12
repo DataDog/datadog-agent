@@ -1,13 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package probes
 
-import "github.com/DataDog/ebpf/manager"
+import (
+	"github.com/DataDog/ebpf/manager"
+)
 
 // allProbes contain the list of all the probes of the runtime security module
 var allProbes []*manager.Probe
@@ -29,6 +31,8 @@ func AllProbes() []*manager.Probe {
 	allProbes = append(allProbes, sharedProbes...)
 	allProbes = append(allProbes, getUnlinkProbes()...)
 	allProbes = append(allProbes, getXattrProbes()...)
+	allProbes = append(allProbes, getIoctlProbes()...)
+	allProbes = append(allProbes, getSELinuxProbes()...)
 
 	allProbes = append(allProbes,
 		// Syscall monitor
@@ -38,12 +42,16 @@ func AllProbes() []*manager.Probe {
 		},
 		&manager.Probe{
 			UID:     SecurityAgentUID,
+			Section: "tracepoint/raw_syscalls/sys_exit",
+		},
+		&manager.Probe{
+			UID:     SecurityAgentUID,
 			Section: "tracepoint/sched/sched_process_exec",
 		},
 		// Snapshot probe
 		&manager.Probe{
 			UID:     SecurityAgentUID,
-			Section: "kretprobe/get_task_exe_file",
+			Section: "kprobe/security_inode_getattr",
 		},
 	)
 
@@ -57,18 +65,21 @@ func AllMaps() []*manager.Map {
 		{Name: "filter_policy"},
 		{Name: "inode_discarders"},
 		{Name: "pid_discarders"},
+		{Name: "discarder_revisions"},
+		{Name: "basename_approvers"},
 		// Dentry resolver table
 		{Name: "pathnames"},
 		// Snapshot table
-		{Name: "inode_info_cache"},
+		{Name: "exec_file_cache"},
 		// Open tables
-		{Name: "open_basename_approvers"},
 		{Name: "open_flags_approvers"},
 		// Exec tables
 		{Name: "proc_cache"},
-		{Name: "pid_cookie"},
-		// Mount tables
-		{Name: "mount_id_offset"},
+		{Name: "pid_cache"},
+		{Name: "str_array_buffers"},
+		// SELinux tables
+		{Name: "selinux_write_buffer"},
+		{Name: "selinux_enforce_status"},
 		// Syscall monitor tables
 		{Name: "buffer_selector"},
 		{Name: "noisy_processes_fb"},
@@ -80,14 +91,43 @@ func AllMaps() []*manager.Map {
 	}
 }
 
+// AllMapSpecEditors returns the list of map editors
+func AllMapSpecEditors(numCPU int) map[string]manager.MapSpecEditor {
+	return map[string]manager.MapSpecEditor{
+		"proc_cache": {
+			MaxEntries: uint32(4096 * numCPU),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"pid_cache": {
+			MaxEntries: uint32(4096 * numCPU),
+			EditorFlag: manager.EditMaxEntries,
+		},
+	}
+}
+
 // AllPerfMaps returns the list of perf maps of the runtime security module
 func AllPerfMaps() []*manager.PerfMap {
 	return []*manager.PerfMap{
 		{
 			Map: manager.Map{Name: "events"},
 		},
-		{
-			Map: manager.Map{Name: "mountpoints_events"},
-		},
+	}
+}
+
+// AllTailRoutes returns the list of all the tail call routes
+func AllTailRoutes() []manager.TailCallRoute {
+	var routes []manager.TailCallRoute
+
+	routes = append(routes, getExecTailCallRoutes()...)
+	routes = append(routes, getDentryResolverTailCallRoutes()...)
+	routes = append(routes, getSysExitTailCallRoutes()...)
+
+	return routes
+}
+
+// GetPerfBufferStatisticsMaps returns the list of maps used to monitor the performances of each perf buffers
+func GetPerfBufferStatisticsMaps() map[string]string {
+	return map[string]string{
+		"events": "events_stats",
 	}
 }

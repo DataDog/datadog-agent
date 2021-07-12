@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package http
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -23,11 +24,14 @@ type HTTPServerTest struct {
 	destCtx     *client.DestinationsContext
 	destination *Destination
 	endpoint    config.Endpoint
+	request     *http.Request
 }
 
 func NewHTTPServerTest(statusCode int) *HTTPServerTest {
+	var request http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(statusCode)
+		request = *r
 	}))
 	url := strings.Split(ts.URL, ":")
 	port, _ := strconv.Atoi(url[2])
@@ -39,12 +43,13 @@ func NewHTTPServerTest(statusCode int) *HTTPServerTest {
 		Port:   port,
 		UseSSL: false,
 	}
-	dest := NewDestination(endpoint, JSONContentType, destCtx)
+	dest := NewDestination(endpoint, JSONContentType, destCtx, 0)
 	return &HTTPServerTest{
 		httpServer:  ts,
 		destCtx:     destCtx,
 		destination: dest,
 		endpoint:    endpoint,
+		request:     &request,
 	}
 }
 
@@ -59,7 +64,7 @@ func TestBuildURLShouldReturnHTTPSWithUseSSL(t *testing.T) {
 		Host:   "foo",
 		UseSSL: true,
 	})
-	assert.Equal(t, "https://foo/v1/input/bar", url)
+	assert.Equal(t, "https://foo/v1/input", url)
 }
 
 func TestBuildURLShouldReturnHTTPWithoutUseSSL(t *testing.T) {
@@ -68,7 +73,7 @@ func TestBuildURLShouldReturnHTTPWithoutUseSSL(t *testing.T) {
 		Host:   "foo",
 		UseSSL: false,
 	})
-	assert.Equal(t, "http://foo/v1/input/bar", url)
+	assert.Equal(t, "http://foo/v1/input", url)
 }
 
 func TestBuildURLShouldReturnAddressWithPortWhenDefined(t *testing.T) {
@@ -78,7 +83,18 @@ func TestBuildURLShouldReturnAddressWithPortWhenDefined(t *testing.T) {
 		Port:   1234,
 		UseSSL: false,
 	})
-	assert.Equal(t, "http://foo:1234/v1/input/bar", url)
+	assert.Equal(t, "http://foo:1234/v1/input", url)
+}
+
+func TestBuildURLShouldReturnAddressForVersion2(t *testing.T) {
+	url := buildURL(config.Endpoint{
+		APIKey:    "bar",
+		Host:      "foo",
+		UseSSL:    false,
+		Version:   config.EPIntakeVersion2,
+		TrackType: "test-track",
+	})
+	assert.Equal(t, "http://foo/api/v2/test-track", url)
 }
 
 func TestDestinationSend200(t *testing.T) {
@@ -120,4 +136,29 @@ func TestConnectivityCheck(t *testing.T) {
 	connectivity = CheckConnectivity(server.endpoint)
 	assert.Equal(t, config.HTTPConnectivityFailure, connectivity)
 	server.stop()
+}
+
+func TestErrorToTag(t *testing.T) {
+	assert.Equal(t, errorToTag(nil), "none")
+	assert.Equal(t, errorToTag(errors.New("fail")), "non-retryable")
+	assert.Equal(t, errorToTag(client.NewRetryableError(errors.New("fail"))), "retryable")
+}
+
+func TestDestinationSendsV2Protocol(t *testing.T) {
+	server := NewHTTPServerTest(200)
+	defer server.httpServer.Close()
+
+	server.destination.protocol = "test-proto"
+	err := server.destination.unconditionalSend([]byte("payload"))
+	assert.Nil(t, err)
+	assert.Equal(t, server.request.Header.Get("dd-protocol"), "test-proto")
+}
+
+func TestDestinationDoesntSendEmptyV2Protocol(t *testing.T) {
+	server := NewHTTPServerTest(200)
+	defer server.httpServer.Close()
+
+	err := server.destination.unconditionalSend([]byte("payload"))
+	assert.Nil(t, err)
+	assert.Empty(t, server.request.Header.Values("dd-protocol"))
 }

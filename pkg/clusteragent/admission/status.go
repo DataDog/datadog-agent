@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
 package admission
 
 import (
+	"context"
 	"fmt"
 	"hash/fnv"
 	"strconv"
@@ -54,7 +55,7 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 
 func getWebhookStatus(name string, apiCl kubernetes.Interface) (map[string]interface{}, error) {
 	webhookStatus := make(map[string]interface{})
-	webhook, err := apiCl.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().Get(name, metav1.GetOptions{})
+	webhook, err := apiCl.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		return webhookStatus, err
 	}
@@ -91,7 +92,7 @@ func getWebhookStatus(name string, apiCl kubernetes.Interface) (map[string]inter
 
 func getSecretStatus(ns, name string, apiCl kubernetes.Interface) (map[string]interface{}, error) {
 	secretStatus := make(map[string]interface{})
-	secret, err := apiCl.CoreV1().Secrets(ns).Get(name, metav1.GetOptions{})
+	secret, err := apiCl.CoreV1().Secrets(ns).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		return secretStatus, err
 	}
@@ -99,10 +100,11 @@ func getSecretStatus(ns, name string, apiCl kubernetes.Interface) (map[string]in
 	secretStatus["Namespace"] = secret.GetNamespace()
 	secretStatus["CreatedAt"] = secret.GetCreationTimestamp()
 	secretStatus["CABundleDigest"] = getDigest(secret.Data["cert.pem"])
-	t, err := certificate.GetDurationBeforeExpiration(secret.Data)
+	cert, err := certificate.GetCertFromSecret(secret.Data)
 	if err != nil {
-		log.Errorf("Cannot get certificate validity duration: %v", err)
+		log.Errorf("Cannot get certificate from secret: %v", err)
 	}
+	t := certificate.GetDurationBeforeExpiration(cert)
 	secretStatus["CertValidDuration"] = t.String()
 	return secretStatus, nil
 }

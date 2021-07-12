@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -15,14 +15,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	datadoghq "github.com/DataDog/datadog-operator/pkg/apis/datadoghq/v1alpha1"
-	dd_clientset "github.com/DataDog/datadog-operator/pkg/generated/clientset/versioned"
-	dd_informers "github.com/DataDog/datadog-operator/pkg/generated/informers/externalversions"
-	dd_listers "github.com/DataDog/datadog-operator/pkg/generated/listers/datadoghq/v1alpha1"
+	datadoghq "github.com/DataDog/datadog-operator/api/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 )
@@ -33,12 +33,20 @@ const (
 	ddmControllerStoreID string = "ddmc"
 )
 
+var (
+	gvrDDM  = datadoghq.GroupVersion.WithResource("datadogmetrics")
+	metaDDM = metav1.TypeMeta{
+		Kind:       "DatadogMetric",
+		APIVersion: "datadoghq.com/v1alpha1",
+	}
+)
+
 // DatadogMetricController watches DatadogMetric to build an internal view of current DatadogMetric state.
 // * It allows any ClusterAgent (even non leader) to answer quickly to Autoscalers queries
 // * It allows leader to know the list queries to send to DD
 type DatadogMetricController struct {
-	clientSet dd_clientset.Interface
-	lister    dd_listers.DatadogMetricLister
+	clientSet dynamic.Interface
+	lister    cache.GenericLister
 	synced    cache.InformerSynced
 	workqueue workqueue.RateLimitingInterface
 	store     *DatadogMetricsInternalStore
@@ -46,13 +54,13 @@ type DatadogMetricController struct {
 	context   context.Context
 }
 
-// NewAutoscalersController returns a new AutoscalersController
-func NewDatadogMetricController(client dd_clientset.Interface, informer dd_informers.SharedInformerFactory, isLeader func() bool, store *DatadogMetricsInternalStore) (*DatadogMetricController, error) {
+// NewDatadogMetricController returns a new AutoscalersController
+func NewDatadogMetricController(client dynamic.Interface, informer dynamicinformer.DynamicSharedInformerFactory, isLeader func() bool, store *DatadogMetricsInternalStore) (*DatadogMetricController, error) {
 	if store == nil {
 		return nil, fmt.Errorf("Store must be initialized")
 	}
 
-	datadogMetricsInformer := informer.Datadoghq().V1alpha1().DatadogMetrics()
+	datadogMetricsInformer := informer.ForResource(gvrDDM)
 	c := &DatadogMetricController{
 		clientSet: client,
 		lister:    datadogMetricsInformer.Lister(),
@@ -174,13 +182,18 @@ func (c *DatadogMetricController) processDatadogMetric(key interface{}) error {
 		return fmt.Errorf("Could not split the key: %v", err)
 	}
 
-	datadogMetricCached, err := c.lister.DatadogMetrics(ns).Get(name)
+	datadogMetricCached := &datadoghq.DatadogMetric{}
+	datadogMetricCachedObj, err := c.lister.ByNamespace(ns).Get(name)
+	if err == nil {
+		err = UnstructuredIntoDDM(datadogMetricCachedObj, datadogMetricCached)
+	}
+
 	switch {
 	case errors.IsNotFound(err):
 		// We ignore not found here as we may need to create a DatadogMetric later
 		datadogMetricCached = nil
 	case err != nil:
-		return fmt.Errorf("Unable to retrieve DatadogMetric: %v", err)
+		return fmt.Errorf("Unable to retrieve DatadogMetric: %w", err)
 	case datadogMetricCached == nil:
 		return fmt.Errorf("Could not parse empty DatadogMetric from local cache")
 	}
@@ -195,8 +208,10 @@ func (c *DatadogMetricController) processDatadogMetric(key interface{}) error {
 		if datadogMetricCached != nil {
 			// Feeding local cache with DatadogMetric information
 			c.store.Set(datadogMetricKey, model.NewDatadogMetricInternal(datadogMetricKey, *datadogMetricCached), ddmControllerStoreID)
+			setDatadogMetricTelemetry(datadogMetricCached)
 		} else {
 			c.store.Delete(datadogMetricKey, ddmControllerStoreID)
+			unsetDatadogMetricTelemetry(ns, name)
 		}
 	}
 
@@ -266,12 +281,13 @@ func (c *DatadogMetricController) syncDatadogMetric(ns, name, datadogMetricKey s
 func (c *DatadogMetricController) createDatadogMetric(ns, name string, datadogMetricInternal *model.DatadogMetricInternal) error {
 	log.Infof("Creating DatadogMetric: %s/%s", ns, name)
 	datadogMetric := &datadoghq.DatadogMetric{
+		TypeMeta: metaDDM,
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: ns,
 			Name:      name,
 		},
 		Spec: datadoghq.DatadogMetricSpec{
-			Query: datadogMetricInternal.Query,
+			Query: datadogMetricInternal.RawQuery(),
 		},
 		Status: *datadogMetricInternal.BuildStatus(nil),
 	}
@@ -284,10 +300,16 @@ func (c *DatadogMetricController) createDatadogMetric(ns, name string, datadogMe
 		datadogMetric.Spec.ExternalMetricName = datadogMetricInternal.ExternalMetricName
 	}
 
-	_, err := c.clientSet.DatadoghqV1alpha1().DatadogMetrics(ns).Create(datadogMetric)
+	datadogMetricObj := &unstructured.Unstructured{}
+	if err := UnstructuredFromDDM(datadogMetric, datadogMetricObj); err != nil {
+		return err
+	}
+	_, err := c.clientSet.Resource(gvrDDM).Namespace(ns).Create(context.TODO(), datadogMetricObj, metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("Unable to create DatadogMetric: %s/%s, err: %v", ns, name, err)
 	}
+
+	setDatadogMetricTelemetry(datadogMetric)
 
 	return nil
 }
@@ -296,18 +318,24 @@ func (c *DatadogMetricController) updateDatadogMetric(ns, name string, datadogMe
 	newStatus := datadogMetricInternal.BuildStatus(&datadogMetric.Status)
 	if newStatus != nil {
 		log.Debugf("Updating status of DatadogMetric: %s/%s", ns, name)
-		_, err := c.clientSet.DatadoghqV1alpha1().DatadogMetrics(ns).UpdateStatus(&datadoghq.DatadogMetric{
+		datadogMetric := &datadoghq.DatadogMetric{
+			TypeMeta: metaDDM,
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace:       ns,
 				Name:            name,
 				ResourceVersion: datadogMetric.ResourceVersion,
 			},
 			Status: *newStatus,
-		})
-
+		}
+		datadogMetricObj := &unstructured.Unstructured{}
+		if err := UnstructuredFromDDM(datadogMetric, datadogMetricObj); err != nil {
+			return err
+		}
+		_, err := c.clientSet.Resource(gvrDDM).Namespace(ns).UpdateStatus(context.TODO(), datadogMetricObj, metav1.UpdateOptions{})
 		if err != nil {
 			return fmt.Errorf("Unable to update DatadogMetric: %s/%s, err: %v", ns, name, err)
 		}
+		setDatadogMetricTelemetry(datadogMetric)
 	} else {
 		return fmt.Errorf("Impossible to build new status for DatadogMetric: %s", datadogMetricInternal.ID)
 	}
@@ -317,9 +345,10 @@ func (c *DatadogMetricController) updateDatadogMetric(ns, name string, datadogMe
 
 func (c *DatadogMetricController) deleteDatadogMetric(ns, name string) error {
 	log.Infof("Deleting DatadogMetric: %s/%s", ns, name)
-	err := c.clientSet.DatadoghqV1alpha1().DatadogMetrics(ns).Delete(name, &metav1.DeleteOptions{})
+	err := c.clientSet.Resource(gvrDDM).Namespace(ns).Delete(context.TODO(), name, metav1.DeleteOptions{})
 	if err != nil {
 		return fmt.Errorf("Unable to delete DatadogMetric: %s/%s, err: %v", ns, name, err)
 	}
+	unsetDatadogMetricTelemetry(ns, name)
 	return nil
 }

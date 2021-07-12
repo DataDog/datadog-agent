@@ -12,6 +12,8 @@ api_key:
 ## @param site - string - optional - default: datadoghq.com
 ## The site of the Datadog intake to send Agent data to.
 ## Set to 'datadoghq.eu' to send data to the EU site.
+## Set to 'us3.datadoghq.com' to send data to the US3 site.
+## Set to 'ddog-gov.com' to send data to the US1-FED site.
 #
 # site: datadoghq.com
 
@@ -58,8 +60,20 @@ api_key:
 #
 # hostname_fqdn: false
 
+## @param host_aliases - list of strings - optional
+## List of host aliases to report in addition to any aliases collected
+## automatically from cloud providers.
+## More information at
+## https://docs.datadoghq.com/agent/faq/how-datadog-agent-determines-the-hostname/?tab=agentv6v7#host-aliases
+#
+# host_aliases:
+#   - <ALIAS-1>
+#   - <ALIAS-2>
+
 ## @param tags  - list of key:value elements - optional
 ## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
+##
+## Additional tags can be supplied using the `DD_EXTRA_TAGS` environment variable.
 ##
 ## Learn more about tagging: https://docs.datadoghq.com/tagging/
 #
@@ -163,18 +177,10 @@ api_key:
 #
 # forwarder_timeout: 20
 
-## @param forwarder_retry_queue_max_size - integer - optional - default: 0
-## The forwarder retries failed requests. Use this setting to change the
-## maximum length of the forwarder's retry queue (each request in the queue
-## takes no more than 2MB in memory)
-#
-# forwarder_retry_queue_max_size: 30
-
 ## @param forwarder_retry_queue_payloads_max_size - integer - optional - default: 15728640 (15MB)
 ## It defines the maximum size in bytes of all the payloads in the forwarder's retry queue.
 ## The actual memory used is greater than the payloads size as there are extra fields like HTTP headers,
 ## but no more than 2.5 times the payload size.
-## If "forwarder_retry_queue_max_size" is greater than 0, this parameter is ignored.
 #
 # forwarder_retry_queue_payloads_max_size: 15728640
 
@@ -194,6 +200,29 @@ api_key:
 ## 'forwarder_stop_timeout' to 0.
 #
 # forwarder_stop_timeout: 2
+
+## @param forwarder_storage_max_size_in_bytes - int - optional - default: 0
+## When the retry queue of the forwarder is full, `forwarder_storage_max_size_in_bytes`
+## defines the amount of disk space the Agent can use to store transactions on the disk.
+## When `forwarder_storage_max_size_in_bytes` is `0`, the transactions are never stored on the disk.
+#
+# forwarder_storage_max_size_in_bytes: 50000000
+
+## @param forwarder_storage_max_disk_ratio - float - optional - default: 0.95
+## `forwarder_storage_max_disk_ratio` defines the disk capacity limit for storing transactions.
+## `0.95` means the Agent can store transactions on disk until `forwarder_storage_max_size_in_bytes`
+## is reached or when the disk mount for `forwarder_storage_path` exceeds 95% of the disk capacity,
+## whichever is lower.
+#
+# forwarder_storage_max_disk_ratio: 0.95
+
+## @param forwarder_outdated_file_in_days - int - optional - default: 10
+## This value specifies how many days the overflow transactions will remain valid before
+## being discarded. During the Agent restart, if a retry file contains transactions that were
+## created more than `forwarder_outdated_file_in_days` days ago, they are removed.
+#
+# forwarder_outdated_file_in_days: 10
+
 
 ## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba"]
 ## This option restricts which cloud provider endpoint will be used by the
@@ -277,6 +306,18 @@ api_key:
 #
 # gce_metadata_timeout: 1000
 
+## @param azure_hostname_style - string - optional - default: "os"
+## Changes how agent hostname is set on Azure virtual machines.
+##
+## Possible values:
+##   "os" - use the hostname reported by the operating system (default)
+##   "name" - use the instance name
+##   "name_and_resource_group" - use a combination of the instance name and resource group name
+##   "full" - use a combination of the instance name, resource group name and subscription id
+##   "vmid" - use the instance id
+#
+# azure_hostname_style: "os"
+
 ## @param flare_stripped_keys - list of strings - optional
 ## By default, the Agent removes known sensitive keys from Agent and Integrations yaml configs before
 ## including them in the flare.
@@ -286,6 +327,18 @@ api_key:
 # flare_stripped_keys:
 #   - "sensitive_key_1"
 #   - "sensitive_key_2"
+
+## @param no_proxy_nonexact_match - boolean - optional - default: false
+## Enable more flexible no_proxy matching. See https://godoc.org/golang.org/x/net/http/httpproxy#Config
+## for more information on accepted matching criteria.
+#
+# no_proxy_nonexact_match: false
+
+## @param use_proxy_for_cloud_metadata - boolean - optional - default: false
+## By default cloud provider IP's are added to the transport's `no_proxy` list.
+## Use this parameter to remove them from the `no_proxy` list.
+#
+# use_proxy_for_cloud_metadata: false
 
 {{ end }}
 {{- if .Agent }}
@@ -426,7 +479,7 @@ api_key:
 ## `secret_backend_command` is the path to the script to execute to fetch secrets.
 ## The executable must have specific rights that differ on Windows and Linux.
 ##
-## For more information see: https://github.com/DataDog/datadog-agent/blob/master/docs/agent/secrets.md
+## For more information see: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
 #
 # secret_backend_command: <COMMAND_PATH>
 
@@ -442,10 +495,15 @@ api_key:
 #
 # secret_backend_output_max_size: 1048576
 
-## @param secret_backend_timeout - integer - optional - default: 5
+## @param secret_backend_timeout - integer - optional - default: 30
 ## The timeout to execute the command in second
 #
-# secret_backend_timeout: 5
+# secret_backend_timeout: 30
+
+## @param secret_backend_skip_checks - boolean - optional - default: false
+## Disable fetching secrets for check configurations
+#
+# secret_backend_skip_checks: false
 
 ## @param snmp_listener - custom object - optional
 ## Creates and schedules a listener to automatically discover your SNMP devices.
@@ -467,12 +525,12 @@ api_key:
   #
   # discovery_interval: 3600
 
-  ## @param allowed_failures - integer - optional - default: 3
+  ## @param discovery_allowed_failures - integer - optional - default: 3
   ## The number of failed requests to a given SNMP device before removing it from the list of monitored
   ## devices.
-  ## If a device shuts down, the Agent stops monitoring it after `discovery_interval * allowed_failures` seconds.
+  ## If a device shuts down, the Agent stops monitoring it after `discovery_interval * discovery_allowed_failures` seconds.
   #
-  # allowed_failures: 3
+  # discovery_allowed_failures: 3
 
   ## @param configs - list - required
   ## The actual list of configurations used to discover SNMP devices in various subnets.
@@ -488,14 +546,14 @@ api_key:
   ##      - 10.0.1.1
   #
   # configs:
-    ## @param network - string - required
+    ## @param network_address - string - required
     ## The subnet in CIDR format to scan for SNMP devices.
     ## All unignored IP addresses in the CIDR range are scanned.
     ## For optimal discovery time, be sure to use the smallest network mask
     ## possible as is appropriate for your network topology.
     ## Ex: 10.0.1.0/24
     #
-    # - network: <NETWORK>
+    # - network_address: <NETWORK>
 
     ## @param ignored_ip_addresses - list of strings - optional
     ## A list of IP addresses to ignore when scanning the network.
@@ -509,12 +567,12 @@ api_key:
     #
     # port: 161
 
-    ## @param version - integer - optional - default: <BEST_GUESS>
+    ## @param snmp_version - integer - optional - default: <BEST_GUESS>
     ## Set the version of the SNMP protocol. Available options are: `1`, `2` or `3`.
     ## If unset, the Agent tries to guess the correct version based on other configuration
     ## parameters, for example: if `user` is set, the Agent uses SNMP v3.
     #
-    # version: <VERSION>
+    # snmp_version: <VERSION>
 
     ## @param timeout - integer - optional - default: 5
     ## The number of seconds before timing out.
@@ -526,11 +584,11 @@ api_key:
     #
     # retries: 3
 
-    ## @param community - string - optional
+    ## @param community_string - string - optional
     ## Required for SNMP v1 & v2.
     ## Ex: 'public'
     #
-    # community: <COMMUNITY>
+    # community_string: <COMMUNITY>
 
     ## @param user - string - optional
     ## The username to connect to your SNMP devices.
@@ -538,33 +596,33 @@ api_key:
     #
     # user: <USERNAME>
 
-    ## @param authentication_key - string - optional
+    ## @param authKey - string - optional
     ## The passphrase to use with your Authentication type.
     ## SNMPv3 only.
     #
-    # authentication_key: <AUTHENTICATION_KEY>
+    # authKey: <AUTHENTICATION_KEY>
 
-    ## @param authentication_protocol - string - optional
+    ## @param authProtocol - string - optional
     ## The authentication protocol to use when connecting to your SNMP devices.
     ## Available options are: MD5, SHA.
     ## Defaults to MD5 when `authentication_key` is specified.
     ## SNMPv3 only.
     #
-    # authentication_protocol: <AUTHENTICATION_PROTOCOL>
+    # authProtocol: <AUTHENTICATION_PROTOCOL>
 
-    ## @param privacy_key - string - optional
+    ## @param privKey - string - optional
     ## The passphrase to use with your privacy protocol.
     ## SNMPv3 only.
     #
-    # privacy_key: <PRIVACY_KEY>
+    # privKey: <PRIVACY_KEY>
 
-    ## @param privacy_protocol - string - optional
+    ## @param privProtocol - string - optional
     ## The privacy protocol to use when connecting to your SNMP devices.
     ## Available options are: DES, 3DES, AES, AES192, AES256, AES192C, AES256C.
     ## Defaults to DES when `privacy_key` is specified.
     ## SNMPv3 only.
     #
-    # privacy_protocol: <PRIVACY_PROTOCOL>
+    # privProtocol: <PRIVACY_PROTOCOL>
 
     ## @param context_name - string - optional
     ## The name of your context (optional SNMP v3-only parameter).
@@ -578,20 +636,32 @@ api_key:
     #
     # ad_identifier: snmp
 
-{{- if .Profiling -}}
+    ## @param loader - string - optional - default: python
+    ## Check loader to use. Available loaders:
+    ## - core: will use corecheck SNMP integration
+    ## - python: will use python SNMP integration
+    #
+    # loader: core
+
+{{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
-## Enter specific configurations for profiling.
+## Enter specific configurations for internal profiling.
+##
+## Please note that:
+##   1. This does *not* enable profiling for user applications.
+##   2. This only enables internal profiling of the agent go runtime.
+##   3. To enable profiling for user apps please refer to
+##      https://docs.datadoghq.com/tracing/profiling/
+##   4. Enabling this feature will incur in billing charges and other
+##      unexpected side-effects (ie. agent profiles showing with your
+##      services).
+##
 ## Uncomment this parameter and the one below to enable profiling.
-## See https://docs.datadoghq.com/tracing/profiling/
 #
-## NOTE: If enabled this option may incur in billing charges or other
-##       unexpected side-effects (ie. agent profiles showing with your
-##       services).
-#
-# profiling:
+# internal_profiling:
 #
   ## @param enabled - boolean - optional - default: false
-  ## Enable profiling for the Agent process.
+  ## Enable internal profiling for the Agent process.
   #
   # enabled: false
 
@@ -668,6 +738,11 @@ api_key:
   #
   # compression_level: 6
 
+  ## @param batch_wait - integer - optional - default: 5
+  ## The maximum time the Datadog Agent waits to fill each batch of logs before sending.
+  #
+  # batch_wait: 5
+  
 {{ end -}}
 {{- if .TraceAgent }}
 
@@ -758,6 +833,16 @@ api_key:
   # obfuscation:
   #     <OBFUSCATION_CONFIGURATION>
 
+  ## @param filter_tags - object - optional
+  ## Defines rules by which to filter traces based on tags.
+  ##  * require - list of key or key/value strings - traces must have those tags in order to be sent to Datadog
+  ##  * reject - list of key or key/value strings - traces with these tags are dropped by the Agent
+  ## Note: Rules take into account the intersection of tags defined.
+  #
+  # filter_tags:
+  #     require: [<LIST_OF_KEY_VALUE_TAGS>]
+  #     reject: [<LIST_OF_KEY_VALUE_TAGS>]
+
   ## @param replace_tags - list of objects - optional
   ## Defines a set of rules to replace or remove certain resources, tags containing
   ## potentially sensitive information.
@@ -789,6 +874,30 @@ api_key:
   ## Limits the total number of warnings and errors to 10 for every 10 second interval.
   #
   # log_throttling: true
+
+  {{- if .InternalProfiling -}}
+  ## @param profiling - custom object - optional
+  ## Enter specific configurations for internal profiling.
+  ##
+  ## Please note that:
+  ##   1. This does *not* enable profiling for user applications.
+  ##   2. This only enables internal profiling of the agent go runtime.
+  ##   3. To enable profiling for user apps please refer to
+  ##      https://docs.datadoghq.com/tracing/profiling/
+  ##   4. Enabling this feature will incur in billing charges and other
+  ##      unexpected side-effects (ie. agent profiles showing with your
+  ##      services).
+  ##
+  ## Uncomment this parameter and the one below to enable profiling.
+  #
+  # internal_profiling:
+  #
+    ## @param enabled - boolean - optional - default: false
+    ## Enable internal profiling for the trace-agent process.
+    #
+    # enabled: false
+
+  {{ end }}
 
 {{ end -}}
 {{- if .ProcessAgent }}
@@ -876,11 +985,35 @@ api_key:
   #   - 'sql*'
   #   - '*pass*d*'
 
+{{- if .InternalProfiling -}}
+  ## @param profiling - custom object - optional
+  ## Enter specific configurations for internal profiling.
+  ##
+  ## Please note that:
+  ##   1. This does *not* enable profiling for user applications.
+  ##   2. This only enables internal profiling of the agent go runtime.
+  ##   3. To enable profiling for user apps please refer to
+  ##      https://docs.datadoghq.com/tracing/profiling/
+  ##   4. Enabling this feature will incur in billing charges and other
+  ##      unexpected side-effects (ie. agent profiles showing with your
+  ##      services).
+  ##
+  ## Uncomment this parameter and the one below to enable profiling.
+  #
+  # internal_profiling:
+  #
+  ## @param enabled - boolean - optional - default: false
+  ## Enable internal profiling for the Process Agent process.
+  #
+  # enabled: false
+
+{{ end }}
 {{ end -}}
 {{- if .Compliance }}
 #############################################
 ## Security Agent Compliance Configuration ##
 #############################################
+
 ## @param compliance_config - custom object - optional
 ## Enter specific configuration for continuous compliance checks.
 # compliance_config:
@@ -898,6 +1031,10 @@ api_key:
   ## @param check_interval - duration - optional - default: 20m
   ## Check interval (see  https://golang.org/pkg/time/#ParseDuration for available options)
   # check_interval: 20m
+
+  ## @param check_max_events_per_run - integer
+  ## - optional - default: 100
+  # check_max_events_per_run: 100
 {{ end -}}
 {{- if .SystemProbe }}
 
@@ -910,15 +1047,45 @@ api_key:
 ## Uncomment this parameter and the one below to enable them.
 #
 # system_probe_config:
+{{- if (eq .OS "windows")}}
+  ## @param sysprobe_socket - string - optional - default: localhost:3333
+  ## The TCP address where system probes are accessed.
+  #
+  # sysprobe_socket: localhost:3333
+{{else}}
   ## @param sysprobe_socket - string - optional - default: /opt/datadog-agent/run/sysprobe.sock
   ## The full path to the location of the unix socket where system probes are accessed.
   #
   # sysprobe_socket: /opt/datadog-agent/run/sysprobe.sock
-
+{{ end }}
   ## @param log_file - string - optional - default: /var/log/datadog/system-probe.log
   ## The full path to the file where system-probe logs are written.
   #
   # log_file: /var/log/datadog/system-probe.log
+
+{{- if .InternalProfiling -}}
+  ## @param profiling - custom object - optional
+  ## Enter specific configurations for internal profiling.
+  ##
+  ## Please note that:
+  ##   1. This does *not* enable profiling for user applications.
+  ##   2. This only enables internal profiling of the agent go runtime.
+  ##   3. To enable profiling for user apps please refer to
+  ##      https://docs.datadoghq.com/tracing/profiling/
+  ##   4. Enabling this feature will incur in billing charges and other
+  ##      unexpected side-effects (ie. agent profiles showing with your
+  ##      services).
+  ##
+  ## Uncomment this parameter and the one below to enable profiling.
+  #
+  # internal_profiling:
+  #
+    ## @param enabled - boolean - optional - default: false
+    ## Enable internal profiling for the System Probe process.
+    #
+    # enabled: false
+
+{{ end }}
 
 {{- if .NetworkModule }}
 
@@ -949,6 +1116,10 @@ api_key:
   #
   # enabled: false
 
+  ## @param fim_enabled - boolean - optional - default: false
+  ## Set to true to enable the File Integrity Monitoring feature.
+  # fim_enabled: false
+
   ## @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
   ## The full path to the location of the unix socket where security runtime module is accessed.
   #
@@ -963,11 +1134,6 @@ api_key:
     #
     # dir: /etc/datadog-agent/runtime-security.d
 
-  ## @param enable_kernel_filters - boolean - optional - default: true
-  ## Enable filtering events from the kernel
-  #
-  # enable_kernel_filters: true
-
   ## @param syscall_monitor - custom object - optional
   ## Syscall monitoring
   #
@@ -977,7 +1143,39 @@ api_key:
     ## Set to true to enable the Syscall monitoring.
     #
     #  enabled: false
+
+  ## @param custom_sensitive_words - list of strings - optional
+  ## Define your own list of sensitive data to be merged with the default one.
+  ## Read more on Datadog documentation:
+  ## https://docs.datadoghq.com/graphing/infrastructure/process/#process-arguments-scrubbing
+  #
+  # custom_sensitive_words:
+  #   - 'personal_key'
+  #   - '*token'
+  #   - 'sql*'
+  #   - '*pass*d*'
+
 {{ end -}}
+{{ end -}}
+
+{{- if .SecurityAgent -}}
+##########################################
+## Security Agent Runtime Configuration ##
+##                                      ##
+## Settings to sent logs to Datadog are ##
+## fetched from section `logs_config`   ##
+##########################################
+
+# runtime_security_config:
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the Security Runtime Module.
+  #
+  # enabled: false
+
+  ## @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
+  ## The full path to the location of the unix socket where security runtime module is accessed.
+  #
+  # socket: /opt/datadog-agent/run/runtime-security.sock
 {{ end -}}
 {{- if .Dogstatsd }}
 
@@ -998,7 +1196,7 @@ api_key:
 
 ## @param bind_host - string - optional - default: localhost
 ## The host to listen on for Dogstatsd and traces. This is ignored by APM when
-## `apm_config.non_local_traffic` is enabled and ignored by DogStatsD when `dogstatsd_non_local_traffic`
+## `apm_config.apm_non_local_traffic` is enabled and ignored by DogStatsD when `dogstatsd_non_local_traffic`
 ## is enabled. The trace-agent uses this host to send metrics to.
 ## The `localhost` default value is invalid in IPv6 environments where dogstatsd listens on "::1".
 ## To solve this problem, ensure Dogstatsd is listening on IPv4 by setting this value to "127.0.0.1".
@@ -1069,7 +1267,7 @@ api_key:
 #
 # dogstatsd_tags:
 #   - <TAG_KEY>:<TAG_VALUE>
-
+#
 ## @param dogstatsd_mapper_profiles - list of custom object - optional
 ## The profiles will be used to convert parts of metrics names into tags.
 ## If a profile prefix is matched, other profiles won't be tried even if that profile matching rules doesn't match.
@@ -1312,6 +1510,12 @@ api_key:
 #
 # log_format_rfc3339: false
 
+## @param log_all_goroutines_when_unhealthy - boolean - optional - default false
+## If enabled, when the health probe of an internal component fails, the stack traces
+## of all the goroutines are logged.
+#
+# log_all_goroutines_when_unhealthy: false
+
 {{ end -}}
 {{- if .Autoconfig }}
 
@@ -1374,6 +1578,34 @@ api_key:
 #
 # extra_config_providers:
 #   - clusterchecks
+
+## @param autoconfig_exclude_features - list of comma separated strings - optional
+## Exclude features automatically detected and enabled by environment autodiscovery.
+## Supported syntax is a list of `(<attribute>:)<regexp>`. Currently only the `name` attribute is supported.
+## When no attribute is present, it defaults to `name:` attribute.
+#
+# autoconfig_exclude_features:
+#  - cloudfoundry
+#  - containerd
+#  - cri
+#  - docker
+#  - ecsfargate
+#  - eksfargate
+#  - kubernetes
+#  - orchestratorexplorer
+
+## @param autoconfig_include_features - list of comma separated strings - optional
+## Force activation of features (as if they were discovered by environment autodiscovery).
+#
+# autoconfig_include_features:
+#  - cloudfoundry
+#  - containerd
+#  - cri
+#  - docker
+#  - ecsfargate
+#  - eksfargate
+#  - kubernetes
+#  - orchestratorexplorer
 
 {{ end -}}
 {{- if .Autodiscovery }}
@@ -1572,6 +1804,14 @@ api_key:
 #   <ANNOTATION>: <TAG_KEY>
 #   <HIGH_CARDINALITY_ANNOTATION>: +<TAG_KEY>
 
+## @param kubernetes_namespace_labels_as_tags - map - optional
+## The Agent can extract namespace label values and set them as metric tags values associated to a <TAG_KEY>.
+## If you prefix your tag name with +, it will only be added to high cardinality metrics.
+#
+# kubernetes_namespace_labels_as_tags:
+#   <NAMESPACE_LABEL>: <TAG_KEY>
+#   <HIGH_CARDINALITY_NAMESPACE_LABEL_NAME>: +<TAG_KEY>
+
 {{ end -}}
 {{- if .ECS }}
 
@@ -1597,6 +1837,11 @@ api_key:
 ## ECS Agent for tasks scheduled with the EC2 launch type.
 #
 # ecs_collect_resource_tags_ec2: false
+
+## @param ecs_resource_tags_replace_colon - boolean - optional - default: false
+## The Agent replaces colon `:` characters in the ECS resource tag keys by underscores `_`.
+#
+# ecs_resource_tags_replace_colon: false
 
 ## @param ecs_metadata_timeout - integer - optional - default: 500
 ## Timeout in milliseconds on calls to the AWS ECS metadata endpoints.
@@ -1756,7 +2001,7 @@ api_key:
 ## @param kubernetes_collect_metadata_tags - boolean - optional - default: true
 ## Set this to false to disable tag collection for the Agent.
 ## Note: In order to collect Kubernetes service names, the Agent needs certain rights.
-## See https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#kubernetes
+## See https://github.com/DataDog/datadog-agent/blob/main/Dockerfiles/agent/README.md#kubernetes
 #
 # kubernetes_collect_metadata_tags: true
 
@@ -1774,7 +2019,7 @@ api_key:
 ## Set `collect_kubernetes_events` to true to enable log collection.
 ## Note: leader election must be enabled must be enabled  bellow to to collect events.
 ##       Only the leader Agent collects events.
-## See https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#event-collection
+## See https://github.com/DataDog/datadog-agent/blob/main/Dockerfiles/agent/README.md#event-collection
 #
 # collect_kubernetes_events: false
 
@@ -1785,7 +2030,7 @@ api_key:
 
 ## @param leader_election - boolean - optional - default: false
 ## Set the parameter to true to enable leader election on this node.
-## See https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#leader-election
+## See https://github.com/DataDog/datadog-agent/blob/main/Dockerfiles/agent/README.md#leader-election
 #
 # leader_election: false
 
@@ -1858,6 +2103,53 @@ api_key:
   ## PEM-encoded client key used when connecting to the BBS API.
   #
   # key_file: ""
+
+  ## @param env_include - List of strings - optional - default: []
+  ## List of regular expressions to allow a set of environment variables to be included as container tags
+  #
+  # env_include: []
+  ## @param env_exclude - List of strings - optional - default: []
+  ## List of regular expressions to forbid a set of environment variables to be included as container tags
+  #
+  # env_exclude: []
+
+{{ end -}}
+{{- if .CloudFoundryCC }}
+####################################################################
+## Cloud Foundry Cloud Controller Configuration for Autodiscovery ##
+####################################################################
+
+## @param cloud_foundry_cc - custom object - optional
+## This section configures how the Cluster Agent accesses CC API to gather information
+## necessary for autodiscovery on Cloud Foundry deployments.
+#
+# cloud_foundry_cc:
+
+  ## @param url - string - optional - default: https://cloud-controller-ng.service.cf.internal:9024
+  ## URL of the CC API.
+  #
+  # url: https://cloud-controller-ng.service.cf.internal:9024
+
+  ## @param client_id - string - optional
+  ## Client ID for oauth with UAA to get a token to access the CC API.
+  #
+  # client_id: <UAA_CLIENT_ID>
+
+  ## @param client_secret - string - optional
+  ## Client ID for oauth with UAA to get a token to access the CC API.
+  #
+  # client_secret: <UAA_CLIENT_SECRET>
+
+  ## @param skip_ssl_validation - bool - optional - default: false
+  ## Whether or not to skip SSL validation when interacting with CC API.
+  #
+  # skip_ssl_validation: false
+
+  ## @param poll_interval - integer - optional - default: 60
+  ## Refresh rate of CC API, in seconds. Values lower than 10 might influence
+  ## performance of other operations in the cluster.
+  #
+  # poll_interval: 60
 
 {{ end -}}
 {{- if .SNMP }}

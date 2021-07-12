@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package testutil
 
@@ -13,17 +13,16 @@ import (
 // MockEngine mocks a sampler engine
 type MockEngine struct {
 	wantSampled bool
-	wantRate    float64
 }
 
 // NewMockEngine returns a MockEngine for tests
-func NewMockEngine(wantSampled bool, wantRate float64) *MockEngine {
-	return &MockEngine{wantSampled: wantSampled, wantRate: wantRate}
+func NewMockEngine(wantSampled bool) *MockEngine {
+	return &MockEngine{wantSampled: wantSampled}
 }
 
 // Sample returns a constant rate
-func (e *MockEngine) Sample(_ pb.Trace, _ *pb.Span, _ string) (bool, float64) {
-	return e.wantSampled, e.wantRate
+func (e *MockEngine) Sample(_ pb.Trace, _ *pb.Span, _ string) bool {
+	return e.wantSampled
 }
 
 // Run mocks Engine.Run()

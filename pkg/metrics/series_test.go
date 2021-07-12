@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 //+build zlib
 
@@ -19,7 +19,7 @@ import (
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/serializer/jsonstream"
+	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -412,7 +412,7 @@ func TestPayloadsSeries(t *testing.T) {
 	}
 
 	originalLength := len(testSeries)
-	builder := jsonstream.NewPayloadBuilder()
+	builder := stream.NewJSONPayloadBuilder(true)
 	payloads, err := builder.Build(testSeries)
 	require.Nil(t, err)
 	var splitSeries = []Series{}
@@ -456,7 +456,7 @@ func BenchmarkPayloadsSeries(b *testing.B) {
 	}
 
 	var r forwarder.Payloads
-	builder := jsonstream.NewPayloadBuilder()
+	builder := stream.NewJSONPayloadBuilder(true)
 	for n := 0; n < b.N; n++ {
 		// always record the result of Payloads to prevent
 		// the compiler eliminating the function call.

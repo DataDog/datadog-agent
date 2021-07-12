@@ -1,13 +1,17 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubelet
 
 package providers
 
 import (
+	"context"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -17,15 +21,22 @@ import (
 // PrometheusPodsConfigProvider implements the ConfigProvider interface for prometheus pods.
 type PrometheusPodsConfigProvider struct {
 	kubelet kubelet.KubeUtilInterface
-	PrometheusConfigProvider
+
+	checks []*types.PrometheusCheck
 }
 
 // NewPrometheusPodsConfigProvider returns a new Prometheus ConfigProvider connected to kubelet.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
 func NewPrometheusPodsConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
-	p := &PrometheusPodsConfigProvider{}
-	err := p.setupConfigs()
-	return p, err
+	checks, err := getPrometheusConfigs()
+	if err != nil {
+		return nil, err
+	}
+
+	p := &PrometheusPodsConfigProvider{
+		checks: checks,
+	}
+	return p, nil
 }
 
 // String returns a string representation of the PrometheusPodsConfigProvider
@@ -34,7 +45,7 @@ func (p *PrometheusPodsConfigProvider) String() string {
 }
 
 // Collect retrieves templates from the kubelet's podlist, builds config objects and returns them
-func (p *PrometheusPodsConfigProvider) Collect() ([]integration.Config, error) {
+func (p *PrometheusPodsConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	var err error
 	if p.kubelet == nil {
 		p.kubelet, err = kubelet.GetKubeUtil()
@@ -43,7 +54,7 @@ func (p *PrometheusPodsConfigProvider) Collect() ([]integration.Config, error) {
 		}
 	}
 
-	pods, err := p.kubelet.GetLocalPodList()
+	pods, err := p.kubelet.GetLocalPodList(ctx)
 	if err != nil {
 		return []integration.Config{}, err
 	}
@@ -52,7 +63,7 @@ func (p *PrometheusPodsConfigProvider) Collect() ([]integration.Config, error) {
 }
 
 // IsUpToDate always return false to poll new data from kubelet
-func (p *PrometheusPodsConfigProvider) IsUpToDate() (bool, error) {
+func (p *PrometheusPodsConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
@@ -61,7 +72,7 @@ func (p *PrometheusPodsConfigProvider) parsePodlist(podlist []*kubelet.Pod) []in
 	var configs []integration.Config
 	for _, pod := range podlist {
 		for _, check := range p.checks {
-			configs = append(configs, check.ConfigsForPod(pod)...)
+			configs = append(configs, utils.ConfigsForPod(check, pod)...)
 		}
 	}
 	return configs
@@ -69,4 +80,9 @@ func (p *PrometheusPodsConfigProvider) parsePodlist(podlist []*kubelet.Pod) []in
 
 func init() {
 	RegisterProvider("prometheus_pods", NewPrometheusPodsConfigProvider)
+}
+
+// GetConfigErrors is not implemented for the PrometheusPodsConfigProvider
+func (p *PrometheusPodsConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
 }

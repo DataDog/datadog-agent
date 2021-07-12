@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Node schedulability is now a dedicated tag on kubernetes node resources.

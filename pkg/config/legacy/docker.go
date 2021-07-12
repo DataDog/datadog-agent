@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build docker
 
@@ -15,7 +15,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
 	"github.com/DataDog/datadog-agent/pkg/config"
 
 	yaml "gopkg.in/yaml.v2"
@@ -93,13 +93,13 @@ func ImportDockerConf(src, dst string, overwrite bool, converter *config.LegacyC
 		fmt.Printf("Warning: %s contains more than one instance: converting only the first one\n", src)
 	}
 
-	dc := containers.DockerConfig{}
+	dc := docker.DockerConfig{}
 	if err := dc.Parse([]byte(c.Instances[0])); err != nil {
 		return fmt.Errorf("Could not parse instance from %s: %s", src, err)
 	}
 
 	// write docker.yaml
-	newCfg := map[string][]*containers.DockerConfig{
+	newCfg := map[string][]*docker.DockerConfig{
 		"instances": {&dc},
 	}
 

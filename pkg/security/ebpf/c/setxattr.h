@@ -13,18 +13,20 @@ struct setxattr_event_t {
 };
 
 int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name) {
+    struct policy_t policy = fetch_policy(EVENT_SETXATTR);
+    if (is_discarded_by_process(policy.mode, EVENT_SETXATTR)) {
+        return 0;
+    }
+
     struct syscall_cache_t syscall = {
-        .type = SYSCALL_SETXATTR,
-        .setxattr = {
+        .type = EVENT_SETXATTR,
+        .policy = policy,
+        .xattr = {
             .name = xattr_name,
         }
     };
 
-    cache_syscall(&syscall, EVENT_SETXATTR);
-
-    if (discarded_by_process(syscall.policy.mode, EVENT_SETXATTR)) {
-        pop_syscall(SYSCALL_SETXATTR);
-    }
+    cache_syscall(&syscall);
 
     return 0;
 }
@@ -42,14 +44,21 @@ SYSCALL_KPROBE2(fsetxattr, int, fd, const char *, name) {
 }
 
 int __attribute__((always_inline)) trace__sys_removexattr(const char *xattr_name) {
+    struct policy_t policy = fetch_policy(EVENT_REMOVEXATTR);
+    if (is_discarded_by_process(policy.mode, EVENT_REMOVEXATTR)) {
+        return 0;
+    }
+
     struct syscall_cache_t syscall = {
-        .type = SYSCALL_REMOVEXATTR,
-        .setxattr = {
+        .type = EVENT_REMOVEXATTR,
+        .policy = policy,
+        .xattr = {
             .name = xattr_name,
         }
     };
 
-    cache_syscall(&syscall, EVENT_REMOVEXATTR);
+    cache_syscall(&syscall);
+
     return 0;
 }
 
@@ -65,29 +74,44 @@ SYSCALL_KPROBE2(fremovexattr, int, fd, const char *, name) {
     return trace__sys_removexattr(name);
 }
 
-int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx, u16 type, u64 event_type) {
-    struct syscall_cache_t *syscall = peek_syscall(type);
+int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx, u64 event_type) {
+    struct syscall_cache_t *syscall = peek_syscall(event_type);
     if (!syscall)
         return 0;
 
-    struct dentry *dentry = (struct dentry *)PT_REGS_PARM1(ctx);
-
-    // if second pass, ex: overlayfs, just cache the inode that will be used in ret
-    if (syscall->setxattr.dentry) {
-        syscall->setxattr.real_inode = get_dentry_ino(dentry);
+    if (syscall->xattr.file.path_key.ino) {
         return 0;
     }
 
-    u32 path_id = get_path_id(0);
+    struct dentry *dentry = (struct dentry *)PT_REGS_PARM1(ctx);
+    syscall->xattr.dentry = dentry;
 
-    syscall->setxattr.dentry = dentry;
-    syscall->setxattr.path_key.ino = get_dentry_ino(syscall->setxattr.dentry);
-    syscall->setxattr.path_key.path_id = path_id;
+    set_file_inode(syscall->xattr.dentry, &syscall->xattr.file, 0);
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-    int ret = resolve_dentry(syscall->setxattr.dentry, syscall->setxattr.path_key, syscall->policy.mode != NO_FILTER ? event_type : 0);
-    if (ret == DENTRY_DISCARDED) {
-        pop_syscall(type);
+    syscall->resolver.dentry = syscall->xattr.dentry;
+    syscall->resolver.key = syscall->xattr.file.path_key;
+    syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? event_type : 0;
+    syscall->resolver.callback = DR_SETXATTR_CALLBACK_KPROBE_KEY;
+    syscall->resolver.iteration = 0;
+    syscall->resolver.ret = 0;
+
+    resolve_dentry(ctx, DR_KPROBE);
+    return 0;
+}
+
+int __attribute__((always_inline)) xattr_predicate(u64 type) {
+    return type == EVENT_SETXATTR || type == EVENT_REMOVEXATTR;
+}
+
+SEC("kprobe/dr_setxattr_callback")
+int __attribute__((always_inline)) dr_setxattr_callback(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall_with(xattr_predicate);
+    if (!syscall)
+        return 0;
+
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        return discard_syscall(syscall);
     }
 
     return 0;
@@ -95,75 +119,111 @@ int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx, u16 
 
 SEC("kprobe/vfs_setxattr")
 int kprobe__vfs_setxattr(struct pt_regs *ctx) {
-    return trace__vfs_setxattr(ctx, SYSCALL_SETXATTR, EVENT_SETXATTR);
+    return trace__vfs_setxattr(ctx, EVENT_SETXATTR);
 }
 
 SEC("kprobe/vfs_removexattr")
 int kprobe__vfs_removexattr(struct pt_regs *ctx) {
-    return trace__vfs_setxattr(ctx, SYSCALL_REMOVEXATTR, EVENT_REMOVEXATTR);
+    return trace__vfs_setxattr(ctx, EVENT_REMOVEXATTR);
 }
 
-int __attribute__((always_inline)) trace__sys_setxattr_ret(struct pt_regs *ctx, u64 type) {
-    struct syscall_cache_t *syscall = pop_syscall(1 << type);
+int __attribute__((always_inline)) sys_xattr_ret(void *ctx, int retval, u64 event_type) {
+    struct syscall_cache_t *syscall = pop_syscall(event_type);
     if (!syscall)
         return 0;
 
-    int retval = PT_REGS_RC(ctx);
     if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
-    // add an real entry to reach the first dentry with the proper inode
-    u64 inode = syscall->setxattr.path_key.ino;
-    if (syscall->setxattr.real_inode) {
-        inode = syscall->setxattr.real_inode;
-        link_dentry_inode(syscall->setxattr.path_key, inode);
-    }
-
     struct setxattr_event_t event = {
-        .event.type = type,
-        .event.timestamp = bpf_ktime_get_ns(),
         .syscall.retval = retval,
-        .file = {
-            .inode = inode,
-            .mount_id = syscall->setxattr.path_key.mount_id,
-            .overlay_numlower = get_overlay_numlower(syscall->setxattr.dentry),
-            .path_id = syscall->setxattr.path_key.path_id,
-        },
+        .file = syscall->xattr.file,
     };
 
     // copy xattr name
-    bpf_probe_read_str(&event.name, MAX_XATTR_NAME_LEN, (void*) syscall->setxattr.name);
+    bpf_probe_read_str(&event.name, MAX_XATTR_NAME_LEN, (void*) syscall->xattr.name);
 
-    struct proc_cache_t *entry = fill_process_data(&event.process);
-    fill_container_data(entry, &event.container);
+    struct proc_cache_t *entry = fill_process_context(&event.process);
+    fill_container_context(entry, &event.container);
+    fill_file_metadata(syscall->xattr.dentry, &event.file.metadata);
 
-    send_event(ctx, event);
+    send_event(ctx, event_type, event);
 
     return 0;
 }
 
+int __attribute__((always_inline)) kprobe_sys_setxattr_ret(struct pt_regs *ctx) {
+    int retval = PT_REGS_RC(ctx);
+    return sys_xattr_ret(ctx, retval, EVENT_SETXATTR);
+}
+
+SEC("tracepoint/syscalls/sys_exit_setxattr")
+int tracepoint_syscalls_sys_exit_setxattr(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_xattr_ret(args, args->ret, EVENT_SETXATTR);
+}
+
 SYSCALL_KRETPROBE(setxattr) {
-    return trace__sys_setxattr_ret(ctx, EVENT_SETXATTR);
+    return kprobe_sys_setxattr_ret(ctx);
+}
+
+SEC("tracepoint/syscalls/sys_exit_fsetxattr")
+int tracepoint_syscalls_sys_exit_fsetxattr(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_xattr_ret(args, args->ret, EVENT_SETXATTR);
 }
 
 SYSCALL_KRETPROBE(fsetxattr) {
-    return trace__sys_setxattr_ret(ctx, EVENT_SETXATTR);
+    return kprobe_sys_setxattr_ret(ctx);
+}
+
+SEC("tracepoint/syscalls/sys_exit_lsetxattr")
+int tracepoint_syscalls_sys_exit_lsetxattr(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_xattr_ret(args, args->ret, EVENT_SETXATTR);
 }
 
 SYSCALL_KRETPROBE(lsetxattr) {
-    return trace__sys_setxattr_ret(ctx, EVENT_SETXATTR);
+    return kprobe_sys_setxattr_ret(ctx);
+}
+
+SEC("tracepoint/handle_sys_setxattr_exit")
+int tracepoint_handle_sys_setxattr_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_xattr_ret(args, args->ret, EVENT_SETXATTR);
+}
+
+int __attribute__((always_inline)) kprobe_sys_removexattr_ret(struct pt_regs *ctx) {
+    int retval = PT_REGS_RC(ctx);
+    return sys_xattr_ret(ctx, retval, EVENT_REMOVEXATTR);
+}
+
+SEC("tracepoint/syscalls/sys_exit_removexattr")
+int tracepoint_syscalls_sys_exit_removexattr(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_xattr_ret(args, args->ret, EVENT_REMOVEXATTR);
 }
 
 SYSCALL_KRETPROBE(removexattr) {
-    return trace__sys_setxattr_ret(ctx, EVENT_REMOVEXATTR);
+    return kprobe_sys_removexattr_ret(ctx);
+}
+
+SEC("tracepoint/syscalls/sys_exit_lremovexattr")
+int tracepoint_syscalls_sys_exit_lremovexattr(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_xattr_ret(args, args->ret, EVENT_REMOVEXATTR);
 }
 
 SYSCALL_KRETPROBE(lremovexattr) {
-    return trace__sys_setxattr_ret(ctx, EVENT_REMOVEXATTR);
+    return kprobe_sys_removexattr_ret(ctx);
+}
+
+SEC("tracepoint/syscalls/sys_exit_fremovexattr")
+int tracepoint_syscalls_sys_exit_fremovexattr(struct tracepoint_syscalls_sys_exit_t *args) {
+    return sys_xattr_ret(args, args->ret, EVENT_REMOVEXATTR);
 }
 
 SYSCALL_KRETPROBE(fremovexattr) {
-    return trace__sys_setxattr_ret(ctx, EVENT_REMOVEXATTR);
+    return kprobe_sys_removexattr_ret(ctx);
+}
+
+SEC("tracepoint/handle_sys_removexattr_exit")
+int tracepoint_handle_sys_removexattr_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_xattr_ret(args, args->ret, EVENT_REMOVEXATTR);
 }
 
 #endif

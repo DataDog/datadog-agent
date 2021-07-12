@@ -17,7 +17,7 @@ import (
 )
 
 // Health returns a cobra command to report on the agent's health
-func Health(loggerName config.LoggerName, confPath string, flagNoColor bool) *cobra.Command {
+func Health(loggerName config.LoggerName, confPath *string, flagNoColor *bool) *cobra.Command {
 	return &cobra.Command{
 		Use:          "health",
 		Short:        "Print the current agent health",
@@ -25,7 +25,7 @@ func Health(loggerName config.LoggerName, confPath string, flagNoColor bool) *co
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 
-			if flagNoColor {
+			if *flagNoColor {
 				color.NoColor = true
 			}
 
@@ -33,12 +33,14 @@ func Health(loggerName config.LoggerName, confPath string, flagNoColor bool) *co
 				config.Datadog.SetConfigName("datadog-cluster")
 			}
 
-			err := common.SetupConfig(confPath)
+			// Set up config without secrets so that running the health command (e.g. from container
+			// liveness probe script) does not trigger a secret backend command call.
+			err := common.SetupConfigWithoutSecrets(*confPath, "")
 			if err != nil {
 				return fmt.Errorf("unable to set up global agent configuration: %v", err)
 			}
 
-			err = config.SetupLogger(loggerName, config.GetEnv("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+			err = config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
 			if err != nil {
 				fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 				return err

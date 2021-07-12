@@ -1,14 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package test
 
 import (
 	"compress/gzip"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -19,8 +18,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+
 	"github.com/gogo/protobuf/proto"
+	"github.com/tinylib/msgp/msgp"
 )
 
 // defaultBackendAddress is the default listening address for the fake
@@ -101,8 +101,8 @@ func (s *fakeBackend) handleHealth(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *fakeBackend) handleStats(w http.ResponseWriter, req *http.Request) {
-	var payload stats.Payload
-	if err := readJSONRequest(req, &payload); err != nil {
+	var payload pb.StatsPayload
+	if err := readMsgPRequest(req, &payload); err != nil {
 		log.Println("server: error reading stats: ", err)
 	}
 	s.out <- payload
@@ -116,13 +116,13 @@ func (s *fakeBackend) handleTraces(w http.ResponseWriter, req *http.Request) {
 	s.out <- payload
 }
 
-func readJSONRequest(req *http.Request, v interface{}) error {
+func readMsgPRequest(req *http.Request, msg msgp.Decodable) error {
 	rc, err := readCloserFromRequest(req)
 	if err != nil {
 		return err
 	}
 	defer rc.Close()
-	return json.NewDecoder(rc).Decode(v)
+	return msgp.Decode(rc, msg)
 }
 
 func readProtoRequest(req *http.Request, msg proto.Message) error {

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubelet
 
@@ -45,8 +45,8 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 		tags := utils.NewTagList()
 
 		// Pod name
-		tags.AddOrchestrator("pod_name", pod.Metadata.Name)
-		tags.AddLow("kube_namespace", pod.Metadata.Namespace)
+		tags.AddOrchestrator(kubernetes.PodTagName, pod.Metadata.Name)
+		tags.AddLow(kubernetes.NamespaceTagName, pod.Metadata.Namespace)
 
 		// Pod labels
 		for name, value := range pod.Metadata.Labels {
@@ -102,17 +102,20 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 
 		// Creator
 		for _, owner := range pod.Owners() {
+			tags.AddLow(kubernetes.OwnerRefKindTagName, strings.ToLower(owner.Kind))
+			tags.AddOrchestrator(kubernetes.OwnerRefNameTagName, owner.Name)
+
 			switch owner.Kind {
 			case "":
 				continue
-			case "Deployment":
-				tags.AddLow("kube_deployment", owner.Name)
-			case "DaemonSet":
-				tags.AddLow("kube_daemon_set", owner.Name)
-			case "ReplicationController":
-				tags.AddLow("kube_replication_controller", owner.Name)
-			case "StatefulSet":
-				tags.AddLow("kube_stateful_set", owner.Name)
+			case kubernetes.DeploymentKind:
+				tags.AddLow(kubernetes.DeploymentTagName, owner.Name)
+			case kubernetes.DaemonSetKind:
+				tags.AddLow(kubernetes.DaemonSetTagName, owner.Name)
+			case kubernetes.ReplicationControllerKind:
+				tags.AddLow(kubernetes.ReplicationControllerTagName, owner.Name)
+			case kubernetes.StatefulSetKind:
+				tags.AddLow(kubernetes.StatefulSetTagName, owner.Name)
 				pvcs := pod.GetPersistentVolumeClaimNames()
 				for _, pvc := range pvcs {
 					if pvc != "" {
@@ -120,22 +123,20 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 					}
 				}
 
-			case "Job":
+			case kubernetes.JobKind:
 				cronjob := parseCronJobForJob(owner.Name)
 				if cronjob != "" {
-					tags.AddOrchestrator("kube_job", owner.Name)
-					tags.AddLow("kube_cronjob", cronjob)
+					tags.AddOrchestrator(kubernetes.JobTagName, owner.Name)
+					tags.AddLow(kubernetes.CronJobTagName, cronjob)
 				} else {
-					tags.AddLow("kube_job", owner.Name)
+					tags.AddLow(kubernetes.JobTagName, owner.Name)
 				}
-			case "ReplicaSet":
+			case kubernetes.ReplicaSetKind:
 				deployment := parseDeploymentForReplicaSet(owner.Name)
 				if len(deployment) > 0 {
-					tags.AddOrchestrator("kube_replica_set", owner.Name)
-					tags.AddLow("kube_deployment", deployment)
-				} else {
-					tags.AddLow("kube_replica_set", owner.Name)
+					tags.AddLow(kubernetes.DeploymentTagName, deployment)
 				}
+				tags.AddLow(kubernetes.ReplicaSetTagName, owner.Name)
 			default:
 				log.Debugf("unknown owner kind %s for pod %s", owner.Kind, pod.Metadata.Name)
 			}

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package aggregator
 
@@ -11,8 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-const defaultExpiry = 300.0 // number of seconds after which contexts are expired
 
 // SerieSignature holds the elements that allow to know whether two similar `Serie`s
 // from the same bucket can be merged into one
@@ -25,7 +23,7 @@ type SerieSignature struct {
 // TimeSampler aggregates metrics by buckets of 'interval' seconds
 type TimeSampler struct {
 	interval                    int64
-	contextResolver             *ContextResolver
+	contextResolver             *timestampContextResolver
 	metricsByTimestamp          map[int64]metrics.ContextMetrics
 	counterLastSampledByContext map[ckey.ContextKey]float64
 	lastCutOffTime              int64
@@ -39,7 +37,7 @@ func NewTimeSampler(interval int64) *TimeSampler {
 	}
 	return &TimeSampler{
 		interval:                    interval,
-		contextResolver:             newContextResolver(),
+		contextResolver:             newTimestampContextResolver(),
 		metricsByTimestamp:          map[int64]metrics.ContextMetrics{},
 		counterLastSampledByContext: map[ckey.ContextKey]float64{},
 		sketchMap:                   make(sketchMap),
@@ -83,7 +81,7 @@ func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp fl
 }
 
 func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) metrics.SketchSeries {
-	ctx := s.contextResolver.contextsByKey[ck]
+	ctx, _ := s.contextResolver.get(ck)
 	ss := metrics.SketchSeries{
 		Name:       ctx.Name,
 		Tags:       ctx.Tags,
@@ -142,7 +140,7 @@ func (s *TimeSampler) flushSeries(cutoffTime int64) metrics.Series {
 			existingSerie.Points = append(existingSerie.Points, serie.Points[0])
 		} else {
 			// Resolve context and populate new Serie
-			context, ok := s.contextResolver.contextsByKey[serie.ContextKey]
+			context, ok := s.contextResolver.get(serie.ContextKey)
 			if !ok {
 				log.Errorf("Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", serie.ContextKey)
 				continue
@@ -185,9 +183,11 @@ func (s *TimeSampler) flush(timestamp float64) (metrics.Series, metrics.SketchSe
 	sketches := s.flushSketches(cutoffTime)
 
 	// expiring contexts
-	s.contextResolver.expireContexts(timestamp - defaultExpiry)
+	s.contextResolver.expireContexts(timestamp - config.Datadog.GetFloat64("dogstatsd_context_expiry_seconds"))
 	s.lastCutOffTime = cutoffTime
 
+	aggregatorDogstatsdContexts.Set(int64(s.contextResolver.length()))
+	tlmDogstatsdContexts.Set(float64(s.contextResolver.length()))
 	return series, sketches
 }
 
@@ -195,7 +195,7 @@ func (s *TimeSampler) flush(timestamp float64) (metrics.Series, metrics.SketchSe
 func (s *TimeSampler) flushContextMetrics(timestamp int64, contextMetrics metrics.ContextMetrics) []*metrics.Serie {
 	series, errors := contextMetrics.Flush(float64(timestamp))
 	for ckey, err := range errors {
-		context, ok := s.contextResolver.contextsByKey[ckey]
+		context, ok := s.contextResolver.get(ckey)
 		if !ok {
 			log.Errorf("Can't resolve context of error '%s': inconsistent context resolver state: context with key '%v' is not tracked", err, ckey)
 			continue

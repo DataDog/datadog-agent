@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -12,13 +12,14 @@ import (
 
 // Logs source types
 const (
-	TCPType          = "tcp"
-	UDPType          = "udp"
-	FileType         = "file"
-	DockerType       = "docker"
-	JournaldType     = "journald"
-	WindowsEventType = "windows_event"
-	SnmpTrapsType    = "snmp_traps"
+	TCPType           = "tcp"
+	UDPType           = "udp"
+	FileType          = "file"
+	DockerType        = "docker"
+	JournaldType      = "journald"
+	WindowsEventType  = "windows_event"
+	SnmpTrapsType     = "snmp_traps"
+	StringChannelType = "string_channel"
 
 	// UTF16BE for UTF-16 Big endian encoding
 	UTF16BE string = "utf-16-be"
@@ -51,6 +52,10 @@ type LogsConfig struct {
 
 	ChannelPath string `mapstructure:"channel_path" json:"channel_path"` // Windows Event
 	Query       string // Windows Event
+
+	// used as input only by the Channel tailer.
+	// could have been unidirectional but the tailer could not close it in this case.
+	Channel chan *ChannelMessage
 
 	Service         string
 	Source          string

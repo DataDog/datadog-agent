@@ -1,13 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018-2020 Datadog, Inc.
+// Copyright 2018-present Datadog, Inc.
 
 // +build kubeapiserver,kubelet
 
 package apiserver
 
 import (
+	"context"
+
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -20,7 +22,7 @@ import (
 // node to the cache
 // Only called when the node agent computes the metadata mapper locally and does not rely on the DCA.
 func (c *APIClient) NodeMetadataMapping(nodeName string, pods []*kubelet.Pod) error {
-	endpointList, err := c.Cl.CoreV1().Endpoints("").List(metav1.ListOptions{TimeoutSeconds: &c.timeoutSeconds})
+	endpointList, err := c.Cl.CoreV1().Endpoints("").List(context.TODO(), metav1.ListOptions{TimeoutSeconds: &c.timeoutSeconds})
 	if err != nil {
 		log.Errorf("Could not collect endpoints from the API Server: %q", err.Error())
 		return err

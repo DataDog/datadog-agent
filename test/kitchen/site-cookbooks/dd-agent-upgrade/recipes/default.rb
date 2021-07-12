@@ -2,7 +2,7 @@
 # Cookbook Name:: dd-agent-upgrade
 # Recipe:: default
 #
-# Copyright (C) 2013 Datadog
+# Copyright (C) 2013-present Datadog
 #
 # All rights reserved - Do Not Redistribute
 #
@@ -104,7 +104,9 @@ if node['platform_family'] == 'windows'
   temp_file = "#{temp_file_basename}.msi"
   installer_type = :msi
   # Agent >= 5.12.0 installs per-machine by default, but specifying ALLUSERS=1 shouldn't affect the install
-  install_options = '/norestart ALLUSERS=1'
+  agent_install_options = node['dd-agent-upgrade']['agent_install_options']
+  install_options = "/norestart ALLUSERS=1  #{agent_install_options}"
+
   use_windows_package_resource = true
 
   source_url = node['dd-agent-upgrade']['windows_agent_url']

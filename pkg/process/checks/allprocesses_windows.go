@@ -4,19 +4,19 @@ package checks
 
 import (
 	"bytes"
+	"runtime"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/shirou/w32"
+	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	cpu "github.com/DataDog/gopsutil/cpu"
 	process "github.com/DataDog/gopsutil/process"
-
-	"github.com/shirou/w32"
-
-	"golang.org/x/sys/windows"
 )
 
 var (
@@ -27,9 +27,13 @@ var (
 	procGetProcessIoCounters  = modkernel.NewProc("GetProcessIoCounters")
 
 	// XXX: Cross-check state is stored globally so the checks are not thread-safe.
-	cachedProcesses  = map[uint32]cachedProcess{}
-	checkCount       = 0
-	haveWarnedNoArgs = false
+	cachedProcesses = map[uint32]*cachedProcess{}
+	// cacheProcessesMutex is a mutex to protect cachedProcesses from being accessed concurrently.
+	// So far this is the case for Process check and RTProcess check
+	// TODO: revisit cacheProcesses usage so that we don't need to lock the whole getAllProcesses()
+	cacheProcessesMutex sync.Mutex
+	checkCount          = 0
+	haveWarnedNoArgs    = false
 )
 
 type SystemProcessInformation struct {
@@ -80,19 +84,42 @@ func getProcessIoCounters(h windows.Handle, counters *IO_COUNTERS) (err error) {
 	return nil
 }
 
-func getAllProcesses(cfg *config.AgentConfig) (map[int32]*process.FilledProcess, error) {
+func getAllProcStats(probe *procutil.Probe, pids []int32) (map[int32]*procutil.Stats, error) {
+	procs, err := getAllProcesses(probe)
+	if err != nil {
+		return nil, err
+	}
+	stats := make(map[int32]*procutil.Stats, len(procs))
+	for pid, proc := range procs {
+		stats[pid] = proc.Stats
+	}
+	return stats, nil
+}
+
+func getAllProcesses(probe *procutil.Probe) (map[int32]*procutil.Process, error) {
+	// make sure we get the consistent snapshot by using the same OS thread
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	allProcsSnap := w32.CreateToolhelp32Snapshot(w32.TH32CS_SNAPPROCESS, 0)
 	if allProcsSnap == 0 {
 		return nil, windows.GetLastError()
 	}
-	procs := make(map[int32]*process.FilledProcess)
+	procs := make(map[int32]*procutil.Process)
 
 	defer w32.CloseHandle(allProcsSnap)
 	var pe32 w32.PROCESSENTRY32
 	pe32.DwSize = uint32(unsafe.Sizeof(pe32))
 
 	checkCount++
-	knownPids := makePidSet()
+
+	cacheProcessesMutex.Lock()
+	defer cacheProcessesMutex.Unlock()
+
+	knownPids := make(map[uint32]struct{})
+	for pid := range cachedProcesses {
+		knownPids[pid] = struct{}{}
+	}
 
 	for success := w32.Process32First(allProcsSnap, &pe32); success; success = w32.Process32Next(allProcsSnap, &pe32) {
 		pid := pe32.Th32ProcessID
@@ -107,14 +134,21 @@ func getAllProcesses(cfg *config.AgentConfig) (map[int32]*process.FilledProcess,
 		cp, ok := cachedProcesses[pid]
 		if !ok {
 			// wasn't already in the map.
-			cp = cachedProcess{}
+			cp = &cachedProcess{}
 
 			if err := cp.fillFromProcEntry(&pe32); err != nil {
 				log.Debugf("could not fill Win32 process information for pid %v %v", pid, err)
 				continue
 			}
 			cachedProcesses[pid] = cp
+		} else {
+			if err := cp.openProcHandle(pe32.Th32ProcessID); err != nil {
+				log.Debugf("Could not reopen process handle for pid %v %v", pid, err)
+				continue
+			}
 		}
+		defer cp.close()
+
 		procHandle := cp.procHandle
 
 		var CPU windows.Rusage
@@ -147,39 +181,40 @@ func getAllProcesses(cfg *config.AgentConfig) (map[int32]*process.FilledProcess,
 		stime := float64((int64(CPU.KernelTime.HighDateTime) << 32) | int64(CPU.KernelTime.LowDateTime))
 
 		delete(knownPids, pid)
-		procs[int32(pid)] = &process.FilledProcess{
+		procs[int32(pid)] = &procutil.Process{
 			Pid:     int32(pid),
 			Ppid:    int32(ppid),
 			Cmdline: cp.parsedArgs,
-			CpuTime: cpu.TimesStat{
-				User:      utime,
-				System:    stime,
-				Timestamp: time.Now().UnixNano(),
+			Stats: &procutil.Stats{
+				CreateTime:  ctime,
+				OpenFdCount: int32(handleCount),
+				NumThreads:  int32(pe32.CntThreads),
+				CPUTime: &procutil.CPUTimesStat{
+					User:      utime,
+					System:    stime,
+					Timestamp: time.Now().UnixNano(),
+				},
+				MemInfo: &procutil.MemoryInfoStat{
+					RSS:  uint64(pmemcounter.WorkingSetSize),
+					VMS:  uint64(pmemcounter.QuotaPagedPoolUsage),
+					Swap: 0,
+				},
+				IOStat: &procutil.IOCountersStat{
+					ReadCount:  int64(ioCounters.ReadOperationCount),
+					WriteCount: int64(ioCounters.WriteOperationCount),
+					ReadBytes:  int64(ioCounters.ReadTransferCount),
+					WriteBytes: int64(ioCounters.WriteTransferCount),
+				},
+				CtxSwitches: &procutil.NumCtxSwitchesStat{},
 			},
 
-			CreateTime:  ctime,
-			OpenFdCount: int32(handleCount),
-			NumThreads:  int32(pe32.CntThreads),
-			CtxSwitches: &process.NumCtxSwitchesStat{},
-			MemInfo: &process.MemoryInfoStat{
-				RSS:  uint64(pmemcounter.WorkingSetSize),
-				VMS:  uint64(pmemcounter.QuotaPagedPoolUsage),
-				Swap: 0,
-			},
-			Exe: cp.executablePath,
-			IOStat: &process.IOCountersStat{
-				ReadCount:  ioCounters.ReadOperationCount,
-				WriteCount: ioCounters.WriteOperationCount,
-				ReadBytes:  ioCounters.ReadTransferCount,
-				WriteBytes: ioCounters.WriteTransferCount,
-			},
+			Exe:      cp.executablePath,
 			Username: cp.userName,
 		}
 	}
 	for pid := range knownPids {
 		cp := cachedProcesses[pid]
 		log.Debugf("removing process %v %v", pid, cp.executablePath)
-		cp.close()
 		delete(cachedProcesses, pid)
 	}
 
@@ -203,17 +238,6 @@ func getUsernameForProcess(h windows.Handle) (name string, err error) {
 		return "", err
 	}
 	return domain + "\\" + user, err
-}
-
-func convertWindowsString(winput []uint16) string {
-	var buf bytes.Buffer
-	for _, r := range winput {
-		if r == 0 {
-			break
-		}
-		buf.WriteRune(rune(r))
-	}
-	return buf.String()
 }
 
 func parseCmdLineArgs(cmdline string) (res []string) {
@@ -259,14 +283,6 @@ func parseCmdLineArgs(cmdline string) (res []string) {
 	return res
 }
 
-func makePidSet() (pids map[uint32]bool) {
-	pids = make(map[uint32]bool)
-	for pid := range cachedProcesses {
-		pids[pid] = true
-	}
-	return
-}
-
 type cachedProcess struct {
 	userName       string
 	executablePath string
@@ -276,17 +292,9 @@ type cachedProcess struct {
 }
 
 func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error) {
-	// 0x1000 is PROCESS_QUERY_LIMITED_INFORMATION, but that constant isn't
-	// 0x10   is PROCESS_VM_READ
-	// defined in x/sys/windows
-	cp.procHandle, err = windows.OpenProcess(0x1010, false, uint32(pe32.Th32ProcessID))
+	err = cp.openProcHandle(pe32.Th32ProcessID)
 	if err != nil {
-		log.Debugf("Couldn't open process with PROCESS_VM_READ %v %v", pe32.Th32ProcessID, err)
-		cp.procHandle, err = windows.OpenProcess(0x1000, false, uint32(pe32.Th32ProcessID))
-		if err != nil {
-			log.Debugf("Couldn't open process %v %v", pe32.Th32ProcessID, err)
-			return err
-		}
+		return err
 	}
 	var usererr error
 	cp.userName, usererr = getUsernameForProcess(cp.procHandle)
@@ -294,7 +302,7 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error)
 		log.Debugf("Couldn't get process username %v %v", pe32.Th32ProcessID, err)
 	}
 	var cmderr error
-	cp.executablePath = convertWindowsString(pe32.SzExeFile[:])
+	cp.executablePath = winutil.ConvertWindowsString16(pe32.SzExeFile[:])
 	cp.commandLine, cmderr = winutil.GetCommandLineForProcess(cp.procHandle)
 	if cmderr != nil {
 		log.Debugf("Error retrieving full command line %v", cmderr)
@@ -305,6 +313,26 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error)
 	return
 }
 
+func (cp *cachedProcess) openProcHandle(pid uint32) (err error) {
+	// 0x1000 is PROCESS_QUERY_LIMITED_INFORMATION, but that constant isn't
+	//        defined in x/sys/windows
+	// 0x10   is PROCESS_VM_READ
+
+	cp.procHandle, err = windows.OpenProcess(0x1010, false, uint32(pid))
+	if err != nil {
+		log.Debugf("Couldn't open process with PROCESS_VM_READ %v %v", pid, err)
+		cp.procHandle, err = windows.OpenProcess(0x1000, false, uint32(pid))
+		if err != nil {
+			log.Debugf("Couldn't open process %v %v", pid, err)
+			return err
+		}
+	}
+	return
+}
 func (cp *cachedProcess) close() {
-	windows.CloseHandle(cp.procHandle)
+	if cp.procHandle != windows.Handle(0) {
+		windows.CloseHandle(cp.procHandle)
+		cp.procHandle = windows.Handle(0)
+	}
+	return
 }

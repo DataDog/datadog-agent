@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 // +build windows,!dovet
 
 package winutil
@@ -93,14 +93,14 @@ func GetProgramDataDirForProduct(product string) (path string, err error) {
 		keyname,
 		registry.ALL_ACCESS)
 	if err != nil {
-		// otherwise, unexpected error
-		log.Warnf("Windows installation key root not found, using default program data dir %s", keyname)
+		// if the key isn't there, we might be running a standalone binary that wasn't installed through MSI
+		log.Debugf("Windows installation key root (%s) not found, using default program data dir", keyname)
 		return getDefaultProgramDataDir()
 	}
 	defer k.Close()
 	val, _, err := k.GetStringValue("ConfigRoot")
 	if err != nil {
-		log.Warnf("Windows installation key config not found, using default program data dir", keyname)
+		log.Warnf("Windows installation key config not found, using default program data dir")
 		return getDefaultProgramDataDir()
 	}
 	path = val

@@ -1,15 +1,17 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
-// +build linux_bpf
+// +build linux
 
 package ebpf
 
 import (
 	"bytes"
 	"encoding/binary"
+
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 )
 
 // BytesMapItem describes a raw table key or value
@@ -28,13 +30,23 @@ func (i Uint8MapItem) MarshalBinary() ([]byte, error) {
 	return []byte{uint8(i)}, nil
 }
 
+// Uint16MapItem describes an uint16 table key or value
+type Uint16MapItem uint16
+
+// MarshalBinary returns the binary representation of a Uint16MapItem
+func (i Uint16MapItem) MarshalBinary() ([]byte, error) {
+	b := make([]byte, 2)
+	model.ByteOrder.PutUint16(b, uint16(i))
+	return b, nil
+}
+
 // Uint32MapItem describes an uint32 table key or value
 type Uint32MapItem uint32
 
 // MarshalBinary returns the binary representation of a Uint32MapItem
 func (i Uint32MapItem) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 4)
-	GetHostByteOrder().PutUint32(b, uint32(i))
+	model.ByteOrder.PutUint32(b, uint32(i))
 	return b, nil
 }
 
@@ -44,7 +56,7 @@ type Uint64MapItem uint64
 // MarshalBinary returns the binary representation of a Uint64MapItem
 func (i Uint64MapItem) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 8)
-	GetHostByteOrder().PutUint64(b, uint64(i))
+	model.ByteOrder.PutUint64(b, uint64(i))
 	return b, nil
 }
 
@@ -62,7 +74,7 @@ func (i *StringMapItem) MarshalBinary() ([]byte, error) {
 	}
 
 	buffer := new(bytes.Buffer)
-	if err := binary.Write(buffer, GetHostByteOrder(), []byte(i.str)[0:n]); err != nil {
+	if err := binary.Write(buffer, model.ByteOrder, []byte(i.str)[0:n]); err != nil {
 		return nil, err
 	}
 	rep := make([]byte, i.size)
@@ -80,4 +92,11 @@ var (
 	ZeroUint8MapItem  = BytesMapItem([]byte{0})
 	ZeroUint32MapItem = BytesMapItem([]byte{0, 0, 0, 0})
 	ZeroUint64MapItem = BytesMapItem([]byte{0, 0, 0, 0, 0, 0, 0, 0})
+)
+
+var (
+	// BufferSelectorSyscallMonitorKey is the key used to select the active syscall monitor buffer key
+	BufferSelectorSyscallMonitorKey = ZeroUint32MapItem
+	// BufferSelectorERPCMonitorKey is the key used to select the active eRPC monitor buffer key
+	BufferSelectorERPCMonitorKey = Uint32MapItem(1)
 )

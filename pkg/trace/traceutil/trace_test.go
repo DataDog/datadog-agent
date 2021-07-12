@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package traceutil
 
@@ -56,6 +56,6 @@ func TestTraceChildrenMap(t *testing.T) {
 	assert.Equal([]*pb.Span{trace[3]}, childrenMap[2])
 	assert.Equal([]*pb.Span{trace[4]}, childrenMap[3])
 	assert.Equal([]*pb.Span{trace[5]}, childrenMap[4])
-	assert.Equal([]*pb.Span{}, childrenMap[5])
-	assert.Equal([]*pb.Span{}, childrenMap[6])
+	assert.Equal([]*pb.Span(nil), childrenMap[5])
+	assert.Equal([]*pb.Span(nil), childrenMap[6])
 }

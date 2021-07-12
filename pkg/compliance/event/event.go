@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package event
 
@@ -21,6 +21,7 @@ type Data map[string]interface{}
 type Event struct {
 	AgentRuleID      string      `json:"agent_rule_id,omitempty"`
 	AgentRuleVersion int         `json:"agent_rule_version,omitempty"`
+	AgentFrameworkID string      `json:"agent_framework_id,omitempty"`
 	Result           string      `json:"result,omitempty"`
 	ResourceType     string      `json:"resource_type,omitempty"`
 	ResourceID       string      `json:"resource_id,omitempty"`

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build clusterchecks
 // +build kubeapiserver
@@ -9,17 +9,18 @@
 package listeners
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"sync"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	infov1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -33,8 +34,8 @@ const (
 // KubeServiceListener listens to kubernetes service creation
 type KubeServiceListener struct {
 	informer      infov1.ServiceInformer
-	services      map[types.UID]Service
-	promInclAnnot map[string]string
+	services      map[k8stypes.UID]Service
+	promInclAnnot types.PrometheusAnnotations
 	newService    chan<- Service
 	delService    chan<- Service
 	m             sync.RWMutex
@@ -57,6 +58,7 @@ func init() {
 }
 
 func NewKubeServiceListener() (ServiceListener, error) {
+	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
@@ -68,9 +70,9 @@ func NewKubeServiceListener() (ServiceListener, error) {
 	}
 
 	return &KubeServiceListener{
-		services:      make(map[types.UID]Service),
+		services:      make(map[k8stypes.UID]Service),
 		informer:      servicesInformer,
-		promInclAnnot: getPrometheusInclAnnotations(),
+		promInclAnnot: getPrometheusIncludeAnnotations(),
 	}, nil
 }
 
@@ -132,7 +134,7 @@ func (l *KubeServiceListener) updated(old, obj interface{}) {
 		l.createService(castedObj, false)
 		return
 	}
-	if servicesDiffer(castedObj, castedOld) || l.prometheusAnnotDiffer(castedObj.GetAnnotations(), castedOld.GetAnnotations()) {
+	if servicesDiffer(castedObj, castedOld) || l.promInclAnnot.AnnotationsDiffer(castedObj.GetAnnotations(), castedOld.GetAnnotations()) {
 		l.removeService(castedObj)
 		l.createService(castedObj, false)
 	}
@@ -179,7 +181,7 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service, firstRun bool) {
 		return
 	}
 
-	if !isServiceAnnotated(ksvc, kubeServiceAnnotationFormat) && !l.isPrometheusService(ksvc.GetAnnotations()) {
+	if !isServiceAnnotated(ksvc, kubeServiceAnnotationFormat) && !l.promInclAnnot.IsMatchingAnnotations(ksvc.GetAnnotations()) {
 		// Ignore services with no AD or Prometheus AD include annotation
 		return
 	}
@@ -250,91 +252,44 @@ func (l *KubeServiceListener) removeService(ksvc *v1.Service) {
 	}
 }
 
-// isPrometheusService returns whether a service matches the AD include rules for Prometheus
-func (l *KubeServiceListener) isPrometheusService(svcAnnotations map[string]string) bool {
-	for k, v := range l.promInclAnnot {
-		if svcAnnotations[k] == v {
-			return true
-		}
-	}
-	return false
-}
-
-// prometheusAnnotDiffer returns whether the Prometheus AD include annotations have changed
-func (l *KubeServiceListener) prometheusAnnotDiffer(first, second map[string]string) bool {
-	for k := range l.promInclAnnot {
-		if first[k] != second[k] {
-			return true
-		}
-	}
-	return false
-}
-
-// getPrometheusInclAnnotations returns the Prometheus AD include annotations based on the Prometheus config
-func getPrometheusInclAnnotations() map[string]string {
-	annotations := map[string]string{}
-	checks, err := common.ReadPrometheusChecksConfig()
-	if err != nil {
-		log.Warnf("Couldn't get configurations from 'prometheus_scrape.checks': %v", err)
-		return annotations
-	}
-
-	if len(checks) == 0 {
-		annotations[common.PrometheusScrapeAnnotation] = "true"
-		return annotations
-	}
-
-	for _, check := range checks {
-		if err := check.Init(); err != nil {
-			log.Errorf("Couldn't init check configuration: %v", err)
-			continue
-		}
-		for k, v := range check.AD.GetIncludeAnnotations() {
-			annotations[k] = v
-		}
-	}
-
-	return annotations
-}
-
 // GetEntity returns the unique entity name linked to that service
 func (s *KubeServiceService) GetEntity() string {
 	return s.entity
 }
 
-// GetEntity returns the unique entity name linked to that service
+// GetTaggerEntity returns the unique entity name linked to that service
 func (s *KubeServiceService) GetTaggerEntity() string {
 	return s.entity
 }
 
 // GetADIdentifiers returns the service AD identifiers
-func (s *KubeServiceService) GetADIdentifiers() ([]string, error) {
+func (s *KubeServiceService) GetADIdentifiers(context.Context) ([]string, error) {
 	// Only the entity for now, to match on annotation
 	return []string{s.entity}, nil
 }
 
 // GetHosts returns the pod hosts
-func (s *KubeServiceService) GetHosts() (map[string]string, error) {
+func (s *KubeServiceService) GetHosts(context.Context) (map[string]string, error) {
 	return s.hosts, nil
 }
 
 // GetPid is not supported for PodContainerService
-func (s *KubeServiceService) GetPid() (int, error) {
+func (s *KubeServiceService) GetPid(context.Context) (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetPorts returns the container's ports
-func (s *KubeServiceService) GetPorts() ([]ContainerPort, error) {
+func (s *KubeServiceService) GetPorts(context.Context) ([]ContainerPort, error) {
 	return s.ports, nil
 }
 
 // GetTags retrieves tags
-func (s *KubeServiceService) GetTags() ([]string, error) {
-	return s.tags, nil
+func (s *KubeServiceService) GetTags() ([]string, string, error) {
+	return s.tags, "", nil
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
-func (s *KubeServiceService) GetHostname() (string, error) {
+func (s *KubeServiceService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
 }
 
@@ -344,13 +299,13 @@ func (s *KubeServiceService) GetCreationTime() integration.CreationTime {
 }
 
 // IsReady returns if the service is ready
-func (s *KubeServiceService) IsReady() bool {
+func (s *KubeServiceService) IsReady(context.Context) bool {
 	return true
 }
 
 // GetCheckNames returns slice of check names defined in kubernetes annotations or docker labels
 // KubeServiceService doesn't implement this method
-func (s *KubeServiceService) GetCheckNames() []string {
+func (s *KubeServiceService) GetCheckNames(context.Context) []string {
 	return nil
 }
 

@@ -1,0 +1,310 @@
+---
+# FIXME: our current Gitlab version doesn't support importing a file more than once
+# For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
+# See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
+# include:
+#   - /.gitlab/docker_common/tag_job_templates.yml
+
+dev_branch-a6:
+  extends: .docker_job_definition
+  stage: image_deploy
+  rules:
+    !reference [.on_a6_manual]
+  needs:
+    - docker_build_agent6
+    - docker_build_agent6_jmx
+    - docker_build_agent6_py2py3_jmx
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main", "size:2xlarge"]
+  script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
+    - python3 -m pip install -r requirements.txt
+    - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
+  variables:
+    IMG_REGISTRIES: dev
+  parallel:
+    matrix:
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-amd64
+        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG},agent-dev:${CI_COMMIT_REF_SLUG}-py2
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-jmx-amd64
+        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-jmx,agent-dev:${CI_COMMIT_REF_SLUG}-py2-jmx
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-py2py3-jmx-amd64
+        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-py2py3-jmx
+
+dev_branch-dogstatsd:
+  extends: .docker_job_definition
+  stage: image_deploy
+  rules:
+    !reference [.on_a7_manual]
+  needs:
+    - docker_build_dogstatsd_amd64
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main", "size:2xlarge"]
+  script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
+    - python3 -m pip install -r requirements.txt
+    - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
+    IMG_DESTINATIONS: dogstatsd-dev:${CI_COMMIT_REF_SLUG}
+
+dev_branch-a7:
+  extends: .docker_job_definition
+  stage: image_deploy
+  rules:
+    !reference [.on_a7_manual]
+  needs:
+    - docker_build_agent7
+    - docker_build_agent7_jmx
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main", "size:2xlarge"]
+  script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
+    - python3 -m pip install -r requirements.txt
+    - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
+  variables:
+    IMG_REGISTRIES: dev
+  parallel:
+    matrix:
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64
+        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-py3
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64
+        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx
+
+dev_branch_multiarch-a6:
+  extends: .docker_job_definition
+  stage: image_deploy
+  rules:
+    !reference [.on_all_builds_a6_manual]
+  needs:
+    - docker_build_agent6
+    - docker_build_agent6_arm64
+    - docker_build_agent6_jmx
+    - docker_build_agent6_jmx_arm64
+    - docker_build_agent6_py2py3_jmx
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main", "size:2xlarge"]
+  script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
+    - python3 -m pip install -r requirements.txt
+    - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
+  variables:
+    IMG_REGISTRIES: dev
+  parallel:
+    matrix:
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-arm64
+        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG},agent-dev:${CI_COMMIT_REF_SLUG}-py2
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-jmx-arm64
+        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-jmx,agent-dev:${CI_COMMIT_REF_SLUG}-py2-jmx
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-py2py3-jmx-amd64
+        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-py2py3-jmx
+
+dev_branch_multiarch-a7:
+  extends: .docker_job_definition
+  stage: image_deploy
+  rules:
+    !reference [.on_all_builds_a7_manual]
+  needs:
+    - docker_build_agent7
+    - docker_build_agent7_arm64
+    - docker_build_agent7_jmx
+    - docker_build_agent7_jmx_arm64
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main", "size:2xlarge"]
+  script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
+    - python3 -m pip install -r requirements.txt
+    - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
+  variables:
+    IMG_REGISTRIES: dev
+  parallel:
+    matrix:
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64
+        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-py3
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-arm64
+        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx
+
+dev_branch_multiarch-dogstatsd:
+  extends: .docker_job_definition
+  stage: image_deploy
+  rules:
+    !reference [.on_a7_manual]
+  needs:
+    - docker_build_dogstatsd_amd64
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main", "size:2xlarge"]
+  script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
+    - python3 -m pip install -r requirements.txt
+    - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
+    IMG_DESTINATIONS: dogstatsd-dev:${CI_COMMIT_REF_SLUG}
+
+dev_master-a6:
+  extends: .docker_job_definition
+  stage: image_deploy
+  rules:
+    !reference [.on_main_a6]
+  needs:
+    - docker_build_agent6
+    - docker_build_agent6_jmx
+    - docker_build_agent6_py2py3_jmx
+  trigger:
+    project: DataDog/public-images
+    branch: main
+    strategy: depend
+  variables:
+    IMG_REGISTRIES: dev
+  parallel:
+    matrix:
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-amd64
+        IMG_DESTINATIONS: agent-dev:master,agent-dev:master-py2
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-jmx-amd64
+        IMG_DESTINATIONS: agent-dev:master-jmx,agent-dev:master-py2-jmx
+
+dev_master-a7:
+  extends: .docker_job_definition
+  stage: image_deploy
+  rules:
+    !reference [.on_main_a7]
+  needs:
+    - docker_build_agent7
+    - docker_build_agent7_jmx
+  trigger:
+    project: DataDog/public-images
+    branch: main
+    strategy: depend
+  variables:
+    IMG_REGISTRIES: dev
+  parallel:
+    matrix:
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64
+        IMG_DESTINATIONS: agent-dev:master-py3
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64
+        IMG_DESTINATIONS: agent-dev:master-py3-jmx
+
+dev_master-dogstatsd:
+  extends: .docker_job_definition
+  stage: image_deploy
+  rules:
+    !reference [.on_main_a7]
+  needs:
+    - docker_build_dogstatsd_amd64
+  trigger:
+    project: DataDog/public-images
+    branch: main
+    strategy: depend
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
+    IMG_DESTINATIONS: dogstatsd-dev:master
+
+dca_dev_branch:
+  extends: .docker_job_definition
+  stage: image_deploy
+  rules:
+    !reference [.on_a7_manual]
+  needs:
+    - docker_build_cluster_agent_amd64
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main", "size:2xlarge"]
+  script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
+    - python3 -m pip install -r requirements.txt
+    - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
+    IMG_DESTINATIONS: cluster-agent-dev:${CI_COMMIT_REF_SLUG}
+
+dca_dev_branch_multiarch:
+  extends: .docker_job_definition
+  stage: image_deploy
+  rules:
+    !reference [.on_all_builds_a7_manual]
+  needs:
+    - docker_build_cluster_agent_amd64
+    - docker_build_cluster_agent_arm64
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main", "size:2xlarge"]
+  script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
+    - python3 -m pip install -r requirements.txt
+    - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
+    IMG_DESTINATIONS: cluster-agent-dev:${CI_COMMIT_REF_SLUG}
+
+dca_dev_master:
+  extends: .docker_job_definition
+  stage: image_deploy
+  rules:
+    !reference [.on_main_a7]
+  needs:
+    - docker_build_cluster_agent_amd64
+  trigger:
+    project: DataDog/public-images
+    branch: main
+    strategy: depend
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
+    IMG_DESTINATIONS: cluster-agent-dev:master
+
+# deploys nightlies to agent-dev
+dev_nightly_docker_hub-a6:
+  extends: .docker_job_definition
+  stage: image_deploy
+  rules:
+    !reference [.on_deploy_nightly_repo_branch_a6]
+  needs:
+    - docker_build_agent6
+    - docker_build_agent6_jmx
+    - docker_build_agent6_py2py3_jmx
+  trigger:
+    project: DataDog/public-images
+    branch: main
+    strategy: depend
+  variables:
+    IMG_REGISTRIES: dev
+  parallel:
+    matrix:
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-amd64
+        IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_SHORT_SHA},agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-jmx-amd64
+        IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-jmx,agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py2-jmx
+
+# deploys nightlies to agent-dev
+dev_nightly-a7:
+  extends: .docker_job_definition
+  stage: image_deploy
+  rules:
+    !reference [.on_deploy_nightly_repo_branch_a7]
+  needs:
+    - docker_build_agent7
+    - docker_build_agent7_jmx
+  trigger:
+    project: DataDog/public-images
+    branch: main
+    strategy: depend
+  variables:
+    IMG_REGISTRIES: dev
+  parallel:
+    matrix:
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64
+        IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx-amd64
+        IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-jmx
+
+# deploys nightlies to agent-dev
+dev_nightly-dogstatsd:
+  extends: .docker_job_definition
+  stage: image_deploy
+  rules:
+    !reference [.on_deploy_nightly_repo_branch_a7]
+  needs:
+    - docker_build_dogstatsd_amd64
+  trigger:
+    project: DataDog/public-images
+    branch: main
+    strategy: depend
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
+    IMG_DESTINATIONS: dogstatsd-dev:nightly-${CI_COMMIT_SHORT_SHA}

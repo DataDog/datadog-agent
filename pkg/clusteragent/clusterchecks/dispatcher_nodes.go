@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build clusterchecks
 
@@ -20,8 +20,8 @@ import (
 
 const defaultBusynessValue int = -1
 
-// getNodeConfigs returns configurations dispatched to a given node
-func (d *dispatcher) getNodeConfigs(nodeName string) ([]integration.Config, int64, error) {
+// getClusterCheckConfigs returns configurations dispatched to a given node
+func (d *dispatcher) getClusterCheckConfigs(nodeName string) ([]integration.Config, int64, error) {
 	d.store.RLock()
 	defer d.store.RUnlock()
 

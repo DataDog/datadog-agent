@@ -47,7 +47,6 @@ allowedCapabilities:
 #
 allowHostDirVolumePlugin: true
 allowHostIPC: false
-allowHostNetwork: false
 allowPrivilegedContainer: false
 allowedFlexVolumes: []
 defaultAddCapabilities: []

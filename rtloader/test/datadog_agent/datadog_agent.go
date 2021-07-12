@@ -8,9 +8,12 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/mailru/easyjson/jlexer"
+	yaml "gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
-	yaml "gopkg.in/yaml.v2"
 )
 
 /*
@@ -28,7 +31,8 @@ extern void setCheckMetadata(char*, char*, char*);
 extern void setExternalHostTags(char*, char*, char**);
 extern void writePersistentCache(char*, char*);
 extern char* readPersistentCache(char*);
-extern char* obfuscateSQL(char*, char**);
+extern char* obfuscateSQL(char*, char*, char**);
+extern char* obfuscateSQLExecPlan(char*, bool, char**);
 
 
 static void initDatadogAgentTests(rtloader_t *rtloader) {
@@ -45,6 +49,7 @@ static void initDatadogAgentTests(rtloader_t *rtloader) {
    set_write_persistent_cache_cb(rtloader, writePersistentCache);
    set_read_persistent_cache_cb(rtloader, readPersistentCache);
    set_obfuscate_sql_cb(rtloader, obfuscateSQL);
+   set_obfuscate_sql_exec_plan_cb(rtloader, obfuscateSQLExecPlan);
 }
 */
 import "C"
@@ -97,6 +102,7 @@ func run(call string) (string, error) {
 import sys
 try:
 	import datadog_agent
+	import json
 	%s
 except Exception as e:
 	with open(r'%s', 'w') as f:
@@ -233,7 +239,16 @@ func readPersistentCache(key *C.char) *C.char {
 }
 
 //export obfuscateSQL
-func obfuscateSQL(rawQuery *C.char, errResult **C.char) *C.char {
+func obfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
+	var sqlOpts obfuscate.SQLOptions
+	if opts != nil {
+		jl := &jlexer.Lexer{Data: []byte(C.GoString(opts))}
+		sqlOpts.UnmarshalEasyJSON(jl)
+		if jl.Error() != nil {
+			*errResult = (*C.char)(helpers.TrackedCString("failed to unmarshal options"))
+			return nil
+		}
+	}
 	s := C.GoString(rawQuery)
 	switch s {
 	case "select * from table where id = 1":
@@ -241,6 +256,26 @@ func obfuscateSQL(rawQuery *C.char, errResult **C.char) *C.char {
 	// expected error results from obfuscator
 	case "":
 		*errResult = (*C.char)(helpers.TrackedCString("result is empty"))
+		return nil
+	default:
+		*errResult = (*C.char)(helpers.TrackedCString("unknown test case"))
+		return nil
+	}
+}
+
+//export obfuscateSQLExecPlan
+func obfuscateSQLExecPlan(rawQuery *C.char, normalize C.bool, errResult **C.char) *C.char {
+	switch C.GoString(rawQuery) {
+	case "raw-json-plan":
+		if bool(normalize) {
+			return (*C.char)(helpers.TrackedCString("obfuscated-and-normalized"))
+		} else {
+			// obfuscate only
+			return (*C.char)(helpers.TrackedCString("obfuscated"))
+		}
+	// expected error results from obfuscator
+	case "":
+		*errResult = (*C.char)(helpers.TrackedCString("empty"))
 		return nil
 	default:
 		*errResult = (*C.char)(helpers.TrackedCString("unknown test case"))

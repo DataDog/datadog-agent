@@ -1,0 +1,93 @@
+---
+# FIXME: our current Gitlab version doesn't support importing a file more than once
+# For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
+# See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
+# include:
+#   - /.gitlab/kitchen_common/testing.yml
+
+.kitchen_test_system_probe:
+  extends:
+    - .kitchen_common
+    - .kitchen_datadog_agent_flavor
+  rules:
+    !reference [.on_system_probe_changes_or_manual]
+  stage: functional_test
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+    # we need chef >= 15 for arm64 and for the arm? helper
+    CHEF_VERSION: 15.16.4
+  script:
+    - bash -l tasks/run-test-kitchen.sh system-probe-test $AGENT_MAJOR_VERSION
+
+.kitchen_test_system_probe_x64:
+  extends:
+    - .kitchen_test_system_probe
+    - .kitchen_azure_location_north_central_us
+  needs: [ "tests_ebpf_x64" ]
+  variables:
+    KITCHEN_ARCH: x86_64
+
+.kitchen_test_system_probe_arm64:
+  extends:
+    - .kitchen_test_system_probe
+    - .kitchen_ec2_location_us_east_1
+    - .kitchen_ec2_spot_instances
+  needs: [ "tests_ebpf_arm64" ]
+  variables:
+    KITCHEN_ARCH: arm64
+    KITCHEN_EC2_INSTANCE_TYPE: "t4g.large"
+
+kitchen_centos_sysprobe_x64:
+  extends: .kitchen_test_system_probe_x64
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export KITCHEN_PLATFORM="centos"
+    - export KITCHEN_OSVERS="centos-76,rhel-81"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+
+kitchen_ubuntu_sysprobe_x64:
+  extends: .kitchen_test_system_probe_x64
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export KITCHEN_PLATFORM="ubuntu"
+    - export KITCHEN_OSVERS="ubuntu-16-04,ubuntu-18-04,ubuntu-20-04"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+
+kitchen_debian_sysprobe_x64:
+  extends: .kitchen_test_system_probe_x64
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export KITCHEN_PLATFORM="debian"
+    - export KITCHEN_OSVERS="debian-10"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+
+kitchen_centos_sysprobe_arm64:
+  extends: .kitchen_test_system_probe_arm64
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export KITCHEN_PLATFORM="centos"
+    - export KITCHEN_OSVERS="centos-78,rhel-83"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+
+kitchen_debian_sysprobe_arm64:
+  extends: .kitchen_test_system_probe_arm64
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export KITCHEN_PLATFORM="debian"
+    - export KITCHEN_OSVERS="debian-10"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+
+kitchen_ubuntu_sysprobe_arm64:
+  extends: .kitchen_test_system_probe_arm64
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export KITCHEN_PLATFORM="ubuntu"
+    - export KITCHEN_OSVERS="ubuntu-18-04,ubuntu-20-04"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh

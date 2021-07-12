@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: agent
-        image: "gcr.io/datadoghq/agent:7.23.1"
+        image: "gcr.io/datadoghq/agent:7.26.0"
         imagePullPolicy: IfNotPresent
         command: ["agent", "run"]
         resources: {}
@@ -43,6 +43,8 @@ spec:
           value: "INFO"
         - name: DD_DOGSTATSD_PORT
           value: "8125"
+        - name: DD_DOGSTATSD_NON_LOCAL_TRAFFIC
+          value: "true"
         - name: DD_CLUSTER_AGENT_ENABLED
           value: "true"
         - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
@@ -62,11 +64,16 @@ spec:
           value: "true"
         - name: DD_HEALTH_PORT
           value: "5555"
+        - name: DD_EXTRA_CONFIG_PROVIDERS
+          value: "clusterchecks endpointschecks"
         volumeMounts:
         - name: installinfo
           subPath: install_info
           mountPath: /etc/datadog-agent/install_info
           readOnly: true
+        - name: tmpdir
+          mountPath: /tmp
+          readOnly: false
         - name: config
           mountPath: /etc/datadog-agent
         - name: runtimesocketdir
@@ -102,7 +109,7 @@ spec:
           successThreshold: 1
           timeoutSeconds: 5
       - name: process-agent
-        image: "gcr.io/datadoghq/agent:7.23.1"
+        image: "gcr.io/datadoghq/agent:7.26.0"
         imagePullPolicy: IfNotPresent
         command: ["process-agent", "-config=/etc/datadog-agent/datadog.yaml"]
         resources: {}
@@ -120,6 +127,15 @@ spec:
           value: "yes"
         - name: DOCKER_HOST
           value: unix:///host/var/run/docker.sock
+        - name: DD_CLUSTER_AGENT_ENABLED
+          value: "true"
+        - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
+          value: datadog-cluster-agent
+        - name: DD_CLUSTER_AGENT_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: datadog-cluster-agent
+              key: token
         - name: DD_LOG_LEVEL
           value: "INFO"
         - name: DD_SYSTEM_PROBE_ENABLED
@@ -138,19 +154,23 @@ spec:
           mountPath: /host/var/run
           mountPropagation: None
           readOnly: true
+        - name: tmpdir
+          mountPath: /tmp
+          readOnly: false
         - name: cgroups
           mountPath: /host/sys/fs/cgroup
           mountPropagation: None
           readOnly: true
         - name: passwd
           mountPath: /etc/passwd
+          readOnly: true
         - name: procdir
           mountPath: /host/proc
           mountPropagation: None
           readOnly: true
       initContainers:
       - name: init-volume
-        image: "gcr.io/datadoghq/agent:7.23.1"
+        image: "gcr.io/datadoghq/agent:7.26.0"
         imagePullPolicy: IfNotPresent
         command: ["bash", "-c"]
         args:
@@ -160,7 +180,7 @@ spec:
           mountPath: /opt/datadog-agent
         resources: {}
       - name: init-config
-        image: "gcr.io/datadoghq/agent:7.23.1"
+        image: "gcr.io/datadoghq/agent:7.26.0"
         imagePullPolicy: IfNotPresent
         command: ["bash", "-c"]
         args:
@@ -201,6 +221,8 @@ spec:
       - hostPath:
           path: /var/run
         name: runtimesocketdir
+      - name: tmpdir
+        emptyDir: {}
       - hostPath:
           path: /proc
         name: procdir

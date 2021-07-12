@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package auditor
 
@@ -27,7 +27,7 @@ type AuditorTestSuite struct {
 	testDir  string
 	testPath string
 
-	a      *Auditor
+	a      *RegistryAuditor
 	source *config.LogSource
 }
 
@@ -42,7 +42,7 @@ func (suite *AuditorTestSuite) SetupTest() {
 	_, err = os.Create(suite.testPath)
 	suite.Nil(err)
 
-	suite.a = New("", DefaultRegistryFilename, health.RegisterLiveness("fake"))
+	suite.a = New("", DefaultRegistryFilename, time.Hour, health.RegisterLiveness("fake"))
 	suite.a.registryPath = suite.testPath
 	suite.source = config.NewLogSource("", &config.LogsConfig{Path: testpath})
 }

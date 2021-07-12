@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package log
 
@@ -147,6 +147,30 @@ func TestTextStripApiKey(t *testing.T) {
 	assertClean(t,
 		`Error status code 500 : http://dog.tld/api?key=3290abeefc68e1bbe852a25252bad88c`,
 		`Error status code 500 : http://dog.tld/api?key=***************************ad88c`)
+	assertClean(t,
+		`hintedAPIKeyReplacer : http://dog.tld/api_key=InvalidLength12345abbbb`,
+		`hintedAPIKeyReplacer : http://dog.tld/api_key=***************************abbbb`)
+	assertClean(t,
+		`hintedAPIKeyReplacer : http://dog.tld/apikey=InvalidLength12345abbbb`,
+		`hintedAPIKeyReplacer : http://dog.tld/apikey=***************************abbbb`)
+	assertClean(t,
+		`apiKeyReplacer: https://agent-http-intake.logs.datadoghq.com/v1/input/aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
+		`apiKeyReplacer: https://agent-http-intake.logs.datadoghq.com/v1/input/***************************abbbb`)
+}
+
+func TestTextStripAppKey(t *testing.T) {
+	assertClean(t,
+		`hintedAPPKeyReplacer : http://dog.tld/app_key=InvalidLength12345abbbb`,
+		`hintedAPPKeyReplacer : http://dog.tld/app_key=***********************************abbbb`)
+	assertClean(t,
+		`hintedAPPKeyReplacer : http://dog.tld/appkey=InvalidLength12345abbbb`,
+		`hintedAPPKeyReplacer : http://dog.tld/appkey=***********************************abbbb`)
+	assertClean(t,
+		`hintedAPPKeyReplacer : http://dog.tld/application_key=InvalidLength12345abbbb`,
+		`hintedAPPKeyReplacer : http://dog.tld/application_key=***********************************abbbb`)
+	assertClean(t,
+		`appKeyReplacer: http://dog.tld/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
+		`appKeyReplacer: http://dog.tld/***********************************abbbb`)
 }
 
 func TestTextStripURLPassword(t *testing.T) {
@@ -251,6 +275,15 @@ func TestSNMPConfig(t *testing.T) {
 	assertClean(t,
 		`   community_string:   'password'   `,
 		`   community_string: ********`)
+	assertClean(t,
+		`community: password`,
+		`community: ********`)
+	assertClean(t,
+		`authentication_key: password`,
+		`authentication_key: ********`)
+	assertClean(t,
+		`privacy_key: password`,
+		`privacy_key: ********`)
 }
 
 func TestYamlConfig(t *testing.T) {

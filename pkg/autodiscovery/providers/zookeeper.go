@@ -1,25 +1,26 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build zk
 
 package providers
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"path"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/samuel/go-zookeeper/zk"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const sessionTimeout = 1 * time.Second
@@ -60,7 +61,7 @@ func (z *ZookeeperConfigProvider) String() string {
 
 // Collect retrieves templates from Zookeeper, builds Config objects and returns them
 // TODO: cache templates and last-modified index to avoid future full crawl if no template changed.
-func (z *ZookeeperConfigProvider) Collect() ([]integration.Config, error) {
+func (z *ZookeeperConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	configs := make([]integration.Config, 0)
 	identifiers, err := z.getIdentifiers(z.templateDir)
 	if err != nil {
@@ -79,7 +80,7 @@ func (z *ZookeeperConfigProvider) Collect() ([]integration.Config, error) {
 }
 
 // IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to Zookeeper's data.
-func (z *ZookeeperConfigProvider) IsUpToDate() (bool, error) {
+func (z *ZookeeperConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 
 	identifiers, err := z.getIdentifiers(z.templateDir)
 	if err != nil {
@@ -201,4 +202,9 @@ func (z *ZookeeperConfigProvider) getJSONValue(key string) ([][]integration.Data
 
 func init() {
 	RegisterProvider("zookeeper", NewZookeeperConfigProvider)
+}
+
+// GetConfigErrors is not implemented for the ZookeeperConfigProvider
+func (z *ZookeeperConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
 }

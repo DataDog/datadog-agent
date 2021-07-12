@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package checks
 
@@ -23,7 +23,7 @@ var auditReportedFields = []string{
 	compliance.AuditFieldPermissions,
 }
 
-func resolveAudit(_ context.Context, e env.Env, ruleID string, res compliance.Resource) (interface{}, error) {
+func resolveAudit(_ context.Context, e env.Env, ruleID string, res compliance.Resource) (resolved, error) {
 	if res.Audit == nil {
 		return nil, fmt.Errorf("%s: expecting audit resource in audit check", ruleID)
 	}
@@ -54,7 +54,7 @@ func resolveAudit(_ context.Context, e env.Env, ruleID string, res compliance.Re
 		return nil, err
 	}
 
-	var instances []*eval.Instance
+	var instances []eval.Instance
 	for _, auditRule := range auditRules {
 		for _, path := range paths {
 			if auditRule.Path != path {
@@ -62,19 +62,20 @@ func resolveAudit(_ context.Context, e env.Env, ruleID string, res compliance.Re
 			}
 
 			log.Debugf("%s: audit check - match %s", ruleID, path)
-			instances = append(instances, &eval.Instance{
-				Vars: eval.VarMap{
-					compliance.AuditFieldPath:        path,
-					compliance.AuditFieldEnabled:     true,
-					compliance.AuditFieldPermissions: auditPermissionsString(auditRule),
-				},
-			})
+			instances = append(instances, newResolvedInstance(
+				eval.NewInstance(
+					eval.VarMap{
+						compliance.AuditFieldPath:        path,
+						compliance.AuditFieldEnabled:     true,
+						compliance.AuditFieldPermissions: auditPermissionsString(auditRule),
+					}, nil,
+				),
+				auditRule.Path, "audit"),
+			)
 		}
 	}
 
-	return &instanceIterator{
-		instances: instances,
-	}, nil
+	return newResolvedIterator(newInstanceIterator(instances)), nil
 }
 
 func auditPermissionsString(r *rule.FileWatchRule) string {

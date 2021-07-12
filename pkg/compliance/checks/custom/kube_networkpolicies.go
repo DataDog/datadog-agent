@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package custom
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -29,7 +30,7 @@ func kubernetesNetworkPoliciesCheck(e env.Env, ruleID string, vars map[string]st
 	namespaces, err := e.KubeClient().Resource(schema.GroupVersionResource{
 		Resource: "namespaces",
 		Version:  "v1",
-	}).List(metav1.ListOptions{})
+	}).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("error while listing namespaces - rule: %s - err: %v", ruleID, err)
 	}
@@ -46,7 +47,7 @@ func kubernetesNetworkPoliciesCheck(e env.Env, ruleID string, vars map[string]st
 		Group:    "networking.k8s.io",
 		Resource: "networkpolicies",
 		Version:  "v1",
-	}).List(metav1.ListOptions{})
+	}).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("error while listing network policies - rule: %s - err: %v", ruleID, err)
 	}
@@ -61,6 +62,7 @@ func kubernetesNetworkPoliciesCheck(e env.Env, ruleID string, vars map[string]st
 			compliance.KubeResourceFieldGroup:   namespaces.Items[0].GroupVersionKind().Group,
 			compliance.KubeResourceFieldVersion: namespaces.Items[0].GroupVersionKind().Version,
 		},
+		Aggregated: true,
 	}
 
 	if len(nsLookup) > 0 {

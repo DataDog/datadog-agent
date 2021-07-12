@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package retry
 
@@ -77,6 +77,14 @@ func (r *Retrier) NextRetry() time.Time {
 	defer r.RUnlock()
 
 	return r.nextTry
+}
+
+// LastError allows users to know what the last retry failure error was
+func (r *Retrier) LastError() error {
+	r.RLock()
+	defer r.RUnlock()
+
+	return r.lastTryError
 }
 
 // TriggerRetry triggers a new retry and returns the result

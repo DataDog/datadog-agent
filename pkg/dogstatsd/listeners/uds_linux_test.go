@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build linux
 // Origin detection is linux-only
@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"golang.org/x/sys/unix"
 )
 
@@ -33,7 +34,9 @@ func TestUDSPassCred(t *testing.T) {
 	mockConfig.Set("dogstatsd_socket", socketPath)
 	mockConfig.Set("dogstatsd_origin_detection", true)
 
-	s, err := NewUDSListener(nil, NewPacketPool(512))
+	pool := packets.NewPool(512)
+	poolManager := packets.NewPoolManager(pool)
+	s, err := NewUDSListener(nil, poolManager, nil)
 	defer s.Stop()
 
 	assert.Nil(t, err)

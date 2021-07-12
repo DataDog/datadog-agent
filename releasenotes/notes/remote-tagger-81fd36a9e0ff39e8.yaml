@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    The core agent now exposes a gRPC API to expose tags to the other agents.
+    The following settings are now introduced to allow each of the agents to use
+    this API (they all default to false):
+
+    - apm_config.remote_tagger
+    - logs_config.remote_tagger
+    - process_config.remote_tagger

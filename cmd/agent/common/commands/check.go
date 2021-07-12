@@ -1,11 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package commands
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +20,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 
@@ -29,6 +32,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -37,27 +43,30 @@ import (
 )
 
 var (
-	checkRate            bool
-	checkTimes           int
-	checkPause           int
-	checkName            string
-	checkDelay           int
-	logLevel             string
-	formatJSON           bool
-	breakPoint           string
-	fullSketches         bool
-	saveFlare            bool
-	profileMemory        bool
-	profileMemoryDir     string
-	profileMemoryFrames  string
-	profileMemoryGC      string
-	profileMemoryCombine string
-	profileMemorySort    string
-	profileMemoryLimit   string
-	profileMemoryDiff    string
-	profileMemoryFilters string
-	profileMemoryUnit    string
-	profileMemoryVerbose string
+	checkRate              bool
+	checkTimes             int
+	checkPause             int
+	checkName              string
+	checkDelay             int
+	logLevel               string
+	formatJSON             bool
+	formatTable            bool
+	breakPoint             string
+	fullSketches           bool
+	saveFlare              bool
+	profileMemory          bool
+	profileMemoryDir       string
+	profileMemoryFrames    string
+	profileMemoryGC        string
+	profileMemoryCombine   string
+	profileMemorySort      string
+	profileMemoryLimit     string
+	profileMemoryDiff      string
+	profileMemoryFilters   string
+	profileMemoryUnit      string
+	profileMemoryVerbose   string
+	discoveryTimeout       uint
+	discoveryRetryInterval uint
 )
 
 func setupCmd(cmd *cobra.Command) {
@@ -67,10 +76,13 @@ func setupCmd(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&logLevel, "log-level", "l", "", "set the log level (default 'off') (deprecated, use the env var DD_LOG_LEVEL instead)")
 	cmd.Flags().IntVarP(&checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in milliseconds")
 	cmd.Flags().BoolVarP(&formatJSON, "json", "", false, "format aggregator and check runner output as json")
+	cmd.Flags().BoolVarP(&formatTable, "table", "", false, "format aggregator and check runner output as an ascii table")
 	cmd.Flags().StringVarP(&breakPoint, "breakpoint", "b", "", "set a breakpoint at a particular line number (Python checks only)")
 	cmd.Flags().BoolVarP(&profileMemory, "profile-memory", "m", false, "run the memory profiler (Python checks only)")
 	cmd.Flags().BoolVar(&fullSketches, "full-sketches", false, "output sketches with bins information")
 	cmd.Flags().BoolVarP(&saveFlare, "flare", "", false, "save check results to the log dir so it may be reported in a flare")
+	cmd.Flags().UintVarP(&discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
+	cmd.Flags().UintVarP(&discoveryRetryInterval, "discovery-retry-interval", "", 1, "duration between retries until Autodiscovery resolves the check template (in seconds)")
 	config.Datadog.BindPFlag("cmd.check.fullsketches", cmd.Flags().Lookup("full-sketches")) //nolint:errcheck
 
 	// Power user flags - mark as hidden
@@ -100,7 +112,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				// we'll search for a config file named `datadog-cluster.yaml`
 				configName = "datadog-cluster"
 			}
-			resolvedLogLevel, warnings, err := standalone.SetupCLI(loggerName, *confFilePath, configName, logLevel, "off")
+			resolvedLogLevel, warnings, err := standalone.SetupCLI(loggerName, *confFilePath, configName, "", logLevel, "off")
 			if err != nil {
 				fmt.Printf("Cannot initialize command: %v\n", err)
 				return err
@@ -117,22 +129,32 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				return nil
 			}
 
-			hostname, err := util.GetHostname()
+			hostname, err := util.GetHostname(context.TODO())
 			if err != nil {
 				fmt.Printf("Cannot get hostname, exiting: %v\n", err)
 				return err
 			}
 
-			s := serializer.NewSerializer(common.Forwarder)
+			// use the "noop" forwarder because we want the events to be buffered in memory instead of being flushed to the intake
+			eventPlatformForwarder := epforwarder.NewNoopEventPlatformForwarder()
+			eventPlatformForwarder.Start()
+
+			s := serializer.NewSerializer(common.Forwarder, nil)
 			// Initializing the aggregator with a flush interval of 0 (which disable the flush goroutine)
-			agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, 0)
-			common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
+			agg := aggregator.InitAggregatorWithFlushInterval(s, eventPlatformForwarder, hostname, 0)
+			common.LoadComponents(config.Datadog.GetString("confd_path"))
 
 			if config.Datadog.GetBool("inventories_enabled") {
 				metadata.SetupInventoriesExpvar(common.AC, common.Coll)
 			}
 
-			allConfigs := common.AC.GetAllConfigs()
+			if discoveryRetryInterval > discoveryTimeout {
+				fmt.Println("The discovery retry interval", discoveryRetryInterval, "is higher than the discovery timeout", discoveryTimeout)
+				fmt.Println("Setting the discovery retry interval to", discoveryTimeout)
+				discoveryRetryInterval = discoveryTimeout
+			}
+
+			allConfigs := waitForConfigs(checkName, time.Duration(discoveryRetryInterval)*time.Second, time.Duration(discoveryTimeout)*time.Second)
 
 			// make sure the checks in cs are not JMX checks
 			for idx := range allConfigs {
@@ -284,6 +306,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 				fmt.Println("Multiple check instances found, running each of them")
 			}
 
+			var checkFileOutput bytes.Buffer
 			var instancesData []interface{}
 			for _, c := range cs {
 				s := runCheck(c, agg)
@@ -370,12 +393,11 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 						return fmt.Errorf("no diff data found in %s", profileDataDir)
 					}
 				} else {
-					printMetrics(agg)
+					printMetrics(agg, &checkFileOutput)
 					checkStatus, _ := status.GetCheckStatus(c, s)
-					fmt.Println(string(checkStatus))
-					if saveFlare {
-						writeCheckToFile(c, checkStatus)
-					}
+					statusString := string(checkStatus)
+					fmt.Println(statusString)
+					checkFileOutput.WriteString(statusString + "\n")
 				}
 			}
 
@@ -385,8 +407,13 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 
 			if formatJSON {
 				fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("JSON")))
+				checkFileOutput.WriteString("=== JSON ===\n")
+
 				instancesJSON, _ := json.MarshalIndent(instancesData, "", "  ")
-				fmt.Println(string(instancesJSON))
+				instanceJSONString := string(instancesJSON)
+
+				fmt.Println(instanceJSONString)
+				checkFileOutput.WriteString(instanceJSONString + "\n")
 			} else if singleCheckRun() {
 				if profileMemory {
 					color.Yellow("Check has run only once, to collect diff data run the check multiple times with the -t/--check-times flag.")
@@ -398,6 +425,11 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			if warnings != nil && warnings.TraceMallocEnabledWithPy2 {
 				return errors.New("tracemalloc is enabled but unavailable with python version 2")
 			}
+
+			if saveFlare {
+				writeCheckToFile(checkName, &checkFileOutput)
+			}
+
 			return nil
 		},
 	}
@@ -423,8 +455,8 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 		t0 := time.Now()
 		err := c.Run()
 		warnings := c.GetWarnings()
-		mStats, _ := c.GetMetricStats()
-		s.Add(time.Since(t0), err, warnings, mStats)
+		sStats, _ := c.GetSenderStats()
+		s.Add(time.Since(t0), err, warnings, sStats)
 		if pause > 0 && i < times-1 {
 			time.Sleep(time.Duration(pause) * time.Millisecond)
 		}
@@ -433,46 +465,147 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 	return s
 }
 
-func printMetrics(agg *aggregator.BufferedAggregator) {
+func printMetrics(agg *aggregator.BufferedAggregator, checkFileOutput *bytes.Buffer) {
 	series, sketches := agg.GetSeriesAndSketches(time.Now())
 	if len(series) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Series")))
-		j, _ := json.MarshalIndent(series, "", "  ")
-		fmt.Println(string(j))
+
+		if formatTable {
+			headers, data := series.MarshalStrings()
+			var buffer bytes.Buffer
+
+			// plain table with no borders
+			table := tablewriter.NewWriter(&buffer)
+			table.SetHeader(headers)
+			table.SetAutoWrapText(false)
+			table.SetAutoFormatHeaders(true)
+			table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+			table.SetAlignment(tablewriter.ALIGN_LEFT)
+			table.SetCenterSeparator("")
+			table.SetColumnSeparator("")
+			table.SetRowSeparator("")
+			table.SetHeaderLine(false)
+			table.SetBorder(false)
+			table.SetTablePadding("\t")
+
+			table.AppendBulk(data)
+			table.Render()
+			fmt.Println(buffer.String())
+			checkFileOutput.WriteString(buffer.String() + "\n")
+		} else {
+			j, _ := json.MarshalIndent(series, "", "  ")
+			fmt.Println(string(j))
+			checkFileOutput.WriteString(string(j) + "\n")
+		}
 	}
 	if len(sketches) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Sketches")))
 		j, _ := json.MarshalIndent(sketches, "", "  ")
 		fmt.Println(string(j))
+		checkFileOutput.WriteString(string(j) + "\n")
 	}
 
 	serviceChecks := agg.GetServiceChecks()
 	if len(serviceChecks) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Service Checks")))
-		j, _ := json.MarshalIndent(serviceChecks, "", "  ")
-		fmt.Println(string(j))
+
+		if formatTable {
+			headers, data := serviceChecks.MarshalStrings()
+			var buffer bytes.Buffer
+
+			// plain table with no borders
+			table := tablewriter.NewWriter(&buffer)
+			table.SetHeader(headers)
+			table.SetAutoWrapText(false)
+			table.SetAutoFormatHeaders(true)
+			table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+			table.SetAlignment(tablewriter.ALIGN_LEFT)
+			table.SetCenterSeparator("")
+			table.SetColumnSeparator("")
+			table.SetRowSeparator("")
+			table.SetHeaderLine(false)
+			table.SetBorder(false)
+			table.SetTablePadding("\t")
+
+			table.AppendBulk(data)
+			table.Render()
+			fmt.Println(buffer.String())
+			checkFileOutput.WriteString(buffer.String() + "\n")
+		} else {
+			j, _ := json.MarshalIndent(serviceChecks, "", "  ")
+			fmt.Println(string(j))
+			checkFileOutput.WriteString(string(j) + "\n")
+		}
 	}
 
 	events := agg.GetEvents()
 	if len(events) != 0 {
 		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString("Events")))
+		checkFileOutput.WriteString("=== Events ===\n")
 		j, _ := json.MarshalIndent(events, "", "  ")
 		fmt.Println(string(j))
+		checkFileOutput.WriteString(string(j) + "\n")
+	}
+
+	for k, v := range toDebugEpEvents(agg.GetEventPlatformEvents()) {
+		if len(v) > 0 {
+			if translated, ok := check.EventPlatformNameTranslations[k]; ok {
+				k = translated
+			}
+			fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString(k)))
+			checkFileOutput.WriteString(fmt.Sprintf("=== %s ===\n", k))
+			j, _ := json.MarshalIndent(v, "", "  ")
+			fmt.Println(string(j))
+			checkFileOutput.WriteString(string(j) + "\n")
+		}
 	}
 }
 
-func writeCheckToFile(c check.Check, checkStatus []byte) {
+func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 	_ = os.Mkdir(common.DefaultCheckFlareDirectory, os.ModeDir)
 
 	// Windows cannot accept ":" in file names
-	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "_")
-	flarePath := filepath.Join(common.DefaultCheckFlareDirectory, "check_"+string(c.ID())+"_"+filenameSafeTimeStamp+".log")
+	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
+	flarePath := filepath.Join(common.DefaultCheckFlareDirectory, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
 
-	if err := ioutil.WriteFile(flarePath, checkStatus, 0644); err != nil {
+	w, err := flare.NewRedactingWriter(flarePath, os.ModePerm, true)
+	if err != nil {
+		fmt.Println("Error while writing the check file:", err)
+		return
+	}
+	defer w.Close()
+
+	_, err = w.Write(checkFileOutput.Bytes())
+
+	if err != nil {
 		fmt.Println("Error while writing the check file (is the location writable by the dd-agent user?):", err)
 	} else {
 		fmt.Println("check written to:", flarePath)
 	}
+}
+
+type eventPlatformDebugEvent struct {
+	RawEvent          string `json:",omitempty"`
+	EventType         string
+	UnmarshalledEvent map[string]interface{} `json:",omitempty"`
+}
+
+// toDebugEpEvents transforms the raw event platform messages to eventPlatformDebugEvents which are better for json formatting
+func toDebugEpEvents(events map[string][]*message.Message) map[string][]eventPlatformDebugEvent {
+	result := make(map[string][]eventPlatformDebugEvent)
+	for eventType, messages := range events {
+		var events []eventPlatformDebugEvent
+		for _, m := range messages {
+			e := eventPlatformDebugEvent{EventType: eventType, RawEvent: string(m.Content)}
+			err := json.Unmarshal([]byte(e.RawEvent), &e.UnmarshalledEvent)
+			if err == nil {
+				e.RawEvent = ""
+			}
+			events = append(events, e)
+		}
+		result[eventType] = events
+	}
+	return result
 }
 
 func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
@@ -500,6 +633,10 @@ func getMetricsData(agg *aggregator.BufferedAggregator) map[string]interface{} {
 	events := agg.GetEvents()
 	if len(events) != 0 {
 		aggData["events"] = events
+	}
+
+	for k, v := range toDebugEpEvents(agg.GetEventPlatformEvents()) {
+		aggData[k] = v
 	}
 
 	return aggData
@@ -584,4 +721,45 @@ func populateMemoryProfileConfig(initConfig map[string]interface{}) error {
 	}
 
 	return nil
+}
+
+// containsCheck returns true if at least one config corresponds to the check name.
+func containsCheck(checkName string, configs []integration.Config) bool {
+	for _, cfg := range configs {
+		if cfg.Name == checkName {
+			return true
+		}
+	}
+
+	return false
+}
+
+// waitForConfigs retries the collection of Autodiscovery configs until the check is found or the timeout is reached.
+// Autodiscovery listeners run asynchronously, AC.GetAllConfigs() can fail at the beginning to resolve templated configs
+// depending on non-deterministic factors (system load, network latency, active Autodiscovery listeners and their configurations).
+// This function improves the resiliency of the check command.
+// Note: If the check corresponds to a non-template configuration it should be found on the first try and fast-returned.
+func waitForConfigs(checkName string, retryInterval, timeout time.Duration) []integration.Config {
+	allConfigs := common.AC.GetAllConfigs()
+	if containsCheck(checkName, allConfigs) {
+		return allConfigs
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	retryTicker := time.NewTicker(retryInterval)
+	defer retryTicker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return allConfigs
+		case <-retryTicker.C:
+			allConfigs = common.AC.GetAllConfigs()
+			if containsCheck(checkName, allConfigs) {
+				return allConfigs
+			}
+		}
+	}
 }

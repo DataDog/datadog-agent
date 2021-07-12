@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build cri
 
@@ -122,7 +122,7 @@ func (c *CRIUtil) ListContainerStats() (map[string]*pb.ContainerStats, error) {
 	return stats, nil
 }
 
-// ListContainer sends a ListContainerRequest to the server, and parses the returned response
+// GetContainerStatus requests a container status by its ID
 func (c *CRIUtil) GetContainerStatus(containerID string) (*pb.ContainerStatus, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
 	defer cancel()

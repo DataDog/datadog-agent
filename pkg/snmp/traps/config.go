@@ -1,15 +1,16 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2020 Datadog, Inc.
+// Copyright 2020-present Datadog, Inc.
 
 package traps
 
 import (
 	"errors"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/soniah/gosnmp"
+	"github.com/gosnmp/gosnmp"
 )
 
 // IsEnabled returns whether SNMP trap collection is enabled in the Agent configuration.
@@ -45,7 +46,7 @@ func ReadConfig() (*Config, error) {
 	}
 	if c.BindHost == "" {
 		// Default to global bind_host option.
-		c.BindHost = config.Datadog.GetString("bind_host")
+		c.BindHost = config.GetBindHost()
 	}
 	if c.StopTimeout == 0 {
 		c.StopTimeout = defaultStopTimeout

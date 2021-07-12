@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package obfuscate
 
@@ -21,12 +21,17 @@ const maxRedisNbCommands = 3
 var redisCompoundCommandSet = map[string]bool{
 	"CLIENT": true, "CLUSTER": true, "COMMAND": true, "CONFIG": true, "DEBUG": true, "SCRIPT": true}
 
-// quantizeRedis generates resource for Redis spans
+func (o *Obfuscator) quantizeRedis(span *pb.Span) {
+	span.Resource = o.QuantizeRedisString(span.Resource)
+}
+
+// QuantizeRedisString returns a quantized version of a Redis query.
+//
 // TODO(gbbr): Refactor this method to use the tokenizer and
 // remove "compactWhitespaces". This method is buggy when commands
 // contain quoted strings with newlines.
-func (*Obfuscator) quantizeRedis(span *pb.Span) {
-	query := compactWhitespaces(span.Resource)
+func (*Obfuscator) QuantizeRedisString(query string) string {
+	query = compactWhitespaces(query)
 
 	var resource strings.Builder
 	truncated := false
@@ -81,7 +86,7 @@ func (*Obfuscator) quantizeRedis(span *pb.Span) {
 		resource.WriteString(" ...")
 	}
 
-	span.Resource = strings.Trim(resource.String(), " ")
+	return strings.Trim(resource.String(), " ")
 }
 
 const redisRawCommand = "redis.raw_command"

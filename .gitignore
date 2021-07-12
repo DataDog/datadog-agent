@@ -23,6 +23,11 @@ venv3[78]/
 *.syso
 *.log
 
+# local development environment control files
+.env
+.envrc
+.python-version
+
 #file generated at build time by message compiler
 agentmsg.h
 
@@ -121,6 +126,8 @@ tools/windows/install-help/cal/packages/
 
 # ebpf object files
 pkg/ebpf/bytecode/build/
+pkg/ebpf/bytecode/bindata/
+*.bc
 
 # windows container build output
 build.out/

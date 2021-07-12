@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build android
 
@@ -21,7 +21,7 @@ import (
 func AndroidMain(apikey string, hostname string, tags string) {
 	overrides := make(map[string]interface{})
 	if len(apikey) != 0 {
-		overrides["api_key"] = apikey
+		overrides["api_key"] = config.SanitizeAPIKey(apikey)
 	}
 	if len(hostname) != 0 {
 		overrides["hostname"] = hostname

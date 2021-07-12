@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
 package leaderelection
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -75,19 +76,19 @@ func TestNewLeaseAcquiring(t *testing.T) {
 		coreClient:      client.CoreV1(),
 		leaderMetric:    &dummyGauge{},
 	}
-	_, err := client.CoreV1().ConfigMaps("default").Get(leaseName, metav1.GetOptions{})
+	_, err := client.CoreV1().ConfigMaps("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
 	require.True(t, errors.IsNotFound(err))
 
 	le.leaderElector, err = le.newElection()
 	require.NoError(t, err)
 
-	newCm, err := client.CoreV1().ConfigMaps("default").Get(leaseName, metav1.GetOptions{})
+	newCm, err := client.CoreV1().ConfigMaps("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
 	require.NoError(t, err)
 	require.Equal(t, newCm.Name, leaseName)
 	require.Nil(t, newCm.Annotations)
 
 	le.EnsureLeaderElectionRuns()
-	Cm, err := client.CoreV1().ConfigMaps("default").Get(leaseName, metav1.GetOptions{})
+	Cm, err := client.CoreV1().ConfigMaps("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
 	require.NoError(t, err)
 	require.Contains(t, Cm.Annotations[rl.LeaderElectionRecordAnnotationKey], "\"leaderTransitions\":1")
 	require.True(t, le.IsLeader())
@@ -107,6 +108,7 @@ func TestGetLeaderIPFollower(t *testing.T) {
 	le := &LeaderEngine{
 		HolderIdentity:  "foo",
 		LeaseName:       leaseName,
+		ServiceName:     endpointsName,
 		LeaderNamespace: "default",
 		LeaseDuration:   120 * time.Second,
 		coreClient:      client.CoreV1(),
@@ -115,7 +117,7 @@ func TestGetLeaderIPFollower(t *testing.T) {
 
 	// Create leader-election configmap with current node as follower
 	electionCM := makeLeaderCM(leaseName, "default", "bar", 120)
-	_, err := client.CoreV1().ConfigMaps("default").Create(electionCM)
+	_, err := client.CoreV1().ConfigMaps("default").Create(context.TODO(), electionCM, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	// Create endpoints
@@ -147,26 +149,27 @@ func TestGetLeaderIPFollower(t *testing.T) {
 			},
 		},
 	}
-	storedEndpoints, err := client.CoreV1().Endpoints("default").Create(endpoints)
+	storedEndpoints, err := client.CoreV1().Endpoints("default").Create(context.TODO(), endpoints, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	// Run leader election
 	le.leaderElector, err = le.newElection()
 	require.NoError(t, err)
-	le.EnsureLeaderElectionRuns()
-	cm, err := client.CoreV1().ConfigMaps("default").Get(leaseName, metav1.GetOptions{})
+	err = le.EnsureLeaderElectionRuns()
+	require.NoError(t, err)
+	cm, err := client.CoreV1().ConfigMaps("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
 	require.NoError(t, err)
 	require.Contains(t, cm.Annotations[rl.LeaderElectionRecordAnnotationKey], "\"leaderTransitions\":1")
 
 	// We should be follower, and GetLeaderIP should return bar's IP
 	require.False(t, le.IsLeader())
 	ip, err := le.GetLeaderIP()
-	assert.Equal(t, "1.1.1.2", ip)
 	assert.NoError(t, err)
+	assert.Equal(t, "1.1.1.2", ip)
 
 	// Remove bar from endpoints
 	storedEndpoints.Subsets[0].Addresses = storedEndpoints.Subsets[0].Addresses[0:1]
-	_, err = client.CoreV1().Endpoints("default").Update(storedEndpoints)
+	_, err = client.CoreV1().Endpoints("default").Update(context.TODO(), storedEndpoints, metav1.UpdateOptions{})
 	require.NoError(t, err)
 
 	// GetLeaderIP will "gracefully" error out

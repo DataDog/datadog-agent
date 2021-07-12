@@ -1,0 +1,33 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "event.json",
+    "type": "object",
+    "properties": {
+        "evt": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "category": {
+                    "type": "string"
+                },
+                "outcome": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "name",
+                "category",
+                "outcome"
+            ]
+        },
+        "date": {
+            "$ref": "file:///datetime.json"
+        }
+    },
+    "required": [
+        "evt",
+        "date"
+    ]
+}
