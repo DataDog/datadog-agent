@@ -110,6 +110,7 @@ clear_deps_win_cache:
 
 deps_deb:
   stage: prepare
+  interruptible: true
   cache:
     key: "deps-deb-$STS_VER-$CI_COMMIT_REF_SLUG"
     paths:
@@ -129,9 +130,15 @@ deps_deb:
       - $CI_PROJECT_DIR/go-bin.tar.gz
       - $CI_PROJECT_DIR/vendor.tar.gz
     expire_in: 1 week
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 deps_rpm:
   stage: prepare
+  interruptible: true
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_latest_v7
   cache:
     key: "deps-rpm-$STS_VER-$CI_COMMIT_REF_SLUG"
@@ -153,9 +160,15 @@ deps_rpm:
       - $CI_PROJECT_DIR/go-bin.tar.gz
       - $CI_PROJECT_DIR/vendor.tar.gz
     expire_in: 1 week
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 deps_win:
   stage: prepare
+  interruptible: true
   before_script:
     - *configure_windows_ps1_env_script
   cache:
@@ -178,11 +191,17 @@ deps_win:
     expire_in: 1 week
   tags:
     - windows_agent7_ps1
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 ## build_and_test stage
 
 unit_tests:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_deb
   script:
@@ -201,10 +220,10 @@ unit_tests:
     when:
       - runner_system_failure
       - stuck_or_timeout_failure
-      - script_failure
 
 unit_tests_cluster_agent:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_deb
   script:
@@ -226,10 +245,10 @@ unit_tests_cluster_agent:
     when:
       - runner_system_failure
       - stuck_or_timeout_failure
-      - script_failure
 
 filename_linting:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_deb
   script:
@@ -254,6 +273,7 @@ filename_linting:
 
 build_binaries:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_deb
   script:
@@ -265,9 +285,15 @@ build_binaries:
     - inv -e agent.build --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
   tags:
     - sts-k8s-m-runner
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 build_cluster_agent:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_deb
   script:
@@ -281,6 +307,11 @@ build_cluster_agent:
       - $CI_PROJECT_DIR/version.txt
   rules:
     - *only_agent_3
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 clear_build_deb_cache:
   stage: build_and_test
@@ -308,6 +339,7 @@ clear_build_rpm_cache:
 
 build_deb:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_deb
   tags:
@@ -361,10 +393,10 @@ build_deb:
     when:
       - runner_system_failure
       - stuck_or_timeout_failure
-      - script_failure
 
 build_rpm:
   stage: build_and_test
+  interruptible: true
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_latest_v7
   needs:
     - deps_rpm
@@ -423,10 +455,10 @@ build_rpm:
     when:
       - runner_system_failure
       - stuck_or_timeout_failure
-      - script_failure
 
 build_win:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_win
   cache:
@@ -455,29 +487,41 @@ build_win:
     when:
       - runner_system_failure
       - stuck_or_timeout_failure
-      - script_failure
 
 ## pre_release stage
 
 test_deb_renaming:
   stage: pre_release
+  interruptible: true
   needs:
     - build_deb
   before_script: []
   script:
     - ./test/renaming/test_deb.sh $CI_PROJECT_DIR/outcomes/pkg/stackstate-agent_$MAJOR_VERSION*.deb
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 test_rpm_renaming:
   stage: pre_release
+  interruptible: true
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_20190429
   needs:
     - build_rpm
   before_script: []
   script:
     - ./test/renaming/test_rpm.sh $CI_PROJECT_DIR/outcomes/pkg/stackstate-agent-$MAJOR_VERSION*.rpm
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 pre_release_deb:
   stage: pre_release
+  interruptible: true
   needs:
     - deps_deb
     - build_deb
@@ -492,9 +536,15 @@ pre_release_deb:
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package.sh $STS_AWS_TEST_BUCKET
     - cd $CI_PROJECT_DIR && inv release.generate-install -t
     - cd $CI_PROJECT_DIR/cmd/agent && aws.rb -e "Aws::S3::Resource.new.bucket(ENV['STS_AWS_TEST_BUCKET']).object('install.sh').upload_file('./install.sh', acl:'public-read')"
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 pre_release_win:
   stage: pre_release
+  interruptible: true
   needs:
     - deps_win
     - build_win
@@ -520,10 +570,10 @@ pre_release_win:
     when:
       - runner_system_failure
       - stuck_or_timeout_failure
-      - script_failure
 
 pre_release_rpm:
   stage: pre_release
+  interruptible: true
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:deb-rpmpublisher
   needs:
     - build_rpm
@@ -531,9 +581,15 @@ pre_release_rpm:
   script:
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./sign_rpm_package.sh
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package_rpm.sh $STS_AWS_TEST_BUCKET_YUM
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 pre_release_main_agent_image: &pre_release_image
   stage: pre_release
+  interruptible: true
   image: docker:18.06.0
   needs:
     - build_deb
@@ -551,6 +607,11 @@ pre_release_main_agent_image: &pre_release_image
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/Dockerfiles/agent $CI_COMMIT_SHORT_SHA
   tags:
     - sts-k8s-m-runner
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 pre_release_trace_agent_image:
   <<: *pre_release_image
@@ -587,7 +648,6 @@ pre_release_cluster_agent_image:
     when:
       - runner_system_failure
       - stuck_or_timeout_failure
-      - script_failure
 
 molecule_tests_vms:
   <<: *molecule_base
@@ -701,6 +761,11 @@ release_deb:
   only:
     - tags
     - triggers
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 release_rpm:
   stage: release
@@ -716,6 +781,11 @@ release_rpm:
   only:
     - tags
     - triggers
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 release_win:
   stage: release
@@ -746,7 +816,6 @@ release_win:
     when:
       - runner_system_failure
       - stuck_or_timeout_failure
-      - script_failure
 
 .base_release_image: &base_release_image
   stage: release
@@ -762,6 +831,11 @@ release_win:
   before_script: []
   tags:
     - sts-k8s-m-runner
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 release_main_agent_image:
   <<: *base_release_image
