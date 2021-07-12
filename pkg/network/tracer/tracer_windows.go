@@ -65,9 +65,12 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.CollectDNSDomains,
 	)
 
-	reverseDNS, err := dns.NewReverseDNS(config)
-	if err != nil {
-		return nil, err
+	reverseDNS := dns.NewNullReverseDNS()
+	if config.DNSInspection {
+		reverseDNS, err = dns.NewReverseDNS(config)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	tr := &Tracer{
