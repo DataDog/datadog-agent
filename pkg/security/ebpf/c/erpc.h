@@ -56,14 +56,13 @@ int __attribute__((always_inline)) handle_discard_pid(void *data) {
     return discard_pid(discarder.req.event_type, discarder.pid, discarder.req.timeout);
 }
 
-int __attribute__((always_inline)) is_erpc_request(struct pt_regs *ctx) {
+int __attribute__((always_inline)) is_erpc_request(u64 vfs_fd, u32 cmd) {
     u64 fd, pid;
 
     LOAD_CONSTANT("erpc_fd", fd);
     LOAD_CONSTANT("runtime_pid", pid);
 
-    u32 vfs_fd = PT_REGS_PARM2(ctx);
-    if (!vfs_fd || (u64)vfs_fd != fd) {
+    if (!vfs_fd || vfs_fd != fd) {
         return 0;
     }
 
@@ -74,7 +73,6 @@ int __attribute__((always_inline)) is_erpc_request(struct pt_regs *ctx) {
         return 0;
     }
 
-    u32 cmd = PT_REGS_PARM3(ctx);
     if (cmd != RPC_CMD) {
         return 0;
     }
@@ -82,9 +80,7 @@ int __attribute__((always_inline)) is_erpc_request(struct pt_regs *ctx) {
     return 1;
 }
 
-int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
-    void *req = (void *)PT_REGS_PARM4(ctx);
-
+int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx, void *req) {
     u8 op;
     int read_res = bpf_probe_read(&op, sizeof(op), req);
 

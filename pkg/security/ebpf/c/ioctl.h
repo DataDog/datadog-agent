@@ -3,10 +3,9 @@
 
 #include "erpc.h"
 
-SEC("kprobe/do_vfs_ioctl")
-int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
-    if (is_erpc_request(ctx)) {
-        return handle_erpc_request(ctx);
+SYSCALL_KPROBE3(ioctl, int, fd, unsigned int, cmd, unsigned long, arg) {
+    if (is_erpc_request(fd, cmd)) {
+        return handle_erpc_request(ctx, (void *)arg);
     }
 
     return 0;

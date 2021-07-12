@@ -205,9 +205,9 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		},
 
 		// ioctl probes
-		&manager.AllOf{Selectors: []manager.ProbesSelector{
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "kprobe/do_vfs_ioctl"}},
-		}},
+		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, Section: "ioctl"}, Entry),
+		},
 
 		// snapshot
 		&manager.AllOf{Selectors: []manager.ProbesSelector{

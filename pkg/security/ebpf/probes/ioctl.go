@@ -9,14 +9,9 @@ package probes
 
 import "github.com/DataDog/ebpf/manager"
 
-// ioctlProbes holds the list of probes used to track ioctl events
-var ioctlProbes = []*manager.Probe{
-	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/do_vfs_ioctl",
-	},
-}
-
 func getIoctlProbes() []*manager.Probe {
-	return ioctlProbes
+	return ExpandSyscallProbes(&manager.Probe{
+		UID:             SecurityAgentUID,
+		SyscallFuncName: "ioctl",
+	}, Entry)
 }
