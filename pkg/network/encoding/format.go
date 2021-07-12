@@ -133,6 +133,7 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 		t := &model.RuntimeCompilationTelemetry{}
 		t.RuntimeCompilationEnabled = tel.RuntimeCompilationEnabled
 		t.RuntimeCompilationResult = model.RuntimeCompilationResult(tel.RuntimeCompilationResult)
+		t.KernelHeaderFetchResult = model.KernelHeaderFetchResult(tel.KernelHeaderFetchResult)
 		t.RuntimeCompilationDuration = tel.RuntimeCompilationDuration
 		ret[asset] = t
 	}
@@ -180,7 +181,7 @@ func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]*mode
 				blob, _ := proto.Marshal(latencies.ToProto())
 				data.Latencies = blob
 			} else {
-				data.FirstLatencySample = uint64(stats[i].FirstLatencySample)
+				data.FirstLatencySample = stats[i].FirstLatencySample
 			}
 		}
 

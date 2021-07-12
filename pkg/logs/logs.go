@@ -30,6 +30,8 @@ const (
 	// key used to display a warning message on the agent status
 	invalidProcessingRules = "invalid_global_processing_rules"
 	invalidEndpoints       = "invalid_endpoints"
+	intakeTrackType        = "logs"
+	intakeProtocol         = "agent-json"
 )
 
 var (
@@ -57,13 +59,13 @@ func StartServerless(getAC func() *autodiscovery.AutoConfig, logsChan chan *conf
 // buildEndpoints builds endpoints for the logs agent
 func buildEndpoints(serverless bool) (*config.Endpoints, error) {
 	if serverless {
-		return config.BuildServerlessEndpoints()
+		return config.BuildServerlessEndpoints(intakeTrackType, config.DefaultIntakeProtocol)
 	}
 	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpoints(); err == nil {
+	if endpoints, err := config.BuildHTTPEndpoints(intakeTrackType, intakeProtocol); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main)
 	}
-	return config.BuildEndpoints(httpConnectivity)
+	return config.BuildEndpoints(httpConnectivity, intakeTrackType, intakeProtocol)
 }
 
 func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan chan *config.ChannelMessage, extraTags []string) error {

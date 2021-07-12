@@ -55,20 +55,21 @@ func StartControllers(ctx ControllerContext) error {
 		secretConfig,
 	)
 
-	webhooks, err := generateWebhooks(ctx.DiscoveryClient)
+	nsSelectorEnabled, err := useNamespaceSelector(ctx.DiscoveryClient)
 	if err != nil {
 		return err
 	}
 
-	webhookConfig := webhook.NewConfig(
-		config.Datadog.GetString("admission_controller.webhook_name"),
-		config.Datadog.GetString("admission_controller.certificate.secret_name"),
-		common.GetResourcesNamespace(),
-		webhooks)
+	v1Enabled, err := useAdmissionV1(ctx.DiscoveryClient)
+	if err != nil {
+		return err
+	}
+
+	webhookConfig := webhook.NewConfig(v1Enabled, nsSelectorEnabled)
 	webhookController := webhook.NewController(
 		ctx.Client,
 		ctx.SecretInformers.Core().V1().Secrets(),
-		ctx.WebhookInformers.Admissionregistration().V1beta1().MutatingWebhookConfigurations(),
+		ctx.WebhookInformers.Admissionregistration(),
 		ctx.IsLeaderFunc,
 		webhookConfig,
 	)
@@ -79,8 +80,15 @@ func StartControllers(ctx ControllerContext) error {
 	ctx.SecretInformers.Start(ctx.StopCh)
 	ctx.WebhookInformers.Start(ctx.StopCh)
 
-	return apiserver.SyncInformers(map[apiserver.InformerName]cache.SharedInformer{
-		apiserver.SecretsInformer:  ctx.SecretInformers.Core().V1().Secrets().Informer(),
-		apiserver.WebhooksInformer: ctx.WebhookInformers.Admissionregistration().V1beta1().MutatingWebhookConfigurations().Informer(),
-	})
+	informers := map[apiserver.InformerName]cache.SharedInformer{
+		apiserver.SecretsInformer: ctx.SecretInformers.Core().V1().Secrets().Informer(),
+	}
+
+	if v1Enabled {
+		informers[apiserver.WebhooksInformer] = ctx.WebhookInformers.Admissionregistration().V1().MutatingWebhookConfigurations().Informer()
+	} else {
+		informers[apiserver.WebhooksInformer] = ctx.WebhookInformers.Admissionregistration().V1beta1().MutatingWebhookConfigurations().Informer()
+	}
+
+	return apiserver.SyncInformers(informers)
 }

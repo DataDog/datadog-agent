@@ -17,9 +17,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	retrySleepTime = time.Second
-)
+var retrySleepTime = time.Second
+
+type providerDef struct {
+	retries   int
+	getTags   func(context.Context) ([]string, error)
+	retrieved bool
+}
 
 // this is a "low-tech" version of tagger/utils/taglist.go
 // but host tags are handled separately here for now
@@ -53,7 +57,6 @@ func appendAndSplitTags(target []string, tags []string, splits map[string]string
 
 // GetHostTags get the host tags, optionally looking in the cache
 func GetHostTags(ctx context.Context, cached bool) *Tags {
-
 	key := buildKey("hostTags")
 	if cached {
 		if x, found := cache.Cache.Get(key); found {
@@ -87,38 +90,32 @@ func GetHostTags(ctx context.Context, cached bool) *Tags {
 		hostTags = appendToHostTags(hostTags, clusterNameTags)
 	}
 
-	getEC2 := func(ctx context.Context) ([]string, error) {
-		if config.Datadog.GetBool("collect_ec2_tags") {
-			return ec2.GetTags(ctx)
-		}
-		return nil, nil
-	}
-
 	gceTags := []string{}
 	getGCE := func(ctx context.Context) ([]string, error) {
-		if config.Datadog.GetBool("collect_gce_tags") {
-			rawGceTags, err := gce.GetTags(ctx)
-			if err != nil {
-				return nil, err
-			}
-			gceTags = appendToHostTags(gceTags, rawGceTags)
+		rawGceTags, err := gce.GetTags(ctx)
+		if err != nil {
+			return nil, err
 		}
+		gceTags = appendToHostTags(gceTags, rawGceTags)
 		return nil, nil
 	}
 
-	providers := map[string]*struct {
-		retries   int
-		getTags   func(context.Context) ([]string, error)
-		retrieved bool
-	}{
-		"ec2":        {1, getEC2, false},
-		"kubernetes": {1, k8s.GetTags, false},
-		"docker":     {1, docker.GetTags, false},
-		"gce":        {1, getGCE, false},
+	providers := make(map[string]*providerDef)
+
+	if config.Datadog.GetBool("collect_ec2_tags") {
+		providers["ec2"] = &providerDef{1, ec2.GetTags, false}
 	}
 
-	if config.IsKubernetes() {
-		providers["kubernetes"].retries = 10
+	if config.Datadog.GetBool("collect_gce_tags") {
+		providers["gce"] = &providerDef{1, getGCE, false}
+	}
+
+	if config.IsFeaturePresent(config.Kubernetes) {
+		providers["kubernetes"] = &providerDef{10, k8s.GetTags, false}
+	}
+
+	if config.IsFeaturePresent(config.Docker) {
+		providers["docker"] = &providerDef{1, docker.GetTags, false}
 	}
 
 	for {
@@ -152,5 +149,4 @@ func GetHostTags(ctx context.Context, cached bool) *Tags {
 
 	cache.Cache.Set(key, t, cache.NoExpiration)
 	return t
-
 }

@@ -51,6 +51,8 @@ func (m *Model) GetEventTypes() []eval.EventType {
 
 		eval.EventType("rmdir"),
 
+		eval.EventType("selinux"),
+
 		eval.EventType("setgid"),
 
 		eval.EventType("setuid"),
@@ -84,16 +86,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
-		}, nil
-
-	case "chmod.file.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Chmod.File)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "chmod.file.destination.mode":
@@ -244,16 +236,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
-		}, nil
-
-	case "chown.file.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Chown.File)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "chown.file.destination.gid":
@@ -621,16 +603,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "exec.file.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).Exec.Process.ContainerPath
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-
 	case "exec.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -869,26 +841,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
-		}, nil
-
-	case "link.file.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Link.Source)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "link.file.destination.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Link.Target)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "link.file.destination.filesystem":
@@ -1141,16 +1093,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "mkdir.file.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Mkdir.File)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-
 	case "mkdir.file.destination.mode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1299,16 +1241,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
-		}, nil
-
-	case "open.file.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Open.File)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "open.file.destination.mode":
@@ -1759,37 +1691,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					element := (*model.ProcessCacheEntry)(value)
 
 					result = element.ProcessContext.Process.Credentials.EUser
-
-					results = append(results, result)
-
-					value = iterator.Next()
-				}
-				ctx.Cache[field] = unsafe.Pointer(&results)
-
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
-
-	case "process.ancestors.file.container_path":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				if ptr := ctx.Cache[field]; ptr != nil {
-					if result := (*[]string)(ptr); result != nil {
-						return *result
-					}
-				}
-				var results []string
-
-				iterator := &model.ProcessAncestorsIterator{}
-
-				value := iterator.Front(ctx)
-				for value != nil {
-					var result string
-
-					element := (*model.ProcessCacheEntry)(value)
-
-					result = element.ProcessContext.Process.ContainerPath
 
 					results = append(results, result)
 
@@ -2646,16 +2547,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "process.file.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ProcessContext.Process.ContainerPath
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-
 	case "process.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -2896,16 +2787,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "removexattr.file.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).RemoveXAttr.File)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-
 	case "removexattr.file.destination.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -3054,26 +2935,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
-		}, nil
-
-	case "rename.file.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Rename.Old)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "rename.file.destination.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Rename.New)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "rename.file.destination.filesystem":
@@ -3326,16 +3187,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "rmdir.file.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Rmdir.File)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-
 	case "rmdir.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -3466,6 +3317,46 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "selinux.bool.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).ResolveSELinuxBoolName(&(*Event)(ctx.Object).SELinux)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "selinux.bool.state":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).SELinux.BoolChangeValue
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "selinux.bool_commit.state":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).SELinux.BoolCommitValue
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "selinux.enforce.status":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).SELinux.EnforceStatus
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "setgid.egid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -3581,16 +3472,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ResolveSetuidUser(&(*Event)(ctx.Object).SetUID)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-
-	case "setxattr.file.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).SetXAttr.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -3746,16 +3627,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
-	case "unlink.file.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Unlink.File)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-
 	case "unlink.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -3884,16 +3755,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
-		}, nil
-
-	case "utimes.file.container_path":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-
-				return (*Event)(ctx.Object).ResolveFileContainerPath(&(*Event)(ctx.Object).Utimes.File)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
 		}, nil
 
 	case "utimes.file.filesystem":
@@ -4038,8 +3899,6 @@ func (e *Event) GetFields() []eval.Field {
 
 		"capset.cap_permitted",
 
-		"chmod.file.container_path",
-
 		"chmod.file.destination.mode",
 
 		"chmod.file.destination.rights",
@@ -4069,8 +3928,6 @@ func (e *Event) GetFields() []eval.Field {
 		"chmod.file.user",
 
 		"chmod.retval",
-
-		"chown.file.container_path",
 
 		"chown.file.destination.gid",
 
@@ -4144,8 +4001,6 @@ func (e *Event) GetFields() []eval.Field {
 
 		"exec.euser",
 
-		"exec.file.container_path",
-
 		"exec.file.filesystem",
 
 		"exec.file.gid",
@@ -4193,10 +4048,6 @@ func (e *Event) GetFields() []eval.Field {
 		"exec.uid",
 
 		"exec.user",
-
-		"link.file.container_path",
-
-		"link.file.destination.container_path",
 
 		"link.file.destination.filesystem",
 
@@ -4248,8 +4099,6 @@ func (e *Event) GetFields() []eval.Field {
 
 		"link.retval",
 
-		"mkdir.file.container_path",
-
 		"mkdir.file.destination.mode",
 
 		"mkdir.file.destination.rights",
@@ -4279,8 +4128,6 @@ func (e *Event) GetFields() []eval.Field {
 		"mkdir.file.user",
 
 		"mkdir.retval",
-
-		"open.file.container_path",
 
 		"open.file.destination.mode",
 
@@ -4331,8 +4178,6 @@ func (e *Event) GetFields() []eval.Field {
 		"process.ancestors.euid",
 
 		"process.ancestors.euser",
-
-		"process.ancestors.file.container_path",
 
 		"process.ancestors.file.filesystem",
 
@@ -4402,8 +4247,6 @@ func (e *Event) GetFields() []eval.Field {
 
 		"process.euser",
 
-		"process.file.container_path",
-
 		"process.file.filesystem",
 
 		"process.file.gid",
@@ -4452,8 +4295,6 @@ func (e *Event) GetFields() []eval.Field {
 
 		"process.user",
 
-		"removexattr.file.container_path",
-
 		"removexattr.file.destination.name",
 
 		"removexattr.file.destination.namespace",
@@ -4483,10 +4324,6 @@ func (e *Event) GetFields() []eval.Field {
 		"removexattr.file.user",
 
 		"removexattr.retval",
-
-		"rename.file.container_path",
-
-		"rename.file.destination.container_path",
 
 		"rename.file.destination.filesystem",
 
@@ -4538,8 +4375,6 @@ func (e *Event) GetFields() []eval.Field {
 
 		"rename.retval",
 
-		"rmdir.file.container_path",
-
 		"rmdir.file.filesystem",
 
 		"rmdir.file.gid",
@@ -4566,6 +4401,14 @@ func (e *Event) GetFields() []eval.Field {
 
 		"rmdir.retval",
 
+		"selinux.bool.name",
+
+		"selinux.bool.state",
+
+		"selinux.bool_commit.state",
+
+		"selinux.enforce.status",
+
 		"setgid.egid",
 
 		"setgid.egroup",
@@ -4589,8 +4432,6 @@ func (e *Event) GetFields() []eval.Field {
 		"setuid.uid",
 
 		"setuid.user",
-
-		"setxattr.file.container_path",
 
 		"setxattr.file.destination.name",
 
@@ -4622,8 +4463,6 @@ func (e *Event) GetFields() []eval.Field {
 
 		"setxattr.retval",
 
-		"unlink.file.container_path",
-
 		"unlink.file.filesystem",
 
 		"unlink.file.gid",
@@ -4649,8 +4488,6 @@ func (e *Event) GetFields() []eval.Field {
 		"unlink.file.user",
 
 		"unlink.retval",
-
-		"utimes.file.container_path",
 
 		"utimes.file.filesystem",
 
@@ -4690,10 +4527,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "capset.cap_permitted":
 
 		return int(e.Capset.CapPermitted), nil
-
-	case "chmod.file.container_path":
-
-		return e.ResolveFileContainerPath(&e.Chmod.File), nil
 
 	case "chmod.file.destination.mode":
 
@@ -4754,10 +4587,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "chmod.retval":
 
 		return int(e.Chmod.SyscallEvent.Retval), nil
-
-	case "chown.file.container_path":
-
-		return e.ResolveFileContainerPath(&e.Chown.File), nil
 
 	case "chown.file.destination.gid":
 
@@ -4903,10 +4732,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.Exec.Process.Credentials.EUser, nil
 
-	case "exec.file.container_path":
-
-		return e.Exec.Process.ContainerPath, nil
-
 	case "exec.file.filesystem":
 
 		return e.Exec.Process.Filesystem, nil
@@ -5002,14 +4827,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "exec.user":
 
 		return e.Exec.Process.Credentials.User, nil
-
-	case "link.file.container_path":
-
-		return e.ResolveFileContainerPath(&e.Link.Source), nil
-
-	case "link.file.destination.container_path":
-
-		return e.ResolveFileContainerPath(&e.Link.Target), nil
 
 	case "link.file.destination.filesystem":
 
@@ -5111,10 +4928,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Link.SyscallEvent.Retval), nil
 
-	case "mkdir.file.container_path":
-
-		return e.ResolveFileContainerPath(&e.Mkdir.File), nil
-
 	case "mkdir.file.destination.mode":
 
 		return int(e.Mkdir.Mode), nil
@@ -5174,10 +4987,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "mkdir.retval":
 
 		return int(e.Mkdir.SyscallEvent.Retval), nil
-
-	case "open.file.container_path":
-
-		return e.ResolveFileContainerPath(&e.Open.File), nil
 
 	case "open.file.destination.mode":
 
@@ -5451,28 +5260,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := (*model.ProcessCacheEntry)(ptr)
 
 			result := element.ProcessContext.Process.Credentials.EUser
-
-			values = append(values, result)
-
-			ptr = iterator.Next()
-		}
-
-		return values, nil
-
-	case "process.ancestors.file.container_path":
-
-		var values []string
-
-		ctx := eval.NewContext(unsafe.Pointer(e))
-
-		iterator := &model.ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-
-		for ptr != nil {
-
-			element := (*model.ProcessCacheEntry)(ptr)
-
-			result := element.ProcessContext.Process.ContainerPath
 
 			values = append(values, result)
 
@@ -6049,10 +5836,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.ProcessContext.Process.Credentials.EUser, nil
 
-	case "process.file.container_path":
-
-		return e.ProcessContext.Process.ContainerPath, nil
-
 	case "process.file.filesystem":
 
 		return e.ProcessContext.Process.Filesystem, nil
@@ -6149,10 +5932,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.ProcessContext.Process.Credentials.User, nil
 
-	case "removexattr.file.container_path":
-
-		return e.ResolveFileContainerPath(&e.RemoveXAttr.File), nil
-
 	case "removexattr.file.destination.name":
 
 		return e.ResolveXAttrName(&e.RemoveXAttr), nil
@@ -6212,14 +5991,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "removexattr.retval":
 
 		return int(e.RemoveXAttr.SyscallEvent.Retval), nil
-
-	case "rename.file.container_path":
-
-		return e.ResolveFileContainerPath(&e.Rename.Old), nil
-
-	case "rename.file.destination.container_path":
-
-		return e.ResolveFileContainerPath(&e.Rename.New), nil
 
 	case "rename.file.destination.filesystem":
 
@@ -6321,10 +6092,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Rename.SyscallEvent.Retval), nil
 
-	case "rmdir.file.container_path":
-
-		return e.ResolveFileContainerPath(&e.Rmdir.File), nil
-
 	case "rmdir.file.filesystem":
 
 		return e.ResolveFileFilesystem(&e.Rmdir.File), nil
@@ -6377,6 +6144,22 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Rmdir.SyscallEvent.Retval), nil
 
+	case "selinux.bool.name":
+
+		return e.ResolveSELinuxBoolName(&e.SELinux), nil
+
+	case "selinux.bool.state":
+
+		return e.SELinux.BoolChangeValue, nil
+
+	case "selinux.bool_commit.state":
+
+		return e.SELinux.BoolCommitValue, nil
+
+	case "selinux.enforce.status":
+
+		return e.SELinux.EnforceStatus, nil
+
 	case "setgid.egid":
 
 		return int(e.SetGID.EGID), nil
@@ -6424,10 +6207,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "setuid.user":
 
 		return e.ResolveSetuidUser(&e.SetUID), nil
-
-	case "setxattr.file.container_path":
-
-		return e.ResolveFileContainerPath(&e.SetXAttr.File), nil
 
 	case "setxattr.file.destination.name":
 
@@ -6489,10 +6268,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.SetXAttr.SyscallEvent.Retval), nil
 
-	case "unlink.file.container_path":
-
-		return e.ResolveFileContainerPath(&e.Unlink.File), nil
-
 	case "unlink.file.filesystem":
 
 		return e.ResolveFileFilesystem(&e.Unlink.File), nil
@@ -6544,10 +6319,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "unlink.retval":
 
 		return int(e.Unlink.SyscallEvent.Retval), nil
-
-	case "utimes.file.container_path":
-
-		return e.ResolveFileContainerPath(&e.Utimes.File), nil
 
 	case "utimes.file.filesystem":
 
@@ -6615,9 +6386,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "capset.cap_permitted":
 		return "capset", nil
 
-	case "chmod.file.container_path":
-		return "chmod", nil
-
 	case "chmod.file.destination.mode":
 		return "chmod", nil
 
@@ -6662,9 +6430,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "chmod.retval":
 		return "chmod", nil
-
-	case "chown.file.container_path":
-		return "chown", nil
 
 	case "chown.file.destination.gid":
 		return "chown", nil
@@ -6774,9 +6539,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exec.euser":
 		return "exec", nil
 
-	case "exec.file.container_path":
-		return "exec", nil
-
 	case "exec.file.filesystem":
 		return "exec", nil
 
@@ -6848,12 +6610,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "exec.user":
 		return "exec", nil
-
-	case "link.file.container_path":
-		return "link", nil
-
-	case "link.file.destination.container_path":
-		return "link", nil
 
 	case "link.file.destination.filesystem":
 		return "link", nil
@@ -6930,9 +6686,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "link.retval":
 		return "link", nil
 
-	case "mkdir.file.container_path":
-		return "mkdir", nil
-
 	case "mkdir.file.destination.mode":
 		return "mkdir", nil
 
@@ -6977,9 +6730,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "mkdir.retval":
 		return "mkdir", nil
-
-	case "open.file.container_path":
-		return "open", nil
 
 	case "open.file.destination.mode":
 		return "open", nil
@@ -7054,9 +6804,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 
 	case "process.ancestors.euser":
-		return "*", nil
-
-	case "process.ancestors.file.container_path":
 		return "*", nil
 
 	case "process.ancestors.file.filesystem":
@@ -7161,9 +6908,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.euser":
 		return "*", nil
 
-	case "process.file.container_path":
-		return "*", nil
-
 	case "process.file.filesystem":
 		return "*", nil
 
@@ -7236,9 +6980,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.user":
 		return "*", nil
 
-	case "removexattr.file.container_path":
-		return "removexattr", nil
-
 	case "removexattr.file.destination.name":
 		return "removexattr", nil
 
@@ -7283,12 +7024,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "removexattr.retval":
 		return "removexattr", nil
-
-	case "rename.file.container_path":
-		return "rename", nil
-
-	case "rename.file.destination.container_path":
-		return "rename", nil
 
 	case "rename.file.destination.filesystem":
 		return "rename", nil
@@ -7365,9 +7100,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "rename.retval":
 		return "rename", nil
 
-	case "rmdir.file.container_path":
-		return "rmdir", nil
-
 	case "rmdir.file.filesystem":
 		return "rmdir", nil
 
@@ -7407,6 +7139,18 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "rmdir.retval":
 		return "rmdir", nil
 
+	case "selinux.bool.name":
+		return "selinux", nil
+
+	case "selinux.bool.state":
+		return "selinux", nil
+
+	case "selinux.bool_commit.state":
+		return "selinux", nil
+
+	case "selinux.enforce.status":
+		return "selinux", nil
+
 	case "setgid.egid":
 		return "setgid", nil
 
@@ -7442,9 +7186,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "setuid.user":
 		return "setuid", nil
-
-	case "setxattr.file.container_path":
-		return "setxattr", nil
 
 	case "setxattr.file.destination.name":
 		return "setxattr", nil
@@ -7491,9 +7232,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "setxattr.retval":
 		return "setxattr", nil
 
-	case "unlink.file.container_path":
-		return "unlink", nil
-
 	case "unlink.file.filesystem":
 		return "unlink", nil
 
@@ -7532,9 +7270,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "unlink.retval":
 		return "unlink", nil
-
-	case "utimes.file.container_path":
-		return "utimes", nil
 
 	case "utimes.file.filesystem":
 		return "utimes", nil
@@ -7591,10 +7326,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
-	case "chmod.file.container_path":
-
-		return reflect.String, nil
-
 	case "chmod.file.destination.mode":
 
 		return reflect.Int, nil
@@ -7654,10 +7385,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "chmod.retval":
 
 		return reflect.Int, nil
-
-	case "chown.file.container_path":
-
-		return reflect.String, nil
 
 	case "chown.file.destination.gid":
 
@@ -7803,10 +7530,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
-	case "exec.file.container_path":
-
-		return reflect.String, nil
-
 	case "exec.file.filesystem":
 
 		return reflect.String, nil
@@ -7900,14 +7623,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "exec.user":
-
-		return reflect.String, nil
-
-	case "link.file.container_path":
-
-		return reflect.String, nil
-
-	case "link.file.destination.container_path":
 
 		return reflect.String, nil
 
@@ -8011,10 +7726,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
-	case "mkdir.file.container_path":
-
-		return reflect.String, nil
-
 	case "mkdir.file.destination.mode":
 
 		return reflect.Int, nil
@@ -8074,10 +7785,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "mkdir.retval":
 
 		return reflect.Int, nil
-
-	case "open.file.container_path":
-
-		return reflect.String, nil
 
 	case "open.file.destination.mode":
 
@@ -8176,10 +7883,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "process.ancestors.euser":
-
-		return reflect.String, nil
-
-	case "process.ancestors.file.container_path":
 
 		return reflect.String, nil
 
@@ -8319,10 +8022,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
-	case "process.file.container_path":
-
-		return reflect.String, nil
-
 	case "process.file.filesystem":
 
 		return reflect.String, nil
@@ -8419,10 +8118,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
-	case "removexattr.file.container_path":
-
-		return reflect.String, nil
-
 	case "removexattr.file.destination.name":
 
 		return reflect.String, nil
@@ -8482,14 +8177,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "removexattr.retval":
 
 		return reflect.Int, nil
-
-	case "rename.file.container_path":
-
-		return reflect.String, nil
-
-	case "rename.file.destination.container_path":
-
-		return reflect.String, nil
 
 	case "rename.file.destination.filesystem":
 
@@ -8591,10 +8278,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
-	case "rmdir.file.container_path":
-
-		return reflect.String, nil
-
 	case "rmdir.file.filesystem":
 
 		return reflect.String, nil
@@ -8647,6 +8330,22 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "selinux.bool.name":
+
+		return reflect.String, nil
+
+	case "selinux.bool.state":
+
+		return reflect.String, nil
+
+	case "selinux.bool_commit.state":
+
+		return reflect.Bool, nil
+
+	case "selinux.enforce.status":
+
+		return reflect.String, nil
+
 	case "setgid.egid":
 
 		return reflect.Int, nil
@@ -8692,10 +8391,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "setuid.user":
-
-		return reflect.String, nil
-
-	case "setxattr.file.container_path":
 
 		return reflect.String, nil
 
@@ -8759,10 +8454,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
-	case "unlink.file.container_path":
-
-		return reflect.String, nil
-
 	case "unlink.file.filesystem":
 
 		return reflect.String, nil
@@ -8814,10 +8505,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "unlink.retval":
 
 		return reflect.Int, nil
-
-	case "utimes.file.container_path":
-
-		return reflect.String, nil
 
 	case "utimes.file.filesystem":
 
@@ -8897,17 +8584,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Capset.CapPermitted"}
 		}
 		e.Capset.CapPermitted = uint64(v)
-		return nil
-
-	case "chmod.file.container_path":
-
-		var ok bool
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.ContainerPath"}
-		}
-		e.Chmod.File.ContainerPath = str
-
 		return nil
 
 	case "chmod.file.destination.mode":
@@ -9061,17 +8737,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.SyscallEvent.Retval"}
 		}
 		e.Chmod.SyscallEvent.Retval = int64(v)
-		return nil
-
-	case "chown.file.container_path":
-
-		var ok bool
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Chown.File.ContainerPath"}
-		}
-		e.Chown.File.ContainerPath = str
-
 		return nil
 
 	case "chown.file.destination.gid":
@@ -9446,17 +9111,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
-	case "exec.file.container_path":
-
-		var ok bool
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.ContainerPath"}
-		}
-		e.Exec.Process.ContainerPath = str
-
-		return nil
-
 	case "exec.file.filesystem":
 
 		var ok bool
@@ -9702,28 +9356,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.User"}
 		}
 		e.Exec.Process.Credentials.User = str
-
-		return nil
-
-	case "link.file.container_path":
-
-		var ok bool
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Link.Source.ContainerPath"}
-		}
-		e.Link.Source.ContainerPath = str
-
-		return nil
-
-	case "link.file.destination.container_path":
-
-		var ok bool
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Link.Target.ContainerPath"}
-		}
-		e.Link.Target.ContainerPath = str
 
 		return nil
 
@@ -9983,17 +9615,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.SyscallEvent.Retval = int64(v)
 		return nil
 
-	case "mkdir.file.container_path":
-
-		var ok bool
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.ContainerPath"}
-		}
-		e.Mkdir.File.ContainerPath = str
-
-		return nil
-
 	case "mkdir.file.destination.mode":
 
 		var ok bool
@@ -10145,17 +9766,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.SyscallEvent.Retval"}
 		}
 		e.Mkdir.SyscallEvent.Retval = int64(v)
-		return nil
-
-	case "open.file.container_path":
-
-		var ok bool
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Open.File.ContainerPath"}
-		}
-		e.Open.File.ContainerPath = str
-
 		return nil
 
 	case "open.file.destination.mode":
@@ -10452,21 +10062,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUser"}
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUser = str
-
-		return nil
-
-	case "process.ancestors.file.container_path":
-
-		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
-		}
-
-		var ok bool
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.ContainerPath"}
-		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.ContainerPath = str
 
 		return nil
 
@@ -10918,17 +10513,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
-	case "process.file.container_path":
-
-		var ok bool
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.ContainerPath"}
-		}
-		e.ProcessContext.Process.ContainerPath = str
-
-		return nil
-
 	case "process.file.filesystem":
 
 		var ok bool
@@ -11177,17 +10761,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
-	case "removexattr.file.container_path":
-
-		var ok bool
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.ContainerPath"}
-		}
-		e.RemoveXAttr.File.ContainerPath = str
-
-		return nil
-
 	case "removexattr.file.destination.name":
 
 		var ok bool
@@ -11341,28 +10914,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.SyscallEvent.Retval"}
 		}
 		e.RemoveXAttr.SyscallEvent.Retval = int64(v)
-		return nil
-
-	case "rename.file.container_path":
-
-		var ok bool
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.ContainerPath"}
-		}
-		e.Rename.Old.ContainerPath = str
-
-		return nil
-
-	case "rename.file.destination.container_path":
-
-		var ok bool
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Rename.New.ContainerPath"}
-		}
-		e.Rename.New.ContainerPath = str
-
 		return nil
 
 	case "rename.file.destination.filesystem":
@@ -11621,17 +11172,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.SyscallEvent.Retval = int64(v)
 		return nil
 
-	case "rmdir.file.container_path":
-
-		var ok bool
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.ContainerPath"}
-		}
-		e.Rmdir.File.ContainerPath = str
-
-		return nil
-
 	case "rmdir.file.filesystem":
 
 		var ok bool
@@ -11765,6 +11305,47 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rmdir.SyscallEvent.Retval = int64(v)
 		return nil
 
+	case "selinux.bool.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.BoolName"}
+		}
+		e.SELinux.BoolName = str
+
+		return nil
+
+	case "selinux.bool.state":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.BoolChangeValue"}
+		}
+		e.SELinux.BoolChangeValue = str
+
+		return nil
+
+	case "selinux.bool_commit.state":
+
+		var ok bool
+		if e.SELinux.BoolCommitValue, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.BoolCommitValue"}
+		}
+		return nil
+
+	case "selinux.enforce.status":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.EnforceStatus"}
+		}
+		e.SELinux.EnforceStatus = str
+
+		return nil
+
 	case "setgid.egid":
 
 		var ok bool
@@ -11888,17 +11469,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "SetUID.User"}
 		}
 		e.SetUID.User = str
-
-		return nil
-
-	case "setxattr.file.container_path":
-
-		var ok bool
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.ContainerPath"}
-		}
-		e.SetXAttr.File.ContainerPath = str
 
 		return nil
 
@@ -12057,17 +11627,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetXAttr.SyscallEvent.Retval = int64(v)
 		return nil
 
-	case "unlink.file.container_path":
-
-		var ok bool
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.ContainerPath"}
-		}
-		e.Unlink.File.ContainerPath = str
-
-		return nil
-
 	case "unlink.file.filesystem":
 
 		var ok bool
@@ -12199,17 +11758,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.SyscallEvent.Retval"}
 		}
 		e.Unlink.SyscallEvent.Retval = int64(v)
-		return nil
-
-	case "utimes.file.container_path":
-
-		var ok bool
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.ContainerPath"}
-		}
-		e.Utimes.File.ContainerPath = str
-
 		return nil
 
 	case "utimes.file.filesystem":

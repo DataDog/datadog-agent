@@ -130,14 +130,14 @@ func TestConfigHostname(t *testing.T) {
 		t.Run("good", func(t *testing.T) {
 			cfg := AgentConfig{DDAgentBin: makeProgram("host.name", 0)}
 			defer os.Remove(cfg.DDAgentBin)
-			assert.NoError(t, cfg.acquireHostname())
+			assert.NoError(t, cfg.acquireHostnameFallback())
 			assert.Equal(t, cfg.Hostname, "host.name")
 		})
 
 		t.Run("empty", func(t *testing.T) {
 			cfg := AgentConfig{DDAgentBin: makeProgram("", 0)}
 			defer os.Remove(cfg.DDAgentBin)
-			assert.NoError(t, cfg.acquireHostname())
+			assert.NoError(t, cfg.acquireHostnameFallback())
 			assert.Empty(t, cfg.Hostname)
 		})
 
@@ -147,21 +147,21 @@ func TestConfigHostname(t *testing.T) {
 
 			cfg := AgentConfig{DDAgentBin: makeProgram("", 0)}
 			defer os.Remove(cfg.DDAgentBin)
-			assert.NoError(t, cfg.acquireHostname())
+			assert.NoError(t, cfg.acquireHostnameFallback())
 			assert.Equal(t, "fallback.host", cfg.Hostname)
 		})
 
 		t.Run("fallback1", func(t *testing.T) {
 			cfg := AgentConfig{DDAgentBin: makeProgram("", 1)}
 			defer os.Remove(cfg.DDAgentBin)
-			assert.NoError(t, cfg.acquireHostname())
+			assert.NoError(t, cfg.acquireHostnameFallback())
 			assert.Equal(t, cfg.Hostname, "fallback.host")
 		})
 
 		t.Run("fallback2", func(t *testing.T) {
 			cfg := AgentConfig{DDAgentBin: makeProgram("some text", 1)}
 			defer os.Remove(cfg.DDAgentBin)
-			assert.NoError(t, cfg.acquireHostname())
+			assert.NoError(t, cfg.acquireHostnameFallback())
 			assert.Equal(t, cfg.Hostname, "fallback.host")
 		})
 	})
@@ -351,9 +351,9 @@ func TestUndocumentedYamlConfig(t *testing.T) {
 	assert.Equal(0.05, c.AnalyzedSpansByService["db"]["intake"])
 }
 
-func TestAcquireHostname(t *testing.T) {
+func TestAcquireHostnameFallback(t *testing.T) {
 	c := New()
-	err := c.acquireHostname()
+	err := c.acquireHostnameFallback()
 	assert.Nil(t, err)
 	host, _ := os.Hostname()
 	assert.Equal(t, host, c.Hostname)

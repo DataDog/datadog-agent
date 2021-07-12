@@ -31,8 +31,8 @@ L --> M{run-instance}
 [run-instance](../scripts/run-instance)
 ```text
 graph TD
-A{Run Instance} -->B[pupernetes wait]
-B --> C[pupernetes ready]
+A{Run Instance} -->B[kind create cluster]
+B --> C[kind cluster ready]
 C --> D[argo download]
 D --> E[argo setup]
 E --> F[argo submit]

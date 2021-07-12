@@ -94,14 +94,6 @@ func (ev *Event) ResolveFileBasename(f *model.FileEvent) string {
 	return f.BasenameStr
 }
 
-// ResolveFileContainerPath resolves the inode to a full path
-func (ev *Event) ResolveFileContainerPath(f *model.FileEvent) string {
-	if len(f.ContainerPath) == 0 {
-		f.ContainerPath = ev.resolvers.resolveContainerPath(&f.FileFields)
-	}
-	return f.ContainerPath
-}
-
 // ResolveFileFilesystem resolves the filesystem a file resides in
 func (ev *Event) ResolveFileFilesystem(f *model.FileEvent) string {
 	return ev.resolvers.MountResolver.GetFilesystem(f.FileFields.MountID)
@@ -381,6 +373,18 @@ func (ev *Event) ResolveSetgidFSGroup(e *model.SetgidEvent) string {
 		e.FSGroup, _ = ev.resolvers.UserGroupResolver.ResolveUser(int(e.FSGID))
 	}
 	return e.FSGroup
+}
+
+// ResolveSELinuxBoolName resolves the boolean name of the SELinux event
+func (ev *Event) ResolveSELinuxBoolName(e *model.SELinuxEvent) string {
+	if e.EventKind != model.SELinuxBoolChangeEventKind {
+		return ""
+	}
+
+	if len(ev.SELinux.BoolName) == 0 {
+		ev.SELinux.BoolName = ev.resolvers.resolveBasename(&e.File.FileFields)
+	}
+	return ev.SELinux.BoolName
 }
 
 func (ev *Event) String() string {

@@ -81,6 +81,7 @@ type OpenmetricsInstance struct {
 	Service                       string                      `mapstructure:"service" yaml:"service,omitempty" json:"service,omitempty"`
 	MinCollectInterval            int                         `mapstructure:"min_collection_interval" yaml:"min_collection_interval,omitempty" json:"min_collection_interval,omitempty"`
 	EmptyDefaultHost              bool                        `mapstructure:"empty_default_hostname" yaml:"empty_default_hostname,omitempty" json:"empty_default_hostname,omitempty"`
+	MaxReturnedMetrics            int                         `mapstructure:"max_returned_metrics" yaml:"max_returned_metrics,omitempty" json:"max_returned_metrics,omitempty"`
 }
 
 // LabelJoinsConfig contains the label join configuration fields

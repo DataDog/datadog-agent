@@ -18,9 +18,6 @@
         "group": {
             "type": "string"
         },
-        "executable_container_path": {
-            "$ref": "file:///container_path.json"
-        },
         "executable_path": {
             "type": "string"
         },
@@ -128,9 +125,6 @@
                 "name": {
                     "type": "string"
                 },
-                "container_path": {
-                    "$ref": "file:///container_path.json"
-                },
                 "inode": {
                     "type": "integer"
                 },
@@ -213,13 +207,5 @@
         "executable_mount_id",
         "credentials",
         "executable"
-    ],
-    "dependencies": {
-        "executable_container_path": [
-            "container"
-        ],
-        "container": [
-            "executable_container_path"
-        ]
-    }
+    ]
 }

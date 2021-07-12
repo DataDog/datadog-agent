@@ -351,6 +351,11 @@ func TestInArray(t *testing.T) {
 		{Expr: `process.name in [ ~"*d*", "aaa" ]`, Expected: true},
 		{Expr: `process.name in [ ~"*d*", "aa*" ]`, Expected: false},
 		{Expr: `process.name in [ ~"*d*", ~"aa*" ]`, Expected: true},
+		{Expr: `process.name in [ r".*d.*", r"aa.*" ]`, Expected: true},
+		{Expr: `process.name in [ r".*d.*", r"ab.*" ]`, Expected: false},
+		{Expr: `process.name not in [ r".*d.*", r"ab.*" ]`, Expected: true},
+		{Expr: `process.name in [ "bbb", "aaa" ]`, Expected: true},
+		{Expr: `process.name not in [ "bbb", "aaa" ]`, Expected: false},
 	}
 
 	for _, test := range tests {
@@ -970,6 +975,48 @@ func TestDuration(t *testing.T) {
 	}
 }
 
+func BenchmarkArray(b *testing.B) {
+	event := &testEvent{
+		process: testProcess{
+			name: "/usr/bin/ls",
+			uid:  1,
+		},
+	}
+
+	var values []string
+	for i := 0; i != 255; i++ {
+		values = append(values, fmt.Sprintf(`~"/usr/bin/aaa-%d"`, i))
+	}
+
+	for i := 0; i != 255; i++ {
+		values = append(values, fmt.Sprintf(`"/usr/bin/aaa-%d"`, i))
+	}
+
+	base := fmt.Sprintf(`(process.name in [%s, ~"/usr/bin/ls"])`, strings.Join(values, ","))
+	var exprs []string
+
+	for i := 0; i != 100; i++ {
+		exprs = append(exprs, base)
+	}
+
+	expr := strings.Join(exprs, " && ")
+
+	rule, err := parseRule(expr, &testModel{}, &Opts{})
+	if err != nil {
+		b.Fatal(fmt.Sprintf("%s\n%s", err, expr))
+	}
+
+	evaluator := rule.GetEvaluator()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ctx := NewContext(unsafe.Pointer(event))
+		if evaluator.Eval(ctx) != true {
+			b.Fatal("unexpected result")
+		}
+	}
+}
+
 func BenchmarkComplex(b *testing.B) {
 	event := &testEvent{
 		process: testProcess{
@@ -994,6 +1041,7 @@ func BenchmarkComplex(b *testing.B) {
 
 	evaluator := rule.GetEvaluator()
 
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx := NewContext(unsafe.Pointer(event))
 		if evaluator.Eval(ctx) != true {
@@ -1038,6 +1086,7 @@ func BenchmarkPartial(b *testing.B) {
 
 	evaluator := rule.GetEvaluator()
 
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		if ok, _ := evaluator.PartialEval(ctx, "process.name"); ok {
 			b.Fatal("unexpected result")
@@ -1071,6 +1120,7 @@ func BenchmarkPool(b *testing.B) {
 
 	evaluator := rule.GetEvaluator()
 
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		ctx := pool.Get(unsafe.Pointer(event))
 		if evaluator.Eval(ctx) != true {

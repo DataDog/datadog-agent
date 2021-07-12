@@ -257,7 +257,7 @@ func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventTy
 		if values := rule.GetFieldValues(filenameField); len(values) > 0 {
 			for _, value := range values {
 				if value.Type == eval.PatternValueType {
-					if value.Regex.MatchString(dirname) {
+					if value.Regexp.MatchString(dirname) {
 						return false, nil
 					}
 

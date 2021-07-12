@@ -42,4 +42,4 @@ kitchen_*_security_agent*            @DataDog/agent-security
 cleanup_kitchen_functional_test      @DataDog/agent-network @DataDog/agent-security
 
 # E2E
-pupernetes-*                         @DataDog/container-integrations
+k8s-e2e-*                         @DataDog/container-integrations

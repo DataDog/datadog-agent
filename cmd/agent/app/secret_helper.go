@@ -3,8 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build kubeapiserver
+// +build secrets
 
-package admission
+package app
 
-const EnabledLabelKey = "admission.datadoghq.com/enabled"
+import (
+	"github.com/DataDog/datadog-agent/cmd/secrets"
+)
+
+func init() {
+	AgentCmd.AddCommand(secrets.SecretHelperCmd)
+}

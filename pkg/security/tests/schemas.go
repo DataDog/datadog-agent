@@ -96,3 +96,7 @@ func validateChmodSchema(t *testing.T, event *sprobe.Event) bool {
 func validateChownSchema(t *testing.T, event *sprobe.Event) bool {
 	return validateSchema(t, event, "file:///chown.schema.json")
 }
+
+func validateSELinuxSchema(t *testing.T, event *sprobe.Event) bool {
+	return validateSchema(t, event, "file:///selinux.schema.json")
+}
