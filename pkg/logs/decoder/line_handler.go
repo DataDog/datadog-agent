@@ -358,7 +358,7 @@ func (h *AutoMultilineHandler) processAndTry(message *Message) {
 		topMatch := h.scoredMatches[0]
 		matchRatio := float64(topMatch.score) / float64(h.linesTested)
 
-		if matchRatio > h.matchThreshold {
+		if matchRatio >= h.matchThreshold {
 			log.Debug("At least one pattern matched all sampled lines")
 			h.switchToMultilineHandler(topMatch.regexp)
 		} else {
@@ -381,10 +381,10 @@ func (h *AutoMultilineHandler) switchToMultilineHandler(r *regexp.Regexp) {
 	// At this point control is handed over to the multi line handler and the AutoMultilineHandler read loop will be stopped.
 }
 
-// Orignally refercned from https://github.com/egnyte/ax/blob/master/pkg/heuristic/timestamp.go
+// Originally referenced from https://github.com/egnyte/ax/blob/master/pkg/heuristic/timestamp.go
 // All line matching rules must only match the beginning of a line, so when adding new expressions
 // make sure to prepend it with `^`
-var formatsToTry []*regexp.Regexp = []*regexp.Regexp{
+var formatsToTry = []*regexp.Regexp{
 	// time.RFC3339,
 	regexp.MustCompile(`^\d+-\d+-\d+T\d+:\d+:\d+(\.\d+)?(Z\d*:?\d*)?`),
 	// time.ANSIC,
