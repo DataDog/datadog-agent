@@ -306,6 +306,7 @@ variables:
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent
+      IMG_REGISTRIES: public
 
 .on_deploy_a7:
   - <<: *if_not_version_7
@@ -329,6 +330,7 @@ variables:
     variables:
       AGENT_REPOSITORY: agent
       DSD_REPOSITORY: dogstatsd
+      IMG_REGISTRIES: public
 
 .on_deploy_nightly_repo_branch_a6:
   - <<: *if_not_version_6
