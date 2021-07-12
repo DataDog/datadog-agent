@@ -311,14 +311,14 @@ func formatDNSStatsByDomainByQueryType(stats map[string]map[network.QueryType]ne
 func formatDNSStatsByDomain(stats map[string]map[network.QueryType]network.DNSStats, domainSet map[string]int) map[int32]*model.DNSStats {
 	m := make(map[int32]*model.DNSStats)
 	for d, bytype := range stats {
+		pos, ok := domainSet[d]
+		if !ok {
+			pos = len(domainSet)
+			domainSet[d] = pos
+		}
 
 		for _, stat := range bytype {
 
-			pos, ok := domainSet[d]
-			if !ok {
-				pos = len(domainSet)
-				domainSet[d] = pos
-			}
 			if ms, ok := m[int32(pos)]; ok {
 				for rcode, count := range stat.DNSCountByRcode {
 					ms.DnsCountByRcode[rcode] += count
