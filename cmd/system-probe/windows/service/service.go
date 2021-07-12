@@ -37,12 +37,19 @@ type sysprobeWindowService struct{}
 func (m *sysprobeWindowService) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 	changes <- svc.Status{State: svc.StartPending}
+	defer func() {
+		changes <- svc.Status{State: svc.Stopped}
+	}()
 
 	if err := app.StartSystemProbe(); err != nil {
+		if err == app.ErrNotEnabled {
+			changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
+			return
+		}
+
 		log.Errorf("Failed to start system-probe %v", err)
 		elog.Error(agentStartFailure, err.Error())
 		errno = 1 // indicates non-successful return from handler.
-		changes <- svc.Status{State: svc.Stopped}
 		return
 	}
 
@@ -83,7 +90,6 @@ loop:
 	log.Infof("Initiating service shutdown")
 	changes <- svc.Status{State: svc.StopPending}
 	app.StopSystemProbe()
-	changes <- svc.Status{State: svc.Stopped}
 	return
 }
 

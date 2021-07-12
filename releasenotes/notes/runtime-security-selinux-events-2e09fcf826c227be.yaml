@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add support for SELinux related events, like boolean value updates or enforcment status changes.

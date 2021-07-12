@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
 )
 
@@ -21,6 +22,10 @@ func init() {
 
 func getMetadata() (map[string]string, error) {
 	metadata := make(map[string]string)
+	if !config.IsFeaturePresent(config.Kubernetes) {
+		return metadata, nil
+	}
+
 	ku, err := GetKubeUtil()
 	if err != nil {
 		return metadata, err

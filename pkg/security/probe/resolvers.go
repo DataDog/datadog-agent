@@ -189,7 +189,11 @@ func (r *Resolvers) Snapshot() error {
 
 	r.ProcessResolver.SetState(snapshotted)
 
-	return nil
+	selinuxStatusMap, err := r.probe.Map("selinux_enforce_status")
+	if err != nil {
+		return errors.Wrap(err, "unable to snapshot SELinux")
+	}
+	return snapshotSELinux(selinuxStatusMap)
 }
 
 // snapshot internal version of Snapshot. Calls the relevant resolvers to sync their caches.

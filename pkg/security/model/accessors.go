@@ -50,6 +50,8 @@ func (m *Model) GetEventTypes() []eval.EventType {
 
 		eval.EventType("rmdir"),
 
+		eval.EventType("selinux"),
+
 		eval.EventType("setgid"),
 
 		eval.EventType("setuid"),
@@ -3110,6 +3112,46 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "selinux.bool.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).SELinux.BoolName
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "selinux.bool.state":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).SELinux.BoolChangeValue
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "selinux.bool_commit.state":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).SELinux.BoolCommitValue
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "selinux.enforce.status":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).SELinux.EnforceStatus
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "setgid.egid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -4153,6 +4195,14 @@ func (e *Event) GetFields() []eval.Field {
 		"rmdir.file.user",
 
 		"rmdir.retval",
+
+		"selinux.bool.name",
+
+		"selinux.bool.state",
+
+		"selinux.bool_commit.state",
+
+		"selinux.enforce.status",
 
 		"setgid.egid",
 
@@ -5889,6 +5939,22 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Rmdir.SyscallEvent.Retval), nil
 
+	case "selinux.bool.name":
+
+		return e.SELinux.BoolName, nil
+
+	case "selinux.bool.state":
+
+		return e.SELinux.BoolChangeValue, nil
+
+	case "selinux.bool_commit.state":
+
+		return e.SELinux.BoolCommitValue, nil
+
+	case "selinux.enforce.status":
+
+		return e.SELinux.EnforceStatus, nil
+
 	case "setgid.egid":
 
 		return int(e.SetGID.EGID), nil
@@ -6867,6 +6933,18 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "rmdir.retval":
 		return "rmdir", nil
+
+	case "selinux.bool.name":
+		return "selinux", nil
+
+	case "selinux.bool.state":
+		return "selinux", nil
+
+	case "selinux.bool_commit.state":
+		return "selinux", nil
+
+	case "selinux.enforce.status":
+		return "selinux", nil
 
 	case "setgid.egid":
 		return "setgid", nil
@@ -8046,6 +8124,22 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "rmdir.retval":
 
 		return reflect.Int, nil
+
+	case "selinux.bool.name":
+
+		return reflect.String, nil
+
+	case "selinux.bool.state":
+
+		return reflect.String, nil
+
+	case "selinux.bool_commit.state":
+
+		return reflect.Bool, nil
+
+	case "selinux.enforce.status":
+
+		return reflect.String, nil
 
 	case "setgid.egid":
 
@@ -11004,6 +11098,47 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.SyscallEvent.Retval"}
 		}
 		e.Rmdir.SyscallEvent.Retval = int64(v)
+		return nil
+
+	case "selinux.bool.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.BoolName"}
+		}
+		e.SELinux.BoolName = str
+
+		return nil
+
+	case "selinux.bool.state":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.BoolChangeValue"}
+		}
+		e.SELinux.BoolChangeValue = str
+
+		return nil
+
+	case "selinux.bool_commit.state":
+
+		var ok bool
+		if e.SELinux.BoolCommitValue, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.BoolCommitValue"}
+		}
+		return nil
+
+	case "selinux.enforce.status":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.EnforceStatus"}
+		}
+		e.SELinux.EnforceStatus = str
+
 		return nil
 
 	case "setgid.egid":

@@ -133,9 +133,32 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 		ctr = fillNilContainer(ctr)
 		lastCtr = fillNilRates(lastCtr)
 
+		// If ctr.CPU is nil, then return -1 for the CPU metric values.
+		// This is handled on the backend to skip reporting, rather than report an
+		// errant value due to the expectation that CPU is reported cumulatively
+		var cpuUserPct float32
+		var cpuSystemPct float32
+		var cpuTotalPct float32
+		if ctr.CPU == nil || lastCtr.CPU == nil {
+			cpuUserPct = -1
+			cpuSystemPct = -1
+			cpuTotalPct = -1
+		} else {
+			cpus := system.HostCPUCount()
+			sys2, sys1 := ctr.CPU.SystemUsage, lastCtr.CPU.SystemUsage
+			cpuUserPct = calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, lastRun)
+			cpuSystemPct = calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, lastRun)
+			cpuTotalPct = calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, lastRun)
+		}
+
+		var cpuThreadCount uint64
+		if ctr.CPU == nil {
+			cpuThreadCount = 0
+		} else {
+			cpuThreadCount = ctr.CPU.ThreadCount
+		}
+
 		ifStats := ctr.Network.SumInterfaces()
-		cpus := system.HostCPUCount()
-		sys2, sys1 := ctr.CPU.SystemUsage, lastCtr.CPU.SystemUsage
 
 		// Retrieves metadata tags
 		tags, err := tagger.Tag(ctr.EntityID, collectors.HighCardinality)
@@ -155,9 +178,9 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 			Id:          ctr.ID,
 			Type:        ctr.Type,
 			CpuLimit:    float32(ctr.Limits.CPULimit),
-			UserPct:     calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, lastRun),
-			SystemPct:   calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, lastRun),
-			TotalPct:    calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, lastRun),
+			UserPct:     cpuUserPct,
+			SystemPct:   cpuSystemPct,
+			TotalPct:    cpuTotalPct,
 			MemoryLimit: ctr.Limits.MemLimit,
 			MemRss:      ctr.Memory.RSS,
 			MemCache:    ctr.Memory.Cache,
@@ -170,7 +193,7 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 			NetSentPs:   calculateRate(ifStats.PacketsSent, lastCtr.NetworkSum.PacketsSent, lastRun),
 			NetRcvdBps:  calculateRate(ifStats.BytesRcvd, lastCtr.NetworkSum.BytesRcvd, lastRun),
 			NetSentBps:  calculateRate(ifStats.BytesSent, lastCtr.NetworkSum.BytesSent, lastRun),
-			ThreadCount: ctr.CPU.ThreadCount,
+			ThreadCount: cpuThreadCount,
 			ThreadLimit: ctr.Limits.ThreadLimit,
 			Addresses:   convertAddressList(ctr),
 			Started:     ctr.StartedAt,
@@ -218,9 +241,6 @@ func convertAddressList(ctr *containers.Container) []*model.ContainerAddr {
 }
 
 func fillNilContainer(ctr *containers.Container) *containers.Container {
-	if ctr.CPU == nil {
-		ctr.CPU = util.NullContainerRates.CPU
-	}
 	if ctr.IO == nil {
 		ctr.IO = util.NullContainerRates.IO
 	}
@@ -235,9 +255,6 @@ func fillNilContainer(ctr *containers.Container) *containers.Container {
 
 func fillNilRates(rates util.ContainerRateMetrics) util.ContainerRateMetrics {
 	r := &rates
-	if rates.CPU == nil {
-		r.CPU = util.NullContainerRates.CPU
-	}
 	if rates.IO == nil {
 		r.IO = util.NullContainerRates.IO
 	}
