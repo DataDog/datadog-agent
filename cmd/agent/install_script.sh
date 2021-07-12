@@ -586,7 +586,7 @@ restart_cmd="$sudo_cmd $service_cmd datadog-agent restart"
 stop_instructions="$sudo_cmd $service_cmd datadog-agent stop"
 start_instructions="$sudo_cmd $service_cmd datadog-agent start"
 
-if [[ `ps --no-headers -o comm 1 2>&1` == "systemd" ]] && command -v systemctl 2>&1; then
+if [[ `$sudo_cmd ps --no-headers -o comm 1 2>&1` == "systemd" ]] && command -v systemctl 2>&1; then
   # Use systemd if systemctl binary exists and systemd is the init process
   restart_cmd="$sudo_cmd systemctl restart datadog-agent.service"
   stop_instructions="$sudo_cmd systemctl stop datadog-agent"
