@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -55,6 +56,8 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	httpIndex := FormatHTTPStats(conns.HTTP)
 	httpMatches := make(map[http.Key]struct{}, len(httpIndex))
 
+	dnsWithQueryType := config.Datadog.GetBool("network_config.enable_dns_by_querytype")
+
 	for i, conn := range conns.Conns {
 		httpKey := httpKeyFromConn(conn)
 		httpAggregations := httpIndex[httpKey]
@@ -62,7 +65,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 			httpMatches[httpKey] = struct{}{}
 		}
 
-		agentConns[i] = FormatConnection(conn, domainSet, routeIndex, httpAggregations)
+		agentConns[i] = FormatConnection(conn, domainSet, routeIndex, httpAggregations, dnsWithQueryType)
 	}
 
 	if orphans := len(httpIndex) - len(httpMatches); orphans > 0 {
