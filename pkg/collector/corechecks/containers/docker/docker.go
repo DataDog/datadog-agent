@@ -355,7 +355,7 @@ func (d *DockerCheck) reportCPUMetrics(cpu *cmetrics.ContainerCPUStats, limits *
 	}
 
 	// limits.CPULimit is a percentage (i.e. 100.0%, not 1.0)
-	timeDiff := cpu.Timestamp.Unix() - startTime
+	timeDiff := cpu.Timestsamp.Unix() - startTime
 	if limits.CPULimit > 0 && timeDiff > 0 {
 		availableCPUTimeHz := 100 * float64(timeDiff) // Converted to Hz to be consistent with UsageTotal
 		sender.Rate("docker.cpu.limit", limits.CPULimit/100*availableCPUTimeHz, "", tags)

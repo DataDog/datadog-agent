@@ -105,37 +105,14 @@ func fmtContainerStats(
 		ctr = fillNilContainer(ctr)
 		lastCtr = fillNilRates(lastCtr)
 
-		// If ctr.CPU is nil, then return -1 for the CPU metric values.
-		// This is handled on the backend to skip reporting, rather than report an
-		// errant value due to the expectation that CPU is reported cumulatively
-		var cpuUserPct float32
-		var cpuSystemPct float32
-		var cpuTotalPct float32
-		if ctr.CPU == nil || lastCtr.CPU == nil {
-			cpuUserPct = -1
-			cpuSystemPct = -1
-			cpuTotalPct = -1
-		} else {
-			cpus := system.HostCPUCount()
-			sys2, sys1 := ctr.CPU.SystemUsage, lastCtr.CPU.SystemUsage
-			cpuUserPct = calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, lastRun)
-			cpuSystemPct = calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, lastRun)
-			cpuTotalPct = calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, lastRun)
-		}
-
-		var cpuThreadCount uint64
-		if ctr.CPU == nil {
-			cpuThreadCount = 0
-		} else {
-			cpuThreadCount = ctr.CPU.ThreadCount
-		}
-
 		ifStats := ctr.Network.SumInterfaces()
+		cpus := system.HostCPUCount()
+		sys2, sys1 := ctr.CPU.SystemUsage, lastCtr.CPU.SystemUsage
 		chunk = append(chunk, &model.ContainerStat{
 			Id:          ctr.ID,
-			UserPct:     cpuUserPct,
-			SystemPct:   cpuSystemPct,
-			TotalPct:    cpuTotalPct,
+			UserPct:     calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, lastRun),
+			SystemPct:   calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, lastRun),
+			TotalPct:    calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, lastRun),
 			CpuLimit:    float32(ctr.Limits.CPULimit),
 			MemRss:      ctr.Memory.RSS,
 			MemCache:    ctr.Memory.Cache,
@@ -146,7 +123,7 @@ func fmtContainerStats(
 			NetSentPs:   calculateRate(ifStats.PacketsSent, lastCtr.NetworkSum.PacketsSent, lastRun),
 			NetRcvdBps:  calculateRate(ifStats.BytesRcvd, lastCtr.NetworkSum.BytesRcvd, lastRun),
 			NetSentBps:  calculateRate(ifStats.BytesSent, lastCtr.NetworkSum.BytesSent, lastRun),
-			ThreadCount: cpuThreadCount,
+			ThreadCount: ctr.CPU.ThreadCount,
 			ThreadLimit: ctr.Limits.ThreadLimit,
 			State:       model.ContainerState(model.ContainerState_value[ctr.State]),
 			Health:      model.ContainerHealth(model.ContainerHealth_value[ctr.Health]),

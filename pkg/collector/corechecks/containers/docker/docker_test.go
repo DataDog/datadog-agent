@@ -94,7 +94,7 @@ func TestReportCPUNoLimit(t *testing.T) {
 	startTime := testTime.Add(-10 * time.Second)
 
 	cpu := cmetrics.ContainerCPUStats{
-		Timestamp:  testTime,
+		Timestsamp: testTime,
 		System:     10,
 		User:       10,
 		UsageTotal: 20.0,
@@ -122,7 +122,7 @@ func TestReportCPULimit(t *testing.T) {
 	startTime := testTime.Add(-10 * time.Second)
 
 	cpu := cmetrics.ContainerCPUStats{
-		Timestamp:  testTime,
+		Timestsamp: testTime,
 		System:     10,
 		User:       10,
 		UsageTotal: 20.0,
