@@ -38,6 +38,15 @@ func resolveRuntimeArch() {
 	}
 }
 
+// GetRuntimeArch returns the current runtime arch (one of `x64`, `arm64` or `ia32`)
+func GetRuntimeArch() string {
+	if len(runtimeArch) == 0 {
+		resolveRuntimeArch()
+	}
+
+	return runtimeArch
+}
+
 // currentKernelVersion is the current kernel version
 var currentKernelVersion *kernel.Version
 

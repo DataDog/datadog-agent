@@ -3,7 +3,7 @@
 
 #include "filters.h"
 
-#define RPC_CMD 0xdeadc001
+#define RPC_CMD 0xdeadc010
 
 enum erpc_op {
     UNKNOWN_OP,
@@ -56,7 +56,7 @@ int __attribute__((always_inline)) handle_discard_pid(void *data) {
     return discard_pid(discarder.req.event_type, discarder.pid, discarder.req.timeout);
 }
 
-int __attribute__((always_inline)) is_erpc_request(u64 vfs_fd, u32 cmd) {
+int __attribute__((always_inline)) is_erpc_request(u64 vfs_fd, u32 cmd, u8 *op) {
     u64 fd, pid;
 
     LOAD_CONSTANT("erpc_fd", fd);
@@ -73,20 +73,17 @@ int __attribute__((always_inline)) is_erpc_request(u64 vfs_fd, u32 cmd) {
         return 0;
     }
 
-    if (cmd != RPC_CMD) {
+    if ((cmd & (~0xF)) != RPC_CMD) {
         return 0;
     }
 
+    // extract op from cmd
+    *op = cmd & 0xF;
     return 1;
 }
 
-int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx, void *req) {
-    u8 op;
-    int read_res = bpf_probe_read(&op, sizeof(op), req);
-
-    void *data = req + sizeof(op);
-
-    bpf_printk("ERPC request: op = %d, addr = %lx, read_res = %d\n", op, (long long)req, read_res);
+int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx, u8 op, void *data) {
+    bpf_printk("ERPC request: op = %d, addr = %lx\n", op, (long long)data);
 
     if (!is_flushing_discarders()) {
         switch (op) {
@@ -103,6 +100,23 @@ int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx, void
         case RESOLVE_PATH_OP:
             return handle_resolve_path(ctx, data);
     }
+
+    return 0;
+}
+
+int __attribute__((always_inline)) handle_erpc_request_arch_non_overlapping(struct pt_regs *ctx, u8 op, void *data) {
+    bpf_printk("ERPC request ANO: op = %d\n", op);
+
+    if (!is_flushing_discarders()) {
+        switch (op) {
+            case DISCARD_INODE_OP:
+                return handle_discard_inode(data);
+            case DISCARD_PID_OP:
+                return handle_discard_pid(data);
+        }
+    }
+
+    // other operations are not supported in this fallback
 
     return 0;
 }

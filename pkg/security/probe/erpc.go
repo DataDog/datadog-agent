@@ -8,15 +8,18 @@
 package probe
 
 import (
+	"fmt"
 	"runtime"
 	"syscall"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/ebpf/manager"
 )
 
 const (
-	rpcCmd = 0xdeadc001
+	rpcCmd = 0xdeadc010
 
 	// ERPCMaxDataSize maximum size of data of a request
 	ERPCMaxDataSize = 256
@@ -45,7 +48,25 @@ func (k *ERPC) GetConstants() []manager.ConstantEditor {
 
 // Request generates an ioctl syscall with the required request
 func (k *ERPC) Request(req *ERPCRequest) error {
-	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(k.fd), rpcCmd, uintptr(unsafe.Pointer(req)))
+	runtimeArch := probes.GetRuntimeArch()
+	cmdAndOp := uintptr(rpcCmd) | uintptr(req.OP)
+
+	var errno syscall.Errno
+	if runtimeArch == "arm64" {
+		if req.OP != DiscardInodeOp && req.OP != DiscardPidOp {
+			return fmt.Errorf("eRPC op (%v) is not supported", req.OP)
+		}
+
+		var args [4]uintptr
+		for i := 0; i < 4; i++ {
+			args[i] = uintptr(model.ByteOrder.Uint64(req.Data[8*i : 8*(i+1)]))
+		}
+
+		_, _, errno = syscall.RawSyscall6(syscall.SYS_IOCTL, uintptr(k.fd), cmdAndOp, args[0], args[1], args[2], args[3])
+	} else {
+		_, _, errno = syscall.Syscall(syscall.SYS_IOCTL, uintptr(k.fd), cmdAndOp, uintptr(unsafe.Pointer(&req.Data)))
+	}
+
 	runtime.KeepAlive(req)
 
 	if errno != 0 && errno != syscall.ENOTTY {
