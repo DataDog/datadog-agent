@@ -54,7 +54,7 @@ func (k *ERPC) Request(req *ERPCRequest) error {
 	var errno syscall.Errno
 	if runtimeArch == "arm64" {
 		if req.OP != DiscardInodeOp && req.OP != DiscardPidOp {
-			return fmt.Errorf("eRPC op (%v) is not supported", req.OP)
+			return fmt.Errorf("eRPC op (%v) is not supported on this platform", req.OP)
 		}
 
 		var args [4]uintptr
