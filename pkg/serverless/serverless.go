@@ -225,14 +225,14 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 	// route). That's why we use a context.Context with a timeout `flushTimeout``
 	// to avoid blocking for too long.
 	// This flushTimeout is re-using the forwarder_timeout value.
-	if daemon.FlushStrategy.ShouldFlush(flush.Starting, time.Now()) {
-		log.Debugf("The flush strategy %s has decided to flush the data in the moment: %s", daemon.FlushStrategy, flush.Starting)
+	if daemon.ShouldFlush(flush.Starting, time.Now()) {
+		log.Debugf("The flush strategy %s has decided to flush the data in the moment: %s", daemon.LogFlushStatagery(), flush.Starting)
 		flushTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
 		ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 		daemon.TriggerFlush(ctx, false)
 		cancel() // free the resource of the context
 	} else {
-		log.Debugf("The flush strategy %s has decided to not flush in the moment: %s", daemon.FlushStrategy, flush.Starting)
+		log.Debugf("The flush strategy %s has decided to not flush in the moment: %s", daemon.LogFlushStatagery(), flush.Starting)
 	}
 	daemon.WaitForDaemon()
 	doneChannel <- true

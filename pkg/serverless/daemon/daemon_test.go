@@ -21,11 +21,11 @@ func TestWaitForDaemonBlocking(t *testing.T) {
 
 	// WaitForDaemon doesn't block if the client library hasn't
 	// registered with the extension's /hello route
-	d.ClientLibReady = false
+	d.clientLibReady = false
 	d.WaitForDaemon()
 
 	// WaitForDaemon blocks if the client library has registered with the extension's /hello route
-	d.ClientLibReady = true
+	d.clientLibReady = true
 
 	d.StartInvocation()
 
@@ -58,7 +58,7 @@ func TestFinishInvocationOnceStartOnly(t *testing.T) {
 	defer d.Stop()
 
 	d.StartInvocation()
-	assert.Equal(uint64(0), GetValueSyncOnce(&d.FinishInvocationOnce))
+	assert.Equal(uint64(0), GetValueSyncOnce(&d.finishInvocationOnce))
 }
 
 func TestFinishInvocationOnceStartAndEnd(t *testing.T) {
@@ -69,7 +69,7 @@ func TestFinishInvocationOnceStartAndEnd(t *testing.T) {
 	d.StartInvocation()
 	d.FinishInvocation()
 
-	assert.Equal(uint64(1), GetValueSyncOnce(&d.FinishInvocationOnce))
+	assert.Equal(uint64(1), GetValueSyncOnce(&d.finishInvocationOnce))
 }
 
 func TestFinishInvocationOnceStartAndEndAndTimeout(t *testing.T) {
@@ -81,5 +81,5 @@ func TestFinishInvocationOnceStartAndEndAndTimeout(t *testing.T) {
 	d.FinishInvocation()
 	d.FinishInvocation()
 
-	assert.Equal(uint64(1), GetValueSyncOnce(&d.FinishInvocationOnce))
+	assert.Equal(uint64(1), GetValueSyncOnce(&d.finishInvocationOnce))
 }

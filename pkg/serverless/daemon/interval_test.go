@@ -17,20 +17,20 @@ import (
 func TestAutoSelectStrategy(t *testing.T) {
 	assert := assert.New(t)
 	d := Daemon{
-		LastInvocations: make([]time.Time, 0),
-		FlushStrategy:   &flush.AtTheEnd{},
-		ClientLibReady:  false,
+		lastInvocations: make([]time.Time, 0),
+		flushStrategy:   &flush.AtTheEnd{},
+		clientLibReady:  false,
 	}
 
 	now := time.Now()
 	// when the client library hasn't registered with the extension,
 	// fallback to periodically strategy
-	d.ClientLibReady = false
+	d.clientLibReady = false
 	assert.Equal((flush.NewPeriodically(10 * time.Second)).String(), d.AutoSelectStrategy().String(), "wrong strategy has been selected") // default strategy
 
 	// when not enough data, the flush at the end strategy should be selected
 	// -----
-	d.ClientLibReady = true
+	d.clientLibReady = true
 
 	assert.Equal((&flush.AtTheEnd{}).String(), d.AutoSelectStrategy().String(), "not the good strategy has been selected") // default strategy
 
@@ -51,7 +51,7 @@ func TestAutoSelectStrategy(t *testing.T) {
 	// -----
 
 	// reset the data
-	d.LastInvocations = make([]time.Time, 0)
+	d.lastInvocations = make([]time.Time, 0)
 	assert.Equal((&flush.AtTheEnd{}).String(), d.AutoSelectStrategy().String(), "not the good strategy has been selected") // default strategy
 
 	assert.True(d.StoreInvocationTime(now.Add(-time.Minute * 16)))
@@ -67,9 +67,9 @@ func TestAutoSelectStrategy(t *testing.T) {
 func TestStoreInvocationTime(t *testing.T) {
 	assert := assert.New(t)
 	d := Daemon{
-		LastInvocations: make([]time.Time, 0),
-		FlushStrategy:   &flush.AtTheEnd{},
-		ClientLibReady:  true,
+		lastInvocations: make([]time.Time, 0),
+		flushStrategy:   &flush.AtTheEnd{},
+		clientLibReady:  true,
 	}
 
 	now := time.Now()
@@ -77,19 +77,19 @@ func TestStoreInvocationTime(t *testing.T) {
 		d.StoreInvocationTime(now.Add(-time.Second * time.Duration(i)))
 	}
 
-	assert.True(len(d.LastInvocations) <= maxInvocationsStored, "the amount of stored invocations should be lower or equal to 50")
+	assert.True(len(d.lastInvocations) <= maxInvocationsStored, "the amount of stored invocations should be lower or equal to 50")
 	// validate that the proper entries were removed
-	assert.Equal(now.Add(-time.Second*10), d.LastInvocations[0])
-	assert.Equal(now.Add(-time.Second*9), d.LastInvocations[1])
+	assert.Equal(now.Add(-time.Second*10), d.lastInvocations[0])
+	assert.Equal(now.Add(-time.Second*9), d.lastInvocations[1])
 }
 
 func TestInvocationInterval(t *testing.T) {
 	assert := assert.New(t)
 
 	d := Daemon{
-		LastInvocations: make([]time.Time, 0),
-		FlushStrategy:   &flush.AtTheEnd{},
-		ClientLibReady:  true,
+		lastInvocations: make([]time.Time, 0),
+		flushStrategy:   &flush.AtTheEnd{},
+		clientLibReady:  true,
 	}
 
 	// first scenario, validate that we're not computing the interval if we only have 2 invocations done
@@ -97,11 +97,11 @@ func TestInvocationInterval(t *testing.T) {
 
 	for i := 0; i < 2; i++ {
 		time.Sleep(100 * time.Millisecond)
-		d.LastInvocations = append(d.LastInvocations, time.Now())
+		d.lastInvocations = append(d.lastInvocations, time.Now())
 		assert.Equal(time.Duration(0), d.InvocationInterval(), "we should not compute any interval just yet since we don't have enough data")
 	}
 	time.Sleep(100 * time.Millisecond)
-	d.LastInvocations = append(d.LastInvocations, time.Now())
+	d.lastInvocations = append(d.lastInvocations, time.Now())
 
 	//	assert.Equal(d.InvocationInterval(), time.Duration(0), "we should not compute any interval just yet since we don't have enough data")
 	assert.NotEqual(time.Duration(0), d.InvocationInterval(), "we should compute some interval now")
@@ -110,7 +110,7 @@ func TestInvocationInterval(t *testing.T) {
 	// -----
 
 	// reset the data
-	d.LastInvocations = make([]time.Time, 0)
+	d.lastInvocations = make([]time.Time, 0)
 
 	// function executed every second
 
@@ -121,7 +121,7 @@ func TestInvocationInterval(t *testing.T) {
 
 	// because we've added 50 execution, one every last 50 seconds, the interval
 	// computed between each function execution should be 1s
-	assert.Equal(maxInvocationsStored, len(d.LastInvocations), fmt.Sprintf("the amount of invocations stored should be %d", maxInvocationsStored))
+	assert.Equal(maxInvocationsStored, len(d.lastInvocations), fmt.Sprintf("the amount of invocations stored should be %d", maxInvocationsStored))
 	assert.Equal(time.Second, d.InvocationInterval(), "the compute interval should be 1s")
 
 	// function executed 100ms
@@ -132,7 +132,7 @@ func TestInvocationInterval(t *testing.T) {
 
 	// because we've added 50 execution, one every last 50 seconds, the interval
 	// computed between each function execution should be 1s
-	assert.Equal(maxInvocationsStored, len(d.LastInvocations), fmt.Sprintf("the amount of invocations stored should be %d", maxInvocationsStored))
+	assert.Equal(maxInvocationsStored, len(d.lastInvocations), fmt.Sprintf("the amount of invocations stored should be %d", maxInvocationsStored))
 	assert.Equal(time.Millisecond*10, d.InvocationInterval(), "the compute interval should be 100ms")
 }
 
@@ -140,17 +140,17 @@ func TestUpdateStrategy(t *testing.T) {
 	assert := assert.New(t)
 
 	d := Daemon{
-		LastInvocations:  make([]time.Time, 0),
-		FlushStrategy:    flush.NewPeriodically(10 * time.Second),
-		ClientLibReady:   true,
+		lastInvocations:  make([]time.Time, 0),
+		flushStrategy:    flush.NewPeriodically(10 * time.Second),
+		clientLibReady:   true,
 		useAdaptiveFlush: false,
 	}
 
 	d.UpdateStrategy()
-	assert.Equal(d.FlushStrategy, flush.NewPeriodically(10*time.Second), "strategy changed when useAdaptiveFlush was false")
+	assert.Equal(d.flushStrategy, flush.NewPeriodically(10*time.Second), "strategy changed when useAdaptiveFlush was false")
 
 	d.useAdaptiveFlush = true
 	d.UpdateStrategy()
 
-	assert.Equal(d.FlushStrategy, &flush.AtTheEnd{}, "strategy didn't change when useAdaptiveFlush was true")
+	assert.Equal(d.flushStrategy, &flush.AtTheEnd{}, "strategy didn't change when useAdaptiveFlush was true")
 }

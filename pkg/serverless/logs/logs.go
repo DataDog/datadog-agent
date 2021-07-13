@@ -233,9 +233,6 @@ func GetLambdaSource() *logConfig.LogSource {
 func (c *CollectionRouteInfo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data, _ := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
-	// if !strings.Contains(string(data), "[MDVDEBUG]") {
-	// 	log.Debug("[MDVDEBUG] = %s", string(data))
-	// }
 	messages, err := parseLogsAPIPayload(data)
 	if err != nil {
 		w.WriteHeader(400)

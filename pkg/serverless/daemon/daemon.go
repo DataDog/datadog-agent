@@ -43,19 +43,19 @@ type Daemon struct {
 
 	// lastInvocations stores last invocation times to be able to compute the
 	// interval of invocation of the function.
-	LastInvocations []time.Time
+	lastInvocations []time.Time
 
 	// flushStrategy is the currently selected flush strategy, defaulting to the
 	// the "flush at the end" naive strategy.
-	FlushStrategy flush.Strategy
+	flushStrategy flush.Strategy
 
 	// useAdaptiveFlush is set to false when the flush strategy has been forced
 	// through configuration.
 	useAdaptiveFlush bool
 
-	// ClientLibReady indicates whether the datadog client library has initialised
+	// clientLibReady indicates whether the datadog client library has initialised
 	// and called the /hello route on the agent
-	ClientLibReady bool
+	clientLibReady bool
 
 	// stopped represents whether the Daemon has been stopped
 	stopped bool
@@ -70,10 +70,7 @@ type Daemon struct {
 
 	// finishInvocationOnce assert that FinishedInvocation will be called only once (at the end of the function OR after a timeout)
 	// this should be reset before each invocation
-	FinishInvocationOnce sync.Once
-
-	ARN           *string
-	LastRequestID *string
+	finishInvocationOnce sync.Once
 }
 
 // Hello implements the basic Hello route, creating a way for the Datadog Lambda Library
@@ -86,7 +83,7 @@ type Hello struct {
 func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Hello route.")
 	// if the DogStatsD daemon isn't ready, wait for it.
-	h.daemon.ClientLibReady = true
+	h.daemon.SetClientReady(true)
 }
 
 // Flush is the route to call to do an immediate flush on the serverless agent.
@@ -98,13 +95,13 @@ type Flush struct {
 // ServeHTTP - see type Flush comment.
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Flush route.")
-	if !f.daemon.FlushStrategy.ShouldFlush(flush.Stopping, time.Now()) {
-		log.Debug("The flush strategy", f.daemon.FlushStrategy, " has decided to not flush in moment:", flush.Stopping)
+	if !f.daemon.ShouldFlush(flush.Stopping, time.Now()) {
+		log.Debug("The flush strategy", f.daemon.LogFlushStatagery(), " has decided to not flush in moment:", flush.Stopping)
 		f.daemon.FinishInvocation()
 		return
 	}
 
-	log.Debug("The flush strategy", f.daemon.FlushStrategy, " has decided to flush in moment:", flush.Stopping)
+	log.Debug("The flush strategy", f.daemon.LogFlushStatagery(), " has decided to flush in moment:", flush.Stopping)
 
 	// if the DogStatsD daemon isn't ready, wait for it.
 	if f.daemon.MetricAgent.DogStatDServer == nil {
@@ -126,8 +123,21 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 }
 
-//SetMuxHandle configures the log collection route handler
-func (d *Daemon) SetMuxHandle(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool) {
+// SetClientReady indicates that the client library has initialised and called the /hello route on the agent
+func (d *Daemon) SetClientReady(isReady bool) {
+	d.clientLibReady = isReady
+}
+
+func (d *Daemon) ShouldFlush(moment flush.Moment, t time.Time) bool {
+	return d.flushStrategy.ShouldFlush(moment, t)
+}
+
+func (d *Daemon) LogFlushStatagery() string {
+	return d.flushStrategy.String()
+}
+
+//SetupLogCollectionHandler configures the log collection route handler
+func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool) {
 	d.mux.Handle(route, &serverlessLog.CollectionRouteInfo{
 		ExtraTags:              d.ExtraTags,
 		ExecutionContext:       d.ExecutionContext,
@@ -151,8 +161,8 @@ func (d *Daemon) SetTraceAgent(traceAgent *trace.ServerlessTraceAgent) {
 
 // SetFlushStrategy sets the flush strategy to use.
 func (d *Daemon) SetFlushStrategy(strategy flush.Strategy) {
-	log.Debugf("Set flush strategy: %s (was: %s)", strategy.String(), d.FlushStrategy.String())
-	d.FlushStrategy = strategy
+	log.Debugf("Set flush strategy: %s (was: %s)", strategy.String(), d.LogFlushStatagery())
+	d.flushStrategy = strategy
 }
 
 // UseAdaptiveFlush sets whether we use the adaptive flush or not.
@@ -257,10 +267,10 @@ func StartDaemon(addr string) *Daemon {
 		httpServer:       &http.Server{Addr: addr, Handler: mux},
 		mux:              mux,
 		InvcWg:           &sync.WaitGroup{},
-		LastInvocations:  make([]time.Time, 0),
+		lastInvocations:  make([]time.Time, 0),
 		useAdaptiveFlush: true,
-		ClientLibReady:   false,
-		FlushStrategy:    &flush.AtTheEnd{},
+		clientLibReady:   false,
+		flushStrategy:    &flush.AtTheEnd{},
 		ExtraTags:        &serverlessLog.Tags{},
 		ExecutionContext: &serverlessLog.ExecutionContext{},
 	}
@@ -279,20 +289,20 @@ func StartDaemon(addr string) *Daemon {
 
 // StartInvocation tells the daemon the invocation began
 func (d *Daemon) StartInvocation() {
-	d.FinishInvocationOnce = sync.Once{}
+	d.finishInvocationOnce = sync.Once{}
 	d.InvcWg.Add(1)
 }
 
 // FinishInvocation finishes the current invocation
 func (d *Daemon) FinishInvocation() {
-	d.FinishInvocationOnce.Do(func() {
+	d.finishInvocationOnce.Do(func() {
 		d.InvcWg.Done()
 	})
 }
 
 // WaitForDaemon waits until invocation finished any pending work
 func (d *Daemon) WaitForDaemon() {
-	if d.ClientLibReady {
+	if d.clientLibReady {
 		d.InvcWg.Wait()
 	}
 }
@@ -301,14 +311,14 @@ func (d *Daemon) WaitForDaemon() {
 func (d *Daemon) WaitUntilClientReady(timeout time.Duration) bool {
 	checkInterval := 10 * time.Millisecond
 	for timeout > checkInterval {
-		if d.ClientLibReady {
+		if d.clientLibReady {
 			return true
 		}
 		<-time.After(checkInterval)
 		timeout -= checkInterval
 	}
 	<-time.After(timeout)
-	return d.ClientLibReady
+	return d.clientLibReady
 }
 
 // ComputeGlobalTags extracts tags from the ARN, merges them with any user-defined tags and adds them to traces, logs and metrics

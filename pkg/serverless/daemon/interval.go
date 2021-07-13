@@ -21,14 +21,14 @@ const maxInvocationsStored = 10
 // Returns if the point has been stored.
 func (d *Daemon) StoreInvocationTime(t time.Time) bool {
 	// ignore points older than the last stored one
-	if len(d.LastInvocations) > 0 && d.LastInvocations[len(d.LastInvocations)-1].After(t) {
+	if len(d.lastInvocations) > 0 && d.lastInvocations[len(d.lastInvocations)-1].After(t) {
 		return false
 	}
 
 	// remove when too much/old entries
-	d.LastInvocations = append(d.LastInvocations, t)
-	if len(d.LastInvocations) > maxInvocationsStored {
-		d.LastInvocations = d.LastInvocations[len(d.LastInvocations)-maxInvocationsStored : len(d.LastInvocations)]
+	d.lastInvocations = append(d.lastInvocations, t)
+	if len(d.lastInvocations) > maxInvocationsStored {
+		d.lastInvocations = d.lastInvocations[len(d.lastInvocations)-maxInvocationsStored : len(d.lastInvocations)]
 	}
 
 	return true
@@ -39,16 +39,16 @@ func (d *Daemon) StoreInvocationTime(t time.Time) bool {
 func (d *Daemon) InvocationInterval() time.Duration {
 	// with less than 3 invocations, we don't have enough data to compute
 	// something reliable.
-	if len(d.LastInvocations) < 3 {
+	if len(d.lastInvocations) < 3 {
 		return 0
 	}
 
 	var total int64
-	for i := 1; i < len(d.LastInvocations); i++ {
-		total += int64(d.LastInvocations[i].Sub(d.LastInvocations[i-1]))
+	for i := 1; i < len(d.lastInvocations); i++ {
+		total += int64(d.lastInvocations[i].Sub(d.lastInvocations[i-1]))
 	}
 
-	return time.Duration(total / int64(len(d.LastInvocations)-1))
+	return time.Duration(total / int64(len(d.lastInvocations)-1))
 }
 
 // AutoSelectStrategy uses the invocation interval of the function to select the
@@ -59,7 +59,7 @@ func (d *Daemon) AutoSelectStrategy() flush.Strategy {
 	flushInterval := 10 * time.Second
 	freq := d.InvocationInterval()
 
-	if !d.ClientLibReady {
+	if !d.clientLibReady {
 		return flush.NewPeriodically(flushInterval)
 	}
 
@@ -82,9 +82,9 @@ func (d *Daemon) AutoSelectStrategy() flush.Strategy {
 func (d *Daemon) UpdateStrategy() {
 	if d.useAdaptiveFlush {
 		newStrat := d.AutoSelectStrategy()
-		if newStrat.String() != d.FlushStrategy.String() {
+		if newStrat.String() != d.flushStrategy.String() {
 			log.Debug("Switching to flush strategy:", newStrat)
-			d.FlushStrategy = newStrat
+			d.flushStrategy = newStrat
 		}
 	}
 }

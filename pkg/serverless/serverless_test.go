@@ -19,7 +19,7 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 	d := daemon.StartDaemon("http://localhost:8124")
 	defer d.Stop()
 
-	d.ClientLibReady = false
+	d.SetClientReady(false)
 	d.WaitForDaemon()
 
 	d.StartInvocation()

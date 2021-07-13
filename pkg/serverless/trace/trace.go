@@ -35,7 +35,7 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 }
 
 // Start starts the agent
-func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, waitingChan chan bool) {
+func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load) {
 	if enabled {
 		tc, confErr := loadConfig.Load()
 		if confErr != nil {
@@ -51,7 +51,6 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, waitingChan 
 			}()
 		}
 	}
-	waitingChan <- true
 }
 
 // Get returns the trace agent instance

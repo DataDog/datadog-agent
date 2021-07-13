@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -255,13 +256,23 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	metricAgent := &metrics.ServerlessMetricAgent{}
 	metricAgent.Start(forwarderTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	serverlessDaemon.SetStatsdServer(metricAgent)
-	serverlessDaemon.SetMuxHandle(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"))
+	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"))
 
-	waitingChan := make(chan bool, 2)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	wg.Add(1)
 
-	// starts logs collection
-	// ----------------------
-	go func(waitingChan chan bool) {
+	// starts trace agent
+	go func() {
+		defer wg.Done()
+		traceAgent := &trace.ServerlessTraceAgent{}
+		traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath})
+		serverlessDaemon.SetTraceAgent(traceAgent)
+	}()
+
+	// enable logs collection
+	go func() {
+		defer wg.Done()
 		log.Debug("Enabling logs collection HTTP route")
 		logRegistrationURL := registration.BuildURL(os.Getenv(runtimeAPIEnvVar), logsAPIRegistrationRoute)
 		logRegistrationError := registration.EnableLogsCollection(
@@ -280,18 +291,9 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		} else {
 			setupLogAgent(logChannel)
 		}
-		waitingChan <- true
-	}(waitingChan)
+	}()
 
-	// starts trace agent
-	// ----------------------
-	traceAgent := &trace.ServerlessTraceAgent{}
-	go traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, waitingChan)
-
-	<-waitingChan
-	<-waitingChan
-
-	serverlessDaemon.SetTraceAgent(traceAgent)
+	wg.Wait()
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on
