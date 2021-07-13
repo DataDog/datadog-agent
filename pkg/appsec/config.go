@@ -11,7 +11,7 @@ import (
 const (
 	// defaultIntakeURLTemplate specifies the string template allowing to obtain
 	// the intake URL from a given site.
-	defaultIntakeURLTemplate = "https://appsecevts-http-intake.logs.%s/v1/input"
+	defaultIntakeURLTemplate = "https://appsecevts-http-intake.logs.%s"
 	// defaultSite is the default intake site.
 	defaultSite = "datadoghq.com"
 )
