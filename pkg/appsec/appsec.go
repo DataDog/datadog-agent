@@ -58,9 +58,6 @@ func newIntakeReverseProxy(target *url.URL, apiKey string, maxPayloadSize int64,
 		// Set extra headers
 		req.Header.Set("Via", via)
 		req.Header.Set("Dd-Api-Key", apiKey)
-		if req.Body != nil && maxPayloadSize > 0 {
-			req.Body = apiutil.NewLimitedReader(req.Body, maxPayloadSize)
-		}
 	}
 	proxy.ErrorHandler = func(w http.ResponseWriter, req *http.Request, err error) {
 		w.Header().Add("Content-Type", "application/json")
@@ -69,9 +66,9 @@ func newIntakeReverseProxy(target *url.URL, apiKey string, maxPayloadSize int64,
 			log.Error(err)
 		}
 	}
-	proxy.Transport = transport
+	proxy.Transport = withMetrics(transport, maxPayloadSize)
 	proxy.ErrorLog = stdlog.New(logutil.NewThrottled(5, 10*time.Second), "Appsec backend proxy: ", 0)
-	return withMetrics(proxy)
+	return proxy
 }
 
 const (
@@ -82,36 +79,6 @@ const (
 	appSecRequestErrorMetricsID       = appSecRequestMetricsPrefix + "request_error"
 )
 
-func withMetrics(proxy *httputil.ReverseProxy) http.Handler {
-	// Error metrics through the reverse proxy error handler
-	errorHandler := proxy.ErrorHandler
-	proxy.ErrorHandler = func(w http.ResponseWriter, req *http.Request, err error) {
-		var kind string
-		switch err {
-		case apiutil.ErrLimitedReaderLimitReached:
-			kind = "ErrLimitedReaderLimitReached"
-		default:
-			kind = fmt.Sprintf("%T", err)
-		}
-		tags := append(metricsTags(req), fmt.Sprintf("error:%s", kind))
-		metrics.Count(appSecRequestErrorMetricsID, 1, tags, 1)
-		errorHandler(w, req, err)
-	}
-	// Request metrics through the reverse proxy handler
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		now := time.Now()
-		defer func() {
-			tags := metricsTags(req)
-			if lr, ok := req.Body.(*apiutil.LimitedReader); ok {
-				metrics.Histogram(appSecRequestPayloadSizeMetricsID, float64(lr.Count), tags, 1)
-			}
-			metrics.Gauge(appSecRequestCountMetricsID, 1, tags, 1)
-			metrics.Timing(appSecRequestDurationMetricsID, time.Since(now), tags, 1)
-		}()
-		proxy.ServeHTTP(w, req)
-	})
-}
-
 // metricsTags returns the metrics tags of a request.
 func metricsTags(req *http.Request) []string {
 	tags := []string{"path:" + req.URL.Path}
@@ -119,4 +86,48 @@ func metricsTags(req *http.Request) []string {
 		tags = append(tags, "content_type:"+ct)
 	}
 	return tags
+}
+
+type roundTripper struct {
+	http.RoundTripper
+	maxPayloadSize int64
+}
+
+func withMetrics(rt http.RoundTripper, maxPayloadSize int64) http.RoundTripper {
+	return &roundTripper{
+		RoundTripper:   rt,
+		maxPayloadSize: maxPayloadSize,
+	}
+}
+
+// RoundTrip limits the request body size that can be read and performs internal monitoring metrics
+func (r *roundTripper) RoundTrip(req *http.Request) (res *http.Response, err error) {
+	var lr *apiutil.LimitedReader
+	if req.Body != nil && r.maxPayloadSize > 0 {
+		lr = apiutil.NewLimitedReader(req.Body, r.maxPayloadSize)
+		req.Body = lr
+	}
+
+	now := time.Now()
+	defer func() {
+		tags := metricsTags(req)
+		if lr != nil {
+			metrics.Histogram(appSecRequestPayloadSizeMetricsID, float64(lr.Count), tags, 1)
+		}
+		metrics.Count(appSecRequestCountMetricsID, 1, tags, 1)
+		metrics.Timing(appSecRequestDurationMetricsID, time.Since(now), tags, 1)
+
+		if err != nil {
+			var kind string
+			switch err {
+			case apiutil.ErrLimitedReaderLimitReached:
+				kind = "ErrLimitedReaderLimitReached"
+			default:
+				kind = fmt.Sprintf("%T", err)
+			}
+			tags = append(tags, fmt.Sprintf("error:%s", kind))
+			metrics.Count(appSecRequestErrorMetricsID, 1, tags, 1)
+		}
+	}()
+	return r.RoundTripper.RoundTrip(req)
 }

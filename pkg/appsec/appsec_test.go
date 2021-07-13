@@ -3,11 +3,11 @@ package appsec
 import (
 	"bytes"
 	"errors"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
-	"net/http/httputil"
 	"net/url"
 	"testing"
 
@@ -188,7 +188,7 @@ func TestIntakeReverseProxy(t *testing.T) {
 	})
 }
 
-func TestMetrics(t *testing.T) {
+func TestRoundTripper(t *testing.T) {
 	t.Run("tags", func(t *testing.T) {
 		for _, tc := range []struct {
 			name         string
@@ -246,66 +246,214 @@ func TestMetrics(t *testing.T) {
 		}
 	})
 
-	t.Run("proxy metrics", func(t *testing.T) {
-		stats := &testutil.TestStatsClient{}
-		defer func(old metrics.StatsClient) { metrics.Client = old }(metrics.Client)
-		metrics.Client = stats
+	t.Run("metrics", func(t *testing.T) {
+		randBodyBuf := make([]byte, 8192)
+		_, err := rand.Read(randBodyBuf)
+		require.NoError(t, err)
 
-		// Wrap the proxy with metrics
-		proxy := &httputil.ReverseProxy{
-			Director:     func(*http.Request) {},
-			ErrorHandler: func(http.ResponseWriter, *http.Request, error) {},
-		}
-		handler := withMetrics(proxy)
+		for _, tc := range []struct {
+			name               string
+			req                http.Request
+			maxPayloadSize     int64
+			expectedError      bool
+			roundTripperError  error
+			testRequestMetrics func(*testing.T, *testutil.TestStatsClient)
+		}{
+			{
+				name: "no body",
+				req: http.Request{
+					Header: map[string][]string{
+						"Content-Type": {"application/json"},
+					},
+					URL: &url.URL{
+						Path: "/some/endpoint",
+					},
+					Body: nil,
+				},
+				testRequestMetrics: func(t *testing.T, stats *testutil.TestStatsClient) {
+					expectedTags := []string{
+						"content_type:application/json",
+						"path:/some/endpoint",
+					}
 
-		// Serve a fake request having everything we monitor
-		req := &http.Request{
-			Header: map[string][]string{
-				"Content-Type": {"application/json"},
+					calls := stats.HistogramCalls
+					require.Len(t, calls, 0)
+
+					calls = stats.TimingCalls
+					require.Len(t, calls, 1)
+					require.Equal(t, appSecRequestDurationMetricsID, calls[0].Name)
+					require.ElementsMatch(t, expectedTags, calls[0].Tags)
+					require.Equal(t, float64(1), calls[0].Rate)
+					// Not testing the time duration value as it can be 0 on Windows due to its time resolution
+
+					calls = stats.CountCalls
+					require.Len(t, calls, 1)
+					require.Equal(t, appSecRequestCountMetricsID, calls[0].Name)
+					require.Equal(t, float64(1), calls[0].Value)
+					require.Equal(t, float64(1), calls[0].Rate)
+					require.ElementsMatch(t, expectedTags, calls[0].Tags)
+				},
 			},
-			URL: &url.URL{
-				Path: "/some/endpoint",
+			{
+				name: "body without reaching the size limit",
+				req: http.Request{
+					Header: map[string][]string{
+						"Content-Type": {"application/msgpack"},
+					},
+					URL: &url.URL{
+						Path: "/some/endpoint/2",
+					},
+					Body: ioutil.NopCloser(bytes.NewReader(randBodyBuf)),
+				},
+				maxPayloadSize: 10000,
+				testRequestMetrics: func(t *testing.T, stats *testutil.TestStatsClient) {
+					expectedTags := []string{
+						"content_type:application/msgpack",
+						"path:/some/endpoint/2",
+					}
+
+					calls := stats.HistogramCalls
+					require.Len(t, calls, 1)
+					require.Equal(t, appSecRequestPayloadSizeMetricsID, calls[0].Name)
+					require.ElementsMatch(t, expectedTags, calls[0].Tags)
+					require.Equal(t, float64(len(randBodyBuf)), calls[0].Value)
+					require.Equal(t, float64(1), calls[0].Rate)
+
+					calls = stats.TimingCalls
+					require.Len(t, calls, 1)
+					require.Equal(t, appSecRequestDurationMetricsID, calls[0].Name)
+					require.ElementsMatch(t, expectedTags, calls[0].Tags)
+					require.Equal(t, float64(1), calls[0].Rate)
+					// Not testing the time duration value as it can be 0 on Windows due to its time resolution
+
+					calls = stats.CountCalls
+					require.Len(t, calls, 1)
+					require.Equal(t, appSecRequestCountMetricsID, calls[0].Name)
+					require.Equal(t, float64(1), calls[0].Value)
+					require.Equal(t, float64(1), calls[0].Rate)
+					require.ElementsMatch(t, expectedTags, calls[0].Tags)
+				},
 			},
-			Body: &apiutil.LimitedReader{Count: 42025},
+			{
+				name: "body reaching the size limit",
+				req: http.Request{
+					Header: map[string][]string{
+						"Content-Type": {"application/cbor"},
+					},
+					URL: &url.URL{
+						Path: "/some/endpoint/3",
+					},
+					Body: ioutil.NopCloser(bytes.NewReader(randBodyBuf)),
+				},
+				maxPayloadSize: 1000,
+				expectedError:  true,
+				testRequestMetrics: func(t *testing.T, stats *testutil.TestStatsClient) {
+					expectedTags := []string{
+						"content_type:application/cbor",
+						"path:/some/endpoint/3",
+					}
+
+					calls := stats.HistogramCalls
+					require.Len(t, calls, 1)
+					require.Equal(t, appSecRequestPayloadSizeMetricsID, calls[0].Name)
+					require.ElementsMatch(t, expectedTags, calls[0].Tags)
+					require.Equal(t, float64(1000), calls[0].Value)
+					require.Equal(t, float64(1), calls[0].Rate)
+
+					calls = stats.TimingCalls
+					require.Len(t, calls, 1)
+					require.Equal(t, appSecRequestDurationMetricsID, calls[0].Name)
+					require.ElementsMatch(t, expectedTags, calls[0].Tags)
+					require.Equal(t, float64(1), calls[0].Rate)
+					// Not testing the time duration value as it can be 0 on Windows due to its time resolution
+
+					calls = stats.CountCalls
+					require.Len(t, calls, 2)
+					require.Equal(t, appSecRequestCountMetricsID, calls[0].Name)
+					require.Equal(t, float64(1), calls[0].Value)
+					require.Equal(t, float64(1), calls[0].Rate)
+					require.ElementsMatch(t, expectedTags, calls[0].Tags)
+
+					require.Equal(t, appSecRequestErrorMetricsID, calls[1].Name)
+					require.Equal(t, float64(1), calls[1].Value)
+					require.Equal(t, float64(1), calls[1].Rate)
+					require.ElementsMatch(t, append(expectedTags, "error:ErrLimitedReaderLimitReached"), calls[1].Tags)
+				},
+			},
+			{
+				name: "round tripper error",
+				req: http.Request{
+					Header: map[string][]string{
+						"Content-Type": {"application/protobuf"},
+					},
+					URL: &url.URL{
+						Path: "/some/endpoint/4",
+					},
+					Body: ioutil.NopCloser(bytes.NewReader(randBodyBuf)),
+				},
+				expectedError:     true,
+				roundTripperError: errors.New("my error"),
+				testRequestMetrics: func(t *testing.T, stats *testutil.TestStatsClient) {
+					expectedTags := []string{
+						"content_type:application/protobuf",
+						"path:/some/endpoint/4",
+					}
+
+					calls := stats.TimingCalls
+					require.Len(t, calls, 1)
+					require.Equal(t, appSecRequestDurationMetricsID, calls[0].Name)
+					require.ElementsMatch(t, expectedTags, calls[0].Tags)
+					require.Equal(t, float64(1), calls[0].Rate)
+					// Not testing the time duration value as it can be 0 on Windows due to its time resolution
+
+					calls = stats.CountCalls
+					require.Len(t, calls, 2)
+					require.Equal(t, appSecRequestCountMetricsID, calls[0].Name)
+					require.Equal(t, float64(1), calls[0].Value)
+					require.Equal(t, float64(1), calls[0].Rate)
+					require.ElementsMatch(t, expectedTags, calls[0].Tags)
+
+					require.Equal(t, appSecRequestErrorMetricsID, calls[1].Name)
+					require.Equal(t, float64(1), calls[1].Value)
+					require.Equal(t, float64(1), calls[1].Rate)
+					require.ElementsMatch(t, append(expectedTags, "error:*errors.errorString"), calls[1].Tags)
+				},
+			},
+		} {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				stats := &testutil.TestStatsClient{}
+				defer func(old metrics.StatsClient) { metrics.Client = old }(metrics.Client)
+				metrics.Client = stats
+
+				// Wrap a test round-tripper with metrics
+				rt := withMetrics(roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					if tc.roundTripperError != nil {
+						return nil, tc.roundTripperError
+					}
+
+					if req.Body != nil {
+						if _, err := ioutil.ReadAll(req.Body); err != nil && err != io.EOF {
+							return nil, err
+						}
+					}
+					return &http.Response{}, nil
+				}), tc.maxPayloadSize)
+				_, err := rt.RoundTrip(&tc.req)
+				if tc.expectedError {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
+
+				tc.testRequestMetrics(t, stats)
+			})
 		}
-		handler.ServeHTTP(httptest.NewRecorder(), req)
-
-		tags := metricsTags(req)
-		calls := stats.HistogramCalls
-		require.Len(t, calls, 1)
-		require.Equal(t, testutil.MetricsArgs{
-			Name:  appSecRequestPayloadSizeMetricsID,
-			Value: 42025,
-			Tags:  tags,
-			Rate:  1,
-		}, calls[0])
-
-		calls = stats.GaugeCalls
-		require.Len(t, calls, 1)
-		require.Equal(t, testutil.MetricsArgs{
-			Name:  appSecRequestCountMetricsID,
-			Value: 1,
-			Tags:  tags,
-			Rate:  1,
-		}, calls[0])
-
-		calls = stats.TimingCalls
-		require.Len(t, calls, 1)
-		require.Equal(t, appSecRequestDurationMetricsID, calls[0].Name)
-		require.Equal(t, tags, calls[0].Tags)
-		require.Equal(t, float64(1), calls[0].Rate)
-		// Not testing the time duration value as it can be 0 on Windows due to its time resolution
-
-		// Test the proxy error handler with a few errors
-		proxy.ErrorHandler(httptest.NewRecorder(), req, errors.New("an error occurred"))
-		proxy.ErrorHandler(httptest.NewRecorder(), req, apiutil.ErrLimitedReaderLimitReached)
-		calls = stats.CountCalls
-		require.Len(t, calls, 3)
-		require.Equal(t, float64(1), calls[0].Value)
-		require.Equal(t, append(tags, "error:*errors.errorString"), calls[0].Tags)
-		require.Equal(t, float64(1), calls[1].Value)
-		require.Equal(t, append(tags, "error:*errors.errorString"), calls[1].Tags)
-		require.Equal(t, float64(1), calls[2].Value)
-		require.Equal(t, append(tags, "error:ErrLimitedReaderLimitReached"), calls[2].Tags)
 	})
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (r roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return r(req)
 }
