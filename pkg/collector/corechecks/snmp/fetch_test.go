@@ -506,6 +506,32 @@ func Test_fetchScalarOids_v1NoSuchName(t *testing.T) {
 	assert.Equal(t, expectedColumnValues, columnValues)
 }
 
+func Test_fetchScalarOids_v1NoSuchName_noValidOidsLeft(t *testing.T) {
+	session := createMockSession()
+	session.version = gosnmp.Version1
+
+	getPacket := gosnmp.SnmpPacket{
+		Error:      gosnmp.NoSuchName,
+		ErrorIndex: 1,
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name: "1.1.1.1.0",
+				Type: gosnmp.Null,
+			},
+		},
+	}
+
+	session.On("Get", []string{"1.1.1.1.0"}).Return(&getPacket, nil)
+
+	oids := []string{"1.1.1.1.0"}
+
+	columnValues, err := fetchScalarOids(session, oids)
+	assert.Nil(t, err)
+
+	expectedColumnValues := scalarResultValuesType{}
+	assert.Equal(t, expectedColumnValues, columnValues)
+}
+
 func Test_fetchScalarOids_v1NoSuchName_errorIndexTooHigh(t *testing.T) {
 	session := createMockSession()
 	session.version = gosnmp.Version1
