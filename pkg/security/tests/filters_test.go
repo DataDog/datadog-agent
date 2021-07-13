@@ -386,11 +386,11 @@ func TestDiscarderRetentionFilter(t *testing.T) {
 	defer syscall.Close(fd)
 	defer os.Remove(testFile)
 
-	if err := waitForOpenDiscarder(test, testFile); err != nil {
+	if err = waitForOpenDiscarder(test, testFile); err != nil {
 		inode := getInode(t, testFile)
 		parentInode := getInode(t, path.Dir(testFile))
 
-		t.Fatalf("not able to get the expected event inode: %d, parent inode: %d", inode, parentInode)
+		t.Fatalf("event inode: %d, parent inode: %d, error: %v", inode, parentInode, err)
 	}
 
 	if err := waitForOpenProbeEvent(test, func() error {
