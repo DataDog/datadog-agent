@@ -12,12 +12,21 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/google/gopacket/layers"
 	"github.com/miekg/dns"
 	mdns "github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func skipIfDNSNotSupported(t *testing.T) {
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if currKernelVersion < kernel.VersionCode(4, 1, 0) {
+		t.Skip("dns inspection not supported on this kernel")
+	}
+}
 
 func checkSnooping(t *testing.T, destIP string, destName string, reverseDNS *dnsMonitor) {
 	destAddr := util.AddressFromString(destIP)
@@ -105,6 +114,8 @@ func initDNSTestsWithDomainCollection(t *testing.T, localDNS bool) *dnsMonitor {
 }
 
 func initDNSTests(t *testing.T, localDNS bool, collectDomain bool) *dnsMonitor {
+	skipIfDNSNotSupported(t)
+
 	cfg := testConfig()
 	cfg.CollectDNSStats = true
 	cfg.CollectLocalDNS = localDNS
@@ -383,6 +394,8 @@ func TestDNSOverUDPTimeoutCountWithoutDomain(t *testing.T) {
 }
 
 func TestParsingError(t *testing.T) {
+	skipIfDNSNotSupported(t)
+
 	cfg := testConfig()
 	cfg.CollectDNSStats = false
 	cfg.CollectLocalDNS = false
