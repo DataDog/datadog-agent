@@ -839,3 +839,8 @@ func FormatDebugStats(stats []byte) (string, error) {
 
 	return buf.String(), nil
 }
+
+// SetExtraTags sets extra tags. All metrics sent to the DogstatsD will be tagged with them.
+func (s *Server) SetExtraTags(tags []string) {
+	s.extraTags = tags
+}
