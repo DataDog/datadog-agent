@@ -61,12 +61,6 @@ func TestOpenBasenameApproverFilterERPCDentryResolution(t *testing.T) {
 	}
 	defer test.Close()
 
-	tracePipe, err := test.startTracing()
-	if err != nil {
-		t.Error(err)
-	}
-	defer tracePipe.Close()
-
 	var fd1, fd2 int
 	var testFile1, testFile2 string
 

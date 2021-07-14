@@ -46,6 +46,8 @@ int __attribute__((always_inline)) handle_discard_inode(void *data) {
     struct discard_inode_t discarder;
     bpf_probe_read(&discarder, sizeof(discarder), data);
 
+    bpf_printk("req disc ino: et = %llx, mi = %x, ino = %llx", discarder.req.event_type, discarder.mount_id, discarder.inode);
+    bpf_printk("tmout = %llx, isleaf = %x\n", discarder.req.timeout, discarder.is_leaf);
     return discard_inode(discarder.req.event_type, discarder.mount_id, discarder.inode, discarder.req.timeout, discarder.is_leaf);
 }
 
@@ -83,8 +85,6 @@ int __attribute__((always_inline)) is_erpc_request(u64 vfs_fd, u32 cmd, u8 *op) 
 }
 
 int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx, u8 op, void *data) {
-    bpf_printk("ERPC request: op = %d, addr = %lx\n", op, (long long)data);
-
     if (!is_flushing_discarders()) {
         switch (op) {
             case DISCARD_INODE_OP:
@@ -105,8 +105,6 @@ int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx, u8 o
 }
 
 int __attribute__((always_inline)) handle_erpc_request_arch_non_overlapping(struct pt_regs *ctx, u8 op, void *data) {
-    bpf_printk("ERPC request ANO: op = %d\n", op);
-
     if (!is_flushing_discarders()) {
         switch (op) {
             case DISCARD_INODE_OP:
