@@ -64,7 +64,7 @@ func (j *jsonServerlessEncoder) Encode(msg *message.Message, redactedMsg []byte)
 		},
 		Status:    msg.GetStatus(),
 		Timestamp: ts.UnixNano() / nanoToMillis,
-		Hostname:  getHostname(),
+		Hostname:  msg.Lambda.ARN,
 		Service:   msg.Origin.Service(),
 		Source:    msg.Origin.Source(),
 		Tags:      msg.Origin.TagsToString(),
