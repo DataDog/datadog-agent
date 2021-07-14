@@ -295,7 +295,7 @@ func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
 			d.statsdServer.SetExtraTags(tagArray)
 		}
 		if d.traceAgent != nil {
-			d.traceAgent.SetGlobalTags(buildTracerTags(tagMap))
+			d.traceAgent.SetGlobalTagsUnsafe(buildTracerTags(tagMap))
 		}
 		d.extraTags = tagArray
 		source := aws.GetLambdaSource()
