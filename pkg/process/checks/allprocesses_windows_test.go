@@ -5,6 +5,7 @@ package checks
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/stretchr/testify/assert"
 )
 
