@@ -41,7 +41,7 @@ when submitting your PR:
   * summarize your PR with an explanatory title and a message describing your
     changes, cross-referencing any related bugs/PRs.
   * use [Reno](#reno) to create a releasenote.
-  * open your PR against the `master` branch.
+  * open your PR against the `main` branch.
   * for PRs from contributors with write access to the repository (for community PRs, will be done by Datadog employees):
     + set the relevant `team/` label
     + add a milestone to your PR (by default, use the highest milestone version available, ex: `6.8.0`)
@@ -91,7 +91,7 @@ body to skip the build and give that slot to someone else who does need it.
 
 ### Squash your commits
 
-Please rebase your changes on `master` and squash your commits whenever possible,
+Please rebase your changes on `main` and squash your commits whenever possible,
 it keeps history cleaner and it's easier to revert things. It also makes developers
 happier!
 
