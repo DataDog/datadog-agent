@@ -18,10 +18,7 @@ import (
 
 func TestStartEnabledFalse(t *testing.T) {
 	var agent = &ServerlessTraceAgent{}
-	var waitingChan = make(chan bool, 1)
-	go agent.Start(false, nil, waitingChan)
-	<-waitingChan
-	// should not block
+	agent.Start(false, nil)
 	assert.Nil(t, agent.ta)
 	assert.Nil(t, agent.Get())
 	assert.Nil(t, agent.cancel)
@@ -37,10 +34,7 @@ func (l *LoadConfigMocked) Load() (*config.AgentConfig, error) {
 
 func TestStartEnabledTrueInvalidConfig(t *testing.T) {
 	var agent = &ServerlessTraceAgent{}
-	var waitingChan = make(chan bool, 1)
-	go agent.Start(true, &LoadConfigMocked{}, waitingChan)
-	<-waitingChan
-	// should not block
+	agent.Start(true, &LoadConfigMocked{})
 	assert.Nil(t, agent.ta)
 	assert.Nil(t, agent.Get())
 	assert.Nil(t, agent.cancel)
@@ -48,12 +42,11 @@ func TestStartEnabledTrueInvalidConfig(t *testing.T) {
 
 func TestStartEnabledTrueValidConfigUnvalidPath(t *testing.T) {
 	var agent = &ServerlessTraceAgent{}
-	var waitingChan = make(chan bool, 1)
+
 	os.Setenv("DD_API_KEY", "x")
 	defer os.Unsetenv("DD_API_KEY")
-	go agent.Start(true, &LoadConfig{Path: "invalid.yml"}, waitingChan)
-	<-waitingChan
-	// should not block
+	agent.Start(true, &LoadConfig{Path: "invalid.yml"})
+
 	assert.NotNil(t, agent.ta)
 	assert.NotNil(t, agent.Get())
 	assert.NotNil(t, agent.cancel)
@@ -62,10 +55,9 @@ func TestStartEnabledTrueValidConfigUnvalidPath(t *testing.T) {
 
 func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 	var agent = &ServerlessTraceAgent{}
-	var waitingChan = make(chan bool, 1)
-	go agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"}, waitingChan)
-	<-waitingChan
-	// should not block
+
+	agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"})
+
 	assert.NotNil(t, agent.ta)
 	assert.NotNil(t, agent.Get())
 	assert.NotNil(t, agent.cancel)
@@ -74,14 +66,9 @@ func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 
 func TestCancel(t *testing.T) {
 	var agent = &ServerlessTraceAgent{}
-	var waitingChan = make(chan bool, 1)
-	go agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"}, waitingChan)
-	<-waitingChan
-	// should not block
+	agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"})
 	agent.Stop()
-	go agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"}, waitingChan)
-	<-waitingChan
-	// should not block
+	agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"})
 	agent.Stop()
 	// should not have any "bind: address already in use issues"
 }
