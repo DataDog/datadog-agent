@@ -36,6 +36,7 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -982,6 +983,20 @@ func waitForOpenProbeEvent(test *testModule, action func() error, filename strin
 func TestEnv(t *testing.T) {
 	if testEnvironment != "" && testEnvironment != HostEnvironment && testEnvironment != DockerEnvironment {
 		t.Fatal("invalid environment")
+	}
+}
+
+func SkipIfERPCDentryIsNotSupportedT(t *testing.T) {
+	t.Helper()
+	if probes.GetRuntimeArch() == "arm64" {
+		t.Skip("ERPC DEntry Resolution is not supported on this platform (arm64)")
+	}
+}
+
+func SkipIfERPCDentryIsNotSupportedB(b *testing.B) {
+	b.Helper()
+	if probes.GetRuntimeArch() == "arm64" {
+		b.Skip("ERPC DEntry Resolution is not supported on this platform (arm64)")
 	}
 }
 

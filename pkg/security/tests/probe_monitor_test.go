@@ -122,6 +122,7 @@ func TestTruncatedParentsMap(t *testing.T) {
 }
 
 func TestTruncatedParentsERPC(t *testing.T) {
+	SkipIfERPCDentryIsNotSupportedT(t)
 	truncatedParents(t, testOpts{disableMapDentryResolution: true})
 }
 

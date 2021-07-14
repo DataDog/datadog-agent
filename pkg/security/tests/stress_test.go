@@ -291,6 +291,7 @@ func TestStress_E2EExecEvent(t *testing.T) {
 }
 
 func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
+	SkipIfERPCDentryIsNotSupportedB(b)
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.file.path == "{{.Root}}/aa/bb/cc/dd/ee" && open.flags & O_CREAT != 0`,

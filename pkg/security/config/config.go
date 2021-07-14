@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -140,6 +141,10 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 
 	if !c.EnableApprovers && !c.EnableDiscarders {
 		c.EnableKernelFilters = false
+	}
+
+	if probes.GetRuntimeArch() == "arm64" {
+		c.ERPCDentryResolutionEnabled = false
 	}
 
 	if c.ERPCDentryResolutionEnabled == false && c.MapDentryResolutionEnabled == false {

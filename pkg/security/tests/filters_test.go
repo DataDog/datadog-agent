@@ -45,6 +45,8 @@ func openTestFile(test *testModule, testFile string, flags int) (int, error) {
 }
 
 func TestOpenBasenameApproverFilterERPCDentryResolution(t *testing.T) {
+	SkipIfERPCDentryIsNotSupportedT(t)
+
 	// generate a basename up to the current limit of the agent
 	var basename string
 	for i := 0; i < model.MaxSegmentLength; i++ {
