@@ -58,6 +58,7 @@ var (
 		"nodes",
 		"jobs",
 		"cronjobs",
+		"daemonsets",
 	}
 )
 
@@ -106,6 +107,8 @@ type OrchestratorCheck struct {
 	cronJobsListerSync      cache.InformerSynced
 	daemonSetsLister        appslisters.DaemonSetLister
 	daemonSetsListerSync    cache.InformerSynced
+	statefulSetsLister      appslisters.StatefulSetLister
+	statefulSetsListerSync  cache.InformerSynced
 }
 
 func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *OrchestratorCheck {
@@ -232,6 +235,11 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 			o.daemonSetsLister = daemonSetsInformer.Lister()
 			o.daemonSetsListerSync = daemonSetsInformer.Informer().HasSynced
 			informersToSync[apiserver.DaemonSetsInformer] = daemonSetsInformer.Informer()
+		case "statefulsets":
+			statefulSetsInformer := apiCl.InformerFactory.Apps().V1().StatefulSets()
+			o.statefulSetsLister = statefulSetsInformer.Lister()
+			o.statefulSetsListerSync = statefulSetsInformer.Informer().HasSynced
+			informersToSync[apiserver.StatefulSetsInformer] = statefulSetsInformer.Informer()
 		default:
 			_ = o.Warnf("Unsupported collector: %s", v)
 		}
@@ -283,6 +291,7 @@ func (o *OrchestratorCheck) Run() error {
 	o.processJobs(sender)
 	o.processCronJobs(sender)
 	o.processDaemonSets(sender)
+	o.processStatefulSets(sender)
 
 	return nil
 }
@@ -475,7 +484,34 @@ func (o *OrchestratorCheck) processDaemonSets(sender aggregator.Sender) {
 
 	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sDaemonSet), stats, orchestrator.NoExpiration)
 
-	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeDaemonset)
+	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeDaemonSet)
+}
+
+func (o *OrchestratorCheck) processStatefulSets(sender aggregator.Sender) {
+	if o.statefulSetsLister == nil {
+		return
+	}
+	statefulSetLists, err := o.statefulSetsLister.List(labels.Everything())
+	if err != nil {
+		_ = o.Warnf("Unable to list StatefulSets: %s", err)
+		return
+	}
+	groupID := atomic.AddInt32(&o.groupID, 1)
+
+	messages, err := processStatefulSetList(statefulSetLists, groupID, o.orchestratorConfig, o.clusterID)
+	if err != nil {
+		_ = o.Warnf("Unable to process StatefulSets list: %s", err)
+	}
+
+	stats := orchestrator.CheckStats{
+		CacheHits: len(statefulSetLists) - len(messages),
+		CacheMiss: len(messages),
+		NodeType:  orchestrator.K8sStatefulSet,
+	}
+
+	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sStatefulSet), stats, orchestrator.NoExpiration)
+
+	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeStatefulSet)
 }
 
 func sendNodesMetadata(sender aggregator.Sender, nodesList []*v1.Node, nodesMessages []model.MessageBody, clusterID string) {

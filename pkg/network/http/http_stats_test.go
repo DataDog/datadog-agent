@@ -63,7 +63,7 @@ func verifyQuantile(t *testing.T, sketch *ddsketch.DDSketch, q float64, expected
 	val, err := sketch.GetValueAtQuantile(q)
 	assert.Nil(t, err)
 
-	acceptableError := expectedValue * RelativeAccuracy
+	acceptableError := expectedValue * sketch.IndexMapping.RelativeAccuracy()
 	assert.True(t, val >= expectedValue-acceptableError)
 	assert.True(t, val <= expectedValue+acceptableError)
 }

@@ -21,8 +21,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
+	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -203,8 +205,12 @@ func (c *AgentConfig) validate() error {
 		return errors.New("agent binary path not set")
 	}
 	if c.Hostname == "" {
+		// no user-set hostname, try to acquire
 		if err := c.acquireHostname(); err != nil {
-			return err
+			log.Debugf("Could not get hostname via gRPC: %v. Falling back to other methods.", err)
+			if err := c.acquireHostnameFallback(); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -214,18 +220,40 @@ func (c *AgentConfig) validate() error {
 // when it can not be obtained by any other means. It is replaced in tests.
 var fallbackHostnameFunc = os.Hostname
 
-// acquireHostname attempts to acquire a hostname for this configuration. It
+// acquireHostname attempts to acquire a hostname for the trace-agent by connecting to the core agent's
+// gRPC endpoints. If it fails, it will return an error.
+func (c *AgentConfig) acquireHostname() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	client, err := grpc.GetDDAgentClient(ctx)
+	if err != nil {
+		return err
+	}
+	reply, err := client.GetHostname(ctx, &pbgo.HostnameRequest{})
+	if err != nil {
+		return err
+	}
+	if features.Has("disable_empty_hostname") && reply.Hostname == "" {
+		log.Debugf("Acquired empty hostname from gRPC but it's disallowed.")
+		return errors.New("empty hostname disallowed")
+	}
+	c.Hostname = reply.Hostname
+	log.Debugf("Acquired hostname from gRPC: %s", c.Hostname)
+	return nil
+}
+
+// acquireHostnameFallback attempts to acquire a hostname for this configuration. It
 // tries to shell out to the infrastructure agent for this, if DD_AGENT_BIN is
 // set, otherwise falling back to os.Hostname.
-func (c *AgentConfig) acquireHostname() error {
+func (c *AgentConfig) acquireHostnameFallback() error {
 	var out bytes.Buffer
 	cmd := exec.Command(c.DDAgentBin, "hostname")
 	cmd.Env = append(os.Environ(), cmd.Env...) // needed for Windows
 	cmd.Stdout = &out
 	err := cmd.Run()
 	c.Hostname = strings.TrimSpace(out.String())
-	if hostnameDisallowed := features.Has("disable_empty_hostname") && c.Hostname == ""; err != nil || hostnameDisallowed {
-		if hostnameDisallowed {
+	if emptyDisallowed := features.Has("disable_empty_hostname") && c.Hostname == ""; err != nil || emptyDisallowed {
+		if emptyDisallowed {
 			log.Debugf("Core agent returned empty hostname but is disallowed by disable_empty_hostname feature flag. Falling back to os.Hostname.")
 		}
 		// There was either an error retrieving the hostname from the core agent, or
@@ -234,11 +262,14 @@ func (c *AgentConfig) acquireHostname() error {
 		if err2 != nil {
 			return fmt.Errorf("couldn't get hostname from agent (%q), nor from OS (%q). Try specifying it by means of config or the DD_HOSTNAME env var", err, err2)
 		}
+		if emptyDisallowed && host == "" {
+			return errors.New("empty hostname disallowed")
+		}
 		c.Hostname = host
-		log.Infof("Acquired hostname from OS: %q. Core agent was unreachable at %q: %v.", c.Hostname, c.DDAgentBin, err)
+		log.Debugf("Acquired hostname from OS: %q. Core agent was unreachable at %q: %v.", c.Hostname, c.DDAgentBin, err)
 		return nil
 	}
-	log.Infof("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
+	log.Debugf("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
 	return nil
 }
 

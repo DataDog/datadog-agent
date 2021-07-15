@@ -79,3 +79,12 @@ kitchen_debian_security_agent:
     - export KITCHEN_OSVERS="debian-10"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
+
+kitchen_oracle_security_agent:
+  extends: .kitchen_test_security_agent
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export KITCHEN_PLATFORM="oracle"
+    - export KITCHEN_OSVERS="oracle-7-9"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh

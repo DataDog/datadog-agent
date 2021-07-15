@@ -139,6 +139,9 @@ type Config struct {
 
 	// EnableGatewayLookup enables looking up gateway information for connection destinations
 	EnableGatewayLookup bool
+
+	// RecordedQueryTypes enables specific DNS query types to be recorded
+	RecordedQueryTypes []string
 }
 
 func join(pieces ...string) string {
@@ -193,6 +196,8 @@ func New() *Config {
 
 		EnableMonotonicCount: cfg.GetBool(join(spNS, "windows.enable_monotonic_count")),
 		DriverBufferSize:     cfg.GetInt(join(spNS, "windows.driver_buffer_size")),
+
+		RecordedQueryTypes: cfg.GetStringSlice(join(netNS, "dns_recorded_query_types")),
 	}
 
 	if c.OffsetGuessThreshold > maxOffsetThreshold {

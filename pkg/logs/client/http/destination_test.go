@@ -24,11 +24,14 @@ type HTTPServerTest struct {
 	destCtx     *client.DestinationsContext
 	destination *Destination
 	endpoint    config.Endpoint
+	request     *http.Request
 }
 
 func NewHTTPServerTest(statusCode int) *HTTPServerTest {
+	var request http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(statusCode)
+		request = *r
 	}))
 	url := strings.Split(ts.URL, ":")
 	port, _ := strconv.Atoi(url[2])
@@ -46,6 +49,7 @@ func NewHTTPServerTest(statusCode int) *HTTPServerTest {
 		destCtx:     destCtx,
 		destination: dest,
 		endpoint:    endpoint,
+		request:     &request,
 	}
 }
 
@@ -80,6 +84,17 @@ func TestBuildURLShouldReturnAddressWithPortWhenDefined(t *testing.T) {
 		UseSSL: false,
 	})
 	assert.Equal(t, "http://foo:1234/v1/input", url)
+}
+
+func TestBuildURLShouldReturnAddressForVersion2(t *testing.T) {
+	url := buildURL(config.Endpoint{
+		APIKey:    "bar",
+		Host:      "foo",
+		UseSSL:    false,
+		Version:   config.EPIntakeVersion2,
+		TrackType: "test-track",
+	})
+	assert.Equal(t, "http://foo/api/v2/test-track", url)
 }
 
 func TestDestinationSend200(t *testing.T) {
@@ -127,4 +142,23 @@ func TestErrorToTag(t *testing.T) {
 	assert.Equal(t, errorToTag(nil), "none")
 	assert.Equal(t, errorToTag(errors.New("fail")), "non-retryable")
 	assert.Equal(t, errorToTag(client.NewRetryableError(errors.New("fail"))), "retryable")
+}
+
+func TestDestinationSendsV2Protocol(t *testing.T) {
+	server := NewHTTPServerTest(200)
+	defer server.httpServer.Close()
+
+	server.destination.protocol = "test-proto"
+	err := server.destination.unconditionalSend([]byte("payload"))
+	assert.Nil(t, err)
+	assert.Equal(t, server.request.Header.Get("dd-protocol"), "test-proto")
+}
+
+func TestDestinationDoesntSendEmptyV2Protocol(t *testing.T) {
+	server := NewHTTPServerTest(200)
+	defer server.httpServer.Close()
+
+	err := server.destination.unconditionalSend([]byte("payload"))
+	assert.Nil(t, err)
+	assert.Empty(t, server.request.Header.Values("dd-protocol"))
 }

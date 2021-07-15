@@ -233,3 +233,7 @@ func (l *LogsConfigKeys) senderRecoveryReset() bool {
 func (l *LogsConfigKeys) aggregationTimeout() time.Duration {
 	return l.getConfig().GetDuration(l.getConfigKey("aggregation_timeout")) * time.Millisecond
 }
+
+func (l *LogsConfigKeys) useV2API() bool {
+	return l.getConfig().GetBool(l.getConfigKey("use_v2_api"))
+}

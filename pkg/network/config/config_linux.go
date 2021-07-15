@@ -36,6 +36,11 @@ func (c *Config) EnabledProbes(runtimeTracer bool) (map[probes.ProbeName]struct{
 		} else {
 			enabled[probes.TCPRetransmit] = struct{}{}
 		}
+
+		enabled[probes.SockFDLookup] = struct{}{}
+		enabled[probes.SockFDLookupRet] = struct{}{}
+		enabled[probes.DoSendfile] = struct{}{}
+		enabled[probes.DoSendfileRet] = struct{}{}
 	}
 
 	if c.CollectUDPConns {

@@ -318,6 +318,7 @@ func TestProfile(t *testing.T) {
 ip_address: 1.2.3.4
 profile: f5-big-ip
 collect_device_metadata: true
+oid_batch_size: 10
 tags:
   - "mytag:val1"
   - "mytag:val1" # add duplicate tag for testing deduplication
@@ -1049,6 +1050,7 @@ func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
 collect_device_metadata: true
+oid_batch_size: 10
 tags:
   - "mytag:val1"
   - "autodiscovery_subnet:127.0.0.0/30"

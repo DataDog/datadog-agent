@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -39,6 +40,10 @@ type ECSFargateCollector struct {
 // Detect tries to connect to the ECS metadata API
 func (c *ECSFargateCollector) Detect(ctx context.Context, out chan<- []*TagInfo) (CollectionMode, error) {
 	var err error
+
+	if !config.IsFeaturePresent(config.ECSFargate) {
+		return NoCollection, nil
+	}
 
 	if !ecsutil.IsFargateInstance(ctx) {
 		return NoCollection, fmt.Errorf("Failed to connect to task metadata API, ECS tagging will not work")

@@ -80,6 +80,10 @@ const (
 	guessDaddrFl6 = 13
 	guessSportFl6 = 14
 	guessDportFl6 = 15
+
+	// struct socket sk field (pointing to a struct sock) object
+	// https://elixir.bootlin.com/linux/v4.4/source/include/linux/net.h#L122
+	guessSocketSK = 16
 )
 
 const (
@@ -113,6 +117,9 @@ var whatString = map[C.__u64]string{
 	guessDaddrFl6: "destination address flowi6",
 	guessSportFl6: "source port flowi6",
 	guessDportFl6: "destination port flowi6",
+
+	// Guess sk field in struct socket
+	guessSocketSK: "sk field on struct socket",
 }
 
 const (
@@ -252,8 +259,9 @@ func waitUntilStable(conn net.Conn, window time.Duration, attempts int) (*fieldV
 
 func offsetGuessProbes(c *config.Config) (map[probes.ProbeName]struct{}, error) {
 	p := map[probes.ProbeName]struct{}{
-		probes.TCPGetSockOpt: {},
-		probes.IPMakeSkb:     {},
+		probes.TCPGetSockOpt:  {},
+		probes.SockGetSockOpt: {},
+		probes.IPMakeSkb:      {},
 	}
 
 	if c.CollectIPv6Conns {
@@ -519,7 +527,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *tracerStatus, expected *f
 		// For more information on the bit shift operations see:
 		// https://elixir.bootlin.com/linux/v4.6/source/net/ipv4/tcp.c#L2686
 		if status.rtt>>3 == C.__u32(expected.rtt) && status.rtt_var>>2 == C.__u32(expected.rttVar) {
-			logAndAdvance(status, status.offset_rtt, guessDaddrIPv6)
+			logAndAdvance(status, status.offset_rtt, guessSocketSK)
 			break
 		}
 		// We know that these two fields are always next to each other, 4 bytes apart:
@@ -528,7 +536,18 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *tracerStatus, expected *f
 		// rtt_var -> mdev_us
 		status.offset_rtt++
 		status.offset_rtt_var = status.offset_rtt + 4
+	case guessSocketSK:
+		// Here we use the same sport and dport fields, but on kernel space they're retrieved
+		// by dereferencing the sk field like:
+		// sport = struct socket->sk->sport
+		// dport = struct socket->sk->dport
+		if status.sport_via_sk == C.__u16(htons(expected.sport)) &&
+			status.dport_via_sk == C.__u16(htons(expected.dport)) {
+			logAndAdvance(status, status.offset_socket_sk, guessDaddrIPv6)
+			break
+		}
 
+		status.offset_socket_sk++
 	case guessDaddrIPv6:
 		if compareIPv6(status.daddr_ipv6, expected.daddrIPv6) {
 			logAndAdvance(status, status.offset_rtt, notApplicable)
@@ -666,7 +685,8 @@ func guessOffsets(m *manager.Manager, cfg *config.Config) ([]manager.ConstantEdi
 		if uint64(status.offset_saddr) >= threshold || uint64(status.offset_daddr) >= threshold ||
 			status.offset_sport >= thresholdInetSock || uint64(status.offset_dport) >= threshold ||
 			uint64(status.offset_netns) >= threshold || uint64(status.offset_family) >= threshold ||
-			uint64(status.offset_daddr_ipv6) >= threshold || status.offset_rtt >= thresholdInetSock {
+			uint64(status.offset_daddr_ipv6) >= threshold || status.offset_rtt >= thresholdInetSock ||
+			uint64(status.offset_socket_sk) >= threshold {
 			return nil, fmt.Errorf("overflow while guessing %v, bailing out", whatString[status.what])
 		}
 	}
@@ -697,6 +717,7 @@ func getConstantEditors(status *tracerStatus) []manager.ConstantEditor {
 		{Name: "offset_sport_fl6", Value: uint64(status.offset_sport_fl6)},
 		{Name: "offset_dport_fl6", Value: uint64(status.offset_dport_fl6)},
 		{Name: "fl6_offsets", Value: uint64(status.fl6_offsets)},
+		{Name: "offset_socket_sk", Value: uint64(status.offset_socket_sk)},
 	}
 }
 

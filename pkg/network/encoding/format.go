@@ -33,7 +33,7 @@ type RouteIdx struct {
 }
 
 // FormatConnection converts a ConnectionStats into an model.Connection
-func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, routes map[string]RouteIdx, httpStats *model.HTTPAggregations) *model.Connection {
+func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, routes map[string]RouteIdx, httpStats *model.HTTPAggregations, dnsWithQueryType bool) *model.Connection {
 	c := connPool.Get().(*model.Connection)
 	c.Pid = int32(conn.Pid)
 	c.Laddr = formatAddr(conn.Source, conn.SPort)
@@ -62,8 +62,15 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, ro
 	c.DnsCountByRcode = conn.DNSCountByRcode
 	c.LastTcpEstablished = conn.LastTCPEstablished
 	c.LastTcpClosed = conn.LastTCPClosed
-	c.DnsStatsByDomain = make(map[int32]*model.DNSStats)
-	c.DnsStatsByDomainByQueryType = formatDNSStatsByDomain(conn.DNSStatsByDomainByQueryType, domainSet)
+
+	if dnsWithQueryType {
+		c.DnsStatsByDomain = make(map[int32]*model.DNSStats)
+		c.DnsStatsByDomainByQueryType = formatDNSStatsByDomainByQueryType(conn.DNSStatsByDomainByQueryType, domainSet)
+	} else {
+		// downconvert to simply by domain
+		c.DnsStatsByDomain = formatDNSStatsByDomain(conn.DNSStatsByDomainByQueryType, domainSet)
+		c.DnsStatsByDomainByQueryType = make(map[int32]*model.DNSStatsByQueryType)
+	}
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
 
 	if httpStats != nil {
@@ -133,6 +140,7 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 		t := &model.RuntimeCompilationTelemetry{}
 		t.RuntimeCompilationEnabled = tel.RuntimeCompilationEnabled
 		t.RuntimeCompilationResult = model.RuntimeCompilationResult(tel.RuntimeCompilationResult)
+		t.KernelHeaderFetchResult = model.KernelHeaderFetchResult(tel.KernelHeaderFetchResult)
 		t.RuntimeCompilationDuration = tel.RuntimeCompilationDuration
 		ret[asset] = t
 	}
@@ -180,7 +188,7 @@ func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]*mode
 				blob, _ := proto.Marshal(latencies.ToProto())
 				data.Latencies = blob
 			} else {
-				data.FirstLatencySample = uint64(stats[i].FirstLatencySample)
+				data.FirstLatencySample = stats[i].FirstLatencySample
 			}
 		}
 
@@ -209,6 +217,7 @@ func httpKeyFromConn(c network.ConnectionStats) http.Key {
 func returnToPool(c *model.Connections) {
 	if c.Conns != nil {
 		for _, c := range c.Conns {
+			c.Reset()
 			connPool.Put(c)
 		}
 	}
@@ -277,7 +286,7 @@ func formatEphemeralType(e network.EphemeralPortType) model.EphemeralPortState {
 	}
 }
 
-func formatDNSStatsByDomain(stats map[string]map[network.QueryType]network.DNSStats, domainSet map[string]int) map[int32]*model.DNSStatsByQueryType {
+func formatDNSStatsByDomainByQueryType(stats map[string]map[network.QueryType]network.DNSStats, domainSet map[string]int) map[int32]*model.DNSStatsByQueryType {
 	m := make(map[int32]*model.DNSStatsByQueryType)
 	for d, bytype := range stats {
 
@@ -297,6 +306,38 @@ func formatDNSStatsByDomain(stats map[string]map[network.QueryType]network.DNSSt
 			domainSet[d] = pos
 		}
 		m[int32(pos)] = byqtype
+	}
+	return m
+}
+func formatDNSStatsByDomain(stats map[string]map[network.QueryType]network.DNSStats, domainSet map[string]int) map[int32]*model.DNSStats {
+	m := make(map[int32]*model.DNSStats)
+	for d, bytype := range stats {
+		pos, ok := domainSet[d]
+		if !ok {
+			pos = len(domainSet)
+			domainSet[d] = pos
+		}
+
+		for _, stat := range bytype {
+
+			if ms, ok := m[int32(pos)]; ok {
+				for rcode, count := range stat.DNSCountByRcode {
+					ms.DnsCountByRcode[rcode] += count
+				}
+				ms.DnsFailureLatencySum += stat.DNSFailureLatencySum
+				ms.DnsSuccessLatencySum += stat.DNSSuccessLatencySum
+				ms.DnsTimeouts += stat.DNSTimeouts
+
+			} else {
+				var ms model.DNSStats
+				ms.DnsCountByRcode = stat.DNSCountByRcode
+				ms.DnsFailureLatencySum = stat.DNSFailureLatencySum
+				ms.DnsSuccessLatencySum = stat.DNSSuccessLatencySum
+				ms.DnsTimeouts = stat.DNSTimeouts
+
+				m[int32(pos)] = &ms
+			}
+		}
 	}
 	return m
 }

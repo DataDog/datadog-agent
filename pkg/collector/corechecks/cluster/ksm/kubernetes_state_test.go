@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
@@ -578,6 +579,7 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 	type args struct {
 		labels       map[string]string
 		metricsToGet []ksmstore.DDMetricsFam
+		clusterName  string
 	}
 	tests := []struct {
 		name         string
@@ -768,10 +770,44 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "node:foo"},
 			wantHostname: "foo",
 		},
+		{
+			name:   "cluster name appended to hostname",
+			config: &KSMConfig{},
+			args: args{
+				labels:      map[string]string{"foo_label": "foo_value", "node": "foo"},
+				clusterName: "bar",
+			},
+			wantTags:     []string{"foo_label:foo_value", "node:foo"},
+			wantHostname: "foo-bar",
+		},
+		{
+			name: "cluster name appended to hostname from label joins",
+			config: &KSMConfig{
+				LabelJoins: map[string]*JoinsConfig{
+					"foo": {
+						LabelsToMatch: []string{"foo_label"},
+						LabelsToGet:   []string{"bar_label", "node"},
+					},
+				},
+			},
+			args: args{
+				labels: map[string]string{"foo_label": "foo_value"},
+				metricsToGet: []ksmstore.DDMetricsFam{
+					{
+						Name:        "foo",
+						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"foo_label": "foo_value", "node": "foo", "bar_label": "bar_value"}}},
+					},
+				},
+				clusterName: "bar",
+			},
+			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "node:foo"},
+			wantHostname: "foo-bar",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), tt.config)
+			kubeStateMetricsSCheck.clusterName = tt.args.clusterName
 			labelJoiner := newLabelJoiner(tt.config.LabelJoins)
 			for _, metricFam := range tt.args.metricsToGet {
 				labelJoiner.insertFamily(metricFam)
@@ -939,4 +975,79 @@ func lenMetrics(metricsToProcess map[string][]ksmstore.DDMetricsFam) int {
 		}
 	}
 	return count
+}
+
+func TestKSMCheckInitTags(t *testing.T) {
+	mockConfig := config.Mock()
+	type fields struct {
+		instance    *KSMConfig
+		clusterName string
+	}
+	tests := []struct {
+		name      string
+		loadFunc  func()
+		resetFunc func()
+		fields    fields
+		expected  []string
+	}{
+		{
+			name:      "with check tags",
+			loadFunc:  func() {},
+			resetFunc: func() {},
+			fields: fields{
+				instance: &KSMConfig{Tags: []string{"check:tag1", "check:tag2"}},
+			},
+			expected: []string{"check:tag1", "check:tag2"},
+		},
+		{
+			name:      "with cluster name",
+			loadFunc:  func() {},
+			resetFunc: func() {},
+			fields: fields{
+				instance:    &KSMConfig{},
+				clusterName: "clustername",
+			},
+			expected: []string{"kube_cluster_name:clustername"},
+		},
+		{
+			name:      "with global tags",
+			loadFunc:  func() { mockConfig.Set("tags", []string{"global:tag1", "global:tag2"}) },
+			resetFunc: func() { mockConfig.Set("tags", []string{}) },
+			fields:    fields{instance: &KSMConfig{}},
+			expected:  []string{"global:tag1", "global:tag2"},
+		},
+		{
+			name:      "with everything",
+			loadFunc:  func() { mockConfig.Set("tags", []string{"global:tag1", "global:tag2"}) },
+			resetFunc: func() { mockConfig.Set("tags", []string{}) },
+			fields: fields{
+				instance:    &KSMConfig{Tags: []string{"check:tag1", "check:tag2"}},
+				clusterName: "clustername",
+			},
+			expected: []string{"check:tag1", "check:tag2", "kube_cluster_name:clustername", "global:tag1", "global:tag2"},
+		},
+		{
+			name:      "with disable_global_tags",
+			loadFunc:  func() { mockConfig.Set("tags", []string{"global:tag1", "global:tag2"}) },
+			resetFunc: func() { mockConfig.Set("tags", []string{}) },
+			fields: fields{
+				instance:    &KSMConfig{Tags: []string{"check:tag1", "check:tag2"}, DisableGlobalTags: true},
+				clusterName: "clustername",
+			},
+			expected: []string{"check:tag1", "check:tag2", "kube_cluster_name:clustername"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := &KSMCheck{
+				instance:    tt.fields.instance,
+				clusterName: tt.fields.clusterName,
+			}
+
+			tt.loadFunc()
+			k.initTags()
+			assert.ElementsMatch(t, tt.expected, k.instance.Tags)
+			tt.resetFunc()
+		})
+	}
 }

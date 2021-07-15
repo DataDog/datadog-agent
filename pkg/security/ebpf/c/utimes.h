@@ -15,10 +15,7 @@ struct utime_event_t {
     struct container_context_t container;
     struct syscall_t syscall;
     struct file_t file;
-    struct {
-        long tv_sec;
-        long tv_usec;
-    } atime, mtime;
+    struct ktimeval atime, mtime;
 };
 
 int __attribute__((always_inline)) trace__sys_utimes() {
@@ -73,14 +70,8 @@ int __attribute__((always_inline)) sys_utimes_ret(void *ctx, int retval) {
 
     struct utime_event_t event = {
         .syscall.retval = retval,
-        .atime = {
-            .tv_sec = syscall->setattr.atime.tv_sec,
-            .tv_usec = syscall->setattr.atime.tv_nsec,
-        },
-        .mtime = {
-            .tv_sec = syscall->setattr.mtime.tv_sec,
-            .tv_usec = syscall->setattr.mtime.tv_nsec,
-        },
+        .atime = syscall->setattr.atime,
+        .mtime = syscall->setattr.mtime,
         .file = syscall->setattr.file,
     };
 

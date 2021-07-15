@@ -275,6 +275,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("secret_backend_output_max_size", secrets.SecretBackendOutputMaxSize)
 	config.BindEnvAndSetDefault("secret_backend_timeout", 30)
 	config.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
+	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 
 	// Use to output logs in JSON format
 	config.BindEnvAndSetDefault("log_format_json", false)
@@ -466,6 +467,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("ignore_autoconf", []string{})
 	config.BindEnvAndSetDefault("autoconfig_from_environment", true)
 	config.BindEnvAndSetDefault("autoconfig_exclude_features", []string{})
+	config.BindEnvAndSetDefault("autoconfig_include_features", []string{})
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
@@ -540,7 +542,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("leader_lease_duration", "60")
 	config.BindEnvAndSetDefault("leader_election", false)
 	config.BindEnvAndSetDefault("kube_resources_namespace", "")
-	config.BindEnvAndSetDefault("kube_cache_sync_timeout_seconds", 2)
+	config.BindEnvAndSetDefault("kube_cache_sync_timeout_seconds", 5)
 
 	// Datadog cluster agent
 	config.BindEnvAndSetDefault("cluster_agent.enabled", false)
@@ -626,7 +628,6 @@ func InitConfig(config Config) {
 
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
-	config.BindEnvAndSetDefault("expvar_host", "127.0.0.1")
 
 	// internal profiling
 	config.BindEnvAndSetDefault("internal_profiling.enabled", false)
@@ -712,6 +713,8 @@ func InitConfig(config Config) {
 	// It may be useful to increase it when logs writing is slowed down, that
 	// could happen while serializing large objects on log lines.
 	config.BindEnvAndSetDefault("logs_config.aggregation_timeout", 1000)
+	// Time in seconds
+	config.BindEnvAndSetDefault("logs_config.file_scan_period", 10.0)
 
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
@@ -1067,7 +1070,7 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	SanitizeAPIKeyConfig(config, "api_key")
 	// Environment feature detection needs to run before applying override funcs
 	// as it may provide such overrides
-	detectFeatures()
+	DetectFeatures()
 	applyOverrideFuncs(config)
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
@@ -1153,6 +1156,7 @@ func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"sender_backoff_max", DefaultLogsSenderBackoffMax)
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_interval", DefaultForwarderRecoveryInterval)
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
+	config.BindEnvAndSetDefault(prefix+"use_v2_api", false)
 }
 
 // getDomainPrefix provides the right prefix for agent X.Y.Z
@@ -1388,17 +1392,29 @@ func IsCLCRunner() bool {
 	if !Datadog.GetBool("clc_runner_enabled") {
 		return false
 	}
-	var cp []ConfigurationProviders
-	if err := Datadog.UnmarshalKey("config_providers", &cp); err == nil {
-		for _, name := range Datadog.GetStringSlice("extra_config_providers") {
-			cp = append(cp, ConfigurationProviders{Name: name})
-		}
-		if len(cp) == 1 && cp[0].Name == "clusterchecks" {
-			// A cluster check runner is an Agent configured to run clusterchecks only
-			return true
+
+	var cps []ConfigurationProviders
+	if err := Datadog.UnmarshalKey("config_providers", &cps); err != nil {
+		return false
+	}
+
+	for _, name := range Datadog.GetStringSlice("extra_config_providers") {
+		cps = append(cps, ConfigurationProviders{Name: name})
+	}
+
+	// A cluster check runner is an Agent configured to run clusterchecks only
+	// We want exactly one ConfigProvider named clusterchecks
+	if len(cps) == 0 {
+		return false
+	}
+
+	for _, cp := range cps {
+		if cp.Name != "clusterchecks" {
+			return false
 		}
 	}
-	return false
+
+	return true
 }
 
 // GetBindHost returns `bind_host` variable or default value

@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -84,7 +85,8 @@ func GetStatus() (map[string]interface{}, error) {
 	}
 
 	if config.IsContainerized() {
-		stats["autodiscoveryErrors"] = common.AC.GetAutodiscoveryErrors()
+		stats["adConfigErrors"] = common.AC.GetAutodiscoveryErrors()
+		stats["filterErrors"] = containers.GetFilterErrors()
 	}
 
 	return stats, nil

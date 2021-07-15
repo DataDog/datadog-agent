@@ -84,7 +84,7 @@ type Tracer struct {
 	// Internal buffer used to compute bytekeys
 	buf []byte
 
-	// Connections for the tracer to blacklist
+	// Connections for the tracer to exclude
 	sourceExcludes []*network.ConnectionFilter
 	destExcludes   []*network.ConnectionFilter
 
@@ -160,6 +160,8 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 			string(probes.TcpStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.SockByPidFDMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.PidFDBySockMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 		},
 	}
 
@@ -606,6 +608,9 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 		}
 		if result, ok := telemetry["runtime_compilation_result"]; ok {
 			tm.RuntimeCompilationResult = int32(result)
+		}
+		if result, ok := telemetry["kernel_header_fetch_result"]; ok {
+			tm.KernelHeaderFetchResult = int32(result)
 		}
 		if duration, ok := telemetry["runtime_compilation_duration"]; ok {
 			tm.RuntimeCompilationDuration = duration

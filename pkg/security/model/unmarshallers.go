@@ -11,8 +11,6 @@ import (
 	"bytes"
 	"time"
 	"unsafe"
-
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // BinaryUnmarshaler interface implemented by every event type
@@ -26,7 +24,7 @@ func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	e.ID = utils.FindContainerID(id)
+	e.ID = FindContainerID(id)
 
 	return 64, nil
 }
@@ -312,6 +310,48 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	e.Flags = ByteOrder.Uint32(data[0:4])
 	e.Mode = ByteOrder.Uint32(data[4:8])
+	return n + 8, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
+	n, err := UnmarshalBinary(data, &e.File)
+	if err != nil {
+		return n, err
+	}
+
+	data = data[n:]
+	if len(data) < 8 {
+		return n, ErrNotEnoughData
+	}
+
+	e.EventKind = SELinuxEventKind(ByteOrder.Uint32(data[0:4]))
+
+	switch e.EventKind {
+	case SELinuxBoolChangeEventKind:
+		boolValue := ByteOrder.Uint32(data[4:8])
+		if boolValue == ^uint32(0) {
+			e.BoolChangeValue = "error"
+		} else if boolValue > 0 {
+			e.BoolChangeValue = "on"
+		} else {
+			e.BoolChangeValue = "off"
+		}
+	case SELinuxBoolCommitEventKind:
+		boolValue := ByteOrder.Uint32(data[4:8])
+		e.BoolCommitValue = boolValue != 0
+	case SELinuxStatusChangeEventKind:
+		disableValue := ByteOrder.Uint16(data[4:6]) != 0
+		enforceValue := ByteOrder.Uint16(data[6:8]) != 0
+		if disableValue {
+			e.EnforceStatus = "disabled"
+		} else if enforceValue {
+			e.EnforceStatus = "enforcing"
+		} else {
+			e.EnforceStatus = "permissive"
+		}
+	}
+
 	return n + 8, nil
 }
 

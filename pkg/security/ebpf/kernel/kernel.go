@@ -33,6 +33,8 @@ var (
 	Kernel4_16 = kernel.VersionCode(4, 16, 0) //nolint:deadcode,unused
 	// Kernel5_3 is the KernelVersion representation of kernel version 5.3
 	Kernel5_3 = kernel.VersionCode(5, 3, 0) //nolint:deadcode,unused
+	// Kernel5_4 is the KernelVersion representation of kernel version 5.4
+	Kernel5_4 = kernel.VersionCode(5, 4, 0) //nolint:deadcode,unused
 )
 
 // Version defines a kernel version helper
@@ -101,4 +103,9 @@ func (k *Version) IsSLES12Kernel() bool {
 // IsSLES15Kernel returns whether the kernel is a sles 15 kernel
 func (k *Version) IsSLES15Kernel() bool {
 	return k.IsSuseKernel() && strings.HasPrefix(k.osRelease["VERSION_ID"], "15")
+}
+
+// IsOracleUEKKernel returns whether the kernel is an oracle uek kernel
+func (k *Version) IsOracleUEKKernel() bool {
+	return k.osRelease["ID"] == "ol" && k.Code >= Kernel5_4
 }

@@ -58,6 +58,7 @@ func setupAPM(config Config) {
 	config.BindEnvAndSetDefault("apm_config.windows_pipe_security_descriptor", "D:AI(A;;GA;;;WD)", "DD_APM_WINDOWS_PIPE_SECURITY_DESCRIPTOR") //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.remote_tagger", false, "DD_APM_REMOTE_TAGGER")                                                    //nolint:errcheck
 
+	config.BindEnv("apm_config.max_catalog_services", "DD_APM_MAX_CATALOG_SERVICES")                     //nolint:errcheck
 	config.BindEnv("apm_config.receiver_timeout", "DD_APM_RECEIVER_TIMEOUT")                             //nolint:errcheck
 	config.BindEnv("apm_config.max_payload_size", "DD_APM_MAX_PAYLOAD_SIZE")                             //nolint:errcheck
 	config.BindEnv("apm_config.log_file", "DD_APM_LOG_FILE")                                             //nolint:errcheck
@@ -81,6 +82,7 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.sync_flushing", "DD_APM_SYNC_FLUSHING")                                   //nolint:errcheck
 	config.BindEnv("apm_config.filter_tags.require", "DD_APM_FILTER_TAGS_REQUIRE")                       //nolint:errcheck
 	config.BindEnv("apm_config.filter_tags.reject", "DD_APM_FILTER_TAGS_REJECT")                         //nolint:errcheck
+	config.BindEnv("apm_config.internal_profiling.enabled", "DD_APM_INTERNAL_PROFILING_ENABLED")         //nolint:errcheck
 	config.BindEnv("experimental.otlp.http_port", "DD_OTLP_HTTP_PORT")                                   //nolint:errcheck
 	config.BindEnv("experimental.otlp.grpc_port", "DD_OTLP_GRPC_PORT")                                   //nolint:errcheck
 
