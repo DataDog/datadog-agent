@@ -42,7 +42,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.reportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime)
+	ms.reportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
 
 	// language=json
 	event := []byte(`
@@ -64,7 +64,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
             "tags": [
                 "tag1",
                 "tag2"
-            ]
+            ],
+			"status":1
         }
     ],
 	"collect_timestamp":1415792726
@@ -108,7 +109,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 	str := "2014-11-12 11:45:26"
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
-	ms.reportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime)
+	ms.reportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
 
 	// language=json
 	event := []byte(`
@@ -130,12 +131,16 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
             "tags": [
                 "tag1",
                 "tag2"
-            ]
+            ],
+			"status":1
         }
     ],
     "interfaces": [
         {
             "device_id": "1234",
+            "id_tags": [
+                "interface:21"
+            ],
             "index": 1,
             "name": "21",
             "alias": "",
@@ -146,6 +151,9 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
         },
         {
             "device_id": "1234",
+            "id_tags": [
+                "interface:22"
+            ],
             "index": 2,
             "name": "22",
             "alias": "",

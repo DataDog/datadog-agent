@@ -100,7 +100,7 @@ def test(
     cpus=0,
     major_version='7',
     python_runtimes='3',
-    timeout=120,
+    timeout=180,
     arch="x64",
     cache=True,
     skip_linters=False,

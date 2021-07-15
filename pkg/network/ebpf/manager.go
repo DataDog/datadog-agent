@@ -25,6 +25,7 @@ func NewOffsetManager() *manager.Manager {
 		PerfMaps: []*manager.PerfMap{},
 		Probes: []*manager.Probe{
 			{Section: string(probes.TCPGetSockOpt)},
+			{Section: string(probes.SockGetSockOpt)},
 			{Section: string(probes.TCPv6Connect)},
 			{Section: string(probes.IPMakeSkb)},
 			{Section: string(probes.IP6MakeSkb)},
@@ -45,6 +46,10 @@ func NewManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 			{Name: string(probes.UdpPortBindingsMap)},
 			{Name: "pending_bind"},
 			{Name: string(probes.TelemetryMap)},
+			{Name: string(probes.SockByPidFDMap)},
+			{Name: string(probes.PidFDBySockMap)},
+			{Name: string(probes.SockFDLookupArgsMap)},
+			{Name: string(probes.DoSendfileArgsMap)},
 		},
 		PerfMaps: []*manager.PerfMap{
 			{
@@ -79,6 +84,10 @@ func NewManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 			{Section: string(probes.SocketDnsFilter)},
 			{Section: string(probes.IPRouteOutputFlow)},
 			{Section: string(probes.IPRouteOutputFlowReturn), KProbeMaxActive: maxActive},
+			{Section: string(probes.SockFDLookup), KProbeMaxActive: maxActive},
+			{Section: string(probes.SockFDLookupRet), KProbeMaxActive: maxActive},
+			{Section: string(probes.DoSendfile), KProbeMaxActive: maxActive},
+			{Section: string(probes.DoSendfileRet), KProbeMaxActive: maxActive},
 		},
 	}
 

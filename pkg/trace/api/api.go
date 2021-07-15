@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -83,7 +84,7 @@ type HTTPReceiver struct {
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
 func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, statsProcessor StatsProcessor) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
-	if config.HasFeature("429") {
+	if features.Has("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
 	}
 	return &HTTPReceiver{
@@ -360,13 +361,13 @@ const (
 	headerDroppedP0Spans = "Datadog-Client-Dropped-P0-Spans"
 )
 
-func (r *HTTPReceiver) tagStats(v Version, req *http.Request) *info.TagStats {
+func (r *HTTPReceiver) tagStats(v Version, header http.Header) *info.TagStats {
 	return r.Stats.GetTagStats(info.Tags{
-		Lang:            req.Header.Get(headerLang),
-		LangVersion:     req.Header.Get(headerLangVersion),
-		Interpreter:     req.Header.Get(headerLangInterpreter),
-		LangVendor:      req.Header.Get(headerLangInterpreterVendor),
-		TracerVersion:   req.Header.Get(headerTracerVersion),
+		Lang:            header.Get(headerLang),
+		LangVersion:     header.Get(headerLangVersion),
+		Interpreter:     header.Get(headerLangInterpreter),
+		LangVendor:      header.Get(headerLangInterpreterVendor),
+		TracerVersion:   header.Get(headerTracerVersion),
 		EndpointVersion: string(v),
 	})
 }
@@ -429,7 +430,7 @@ type StatsProcessor interface {
 func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	defer timing.Since("datadog.trace_agent.receiver.stats_process_ms", time.Now())
 
-	ts := r.tagStats(v06, req)
+	ts := r.tagStats(v06, req.Header)
 	rd := NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 	req.Header.Set("Accept", "application/msgpack")
 	var in pb.ClientStatsPayload
@@ -447,7 +448,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
-	ts := r.tagStats(v, req)
+	ts := r.tagStats(v, req.Header)
 	tracen, err := traceCount(req)
 	if err == nil && r.rateLimited(tracen) {
 		// this payload can not be accepted
@@ -482,10 +483,12 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	atomic.AddInt64(&ts.TracesBytes, req.Body.(*LimitedReader).Count)
 	atomic.AddInt64(&ts.PayloadAccepted, 1)
 
+	cid := req.Header.Get(headerContainerID)
 	payload := &Payload{
 		Source:                 ts,
 		Traces:                 traces,
-		ContainerTags:          getContainerTags(req.Header.Get(headerContainerID)),
+		ContainerID:            cid,
+		ContainerTags:          getContainerTags(cid),
 		ClientComputedTopLevel: req.Header.Get(headerComputedTopLevel) != "",
 		ClientComputedStats:    req.Header.Get(headerComputedStats) != "",
 		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
@@ -532,6 +535,10 @@ type Payload struct {
 	// language, interpreter, tracer version, etc.
 	Source *info.TagStats
 
+	// ContainerID specifies the container ID from where this payload originated, as
+	// and if sent by the client.
+	ContainerID string
+
 	// ContainerTags specifies orchestrator tags corresponding to the origin of this
 	// trace (e.g. K8S pod, Docker image, ECS, etc). They are of the type "k1:v1,k2:v2".
 	ContainerTags string
@@ -546,6 +553,7 @@ type Payload struct {
 	// ClientComputedStats reports whether the client has computed and sent over stats
 	// so that the agent doesn't have to.
 	ClientComputedStats bool
+
 	// ClientDroppedP0s specifies the number of P0 traces chunks dropped by the client.
 	ClientDroppedP0s int64
 }
@@ -724,6 +732,9 @@ func tracesFromSpans(spans []pb.Span) pb.Traces {
 // getContainerTag returns container and orchestrator tags belonging to containerID. If containerID
 // is empty or no tags are found, an empty string is returned.
 func getContainerTags(containerID string) string {
+	if containerID == "" {
+		return ""
+	}
 	list, err := tagger.Tag("container_id://"+containerID, collectors.HighCardinality)
 	if err != nil {
 		log.Tracef("Getting container tags for ID %q: %v", containerID, err)

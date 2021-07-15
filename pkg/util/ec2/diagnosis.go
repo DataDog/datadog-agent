@@ -6,6 +6,8 @@
 package ec2
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -16,7 +18,7 @@ func init() {
 
 // diagnose the ec2 metadata API availability
 func diagnose() error {
-	_, err := GetHostname()
+	_, err := GetHostname(context.TODO())
 	if err != nil {
 		log.Error(err)
 	}

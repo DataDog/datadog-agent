@@ -129,6 +129,11 @@ SYSCALL_COMPAT_KRETPROBE(mount) {
     return sys_mount_ret(ctx, retval, DR_KPROBE);
 }
 
+SEC("tracepoint/handle_sys_mount_exit")
+int tracepoint_handle_sys_mount_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_mount_ret(args, args->ret, DR_TRACEPOINT);
+}
+
 int __attribute__((always_inline)) dr_mount_callback(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_MOUNT);
     if (!syscall)

@@ -89,6 +89,10 @@ func doFetchScalarOids(session sessionAPI, oids []string) (*gosnmp.SnmpPacket, e
 					return nil, fmt.Errorf("invalid ErrorIndex `%d` when fetching oids `%v`", scalarOids.ErrorIndex, oids)
 				}
 				oids = append(oids[:zeroBaseIndex], oids[zeroBaseIndex+1:]...)
+				if len(oids) == 0 {
+					// If all oids are not found, return an empty packet with no variable and no error
+					return &gosnmp.SnmpPacket{}, nil
+				}
 				continue
 			}
 			results = scalarOids

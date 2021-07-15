@@ -7,6 +7,7 @@ package configresolver
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -19,23 +20,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type variableGetter func(key []byte, svc listeners.Service) ([]byte, error)
+type variableGetter func(ctx context.Context, key []byte, svc listeners.Service) ([]byte, error)
 
 var templateVariables = map[string]variableGetter{
 	"host":     getHost,
 	"pid":      getPid,
 	"port":     getPort,
 	"hostname": getHostname,
-	"extra":    getExtra,
+	"extra":    getAdditionalTplVariables,
+	"kube":     getAdditionalTplVariables,
 }
 
 // SubstituteTemplateVariables replaces %%VARIABLES%% using the variableGetters passed in
-func SubstituteTemplateVariables(config *integration.Config, getters map[string]variableGetter, svc listeners.Service) error {
+func SubstituteTemplateVariables(ctx context.Context, config *integration.Config, getters map[string]variableGetter, svc listeners.Service) error {
 	for i := 0; i < len(config.Instances); i++ {
 		vars := config.GetTemplateVariablesForInstance(i)
 		for _, v := range vars {
 			if f, found := getters[string(v.Name)]; found {
-				resolvedVar, err := f(v.Key, svc)
+				resolvedVar, err := f(ctx, v.Key, svc)
 				if err != nil {
 					return err
 				}
@@ -77,6 +79,7 @@ func SubstituteTemplateEnvVars(config *integration.Config) error {
 // Resolve also returns the hash of the tags to the config.
 // The tags and hashes are computed once and in this function, then propagated to the main AD to avoid having inconsistent tags and hashes in the AD store.
 func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config, string, error) {
+	ctx := context.TODO()
 	// Copy original template
 	resolvedConfig := integration.Config{
 		Name:            tpl.Name,
@@ -99,8 +102,8 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 
 	// Ignore the config from file if it's overridden by an empty config
 	// or by a different config for the same check
-	if tpl.Provider == names.File && svc.GetCheckNames() != nil {
-		checkNames := svc.GetCheckNames()
+	if tpl.Provider == names.File && svc.GetCheckNames(ctx) != nil {
+		checkNames := svc.GetCheckNames(ctx)
 		lenCheckNames := len(checkNames)
 		if lenCheckNames == 0 || (lenCheckNames == 1 && checkNames[0] == "") {
 			// Empty check names on k8s annotations or docker labels override the check config from file
@@ -117,11 +120,11 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 
 	}
 
-	if resolvedConfig.IsCheckConfig() && !svc.IsReady() {
+	if resolvedConfig.IsCheckConfig() && !svc.IsReady(ctx) {
 		return resolvedConfig, "", errors.New("unable to resolve, service not ready")
 	}
 
-	if err := SubstituteTemplateVariables(&resolvedConfig, templateVariables, svc); err != nil {
+	if err := SubstituteTemplateVariables(ctx, &resolvedConfig, templateVariables, svc); err != nil {
 		return resolvedConfig, "", err
 	}
 
@@ -153,8 +156,8 @@ func addServiceTags(resolvedConfig *integration.Config, tags []string) error {
 	return nil
 }
 
-func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {
-	hosts, err := svc.GetHosts()
+func getHost(ctx context.Context, tplVar []byte, svc listeners.Service) ([]byte, error) {
+	hosts, err := svc.GetHosts(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract IP address for container %s, ignoring it. Source error: %s", svc.GetEntity(), err)
 	}
@@ -198,8 +201,8 @@ func getFallbackHost(hosts map[string]string) (string, error) {
 }
 
 // getPort returns ports of the service
-func getPort(tplVar []byte, svc listeners.Service) ([]byte, error) {
-	ports, err := svc.GetPorts()
+func getPort(ctx context.Context, tplVar []byte, svc listeners.Service) ([]byte, error) {
+	ports, err := svc.GetPorts(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract port list for container %s, ignoring it. Source error: %s", svc.GetEntity(), err)
 	} else if len(ports) == 0 {
@@ -227,8 +230,8 @@ func getPort(tplVar []byte, svc listeners.Service) ([]byte, error) {
 }
 
 // getPid returns the process identifier of the service
-func getPid(_ []byte, svc listeners.Service) ([]byte, error) {
-	pid, err := svc.GetPid()
+func getPid(ctx context.Context, _ []byte, svc listeners.Service) ([]byte, error) {
+	pid, err := svc.GetPid(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pid for service %s, skipping config - %s", svc.GetEntity(), err)
 	}
@@ -237,16 +240,20 @@ func getPid(_ []byte, svc listeners.Service) ([]byte, error) {
 
 // getHostname returns the hostname of the service, to be used
 // when the IP is unavailable or erroneous
-func getHostname(tplVar []byte, svc listeners.Service) ([]byte, error) {
-	name, err := svc.GetHostname()
+func getHostname(ctx context.Context, tplVar []byte, svc listeners.Service) ([]byte, error) {
+	name, err := svc.GetHostname(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hostname for service %s, skipping config - %s", svc.GetEntity(), err)
 	}
 	return []byte(name), nil
 }
 
-// getExtra returns specific data
-func getExtra(tplVar []byte, svc listeners.Service) ([]byte, error) {
+// getAdditionalTplVariables returns listener-specific template variables.
+// It resolves template variables prefixed with kube_ or extra_
+// Even though it gets the data from the same listener method GetExtraConfig, the kube_ and extra_
+// prefixes are customer facing, we support both of them for a better user experience depending on
+// the AD listener and what the template variable represents.
+func getAdditionalTplVariables(_ context.Context, tplVar []byte, svc listeners.Service) ([]byte, error) {
 	value, err := svc.GetExtraConfig(tplVar)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get extra info for service %s, skipping config - %s", svc.GetEntity(), err)

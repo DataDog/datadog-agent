@@ -62,9 +62,9 @@ func (tx *httpTX) StatusClass() int {
 	return (int(tx.response_status_code) / 100) * 100
 }
 
-// RequestLatency returns the latency of the request in microseconds
+// RequestLatency returns the latency of the request in nanoseconds
 func (tx *httpTX) RequestLatency() float64 {
-	return float64((tx.response_last_seen - tx.request_started) / (1000))
+	return nsTimestampToFloat(uint64(tx.response_last_seen - tx.request_started))
 }
 
 // Incomplete returns true if the transaction contains only the request or response information
@@ -84,4 +84,18 @@ func (batch *httpBatch) IsDirty(notification httpNotification) bool {
 // Transactions returns the slice of HTTP transactions embedded in the batch
 func (batch *httpBatch) Transactions() []httpTX {
 	return (*(*[HTTPBatchSize]httpTX)(unsafe.Pointer(&batch.txs)))[:]
+}
+
+// below is copied from pkg/trace/stats/statsraw.go
+// 10 bits precision (any value will be +/- 1/1024)
+const roundMask uint64 = 1 << 10
+
+// nsTimestampToFloat converts a nanosec timestamp into a float nanosecond timestamp truncated to a fixed precision
+func nsTimestampToFloat(ns uint64) float64 {
+	var shift uint
+	for ns > roundMask {
+		ns = ns >> 1
+		shift++
+	}
+	return float64(ns << shift)
 }

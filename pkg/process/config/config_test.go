@@ -20,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	mocks "github.com/DataDog/datadog-agent/pkg/proto/pbgo/mocks"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
+	providerMocks "github.com/DataDog/datadog-agent/pkg/util/containers/providers/mock"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,10 +31,14 @@ import (
 var originalConfig = config.Datadog
 
 func restoreGlobalConfig() {
+	providers.Deregister()
+
 	config.Datadog = originalConfig
 }
 
 func newConfig() {
+	providers.Register(providerMocks.FakeContainerImpl{})
+
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	config.InitConfig(config.Datadog)
 	// force timeout to 0s, otherwise each test waits 60s
@@ -187,8 +193,9 @@ func TestOnlyEnvConfigLogLevelOverride(t *testing.T) {
 }
 
 func TestGetHostname(t *testing.T) {
+	ctx := context.Background()
 	cfg := NewDefaultAgentConfig(false)
-	h, err := getHostname(cfg.DDAgentBin, 0)
+	h, err := getHostname(ctx, cfg.DDAgentBin, 0)
 	assert.Nil(t, err)
 	// verify we fall back to getting os hostname
 	expectedHostname, _ := os.Hostname()
@@ -532,6 +539,7 @@ func TestIsAffirmative(t *testing.T) {
 }
 
 func TestGetHostnameFromGRPC(t *testing.T) {
+	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -543,7 +551,7 @@ func TestGetHostnameFromGRPC(t *testing.T) {
 	).Return(&pb.HostnameReply{Hostname: "unit-test-hostname"}, nil)
 
 	t.Run("hostname returns from grpc", func(t *testing.T) {
-		hostname, err := getHostnameFromGRPC(func(ctx context.Context, opts ...grpc.DialOption) (pb.AgentClient, error) {
+		hostname, err := getHostnameFromGRPC(ctx, func(ctx context.Context, opts ...grpc.DialOption) (pb.AgentClient, error) {
 			return mockClient, nil
 		}, defaultGRPCConnectionTimeout)
 
@@ -553,7 +561,7 @@ func TestGetHostnameFromGRPC(t *testing.T) {
 
 	t.Run("grpc client is unavailable", func(t *testing.T) {
 		grpcErr := errors.New("no grpc client")
-		hostname, err := getHostnameFromGRPC(func(ctx context.Context, opts ...grpc.DialOption) (pb.AgentClient, error) {
+		hostname, err := getHostnameFromGRPC(ctx, func(ctx context.Context, opts ...grpc.DialOption) (pb.AgentClient, error) {
 			return nil, grpcErr
 		}, defaultGRPCConnectionTimeout)
 
@@ -578,6 +586,9 @@ func TestGetHostnameFromCmd(t *testing.T) {
 }
 
 func TestInvalidHostname(t *testing.T) {
+	providers.Register(providerMocks.FakeContainerImpl{})
+	defer providers.Deregister()
+
 	// Input yaml file has an invalid hostname (localhost) so we expect to configure via environment
 	agentConfig, err := NewAgentConfig(
 		"test",

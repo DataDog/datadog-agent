@@ -6,6 +6,7 @@
 package clustername
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -15,6 +16,7 @@ import (
 )
 
 func TestGetClusterName(t *testing.T) {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 	data := newClusterNameData()
 
@@ -22,24 +24,24 @@ func TestGetClusterName(t *testing.T) {
 	mockConfig.Set("cluster_name", testClusterName)
 	defer mockConfig.Set("cluster_name", nil)
 
-	assert.Equal(t, testClusterName, getClusterName(data, "hostname"))
+	assert.Equal(t, testClusterName, getClusterName(ctx, data, "hostname"))
 
 	// Test caching and reset
 	var newClusterName = "youri"
 	mockConfig.Set("cluster_name", newClusterName)
-	assert.Equal(t, testClusterName, getClusterName(data, "hostname"))
+	assert.Equal(t, testClusterName, getClusterName(ctx, data, "hostname"))
 	freshData := newClusterNameData()
-	assert.Equal(t, newClusterName, getClusterName(freshData, "hostname"))
+	assert.Equal(t, newClusterName, getClusterName(ctx, freshData, "hostname"))
 
 	var dotClusterName = "aclusternamewitha.dot"
 	mockConfig.Set("cluster_name", dotClusterName)
 	data = newClusterNameData()
-	assert.Equal(t, dotClusterName, getClusterName(data, "hostname"))
+	assert.Equal(t, dotClusterName, getClusterName(ctx, data, "hostname"))
 
 	var dotsClusterName = "a.cluster.name.with.dots"
 	mockConfig.Set("cluster_name", dotsClusterName)
 	data = newClusterNameData()
-	assert.Equal(t, dotsClusterName, getClusterName(data, "hostname"))
+	assert.Equal(t, dotsClusterName, getClusterName(ctx, data, "hostname"))
 
 	// Test invalid cluster names
 	for _, invalidClusterName := range []string{
@@ -53,7 +55,7 @@ func TestGetClusterName(t *testing.T) {
 	} {
 		mockConfig.Set("cluster_name", invalidClusterName)
 		freshData = newClusterNameData()
-		assert.Equal(t, "", getClusterName(freshData, "hostname"))
+		assert.Equal(t, "", getClusterName(ctx, freshData, "hostname"))
 	}
 }
 

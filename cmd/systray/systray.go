@@ -6,12 +6,78 @@
 
 package main
 
+//#include <windows.h>
+//
+//BOOL LaunchUnelevated(LPCWSTR CommandLine)
+//{
+//    BOOL result = FALSE;
+//    HWND hwnd = GetShellWindow();
+//
+//    if (hwnd != NULL)
+//    {
+//        DWORD pid;
+//        if (GetWindowThreadProcessId(hwnd, &pid) != 0)
+//        {
+//            HANDLE process = OpenProcess(PROCESS_CREATE_PROCESS, FALSE, pid);
+//
+//            if (process != NULL)
+//            {
+//                SIZE_T size;
+//                if ((!InitializeProcThreadAttributeList(NULL, 1, 0, &size)) && (GetLastError() == ERROR_INSUFFICIENT_BUFFER))
+//                {
+//                    LPPROC_THREAD_ATTRIBUTE_LIST p = (LPPROC_THREAD_ATTRIBUTE_LIST)malloc(size);
+//                    if (p != NULL)
+//                    {
+//                        if (InitializeProcThreadAttributeList(p, 1, 0, &size))
+//                        {
+//                            if (UpdateProcThreadAttribute(p, 0,
+//                                                          PROC_THREAD_ATTRIBUTE_PARENT_PROCESS,
+//                                                          &process, sizeof(process),
+//                                                          NULL, NULL))
+//                            {
+//                                STARTUPINFOEXW siex = {0};
+//                                siex.lpAttributeList = p;
+//                                siex.StartupInfo.cb = sizeof(siex);
+//                                PROCESS_INFORMATION pi = {0};
+//
+//                                size_t cmdlen = wcslen(CommandLine);
+//                                size_t rawcmdlen = (cmdlen + 1) * sizeof(WCHAR);
+//                                PWSTR cmdstr = (PWSTR)malloc(rawcmdlen);
+//                                if (cmdstr != NULL)
+//                                {
+//                                    memcpy(cmdstr, CommandLine, rawcmdlen);
+//                                    if (CreateProcessW(NULL, cmdstr, NULL, NULL, FALSE,
+//                                                       CREATE_NEW_CONSOLE | EXTENDED_STARTUPINFO_PRESENT,
+//                                                       NULL, NULL, &siex.StartupInfo, &pi))
+//                                    {
+//                                        result = TRUE;
+//                                        CloseHandle(pi.hProcess);
+//                                        CloseHandle(pi.hThread);
+//                                    }
+//                                    free(cmdstr);
+//                                }
+//                            }
+//                        }
+//                        free(p);
+//                    }
+//                }
+//                CloseHandle(process);
+//            }
+//        }
+//    }
+//    return result;
+//}
+import "C"
+
 import (
 	"flag"
 	"fmt"
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
+	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	seelog "github.com/cihub/seelog"
@@ -28,48 +94,60 @@ type menuItem struct {
 	enabled bool
 }
 
+const (
+	cmdTextStartService   = "StartService"
+	cmdTextStopService    = "StopService"
+	cmdTextRestartService = "RestartService"
+	cmdTextConfig         = "Config"
+)
+
 var (
-	separator = "SEPARATOR"
-	ni        *walk.NotifyIcon
-	launchgui bool
-	eventname = windows.StringToUTF16Ptr("ddtray-event")
+	separator       = "SEPARATOR"
+	launchGraceTime = 2
+	ni              *walk.NotifyIcon
+	launchgui       bool
+	launchelev      bool
+	launchcmd       string
+	eventname       = windows.StringToUTF16Ptr("ddtray-event")
+	isUserAdmin     bool
+	cmds            = map[string]func(){
+		cmdTextStartService:   onStart,
+		cmdTextStopService:    onStop,
+		cmdTextRestartService: onRestart,
+		cmdTextConfig:         onConfigure,
+	}
 )
 
 func init() {
 	enableLoggingToFile()
+
+	isAdmin, err := isUserAnAdmin()
+	isUserAdmin = isAdmin
+
+	if err != nil {
+		log.Warnf("Failed to call isUserAnAdmin %v", err)
+		// If we cannot determine if the user is admin or not let the user allow to click on the buttons.
+		isUserAdmin = true
+	}
 }
 
 func createMenuItems(notifyIcon *walk.NotifyIcon) []menuItem {
 	av, _ := version.Agent()
 	verstring := av.GetNumberAndPre()
 
-	isAdmin, err := isUserAnAdmin()
-	areAdminButtonsAvailable := isAdmin
-
-	if err != nil {
-		log.Warnf("Failed to call isUserAnAdmin %v", err)
-		// If we cannot determine if the user is admin or not let the user allow to click on the buttons.
-		areAdminButtonsAvailable = true
-	}
-
-	checkRightsAndRun := func(action func()) func() {
+	menuHandler := func(cmd string) func() {
 		return func() {
-			if !areAdminButtonsAvailable {
-				showCustomMessage(notifyIcon, "You do not have the right to perform this action. "+
-					"Please login with administrator account.")
-			} else {
-				action()
-			}
+			execCmdOrElevate(cmd)
 		}
 	}
 
 	menuitems := make([]menuItem, 0)
 	menuitems = append(menuitems, menuItem{label: verstring, enabled: false})
 	menuitems = append(menuitems, menuItem{label: separator})
-	menuitems = append(menuitems, menuItem{label: "&Start", handler: checkRightsAndRun(onStart), enabled: true})
-	menuitems = append(menuitems, menuItem{label: "S&top", handler: checkRightsAndRun(onStop), enabled: true})
-	menuitems = append(menuitems, menuItem{label: "&Restart", handler: checkRightsAndRun(onRestart), enabled: true})
-	menuitems = append(menuitems, menuItem{label: "&Configure", handler: checkRightsAndRun(onConfigure), enabled: canConfigure()})
+	menuitems = append(menuitems, menuItem{label: "&Start", handler: menuHandler(cmdTextStartService), enabled: true})
+	menuitems = append(menuitems, menuItem{label: "S&top", handler: menuHandler(cmdTextStopService), enabled: true})
+	menuitems = append(menuitems, menuItem{label: "&Restart", handler: menuHandler(cmdTextRestartService), enabled: true})
+	menuitems = append(menuitems, menuItem{label: "&Configure", handler: menuHandler(cmdTextConfig), enabled: true})
 	menuitems = append(menuitems, menuItem{label: "&Flare", handler: onFlare, enabled: true})
 	menuitems = append(menuitems, menuItem{label: separator})
 	menuitems = append(menuitems, menuItem{label: "E&xit", handler: onExit, enabled: true})
@@ -110,24 +188,47 @@ func main() {
 	defer runtime.UnlockOSThread()
 
 	flag.BoolVar(&launchgui, "launch-gui", false, "Launch browser configuration and exit")
+
+	// launch-elev=true only means the process should have been elevated so that it will not elevate again. If the
+	// parameter is specified but the process is not elevated, some operation will fail due to access denied.
+	flag.BoolVar(&launchelev, "launch-elev", false, "Launch program as elevated, internal use only")
+
+	// If this parameter is specified, the process will try to carry out the command before the message loop.
+	flag.StringVar(&launchcmd, "launch-cmd", "", "Carry out a specific command after launch")
 	flag.Parse()
-	log.Debugf("launch-gui is %v", launchgui)
+
+	log.Debugf("launch-gui is %v, launch-elev is %v, launch-cmd is %v", launchgui, launchelev, launchcmd)
+
 	if launchgui {
 		//enableLoggingToConsole()
 		defer log.Flush()
 		log.Debug("Preparing to launch configuration interface...")
 		onConfigure()
 	}
-	// check to see if the process is already running.  If so, just exit
+
+	// Check to see if the process is already running
 	h, _ := windows.OpenEvent(0x1F0003, // EVENT_ALL_ACCESS
 		false,
 		eventname)
 
 	if h != windows.Handle(0) {
-		// was already there.  Process already running. We're done
+		// Process already running.
 		windows.CloseHandle(h)
-		return
+
+		// Wait a short period and recheck in case the other process will quit.
+		time.Sleep(time.Duration(launchGraceTime) * time.Second)
+
+		// Try again
+		h, _ := windows.OpenEvent(0x1F0003, // EVENT_ALL_ACCESS
+			false,
+			eventname)
+
+		if h != windows.Handle(0) {
+			windows.CloseHandle(h)
+			return
+		}
 	}
+
 	// otherwise, create the handle so that nobody else will
 	h, _ = windows.CreateEvent(nil, 0, 0, eventname)
 	// should never fail; test just to make sure we don't close unopened handle
@@ -195,13 +296,26 @@ func main() {
 		log.Warnf("Failed to set window visibility %v", err)
 	}
 
+	// If a command is specified in process command line, carry it out.
+	if launchcmd != "" {
+		execCmdOrElevate(launchcmd)
+	}
+
 	// Run the message loop.
 	mw.Run()
 }
 
 // opens a browser window at the specified URL
 func open(url string) error {
-	return exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+	cmdptr := windows.StringToUTF16Ptr("rundll32.exe url.dll,FileProtocolHandler " + url)
+	if C.LaunchUnelevated(C.LPCWSTR(unsafe.Pointer(cmdptr))) == 0 {
+		// Failed to run process non-elevated, retry with normal launch.
+		log.Warnf("Failed to launch configuration page as non-elevated, will launch as current process.")
+		return exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+	}
+
+	// Succeeded, return no error.
+	return nil
 }
 
 func enableLoggingToFile() {
@@ -224,4 +338,46 @@ func enableLoggingToConsole() {
 	</seelog>`
 	logger, _ := seelog.LoggerFromConfigAsBytes([]byte(seeConfig))
 	log.ReplaceLogger(logger)
+}
+
+// execCmdOrElevate carries out a command. If current process is not elevated and is not supposed to be elevated, it will launch
+// itself as elevated and quit from the current instance.
+func execCmdOrElevate(cmd string) {
+	if !launchelev && !isUserAdmin {
+		// If not launched as elevated and user is not admin, relaunch self. Use AND here to prevent from dead loop.
+		relaunchElevated(cmd)
+
+		// If elevation failed, just quit to the caller.
+		return
+	}
+
+	if cmds[cmd] != nil {
+		cmds[cmd]()
+	}
+}
+
+// relaunchElevated launch another instance of the current process asking it to carry out a command as admin.
+// If the function succeeds, it will quit the process, otherwise the function will return to the caller.
+func relaunchElevated(cmd string) {
+	verb := "runas"
+	exe, _ := os.Executable()
+	cwd, _ := os.Getwd()
+
+	// Reconstruct arguments, drop launch-gui and tell the new process it should have been elevated.
+	xargs := []string{"-launch-elev=true", "-launch-cmd=" + cmd}
+	args := strings.Join(xargs, " ")
+
+	verbPtr, _ := windows.UTF16PtrFromString(verb)
+	exePtr, _ := windows.UTF16PtrFromString(exe)
+	cwdPtr, _ := windows.UTF16PtrFromString(cwd)
+	argPtr, _ := windows.UTF16PtrFromString(args)
+
+	var showCmd int32 = 1 //SW_NORMAL
+
+	err := windows.ShellExecute(0, verbPtr, exePtr, argPtr, cwdPtr, showCmd)
+	if err != nil {
+		log.Warnf("Failed to launch self as elevated %v", err)
+	} else {
+		onExit()
+	}
 }

@@ -9,6 +9,7 @@
 package providers
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -68,7 +69,7 @@ func (k *KubeServiceConfigProvider) String() string {
 }
 
 // Collect retrieves services from the apiserver, builds Config objects and returns them
-func (k *KubeServiceConfigProvider) Collect() ([]integration.Config, error) {
+func (k *KubeServiceConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	services, err := k.lister.List(labels.Everything())
 	if err != nil {
 		return nil, err
@@ -79,7 +80,7 @@ func (k *KubeServiceConfigProvider) Collect() ([]integration.Config, error) {
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
-func (k *KubeServiceConfigProvider) IsUpToDate() (bool, error) {
+func (k *KubeServiceConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return k.upToDate, nil
 }
 

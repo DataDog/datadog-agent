@@ -42,7 +42,7 @@ the agent by running:
 inv -e deps
 ```
 
-The grpc deps are defined [here](https://github.com/DataDog/datadog-agent/blob/master/cmd/agent/api/tools.go)
+The grpc deps are defined [here](https://github.com/DataDog/datadog-agent/blob/main/cmd/agent/api/tools.go)
 and are tracked by gomod.
 
 

@@ -84,3 +84,19 @@ func validateExecSchema(t *testing.T, event *sprobe.Event) bool {
 func validateOpenSchema(t *testing.T, event *sprobe.Event) bool {
 	return validateSchema(t, event, "file:///open.schema.json")
 }
+
+func validateRenameSchema(t *testing.T, event *sprobe.Event) bool {
+	return validateSchema(t, event, "file:///rename.schema.json")
+}
+
+func validateChmodSchema(t *testing.T, event *sprobe.Event) bool {
+	return validateSchema(t, event, "file:///chmod.schema.json")
+}
+
+func validateChownSchema(t *testing.T, event *sprobe.Event) bool {
+	return validateSchema(t, event, "file:///chown.schema.json")
+}
+
+func validateSELinuxSchema(t *testing.T, event *sprobe.Event) bool {
+	return validateSchema(t, event, "file:///selinux.schema.json")
+}

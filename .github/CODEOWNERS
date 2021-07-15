@@ -29,7 +29,10 @@
 /setup.cfg                              @DataDog/agent-platform
 
 /.circleci/                             @DataDog/agent-platform
-/.github/                               @DataDog/agent-platform
+
+/.github/CODEOWNERS                     @DataDog/do-not-notify
+/.github/*_TEMPLATE.md                  @DataDog/agent-all
+/.github/dependabot.yaml                @DataDog/agent-platform
 
 # Gitlab files
 # Files containing job contents are owned by teams in charge of the jobs + agent-platform
@@ -48,6 +51,7 @@
 /.gitlab/deploy_7/windows_cloudfoundry.yml           @DataDog/integrations-tools-and-libraries @DataDog/agent-platform
 
 /.gitlab/deps_build.yml                              @DataDog/agent-network @DataDog/agent-platform
+/.gitlab/windows_python_build.yml                    @DataDog/agent-platform
 
 /.gitlab/docker_common/                              @DataDog/container-integrations @DataDog/agent-platform
 
@@ -85,6 +89,7 @@
 /cmd/agent/*.rc                         @DataDog/agent-platform
 /cmd/agent/install*.sh                  @DataDog/agent-platform
 /cmd/agent/version.h                    @DataDog/agent-platform
+/cmd/agent/gui/views/private/js/apm.js                       @DataDog/agent-apm
 /cmd/cluster-agent/                     @DataDog/container-integrations
 /cmd/cluster-agent/commands/            @DataDog/container-integrations @DataDog/integration-tools-and-libraries
 /cmd/cluster-agent-cloudfoundry/        @DataDog/integrations-tools-and-libraries
@@ -155,6 +160,8 @@
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-platform
 /pkg/config/config_template.yaml        @DataDog/agent-all @DataDog/documentation
+/pkg/config/apm.go                      @DataDog/agent-apm
+/pkg/config/system_probe.go             @DataDog/agent-network
 /pkg/tagger/                            @DataDog/container-integrations
 /pkg/tagger/collectors/garden*.go       @DataDog/integrations-tools-and-libraries
 /pkg/util/cloudfoundry/                 @DataDog/integrations-tools-and-libraries

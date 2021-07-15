@@ -67,3 +67,8 @@ apm_config:
       enabled: true
     memcached:
       enabled: true
+experimental:
+  otlp:
+    http_port: 50051
+    grpc_port: 50052
+    
