@@ -36,8 +36,7 @@ func NewIntakeReverseProxy(transport http.RoundTripper) (http.Handler, error) {
 		return disabled(fmt.Sprintf("appsec agent disabled due to a configuration error: %v", err)), errors.Wrap(err, "configuration: ")
 	}
 	if !cfg.Enabled {
-		log.Info("AppSec agent disabled. Set the environment variable `DD_APPSEC_ENABLED=true` or add the entry " +
-			"`appsec_config.enabled: true` to your datadog.yaml file")
+		log.Info("AppSec proxy disabled by configuration")
 		return disabled("appsec agent disabled by configuration"), nil
 	}
 	return newIntakeReverseProxy(cfg.IntakeURL, cfg.APIKey, cfg.MaxPayloadSize, transport), nil
@@ -72,10 +71,10 @@ func newIntakeReverseProxy(target *url.URL, apiKey string, maxPayloadSize int64,
 }
 
 const (
-	appSecRequestMetricsPrefix        = "datadog.trace_agent.appsec."
-	appSecRequestCountMetricsID       = appSecRequestMetricsPrefix + "request"
-	appSecRequestDurationMetricsID    = appSecRequestMetricsPrefix + "request_duration_ms"
-	appSecRequestErrorMetricsID       = appSecRequestMetricsPrefix + "request_error"
+	appSecRequestMetricsPrefix     = "datadog.trace_agent.appsec."
+	appSecRequestCountMetricsID    = appSecRequestMetricsPrefix + "request"
+	appSecRequestDurationMetricsID = appSecRequestMetricsPrefix + "request_duration_ms"
+	appSecRequestErrorMetricsID    = appSecRequestMetricsPrefix + "request_error"
 )
 
 // metricsTags returns the metrics tags of a request.

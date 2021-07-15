@@ -14,6 +14,8 @@ const (
 	defaultIntakeURLTemplate = "https://appsecevts-http-intake.logs.%s"
 	// defaultSite is the default intake site.
 	defaultSite = "datadoghq.com"
+	// defaultPayloadSize is the default HTTP payload size (ie. the body size) the proxy can copy and forward.
+	defaultPayloadSize = 5 * 1024 * 1024
 )
 
 // Config handles the interpretation of the configuration. It is also a simple
@@ -35,11 +37,15 @@ func newConfig(cfg config.Config) (*Config, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "config")
 	}
+	maxPayloadSize := cfg.GetInt64("appsec_config.max_payload_size")
+	if maxPayloadSize <= 0 {
+		maxPayloadSize = defaultPayloadSize
+	}
 	return &Config{
 		Enabled:        cfg.GetBool("appsec_config.enabled"),
 		IntakeURL:      intakeURL,
 		APIKey:         cfg.GetString("api_key"),
-		MaxPayloadSize: cfg.GetInt64("appsec_config.max_payload_size"),
+		MaxPayloadSize: maxPayloadSize,
 	}, nil
 }
 

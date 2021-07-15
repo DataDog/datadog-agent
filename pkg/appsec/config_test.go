@@ -65,7 +65,7 @@ func TestConfig(t *testing.T) {
 				Enabled:        config.DefaultAppSecEnabled,
 				IntakeURL:      defaultIntakeURL,
 				APIKey:         "",
-				MaxPayloadSize: -1,
+				MaxPayloadSize: defaultPayloadSize,
 			},
 		},
 		{
@@ -79,7 +79,7 @@ func TestConfig(t *testing.T) {
 				Enabled:        config.DefaultAppSecEnabled,
 				IntakeURL:      defaultIntakeURL,
 				APIKey:         "",
-				MaxPayloadSize: 0,
+				MaxPayloadSize: defaultPayloadSize,
 			},
 		},
 		{
