@@ -42,7 +42,7 @@ func TestIntakeReverseProxy(t *testing.T) {
 
 		rec := httptest.NewRecorder()
 		proxy.ServeHTTP(rec, httptest.NewRequest("POST", "/", nil))
-		require.Equal(t, http.StatusNotImplemented, rec.Code)
+		require.Equal(t, http.StatusMethodNotAllowed, rec.Code)
 	})
 
 	t.Run("configuration error", func(t *testing.T) {
@@ -56,7 +56,7 @@ func TestIntakeReverseProxy(t *testing.T) {
 
 		rec := httptest.NewRecorder()
 		proxy.ServeHTTP(rec, httptest.NewRequest("POST", "/", nil))
-		require.Equal(t, http.StatusNotImplemented, rec.Code)
+		require.Equal(t, http.StatusMethodNotAllowed, rec.Code)
 	})
 
 	t.Run("proxy handler", func(t *testing.T) {
