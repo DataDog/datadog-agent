@@ -7,8 +7,6 @@ package serverless
 
 import (
 	"context"
-	"reflect"
-	"sync"
 	"testing"
 	"time"
 
@@ -22,7 +20,7 @@ func TestWaitForDaemonBlocking(t *testing.T) {
 	_, cancel := context.WithCancel(context.Background())
 	d := StartDaemon(cancel)
 	d.ReadyWg.Done()
-	defer d.Stop(false)
+	defer d.Stop()
 
 	// WaitForDaemon doesn't block if the client library hasn't
 	// registered with the extension's /hello route
@@ -49,7 +47,7 @@ func TestWaitUntilReady(t *testing.T) {
 	_, cancel := context.WithCancel(context.Background())
 	d := StartDaemon(cancel)
 	d.ReadyWg.Done()
-	defer d.Stop(false)
+	defer d.Stop()
 
 	ready := d.WaitUntilClientReady(50 * time.Millisecond)
 	assert.Equal(ready, false, "client was ready")
@@ -71,11 +69,12 @@ func TestProcessMessage(t *testing.T) {
 	}
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
 	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
+	functionName := "test-function"
 	metricTags := []string{"functionname:test-function"}
 
 	metricsChan := make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics := true
-	go processMessage(message, arn, lastRequestID, computeEnhancedMetrics, metricTags, metricsChan)
+	go processMessage(message, arn, lastRequestID, functionName, computeEnhancedMetrics, metricTags, metricsChan)
 
 	select {
 	case received := <-metricsChan:
@@ -86,7 +85,7 @@ func TestProcessMessage(t *testing.T) {
 
 	metricsChan = make(chan []metrics.MetricSample, 1)
 	computeEnhancedMetrics = false
-	go processMessage(message, arn, lastRequestID, computeEnhancedMetrics, metricTags, metricsChan)
+	go processMessage(message, arn, lastRequestID, functionName, computeEnhancedMetrics, metricTags, metricsChan)
 
 	select {
 	case <-metricsChan:
@@ -94,46 +93,4 @@ func TestProcessMessage(t *testing.T) {
 	case <-time.After(time.Second):
 		//nothing to do here
 	}
-}
-
-func GetValueSyncOnce(so *sync.Once) uint64 {
-	return reflect.ValueOf(so).Elem().FieldByName("done").Uint()
-}
-
-func TestFinishInvocationOnceStartOnly(t *testing.T) {
-	assert := assert.New(t)
-	_, cancel := context.WithCancel(context.Background())
-	d := StartDaemon(cancel)
-	d.ReadyWg.Done()
-	defer d.Stop(false)
-
-	d.StartInvocation()
-	assert.Equal(uint64(0), GetValueSyncOnce(&d.finishInvocationOnce))
-}
-
-func TestFinishInvocationOnceStartAndEnd(t *testing.T) {
-	assert := assert.New(t)
-	_, cancel := context.WithCancel(context.Background())
-	d := StartDaemon(cancel)
-	d.ReadyWg.Done()
-	defer d.Stop(false)
-
-	d.StartInvocation()
-	d.FinishInvocation()
-
-	assert.Equal(uint64(1), GetValueSyncOnce(&d.finishInvocationOnce))
-}
-
-func TestFinishInvocationOnceStartAndEndAndTimeout(t *testing.T) {
-	assert := assert.New(t)
-	_, cancel := context.WithCancel(context.Background())
-	d := StartDaemon(cancel)
-	d.ReadyWg.Done()
-	defer d.Stop(false)
-
-	d.StartInvocation()
-	d.FinishInvocation()
-	d.FinishInvocation()
-
-	assert.Equal(uint64(1), GetValueSyncOnce(&d.finishInvocationOnce))
 }

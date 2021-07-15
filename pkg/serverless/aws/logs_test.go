@@ -11,9 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
-	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -144,29 +141,4 @@ func TestParseLogsAPIPayloadNotWellFormatedButNotRecoverable(t *testing.T) {
 	require.NoError(t, err)
 	_, err = ParseLogsAPIPayload(raw)
 	assert.NotNil(t, err)
-}
-
-func TestGetLambdaSourceNilScheduler(t *testing.T) {
-	assert.Nil(t, GetLambdaSource())
-}
-
-func TestGetLambdaSourceNilSource(t *testing.T) {
-	logSources := config.NewLogSources()
-	services := service.NewServices()
-	scheduler.CreateScheduler(logSources, services)
-	assert.Nil(t, GetLambdaSource())
-}
-
-func TestGetLambdaSourceValidSource(t *testing.T) {
-	logSources := config.NewLogSources()
-	chanSource := config.NewLogSource("TestLog", &config.LogsConfig{
-		Type:    config.StringChannelType,
-		Source:  "lambda",
-		Tags:    nil,
-		Channel: nil,
-	})
-	logSources.AddSource(chanSource)
-	services := service.NewServices()
-	scheduler.CreateScheduler(logSources, services)
-	assert.NotNil(t, GetLambdaSource())
 }

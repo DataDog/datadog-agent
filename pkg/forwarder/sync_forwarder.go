@@ -42,8 +42,6 @@ func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTra
 		if err := t.Process(context.Background(), f.client); err != nil {
 			log.Debugf("SyncForwarder.sendHTTPTransactions first attempt: %s", err)
 			// Retry once after error
-			// The intake may have closed the connection between Lambda invocations.
-			// If so, the first attempt will fail because the closed connection will still be cached.
 			log.Debug("Retrying transaction")
 			if err := t.Process(context.Background(), f.client); err != nil {
 				log.Errorf("SyncForwarder.sendHTTPTransactions final attempt: %s", err)
