@@ -170,7 +170,7 @@ func TestConfig(t *testing.T) {
 				return cfg
 			},
 			expectedConfig: nil,
-			expectedError: true,
+			expectedError:  true,
 		},
 	}
 	for _, tt := range tests {

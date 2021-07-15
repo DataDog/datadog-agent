@@ -313,11 +313,7 @@ func TestRoundTripper(t *testing.T) {
 					}
 
 					calls := stats.HistogramCalls
-					require.Len(t, calls, 1)
-					require.Equal(t, appSecRequestPayloadSizeMetricsID, calls[0].Name)
-					require.ElementsMatch(t, expectedTags, calls[0].Tags)
-					require.Equal(t, float64(len(randBodyBuf)), calls[0].Value)
-					require.Equal(t, float64(1), calls[0].Rate)
+					require.Len(t, calls, 0)
 
 					calls = stats.TimingCalls
 					require.Len(t, calls, 1)
@@ -354,11 +350,7 @@ func TestRoundTripper(t *testing.T) {
 					}
 
 					calls := stats.HistogramCalls
-					require.Len(t, calls, 1)
-					require.Equal(t, appSecRequestPayloadSizeMetricsID, calls[0].Name)
-					require.ElementsMatch(t, expectedTags, calls[0].Tags)
-					require.Equal(t, float64(1000), calls[0].Value)
-					require.Equal(t, float64(1), calls[0].Rate)
+					require.Len(t, calls, 0)
 
 					calls = stats.TimingCalls
 					require.Len(t, calls, 1)

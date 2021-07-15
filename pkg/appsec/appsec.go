@@ -75,7 +75,6 @@ const (
 	appSecRequestMetricsPrefix        = "datadog.trace_agent.appsec."
 	appSecRequestCountMetricsID       = appSecRequestMetricsPrefix + "request"
 	appSecRequestDurationMetricsID    = appSecRequestMetricsPrefix + "request_duration_ms"
-	appSecRequestPayloadSizeMetricsID = appSecRequestMetricsPrefix + "request_payload_size"
 	appSecRequestErrorMetricsID       = appSecRequestMetricsPrefix + "request_error"
 )
 
@@ -102,18 +101,13 @@ func withMetrics(rt http.RoundTripper, maxPayloadSize int64) http.RoundTripper {
 
 // RoundTrip limits the request body size that can be read and performs internal monitoring metrics
 func (r *roundTripper) RoundTrip(req *http.Request) (res *http.Response, err error) {
-	var lr *apiutil.LimitedReader
 	if req.Body != nil && r.maxPayloadSize > 0 {
-		lr = apiutil.NewLimitedReader(req.Body, r.maxPayloadSize)
-		req.Body = lr
+		req.Body = apiutil.NewLimitedReader(req.Body, r.maxPayloadSize)
 	}
 
 	now := time.Now()
 	defer func() {
 		tags := metricsTags(req)
-		if lr != nil {
-			metrics.Histogram(appSecRequestPayloadSizeMetricsID, float64(lr.Count), tags, 1)
-		}
 		metrics.Count(appSecRequestCountMetricsID, 1, tags, 1)
 		metrics.Timing(appSecRequestDurationMetricsID, time.Since(now), tags, 1)
 
