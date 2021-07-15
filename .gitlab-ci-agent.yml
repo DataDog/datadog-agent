@@ -858,9 +858,6 @@ release_trace_agent_image:
     - export VERSION=`cat version.txt`
     - cp ./outcomes/binary/trace-agent Dockerfiles/trace-agent
     - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent latest
-  only:
-    - tags
-    - triggers
   rules:
     - *only_agent_3_release
 
