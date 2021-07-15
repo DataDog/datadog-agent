@@ -25,7 +25,7 @@ func NewIntakeReverseProxy(transport http.RoundTripper) (http.Handler, error) {
 	disabled := func(reason string) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Add("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotImplemented)
+			w.WriteHeader(http.StatusMethodNotAllowed)
 			if err := json.NewEncoder(w).Encode(reason); err != nil {
 				log.Error(err)
 			}
