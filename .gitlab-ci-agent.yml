@@ -620,6 +620,8 @@ pre_release_trace_agent_image:
     - export VERSION=`cat version.txt`
     - cp ./outcomes/binary/trace-agent Dockerfiles/trace-agent
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent $CI_COMMIT_SHORT_SHA
+  rules:
+    - *only_agent_3
 
 pre_release_cluster_agent_image:
   <<: *pre_release_image
@@ -842,9 +844,8 @@ release_main_agent_image:
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
-    - export PUSH_LATEST=true
     - cp ./outcomes/pkg/stackstate-agent_*_amd64.deb Dockerfiles/agent
-    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO $CI_PROJECT_DIR/Dockerfiles/agent $PUSH_LATEST
+    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO $CI_PROJECT_DIR/Dockerfiles/agent latest
   when: manual
   only:
     - tags
@@ -855,13 +856,10 @@ release_trace_agent_image:
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
-    - export PUSH_LATEST=true
     - cp ./outcomes/binary/trace-agent Dockerfiles/trace-agent
-    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent $PUSH_LATEST
-  when: manual
-  only:
-    - tags
-    - triggers
+    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent latest
+  rules:
+    - *only_agent_3_release
 
 release_cluster_agent_image:
   <<: *base_release_image
@@ -870,8 +868,7 @@ release_cluster_agent_image:
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
-    - export PUSH_LATEST=true
     - cp -r ./bin/stackstate-cluster-agent/* ./Dockerfiles/cluster-agent
-    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent $PUSH_LATEST
+    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent latest
   rules:
     - *only_agent_3_release
