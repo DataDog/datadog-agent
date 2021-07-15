@@ -501,7 +501,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	<-done
 
 	delta := t.state.GetDelta(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
-	var ips []util.Address
+	ips := make([]util.Address, 0, len(delta.Connections)*2)
 	for _, conn := range delta.Connections {
 		ips = append(ips, conn.Source, conn.Dest)
 	}
