@@ -870,6 +870,32 @@ api_key:
   #
   # log_throttling: true
 
+####################################
+## AppSec Configuration           ##
+####################################
+
+## @param appsec_config - custom object - optional
+## Enter specific configurations for your AppSec collection.
+## Uncomment this parameter and the one below to enable them.
+#
+# appsec_config:
+
+  ## @param enabled - boolean - optional - default: true
+  ## Set to true to enable the AppSec proxy in the APM Agent.
+  #
+  # enabled: true
+
+  ## @param appsec_dd_url - string - optional
+  ## Define the endpoint and port to hit when using a proxy for AppSec. The logs are forwarded in TCP
+  ## therefore the proxy must be able to handle TCP connections.
+  #
+  # appsec_dd_url: <ENDPOINT>:<PORT>
+
+  ## @param max_payload_size - integer - optional - default: 5242880 (5MB)
+  ## Define the maximum HTTP payload size (aka. the body) in bytes the AppSec proxy allows.
+  #
+  # max_payload_size: 5242880
+
 {{ end -}}
 {{- if .ProcessAgent }}
 
