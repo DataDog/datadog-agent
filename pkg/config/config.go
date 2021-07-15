@@ -382,9 +382,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("forwarder_storage_max_disk_ratio", 0.95) // Do not store transactions on disk when the disk usage exceeds 95% of the disk capacity.
 
 	// Forwarder channels buffer size
-	config.BindEnvAndSetDefault("forwarder_high_prio_buffer_size", 1000)
-	config.BindEnvAndSetDefault("forwarder_low_prio_buffer_size", 1000)
-	config.BindEnvAndSetDefault("forwarder_requeue_buffer_size", 1000)
+	config.BindEnvAndSetDefault("forwarder_high_prio_buffer_size", 100)
+	config.BindEnvAndSetDefault("forwarder_low_prio_buffer_size", 100)
+	config.BindEnvAndSetDefault("forwarder_requeue_buffer_size", 100)
 
 	// Dogstatsd
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
