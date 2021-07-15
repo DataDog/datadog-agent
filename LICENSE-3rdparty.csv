@@ -156,7 +156,6 @@ core,"github.com/aws/aws-sdk-go/private/protocol/rest",Apache-2.0
 core,"github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil",Apache-2.0
 core,"github.com/aws/aws-sdk-go/service/ec2",Apache-2.0
 core,"github.com/aws/aws-sdk-go/service/kms",Apache-2.0
-core,"github.com/aws/aws-sdk-go/service/kms/kmsiface",Apache-2.0
 core,"github.com/aws/aws-sdk-go/service/secretsmanager",Apache-2.0
 core,"github.com/aws/aws-sdk-go/service/sts",Apache-2.0
 core,"github.com/aws/aws-sdk-go/service/sts/stsiface",Apache-2.0
