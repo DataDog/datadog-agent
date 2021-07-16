@@ -35,37 +35,25 @@ const (
 	K8sDaemonSet
 	// K8sStatefulSet represents a Kubernetes StatefulSet
 	K8sStatefulSet
+	// lastElement represents the lastElement of the enums iota
+	lastElement
 )
 
-var (
-	telemetryTags = map[NodeType][]string{
-		K8sCluster:     getTelemetryTags(K8sCluster),
-		K8sCronJob:     getTelemetryTags(K8sCronJob),
-		K8sDeployment:  getTelemetryTags(K8sDeployment),
-		K8sJob:         getTelemetryTags(K8sJob),
-		K8sNode:        getTelemetryTags(K8sNode),
-		K8sPod:         getTelemetryTags(K8sPod),
-		K8sReplicaSet:  getTelemetryTags(K8sReplicaSet),
-		K8sService:     getTelemetryTags(K8sService),
-		K8sDaemonSet:   getTelemetryTags(K8sDaemonSet),
-		K8sStatefulSet: getTelemetryTags(K8sStatefulSet),
+var telemetryTags = map[NodeType][]string{}
+
+func init() {
+	for _, nodeType := range NodeTypes() {
+		telemetryTags[nodeType] = getTelemetryTags(nodeType)
 	}
-)
+}
 
 // NodeTypes returns the current existing NodesTypes as a slice to iterate over.
 func NodeTypes() []NodeType {
-	return []NodeType{
-		K8sCluster,
-		K8sCronJob,
-		K8sDeployment,
-		K8sDaemonSet,
-		K8sJob,
-		K8sNode,
-		K8sPod,
-		K8sReplicaSet,
-		K8sService,
-		K8sStatefulSet,
+	var types []NodeType
+	for t := NodeType(0); t < lastElement; t++ {
+		types = append(types, t)
 	}
+	return types
 }
 
 func (n NodeType) String() string {
