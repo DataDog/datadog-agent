@@ -203,9 +203,8 @@ func TestTCPSendAndReceive(t *testing.T) {
 }
 
 func TestPreexistingConnectionDirection(t *testing.T) {
-	// byte counts are zero
+	// windows doesn't have a way to read existing port bindings on startup (yet)
 	skipIfWindows(t)
-
 	// Start the client and server before we enable the system probe to test that the tracer picks
 	// up the pre-existing connection
 	doneChan := make(chan struct{})
@@ -255,9 +254,6 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 }
 
 func TestTCPShortlived(t *testing.T) {
-	// byte counts are too high by 1
-	skipIfWindows(t)
-
 	// Enable BPF-based system probe
 	cfg := testConfig()
 	cfg.TCPClosedTimeout = 10 * time.Millisecond
@@ -430,9 +426,6 @@ func TestTCPCollectionDisabled(t *testing.T) {
 }
 
 func TestUDPSendAndReceive(t *testing.T) {
-	// incoming counts are wrong
-	skipIfWindows(t)
-
 	// Enable BPF-based system probe
 	cfg := testConfig()
 	tr, err := NewTracer(cfg)
@@ -1298,7 +1291,7 @@ func TestConnectionClobber(t *testing.T) {
 }
 
 func TestTCPDirection(t *testing.T) {
-	// incoming flow is marked outgoing
+	// incoming flow is marked outgoing: this is a bug, but will be fixed in future PR
 	skipIfWindows(t)
 
 	cfg := testConfig()
@@ -1363,7 +1356,7 @@ func TestTCPDirection(t *testing.T) {
 }
 
 func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
-	// incoming flow is marked outgoing
+	// incoming flow is marked outgoing: windows doesn't have a way to handle directionality of preexisting connections
 	skipIfWindows(t)
 
 	wg := sync.WaitGroup{}
