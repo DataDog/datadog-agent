@@ -6,6 +6,7 @@
 package orchestrator
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -82,6 +83,11 @@ func (n NodeType) String() string {
 		log.Errorf("Trying to convert unknown NodeType iota: %d", n)
 		return "Unknown"
 	}
+}
+
+func (n NodeType) BumpExpVar() {
+	e := forwarder.TransactionsIntakeOrchestrator[n]
+	e.Add(1)
 }
 
 // Orchestrator returns the orchestrator name for a node type.

@@ -8,6 +8,7 @@ package aggregator
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"sync"
 	"time"
 
@@ -41,7 +42,7 @@ type Sender interface {
 	SetCheckCustomTags(tags []string)
 	SetCheckService(service string)
 	FinalizeCheckServiceTag()
-	OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID, payloadType string)
+	OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType orchestrator.NodeType)
 }
 
 // RawSender interface to submit samples to aggregator directly
@@ -89,7 +90,7 @@ type senderEventPlatformEvent struct {
 type senderOrchestratorMetadata struct {
 	msgs        []serializer.ProcessMessageBody
 	clusterID   string
-	payloadType string
+	payloadType orchestrator.NodeType
 }
 
 type checkSenderPool struct {
@@ -393,11 +394,11 @@ func (s *checkSender) EventPlatformEvent(rawEvent string, eventType string) {
 }
 
 // OrchestratorMetadata submit orchestrator metadata messages
-func (s *checkSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID, payloadType string) {
+func (s *checkSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType orchestrator.NodeType) {
 	om := senderOrchestratorMetadata{
 		msgs:        msgs,
 		clusterID:   clusterID,
-		payloadType: payloadType,
+		payloadType: nodeType,
 	}
 	s.orchestratorOut <- om
 }

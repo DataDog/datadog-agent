@@ -9,6 +9,7 @@ package forwarder
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"net/http"
 	"time"
 
@@ -163,6 +164,6 @@ func (tf *MockedForwarder) SubmitConnectionChecks(payload Payloads, extra http.H
 }
 
 // SubmitOrchestratorChecks mock
-func (tf *MockedForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
+func (tf *MockedForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType orchestrator.NodeType) (chan Response, error) {
 	return nil, tf.Called(payload, extra).Error(0)
 }

@@ -2,6 +2,7 @@ package forwarder
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"net/http"
 	"time"
 
@@ -141,6 +142,6 @@ func (f *SyncForwarder) SubmitConnectionChecks(payload Payloads, extra http.Head
 }
 
 // SubmitOrchestratorChecks sends orchestrator checks
-func (f *SyncForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
+func (f *SyncForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType orchestrator.NodeType) (chan Response, error) {
 	return f.defaultForwarder.SubmitOrchestratorChecks(payload, extra, payloadType)
 }

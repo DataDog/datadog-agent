@@ -8,6 +8,7 @@ package mocksender
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
@@ -103,6 +104,6 @@ func (m *MockSender) GetSenderStats() check.SenderStats {
 }
 
 // OrchestratorMetadata submit orchestrator metadata messages
-func (m *MockSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID, payloadType string) {
-	m.Called(msgs, clusterID, payloadType)
+func (m *MockSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType orchestrator.NodeType) {
+	m.Called(msgs, clusterID, nodeType)
 }
