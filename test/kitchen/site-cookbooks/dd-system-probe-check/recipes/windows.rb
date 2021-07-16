@@ -36,15 +36,17 @@ execute 'extract driver merge module' do
   not_if { ::File.exist?(::File.join(tmp_dir, 'expanded', 'ddnpm.msm')) }
 end
 
-reboot 'now' do
-  action :nothing
-  reason 'Cannot continue Chef run without a reboot.'
-end
+if driver_path == "testsigned"
+  reboot 'now' do
+    action :nothing
+    reason 'Cannot continue Chef run without a reboot.'
+  end
 
-execute 'enable unsigned drivers' do
-  command "bcdedit.exe /set testsigning on"
-  notifies :reboot_now, 'reboot[now]', :immediately
-  not_if 'bcdedit.exe | findstr "testsigning" | findstr "Yes"'
+  execute 'enable unsigned drivers' do
+    command "bcdedit.exe /set testsigning on"
+    notifies :reboot_now, 'reboot[now]', :immediately
+    not_if 'bcdedit.exe | findstr "testsigning" | findstr "Yes"'
+  end
 end
 
 execute 'system-probe-driver-install' do
