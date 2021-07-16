@@ -21,6 +21,7 @@ end
 execute 'wix-extract' do
   cwd tmp_dir
   command "powershell -C \"Add-Type -A 'System.IO.Compression.FileSystem'; [IO.Compression.ZipFile]::ExtractToDirectory('wix311-binaries.zip', 'wix');\""
+  not_if { ::File.directory?(::File.join(tmp_dir, 'wix')) }
 end
 
 cookbook_file "#{tmp_dir}\\decompress_merge_module.ps1" do
@@ -32,18 +33,26 @@ execute 'extract driver merge module' do
   live_stream true
   environment 'WIX' => "#{tmp_dir}\\wix"
   command "powershell -C \".\\decompress_merge_module.ps1 -file ddnpm.msm -targetDir .\\expanded\""
+  not_if { ::File.exist?(::File.join(tmp_dir, 'expanded', 'ddnpm.msm')) }
+end
+
+if driver_path == "testsigned"
+  reboot 'now' do
+    action :nothing
+    reason 'Cannot continue Chef run without a reboot.'
+  end
+
+  execute 'enable unsigned drivers' do
+    command "bcdedit.exe /set testsigning on"
+    notifies :reboot_now, 'reboot[now]', :immediately
+    not_if 'bcdedit.exe | findstr "testsigning" | findstr "Yes"'
+  end
 end
 
 execute 'system-probe-driver-install' do
   command "powershell -C \"sc.exe create ddnpm type= kernel binpath= #{tmp_dir}\\expanded\\ddnpm.sys start= demand\""
+  not_if 'sc.exe query ddnpm'
 end
-# windows_service 'system-probe-driver-install' do
-#   service_name 'ddnpm'
-#   action :create
-#   binary_path_name "#{tmp_dir}\\expanded\\ddnpm.sys"
-#   startup_type :manual
-#   service_type 1 # kernel type
-# end
 
 windows_service 'system-probe-driver' do
   service_name 'ddnpm'
