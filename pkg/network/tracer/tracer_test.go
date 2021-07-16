@@ -203,6 +203,8 @@ func TestTCPSendAndReceive(t *testing.T) {
 }
 
 func TestPreexistingConnectionDirection(t *testing.T) {
+	// windows doesn't have a way to read existing port bindings on startup (yet)
+	skipIfWindows(t)
 	// Start the client and server before we enable the system probe to test that the tracer picks
 	// up the pre-existing connection
 	doneChan := make(chan struct{})
