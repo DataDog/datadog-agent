@@ -34,16 +34,18 @@ execute 'extract driver merge module' do
   command "powershell -C \".\\decompress_merge_module.ps1 -file ddnpm.msm -targetDir .\\expanded\""
 end
 
+execute 'enable unsigned drivers' do
+  command "bcdedit.exe /set testsigning on"
+end
+
+reboot 'reboot to enable unsigned drivers' do
+  action :reboot_now
+  reason "Enabling usage of unsigned drivers"
+end
+
 execute 'system-probe-driver-install' do
   command "powershell -C \"sc.exe create ddnpm type= kernel binpath= #{tmp_dir}\\expanded\\ddnpm.sys start= demand\""
 end
-# windows_service 'system-probe-driver-install' do
-#   service_name 'ddnpm'
-#   action :create
-#   binary_path_name "#{tmp_dir}\\expanded\\ddnpm.sys"
-#   startup_type :manual
-#   service_type 1 # kernel type
-# end
 
 windows_service 'system-probe-driver' do
   service_name 'ddnpm'
