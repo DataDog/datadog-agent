@@ -203,9 +203,6 @@ func TestTCPSendAndReceive(t *testing.T) {
 }
 
 func TestPreexistingConnectionDirection(t *testing.T) {
-	// byte counts are zero
-	skipIfWindows(t)
-
 	// Start the client and server before we enable the system probe to test that the tracer picks
 	// up the pre-existing connection
 	doneChan := make(chan struct{})
@@ -255,9 +252,6 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 }
 
 func TestTCPShortlived(t *testing.T) {
-	// byte counts are too high by 1
-	skipIfWindows(t)
-
 	// Enable BPF-based system probe
 	cfg := testConfig()
 	cfg.TCPClosedTimeout = 10 * time.Millisecond
@@ -430,9 +424,6 @@ func TestTCPCollectionDisabled(t *testing.T) {
 }
 
 func TestUDPSendAndReceive(t *testing.T) {
-	// incoming counts are wrong
-	skipIfWindows(t)
-
 	// Enable BPF-based system probe
 	cfg := testConfig()
 	tr, err := NewTracer(cfg)
@@ -1298,9 +1289,6 @@ func TestConnectionClobber(t *testing.T) {
 }
 
 func TestTCPDirection(t *testing.T) {
-	// incoming flow is marked outgoing
-	skipIfWindows(t)
-
 	cfg := testConfig()
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
@@ -1363,9 +1351,6 @@ func TestTCPDirection(t *testing.T) {
 }
 
 func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
-	// incoming flow is marked outgoing
-	skipIfWindows(t)
-
 	wg := sync.WaitGroup{}
 
 	// setup server to listen on a port
