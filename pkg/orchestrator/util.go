@@ -6,11 +6,11 @@
 package orchestrator
 
 import (
-	model "github.com/DataDog/agent-payload/process"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // NodeType represents a kind of resource used by a container orchestrator.

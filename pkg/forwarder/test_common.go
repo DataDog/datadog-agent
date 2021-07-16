@@ -9,7 +9,6 @@ package forwarder
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"net/http"
 	"time"
 
