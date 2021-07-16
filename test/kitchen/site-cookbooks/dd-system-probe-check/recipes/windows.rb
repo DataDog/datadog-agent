@@ -44,12 +44,12 @@ end
 execute 'enable unsigned drivers' do
   command "bcdedit.exe /set testsigning on"
   notifies :reboot_now, 'reboot[now]', :immediately
-  not_if { "bcdedit.exe | findstr \"testsigning\" | findstr \"Yes\"" }
+  not_if 'bcdedit.exe | findstr "testsigning" | findstr "Yes"'
 end
 
 execute 'system-probe-driver-install' do
   command "powershell -C \"sc.exe create ddnpm type= kernel binpath= #{tmp_dir}\\expanded\\ddnpm.sys start= demand\""
-  not_if { "sc.exe query ddnpm" }
+  not_if 'sc.exe query ddnpm'
 end
 
 windows_service 'system-probe-driver' do
