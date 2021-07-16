@@ -95,11 +95,13 @@ func initEndpointExpvars() {
 func initOrchestratorExpVars() {
 	for _, nodeType := range orchestrator.NodeTypes() {
 		TransactionsIntakeOrchestrator[nodeType] = &expvar.Int{}
-	}
-
-	for _, nodeType := range orchestrator.NodeTypes() {
 		transaction.TransactionsExpvars.Set(nodeType.String(), TransactionsIntakeOrchestrator[nodeType])
 	}
+}
+
+func bumpOrchestratorPayload(nodeType int) {
+	e := TransactionsIntakeOrchestrator[orchestrator.NodeType(nodeType)]
+	e.Add(1)
 }
 
 func initTransactionsExpvars() {

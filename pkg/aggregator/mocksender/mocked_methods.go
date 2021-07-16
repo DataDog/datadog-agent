@@ -104,6 +104,6 @@ func (m *MockSender) GetSenderStats() check.SenderStats {
 }
 
 // OrchestratorMetadata submit orchestrator metadata messages
-func (m *MockSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType orchestrator.NodeType) {
+func (m *MockSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType int) {
 	m.Called(msgs, clusterID, nodeType)
 }

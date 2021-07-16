@@ -7,7 +7,6 @@ package forwarder
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"net/http"
 	"path"
 	"strconv"
@@ -72,7 +71,7 @@ type Forwarder interface {
 	SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error)
-	SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType orchestrator.NodeType) (chan Response, error)
+	SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error)
 }
 
 // Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
@@ -535,8 +534,8 @@ func (f *DefaultForwarder) SubmitConnectionChecks(payload Payloads, extra http.H
 }
 
 // SubmitOrchestratorChecks sends orchestrator checks
-func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType orchestrator.NodeType) (chan Response, error) {
-	payloadType.BumpExpVar()
+func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
+	bumpOrchestratorPayload(payloadType)
 
 	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)
 }

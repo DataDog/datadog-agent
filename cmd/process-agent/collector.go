@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -328,7 +329,7 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 			case checks.Pod.Name():
 				// Orchestrator intake response does not change RT checks enablement or interval
 				updateRTStatus = false
-				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, checks.Pod.Name())
+				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
 			default:
 				err = fmt.Errorf("unsupported payload type: %s", result.name)
 			}
