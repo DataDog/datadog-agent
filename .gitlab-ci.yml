@@ -2,12 +2,6 @@ stages:
   - triggers
 
 variables: &commonvariables
-  STS_DOCKER_RELEASE_REPO: stackstate-agent
-  STS_DOCKER_TEST_REPO: stackstate-agent-test
-  STS_DOCKER_RELEASE_REPO_TRACE: stackstate-trace-agent
-  STS_DOCKER_TEST_REPO_TRACE: stackstate-trace-agent-test
-  STS_DOCKER_RELEASE_REPO_CLUSTER: stackstate-cluster-agent
-  STS_DOCKER_TEST_REPO_CLUSTER: stackstate-cluster-agent-test
   # The SRC_PATH is in the GOPATH of the builders which
   # currently is /go
   SRC_PATH: /go/src/github.com/StackVista/stackstate-agent
@@ -15,9 +9,6 @@ variables: &commonvariables
   # For an unknown reason, it does not go well with
   # a ruby dependency if we build directly into $CI_PROJECT_DIR/.omnibus
   OMNIBUS_BASE_DIR: /.omnibus
-  # Directory in which we put the artifacts after the build
-  # Must be in $CI_PROJECT_DIR
-  OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
   OMNIBUS_BASE_DIR_WIN: c:/omnibus-ruby #\$CI_RUNNER_ID
   # Directory in which we execute the omnibus build for SUSE
   # as we want to separate the RPM built for this distro.
@@ -38,6 +29,9 @@ variables: &commonvariables
   STS_AWS_TEST_BUCKET_YUM: stackstate-agent-2-rpm-test
   STS_AWS_RELEASE_BUCKET_WIN: stackstate-agent-2
   STS_AWS_TEST_BUCKET_WIN: stackstate-agent-2-test
+  STS_DOCKER_RELEASE_REPO: stackstate-agent-2
+  STS_DOCKER_TEST_REPO: stackstate-agent-2-test
+  # we do not build trace-agent and cluster-agent for v2
 
 .agent3_variables: &agent3_variables
   CONDA_ENV: ddpy3
@@ -50,6 +44,21 @@ variables: &commonvariables
   STS_AWS_TEST_BUCKET_YUM: stackstate-agent-3-rpm-test
   STS_AWS_RELEASE_BUCKET_WIN: stackstate-agent-3
   STS_AWS_TEST_BUCKET_WIN: stackstate-agent-3-test
+  STS_DOCKER_RELEASE_REPO: stackstate-agent
+  STS_DOCKER_TEST_REPO: stackstate-agent-test
+  STS_DOCKER_RELEASE_REPO_TRACE: stackstate-trace-agent
+  STS_DOCKER_TEST_REPO_TRACE: stackstate-trace-agent-test
+  STS_DOCKER_RELEASE_REPO_CLUSTER: stackstate-cluster-agent
+  STS_DOCKER_TEST_REPO_CLUSTER: stackstate-cluster-agent-test
+
+
+.rules:
+  - &exclude_on_cluster_agent
+    if: $CI_COMMIT_MESSAGE =~ /\[cluster-agent]/
+    when: never
+  - &include_on_cluster_agent
+    if: $CI_COMMIT_MESSAGE =~ /\[cluster-agent]/
+    when: on_success
 
 agent2:
   stage: triggers
@@ -59,6 +68,9 @@ agent2:
   trigger:
     include: .gitlab-ci-agent.yml
     strategy: depend
+  rules:
+    - <<: *exclude_on_cluster_agent
+    - when: on_success
 
 agent3:
   stage: triggers
@@ -68,3 +80,18 @@ agent3:
   trigger:
     include: .gitlab-ci-agent.yml
     strategy: depend
+  rules:
+    - <<: *exclude_on_cluster_agent
+    - when: on_success
+
+cluster_agent:
+  stage: triggers
+  variables:
+    <<: *commonvariables
+    <<: *agent3_variables
+  trigger:
+    include: .gitlab-ci-cluster-agent.yml
+    strategy: depend
+  rules:
+    - <<: *include_on_cluster_agent
+    - when: never

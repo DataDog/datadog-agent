@@ -1,6 +1,6 @@
 agent_version = {
     ## for dev
-    :branch => "upstream-updates-7-21",              # or use the PR_NAME
+    :branch => "master",              # or use the PR_NAME
     :repo_suffix => "-test",
 
     ## for stable

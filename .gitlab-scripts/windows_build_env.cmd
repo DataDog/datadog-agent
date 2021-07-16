@@ -1,10 +1,10 @@
 REM set WIN_CI_PROJECT_DIR=%CD%
 REM set WORKON_HOME=%WIN_CI_PROJECT_DIR%
-
+set VCINSTALLDIR=C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community
+echo ====- cleaning existing venv
 IF EXIST c:\deps GOTO C_DEPS_EXIST
 call %WIN_CI_PROJECT_DIR%\.gitlab-scripts\pkg_configs.cmd
 :C_DEPS_EXIST
-
 if exist .omnibus rd /s/q .omnibus
 mkdir .omnibus\pkg
 if exist \omnibus-ruby rd /s/q \omnibus-ruby
@@ -16,9 +16,12 @@ REM xcopy /q/h/e/s * %GOPATH%\src\github.com\StackVista\stackstate-agent
 mkdir c:\gopath\src\github.com\StackVista\
 mklink /J %GOPATH%\src\github.com\StackVista\stackstate-agent %WIN_CI_PROJECT_DIR%
 cd %GOPATH%\src\github.com\StackVista\stackstate-agent
-IF EXIST %GOPATH%\src\github.com\StackVista\stackstate-agent\venv GOTO VENV_EXIST
+echo ====- cleaning existing venv
+rmdir /q /s %GOPATH%\src\github.com\StackVista\stackstate-agent\venv
+echo ====- creating venv with mkvirtualenv venv
 call mkvirtualenv venv
 cd %GOPATH%\src\github.com\StackVista\stackstate-agent
-echo cd %GOPATH%\src\github.com\StackVista\stackstate-agent
+echo ====- installing requirements.txt from repo root
 pip install -r requirements.txt
-:VENV_EXIST
+dir %GOPATH%\src\github.com\StackVista\stackstate-agent\venv\Lib\site-packages
+

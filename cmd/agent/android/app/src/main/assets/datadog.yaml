@@ -64,6 +64,8 @@ kubelet_client_ca: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
 kubelet_client_crt: ""
 kubelet_client_key: ""
 kubelet_tls_verify: true
+kubelet_fallback_to_unverified_tls: true
+kubelet_fallback_to_insecure: true
 kubernetes_collect_service_tags: true
 kubernetes_http_kubelet_port: 10255
 kubernetes_https_kubelet_port: 10250

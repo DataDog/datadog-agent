@@ -6,5 +6,6 @@ resources:
   - cluster-agent-runner-config-maps.yaml
   - cluster-agent.yaml
   - agent-rbac.yaml
+  - agent-integrations-config-map.yaml
   - agent-config-map.yaml
   - agent.yaml

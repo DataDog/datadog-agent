@@ -36,6 +36,7 @@ type context struct {
 	Containerd        bool
 	CRI               bool
 	ProcessAgent      bool
+	NetworkTracer     bool
 	SystemProbe       bool
 	KubeApiServer     bool
 	TraceAgent        bool
@@ -64,6 +65,7 @@ func mkContext(buildType string) context {
 		Containerd:        true,
 		CRI:               true,
 		ProcessAgent:      true,
+		NetworkTracer:     true,
 		TraceAgent:        true,
 		Kubelet:           true,
 		KubeApiServer:     true, // TODO: remove when phasing out from node-agent

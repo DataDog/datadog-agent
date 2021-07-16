@@ -13,18 +13,6 @@ def _get_key_value(tag_list):
         yield key, value
 
 
-def _component_data(json_data, type_name, external_id_assert_fn, data_assert_fn):
-    for message in json_data["messages"]:
-        p = message["message"]["TopologyElement"]["payload"]
-        if "TopologyComponent" in p and \
-            p["TopologyComponent"]["typeName"] == type_name and \
-                external_id_assert_fn(p["TopologyComponent"]["externalId"]):
-            data = json.loads(p["TopologyComponent"]["data"])
-            if data and data_assert_fn(data):
-                return data
-    return None
-
-
 def test_agent_integration_sample_metrics(host, hostname):
     url = "http://localhost:7070/api/topic/sts_multi_metrics?limit=1000"
 
@@ -45,7 +33,7 @@ def test_agent_integration_sample_metrics(host, hostname):
         expected = {'system.cpu.usage', 'location.availability', '2xx.responses', '5xx.responses'}
         assert all([expectedMetric for expectedMetric in expected if expectedMetric in get_keys(hostname)])
 
-    util.wait_until(wait_for_metrics, 180, 3)
+    util.wait_until(wait_for_metrics, 60, 3)
 
 
 def test_agent_integration_sample_topology(host, hostname):
@@ -354,7 +342,7 @@ def test_agent_integration_sample_topology(host, hostname):
 
         for c in components:
             print("Running assertion for: " + c["assertion"])
-            assert _component_data(
+            assert util.component_data(
                 json_data=json_data,
                 type_name=c["type"],
                 external_id_assert_fn=c["external_id"],
@@ -373,43 +361,33 @@ def test_agent_integration_sample_events(host, hostname):
         with open("./topic-agent-integration-sample-sts-generic-events.json", 'w') as f:
             json.dump(json_data, f, indent=4)
 
-        def _event_data(event):
-            for message in json_data["messages"]:
-                p = message["message"]
-                if "GenericEvent" in p and p["GenericEvent"]["host"] == hostname:
-                    _data = p["GenericEvent"]
-                    if _data == dict(_data, **event):
-                        return _data
-            return None
+        service_event = {
+            "name": "service-check.service-check",
+            "title": "stackstate.agent.check_status",
+            "eventType": "service-check",
+            "tags": {
+                "source_type_name": "service-check",
+                "status": "OK",
+                "check": "cpu"
+            },
+            "host": hostname,
+        }
+        assert util.event_data(service_event, json_data, hostname) is not None
 
-        assert _event_data(
-            {
-                "name": "service-check.service-check",
-                "title": "stackstate.agent.check_status",
-                "eventType": "service-check",
-                "tags": {
-                    "source_type_name": "service-check",
-                    "status": "OK",
-                    "check": "cpu"
-                },
-                "host": hostname,
-            }
-        ) is not None
+        http_event = {
+            "name": "HTTP_TIMEOUT",
+            "title": "URL timeout",
+            "eventType": "HTTP_TIMEOUT",
+            "tags": {
+                "source_type_name": "HTTP_TIMEOUT"
+            },
+            "host": "agent-integrations",
+            "message": "Http request to http://localhost timed out after 5.0 seconds."
+        }
+        assert util.event_data(http_event, json_data, hostname) is not None
 
-        assert _event_data(
-            {
-                "name": "HTTP_TIMEOUT",
-                "title": "URL timeout",
-                "eventType": "HTTP_TIMEOUT",
-                "tags": {
-                    "source_type_name": "HTTP_TIMEOUT"
-                },
-                "host": "agent-integrations",
-                "message": "Http request to http://localhost timed out after 5.0 seconds."
-            }
-        ) is not None
 
-    util.wait_until(wait_for_events, 180, 3)
+    util.wait_until(wait_for_events, 60, 3)
 
 
 def test_agent_integration_sample_topology_events(host):
@@ -452,7 +430,7 @@ def test_agent_integration_sample_topology_events(host):
             }
         ) is not None
 
-    util.wait_until(wait_for_topology_events, 180, 3)
+    util.wait_until(wait_for_topology_events, 60, 3)
 
 
 def test_agent_integration_sample_health_synchronization(host):
@@ -494,4 +472,4 @@ def test_agent_integration_sample_health_synchronization(host):
             }
         ) is not None
 
-    util.wait_until(wait_for_health_messages, 180, 3)
+    util.wait_until(wait_for_health_messages, 60, 3)

@@ -9,12 +9,12 @@ package collectors
 
 import (
 	"fmt"
-	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/clustername"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/StackVista/stackstate-agent/pkg/config"
 	"github.com/StackVista/stackstate-agent/pkg/util/kubernetes/kubelet"
 )
 

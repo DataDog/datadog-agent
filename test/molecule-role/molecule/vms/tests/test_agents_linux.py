@@ -6,12 +6,10 @@ testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts
 
 def test_stackstate_agent_is_installed(host, ansible_var):
     agent = host.package("stackstate-agent")
-    print(agent.version)
+    print(agent)
     assert agent.is_installed
-
-    agent_current_branch = ansible_var("agent_current_branch")
-    if agent_current_branch == "master":
-        assert agent.version.startswith("2")
+    expected_major_version = ansible_var("major_version")
+    assert agent.version.startswith(expected_major_version + ".")
 
 
 def test_stackstate_agent_status_output_no_datadog(host):

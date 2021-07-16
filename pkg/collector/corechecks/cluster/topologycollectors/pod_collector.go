@@ -15,6 +15,7 @@ type PodCollector struct {
 	ComponentChan     chan<- *topology.Component
 	RelationChan      chan<- *topology.Relation
 	ContainerCorrChan chan<- *ContainerCorrelation
+	VolumeCorrChan    chan<- *VolumeCorrelation
 	ClusterTopologyCollector
 }
 
@@ -26,12 +27,14 @@ type ContainerPort struct {
 
 // NewPodCollector
 func NewPodCollector(componentChannel chan<- *topology.Component, relationChannel chan<- *topology.Relation,
-	containerCorrChannel chan<- *ContainerCorrelation, clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
+	containerCorrChannel chan<- *ContainerCorrelation, volumeCorrChannel chan<- *VolumeCorrelation,
+	clusterTopologyCollector ClusterTopologyCollector) ClusterTopologyCollector {
 
 	return &PodCollector{
 		ComponentChan:            componentChannel,
 		RelationChan:             relationChannel,
 		ContainerCorrChan:        containerCorrChannel,
+		VolumeCorrChan:           volumeCorrChannel,
 		ClusterTopologyCollector: clusterTopologyCollector,
 	}
 }
@@ -50,9 +53,7 @@ func (pc *PodCollector) CollectorFunction() error {
 
 	// extract vars to reduce var creation count
 	var component *topology.Component
-	var volComponent *topology.Component
 	var controllerExternalID string
-	var volumeExternalID string
 	for _, pod := range pods {
 		// creates and publishes StackState pod component with relations
 		component = pc.podToStackStateComponent(pod)
@@ -84,6 +85,11 @@ func (pc *PodCollector) CollectorFunction() error {
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
 				managed = true
 			case Job:
+				if pod.Status.Phase == "Succeeded" || pod.Status.Phase == "Failed" {
+					// Pod finished running so we don't create the relation to its Job
+					log.Debugf("skipping relation from pod: %s to finished job : %s", pod.Name, ref.Name)
+					continue
+				}
 				controllerExternalID = pc.buildJobExternalID(pod.Namespace, ref.Name)
 				pc.RelationChan <- pc.controllerWorkloadToPodStackStateRelation(controllerExternalID, component.ExternalID)
 				managed = true
@@ -94,24 +100,13 @@ func (pc *PodCollector) CollectorFunction() error {
 			pc.RelationChan <- pc.namespaceToPodStackStateRelation(pc.buildNamespaceExternalID(pod.Namespace), component.ExternalID)
 		}
 
-		// map the volume components and relation to this pod
-		for _, vol := range pod.Spec.Volumes {
-			if pc.isPersistentVolume(vol) {
-				volumeExternalID = pc.buildPersistentVolumeExternalID(vol.Name)
-			} else {
-				volComponent = pc.volumeToStackStateComponent(pod, vol)
-				volumeExternalID = volComponent.ExternalID
-				pc.ComponentChan <- volComponent
-			}
-
-			pc.RelationChan <- pc.podToVolumeStackStateRelation(component.ExternalID, volumeExternalID)
-		}
-
 		for _, c := range pod.Spec.Containers {
 			// map relations to config map
 			for _, env := range c.EnvFrom {
 				if env.ConfigMapRef != nil {
 					pc.RelationChan <- pc.podToConfigMapStackStateRelation(component.ExternalID, pc.buildConfigMapExternalID(pod.Namespace, env.ConfigMapRef.LocalObjectReference.Name))
+				} else if env.SecretRef != nil {
+					pc.RelationChan <- pc.podToSecretStackStateRelation(component.ExternalID, pc.buildSecretExternalID(pod.Namespace, env.SecretRef.LocalObjectReference.Name))
 				}
 			}
 
@@ -119,8 +114,22 @@ func (pc *PodCollector) CollectorFunction() error {
 			for _, env := range c.Env {
 				if env.ValueFrom != nil && env.ValueFrom.ConfigMapKeyRef != nil {
 					pc.RelationChan <- pc.podToConfigMapVarStackStateRelation(component.ExternalID, pc.buildConfigMapExternalID(pod.Namespace, env.ValueFrom.ConfigMapKeyRef.LocalObjectReference.Name))
+				} else if env.ValueFrom != nil && env.ValueFrom.SecretKeyRef != nil {
+					pc.RelationChan <- pc.podToSecretVarStackStateRelation(component.ExternalID, pc.buildSecretExternalID(pod.Namespace, env.ValueFrom.SecretKeyRef.LocalObjectReference.Name))
 				}
 			}
+		}
+
+		// Send the volume correlation
+		if len(pod.Spec.Volumes) > 0 {
+			volumeCorrelation := &VolumeCorrelation{
+				Pod:        PodIdentifier{ExternalID: component.ExternalID, Namespace: pod.Namespace, Name: pod.Name, NodeName: pod.Spec.NodeName},
+				Volumes:    pod.Spec.Volumes,
+				Containers: pod.Spec.Containers,
+			}
+
+			log.Debugf("publishing volume correlation for Pod: %v", volumeCorrelation)
+			pc.VolumeCorrChan <- volumeCorrelation
 		}
 
 		// send the containers to be correlated
@@ -137,28 +146,10 @@ func (pc *PodCollector) CollectorFunction() error {
 
 	// close container correlation channel
 	close(pc.ContainerCorrChan)
+	// close container correlation channel
+	close(pc.VolumeCorrChan)
 
 	return nil
-}
-
-// Checks to see if the volume is a persistent volume
-func (pc *PodCollector) isPersistentVolume(volume v1.Volume) bool {
-	if volume.EmptyDir != nil || volume.Secret != nil || volume.ConfigMap != nil || volume.DownwardAPI != nil ||
-		volume.Projected != nil || volume.HostPath != nil {
-		return false
-	}
-
-	// persistent volume types
-	if volume.GCEPersistentDisk != nil || volume.AWSElasticBlockStore != nil ||
-		volume.NFS != nil || volume.ISCSI != nil || volume.Glusterfs != nil ||
-		volume.RBD != nil || volume.FlexVolume != nil || volume.Cinder != nil || volume.CephFS != nil ||
-		volume.Flocker != nil || volume.DownwardAPI != nil || volume.FC != nil || volume.AzureFile != nil ||
-		volume.VsphereVolume != nil || volume.Quobyte != nil || volume.AzureDisk != nil || volume.PhotonPersistentDisk != nil ||
-		volume.Projected != nil || volume.PortworxVolume != nil || volume.ScaleIO != nil || volume.StorageOS != nil {
-		return true
-	}
-
-	return false
 }
 
 // Creates a StackState component from a Kubernetes / OpenShift Pod
@@ -169,12 +160,11 @@ func (pc *PodCollector) podToStackStateComponent(pod v1.Pod) *topology.Component
 	identifiers := make([]string, 0)
 
 	if pod.Status.PodIP != "" {
-		// if the pod is not using the host network map it as cluster-name:pod-ip because PodIP is unique.
-		if !pod.Spec.HostNetwork {
-			identifiers = append(identifiers, fmt.Sprintf("urn:ip:/%s:%s", pc.GetInstance().URL, pod.Status.PodIP))
-		}
-
-		// PodIP is not unique (most-likely the HostIP), so we map it with namespace and podName
+		// We map the pod ip including clustername, namespace and podName because
+		// the pod ip is not necessarily unique:
+		// * Pods can use Host networking which gives them the ip of the host
+		// * Pods for jobs can remain present after completion or failure (their status will not be running but Completed or Failed)
+		//   with their IP (that is now free again for reuse) still attached in the pod.Status
 		identifiers = append(identifiers, fmt.Sprintf("urn:ip:/%s:%s:%s:%s", pc.GetInstance().URL, pod.Namespace, pod.Name, pod.Status.PodIP))
 	}
 
@@ -258,6 +248,17 @@ func (pc *PodCollector) podToConfigMapStackStateRelation(podExternalID, configMa
 	return relation
 }
 
+// Creates a StackState relation from a Kubernetes / OpenShift Pod to Secret relation
+func (pc *PodCollector) podToSecretStackStateRelation(podExternalID, secretExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes pod to secret relation: %s -> %s", podExternalID, secretExternalID)
+
+	relation := pc.CreateRelation(podExternalID, secretExternalID, "uses")
+
+	log.Tracef("Created StackState pod -> secret relation %s->%s", relation.SourceID, relation.TargetID)
+
+	return relation
+}
+
 // Creates a StackState relation from a Kubernetes / OpenShift Pod to Namespace relation
 func (pc *PodCollector) namespaceToPodStackStateRelation(namespaceExternalID, podExternalID string) *topology.Relation {
 	log.Tracef("Mapping kubernetes namespace to pod relation: %s -> %s", namespaceExternalID, podExternalID)
@@ -280,60 +281,13 @@ func (pc *PodCollector) podToConfigMapVarStackStateRelation(podExternalID, confi
 	return relation
 }
 
-// Creates a StackState component from a Kubernetes / OpenShift Volume
-func (pc *PodCollector) volumeToStackStateComponent(pod v1.Pod, volume v1.Volume) *topology.Component {
-	// creates a StackState component for the kubernetes pod
-	log.Tracef("Mapping kubernetes volume to StackState Component: %s", pod.String())
+// Creates a StackState relation from a Kubernetes / OpenShift Pod to Secret variable relation
+func (pc *PodCollector) podToSecretVarStackStateRelation(podExternalID, secretExternalID string) *topology.Relation {
+	log.Tracef("Mapping kubernetes pod to secret var relation: %s -> %s", podExternalID, secretExternalID)
 
-	volumeExternalID := pc.buildVolumeExternalID(pod.Namespace, volume.Name)
+	relation := pc.CreateRelation(podExternalID, secretExternalID, "uses_value")
 
-	identifiers := make([]string, 0)
-	if volume.EmptyDir != nil {
-		identifiers = append(identifiers, fmt.Sprintf("urn:/%s:%s:volume:%s:%s", pc.GetInstance().URL, pc.GetInstance().Type, pod.Spec.NodeName, volume.Name))
-	}
-	if volume.HostPath != nil {
-		identifiers = append(identifiers, fmt.Sprintf("urn:/%s:%s:volume:%s:%s", pc.GetInstance().URL, pc.GetInstance().Type, pod.Spec.NodeName, volume.Name))
-	}
-	if volume.Secret != nil {
-		identifiers = append(identifiers, fmt.Sprintf("urn/%s:%s:secret:%s", pc.GetInstance().URL, pc.GetInstance().Type, volume.Secret.SecretName))
-	}
-	if volume.DownwardAPI != nil {
-		identifiers = append(identifiers, fmt.Sprintf("urn/%s:%s:downardapi:%s", pc.GetInstance().URL, pc.GetInstance().Type, volume.Name))
-	}
-	if volume.ConfigMap != nil {
-		identifiers = append(identifiers, pc.buildConfigMapExternalID(pod.Namespace, volume.ConfigMap.Name))
-	}
-	if volume.Projected != nil {
-		identifiers = append(identifiers, fmt.Sprintf("urn/%s:%s:projected:%s", pc.GetInstance().URL, pc.GetInstance().Type, volume.Name))
-	}
-
-	log.Tracef("Created identifiers for %s: %v", volume.Name, identifiers)
-
-	tags := pc.initTags(pod.ObjectMeta)
-
-	component := &topology.Component{
-		ExternalID: volumeExternalID,
-		Type:       topology.Type{Name: "volume"},
-		Data: map[string]interface{}{
-			"name":        volume.Name,
-			"source":      volume.VolumeSource,
-			"identifiers": identifiers,
-			"tags":        tags,
-		},
-	}
-
-	log.Tracef("Created StackState volume component %s: %v", volumeExternalID, component.JSONString())
-
-	return component
-}
-
-// Create a StackState relation from a Kubernetes / OpenShift Pod to a Volume
-func (pc *PodCollector) podToVolumeStackStateRelation(podExternalID, volumeExternalID string) *topology.Relation {
-	log.Tracef("Mapping kubernetes pod to volume relation: %s -> %s", podExternalID, volumeExternalID)
-
-	relation := pc.CreateRelation(podExternalID, volumeExternalID, "claims")
-
-	log.Tracef("Created StackState pod -> volume relation %s->%s", relation.SourceID, relation.TargetID)
+	log.Tracef("Created StackState pod -> secret var relation %s->%s", relation.SourceID, relation.TargetID)
 
 	return relation
 }

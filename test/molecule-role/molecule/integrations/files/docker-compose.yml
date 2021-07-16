@@ -2,34 +2,37 @@
 version: '2.4'
 
 services:
-
   zookeeper:
     image: wurstmeister/zookeeper
     ports:
       - 2181:2181
     mem_limit: 1G
+    healthcheck:
+      test: [ "CMD-SHELL", "echo ruok | nc -w 2 zookeeper 2181" ]
+      interval: 5s
+      timeout: 10s
+      retries: 3
 
   kafka:
     image: wurstmeister/kafka:2.12-2.3.1
     ports:
       - 9092:9092
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     environment:
       KAFKA_ADVERTISED_HOST_NAME: kafka
       KAFKA_ADVERTISED_PORT: 9092
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      # This is required to be able to run create-topics within the health check
-      KAFKA_PORT: 9092
       KAFKA_CREATE_TOPICS: "sts_connection_beat_events:1:1,sts_correlate_endpoints:1:1,sts_generic_events:1:1,sts_intake_health:1:1,sts_multi_metrics:1:1,sts_state_events:1:1,sts_topo_agent_integrations:1:1,sts_topology_events:1:1,sts_topo_process_agents:1:1,sts_trace_events:1:1"
+    volumes:
+      - "./verify-or-create-topics.sh:/usr/local/bin/verify-or-create-topics.sh"
     healthcheck:
-      # Okay, here it goes. Due to a variant on this bug: https://github.com/wurstmeister/kafka-docker/issues/661
-      # we intermittently get that not all topics are created. This causes flaky behavior on the tests
-      # We patched it by having the health check also try to create when it fails
-      test: [ "CMD-SHELL", "if [ \"$$(/opt/kafka/bin/kafka-topics.sh --list --zookeeper zookeeper | grep -v __consumer_offsets | wc -l )\" != \"10\" ]; then ( nohup /usr/bin/create-topics.sh & ) && exit 1; fi" ]
-      interval: 3s
-      timeout: 30s
+      test: [ "CMD", "verify-or-create-topics.sh" ]
+      interval: 10s
+      timeout: 45s
       retries: 10
+    restart: always
     mem_limit: 1G
 
   receiver:
@@ -42,6 +45,7 @@ services:
         condition: service_healthy
     environment:
       KAFKA_BROKERS: kafka:9092
+    restart: always
     mem_limit: 1G
 
   correlate:
@@ -52,6 +56,7 @@ services:
     environment:
       KAFKA_BROKERS: kafka:9092
       STACKSTATE_CORRELATE_LOG_LEVEL: "DEBUG"
+    restart: always
     mem_limit: 1G
 
   topic-api:
@@ -64,6 +69,7 @@ services:
     environment:
       KAFKA_BROKERS: kafka:9092
       ZOOKEEPER_QUORUM: kafka
+    restart: always
     mem_limit: 1G
 
   mysql:
@@ -85,7 +91,9 @@ services:
       - nagios_conf:/opt/nagios/etc
     depends_on:
       - mysql
-
+  nginx:
+    image: nginx:1.14.2
+    container_name: nginx-1
   stackstate-agent:
     image: docker.io/stackstate/${AGENT_DOCKER_REPO}:${AGENT_VERSION}
     network_mode: "host"
@@ -108,6 +116,7 @@ services:
       STS_PROCESS_AGENT_URL: "http://localhost:7077/stsAgent"
       STS_PROCESS_AGENT_ENABLED: "true"
       STS_NETWORK_TRACING_ENABLED: "false"
+      STS_PROTOCOL_INSPECTION_ENABLED: "false"
       STS_APM_URL: "http://localhost:7077/stsAgent"
       STS_APM_ENABLED: "true"
       HOST_PROC: "/host/proc"

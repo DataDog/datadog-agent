@@ -32,13 +32,22 @@
         username: "{{ quay_user }}"
         password: "{{ quay_password }}"
         reauthorize: yes
+
     - name: Copy Configuration files
       copy:
         src: "files/"
         dest: "/home/ubuntu"
         mode: preserve
+
+    - name: Copy Verify and Create Script file
+      copy:
+        src: ./../verify-or-create-topics.sh
+        dest: /home/ubuntu
+        mode: u+x
+
     - name: Gather facts (we need the docker network interface ip)
       setup:
+
     - name: Configure .env file used by docker-compose
       copy:
         content: |
@@ -47,6 +56,7 @@
           DOCKER_HOST_IP={{ ansible_docker0['ipv4']['address'] }}
           STACKSTATE_BRANCH={{ stackstate_branch }}
         dest: /home/ubuntu/.env
+
     - name: Run Docker compose
       command: docker-compose up -d
       args:

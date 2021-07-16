@@ -46,13 +46,19 @@ stages:
   cmd /c if exist %GOPATH%\src\github.com\StackVista\stackstate-agent rd /s/q %GOPATH%\src\github.com\StackVista\stackstate-agent
   New-Item -ItemType SymbolicLink -Path "$Env:GOPATH\\src\\github.com\\StackVista\\stackstate-agent" -Target $current_dir -Force
 
+.rules:
+  - &only_agent_3
+    if: $MAJOR_VERSION == "3"
+  - &only_agent_3_release
+    if: $MAJOR_VERSION == "3" && ($CI_COMMIT_TAG || $CI_JOB_TRIGGERED == "true")
+    when: manual
+
 ######################### /pipeline bricks
 
 
 before_script:
   - *configure_debian_env_script
   - *retrieve_linux_go_deps_script
-
 
 ## prepare stage
 
@@ -97,14 +103,15 @@ clear_deps_win_cache:
       - venv
   when: manual
   script:
-    - "cmd /c if exist %WIN_CI_PROJECT_DIR%\\vendor rd /s/q %WIN_CI_PROJECT_DIR%\\vendor"
-    - "cmd /c if exist %WIN_CI_PROJECT_DIR%\\venv rd /s/q %WIN_CI_PROJECT_DIR%\\venv"
-    - "cmd /c if exist C:\\opt\\stackstate-agent rd /s/q C:\\opt\\stackstate-agent"
+    - "if (Test-Path %WIN_CI_PROJECT_DIR%\\vendor) { Remove-Item -Force -Recurse %WIN_CI_PROJECT_DIR%\\vendor }"
+    - "if (Test-Path %WIN_CI_PROJECT_DIR%\\venv) { Remove-Item -Force -Recurse %WIN_CI_PROJECT_DIR%\\venv }"
+    - "if (Test-Path C:\\opt\\stackstate-agent) { Remove-Item -Force -Recurse C:\\opt\\stackstate-agent }"
   tags:
     - windows_agent7_ps1
 
 deps_deb:
   stage: prepare
+  interruptible: true
   cache:
     key: "deps-deb-$STS_VER-$CI_COMMIT_REF_SLUG"
     paths:
@@ -113,7 +120,7 @@ deps_deb:
   script:
     - conda activate $CONDA_ENV
     - inv -e deps --verbose --dep-vendor-only
-    - inv version --major-version $MAJOR_VERSION -u > version.txt
+    - inv agent.version --major-version $MAJOR_VERSION -u > version.txt
     - cd $GOPATH/pkg && tar czf $CI_PROJECT_DIR/go-pkg.tar.gz .
     - cd $GOPATH/bin && tar czf $CI_PROJECT_DIR/go-bin.tar.gz .
     - cd $CI_PROJECT_DIR/vendor && tar czf $CI_PROJECT_DIR/vendor.tar.gz .
@@ -124,9 +131,15 @@ deps_deb:
       - $CI_PROJECT_DIR/go-bin.tar.gz
       - $CI_PROJECT_DIR/vendor.tar.gz
     expire_in: 1 week
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 deps_rpm:
   stage: prepare
+  interruptible: true
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_latest_v7
   cache:
     key: "deps-rpm-$STS_VER-$CI_COMMIT_REF_SLUG"
@@ -137,7 +150,7 @@ deps_rpm:
   script:
     - conda activate $CONDA_ENV
     - inv -e deps --verbose --dep-vendor-only
-    - inv version --major-version $MAJOR_VERSION -u > version.txt
+    - inv agent.version --major-version $MAJOR_VERSION -u > version.txt
     - cd $GOPATH/pkg && tar czf $CI_PROJECT_DIR/go-pkg.tar.gz .
     - cd $GOPATH/bin && tar czf $CI_PROJECT_DIR/go-bin.tar.gz .
     - cd $CI_PROJECT_DIR/vendor && tar czf $CI_PROJECT_DIR/vendor.tar.gz .
@@ -148,9 +161,15 @@ deps_rpm:
       - $CI_PROJECT_DIR/go-bin.tar.gz
       - $CI_PROJECT_DIR/vendor.tar.gz
     expire_in: 1 week
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 deps_win:
   stage: prepare
+  interruptible: true
   before_script:
     - *configure_windows_ps1_env_script
   cache:
@@ -160,7 +179,7 @@ deps_win:
   script:
     - conda activate $CONDA_ENV
     - inv deps
-    - inv version --major-version $MAJOR_VERSION -u > version.txt
+    - inv agent.version --major-version $MAJOR_VERSION -u > version.txt
     - cd $Env:GOPATH/pkg ; tar --force-local -czf $CI_PROJECT_DIR/go-pkg.tar.gz .
     - cd $Env:GOPATH/bin ; tar --force-local -czf $CI_PROJECT_DIR/go-bin.tar.gz .
     - cd $Env:CI_PROJECT_DIR/vendor ; tar --force-local -czf $CI_PROJECT_DIR/vendor.tar.gz .
@@ -173,12 +192,17 @@ deps_win:
     expire_in: 1 week
   tags:
     - windows_agent7_ps1
-
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 ## build_and_test stage
 
 unit_tests:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_deb
   script:
@@ -192,9 +216,40 @@ unit_tests:
     - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
   tags:
     - sts-aws
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+
+unit_tests_cluster_agent:
+  stage: build_and_test
+  interruptible: true
+  needs:
+    - deps_deb
+  script:
+    - conda activate $CONDA_ENV
+    # We run inv deps again because /go/bin is not cached and we need binaries like golint, misspell
+    - inv deps
+    - inv -e agent.build --race --precompile-only --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
+    # TODO: check why formatting rules differ from previous step
+    - gofmt -l -w -s ./pkg ./cmd
+    # TODO: --python-runtimes "$PYTHON_RUNTIMES"
+    - inv -e rtloader.test
+    - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES --build-include docker,linux,kubelet,kubeapiserver,python,orchestrator,clusterchecks,zlib
+  tags:
+    - sts-aws
+  rules:
+    - *only_agent_3
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 filename_linting:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_deb
   script:
@@ -219,6 +274,7 @@ filename_linting:
 
 build_binaries:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_deb
   script:
@@ -230,21 +286,33 @@ build_binaries:
     - inv -e agent.build --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
   tags:
     - sts-k8s-m-runner
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 build_cluster_agent:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_deb
   script:
     - conda activate $CONDA_ENV
     - inv -e cluster-agent.build
-    - inv -e version
     - ls -la $CI_PROJECT_DIR/bin/
   artifacts:
     paths:
       - $CI_PROJECT_DIR/bin/stackstate-cluster-agent
       - $CI_PROJECT_DIR/Dockerfiles/cluster-agent/stackstate-cluster.yaml
       - $CI_PROJECT_DIR/version.txt
+  rules:
+    - *only_agent_3
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 clear_build_deb_cache:
   stage: build_and_test
@@ -270,9 +338,9 @@ clear_build_rpm_cache:
     - mkdir -p .omnibus
     - rm -rf .omnibus/*
 
-
 build_deb:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_deb
   tags:
@@ -281,17 +349,18 @@ build_deb:
     key: "build-deb-$STS_VER-$CI_COMMIT_REF_SLUG"
     paths:
       - .omnibus
+      - .gems
   script:
     # We move .omnibus out of the CI root because this seems to cause issues with git
     # cloning in omnibus and operations on datadog-agent
     - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
 
     - conda activate $CONDA_ENV
-    - inv version --major-version $MAJOR_VERSION
+    - inv agent.version --major-version $MAJOR_VERSION
     - cat version.txt || true
     - source ./.gitlab-scripts/setup_artifactory.sh
 
-    - inv -e agent.omnibus-build --base-dir $OMNIBUS_BASE_DIR --skip-deps --skip-sign --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
+    - inv -e agent.omnibus-build --gem-path $CI_PROJECT_DIR/.gems --base-dir $OMNIBUS_BASE_DIR --skip-deps --skip-sign --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
 
     # Prepare outputs
     - mkdir -p $CI_PROJECT_DIR/outcomes/pkg && mkdir -p $CI_PROJECT_DIR/outcomes/dockerfiles && mkdir -p $CI_PROJECT_DIR/outcomes/binary
@@ -308,7 +377,7 @@ build_deb:
     - rm -rf /omnibus/src/datadog-agent
     # Drop symlink because it will fail the build when coming from a cache
     - rm /omnibus/src/datadog-agent/src/github.com/StackVista/stackstate-agent/vendor/github.com/coreos/etcd/cmd/etcd || echo "Not found"
-  #  - mv /omnibus $CI_PROJECT_DIR/.omnibus
+    - mv /omnibus $CI_PROJECT_DIR/.omnibus
   artifacts:
     paths:
       - $CI_PROJECT_DIR/outcomes/pkg/*.deb
@@ -320,9 +389,15 @@ build_deb:
       - $CI_PROJECT_DIR/version.txt
       - $CI_PROJECT_DIR/outcomes/binary/trace-agent
     expire_in: 1 week
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 build_rpm:
   stage: build_and_test
+  interruptible: true
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_latest_v7
   needs:
     - deps_rpm
@@ -332,6 +407,7 @@ build_rpm:
     key: "build-rpm-$STS_VER-$CI_COMMIT_REF_SLUG"
     paths:
       - .omnibus
+      - .gems
   before_script:
     - *configure_centos_env_script
     - *retrieve_linux_go_deps_script
@@ -341,12 +417,12 @@ build_rpm:
     - mv $CI_PROJECT_DIR/.omnibus /omnibus || mkdir -p /omnibus
 
     - conda activate $CONDA_ENV
-    - inv version --major-version $MAJOR_VERSION
+    - inv agent.version --major-version $MAJOR_VERSION
     - cat version.txt || true
     - source ./.gitlab-scripts/setup_artifactory.sh
 
     # TODO:  --python-runtimes "$PYTHON_RUNTIMES" --system-probe-bin=/tmp/system-probe --libbcc-tarball=/tmp/libbcc.tar.xz
-    - inv -e agent.omnibus-build --base-dir $OMNIBUS_BASE_DIR --skip-deps --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
+    - inv -e agent.omnibus-build --gem-path $CI_PROJECT_DIR/.gems --base-dir $OMNIBUS_BASE_DIR --skip-deps --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
       #  - find $OMNIBUS_BASE_DIR/pkg -type f -name '*.rpm' ! -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
       #  - find $OMNIBUS_BASE_DIR/pkg -type f -name '*dbg*.rpm' -print0 | xargs -0 -I '{}' rpm -i '{}'
 
@@ -375,11 +451,21 @@ build_rpm:
       - $CI_PROJECT_DIR/outcomes/Dockerfiles/manifests
       - $CI_PROJECT_DIR/version.txt
     expire_in: 1 week
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 build_win:
   stage: build_and_test
+  interruptible: true
   needs:
     - deps_win
+  cache:
+    key: "build-win-$STS_VER-$CI_COMMIT_REF_SLUG"
+    paths:
+      - .gems
   before_script:
     - *configure_windows_ps1_env_script
     - Import-VisualStudioVars 2017 -Architecture amd64
@@ -387,7 +473,7 @@ build_win:
   script:
     - cmd.exe /c "%GOPATH%\src\github.com\StackVista\stackstate-agent\.gitlab-scripts\setup_artifactory.cmd"
     - conda activate $CONDA_ENV
-    - inv -e agent.omnibus-build --base-dir $OMNIBUS_BASE_DIR_WIN --skip-sign --log-level debug --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
+    - inv -e agent.omnibus-build --gem-path $CI_PROJECT_DIR/.gems --base-dir $OMNIBUS_BASE_DIR_WIN --skip-sign --log-level debug --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
   after_script:
     - cmd.exe /c "copy %GOPATH%\src\github.com\StackVista\stackstate-agent\omnibus\pkg\*.msi"
   artifacts:
@@ -397,29 +483,46 @@ build_win:
       - "version.txt"
   tags:
     - windows_agent7_ps1
-
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 ## pre_release stage
 
 test_deb_renaming:
   stage: pre_release
+  interruptible: true
   needs:
     - build_deb
   before_script: []
   script:
     - ./test/renaming/test_deb.sh $CI_PROJECT_DIR/outcomes/pkg/stackstate-agent_$MAJOR_VERSION*.deb
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 test_rpm_renaming:
   stage: pre_release
+  interruptible: true
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_20190429
   needs:
     - build_rpm
   before_script: []
   script:
     - ./test/renaming/test_rpm.sh $CI_PROJECT_DIR/outcomes/pkg/stackstate-agent-$MAJOR_VERSION*.rpm
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 pre_release_deb:
   stage: pre_release
+  interruptible: true
   needs:
     - deps_deb
     - build_deb
@@ -434,9 +537,15 @@ pre_release_deb:
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package.sh $STS_AWS_TEST_BUCKET
     - cd $CI_PROJECT_DIR && inv release.generate-install -t
     - cd $CI_PROJECT_DIR/cmd/agent && aws.rb -e "Aws::S3::Resource.new.bucket(ENV['STS_AWS_TEST_BUCKET']).object('install.sh').upload_file('./install.sh', acl:'public-read')"
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 pre_release_win:
   stage: pre_release
+  interruptible: true
   needs:
     - deps_win
     - build_win
@@ -446,8 +555,6 @@ pre_release_win:
     - ridk enable
   script:
     - $env:VERSION = Get-Content version.txt -First 1
-    # //TODO: in Windows MSI is build with hash shorter on one character. Find where.
-    - $Env:VERSION=$Env:VERSION.Substring(0,$Env:VERSION.Length-1)
     - $filename = "stackstate-agent-" + $Env:VERSION + "-1-x86_64.msi"
     - $filename
     - Copy-Item $filename -Destination stackstate-agent-latest-1-x86_64.msi
@@ -459,9 +566,15 @@ pre_release_win:
     - aws.exe s3 ls s3://$Env:STS_AWS_TEST_BUCKET_WIN/
   tags:
     - windows_agent7_ps1
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 pre_release_rpm:
   stage: pre_release
+  interruptible: true
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:deb-rpmpublisher
   needs:
     - build_rpm
@@ -469,9 +582,15 @@ pre_release_rpm:
   script:
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./sign_rpm_package.sh
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package_rpm.sh $STS_AWS_TEST_BUCKET_YUM
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 pre_release_main_agent_image: &pre_release_image
   stage: pre_release
+  interruptible: true
   image: docker:18.06.0
   needs:
     - build_deb
@@ -486,9 +605,14 @@ pre_release_main_agent_image: &pre_release_image
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
     - cp ./outcomes/pkg/stackstate-agent_*_amd64.deb ./Dockerfiles/agent
-    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/Dockerfiles/agent
+    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/Dockerfiles/agent $CI_COMMIT_SHORT_SHA
   tags:
     - sts-k8s-m-runner
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 pre_release_trace_agent_image:
   <<: *pre_release_image
@@ -496,7 +620,9 @@ pre_release_trace_agent_image:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
     - cp ./outcomes/binary/trace-agent Dockerfiles/trace-agent
-    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent
+    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent $CI_COMMIT_SHORT_SHA
+  rules:
+    - *only_agent_3
 
 pre_release_cluster_agent_image:
   <<: *pre_release_image
@@ -505,8 +631,9 @@ pre_release_cluster_agent_image:
   script:
     - cd $CI_PROJECT_DIR
     - cp -r ./bin/stackstate-cluster-agent* ./Dockerfiles/cluster-agent
-    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent
-
+    - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent $CI_COMMIT_SHORT_SHA
+  rules:
+    - *only_agent_3
 
 ## acceptance stage
 
@@ -522,6 +649,11 @@ pre_release_cluster_agent_image:
     - export LC_CTYPE=en_US.UTF-8
     - export LANG=en_US.UTF-8
     - mkdir -p $CI_PROJECT_DIR/tmp_molecule_inventory
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 molecule_tests_vms:
   <<: *molecule_base
@@ -604,6 +736,7 @@ molecule_tests_kubernetes:
     - pre_release_main_agent_image
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s kubernetes
+  resource_group: eks_test_cluster
   artifacts:
     when: always
     paths:
@@ -611,6 +744,8 @@ molecule_tests_kubernetes:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/*.log
       - $CI_PROJECT_DIR/tmp_molecule_inventory
     expire_in: 1 week
+  rules:
+    - *only_agent_3
 
 molecule_tests_kubernetes_cleanup:
    <<: *molecule_base
@@ -621,6 +756,36 @@ molecule_tests_kubernetes_cleanup:
      - molecule_tests_kubernetes
    when: on_failure
    allow_failure: true
+   rules:
+     - *only_agent_3
+
+molecule_tests_swarm:
+  <<: *molecule_base
+  needs:
+    - pre_release_cluster_agent_image
+    - pre_release_main_agent_image
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s swarm
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/swarm/topic-*.json
+      - $CI_PROJECT_DIR/tmp_molecule_inventory
+    expire_in: 1 week
+  rules:
+    - *only_agent_3
+
+molecule_tests_swarm_cleanup:
+  <<: *molecule_base
+  stage: acceptance_cleanup
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s swarm
+  needs:
+    - molecule_tests_swarm
+  when: on_failure
+  allow_failure: true
+  rules:
+    - *only_agent_3
 
 molecule_tests_local_install:
   <<: *molecule_base
@@ -634,17 +799,22 @@ molecule_tests_local_install:
     paths:
       - $CI_PROJECT_DIR/tmp_molecule_inventory
     expire_in: 1 week
+  only:
+    - tags
+    - master
 
 molecule_tests_local_install_cleanup:
-   <<: *molecule_base
-   stage: acceptance_cleanup
-   script:
-     - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s localinstall
-   needs:
-     - molecule_tests_local_install
-   when: on_failure
-   allow_failure: true
-
+  <<: *molecule_base
+  stage: acceptance_cleanup
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s localinstall
+  needs:
+    - molecule_tests_local_install
+  when: on_failure
+  allow_failure: true
+  only:
+    - tags
+    - master
 
 molecule_tests_secrets:
   <<: *molecule_base
@@ -658,17 +828,22 @@ molecule_tests_secrets:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/*.log
       - $CI_PROJECT_DIR/tmp_molecule_inventory
     expire_in: 1 week
+  only:
+    - tags
+    - master
 
 molecule_tests_secrets_cleanup:
-   <<: *molecule_base
-   stage: acceptance_cleanup
-   script:
-     - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s secrets
-   needs:
-     - molecule_tests_secrets
-   when: on_failure
-   allow_failure: true
-
+  <<: *molecule_base
+  stage: acceptance_cleanup
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s secrets
+  needs:
+    - molecule_tests_secrets
+  when: on_failure
+  allow_failure: true
+  only:
+    - tags
+    - master
 
 
 ## release stage
@@ -689,6 +864,11 @@ release_deb:
   only:
     - tags
     - triggers
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 release_rpm:
   stage: release
@@ -704,6 +884,11 @@ release_rpm:
   only:
     - tags
     - triggers
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
 release_win:
   stage: release
@@ -729,8 +914,13 @@ release_win:
     - triggers
   tags:
     - windows_agent7_ps1
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
-release_main_agent_image: &release_image
+.base_release_image: &base_release_image
   stage: release
   image: docker:18.06.0
   dependencies:
@@ -742,35 +932,44 @@ release_main_agent_image: &release_image
   services:
     - docker:18.09-dind
   before_script: []
+  tags:
+    - sts-k8s-m-runner
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+
+release_main_agent_image:
+  <<: *base_release_image
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
-    - export PUSH_LATEST=true
     - cp ./outcomes/pkg/stackstate-agent_*_amd64.deb Dockerfiles/agent
-    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO $CI_PROJECT_DIR/Dockerfiles/agent $PUSH_LATEST
+    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO $CI_PROJECT_DIR/Dockerfiles/agent latest
   when: manual
   only:
     - tags
     - triggers
-  tags:
-    - sts-k8s-m-runner
 
 release_trace_agent_image:
-  <<: *release_image
+  <<: *base_release_image
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
-    - export PUSH_LATEST=true
     - cp ./outcomes/binary/trace-agent Dockerfiles/trace-agent
-    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent $PUSH_LATEST
+    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent latest
+  rules:
+    - *only_agent_3_release
 
 release_cluster_agent_image:
-  <<: *release_image
+  <<: *base_release_image
   dependencies:
     - build_cluster_agent
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
-    - export PUSH_LATEST=true
     - cp -r ./bin/stackstate-cluster-agent/* ./Dockerfiles/cluster-agent
-    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent $PUSH_LATEST
+    - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent latest
+  rules:
+    - *only_agent_3_release

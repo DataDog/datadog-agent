@@ -73,8 +73,34 @@ func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender ag
 	return nil
 }
 
+// reportContainerRestart monitors events for container restart and sends Service Check
+func reportContainerRestart(events []*docker.ContainerEvent, sender aggregator.Sender) error {
+	for _, ev := range events {
+		// Filtering
+		if ev.Action == "restart" {
+			// Building and sending message
+			message := fmt.Sprintf("Container %s restarted", ev.ContainerName)
+			status := metrics.ServiceCheckWarning
+			tags, err := tagger.Tag(ev.ContainerEntityName(), collectors.HighCardinality)
+			tags = append(tags, "event_name:docker.restart")
+			if err != nil {
+				log.Debugf("no tags for %s: %s", ev.ContainerID, err)
+			}
+			sender.ServiceCheck(DockerRestart, status, "", tags, message)
+		}
+	}
+	return nil
+}
+
 // reportEvents aggregates and sends events to the Datadog event feed
 func (d *DockerCheck) reportEvents(events []*docker.ContainerEvent, sender aggregator.Sender) error {
+
+	err := reportContainerRestart(events, sender)
+
+	if err != nil {
+		log.Warnf("can't submit container restart service check: %s", err)
+	}
+
 	bundles := aggregateEvents(events, d.instance.FilteredEventType)
 
 	for _, bundle := range bundles {

@@ -12,6 +12,8 @@ import (
 )
 
 func TestUDSOriginDetection(t *testing.T) {
+	// [STS] We're not using UDS right now and we're getting flakiness in testing
+	t.Skip()
 	config.SetupLogger(
 		config.LoggerName("test"),
 		"debug",

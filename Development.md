@@ -1,6 +1,6 @@
 # Build and distribute Stackstate Agent in linux using Docker
 
-Using our builder image clone and checkout the public repo: 
+Using our builder image clone and checkout the public repo and th <<branch>> you are interested of: 
 ```bash
 $ docker run --rm -ti docker.io/stackstate/stackstate-agent-runner-gitlab:latest7 bash
 
@@ -9,7 +9,7 @@ $ export CI_PROJECT_DIR=/go/src/github.com/StackVista/stackstate-agent && \
   cd src/github.com/StackVista && \
   git clone https://github.com/StackVista/stackstate-agent && \
   cd stackstate-agent && \
-  git checkout upstream-updates-7-21
+  git checkout <<branch>>
 ```
 
 Remember to `git pull` every time you push a change.

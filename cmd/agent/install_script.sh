@@ -54,7 +54,7 @@ It looks like you hit an issue when trying to install the StackState Agent v2.
 
 Basic information about the Agent are available at:
 
-    https://docs.stackstate.com/integrations/agent/
+    https://l.stackstate.com/agent-install-docs-link
 
 If you're still having problems, please send an email to info@stackstate.com
 with the contents of $logfile and we'll do our very best to help you
@@ -70,6 +70,7 @@ if [ -n "$STS_SITE" ]; then
     site="$STS_SITE"
 fi
 
+sts_url="http://localhost/stsAgent"
 if [ -n "$STS_URL" ]; then
     sts_url=$STS_URL
 fi
