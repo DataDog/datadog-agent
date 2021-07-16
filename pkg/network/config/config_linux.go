@@ -40,7 +40,8 @@ func (c *Config) EnabledProbes(runtimeTracer bool) (map[probes.ProbeName]struct{
 			enabled[probes.TCPRetransmit] = struct{}{}
 		}
 
-		if matches, _ := ebpf.VerifyKernelFuncs(filepath.Join(c.ProcRoot, "kallsyms"), []string{"sockfd_lookup_light"}); len(matches) > 0 {
+		missing, err := ebpf.VerifyKernelFuncs(filepath.Join(c.ProcRoot, "kallsyms"), []string{"sockfd_lookup_light"})
+		if err == nil && len(missing) == 0 {
 			enabled[probes.SockFDLookup] = struct{}{}
 			enabled[probes.SockFDLookupRet] = struct{}{}
 			enabled[probes.DoSendfile] = struct{}{}
