@@ -33,6 +33,7 @@ type pendingMsg struct {
 	ruleID    string
 	data      []byte
 	tags      map[string]bool
+	service   string
 	extTagsCb func() []string
 	sendAfter time.Time
 }
@@ -158,9 +159,10 @@ func (a *APIServer) start(ctx context.Context) {
 				}
 
 				m := &api.SecurityEventMessage{
-					RuleID: msg.ruleID,
-					Data:   msg.data,
-					Tags:   tags,
+					RuleID:  msg.ruleID,
+					Data:    msg.data,
+					Service: msg.service,
+					Tags:    tags,
 				}
 
 				select {
@@ -205,7 +207,7 @@ func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) 
 }
 
 // SendEvent forwards events sent by the runtime security module to Datadog
-func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string) {
+func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string, service string) {
 	agentContext := &AgentContext{
 		RuleID:  rule.Definition.ID,
 		Version: version.AgentVersion,
@@ -242,6 +244,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 		data:      data,
 		extTagsCb: extTagsCb,
 		tags:      make(map[string]bool),
+		service:   service,
 		sendAfter: time.Now().Add(a.retention),
 	}
 
