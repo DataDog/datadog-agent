@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	TransactionsIntakeOrchestrator = map[orchestrator.NodeType]*expvar.Int{}
+	transactionsIntakeOrchestrator = map[orchestrator.NodeType]*expvar.Int{}
 
 	v1SeriesEndpoint       = transaction.Endpoint{Route: "/api/v1/series", Name: "series_v1"}
 	v1CheckRunsEndpoint    = transaction.Endpoint{Route: "/api/v1/check_run", Name: "check_run_v1"}
@@ -94,13 +94,13 @@ func initEndpointExpvars() {
 
 func initOrchestratorExpVars() {
 	for _, nodeType := range orchestrator.NodeTypes() {
-		TransactionsIntakeOrchestrator[nodeType] = &expvar.Int{}
-		transaction.TransactionsExpvars.Set(nodeType.String(), TransactionsIntakeOrchestrator[nodeType])
+		transactionsIntakeOrchestrator[nodeType] = &expvar.Int{}
+		transaction.TransactionsExpvars.Set(nodeType.String(), transactionsIntakeOrchestrator[nodeType])
 	}
 }
 
 func bumpOrchestratorPayload(nodeType int) {
-	e := TransactionsIntakeOrchestrator[orchestrator.NodeType(nodeType)]
+	e := transactionsIntakeOrchestrator[orchestrator.NodeType(nodeType)]
 	e.Add(1)
 }
 

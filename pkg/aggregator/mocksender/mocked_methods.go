@@ -8,7 +8,6 @@ package mocksender
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
