@@ -96,7 +96,7 @@
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/integrations-tools-and-libraries
 /cmd/process-agent/                     @DataDog/processes
 /cmd/system-probe/                      @DataDog/agent-network
-/cmd/security-agent/                    @DataDog/container-integrations @DataDog/agent-security
+/cmd/security-agent/                    @DataDog/agent-security
 
 /dev/                                   @DataDog/agent-platform
 /devenv/                                @DataDog/agent-platform
@@ -125,7 +125,7 @@
 /omnibus/                               @DataDog/agent-platform
 /omnibus/config/software/datadog-agent*.rb                @Datadog/agent-core @DataDog/agent-platform
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
-/omnibus/config/software/datadog-security-agent*.rb       @Datadog/container-integrations @DataDog/agent-platform
+/omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-platform
 
 /pkg/                                   @DataDog/agent-core
 /pkg/aggregator/                        @DataDog/agent-core
@@ -186,7 +186,7 @@
 /pkg/ebpf/bytecode/runtime/runtime-security.go  @DataDog/agent-security
 /pkg/ebpf/bytecode/bindata/bindataRuntimesecurity*      @DataDog/agent-security
 /pkg/quantile/                          @DataDog/metrics-aggregation
-/pkg/compliance/                        @DataDog/container-integrations
+/pkg/compliance/                        @DataDog/agent-security
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
 /pkg/snmp/                              @DataDog/infrastructure-integrations
