@@ -76,7 +76,7 @@ kitchen_ubuntu_security_agent_arm64:
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export KITCHEN_PLATFORM=ubuntu
-    - export KITCHEN_OSVERS="ubuntu-20-04"
+    - export KITCHEN_OSVERS="ubuntu-20-04-hwe,ubuntu-21-04"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
