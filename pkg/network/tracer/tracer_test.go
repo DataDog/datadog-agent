@@ -1333,11 +1333,13 @@ func TestTCPDirection(t *testing.T) {
 		conns := getConnections(t, tr)
 		if len(outgoingConns) == 0 {
 			outgoingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
+				t.Logf("outgoing search: %s", cs)
 				return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == serverAddr
 			})
 		}
 		if len(incomingConns) == 0 {
 			incomingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
+				t.Logf("incoming search: %s", cs)
 				return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
 			})
 		}
@@ -1347,8 +1349,10 @@ func TestTCPDirection(t *testing.T) {
 
 	// Verify connection directions
 	conn := outgoingConns[0]
+	t.Logf("outgoing conn: %s", conn)
 	assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing: %s", conn)
 	conn = incomingConns[0]
+	t.Logf("incoming conn: %s", conn)
 	assert.Equal(t, conn.Direction, network.INCOMING, "connection direction must be incoming: %s", conn)
 }
 
