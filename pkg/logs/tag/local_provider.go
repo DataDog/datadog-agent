@@ -37,6 +37,9 @@ func NewLocalProvider(t []string) Provider {
 		go func() {
 			<-time.After(time.Until(p.expectedTagsDeadline))
 
+			// NOTE: this lock covers only the properties of this struct, and
+			// not the contents of the []string slices.  These slices must
+			// be treated as immutable.
 			p.Lock()
 			defer p.Unlock()
 			p.expectedTags = p.tags
@@ -46,7 +49,8 @@ func NewLocalProvider(t []string) Provider {
 	return p
 }
 
-// GetTags returns an empty list of tags.
+// GetTags returns the provider's tags.  The resulting slice is shared and
+// must not be mutated
 func (p *localProvider) GetTags() []string {
 
 	p.RLock()

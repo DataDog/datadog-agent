@@ -17,6 +17,10 @@ import (
 
 // Provider returns a list of up-to-date tags for a given entity.
 type Provider interface {
+	// Return the current list of tags for the provider's entity.
+	//
+	// Callers should consider the resulting slice read-only.  Implementers
+	// must be careful not to mutate the slice after returning it.
 	GetTags() []string
 }
 
