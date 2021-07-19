@@ -1,4 +1,6 @@
-package network
+//+build windows linux_bpf
+
+package dns
 
 import (
 	"sort"
@@ -87,7 +89,7 @@ func (c *reverseDNSCache) Add(translation *translation) bool {
 	return true
 }
 
-func (c *reverseDNSCache) Get(conns []ConnectionStats) map[util.Address][]string {
+func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]string {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
@@ -95,7 +97,7 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats) map[util.Address][]string
 		val.inUse = false
 	}
 
-	if len(conns) == 0 {
+	if len(ips) == 0 {
 		return nil
 	}
 
@@ -128,9 +130,8 @@ func (c *reverseDNSCache) Get(conns []ConnectionStats) map[util.Address][]string
 		}
 	}
 
-	for _, conn := range conns {
-		collectNamesForIP(conn.Source)
-		collectNamesForIP(conn.Dest)
+	for _, ip := range ips {
+		collectNamesForIP(ip)
 	}
 
 	// Update stats for telemetry

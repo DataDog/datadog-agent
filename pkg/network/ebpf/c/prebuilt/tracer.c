@@ -8,9 +8,9 @@
 
 #include "bpf_helpers.h"
 #include "bpf_endian.h"
-#include "syscalls.h"
 #include "ip.h"
 #include "ipv6.h"
+#include "defs.h"
 
 #include <linux/kconfig.h>
 #include <net/inet_sock.h>
@@ -21,22 +21,6 @@
 #include <uapi/linux/ptrace.h>
 #include <uapi/linux/tcp.h>
 #include <uapi/linux/udp.h>
-
-/* The LOAD_CONSTANT macro is used to define a named constant that will be replaced
- * at runtime by the Go code. This replaces usage of a bpf_map for storing values, which
- * eliminates a bpf_map_lookup_elem per kprobe hit. The constants are best accessed with a
- * dedicated inlined function. See example functions offset_* below.
- */
-#define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" \
-                                      : "=r"(var))
-
-static const __u64 ENABLED = 1;
-
-static __always_inline bool dns_stats_enabled() {
-    __u64 val = 0;
-    LOAD_CONSTANT("dns_stats_enabled", val);
-    return val == ENABLED;
-}
 
 static __always_inline __u64 offset_family() {
     __u64 val = 0;
@@ -938,24 +922,6 @@ cleanup:
 }
 
 //endregion
-
-// This function is meant to be used as a BPF_PROG_TYPE_SOCKET_FILTER.
-// When attached to a RAW_SOCKET, this code filters out everything but DNS traffic.
-// All structs referenced here are kernel independent as they simply map protocol headers (Ethernet, IP and UDP).
-SEC("socket/dns_filter")
-int socket__dns_filter(struct __sk_buff* skb) {
-    skb_info_t skb_info;
-
-    if (!read_conn_tuple_skb(skb, &skb_info)) {
-        return 0;
-    }
-
-    if (skb_info.tup.sport != 53 && (!dns_stats_enabled() || skb_info.tup.dport != 53)) {
-        return 0;
-    }
-
-    return -1;
-}
 
 // This number will be interpreted by elf-loader to set the current running kernel version
 __u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)

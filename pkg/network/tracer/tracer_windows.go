@@ -3,6 +3,7 @@
 package tracer
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"syscall"
@@ -11,8 +12,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -26,7 +28,7 @@ type Tracer struct {
 	driverInterface *network.DriverInterface
 	stopChan        chan struct{}
 	state           network.State
-	reverseDNS      network.ReverseDNS
+	reverseDNS      dns.ReverseDNS
 
 	connStatsActive *network.DriverBuffer
 	connStatsClosed *network.DriverBuffer
@@ -47,7 +49,7 @@ type Tracer struct {
 func NewTracer(config *config.Config) (*Tracer, error) {
 	di, err := network.NewDriverInterface(config)
 
-	if err != nil && errors.Cause(err) == syscall.Errno(syscall.ERROR_FILE_NOT_FOUND) {
+	if err != nil && errors.Is(err, syscall.ERROR_FILE_NOT_FOUND) {
 		log.Debugf("could not create driver interface: %v", err)
 		return nil, fmt.Errorf("The Windows driver was not installed, reinstall the Datadog Agent with network performance monitoring enabled")
 	} else if err != nil {
@@ -63,11 +65,12 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.CollectDNSDomains,
 	)
 
-	packetSrc := network.NewWindowsPacketSource(di)
-
-	reverseDNS, err := network.NewSocketFilterSnooper(config, packetSrc)
-	if err != nil {
-		return nil, err
+	reverseDNS := dns.NewNullReverseDNS()
+	if config.DNSInspection {
+		reverseDNS, err = dns.NewReverseDNS(config)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	tr := &Tracer{
@@ -129,7 +132,11 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
 	conns := delta.Connections
-	names := t.reverseDNS.Resolve(conns)
+	var ips []util.Address
+	for _, conn := range delta.Connections {
+		ips = append(ips, conn.Source, conn.Dest)
+	}
+	names := t.reverseDNS.Resolve(ips)
 	return &network.Connections{Conns: conns, DNS: names}, nil
 }
 

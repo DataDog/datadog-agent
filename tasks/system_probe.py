@@ -90,6 +90,7 @@ def build(
             # Only build ebpf files on unix
             build_object_files(ctx, bundle_ebpf=bundle_ebpf)
 
+    generate_cgo_types(ctx, windows=windows)
     ldflags, gcflags, env = get_build_flags(
         ctx, major_version=major_version, python_runtimes=python_runtimes, embedded_path=embedded_path
     )
@@ -543,6 +544,7 @@ def build_network_ebpf_files(ctx, build_dir):
         "tracer",
         "offset-guess",
         "http",
+        "dns",
     ]
 
     network_flags = get_ebpf_build_flags()
@@ -655,6 +657,27 @@ def generate_runtime_files(ctx):
     ]
     for f in runtime_compiler_files:
         ctx.run("go generate -mod=mod -tags {tags} {file}".format(file=f, tags=BPF_TAG))
+
+
+@task
+def generate_cgo_types(ctx, windows=is_windows):
+    if windows:
+        platform = "windows"
+        def_files = [
+            "./pkg/network/driver/types.go",
+        ]
+    else:
+        platform = "linux"
+        def_files = []
+
+    for f in def_files:
+        fdir, file = os.path.split(f)
+        base, _ = os.path.splitext(file)
+        with ctx.cd(fdir):
+            ctx.run(
+                "go tool cgo -godefs -- {file} > {base}_{platform}.go".format(file=file, base=base, platform=platform)
+            )
+            ctx.run("gofmt -w -s {base}_{platform}.go".format(base=base, platform=platform))
 
 
 def build_ebpf_builder(ctx):
