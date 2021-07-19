@@ -31,10 +31,6 @@ type GardenCollector struct {
 
 // Detect tries to connect to the Garden API and the cluster agent
 func (c *GardenCollector) Detect(ctx context.Context, out chan<- []*TagInfo) (CollectionMode, error) {
-	if !config.IsFeaturePresent(config.CloudFoundry) {
-		return NoCollection, nil
-	}
-
 	// Detect if we're on a compute VM by trying to connect to the local garden API
 	var err error
 	c.gardenUtil, err = cloudfoundry.GetGardenUtil()
@@ -86,7 +82,7 @@ func (c *GardenCollector) Pull(ctx context.Context) error {
 }
 
 // Fetch gets the tags for a specific entity
-func (c *GardenCollector) Fetch(entity string) ([]string, []string, []string, error) {
+func (c *GardenCollector) Fetch(ctx context.Context, entity string) ([]string, []string, []string, error) {
 	_, cid := containers.SplitEntityName(entity)
 	tagsByInstanceGUID, err := c.extractTags(config.Datadog.GetString("bosh_id"))
 	if err != nil {
