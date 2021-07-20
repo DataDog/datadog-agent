@@ -101,6 +101,13 @@ datadog:
       enabled: true
 EOF
 
+cat > "$TMPDIR/values-kubernetes_state_core.yaml" <<EOF
+datadog:
+  kubeStateMetricsEnabled: false
+  kubeStateMetricsCore:
+    enabled: true
+EOF
+
 CLEANUP_INSTRUCTIONS='del(.metadata.labels."helm.sh/chart") | del(.metadata.labels."app.kubernetes.io/*") | del(.metadata.annotations.checksum/*) | del(.spec.template.metadata.annotations.checksum/*)'
 
 for values in "$TMPDIR"/values-*.yaml; do

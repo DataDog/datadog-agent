@@ -110,9 +110,15 @@ spec:
               subPath: install_info
               mountPath: /etc/datadog-agent/install_info
               readOnly: true
+            - name: confd
+              mountPath: /conf.d
+              readOnly: true
       volumes:
         - name: installinfo
           configMap:
             name: datadog-installinfo
+        - name: confd
+          configMap:
+            name: datadog-cluster-agent-confd
       nodeSelector:
         kubernetes.io/os: linux

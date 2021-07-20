@@ -74,6 +74,8 @@ spec:
               value: "/var/run/datadog/dsd.socket"
             - name: DD_EXTRA_CONFIG_PROVIDERS
               value: "clusterchecks endpointschecks"
+            - name: DD_IGNORE_AUTOCONF
+              value: "kubernetes_state"
           volumeMounts:
             - name: installinfo
               subPath: install_info
@@ -120,6 +122,69 @@ spec:
             periodSeconds: 15
             successThreshold: 1
             timeoutSeconds: 5
+        - name: process-agent
+          image: "gcr.io/datadoghq/agent:7.29.0"
+          imagePullPolicy: IfNotPresent
+          command: ["process-agent", "-config=/etc/datadog-agent/datadog.yaml"]
+          resources: {}
+          env:
+            # Needs to be removed when Agent N-2 is built with Golang 1.17
+            - name: GODEBUG
+              value: x509ignoreCN=0
+            - name: DD_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: "datadog"
+                  key: api-key
+            - name: DD_KUBERNETES_KUBELET_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: KUBERNETES
+              value: "yes"
+            - name: DD_CLUSTER_AGENT_ENABLED
+              value: "true"
+            - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
+              value: datadog-cluster-agent
+            - name: DD_CLUSTER_AGENT_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: datadog-cluster-agent
+                  key: token
+            - name: DD_LOG_LEVEL
+              value: "INFO"
+            - name: DD_SYSTEM_PROBE_ENABLED
+              value: "false"
+            - name: DD_DOGSTATSD_SOCKET
+              value: "/var/run/datadog/dsd.socket"
+            - name: DD_ORCHESTRATOR_EXPLORER_ENABLED
+              value: "true"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/datadog-agent
+            - name: runtimesocketdir
+              mountPath: /host/var/run
+              mountPropagation: None
+              readOnly: true
+            - name: logdatadog
+              mountPath: /var/log/datadog
+            - name: tmpdir
+              mountPath: /tmp
+              readOnly: false
+            - name: cgroups
+              mountPath: /host/sys/fs/cgroup
+              mountPropagation: None
+              readOnly: true
+            - name: passwd
+              mountPath: /etc/passwd
+              readOnly: true
+            - name: procdir
+              mountPath: /host/proc
+              mountPropagation: None
+              readOnly: true
+            - name: dsdsocket
+              mountPath: /var/run/datadog
+              readOnly: true
       initContainers:
         - name: init-volume
           image: "gcr.io/datadoghq/agent:7.29.0"
@@ -189,6 +254,9 @@ spec:
           name: dsdsocket
         - name: s6-run
           emptyDir: {}
+        - hostPath:
+            path: /etc/passwd
+          name: passwd
       tolerations:
       affinity: {}
       serviceAccountName: datadog
