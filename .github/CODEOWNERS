@@ -190,6 +190,8 @@
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
 /pkg/snmp/                              @DataDog/infrastructure-integrations
+/pkg/appsec/                            @DataDog/agent-appsec
+/pkg/config/appsec.go                   @DataDog/agent-appsec
 
 /pkg-config/                            @DataDog/agent-platform
 
