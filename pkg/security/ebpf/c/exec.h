@@ -442,6 +442,11 @@ int kprobe_bprm_execve(struct pt_regs *ctx) {
     return parse_args_and_env(ctx);
 }
 
+SEC("kprobe/security_bprm_check")
+int kprobe_security_bprm_check(struct pt_regs *ctx) {
+    return parse_args_and_env(ctx);
+}
+
 void __attribute__((always_inline)) fill_args_envs(struct exec_event_t *event, struct syscall_cache_t *syscall) {
     event->args_id = syscall->exec.args.id;
     event->args_truncated = syscall->exec.args.truncated;
