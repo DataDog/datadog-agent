@@ -2177,6 +2177,11 @@ api_key:
   #
   # poll_interval: 60
 
+  ## @param apps_batch_size - integer - optional - default: 5000
+  ## Number of apps per page to collect when calling the list apps endpoint of the CC API. Max 5000.
+  #
+  # apps_batch_size: 5000
+
 {{ end -}}
 {{- if .SNMP }}
 
