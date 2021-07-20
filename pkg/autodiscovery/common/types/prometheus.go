@@ -58,12 +58,15 @@ type OpenmetricsInstance struct {
 	HistogramBuckets              bool                        `mapstructure:"send_histograms_buckets" yaml:"send_histograms_buckets,omitempty" json:"send_histograms_buckets,omitempty"`
 	DistributionBuckets           bool                        `mapstructure:"send_distribution_buckets" yaml:"send_distribution_buckets,omitempty" json:"send_distribution_buckets,omitempty"`
 	MonotonicCounter              bool                        `mapstructure:"send_monotonic_counter" yaml:"send_monotonic_counter,omitempty" json:"send_monotonic_counter,omitempty"`
+	MonotonicWithGauge            bool                        `mapstructure:"send_monotonic_with_gauge" yaml:"send_monotonic_with_gauge,omitempty" json:"send_monotonic_with_gauge,omitempty"`
 	DistributionCountsAsMonotonic bool                        `mapstructure:"send_distribution_counts_as_monotonic" yaml:"send_distribution_counts_as_monotonic,omitempty" json:"send_distribution_counts_as_monotonic,omitempty"`
 	DistributionSumsAsMonotonic   bool                        `mapstructure:"send_distribution_sums_as_monotonic" yaml:"send_distribution_sums_as_monotonic,omitempty" json:"send_distribution_sums_as_monotonic,omitempty"`
 	ExcludeLabels                 []string                    `mapstructure:"exclude_labels" yaml:"exclude_labels,omitempty" json:"exclude_labels,omitempty"`
 	BearerTokenAuth               bool                        `mapstructure:"bearer_token_auth" yaml:"bearer_token_auth,omitempty" json:"bearer_token_auth,omitempty"`
 	BearerTokenPath               string                      `mapstructure:"bearer_token_path" yaml:"bearer_token_path,omitempty" json:"bearer_token_path,omitempty"`
 	IgnoreMetrics                 []string                    `mapstructure:"ignore_metrics" yaml:"ignore_metrics,omitempty" json:"ignore_metrics,omitempty"`
+	IgnoreMetricsByLabels         map[string]interface{}      `mapstructure:"ignore_metrics_by_labels" yaml:"ignore_metrics_by_labels,omitempty" json:"ignore_metrics_by_labels,omitempty"`
+	IgnoreTags                    []string                    `mapstructure:"ignore_tags" yaml:"ignore_tags,omitempty" json:"ignore_tags,omitempty"`
 	Proxy                         map[string]string           `mapstructure:"proxy" yaml:"proxy,omitempty" json:"proxy,omitempty"`
 	SkipProxy                     bool                        `mapstructure:"skip_proxy" yaml:"skip_proxy,omitempty" json:"skip_proxy,omitempty"`
 	Username                      string                      `mapstructure:"username" yaml:"username,omitempty" json:"username,omitempty"`
