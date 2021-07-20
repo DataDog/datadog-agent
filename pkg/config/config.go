@@ -606,6 +606,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cloud_foundry_cc.client_secret", "")
 	config.BindEnvAndSetDefault("cloud_foundry_cc.poll_interval", 60)
 	config.BindEnvAndSetDefault("cloud_foundry_cc.skip_ssl_validation", false)
+	config.BindEnvAndSetDefault("cloud_foundry_cc.apps_batch_size", 5000)
 
 	// Cloud Foundry Garden
 	config.BindEnvAndSetDefault("cloud_foundry_garden.listen_network", "unix")
