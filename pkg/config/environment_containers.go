@@ -43,8 +43,7 @@ const (
 	unixSocketPrefix               = "unix://"
 	winNamedPipePrefix             = "npipe://"
 
-	socketTimeout     = 500 * time.Millisecond
-	connectionTimeout = 1 * time.Second
+	socketTimeout = 500 * time.Millisecond
 )
 
 func init() {
