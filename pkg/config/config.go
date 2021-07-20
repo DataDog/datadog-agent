@@ -907,7 +907,6 @@ func InitConfig(config Config) {
 
 	setAssetFs(config)
 	setupAPM(config)
-	setupAppSec(config)
 }
 
 var ddURLRegexp = regexp.MustCompile(`^app(\.(us|eu)\d)?\.datad(oghq|0g)\.(com|eu)$`)

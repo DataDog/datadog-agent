@@ -30,11 +30,9 @@ import (
 
 	"github.com/tinylib/msgp/msgp"
 
-	"github.com/DataDog/datadog-agent/pkg/appsec"
 	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -75,7 +73,6 @@ type HTTPReceiver struct {
 	dynConf        *sampler.DynamicConfig
 	server         *http.Server
 	statsProcessor StatsProcessor
-	appsecHandler  http.Handler
 
 	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
@@ -90,10 +87,6 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	if features.Has("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
 	}
-	appsecHandler, err := appsec.NewIntakeReverseProxy(conf.NewHTTPTransport())
-	if err != nil {
-		log.Errorf("Could not instantiate AppSec: %v", err)
-	}
 	return &HTTPReceiver{
 		Stats:       info.NewReceiverStats(),
 		RateLimiter: newRateLimiter(),
@@ -102,7 +95,6 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		statsProcessor: statsProcessor,
 		conf:           conf,
 		dynConf:        dynConf,
-		appsecHandler:  appsecHandler,
 
 		debug:               strings.ToLower(conf.LogLevel) == "debug",
 		rateLimiterResponse: rateLimiterResponse,
@@ -302,7 +294,7 @@ func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.Respons
 		}
 
 		// TODO(x): replace with http.MaxBytesReader?
-		req.Body = apiutil.NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
+		req.Body = NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 
 		f(v, w, req)
 	}
@@ -439,7 +431,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	defer timing.Since("datadog.trace_agent.receiver.stats_process_ms", time.Now())
 
 	ts := r.tagStats(v06, req.Header)
-	rd := apiutil.NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
+	rd := NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 	req.Header.Set("Accept", "application/msgpack")
 	var in pb.ClientStatsPayload
 	if err := msgp.Decode(rd, &in); err != nil {
@@ -471,7 +463,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	if err != nil {
 		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
 		switch err {
-		case apiutil.ErrLimitedReaderLimitReached:
+		case ErrLimitedReaderLimitReached:
 			atomic.AddInt64(&ts.TracesDropped.PayloadTooLarge, tracen)
 		case io.EOF, io.ErrUnexpectedEOF, msgp.ErrShortBytes:
 			atomic.AddInt64(&ts.TracesDropped.EOF, tracen)
@@ -488,7 +480,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	r.replyOK(v, w)
 
 	atomic.AddInt64(&ts.TracesReceived, int64(len(traces)))
-	atomic.AddInt64(&ts.TracesBytes, req.Body.(*apiutil.LimitedReader).Count)
+	atomic.AddInt64(&ts.TracesBytes, req.Body.(*LimitedReader).Count)
 	atomic.AddInt64(&ts.PayloadAccepted, 1)
 
 	cid := req.Header.Get(headerContainerID)
