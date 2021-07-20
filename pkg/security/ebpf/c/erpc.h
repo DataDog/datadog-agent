@@ -85,7 +85,7 @@ int __attribute__((always_inline)) is_eprc_request(struct pt_regs *ctx) {
 int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
     void *req = (void *)PT_REGS_PARM4(ctx);
 
-    u8 op;
+    u8 op = 0;
     int ret = bpf_probe_read(&op, sizeof(op), req);
     if (ret < 0) {
         return 0;
