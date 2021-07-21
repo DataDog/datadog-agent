@@ -814,14 +814,10 @@ func TestUDPPeekCount(t *testing.T) {
 	_, err = c.Write(msg)
 	require.NoError(t, err)
 
-	time.Sleep(100 * time.Millisecond)
-
-	connections := getConnections(t, tr)
-
-	incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+	incoming, ok := waitForConnection(t, c.RemoteAddr(), c.LocalAddr(), tr, 5*time.Second)
 	require.True(t, ok)
 
-	outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	outgoing, ok := waitForConnection(t, c.LocalAddr(), c.RemoteAddr(), tr, 5*time.Second)
 	require.True(t, ok)
 
 	require.Equal(t, len(msg), int(outgoing.MonotonicSentBytes))
@@ -833,6 +829,7 @@ func TestUDPPeekCount(t *testing.T) {
 	require.Equal(t, len(msg), int(incoming.MonotonicRecvBytes))
 	require.True(t, incoming.IntraHost)
 }
+
 func TestUDPDisabled(t *testing.T) {
 	// Enable BPF-based system probe with UDP disabled
 	config := testConfig()
@@ -1207,6 +1204,24 @@ func removeConnection(t *testing.T, tr *Tracer, c *network.ConnectionStats) {
 func byAddress(l, r net.Addr) func(c network.ConnectionStats) bool {
 	return func(c network.ConnectionStats) bool {
 		return addrMatches(l, c.Source.String(), c.SPort) && addrMatches(r, c.Dest.String(), c.DPort)
+	}
+}
+
+// waitForConnection polls for a given connection, returning as soon as it
+// appears (with true) or the timeout expires (with false)
+func waitForConnection(t *testing.T, l, r net.Addr, tr *Tracer, timeout time.Duration) (*network.ConnectionStats, bool) {
+	deadline := time.Now().Add(timeout)
+	for {
+		conns := getConnections(t, tr)
+		conn, ok := findConnection(l, r, conns)
+		if ok {
+			return conn, true
+		}
+		if time.Now() > deadline {
+			return nil, false
+		}
+
+		time.Sleep(100 * time.Milliseconds)
 	}
 }
 
