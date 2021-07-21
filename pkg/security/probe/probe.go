@@ -769,12 +769,15 @@ func (p *Probe) Snapshot() error {
 
 // Close the probe
 func (p *Probe) Close() error {
-	p.cancelFnc()
-	p.wg.Wait()
-
+	// We need to stop the manager first, otherwise there can be a dead-lock between the eBPF perf map reader and the
+	// reorderer (at the channel level)
 	if err := p.manager.Stop(manager.CleanAll); err != nil {
 		return err
 	}
+
+	p.cancelFnc()
+	p.wg.Wait()
+
 	return p.resolvers.Close()
 }
 
