@@ -85,4 +85,10 @@ typedef struct {
     __u64 batch_idx;
 } http_batch_notification_t;
 
+
+typedef struct {
+    void *ctx;
+    void *buf;
+} ssl_read_args_t;
+
 #endif

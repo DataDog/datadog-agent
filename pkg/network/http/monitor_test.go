@@ -52,7 +52,7 @@ func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int) {
 	srvDoneFn := serverSetup(t, serverAddr)
 	defer srvDoneFn()
 
-	monitor, err := NewMonitor(config.New())
+	monitor, err := NewMonitor(config.New(), nil, nil)
 	require.NoError(t, err)
 	err = monitor.Start()
 	require.NoError(t, err)
