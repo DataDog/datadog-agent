@@ -26,7 +26,7 @@ from .utils import (
 # constants
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
 STATIC_BIN_PATH = os.path.join(".", "bin", "static")
-MAX_BINARY_SIZE = 21 * 1024
+MAX_BINARY_SIZE = 22 * 1024
 DOGSTATSD_TAG = "datadog/dogstatsd:master"
 
 

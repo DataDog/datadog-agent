@@ -67,6 +67,7 @@ require (
 	github.com/StackExchange/wmi v0.0.0-20210224194228-fe8f1750fd46 // indirect
 	github.com/alecthomas/participle v0.7.1
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
+	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15
 	github.com/andybalholm/brotli v1.0.1 // indirect
 	github.com/avast/retry-go v2.7.0+incompatible
 	github.com/aws/aws-sdk-go v1.35.24
@@ -79,7 +80,7 @@ require (
 	github.com/clbanning/mxj v1.8.4
 	github.com/cloudfoundry-community/go-cfclient v0.0.0-20201123235753-4f46d6348a05
 	github.com/cobaugh/osrelease v0.0.0-20181218015638-a93a0a55a249
-	github.com/containerd/cgroups v0.0.0-20210114181951-8a68de567b68
+	github.com/containerd/cgroups v1.0.1
 	github.com/containerd/containerd v1.5.0-beta.4
 	github.com/containerd/typeurl v1.0.2
 	github.com/coreos/go-semver v0.3.0

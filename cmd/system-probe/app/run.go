@@ -11,6 +11,8 @@ import (
 
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
+	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
+
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
@@ -18,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -34,6 +37,8 @@ var ErrNotEnabled = errors.New("system-probe not enabled")
 var (
 	// flags variables
 	pidfilePath string
+
+	memoryMonitor *utils.MemoryMonitor
 
 	runCmd = &cobra.Command{
 		Use:   "run",
@@ -140,6 +145,17 @@ func StartSystemProbe() error {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
+	if ddconfig.Datadog.GetBool("system_probe_config.memory_controller.enabled") {
+		memoryPressureLevels := ddconfig.Datadog.GetStringMapString("system_probe_config.memory_controller.pressure_levels")
+		memoryThresholds := ddconfig.Datadog.GetStringMapString("system_probe_config.memory_controller.thresholds")
+		memoryMonitor, err = utils.NewMemoryMonitor(memoryPressureLevels, memoryThresholds)
+		if err != nil {
+			log.Warnf("Can't set up memory controller: %v", err)
+		} else {
+			memoryMonitor.Start()
+		}
+	}
+
 	if err := initRuntimeSettings(); err != nil {
 		log.Warnf("cannot initialize the runtime settings: %v", err)
 	}
@@ -187,6 +203,9 @@ func StartSystemProbe() error {
 func StopSystemProbe() {
 	module.Close()
 	profiling.Stop()
+	if memoryMonitor != nil {
+		memoryMonitor.Stop()
+	}
 	_ = os.Remove(pidfilePath)
 	log.Flush()
 }

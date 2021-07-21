@@ -102,6 +102,7 @@ core,"github.com/alecthomas/participle/lexer",MIT
 core,"github.com/alecthomas/participle/lexer/ebnf",MIT
 core,"github.com/alecthomas/participle/lexer/ebnf/internal",MIT
 core,"github.com/alecthomas/repr",MIT
+core,"github.com/alecthomas/units",MIT
 core,"github.com/andybalholm/brotli",MIT
 core,"github.com/aptly-dev/aptly/aptly",MIT
 core,"github.com/aptly-dev/aptly/database",MIT
@@ -173,6 +174,7 @@ core,"github.com/cihub/seelog",BSD-3-Clause
 core,"github.com/clbanning/mxj",MIT
 core,"github.com/cloudfoundry-community/go-cfclient",MIT
 core,"github.com/cobaugh/osrelease",BSD-3-Clause
+core,"github.com/containerd/cgroups",Apache-2.0
 core,"github.com/containerd/cgroups/stats/v1",Apache-2.0
 core,"github.com/containerd/containerd",Apache-2.0
 core,"github.com/containerd/containerd/api/events",Apache-2.0
