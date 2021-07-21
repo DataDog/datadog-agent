@@ -50,14 +50,14 @@ type OpenmetricsInstance struct {
 	Namespace                     string                      `mapstructure:"namespace" yaml:"namespace,omitempty" json:"namespace"`
 	Metrics                       []string                    `mapstructure:"metrics" yaml:"metrics,omitempty" json:"metrics,omitempty"`
 	Prefix                        string                      `mapstructure:"prometheus_metrics_prefix" yaml:"prometheus_metrics_prefix,omitempty" json:"prometheus_metrics_prefix,omitempty"`
-	HealthCheck                   bool                        `mapstructure:"health_service_check" yaml:"health_service_check,omitempty" json:"health_service_check,omitempty"`
+	HealthCheck                   *bool                       `mapstructure:"health_service_check" yaml:"health_service_check,omitempty" json:"health_service_check,omitempty"`
 	LabelToHostname               bool                        `mapstructure:"label_to_hostname" yaml:"label_to_hostname,omitempty" json:"label_to_hostname,omitempty"`
 	LabelJoins                    map[string]LabelJoinsConfig `mapstructure:"label_joins" yaml:"label_joins,omitempty" json:"label_joins,omitempty"`
 	LabelsMapper                  map[string]string           `mapstructure:"labels_mapper" yaml:"labels_mapper,omitempty" json:"labels_mapper,omitempty"`
 	TypeOverride                  map[string]string           `mapstructure:"type_overrides" yaml:"type_overrides,omitempty" json:"type_overrides,omitempty"`
-	HistogramBuckets              bool                        `mapstructure:"send_histograms_buckets" yaml:"send_histograms_buckets,omitempty" json:"send_histograms_buckets,omitempty"`
+	HistogramBuckets              *bool                       `mapstructure:"send_histograms_buckets" yaml:"send_histograms_buckets,omitempty" json:"send_histograms_buckets,omitempty"`
 	DistributionBuckets           bool                        `mapstructure:"send_distribution_buckets" yaml:"send_distribution_buckets,omitempty" json:"send_distribution_buckets,omitempty"`
-	MonotonicCounter              bool                        `mapstructure:"send_monotonic_counter" yaml:"send_monotonic_counter,omitempty" json:"send_monotonic_counter,omitempty"`
+	MonotonicCounter              *bool                       `mapstructure:"send_monotonic_counter" yaml:"send_monotonic_counter,omitempty" json:"send_monotonic_counter,omitempty"`
 	MonotonicWithGauge            bool                        `mapstructure:"send_monotonic_with_gauge" yaml:"send_monotonic_with_gauge,omitempty" json:"send_monotonic_with_gauge,omitempty"`
 	DistributionCountsAsMonotonic bool                        `mapstructure:"send_distribution_counts_as_monotonic" yaml:"send_distribution_counts_as_monotonic,omitempty" json:"send_distribution_counts_as_monotonic,omitempty"`
 	DistributionSumsAsMonotonic   bool                        `mapstructure:"send_distribution_sums_as_monotonic" yaml:"send_distribution_sums_as_monotonic,omitempty" json:"send_distribution_sums_as_monotonic,omitempty"`
