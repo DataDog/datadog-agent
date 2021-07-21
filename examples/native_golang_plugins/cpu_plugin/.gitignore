@@ -1,0 +1,5 @@
+// Our shared library artifact
+cpu_plugin.so
+
+// We don't really care about checksums for the example
+go.sum
