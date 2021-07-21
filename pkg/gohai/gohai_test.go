@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSelectedCollectors_String(t *testing.T) {
@@ -10,5 +11,5 @@ func TestSelectedCollectors_String(t *testing.T) {
 		"foo": struct{}{},
 		"bar": struct{}{},
 	}
-	assert.Equal(t, "[foo bar]", sc.String())
+	assert.Equal(t, "[bar foo]", sc.String())
 }
