@@ -86,6 +86,9 @@ const (
 	// SocketHTTPFilter is the socket probe for HTTP
 	SocketHTTPFilter ProbeName = "socket/http_filter"
 
+	// SockMapFdReturn maps a file descriptor to a kernel sock
+	SockMapFdReturn ProbeName = "kretprobe/sockfd_lookup_light"
+
 	// IPRouteOutputFlow is the kprobe of a ip_route_output_flow call
 	IPRouteOutputFlow ProbeName = "kprobe/ip_route_output_flow"
 	// IPRouteOutputFlow is the kretprobe of a ip_route_output_flow call

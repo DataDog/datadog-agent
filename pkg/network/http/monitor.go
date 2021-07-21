@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
+	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
 )
 
@@ -38,8 +39,8 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(c *config.Config) (*Monitor, error) {
-	mgr, err := newEBPFProgram(c)
+func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*Monitor, error) {
+	mgr, err := newEBPFProgram(c, offsets, sockFD)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up http ebpf program: %s", err)
 	}

@@ -45,4 +45,22 @@ struct bpf_map_def SEC("maps/http_batch_state") http_batch_state = {
     .namespace = "",
 };
 
+struct bpf_map_def SEC("maps/tup_by_ssl_ctx") tup_by_ssl_ctx = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(void *),
+    .value_size = sizeof(conn_tuple_t),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
+struct bpf_map_def SEC("maps/ssl_read_args") ssl_read_args = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u64),
+    .value_size = sizeof(ssl_read_args_t),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
 #endif
