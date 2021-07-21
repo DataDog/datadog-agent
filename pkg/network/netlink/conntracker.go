@@ -20,8 +20,6 @@ import (
 )
 
 const (
-	initializationTimeout = time.Second * 10
-
 	compactInterval      = time.Minute
 	defaultOrphanTimeout = 2 * time.Minute
 )
@@ -94,8 +92,8 @@ func NewConntracker(config *config.Config) (Conntracker, error) {
 	select {
 	case <-done:
 		return conntracker, err
-	case <-time.After(initializationTimeout):
-		return nil, fmt.Errorf("could not initialize conntrack after: %s", initializationTimeout)
+	case <-time.After(config.ConntrackInitTimeout):
+		return nil, fmt.Errorf("could not initialize conntrack after: %s", config.ConntrackInitTimeout)
 	}
 }
 

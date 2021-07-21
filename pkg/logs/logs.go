@@ -59,13 +59,13 @@ func StartServerless(getAC func() *autodiscovery.AutoConfig, logsChan chan *conf
 // buildEndpoints builds endpoints for the logs agent
 func buildEndpoints(serverless bool) (*config.Endpoints, error) {
 	if serverless {
-		return config.BuildServerlessEndpoints(intakeTrackType, config.DefaultIntakeProtocol)
+		return config.BuildServerlessEndpoints(intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeSource)
 	}
 	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpoints(intakeTrackType, intakeProtocol); err == nil {
+	if endpoints, err := config.BuildHTTPEndpoints(intakeTrackType, intakeProtocol, config.DefaultIntakeSource); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main)
 	}
-	return config.BuildEndpoints(httpConnectivity, intakeTrackType, intakeProtocol)
+	return config.BuildEndpoints(httpConnectivity, intakeTrackType, intakeProtocol, config.DefaultIntakeSource)
 }
 
 func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan chan *config.ChannelMessage, extraTags []string) error {

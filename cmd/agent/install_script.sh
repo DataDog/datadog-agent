@@ -261,6 +261,11 @@ if [ ! "$apikey" ]; then
   fi
 fi
 
+if [[ `uname -m` == "armv7l" ]] && [[ $agent_flavor == "datadog-agent" ]]; then
+    printf "\033[31mThe full Datadog Agent isn't available for your architecture (armv7l).\nInstall the Datadog IoT Agent by setting DD_AGENT_FLAVOR='datadog-iot'agent'.\033[0m\n"
+    exit 1;
+fi
+
 # OS/Distro Detection
 # Try lsb_release, fallback with /etc/issue then uname command
 KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
@@ -379,6 +384,9 @@ elif [ "$OS" = "Debian" ]; then
     if [ ! -f $apt_usr_share_keyring ]; then
         $sudo_cmd touch $apt_usr_share_keyring
     fi
+    # ensure that the _apt user used on Ubuntu/Debian systems to read GPG keyrings
+    # can read our keyring
+    $sudo_cmd chmod a+r $apt_usr_share_keyring
 
     for key in "${APT_GPG_KEYS[@]}"; do
         $sudo_cmd curl --retry 5 -o "/tmp/${key}" "https://${keys_url}/${key}"
@@ -388,7 +396,8 @@ elif [ "$OS" = "Debian" ]; then
     release_version="$(grep VERSION_ID /etc/os-release | cut -d = -f 2 | xargs echo | cut -d "." -f 1)"
     if { [ "$DISTRIBUTION" == "Debian" ] && [ "$release_version" -lt 9 ]; } || \
        { [ "$DISTRIBUTION" == "Ubuntu" ] && [ "$release_version" -lt 16 ]; }; then
-        $sudo_cmd cp $apt_usr_share_keyring $apt_trusted_d_keyring
+        # copy with -a to preserve file permissions
+        $sudo_cmd cp -a $apt_usr_share_keyring $apt_trusted_d_keyring
     fi
 
     printf "\033[34m\n* Installing the Datadog Agent package\n\033[0m\n"
@@ -586,8 +595,8 @@ restart_cmd="$sudo_cmd $service_cmd datadog-agent restart"
 stop_instructions="$sudo_cmd $service_cmd datadog-agent stop"
 start_instructions="$sudo_cmd $service_cmd datadog-agent start"
 
-if command -v systemctl 2>&1; then
-  # Use systemd if systemctl binary exists
+if [[ `$sudo_cmd ps --no-headers -o comm 1 2>&1` == "systemd" ]] && command -v systemctl 2>&1; then
+  # Use systemd if systemctl binary exists and systemd is the init process
   restart_cmd="$sudo_cmd systemctl restart datadog-agent.service"
   stop_instructions="$sudo_cmd systemctl stop datadog-agent"
   start_instructions="$sudo_cmd systemctl start datadog-agent"

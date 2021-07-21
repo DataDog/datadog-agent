@@ -382,9 +382,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("forwarder_storage_max_disk_ratio", 0.95) // Do not store transactions on disk when the disk usage exceeds 95% of the disk capacity.
 
 	// Forwarder channels buffer size
-	config.BindEnvAndSetDefault("forwarder_high_prio_buffer_size", 1000)
-	config.BindEnvAndSetDefault("forwarder_low_prio_buffer_size", 1000)
-	config.BindEnvAndSetDefault("forwarder_requeue_buffer_size", 1000)
+	config.BindEnvAndSetDefault("forwarder_high_prio_buffer_size", 100)
+	config.BindEnvAndSetDefault("forwarder_low_prio_buffer_size", 100)
+	config.BindEnvAndSetDefault("forwarder_requeue_buffer_size", 100)
 
 	// Dogstatsd
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
@@ -606,6 +606,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cloud_foundry_cc.client_secret", "")
 	config.BindEnvAndSetDefault("cloud_foundry_cc.poll_interval", 60)
 	config.BindEnvAndSetDefault("cloud_foundry_cc.skip_ssl_validation", false)
+	config.BindEnvAndSetDefault("cloud_foundry_cc.apps_batch_size", 5000)
 
 	// Cloud Foundry Garden
 	config.BindEnvAndSetDefault("cloud_foundry_garden.listen_network", "unix")
@@ -697,10 +698,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.use_http", false)
 	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
 
-	bindEnvAndSetLogsConfigKeys(config, "logs_config.")
-	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
-	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
-	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
+	bindEnvAndSetLogsConfigKeys(config, "logs_config.", false)
+	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.", false)
+	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.", false)
+	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.", false)
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
@@ -868,7 +869,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 100)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
 	config.BindEnvAndSetDefault("compliance_config.run_path", defaultRunPath)
-	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.")
+	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.", false)
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
@@ -896,7 +897,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.custom_sensitive_words", []string{})
 	config.BindEnvAndSetDefault("runtime_security_config.remote_tagger", true)
 	config.BindEnvAndSetDefault("runtime_security_config.log_patterns", []string{})
-	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
+	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.", true)
 
 	// Serverless Agent
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
@@ -1138,7 +1139,7 @@ func GetMultipleEndpoints() (map[string][]string, error) {
 	return getMultipleEndpointsWithConfig(Datadog)
 }
 
-func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
+func bindEnvAndSetLogsConfigKeys(config Config, prefix string, v2Api bool) {
 	config.BindEnv(prefix + "logs_dd_url")          //nolint:errcheck // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
 	config.BindEnv(prefix + "dd_url")               //nolint:errcheck
 	config.BindEnv(prefix + "additional_endpoints") //nolint:errcheck
@@ -1155,7 +1156,7 @@ func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"sender_backoff_max", DefaultLogsSenderBackoffMax)
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_interval", DefaultForwarderRecoveryInterval)
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
-	config.BindEnvAndSetDefault(prefix+"use_v2_api", false)
+	config.BindEnvAndSetDefault(prefix+"use_v2_api", v2Api)
 }
 
 // getDomainPrefix provides the right prefix for agent X.Y.Z

@@ -319,7 +319,7 @@ func (m *Module) HandleEvent(event *sprobe.Event) {
 
 // HandleCustomEvent is called by the probe when an event should be sent to Datadog but doesn't need evaluation
 func (m *Module) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) {
-	m.SendEvent(rule, event, func() []string { return nil })
+	m.SendEvent(rule, event, func() []string { return nil }, "")
 }
 
 // RuleMatch is called by the ruleset when a rule matches
@@ -345,19 +345,16 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 			service = m.config.HostServiceName
 		}
 
-		if service != "" {
-			tags = append(tags, "service:"+service)
-		}
 		return append(tags, m.probe.GetResolvers().TagsResolver.Resolve(id)...)
 	}
 
-	m.SendEvent(rule, event, extTagsCb)
+	m.SendEvent(rule, event, extTagsCb, service)
 }
 
 // SendEvent sends an event to the backend after checking that the rate limiter allows it for the provided rule
-func (m *Module) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string) {
+func (m *Module) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string, service string) {
 	if m.rateLimiter.Allow(rule.ID) {
-		m.apiServer.SendEvent(rule, event, extTagsCb)
+		m.apiServer.SendEvent(rule, event, extTagsCb, service)
 	} else {
 		seclog.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)
 	}

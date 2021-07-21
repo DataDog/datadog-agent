@@ -51,7 +51,8 @@ type Destination struct {
 	backoff             backoff.Policy
 	nbErrors            int
 	blockedUntil        time.Time
-	protocol            string
+	protocol            config.IntakeProtocol
+	source              config.IntakeSource
 }
 
 // NewDestination returns a new Destination.
@@ -86,6 +87,7 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 		climit:              make(chan struct{}, maxConcurrentBackgroundSends),
 		backoff:             policy,
 		protocol:            endpoint.Protocol,
+		source:              endpoint.Source,
 	}
 }
 
@@ -144,7 +146,10 @@ func (d *Destination) unconditionalSend(payload []byte) (err error) {
 	req.Header.Set("Content-Type", d.contentType)
 	req.Header.Set("Content-Encoding", d.contentEncoding.name())
 	if d.protocol != "" {
-		req.Header.Set("DD-PROTOCOL", d.protocol)
+		req.Header.Set("DD-PROTOCOL", string(d.protocol))
+	}
+	if d.source != "" {
+		req.Header.Set("DD-SOURCE", string(d.source))
 	}
 	req = req.WithContext(ctx)
 
