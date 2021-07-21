@@ -59,7 +59,7 @@ func TestCommandLineSplitting(t *testing.T) {
 			expected: []string{
 				"cmd",
 				"/c",
-				"c:\\devtools\\vstudio\\VC\\Auxiliary\\Build\\vcvarsall.bat\" -vcvars_ver=14.2 amd64 >nul 2>&1 <NUL",
+				"c:\\devtools\\vstudio\\VC\\Auxiliary\\Build\\vcvarsall.bat -vcvars_ver=14.2 amd64 >nul 2>&1 <NUL",
 				"&",
 				"echo",
 				"cdARN4xjKueKScMy9C6H&",
