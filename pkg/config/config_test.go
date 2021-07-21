@@ -151,6 +151,16 @@ func TestSiteEnvVar(t *testing.T) {
 	assert.Equal(t, "https://external-agent.datadoghq.eu", externalAgentURL)
 }
 
+func TestDDHostnameFileEnvVar(t *testing.T) {
+	resetAPIKey := setEnvForTest("DD_API_KEY", "fakeapikey")
+	resetHostnameFile := setEnvForTest("DD_HOSTNAME_FILE", "somefile")
+	defer resetAPIKey()
+	defer resetHostnameFile()
+	testConfig := setupConfFromYAML("")
+
+	assert.Equal(t, "somefile", testConfig.Get("hostname_file"))
+}
+
 func TestDDURLEnvVar(t *testing.T) {
 	resetAPIKey := setEnvForTest("DD_API_KEY", "fakeapikey")
 	resetURL := setEnvForTest("DD_DD_URL", "https://app.datadoghq.eu")
