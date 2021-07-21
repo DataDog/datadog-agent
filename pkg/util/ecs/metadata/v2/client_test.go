@@ -328,7 +328,14 @@ func TestGetContainerStats(t *testing.T) {
 			ReadBytes:  0,
 			WriteBytes: 0,
 		},
-		Network: NetStats{},
+		Networks: NetStatsMap{
+			"eth0": NetStats{
+				RxBytes:   163710528,
+				RxPackets: 113457,
+				TxBytes:   1103607,
+				TxPackets: 16969,
+			},
+		},
 	}
 
 	metadata, err := NewClient(ts.URL).GetContainerStats(ctx, containerID)

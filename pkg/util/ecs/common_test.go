@@ -259,7 +259,14 @@ func TestConvertMetaV2ContainerStats(t *testing.T) {
 			ReadBytes:  1024,
 			WriteBytes: 256,
 		},
-		Network: v2.NetStats{},
+		Networks: v2.NetStatsMap{
+			"eth0": v2.NetStats{
+				RxBytes:   163710528,
+				RxPackets: 113457,
+				TxBytes:   1103607,
+				TxPackets: 16969,
+			},
+		},
 	}
 
 	expectedCPU := &metrics.ContainerCPUStats{
@@ -278,11 +285,25 @@ func TestConvertMetaV2ContainerStats(t *testing.T) {
 		WriteBytes: 256,
 	}
 
+	expectedNetStats := []*metrics.InterfaceNetStats{
+		{
+			NetworkName: "eth0",
+			BytesRcvd:   163710528,
+			PacketsRcvd: 113457,
+			BytesSent:   1103607,
+			PacketsSent: 16969,
+		},
+	}
+
 	containerMetrics, memLimit := convertMetaV2ContainerStats(stats)
 
 	assert.Equal(t, expectedCPU, containerMetrics.CPU)
 	assert.Equal(t, expectedMem, containerMetrics.Memory)
 	assert.Equal(t, expectedIO, containerMetrics.IO)
+
+	netStats := convertMetaV2NetStats(stats.Networks)
+
+	assert.Equal(t, expectedNetStats, netStats)
 	assert.Equal(t, uint64(268435456), memLimit)
 }
 

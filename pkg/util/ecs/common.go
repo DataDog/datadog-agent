@@ -93,6 +93,11 @@ func UpdateContainerMetrics(cList []*containers.Container) error {
 		if ctr.Limits.MemLimit == 0 {
 			ctr.Limits.MemLimit = memLimit
 		}
+
+		netStats := convertMetaV2NetStats(stats.Networks)
+		if netStats != nil {
+			ctr.Network = netStats
+		}
 	}
 	return nil
 }
@@ -179,6 +184,26 @@ func convertMetaV2ContainerStats(s *v2.ContainerStats) (metrics.ContainerMetrics
 			WriteBytes: s.IO.WriteBytes,
 		},
 	}, s.Memory.Limit
+}
+
+// convertMetaV2NetStats returns interface network stats metrics representations from an ECS
+// metadata v2 container network stats object.
+func convertMetaV2NetStats(s v2.NetStatsMap) []*metrics.InterfaceNetStats {
+	if len(s) == 0 {
+		return nil
+	}
+
+	ifStats := make([]*metrics.InterfaceNetStats, 0, len(s))
+	for name, stats := range s {
+		ifStats = append(ifStats, &metrics.InterfaceNetStats{
+			NetworkName: name,
+			BytesRcvd:   stats.RxBytes,
+			PacketsRcvd: stats.RxPackets,
+			BytesSent:   stats.TxBytes,
+			PacketsSent: stats.TxPackets,
+		})
+	}
+	return ifStats
 }
 
 // parseContainerNetworkAddresses converts ECS container ports

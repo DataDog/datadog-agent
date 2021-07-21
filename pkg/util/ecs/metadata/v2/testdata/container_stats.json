@@ -130,6 +130,18 @@
     },
     "name": "/ecs-xavierlucas-test_redis-awsvpc-12-redis-86fe99b5ffeabffeed01",
     "num_procs": 0,
+    "networks": {
+      "eth0": {
+        "rx_bytes": 163710528,
+        "rx_packets": 113457,
+        "rx_errors": 0,
+        "rx_dropped": 0,
+        "tx_bytes": 1103607,
+        "tx_packets": 16969,
+        "tx_errors": 0,
+        "tx_dropped": 0
+      }
+    },
     "pids_stats": {
       "current": 6
     },
