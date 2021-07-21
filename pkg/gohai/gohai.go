@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	// 3p
@@ -103,10 +104,11 @@ func versionString() string {
 
 // Implement the flag.Value interface
 func (sc *SelectedCollectors) String() string {
-	collectorSlice := make([]string, 0)
+	collectorSlice := make([]string, 0, len(*sc))
 	for collectorName := range *sc {
 		collectorSlice = append(collectorSlice, collectorName)
 	}
+	sort.Strings(collectorSlice)
 	return fmt.Sprint(collectorSlice)
 }
 
@@ -140,11 +142,12 @@ func init() {
 	flag.Var(&options.only, "only", "Run only the listed collectors (comma-separated list of collector names)")
 	flag.Var(&options.exclude, "exclude", "Run all the collectors except those listed (comma-separated list of collector names)")
 	flag.StringVar(&options.logLevel, "log-level", "info", "Log level (one of 'warn', 'info', 'debug')")
-	flag.Parse()
 }
 
 func main() {
 	defer log.Flush()
+
+	flag.Parse()
 
 	err := initLogging(options.logLevel)
 	if err != nil {
