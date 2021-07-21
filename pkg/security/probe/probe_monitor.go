@@ -142,13 +142,23 @@ func (m *Monitor) ProcessLostEvent(count uint64, cpu int, perfMap *manager.PerfM
 	m.perfBufferMonitor.CountLostEvent(count, perfMap, cpu)
 }
 
+// RuleSetLoadedReport represents the rule and the custom event related to a RuleSetLoaded event, ready to be dispatched
+type RuleSetLoadedReport struct {
+	Rule  *rules.Rule
+	Event *CustomEvent
+}
+
+// PrepareRuleSetLoadedReport prepares a report of new loaded ruleset
+func (m *Monitor) PrepareRuleSetLoadedReport(ruleSet *rules.RuleSet, err *multierror.Error) RuleSetLoadedReport {
+	r, ev := NewRuleSetLoadedEvent(ruleSet, err)
+	return RuleSetLoadedReport{Rule: r, Event: ev}
+}
+
 // ReportRuleSetLoaded reports to Datadog that new ruleset was loaded
-func (m *Monitor) ReportRuleSetLoaded(ruleSet *rules.RuleSet, err *multierror.Error) {
+func (m *Monitor) ReportRuleSetLoaded(report RuleSetLoadedReport) {
 	if err := m.client.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(errors.Wrap(err, "failed to send ruleset_loaded metric"))
 	}
 
-	m.probe.DispatchCustomEvent(
-		NewRuleSetLoadedEvent(ruleSet, err),
-	)
+	m.probe.DispatchCustomEvent(report.Rule, report.Event)
 }

@@ -64,6 +64,12 @@ var (
 		Short: "process cache",
 		RunE:  dumpProcessCache,
 	}
+
+	selfTestCmd = &cobra.Command{
+		Use:   "self-test",
+		Short: "Run runtime self test",
+		RunE:  runRuntimeSelfTest,
+	}
 )
 
 func init() {
@@ -72,6 +78,8 @@ func init() {
 
 	runtimeCmd.AddCommand(checkPoliciesCmd)
 	checkPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+
+	runtimeCmd.AddCommand(selfTestCmd)
 }
 
 func dumpProcessCache(cmd *cobra.Command, args []string) error {
@@ -126,6 +134,26 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 	content, _ := json.MarshalIndent(report, "", "\t")
 	fmt.Printf("%s\n", string(content))
 
+	return nil
+}
+
+func runRuntimeSelfTest(cmd *cobra.Command, args []string) error {
+	client, err := secagent.NewRuntimeSecurityClient()
+	if err != nil {
+		return errors.Wrap(err, "unable to create a runtime security client instance")
+	}
+	defer client.Close()
+
+	selfTestResult, err := client.RunSelfTest()
+	if err != nil {
+		return errors.Wrap(err, "unable to get a process self test")
+	}
+
+	if selfTestResult.Ok {
+		fmt.Printf("Runtime self test: OK\n")
+	} else {
+		fmt.Printf("Runtime self test: error: %v\n", selfTestResult.Error)
+	}
 	return nil
 }
 

@@ -51,6 +51,7 @@ type APIServer struct {
 	queue             []*pendingMsg
 	retention         time.Duration
 	cfg               *config.Config
+	module            *Module
 }
 
 // GetEvents waits for security events
@@ -204,6 +205,25 @@ func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) 
 		}, nil
 	}
 	return &api.SecurityConfigMessage{}, nil
+}
+
+// RunSelfTest runs self test and then reload the current policies
+func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestParams) (*api.SecuritySelfTestResultMessage, error) {
+	if a.module == nil {
+		return nil, errors.New("failed to found module in APIServer")
+	}
+
+	if err := a.module.doSelfTest(); err != nil {
+		return &api.SecuritySelfTestResultMessage{
+			Ok:    false,
+			Error: err.Error(),
+		}, nil
+	}
+
+	return &api.SecuritySelfTestResultMessage{
+		Ok:    true,
+		Error: "",
+	}, nil
 }
 
 // SendEvent forwards events sent by the runtime security module to Datadog

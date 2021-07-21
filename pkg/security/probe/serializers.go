@@ -470,7 +470,8 @@ func serializeSyscallRetval(retval int64) string {
 	}
 }
 
-func newEventSerializer(event *Event) *EventSerializer {
+// NewEventSerializer creates a new event serializer based on the event type
+func NewEventSerializer(event *Event) *EventSerializer {
 	s := &EventSerializer{
 		EventContextSerializer: &EventContextSerializer{
 			Name:     model.EventType(event.Type).String(),
