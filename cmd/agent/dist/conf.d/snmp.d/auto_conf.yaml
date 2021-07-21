@@ -31,6 +31,7 @@ instances:
 
     ## @param community_string - string - optional
     ## Only useful for SNMP v1 & v2.
+    ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
     #
     community_string: '%%extra_community%%'
 
