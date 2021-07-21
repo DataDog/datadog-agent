@@ -379,6 +379,9 @@ elif [ "$OS" = "Debian" ]; then
     if [ ! -f $apt_usr_share_keyring ]; then
         $sudo_cmd touch $apt_usr_share_keyring
     fi
+    # ensure that the _apt user used on Ubuntu/Debian systems to read GPG keyrings
+    # can read our keyring
+    $sudo_cmd chmod a+r $apt_usr_share_keyring
 
     for key in "${APT_GPG_KEYS[@]}"; do
         $sudo_cmd curl --retry 5 -o "/tmp/${key}" "https://${keys_url}/${key}"
@@ -388,7 +391,8 @@ elif [ "$OS" = "Debian" ]; then
     release_version="$(grep VERSION_ID /etc/os-release | cut -d = -f 2 | xargs echo | cut -d "." -f 1)"
     if { [ "$DISTRIBUTION" == "Debian" ] && [ "$release_version" -lt 9 ]; } || \
        { [ "$DISTRIBUTION" == "Ubuntu" ] && [ "$release_version" -lt 16 ]; }; then
-        $sudo_cmd cp $apt_usr_share_keyring $apt_trusted_d_keyring
+        # copy with -a to preserve file permissions
+        $sudo_cmd cp -a $apt_usr_share_keyring $apt_trusted_d_keyring
     fi
 
     printf "\033[34m\n* Installing the Datadog Agent package\n\033[0m\n"
