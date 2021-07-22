@@ -50,8 +50,8 @@ func TestLink(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "link", "wrong event type")
-			assert.Equal(t, event.Link.Source.Inode, getInode(t, testNewFile), "wrong inode")
+			assert.Equal(t, "link", event.GetType(), "wrong event type")
+			assert.Equal(t, getInode(t, testNewFile), event.Link.Source.Inode, "wrong inode")
 
 			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))
 			assertRights(t, event.Link.Target.Mode, uint16(expectedMode))
@@ -78,8 +78,8 @@ func TestLink(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "link", "wrong event type")
-			assert.Equal(t, event.Link.Source.Inode, getInode(t, testNewFile), "wrong inode")
+			assert.Equal(t, "link", event.GetType(), "wrong event type")
+			assert.Equal(t, getInode(t, testNewFile), event.Link.Source.Inode, "wrong inode")
 
 			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))
 			assertRights(t, event.Link.Target.Mode, uint16(expectedMode))
