@@ -180,6 +180,7 @@
 /pkg/metadata/kubernetes/               @DataDog/agent-network
 /pkg/process/                           @DataDog/processes
 /pkg/process/checks/pod*.go             @DataDog/container-app
+/pkg/process/net/                       @DataDog/processes @DataDog/agent-network
 /pkg/orchestrator/                      @DataDog/container-app
 /pkg/network/                           @DataDog/agent-network
 /pkg/ebpf/                              @DataDog/agent-network
