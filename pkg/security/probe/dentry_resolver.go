@@ -514,8 +514,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 		// parse the path_key_t structure
 		key.Inode = model.ByteOrder.Uint64(dr.erpcSegment[i : i+8])
 		key.MountID = model.ByteOrder.Uint32(dr.erpcSegment[i+8 : i+12])
-		// skip PathID
-		i += 16
+		i += 12
 
 		if dr.erpcSegment[i] == 0 {
 			if depth >= model.MaxPathDepth {

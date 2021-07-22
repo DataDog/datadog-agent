@@ -371,11 +371,11 @@ int __attribute__((always_inline)) handle_resolve_segment(void *data) {
         return 0;
     }
 
-    int ret = bpf_probe_write_user((void *) userspace_buffer, &key, sizeof(key));
+    int ret = bpf_probe_write_user((void *) userspace_buffer, &key, offsetof(struct path_key_t, path_id));
     if (ret < 0)
         return ret;
 
-    return bpf_probe_write_user((void *) userspace_buffer + sizeof(key), map_value->name, DR_MAX_SEGMENT_LENGTH + 1);
+    return bpf_probe_write_user((void *) userspace_buffer + offsetof(struct path_key_t, path_id), map_value->name, DR_MAX_SEGMENT_LENGTH + 1);
 }
 
 int __attribute__((always_inline)) resolve_dentry(void *ctx, int dr_type) {
