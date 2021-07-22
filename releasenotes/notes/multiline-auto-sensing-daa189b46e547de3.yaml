@@ -1,0 +1,21 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Add multi-line auto-sensing when tailing logs from file.
+    It checks for the n first lines when tailing for a know list
+    of timestamp format. If all lines match one of the know
+    timestamp format it switches to the MultiLineHandler with
+    the regexp matching the timestamp format.
+    New global config parameter: ``logs_config.disable_auto_multi_line``
+    to disable the feature globally.
+    New per log integration config parameters:
+    * ``disable_auto_multi_line`` to disable the feature on a case
+      by case basis
+    * ``auto_multi_line_sample_size`` the number of lines to check

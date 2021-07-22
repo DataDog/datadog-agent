@@ -8,9 +8,11 @@ package decoder
 import (
 	"bytes"
 	"regexp"
+	"sort"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // truncatedFlag is the flag that is added at the beginning
@@ -118,8 +120,12 @@ type MultiLineHandler struct {
 
 // NewMultiLineHandler returns a new MultiLineHandler.
 func NewMultiLineHandler(outputChan chan *Message, newContentRe *regexp.Regexp, flushTimeout time.Duration, lineLimit int) *MultiLineHandler {
+	return newMultiLineHandler(make(chan *Message), outputChan, newContentRe, flushTimeout, lineLimit)
+}
+
+func newMultiLineHandler(inputChan chan *Message, outputChan chan *Message, newContentRe *regexp.Regexp, flushTimeout time.Duration, lineLimit int) *MultiLineHandler {
 	return &MultiLineHandler{
-		inputChan:    make(chan *Message),
+		inputChan:    inputChan,
 		outputChan:   outputChan,
 		newContentRe: newContentRe,
 		buffer:       bytes.NewBuffer(nil),
@@ -245,4 +251,162 @@ func (h *MultiLineHandler) sendBuffer() {
 	if len(content) > 0 || h.linesLen > 0 {
 		h.outputChan <- NewMessage(content, h.status, h.linesLen, h.timestamp)
 	}
+}
+
+type scoredPattern struct {
+	score  int
+	regexp *regexp.Regexp
+}
+
+// AutoMultilineHandler can switch from single to multiline handler if upon the occurrence
+// of a stable pattern at the begginning of the process
+type AutoMultilineHandler struct {
+	multiLineHandler  *MultiLineHandler
+	singleLineHandler *SingleLineHandler
+	inputChan         chan *Message
+	outputChan        chan *Message
+	flipChan          chan struct{}
+	linesToAssess     int
+	linesTested       int
+	lineLimit         int
+	matchThreshold    float64
+	scoredMatches     []*scoredPattern
+	processsingFunc   func(message *Message)
+	flushTimeout      time.Duration
+}
+
+// NewAutoMultilineHandler returns a new SingleLineHandler.
+func NewAutoMultilineHandler(outputChan chan *Message, lineLimit, linesToAssess int, matchThreshold float64, flushTimeout time.Duration) *AutoMultilineHandler {
+	scoredMatches := make([]*scoredPattern, len(formatsToTry))
+	for i, v := range formatsToTry {
+		scoredMatches[i] = &scoredPattern{
+			score:  0,
+			regexp: v,
+		}
+	}
+	h := &AutoMultilineHandler{
+		inputChan:      make(chan *Message),
+		outputChan:     outputChan,
+		flipChan:       make(chan struct{}, 1),
+		lineLimit:      lineLimit,
+		matchThreshold: matchThreshold,
+		scoredMatches:  scoredMatches,
+		linesToAssess:  linesToAssess,
+		flushTimeout:   flushTimeout,
+	}
+
+	h.singleLineHandler = NewSingleLineHandler(outputChan, lineLimit)
+	h.processsingFunc = h.processAndTry
+
+	return h
+}
+
+// Handle puts all new lines into a channel for later processing.
+func (h *AutoMultilineHandler) Handle(input *Message) {
+	h.inputChan <- input
+}
+
+// Stop stops the handler.
+func (h *AutoMultilineHandler) Stop() {
+	close(h.inputChan)
+}
+
+// Start starts the handler.
+func (h *AutoMultilineHandler) Start() {
+	go h.run()
+}
+
+// run consumes new lines and processes them.
+func (h *AutoMultilineHandler) run() {
+	for {
+		select {
+		case <-h.flipChan:
+			return
+		default:
+			line, isOpen := <-h.inputChan
+			if !isOpen {
+				close(h.outputChan)
+				return
+			}
+			h.processsingFunc(line)
+		}
+	}
+}
+
+func (h *AutoMultilineHandler) processAndTry(message *Message) {
+	// Process message before anything else
+	h.singleLineHandler.process(message)
+
+	for i, scoredPattern := range h.scoredMatches {
+		match := scoredPattern.regexp.Match(message.Content)
+		if match {
+			log.Tracef("A regexp matched during multi-line auto sensing: %v", scoredPattern.regexp)
+			scoredPattern.score++
+
+			// By keeping the scored matches sorted, the best match always comes first. Since we expect one timestamp to match overwhelmingly
+			// it should match most often causing few re-sorts.
+			if i != 0 {
+				sort.Slice(h.scoredMatches, func(i, j int) bool {
+					return h.scoredMatches[i].score > h.scoredMatches[j].score
+				})
+			}
+			break
+		}
+	}
+
+	if h.linesTested++; h.linesTested >= h.linesToAssess {
+		topMatch := h.scoredMatches[0]
+		matchRatio := float64(topMatch.score) / float64(h.linesTested)
+
+		if matchRatio >= h.matchThreshold {
+			log.Debug("At least one pattern matched all sampled lines")
+			h.switchToMultilineHandler(topMatch.regexp)
+		} else {
+			log.Debug("No matching pattern found during multi-line autosensing")
+			// Stay with the single line handler and no longer attempt to detect multi line matches.
+			h.processsingFunc = h.singleLineHandler.process
+		}
+	}
+}
+
+func (h *AutoMultilineHandler) switchToMultilineHandler(r *regexp.Regexp) {
+	// Cleanup interim logic
+	h.flipChan <- struct{}{}
+	h.singleLineHandler = nil
+
+	// Build & start a multiline-handler
+	h.multiLineHandler = newMultiLineHandler(h.inputChan, h.outputChan, r, h.flushTimeout, h.lineLimit)
+	h.multiLineHandler.Start()
+
+	// At this point control is handed over to the multi line handler and the AutoMultilineHandler read loop will be stopped.
+}
+
+// Originally referenced from https://github.com/egnyte/ax/blob/master/pkg/heuristic/timestamp.go
+// All line matching rules must only match the beginning of a line, so when adding new expressions
+// make sure to prepend it with `^`
+var formatsToTry = []*regexp.Regexp{
+	// time.RFC3339,
+	regexp.MustCompile(`^\d+-\d+-\d+T\d+:\d+:\d+(\.\d+)?(Z\d*:?\d*)?`),
+	// time.ANSIC,
+	regexp.MustCompile(`^[A-Za-z_]+ [A-Za-z_]+ +\d+ \d+:\d+:\d+ \d+`),
+	// time.UnixDate,
+	regexp.MustCompile(`^[A-Za-z_]+ [A-Za-z_]+ +\d+ \d+:\d+:\d+( [A-Za-z_]+ \d+)?`),
+	// time.RubyDate,
+	regexp.MustCompile(`^[A-Za-z_]+ [A-Za-z_]+ \d+ \d+:\d+:\d+ [\-\+]\d+ \d+`),
+	// time.RFC822,
+	regexp.MustCompile(`^\d+ [A-Za-z_]+ \d+ \d+:\d+ [A-Za-z_]+`),
+	// time.RFC822Z,
+	regexp.MustCompile(`^\d+ [A-Za-z_]+ \d+ \d+:\d+ -\d+`),
+	// time.RFC850,
+	regexp.MustCompile(`^[A-Za-z_]+, \d+-[A-Za-z_]+-\d+ \d+:\d+:\d+ [A-Za-z_]+`),
+	// time.RFC1123,
+	regexp.MustCompile(`^[A-Za-z_]+, \d+ [A-Za-z_]+ \d+ \d+:\d+:\d+ [A-Za-z_]+`),
+	// time.RFC1123Z,
+	regexp.MustCompile(`^[A-Za-z_]+, \d+ [A-Za-z_]+ \d+ \d+:\d+:\d+ -\d+`),
+	// time.RFC3339Nano,
+	regexp.MustCompile(`^\d+-\d+-\d+[A-Za-z_]+\d+:\d+:\d+\.\d+[A-Za-z_]+\d+:\d+`),
+	// "2006-01-02 15:04:05",
+	regexp.MustCompile(`^\d+-\d+-\d+ \d+:\d+:\d+(,\d+)?`),
+	// Default java logging SimpleFormatter date format
+	regexp.MustCompile(`^[A-Za-z_]+ \d+, \d+ \d+:\d+:\d+ (AM|PM)`),
 }

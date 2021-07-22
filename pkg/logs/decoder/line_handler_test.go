@@ -225,3 +225,100 @@ func TestMultiLineHandlerSendsRawInvalidMessages(t *testing.T) {
 	output = <-outputChan
 	assert.Equal(t, "1.third line\\nfourth line", string(output.Content))
 }
+
+func TestAutoMultiLineHandlerStaysSingleLineMode(t *testing.T) {
+
+	outputChan := make(chan *Message, 10)
+	h := NewAutoMultilineHandler(outputChan, 100, 5, 1.0, 10*time.Millisecond)
+	h.Start()
+
+	for i := 0; i < 6; i++ {
+		h.Handle(getDummyMessageWithLF("blah"))
+		<-outputChan
+	}
+	assert.NotNil(t, h.singleLineHandler)
+	assert.Nil(t, h.multiLineHandler)
+}
+
+func TestAutoMultiLineHandlerSwitchesToMultiLineMode(t *testing.T) {
+
+	outputChan := make(chan *Message, 10)
+	h := NewAutoMultilineHandler(outputChan, 100, 5, 1.0, 10*time.Millisecond)
+	h.Start()
+
+	for i := 0; i < 6; i++ {
+		h.Handle(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message"))
+		<-outputChan
+	}
+	assert.Nil(t, h.singleLineHandler)
+	assert.NotNil(t, h.multiLineHandler)
+}
+
+func TestAutoMultiLineHandlerHandelsMessage(t *testing.T) {
+
+	outputChan := make(chan *Message, 10)
+	h := NewAutoMultilineHandler(outputChan, 500, 1, 1.0, 10*time.Millisecond)
+	h.Start()
+
+	h.Handle(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message 1"))
+	<-outputChan
+	h.Handle(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message 2"))
+	h.Handle(getDummyMessageWithLF("java.lang.Exception: boom"))
+	h.Handle(getDummyMessageWithLF("at Main.funcd(Main.java:62)"))
+	h.Handle(getDummyMessageWithLF("at Main.funcc(Main.java:60)"))
+	h.Handle(getDummyMessageWithLF("at Main.funcb(Main.java:58)"))
+	h.Handle(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM another test message"))
+	output := <-outputChan
+
+	assert.Equal(t, "Jul 12, 2021 12:55:15 PM test message 2\\njava.lang.Exception: boom\\nat Main.funcd(Main.java:62)\\nat Main.funcc(Main.java:60)\\nat Main.funcb(Main.java:58)", string(output.Content))
+}
+
+func TestAutoMultiLineHandlerHandelsMessageConflictingPatterns(t *testing.T) {
+
+	outputChan := make(chan *Message, 10)
+	h := NewAutoMultilineHandler(outputChan, 500, 4, 0.75, 10*time.Millisecond)
+	h.Start()
+
+	// we will match both patterns, but one will win with a threshold of 0.75
+	h.Handle(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message 1"))
+	h.Handle(getDummyMessageWithLF("Jul, 1-sep-12 10:20:30 pm test message 2"))
+	h.Handle(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message 3"))
+	h.Handle(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message 4"))
+
+	for i := 0; i < 4; i++ {
+		<-outputChan
+	}
+	h.Handle(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message 2"))
+	h.Handle(getDummyMessageWithLF("java.lang.Exception: boom"))
+	h.Handle(getDummyMessageWithLF("at Main.funcd(Main.java:62)"))
+	h.Handle(getDummyMessageWithLF("at Main.funcc(Main.java:60)"))
+	h.Handle(getDummyMessageWithLF("at Main.funcb(Main.java:58)"))
+	h.Handle(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM another test message"))
+	output := <-outputChan
+
+	assert.Equal(t, "Jul 12, 2021 12:55:15 PM test message 2\\njava.lang.Exception: boom\\nat Main.funcd(Main.java:62)\\nat Main.funcc(Main.java:60)\\nat Main.funcb(Main.java:58)", string(output.Content))
+}
+
+func TestAutoMultiLineHandlerHandelsMessageConflictingPatternsNoWinner(t *testing.T) {
+
+	outputChan := make(chan *Message, 10)
+	h := NewAutoMultilineHandler(outputChan, 500, 4, 0.75, 10*time.Millisecond)
+	h.Start()
+
+	// we will match both patterns, but neither will win because it doesn't meet the threshold
+	h.Handle(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message 1"))
+	h.Handle(getDummyMessageWithLF("Jul, 1-sep-12 10:20:30 pm test message 2"))
+	h.Handle(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message 3"))
+	h.Handle(getDummyMessageWithLF("Jul, 1-sep-12 10:20:30 pm test message 4"))
+
+	for i := 0; i < 4; i++ {
+		<-outputChan
+	}
+	h.Handle(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message 2"))
+	output := <-outputChan
+
+	assert.NotNil(t, h.singleLineHandler)
+	assert.Nil(t, h.multiLineHandler)
+
+	assert.Equal(t, "Jul 12, 2021 12:55:15 PM test message 2", string(output.Content))
+}

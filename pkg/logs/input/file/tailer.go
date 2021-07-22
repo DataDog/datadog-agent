@@ -198,7 +198,7 @@ func (t *Tailer) StopAfterFileRotation() {
 	t.file.Source.RemoveInput(t.file.Path)
 }
 
-// startStopTimer initialises and starts a timer to stop the tailor after the timeout
+// startStopTimer initializes and starts a timer to stop the tailor after the timeout
 func (t *Tailer) startStopTimer() {
 	stopTimer := time.NewTimer(t.closeTimeout)
 	<-stopTimer.C
