@@ -17,7 +17,7 @@ type LogPayloadsRuntimeSetting struct {
 
 // Description returns the runtime setting's description
 func (l LogPayloadsRuntimeSetting) Description() string {
-	return "Enable logging payload at runtime."
+	return "Enable logging payloads at runtime."
 }
 
 // Hidden returns whether or not this setting is hidden from the list of runtime settings
