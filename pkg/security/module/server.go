@@ -277,8 +277,8 @@ func (a *APIServer) expireEvent(msg *api.SecurityEventMessage) {
 // GetStats returns a map indexed by ruleIDs that describes the amount of events
 // that were expired or rate limited before reaching
 func (a *APIServer) GetStats() map[string]int64 {
-	a.RLock()
-	defer a.RUnlock()
+	a.expiredEventsLock.Lock()
+	defer a.expiredEventsLock.Unlock()
 
 	stats := make(map[string]int64)
 	for ruleID, val := range a.expiredEvents {
