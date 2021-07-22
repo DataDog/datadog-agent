@@ -1,5 +1,3 @@
-// +build !ebpf_bindata
-
 package ebpf
 
 import (

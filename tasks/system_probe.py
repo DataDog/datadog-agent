@@ -11,7 +11,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
-from .utils import REPO_PATH, bin_name, bundle_files, get_build_flags, get_version_numeric_only
+from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe", android=False))
@@ -20,7 +20,6 @@ EBPF_BUILDER_IMAGE = 'datadog/tracer-bpf-builder'
 EBPF_BUILDER_FILE = os.path.join(".", "tools", "ebpf", "Dockerfiles", "Dockerfile-ebpf")
 
 BPF_TAG = "linux_bpf"
-BUNDLE_TAG = "ebpf_bindata"
 BCC_TAG = "bcc"
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
@@ -50,7 +49,6 @@ def build(
     arch="x64",
     embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
     compile_ebpf=True,
-    bundle_ebpf=False,
 ):
     """
     Build the system_probe
@@ -84,18 +82,17 @@ def build(
                 maj_ver=maj_ver, min_ver=min_ver, patch_ver=patch_ver, target_arch=windres_target
             )
         )
-    else:
-        if compile_ebpf:
-            # Only build ebpf files on unix
-            build_object_files(ctx, bundle_ebpf=bundle_ebpf)
+    elif compile_ebpf:
+        # Only build ebpf files on unix
+        build_object_files(
+            ctx,
+        )
 
     ldflags, gcflags, env = get_build_flags(
         ctx, major_version=major_version, python_runtimes=python_runtimes, embedded_path=embedded_path
     )
 
     build_tags = get_default_build_tags(build="system-probe", arch=arch)
-    if bundle_ebpf:
-        build_tags.append(BUNDLE_TAG)
     if with_bcc:
         build_tags.append(BCC_TAG)
 
@@ -118,9 +115,7 @@ def build(
 
 
 @task
-def build_in_docker(
-    ctx, rebuild_ebpf_builder=False, race=False, incremental_build=False, major_version='7', bundle_ebpf=False
-):
+def build_in_docker(ctx, rebuild_ebpf_builder=False, race=False, incremental_build=False, major_version='7'):
     """
     Build the system_probe using a container
     This can be used when the current OS don't have up to date linux headers
@@ -144,8 +139,6 @@ def build_in_docker(
         cmd += " --race"
     if incremental_build:
         cmd += " --incremental-build"
-    if bundle_ebpf:
-        cmd += " --bundle-ebpf"
 
     ctx.run(docker_cmd.format(cwd=os.getcwd(), builder=EBPF_BUILDER_IMAGE, cmd=cmd))
 
@@ -155,7 +148,6 @@ def test(
     ctx,
     packages=TEST_PACKAGES,
     skip_object_files=False,
-    bundle_ebpf=False,
     output_path=None,
     runtime_compiled=False,
     skip_linters=False,
@@ -179,11 +171,9 @@ def test(
         clang_tidy(ctx)
 
     if not skip_object_files:
-        build_object_files(ctx, bundle_ebpf=bundle_ebpf)
+        build_object_files(ctx)
 
     build_tags = [BPF_TAG]
-    if bundle_ebpf:
-        build_tags.append(BUNDLE_TAG)
 
     args = {
         "build_tags": ",".join(build_tags),
@@ -240,7 +230,6 @@ def kitchen_prepare(ctx):
             packages=pkg,
             skip_object_files=(i != 0),
             skip_linters=True,
-            bundle_ebpf=False,
             output_path=os.path.join(target_path, "testsuite"),
         )
 
@@ -289,7 +278,7 @@ def nettop(ctx, incremental_build=False, go_mod="mod"):
     """
     Build and run the `nettop` utility for testing
     """
-    build_object_files(ctx, bundle_ebpf=False)
+    build_object_files(ctx)
 
     cmd = 'go build -mod={go_mod} {build_type} -tags {tags} -o {bin_path} {path}'
     bin_path = os.path.join(BIN_DIR, "nettop")
@@ -412,9 +401,9 @@ def build_dev_docker_image(ctx, image_name, push=False):
 
 
 @task
-def object_files(ctx, bundle_ebpf=True):
+def object_files(ctx):
     """object_files builds the eBPF object files"""
-    build_object_files(ctx, bundle_ebpf=bundle_ebpf)
+    build_object_files(ctx)
 
 
 def get_ebpf_c_files():
@@ -527,7 +516,6 @@ def build_network_ebpf_files(ctx, build_dir):
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
-    bindata_files = []
     compiled_programs = [
         "tracer",
         "offset-guess",
@@ -548,10 +536,6 @@ def build_network_ebpf_files(ctx, build_dir):
         debug_obj_file = os.path.join(build_dir, "{}-debug.o".format(p))
         ctx.run(CLANG_CMD.format(flags=" ".join(network_flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file))
         ctx.run(LLC_CMD.format(flags=" ".join(network_flags), bc_file=debug_bc_file, obj_file=debug_obj_file))
-
-        bindata_files.extend([obj_file, debug_obj_file])
-
-    return bindata_files
 
 
 def build_security_ebpf_files(ctx, build_dir):
@@ -589,7 +573,6 @@ def build_security_ebpf_files(ctx, build_dir):
             obj_file=security_agent_syscall_wrapper_obj_file,
         )
     )
-    return [security_agent_obj_file, security_agent_syscall_wrapper_obj_file]
 
 
 def build_bcc_files(ctx, build_dir):
@@ -608,10 +591,8 @@ def build_bcc_files(ctx, build_dir):
     return [os.path.join(build_dir, os.path.basename(f)) for f in bcc_files]
 
 
-def build_object_files(ctx, bundle_ebpf=False):
-    """build_object_files builds only the eBPF object
-    set bundle_ebpf to False to disable replacing the assets
-    """
+def build_object_files(ctx):
+    """build_object_files builds only the eBPF object"""
 
     # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
     print("checking for clang executable...")
@@ -624,16 +605,11 @@ def build_object_files(ctx, bundle_ebpf=False):
     ctx.run("mkdir -p {build_dir}".format(build_dir=build_dir))
     ctx.run("mkdir -p {build_runtime_dir}".format(build_runtime_dir=build_runtime_dir))
 
-    bindata_files = []
-    bindata_files.extend(build_bcc_files(ctx, build_dir=build_dir))
-    bindata_files.extend(build_network_ebpf_files(ctx, build_dir=build_dir))
-    bindata_files.extend(build_security_ebpf_files(ctx, build_dir=build_dir))
+    build_bcc_files(ctx, build_dir=build_dir)
+    build_network_ebpf_files(ctx, build_dir=build_dir)
+    build_security_ebpf_files(ctx, build_dir=build_dir)
 
     generate_runtime_files(ctx)
-
-    if bundle_ebpf:
-        go_dir = os.path.join(bpf_dir, "bytecode", "bindata")
-        bundle_files(ctx, bindata_files, "pkg/.*/", go_dir, "bindata", BUNDLE_TAG)
 
 
 @task

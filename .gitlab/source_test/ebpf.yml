@@ -51,7 +51,7 @@ tests_ebpf_x64:
     - git checkout -f main || git checkout -f master
     - git pull
     - inv -e deps
-    - inv -e system-probe.build --bundle-ebpf --incremental-build
+    - inv -e system-probe.build --incremental-build
     - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite-master
     - git reset --hard
     - git checkout -
