@@ -302,7 +302,7 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 	}
 	defer test.Close()
 
-	testFile, testFilePtr, err := test.Path("aa/bb/cc/dd/ee")
+	testFile, _, err := test.Path("aa/bb/cc/dd/ee")
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -316,9 +316,9 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 		pathID  uint32
 	)
 	err = test.GetSignal(b, func() error {
-		fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(testFilePtr), syscall.O_CREAT, 0755)
-		if errno != 0 {
-			b.Fatal(error(errno))
+		fd, err := syscall.Open(testFile, syscall.O_CREAT, 0755)
+		if err != nil {
+			b.Fatal(err)
 		}
 		return syscall.Close(int(fd))
 	}, func(event *sprobe.Event, _ *rules.Rule) {
@@ -371,7 +371,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 	}
 	defer test.Close()
 
-	testFile, testFilePtr, err := test.Path("aa/bb/cc/dd/ee")
+	testFile, _, err := test.Path("aa/bb/cc/dd/ee")
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -385,9 +385,9 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 		pathID  uint32
 	)
 	err = test.GetSignal(b, func() error {
-		fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(testFilePtr), syscall.O_CREAT, 0755)
-		if errno != 0 {
-			b.Fatal(error(errno))
+		fd, err := syscall.Open(testFile, syscall.O_CREAT, 0755)
+		if err != nil {
+			b.Fatal(err)
 		}
 		return syscall.Close(int(fd))
 	}, func(event *sprobe.Event, _ *rules.Rule) {
@@ -437,7 +437,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 	}
 	defer test.Close()
 
-	testFile, testFilePtr, err := test.Path("aa/bb/cc/dd/ee")
+	testFile, _, err := test.Path("aa/bb/cc/dd/ee")
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -451,9 +451,9 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 		pathID  uint32
 	)
 	err = test.GetSignal(b, func() error {
-		fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(testFilePtr), syscall.O_CREAT, 0755)
-		if errno != 0 {
-			b.Fatal(error(errno))
+		fd, err := syscall.Open(testFile, syscall.O_CREAT, 0755)
+		if err != nil {
+			b.Fatal(err)
 		}
 		return syscall.Close(int(fd))
 	}, func(event *sprobe.Event, _ *rules.Rule) {
@@ -503,7 +503,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 	}
 	defer test.Close()
 
-	testFile, testFilePtr, err := test.Path("aa/bb/cc/dd/ee")
+	testFile, _, err := test.Path("aa/bb/cc/dd/ee")
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -517,9 +517,9 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 		pathID  uint32
 	)
 	err = test.GetSignal(b, func() error {
-		fd, _, errno := syscall.Syscall(syscall.SYS_OPEN, uintptr(testFilePtr), syscall.O_CREAT, 0755)
-		if errno != 0 {
-			b.Fatal(error(errno))
+		fd, err := syscall.Open(testFile, syscall.O_CREAT, 0755)
+		if err != nil {
+			b.Fatal(err)
 		}
 		return syscall.Close(int(fd))
 	}, func(event *sprobe.Event, _ *rules.Rule) {
