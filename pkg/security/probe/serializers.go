@@ -244,8 +244,8 @@ func newFileSerializer(fe *model.FileEvent, e *Event) *FileSerializer {
 		GID:                 fe.GID,
 		User:                e.ResolveFileFieldsUser(&fe.FileFields),
 		Group:               e.ResolveFileFieldsGroup(&fe.FileFields),
-		Mtime:               &fe.MTime,
-		Ctime:               &fe.CTime,
+		Mtime:               getTimeIfNotZero(time.Unix(0, int64(fe.MTime))),
+		Ctime:               getTimeIfNotZero(time.Unix(0, int64(fe.CTime))),
 		InUpperLayer:        getInUpperLayer(e.resolvers, &fe.FileFields),
 	}
 }
@@ -265,8 +265,8 @@ func newProcessFileSerializerWithResolvers(process *model.Process, r *Resolvers)
 		GID:                 process.FileFields.GID,
 		User:                r.ResolveFileFieldsUser(&process.FileFields),
 		Group:               r.ResolveFileFieldsGroup(&process.FileFields),
-		Mtime:               &process.FileFields.MTime,
-		Ctime:               &process.FileFields.CTime,
+		Mtime:               getTimeIfNotZero(time.Unix(0, int64(process.FileFields.MTime))),
+		Ctime:               getTimeIfNotZero(time.Unix(0, int64(process.FileFields.CTime))),
 	}
 }
 
