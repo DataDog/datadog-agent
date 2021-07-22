@@ -1,8 +1,7 @@
 name "python3"
 
-default_version "3.8.10"
-
 if ohai["platform"] != "windows"
+  default_version "3.8.10"
   dependency "libffi"
   dependency "ncurses"
   dependency "zlib"
@@ -64,6 +63,7 @@ if ohai["platform"] != "windows"
   end
 
 else
+  default_version "3.8.10-46f0d00"
   dependency "vc_redist_14"
 
   if windows_arch_i386?
@@ -74,7 +74,7 @@ else
   else
 
     # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
-    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-amd64.zip",
+    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x64.zip",
          :sha256 => "3f1533fb5d3944c57f554c9e80f4d77d953eb64e9eca68bb055642f9a8fe5a23"
 
   end
