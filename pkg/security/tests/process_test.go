@@ -165,7 +165,7 @@ func TestProcessContext(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_exec_time")
 
 			if !validateExecSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 	})
@@ -253,7 +253,7 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			if !validateExecSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 	})
@@ -360,7 +360,7 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			if !validateExecSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 	})
@@ -456,7 +456,7 @@ func TestProcessContext(t *testing.T) {
 			assert.Equal(t, event.ProcessContext.Ancestor.Comm, "sh")
 
 			if !validateExecSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 	})
@@ -483,7 +483,7 @@ func TestProcessContext(t *testing.T) {
 			assert.Equal(t, rule.ID, "test_rule_pid1", "wrong rule triggered")
 
 			if !validateExecSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 	})
@@ -511,7 +511,7 @@ func TestProcessContext(t *testing.T) {
 			assert.Equal(t, rule.ID, "test_rule_inode", "wrong rule triggered")
 
 			if !validateExecSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 
 			service := event.GetProcessServiceTag()
@@ -1042,7 +1042,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			// transform the collected kernel capabilities into a usable capability set
 			newSet, err := capability.NewPid2(0)
 			if err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 			newSet.Clear(capability.PERMITTED | capability.EFFECTIVE)
 			parseCapIntoSet(event.Capset.CapEffective, capability.EFFECTIVE, newSet, t)

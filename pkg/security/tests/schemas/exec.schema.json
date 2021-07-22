@@ -9,5 +9,19 @@
         {
             "$ref": "file:///host_event.json"
         }
+    ],
+    "allOf": [
+        {
+            "properties": {
+                "process": {
+                    "type": "object",
+                    "not": {
+                        "required": [
+                            "exit_time"
+                        ]
+                    }
+                }
+            }
+        }
     ]
 }
