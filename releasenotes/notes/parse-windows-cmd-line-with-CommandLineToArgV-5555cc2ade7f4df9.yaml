@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Changing the command line for Windows to be parsed using the CommandLineToArgV system call instead of manual parsing. 
+fixes:
+  - |
+    This fixes issues with parsing certain edge cases via manual parsing. This includes being able to parse command lines with nested quotes and having spaces in the executable path, such as 'Program Files'. 

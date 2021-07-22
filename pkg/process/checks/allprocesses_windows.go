@@ -3,10 +3,11 @@
 package checks
 
 import (
-	"bytes"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	log "github.com/cihub/seelog"
 	"runtime"
-	"strings"
 	"sync"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -14,8 +15,6 @@ import (
 	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	process "github.com/DataDog/gopsutil/process"
 )
 
@@ -241,46 +240,63 @@ func getUsernameForProcess(h windows.Handle) (name string, err error) {
 }
 
 func parseCmdLineArgs(cmdline string) (res []string) {
-	blocks := strings.Split(cmdline, " ")
-	findCloseQuote := false
-	donestring := false
+	cmdPtr, err := syscall.UTF16PtrFromString(cmdline)
+	if err != nil {
+		log.Debugf("Error converting command line to utf16 ptr %v", err.Error())
+		return res
+	}
+	var argc int32
+	argv, err := syscall.CommandLineToArgv(cmdPtr, &argc)
+	if err != nil {
+		log.Debugf("Error calling CommandLineToArgv, giving up (%v)", err)
+		return res
+	}
+	defer syscall.LocalFree(syscall.Handle(unsafe.Pointer(argv)))
 
-	var stringInProgress bytes.Buffer
-	for _, b := range blocks {
-		numquotes := strings.Count(b, "\"")
-		if numquotes == 0 {
-			stringInProgress.WriteString(b)
-			if !findCloseQuote {
-				donestring = true
-			} else {
-				stringInProgress.WriteString(" ")
-			}
-
-		} else if numquotes == 1 {
-			stringInProgress.WriteString(b)
-			if findCloseQuote {
-				donestring = true
-			} else {
-				findCloseQuote = true
-				stringInProgress.WriteString(" ")
-			}
-
-		} else if numquotes == 2 {
-			stringInProgress.WriteString(b)
-			donestring = true
-		} else {
-			log.Warnf("unexpected quotes in string, giving up (%v)", cmdline)
-			return res
-		}
-
-		if donestring {
-			res = append(res, stringInProgress.String())
-			stringInProgress.Reset()
-			findCloseQuote = false
-			donestring = false
-		}
+	res = make([]string, argc)
+	for i, v := range (*argv)[:argc] {
+		res[i] = syscall.UTF16ToString((*v)[:])
 	}
 	return res
+	//blocks := strings.Split(cmdline, " ")
+	//findCloseQuote := false
+	//donestring := false
+	//var stringInProgress bytes.Buffer
+	//for _, b := range blocks {
+	//	numquotes := strings.Count(b, "\"")
+	//	if numquotes == 0 {
+	//		stringInProgress.WriteString(b)
+	//		if !findCloseQuote {
+	//			donestring = true
+	//		} else {
+	//			stringInProgress.WriteString(" ")
+	//		}
+	//
+	//	} else if numquotes == 1 {
+	//		stringInProgress.WriteString(b)
+	//		if findCloseQuote {
+	//			donestring = true
+	//		} else {
+	//			findCloseQuote = true
+	//			stringInProgress.WriteString(" ")
+	//		}
+	//
+	//	} else if numquotes == 2 {
+	//		stringInProgress.WriteString(b)
+	//		donestring = true
+	//	} else {
+	//		log.Warnf("unexpected quotes in string, giving up (%v)", cmdline)
+	//		return res
+	//	}
+	//
+	//	if donestring {
+	//		res = append(res, stringInProgress.String())
+	//		stringInProgress.Reset()
+	//		findCloseQuote = false
+	//		donestring = false
+	//	}
+	//}
+	//return res
 }
 
 type cachedProcess struct {
@@ -308,7 +324,6 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error)
 		log.Debugf("Error retrieving full command line %v", cmderr)
 		cp.commandLine = cp.executablePath
 	}
-
 	cp.parsedArgs = parseCmdLineArgs(cp.commandLine)
 	return
 }
