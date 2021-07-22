@@ -265,9 +265,9 @@ func assertRights(t *testing.T, actualMode, expectedMode uint16, msgAndArgs ...i
 	assertMode(t, uint32(actualMode)&01777, uint32(expectedMode), msgAndArgs...)
 }
 
-func assertNearTime(t *testing.T, event time.Time) {
+func assertNearTime(t *testing.T, ns uint64) {
 	t.Helper()
-	now := time.Now()
+	now, event := time.Now(), time.Unix(0, int64(ns))
 	if event.After(now) || event.Before(now.Add(-1*time.Hour)) {
 		t.Errorf("expected time close to %s, got %s", now, event)
 	}

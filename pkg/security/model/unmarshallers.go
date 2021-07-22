@@ -235,11 +235,12 @@ func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
 
 	timeSec := ByteOrder.Uint64(data[40:48])
 	timeNsec := ByteOrder.Uint64(data[48:56])
-	e.CTime = time.Unix(int64(timeSec), int64(timeNsec))
+	e.CTime = uint64(time.Unix(int64(timeSec), int64(timeNsec)).UnixNano())
 
 	timeSec = ByteOrder.Uint64(data[56:64])
 	timeNsec = ByteOrder.Uint64(data[64:72])
-	e.MTime = time.Unix(int64(timeSec), int64(timeNsec))
+	e.MTime = uint64(time.Unix(int64(timeSec), int64(timeNsec)).UnixNano())
+
 	return 72, nil
 }
 
