@@ -108,7 +108,7 @@ require (
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/gofuzz v1.2.0
 	github.com/google/gopacket v1.1.19
-	github.com/google/pprof v0.0.0-20210125172800-10e9aeb4a998
+	github.com/google/pprof v0.0.0-20210226084205-cbba55b83ad5
 	github.com/gorilla/mux v1.8.0
 	github.com/gosnmp/gosnmp v1.31.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
@@ -152,7 +152,7 @@ require (
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
 	github.com/shuLhan/go-bindata v3.6.1+incompatible
 	github.com/spf13/afero v1.6.0
-	github.com/spf13/cobra v1.1.3
+	github.com/spf13/cobra v1.2.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
@@ -168,7 +168,6 @@ require (
 	github.com/vmihailenco/msgpack/v4 v4.3.11
 	github.com/xeipuuv/gojsonschema v0.0.0-20180618132009-1d523034197f
 	go.etcd.io/etcd/client/v2 v2.305.0
-	go.opencensus.io v0.22.6 // indirect
 	go.opentelemetry.io/otel v0.20.0
 	go.uber.org/automaxprocs v1.4.0
 	golang.org/x/crypto v0.0.0-20210317152858-513c2a44f670 // indirect
@@ -184,7 +183,6 @@ require (
 	google.golang.org/grpc v1.38.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.31.1
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
-	gopkg.in/ini.v1 v1.55.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
