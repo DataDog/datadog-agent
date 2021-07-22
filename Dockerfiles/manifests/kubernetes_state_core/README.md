@@ -4,19 +4,7 @@ version 2.19.4 with the following `values.yaml`:
 
 ```yaml
 datadog:
-  collectEvents: true
-  leaderElection: true
-  logs:
+  kubeStateMetricsEnabled: false
+  kubeStateMetricsCore:
     enabled: true
-  apm:
-    enabled: true
-  processAgent:
-    enabled: true
-  networkMonitoring:
-    enabled: true
-  securityAgent:
-    compliance:
-      enabled: true
-    runtime:
-      enabled: true
 ```
