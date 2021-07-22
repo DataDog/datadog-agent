@@ -195,21 +195,36 @@ func TestSendTimeoutEnhancedMetric(t *testing.T) {
 	}})
 }
 
-func TestGetTagsForEnhancedMetrics(t *testing.T) {
+func TestAddColdStartTagWithoutColdStart(t *testing.T) {
 	aws.SetARN("arn:aws:lambda:us-east-1:123456789012:function:my-function:7")
 	defer aws.SetARN("")
 
-	generatedTags := getTagsForEnhancedMetrics()
+	generatedTags := addColdStartTag([]string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+	})
 
 	assert.Equal(t, generatedTags, []string{
-		"region:us-east-1",
-		"aws_account:123456789012",
-		"account_id:123456789012",
-		"functionname:my-function",
-		"function_arn:arn:aws:lambda:us-east-1:123456789012:function:my-function",
-		"executedversion:7",
-		"resource:my-function:7",
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
 		"cold_start:false",
+	})
+}
+
+func TestAddColdStartTagWithColdStart(t *testing.T) {
+	aws.SetARN("arn:aws:lambda:us-east-1:123456789012:function:my-function:7")
+	aws.SetColdStart(true)
+	defer aws.SetARN("")
+
+	generatedTags := addColdStartTag([]string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+	})
+
+	assert.Equal(t, generatedTags, []string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+		"cold_start:true",
 	})
 }
 

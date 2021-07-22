@@ -460,3 +460,8 @@ func newEventProcessor(conf *config.AgentConfig) *event.Processor {
 
 	return event.NewProcessor(extractors, conf.MaxEPS)
 }
+
+// SetGlobalTagsUnsafe sets global tags to the agent configuration. Unsafe for concurrent use.
+func (a *Agent) SetGlobalTagsUnsafe(tags map[string]string) {
+	a.conf.GlobalTags = tags
+}

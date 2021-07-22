@@ -26,14 +26,13 @@ type Lambda struct {
 }
 
 // NewChannelMessageFromLambda construts a message with content and with the given timestamp and Lambda metadata
-func NewChannelMessageFromLambda(content []byte, utcTime time.Time, ARN, reqID, functionName string) *ChannelMessage {
+func NewChannelMessageFromLambda(content []byte, utcTime time.Time, ARN, reqID string) *ChannelMessage {
 	return &ChannelMessage{
 		Content:   content,
 		Timestamp: utcTime,
 		Lambda: &Lambda{
-			ARN:          ARN,
-			RequestID:    reqID,
-			FunctionName: functionName,
+			ARN:       ARN,
+			RequestID: reqID,
 		},
 	}
 }
