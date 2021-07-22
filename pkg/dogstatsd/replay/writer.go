@@ -18,6 +18,7 @@ import (
 	"time"
 
 	// Refactor relevant bits
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/proto/utils"
@@ -73,10 +74,9 @@ type TrafficCaptureWriter struct {
 }
 
 // NewTrafficCaptureWriter creates a TrafficCaptureWriter instance.
-func NewTrafficCaptureWriter(l string, depth int) *TrafficCaptureWriter {
+func NewTrafficCaptureWriter(depth int) *TrafficCaptureWriter {
 
 	return &TrafficCaptureWriter{
-		Location:    l,
 		Traffic:     make(chan *CaptureBuffer, depth),
 		taggerState: make(map[int32]string),
 	}
@@ -122,14 +122,37 @@ func (tc *TrafficCaptureWriter) ProcessMessage(msg *CaptureBuffer) error {
 	return nil
 }
 
-// Capture start the traffic capture and writes the packets to file for the specified duration.
-func (tc *TrafficCaptureWriter) Capture(d time.Duration, compressed bool) {
+// Capture start the traffic capture and writes the packets to file at the
+// specified location and for the specified duration.
+func (tc *TrafficCaptureWriter) Capture(l string, d time.Duration, compressed bool) {
 
 	log.Debug("Starting capture...")
 
-	var err error
+	var (
+		err      error
+		location string
+	)
+
+	if l == "" {
+		location = config.Datadog.GetString("dogstatsd_capture_path")
+		if location == "" {
+			location = path.Join(config.Datadog.GetString("run_path"), "dsd_capture")
+		}
+	} else {
+		s, err := os.Stat(l)
+		if os.IsNotExist(err) {
+			log.Errorf("specified location does not exist: %v ", err)
+			return
+		} else if !s.IsDir() {
+			log.Errorf("specified location is not a directory: %v ", err)
+			return
+		}
+
+		location = l
+	}
 
 	tc.Lock()
+	tc.Location = location
 	p := path.Join(tc.Location, fmt.Sprintf(fileTemplate, time.Now().Unix()))
 	if err = os.MkdirAll(filepath.Dir(p), 0770); err != nil {
 		log.Errorf("There was an issue writing the expected location: %v ", err)

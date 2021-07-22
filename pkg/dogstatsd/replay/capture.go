@@ -7,7 +7,6 @@ package replay
 
 import (
 	"fmt"
-	"path"
 	"sync"
 	"time"
 
@@ -31,11 +30,7 @@ type TrafficCapture struct {
 
 // NewTrafficCapture creates a TrafficCapture instance.
 func NewTrafficCapture() (*TrafficCapture, error) {
-	location := config.Datadog.GetString("dogstatsd_capture_path")
-	if location == "" {
-		location = path.Join(config.Datadog.GetString("run_path"), "dsd_capture")
-	}
-	writer := NewTrafficCaptureWriter(location, config.Datadog.GetInt("dogstatsd_capture_depth"))
+	writer := NewTrafficCaptureWriter(config.Datadog.GetInt("dogstatsd_capture_depth"))
 	if writer == nil {
 		return nil, fmt.Errorf("unable to instantiate capture writer")
 	}
@@ -60,12 +55,12 @@ func (tc *TrafficCapture) IsOngoing() bool {
 }
 
 // Start starts a TrafficCapture and returns an error in the event of an issue.
-func (tc *TrafficCapture) Start(d time.Duration, compressed bool) error {
+func (tc *TrafficCapture) Start(p string, d time.Duration, compressed bool) error {
 	if tc.IsOngoing() {
 		return fmt.Errorf("Ongoing capture in progress")
 	}
 
-	go tc.Writer.Capture(d, compressed)
+	go tc.Writer.Capture(p, d, compressed)
 
 	return nil
 
