@@ -586,9 +586,10 @@ api_key:
 
     ## @param community_string - string - optional
     ## Required for SNMP v1 & v2.
+    ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
     ## Ex: 'public'
     #
-    # community_string: <COMMUNITY>
+    # community_string: '<COMMUNITY>'
 
     ## @param user - string - optional
     ## The username to connect to your SNMP devices.
@@ -2209,11 +2210,12 @@ api_key:
   ## @param community_strings - list of strings - required
   ## A list of known SNMPv2 community strings that devices can use to send traps to the Agent.
   ## Traps with an unknown community string are ignored.
+  ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
   ## Must be non-empty.
   #
   # community_strings:
-  #   - <COMMUNITY_1>
-  #   - <COMMUNITY_2>
+  #   - '<COMMUNITY_1>'
+  #   - '<COMMUNITY_2>'
 
   ## @param bind_host - string - optional
   ## The hostname to listen on for incoming trap packets.
