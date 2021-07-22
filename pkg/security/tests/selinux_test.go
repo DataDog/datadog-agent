@@ -72,7 +72,7 @@ func TestSELinux(t *testing.T) {
 			return nil
 		}, func(event *probe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_selinux_enforce")
-			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
+			assert.Equal(t, "selinux", event.GetType(), "wrong event type")
 
 			if !validateSELinuxSchema(t, event) {
 				t.Fatal(event.String())
@@ -91,7 +91,7 @@ func TestSELinux(t *testing.T) {
 			return nil
 		}, func(event *probe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_selinux_enforce")
-			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
+			assert.Equal(t, "selinux", event.GetType(), "wrong event type")
 
 			assertFieldEqual(t, event, "selinux.enforce.status", "permissive", "wrong enforce value")
 
@@ -112,7 +112,7 @@ func TestSELinux(t *testing.T) {
 			return nil
 		}, func(event *probe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_selinux_write_bool_true")
-			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
+			assert.Equal(t, "selinux", event.GetType(), "wrong event type")
 
 			assertFieldEqual(t, event, "selinux.bool.name", TEST_BOOL_NAME, "wrong bool name")
 			assertFieldEqual(t, event, "selinux.bool.state", "on", "wrong bool value")
@@ -134,7 +134,7 @@ func TestSELinux(t *testing.T) {
 			return nil
 		}, func(event *probe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_selinux_write_bool_false")
-			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
+			assert.Equal(t, "selinux", event.GetType(), "wrong event type")
 
 			assertFieldEqual(t, event, "selinux.bool.name", TEST_BOOL_NAME, "wrong bool name")
 			assertFieldEqual(t, event, "selinux.bool.state", "off", "wrong bool value")
@@ -161,7 +161,7 @@ func TestSELinux(t *testing.T) {
 		if err == nil {
 			t.Error("expected error")
 		} else {
-			assert.Equal(t, err.Error(), "timeout", "wrong error type, expected timeout")
+			assert.Equal(t, "timeout", err.Error(), "wrong error type, expected timeout")
 		}
 	})
 }
@@ -198,7 +198,7 @@ func TestSELinuxCommitBools(t *testing.T) {
 			return nil
 		}, func(event *probe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_selinux_commit_bools")
-			assert.Equal(t, event.GetType(), "selinux", "wrong event type")
+			assert.Equal(t, "selinux", event.GetType(), "wrong event type")
 
 			assertFieldEqual(t, event, "selinux.bool_commit.state", true, "wrong bool value")
 
