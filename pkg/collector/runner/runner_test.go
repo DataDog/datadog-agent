@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -66,6 +67,20 @@ func (c *TestCheck) HasRun() bool {
 	return c.hasRun
 }
 
+func addTestStat(checkID string) *check.Stats {
+	checkStats.M.Lock()
+	defer checkStats.M.Unlock()
+
+	checkName := strings.Split(checkID, ":")[0]
+	s := &check.Stats{
+		CheckID:   check.ID(checkID),
+		CheckName: checkName,
+	}
+	checkStats.Stats[checkName] = make(map[check.ID]*check.Stats)
+	checkStats.Stats[checkName][check.ID(checkID)] = s
+	return s
+}
+
 func TestNewRunner(t *testing.T) {
 	r := NewRunner()
 	assert.NotNil(t, r.pending)
@@ -120,10 +135,7 @@ func TestLogging(t *testing.T) {
 
 	r := NewRunner()
 	c := newTestCheck(false, "1")
-	s := &check.Stats{
-		CheckID:   c.ID(),
-		CheckName: c.String(),
-	}
+	s := addTestStat("TestCheck:1")
 	s.TotalRuns = 0
 	checkStats.Stats[c.String()] = make(map[check.ID]*check.Stats)
 	checkStats.Stats[c.String()][c.ID()] = s
@@ -175,4 +187,18 @@ func TestStopCheck(t *testing.T) {
 	r.runningChecks[c2.ID()] = c2
 	err = r.StopCheck(c2.ID())
 	assert.Equal(t, "timeout during stop operation on check id TestCheck:2", err.Error())
+}
+
+func TestGetCheckStats(t *testing.T) {
+	addTestStat("StatsCheck:99")
+
+	m := GetCheckStats()
+
+	// The result should be a clone and thus not pointer-equal..
+	require.True(t, &m != &checkStats.Stats, "should not be pointer-equal")
+
+	// ..but should have the data for the check we just added (and possibly for
+	// other checks in this test package)
+	require.True(t, m["StatsCheck"] != nil, "should be a StatsCheck map")
+	require.True(t, m["StatsCheck"]["StatsCheck:99"] != nil, "should be a StatsCheck:99 check")
 }

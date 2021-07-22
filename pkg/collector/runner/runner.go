@@ -398,10 +398,7 @@ func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []e
 }
 
 func expCheckStats() interface{} {
-	checkStats.M.RLock()
-	defer checkStats.M.RUnlock()
-
-	return checkStats.Stats
+	return GetCheckStats()
 }
 
 // GetCheckStats returns the check stats map
@@ -409,7 +406,20 @@ func GetCheckStats() map[string]map[check.ID]*check.Stats {
 	checkStats.M.RLock()
 	defer checkStats.M.RUnlock()
 
-	return checkStats.Stats
+	// Because the returned maps will be used after the lock is released, and
+	// thus when they might be further modified, we must clone them here.  The
+	// map values (`check.Stats`) are threadsafe and need not be cloned.
+
+	cloned := make(map[string]map[check.ID]*check.Stats)
+	for k, v := range checkStats.Stats {
+		innerCloned := make(map[check.ID]*check.Stats)
+		for innerK, innerV := range v {
+			innerCloned[innerK] = innerV
+		}
+		cloned[k] = innerCloned
+	}
+
+	return cloned
 }
 
 // RemoveCheckStats removes a check from the check stats map
