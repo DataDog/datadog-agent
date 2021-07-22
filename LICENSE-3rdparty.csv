@@ -52,6 +52,7 @@ core,"github.com/DataDog/mmh3",UNKNOWN
 core,"github.com/DataDog/nikos/apt",MIT
 core,"github.com/DataDog/nikos/cos",MIT
 core,"github.com/DataDog/nikos/rpm",MIT
+core,"github.com/DataDog/nikos/rpm/dnf",MIT
 core,"github.com/DataDog/nikos/tarball",MIT
 core,"github.com/DataDog/nikos/types",MIT
 core,"github.com/DataDog/nikos/wsl",MIT
@@ -95,8 +96,6 @@ core,"github.com/NYTimes/gziphandler",Apache-2.0
 core,"github.com/PuerkitoBio/purell",BSD-3-Clause
 core,"github.com/PuerkitoBio/urlesc",BSD-3-Clause
 core,"github.com/StackExchange/wmi",MIT
-core,"github.com/VividCortex/ewma",MIT
-core,"github.com/acarl005/stripansi",MIT
 core,"github.com/alecthomas/participle",MIT
 core,"github.com/alecthomas/participle/lexer",MIT
 core,"github.com/alecthomas/participle/lexer/ebnf",MIT
@@ -573,10 +572,6 @@ core,"github.com/ulikunitz/xz/internal/hash",BSD-3-Clause
 core,"github.com/ulikunitz/xz/internal/xlog",BSD-3-Clause
 core,"github.com/ulikunitz/xz/lzma",BSD-3-Clause
 core,"github.com/urfave/negroni",MIT
-core,"github.com/vbauerster/mpb/v5",Unlicense
-core,"github.com/vbauerster/mpb/v5/cwriter",Unlicense
-core,"github.com/vbauerster/mpb/v5/decor",Unlicense
-core,"github.com/vbauerster/mpb/v5/internal",Unlicense
 core,"github.com/vishvananda/netlink",Apache-2.0
 core,"github.com/vishvananda/netlink/nl",Apache-2.0
 core,"github.com/vishvananda/netns",Apache-2.0

@@ -53,6 +53,45 @@ def get_multi_python_location(embedded_path=None, rtloader_root=None):
     return rtloader_lib, rtloader_headers, rtloader_common_headers
 
 
+def get_nikos_linker_flags(nikos_libs_path):
+    nikos_libs = [
+        'dnf',
+        'gio-2.0',
+        'modulemd',
+        'gobject-2.0',
+        'ffi',
+        'yaml',
+        'gmodule-2.0',
+        'repo',
+        'glib-2.0',
+        'pcre',
+        'z',
+        'solvext',
+        'rpm',
+        'rpmio',
+        'bz2',
+        'solv',
+        'gpgme',
+        'assuan',
+        'gcrypt',
+        'gpg-error',
+        'sqlite3',
+        'curl',
+        'nghttp2',
+        'ssl',
+        'crypto',
+        'json-c',
+        'lzma',
+        'xml2',
+        'popt',
+        'zstd'
+    ]
+    # hardcode the path to each library to ensure we link against the version which was built by omnibus-nikos
+    linker_flags = map(lambda lib: nikos_libs_path + '/lib' + lib + '.a', nikos_libs)
+
+    return ' -L' + nikos_libs_path + ' ' + ' '.join(linker_flags) + ' -l:libresolv.a -lstdc++ -pthread -ldl -lm'
+
+
 def has_both_python(python_runtimes):
     python_runtimes = python_runtimes.split(',')
     return '2' in python_runtimes and '3' in python_runtimes
@@ -74,6 +113,7 @@ def get_build_flags(
     python_home_3=None,
     major_version='7',
     python_runtimes='3',
+    nikos_embedded_path=None,
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -117,6 +157,11 @@ def get_build_flags(
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + " -Werror -Wno-deprecated-declarations -I{} -I{}".format(
         rtloader_headers, rtloader_common_headers
     )
+
+    # adding nikos libs to the env
+    if nikos_embedded_path is not None:
+        env['PKG_CONFIG_PATH'] = env.get('PKG_CONFIG_PATH', '') + ':' + nikos_embedded_path + '/lib/pkgconfig'
+        env["CGO_LDFLAGS"] = env.get('CGO_LDFLAGS', '') + get_nikos_linker_flags(nikos_embedded_path + '/lib')
 
     # if `static` was passed ignore setting rpath, even if `embedded_path` was passed as well
     if static:

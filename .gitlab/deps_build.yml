@@ -97,3 +97,23 @@ build_clang_arm64:
   tags: ["runner:docker-arm", "platform:arm64"]
   variables:
     ARCH: arm64
+
+.build_omnibus-nikos_common:
+  stage: deps_build
+  script:
+    - git clone https://github.com/DataDog/omnibus-nikos.git /tmp/omnibus-nikos
+    - cd /tmp/omnibus-nikos
+    - /bin/bash -l -c "bundle install"
+    - /bin/bash -l -c "bundle exec omnibus build nikos"
+    - cd /opt/nikos/embedded
+    - cp lib/glib-2.0/include/glibconfig.h include
+    - tar cvzf nikos.tar.gz *
+    - $S3_CP_CMD nikos.tar.gz $S3_ARTIFACTS_URI/nikos-$ARCH.tar.gz
+
+build_omnibus-nikos_x64:
+  extends: .build_omnibus-nikos_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/omnibus-nikos_x64:$DATADOG_AGENT_NIKOS_BUILDIMAGES
+  tags: ["runner:main", "size:2xlarge"]
+  variables:
+    ARCH: amd64
+  
