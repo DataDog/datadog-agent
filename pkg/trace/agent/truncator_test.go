@@ -45,9 +45,9 @@ func TestTruncateResourcePassThru(t *testing.T) {
 
 func TestTruncateLongResource(t *testing.T) {
 	s := testSpan()
-	s.Resource = strings.Repeat("TOOLONG", 5000)
+	s.Resource = strings.Repeat("TOOLONG", 25000)
 	Truncate(s)
-	assert.Equal(t, 5000, len(s.Resource))
+	assert.Equal(t, 25000, len(s.Resource))
 }
 
 func TestTruncateMetricsPassThru(t *testing.T) {
@@ -86,7 +86,7 @@ func TestTruncateMetaKeyTooLong(t *testing.T) {
 
 func TestTruncateMetaValueTooLong(t *testing.T) {
 	s := testSpan()
-	val := strings.Repeat("TOOLONG", 5000)
+	val := strings.Repeat("TOOLONG", 25000)
 	s.Meta["foo"] = val
 	Truncate(s)
 	for _, v := range s.Meta {

@@ -22,7 +22,7 @@ const (
 	// MaxMetaKeyLen the maximum length of metadata key
 	MaxMetaKeyLen = 200
 	// MaxMetaValLen the maximum length of metadata value
-	MaxMetaValLen = 5000
+	MaxMetaValLen = 25000
 	// MaxMetricsKeyLen the maximum length of a metric name key
 	MaxMetricsKeyLen = MaxMetaKeyLen
 )
