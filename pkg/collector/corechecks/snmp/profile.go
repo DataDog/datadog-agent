@@ -76,7 +76,7 @@ func getDefaultProfilesDefinitionFiles() (profileConfigMap, error) {
 			continue
 		}
 		profileName := fName[:len(fName)-len(".yaml")]
-		profiles[profileName] = profileConfig{filepath.Join(profilesRoot, fName)}
+		profiles[profileName] = profileConfig{DefinitionFile: filepath.Join(profilesRoot, fName)}
 	}
 	return profiles, nil
 }
@@ -85,21 +85,22 @@ func loadProfiles(pConfig profileConfigMap) (profileDefinitionMap, error) {
 	profiles := make(map[string]profileDefinition, len(pConfig))
 
 	for name, profile := range pConfig {
-		definitionFile := profile.DefinitionFile
+		if profile.DefinitionFile != "" {
+			profileDefinition, err := readProfileDefinition(profile.DefinitionFile)
+			if err != nil {
+				log.Warnf("failed to read profile definition `%s`: %s", name, err)
+				continue
+			}
 
-		profileDefinition, err := readProfileDefinition(definitionFile)
-		if err != nil {
-			log.Warnf("failed to read profile definition `%s`: %s", name, err)
-			continue
+			err = recursivelyExpandBaseProfiles(profileDefinition, profileDefinition.Extends, []string{})
+			if err != nil {
+				log.Warnf("failed to expand profile `%s`: %s", name, err)
+				continue
+			}
+			profiles[name] = *profileDefinition
+		} else {
+			profiles[name] = profile.Definition
 		}
-
-		err = recursivelyExpandBaseProfiles(profileDefinition, profileDefinition.Extends, []string{})
-		if err != nil {
-			log.Warnf("failed to expand profile `%s`: %s", name, err)
-			continue
-		}
-
-		profiles[name] = *profileDefinition
 	}
 	return profiles, nil
 }
