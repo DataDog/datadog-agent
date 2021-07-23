@@ -41,6 +41,15 @@ struct bpf_map_def SEC("maps/pid_fd_by_sock") pid_fd_by_sock = {
 };
 
 static __always_inline void clear_sockfd_maps(struct sock* sock) {
+    // TODO: Fix this before merging
+    // The code below is disabled because there is a race condition between
+    // this function call and the OpenSSL uprobes, such that once they get
+    // executed there is no (pid, sockfd) => entry
+    // The solution would be either turning the sockfd map into a LRU map type
+    // (only available for runtime-compiled programs) or handle the map entries
+    // expiration on userspace by relying on a TTL field.
+    return;
+
     if (sock == NULL) {
         return;
     }
