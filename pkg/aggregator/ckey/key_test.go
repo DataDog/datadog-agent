@@ -24,19 +24,19 @@ func TestGenerateReproductible(t *testing.T) {
 
 	generator := NewKeyGenerator()
 
-	firstKey := generator.Generate(name, hostname, tags)
-	assert.Equal(t, ContextKey(0x5a2b4635eb90c410), firstKey)
+	firstKey, _ := generator.Generate(name, hostname, tags)
+	assert.Equal(t, ContextKey(0x558b3fdbeb2ae197), firstKey)
 
 	for n := 0; n < 10; n++ {
 		t.Run(fmt.Sprintf("iteration %d:", n), func(t *testing.T) {
-			key := generator.Generate(name, hostname, tags)
+			key, _ := generator.Generate(name, hostname, tags)
 			assert.Equal(t, firstKey, key)
 		})
 	}
 
-	otherKey := generator.Generate("othername", hostname, tags)
+	otherKey, _ := generator.Generate("othername", hostname, tags)
 	assert.NotEqual(t, firstKey, otherKey)
-	assert.Equal(t, ContextKey(0x90352c032ca3bcd), otherKey)
+	assert.Equal(t, ContextKey(0x76fd4f64609a9375), otherKey)
 }
 
 func TestCompare(t *testing.T) {
@@ -47,6 +47,57 @@ func TestCompare(t *testing.T) {
 	assert.True(t, Equals(base, base))
 	assert.True(t, Equals(base, same))
 	assert.False(t, Equals(base, diff))
+}
+
+func TestTagsOrderAndDupsDontMatter(t *testing.T) {
+	assert := assert.New(t)
+
+	name := "metrics.to.test.hashing"
+	hostname := "hostname.localhost"
+	tags := []string{"bar", "foo", "key:value", "key:value2"}
+
+	generator := NewKeyGenerator()
+	key, _ := generator.Generate(name, hostname, tags)
+
+	// change tags order, the generated key should be the same
+	tags[0], tags[1], tags[2], tags[3] = tags[3], tags[0], tags[1], tags[2]
+	key2, _ := generator.Generate(name, hostname, tags)
+	assert.Equal(key, key2, "order of tags should not matter")
+
+	// add a duplicated tag
+	tags = append(tags, "key:value", "foo")
+	key3, _ := generator.Generate(name, hostname, tags)
+	assert.Equal(key, key3, "duplicated tags should not matter")
+
+	// and now, completely change of the tag, the generated key should NOT be the same
+	tags[2] = "another:tag"
+	key4, _ := generator.Generate(name, hostname, tags)
+	assert.NotEqual(key, key4, "tags content should matter")
+}
+
+func TestTagsAreDedupedWhileGeneratingCKey(t *testing.T) {
+	assert := assert.New(t)
+
+	name := "metrics.to.test.hashing"
+	hostname := "hostname.localhost"
+	tags := []string{"bar", "foo", "key:value", "key:value2"}
+
+	generator := NewKeyGenerator()
+	key, _ := generator.Generate(name, hostname, tags)
+
+	// change tags order, the generated key should be the same
+	tags[0], tags[1], tags[2], tags[3] = tags[3], tags[0], tags[1], tags[2]
+	key2, _ := generator.Generate(name, hostname, tags)
+	assert.Equal(key, key2, "order of tags should not matter")
+
+	// add a duplicated tag
+	tags = append(tags, "key:value", "foo")
+	assert.Len(tags, 6)
+	assert.ElementsMatch(tags, []string{"bar", "foo", "key:value", "key:value2", "key:value", "foo"})
+	key3, tags := generator.Generate(name, hostname, tags)
+	assert.Len(tags, 4, "duplicated tags should have been removed")
+	assert.Equal(key, key3, "duplicated tags should not matter")
+	assert.ElementsMatch(tags, []string{"bar", "foo", "key:value", "key:value2"})
 }
 
 func genTags(count int) []string {
