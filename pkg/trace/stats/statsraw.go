@@ -33,7 +33,11 @@ const (
 var indexMapping *mapping.LogarithmicMapping
 
 func init() {
-	indexMapping, _ = mapping.NewLogarithmicMappingWithGamma(sketchGamma, sketchOffset)
+	var err error
+	indexMapping, err = mapping.NewLogarithmicMappingWithGamma(sketchGamma, sketchOffset)
+	if err != nil {
+		log.Criticalf("Error when creating sketch mapping: %v", err)
+	}
 }
 
 // Most "algorithm" stuff here is tested with stats_test.go as what is important
