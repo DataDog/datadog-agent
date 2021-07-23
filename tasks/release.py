@@ -665,6 +665,13 @@ def _get_windows_ddnpm_release_json_info(
     return win_ddnpm_driver, win_ddnpm_version, win_ddnpm_shasum
 
 
+@task
+def get_variable(_, name, version='nightly'):
+    with open("release.json", "r") as release_json_stream:
+        release_json = json.load(release_json_stream, object_pairs_hook=OrderedDict)
+    print(release_json[version][name])
+
+
 ##
 ## release_json object update function
 ##

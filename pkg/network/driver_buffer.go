@@ -43,6 +43,11 @@ func (d *DriverBuffer) Len() int {
 	return d.off
 }
 
+// Capacity returns the current capacity of the buffer
+func (d *DriverBuffer) Capacity() int {
+	return len(d.buf)
+}
+
 // Reset returns the written object count back to zero. It may resize the internal buffer based on past usage.
 func (d *DriverBuffer) Reset() {
 	// shrink buffer if less than half used
