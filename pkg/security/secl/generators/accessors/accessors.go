@@ -23,6 +23,7 @@ import (
 	"text/template"
 	"unicode"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors/common"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/structtag"
 	"golang.org/x/tools/go/loader"
@@ -44,34 +45,7 @@ var (
 	buildTags string
 )
 
-type Module struct {
-	Name            string
-	SourcePkgPrefix string
-	SourcePkg       string
-	TargetPkg       string
-	BuildTags       []string
-	Fields          map[string]*structField
-	Iterators       map[string]*structField
-	EventTypes      map[string]bool
-	Mock            bool
-}
-
-var module *Module
-
-type structField struct {
-	Name          string
-	Prefix        string
-	Struct        string
-	BasicType     string
-	ReturnType    string
-	IsArray       bool
-	Event         string
-	Handler       string
-	OrigType      string
-	IsOrigTypePtr bool
-	Iterator      *structField
-	Weight        int64
-}
+var module *common.Module
 
 func resolveSymbol(pkg, symbol string) (types.Object, error) {
 	if typePackage, found := packages[pkg]; found {
@@ -89,11 +63,11 @@ func origTypeToBasicType(kind string) string {
 	return kind
 }
 
-func handleBasic(name, alias, kind, event string, iterator *structField, isArray bool) {
+func handleBasic(name, alias, kind, event string, iterator *common.StructField, isArray bool) {
 	fmt.Printf("handleBasic %s %s\n", name, kind)
 
 	basicType := origTypeToBasicType(kind)
-	module.Fields[alias] = &structField{
+	module.Fields[alias] = &common.StructField{
 		Name:       name,
 		BasicType:  basicType,
 		ReturnType: basicType,
@@ -106,7 +80,7 @@ func handleBasic(name, alias, kind, event string, iterator *structField, isArray
 	module.EventTypes[event] = true
 }
 
-func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, event string, iterator *structField, dejavu map[string]bool, isArray bool) error {
+func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool) error {
 	fmt.Printf("handleField fieldName %s, alias %s, prefix %s, aliasPrefix %s, pkgName %s, fieldType, %s\n", name, alias, prefix, aliasPrefix, pkgName, fieldType)
 
 	switch fieldType.Name {
@@ -178,7 +152,7 @@ func parseHandler(handler string) (string, int64) {
 	return handler, weight
 }
 
-func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event string, iterator *structField, dejavu map[string]bool) {
+func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event string, iterator *common.StructField, dejavu map[string]bool) {
 	fmt.Printf("handleSpec spec: %+v, prefix: %s, aliasPrefix %s, event %s, iterator %+v\n", spec, prefix, aliasPrefix, event, iterator)
 
 	if typeSpec, ok := spec.(*ast.TypeSpec); ok {
@@ -251,7 +225,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 								}
 							}
 
-							module.Iterators[alias] = &structField{
+							module.Iterators[alias] = &common.StructField{
 								Name:          fmt.Sprintf("%s.%s", prefix, fieldName),
 								ReturnType:    qualifiedType(iterator),
 								Event:         event,
@@ -269,7 +243,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 								fieldAlias = aliasPrefix + "." + fieldAlias
 							}
 
-							module.Fields[fieldAlias] = &structField{
+							module.Fields[fieldAlias] = &common.StructField{
 								Prefix:     prefix,
 								Name:       fmt.Sprintf("%s.%s", prefix, fieldName),
 								BasicType:  origTypeToBasicType(fieldType.Name),
@@ -332,7 +306,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 	}
 }
 
-func parseFile(filename string, pkgName string) (*Module, error) {
+func parseFile(filename string, pkgName string) (*common.Module, error) {
 	buildContext := build.Default
 	buildContext.BuildTags = append(buildContext.BuildTags, strings.Split(buildTags, ",")...)
 
@@ -378,13 +352,13 @@ func parseFile(filename string, pkgName string) (*Module, error) {
 		moduleName = path.Base(pkgName)
 	}
 
-	module = &Module{
+	module = &common.Module{
 		Name:       moduleName,
 		SourcePkg:  pkgName,
 		TargetPkg:  pkgName,
 		BuildTags:  buildTags,
-		Fields:     make(map[string]*structField),
-		Iterators:  make(map[string]*structField),
+		Fields:     make(map[string]*common.StructField),
+		Iterators:  make(map[string]*common.StructField),
 		EventTypes: make(map[string]bool),
 		Mock:       mock,
 	}
