@@ -65,7 +65,7 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
     // this is a hard link, source and target dentries are on the same filesystem & mount point
     // target_path was set by kprobe/filename_create before we reach this point.
     syscall->link.src_file.path_key.mount_id = get_path_mount_id(syscall->link.target_path);
-    set_file_inode(src_dentry, &syscall->link.src_file, 1);
+    set_file_inode(src_dentry, &syscall->link.src_file, 0);
 
     // we generate a fake target key as the inode is the same
     syscall->link.target_file.path_key.ino = FAKE_INODE_MSW<<32 | bpf_get_prandom_u32();

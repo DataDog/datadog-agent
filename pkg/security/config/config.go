@@ -76,6 +76,8 @@ type Config struct {
 	ERPCDentryResolutionEnabled bool
 	// MapDentryResolutionEnabled determines if the map resolution is enabled
 	MapDentryResolutionEnabled bool
+	// DentryCacheSize is the size of the user space dentry cache
+	DentryCacheSize int
 	// RemoteTaggerEnabled defines whether the remote tagger is enabled
 	RemoteTaggerEnabled bool
 	// HostServiceName string
@@ -119,6 +121,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		CustomSensitiveWords:               aconfig.Datadog.GetStringSlice("runtime_security_config.custom_sensitive_words"),
 		ERPCDentryResolutionEnabled:        aconfig.Datadog.GetBool("runtime_security_config.erpc_dentry_resolution_enabled"),
 		MapDentryResolutionEnabled:         aconfig.Datadog.GetBool("runtime_security_config.map_dentry_resolution_enabled"),
+		DentryCacheSize:                    aconfig.Datadog.GetInt("runtime_security_config.dentry_cache_size"),
 		RemoteTaggerEnabled:                aconfig.Datadog.GetBool("runtime_security_config.remote_tagger"),
 		LogPatterns:                        aconfig.Datadog.GetStringSlice("runtime_security_config.log_patterns"),
 		SelfTestEnabled:                    aconfig.Datadog.GetBool("runtime_security_config.self_test.enabled"),

@@ -84,7 +84,7 @@ var (
 )
 
 var (
-	dentryInvalidDiscarder = []interface{}{dentryPathKeyNotFound}
+	dentryInvalidDiscarder = []interface{}{""}
 )
 
 // InvalidDiscarders exposes list of values that are not discarders

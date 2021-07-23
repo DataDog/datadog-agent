@@ -77,10 +77,10 @@ func (r *Resolvers) resolveBasename(e *model.FileFields) string {
 	return r.DentryResolver.GetName(e.MountID, e.Inode, e.PathID)
 }
 
-// resolveFileFieldsPath resolves the inode to a full path. Returns the path and true if it was entirely resolved
+// resolveFileFieldsPath resolves the inode to a full path
 func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields) (string, error) {
 	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID)
-	if pathStr == dentryPathKeyNotFound {
+	if err != nil {
 		return pathStr, err
 	}
 

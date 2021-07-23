@@ -53,7 +53,6 @@ var (
 )
 
 const (
-	grpcAddr        = "127.0.0.1:18787"
 	getEventTimeout = 3 * time.Second
 )
 
@@ -121,17 +120,11 @@ const (
 	DockerEnvironment = "docker"
 )
 
-type testEvent struct {
-	eval.Event
-	rule *eval.Rule
-}
-
 type testOpts struct {
 	testDir                     string
 	disableFilters              bool
 	disableApprovers            bool
 	disableDiscarders           bool
-	wantProbeEvents             bool
 	eventsCountThreshold        int
 	reuseProbeHandler           bool
 	disableERPCDentryResolution bool
@@ -568,7 +561,8 @@ func (tm *testModule) RegisterRuleEventHandler(cb ruleHandler) {
 	tm.ruleHandler.Unlock()
 }
 
-func (tm *testModule) GetProbeCustomEvent(action func() error, cb func(rule *rules.Rule, event *sprobe.CustomEvent) bool, timeout time.Duration, eventType ...model.EventType) error {
+func (tm *testModule) GetProbeCustomEvent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *sprobe.CustomEvent) bool, eventType ...model.EventType) error {
+	tb.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

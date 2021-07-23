@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/DataDog/gopsutil/process"
-
 	"github.com/moby/sys/mountinfo"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
@@ -195,6 +194,11 @@ func (mr *MountResolver) IsOverlayFS(mountID uint32) bool {
 func (mr *MountResolver) Insert(e model.MountEvent) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
+
+	if e.MountPointPathResolutionError != nil || e.RootPathResolutionError != nil {
+		// do not insert an invalid value
+		return
+	}
 
 	mr.insert(e)
 
