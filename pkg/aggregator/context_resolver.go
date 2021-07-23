@@ -30,7 +30,7 @@ type contextResolver struct {
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
-func (cr *contextResolver) generateContextKey(metricSampleContext metrics.MetricSampleContext, tags *util.TagsBuilder) ckey.ContextKey {
+func (cr *contextResolver) generateContextKey(metricSampleContext metrics.MetricSampleContext, tags *util.TagsBuilder) (ckey.ContextKey, []string) {
 	return cr.keyGenerator.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), tags.Get())
 }
 
@@ -44,8 +44,8 @@ func newContextResolver() *contextResolver {
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
 func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
-	metricSampleContext.GetTags(cr.tagsBuffer)                              // tags here are not sorted and can contain duplicates
-	contextKey := cr.generateContextKey(metricSampleContext, cr.tagsBuffer) // the generator is ignoring duplicates (and doesn't mind the order)
+	metricSampleContext.GetTags(cr.tagsBuffer)                                    // tags here are not sorted and can contain duplicates
+	contextKey, tags := cr.generateContextKey(metricSampleContext, cr.tagsBuffer) // the generator is ignoring duplicates (and doesn't mind the order)
 
 	if _, ok := cr.contextsByKey[contextKey]; !ok {
 		// making a copy of tags for the context since tagsBuffer
@@ -53,7 +53,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 		// per context instead of one per sample.
 		cr.contextsByKey[contextKey] = &Context{
 			Name: metricSampleContext.GetName(),
-			Tags: cr.tagsBuffer.Copy(),
+			Tags: append(make([]string, 0, len(tags)), tags...),
 			Host: metricSampleContext.GetHost(),
 		}
 	}

@@ -30,7 +30,7 @@ func TestGenerateContextKey(t *testing.T) {
 		SampleRate: 1,
 	}
 
-	contextKey := generateContextKey(&mSample)
+	contextKey, _ := generateContextKey(&mSample)
 	assert.Equal(t, ckey.ContextKey(0xd28d2867c6dd822c), contextKey)
 }
 

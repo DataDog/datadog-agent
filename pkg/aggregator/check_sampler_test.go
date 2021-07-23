@@ -66,23 +66,25 @@ func TestCheckGaugeSampling(t *testing.T) {
 	checkSampler.commit(12349.0)
 	series, _ := checkSampler.flush()
 
+	ckey, _ := generateContextKey(&mSample2)
 	expectedSerie1 := &metrics.Serie{
 		Name:           "my.metric.name",
 		Tags:           []string{"bar", "foo"},
 		Points:         []metrics.Point{{Ts: 12349.0, Value: mSample2.Value}},
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: checksSourceTypeName,
-		ContextKey:     generateContextKey(&mSample2),
+		ContextKey:     ckey,
 		NameSuffix:     "",
 	}
 
+	ckey, _ = generateContextKey(&mSample3)
 	expectedSerie2 := &metrics.Serie{
 		Name:           "my.metric.name",
 		Tags:           []string{"bar", "baz", "foo"},
 		Points:         []metrics.Point{{Ts: 12349.0, Value: mSample3.Value}},
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: checksSourceTypeName,
-		ContextKey:     generateContextKey(&mSample3),
+		ContextKey:     ckey,
 		NameSuffix:     "",
 	}
 
@@ -224,6 +226,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 	// linear interpolated values
 	expSketch.Insert(quantile.Default(), 10.0, 12.5, 15.0, 17.5)
 
+	ckey, _ := generateContextKey(bucket1)
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, metrics.SketchSeries{
 		Name: "my.histogram",
@@ -231,7 +234,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 		Points: []metrics.SketchPoint{
 			{Ts: 12345.0, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(bucket1),
+		ContextKey: ckey,
 	}, flushed[0], .03)
 
 	bucket2 := &metrics.HistogramBucket{
@@ -257,6 +260,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 	expSketch.Insert(quantile.Default(), 10.0, 15.0)
 
 	assert.Equal(t, 1, len(flushed))
+	ckey, _ = generateContextKey(bucket1)
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, metrics.SketchSeries{
 		Name: "my.histogram",
@@ -264,7 +268,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 		Points: []metrics.SketchPoint{
 			{Ts: 12400.0, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(bucket1),
+		ContextKey: ckey,
 	}, flushed[0], .03)
 
 	// garbage collection
@@ -313,6 +317,7 @@ func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
 	expSketch.Insert(quantile.Default(), 10.0, 15.0)
 
 	assert.Equal(t, 1, len(flushed))
+	ckey, _ := generateContextKey(bucket1)
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, metrics.SketchSeries{
 		Name: "my.histogram",
@@ -320,7 +325,7 @@ func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
 		Points: []metrics.SketchPoint{
 			{Ts: 12400.0, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(bucket1),
+		ContextKey: ckey,
 	}, flushed[0], .03)
 
 }
@@ -344,7 +349,7 @@ func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
 
 	expSketch := &quantile.Sketch{}
 	expSketch.InsertMany(quantile.Default(), []float64{9000.0, 9000.0, 9000.0, 9000.0})
-
+	ckey, _ := generateContextKey(bucket1)
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
 	metrics.AssertSketchSeriesApproxEqual(t, metrics.SketchSeries{
 		Name: "my.histogram",
@@ -352,6 +357,6 @@ func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
 		Points: []metrics.SketchPoint{
 			{Ts: 12345.0, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(bucket1),
+		ContextKey: ckey,
 	}, flushed[0], .03)
 }

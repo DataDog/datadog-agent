@@ -22,7 +22,8 @@ import (
 
 func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 	l := ckey.NewKeyGenerator()
-	return l.Generate(serie.Name, serie.Host, serie.Tags)
+	key, _ := l.Generate(serie.Name, serie.Host, serie.Tags)
+	return key
 }
 
 // TimeSampler
@@ -138,7 +139,7 @@ func TestCounterExpirySeconds(t *testing.T) {
 		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
-	contextCounter1 := generateContextKey(sampleCounter1)
+	contextCounter1, _ := generateContextKey(sampleCounter1)
 
 	sampleCounter2 := &metrics.MetricSample{
 		Name:       "my.counter2",
@@ -147,7 +148,7 @@ func TestCounterExpirySeconds(t *testing.T) {
 		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
-	contextCounter2 := generateContextKey(sampleCounter2)
+	contextCounter2, _ := generateContextKey(sampleCounter2)
 
 	sampleGauge3 := &metrics.MetricSample{
 		Name:       "my.gauge",
@@ -165,33 +166,36 @@ func TestCounterExpirySeconds(t *testing.T) {
 
 	series, _ := sampler.flush(1010.0)
 
+	ckey, _ := generateContextKey(sampleCounter1)
 	expectedSerie1 := &metrics.Serie{
 		Name:       "my.counter1",
 		Points:     []metrics.Point{{Ts: 1000.0, Value: .1}},
 		Tags:       []string{"bar", "foo"},
 		Host:       "",
 		MType:      metrics.APIRateType,
-		ContextKey: generateContextKey(sampleCounter1),
+		ContextKey: ckey,
 		Interval:   10,
 	}
 
+	ckey, _ = generateContextKey(sampleCounter2)
 	expectedSerie2 := &metrics.Serie{
 		Name:       "my.counter2",
 		Points:     []metrics.Point{{Ts: 1000.0, Value: .2}},
 		Tags:       []string{"bar", "foo"},
 		Host:       "",
 		MType:      metrics.APIRateType,
-		ContextKey: generateContextKey(sampleCounter2),
+		ContextKey: ckey,
 		Interval:   10,
 	}
 
+	ckey, _ = generateContextKey(sampleGauge3)
 	expectedSerie3 := &metrics.Serie{
 		Name:       "my.gauge",
 		Points:     []metrics.Point{{Ts: 1000.0, Value: 2}},
 		Tags:       []string{"bar", "foo"},
 		Host:       "",
 		MType:      metrics.APIGaugeType,
-		ContextKey: generateContextKey(sampleGauge3),
+		ContextKey: ckey,
 		Interval:   10,
 	}
 	expectedSeries := metrics.Series{expectedSerie1, expectedSerie2, expectedSerie3}
@@ -215,23 +219,25 @@ func TestCounterExpirySeconds(t *testing.T) {
 
 	series, _ = sampler.flush(1040.0)
 
+	ckey, _ := generateContextKey(sampleCounter1)
 	expectedSerie1 = &metrics.Serie{
 		Name:       "my.counter1",
 		Points:     []metrics.Point{{Ts: 1010.0, Value: .1}, {Ts: 1020.0, Value: 0.0}, {Ts: 1030.0, Value: 0.0}},
 		Tags:       []string{"bar", "foo"},
 		Host:       "",
 		MType:      metrics.APIRateType,
-		ContextKey: generateContextKey(sampleCounter1),
+		ContextKey: ckey,
 		Interval:   10,
 	}
 
+	ckey, _ = generateContextKey(sampleCounter2)
 	expectedSerie2 = &metrics.Serie{
 		Name:       "my.counter2",
 		Points:     []metrics.Point{{Ts: 1010, Value: 0}, {Ts: 1020.0, Value: .2}, {Ts: 1030.0, Value: .2}},
 		Tags:       []string{"bar", "foo"},
 		Host:       "",
 		MType:      metrics.APIRateType,
-		ContextKey: generateContextKey(sampleCounter2),
+		ContextKey: ckey,
 		Interval:   10,
 	}
 	expectedSeries = metrics.Series{expectedSerie1, expectedSerie2}
@@ -357,6 +363,7 @@ func TestSketchBucketSampling(t *testing.T) {
 	expSketch.Insert(quantile.Default(), 1, 2)
 
 	assert.Equal(t, 1, len(flushed))
+	ckey, _ := generateContextKey(&mSample1)
 	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
 		Name:     "test.metric.name",
 		Tags:     []string{"a", "b"},
@@ -365,7 +372,7 @@ func TestSketchBucketSampling(t *testing.T) {
 			{Ts: 10000, Sketch: expSketch},
 			{Ts: 10010, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(&mSample1),
+		ContextKey: ckey,
 	}, flushed[0])
 
 	// The samples added after the flush time remains in the dist sampler
@@ -401,6 +408,7 @@ func TestSketchContextSampling(t *testing.T) {
 		return flushed[i].Name < flushed[j].Name
 	})
 
+	ckey, _ := generateContextKey(&mSample1)
 	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
 		Name:     "test.metric.name1",
 		Tags:     []string{"a", "b"},
@@ -408,9 +416,10 @@ func TestSketchContextSampling(t *testing.T) {
 		Points: []metrics.SketchPoint{
 			{Ts: 10010, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(&mSample1),
+		ContextKey: ckey,
 	}, flushed[0])
 
+	ckey, _ = generateContextKey(&mSample2)
 	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
 		Name:     "test.metric.name2",
 		Tags:     []string{"a", "c"},
@@ -418,7 +427,7 @@ func TestSketchContextSampling(t *testing.T) {
 		Points: []metrics.SketchPoint{
 			{Ts: 10010, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(&mSample2),
+		ContextKey: ckey,
 	}, flushed[1])
 }
 
@@ -466,6 +475,7 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 	expSketch := &quantile.Sketch{}
 	expSketch.Insert(quantile.Default(), 1)
 
+	ckey, _ := generateContextKey(&dSample1)
 	metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
 		Name:     "distribution.metric.name1",
 		Tags:     []string{"a", "b"},
@@ -474,7 +484,7 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 			{Ts: 12340.0, Sketch: expSketch},
 			{Ts: 12350.0, Sketch: expSketch},
 		},
-		ContextKey: generateContextKey(&dSample1),
+		ContextKey: ckey,
 	}, sketches[0])
 }
 
