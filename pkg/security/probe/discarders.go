@@ -39,6 +39,8 @@ const (
 	ResolveSegmentOp
 	// ResolvePathOp resolves the requested path
 	ResolvePathOp
+	// ResolveParentOp resolves the parent of the provide path key
+	ResolveParentOp
 )
 
 const (
