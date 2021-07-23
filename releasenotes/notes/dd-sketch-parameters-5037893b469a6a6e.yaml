@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    APM: Copy DDSketch parameters from the Datadog backend to avoid lossy conversion.
