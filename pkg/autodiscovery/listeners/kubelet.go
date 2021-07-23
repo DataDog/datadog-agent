@@ -150,13 +150,10 @@ func (l *KubeletListener) Stop() {
 
 func (l *KubeletListener) processNewPods(pods []*kubelet.Pod, firstRun bool) {
 	for _, pod := range pods {
-		// We ignore the state of the pod but only taking containers with ids
-		// into consideration (not pending)
 		for _, container := range pod.Status.GetAllContainers() {
-			if !container.IsPending() {
-				l.createService(container.ID, pod, firstRun)
-			}
+			l.createService(container, pod, firstRun)
 		}
+
 		l.createPodService(pod, firstRun)
 	}
 }
@@ -209,13 +206,48 @@ func (l *KubeletListener) createPodService(pod *kubelet.Pod, firstRun bool) {
 	l.newService <- &svc
 }
 
-func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRun bool) {
+func (l *KubeletListener) createService(container kubelet.ContainerStatus, pod *kubelet.Pod, firstRun bool) {
+	if container.IsPending() {
+		return
+	}
+
+	// Get the ImageName from the `spec` because the one in `status` isn’t reliable
+	containerImage := ""
+	for _, containerSpec := range pod.Spec.Containers {
+		if containerSpec.Name == container.Name {
+			containerImage = containerSpec.Image
+		}
+	}
+
+	if containerImage == "" {
+		log.Debugf("couldn't find the container %s (%s) in the spec of pod %s", container.Name, container.ID, pod.Metadata.Name)
+		containerImage = container.Image
+	}
+
+	// Detect AD exclusion
+	if l.filters.IsExcluded(containers.GlobalFilter, container.Name, containerImage, pod.Metadata.Namespace) {
+		log.Debugf("container %s filtered out: name %q image %q namespace %q", container.ID, container.Name, containerImage, pod.Metadata.Namespace)
+		return
+	}
+
+	// Ignore containers that have been stopped for too long
+	if terminated := container.State.Terminated; terminated != nil {
+		finishedAt := terminated.FinishedAt
+		excludeAfter := time.Duration(config.Datadog.GetInt("container_exclude_stopped_after")) * time.Hour
+		if finishedAt.Add(excludeAfter).Before(time.Now()) {
+			log.Debugf("container %q not running for too long, skipping", container.ID)
+			return
+		}
+	}
+
 	var crTime integration.CreationTime
 	if firstRun {
 		crTime = integration.Before
 	} else {
 		crTime = integration.After
 	}
+
+	entity := container.ID
 	svc := KubeContainerService{
 		entity:       entity,
 		creationTime: crTime,
@@ -228,67 +260,41 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 	}
 	podName := pod.Metadata.Name
 
+	// Detect metrics or logs exclusion
+	svc.metricsExcluded = l.filters.IsExcluded(containers.MetricsFilter, container.Name, containerImage, pod.Metadata.Namespace)
+	svc.logsExcluded = l.filters.IsExcluded(containers.LogsFilter, container.Name, containerImage, pod.Metadata.Namespace)
+
 	// AD Identifiers
-	var containerName string
-	for _, container := range pod.Status.GetAllContainers() {
-		if container.ID == svc.entity {
-			// Get the ImageName from the `spec` because the one in `status` isn’t reliable
-			containerImage := ""
-			for _, containerSpec := range pod.Spec.Containers {
-				if containerSpec.Name == container.Name {
-					containerImage = containerSpec.Image
-					break
-				}
-			}
-			if containerImage == "" {
-				log.Debugf("couldn't find the container %s (%s) in the spec of pod %s", container.Name, container.ID, pod.Metadata.Name)
-				containerImage = container.Image
-			}
+	containerName := container.Name
+	adIdentifier := containerName
 
-			// Detect AD exclusion
-			if l.filters.IsExcluded(containers.GlobalFilter, container.Name, containerImage, pod.Metadata.Namespace) {
-				log.Debugf("container %s filtered out: name %q image %q namespace %q", container.ID, container.Name, containerImage, pod.Metadata.Namespace)
-				return
-			}
+	// Check for custom AD identifiers
+	if customADIdentifier, customIDFound := utils.GetCustomCheckID(pod.Metadata.Annotations, containerName); customIDFound {
+		adIdentifier = customADIdentifier
+		// Add custom check ID as AD identifier
+		svc.adIdentifiers = append(svc.adIdentifiers, customADIdentifier)
+	}
 
-			// Detect metrics or logs exclusion
-			svc.metricsExcluded = l.filters.IsExcluded(containers.MetricsFilter, container.Name, containerImage, pod.Metadata.Namespace)
-			svc.logsExcluded = l.filters.IsExcluded(containers.LogsFilter, container.Name, containerImage, pod.Metadata.Namespace)
+	// Add container uid as ID
+	svc.adIdentifiers = append(svc.adIdentifiers, entity)
 
-			// Cache the container name to get the corresponding ports after breaking the for-loop
-			containerName = container.Name
-
-			// Check for custom AD identifiers
-			adIdentifier := containerName
-			if customADIdentifier, customIDFound := utils.GetCustomCheckID(pod.Metadata.Annotations, containerName); customIDFound {
-				adIdentifier = customADIdentifier
-				// Add custom check ID as AD identifier
-				svc.adIdentifiers = append(svc.adIdentifiers, customADIdentifier)
-			}
-
-			// Add container uid as ID
-			svc.adIdentifiers = append(svc.adIdentifiers, entity)
-
-			// Cache check names if the pod template is annotated
-			if podHasADTemplate(pod.Metadata.Annotations, adIdentifier) {
-				var err error
-				svc.checkNames, err = getCheckNamesFromAnnotations(pod.Metadata.Annotations, adIdentifier)
-				if err != nil {
-					log.Error(err.Error())
-				}
-			}
-
-			// Add other identifiers if no template found
-			svc.adIdentifiers = append(svc.adIdentifiers, containerImage)
-			_, short, _, err := containers.SplitImageName(containerImage)
-			if err != nil {
-				log.Warnf("Error while spliting image name: %s", err)
-			}
-			if len(short) > 0 && short != containerImage {
-				svc.adIdentifiers = append(svc.adIdentifiers, short)
-			}
-			break
+	// Cache check names if the pod template is annotated
+	if podHasADTemplate(pod.Metadata.Annotations, adIdentifier) {
+		var err error
+		svc.checkNames, err = getCheckNamesFromAnnotations(pod.Metadata.Annotations, adIdentifier)
+		if err != nil {
+			log.Error(err.Error())
 		}
+	}
+
+	// Add other identifiers if no template found
+	svc.adIdentifiers = append(svc.adIdentifiers, containerImage)
+	_, short, _, err := containers.SplitImageName(containerImage)
+	if err != nil {
+		log.Warnf("Error while spliting image name: %s", err)
+	}
+	if len(short) > 0 && short != containerImage {
+		svc.adIdentifiers = append(svc.adIdentifiers, short)
 	}
 
 	// Hosts

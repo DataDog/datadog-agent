@@ -10,6 +10,7 @@ package listeners
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -187,6 +188,26 @@ func getMockedPods() []*kubelet.Pod {
 			Image: "org/custom:latest",
 			ID:    "docker://custom-check-id",
 		},
+		{
+			Name:  "dead",
+			Image: "datadoghq.com/dead:beef",
+			ID:    "docker://dead",
+			State: kubelet.ContainerState{
+				Terminated: &kubelet.ContainerStateTerminated{
+					FinishedAt: time.Now().Add(-1 * time.Hour),
+				},
+			},
+		},
+		{
+			Name:  "dead-too-long",
+			Image: "datadoghq.com/dead:beef",
+			ID:    "docker://dead-too-long",
+			State: kubelet.ContainerState{
+				Terminated: &kubelet.ContainerStateTerminated{
+					FinishedAt: time.Now().Add(-24 * time.Hour),
+				},
+			},
+		},
 	}
 	kubeletStatus := kubelet.Status{
 		Phase:         "Running",
@@ -230,7 +251,7 @@ func TestProcessNewPod(t *testing.T) {
 		config.Datadog.SetDefault("exclude_pause_container", true)
 	}()
 
-	services := make(chan Service, 9)
+	services := make(chan Service, 10)
 	listener := KubeletListener{
 		newService: services,
 		services:   make(map[string]Service),
@@ -489,6 +510,14 @@ func TestProcessNewPod(t *testing.T) {
 		assert.FailNow(t, "ninth service not in channel")
 	}
 
+	// Terminated container that's recent enough
+	select {
+	case service := <-services:
+		assert.Equal(t, "docker://dead", service.GetEntity())
+	default:
+		assert.FailNow(t, "pod service not in channel")
+	}
+
 	// Pod service
 	select {
 	case service := <-services:
@@ -514,7 +543,7 @@ func TestProcessNewPod(t *testing.T) {
 
 	select {
 	case <-services:
-		assert.FailNow(t, "10 services in channel, filtering is broken")
+		assert.FailNow(t, "11 services in channel, filtering is broken")
 	default:
 		// all good
 	}

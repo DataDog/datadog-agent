@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -135,9 +136,6 @@ func (l *DockerListener) Stop() {
 // creates services for them, and pass them to the AutoConfig.
 // It is typically called at start up.
 func (l *DockerListener) init() {
-	l.m.Lock()
-	defer l.m.Unlock()
-
 	ctx := context.TODO()
 
 	containersList, err := l.dockerUtil.RawContainerList(ctx, types.ContainerListOptions{})
@@ -146,58 +144,7 @@ func (l *DockerListener) init() {
 	}
 
 	for _, co := range containersList {
-		if l.isExcluded(ctx, co) {
-			continue // helper method already logs
-		}
-		var svc Service
-
-		checkNames, err := getCheckNamesFromLabels(co.Labels)
-		if err != nil {
-			log.Errorf("Error getting check names from docker labels on container %s: %v", co.ID, err)
-		}
-
-		containerImage, err := l.dockerUtil.ResolveImageName(ctx, co.Image)
-		if err != nil {
-			log.Warnf("Error while resolving image name: %s", err)
-			containerImage = ""
-		}
-		metricsExcluded := false
-		logsExcluded := false
-		for _, name := range co.Names {
-			if l.filters.IsExcluded(containers.MetricsFilter, name, containerImage, "") {
-				metricsExcluded = true
-			}
-			if l.filters.IsExcluded(containers.LogsFilter, name, containerImage, "") {
-				logsExcluded = true
-			}
-			if metricsExcluded && logsExcluded {
-				break
-			}
-		}
-
-		if findKubernetesInLabels(co.Labels) {
-			svc = &DockerKubeletService{
-				DockerService: DockerService{
-					cID:           co.ID,
-					adIdentifiers: l.getConfigIDFromPs(ctx, co),
-					checkNames:    checkNames,
-					// Host and Ports will be looked up when needed
-				},
-			}
-		} else {
-			svc = &DockerService{
-				cID:             co.ID,
-				adIdentifiers:   l.getConfigIDFromPs(ctx, co),
-				hosts:           l.getHostsFromPs(co),
-				ports:           l.getPortsFromPs(co),
-				creationTime:    integration.Before,
-				checkNames:      checkNames,
-				metricsExcluded: metricsExcluded,
-				logsExcluded:    logsExcluded,
-			}
-		}
-		l.newService <- svc
-		l.services[co.ID] = svc
+		l.createService(ctx, co.ID)
 	}
 }
 
@@ -227,7 +174,7 @@ func (l *DockerListener) processEvent(ctx context.Context, e *docker.ContainerEv
 	} else {
 		// we might receive a `die` event for an unrelated container we don't
 		// care about, let's ignore it.
-		if e.Action == "start" {
+		if e.Action == docker.ContainerEventActionStart {
 			l.createService(ctx, cID)
 		}
 	}
@@ -253,12 +200,28 @@ func (l *DockerListener) createService(ctx context.Context, cID string) {
 		log.Warnf("error while resolving image name: %s", err)
 		containerImage = ""
 	}
+
 	// Detect AD exclusion
 	containerName = cInspect.Name
 	if l.filters.IsExcluded(containers.GlobalFilter, containerName, containerImage, "") {
 		log.Debugf("container %s filtered out: name %q image %q", cID[:12], containerName, containerImage)
 		return
 	}
+
+	// Ignore containers that have been stopped for too long
+	if !cInspect.State.Running && cInspect.State.FinishedAt != "" {
+		finishedAt, err := time.Parse(time.RFC3339, cInspect.State.FinishedAt)
+		if err == nil {
+			excludeAfter := time.Duration(config.Datadog.GetInt("container_exclude_stopped_after")) * time.Hour
+			if finishedAt.Add(excludeAfter).Before(time.Now()) {
+				log.Debugf("container %q not running for too long, skipping", cID[:12])
+				return
+			}
+		} else {
+			log.Debugf("container %q not running, but can't parse FinishedAt: %s", cID[:12])
+		}
+	}
+
 	if findKubernetesInLabels(cInspect.Config.Labels) {
 		isKube = true
 	}
@@ -399,21 +362,6 @@ func (s *DockerService) GetEntity() string {
 
 func (s *DockerService) GetTaggerEntity() string {
 	return docker.ContainerIDToTaggerEntityName(s.cID)
-}
-
-func (l *DockerListener) isExcluded(ctx context.Context, co types.Container) bool {
-	image, err := l.dockerUtil.ResolveImageName(ctx, co.Image)
-	if err != nil {
-		log.Warnf("error while resolving image name: %s", err)
-		image = ""
-	}
-	for _, name := range co.Names {
-		if l.filters.IsExcluded(containers.GlobalFilter, name, image, "") {
-			log.Debugf("container %s filtered out: name %q image %q", co.ID[:12], name, image)
-			return true
-		}
-	}
-	return false
 }
 
 // GetADIdentifiers returns a set of AD identifiers for a container.

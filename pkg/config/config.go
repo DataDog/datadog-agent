@@ -461,7 +461,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("container_exclude_metrics", []string{})
 	config.BindEnvAndSetDefault("container_include_logs", []string{})
 	config.BindEnvAndSetDefault("container_exclude_logs", []string{})
-	config.BindEnvAndSetDefault("ad_config_poll_interval", int64(10)) // in seconds
+	config.BindEnvAndSetDefault("container_exclude_stopped_after", DefaultAuditorTTL-1) // in hours
+	config.BindEnvAndSetDefault("ad_config_poll_interval", int64(10))                   // in seconds
 	config.BindEnvAndSetDefault("extra_listeners", []string{})
 	config.BindEnvAndSetDefault("extra_config_providers", []string{})
 	config.BindEnvAndSetDefault("ignore_autoconf", []string{})
