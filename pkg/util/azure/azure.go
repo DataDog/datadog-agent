@@ -122,7 +122,7 @@ func getResponse(ctx context.Context, url string) (string, error) {
 }
 
 // GetHostname returns hostname based on Azure instance metadata.
-func GetHostname(ctx context.Context) (string, error) {
+func GetHostname(ctx context.Context, options map[string]interface{}) (string, error) {
 	if !config.IsCloudProviderEnabled(CloudProviderName) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
