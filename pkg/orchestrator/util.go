@@ -8,7 +8,9 @@ package orchestrator
 import (
 	"strings"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // NodeType represents a kind of resource used by a container orchestrator.
@@ -35,37 +37,25 @@ const (
 	K8sDaemonSet
 	// K8sStatefulSet represents a Kubernetes StatefulSet
 	K8sStatefulSet
+	// lastElement represents the lastElement of the enums iota
+	lastElement
 )
 
-var (
-	telemetryTags = map[NodeType][]string{
-		K8sCluster:     getTelemetryTags(K8sCluster),
-		K8sCronJob:     getTelemetryTags(K8sCronJob),
-		K8sDeployment:  getTelemetryTags(K8sDeployment),
-		K8sJob:         getTelemetryTags(K8sJob),
-		K8sNode:        getTelemetryTags(K8sNode),
-		K8sPod:         getTelemetryTags(K8sPod),
-		K8sReplicaSet:  getTelemetryTags(K8sReplicaSet),
-		K8sService:     getTelemetryTags(K8sService),
-		K8sDaemonSet:   getTelemetryTags(K8sDaemonSet),
-		K8sStatefulSet: getTelemetryTags(K8sStatefulSet),
+var telemetryTags = map[NodeType][]string{}
+
+func init() {
+	for _, nodeType := range NodeTypes() {
+		telemetryTags[nodeType] = getTelemetryTags(nodeType)
 	}
-)
+}
 
 // NodeTypes returns the current existing NodesTypes as a slice to iterate over.
 func NodeTypes() []NodeType {
-	return []NodeType{
-		K8sCluster,
-		K8sCronJob,
-		K8sDeployment,
-		K8sDaemonSet,
-		K8sJob,
-		K8sNode,
-		K8sPod,
-		K8sReplicaSet,
-		K8sService,
-		K8sStatefulSet,
+	var types []NodeType
+	for t := NodeType(0); t < lastElement; t++ {
+		types = append(types, t)
 	}
+	return types
 }
 
 func (n NodeType) String() string {
@@ -145,4 +135,50 @@ func GroupSize(msgs, maxPerMessage int) int {
 		groupSize++
 	}
 	return groupSize
+}
+
+// ExtractMetadata extracts standard metadata into the model
+func ExtractMetadata(m *metav1.ObjectMeta) *model.Metadata {
+	meta := model.Metadata{
+		Name:            m.Name,
+		Namespace:       m.Namespace,
+		Uid:             string(m.UID),
+		ResourceVersion: m.ResourceVersion,
+	}
+	if !m.CreationTimestamp.IsZero() {
+		meta.CreationTimestamp = m.CreationTimestamp.Unix()
+	}
+	if !m.DeletionTimestamp.IsZero() {
+		meta.DeletionTimestamp = m.DeletionTimestamp.Unix()
+	}
+	if len(m.Annotations) > 0 {
+		meta.Annotations = mapToTags(m.Annotations)
+	}
+	if len(m.Labels) > 0 {
+		meta.Labels = mapToTags(m.Labels)
+	}
+	for _, o := range m.OwnerReferences {
+		owner := model.OwnerReference{
+			Name: o.Name,
+			Uid:  string(o.UID),
+			Kind: o.Kind,
+		}
+		meta.OwnerReferences = append(meta.OwnerReferences, &owner)
+	}
+
+	return &meta
+}
+
+// mapToTags converts a map for which both keys and values are strings to a
+// slice of strings containing those key-value pairs under the "key:value" form.
+func mapToTags(m map[string]string) []string {
+	slice := make([]string, len(m))
+
+	i := 0
+	for k, v := range m {
+		slice[i] = k + ":" + v
+		i++
+	}
+
+	return slice
 }

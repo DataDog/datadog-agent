@@ -16,6 +16,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -26,7 +27,6 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/twmb/murmur3"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/kubernetes/pkg/kubelet/pod"
 )
@@ -77,7 +77,7 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 			continue
 		}
 
-		if SkipKubernetesResource(p.UID, podModel.Metadata.ResourceVersion, K8sPod) {
+		if orchestrator.SkipKubernetesResource(p.UID, podModel.Metadata.ResourceVersion, orchestrator.K8sPod) {
 			continue
 		}
 
@@ -130,7 +130,7 @@ func chunkPods(pods []*model.Pod, chunkCount, chunkSize int) [][]*model.Pod {
 	chunks := make([][]*model.Pod, 0, chunkCount)
 
 	for counter := 1; counter <= chunkCount; counter++ {
-		chunkStart, chunkEnd := ChunkRange(len(pods), chunkCount, chunkSize, counter)
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(pods), chunkCount, chunkSize, counter)
 		chunks = append(chunks, pods[chunkStart:chunkEnd])
 	}
 
@@ -140,7 +140,7 @@ func chunkPods(pods []*model.Pod, chunkCount, chunkSize int) [][]*model.Pod {
 // extractPodMessage extracts pod info into the proto model
 func extractPodMessage(p *v1.Pod) *model.Pod {
 	podModel := model.Pod{
-		Metadata: ExtractMetadata(&p.ObjectMeta),
+		Metadata: orchestrator.ExtractMetadata(&p.ObjectMeta),
 	}
 	// pod spec
 	podModel.NodeName = p.Spec.NodeName
@@ -383,50 +383,4 @@ func fillPodResourceVersion(p *model.Pod) error {
 	p.Metadata.ResourceVersion = fmt.Sprint(version)
 
 	return nil
-}
-
-// mapToTags converts a map for which both keys and values are strings to a
-// slice of strings containing those key-value pairs under the "key:value" form.
-func mapToTags(m map[string]string) []string {
-	slice := make([]string, len(m))
-
-	i := 0
-	for k, v := range m {
-		slice[i] = k + ":" + v
-		i++
-	}
-
-	return slice
-}
-
-// ExtractMetadata extracts standard metadata into the model
-func ExtractMetadata(m *metav1.ObjectMeta) *model.Metadata {
-	meta := model.Metadata{
-		Name:            m.Name,
-		Namespace:       m.Namespace,
-		Uid:             string(m.UID),
-		ResourceVersion: m.ResourceVersion,
-	}
-	if !m.CreationTimestamp.IsZero() {
-		meta.CreationTimestamp = m.CreationTimestamp.Unix()
-	}
-	if !m.DeletionTimestamp.IsZero() {
-		meta.DeletionTimestamp = m.DeletionTimestamp.Unix()
-	}
-	if len(m.Annotations) > 0 {
-		meta.Annotations = mapToTags(m.Annotations)
-	}
-	if len(m.Labels) > 0 {
-		meta.Labels = mapToTags(m.Labels)
-	}
-	for _, o := range m.OwnerReferences {
-		owner := model.OwnerReference{
-			Name: o.Name,
-			Uid:  string(o.UID),
-			Kind: o.Kind,
-		}
-		meta.OwnerReferences = append(meta.OwnerReferences, &owner)
-	}
-
-	return &meta
 }
