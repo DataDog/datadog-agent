@@ -178,7 +178,7 @@ func (m *Monitor) Stop() {
 		return
 	}
 
-	m.ebpfProgram.Stop(manager.CleanAll)
+	m.ebpfProgram.Close()
 	m.closeFilterFn()
 	m.perfHandler.Stop()
 	close(m.pollRequests)

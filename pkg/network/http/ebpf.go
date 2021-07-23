@@ -3,6 +3,7 @@
 package http
 
 import (
+	"io"
 	"math"
 	"os"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
 	"golang.org/x/sys/unix"
@@ -21,20 +23,23 @@ const (
 	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the accept syscall).
 	maxActive                = 128
 	defaultClosedChannelSize = 500
-
-	// TODO: this is only hardcoded here for the PoC
-	libSSL = "/lib/x86_64-linux-gnu/libssl.so.1.1"
 )
+
+type subprogram interface {
+	Start() error
+	Init() error
+	io.Closer
+}
+
+// TODO: this is only hardcoded here for the PoC
+var sslLibs = []string{"/lib/x86_64-linux-gnu/libssl.so.1.1"}
 
 type ebpfProgram struct {
 	*manager.Manager
 	cfg         *config.Config
 	perfHandler *ddebpf.PerfHandler
 	bytecode    bytecode.AssetReader
-	offsets     []manager.ConstantEditor
-
-	// shared with the main (tracer) eBPF program
-	sockFDMap *ebpf.Map
+	subprograms []subprogram
 }
 
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*ebpfProgram, error) {
@@ -54,9 +59,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{Name: string(probes.HttpInFlightMap)},
 			{Name: string(probes.HttpBatchesMap)},
 			{Name: string(probes.HttpBatchStateMap)},
-			{Name: "tup_by_ssl_ctx"},
-			{Name: "ssl_read_args"},
-			{Name: "sock_by_pid_fd"},
 		},
 		PerfMaps: []*manager.PerfMap{
 			{
@@ -71,27 +73,32 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		},
 		Probes: []*manager.Probe{
 			{Section: string(probes.TCPSendMsgReturn), KProbeMaxActive: maxActive},
-			{Section: "uprobe/SSL_set_fd", BinaryPath: libSSL},
-			{Section: "uprobe/SSL_read", BinaryPath: libSSL},
-			{Section: "uretprobe/SSL_read", BinaryPath: libSSL},
-			{Section: "uprobe/SSL_write", BinaryPath: libSSL},
-			{Section: "uprobe/SSL_shutdown", BinaryPath: libSSL},
 			{Section: string(probes.SocketHTTPFilter)},
 		},
 	}
 
-	return &ebpfProgram{
+	program := &ebpfProgram{
 		Manager:     mgr,
 		perfHandler: perfHandler,
 		bytecode:    bytecode,
 		cfg:         c,
-		offsets:     offsets,
-		sockFDMap:   sockFD,
-	}, nil
+	}
+
+	// Create OpenSSL "subprograms"
+	for _, lib := range sslLibs {
+		sslProgram, err := newSSLProgram(program, offsets, sockFD, lib)
+		if err != nil {
+			log.Errorf("error initializing SSL program for %s: %s", lib, err)
+			continue
+		}
+
+		program.subprograms = append(program.subprograms, sslProgram)
+	}
+
+	return program, nil
 }
 
 func (e *ebpfProgram) Init() error {
-	defer e.bytecode.Close()
 	options := manager.Options{
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
@@ -115,40 +122,41 @@ func (e *ebpfProgram) Init() error {
 					Section: string(probes.TCPSendMsgReturn),
 				},
 			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					Section: "uprobe/SSL_set_fd",
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					Section: "uprobe/SSL_read",
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					Section: "uretprobe/SSL_read",
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					Section: "uprobe/SSL_write",
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					Section: "uprobe/SSL_shutdown",
-				},
-			},
 		},
-		ConstantEditors: e.offsets,
 	}
 
-	if e.sockFDMap != nil {
-		options.MapEditors = map[string]*ebpf.Map{
-			"sock_by_pid_fd": e.sockFDMap,
+	err := e.InitWithOptions(e.bytecode, options)
+	if err != nil {
+		return err
+	}
+
+	for _, subprogram := range e.subprograms {
+		err := subprogram.Init()
+		if err != nil {
+			log.Errorf("error initializing http subprogram: %s. ignoring it.", err)
 		}
 	}
 
-	return e.InitWithOptions(e.bytecode, options)
+	return nil
+}
+
+func (e *ebpfProgram) Start() error {
+	err := e.Manager.Start()
+	if err != nil {
+		return err
+	}
+
+	for _, subprogram := range e.subprograms {
+		subprogram.Start()
+	}
+
+	return nil
+}
+
+func (e *ebpfProgram) Close() error {
+	for _, p := range e.subprograms {
+		p.Close()
+	}
+
+	return e.Manager.Stop(manager.CleanAll)
 }
