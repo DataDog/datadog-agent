@@ -136,10 +136,17 @@ func getMockedPods() []*kubelet.Pod {
 			},
 		},
 	}
+	initContainerSpecs := []kubelet.ContainerSpec{
+		{
+			Name:  "init",
+			Image: "org/init:latest",
+		},
+	}
 	kubeletSpec := kubelet.Spec{
-		HostNetwork: false,
-		NodeName:    "mockn-node",
-		Containers:  containerSpecs,
+		HostNetwork:    false,
+		NodeName:       "mockn-node",
+		Containers:     containerSpecs,
+		InitContainers: initContainerSpecs,
 	}
 	containerStatuses := []kubelet.ContainerStatus{
 		{
@@ -188,13 +195,25 @@ func getMockedPods() []*kubelet.Pod {
 			ID:    "docker://custom-check-id",
 		},
 	}
-	kubeletStatus := kubelet.Status{
-		Phase:         "Running",
-		PodIP:         "127.0.0.1",
-		HostIP:        "127.0.0.2",
-		Containers:    containerStatuses,
-		AllContainers: containerStatuses,
+
+	initContainerStatuses := []kubelet.ContainerStatus{
+		{
+			Name:  "init",
+			Image: "org/init:latest",
+			ID:    "docker://init-container",
+			State: kubelet.ContainerState{Terminated: &kubelet.ContainerStateTerminated{ExitCode: 0}},
+		},
 	}
+
+	kubeletStatus := kubelet.Status{
+		Phase:          "Running",
+		PodIP:          "127.0.0.1",
+		HostIP:         "127.0.0.2",
+		Containers:     containerStatuses,
+		InitContainers: initContainerStatuses,
+		AllContainers:  append(containerStatuses, initContainerStatuses...),
+	}
+
 	return []*kubelet.Pod{
 		{
 			Spec:   kubeletSpec,
@@ -230,7 +249,7 @@ func TestProcessNewPod(t *testing.T) {
 		config.Datadog.SetDefault("exclude_pause_container", true)
 	}()
 
-	services := make(chan Service, 9)
+	services := make(chan Service, 10)
 	listener := KubeletListener{
 		newService: services,
 		services:   make(map[string]Service),
@@ -487,6 +506,37 @@ func TestProcessNewPod(t *testing.T) {
 		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
 		assert.FailNow(t, "ninth service not in channel")
+	}
+
+	select {
+	case service := <-services:
+		assert.Equal(t, "docker://init-container", service.GetEntity())
+		assert.Equal(t, "container_id://init-container", service.GetTaggerEntity())
+		adIdentifiers, err := service.GetADIdentifiers(ctx)
+		assert.Nil(t, err)
+		assert.Equal(t, []string{"docker://init-container", "org/init:latest", "init"}, adIdentifiers)
+		hosts, err := service.GetHosts(ctx)
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
+		ports, err := service.GetPorts(ctx)
+		assert.Nil(t, err)
+		assert.Len(t, ports, 0)
+		_, err = service.GetPid(ctx)
+		assert.Equal(t, ErrNotSupported, err)
+		assert.Len(t, service.GetCheckNames(ctx), 0)
+		assert.True(t, service.HasFilter(containers.MetricsFilter)) // Init containers are excluded
+		assert.False(t, service.HasFilter(containers.LogsFilter))
+		podName, err := service.GetExtraConfig([]byte("pod_name"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod"), podName)
+		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-uid"), podUID)
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
+	default:
+		assert.FailNow(t, "tenth service not in channel")
 	}
 
 	// Pod service
