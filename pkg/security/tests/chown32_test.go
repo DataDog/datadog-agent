@@ -75,13 +75,13 @@ func TestChown32(t *testing.T) {
 			// fchown syscall
 			return runSyscallTesterFunc(t, syscallTester, "chown", testFile, "100", "200")
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, event.GetType(), "chown", "wrong event type")
-			assert.Equal(t, event.Chown.UID, uint32(100), "wrong user")
-			assert.Equal(t, event.Chown.GID, uint32(200), "wrong user")
-			assert.Equal(t, event.Chown.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, "chown", event.GetType(), "wrong event type")
+			assert.Equal(t, uint32(100), event.Chown.UID, "wrong user")
+			assert.Equal(t, uint32(200), event.Chown.GID, "wrong user")
+			assert.Equal(t, getInode(t, testFile), event.Chown.File.Inode, "wrong inode")
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
-			assert.Equal(t, event.Chown.File.UID, uint32(prevUID), "wrong initial user")
-			assert.Equal(t, event.Chown.File.GID, uint32(prevGID), "wrong initial group")
+			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
+			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
 
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
@@ -106,13 +106,13 @@ func TestChown32(t *testing.T) {
 			// fchown syscall
 			return runSyscallTesterFunc(t, syscallTester, "fchown", testFile, "101", "201")
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, event.GetType(), "chown", "wrong event type")
-			assert.Equal(t, event.Chown.UID, uint32(101), "wrong user")
-			assert.Equal(t, event.Chown.GID, uint32(201), "wrong user")
-			assert.Equal(t, event.Chown.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, "chown", event.GetType(), "wrong event type")
+			assert.Equal(t, uint32(101), event.Chown.UID, "wrong user")
+			assert.Equal(t, uint32(201), event.Chown.GID, "wrong user")
+			assert.Equal(t, getInode(t, testFile), event.Chown.File.Inode, "wrong inode")
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
-			assert.Equal(t, event.Chown.File.UID, uint32(prevUID), "wrong initial user")
-			assert.Equal(t, event.Chown.File.GID, uint32(prevGID), "wrong initial group")
+			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
+			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
 
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
@@ -137,13 +137,13 @@ func TestChown32(t *testing.T) {
 			// fchown syscall
 			return runSyscallTesterFunc(t, syscallTester, "fchownat", testFile, "102", "202")
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, event.GetType(), "chown", "wrong event type")
-			assert.Equal(t, event.Chown.UID, uint32(102), "wrong user")
-			assert.Equal(t, event.Chown.GID, uint32(202), "wrong user")
-			assert.Equal(t, event.Chown.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, "chown", event.GetType(), "wrong event type")
+			assert.Equal(t, uint32(102), event.Chown.UID, "wrong user")
+			assert.Equal(t, uint32(202), event.Chown.GID, "wrong user")
+			assert.Equal(t, getInode(t, testFile), event.Chown.File.Inode, "wrong inode")
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
-			assert.Equal(t, event.Chown.File.UID, uint32(prevUID), "wrong initial user")
-			assert.Equal(t, event.Chown.File.GID, uint32(prevGID), "wrong initial group")
+			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
+			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
 
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
@@ -173,13 +173,13 @@ func TestChown32(t *testing.T) {
 			// fchown syscall
 			return runSyscallTesterFunc(t, syscallTester, "lchown", testSymlink, "103", "203")
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, event.GetType(), "chown", "wrong event type")
-			assert.Equal(t, event.Chown.UID, uint32(103), "wrong user")
-			assert.Equal(t, event.Chown.GID, uint32(203), "wrong user")
-			assert.Equal(t, event.Chown.File.Inode, getInode(t, testSymlink), "wrong inode")
+			assert.Equal(t, "chown", event.GetType(), "wrong event type")
+			assert.Equal(t, uint32(103), event.Chown.UID, "wrong user")
+			assert.Equal(t, uint32(203), event.Chown.GID, "wrong user")
+			assert.Equal(t, getInode(t, testSymlink), event.Chown.File.Inode, "wrong inode")
 			assertRights(t, event.Chown.File.Mode, uint16(0o777), "wrong initial mode")
-			assert.Equal(t, event.Chown.File.UID, uint32(0), "wrong initial user")
-			assert.Equal(t, event.Chown.File.GID, uint32(0), "wrong initial group")
+			assert.Equal(t, uint32(0), event.Chown.File.UID, "wrong initial user")
+			assert.Equal(t, uint32(0), event.Chown.File.GID, "wrong initial group")
 
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
@@ -209,13 +209,13 @@ func TestChown32(t *testing.T) {
 			// fchown syscall
 			return runSyscallTesterFunc(t, syscallTester, "lchown32", testSymlink, "104", "204")
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, event.GetType(), "chown", "wrong event type")
-			assert.Equal(t, event.Chown.UID, uint32(104), "wrong user")
-			assert.Equal(t, event.Chown.GID, uint32(204), "wrong user")
-			assert.Equal(t, event.Chown.File.Inode, getInode(t, testSymlink), "wrong inode")
+			assert.Equal(t, "chown", event.GetType(), "wrong event type")
+			assert.Equal(t, uint32(104), event.Chown.UID, "wrong user")
+			assert.Equal(t, uint32(204), event.Chown.GID, "wrong user")
+			assert.Equal(t, getInode(t, testSymlink), event.Chown.File.Inode, "wrong inode")
 			assertRights(t, event.Chown.File.Mode, uint16(0o777), "wrong initial mode")
-			assert.Equal(t, event.Chown.File.UID, uint32(0), "wrong initial user")
-			assert.Equal(t, event.Chown.File.GID, uint32(0), "wrong initial group")
+			assert.Equal(t, uint32(0), event.Chown.File.UID, "wrong initial user")
+			assert.Equal(t, uint32(0), event.Chown.File.GID, "wrong initial group")
 
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
@@ -241,13 +241,13 @@ func TestChown32(t *testing.T) {
 			// fchown syscall
 			return runSyscallTesterFunc(t, syscallTester, "fchown32", testFile, "105", "205")
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, event.GetType(), "chown", "wrong event type")
-			assert.Equal(t, event.Chown.UID, uint32(105), "wrong user")
-			assert.Equal(t, event.Chown.GID, uint32(205), "wrong user")
-			assert.Equal(t, event.Chown.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, "chown", event.GetType(), "wrong event type")
+			assert.Equal(t, uint32(105), event.Chown.UID, "wrong user")
+			assert.Equal(t, uint32(205), event.Chown.GID, "wrong user")
+			assert.Equal(t, getInode(t, testFile), event.Chown.File.Inode, "wrong inode")
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
-			assert.Equal(t, event.Chown.File.UID, uint32(prevUID), "wrong initial user")
-			assert.Equal(t, event.Chown.File.GID, uint32(prevGID), "wrong initial group")
+			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
+			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
 
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
@@ -272,13 +272,13 @@ func TestChown32(t *testing.T) {
 			// fchown syscall
 			return runSyscallTesterFunc(t, syscallTester, "chown32", testFile, "106", "206")
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, event.GetType(), "chown", "wrong event type")
-			assert.Equal(t, event.Chown.UID, uint32(106), "wrong user")
-			assert.Equal(t, event.Chown.GID, uint32(206), "wrong user")
-			assert.Equal(t, event.Chown.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, "chown", event.GetType(), "wrong event type")
+			assert.Equal(t, uint32(106), event.Chown.UID, "wrong user")
+			assert.Equal(t, uint32(206), event.Chown.GID, "wrong user")
+			assert.Equal(t, getInode(t, testFile), event.Chown.File.Inode, "wrong inode")
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
-			assert.Equal(t, event.Chown.File.UID, uint32(prevUID), "wrong initial user")
-			assert.Equal(t, event.Chown.File.GID, uint32(prevGID), "wrong initial group")
+			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
+			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
 
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)

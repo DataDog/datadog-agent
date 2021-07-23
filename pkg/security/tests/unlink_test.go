@@ -48,8 +48,8 @@ func TestUnlink(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "unlink", "wrong event type")
-			assert.Equal(t, event.Unlink.File.Inode, inode, "wrong inode")
+			assert.Equal(t, "unlink", event.GetType(), "wrong event type")
+			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong inode")
 			assertRights(t, event.Unlink.File.Mode, expectedMode)
 
 			assertNearTime(t, event.Unlink.File.MTime)
@@ -72,8 +72,8 @@ func TestUnlink(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "unlink", "wrong event type")
-			assert.Equal(t, event.Unlink.File.Inode, inode, "wrong inode")
+			assert.Equal(t, "unlink", event.GetType(), "wrong event type")
+			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong inode")
 			assertRights(t, event.Unlink.File.Mode, expectedMode)
 
 			assertNearTime(t, event.Unlink.File.MTime)
@@ -112,7 +112,7 @@ func TestUnlinkInvalidate(t *testing.T) {
 			os.Remove(testFile)
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "unlink", "wrong event type")
+			assert.Equal(t, "unlink", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "unlink.file.path", testFile)
 		})
 		if err != nil {

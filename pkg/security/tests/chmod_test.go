@@ -54,9 +54,9 @@ func TestChmod(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, event.GetType(), "chmod", "wrong event type")
+			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assertRights(t, uint16(event.Chmod.Mode), 0o707)
-			assert.Equal(t, event.Chmod.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, getInode(t, testFile), event.Chmod.File.Inode, "wrong inode")
 			assertRights(t, event.Chmod.File.Mode, expectedMode, "wrong initial mode")
 
 			assertNearTime(t, event.Chmod.File.MTime)
@@ -80,9 +80,9 @@ func TestChmod(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, event.GetType(), "chmod", "wrong event type")
+			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assertRights(t, uint16(event.Chmod.Mode), 0o757)
-			assert.Equal(t, event.Chmod.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, getInode(t, testFile), event.Chmod.File.Inode, "wrong inode")
 			assertRights(t, event.Chmod.File.Mode, expectedMode)
 
 			assertNearTime(t, event.Chmod.File.MTime)
@@ -104,9 +104,9 @@ func TestChmod(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, event.GetType(), "chmod", "wrong event type")
+			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assertRights(t, uint16(event.Chmod.Mode), 0o717, "wrong mode")
-			assert.Equal(t, event.Chmod.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, getInode(t, testFile), event.Chmod.File.Inode, "wrong inode")
 			assertRights(t, event.Chmod.File.Mode, expectedMode, "wrong initial mode")
 
 			assertNearTime(t, event.Chmod.File.MTime)

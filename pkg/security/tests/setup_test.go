@@ -257,7 +257,7 @@ func assertMode(t *testing.T, actualMode, expectedMode uint32, msgAndArgs ...int
 	if len(msgAndArgs) == 0 {
 		msgAndArgs = append(msgAndArgs, "wrong mode")
 	}
-	assert.Equal(t, strconv.FormatUint(uint64(actualMode), 8), strconv.FormatUint(uint64(expectedMode), 8), msgAndArgs...)
+	assert.Equal(t, strconv.FormatUint(uint64(expectedMode), 8), strconv.FormatUint(uint64(actualMode), 8), msgAndArgs...)
 }
 
 func assertRights(t *testing.T, actualMode, expectedMode uint16, msgAndArgs ...interface{}) {
@@ -275,12 +275,12 @@ func assertNearTime(t *testing.T, event time.Time) {
 
 func assertTriggeredRule(t *testing.T, r *rules.Rule, id string) {
 	t.Helper()
-	assert.Equal(t, r.ID, id, "wrong triggered rule")
+	assert.Equal(t, id, r.ID, "wrong triggered rule")
 }
 
 func assertReturnValue(t *testing.T, retval, expected int64) {
 	t.Helper()
-	assert.Equal(t, retval, expected, "wrong return value")
+	assert.Equal(t, expected, retval, "wrong return value")
 }
 
 func assertFieldEqual(t *testing.T, e *sprobe.Event, field string, value interface{}, msgAndArgs ...interface{}) {
@@ -289,7 +289,7 @@ func assertFieldEqual(t *testing.T, e *sprobe.Event, field string, value interfa
 	if err != nil {
 		t.Errorf("failed to get field '%s': %s", field, err)
 	} else {
-		assert.Equal(t, fieldValue, value, msgAndArgs...)
+		assert.Equal(t, value, fieldValue, msgAndArgs...)
 	}
 }
 

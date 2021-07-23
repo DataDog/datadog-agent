@@ -52,10 +52,10 @@ func TestUtime(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "utimes", "wrong event type")
-			assert.Equal(t, event.Utimes.Atime.Unix(), int64(123))
-			assert.Equal(t, event.Utimes.Mtime.Unix(), int64(456))
-			assert.Equal(t, event.Utimes.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, "utimes", event.GetType(), "wrong event type")
+			assert.Equal(t, int64(123), event.Utimes.Atime.Unix())
+			assert.Equal(t, int64(456), event.Utimes.Mtime.Unix())
+			assert.Equal(t, getInode(t, testFile), event.Utimes.File.Inode, "wrong inode")
 
 			assertRights(t, uint16(event.Utimes.File.Mode), expectedMode)
 
@@ -90,11 +90,11 @@ func TestUtime(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "utimes", "wrong event type")
-			assert.Equal(t, event.Utimes.Atime.Unix(), int64(111))
+			assert.Equal(t, "utimes", event.GetType(), "wrong event type")
+			assert.Equal(t, int64(111), event.Utimes.Atime.Unix())
 
-			assert.Equal(t, event.Utimes.Atime.UnixNano()%int64(time.Second)/int64(time.Microsecond), int64(222))
-			assert.Equal(t, event.Utimes.File.Inode, getInode(t, testFile))
+			assert.Equal(t, int64(222), event.Utimes.Atime.UnixNano()%int64(time.Second)/int64(time.Microsecond))
+			assert.Equal(t, getInode(t, testFile), event.Utimes.File.Inode)
 			assertRights(t, uint16(event.Utimes.File.Mode), expectedMode)
 
 			assertNearTime(t, event.Utimes.File.MTime)
@@ -131,11 +131,11 @@ func TestUtime(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "utimes", "wrong event type")
-			assert.Equal(t, event.Utimes.Mtime.Unix(), int64(555))
+			assert.Equal(t, "utimes", event.GetType(), "wrong event type")
+			assert.Equal(t, int64(555), event.Utimes.Mtime.Unix())
 
-			assert.Equal(t, event.Utimes.Mtime.UnixNano()%int64(time.Second)/int64(time.Nanosecond), int64(666))
-			assert.Equal(t, event.Utimes.File.Inode, getInode(t, testFile))
+			assert.Equal(t, int64(666), event.Utimes.Mtime.UnixNano()%int64(time.Second)/int64(time.Nanosecond))
+			assert.Equal(t, getInode(t, testFile), event.Utimes.File.Inode)
 			assertRights(t, uint16(event.Utimes.File.Mode), expectedMode)
 
 			assertNearTime(t, event.Utimes.File.MTime)
