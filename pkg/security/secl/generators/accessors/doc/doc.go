@@ -18,11 +18,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors/common"
 )
 
+// Documentation represents the top-level documentation node
 // easyjson:json
 type Documentation struct {
 	Kinds []DocEventKind `json:"secl"`
 }
 
+// DocEventKind is the documentation node representing an event kind (its children are the different fields)
 // easyjson:json
 type DocEventKind struct {
 	Name             string             `json:"name"`
@@ -32,6 +34,7 @@ type DocEventKind struct {
 	Properties       []DocEventProperty `json:"properties"`
 }
 
+// DocEventProperty represents a field/property that is accessible through a SECL expression
 // easyjson:json
 type DocEventProperty struct {
 	Name string `json:"name"`
@@ -53,6 +56,7 @@ func prettyprint(v interface{}) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
+// GenerateDocJSON generates the SECL json documentation file to the provided outputPath
 func GenerateDocJSON(module *common.Module, outputPath string) error {
 	kinds := make(map[string][]DocEventProperty)
 
@@ -104,24 +108,24 @@ var (
 	definitionREIndex = minVersionRE.SubexpIndex("def")
 )
 
-type EventTypeInfo struct {
+type eventTypeInfo struct {
 	Definition       string
 	Type             string
 	FromAgentVersion string
 }
 
-func extractVersionAndDefinition(comment string) EventTypeInfo {
+func extractVersionAndDefinition(comment string) eventTypeInfo {
 	trimmed := strings.TrimSpace(comment)
 
 	if matches := minVersionRE.FindStringSubmatch(trimmed); matches != nil {
-		return EventTypeInfo{
+		return eventTypeInfo{
 			Definition:       strings.TrimSpace(matches[definitionREIndex]),
 			Type:             strings.TrimSpace(matches[typeREIndex]),
 			FromAgentVersion: strings.TrimSpace(matches[minVersionREIndex]),
 		}
 	}
 
-	return EventTypeInfo{
+	return eventTypeInfo{
 		Definition: trimmed,
 	}
 }

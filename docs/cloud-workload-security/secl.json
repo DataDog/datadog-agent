@@ -1,0 +1,1690 @@
+{
+  "secl": [
+    {
+      "name": "*",
+      "definition": "",
+      "type": "",
+      "from_agent_version": "",
+      "properties": [
+        {
+          "name": "container.id",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "container.tags",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.cap_effective",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.cap_permitted",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.comm",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.container.id",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.cookie",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.created_at",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.egid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.egroup",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.euid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.euser",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.file.filesystem",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.file.gid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.file.group",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.file.in_upper_layer",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.file.inode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.file.mode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.file.mount_id",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.file.name",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.file.path",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.file.rights",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.file.uid",
+          "type": "int",
+          "definition": "uid field definition"
+        },
+        {
+          "name": "process.ancestors.file.user",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.fsgid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.fsgroup",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.fsuid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.fsuser",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.gid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.group",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.pid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.ppid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.tid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.tty_name",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.uid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.ancestors.user",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.cap_effective",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.cap_permitted",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.comm",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.container.id",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.cookie",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.created_at",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.egid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.egroup",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.euid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.euser",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.file.filesystem",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.file.gid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.file.group",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.file.in_upper_layer",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "process.file.inode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.file.mode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.file.mount_id",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.file.name",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.file.path",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.file.rights",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.file.uid",
+          "type": "int",
+          "definition": "uid field definition"
+        },
+        {
+          "name": "process.file.user",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.fsgid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.fsgroup",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.fsuid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.fsuser",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.gid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.group",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.pid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.ppid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.tid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.tty_name",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "process.uid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "process.user",
+          "type": "string",
+          "definition": ""
+        }
+      ]
+    },
+    {
+      "name": "capset",
+      "definition": "",
+      "type": "",
+      "from_agent_version": "",
+      "properties": [
+        {
+          "name": "capset.cap_effective",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "capset.cap_permitted",
+          "type": "int",
+          "definition": ""
+        }
+      ]
+    },
+    {
+      "name": "chmod",
+      "definition": "chmod event definition",
+      "type": "File",
+      "from_agent_version": "7.27",
+      "properties": [
+        {
+          "name": "chmod.file.destination.mode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "chmod.file.destination.rights",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "chmod.file.filesystem",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "chmod.file.gid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "chmod.file.group",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "chmod.file.in_upper_layer",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "chmod.file.inode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "chmod.file.mode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "chmod.file.mount_id",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "chmod.file.name",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "chmod.file.path",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "chmod.file.rights",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "chmod.file.uid",
+          "type": "int",
+          "definition": "uid field definition"
+        },
+        {
+          "name": "chmod.file.user",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "chmod.retval",
+          "type": "int",
+          "definition": ""
+        }
+      ]
+    },
+    {
+      "name": "chown",
+      "definition": "",
+      "type": "",
+      "from_agent_version": "",
+      "properties": [
+        {
+          "name": "chown.file.destination.gid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "chown.file.destination.group",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "chown.file.destination.uid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "chown.file.destination.user",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "chown.file.filesystem",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "chown.file.gid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "chown.file.group",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "chown.file.in_upper_layer",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "chown.file.inode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "chown.file.mode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "chown.file.mount_id",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "chown.file.name",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "chown.file.path",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "chown.file.rights",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "chown.file.uid",
+          "type": "int",
+          "definition": "uid field definition"
+        },
+        {
+          "name": "chown.file.user",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "chown.retval",
+          "type": "int",
+          "definition": ""
+        }
+      ]
+    },
+    {
+      "name": "exec",
+      "definition": "",
+      "type": "",
+      "from_agent_version": "",
+      "properties": [
+        {
+          "name": "exec.args",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "exec.args_flags",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "exec.args_options",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "exec.args_truncated",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "exec.argv",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "exec.cap_effective",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "exec.cap_permitted",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "exec.comm",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "exec.container.id",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "exec.cookie",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "exec.created_at",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "exec.egid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "exec.egroup",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "exec.envs",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "exec.envs_truncated",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "exec.euid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "exec.euser",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "exec.file.filesystem",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "exec.file.gid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "exec.file.group",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "exec.file.in_upper_layer",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "exec.file.inode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "exec.file.mode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "exec.file.mount_id",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "exec.file.name",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "exec.file.path",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "exec.file.rights",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "exec.file.uid",
+          "type": "int",
+          "definition": "uid field definition"
+        },
+        {
+          "name": "exec.file.user",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "exec.fsgid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "exec.fsgroup",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "exec.fsuid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "exec.fsuser",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "exec.gid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "exec.group",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "exec.pid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "exec.ppid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "exec.tid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "exec.tty_name",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "exec.uid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "exec.user",
+          "type": "string",
+          "definition": ""
+        }
+      ]
+    },
+    {
+      "name": "link",
+      "definition": "",
+      "type": "",
+      "from_agent_version": "",
+      "properties": [
+        {
+          "name": "link.file.destination.filesystem",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "link.file.destination.gid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "link.file.destination.group",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "link.file.destination.in_upper_layer",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "link.file.destination.inode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "link.file.destination.mode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "link.file.destination.mount_id",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "link.file.destination.name",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "link.file.destination.path",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "link.file.destination.rights",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "link.file.destination.uid",
+          "type": "int",
+          "definition": "uid field definition"
+        },
+        {
+          "name": "link.file.destination.user",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "link.file.filesystem",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "link.file.gid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "link.file.group",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "link.file.in_upper_layer",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "link.file.inode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "link.file.mode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "link.file.mount_id",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "link.file.name",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "link.file.path",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "link.file.rights",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "link.file.uid",
+          "type": "int",
+          "definition": "uid field definition"
+        },
+        {
+          "name": "link.file.user",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "link.retval",
+          "type": "int",
+          "definition": ""
+        }
+      ]
+    },
+    {
+      "name": "mkdir",
+      "definition": "",
+      "type": "",
+      "from_agent_version": "",
+      "properties": [
+        {
+          "name": "mkdir.file.destination.mode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "mkdir.file.destination.rights",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "mkdir.file.filesystem",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "mkdir.file.gid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "mkdir.file.group",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "mkdir.file.in_upper_layer",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "mkdir.file.inode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "mkdir.file.mode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "mkdir.file.mount_id",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "mkdir.file.name",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "mkdir.file.path",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "mkdir.file.rights",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "mkdir.file.uid",
+          "type": "int",
+          "definition": "uid field definition"
+        },
+        {
+          "name": "mkdir.file.user",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "mkdir.retval",
+          "type": "int",
+          "definition": ""
+        }
+      ]
+    },
+    {
+      "name": "open",
+      "definition": "",
+      "type": "",
+      "from_agent_version": "",
+      "properties": [
+        {
+          "name": "open.file.destination.mode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "open.file.filesystem",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "open.file.gid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "open.file.group",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "open.file.in_upper_layer",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "open.file.inode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "open.file.mode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "open.file.mount_id",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "open.file.name",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "open.file.path",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "open.file.rights",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "open.file.uid",
+          "type": "int",
+          "definition": "uid field definition"
+        },
+        {
+          "name": "open.file.user",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "open.flags",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "open.retval",
+          "type": "int",
+          "definition": ""
+        }
+      ]
+    },
+    {
+      "name": "removexattr",
+      "definition": "",
+      "type": "",
+      "from_agent_version": "",
+      "properties": [
+        {
+          "name": "removexattr.file.destination.name",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "removexattr.file.destination.namespace",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "removexattr.file.filesystem",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "removexattr.file.gid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "removexattr.file.group",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "removexattr.file.in_upper_layer",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "removexattr.file.inode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "removexattr.file.mode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "removexattr.file.mount_id",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "removexattr.file.name",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "removexattr.file.path",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "removexattr.file.rights",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "removexattr.file.uid",
+          "type": "int",
+          "definition": "uid field definition"
+        },
+        {
+          "name": "removexattr.file.user",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "removexattr.retval",
+          "type": "int",
+          "definition": ""
+        }
+      ]
+    },
+    {
+      "name": "rename",
+      "definition": "",
+      "type": "",
+      "from_agent_version": "",
+      "properties": [
+        {
+          "name": "rename.file.destination.filesystem",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "rename.file.destination.gid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "rename.file.destination.group",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "rename.file.destination.in_upper_layer",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "rename.file.destination.inode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "rename.file.destination.mode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "rename.file.destination.mount_id",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "rename.file.destination.name",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "rename.file.destination.path",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "rename.file.destination.rights",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "rename.file.destination.uid",
+          "type": "int",
+          "definition": "uid field definition"
+        },
+        {
+          "name": "rename.file.destination.user",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "rename.file.filesystem",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "rename.file.gid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "rename.file.group",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "rename.file.in_upper_layer",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "rename.file.inode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "rename.file.mode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "rename.file.mount_id",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "rename.file.name",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "rename.file.path",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "rename.file.rights",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "rename.file.uid",
+          "type": "int",
+          "definition": "uid field definition"
+        },
+        {
+          "name": "rename.file.user",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "rename.retval",
+          "type": "int",
+          "definition": ""
+        }
+      ]
+    },
+    {
+      "name": "rmdir",
+      "definition": "",
+      "type": "",
+      "from_agent_version": "",
+      "properties": [
+        {
+          "name": "rmdir.file.filesystem",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "rmdir.file.gid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "rmdir.file.group",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "rmdir.file.in_upper_layer",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "rmdir.file.inode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "rmdir.file.mode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "rmdir.file.mount_id",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "rmdir.file.name",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "rmdir.file.path",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "rmdir.file.rights",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "rmdir.file.uid",
+          "type": "int",
+          "definition": "uid field definition"
+        },
+        {
+          "name": "rmdir.file.user",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "rmdir.retval",
+          "type": "int",
+          "definition": ""
+        }
+      ]
+    },
+    {
+      "name": "selinux",
+      "definition": "",
+      "type": "",
+      "from_agent_version": "",
+      "properties": [
+        {
+          "name": "selinux.bool.name",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "selinux.bool.state",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "selinux.bool_commit.state",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "selinux.enforce.status",
+          "type": "string",
+          "definition": ""
+        }
+      ]
+    },
+    {
+      "name": "setgid",
+      "definition": "",
+      "type": "",
+      "from_agent_version": "",
+      "properties": [
+        {
+          "name": "setgid.egid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "setgid.egroup",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "setgid.fsgid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "setgid.fsgroup",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "setgid.gid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "setgid.group",
+          "type": "string",
+          "definition": ""
+        }
+      ]
+    },
+    {
+      "name": "setuid",
+      "definition": "",
+      "type": "",
+      "from_agent_version": "",
+      "properties": [
+        {
+          "name": "setuid.euid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "setuid.euser",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "setuid.fsuid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "setuid.fsuser",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "setuid.uid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "setuid.user",
+          "type": "string",
+          "definition": ""
+        }
+      ]
+    },
+    {
+      "name": "setxattr",
+      "definition": "",
+      "type": "",
+      "from_agent_version": "",
+      "properties": [
+        {
+          "name": "setxattr.file.destination.name",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "setxattr.file.destination.namespace",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "setxattr.file.filesystem",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "setxattr.file.gid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "setxattr.file.group",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "setxattr.file.in_upper_layer",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "setxattr.file.inode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "setxattr.file.mode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "setxattr.file.mount_id",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "setxattr.file.name",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "setxattr.file.path",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "setxattr.file.rights",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "setxattr.file.uid",
+          "type": "int",
+          "definition": "uid field definition"
+        },
+        {
+          "name": "setxattr.file.user",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "setxattr.retval",
+          "type": "int",
+          "definition": ""
+        }
+      ]
+    },
+    {
+      "name": "unlink",
+      "definition": "",
+      "type": "",
+      "from_agent_version": "",
+      "properties": [
+        {
+          "name": "unlink.file.filesystem",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "unlink.file.gid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "unlink.file.group",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "unlink.file.in_upper_layer",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "unlink.file.inode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "unlink.file.mode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "unlink.file.mount_id",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "unlink.file.name",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "unlink.file.path",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "unlink.file.rights",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "unlink.file.uid",
+          "type": "int",
+          "definition": "uid field definition"
+        },
+        {
+          "name": "unlink.file.user",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "unlink.retval",
+          "type": "int",
+          "definition": ""
+        }
+      ]
+    },
+    {
+      "name": "utimes",
+      "definition": "",
+      "type": "",
+      "from_agent_version": "",
+      "properties": [
+        {
+          "name": "utimes.file.filesystem",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "utimes.file.gid",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "utimes.file.group",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "utimes.file.in_upper_layer",
+          "type": "bool",
+          "definition": ""
+        },
+        {
+          "name": "utimes.file.inode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "utimes.file.mode",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "utimes.file.mount_id",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "utimes.file.name",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "utimes.file.path",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "utimes.file.rights",
+          "type": "int",
+          "definition": ""
+        },
+        {
+          "name": "utimes.file.uid",
+          "type": "int",
+          "definition": "uid field definition"
+        },
+        {
+          "name": "utimes.file.user",
+          "type": "string",
+          "definition": ""
+        },
+        {
+          "name": "utimes.retval",
+          "type": "int",
+          "definition": ""
+        }
+      ]
+    }
+  ]
+}

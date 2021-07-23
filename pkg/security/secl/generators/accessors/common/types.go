@@ -5,6 +5,7 @@
 
 package common
 
+// Module represents everything needed to generate the accessors for a specific module (fields, build tags, ...)
 type Module struct {
 	Name            string
 	SourcePkgPrefix string
@@ -18,6 +19,7 @@ type Module struct {
 	Mock            bool
 }
 
+// StructField represents a structure field for which an accessor will be generated
 type StructField struct {
 	Name          string
 	Prefix        string
