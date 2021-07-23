@@ -250,7 +250,7 @@ def logs():
     return Response(status=200)
 
 
-@app.route("/api/v1/orchestrator", methods=["POST"])
+@app.route("/api/v2/orch", methods=["POST"])
 def orchestrator():
     # TODO
     return Response(status=200)
