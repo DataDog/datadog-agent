@@ -117,7 +117,7 @@ type Event struct {
 	ProcessContext   ProcessContext   `field:"process" event:"*"`
 	ContainerContext ContainerContext `field:"container"`
 
-	Chmod       ChmodEvent    `field:"chmod" event:"chmod"` // [7.27] chmod event definition
+	Chmod       ChmodEvent    `field:"chmod" event:"chmod"` // [7.27] [File] chmod event definition
 	Chown       ChownEvent    `field:"chown" event:"chown"`
 	Open        OpenEvent     `field:"open" event:"open"`
 	Mkdir       MkdirEvent    `field:"mkdir" event:"mkdir"`

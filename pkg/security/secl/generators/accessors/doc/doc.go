@@ -27,6 +27,7 @@ type Documentation struct {
 type DocEventKind struct {
 	Name             string             `json:"name"`
 	Definition       string             `json:"definition"`
+	Type             string             `json:"type"`
 	FromAgentVersion string             `json:"from_agent_version"`
 	Properties       []DocEventProperty `json:"properties"`
 }
@@ -69,11 +70,12 @@ func GenerateDocJSON(module *common.Module, outputPath string) error {
 			return properties[i].Name < properties[j].Name
 		})
 
-		definition, minVersion := extractVersionAndDefinition(module.EventTypeDocs[name])
+		info := extractVersionAndDefinition(module.EventTypeDocs[name])
 		docKinds = append(docKinds, DocEventKind{
 			Name:             name,
-			Definition:       definition,
-			FromAgentVersion: minVersion,
+			Definition:       info.Definition,
+			Type:             info.Type,
+			FromAgentVersion: info.FromAgentVersion,
 			Properties:       properties,
 		})
 	}
@@ -96,17 +98,30 @@ func GenerateDocJSON(module *common.Module, outputPath string) error {
 }
 
 var (
-	minVersionRE      = regexp.MustCompile(`^\[(?P<version>[0-9.]+)\](?P<def>.*)`)
+	minVersionRE      = regexp.MustCompile(`^\[(?P<version>[0-9.]+)\]\s*\[(?P<type>\w+)\](?P<def>.*)`)
 	minVersionREIndex = minVersionRE.SubexpIndex("version")
+	typeREIndex       = minVersionRE.SubexpIndex("type")
 	definitionREIndex = minVersionRE.SubexpIndex("def")
 )
 
-func extractVersionAndDefinition(comment string) (string, string) {
+type EventTypeInfo struct {
+	Definition       string
+	Type             string
+	FromAgentVersion string
+}
+
+func extractVersionAndDefinition(comment string) EventTypeInfo {
 	trimmed := strings.TrimSpace(comment)
 
 	if matches := minVersionRE.FindStringSubmatch(trimmed); matches != nil {
-		return matches[definitionREIndex], matches[minVersionREIndex]
+		return EventTypeInfo{
+			Definition:       strings.TrimSpace(matches[definitionREIndex]),
+			Type:             strings.TrimSpace(matches[typeREIndex]),
+			FromAgentVersion: strings.TrimSpace(matches[minVersionREIndex]),
+		}
 	}
 
-	return trimmed, ""
+	return EventTypeInfo{
+		Definition: trimmed,
+	}
 }

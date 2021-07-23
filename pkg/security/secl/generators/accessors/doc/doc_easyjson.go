@@ -218,6 +218,8 @@ func easyjson9972aa54DecodeGithubComDataDogDatadogAgentPkgSecuritySeclGenerators
 			out.Name = string(in.String())
 		case "definition":
 			out.Definition = string(in.String())
+		case "type":
+			out.Type = string(in.String())
 		case "from_agent_version":
 			out.FromAgentVersion = string(in.String())
 		case "properties":
@@ -266,6 +268,11 @@ func easyjson9972aa54EncodeGithubComDataDogDatadogAgentPkgSecuritySeclGenerators
 		const prefix string = ",\"definition\":"
 		out.RawString(prefix)
 		out.String(string(in.Definition))
+	}
+	{
+		const prefix string = ",\"type\":"
+		out.RawString(prefix)
+		out.String(string(in.Type))
 	}
 	{
 		const prefix string = ",\"from_agent_version\":"
