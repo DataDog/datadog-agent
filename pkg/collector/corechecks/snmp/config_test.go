@@ -293,7 +293,7 @@ community_string: abc
 `)
 	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
-	assert.Equal(t, 60, check.config.oidBatchSize)
+	assert.Equal(t, 5, check.config.oidBatchSize)
 
 	// TEST Instance config batch size
 	check = Check{session: &snmpSession{}}

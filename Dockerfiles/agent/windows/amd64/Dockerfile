@@ -9,7 +9,7 @@ USER ContainerAdministrator
 
 SHELL ["pwsh", "-Command", "$ErrorActionPreference = 'Stop';"]
 
-COPY datadog-agent-7-latest.amd64.zip install.ps1 ./
+COPY datadog-agent-latest.amd64.zip install.ps1 ./
 RUN . ./install.ps1
 
 EXPOSE 8125/udp 8126/tcp

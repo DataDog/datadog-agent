@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ConnectionFilter holds a user-defined blacklisted IP/CIDR, and ports
+// ConnectionFilter holds a user-defined excluded IP/CIDR, and ports
 type ConnectionFilter struct {
 	IP       *net.IPNet // If nil, then all IPs will be considered matching.
 	AllPorts ConnTypeFilter
@@ -24,8 +24,8 @@ type ConnTypeFilter struct {
 	UDP bool
 }
 
-// ParseConnectionFilters takes the user defined blacklist and returns a slice of ConnectionFilters
-func ParseConnectionFilters(filters map[string][]string) (blacklist []*ConnectionFilter) {
+// ParseConnectionFilters takes the user defined excludelist and returns a slice of ConnectionFilters
+func ParseConnectionFilters(filters map[string][]string) (excludelist []*ConnectionFilter) {
 	for ip, portFilters := range filters {
 		filter := &ConnectionFilter{Ports: map[uint16]ConnTypeFilter{}}
 		var subnet *net.IPNet
@@ -83,10 +83,10 @@ func ParseConnectionFilters(filters map[string][]string) (blacklist []*Connectio
 
 		// If there were any errors in parsing the port filters above, we'll skip this entry.
 		if err == nil {
-			blacklist = append(blacklist, filter)
+			excludelist = append(excludelist, filter)
 		}
 	}
-	return blacklist
+	return excludelist
 }
 
 // parsePortFilter checks for valid port(s) and protocol filters

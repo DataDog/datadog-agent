@@ -1,7 +1,7 @@
 # Datadog Cluster Agent - DCA
 
 [![CircleCI](https://circleci.com/gh/DataDog/datadog-agent/tree/main.svg?style=svg&circle-token=dbcee3f02b9c3fe5f142bfc5ecb735fdec34b643)](https://circleci.com/gh/DataDog/datadog-agent/tree/main)
-[![Build status](https://ci.appveyor.com/api/projects/status/kcwhmlsc0oq3m49p/branch/master?svg=true)](https://ci.appveyor.com/project/Datadog/datadog-agent/branch/master)
+[![Build status](https://ci.appveyor.com/api/projects/status/kcwhmlsc0oq3m49p/branch/main?svg=true)](https://ci.appveyor.com/project/Datadog/datadog-agent/branch/main)
 [![GoDoc](https://godoc.org/github.com/DataDog/datadog-agent?status.svg)](https://godoc.org/github.com/DataDog/datadog-agent)
 
 The Datadog Cluster Agent (referred to as DCA) faithfully collects events and metrics and brings them to
@@ -25,7 +25,7 @@ currently in Alpha.
 
 For pre-requisite, refer to the Agent's Getting Started section in the [README](https://github.com/DataDog/datadog-agent/blob/main/README.md)
 
-To start working on the Cluster Agent, you can build the `master` branch:
+To start working on the Cluster Agent, you can build the `main` branch:
 
 1. Clone the repo: `git clone https://github.com/DataDog/datadog-agent.git $GOPATH/src/github.com/DataDog/datadog-agent`.
 2. cd into the project folder: `cd $GOPATH/src/github.com/DataDog/datadog-agent`.

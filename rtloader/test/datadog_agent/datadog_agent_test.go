@@ -465,21 +465,23 @@ func TestObfuscateSQLErrors(t *testing.T) {
 
 	testCases := []struct {
 		input    string
+		options  string
 		expected string
 	}{
-		{"\"\"", "result is empty"},
-		{"{1: 2}", "argument 1 must be str(ing)?, not dict"},
-		{"None", "argument 1 must be str(ing)?, not None"},
+		{"\"\"", "{'quantize_sql_tables': True}", "result is empty"},
+		{"\"\"", "None", "result is empty"},
+		{"{1: 2}", "{'quantize_sql_tables': False}", "argument 1 must be str(ing)?, not dict"},
+		{"None", "{}", "argument 1 must be str(ing)?, not None"},
 	}
 
 	for _, c := range testCases {
 		code := fmt.Sprintf(`
 	try:
-		result = datadog_agent.obfuscate_sql(%s)
+		result = datadog_agent.obfuscate_sql(%s, json.dumps(%s))
 	except Exception as e:
 		with open(r'%s', 'w') as f:
 			f.write(str(e))
-		`, c.input, tmpfile.Name())
+		`, c.input, c.options, tmpfile.Name())
 		out, err := run(code)
 		if err != nil {
 			t.Fatal(err)
@@ -489,7 +491,7 @@ func TestObfuscateSQLErrors(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !matched {
-			t.Fatalf("expected: '%s', found: '%s'", out, c.expected)
+			t.Fatalf("expected: '%s', found: '%s'", c.expected, out)
 		}
 	}
 

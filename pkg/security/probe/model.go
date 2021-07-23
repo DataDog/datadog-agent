@@ -375,6 +375,18 @@ func (ev *Event) ResolveSetgidFSGroup(e *model.SetgidEvent) string {
 	return e.FSGroup
 }
 
+// ResolveSELinuxBoolName resolves the boolean name of the SELinux event
+func (ev *Event) ResolveSELinuxBoolName(e *model.SELinuxEvent) string {
+	if e.EventKind != model.SELinuxBoolChangeEventKind {
+		return ""
+	}
+
+	if len(ev.SELinux.BoolName) == 0 {
+		ev.SELinux.BoolName = ev.resolvers.resolveBasename(&e.File.FileFields)
+	}
+	return ev.SELinux.BoolName
+}
+
 func (ev *Event) String() string {
 	d, err := json.Marshal(ev)
 	if err != nil {

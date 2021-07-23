@@ -8,5 +8,4 @@
 ---
 enhancements:
   - |
-    Implemented a faster context key/hash generator: it should result in a reduced CPU
-    usage and a smaller RAM footprint for DogStatsD servers receiving a lot of metrics.
+    Suggest installing the IoT Agent on armv7l.

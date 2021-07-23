@@ -81,6 +81,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 // Stop function stops running tracer
 func (t *Tracer) Stop() {
 	close(t.stopChan)
+	t.reverseDNS.Close()
 	err := t.driverInterface.Close()
 	if err != nil {
 		log.Errorf("error closing driver interface: %s", err)
@@ -97,8 +98,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	_, _, err := t.driverInterface.GetConnectionStats(t.connStatsActive, t.connStatsClosed)
 	if err != nil {
-		log.Errorf("failed to get connections")
-		return nil, err
+		return nil, fmt.Errorf("error retrieving connections from driver: %w", err)
 	}
 
 	activeConnStats := t.connStatsActive.Connections()
@@ -127,6 +127,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	stateStats := t.state.GetStats()
 	stats := map[string]interface{}{
 		"state": stateStats,
+		"dns":   t.reverseDNS.GetStats(),
 	}
 	for _, name := range network.DriverExpvarNames {
 		stats[string(name)] = driverStats[name]

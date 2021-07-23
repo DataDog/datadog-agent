@@ -41,21 +41,22 @@ import (
 // Module represents the system-probe module for the runtime security agent
 type Module struct {
 	sync.RWMutex
-	wg             sync.WaitGroup
-	probe          *sprobe.Probe
-	config         *sconfig.Config
-	ruleSets       [2]*rules.RuleSet
-	currentRuleSet uint64
-	reloading      uint64
-	statsdClient   *statsd.Client
-	apiServer      *APIServer
-	grpcServer     *grpc.Server
-	listener       net.Listener
-	rateLimiter    *RateLimiter
-	sigupChan      chan os.Signal
-	ctx            context.Context
-	cancelFnc      context.CancelFunc
-	rulesLoaded    func(rs *rules.RuleSet)
+	wg               sync.WaitGroup
+	probe            *sprobe.Probe
+	config           *sconfig.Config
+	ruleSets         [2]*rules.RuleSet
+	currentRuleSet   uint64
+	reloading        uint64
+	statsdClient     *statsd.Client
+	apiServer        *APIServer
+	grpcServer       *grpc.Server
+	listener         net.Listener
+	rateLimiter      *RateLimiter
+	sigupChan        chan os.Signal
+	ctx              context.Context
+	cancelFnc        context.CancelFunc
+	rulesLoaded      func(rs *rules.RuleSet)
+	policiesVersions []string
 }
 
 // Register the runtime security agent module
@@ -189,6 +190,23 @@ func logMultiErrors(msg string, m *multierror.Error) {
 	}
 }
 
+func getPoliciesVersions(rs *rules.RuleSet) []string {
+	var versions []string
+
+	cache := make(map[string]bool)
+	for _, rule := range rs.GetRules() {
+		version := rule.Definition.Policy.Version
+
+		if _, exists := cache[version]; !exists {
+			cache[version] = true
+
+			versions = append(versions, version)
+		}
+	}
+
+	return versions
+}
+
 // Reload the rule set
 func (m *Module) Reload() error {
 	m.Lock()
@@ -227,6 +245,8 @@ func (m *Module) Reload() error {
 	if err != nil {
 		return err
 	}
+
+	m.policiesVersions = getPoliciesVersions(ruleSet)
 
 	ruleSet.AddListener(m)
 	if m.rulesLoaded != nil {
@@ -299,7 +319,7 @@ func (m *Module) HandleEvent(event *sprobe.Event) {
 
 // HandleCustomEvent is called by the probe when an event should be sent to Datadog but doesn't need evaluation
 func (m *Module) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) {
-	m.SendEvent(rule, event, func() []string { return nil })
+	m.SendEvent(rule, event, func() []string { return nil }, "")
 }
 
 // RuleMatch is called by the ruleset when a rule matches
@@ -325,19 +345,16 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 			service = m.config.HostServiceName
 		}
 
-		if service != "" {
-			tags = append(tags, "service:"+service)
-		}
 		return append(tags, m.probe.GetResolvers().TagsResolver.Resolve(id)...)
 	}
 
-	m.SendEvent(rule, event, extTagsCb)
+	m.SendEvent(rule, event, extTagsCb, service)
 }
 
 // SendEvent sends an event to the backend after checking that the rate limiter allows it for the provided rule
-func (m *Module) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string) {
+func (m *Module) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string, service string) {
 	if m.rateLimiter.Allow(rule.ID) {
-		m.apiServer.SendEvent(rule, event, extTagsCb)
+		m.apiServer.SendEvent(rule, event, extTagsCb, service)
 	} else {
 		seclog.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)
 	}
@@ -366,6 +383,13 @@ func (m *Module) metricsSender() {
 			}
 		case <-heartbeatTicker.C:
 			tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
+
+			m.RLock()
+			for _, version := range m.policiesVersions {
+				tags = append(tags, fmt.Sprintf("policies_version:%s", version))
+			}
+			m.RUnlock()
+
 			if m.config.RuntimeEnabled {
 				_ = m.statsdClient.Gauge(metrics.MetricSecurityAgentRuntimeRunning, 1, tags, 1)
 			} else if m.config.FIMEnabled {

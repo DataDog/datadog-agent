@@ -86,7 +86,7 @@ func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields) (string, error) {
 
 	_, mountPath, rootPath, mountErr := r.MountResolver.GetMountPath(e.MountID)
 	if mountErr != nil {
-		return pathStr, mountErr
+		return "", mountErr
 	}
 
 	if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
@@ -189,7 +189,11 @@ func (r *Resolvers) Snapshot() error {
 
 	r.ProcessResolver.SetState(snapshotted)
 
-	return nil
+	selinuxStatusMap, err := r.probe.Map("selinux_enforce_status")
+	if err != nil {
+		return errors.Wrap(err, "unable to snapshot SELinux")
+	}
+	return snapshotSELinux(selinuxStatusMap)
 }
 
 // snapshot internal version of Snapshot. Calls the relevant resolvers to sync their caches.

@@ -785,25 +785,23 @@ func TestUDPSendAndReceive(t *testing.T) {
 
 func TestUDPPeekCount(t *testing.T) {
 	config := testConfig()
-	config.BPFDebug = true
 	tr, err := NewTracer(config)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer tr.Stop()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	getConnections(t, tr)
 
-	cmd := exec.CommandContext(ctx, "testdata/peek.py")
-	err = cmd.Start()
+	ln, err := net.ListenPacket("udp", "127.0.0.1:0")
 	require.NoError(t, err)
+	defer ln.Close()
 
-	time.Sleep(100 * time.Millisecond)
+	saddr := ln.LocalAddr().String()
 
 	laddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:0")
 	require.NoError(t, err)
-	raddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:34568")
+	raddr, err := net.ResolveUDPAddr("udp", saddr)
 	require.NoError(t, err)
 
 	c, err := net.DialUDP("udp", laddr, raddr)
@@ -814,15 +812,55 @@ func TestUDPPeekCount(t *testing.T) {
 	_, err = c.Write(msg)
 	require.NoError(t, err)
 
-	time.Sleep(100 * time.Millisecond)
+	rawConn, err := ln.(*net.UDPConn).SyscallConn()
+	require.NoError(t, err)
+	err = rawConn.Control(func(fd uintptr) {
+		buf := make([]byte, 1024)
+		var n int
+		var err error
+		done := make(chan struct{})
 
-	connections := getConnections(t, tr)
+		recv := func(flags int) {
+			for {
+				n, _, err = syscall.Recvfrom(int(fd), buf, flags)
+				if err == syscall.EINTR || err == syscall.EAGAIN {
+					continue
+				}
+				break
+			}
+		}
+		go func() {
+			defer close(done)
+			recv(syscall.MSG_PEEK)
+			if n == 0 || err != nil {
+				return
+			}
+			recv(0)
+		}()
 
-	incoming, ok := findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
-	require.True(t, ok)
+		select {
+		case <-done:
+			require.NoError(t, err)
+			require.NotZero(t, n)
+		case <-time.After(5 * time.Second):
+			require.Fail(t, "receive timed out")
+		}
+	})
+	require.NoError(t, err)
 
-	outgoing, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	require.True(t, ok)
+	var incoming *network.ConnectionStats
+	var outgoing *network.ConnectionStats
+	require.Eventuallyf(t, func() bool {
+		conns := getConnections(t, tr)
+		if outgoing == nil {
+			outgoing, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		}
+		if incoming == nil {
+			incoming, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
+		}
+
+		return outgoing != nil && incoming != nil
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find incoming and outgoing connections matching")
 
 	require.Equal(t, len(msg), int(outgoing.MonotonicSentBytes))
 	require.Equal(t, 0, int(outgoing.MonotonicRecvBytes))
@@ -833,6 +871,7 @@ func TestUDPPeekCount(t *testing.T) {
 	require.Equal(t, len(msg), int(incoming.MonotonicRecvBytes))
 	require.True(t, incoming.IntraHost)
 }
+
 func TestUDPDisabled(t *testing.T) {
 	// Enable BPF-based system probe with UDP disabled
 	config := testConfig()
@@ -2244,6 +2283,8 @@ func ipRouteGet(t *testing.T, from, dest string, iif *net.Interface) *net.Interf
 	cmd := exec.Command("ip", args...)
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, "ip command returned error, output: %s", out)
+	t.Log(strings.Join(cmd.Args, " "))
+	t.Log(string(out))
 
 	matches := ipRouteGetOut.FindSubmatch(out)
 	require.Len(t, matches, 2, string(out))
@@ -2264,20 +2305,20 @@ func TestGatewayLookupEnabled(t *testing.T) {
 	m.EXPECT().IsAWS().Return(true)
 	cloud = m
 
+	ifi := ipRouteGet(t, "", "8.8.8.8", nil)
+	ifs, err := net.Interfaces()
+	require.NoError(t, err)
+
 	cfg := testConfig()
-	cfg.BPFDebug = true
 	cfg.EnableGatewayLookup = true
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 	defer tr.Stop()
-
 	require.NotNil(t, tr.gwLookup)
 
-	ifi := ipRouteGet(t, "", "8.8.8.8", nil)
-	ifs, err := net.Interfaces()
-	require.NoError(t, err)
 	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
+		t.Logf("subnet lookup: %s", hwAddr)
 		for _, i := range ifs {
 			if hwAddr.String() == i.HardwareAddr.String() {
 				return network.Subnet{Alias: fmt.Sprintf("subnet-%d", i.Index)}, nil
@@ -2298,7 +2339,7 @@ func TestGatewayLookupEnabled(t *testing.T) {
 		return ok
 	}, 2*time.Second, time.Second)
 
-	require.NotNil(t, conn.Via)
+	require.NotNil(t, conn.Via, "connection is missing via: %s", conn)
 	require.Equal(t, conn.Via.Subnet.Alias, fmt.Sprintf("subnet-%d", ifi.Index))
 }
 
@@ -2567,7 +2608,6 @@ func TestConnectionAssured(t *testing.T) {
 }
 
 func TestConnectionNotAssured(t *testing.T) {
-
 	cfg := testConfig()
 	cfg.BPFDebug = true
 	tr, err := NewTracer(cfg)
@@ -2733,4 +2773,75 @@ func TestUDPConnExpiryTimeout(t *testing.T) {
 
 	require.Equal(t, uint64(time.Duration(timeout)*time.Second), tr.udpConnTimeout(false))
 	require.Equal(t, uint64(time.Duration(streamTimeout)*time.Second), tr.udpConnTimeout(true))
+}
+
+func TestSendfileRegression(t *testing.T) {
+	// Start tracer
+	tr, err := NewTracer(testConfig())
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Create temporary file
+	tmpfile, err := ioutil.TempFile("", "sendfile_source")
+	require.NoError(t, err)
+	defer os.Remove(tmpfile.Name())
+	n, err := tmpfile.Write(genPayload(clientMessageSize))
+	require.NoError(t, err)
+	require.Equal(t, clientMessageSize, n)
+	_, err = tmpfile.Seek(0, 0)
+	require.NoError(t, err)
+
+	// Start TCP server
+	var rcvd int64
+	server := NewTCPServer(func(c net.Conn) {
+		rcvd, _ = io.Copy(ioutil.Discard, c)
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	err = server.Run(doneChan)
+	require.NoError(t, err)
+	defer close(doneChan)
+
+	// Connect to TCP server
+	c, err := net.DialTimeout("tcp", server.address, time.Second)
+	require.NoError(t, err)
+
+	// Warm up state
+	_ = getConnections(t, tr)
+
+	// Send file contents via SENDFILE(2)
+	sendFile(t, c, tmpfile)
+
+	// Verify that our TCP server received the contents of the file
+	c.Close()
+	require.Eventually(t, func() bool {
+		return int64(clientMessageSize) == rcvd
+	}, 3*time.Second, 500*time.Millisecond, "TCP server didn't receive data")
+
+	// Finally, retrieve connection and assert that the sendfile was accounted for
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		return ok && conn.MonotonicSentBytes > 0
+	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by sendfile(2)")
+
+	assert.Equalf(t, int64(clientMessageSize), int64(conn.MonotonicSentBytes), "sendfile data wasn't properly traced")
+}
+
+func sendFile(t *testing.T, c net.Conn, f *os.File) {
+	// Grab file size
+	stat, err := f.Stat()
+	require.NoError(t, err)
+	fsize := int(stat.Size())
+
+	// Send payload using SENDFILE(2) syscall
+	rawConn, err := c.(*net.TCPConn).SyscallConn()
+	require.NoError(t, err)
+	var n int
+	rawConn.Control(func(fd uintptr) {
+		n, _ = syscall.Sendfile(int(fd), int(f.Fd()), nil, fsize)
+	})
+	require.Equal(t, fsize, n)
 }

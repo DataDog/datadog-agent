@@ -2,6 +2,37 @@
 Release Notes
 =============
 
+.. _Release Notes_7.29.1:
+
+7.29.1
+======
+
+.. _Release Notes_7.29.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2021-07-13
+
+This is a linux + docker-only release.
+
+
+.. _Release Notes_7.29.1_New Features:
+
+New Features
+------------
+
+- APM: Fargate stats and traces are now correctly computed, aggregated and present the expected tags.
+
+
+.. _Release Notes_7.29.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: The value of the default env is now normalized during trace-agent initialization.
+
+
 .. _Release Notes_7.29.0:
 
 7.29.0 / 6.29.0

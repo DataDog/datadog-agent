@@ -76,7 +76,7 @@ func NewSocketFilterSnooper(cfg *config.Config, source PacketSource) (*SocketFil
 	}
 	snooper := &SocketFilterSnooper{
 		source:          source,
-		parser:          newDNSParser(source.PacketType(), cfg.CollectDNSStats, cfg.CollectDNSDomains),
+		parser:          newDNSParser(source.PacketType(), cfg),
 		cache:           cache,
 		statKeeper:      statKeeper,
 		translation:     new(translation),

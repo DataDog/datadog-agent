@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/stretchr/testify/assert"
@@ -27,7 +28,7 @@ func TestProcessHTTPTransactions(t *testing.T) {
 
 		for j := 0; j < 10; j++ {
 			statusCode := (j%5 + 1) * 100
-			latency := float64(j % 5)
+			latency := time.Duration(j%5) * time.Millisecond
 			txs[i*10+j] = generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, path, statusCode, latency)
 		}
 	}
@@ -46,19 +47,19 @@ func TestProcessHTTPTransactions(t *testing.T) {
 			p50, err := stats[i].Latencies.GetValueAtQuantile(0.5)
 			assert.Nil(t, err)
 
-			expectedLatency := float64(i)
-			acceptableError := expectedLatency * RelativeAccuracy
+			expectedLatency := float64(time.Duration(i) * time.Millisecond)
+			acceptableError := expectedLatency * stats[i].Latencies.IndexMapping.RelativeAccuracy()
 			assert.True(t, p50 >= expectedLatency-acceptableError)
 			assert.True(t, p50 <= expectedLatency+acceptableError)
 		}
 	}
 }
 
-func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourcePort int, destPort int, path string, code int, latency float64) httpTX {
+func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourcePort int, destPort int, path string, code int, latency time.Duration) httpTX {
 	var tx httpTX
 
 	reqFragment := fmt.Sprintf("GET %s HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0", path)
-	latencyNS := _Ctype_ulonglong(latency * 1000.0) // microseconds to ns
+	latencyNS := _Ctype_ulonglong(uint64(latency))
 	tx.request_started = 1
 	tx.response_last_seen = tx.request_started + latencyNS
 	tx.response_status_code = _Ctype_ushort(code)
@@ -81,7 +82,7 @@ func BenchmarkProcessSameConn(b *testing.B) {
 		8080,
 		"foobar",
 		404,
-		float64(30000),
+		30*time.Millisecond,
 	)
 	transactions := []httpTX{tx}
 

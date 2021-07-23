@@ -115,6 +115,9 @@ type Config struct {
 	// Setting it to -1 disables the limit and can result in a high CPU usage.
 	ConntrackRateLimit int
 
+	// ConntrackInitTimeout specifies how long we wait for conntrack to initialize before failing
+	ConntrackInitTimeout time.Duration
+
 	// EnableConntrackAllNamespaces enables network address translation via netlink for all namespaces that are peers of the root namespace.
 	// default is true
 	EnableConntrackAllNamespaces bool
@@ -139,6 +142,9 @@ type Config struct {
 
 	// EnableGatewayLookup enables looking up gateway information for connection destinations
 	EnableGatewayLookup bool
+
+	// RecordedQueryTypes enables specific DNS query types to be recorded
+	RecordedQueryTypes []string
 }
 
 func join(pieces ...string) string {
@@ -188,11 +194,14 @@ func New() *Config {
 		ConntrackRateLimit:           cfg.GetInt(join(spNS, "conntrack_rate_limit")),
 		EnableConntrackAllNamespaces: cfg.GetBool(join(spNS, "enable_conntrack_all_namespaces")),
 		IgnoreConntrackInitFailure:   cfg.GetBool(join(netNS, "ignore_conntrack_init_failure")),
+		ConntrackInitTimeout:         cfg.GetDuration(join(netNS, "conntrack_init_timeout")),
 
 		EnableGatewayLookup: cfg.GetBool(join(netNS, "enable_gateway_lookup")),
 
 		EnableMonotonicCount: cfg.GetBool(join(spNS, "windows.enable_monotonic_count")),
 		DriverBufferSize:     cfg.GetInt(join(spNS, "windows.driver_buffer_size")),
+
+		RecordedQueryTypes: cfg.GetStringSlice(join(netNS, "dns_recorded_query_types")),
 	}
 
 	if c.OffsetGuessThreshold > maxOffsetThreshold {
