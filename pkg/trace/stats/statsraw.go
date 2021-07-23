@@ -6,8 +6,6 @@
 package stats
 
 import (
-	"github.com/DataDog/sketches-go/ddsketch/mapping"
-	"github.com/DataDog/sketches-go/ddsketch/store"
 	"math/rand"
 	"strings"
 
@@ -15,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/sketches-go/ddsketch"
+	"github.com/DataDog/sketches-go/ddsketch/mapping"
+	"github.com/DataDog/sketches-go/ddsketch/store"
 	"github.com/golang/protobuf/proto"
 )
 
