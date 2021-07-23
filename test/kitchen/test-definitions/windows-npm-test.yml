@@ -15,6 +15,7 @@ suites:
       <% end %>
     dd-agent-install:
       agent_major_version: 7
+      enable_testsigning: <%= ENV['WINDOWS_DDNPM_DRIVER'] == "testsigned" %>
     dd-agent-upgrade:
       add_new_repo: true
       <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>
@@ -54,6 +55,7 @@ suites:
       <% end %>
     dd-agent-install:
       agent_major_version: 7
+      enable_testsigning: <%= ENV['WINDOWS_DDNPM_DRIVER'] == "testsigned" %>
     dd-agent-upgrade:
       add_new_repo: true
       <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>
@@ -93,10 +95,10 @@ suites:
       <% if ENV['AGENT_VERSION'] %>
       windows_version: "<%= ENV['AGENT_VERSION'] %>"
       <% end %>
-      windows_agent_url: <%= windows_agent_url %>
       <% if ENV['WINDOWS_AGENT_FILE'] %>
       windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
       <% end %>
+      enable_testsigning: <%= ENV['WINDOWS_DDNPM_DRIVER'] == "testsigned" %>
     dd-agent-rspec:
       agent_flavor: <%= ENV['AGENT_FLAVOR'] || "datadog-agent" %>
       skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
@@ -119,10 +121,10 @@ suites:
       <% if ENV['AGENT_VERSION'] %>
       windows_version: "<%= ENV['AGENT_VERSION'] %>"
       <% end %>
-      windows_agent_url: <%= windows_agent_url %>
       <% if ENV['WINDOWS_AGENT_FILE'] %>
       windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
       <% end %>
+      enable_testsigning: <%= ENV['WINDOWS_DDNPM_DRIVER'] == "testsigned" %>
     dd-agent-reinstall:
       agent6: true
       agent_major_version: 7
@@ -130,7 +132,6 @@ suites:
       <% if ENV['AGENT_VERSION'] %>
       windows_version: "<%= ENV['AGENT_VERSION'] %>"
       <% end %>
-      windows_agent_url: <%= windows_agent_url %>
       <% if ENV['WINDOWS_AGENT_FILE'] %>
       windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
       <% end %>
@@ -156,6 +157,7 @@ suites:
       agent_major_version: 7
       windows_agent_url: https://ddagent-windows-unstable.s3.amazonaws.com/
       windows_agent_filename: datadog-agent-7.23.2-beta1-1-x86_64
+      enable_testsigning: <%= ENV['WINDOWS_DDNPM_DRIVER'] == "testsigned" %>
     dd-agent-upgrade:
       add_new_repo: true
       <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>
