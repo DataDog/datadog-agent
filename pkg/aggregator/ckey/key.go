@@ -61,8 +61,9 @@ type KeyGenerator struct {
 }
 
 // Generate returns the ContextKey hash for the given parameters.
-// The tags array is sorted in place to avoid heap allocations.
-func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey {
+// The tags array is deduped in place to avoid heap allocations and the deduped result
+// is returned.
+func (g *KeyGenerator) Generate(name, hostname string, tags []string) (ContextKey, []string) {
 	// between two generations, we have to set the hash to something neutral, let's
 	// use this big value seed from the murmur3 implementations
 	g.intb = 0xc6a4a7935bd1e995
@@ -78,10 +79,11 @@ func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey
 	//                         	we use it as fallback when there is more than `hashSetSize`
 	//                         	because it is the maximum size the allocated
 	//                         	hashset can handle.
-	if len(tags) > 16 && len(tags) < hashSetSize {
+	if len(tags) > 10 && len(tags) < hashSetSize {
 		// reset the `seen` hashset.
 		// it copies `g.empty` instead of using make because it's faster
 		copy(g.seen, g.empty)
+		var k int
 		for i := range tags {
 			h := murmur3.StringSum64(tags[i])
 			j := h & (hashSetSize - 1) // address this hash into the hashset
@@ -94,6 +96,10 @@ func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey
 					// See https://github.com/DataDog/datadog-agent/pull/8529#discussion_r661493647
 					g.seen[j] = h
 					g.intb = g.intb ^ h // add this tag into the hash
+					if k != i {
+						tags[k] = tags[i]
+					}
+					k++
 					break
 				} else if g.seen[j] == h {
 					// already seen, we do not want to xor multiple times the same tag
@@ -106,8 +112,10 @@ func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey
 				}
 			}
 		}
+		tags = tags[:k]
 	} else {
 		g.idx = 0
+		var k int
 	OUTER:
 		for i := range tags {
 			h := murmur3.StringSum64(tags[i])
@@ -118,11 +126,16 @@ func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey
 			}
 			g.intb = g.intb ^ h
 			g.seen[g.idx] = h
+			if i != k {
+				tags[k] = tags[i]
+			}
+			k++
 			g.idx++
 		}
+		tags = tags[:k]
 	}
 
-	return ContextKey(g.intb)
+	return ContextKey(g.intb), tags
 }
 
 // Equals returns whether the two context keys are equal or not.

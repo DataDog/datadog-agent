@@ -703,7 +703,7 @@ func (s *Server) storeMetricStats(sample metrics.MetricSample) {
 	defer s.Debug.Unlock()
 
 	// key
-	key := s.Debug.keyGen.Generate(sample.Name, "", sample.Tags)
+	key, _ := s.Debug.keyGen.Generate(sample.Name, "", sample.Tags)
 
 	// store
 	ms := s.Debug.Stats[key]

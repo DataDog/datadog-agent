@@ -22,7 +22,8 @@ import (
 
 func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 	l := ckey.NewKeyGenerator()
-	return l.Generate(serie.Name, serie.Host, serie.Tags)
+	key, _ := l.Generate(serie.Name, serie.Host, serie.Tags)
+	return key
 }
 
 // TimeSampler

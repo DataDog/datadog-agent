@@ -162,7 +162,7 @@ func Makeseries(i int) SketchSeries {
 	}
 
 	gen := ckey.NewKeyGenerator()
-	ss.ContextKey = gen.Generate(ss.Name, ss.Host, ss.Tags)
+	ss.ContextKey, _ = gen.Generate(ss.Name, ss.Host, ss.Tags)
 
 	return ss
 }
