@@ -41,13 +41,13 @@ type pendingMsg struct {
 // APIServer represents a gRPC server in charge of receiving events sent by
 // the runtime security system-probe module and forwards them to Datadog
 type APIServer struct {
-	sync.RWMutex
 	msgs              chan *api.SecurityEventMessage
 	expiredEventsLock sync.RWMutex
 	expiredEvents     map[rules.RuleID]*int64
 	rate              *Limiter
 	statsdClient      *statsd.Client
 	probe             *sprobe.Probe
+	queueLock         sync.Mutex
 	queue             []*pendingMsg
 	retention         time.Duration
 	cfg               *config.Config
@@ -111,14 +111,14 @@ func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProces
 }
 
 func (a *APIServer) enqueue(msg *pendingMsg) {
-	a.Lock()
+	a.queueLock.Lock()
 	a.queue = append(a.queue, msg)
-	a.Unlock()
+	a.queueLock.Unlock()
 }
 
 func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg)) {
-	a.Lock()
-	defer a.Unlock()
+	a.queueLock.Lock()
+	defer a.queueLock.Unlock()
 
 	var i int
 	var msg *pendingMsg
@@ -277,8 +277,8 @@ func (a *APIServer) expireEvent(msg *api.SecurityEventMessage) {
 // GetStats returns a map indexed by ruleIDs that describes the amount of events
 // that were expired or rate limited before reaching
 func (a *APIServer) GetStats() map[string]int64 {
-	a.RLock()
-	defer a.RUnlock()
+	a.expiredEventsLock.RLock()
+	defer a.expiredEventsLock.RUnlock()
 
 	stats := make(map[string]int64)
 	for ruleID, val := range a.expiredEvents {
