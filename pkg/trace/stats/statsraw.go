@@ -22,8 +22,8 @@ const (
 	// relativeAccuracy is the value accuracy we have on the percentiles. For example, we can
 	// say that p99 is 100ms +- 1ms
 	relativeAccuracy = 0.01
-	sketchGamma = 1.015625
-	sketchOffset = 1.8761281912861705
+	sketchGamma      = 1.015625
+	sketchOffset     = 1.8761281912861705
 	// maxNumBins is the maximum number of bins of the ddSketch we use to store percentiles.
 	// It can affect relative accuracy, but in practice, 2048 bins is enough to have 1% relative accuracy from
 	// 80 micro second to 1 year: http://www.vldb.org/pvldb/vol12/p2195-masson.pdf
