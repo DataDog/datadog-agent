@@ -129,6 +129,11 @@ func (c *ContainerStatus) IsPending() bool {
 	return c.ID == ""
 }
 
+// IsTerminated returns if the container is in a terminated state
+func (c *ContainerStatus) IsTerminated() bool {
+	return c.State.Terminated != nil
+}
+
 // ContainerState holds a possible state of container.
 // Only one of its members may be specified.
 // If none of them is specified, the default one is ContainerStateWaiting.
