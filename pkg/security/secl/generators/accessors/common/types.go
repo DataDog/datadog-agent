@@ -14,6 +14,7 @@ type Module struct {
 	Fields          map[string]*StructField
 	Iterators       map[string]*StructField
 	EventTypes      map[string]bool
+	EventTypeDocs   map[string]string
 	Mock            bool
 }
 
@@ -30,4 +31,5 @@ type StructField struct {
 	IsOrigTypePtr bool
 	Iterator      *StructField
 	Weight        int64
+	CommentText   string
 }

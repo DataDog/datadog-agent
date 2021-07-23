@@ -7,6 +7,7 @@
 
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors -mock -tags linux -output accessors.go
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors -tags linux -output ../probe/accessors.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors -doc -output secl_documentation.json
 
 package model
 
@@ -116,7 +117,7 @@ type Event struct {
 	ProcessContext   ProcessContext   `field:"process" event:"*"`
 	ContainerContext ContainerContext `field:"container"`
 
-	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`
+	Chmod       ChmodEvent    `field:"chmod" event:"chmod"` // [7.27] chmod event definition
 	Chown       ChownEvent    `field:"chown" event:"chown"`
 	Open        OpenEvent     `field:"open" event:"open"`
 	Mkdir       MkdirEvent    `field:"mkdir" event:"mkdir"`
