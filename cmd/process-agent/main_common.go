@@ -39,6 +39,7 @@ var opts struct {
 	version            bool
 	check              string
 	info               bool
+	logLevel           string
 }
 
 // version info sourced from build flags
@@ -83,6 +84,7 @@ Exiting.`
 )
 
 func runAgent(exit chan struct{}) {
+
 	if opts.version {
 		fmt.Print(versionString("\n"))
 		cleanupAndExit(0)
@@ -127,6 +129,15 @@ func runAgent(exit chan struct{}) {
 	tagger.SetDefaultTagger(t)
 	tagger.Init()
 	defer tagger.Stop() //nolint:errcheck
+
+	// Set the log level
+	if opts.logLevel != "" {
+		if err := ddconfig.ChangeLogLevel(opts.logLevel); err != nil {
+			_ = log.Error(err)
+		} else {
+			log.Info(fmt.Sprintf("Set log level to %v", opts.logLevel))
+		}
+	}
 
 	err = initInfo(cfg)
 	if err != nil {

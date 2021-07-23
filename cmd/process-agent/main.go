@@ -22,6 +22,7 @@ func main() {
 	flag.BoolVar(&opts.info, "info", false, "Show info about running process agent and exit")
 	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
 	flag.StringVar(&opts.check, "check", "", "Run a specific check and print the results. Choose from: process, connections, realtime")
+	flag.StringVar(&opts.logLevel, "logLevel", "", "Set the log level for a running process agent.")
 	flag.Parse()
 
 	exit := make(chan struct{})
