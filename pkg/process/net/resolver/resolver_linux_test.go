@@ -334,6 +334,42 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			expectedLaddrID: "foo21",
 			expectedRaddrID: "foo20",
 		},
+		{
+			name: "zero src netns failed resolution",
+			conn: &model.Connection{
+				Pid:   22,
+				NetNS: 0,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 8282,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1250,
+				},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			expectedLaddrID: "foo22",
+			expectedRaddrID: "", // should NOT resolve to foo7
+		},
+		{
+			name: "zero src and dst netns failed resolution",
+			conn: &model.Connection{
+				Pid:   21,
+				NetNS: 0,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 8181,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 8282,
+				},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			expectedLaddrID: "foo21",
+			expectedRaddrID: "", // should NOT resolve to foo22
+		},
 	}
 
 	resolver := &LocalResolver{}
@@ -378,6 +414,10 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			{
 				ID:   "foo21",
 				Pids: []int32{21},
+			},
+			{
+				ID:   "foo22",
+				Pids: []int32{22},
 			},
 		},
 	)
