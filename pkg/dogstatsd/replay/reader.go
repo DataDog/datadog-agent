@@ -53,11 +53,7 @@ func NewTrafficCaptureReader(path string, depth int) (*TrafficCaptureReader, err
 	decompress := false
 	if kind.MIME.Subtype == "zstd" {
 		decompress = true
-	}
-
-	ver, err := fileVersion(c)
-	if err != nil {
-		return nil, err
+		log.Debug("capture file compressed with zstd")
 	}
 
 	var contents []byte
@@ -67,6 +63,11 @@ func NewTrafficCaptureReader(path string, depth int) (*TrafficCaptureReader, err
 		}
 	} else {
 		contents = c
+	}
+
+	ver, err := fileVersion(contents)
+	if err != nil {
+		return nil, err
 	}
 
 	return &TrafficCaptureReader{
