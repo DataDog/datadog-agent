@@ -11,8 +11,8 @@ var (
 	// Note that it's not ideal because there is many allocated string interner
 	// (one per worker) but it'll still give us an insight (and it's comparable
 	// as long as the amount of worker is stable).
-	tlmSIResets = telemetry.NewCounter("dogstatsd", "string_interner_resets",
-		nil, "Amount of resets of the string interner used in dogstatsd")
+	tlmSIEntries = telemetry.NewGauge("dogstatsd", "string_interner_entries",
+		nil, "Amount of entries in the string interner used in dogstatsd")
 )
 
 const (
@@ -53,16 +53,21 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	i.calls++
 	if i.calls % dropInterval == 0 {
 		for k := range i.strings {
+			if k == s {
+				continue
+			}
 			delete(i.strings, k)
 			break
 		}
+		tlmSIEntries.Set(len(i.strings))
 	}
 	
+	// Silly case: it's pointless to use/lookup an entry for this.
 	if len(key) == 0 {
 		return ""
 	}
 		
-	// here is the string interner trick: the map lookup using
+	// This is the string interner trick: the map lookup using
 	// string(key) doesn't actually allocate a string, but is
 	// returning the string value -> no new heap allocation
 	// for this string.
@@ -83,5 +88,8 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	// Add the new entry.
 	s := string(key)
 	i.strings[s] = s
+	
+	tlmSIEntries.Set(len(i.strings))
+
 	return s
 }
