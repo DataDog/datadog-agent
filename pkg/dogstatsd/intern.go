@@ -36,7 +36,7 @@ const (
 type stringInterner struct {
 	strings map[string]string
 	maxSize int
-	calls uint64
+	calls   uint64
 	// telemetry
 	tlmEnabled bool
 }
@@ -57,13 +57,13 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	if i.tlmEnabled {
 		tlmSICalls.Inc()
 	}
-	
+
 	// Drop one random entry every dropInterval calls to LoadOrStore. This
 	// aims at ensuring that entries are eventually dropped even if no new
 	// entries are added.
 	// TODO: Use a LRU/LFU policy (possibly approximated via sampling).
 	i.calls++
-	if i.calls % dropInterval == 0 {
+	if i.calls%dropInterval == 0 {
 		for k := range i.strings {
 			if k == string(key) { // Temp string: should not allocate
 				// Avoid removing this entry in case it's exactly the one
@@ -77,7 +77,7 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 			break // Drop a single entry.
 		}
 	}
-	
+
 	// Silly case: it's pointless to use/lookup an entry for this.
 	if len(key) == 0 {
 		if i.tlmEnabled {
@@ -85,7 +85,7 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 		}
 		return ""
 	}
-		
+
 	// This is the string interner trick: the map lookup using
 	// string(key) does not actually allocate a string, but is
 	// returning the string value -> no new heap allocation
@@ -97,7 +97,7 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 		}
 		return s
 	}
-	
+
 	// If adding a new entry would bring us over the maxSize limit, randomly drop one entry.
 	// TODO: Use a LRU/LFU policy (possibly approximated via sampling).
 	if len(i.strings) >= i.maxSize {
@@ -109,7 +109,7 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 			break // Drop a single entry.
 		}
 	}
-	
+
 	// Add the new entry.
 	s := string(key)
 	i.strings[s] = s
