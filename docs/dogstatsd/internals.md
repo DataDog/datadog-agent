@@ -53,7 +53,7 @@ Input: slice of Packets
 Output: MetricSample sent
 
 The Worker is the part of the Dogstatsd server responsible for parsing the metrics in the bytes array and turning them into MetricSamples. The server spawns multiple workers based on the amount of cores available on the host (the amount of workers created is equal to the number of cores on the machine minus 2. If this result is less than 2, 2 workers are spawned).
-The Worker is using a system called StringInterner to not allocate memory every time a string is needed. Note that this StringInterner is caching a finite number of strings and when it is full it is emptied to start caching strings again. Its size is configurable with `dogstatsd_string_interner_size`.
+The Worker is using a system called StringInterner to not allocate memory every time a string is needed. Note that this StringInterner is caching a finite number of strings and when it is full it drops old entries to make space for new ones. Its size is configurable with `dogstatsd_string_interner_size`.
 
 The MetricSamples created are not directly sent to the Agent aggregator but first to a part called the Batcher.
 

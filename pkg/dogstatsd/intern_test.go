@@ -52,7 +52,7 @@ func TestInternLoadOrStorePointer(t *testing.T) {
 	assert.NotEqual(&v3, &v4, "must point to a different address")
 }
 
-func TestInternLoadOrStoreReset(t *testing.T) {
+func TestInternLoadOrStoreOverflow(t *testing.T) {
 	assert := assert.New(t)
 	sInterner := newStringInterner(4)
 
@@ -69,7 +69,28 @@ func TestInternLoadOrStoreReset(t *testing.T) {
 	sInterner.LoadOrStore([]byte("far"))
 	assert.Equal(4, len(sInterner.strings))
 	sInterner.LoadOrStore([]byte("val"))
-	assert.Equal(1, len(sInterner.strings))
+	assert.Equal(4, len(sInterner.strings))
 	sInterner.LoadOrStore([]byte("val"))
-	assert.Equal(1, len(sInterner.strings))
+	assert.Equal(4, len(sInterner.strings))
+}
+
+func TestInternLoadOrStoreDrain(t *testing.T) {
+	assert := assert.New(t)
+	sInterner := newStringInterner(4)
+
+	// populate with some strings
+	sInterner.LoadOrStore([]byte("foo"))
+	sInterner.LoadOrStore([]byte("bar"))
+	sInterner.LoadOrStore([]byte("boo"))
+	sInterner.LoadOrStore([]byte("far"))
+	assert.Equal(4, len(sInterner.strings))
+
+	// simulate hits on a single key
+	for i := 1; i <= 3; i++ {
+		for j := 0; j < dropInterval; j++ {
+			sInterner.LoadOrStore([]byte("foo"))
+		}
+		// eventually the number of interned strings goes down
+		assert.Equal(4-i, len(sInterner.strings))
+	}
 }
