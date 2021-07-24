@@ -15,6 +15,13 @@ var (
 		nil, "Amount of resets of the string interner used in dogstatsd")
 )
 
+const (
+	// dropInterval controls how frequently an entry is dropped, regardless of map size.
+	// Specifically, an entry is dropped every dropInterval calls to LoadOrStore.
+	// It is recommended to use a power-of-2.
+	dropInterval = 256
+)
+
 // stringInterner is a string cache providing a longer life for strings,
 // helping to avoid GC runs because they're re-used many times instead of
 // created every time.
