@@ -12,12 +12,12 @@ var (
 	// comparable as long as the amount of worker is stable).
 	tlmSIEntries = telemetry.NewGauge("dogstatsd", "string_interner_entries",
 		nil, "Amount of entries in the dogstasts string interner")
-	// Number of calls to the interner.
+	// Number of misses to strings in the interner.
 	// Together with tlmSIHits can be used to calculate the hit ratio.
-	tlmSICalls = telemetry.NewCounter("dogstatsd", "string_interner_calls",
-		nil, "Number of calls to the dogstatsd string interner")
+	tlmSIMiss = telemetry.NewCounter("dogstatsd", "string_interner_miss",
+		nil, "Number of misses in the dogstatsd string interner")
 	// Number of hits to strings already in the interner.
-	// Together with tlmSICalls can be used to calculate the hit ratio.
+	// Together with tlmSIMiss can be used to calculate the hit ratio.
 	tlmSIHits = telemetry.NewCounter("dogstatsd", "string_interner_hits",
 		nil, "Number of hits in the dogstatsd string interner")
 )
@@ -64,10 +64,6 @@ func newStringInterner(maxSize int) *stringInterner {
 // If we need to store a new entry and the cache is at its maximum capacity,
 // an existing entry is randomly dropped.
 func (i *stringInterner) LoadOrStore(key []byte) string {
-	if i.tlmEnabled {
-		tlmSICalls.Inc()
-	}
-
 	// Drop one random entry every dropInterval calls to LoadOrStore. This
 	// aims at ensuring that entries are eventually dropped even if no new
 	// entries are added.
@@ -108,6 +104,7 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	i.strings[s] = &stringEntry{str: s, lastAccess: i.calls}
 	if i.tlmEnabled {
 		tlmSIEntries.Inc()
+		tlmSIMiss.Inc()
 	}
 
 	return s
