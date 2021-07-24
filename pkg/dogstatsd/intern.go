@@ -7,10 +7,10 @@ import (
 )
 
 var (
-	// Amount of resets of the string interner used in dogstatsd
-	// Note that it's not ideal because there is many allocated string interner
-	// (one per worker) but it'll still give us an insight (and it's comparable
-	// as long as the amount of worker is stable).
+	// Amount of entries in the string interner used in dogstatsd.
+	// Note that it's not ideal because there are multiple string interners
+	// (one per worker) but this will still give us an insight (and it's
+	// comparable as long as the amount of worker is stable).
 	tlmSIEntries = telemetry.NewGauge("dogstatsd", "string_interner_entries",
 		nil, "Amount of entries in the string interner used in dogstatsd")
 )
@@ -18,7 +18,8 @@ var (
 const (
 	// dropInterval controls how frequently an entry is dropped, regardless of map size.
 	// Specifically, an entry is dropped every dropInterval calls to LoadOrStore.
-	// It is recommended to use a power-of-2.
+	// This ensures that eventually old entries are evicted.
+	// It is recommended, for performance, to use a number that is power-of-2.
 	dropInterval = 256
 )
 
