@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/zstd"
 	"github.com/spf13/afero"
 
 	"github.com/golang/protobuf/proto"
@@ -55,6 +56,7 @@ var inMemoryFs int64
 type TrafficCaptureWriter struct {
 	File     *os.File
 	testFile afero.File
+	zWriter  *zstd.Writer
 	writer   *bufio.Writer
 	Traffic  chan *CaptureBuffer
 	Location string
@@ -154,7 +156,8 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
 		}
 
 		tc.testFile = fp
-		tc.writer = bufio.NewWriter(tc.testFile)
+		tc.zWriter = zstd.NewWriter(tc.testFile)
+		tc.writer = bufio.NewWriter(tc.zWriter)
 	} else {
 		fp, err := os.Create(p)
 		if err != nil {
@@ -164,7 +167,8 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
 			return
 		}
 		tc.File = fp
-		tc.writer = bufio.NewWriter(tc.File)
+		tc.zWriter = zstd.NewWriter(tc.File)
+		tc.writer = bufio.NewWriter(tc.zWriter)
 	}
 
 	tc.shutdown = make(chan struct{})
@@ -240,6 +244,11 @@ cleanup:
 	err = tc.writer.Flush()
 	if err != nil {
 		log.Errorf("There was an error flushing the underlying writer while stopping the capture: %v", err)
+	}
+
+	err = tc.zWriter.Close()
+	if err != nil {
+		log.Errorf("There was an error closing the underlying zstd writer while stopping the capture: %v", err)
 	}
 
 	tc.File.Close()

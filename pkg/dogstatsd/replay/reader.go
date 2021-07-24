@@ -15,6 +15,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/zstd"
 
 	proto "github.com/golang/protobuf/proto"
 	"github.com/h2non/filetype"
@@ -49,13 +50,27 @@ func NewTrafficCaptureReader(path string, depth int) (*TrafficCaptureReader, err
 		return nil, fmt.Errorf("unknown capture file provided")
 	}
 
+	decompress := false
+	if kind.MIME.Subtype == "zstd" {
+		decompress = true
+	}
+
 	ver, err := fileVersion(c)
 	if err != nil {
 		return nil, err
 	}
 
+	var contents []byte
+	if decompress {
+		if contents, err = zstd.Decompress(nil, c); err != nil {
+			return nil, err
+		}
+	} else {
+		contents = c
+	}
+
 	return &TrafficCaptureReader{
-		Contents: c,
+		Contents: contents,
 		Version:  ver,
 		Traffic:  make(chan *pb.UnixDogstatsdMsg, depth),
 	}, nil
