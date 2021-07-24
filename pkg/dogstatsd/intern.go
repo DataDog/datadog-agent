@@ -11,8 +11,16 @@ var (
 	// Note that it's not ideal because there are multiple string interners
 	// (one per worker) but this will still give us an insight (and it's
 	// comparable as long as the amount of worker is stable).
-	tlmSIEntries = telemetry.NewGauge("dogstatsd", "string_interner_entries",
-		nil, "Amount of entries in the string interner used in dogstatsd")
+	tlmSIEntries = telemetry.NewCounter("dogstatsd", "string_interner_entries",
+		nil, "Amount of entries in the dogstasts string interner")
+	// Number of calls to the interner.
+	// Together with tlmSIHits can be used to calculate the hit ratio.
+	tlmSICalls = telemetry.NewCounter("dogstatsd", "string_interner_calls",
+		nil, "Number of calls to the dogstatsd string interner")
+	// Number of hits to strings already in the interner.
+	// Together with tlmSICalls can be used to calculate the hit ratio.
+	tlmSIHits = telemetry.NewCounter("dogstatsd", "string_interner_hits",
+		nil, "Number of hits in the dogstatsd string interner")
 )
 
 const (
@@ -47,6 +55,10 @@ func newStringInterner(maxSize int) *stringInterner {
 // If we need to store a new entry and the cache is at its maximum capacity,
 // an existing entry is randomly dropped.
 func (i *stringInterner) LoadOrStore(key []byte) string {
+	if i.tlmEnabled {
+		tlmSICalls.Inc()
+	}
+	
 	// Drop one random entry every dropInterval calls to LoadOrStore. This
 	// aims at ensuring that entries are eventually dropped even if no new
 	// entries are added.
@@ -55,25 +67,35 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	if i.calls % dropInterval == 0 {
 		for k := range i.strings {
 			if k == s {
+				// Avoid removing this entry in case it's exactly the one
+				// that we need below.
 				continue
 			}
 			delete(i.strings, k)
-			break
+			if i.tlmEnabled {
+				tlmSIEntries.Dec()
+			}
+			break // Drop a single entry.
 		}
-		tlmSIEntries.Set(len(i.strings))
 	}
 	
 	// Silly case: it's pointless to use/lookup an entry for this.
 	if len(key) == 0 {
+		if i.tlmEnabled {
+			tlmSIHits.Inc()
+		}
 		return ""
 	}
 		
 	// This is the string interner trick: the map lookup using
-	// string(key) doesn't actually allocate a string, but is
+	// string(key) does not actually allocate a string, but is
 	// returning the string value -> no new heap allocation
 	// for this string.
 	// See https://github.com/golang/go/commit/f5f5a8b6209f84961687d993b93ea0d397f5d5bf
 	if s, found := i.strings[string(key)]; found {
+		if i.tlmEnabled {
+			tlmSIHits.Inc()
+		}
 		return s
 	}
 	
@@ -82,15 +104,19 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	if len(i.strings) >= i.maxSize {
 		for k := range i.strings {
 			delete(i.strings, k)
-			break
+			if i.tlmEnabled {
+				tlmSIEntries.Dec()
+			}
+			break // Drop a single entry.
 		}
 	}
 	
 	// Add the new entry.
 	s := string(key)
 	i.strings[s] = s
-	
-	tlmSIEntries.Set(len(i.strings))
+	if i.tlmEnabled {
+		tlmSIEntries.Inc()
+	}
 
 	return s
 }
