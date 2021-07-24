@@ -3,7 +3,6 @@ package dogstatsd
 import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -11,7 +10,7 @@ var (
 	// Note that it's not ideal because there are multiple string interners
 	// (one per worker) but this will still give us an insight (and it's
 	// comparable as long as the amount of worker is stable).
-	tlmSIEntries = telemetry.NewCounter("dogstatsd", "string_interner_entries",
+	tlmSIEntries = telemetry.NewGauge("dogstatsd", "string_interner_entries",
 		nil, "Amount of entries in the dogstasts string interner")
 	// Number of calls to the interner.
 	// Together with tlmSIHits can be used to calculate the hit ratio.
@@ -66,7 +65,7 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	i.calls++
 	if i.calls % dropInterval == 0 {
 		for k := range i.strings {
-			if k == s {
+			if k == string(key) { // Temp string: should not allocate
 				// Avoid removing this entry in case it's exactly the one
 				// that we need below.
 				continue
