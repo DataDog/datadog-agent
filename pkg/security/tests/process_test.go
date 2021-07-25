@@ -676,8 +676,8 @@ func TestProcessLineage(t *testing.T) {
 		case model.ForkEventType:
 			if filename, err := event.GetFieldValue("process.file.name"); err == nil && filename.(string) == "testsuite" {
 				testProcessLineageFork(t, event)
+				execPid = int(event.ProcessContext.Pid)
 			}
-			execPid = int(event.ProcessContext.Pid)
 		case model.ExecEventType:
 			if lastEvent != model.ForkEventType {
 				t.Error("exec event should follow a fork event")
