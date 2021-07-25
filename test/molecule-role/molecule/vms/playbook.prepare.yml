@@ -40,7 +40,7 @@
       become: true
       changed_when: false
 
-        - include_tasks: ../common/prepare/gather-facts.yml
+    - include_tasks: ../common/prepare/gather-facts.yml
 
     # - debug: msg={{ ansible_facts }}
 
