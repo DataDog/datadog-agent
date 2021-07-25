@@ -661,18 +661,23 @@ func TestProcessLineage(t *testing.T) {
 	}
 	defer test.Close()
 
-	var execPid int
+	var execPid int // will be set by the first fork event
 	var lastEvent model.EventType
 
 	err = test.GetProbeEvent(func() error {
 		cmd := exec.Command(executable, "-t", "01010101", "/dev/null")
 		return cmd.Run()
 	}, func(event *sprobe.Event) bool {
+		if execPid != 0 && int(event.ProcessContext.Pid) != execPid {
+			return false
+		}
+
 		switch event.GetEventType() {
 		case model.ForkEventType:
 			if filename, err := event.GetFieldValue("process.file.name"); err == nil && filename.(string) == "testsuite" {
 				testProcessLineageFork(t, event)
 			}
+			execPid = int(event.ProcessContext.Pid)
 		case model.ExecEventType:
 			if lastEvent != model.ForkEventType {
 				t.Error("exec event should follow a fork event")
@@ -680,14 +685,11 @@ func TestProcessLineage(t *testing.T) {
 			if err := testProcessLineageExec(t, event); err != nil {
 				t.Error(err)
 			}
-			execPid = int(event.ProcessContext.Pid)
 		case model.ExitEventType:
 			if lastEvent != model.ExecEventType {
 				t.Error("exit event should follow an exec event")
 			}
-			if int(event.ProcessContext.Pid) == execPid {
-				return true
-			}
+			return true
 		}
 		lastEvent = event.GetEventType()
 		return false
