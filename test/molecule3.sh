@@ -42,6 +42,9 @@ fi
 
 cd molecule-role
 
+# Allows the yaml to be tested before spinning up and instance
+yamllint -c .yamllint .
+
 echo "===== MOLECULE_RUN_ID=${CI_JOB_ID:-unknown}  ======="
 echo "====== AGENT_CURRENT_BRANCH=${AGENT_CURRENT_BRANCH} ======="
 
