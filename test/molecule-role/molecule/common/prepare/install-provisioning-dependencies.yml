@@ -1,0 +1,15 @@
+---
+- name: Install provisioning dependencies (1/2)
+  apt:
+    name:
+      python3-pip
+    state: present
+  become: yes
+  register: pip3_res
+  retries: 15
+  delay: 5
+  until: pip3_res is success
+
+- name: Install provisioning dependencies (2/2)
+  shell: pip3 install docker
+  become: yes

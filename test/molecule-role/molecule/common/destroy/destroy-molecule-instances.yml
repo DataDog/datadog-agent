@@ -1,0 +1,10 @@
+---
+- name: Destroy molecule instance(s)
+  ec2_instance:
+    state: absent
+    instance_ids: "{{ item.instance_ids }}"
+  register: server
+  with_items: "{{ instance_conf }}"
+  when: not skip_instances
+  async: 7200
+  poll: 0

@@ -1,0 +1,5 @@
+---
+- name: Delete remote keypair
+  ec2_key:
+    name: "{{ keypair_name }}"
+    state: absent

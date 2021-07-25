@@ -1,0 +1,5 @@
+---
+- name: Convert instance config dict to a list
+  set_fact:
+    instance_conf: "{{ instance_config_dict.results | map(attribute='ansible_facts.instance_conf_dict') | list }}"
+  when: server.changed | bool

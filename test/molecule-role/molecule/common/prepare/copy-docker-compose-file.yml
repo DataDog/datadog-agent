@@ -1,0 +1,6 @@
+---
+- name: Copy docker compose file
+  copy:
+    src: files/docker-compose.yml
+    dest: /home/ubuntu/
+    mode: preserve
