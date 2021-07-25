@@ -23,13 +23,14 @@ import (
 
 // TrafficCaptureReader allows reading back a traffic capture and its contents
 type TrafficCaptureReader struct {
-	Contents []byte
-	Version  int
-	Traffic  chan *pb.UnixDogstatsdMsg
-	Done     chan struct{}
-	fuse     chan struct{}
-	offset   uint32
-	last     int64
+	Contents     []byte
+	mmapContents []byte
+	Version      int
+	Traffic      chan *pb.UnixDogstatsdMsg
+	Done         chan struct{}
+	fuse         chan struct{}
+	offset       uint32
+	last         int64
 
 	sync.Mutex
 }
@@ -47,7 +48,7 @@ func NewTrafficCaptureReader(path string, depth int) (*TrafficCaptureReader, err
 	// datadog capture file should be already registered with filetype via the init hooks
 	kind, _ := filetype.Match(c)
 	if kind == filetype.Unknown {
-		return nil, fmt.Errorf("unknown capture file provided")
+		return nil, fmt.Errorf("unknown capture file provided: %v", kind.MIME)
 	}
 
 	decompress := false
@@ -71,9 +72,10 @@ func NewTrafficCaptureReader(path string, depth int) (*TrafficCaptureReader, err
 	}
 
 	return &TrafficCaptureReader{
-		Contents: contents,
-		Version:  ver,
-		Traffic:  make(chan *pb.UnixDogstatsdMsg, depth),
+		mmapContents: c,
+		Contents:     contents,
+		Version:      ver,
+		Traffic:      make(chan *pb.UnixDogstatsdMsg, depth),
 	}, nil
 }
 
@@ -130,7 +132,13 @@ func (tc *TrafficCaptureReader) Read() {
 
 // Close cleans up any resources used by the TrafficCaptureReader
 func (tc *TrafficCaptureReader) Close() error {
-	return unmapFile(tc.Contents)
+	tc.Lock()
+	defer tc.Unlock()
+
+	// drop reference for GC
+	tc.Contents = nil
+
+	return unmapFile(tc.mmapContents)
 }
 
 // Shutdown triggers the fuse if there's an ongoing read routine, and closes the reader.
