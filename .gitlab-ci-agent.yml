@@ -774,6 +774,9 @@ create_local_install_molecule:
       - $CI_PROJECT_DIR/tmp_molecule_inventory
       - $CI_PROJECT_DIR/test/molecule-role/molecule/localinstall/.molecule-temp/ssh_key
     expire_in: 1 week
+  only:
+    - tags
+    - master
 
 test_local_install_molecule:
   <<: *molecule_base
@@ -821,6 +824,9 @@ create_secrets_molecule:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/.molecule-temp/ssh_key
       - ~/.molecule-temp
     expire_in: 1 week
+  only:
+    - tags
+    - master
 
 test_secrets_molecule:
   <<: *molecule_base
