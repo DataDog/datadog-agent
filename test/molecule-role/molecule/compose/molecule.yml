@@ -39,7 +39,7 @@ scenario:
     - dependency
     - syntax
     - create
-  prepare_sequence:
+  test_sequence:
     - dependency
     - syntax
     - prepare

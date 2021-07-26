@@ -1,4 +1,11 @@
 ---
+- name: Prepare Connection
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  tasks:
+    - include_tasks: ../common/prepare/restore-backup-ssh-key.yml
+
 - name: Prepare Swarm Nodes before running cluster
   hosts: all
   gather_facts: false
@@ -56,6 +63,14 @@
     - include_tasks: ../common/prepare/docker-login.yml
     - include_tasks: ../common/prepare/copy-docker-compose-file.yml
     - include_tasks: ../common/prepare/copy-verify-and-create-script-file.yml
+
+    - name: Stop docker stack
+      command: docker stack rm agent
+      args:
+        chdir: /home/ubuntu/
+      environment:
+        AGENT_VERSION: "{{ agent_current_branch }}"
+        STACKSTATE_BRANCH: "{{ stackstate_branch }}"
 
     - name: Create StacSktate Agent Service on Master
       command: docker stack deploy -c docker-compose.yml --with-registry-auth agent

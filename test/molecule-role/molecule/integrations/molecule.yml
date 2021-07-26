@@ -23,8 +23,8 @@ provisioner:
   name: ansible
   playbooks:
     create: playbook.create.yml
-    destroy: playbook.destroy.yml
     prepare: playbook.prepare.yml
+    destroy: playbook.destroy.yml
   lint:
     name: ansible-lint
   inventory:
@@ -33,6 +33,24 @@ provisioner:
 
 scenario:
   name: integrations
+  create_sequence:
+    - destroy
+    - dependency
+    - syntax
+    - create
+  test_sequence:
+    - dependency
+    - syntax
+    - prepare
+    - converge
+    - idempotence
+    - lint
+    - side_effect
+    - verify
+  destroy_sequence:
+    - dependency
+    - cleanup
+    - destroy
 
 verifier:
   name: testinfra

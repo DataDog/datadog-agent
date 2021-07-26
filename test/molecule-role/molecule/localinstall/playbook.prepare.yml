@@ -1,4 +1,11 @@
 ---
+- name: Prepare Connection
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  tasks:
+    - include_tasks: ../common/prepare/restore-backup-ssh-key.yml
+
 - name: Prepare Linux Agents
   hosts: agent_linux_vm
   gather_facts: false
