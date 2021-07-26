@@ -705,6 +705,8 @@ create_compose_molecule:
 
 test_compose_molecule:
   <<: *molecule_base
+  dependencies:
+    - create_compose_molecule
   needs:
     - pre_release_main_agent_image
     - create_compose_molecule
