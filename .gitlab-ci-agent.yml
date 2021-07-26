@@ -697,6 +697,7 @@ create_compose_molecule:
 test_compose_molecule:
   <<: *molecule_base
   needs:
+    - build_prepare_and_test
     - pre_release_main_agent_image
     - create_compose_molecule
   script:
@@ -716,6 +717,7 @@ destroy_compose_molecule:
    script:
      - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s compose
    needs:
+     - build_prepare_and_test
      - test_compose_molecule
    when: on_failure
    allow_failure: true
@@ -738,6 +740,7 @@ create_integrations_molecule:
 test_integrations_molecule:
   <<: *molecule_base
   needs:
+    - build_prepare_and_test
     - pre_release_main_agent_image
     - create_integrations_molecule
   script:
@@ -757,6 +760,7 @@ destroy_integrations_molecule:
    script:
      - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s integrations
    needs:
+     - build_prepare_and_test
      - test_integrations_molecule
    when: on_failure
    allow_failure: true
@@ -779,6 +783,7 @@ create_local_install_molecule:
 test_local_install_molecule:
   <<: *molecule_base
   needs:
+    - build_prepare_and_test
     - pre_release_deb
     - pre_release_rpm
     - create_local_install_molecule
@@ -800,6 +805,7 @@ destroy_local_install_molecule:
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s localinstall
   needs:
+    - build_prepare_and_test
     - test_local_install_molecule
   when: on_failure
   allow_failure: true
@@ -826,6 +832,7 @@ create_secrets_molecule:
 test_secrets_molecule:
   <<: *molecule_base
   needs:
+    - build_prepare_and_test
     - pre_release_deb
     - create_secrets_molecule
   script:
@@ -848,6 +855,7 @@ destroy_secrets_molecule:
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s secrets
   needs:
+    - build_prepare_and_test
     - test_secrets_molecule
   when: on_failure
   allow_failure: true
@@ -861,6 +869,7 @@ destroy_secrets_molecule:
 test_vms_molcule:
   <<: *molecule_base
   needs:
+    - build_prepare_and_test
     - pre_release_deb
     - pre_release_rpm
     - pre_release_win
@@ -881,6 +890,7 @@ destroy_vms_molecule:
    script:
      - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s vms
    needs:
+     - build_prepare_and_test
      - test_vms_molcule
    when: on_failure
    allow_failure: true
@@ -888,6 +898,7 @@ destroy_vms_molecule:
 test_kubernetes_molecule:
   <<: *molecule_base
   needs:
+    - build_prepare_and_test
     - pre_release_cluster_agent_image
     - pre_release_main_agent_image
   script:
@@ -910,6 +921,7 @@ destroy_kubernetes_molecule:
    script:
      - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s kubernetes
    needs:
+     - build_prepare_and_test
      - test_kubernetes_molecule
    allow_failure: true
    rules:
@@ -918,6 +930,7 @@ destroy_kubernetes_molecule:
 test_swarm_molecule:
   <<: *molecule_base
   needs:
+    - build_prepare_and_test
     - pre_release_cluster_agent_image
     - pre_release_main_agent_image
   script:
@@ -938,6 +951,7 @@ destroy_swarm_molecule:
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s swarm
   needs:
+    - build_prepare_and_test
     - test_swarm_molecule
   allow_failure: true
   rules:
