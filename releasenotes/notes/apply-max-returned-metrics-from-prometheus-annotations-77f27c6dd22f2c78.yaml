@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Apply the `max_returned_metrics` parameter from prometheus annotations, 
+    if configured.

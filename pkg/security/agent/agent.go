@@ -125,7 +125,7 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 // DispatchEvent dispatches a security event message to the subsytems of the runtime security agent
 func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 	// For now simply log to Datadog
-	rsa.reporter.ReportRaw(evt.GetData(), evt.GetTags()...)
+	rsa.reporter.ReportRaw(evt.GetData(), evt.Service, evt.GetTags()...)
 }
 
 // GetStatus returns the current status on the agent

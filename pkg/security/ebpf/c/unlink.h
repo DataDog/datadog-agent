@@ -11,7 +11,7 @@ struct unlink_event_t {
     struct syscall_t syscall;
     struct file_t file;
     u32 flags;
-    u32 discarder_revision;
+    u32 padding;
 };
 
 int __attribute__((always_inline)) unlink_approvers(struct syscall_cache_t *syscall) {
@@ -90,13 +90,13 @@ int __attribute__((always_inline)) dr_unlink_callback(struct pt_regs *ctx) {
 }
 
 int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
-    if (IS_UNHANDLED_ERROR(retval)) {
-        return 0;
-    }
-
     struct syscall_cache_t *syscall = pop_syscall(EVENT_UNLINK);
     if (!syscall)
         return 0;
+
+    if (IS_UNHANDLED_ERROR(retval)) {
+        return 0;
+    }
 
     // ensure that we invalidate all the layers
     u64 inode = syscall->unlink.file.path_key.ino;
@@ -107,17 +107,28 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
                             (mask_has_event(enabled_events, EVENT_UNLINK) ||
                              mask_has_event(enabled_events, EVENT_RMDIR));
     if (pass_to_userspace) {
-        struct unlink_event_t event = {
-            .syscall.retval = retval,
-            .file = syscall->unlink.file,
-            .flags = syscall->unlink.flags,
-            .discarder_revision = get_discarder_revision(syscall->unlink.file.path_key.mount_id),
-        };
+        if (syscall->unlink.flags & AT_REMOVEDIR) {
+            struct rmdir_event_t event = {
+                .syscall.retval = retval,
+                .file = syscall->unlink.file,
+            };
 
-        struct proc_cache_t *entry = fill_process_context(&event.process);
-        fill_container_context(entry, &event.container);
+            struct proc_cache_t *entry = fill_process_context(&event.process);
+            fill_container_context(entry, &event.container);
 
-        send_event(ctx, syscall->unlink.flags&AT_REMOVEDIR ? EVENT_RMDIR : EVENT_UNLINK, event);
+            send_event(ctx, EVENT_RMDIR, event);
+        } else {
+            struct unlink_event_t event = {
+                .syscall.retval = retval,
+                .file = syscall->unlink.file,
+                .flags = syscall->unlink.flags,
+            };
+
+            struct proc_cache_t *entry = fill_process_context(&event.process);
+            fill_container_context(entry, &event.container);
+
+            send_event(ctx, EVENT_UNLINK, event);
+        }
     }
 
     invalidate_inode(ctx, syscall->unlink.file.path_key.mount_id, syscall->unlink.file.path_key.ino, !pass_to_userspace);
@@ -146,6 +157,11 @@ int tracepoint_syscalls_sys_exit_unlinkat(struct tracepoint_syscalls_sys_exit_t 
 
 SYSCALL_KRETPROBE(unlinkat) {
     return kprobe_sys_unlink_ret(ctx);
+}
+
+SEC("tracepoint/handle_sys_unlink_exit")
+int tracepoint_handle_sys_unlink_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_unlink_ret(args, args->ret);
 }
 
 #endif

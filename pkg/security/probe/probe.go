@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
@@ -55,6 +56,7 @@ type Probe struct {
 	_              uint32 // padding for goarch=386
 	ctx            context.Context
 	cancelFnc      context.CancelFunc
+	wg             sync.WaitGroup
 	// Events section
 	handler   EventHandler
 	monitor   *Monitor
@@ -97,6 +99,14 @@ func (p *Probe) detectKernelVersion() error {
 		return errors.Wrap(err, "unable to detect the kernel version")
 	}
 	p.kernelVersion = kernelVersion
+	return nil
+}
+
+// VerifyOSVersion returns an error if the current kernel version is not supported
+func (p *Probe) VerifyOSVersion() error {
+	if !p.kernelVersion.IsRH7Kernel() && !p.kernelVersion.IsRH8Kernel() && p.kernelVersion.Code < kernel.Kernel4_15 {
+		return errors.Errorf("the following kernel is not supported: %s", p.kernelVersion)
+	}
 	return nil
 }
 
@@ -198,13 +208,14 @@ func (p *Probe) Init(client *statsd.Client) error {
 
 // Start the runtime security probe
 func (p *Probe) Start() error {
-	go p.reOrderer.Start(p.ctx)
+	p.wg.Add(1)
+	go p.reOrderer.Start(p.ctx, &p.wg)
 
 	if err := p.manager.Start(); err != nil {
 		return err
 	}
 
-	return p.monitor.Start(p.ctx)
+	return p.monitor.Start(p.ctx, &p.wg)
 }
 
 // SetEventHandler set the probe event handler
@@ -216,7 +227,7 @@ func (p *Probe) SetEventHandler(handler EventHandler) {
 func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manager.PerfMap) {
 	if logLevel, err := log.GetLogLevel(); err != nil || logLevel == seelog.TraceLvl {
 		prettyEvent := event.String()
-		log.Tracef("Dispatching event %s\n", prettyEvent)
+		seclog.Tracef("Dispatching event %s\n", prettyEvent)
 	}
 
 	if p.handler != nil {
@@ -231,7 +242,7 @@ func (p *Probe) DispatchEvent(event *Event, size uint64, CPU int, perfMap *manag
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *CustomEvent) {
 	if logLevel, err := log.GetLogLevel(); err != nil || logLevel == seelog.TraceLvl {
 		prettyEvent := event.String()
-		log.Tracef("Dispatching custom event %s\n", prettyEvent)
+		seclog.Tracef("Dispatching custom event %s\n", prettyEvent)
 	}
 
 	if p.handler != nil && p.config.AgentMonitoringEvents {
@@ -250,7 +261,7 @@ func (p *Probe) GetMonitor() *Monitor {
 }
 
 func (p *Probe) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap, manager *manager.Manager) {
-	log.Tracef("lost %d events", count)
+	seclog.Tracef("lost %d events", count)
 	p.monitor.perfBufferMonitor.CountLostEvent(count, perfMap, CPU)
 }
 
@@ -268,21 +279,15 @@ func (p *Probe) unmarshalProcessContainer(data []byte, event *Event) (int, error
 	return read, nil
 }
 
-func (p *Probe) invalidateDentry(mountID uint32, inode uint64, revision uint32) {
+func (p *Probe) invalidateDentry(mountID uint32, inode uint64) {
 	// sanity check
 	if mountID == 0 || inode == 0 {
 		log.Errorf("invalid mount_id/inode tuple %d:%d", mountID, inode)
+		return
 	}
 
-	if p.resolvers.MountResolver.IsOverlayFS(mountID) {
-		log.Tracef("remove all dentry entries for mount id %d", mountID)
-		p.resolvers.DentryResolver.DelCacheEntries(mountID)
-
-		p.inodeDiscarders.setRevision(mountID, revision)
-	} else {
-		log.Tracef("remove dentry cache entry for inode %d", inode)
-		p.resolvers.DentryResolver.DelCacheEntry(mountID, inode)
-	}
+	seclog.Tracef("remove dentry cache entry for inode %d", inode)
+	p.resolvers.DentryResolver.DelCacheEntry(mountID, inode)
 }
 
 func (p *Probe) handleEvent(CPU uint64, data []byte) {
@@ -326,7 +331,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 
-		p.invalidateDentry(event.InvalidateDentry.MountID, event.InvalidateDentry.Inode, event.InvalidateDentry.DiscarderRevision)
+		p.invalidateDentry(event.InvalidateDentry.MountID, event.InvalidateDentry.Inode)
 
 		return
 	case model.ArgsEnvsEventType:
@@ -390,7 +395,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		}
 
 		// defer it do ensure that it will be done after the dispatch that could re-add it
-		defer p.invalidateDentry(event.Rmdir.File.MountID, event.Rmdir.File.Inode, event.Rmdir.DiscarderRevision)
+		defer p.invalidateDentry(event.Rmdir.File.MountID, event.Rmdir.File.Inode)
 	case model.FileUnlinkEventType:
 		if _, err := event.Unlink.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode unlink event: %s (offset %d, len %d)", err, offset, dataLen)
@@ -398,14 +403,14 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		}
 
 		// defer it do ensure that it will be done after the dispatch that could re-add it
-		defer p.invalidateDentry(event.Unlink.File.MountID, event.Unlink.File.Inode, event.Unlink.DiscarderRevision)
+		defer p.invalidateDentry(event.Unlink.File.MountID, event.Unlink.File.Inode)
 	case model.FileRenameEventType:
 		if _, err := event.Rename.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
-		defer p.invalidateDentry(event.Rename.New.MountID, event.Rename.New.Inode, event.Rename.DiscarderRevision)
+		defer p.invalidateDentry(event.Rename.New.MountID, event.Rename.New.Inode)
 	case model.FileChmodEventType:
 		if _, err := event.Chmod.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode chmod event: %s (offset %d, len %d)", err, offset, dataLen)
@@ -458,7 +463,6 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Debugf("failed to resolve exec path: %s", err)
 		}
 		p.resolvers.ProcessResolver.SetProcessFilesystem(event.processCacheEntry)
-		p.resolvers.ProcessResolver.SetProcessContainerPath(event.processCacheEntry)
 
 		p.resolvers.ProcessResolver.SetProcessTTY(event.processCacheEntry)
 
@@ -491,6 +495,11 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 		defer p.resolvers.ProcessResolver.UpdateCapset(event.ProcessContext.Pid, event)
+	case model.SELinuxEventType:
+		if _, err := event.SELinux.UnmarshalBinary(data[offset:]); err != nil {
+			log.Errorf("failed to decode selinux event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	default:
 		log.Errorf("unsupported event type %d", eventType)
 		return
@@ -535,7 +544,7 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 		return nil
 	}
 
-	log.Tracef("New discarder of type %s for field %s", eventType, field)
+	seclog.Tracef("New discarder of type %s for field %s", eventType, field)
 
 	if handler, ok := allDiscarderHandlers[eventType]; ok {
 		return handler(rs, event, p, Discarder{Field: field})
@@ -578,7 +587,7 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 	}
 
 	for _, newApprover := range newApprovers {
-		log.Tracef("Applying approver %+v", newApprover)
+		seclog.Tracef("Applying approver %+v", newApprover)
 		if err := newApprover.Apply(p); err != nil {
 			return err
 		}
@@ -587,7 +596,7 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 	if previousApprovers, exist := p.approvers[eventType]; exist {
 		previousApprovers.Sub(newApprovers)
 		for _, previousApprover := range previousApprovers {
-			log.Tracef("Removing previous approver %+v", previousApprover)
+			seclog.Tracef("Removing previous approver %+v", previousApprover)
 			if err := previousApprover.Remove(p); err != nil {
 				return err
 			}
@@ -626,7 +635,7 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 			}
 			if !exists {
 				selectedIDs = append(selectedIDs, id)
-				log.Tracef("probe %s selected", id)
+				seclog.Tracef("probe %s selected", id)
 			}
 		}
 	}
@@ -722,7 +731,7 @@ func (p *Probe) FlushDiscarders() error {
 
 		for _, inode := range discardedInodes {
 			if err := p.inodeDiscarders.Delete(unsafe.Pointer(&inode)); err != nil {
-				log.Tracef("Failed to flush discarder for inode %d: %s", inode, err)
+				seclog.Tracef("Failed to flush discarder for inode %d: %s", inode, err)
 			}
 
 			discarderCount--
@@ -733,7 +742,7 @@ func (p *Probe) FlushDiscarders() error {
 
 		for _, pid := range discardedPids {
 			if err := p.pidDiscarders.Delete(unsafe.Pointer(&pid)); err != nil {
-				log.Tracef("Failed to flush discarder for pid %d: %s", pid, err)
+				seclog.Tracef("Failed to flush discarder for pid %d: %s", pid, err)
 			}
 
 			discarderCount--
@@ -761,6 +770,7 @@ func (p *Probe) Snapshot() error {
 // Close the probe
 func (p *Probe) Close() error {
 	p.cancelFnc()
+	p.wg.Wait()
 
 	if err := p.manager.Stop(manager.CleanAll); err != nil {
 		return err
@@ -782,7 +792,7 @@ func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
 	eventCtor := func() eval.Event {
 		return NewEvent(p.resolvers, p.scrubber)
 	}
-	opts.Logger = seclog.DatadogAgentLogger{}
+	opts.Logger = &seclog.PatternLogger{}
 
 	return rules.NewRuleSet(&Model{}, eventCtor, opts)
 }
@@ -808,7 +818,11 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	}
 
 	if err = p.detectKernelVersion(); err != nil {
+		// we need the kernel version to start, fail if we can't get it
 		return nil, err
+	}
+	if err = p.VerifyOSVersion(); err != nil {
+		log.Warnf("the current kernel isn't officially supported, some features might not work properly: %v", err)
 	}
 
 	numCPU, err := utils.NumCPU()
@@ -857,6 +871,18 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, erpc.GetConstants()...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, getCGroupWriteConstants())
+
+	// if we are using tracepoints to probe syscall exits, i.e. if we are using an old kernel version (< 4.12)
+	// we need to use raw_syscall tracepoints for exits, as syscall are not trace when running an ia32 userspace
+	// process
+	if probes.ShouldUseSyscallExitTracepoints() {
+		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
+			manager.ConstantEditor{
+				Name:  "tracepoint_raw_syscall_fallback",
+				Value: uint64(1),
+			},
+		)
+	}
 
 	// constants syscall monitor
 	if p.config.SyscallMonitor {

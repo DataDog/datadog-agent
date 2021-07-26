@@ -3,6 +3,8 @@
 package util
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -12,5 +14,5 @@ func isAgentKubeHostNetwork() (bool, error) {
 		return true, err
 	}
 
-	return ku.IsAgentHostNetwork()
+	return ku.IsAgentHostNetwork(context.TODO())
 }

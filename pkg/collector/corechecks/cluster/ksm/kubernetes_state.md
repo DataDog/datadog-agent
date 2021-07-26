@@ -71,7 +71,7 @@
 : Number of namespaces. Tags:`phase`.
 
 `kubernetes_state.node.count`
-: Information about a cluster node. Tags:`node` `kernel_version` `os_image` `container_runtime_version` `kubelet_version` `kubeproxy_version` `provider_id` `pod_cidr`.
+: Number of nodes. Tags:`kernel_version` `os_image` `container_runtime_version` `kubelet_version`.
 
 `kubernetes_state.node.cpu_allocatable`
 : The allocatable CPU of a node that is available for scheduling. Tags:`node` `resource` `unit`.
@@ -302,10 +302,10 @@
 : Number of jobs. Tags:`kube_namespace` `owner_name` `owner_kind`.
 
 `kubernetes_state.job.failed`
-: The number of pods which reached Phase Failed. Tags:`kube_job` `kube_namespace` (`env` `service` `version` from standard labels).
+: The number of pods which reached Phase Failed. Tags:`kube_job` or `kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.job.succeeded`
-: The number of pods which reached Phase Succeeded. Tags:`kube_job` `kube_namespace` (`env` `service` `version` from standard labels).
+: The number of pods which reached Phase Succeeded. Tags:`kube_job` or `kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.resourcequota.<resource>.limit`
 : Information about resource quota limits by resource. Tags:`kube_namespace` `resourcequota`.
@@ -359,7 +359,7 @@ The Kubernetes State Metrics Core check does not include any events.
 : Alert if the cronjob's next schedule is in the past. Tags:`kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.job.complete`
-: Whether the job is failed or not. Tags:`kube_job` `kube_namespace` (`env` `service` `version` from standard labels).
+: Whether the job is failed or not. Tags:`kube_job` or `kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.node.ready`
 : Whether the node is ready. Tags:`node` `condition` `status`.

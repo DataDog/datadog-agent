@@ -8,6 +8,7 @@
 package listeners
 
 import (
+	"context"
 	"encoding/json"
 	"sync"
 	"testing"
@@ -436,6 +437,7 @@ func TestCloudFoundryListener(t *testing.T) {
 			},
 		},
 	} {
+		ctx := context.Background()
 		// NOTE: we don't use t.Run here, since the executions are chained (every test case is expected to delete some
 		// services created by the previous test case), so once something is wrong, we just fail the whole test case
 		testBBSCache.Lock()
@@ -460,7 +462,7 @@ func TestCloudFoundryListener(t *testing.T) {
 
 		for range tc.expNew {
 			s := (<-newSvc).(*CloudFoundryService)
-			adID, err := s.GetADIdentifiers()
+			adID, err := s.GetADIdentifiers(ctx)
 			assert.Nil(t, err)
 			// we make the comparison easy by leaving out the ADIdentifier structs out
 			oldID := s.adIdentifier
@@ -470,7 +472,7 @@ func TestCloudFoundryListener(t *testing.T) {
 		}
 		for range tc.expDel {
 			s := (<-delSvc).(*CloudFoundryService)
-			adID, err := s.GetADIdentifiers()
+			adID, err := s.GetADIdentifiers(ctx)
 			assert.Nil(t, err)
 			s.adIdentifier = cloudfoundry.ADIdentifier{}
 			assert.Equal(t, tc.expDel[adID[0]], s)

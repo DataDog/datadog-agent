@@ -26,6 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	intakeTrackType = "compliance"
+)
+
 func runCompliance(ctx context.Context, apiCl *apiserver.APIClient, isLeader func() bool) error {
 	stopper := restart.NewSerialStopper()
 	if err := startCompliance(stopper, apiCl, isLeader); err != nil {
@@ -39,12 +43,12 @@ func runCompliance(ctx context.Context, apiCl *apiserver.APIClient, isLeader fun
 }
 
 func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix)
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeSource)
 	if err != nil {
-		endpoints, err = config.BuildHTTPEndpoints()
+		endpoints, err = config.BuildHTTPEndpoints(intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeSource)
 		if err == nil {
 			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
-			endpoints, err = config.BuildEndpoints(httpConnectivity)
+			endpoints, err = config.BuildEndpoints(httpConnectivity, intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeSource)
 		}
 	}
 
@@ -64,14 +68,14 @@ func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, 
 }
 
 func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLeader func() bool) error {
-	endpoints, context, err := newLogContextCompliance()
+	endpoints, ctx, err := newLogContextCompliance()
 	if err != nil {
 		log.Error(err)
 	}
-	stopper.Add(context)
+	stopper.Add(ctx)
 
 	runPath := coreconfig.Datadog.GetString("compliance_config.run_path")
-	reporter, err := event.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, context)
+	reporter, err := event.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, ctx)
 	if err != nil {
 		return err
 	}
@@ -86,7 +90,7 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLead
 	checkMaxEvents := coreconfig.Datadog.GetInt("compliance_config.check_max_events_per_run")
 	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
 
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		return err
 	}

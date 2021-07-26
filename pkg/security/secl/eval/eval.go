@@ -48,7 +48,7 @@ type FieldValue struct {
 	Value interface{}
 	Type  FieldValueType
 
-	Regex *regexp.Regexp
+	Regexp *regexp.Regexp
 }
 
 // Opts are the options to be passed to the evaluator
@@ -143,7 +143,6 @@ type StringEvaluator struct {
 	Value   string
 	Weight  int
 
-	isRegexp  bool
 	isPartial bool
 
 	valueType FieldValueType
@@ -179,12 +178,12 @@ type StringArrayEvaluator struct {
 	Values  []string
 	Weight  int
 
-	isRegexp  bool
 	isPartial bool
 
-	valueTypes []FieldValueType
+	fieldValues []FieldValue
 
 	// cache
+	scalars map[string]bool
 	regexps []*regexp.Regexp
 }
 
@@ -388,61 +387,47 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *state) (interface{}, 
 			Values: array.Numbers,
 		}, array.Pos, nil
 	} else if len(array.StringMembers) != 0 {
-		var strs []string
-		var valueTypes []FieldValueType
-
-		isPlainStringArray := true
-		for _, member := range array.StringMembers {
-			if member.String != nil {
-				strs = append(strs, *member.String)
-				valueTypes = append(valueTypes, ScalarValueType)
-			} else if member.Pattern != nil {
-				strs = append(strs, *member.Pattern)
-				valueTypes = append(valueTypes, PatternValueType)
-				isPlainStringArray = false
-			} else {
-				strs = append(strs, *member.Regexp)
-				valueTypes = append(valueTypes, RegexpValueType)
-				isPlainStringArray = false
-			}
-		}
-
-		if isPlainStringArray {
-			return &StringArrayEvaluator{
-				Values:     strs,
-				valueTypes: valueTypes,
-			}, array.Pos, nil
-		}
-
-		var reg *regexp.Regexp
-		var regs []*regexp.Regexp
-		var err error
+		var se StringArrayEvaluator
 
 		for _, member := range array.StringMembers {
-			if member.String != nil {
-				// escape wildcard
-				str := strings.ReplaceAll(*member.String, "*", "\\*")
+			if member.Pattern != nil {
+				reg, err := patternToRegexp(*member.Pattern)
+				if err != nil {
+					return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid pattern `%s`: %s", *member.Pattern, err))
+				}
+				se.Values = append(se.Values, *member.Pattern)
+				se.regexps = append(se.regexps, reg)
+				se.fieldValues = append(se.fieldValues, FieldValue{
+					Value:  *member.Pattern,
+					Type:   PatternValueType,
+					Regexp: reg,
+				})
+			} else if member.Regexp != nil {
+				reg, err := regexp.Compile(*member.Regexp)
+				if err != nil {
+					return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid regexp `%s`: %s", *member.Regexp, err))
+				}
+				se.Values = append(se.Values, *member.Regexp)
+				se.regexps = append(se.regexps, reg)
 
-				if reg, err = patternToRegexp(str); err != nil {
-					return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid pattern '%s': %s", *member.String, err))
-				}
-			} else if member.Pattern != nil {
-				if reg, err = patternToRegexp(*member.Pattern); err != nil {
-					return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid pattern '%s': %s", *member.Pattern, err))
-				}
+				se.fieldValues = append(se.fieldValues, FieldValue{
+					Value:  *member.Regexp,
+					Type:   RegexpValueType,
+					Regexp: reg,
+				})
 			} else {
-				if reg, err = regexp.Compile(*member.Regexp); err != nil {
-					return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid regexp '%s': %s", *member.Regexp, err))
+				if se.scalars == nil {
+					se.scalars = make(map[string]bool)
 				}
+				se.Values = append(se.Values, *member.String)
+				se.scalars[*member.String] = true
+				se.fieldValues = append(se.fieldValues, FieldValue{
+					Value: *member.String,
+					Type:  ScalarValueType,
+				})
 			}
-			regs = append(regs, reg)
 		}
-		return &StringArrayEvaluator{
-			Values:     strs,
-			regexps:    regs,
-			isRegexp:   true,
-			valueTypes: valueTypes,
-		}, array.Pos, nil
+		return &se, array.Pos, nil
 	} else if array.Ident != nil {
 		if state.macros != nil {
 			if macro, ok := state.macros[*array.Ident]; ok {
@@ -1014,7 +999,6 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 
 			return &StringEvaluator{
 				Value:     *obj.Pattern,
-				isRegexp:  true,
 				regexp:    reg,
 				valueType: PatternValueType,
 			}, obj.Pos, nil
@@ -1026,7 +1010,6 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 
 			return &StringEvaluator{
 				Value:     *obj.Regexp,
-				isRegexp:  true,
 				regexp:    reg,
 				valueType: RegexpValueType,
 			}, obj.Pos, nil

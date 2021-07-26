@@ -11,8 +11,6 @@ import (
 	"bytes"
 	"time"
 	"unsafe"
-
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // BinaryUnmarshaler interface implemented by every event type
@@ -26,7 +24,7 @@ func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	e.ID = utils.FindContainerID(id)
+	e.ID = FindContainerID(id)
 
 	return 64, nil
 }
@@ -125,6 +123,13 @@ func (e *Credentials) UnmarshalBinary(data []byte) (int, error) {
 	return 40, nil
 }
 
+func unmarshalTime(data []byte) time.Time {
+	if t := int64(ByteOrder.Uint64(data)); t != 0 {
+		return time.Unix(0, t)
+	}
+	return time.Time{}
+}
+
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	// Unmarshal proc_cache_t
@@ -157,8 +162,8 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	e.Cookie = ByteOrder.Uint32(data[read : read+4])
 	e.PPid = ByteOrder.Uint32(data[read+4 : read+8])
 
-	e.ForkTime = time.Unix(0, int64(ByteOrder.Uint64(data[read+8:read+16])))
-	e.ExitTime = time.Unix(0, int64(ByteOrder.Uint64(data[read+16:read+24])))
+	e.ForkTime = unmarshalTime(data[read+8 : read+16])
+	e.ExitTime = unmarshalTime(data[read+16 : read+24])
 	read += 24
 
 	// Unmarshal the credentials contained in pid_cache_t
@@ -192,7 +197,7 @@ func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	e.Inode = ByteOrder.Uint64(data[0:8])
 	e.MountID = ByteOrder.Uint32(data[8:12])
-	e.DiscarderRevision = ByteOrder.Uint32(data[12:16])
+	// padding
 
 	return 16, nil
 }
@@ -309,6 +314,48 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
+func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
+	n, err := UnmarshalBinary(data, &e.File)
+	if err != nil {
+		return n, err
+	}
+
+	data = data[n:]
+	if len(data) < 8 {
+		return n, ErrNotEnoughData
+	}
+
+	e.EventKind = SELinuxEventKind(ByteOrder.Uint32(data[0:4]))
+
+	switch e.EventKind {
+	case SELinuxBoolChangeEventKind:
+		boolValue := ByteOrder.Uint32(data[4:8])
+		if boolValue == ^uint32(0) {
+			e.BoolChangeValue = "error"
+		} else if boolValue > 0 {
+			e.BoolChangeValue = "on"
+		} else {
+			e.BoolChangeValue = "off"
+		}
+	case SELinuxBoolCommitEventKind:
+		boolValue := ByteOrder.Uint32(data[4:8])
+		e.BoolCommitValue = boolValue != 0
+	case SELinuxStatusChangeEventKind:
+		disableValue := ByteOrder.Uint16(data[4:6]) != 0
+		enforceValue := ByteOrder.Uint16(data[6:8]) != 0
+		if disableValue {
+			e.EnforceStatus = "disabled"
+		} else if enforceValue {
+			e.EnforceStatus = "enforcing"
+		} else {
+			e.EnforceStatus = "permissive"
+		}
+	}
+
+	return n + 8, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
 func (p *ProcessContext) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 8 {
 		return 0, ErrNotEnoughData
@@ -322,38 +369,12 @@ func (p *ProcessContext) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.Old, &e.New)
-	if err != nil {
-		return n, err
-	}
-
-	data = data[n:]
-	if len(data) < 8 {
-		return 0, ErrNotEnoughData
-	}
-
-	e.DiscarderRevision = ByteOrder.Uint32(data[0:4])
-	// padding
-
-	return n + 8, nil
+	return UnmarshalBinary(data, &e.SyscallEvent, &e.Old, &e.New)
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *RmdirEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
-	if err != nil {
-		return n, err
-	}
-
-	data = data[n:]
-	if len(data) < 8 {
-		return 0, ErrNotEnoughData
-	}
-
-	e.DiscarderRevision = ByteOrder.Uint32(data[0:4])
-	// padding
-
-	return n + 8, nil
+	return UnmarshalBinary(data, &e.SyscallEvent, &e.File)
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -411,7 +432,7 @@ func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	e.Flags = ByteOrder.Uint32(data[0:4])
-	e.DiscarderRevision = ByteOrder.Uint32(data[4:8])
+	// padding
 
 	return n + 8, nil
 }

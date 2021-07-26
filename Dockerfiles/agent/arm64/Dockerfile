@@ -1,3 +1,12 @@
+FROM ubuntu:21.04 AS faccessat
+
+COPY faccessat/faccessat.c   /tmp/faccessat.c
+COPY faccessat/faccessat.sym /tmp/faccessat.sym
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt update && \
+    apt install -y gcc
+RUN gcc -pipe -Wall -Wextra -O2 -shared -o /tmp/libfaccessat.so /tmp/faccessat.c -Wl,--version-script=/tmp/faccessat.sym
+
 ############################################
 #  Preparation stage: extract and cleanup  #
 ############################################
@@ -39,7 +48,6 @@ RUN find / -maxdepth 1 -type f -name 'datadog-agent*_arm64.deb' ! -name "$DD_AGE
     # ditto for this older libsystemd
     usr/lib/x86_64-linux-gnu/libsystemd.so.0.21.0 \
     # self-test certificates that are detected (false positive) as private keys
-    opt/datadog-agent/embedded/lib/python*/site-packages/Cryptodome/SelfTest \
     opt/datadog-agent/embedded/lib/python*/site-packages/future/backports/test \
  && if [ "$PYTHON_VERSION" = "2" ]; then \
         rm -rf \
@@ -122,8 +130,8 @@ COPY --from=extract /output/ /
 
 # S6 entrypoint, service definitions, healthcheck probe
 COPY s6-services /etc/services.d/
-COPY entrypoint /etc/cont-init.d/
-COPY probe.sh initlog.sh secrets-helper/readsecret.py /
+COPY cont-init.d /etc/cont-init.d/
+COPY probe.sh initlog.sh secrets-helper/readsecret.py secrets-helper/readsecret.sh /
 
 # Extract s6-overlay
 #
@@ -146,7 +154,9 @@ RUN tar xzf s6.tgz -C / --exclude="./bin" \
  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
  && chmod 755 /probe.sh /initlog.sh \
  && chown root:root /readsecret.py \
- && chmod 500 /readsecret.py
+ && chmod 500 /readsecret.py \
+ && chown root:root /readsecret.sh \
+ && chmod 500 /readsecret.sh
 
 # Update links to python binaries
 
@@ -176,7 +186,15 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=2 \
 # Leave following directories RW to allow use of kubernetes readonlyrootfs flag
 VOLUME ["/var/run/s6", "/var/log/datadog"]
 
-CMD ["/init"]
+# Ensure the glibc doesn't try to call the `faccessat2` syscall
+COPY --from=faccessat /tmp/libfaccessat.so /lib/x86_64-linux-gnu/libfaccessat.so
+ENV LD_PRELOAD /lib/x86_64-linux-gnu/libfaccessat.so
+
+# Single entrypoint
+COPY entrypoint.sh /bin/entrypoint.sh
+COPY entrypoint.d /opt/entrypoints
+
+CMD ["/bin/entrypoint.sh"]
 
 
 ################################################################

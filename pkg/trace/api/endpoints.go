@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package api
 
 import "net/http"
@@ -74,5 +79,9 @@ var endpoints = []endpoint{
 	{
 		Pattern: "/v0.6/stats",
 		Handler: func(r *HTTPReceiver) http.Handler { return http.HandlerFunc(r.handleStats) },
+	},
+	{
+		Pattern: "/appsec/proxy/",
+		Handler: func(r *HTTPReceiver) http.Handler { return http.StripPrefix("/appsec/proxy", r.appsecHandler) },
 	},
 }

@@ -6,6 +6,8 @@
 package azure
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -16,7 +18,7 @@ func init() {
 
 // diagnose the azure metadata API availability
 func diagnose() error {
-	_, err := GetHostAlias()
+	_, err := GetHostAlias(context.TODO())
 	if err != nil {
 		log.Error(err)
 	}

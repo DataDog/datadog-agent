@@ -1,4 +1,4 @@
-// +build windows
+// +build windows,npm
 
 package network
 
@@ -159,6 +159,9 @@ func (di *DriverInterface) Close() error {
 	// destroy io completion port, and file
 	if err := windows.CancelIoEx(di.driverDNSHandle.handle, nil); err != nil {
 		return errors.Wrap(err, "error cancelling DNS io completion")
+	}
+	if err := windows.CloseHandle(di.dnsIOCP); err != nil {
+		return errors.Wrap(err, "error closing DNS io completion handle")
 	}
 	if err := windows.CloseHandle(di.driverDNSHandle.handle); err != nil {
 		return errors.Wrap(err, "error closing driver DNS handle")
@@ -324,8 +327,11 @@ func (di *DriverInterface) GetConnectionStats(activeBuf *DriverBuffer, closedBuf
 	for err := error(windows.ERROR_MORE_DATA); err == windows.ERROR_MORE_DATA; {
 		err = windows.ReadFile(di.driverFlowHandle.handle, di.readBuffer, &bytesRead, nil)
 		if err != nil {
+			if err == windows.ERROR_NO_MORE_ITEMS {
+				break
+			}
 			if err != windows.ERROR_MORE_DATA {
-				return 0, 0, err
+				return 0, 0, fmt.Errorf("ReadFile: %w", err)
 			}
 			atomic.AddInt64(&di.moreDataErrors, 1)
 		}

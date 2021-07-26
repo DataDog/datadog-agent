@@ -187,18 +187,6 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 			continue
 		}
 
-		tags, err := collectTags(info)
-		if err != nil {
-			log.Errorf("Could not collect tags for container %s: %s", ctn.ID()[:12], err)
-		}
-		// Tagger tags
-		taggerTags, err := tagger.Tag(ddContainers.ContainerEntityPrefix+ctn.ID(), collectors.HighCardinality)
-		if err != nil {
-			log.Errorf(err.Error())
-			continue
-		}
-		tags = append(tags, taggerTags...)
-
 		metricTask, errTask := cu.TaskMetrics(ctn)
 		if errTask != nil {
 			log.Tracef("Could not retrieve metrics from task %s: %s", ctn.ID()[:12], errTask.Error())
@@ -210,6 +198,19 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 			log.Errorf("Could not process the metrics from %s: %v", ctn.ID(), err.Error())
 			continue
 		}
+
+		tags, err := collectTags(info)
+		if err != nil {
+			log.Errorf("Could not collect tags for container %s: %s", ctn.ID()[:12], err)
+		}
+
+		// Tagger tags
+		taggerTags, err := tagger.Tag(ddContainers.ContainerEntityPrefix+ctn.ID(), collectors.HighCardinality)
+		if err != nil {
+			log.Errorf(err.Error())
+			continue
+		}
+		tags = append(tags, taggerTags...)
 
 		currentTime := time.Now()
 		computeUptime(sender, info, currentTime, tags)

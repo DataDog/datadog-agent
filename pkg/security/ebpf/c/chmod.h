@@ -49,11 +49,11 @@ SYSCALL_KPROBE3(fchmodat, int, dirfd, const char*, filename, umode_t, mode) {
 }
 
 int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {
-    if (IS_UNHANDLED_ERROR(retval))
-        return 0;
-
     struct syscall_cache_t *syscall = pop_syscall(EVENT_CHMOD);
     if (!syscall)
+        return 0;
+
+    if (IS_UNHANDLED_ERROR(retval))
         return 0;
 
     struct chmod_event_t event = {
@@ -103,6 +103,11 @@ int tracepoint_syscalls_sys_exit_fchmodat(struct tracepoint_syscalls_sys_exit_t 
 
 SYSCALL_KRETPROBE(fchmodat) {
     return kprobe_sys_chmod_ret(ctx);
+}
+
+SEC("tracepoint/handle_sys_chmod_exit")
+int tracepoint_handle_sys_chmod_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_chmod_ret(args, args->ret);
 }
 
 #endif

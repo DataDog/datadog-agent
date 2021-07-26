@@ -70,6 +70,14 @@ struct _tracepoint_sched_process_fork
     pid_t child_pid;
 };
 
+struct proc_cache_t __attribute__((always_inline)) *get_proc_from_cookie(u32 cookie) {
+    if (!cookie) {
+        return NULL;
+    }
+
+    return bpf_map_lookup_elem(&proc_cache, &cookie);
+}
+
 void __attribute__((always_inline)) parse_str_array(struct pt_regs *ctx, struct str_array_ref_t *array_ref, u64 event_type) {
     const char **array = array_ref->array;
     int index = array_ref->index;
@@ -229,7 +237,7 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     if (fork_entry) {
         // Fetch the parent proc cache entry
         u32 parent_cookie = fork_entry->cookie;
-        struct proc_cache_t *parent_entry = bpf_map_lookup_elem(&proc_cache, &parent_cookie);
+        struct proc_cache_t *parent_entry = get_proc_from_cookie(parent_cookie);
         if (parent_entry) {
             // inherit the parent container context
             fill_container_context(parent_entry, &entry.container);
@@ -348,7 +356,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         event.pid_entry.credentials = parent_pid_entry->credentials;
 
         // fetch the parent proc cache entry
-        struct proc_cache_t *parent_proc_entry = bpf_map_lookup_elem(&proc_cache, &event.pid_entry.cookie);
+        struct proc_cache_t *parent_proc_entry = get_proc_from_cookie(event.pid_entry.cookie);
         if (parent_proc_entry) {
             copy_proc_cache_except_comm(parent_proc_entry, &event.proc_entry);
         }

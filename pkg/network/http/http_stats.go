@@ -9,6 +9,11 @@ import (
 // Method is the type used to represent HTTP request methods
 type Method int
 
+// RelativeAccuracy defines the acceptable error in quantile values calculated by DDSketch.
+// For example, if the actual value at p50 is 100, with a relative accuracy of 0.01 the value calculated
+// will be between 99 and 101
+const RelativeAccuracy = 0.01
+
 const (
 	// MethodUnknown represents an unknown request method
 	MethodUnknown Method = iota
@@ -80,11 +85,6 @@ func NewKey(saddr, daddr util.Address, sport, dport uint16, path string, method 
 	}
 }
 
-// RelativeAccuracy defines the acceptable error in quantile values calculated by DDSketch.
-// For example, if the actual value at p50 is 100, with a relative accuracy of 0.01 the value calculated
-// will be between 99 and 101
-const RelativeAccuracy = 0.01
-
 // NumStatusClasses represents the number of HTTP status classes (1XX, 2XX, 3XX, 4XX, 5XX)
 const NumStatusClasses = 5
 
@@ -97,7 +97,7 @@ type RequestStats [NumStatusClasses]struct {
 	Count     int
 	Latencies *ddsketch.DDSketch
 
-	// This field holds the value (in microseconds) of the first HTTP request
+	// This field holds the value (in nanoseconds) of the first HTTP request
 	// in this bucket. We do this as optimization to avoid creating sketches with
 	// a single value. This is quite common in the context of HTTP requests without
 	// keep-alives where a short-lived TCP connection is used for a single request.
