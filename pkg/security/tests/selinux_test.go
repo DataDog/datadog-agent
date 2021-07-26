@@ -75,7 +75,7 @@ func TestSELinux(t *testing.T) {
 			assert.Equal(t, "selinux", event.GetType(), "wrong event type")
 
 			if !validateSELinuxSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 		if err != nil {
@@ -96,7 +96,7 @@ func TestSELinux(t *testing.T) {
 			assertFieldEqual(t, event, "selinux.enforce.status", "permissive", "wrong enforce value")
 
 			if !validateSELinuxSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 		if err != nil {
@@ -118,7 +118,7 @@ func TestSELinux(t *testing.T) {
 			assertFieldEqual(t, event, "selinux.bool.state", "on", "wrong bool value")
 
 			if !validateSELinuxSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 		if err != nil {
@@ -140,7 +140,7 @@ func TestSELinux(t *testing.T) {
 			assertFieldEqual(t, event, "selinux.bool.state", "off", "wrong bool value")
 
 			if !validateSELinuxSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 		if err != nil {
@@ -203,7 +203,7 @@ func TestSELinuxCommitBools(t *testing.T) {
 			assertFieldEqual(t, event, "selinux.bool_commit.state", true, "wrong bool value")
 
 			if !validateSELinuxSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 		if err != nil {

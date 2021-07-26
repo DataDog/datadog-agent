@@ -75,7 +75,7 @@ func TestChown(t *testing.T) {
 			assertNearTime(t, event.Chown.File.CTime)
 
 			if !validateChownSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 		if err != nil {
@@ -107,7 +107,7 @@ func TestChown(t *testing.T) {
 			assertNearTime(t, event.Chown.File.CTime)
 
 			if !validateChownSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 		if err != nil {
@@ -149,7 +149,7 @@ func TestChown(t *testing.T) {
 			assertNearTime(t, event.Chown.File.CTime)
 
 			if !validateChownSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 		if err != nil {
@@ -181,7 +181,7 @@ func TestChown(t *testing.T) {
 			assertNearTime(t, event.Chown.File.CTime)
 
 			if !validateChownSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 		if err != nil {

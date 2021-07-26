@@ -66,7 +66,7 @@ func TestLink(t *testing.T) {
 		}
 
 		if err := os.Remove(testNewFile); err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 	}))
 

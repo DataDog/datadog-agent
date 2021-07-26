@@ -61,7 +61,7 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 
 			if !validateOpenSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 	}))
@@ -131,7 +131,7 @@ func TestOpen(t *testing.T) {
 		err = test.GetSignal(t, func() error {
 			f, err := os.OpenFile(testFile, os.O_RDWR|os.O_CREATE, 0755)
 			if err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 
 			syscall.Write(int(f.Fd()), []byte("this data will soon be truncated\n"))

@@ -63,7 +63,7 @@ func TestChmod(t *testing.T) {
 			assertNearTime(t, event.Chmod.File.CTime)
 
 			if !validateChmodSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 		if err != nil {
@@ -89,7 +89,7 @@ func TestChmod(t *testing.T) {
 			assertNearTime(t, event.Chmod.File.CTime)
 
 			if !validateChmodSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 		if err != nil {
@@ -113,7 +113,7 @@ func TestChmod(t *testing.T) {
 			assertNearTime(t, event.Chmod.File.CTime)
 
 			if !validateChmodSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 
