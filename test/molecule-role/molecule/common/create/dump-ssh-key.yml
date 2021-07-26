@@ -20,7 +20,7 @@
 # Dump the ssh key to create a file
 # Local build only
 - name: Zip the ssh private key with password for artifacts
-  command: "zip --password 'dev' './.molecule-temp/ssh_key.zip' './.molecule-temp/ssh_key'"
+  command: "zip \"./.molecule-temp/ssh_key.zip\" \"./.molecule-temp/ssh_key\""
 
 - name: Wait (Zip ssh private key)
   pause:
