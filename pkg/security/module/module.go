@@ -136,7 +136,7 @@ func (m *Module) Start() error {
 	signal.Notify(m.sigupChan, syscall.SIGHUP)
 
 	if m.selfTester != nil && m.config.SelfTestAtStartEnabled {
-		if err := m.doSelfTest(); err != nil {
+		if err := m.selfTester.RunSelfTest(); err != nil {
 			log.Errorf("failed to run self-test: %v", err)
 		} else {
 			log.Debugf("Successfully completed self-test")
@@ -299,24 +299,6 @@ func (m *Module) Reload() error {
 	// report that a new policy was loaded
 	monitor.ReportRuleSetLoaded(ruleSetLoadedReport)
 
-	return nil
-}
-
-func (m *Module) doSelfTest() error {
-	if m.selfTester == nil {
-		return errors.New("self test called when self test was disabled")
-	}
-
-	if err := m.selfTester.BeginWaitingForEvent(); err != nil {
-		return errors.Wrap(err, "failed to run self test")
-	}
-	defer m.selfTester.EndWaitingForEvent()
-
-	for _, fn := range SelfTestFunctions {
-		if err := fn(m.selfTester); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 

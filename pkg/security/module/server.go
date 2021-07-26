@@ -213,7 +213,14 @@ func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestPara
 		return nil, errors.New("failed to found module in APIServer")
 	}
 
-	if err := a.module.doSelfTest(); err != nil {
+	if a.module.selfTester == nil {
+		return &api.SecuritySelfTestResultMessage{
+			Ok:    false,
+			Error: "self-test is disabled",
+		}, nil
+	}
+
+	if err := a.module.selfTester.RunSelfTest(); err != nil {
 		return &api.SecuritySelfTestResultMessage{
 			Ok:    false,
 			Error: err.Error(),

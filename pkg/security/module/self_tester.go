@@ -97,6 +97,7 @@ func (t *SelfTester) GetSelfTestPolicy() *rules.Policy {
 	return p
 }
 
+// AddSelfTestRulesToRuleSets adds self test rules to the rulesets
 func (t *SelfTester) AddSelfTestRulesToRuleSets(ruleSet, approverRuleSet *rules.RuleSet) {
 	selfTestPolicy := t.GetSelfTestPolicy()
 
@@ -117,6 +118,21 @@ func (t *SelfTester) AddSelfTestRulesToRuleSets(ruleSet, approverRuleSet *rules.
 			logMultiErrors("error while loading additional policies", merr)
 		}
 	}
+}
+
+// RunSelfTest runs the self test
+func (t *SelfTester) RunSelfTest() error {
+	if err := t.BeginWaitingForEvent(); err != nil {
+		return errors.Wrap(err, "failed to run self test")
+	}
+	defer t.EndWaitingForEvent()
+
+	for _, fn := range SelfTestFunctions {
+		if err := fn(t); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Cleanup removes temp directories and files used by the self tester
