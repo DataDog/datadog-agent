@@ -1,4 +1,15 @@
 ---
+- name: GitLab | Download Artifacts
+  get_url:
+    url: "https://gitlab.com/api/v4/projects/{{ ci_project_id }}/jobs/artifacts/main/download?job=create_{{ molecule_scenario_name }}_molecule"
+    headers: 'JOB-TOKEN: {{ ci_project_id }}'
+    dest: "./artifacts.zip"
+
+- name: Extract Artifacts
+  unarchive:
+    src: "./artifacts.zip"
+    dest: "."
+
 - name: Restore backup SSH key
   copy:
     src: "./.molecule-temp/ssh_key"
