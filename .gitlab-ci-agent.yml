@@ -662,7 +662,8 @@ pre_release_cluster_agent_image:
 
 .molecule_base: &molecule_base
   stage: acceptance
-  dependencies: []
+  dependencies:
+    - build_prepare_and_test
   variables:
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
   before_script:
