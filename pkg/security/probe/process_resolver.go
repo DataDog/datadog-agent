@@ -573,6 +573,18 @@ func (p *ProcessResolver) unmarshalFromKernelMaps(entry *model.ProcessCacheEntry
 	return read + 64, err
 }
 
+func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheEntry {
+	entry, exists := p.entryCache[pid]
+	if !exists {
+		return nil
+	}
+
+	// make to update the tid with the that triggers the resolution
+	entry.Tid = tid
+
+	return entry
+}
+
 func (p *ProcessResolver) resolveWithKernelMaps(pid, tid uint32) *model.ProcessCacheEntry {
 	pidb := make([]byte, 4)
 	model.ByteOrder.PutUint32(pidb, pid)
