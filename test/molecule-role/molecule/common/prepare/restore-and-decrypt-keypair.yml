@@ -1,8 +1,16 @@
 ---
-- name: Decrypt data
+- name: (CI) Decrypt data
+  when: ci_project_dir is defined and ci_project_dir != ""
   shell: |
     echo "{{ ci_job_token }}" > password
-    ansible-vault decrypt --vault-id test@password "./.molecule-temp/{{ molecule_scenario_name }}/ssh_key"
+    ansible-vault decrypt --vault-id test@password "{{ci_project_dir}}/.molecule-temp/{{ molecule_scenario_name }}/ssh_key"
+    rm password
+
+- name: (Local) Decrypt data
+  when: ci_project_dir is undefined or ci_project_dir == ""
+  shell: |
+    echo "{{ ci_job_token }}" > password
+    ansible-vault decrypt --vault-id test@password ".molecule-temp/{{ molecule_scenario_name }}/ssh_key"
     rm password
 
 - name: (CI) Restore artifact ssh key
@@ -15,7 +23,7 @@
 - name: (Local) Restore artifact ssh key
   when: ci_project_dir is undefined or ci_project_dir == ""
   copy:
-    src: "./.molecule-temp/{{ molecule_scenario_name }}/ssh_key"
+    src: ".molecule-temp/{{ molecule_scenario_name }}/ssh_key"
     dest: "{{ keypair_path }}"
     mode: preserve
 
