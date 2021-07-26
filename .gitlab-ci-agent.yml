@@ -690,7 +690,7 @@ create_compose_molecule:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/topic-*.json
       - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/*.log
       - $CI_PROJECT_DIR/tmp_molecule_inventory
-      - $CI_PROJECT_DIR/ssh_key
+      - $CI_PROJECT_DIR/ssh_key.zip
     expire_in: 1 week
 
 test_compose_molecule:
@@ -730,7 +730,7 @@ create_integrations_molecule:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/topic-*.json
       - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/*.log
       - $CI_PROJECT_DIR/tmp_molecule_inventory
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/.molecule-temp/ssh_key
+      - $CI_PROJECT_DIR/ssh_key.zip
     expire_in: 1 week
 
 test_integrations_molecule:
@@ -746,7 +746,6 @@ test_integrations_molecule:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/topic-*.json
       - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/*.log
       - $CI_PROJECT_DIR/tmp_molecule_inventory
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/.molecule-temp/ssh_key
     expire_in: 1 week
 
 destroy_integrations_molecule:
@@ -771,7 +770,7 @@ create_local_install_molecule:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/localinstall/topic-*.json
       - $CI_PROJECT_DIR/test/molecule-role/molecule/localinstall/*.log
       - $CI_PROJECT_DIR/tmp_molecule_inventory
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/localinstall/.molecule-temp/ssh_key
+      - $CI_PROJECT_DIR/ssh_key.zip
     expire_in: 1 week
   only:
     - tags
@@ -789,7 +788,6 @@ test_local_install_molecule:
     when: always
     paths:
       - $CI_PROJECT_DIR/tmp_molecule_inventory
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/localinstall/.molecule-temp/ssh_key
     expire_in: 1 week
   only:
     - tags
@@ -820,8 +818,7 @@ create_secrets_molecule:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/topic-*.json
       - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/*.log
       - $CI_PROJECT_DIR/tmp_molecule_inventory
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/.molecule-temp/ssh_key
-      - ~/.molecule-temp
+      - $CI_PROJECT_DIR/ssh_key.zip
     expire_in: 1 week
   only:
     - tags
@@ -839,8 +836,6 @@ test_secrets_molecule:
     paths:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/*.log
       - $CI_PROJECT_DIR/tmp_molecule_inventory
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/.molecule-temp/ssh_key
-      - ~/.molecule-temp
     expire_in: 1 week
   only:
     - tags
@@ -876,7 +871,6 @@ test_vms_molcule:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/vms/topic-*.json
       - $CI_PROJECT_DIR/test/molecule-role/molecule/vms/*.log
       - $CI_PROJECT_DIR/tmp_molecule_inventory
-      - ~/.molecule-temp
     expire_in: 1 week
 
 destroy_vms_molecule:
@@ -903,7 +897,6 @@ test_kubernetes_molecule:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/topic-*.json
       - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/*.log
       - $CI_PROJECT_DIR/tmp_molecule_inventory
-      - ~/.molecule-temp
     expire_in: 1 week
   rules:
     - *only_agent_3
@@ -931,7 +924,6 @@ test_swarm_molecule:
     paths:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/swarm/topic-*.json
       - $CI_PROJECT_DIR/tmp_molecule_inventory
-      - ~/.molecule-temp
     expire_in: 1 week
   rules:
     - *only_agent_3

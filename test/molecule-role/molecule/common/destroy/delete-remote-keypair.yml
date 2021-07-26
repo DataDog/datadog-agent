@@ -4,7 +4,7 @@
     name: "{{ keypair_name }}"
     state: absent
 
-- name: Remove cached ssh key
+- name: Remove temp data
   file:
-    path: "./.molecule-temp/ssh_key"
+    path: "./.molecule-temp"
     state: absent

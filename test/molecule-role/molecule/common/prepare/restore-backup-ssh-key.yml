@@ -1,20 +1,15 @@
 ---
-# - name: GitLab | Download Artifacts
-#   when: ci_project_id is defined and ci_project_id != "" and ci_job_token is defined and ci_job_token != ""
-#   get_url:
-#     url: "https://gitlab.com/api/v4/projects/{{ ci_project_id }}/jobs/artifacts/main/download?job=create_{{ molecule_scenario_name }}_molecule"
-#     headers: 'JOB-TOKEN: {{ ci_job_token }}'
-#     dest: "{{ ci_project_dir }}/artifacts.zip"
-
-# - name: Extract Artifacts
-#   when: ci_project_id is defined and ci_project_id != "" and ci_job_token is defined and ci_job_token != ""
-#   unarchive:
-#     src: "{{ ci_project_dir }}/artifacts.zip"
-#     dest: "{{ ci_project_dir }}"
+- name: Print the gateway for each host when defined
+  debug:
+    msg: "{{ molecule_ephemeral_directory }}"
 
 # Restore the ssh key for molecule connection
 # Local build only
-- name: Restore backup SSH key
+- name: Unzip artifact ssh key
+  when: ci_project_id is undefined or ci_project_id == ""
+  command: "unzip -o -q -P dev -d '.' './.molecule-temp/ssh_key.zip'"
+
+- name: Restore artifact ssh key
   when: ci_project_id is undefined or ci_project_id == ""
   copy:
     src: "./.molecule-temp/ssh_key"
@@ -25,6 +20,10 @@
 # CI build only
 - name: Restore backup SSH key
   when: ci_project_id is defined and ci_project_id != ""
+  command: "unzip -o -q -P {{ ci_job_token }} -d '{{ ci_project_dir }}' '{{ ci_project_dir }}/ssh_key.zip'"
+
+- name: Restore artifact ssh key
+  when: ci_project_id is defined and ci_project_id != ""
   copy:
     src: "{{ ci_project_dir }}/ssh_key"
     dest: "{{ keypair_path }}"
@@ -33,3 +32,8 @@
 - name: Wait (SSH Key Restore)
   pause:
     seconds: 15
+
+- name: Cleanup unprotected ssh key
+  file:
+    path: "./.molecule-temp/ssh_key"
+    state: absent

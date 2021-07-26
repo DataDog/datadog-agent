@@ -38,4 +38,3 @@
     - include_tasks: ../common/create/convert-instance-config-dict-to-a-list.yml
     - include_tasks: ../common/create/dump-instance-config.yml
     - include_tasks: ../common/create/wait-for-ssh.yml
-    # - include_tasks: ../common/create/wait-for-boot-process-to-finish.yml
