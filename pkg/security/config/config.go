@@ -123,8 +123,8 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		MapDentryResolutionEnabled:         aconfig.Datadog.GetBool("runtime_security_config.map_dentry_resolution_enabled"),
 		RemoteTaggerEnabled:                aconfig.Datadog.GetBool("runtime_security_config.remote_tagger"),
 		LogPatterns:                        aconfig.Datadog.GetStringSlice("runtime_security_config.log_patterns"),
-		SelfTestEnabled:                    aconfig.Datadog.GetBool("runtime_security_config.enable_self_test"),
-		SelfTestAtStartEnabled:             aconfig.Datadog.GetBool("runtime_security_config.run_self_test_at_start"),
+		SelfTestEnabled:                    aconfig.Datadog.GetBool("runtime_security_config.self_test.enabled"),
+		SelfTestAtStartEnabled:             aconfig.Datadog.GetBool("runtime_security_config.self_test.run_at_startup"),
 	}
 
 	// if runtime is enabled then we force fim

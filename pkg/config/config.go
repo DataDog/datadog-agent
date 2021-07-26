@@ -897,8 +897,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.remote_tagger", true)
 	config.BindEnvAndSetDefault("runtime_security_config.log_patterns", []string{})
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.", true)
-	config.BindEnvAndSetDefault("runtime_security_config.enable_self_test", true)
-	config.BindEnvAndSetDefault("runtime_security_config.run_self_test_at_start", false)
+	config.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
+	config.BindEnvAndSetDefault("runtime_security_config.self_test.run_at_startup", false)
 
 	// Serverless Agent
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
