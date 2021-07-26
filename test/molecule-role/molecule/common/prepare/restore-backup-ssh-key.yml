@@ -1,8 +1,4 @@
 ---
-- name: Print the gateway for each host when defined
-  debug:
-    msg: "{{ molecule_ephemeral_directory }}"
-
 # Restore the ssh key for molecule connection
 # Local build only
 - name: Unzip artifact ssh key
