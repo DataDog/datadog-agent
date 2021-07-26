@@ -4,13 +4,13 @@
   get_url:
     url: "https://gitlab.com/api/v4/projects/{{ ci_project_id }}/jobs/artifacts/main/download?job=create_{{ molecule_scenario_name }}_molecule"
     headers: 'JOB-TOKEN: {{ ci_job_token }}'
-    dest: "./artifacts.zip"
+    dest: "{{ ci_project_id }}/artifacts.zip"
 
 - name: Extract Artifacts
   when: ci_project_id is defined and ci_project_id != "" and ci_job_token is defined and ci_job_token != ""
   unarchive:
-    src: "./artifacts.zip"
-    dest: "."
+    src: "{{ ci_project_id }}/artifacts.zip"
+    dest: "{{ ci_project_id }}"
 
 - name: Restore backup SSH key
   copy:
