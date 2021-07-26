@@ -222,7 +222,8 @@ func getPoliciesVersions(rs *rules.RuleSet) []string {
 	return versions
 }
 
-func (m *Module) reloadWithSelfTestPolicy(selfTestPolicy *rules.Policy) error {
+// Reload the rule set
+func (m *Module) Reload() error {
 	m.Lock()
 	defer m.Unlock()
 
@@ -259,25 +260,8 @@ func (m *Module) reloadWithSelfTestPolicy(selfTestPolicy *rules.Policy) error {
 	monitor := m.probe.GetMonitor()
 	ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleSet, loadErr)
 
-	if selfTestPolicy != nil {
-		selfTestPolicyFilename := "datadog_cws_self_test.policy"
-		ruleSet.AddPolicyVersion(selfTestPolicyFilename, selfTestPolicy.Version)
-		approverRuleSet.AddPolicyVersion(selfTestPolicyFilename, selfTestPolicy.Version)
-
-		_, rules, merr := selfTestPolicy.GetValidMacroAndRules()
-		if merr.ErrorOrNil() != nil {
-			logMultiErrors("error while loading additional policies", merr)
-		}
-
-		if len(rules) != 0 {
-			if merr := ruleSet.AddRules(rules); merr.ErrorOrNil() != nil {
-				logMultiErrors("error while loading additional policies", merr)
-			}
-
-			if merr := approverRuleSet.AddRules(rules); merr.ErrorOrNil() != nil {
-				logMultiErrors("error while loading additional policies", merr)
-			}
-		}
+	if m.selfTester != nil {
+		m.selfTester.AddSelfTestRulesToRuleSets(ruleSet, approverRuleSet)
 	}
 
 	approvers, err := approverRuleSet.GetApprovers(sprobe.GetCapababilities())
@@ -316,16 +300,6 @@ func (m *Module) reloadWithSelfTestPolicy(selfTestPolicy *rules.Policy) error {
 	monitor.ReportRuleSetLoaded(ruleSetLoadedReport)
 
 	return nil
-}
-
-// Reload the rule set
-func (m *Module) Reload() error {
-	var selfTestPolicy *rules.Policy
-	if m.selfTester != nil {
-		selfTestPolicy = m.selfTester.GetSelfTestPolicy()
-	}
-
-	return m.reloadWithSelfTestPolicy(selfTestPolicy)
 }
 
 func (m *Module) doSelfTest() error {

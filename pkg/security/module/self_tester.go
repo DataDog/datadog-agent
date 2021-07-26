@@ -75,11 +75,15 @@ func (t *SelfTester) CreateTargetFile() error {
 	return targetFile.Close()
 }
 
-const selfTestPolicyName = "datadog-agent-cws-self-test-policy"
+const (
+	selfTestPolicyName     = "datadog-agent-cws-self-test-policy"
+	selfTestPolicyFilename = "datadog_cws_self_test.policy"
+	selfTestBaseRuleName   = "datadog_agent_cws_self_test_rule"
+)
 
 // GetSelfTestPolicy returns the additional policy containing self test rules
 func (t *SelfTester) GetSelfTestPolicy() *rules.Policy {
-	rds := getSelfTestRuleDefinitions("datadog_agent_cws_self_test_rule", t.targetFilePath)
+	rds := getSelfTestRuleDefinitions(selfTestBaseRuleName, t.targetFilePath)
 	p := &rules.Policy{
 		Name:    selfTestPolicyName,
 		Version: "1.0.0",
@@ -91,6 +95,28 @@ func (t *SelfTester) GetSelfTestPolicy() *rules.Policy {
 
 	p.Rules = rds
 	return p
+}
+
+func (t *SelfTester) AddSelfTestRulesToRuleSets(ruleSet, approverRuleSet *rules.RuleSet) {
+	selfTestPolicy := t.GetSelfTestPolicy()
+
+	ruleSet.AddPolicyVersion(selfTestPolicyFilename, selfTestPolicy.Version)
+	approverRuleSet.AddPolicyVersion(selfTestPolicyFilename, selfTestPolicy.Version)
+
+	_, rules, merr := selfTestPolicy.GetValidMacroAndRules()
+	if merr.ErrorOrNil() != nil {
+		logMultiErrors("error while loading additional policies", merr)
+	}
+
+	if len(rules) != 0 {
+		if merr := ruleSet.AddRules(rules); merr.ErrorOrNil() != nil {
+			logMultiErrors("error while loading additional policies", merr)
+		}
+
+		if merr := approverRuleSet.AddRules(rules); merr.ErrorOrNil() != nil {
+			logMultiErrors("error while loading additional policies", merr)
+		}
+	}
 }
 
 // Cleanup removes temp directories and files used by the self tester
