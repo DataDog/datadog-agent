@@ -1,0 +1,45 @@
+#ifndef _SPAN_H_
+#define _SPAN_H_
+
+#include "defs.h"
+
+struct span_tls_t {
+   u64 max_threads;
+   void *base;
+};
+
+struct bpf_map_def SEC("maps/span_tls") span_tls = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(struct span_tls_t),
+    .max_entries = 4096,
+    .pinning = 0,
+    .namespace = "",
+};
+
+int __attribute__((always_inline)) handle_register_span_memory(void *data) {
+   struct span_tls_t span = {};
+   bpf_probe_read(&span.max_threads, sizeof(span.max_threads), data);
+   bpf_probe_read(&span.base, sizeof(span.base), data+sizeof(span.max_threads));
+
+   u64 pid_tgid = bpf_get_current_pid_tgid();
+   u32 tgid = pid_tgid >> 32;
+
+   bpf_map_update_elem(&span_tls, &tgid, &span, BPF_ANY);
+
+   return 0;
+}
+
+void __attribute__((always_inline)) fill_span_context(struct span_context_t *span) {
+   u64 pid_tgid = bpf_get_current_pid_tgid();
+   u32 tgid = pid_tgid >> 32;
+   u32 tid = pid_tgid;
+  
+   struct span_tls_t *tls = bpf_map_lookup_elem(&span_tls, &tgid);
+   if (tls) {
+      int offset = (tid % tls->max_threads) * sizeof(struct span_context_t);
+      bpf_probe_read(span, sizeof(struct span_context_t), tls->base + offset);
+   }
+}
+
+#endif

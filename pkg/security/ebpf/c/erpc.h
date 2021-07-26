@@ -12,7 +12,7 @@ enum erpc_op {
     DISCARD_PID_OP,
     RESOLVE_SEGMENT_OP,
     RESOLVE_PATH_OP,
-    RESOLVE_PARENT_OP
+    RESOLVE_PARENT_OP,
     REGISTER_SPAN_TLS_OP, // can be used outside of the CWS, do not change the value
 };
 
