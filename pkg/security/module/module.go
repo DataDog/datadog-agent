@@ -222,13 +222,14 @@ func getPoliciesVersions(rs *rules.RuleSet) []string {
 	return versions
 }
 
-func (m *Module) reloadWithPoliciesDir(policiesDir string, selfTestPolicy *rules.Policy) error {
+func (m *Module) reloadWithSelfTestPolicy(selfTestPolicy *rules.Policy) error {
 	m.Lock()
 	defer m.Unlock()
 
 	atomic.StoreUint64(&m.reloading, 1)
 	defer atomic.StoreUint64(&m.reloading, 0)
 
+	policiesDir := m.config.PoliciesDir
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
 	newRuleSetOpts := func() *rules.Opts {
@@ -324,7 +325,7 @@ func (m *Module) Reload() error {
 		selfTestPolicy = m.selfTester.GetSelfTestPolicy()
 	}
 
-	return m.reloadWithPoliciesDir(m.config.PoliciesDir, selfTestPolicy)
+	return m.reloadWithSelfTestPolicy(selfTestPolicy)
 }
 
 func (m *Module) doSelfTest() error {
