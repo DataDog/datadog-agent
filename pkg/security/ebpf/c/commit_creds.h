@@ -4,6 +4,7 @@
 struct setuid_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     u32 uid;
     u32 euid;

@@ -6,6 +6,7 @@
 #include "filters.h"
 #include "syscalls.h"
 #include "container.h"
+#include "span.h"
 
 #define MAX_PERF_STR_BUFF_LEN 256
 #define MAX_STR_BUFF_LEN (1 << 15)
@@ -43,6 +44,7 @@ struct bpf_map_def SEC("maps/str_array_buffers") str_array_buffers = {
 struct exec_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct proc_cache_t proc_entry;
     struct pid_cache_t pid_entry;
     u32 args_id;
@@ -54,6 +56,7 @@ struct exec_event_t {
 struct exit_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
 };
 

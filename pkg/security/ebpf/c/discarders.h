@@ -229,10 +229,10 @@ void __attribute__((always_inline)) remove_inode_discarders(u32 mount_id, u64 in
     }
 }
 
-static __always_inline u32 get_system_probe_pid() {
-    u64 val = 0;
-    LOAD_CONSTANT("system_probe_pid", val);
-    return val;
+static __always_inline u32 is_runtime_discarded() {
+    u64 discarded = 0;
+    LOAD_CONSTANT("runtime_discarded", discarded);
+    return discarded;
 }
 
 struct pid_discarder_params_t {
@@ -292,8 +292,10 @@ int __attribute__((always_inline)) is_discarded_by_process(const char mode, u64 
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
-    u32 system_probe_pid = get_system_probe_pid();
-    if (system_probe_pid && system_probe_pid == tgid) {
+    u64 runtime_pid;
+    LOAD_CONSTANT("runtime_pid", runtime_pid);
+
+    if (is_runtime_discarded() && runtime_pid == tgid) {
         return 1;
     }
 
