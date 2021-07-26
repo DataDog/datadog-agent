@@ -9,6 +9,7 @@ package ksm
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -35,6 +37,11 @@ import (
 const (
 	kubeStateMetricsCheckName = "kubernetes_state_core"
 	maximumWaitForAPIServer   = 10 * time.Second
+
+	// createdByKind represents the KSM label key created_by_kind
+	createdByKind = "created_by_kind"
+	// createdByName represents the KSM label key created_by_name
+	createdByName = "created_by_name"
 )
 
 // KSMConfig contains the check config parameters
@@ -371,16 +378,28 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 	}
 
 	// apply label joins
+	ownerKind, ownerName := "", ""
 	for _, label := range labelsToAdd {
-		tag, hostTag := k.buildTag(label.key, label.value)
-		tags = append(tags, tag)
-		if hostTag != "" {
-			if k.clusterName != "" {
-				hostname = hostTag + "-" + k.clusterName
-			} else {
-				hostname = hostTag
+		switch label.key {
+		case createdByKind:
+			ownerKind = label.value
+		case createdByName:
+			ownerName = label.value
+		default:
+			tag, hostTag := k.buildTag(label.key, label.value)
+			tags = append(tags, tag)
+			if hostTag != "" {
+				if k.clusterName != "" {
+					hostname = hostTag + "-" + k.clusterName
+				} else {
+					hostname = hostTag
+				}
 			}
 		}
+	}
+
+	if owners := ownerTags(ownerKind, ownerName); len(owners) != 0 {
+		tags = append(tags, owners...)
 	}
 
 	return hostname, append(tags, k.instance.Tags...)
@@ -587,4 +606,35 @@ func buildDeniedMetricsSet(collectors []string) options.MetricSet {
 	}
 
 	return deniedMetrics
+}
+
+// ownerTags returns kube_<kind> tags based on given kind and name.
+// If the owner is a replicaset, it tries to get the kube_deployment tag in addition to kube_replica_set.
+// If the owner is a job, it tries to get the kube_cronjob tag in addition to kube_job.
+func ownerTags(kind, name string) []string {
+	if kind == "" || name == "" {
+		log.Debugf("Empty kind: %q or name: %q", kind, name)
+		return nil
+	}
+
+	tagKey, found := kubernetes.KindToTagName[kind]
+	if !found {
+		log.Debugf("Unknown owner kind %q", kind)
+		return nil
+	}
+
+	tagFormat := "%s:%s"
+	tags := []string{fmt.Sprintf(tagFormat, tagKey, name)}
+	switch kind {
+	case kubernetes.JobKind:
+		if cronjob := kubernetes.ParseCronJobForJob(name); cronjob != "" {
+			return append(tags, fmt.Sprintf(tagFormat, kubernetes.CronJobTagName, cronjob))
+		}
+	case kubernetes.ReplicaSetKind:
+		if deployment := kubernetes.ParseDeploymentForReplicaSet(name); deployment != "" {
+			return append(tags, fmt.Sprintf(tagFormat, kubernetes.DeploymentTagName, deployment))
+		}
+	}
+
+	return tags
 }
