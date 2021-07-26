@@ -1,20 +1,20 @@
 ---
 - name: Create the molecule temp storage directory
   file:
-    path: "./.molecule-temp/{{ molecule_scenario_name }}"
+    path: ".molecule-temp/{{ molecule_scenario_name }}"
     state: directory
     mode: '0755'
 
 - name: Dump the ssh private key in the temp storage
   copy:
-    dest: "./.molecule-temp/{{ molecule_scenario_name }}/ssh_key"
+    dest: ".molecule-temp/{{ molecule_scenario_name }}/ssh_key"
     content: "{{ keypair.key.private_key }}"
     mode: preserve
 
 - name: Encrypt data
   shell: |
     echo "{{ ci_job_token }}" > password
-    ansible-vault encrypt --vault-id test@password "./.molecule-temp/{{ molecule_scenario_name }}/ssh_key"
+    ansible-vault encrypt --vault-id test@password ".molecule-temp/{{ molecule_scenario_name }}/ssh_key"
     rm password
 
 - name: Create the molecule temp storage artifactory directory
@@ -27,6 +27,6 @@
 - name: Create copy for artifact
   when: ci_project_dir is defined and ci_project_dir != ""
   copy:
-    src: "./.molecule-temp/{{ molecule_scenario_name }}/ssh_key"
+    src: ".molecule-temp/{{ molecule_scenario_name }}/ssh_key"
     dest: "{{ci_project_dir}}/.molecule-temp/{{ molecule_scenario_name }}/ssh_key"
     mode: preserve
