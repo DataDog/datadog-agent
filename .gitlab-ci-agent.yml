@@ -690,7 +690,7 @@ molecule_tests_compose_prepare:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/topic-*.json
       - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/*.log
       - $CI_PROJECT_DIR/tmp_molecule_inventory
-      - ~/.molecule-temp
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/.molecule-temp/ssh_key
     expire_in: 1 week
 
 molecule_tests_compose:
@@ -706,7 +706,7 @@ molecule_tests_compose:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/topic-*.json
       - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/*.log
       - $CI_PROJECT_DIR/tmp_molecule_inventory
-      - ~/.molecule-temp
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/.molecule-temp/ssh_key
     expire_in: 1 week
 
 molecule_tests_compose_cleanup:
@@ -728,10 +728,10 @@ molecule_tests_integrations_prepare:
   artifacts:
     when: always
     paths:
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/topic-*.json
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/*.log
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/*.log
       - $CI_PROJECT_DIR/tmp_molecule_inventory
-      - ~/.molecule-temp
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/.molecule-temp/ssh_key
     expire_in: 1 week
 
 molecule_tests_integrations:
@@ -747,7 +747,7 @@ molecule_tests_integrations:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/topic-*.json
       - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/*.log
       - $CI_PROJECT_DIR/tmp_molecule_inventory
-      - ~/.molecule-temp
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/.molecule-temp/ssh_key
     expire_in: 1 week
 
 molecule_tests_integrations_cleanup:
@@ -769,10 +769,10 @@ molecule_tests_local_install_prepare:
   artifacts:
     when: always
     paths:
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/topic-*.json
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/*.log
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/localinstall/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/localinstall/*.log
       - $CI_PROJECT_DIR/tmp_molecule_inventory
-      - ~/.molecule-temp
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/localinstall/.molecule-temp/ssh_key
     expire_in: 1 week
 
 molecule_tests_local_install:
@@ -787,7 +787,7 @@ molecule_tests_local_install:
     when: always
     paths:
       - $CI_PROJECT_DIR/tmp_molecule_inventory
-      - ~/.molecule-temp
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/localinstall/.molecule-temp/ssh_key
     expire_in: 1 week
   only:
     - tags
@@ -815,9 +815,10 @@ molecule_tests_secrets_prepare:
   artifacts:
     when: always
     paths:
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/topic-*.json
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/*.log
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/*.log
       - $CI_PROJECT_DIR/tmp_molecule_inventory
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/.molecule-temp/ssh_key
       - ~/.molecule-temp
     expire_in: 1 week
 
@@ -833,6 +834,7 @@ molecule_tests_secrets:
     paths:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/*.log
       - $CI_PROJECT_DIR/tmp_molecule_inventory
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/.molecule-temp/ssh_key
       - ~/.molecule-temp
     expire_in: 1 week
   only:
