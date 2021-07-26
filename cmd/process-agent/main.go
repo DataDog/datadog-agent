@@ -5,6 +5,7 @@ package main
 import (
 	"flag"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"log"
 	_ "net/http/pprof"
 	"strings"
@@ -18,7 +19,14 @@ func setupConfig() {
 		strings.ToLower(flag.Arg(2)),
 		flag.Arg(3)
 
+	// Set session token
+	err := util.SetAuthToken()
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
 	settingsClient, err := common.NewSettingsClient()
+
 	if err != nil {
 		log.Fatal(err)
 		return
@@ -53,7 +61,6 @@ func main() {
 	flag.BoolVar(&opts.info, "info", false, "Show info about running process agent and exit")
 	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
 	flag.StringVar(&opts.check, "check", "", "Run a specific check and print the results. Choose from: process, connections, realtime")
-	flag.StringVar(&opts.logLevel, "logLevel", "", "Set the log level for a running process agent.")
 	flag.Parse()
 
 	if flag.Arg(0) == "config" {
