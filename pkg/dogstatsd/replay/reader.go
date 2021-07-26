@@ -130,7 +130,8 @@ func (tc *TrafficCaptureReader) Read() {
 	}
 }
 
-// Close cleans up any resources used by the TrafficCaptureReader
+// Close cleans up any resources used by the TrafficCaptureReader, should not normally
+// be called directly.
 func (tc *TrafficCaptureReader) Close() error {
 	tc.Lock()
 	defer tc.Unlock()

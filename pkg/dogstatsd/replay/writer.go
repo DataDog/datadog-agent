@@ -122,7 +122,7 @@ func (tc *TrafficCaptureWriter) ProcessMessage(msg *CaptureBuffer) error {
 }
 
 // Capture start the traffic capture and writes the packets to file for the specified duration.
-func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
+func (tc *TrafficCaptureWriter) Capture(d time.Duration, compressed bool) {
 
 	log.Debug("Starting capture...")
 
@@ -156,8 +156,12 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
 		}
 
 		tc.testFile = fp
-		tc.zWriter = zstd.NewWriter(tc.testFile)
-		tc.writer = bufio.NewWriter(tc.zWriter)
+		if compressed {
+			tc.zWriter = zstd.NewWriter(tc.testFile)
+			tc.writer = bufio.NewWriter(tc.zWriter)
+		} else {
+			tc.writer = bufio.NewWriter(tc.testFile)
+		}
 	} else {
 		fp, err := os.Create(p)
 		if err != nil {
@@ -167,8 +171,12 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
 			return
 		}
 		tc.File = fp
-		tc.zWriter = zstd.NewWriter(tc.File)
-		tc.writer = bufio.NewWriter(tc.zWriter)
+		if compressed {
+			tc.zWriter = zstd.NewWriter(tc.File)
+			tc.writer = bufio.NewWriter(tc.zWriter)
+		} else {
+			tc.writer = bufio.NewWriter(tc.File)
+		}
 	}
 
 	tc.shutdown = make(chan struct{})
@@ -246,9 +254,11 @@ cleanup:
 		log.Errorf("There was an error flushing the underlying writer while stopping the capture: %v", err)
 	}
 
-	err = tc.zWriter.Close()
-	if err != nil {
-		log.Errorf("There was an error closing the underlying zstd writer while stopping the capture: %v", err)
+	if tc.zWriter != nil {
+		err = tc.zWriter.Close()
+		if err != nil {
+			log.Errorf("There was an error closing the underlying zstd writer while stopping the capture: %v", err)
+		}
 	}
 
 	tc.File.Close()
