@@ -252,7 +252,8 @@ func (l *KubeletListener) createService(entity string, pod *kubelet.Pod, firstRu
 			}
 
 			// Detect metrics or logs exclusion
-			svc.metricsExcluded = l.filters.IsExcluded(containers.MetricsFilter, container.Name, containerImage, pod.Metadata.Namespace)
+			// Exclude terminated containers (including init containers) from metrics collection but keep them for collecting logs.
+			svc.metricsExcluded = l.filters.IsExcluded(containers.MetricsFilter, container.Name, containerImage, pod.Metadata.Namespace) || container.IsTerminated()
 			svc.logsExcluded = l.filters.IsExcluded(containers.LogsFilter, container.Name, containerImage, pod.Metadata.Namespace)
 
 			// Cache the container name to get the corresponding ports after breaking the for-loop
