@@ -56,7 +56,7 @@ func TestMkdir(t *testing.T) {
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdir")
 			assertRights(t, uint16(event.Mkdir.Mode), mkdirMode)
-			assert.Equal(t, event.Mkdir.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, getInode(t, testFile), event.Mkdir.File.Inode, "wrong inode")
 			assertRights(t, event.Mkdir.File.Mode, expectedMode)
 
 			assertNearTime(t, event.Mkdir.File.MTime)
@@ -79,9 +79,9 @@ func TestMkdir(t *testing.T) {
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdirat")
 
-			assert.Equal(t, event.Mkdir.File.Inode, getInode(t, testatFile), "wrong inode")
+			assert.Equal(t, getInode(t, testatFile), event.Mkdir.File.Inode, "wrong inode")
 			assertRights(t, uint16(event.Mkdir.Mode), 0777)
-			assert.Equal(t, event.Mkdir.File.Inode, getInode(t, testatFile), "wrong inode")
+			assert.Equal(t, getInode(t, testatFile), event.Mkdir.File.Inode, "wrong inode")
 			assertRights(t, event.Mkdir.File.Mode&expectedMode, expectedMode)
 
 			assertNearTime(t, event.Mkdir.File.MTime)

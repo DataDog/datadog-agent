@@ -55,10 +55,10 @@ func TestOpen(t *testing.T) {
 			}
 			return syscall.Close(int(fd))
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, event.GetType(), "open", "wrong event type")
-			assert.Equal(t, int(event.Open.Flags), syscall.O_CREAT, "wrong flags")
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
+			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0755)
-			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 
 			if !validateOpenSchema(t, event) {
 				t.Fatal(event.String())
@@ -76,10 +76,10 @@ func TestOpen(t *testing.T) {
 			}
 			return syscall.Close(int(fd))
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, event.GetType(), "open", "wrong event type")
-			assert.Equal(t, int(event.Open.Flags), syscall.O_CREAT, "wrong flags")
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
+			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
-			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 		})
 	})
 
@@ -101,10 +101,10 @@ func TestOpen(t *testing.T) {
 			}
 			return syscall.Close(int(fd))
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, event.GetType(), "open", "wrong event type")
-			assert.Equal(t, int(event.Open.Flags), syscall.O_CREAT, "wrong flags")
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
+			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
-			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 		})
 	})
 
@@ -118,10 +118,10 @@ func TestOpen(t *testing.T) {
 			}
 			return syscall.Close(int(fd))
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, event.GetType(), "open", "wrong event type")
-			assert.Equal(t, int(event.Open.Flags), syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, "wrong flags")
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
+			assert.Equal(t, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, int(event.Open.Flags), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
-			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 		})
 	}))
 
@@ -149,9 +149,9 @@ func TestOpen(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, event.GetType(), "open", "wrong event type")
-			assert.Equal(t, int(event.Open.Flags), syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, "wrong flags")
-			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
+			assert.Equal(t, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, int(event.Open.Flags), "wrong flags")
+			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 		})
 	})
 
@@ -166,7 +166,7 @@ func TestOpen(t *testing.T) {
 			}
 			return f.Close()
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, event.GetType(), "open", "wrong event type")
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
 		})
 		if err != nil {
 			t.Error(err)
@@ -195,9 +195,9 @@ func TestOpen(t *testing.T) {
 			}
 			return unix.Close(fdInt)
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, event.GetType(), "open", "wrong event type")
-			assert.Equal(t, int(event.Open.Flags), syscall.O_CREAT, "wrong flags")
-			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
+			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
+			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 		})
 	})
 
@@ -212,7 +212,7 @@ func TestOpen(t *testing.T) {
 			f.Close()
 			return nil
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, event.GetType(), "open", "wrong event type")
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
 		})
 		if err != nil {
 			t.Error(err)
@@ -253,11 +253,11 @@ func TestOpen(t *testing.T) {
 
 			return unix.Close(fd)
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, event.GetType(), "open", "wrong event type")
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			// O_LARGEFILE is added by io_uring during __io_openat_prep
-			assert.Equal(t, int(event.Open.Flags&0xfff), syscall.O_CREAT, "wrong flags")
+			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags&0xfff), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0747)
-			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 		})
 
 		prepRequest, err = iouring.Openat2(unix.AT_FDCWD, testFile, &openHow)
@@ -283,11 +283,11 @@ func TestOpen(t *testing.T) {
 
 			return unix.Close(fd)
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, event.GetType(), "open", "wrong event type")
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			// O_LARGEFILE is added by io_uring during __io_openat_prep
-			assert.Equal(t, int(event.Open.Flags&0xfff), syscall.O_CREAT, "wrong flags")
+			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags&0xfff), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
-			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 		})
 	})
 
@@ -325,9 +325,9 @@ func TestOpenMetadata(t *testing.T) {
 			}
 			return f.Close()
 		}, func(event *sprobe.Event, r *rules.Rule) {
-			assert.Equal(t, event.GetType(), "open", "wrong event type")
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assertRights(t, uint16(event.Open.File.Mode), expectedMode)
-			assert.Equal(t, event.Open.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 
 			assertNearTime(t, event.Open.File.MTime)
 			assertNearTime(t, event.Open.File.CTime)
