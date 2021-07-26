@@ -225,6 +225,7 @@ func TestOpen(t *testing.T) {
 			}
 			t.Skip("io_uring not supported")
 		}
+		defer iour.Close()
 
 		prepRequest, err := iouring.Openat(unix.AT_FDCWD, testFile, syscall.O_CREAT, 0747)
 		if err != nil {
@@ -245,7 +246,6 @@ func TestOpen(t *testing.T) {
 				}
 				t.Skip("openat not supported by io_uring")
 			}
-			defer iour.Close()
 
 			if fd < 0 {
 				t.Fatalf("failed to open file with io_uring: %d", fd)
