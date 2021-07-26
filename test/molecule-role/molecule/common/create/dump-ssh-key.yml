@@ -1,34 +1,18 @@
 ---
 - name: Create the molecule temp storage directory
   file:
-    path: ".molecule-temp"
+    path: "{{ ci_project_dir }}/.molecule-temp/{{ molecule_scenario_name }}"
     state: directory
     mode: '0755'
 
-# Dump the ssh key to create a file
-# Local build only
 - name: Dump the ssh private key in the temp storage
   copy:
-    dest: ".molecule-temp/ssh_key"
+    dest: "{{ ci_project_dir }}/.molecule-temp/{{ molecule_scenario_name }}/ssh_key"
     content: "{{ keypair.key.private_key }}"
     mode: preserve
 
-# - name: Wait (Copy ssh private key)
-#   pause:
-#     seconds: 5
-
-# Dump the ssh key to create a file
-# Local build only
-# - name: Zip the ssh private key with password for artifacts
-#  command: "zip \"{{ ci_project_dir }}/test/molecule-role/molecule/{{ molecule_scenario_name }}/.molecule-temp/ssh_key.zip\" \"{{ ci_project_dir }}/test/molecule-role/molecule/{{ molecule_scenario_name }}/.molecule-temp/ssh_key\""
-
-- name: Create a zip archive
-  archive:
-    path: ".molecule-temp/ssh_key"
-    dest: ".molecule-temp/ssh_key.zip"
-    format: zip
-
-- name: Cleanup unprotected ssh key
-  file:
-    path: ".molecule-temp/ssh_key"
-    state: absent
+- name: Encrypt data
+  shell: |
+    echo "{{ ci_job_token }}" > password
+    ansible-vault encrypt --vault-id test@password "{{ ci_project_dir }}/.molecule-temp/{{ molecule_scenario_name }}/ssh_key"
+    rm password

@@ -6,5 +6,5 @@
 
 - name: Remove temp data
   file:
-    path: "./.molecule-temp"
+    path: "{{ ci_project_dir }}/.molecule-temp"
     state: absent

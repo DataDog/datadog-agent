@@ -1,35 +1,16 @@
 ---
-# Restore the ssh key for molecule connection
-# Local build only
-- name: Unzip artifact ssh key
-  when: ci_project_id is undefined or ci_project_id == ""
-  command: "unzip -o -q -P dev -d '.' './.molecule-temp/ssh_key.zip'"
+- name: Decrypt data
+  shell: |
+    echo "{{ ci_job_token }}" > password
+    ansible-vault decrypt --vault-id test@password "{{ ci_project_dir }}/.molecule-temp/{{ molecule_scenario_name }}/ssh_key"
+    rm password
 
 - name: Restore artifact ssh key
-  when: ci_project_id is undefined or ci_project_id == ""
   copy:
-    src: "./.molecule-temp/ssh_key"
-    dest: "{{ keypair_path }}"
-    mode: preserve
-
-# Restore the ssh key for molecule connection
-# CI build only
-- name: Restore backup SSH key
-  when: ci_project_id is defined and ci_project_id != ""
-  command: "unzip -o -q -P {{ ci_job_token }} -d '{{ ci_project_dir }}' '{{ ci_project_dir }}/ssh_key.zip'"
-
-- name: Restore artifact ssh key
-  when: ci_project_id is defined and ci_project_id != ""
-  copy:
-    src: "{{ ci_project_dir }}/ssh_key"
+    src: "{{ ci_project_dir }}/.molecule-temp/{{ molecule_scenario_name }}/ssh_key"
     dest: "{{ keypair_path }}"
     mode: preserve
 
 - name: Wait (SSH Key Restore)
   pause:
-    seconds: 15
-
-- name: Cleanup unprotected ssh key
-  file:
-    path: "./.molecule-temp/ssh_key"
-    state: absent
+    seconds: 5
