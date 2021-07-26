@@ -1,11 +1,13 @@
 ---
 - name: GitLab | Download Artifacts
+  when: ci_project_id is defined and ci_project_id != "" and ci_job_token is defined and ci_job_token != ""
   get_url:
     url: "https://gitlab.com/api/v4/projects/{{ ci_project_id }}/jobs/artifacts/main/download?job=create_{{ molecule_scenario_name }}_molecule"
-    headers: 'JOB-TOKEN: {{ ci_project_id }}'
+    headers: 'JOB-TOKEN: {{ ci_job_token }}'
     dest: "./artifacts.zip"
 
 - name: Extract Artifacts
+  when: ci_project_id is defined and ci_project_id != "" and ci_job_token is defined and ci_job_token != ""
   unarchive:
     src: "./artifacts.zip"
     dest: "."
@@ -18,4 +20,4 @@
 
 - name: Wait (SSH Key Restore)
   pause:
-    seconds: 5
+    seconds: 15

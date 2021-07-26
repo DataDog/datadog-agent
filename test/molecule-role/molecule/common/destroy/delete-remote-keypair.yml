@@ -3,3 +3,8 @@
   ec2_key:
     name: "{{ keypair_name }}"
     state: absent
+
+- name: Remove cached ssh key
+  file:
+    path: "./.molecule-temp/ssh_key"
+    state: absent
