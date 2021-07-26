@@ -1,6 +1,4 @@
 ---
-user_id: "{{ lookup('env', 'USER') }}"
-
 molecule_run_id: "{{ lookup('env', 'MOLECULE_RUN_ID') or lookup('env', 'USER') }}"
 molecule_scenario_name: "{{ lookup('env', 'MOLECULE_SCENARIO_NAME') }}"
 molecule_ephemeral_directory: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}"

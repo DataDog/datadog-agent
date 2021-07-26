@@ -1,13 +1,12 @@
 ---
-- name: "Gather existing EC2 instances for the branch '{{ agent_current_branch }}' and user '{{ user_id }}'"
+- name: "Gather existing EC2 instances for the branch '{{ agent_current_branch }}'"
   ec2_instance_info:
     filters:
       instance-state-name: [ "running" ]
       "tag:molecule_run_id": "{{ molecule_run_id }}"
       "tag:agent_current_branch": "{{ agent_current_branch }}"
-      "tag:user_id": "{{ user_id }}"
       "tag:molecule_scenario_name": "{{ molecule_scenario_name }}"
-  when: molecule_run_id is defined and molecule_run_id != "" and molecule_scenario_name is defined and molecule_scenario_name != "" and agent_current_branch is defined and agent_current_branch != "" and user_id is defined and user_id != ""
+  when: molecule_run_id is defined and molecule_run_id != "" and molecule_scenario_name is defined and molecule_scenario_name != "" and agent_current_branch is defined and agent_current_branch != ""
   register: ec2_molecule_instances
 
 - name: Wait for SSH
