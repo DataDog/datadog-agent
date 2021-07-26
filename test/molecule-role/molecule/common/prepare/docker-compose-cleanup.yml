@@ -1,0 +1,6 @@
+---
+# We do this to allow a gitlab CI retry step, thus cleaning up the env before re-running
+- name: Stop and Remove Existing Docker Compose
+  command: docker-compose rm --stop -v --force
+  args:
+    chdir: /home/ubuntu/

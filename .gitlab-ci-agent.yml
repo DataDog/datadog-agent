@@ -2,6 +2,7 @@ image: docker.io/stackstate/stackstate-agent-runner-gitlab:latest7
 
 stages:
   - prepare
+  - prepare_molecule
   - build_and_test
   - pre_release
   - acceptance
@@ -640,6 +641,26 @@ pre_release_cluster_agent_image:
 
 ## acceptance stage
 
+.molecule_base_prepare: &molecule_base_prepare
+  stage: prepare_molecule
+  dependencies: []
+  variables:
+    MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
+  before_script:
+    - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
+    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
+    - export MOLECULE_RUN_ID=${CI_JOB_ID}
+    - export LC_CTYPE=en_US.UTF-8
+    - export LANG=en_US.UTF-8
+    - mkdir -p $CI_PROJECT_DIR/tmp_molecule_inventory
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+
+# ===
+
 .molecule_base: &molecule_base
   stage: acceptance
   dependencies: []
@@ -657,6 +678,46 @@ pre_release_cluster_agent_image:
     when:
       - runner_system_failure
       - stuck_or_timeout_failure
+
+# Molecule Compose
+
+molecule_tests_compose_prepare:
+  <<: *molecule_base_prepare
+  needs:
+    - pre_release_main_agent_image
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh create -s compose
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/*.log
+      - $CI_PROJECT_DIR/tmp_molecule_inventory
+    expire_in: 1 week
+
+molecule_tests_compose:
+  <<: *molecule_base
+  needs:
+    - molecule_tests_compose_prepare
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh prepare --force -s compose
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/*.log
+      - $CI_PROJECT_DIR/tmp_molecule_inventory
+    expire_in: 1 week
+
+molecule_tests_compose_cleanup:
+   <<: *molecule_base
+   stage: acceptance_cleanup
+   script:
+     - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s compose
+   needs:
+     - molecule_tests_compose
+   when: on_failure
+   allow_failure: true
 
 molecule_tests_vms:
   <<: *molecule_base
@@ -681,30 +742,6 @@ molecule_tests_vms_cleanup:
      - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s vms
    needs:
      - molecule_tests_vms
-   when: on_failure
-   allow_failure: true
-
-molecule_tests_compose:
-  <<: *molecule_base
-  needs:
-    - pre_release_main_agent_image
-  script:
-    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s compose
-  artifacts:
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/topic-*.json
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/*.log
-      - $CI_PROJECT_DIR/tmp_molecule_inventory
-    expire_in: 1 week
-
-molecule_tests_compose_cleanup:
-   <<: *molecule_base
-   stage: acceptance_cleanup
-   script:
-     - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s compose
-   needs:
-     - molecule_tests_compose
    when: on_failure
    allow_failure: true
 

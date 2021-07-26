@@ -31,8 +31,27 @@ provisioner:
     links:
       group_vars: group_vars/
 
+# Custom steps to decrease gitlab CI build time
 scenario:
   name: compose
+  create_sequence:
+    - destroy
+    - dependency
+    - syntax
+    - create
+  prepare_sequence:
+    - dependency
+    - syntax
+    - prepare
+    - converge
+    - idempotence
+    - lint
+    - side_effect
+    - verify
+  destroy_sequence:
+    - dependency
+    - cleanup
+    - destroy
 
 verifier:
   name: testinfra
