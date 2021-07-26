@@ -7,16 +7,12 @@
 
 # Dump the ssh key to create a file
 # Local build only
-- name: Dump a backup SSH Key for usage in the prepare stage
+- name: (Dev) Dump a backup SSH Key for usage in the prepare stage
   when: ci_project_id is undefined or ci_project_id == ""
   copy:
     dest: "./.molecule-temp/ssh_key"
     content: "{{ keypair.key.private_key }}"
     mode: preserve
-
-- name: Zip the ssh key in a password protect file
-  when: ci_project_id is undefined or ci_project_id == ""
-  command: "zip --password dev ./.molecule-temp/ssh_key.zip ./.molecule-temp/ssh_key"
 
 # Dump the ssh key to create a artifact
 # CI Process only
@@ -27,9 +23,25 @@
     content: "{{ keypair.key.private_key }}"
     mode: preserve
 
+- name: Wait (SSH Copy)
+  pause:
+    seconds: 5
+
+# Dump the ssh key to create a file
+# Local build only
+- name: (Dev) Zip the ssh key in a password protect file
+  when: ci_project_id is undefined or ci_project_id == ""
+  command: "zip --password 'dev' './.molecule-temp/ssh_key.zip' './.molecule-temp/ssh_key'"
+
+# Dump the ssh key to create a artifact
+# CI Process only
 - name: Zip the ssh key in a password protect file
   when: ci_project_id is defined and ci_project_id != ""
-  command: "zip --password {{ ci_job_token }} {{ ci_project_dir }}/ssh_key.zip {{ ci_project_dir }}/ssh_key"
+  command: "zip --password '{{ ci_job_token }}' '{{ ci_project_dir }}/ssh_key.zip' '{{ ci_project_dir }}/ssh_key'"
+
+- name: Wait (SSH Zip)
+  pause:
+    seconds: 5
 
 - name: Cleanup unprotected ssh key
   file:
