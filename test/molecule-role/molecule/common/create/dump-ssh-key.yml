@@ -1,7 +1,7 @@
 ---
 - name: Create the molecule temp storage directory
   file:
-    path: "{{ ci_project_dir }}/test/molecule-role/molecule/{{ molecule_scenario_name }}/.molecule-temp"
+    path: ".molecule-temp"
     state: directory
     mode: '0755'
 
@@ -9,24 +9,26 @@
 # Local build only
 - name: Dump the ssh private key in the temp storage
   copy:
-    dest: "{{ ci_project_dir }}/test/molecule-role/molecule/{{ molecule_scenario_name }}/.molecule-temp/ssh_key"
+    dest: ".molecule-temp/ssh_key"
     content: "{{ keypair.key.private_key }}"
     mode: preserve
 
-- name: Wait (Copy ssh private key)
-  pause:
-    seconds: 5
+# - name: Wait (Copy ssh private key)
+#   pause:
+#     seconds: 5
 
 # Dump the ssh key to create a file
 # Local build only
-- name: Zip the ssh private key with password for artifacts
-  command: "zip \"{{ ci_project_dir }}/test/molecule-role/molecule/{{ molecule_scenario_name }}/.molecule-temp/ssh_key.zip\" \"{{ ci_project_dir }}/test/molecule-role/molecule/{{ molecule_scenario_name }}/.molecule-temp/ssh_key\""
+# - name: Zip the ssh private key with password for artifacts
+#  command: "zip \"{{ ci_project_dir }}/test/molecule-role/molecule/{{ molecule_scenario_name }}/.molecule-temp/ssh_key.zip\" \"{{ ci_project_dir }}/test/molecule-role/molecule/{{ molecule_scenario_name }}/.molecule-temp/ssh_key\""
 
-- name: Wait (Zip ssh private key)
-  pause:
-    seconds: 5
+- name: Create a zip archive
+  archive:
+    path: ".molecule-temp/ssh_key"
+    dest: ".molecule-temp/ssh_key.zip"
+    format: zip
 
 - name: Cleanup unprotected ssh key
   file:
-    path: "{{ ci_project_dir }}/test/molecule-role/molecule/{{ molecule_scenario_name }}/.molecule-temp/ssh_key"
+    path: ".molecule-temp/ssh_key"
     state: absent
