@@ -68,6 +68,7 @@ before_script:
 
 clear_deps_deb_cache:
   stage: prepare
+  interruptible: true
   before_script: []
   cache:
     policy: push
@@ -82,6 +83,7 @@ clear_deps_deb_cache:
 
 clear_deps_rpm_cache:
   stage: prepare
+  interruptible: true
   before_script: []
   cache:
     policy: push
@@ -96,6 +98,7 @@ clear_deps_rpm_cache:
 
 clear_deps_win_cache:
   stage: prepare
+  interruptible: true
   before_script:
     - set WIN_CI_PROJECT_DIR=%CD%
     - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
@@ -320,6 +323,7 @@ build_cluster_agent:
 
 clear_build_deb_cache:
   stage: build_prepare_and_test
+  interruptible: true
   cache:
     policy: push
     key: "build-deb-$STS_VER-$CI_COMMIT_REF_SLUG"
@@ -332,6 +336,7 @@ clear_build_deb_cache:
 
 clear_build_rpm_cache:
   stage: build_prepare_and_test
+  interruptible: true
   cache:
     policy: push
     key: "build-rpm-$STS_VER-$CI_COMMIT_REF_SLUG"
@@ -620,6 +625,7 @@ pre_release_main_agent_image: &pre_release_image
 
 pre_release_trace_agent_image:
   <<: *pre_release_image
+  interruptible: true
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
@@ -630,6 +636,7 @@ pre_release_trace_agent_image:
 
 pre_release_cluster_agent_image:
   <<: *pre_release_image
+  interruptible: true
   needs:
     - build_cluster_agent
   script:
@@ -643,6 +650,7 @@ pre_release_cluster_agent_image:
 
 .molecule_base_prepare: &molecule_base_prepare
   stage: test
+  interruptible: true
   dependencies: []
   variables:
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
@@ -663,6 +671,7 @@ pre_release_cluster_agent_image:
 
 .molecule_base: &molecule_base
   stage: acceptance
+  interruptible: true
   dependencies: []
   variables:
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
@@ -711,7 +720,6 @@ test_compose_molecule:
 
 destroy_compose_molecule:
    <<: *molecule_base
-   interruptible: false
    stage: acceptance_cleanup
    script:
      - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s compose
@@ -750,7 +758,6 @@ test_integrations_molecule:
 
 destroy_integrations_molecule:
    <<: *molecule_base
-   interruptible: false
    stage: acceptance_cleanup
    script:
      - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s integrations
@@ -794,7 +801,6 @@ test_local_install_molecule:
 
 destroy_local_install_molecule:
   <<: *molecule_base
-  interruptible: false
   stage: acceptance_cleanup
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s localinstall
@@ -841,7 +847,6 @@ test_secrets_molecule:
 
 destroy_secrets_molecule:
   <<: *molecule_base
-  interruptible: false
   stage: acceptance_cleanup
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s secrets
@@ -873,7 +878,6 @@ test_vms_molcule:
 destroy_vms_molecule:
    <<: *molecule_base
    stage: acceptance_cleanup
-   interruptible: false
    script:
      - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s vms
    when: on_failure
@@ -900,7 +904,6 @@ test_kubernetes_molecule:
 destroy_kubernetes_molecule:
    <<: *molecule_base
    stage: acceptance_cleanup
-   interruptible: false
    script:
      - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s kubernetes
    allow_failure: true
@@ -926,7 +929,6 @@ test_swarm_molecule:
 destroy_swarm_molecule:
   <<: *molecule_base
   stage: acceptance_cleanup
-  interruptible: false
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s swarm
   allow_failure: true
@@ -937,6 +939,7 @@ destroy_swarm_molecule:
 ## release stage
 
 release_deb:
+  interruptible: true
   stage: release
   dependencies:
     - deps_deb
@@ -959,6 +962,7 @@ release_deb:
       - stuck_or_timeout_failure
 
 release_rpm:
+  interruptible: true
   stage: release
   dependencies:
     - build_rpm
@@ -979,6 +983,7 @@ release_rpm:
       - stuck_or_timeout_failure
 
 release_win:
+  interruptible: true
   stage: release
   dependencies:
     - deps_win
@@ -1009,6 +1014,7 @@ release_win:
       - stuck_or_timeout_failure
 
 .base_release_image: &base_release_image
+  interruptible: true
   stage: release
   image: docker:18.06.0
   dependencies:
