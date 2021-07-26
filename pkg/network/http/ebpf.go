@@ -3,15 +3,17 @@
 package http
 
 import (
-	"io"
 	"math"
 	"os"
+	"regexp"
+	"strings"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/so"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
@@ -28,11 +30,8 @@ const (
 type subprogram interface {
 	Start() error
 	Init() error
-	io.Closer
+	Close() error
 }
-
-// TODO: this is only hardcoded here for the PoC
-var sslLibs = []string{"/lib/x86_64-linux-gnu/libssl.so.1.1"}
 
 type ebpfProgram struct {
 	*manager.Manager
@@ -83,17 +82,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		bytecode:    bytecode,
 		cfg:         c,
 	}
-
-	// Create OpenSSL "subprograms"
-	for _, lib := range sslLibs {
-		sslProgram, err := newSSLProgram(program, offsets, sockFD, lib)
-		if err != nil {
-			log.Errorf("error initializing SSL program for %s: %s", lib, err)
-			continue
-		}
-
-		program.subprograms = append(program.subprograms, sslProgram)
-	}
+	program.initSSL(offsets, sockFD)
 
 	return program, nil
 }
@@ -159,4 +148,28 @@ func (e *ebpfProgram) Close() error {
 	}
 
 	return e.Manager.Stop(manager.CleanAll)
+}
+
+func (e *ebpfProgram) initSSL(offsets []manager.ConstantEditor, sockFD *ebpf.Map) {
+	// List of the OpenSSL .so files that should be traced
+	var paths []string
+
+	// TODO: Remove this once we can detect shared libraries being loaded during runtime
+	if fromEnv := os.Getenv("SSL_LIB_PATHS"); fromEnv != "" {
+		paths = append(paths, strings.Split(fromEnv, ",")...)
+	}
+
+	// Find all OpenSSL libraries already mapped into memory
+	inMemory := so.Find(e.cfg.ProcRoot, regexp.MustCompile(`libssl\.so`))
+	paths = append(paths, inMemory...)
+
+	for _, lib := range paths {
+		sslProgram, err := newSSLProgram(e, offsets, sockFD, lib)
+		if err != nil {
+			log.Errorf("error initializing ssl program for %s: %s", lib, err)
+			continue
+		}
+
+		e.subprograms = append(e.subprograms, sslProgram)
+	}
 }
