@@ -690,7 +690,7 @@ create_compose_molecule:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/topic-*.json
       - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/*.log
       - $CI_PROJECT_DIR/tmp_molecule_inventory
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/.molecule-temp/ssh_key
+      - $CI_PROJECT_DIR/ssh_key
     expire_in: 1 week
 
 test_compose_molecule:
@@ -706,7 +706,6 @@ test_compose_molecule:
       - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/topic-*.json
       - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/*.log
       - $CI_PROJECT_DIR/tmp_molecule_inventory
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/compose/.molecule-temp/ssh_key
     expire_in: 1 week
 
 destroy_compose_molecule:

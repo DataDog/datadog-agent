@@ -5,8 +5,20 @@
     state: directory
     mode: '0755'
 
+# Dump the ssh key to create a file
+# Local build only
 - name: Dump a backup SSH Key for usage in the prepare stage
+  when: ci_project_id is undefined or ci_project_id == ""
   copy:
     dest: "./.molecule-temp/ssh_key"
+    content: "{{ keypair.key.private_key }}"
+    mode: preserve
+
+# Dump the ssh key to create a artifact
+# CI Process only
+- name: Dump a backup SSH Key for usage in the prepare stage
+  when: ci_project_id is defined and ci_project_id != ""
+  copy:
+    dest: "{{ ci_project_dir }}/ssh_key"
     content: "{{ keypair.key.private_key }}"
     mode: preserve

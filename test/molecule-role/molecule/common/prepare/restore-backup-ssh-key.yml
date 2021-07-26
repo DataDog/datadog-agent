@@ -1,20 +1,32 @@
 ---
-- name: GitLab | Download Artifacts
-  when: ci_project_id is defined and ci_project_id != "" and ci_job_token is defined and ci_job_token != ""
-  get_url:
-    url: "https://gitlab.com/api/v4/projects/{{ ci_project_id }}/jobs/artifacts/main/download?job=create_{{ molecule_scenario_name }}_molecule"
-    headers: 'JOB-TOKEN: {{ ci_job_token }}'
-    dest: "{{ ci_project_dir }}/artifacts.zip"
+# - name: GitLab | Download Artifacts
+#   when: ci_project_id is defined and ci_project_id != "" and ci_job_token is defined and ci_job_token != ""
+#   get_url:
+#     url: "https://gitlab.com/api/v4/projects/{{ ci_project_id }}/jobs/artifacts/main/download?job=create_{{ molecule_scenario_name }}_molecule"
+#     headers: 'JOB-TOKEN: {{ ci_job_token }}'
+#     dest: "{{ ci_project_dir }}/artifacts.zip"
 
-- name: Extract Artifacts
-  when: ci_project_id is defined and ci_project_id != "" and ci_job_token is defined and ci_job_token != ""
-  unarchive:
-    src: "{{ ci_project_dir }}/artifacts.zip"
-    dest: "{{ ci_project_dir }}"
+# - name: Extract Artifacts
+#   when: ci_project_id is defined and ci_project_id != "" and ci_job_token is defined and ci_job_token != ""
+#   unarchive:
+#     src: "{{ ci_project_dir }}/artifacts.zip"
+#     dest: "{{ ci_project_dir }}"
 
+# Restore the ssh key for molecule connection
+# Local build only
 - name: Restore backup SSH key
+  when: ci_project_id is undefined or ci_project_id == ""
   copy:
     src: "./.molecule-temp/ssh_key"
+    dest: "{{ keypair_path }}"
+    mode: preserve
+
+# Restore the ssh key for molecule connection
+# CI build only
+- name: Restore backup SSH key
+  when: ci_project_id is defined and ci_project_id != ""
+  copy:
+    src: "{{ ci_project_dir }}/ssh_key"
     dest: "{{ keypair_path }}"
     mode: preserve
 
