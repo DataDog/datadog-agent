@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -138,7 +139,7 @@ func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 		r = gzipr
 	}
-	rd := NewLimitedReader(r, o.cfg.MaxRequestBytes)
+	rd := apiutil.NewLimitedReader(r, o.cfg.MaxRequestBytes)
 	slurp, err := ioutil.ReadAll(rd)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

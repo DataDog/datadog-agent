@@ -10,6 +10,7 @@ message SecurityEventMessage {
     string RuleID = 1;
     bytes Data = 2;
     repeated string Tags = 3;
+    string Service = 4;
 }
 
 message DumpProcessCacheParams{}

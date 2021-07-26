@@ -47,22 +47,22 @@ func TestFork1st(t *testing.T) {
 
 	// parent
 	resolver.AddForkEntry(parent.Pid, parent)
-	assert.Equal(t, resolver.entryCache[parent.Pid], parent)
-	assert.Equal(t, len(resolver.entryCache), 1)
-	assert.EqualValues(t, atomic.LoadInt64(&resolver.cacheSize), 1)
+	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
+	assert.Equal(t, 1, len(resolver.entryCache))
+	assert.EqualValues(t, 1, atomic.LoadInt64(&resolver.cacheSize))
 
 	// parent
 	//     \ child
 	resolver.AddForkEntry(child.Pid, child)
-	assert.Equal(t, resolver.entryCache[child.Pid], child)
-	assert.Equal(t, len(resolver.entryCache), 2)
-	assert.Equal(t, child.Ancestor, parent)
-	assert.EqualValues(t, atomic.LoadInt64(&resolver.cacheSize), 2)
+	assert.Equal(t, child, resolver.entryCache[child.Pid])
+	assert.Equal(t, 2, len(resolver.entryCache))
+	assert.Equal(t, parent, child.Ancestor)
+	assert.EqualValues(t, 2, atomic.LoadInt64(&resolver.cacheSize))
 
 	// parent
 	resolver.DeleteEntry(child.Pid, time.Now())
 	assert.Nil(t, resolver.entryCache[child.Pid])
-	assert.Equal(t, len(resolver.entryCache), 1)
+	assert.Equal(t, 1, len(resolver.entryCache))
 
 	// nothing
 	resolver.DeleteEntry(parent.Pid, time.Now())
@@ -88,24 +88,24 @@ func TestFork2nd(t *testing.T) {
 
 	// parent
 	resolver.AddForkEntry(parent.Pid, parent)
-	assert.Equal(t, resolver.entryCache[parent.Pid], parent)
-	assert.Equal(t, len(resolver.entryCache), 1)
-	assert.EqualValues(t, atomic.LoadInt64(&resolver.cacheSize), 1)
+	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
+	assert.Equal(t, 1, len(resolver.entryCache))
+	assert.EqualValues(t, 1, atomic.LoadInt64(&resolver.cacheSize))
 
 	// parent
 	//     \ child
 	resolver.AddForkEntry(child.Pid, child)
-	assert.Equal(t, resolver.entryCache[child.Pid], child)
-	assert.Equal(t, len(resolver.entryCache), 2)
-	assert.Equal(t, child.Ancestor, parent)
-	assert.EqualValues(t, atomic.LoadInt64(&resolver.cacheSize), 2)
+	assert.Equal(t, child, resolver.entryCache[child.Pid])
+	assert.Equal(t, 2, len(resolver.entryCache))
+	assert.Equal(t, parent, child.Ancestor)
+	assert.EqualValues(t, 2, atomic.LoadInt64(&resolver.cacheSize))
 
 	// [parent]
 	//     \ child
 	resolver.DeleteEntry(parent.Pid, time.Now())
 	assert.Nil(t, resolver.entryCache[parent.Pid])
-	assert.Equal(t, len(resolver.entryCache), 1)
-	assert.Equal(t, child.Ancestor, parent)
+	assert.Equal(t, 1, len(resolver.entryCache))
+	assert.Equal(t, parent, child.Ancestor)
 
 	// nothing
 	resolver.DeleteEntry(child.Pid, time.Now())
@@ -136,34 +136,34 @@ func TestForkExec(t *testing.T) {
 
 	// parent
 	resolver.AddForkEntry(parent.Pid, parent)
-	assert.Equal(t, resolver.entryCache[parent.Pid], parent)
-	assert.Equal(t, len(resolver.entryCache), 1)
-	assert.EqualValues(t, atomic.LoadInt64(&resolver.cacheSize), 1)
+	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
+	assert.Equal(t, 1, len(resolver.entryCache))
+	assert.EqualValues(t, 1, atomic.LoadInt64(&resolver.cacheSize))
 
 	// parent
 	//     \ child
 	resolver.AddForkEntry(child.Pid, child)
-	assert.Equal(t, resolver.entryCache[child.Pid], child)
-	assert.Equal(t, len(resolver.entryCache), 2)
-	assert.Equal(t, child.Ancestor, parent)
-	assert.EqualValues(t, atomic.LoadInt64(&resolver.cacheSize), 2)
+	assert.Equal(t, child, resolver.entryCache[child.Pid])
+	assert.Equal(t, 2, len(resolver.entryCache))
+	assert.Equal(t, parent, child.Ancestor)
+	assert.EqualValues(t, 2, atomic.LoadInt64(&resolver.cacheSize))
 
 	// parent
 	//     \ [child] -> exec
 	resolver.AddExecEntry(exec.Pid, exec)
-	assert.Equal(t, resolver.entryCache[exec.Pid], exec)
-	assert.Equal(t, len(resolver.entryCache), 2)
-	assert.Equal(t, exec.Ancestor, child)
-	assert.Equal(t, exec.Ancestor.Ancestor, parent)
-	assert.EqualValues(t, atomic.LoadInt64(&resolver.cacheSize), 3)
+	assert.Equal(t, exec, resolver.entryCache[exec.Pid])
+	assert.Equal(t, 2, len(resolver.entryCache))
+	assert.Equal(t, child, exec.Ancestor)
+	assert.Equal(t, parent, exec.Ancestor.Ancestor)
+	assert.EqualValues(t, 3, atomic.LoadInt64(&resolver.cacheSize))
 
 	// [parent]
 	//     \ [child] -> exec
 	resolver.DeleteEntry(parent.Pid, time.Now())
 	assert.Nil(t, resolver.entryCache[parent.Pid])
-	assert.Equal(t, len(resolver.entryCache), 1)
-	assert.Equal(t, exec.Ancestor, child)
-	assert.Equal(t, exec.Ancestor.Ancestor, parent)
+	assert.Equal(t, 1, len(resolver.entryCache))
+	assert.Equal(t, child, exec.Ancestor)
+	assert.Equal(t, parent, exec.Ancestor.Ancestor)
 
 	// nothing
 	resolver.DeleteEntry(exec.Pid, time.Now())
@@ -194,33 +194,33 @@ func TestOrphanExec(t *testing.T) {
 
 	// parent
 	resolver.AddForkEntry(parent.Pid, parent)
-	assert.Equal(t, resolver.entryCache[parent.Pid], parent)
-	assert.Equal(t, len(resolver.entryCache), 1)
-	assert.EqualValues(t, atomic.LoadInt64(&resolver.cacheSize), 1)
+	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
+	assert.Equal(t, 1, len(resolver.entryCache))
+	assert.EqualValues(t, 1, atomic.LoadInt64(&resolver.cacheSize))
 
 	// parent
 	//     \ child
 	resolver.AddForkEntry(child.Pid, child)
-	assert.Equal(t, resolver.entryCache[child.Pid], child)
-	assert.Equal(t, len(resolver.entryCache), 2)
-	assert.Equal(t, child.Ancestor, parent)
-	assert.EqualValues(t, atomic.LoadInt64(&resolver.cacheSize), 2)
+	assert.Equal(t, child, resolver.entryCache[child.Pid])
+	assert.Equal(t, 2, len(resolver.entryCache))
+	assert.Equal(t, parent, child.Ancestor)
+	assert.EqualValues(t, 2, atomic.LoadInt64(&resolver.cacheSize))
 
 	// [parent]
 	//     \ child
 	resolver.DeleteEntry(parent.Pid, time.Now())
 	assert.Nil(t, resolver.entryCache[parent.Pid])
-	assert.Equal(t, len(resolver.entryCache), 1)
-	assert.Equal(t, child.Ancestor, parent)
+	assert.Equal(t, 1, len(resolver.entryCache))
+	assert.Equal(t, parent, child.Ancestor)
 
 	// [parent]
 	//     \ [child] -> exec
 	resolver.AddExecEntry(exec.Pid, exec)
-	assert.Equal(t, resolver.entryCache[exec.Pid], exec)
-	assert.Equal(t, len(resolver.entryCache), 1)
-	assert.Equal(t, exec.Ancestor, child)
-	assert.Equal(t, exec.Ancestor.Ancestor, parent)
-	assert.EqualValues(t, atomic.LoadInt64(&resolver.cacheSize), 3)
+	assert.Equal(t, exec, resolver.entryCache[exec.Pid])
+	assert.Equal(t, 1, len(resolver.entryCache))
+	assert.Equal(t, child, exec.Ancestor)
+	assert.Equal(t, parent, exec.Ancestor.Ancestor)
+	assert.EqualValues(t, 3, atomic.LoadInt64(&resolver.cacheSize))
 
 	// nothing
 	resolver.DeleteEntry(exec.Pid, time.Now())
@@ -256,43 +256,43 @@ func TestForkExecExec(t *testing.T) {
 
 	// parent
 	resolver.AddForkEntry(parent.Pid, parent)
-	assert.Equal(t, resolver.entryCache[parent.Pid], parent)
-	assert.Equal(t, len(resolver.entryCache), 1)
-	assert.EqualValues(t, atomic.LoadInt64(&resolver.cacheSize), 1)
+	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
+	assert.Equal(t, 1, len(resolver.entryCache))
+	assert.EqualValues(t, 1, atomic.LoadInt64(&resolver.cacheSize))
 
 	// parent
 	//     \ child
 	resolver.AddForkEntry(child.Pid, child)
-	assert.Equal(t, resolver.entryCache[child.Pid], child)
-	assert.Equal(t, len(resolver.entryCache), 2)
-	assert.Equal(t, child.Ancestor, parent)
-	assert.EqualValues(t, atomic.LoadInt64(&resolver.cacheSize), 2)
+	assert.Equal(t, child, resolver.entryCache[child.Pid])
+	assert.Equal(t, 2, len(resolver.entryCache))
+	assert.Equal(t, parent, child.Ancestor)
+	assert.EqualValues(t, 2, atomic.LoadInt64(&resolver.cacheSize))
 
 	// [parent]
 	//     \ child
 	resolver.DeleteEntry(parent.Pid, time.Now())
 	assert.Nil(t, resolver.entryCache[parent.Pid])
-	assert.Equal(t, len(resolver.entryCache), 1)
-	assert.Equal(t, child.Ancestor, parent)
+	assert.Equal(t, 1, len(resolver.entryCache))
+	assert.Equal(t, parent, child.Ancestor)
 
 	// [parent]
 	//     \ [child] -> exec1
 	resolver.AddExecEntry(exec1.Pid, exec1)
-	assert.Equal(t, resolver.entryCache[exec1.Pid], exec1)
-	assert.Equal(t, len(resolver.entryCache), 1)
-	assert.Equal(t, exec1.Ancestor, child)
-	assert.Equal(t, exec1.Ancestor.Ancestor, parent)
-	assert.EqualValues(t, atomic.LoadInt64(&resolver.cacheSize), 3)
+	assert.Equal(t, exec1, resolver.entryCache[exec1.Pid])
+	assert.Equal(t, 1, len(resolver.entryCache))
+	assert.Equal(t, child, exec1.Ancestor)
+	assert.Equal(t, parent, exec1.Ancestor.Ancestor)
+	assert.EqualValues(t, 3, atomic.LoadInt64(&resolver.cacheSize))
 
 	// [parent]
 	//     \ [child] -> [exec1] -> exec2
 	resolver.AddExecEntry(exec2.Pid, exec2)
-	assert.Equal(t, resolver.entryCache[exec2.Pid], exec2)
-	assert.Equal(t, len(resolver.entryCache), 1)
-	assert.Equal(t, exec2.Ancestor, exec1)
-	assert.Equal(t, exec2.Ancestor.Ancestor, child)
-	assert.Equal(t, exec2.Ancestor.Ancestor.Ancestor, parent)
-	assert.EqualValues(t, atomic.LoadInt64(&resolver.cacheSize), 4)
+	assert.Equal(t, exec2, resolver.entryCache[exec2.Pid])
+	assert.Equal(t, 1, len(resolver.entryCache))
+	assert.Equal(t, exec1, exec2.Ancestor)
+	assert.Equal(t, child, exec2.Ancestor.Ancestor)
+	assert.Equal(t, parent, exec2.Ancestor.Ancestor.Ancestor)
+	assert.EqualValues(t, 4, atomic.LoadInt64(&resolver.cacheSize))
 
 	// nothing
 	resolver.DeleteEntry(exec2.Pid, time.Now())
@@ -332,42 +332,42 @@ func TestForkReuse(t *testing.T) {
 
 	// parent1
 	resolver.AddForkEntry(parent1.Pid, parent1)
-	assert.Equal(t, resolver.entryCache[parent1.Pid], parent1)
-	assert.Equal(t, len(resolver.entryCache), 1)
-	assert.EqualValues(t, atomic.LoadInt64(&resolver.cacheSize), 1)
+	assert.Equal(t, parent1, resolver.entryCache[parent1.Pid])
+	assert.Equal(t, 1, len(resolver.entryCache))
+	assert.EqualValues(t, 1, atomic.LoadInt64(&resolver.cacheSize))
 
 	// parent1
 	//     \ child1
 	resolver.AddForkEntry(child1.Pid, child1)
-	assert.Equal(t, resolver.entryCache[child1.Pid], child1)
-	assert.Equal(t, len(resolver.entryCache), 2)
-	assert.Equal(t, child1.Ancestor, parent1)
-	assert.EqualValues(t, atomic.LoadInt64(&resolver.cacheSize), 2)
+	assert.Equal(t, child1, resolver.entryCache[child1.Pid])
+	assert.Equal(t, 2, len(resolver.entryCache))
+	assert.Equal(t, parent1, child1.Ancestor)
+	assert.EqualValues(t, 2, atomic.LoadInt64(&resolver.cacheSize))
 
 	// [parent1]
 	//     \ child1
 	resolver.DeleteEntry(parent1.Pid, time.Now())
 	assert.Nil(t, resolver.entryCache[parent1.Pid])
-	assert.Equal(t, len(resolver.entryCache), 1)
-	assert.Equal(t, child1.Ancestor, parent1)
+	assert.Equal(t, 1, len(resolver.entryCache))
+	assert.Equal(t, parent1, child1.Ancestor)
 
 	// [parent1]
 	//     \ [child1] -> exec1
 	resolver.AddExecEntry(exec1.Pid, exec1)
-	assert.Equal(t, resolver.entryCache[exec1.Pid], exec1)
-	assert.Equal(t, len(resolver.entryCache), 1)
-	assert.Equal(t, exec1.Ancestor, child1)
-	assert.Equal(t, exec1.Ancestor.Ancestor, parent1)
-	assert.EqualValues(t, atomic.LoadInt64(&resolver.cacheSize), 3)
+	assert.Equal(t, exec1, resolver.entryCache[exec1.Pid])
+	assert.Equal(t, 1, len(resolver.entryCache))
+	assert.Equal(t, child1, exec1.Ancestor)
+	assert.Equal(t, parent1, exec1.Ancestor.Ancestor)
+	assert.EqualValues(t, 3, atomic.LoadInt64(&resolver.cacheSize))
 
 	// [parent1:pid1]
 	//     \ [child1] -> exec1
 	//
 	// parent2:pid1
 	resolver.AddForkEntry(parent2.Pid, parent2)
-	assert.Equal(t, resolver.entryCache[parent2.Pid], parent2)
-	assert.Equal(t, len(resolver.entryCache), 2)
-	assert.EqualValues(t, atomic.LoadInt64(&resolver.cacheSize), 4)
+	assert.Equal(t, parent2, resolver.entryCache[parent2.Pid])
+	assert.Equal(t, 2, len(resolver.entryCache))
+	assert.EqualValues(t, 4, atomic.LoadInt64(&resolver.cacheSize))
 
 	// [parent1:pid1]
 	//     \ [child1] -> exec1
@@ -375,23 +375,23 @@ func TestForkReuse(t *testing.T) {
 	// parent2:pid1
 	//     \ child2
 	resolver.AddForkEntry(child2.Pid, child2)
-	assert.Equal(t, resolver.entryCache[child2.Pid], child2)
-	assert.Equal(t, len(resolver.entryCache), 3)
-	assert.Equal(t, child2.Ancestor, parent2)
-	assert.EqualValues(t, atomic.LoadInt64(&resolver.cacheSize), 5)
+	assert.Equal(t, child2, resolver.entryCache[child2.Pid])
+	assert.Equal(t, 3, len(resolver.entryCache))
+	assert.Equal(t, parent2, child2.Ancestor)
+	assert.EqualValues(t, 5, atomic.LoadInt64(&resolver.cacheSize))
 
 	// parent2:pid1
 	//     \ child2
 	resolver.DeleteEntry(exec1.Pid, time.Now())
 	assert.Nil(t, resolver.entryCache[exec1.Pid])
-	assert.Equal(t, len(resolver.entryCache), 2)
+	assert.Equal(t, 2, len(resolver.entryCache))
 
 	// [parent2:pid1]
 	//     \ child2
 	resolver.DeleteEntry(parent2.Pid, time.Now())
 	assert.Nil(t, resolver.entryCache[parent2.Pid])
-	assert.Equal(t, len(resolver.entryCache), 1)
-	assert.Equal(t, child2.Ancestor, parent2)
+	assert.Equal(t, 1, len(resolver.entryCache))
+	assert.Equal(t, parent2, child2.Ancestor)
 
 	// nothing
 	resolver.DeleteEntry(child2.Pid, time.Now())
@@ -427,49 +427,49 @@ func TestForkForkExec(t *testing.T) {
 
 	// parent
 	resolver.AddForkEntry(parent.Pid, parent)
-	assert.Equal(t, resolver.entryCache[parent.Pid], parent)
-	assert.Equal(t, len(resolver.entryCache), 1)
+	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
+	assert.Equal(t, 1, len(resolver.entryCache))
 
 	// parent
 	//     \ child
 	resolver.AddForkEntry(child.Pid, child)
-	assert.Equal(t, resolver.entryCache[child.Pid], child)
-	assert.Equal(t, len(resolver.entryCache), 2)
-	assert.Equal(t, child.Ancestor, parent)
+	assert.Equal(t, child, resolver.entryCache[child.Pid])
+	assert.Equal(t, 2, len(resolver.entryCache))
+	assert.Equal(t, parent, child.Ancestor)
 
 	// parent
 	//     \ child
 	//          \ grandChild
 	resolver.AddForkEntry(grandChild.Pid, grandChild)
-	assert.Equal(t, resolver.entryCache[grandChild.Pid], grandChild)
-	assert.Equal(t, len(resolver.entryCache), 3)
-	assert.Equal(t, grandChild.Ancestor, child)
-	assert.Equal(t, grandChild.Ancestor.Ancestor, parent)
+	assert.Equal(t, grandChild, resolver.entryCache[grandChild.Pid])
+	assert.Equal(t, 3, len(resolver.entryCache))
+	assert.Equal(t, child, grandChild.Ancestor)
+	assert.Equal(t, parent, grandChild.Ancestor.Ancestor)
 
 	// parent
 	//     \ [child] -> childExec
 	//          \ grandChild
 	resolver.AddExecEntry(childExec.Pid, childExec)
-	assert.Equal(t, resolver.entryCache[childExec.Pid], childExec)
-	assert.Equal(t, len(resolver.entryCache), 3)
-	assert.Equal(t, childExec.Ancestor, child)
-	assert.Equal(t, childExec.Ancestor.Ancestor, parent)
-	assert.Equal(t, grandChild.Ancestor, child)
-	assert.Equal(t, grandChild.Ancestor.Ancestor, parent)
+	assert.Equal(t, childExec, resolver.entryCache[childExec.Pid])
+	assert.Equal(t, 3, len(resolver.entryCache))
+	assert.Equal(t, child, childExec.Ancestor)
+	assert.Equal(t, parent, childExec.Ancestor.Ancestor)
+	assert.Equal(t, child, grandChild.Ancestor)
+	assert.Equal(t, parent, grandChild.Ancestor.Ancestor)
 
 	// [parent]
 	//     \ [child] -> childExec
 	//          \ grandChild
 	resolver.DeleteEntry(parent.Pid, time.Now())
 	assert.Nil(t, resolver.entryCache[parent.Pid])
-	assert.Equal(t, len(resolver.entryCache), 2)
+	assert.Equal(t, 2, len(resolver.entryCache))
 
 	// [parent]
 	//     \ [child]
 	//          \ grandChild
 	resolver.DeleteEntry(childExec.Pid, time.Now())
 	assert.Nil(t, resolver.entryCache[childExec.Pid])
-	assert.Equal(t, len(resolver.entryCache), 1)
+	assert.Equal(t, 1, len(resolver.entryCache))
 
 	// nothing
 	resolver.DeleteEntry(grandChild.Pid, time.Now())

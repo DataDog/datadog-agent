@@ -87,7 +87,6 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 			Port:     raddr.Port,
 			Protocol: conn.Type,
 		}
-
 		raddr.ContainerId = l.addrToCtrID[addr]
 
 		// resolve laddr
@@ -95,7 +94,6 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 		if !ok {
 			continue
 		}
-
 		conn.Laddr.ContainerId = cid
 
 		ip := procutil.AddressFromString(conn.Laddr.Ip)
@@ -108,9 +106,9 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 			Port:     conn.Laddr.Port,
 			Protocol: conn.Type,
 		}
-
-		netns := conn.NetNS
-		ctrsByLaddr[addrWithNS{laddr, netns}] = cid
+		if conn.NetNS != 0 {
+			ctrsByLaddr[addrWithNS{laddr, conn.NetNS}] = cid
+		}
 		if !ip.IsLoopback() {
 			ctrsByLaddr[addrWithNS{laddr, 0}] = cid
 		}
@@ -128,12 +126,17 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 			}
 
 			// first match within net namespace
-			cid, ok := ctrsByLaddr[addrWithNS{raddr, conn.NetNS}]
-			if !ok && !ip.IsLoopback() {
-				cid, _ = ctrsByLaddr[addrWithNS{raddr, 0}]
+			var ok bool
+			if conn.NetNS != 0 {
+				if conn.Raddr.ContainerId, ok = ctrsByLaddr[addrWithNS{raddr, conn.NetNS}]; ok {
+					continue
+				}
 			}
-
-			conn.Raddr.ContainerId = cid
+			if !ip.IsLoopback() {
+				if conn.Raddr.ContainerId, ok = ctrsByLaddr[addrWithNS{raddr, 0}]; ok {
+					continue
+				}
+			}
 		}
 
 		if conn.Raddr.ContainerId == "" {

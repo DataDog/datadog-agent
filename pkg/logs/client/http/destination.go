@@ -51,7 +51,8 @@ type Destination struct {
 	backoff             backoff.Policy
 	nbErrors            int
 	blockedUntil        time.Time
-	protocol            string
+	protocol            config.IntakeProtocol
+	source              config.IntakeSource
 }
 
 // NewDestination returns a new Destination.
@@ -86,6 +87,7 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 		climit:              make(chan struct{}, maxConcurrentBackgroundSends),
 		backoff:             policy,
 		protocol:            endpoint.Protocol,
+		source:              endpoint.Source,
 	}
 }
 
@@ -144,7 +146,10 @@ func (d *Destination) unconditionalSend(payload []byte) (err error) {
 	req.Header.Set("Content-Type", d.contentType)
 	req.Header.Set("Content-Encoding", d.contentEncoding.name())
 	if d.protocol != "" {
-		req.Header.Set("DD-PROTOCOL", d.protocol)
+		req.Header.Set("DD-PROTOCOL", string(d.protocol))
+	}
+	if d.source != "" {
+		req.Header.Set("DD-SOURCE", string(d.source))
 	}
 	req = req.WithContext(ctx)
 
@@ -167,9 +172,9 @@ func (d *Destination) unconditionalSend(payload []byte) (err error) {
 	if resp.StatusCode >= 400 {
 		log.Warnf("failed to post http payload. code=%d host=%s response=%s", resp.StatusCode, d.host, string(response))
 	}
-	if resp.StatusCode >= 500 {
-		// the server could not serve the request,
-		// most likely because of an internal error
+	if resp.StatusCode == 429 || resp.StatusCode >= 500 {
+		// the server could not serve the request, most likely because of an
+		// internal error or, (429) because it is overwhelmed
 		return client.NewRetryableError(errServer)
 	} else if resp.StatusCode >= 400 {
 		// the logs-agent is likely to be misconfigured,

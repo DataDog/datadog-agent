@@ -47,8 +47,8 @@ require (
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/DataDog/agent-payload v4.78.0+incompatible
-	github.com/DataDog/datadog-agent/pkg/util/log v0.30.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.30.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.30.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.30.0-rc.7
 	github.com/DataDog/datadog-go v4.8.0+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf v0.0.0-20210419131141-ea64821c9793
@@ -120,7 +120,7 @@ require (
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
 	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/ianlancetaylor/cgosymbolizer v0.0.0-20201204192058-7acc97e53614 // indirect
-	github.com/iceber/iouring-go v0.0.0-20201110085921-73520a520aac
+	github.com/iceber/iouring-go v0.0.0-20210726032807-b073cc83b2b8
 	github.com/iovisor/gobpf v0.0.0
 	github.com/itchyny/gojq v0.12.4
 	github.com/json-iterator/go v1.1.11

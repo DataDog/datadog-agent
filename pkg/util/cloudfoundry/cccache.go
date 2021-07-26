@@ -39,6 +39,7 @@ type CCCache struct {
 	pollInterval  time.Duration
 	lastUpdated   time.Time
 	appsByGUID    map[string]*CFApp
+	appsBatchSize int
 }
 
 type CCClientI interface {
@@ -48,7 +49,7 @@ type CCClientI interface {
 var globalCCCache = &CCCache{}
 
 // ConfigureGlobalCCCache configures the global instance of CCCache from provided config
-func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecret string, skipSSLValidation bool, pollInterval time.Duration, testing CCClientI) (*CCCache, error) {
+func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecret string, skipSSLValidation bool, pollInterval time.Duration, appsBatchSize int, testing CCClientI) (*CCCache, error) {
 	globalCCCache.Lock()
 	defer globalCCCache.Unlock()
 
@@ -73,6 +74,7 @@ func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecr
 	}
 
 	globalCCCache.pollInterval = pollInterval
+	globalCCCache.appsBatchSize = appsBatchSize
 	globalCCCache.lastUpdated = time.Time{} // zero time
 	globalCCCache.cancelContext = ctx
 	globalCCCache.configured = true
@@ -138,7 +140,7 @@ func (ccc *CCCache) readData() {
 	atomic.AddInt64(&ccc.pollAttempts, 1)
 
 	query := url.Values{}
-	query.Add("per_page", "5000")
+	query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
 	apps, err := ccc.ccAPIClient.ListV3AppsByQuery(query)
 	if err != nil {
 		log.Errorf("Failed listing apps from cloud controller: %v", err)

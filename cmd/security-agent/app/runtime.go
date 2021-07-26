@@ -34,6 +34,10 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/statsd"
 )
 
+const (
+	cwsIntakeSource config.IntakeSource = "cloud-workload-security"
+)
+
 var (
 	runtimeCmd = &cobra.Command{
 		Use:   "runtime",
@@ -151,7 +155,7 @@ func newRuntimeReporter(stopper restart.Stopper, sourceName, sourceType string, 
 // This function will only be used on Linux. The only platforms where the runtime agent runs
 func newLogContextRuntime() (*config.Endpoints, *client.DestinationsContext, error) { // nolint: deadcode, unused
 	logsConfigComplianceKeys := config.NewLogsConfigKeys("runtime_security_config.endpoints.", coreconfig.Datadog)
-	return newLogContext(logsConfigComplianceKeys, "runtime-security-http-intake.logs.", "logs")
+	return newLogContext(logsConfigComplianceKeys, "runtime-security-http-intake.logs.", "logs", cwsIntakeSource)
 }
 
 func startRuntimeSecurity(hostname string, stopper restart.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {
