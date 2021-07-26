@@ -3,6 +3,19 @@
 # lets rather search for the ec2 instances and delete them if any was found
 # This search is based on the agent_current_branch and user_id variable
 
+# We limit the max to be deleted under or equal to 3 if more than 3 is found then I'll assume that a bug has pulled through
+- name: "Test A"
+  debug:
+    msg: "{{ agent_current_branch }}"
+
+- name: "Test B"
+  debug:
+    msg: "{{ user_id }}"
+
+- name: "Test C"
+  debug:
+    msg: "{{ molecule_scenario_name }}"
+
 - name: "Gather existing EC2 instances for the branch '{{ agent_current_branch }}' and user '{{ user_id }}'"
   ec2_instance_info:
     filters:
