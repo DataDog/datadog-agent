@@ -683,8 +683,6 @@ pre_release_cluster_agent_image:
 
 molecule_tests_compose_prepare:
   <<: *molecule_base_prepare
-  needs:
-    - pre_release_main_agent_image
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh create -s compose
   artifacts:
