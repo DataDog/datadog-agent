@@ -1,5 +1,6 @@
 ---
 - name: Create molecule instance(s)
+  when: molecule_scenario_name is defined and molecule_scenario_name != "" and agent_current_branch is defined and agent_current_branch != "" and user_id is defined and user_id != ""
   ec2_instance:
     key_name: "{{ keypair_name }}"
     image_id: "{{ item.image }}"
@@ -10,6 +11,9 @@
       Name: "{{ item.name }}"
       instance: "{{ item.name }}"
       molecule_run_id: "{{ molecule_run_id }}"
+      agent_current_branch: "{{ agent_current_branch }}"
+      user_id: "{{ user_id }}"
+      molecule_scenario_name: "{{ molecule_scenario_name }}"
       molecule: yes
     wait: true
     network:

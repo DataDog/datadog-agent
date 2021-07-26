@@ -1,14 +1,21 @@
 ---
+user_id: "{{ lookup('env', 'USER') }}"
+
 molecule_run_id: "{{ lookup('env', 'MOLECULE_RUN_ID') or lookup('env', 'USER') }}"
 molecule_scenario_name: "{{ lookup('env', 'MOLECULE_SCENARIO_NAME') }}"
 molecule_ephemeral_directory: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}"
+
 keypair_name: "molecule_key_{{ molecule_run_id }}"
 keypair_path: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/ssh_key"
+
 agent_current_branch: "{{ lookup('env', 'AGENT_CURRENT_BRANCH') or AGENT_CURRENT_BRANCH }}"
 agent_docker_repo: "{{ lookup('env', 'STS_DOCKER_TEST_REPO') or STS_DOCKER_TEST_REPO }}"
+
 quay_password: "{{ lookup('env', 'quay_password') or QUAY_PASSWORD }}"
 quay_user: "{{ lookup('env', 'quay_user') or QUAY_USER }}"
+
 stackstate_branch: "{{ lookup('env', 'STACKSTATE_BRANCH') or STACKSTATE_BRANCH }}"
-ci_project_id: "123123"
-ci_job_token: "123123"
-ci_project_dir: "/home/melcom/Desktop/stackstate-agent"
+
+ci_project_id: "{{ lookup('env', 'CI_PROJECT_ID') or 'stackstate-agent' }}"
+ci_job_token: "{{ lookup('env', 'CI_JOB_TOKEN') or 'local' }}"
+ci_project_dir: "{{ lookup('env', 'CI_PROJECT_DIR') }}"

@@ -4,9 +4,7 @@
   connection: local
   gather_facts: false
   tasks:
-    - include_tasks: ../common/destroy/populate-instance-config-block.yml
+    - include_tasks: ../common/destroy/existing-ec2-instances.yml
     - include_tasks: ../common/destroy/destroy-molecule-instances.yml
     - include_tasks: ../common/destroy/wait-for-instances-deletion-to-complete.yml
-    - include_tasks: ../common/destroy/populate-instance-config.yml
-    - include_tasks: ../common/destroy/dump-instance-config.yml
     - include_tasks: ../common/destroy/delete-remote-keypair.yml

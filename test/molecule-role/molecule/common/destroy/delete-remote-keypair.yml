@@ -4,7 +4,7 @@
     name: "{{ keypair_name }}"
     state: absent
 
-- name: Remove temp data
+- name: "Remove molecule temp data"
   file:
-    path: "{{ ci_project_dir }}/.molecule-temp"
+    path: "./.molecule-temp/{{ molecule_scenario_name }}"
     state: absent

@@ -1,0 +1,20 @@
+---
+# Instead of allowing the instance to stay up if the instance_conf is not found
+# lets rather search for the ec2 instances and delete them if any was found
+# This search is based on the agent_current_branch and user_id variable
+
+- name: "Gather existing EC2 instances for the branch '{{ agent_current_branch }}' and user '{{ user_id }}'"
+  ec2_instance_info:
+    filters:
+      instance-state-name: [ "running" ]
+      "tag:agent_current_branch": "{{ agent_current_branch }}"
+      "tag:user_id": "{{ user_id }}"
+      "tag:molecule_scenario_name": "{{ molecule_scenario_name }}"
+  when: molecule_scenario_name is defined and molecule_scenario_name != "" and agent_current_branch is defined and agent_current_branch != "" and user_id is defined and user_id != ""
+  register: ec2_existing_instances
+
+# We limit the max to be deleted under or equal to 3 if more than 3 is found then I'll assume that a bug has pulled through
+- name: "Total of {{ec2_existing_instances.instances | length}} existing EC2 instance(s) found"
+  when: (ec2_existing_instances.instances | length) > 0 and molecule_scenario_name is defined and molecule_scenario_name != "" and agent_current_branch is defined and agent_current_branch != "" and user_id is defined and user_id != ""
+  debug:
+    msg: "{{ec2_existing_instances.instances}}"

@@ -1,4 +1,0 @@
----
-- name: Populate instance config
-  set_fact:
-    instance_conf: { }
