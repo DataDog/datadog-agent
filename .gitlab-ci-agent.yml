@@ -711,6 +711,7 @@ test_compose_molecule:
 
 destroy_compose_molecule:
    <<: *molecule_base
+   interruptible: false
    stage: acceptance_cleanup
    script:
      - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s compose
@@ -749,6 +750,7 @@ test_integrations_molecule:
 
 destroy_integrations_molecule:
    <<: *molecule_base
+   interruptible: false
    stage: acceptance_cleanup
    script:
      - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s integrations
@@ -792,6 +794,7 @@ test_local_install_molecule:
 
 destroy_local_install_molecule:
   <<: *molecule_base
+  interruptible: false
   stage: acceptance_cleanup
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s localinstall
@@ -838,6 +841,7 @@ test_secrets_molecule:
 
 destroy_secrets_molecule:
   <<: *molecule_base
+  interruptible: false
   stage: acceptance_cleanup
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s secrets
@@ -869,6 +873,7 @@ test_vms_molcule:
 destroy_vms_molecule:
    <<: *molecule_base
    stage: acceptance_cleanup
+   interruptible: false
    script:
      - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s vms
    when: on_failure
@@ -895,6 +900,7 @@ test_kubernetes_molecule:
 destroy_kubernetes_molecule:
    <<: *molecule_base
    stage: acceptance_cleanup
+   interruptible: false
    script:
      - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s kubernetes
    allow_failure: true
@@ -920,6 +926,7 @@ test_swarm_molecule:
 destroy_swarm_molecule:
   <<: *molecule_base
   stage: acceptance_cleanup
+  interruptible: false
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s swarm
   allow_failure: true
