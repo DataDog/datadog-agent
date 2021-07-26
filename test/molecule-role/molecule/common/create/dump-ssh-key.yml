@@ -1,12 +1,12 @@
 ---
 - name: Create a directory if it does not exist
   file:
-    path: "~/.molecule-temp/{{ molecule_scenario_name }}"
+    path: "./.molecule-temp"
     state: directory
     mode: '0755'
 
 - name: Dump a backup SSH Key for usage in the prepare stage
   copy:
-    dest: "~/.molecule-temp/{{ molecule_scenario_name }}/ssh_key.bac"
+    dest: "./.molecule-temp/ssh_key"
     content: "{{ keypair.key.private_key }}"
     mode: preserve

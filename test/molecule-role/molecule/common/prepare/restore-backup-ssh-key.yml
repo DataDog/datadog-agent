@@ -1,7 +1,7 @@
 ---
 - name: Restore backup SSH key
   copy:
-    src: "~/.molecule-temp/{{ molecule_scenario_name }}/ssh_key.bac"
+    src: "./.molecule-temp/ssh_key"
     dest: "{{ keypair_path }}"
     mode: preserve
 
