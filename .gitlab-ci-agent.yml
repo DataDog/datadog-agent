@@ -2,7 +2,7 @@ image: docker.io/stackstate/stackstate-agent-runner-gitlab:latest7
 
 stages:
   - prepare
-  - build_and_test
+  - build_prepare_and_test
   - pre_release
   - acceptance
   - acceptance_cleanup
@@ -201,10 +201,10 @@ deps_win:
       - runner_system_failure
       - stuck_or_timeout_failure
 
-## build_and_test stage
+## build_prepare_and_test stage
 
 unit_tests:
-  stage: build_and_test
+  stage: build_prepare_and_test
   interruptible: true
   needs:
     - deps_deb
@@ -226,7 +226,7 @@ unit_tests:
       - stuck_or_timeout_failure
 
 unit_tests_cluster_agent:
-  stage: build_and_test
+  stage: build_prepare_and_test
   interruptible: true
   needs:
     - deps_deb
@@ -251,7 +251,7 @@ unit_tests_cluster_agent:
       - stuck_or_timeout_failure
 
 filename_linting:
-  stage: build_and_test
+  stage: build_prepare_and_test
   interruptible: true
   needs:
     - deps_deb
@@ -261,7 +261,7 @@ filename_linting:
 
 # TODO:  Not observed in v7 in a direct form ?
 #docker_integration_tests:
-#  stage: build_and_test
+#  stage: build_prepare_and_test
 #  needs:
 #    - deps_deb
 #  variables:
@@ -276,7 +276,7 @@ filename_linting:
 #    - sts-aws
 
 build_binaries:
-  stage: build_and_test
+  stage: build_prepare_and_test
   interruptible: true
   needs:
     - deps_deb
@@ -296,7 +296,7 @@ build_binaries:
       - stuck_or_timeout_failure
 
 build_cluster_agent:
-  stage: build_and_test
+  stage: build_prepare_and_test
   interruptible: true
   needs:
     - deps_deb
@@ -318,7 +318,7 @@ build_cluster_agent:
       - stuck_or_timeout_failure
 
 clear_build_deb_cache:
-  stage: build_and_test
+  stage: build_prepare_and_test
   cache:
     policy: push
     key: "build-deb-$STS_VER-$CI_COMMIT_REF_SLUG"
@@ -330,7 +330,7 @@ clear_build_deb_cache:
     - rm -rf .omnibus/*
 
 clear_build_rpm_cache:
-  stage: build_and_test
+  stage: build_prepare_and_test
   cache:
     policy: push
     key: "build-rpm-$STS_VER-$CI_COMMIT_REF_SLUG"
@@ -342,7 +342,7 @@ clear_build_rpm_cache:
     - rm -rf .omnibus/*
 
 build_deb:
-  stage: build_and_test
+  stage: build_prepare_and_test
   interruptible: true
   needs:
     - deps_deb
@@ -399,7 +399,7 @@ build_deb:
       - stuck_or_timeout_failure
 
 build_rpm:
-  stage: build_and_test
+  stage: build_prepare_and_test
   interruptible: true
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_latest_v7
   needs:
@@ -461,7 +461,7 @@ build_rpm:
       - stuck_or_timeout_failure
 
 build_win:
-  stage: build_and_test
+  stage: build_prepare_and_test
   interruptible: true
   needs:
     - deps_win
@@ -641,6 +641,7 @@ pre_release_cluster_agent_image:
 ## acceptance stage
 
 .molecule_base_prepare: &molecule_base_prepare
+  stage: build_prepare_and_test
   dependencies: []
   variables:
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
