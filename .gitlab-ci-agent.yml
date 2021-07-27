@@ -722,10 +722,6 @@ destroy_compose_molecule:
    interruptible: true
    script:
      - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s compose
-   when:
-     - on_failure
-     - always
-     - manual
    allow_failure: true
 
 # Molecule Integrations
@@ -767,10 +763,6 @@ destroy_integrations_molecule:
    interruptible: true
    script:
      - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s integrations
-   when:
-     - on_failure
-     - always
-     - manual
    allow_failure: true
 
 # Molecule LocalInstall
@@ -817,10 +809,6 @@ destroy_local_install_molecule:
   interruptible: true
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s localinstall
-  when:
-    - on_failure
-    - always
-    - manual
   allow_failure: true
   # only:
   #   - tags
@@ -870,10 +858,6 @@ destroy_secrets_molecule:
   interruptible: true
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s secrets
-  when:
-    - on_failure
-    - always
-    - manual
   allow_failure: true
   # only:
   #   - tags
@@ -881,50 +865,46 @@ destroy_secrets_molecule:
 
 
 # Molecule VMS
-create_vms_molecule:
-  <<: *molecule_base_prepare
-  script:
-    - cd $CI_PROJECT_DIR/test && ./molecule3.sh create -s vms
-  artifacts:
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/vms/topic-*.json
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/vms/*.log
-      - $CI_PROJECT_DIR/tmp_molecule_inventory
-      - $CI_PROJECT_DIR/.molecule-temp
-    expire_in: 1 week
+# create_vms_molecule:
+#   <<: *molecule_base_prepare
+#   script:
+#     - cd $CI_PROJECT_DIR/test && ./molecule3.sh create -s vms
+#   artifacts:
+#     when: always
+#     paths:
+#       - $CI_PROJECT_DIR/test/molecule-role/molecule/vms/topic-*.json
+#       - $CI_PROJECT_DIR/test/molecule-role/molecule/vms/*.log
+#       - $CI_PROJECT_DIR/tmp_molecule_inventory
+#       - $CI_PROJECT_DIR/.molecule-temp
+#     expire_in: 1 week
 
-test_vms_molcule:
-  <<: *molecule_base
-  needs:
-    - create_vms_molecule
-    - pre_release_deb
-    - pre_release_rpm
-    - pre_release_win
-  dependencies:
-    - create_vms_molecule
-  script:
-    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test --destroy=never -s vms
-  artifacts:
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/vms/topic-*.json
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/vms/*.log
-      - $CI_PROJECT_DIR/tmp_molecule_inventory
-      - $CI_PROJECT_DIR/.molecule-temp
-    expire_in: 1 week
+# test_vms_molcule:
+#   <<: *molecule_base
+#   needs:
+#     - create_vms_molecule
+#     - pre_release_deb
+#     - pre_release_rpm
+#     - pre_release_win
+#   dependencies:
+#     - create_vms_molecule
+#   script:
+#     - cd $CI_PROJECT_DIR/test && ./molecule3.sh test --destroy=never -s vms
+#   artifacts:
+#     when: always
+#     paths:
+#       - $CI_PROJECT_DIR/test/molecule-role/molecule/vms/topic-*.json
+#       - $CI_PROJECT_DIR/test/molecule-role/molecule/vms/*.log
+#       - $CI_PROJECT_DIR/tmp_molecule_inventory
+#       - $CI_PROJECT_DIR/.molecule-temp
+#     expire_in: 1 week
 
-destroy_vms_molecule:
-   <<: *molecule_base
-   stage: acceptance_cleanup
-   interruptible: true
-   script:
-     - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s vms
-   when:
-     - on_failure
-     - always
-     - manual
-   allow_failure: true
+# destroy_vms_molecule:
+#    <<: *molecule_base
+#    stage: acceptance_cleanup
+#    interruptible: true
+#    script:
+#      - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s vms
+#    allow_failure: true
 
 # Molecule Kubernetes
 
