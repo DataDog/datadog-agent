@@ -792,9 +792,9 @@ create_local_install_molecule:
       - $CI_PROJECT_DIR/tmp_molecule_inventory
       - $CI_PROJECT_DIR/.molecule-temp
     expire_in: 1 week
-  only:
-    - tags
-    - master
+  # only:
+  #   - tags
+  #   - master
 
 test_local_install_molecule:
   <<: *molecule_base
@@ -812,9 +812,9 @@ test_local_install_molecule:
       - $CI_PROJECT_DIR/tmp_molecule_inventory
       - $CI_PROJECT_DIR/.molecule-temp
     expire_in: 1 week
-  only:
-    - tags
-    - master
+  # only:
+  #   - tags
+  #   - master
 
 destroy_local_install_molecule:
   <<: *molecule_base
@@ -827,9 +827,62 @@ destroy_local_install_molecule:
     - always
     - manual
   allow_failure: true
-  only:
-    - tags
-    - master
+  # only:
+  #   - tags
+  #   - master
+
+# Molecule Secrets
+
+create_secrets_molecule:
+  <<: *molecule_base_prepare
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh create -s secrets
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/*.log
+      - $CI_PROJECT_DIR/tmp_molecule_inventory
+      - $CI_PROJECT_DIR/.molecule-temp
+    expire_in: 1 week
+  # only:
+  #   - tags
+  #   - master
+
+test_secrets_molecule:
+  <<: *molecule_base
+  dependencies:
+    - create_secrets_molecule
+  needs:
+    - pre_release_deb
+    - create_secrets_molecule
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test --destroy=never -s secrets
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/*.log
+      - $CI_PROJECT_DIR/tmp_molecule_inventory
+      - $CI_PROJECT_DIR/.molecule-temp
+    expire_in: 1 week
+  # only:
+  #   - tags
+  #   - master
+
+destroy_secrets_molecule:
+  <<: *molecule_base
+  stage: acceptance_cleanup
+  interruptible: true
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s secrets
+  when:
+    - on_failure
+    - always
+    - manual
+  allow_failure: true
+  # only:
+  #   - tags
+  #   - master
 
 ## release stage
 
