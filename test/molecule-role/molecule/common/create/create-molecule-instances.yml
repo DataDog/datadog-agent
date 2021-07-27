@@ -8,7 +8,7 @@
     vpc_subnet_id: "{{ item.vpc_subnet_id }}"
     security_group: "{{ security_group_name }}"
     tags:
-      Name: "{{ item.name }}-{{ ci_sts_version }}"
+      Name: "{{ item.name }}-{{ ci_sts_version }}-{{ molecule_scenario_name }}"
       instance: "{{ item.name }}"
       molecule_run_id: "{{ molecule_run_id }}"
       agent_current_branch: "{{ agent_current_branch }}"
