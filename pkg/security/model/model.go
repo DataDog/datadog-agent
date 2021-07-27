@@ -117,24 +117,24 @@ type Event struct {
 	ProcessContext   ProcessContext   `field:"process" event:"*"`
 	ContainerContext ContainerContext `field:"container"`
 
-	Chmod       ChmodEvent    `field:"chmod" event:"chmod"` // [7.27] [File] chmod event definition
-	Chown       ChownEvent    `field:"chown" event:"chown"`
-	Open        OpenEvent     `field:"open" event:"open"`
-	Mkdir       MkdirEvent    `field:"mkdir" event:"mkdir"`
-	Rmdir       RmdirEvent    `field:"rmdir" event:"rmdir"`
-	Rename      RenameEvent   `field:"rename" event:"rename"`
-	Unlink      UnlinkEvent   `field:"unlink" event:"unlink"`
-	Utimes      UtimesEvent   `field:"utimes" event:"utimes"`
-	Link        LinkEvent     `field:"link" event:"link"`
-	SetXAttr    SetXAttrEvent `field:"setxattr" event:"setxattr"`
-	RemoveXAttr SetXAttrEvent `field:"removexattr" event:"removexattr"`
-	Exec        ExecEvent     `field:"exec" event:"exec"`
+	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
+	Chown       ChownEvent    `field:"chown" event:"chown"`             // [7.27] [File] A file’s owner was changed
+	Open        OpenEvent     `field:"open" event:"open"`               // [7.27] [File] A file was opened
+	Mkdir       MkdirEvent    `field:"mkdir" event:"mkdir"`             // [7.27] [File] A directory was created
+	Rmdir       RmdirEvent    `field:"rmdir" event:"rmdir"`             // [7.27] [File] A directory was removed
+	Rename      RenameEvent   `field:"rename" event:"rename"`           // [7.27] [File] A file/directory was renamed
+	Unlink      UnlinkEvent   `field:"unlink" event:"unlink"`           // [7.27] [File] A file was deleted
+	Utimes      UtimesEvent   `field:"utimes" event:"utimes"`           // [7.27] [File] Change file access/modification times
+	Link        LinkEvent     `field:"link" event:"link"`               // [7.27] [File] Create a new name/alias for a file
+	SetXAttr    SetXAttrEvent `field:"setxattr" event:"setxattr"`       // [7.27] [File] Set exteneded attributes
+	RemoveXAttr SetXAttrEvent `field:"removexattr" event:"removexattr"` // [7.27] [File] Remove extended attributes
+	Exec        ExecEvent     `field:"exec" event:"exec"`               // [7.27] [Process] A process was executed or forked
 
-	SetUID SetuidEvent `field:"setuid" event:"setuid"`
-	SetGID SetgidEvent `field:"setgid" event:"setgid"`
-	Capset CapsetEvent `field:"capset" event:"capset"`
+	SetUID SetuidEvent `field:"setuid" event:"setuid"` // [7.27] [Process] A process changed its effective uid
+	SetGID SetgidEvent `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
+	Capset CapsetEvent `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
 
-	SELinux SELinuxEvent `field:"selinux" event:"selinux"`
+	SELinux SELinuxEvent `field:"selinux" event:"selinux"` // [7.30] [Kernel] An SELinux operation was run
 
 	Mount            MountEvent            `field:"-"`
 	Umount           UmountEvent           `field:"-"`

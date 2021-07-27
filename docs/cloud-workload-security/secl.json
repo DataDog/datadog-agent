@@ -360,9 +360,9 @@
     },
     {
       "name": "capset",
-      "definition": "",
-      "type": "",
-      "from_agent_version": "",
+      "definition": "A process changed its capacity set",
+      "type": "Process",
+      "from_agent_version": "7.27",
       "properties": [
         {
           "name": "capset.cap_effective",
@@ -378,7 +378,7 @@
     },
     {
       "name": "chmod",
-      "definition": "chmod event definition",
+      "definition": "A file’s permissions were changed",
       "type": "File",
       "from_agent_version": "7.27",
       "properties": [
@@ -461,9 +461,9 @@
     },
     {
       "name": "chown",
-      "definition": "",
-      "type": "",
-      "from_agent_version": "",
+      "definition": "A file’s owner was changed",
+      "type": "File",
+      "from_agent_version": "7.27",
       "properties": [
         {
           "name": "chown.file.destination.gid",
@@ -554,9 +554,9 @@
     },
     {
       "name": "exec",
-      "definition": "",
-      "type": "",
-      "from_agent_version": "",
+      "definition": "A process was executed or forked",
+      "type": "Process",
+      "from_agent_version": "7.27",
       "properties": [
         {
           "name": "exec.args",
@@ -767,9 +767,9 @@
     },
     {
       "name": "link",
-      "definition": "",
-      "type": "",
-      "from_agent_version": "",
+      "definition": "Create a new name/alias for a file",
+      "type": "File",
+      "from_agent_version": "7.27",
       "properties": [
         {
           "name": "link.file.destination.filesystem",
@@ -900,9 +900,9 @@
     },
     {
       "name": "mkdir",
-      "definition": "",
-      "type": "",
-      "from_agent_version": "",
+      "definition": "A directory was created",
+      "type": "File",
+      "from_agent_version": "7.27",
       "properties": [
         {
           "name": "mkdir.file.destination.mode",
@@ -983,9 +983,9 @@
     },
     {
       "name": "open",
-      "definition": "",
-      "type": "",
-      "from_agent_version": "",
+      "definition": "A file was opened",
+      "type": "File",
+      "from_agent_version": "7.27",
       "properties": [
         {
           "name": "open.file.destination.mode",
@@ -1066,9 +1066,9 @@
     },
     {
       "name": "removexattr",
-      "definition": "",
-      "type": "",
-      "from_agent_version": "",
+      "definition": "Remove extended attributes",
+      "type": "File",
+      "from_agent_version": "7.27",
       "properties": [
         {
           "name": "removexattr.file.destination.name",
@@ -1149,9 +1149,9 @@
     },
     {
       "name": "rename",
-      "definition": "",
-      "type": "",
-      "from_agent_version": "",
+      "definition": "A file/directory was renamed",
+      "type": "File",
+      "from_agent_version": "7.27",
       "properties": [
         {
           "name": "rename.file.destination.filesystem",
@@ -1282,9 +1282,9 @@
     },
     {
       "name": "rmdir",
-      "definition": "",
-      "type": "",
-      "from_agent_version": "",
+      "definition": "A directory was removed",
+      "type": "File",
+      "from_agent_version": "7.27",
       "properties": [
         {
           "name": "rmdir.file.filesystem",
@@ -1355,9 +1355,9 @@
     },
     {
       "name": "selinux",
-      "definition": "",
-      "type": "",
-      "from_agent_version": "",
+      "definition": "An SELinux operation was run",
+      "type": "Kernel",
+      "from_agent_version": "7.30",
       "properties": [
         {
           "name": "selinux.bool.name",
@@ -1383,9 +1383,9 @@
     },
     {
       "name": "setgid",
-      "definition": "",
-      "type": "",
-      "from_agent_version": "",
+      "definition": "A process changed its effective gid",
+      "type": "Process",
+      "from_agent_version": "7.27",
       "properties": [
         {
           "name": "setgid.egid",
@@ -1421,9 +1421,9 @@
     },
     {
       "name": "setuid",
-      "definition": "",
-      "type": "",
-      "from_agent_version": "",
+      "definition": "A process changed its effective uid",
+      "type": "Process",
+      "from_agent_version": "7.27",
       "properties": [
         {
           "name": "setuid.euid",
@@ -1459,9 +1459,9 @@
     },
     {
       "name": "setxattr",
-      "definition": "",
-      "type": "",
-      "from_agent_version": "",
+      "definition": "Set exteneded attributes",
+      "type": "File",
+      "from_agent_version": "7.27",
       "properties": [
         {
           "name": "setxattr.file.destination.name",
@@ -1542,9 +1542,9 @@
     },
     {
       "name": "unlink",
-      "definition": "",
-      "type": "",
-      "from_agent_version": "",
+      "definition": "A file was deleted",
+      "type": "File",
+      "from_agent_version": "7.27",
       "properties": [
         {
           "name": "unlink.file.filesystem",
@@ -1615,9 +1615,9 @@
     },
     {
       "name": "utimes",
-      "definition": "",
-      "type": "",
-      "from_agent_version": "",
+      "definition": "Change file access/modification times",
+      "type": "File",
+      "from_agent_version": "7.27",
       "properties": [
         {
           "name": "utimes.file.filesystem",
