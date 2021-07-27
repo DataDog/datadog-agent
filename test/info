@@ -1,6 +1,0 @@
-./molecule3.sh --base-config ./molecule/compose/molecule.setup.yml create --scenario-name compose
-./molecule3.sh --base-config ./molecule/compose/molecule.setup.yml prepare --scenario-name compose
-./molecule3.sh --base-config ./molecule/compose/molecule.run.yml test --scenario-name compose --destroy=never
-./molecule3.sh --base-config ./molecule/compose/molecule.setup.yml destroy --scenario-name compose
-
-(destroy > create > prepare) > (run) > (destroy)
