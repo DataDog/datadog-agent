@@ -6,8 +6,6 @@
 package telemetry
 
 import (
-	"fmt"
-
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -46,13 +44,7 @@ func NewCounter(subsystem, name string, tags []string, help string) Counter {
 // NewCounterWithOpts creates a Counter with the given options for telemetry purpose.
 // See NewCounter()
 func NewCounterWithOpts(subsystem, name string, tags []string, help string, opts Options) Counter {
-	// subsystem is optional
-	if subsystem != "" && !opts.NoDoubleUnderscoreSep {
-		// Prefix metrics with a _, prometheus will add a second _
-		// It will create metrics with a custom separator and
-		// will let us replace it to a dot later in the process.
-		name = fmt.Sprintf("_%s", name)
-	}
+	name = opts.NameWithSeparator(subsystem, name)
 
 	c := &promCounter{
 		pc: prometheus.NewCounterVec(
