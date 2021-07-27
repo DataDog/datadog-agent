@@ -9,352 +9,352 @@
         {
           "name": "container.id",
           "type": "string",
-          "definition": ""
+          "definition": "ID of the container"
         },
         {
           "name": "container.tags",
           "type": "string",
-          "definition": ""
+          "definition": "Tags of the container"
         },
         {
           "name": "process.ancestors.cap_effective",
           "type": "int",
-          "definition": ""
+          "definition": "Effective capability set of the process"
         },
         {
           "name": "process.ancestors.cap_permitted",
           "type": "int",
-          "definition": ""
+          "definition": "Permitted capability set of the process"
         },
         {
           "name": "process.ancestors.comm",
           "type": "string",
-          "definition": ""
+          "definition": "Comm attribute of the process"
         },
         {
           "name": "process.ancestors.container.id",
           "type": "string",
-          "definition": ""
+          "definition": "Container ID"
         },
         {
           "name": "process.ancestors.cookie",
           "type": "int",
-          "definition": ""
+          "definition": "Cookie of the process"
         },
         {
           "name": "process.ancestors.created_at",
           "type": "int",
-          "definition": ""
+          "definition": "Timestamp of the creation of the process"
         },
         {
           "name": "process.ancestors.egid",
           "type": "int",
-          "definition": ""
+          "definition": "Effective GID of the process"
         },
         {
           "name": "process.ancestors.egroup",
           "type": "string",
-          "definition": ""
+          "definition": "Effective group of the process"
         },
         {
           "name": "process.ancestors.euid",
           "type": "int",
-          "definition": ""
+          "definition": "Effective UID of the process"
         },
         {
           "name": "process.ancestors.euser",
           "type": "string",
-          "definition": ""
+          "definition": "Effective user of the process"
         },
         {
           "name": "process.ancestors.file.filesystem",
           "type": "string",
-          "definition": ""
+          "definition": "FileSystem of the process executable"
         },
         {
           "name": "process.ancestors.file.gid",
           "type": "int",
-          "definition": ""
+          "definition": "GID of the file's owner"
         },
         {
           "name": "process.ancestors.file.group",
           "type": "string",
-          "definition": ""
+          "definition": "Group of the file's owner"
         },
         {
           "name": "process.ancestors.file.in_upper_layer",
           "type": "bool",
-          "definition": ""
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
         },
         {
           "name": "process.ancestors.file.inode",
           "type": "int",
-          "definition": ""
+          "definition": "Inode of the file"
         },
         {
           "name": "process.ancestors.file.mode",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "process.ancestors.file.mount_id",
           "type": "int",
-          "definition": ""
+          "definition": "Mount ID of the file"
         },
         {
           "name": "process.ancestors.file.name",
           "type": "string",
-          "definition": ""
+          "definition": "Basename of the path of the process executable"
         },
         {
           "name": "process.ancestors.file.path",
           "type": "string",
-          "definition": ""
+          "definition": "Path of the process executable"
         },
         {
           "name": "process.ancestors.file.rights",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "process.ancestors.file.uid",
           "type": "int",
-          "definition": "uid field definition"
+          "definition": "UID of the file's owner"
         },
         {
           "name": "process.ancestors.file.user",
           "type": "string",
-          "definition": ""
+          "definition": "User of the file's owner"
         },
         {
           "name": "process.ancestors.fsgid",
           "type": "int",
-          "definition": ""
+          "definition": "FileSystem-gid of the process"
         },
         {
           "name": "process.ancestors.fsgroup",
           "type": "string",
-          "definition": ""
+          "definition": "FileSystem-group of the process"
         },
         {
           "name": "process.ancestors.fsuid",
           "type": "int",
-          "definition": ""
+          "definition": "FileSystem-uid of the process"
         },
         {
           "name": "process.ancestors.fsuser",
           "type": "string",
-          "definition": ""
+          "definition": "FileSystem-user of the process"
         },
         {
           "name": "process.ancestors.gid",
           "type": "int",
-          "definition": ""
+          "definition": "GID of the process"
         },
         {
           "name": "process.ancestors.group",
           "type": "string",
-          "definition": ""
+          "definition": "Group of the process"
         },
         {
           "name": "process.ancestors.pid",
           "type": "int",
-          "definition": ""
+          "definition": "Process ID of the process (also called thread group ID)"
         },
         {
           "name": "process.ancestors.ppid",
           "type": "int",
-          "definition": ""
+          "definition": "Parent process ID"
         },
         {
           "name": "process.ancestors.tid",
           "type": "int",
-          "definition": ""
+          "definition": "Thread ID of the thread"
         },
         {
           "name": "process.ancestors.tty_name",
           "type": "string",
-          "definition": ""
+          "definition": "Name of the TTY associated with the process"
         },
         {
           "name": "process.ancestors.uid",
           "type": "int",
-          "definition": ""
+          "definition": "UID of the process"
         },
         {
           "name": "process.ancestors.user",
           "type": "string",
-          "definition": ""
+          "definition": "User of the process"
         },
         {
           "name": "process.cap_effective",
           "type": "int",
-          "definition": ""
+          "definition": "Effective capability set of the process"
         },
         {
           "name": "process.cap_permitted",
           "type": "int",
-          "definition": ""
+          "definition": "Permitted capability set of the process"
         },
         {
           "name": "process.comm",
           "type": "string",
-          "definition": ""
+          "definition": "Comm attribute of the process"
         },
         {
           "name": "process.container.id",
           "type": "string",
-          "definition": ""
+          "definition": "Container ID"
         },
         {
           "name": "process.cookie",
           "type": "int",
-          "definition": ""
+          "definition": "Cookie of the process"
         },
         {
           "name": "process.created_at",
           "type": "int",
-          "definition": ""
+          "definition": "Timestamp of the creation of the process"
         },
         {
           "name": "process.egid",
           "type": "int",
-          "definition": ""
+          "definition": "Effective GID of the process"
         },
         {
           "name": "process.egroup",
           "type": "string",
-          "definition": ""
+          "definition": "Effective group of the process"
         },
         {
           "name": "process.euid",
           "type": "int",
-          "definition": ""
+          "definition": "Effective UID of the process"
         },
         {
           "name": "process.euser",
           "type": "string",
-          "definition": ""
+          "definition": "Effective user of the process"
         },
         {
           "name": "process.file.filesystem",
           "type": "string",
-          "definition": ""
+          "definition": "FileSystem of the process executable"
         },
         {
           "name": "process.file.gid",
           "type": "int",
-          "definition": ""
+          "definition": "GID of the file's owner"
         },
         {
           "name": "process.file.group",
           "type": "string",
-          "definition": ""
+          "definition": "Group of the file's owner"
         },
         {
           "name": "process.file.in_upper_layer",
           "type": "bool",
-          "definition": ""
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
         },
         {
           "name": "process.file.inode",
           "type": "int",
-          "definition": ""
+          "definition": "Inode of the file"
         },
         {
           "name": "process.file.mode",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "process.file.mount_id",
           "type": "int",
-          "definition": ""
+          "definition": "Mount ID of the file"
         },
         {
           "name": "process.file.name",
           "type": "string",
-          "definition": ""
+          "definition": "Basename of the path of the process executable"
         },
         {
           "name": "process.file.path",
           "type": "string",
-          "definition": ""
+          "definition": "Path of the process executable"
         },
         {
           "name": "process.file.rights",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "process.file.uid",
           "type": "int",
-          "definition": "uid field definition"
+          "definition": "UID of the file's owner"
         },
         {
           "name": "process.file.user",
           "type": "string",
-          "definition": ""
+          "definition": "User of the file's owner"
         },
         {
           "name": "process.fsgid",
           "type": "int",
-          "definition": ""
+          "definition": "FileSystem-gid of the process"
         },
         {
           "name": "process.fsgroup",
           "type": "string",
-          "definition": ""
+          "definition": "FileSystem-group of the process"
         },
         {
           "name": "process.fsuid",
           "type": "int",
-          "definition": ""
+          "definition": "FileSystem-uid of the process"
         },
         {
           "name": "process.fsuser",
           "type": "string",
-          "definition": ""
+          "definition": "FileSystem-user of the process"
         },
         {
           "name": "process.gid",
           "type": "int",
-          "definition": ""
+          "definition": "GID of the process"
         },
         {
           "name": "process.group",
           "type": "string",
-          "definition": ""
+          "definition": "Group of the process"
         },
         {
           "name": "process.pid",
           "type": "int",
-          "definition": ""
+          "definition": "Process ID of the process (also called thread group ID)"
         },
         {
           "name": "process.ppid",
           "type": "int",
-          "definition": ""
+          "definition": "Parent process ID"
         },
         {
           "name": "process.tid",
           "type": "int",
-          "definition": ""
+          "definition": "Thread ID of the thread"
         },
         {
           "name": "process.tty_name",
           "type": "string",
-          "definition": ""
+          "definition": "Name of the TTY associated with the process"
         },
         {
           "name": "process.uid",
           "type": "int",
-          "definition": ""
+          "definition": "UID of the process"
         },
         {
           "name": "process.user",
           "type": "string",
-          "definition": ""
+          "definition": "User of the process"
         }
       ]
     },
@@ -367,12 +367,12 @@
         {
           "name": "capset.cap_effective",
           "type": "int",
-          "definition": ""
+          "definition": "Effective capability set of the process"
         },
         {
           "name": "capset.cap_permitted",
           "type": "int",
-          "definition": ""
+          "definition": "Permitted capability set of the process"
         }
       ]
     },
@@ -385,77 +385,77 @@
         {
           "name": "chmod.file.destination.mode",
           "type": "int",
-          "definition": ""
+          "definition": "New mode/rights of the chmod-ed file"
         },
         {
           "name": "chmod.file.destination.rights",
           "type": "int",
-          "definition": ""
+          "definition": "New mode/rights of the chmod-ed file"
         },
         {
           "name": "chmod.file.filesystem",
           "type": "string",
-          "definition": ""
+          "definition": "File's filesystem"
         },
         {
           "name": "chmod.file.gid",
           "type": "int",
-          "definition": ""
+          "definition": "GID of the file's owner"
         },
         {
           "name": "chmod.file.group",
           "type": "string",
-          "definition": ""
+          "definition": "Group of the file's owner"
         },
         {
           "name": "chmod.file.in_upper_layer",
           "type": "bool",
-          "definition": ""
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
         },
         {
           "name": "chmod.file.inode",
           "type": "int",
-          "definition": ""
+          "definition": "Inode of the file"
         },
         {
           "name": "chmod.file.mode",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "chmod.file.mount_id",
           "type": "int",
-          "definition": ""
+          "definition": "Mount ID of the file"
         },
         {
           "name": "chmod.file.name",
           "type": "string",
-          "definition": ""
+          "definition": "File's basename"
         },
         {
           "name": "chmod.file.path",
           "type": "string",
-          "definition": ""
+          "definition": "File's path"
         },
         {
           "name": "chmod.file.rights",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "chmod.file.uid",
           "type": "int",
-          "definition": "uid field definition"
+          "definition": "UID of the file's owner"
         },
         {
           "name": "chmod.file.user",
           "type": "string",
-          "definition": ""
+          "definition": "User of the file's owner"
         },
         {
           "name": "chmod.retval",
           "type": "int",
-          "definition": ""
+          "definition": "Return value of the syscall"
         }
       ]
     },
@@ -468,87 +468,87 @@
         {
           "name": "chown.file.destination.gid",
           "type": "int",
-          "definition": ""
+          "definition": "New GID of the chown-ed file's owner"
         },
         {
           "name": "chown.file.destination.group",
           "type": "string",
-          "definition": ""
+          "definition": "New group of the chown-ed file's owner"
         },
         {
           "name": "chown.file.destination.uid",
           "type": "int",
-          "definition": ""
+          "definition": "New UID of the chown-ed file's owner"
         },
         {
           "name": "chown.file.destination.user",
           "type": "string",
-          "definition": ""
+          "definition": "New user of the chown-ed file's owner"
         },
         {
           "name": "chown.file.filesystem",
           "type": "string",
-          "definition": ""
+          "definition": "File's filesystem"
         },
         {
           "name": "chown.file.gid",
           "type": "int",
-          "definition": ""
+          "definition": "GID of the file's owner"
         },
         {
           "name": "chown.file.group",
           "type": "string",
-          "definition": ""
+          "definition": "Group of the file's owner"
         },
         {
           "name": "chown.file.in_upper_layer",
           "type": "bool",
-          "definition": ""
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
         },
         {
           "name": "chown.file.inode",
           "type": "int",
-          "definition": ""
+          "definition": "Inode of the file"
         },
         {
           "name": "chown.file.mode",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "chown.file.mount_id",
           "type": "int",
-          "definition": ""
+          "definition": "Mount ID of the file"
         },
         {
           "name": "chown.file.name",
           "type": "string",
-          "definition": ""
+          "definition": "File's basename"
         },
         {
           "name": "chown.file.path",
           "type": "string",
-          "definition": ""
+          "definition": "File's path"
         },
         {
           "name": "chown.file.rights",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "chown.file.uid",
           "type": "int",
-          "definition": "uid field definition"
+          "definition": "UID of the file's owner"
         },
         {
           "name": "chown.file.user",
           "type": "string",
-          "definition": ""
+          "definition": "User of the file's owner"
         },
         {
           "name": "chown.retval",
           "type": "int",
-          "definition": ""
+          "definition": "Return value of the syscall"
         }
       ]
     },
@@ -561,207 +561,207 @@
         {
           "name": "exec.args",
           "type": "string",
-          "definition": ""
+          "definition": "Arguments of the process (as a string)"
         },
         {
           "name": "exec.args_flags",
           "type": "string",
-          "definition": ""
+          "definition": "Arguments of the process (as an array)"
         },
         {
           "name": "exec.args_options",
           "type": "string",
-          "definition": ""
+          "definition": "Arguments of the process (as an array)"
         },
         {
           "name": "exec.args_truncated",
           "type": "bool",
-          "definition": ""
+          "definition": "Indicator of arguments truncation"
         },
         {
           "name": "exec.argv",
           "type": "string",
-          "definition": ""
+          "definition": "Arguments of the process (as an array)"
         },
         {
           "name": "exec.cap_effective",
           "type": "int",
-          "definition": ""
+          "definition": "Effective capability set of the process"
         },
         {
           "name": "exec.cap_permitted",
           "type": "int",
-          "definition": ""
+          "definition": "Permitted capability set of the process"
         },
         {
           "name": "exec.comm",
           "type": "string",
-          "definition": ""
+          "definition": "Comm attribute of the process"
         },
         {
           "name": "exec.container.id",
           "type": "string",
-          "definition": ""
+          "definition": "Container ID"
         },
         {
           "name": "exec.cookie",
           "type": "int",
-          "definition": ""
+          "definition": "Cookie of the process"
         },
         {
           "name": "exec.created_at",
           "type": "int",
-          "definition": ""
+          "definition": "Timestamp of the creation of the process"
         },
         {
           "name": "exec.egid",
           "type": "int",
-          "definition": ""
+          "definition": "Effective GID of the process"
         },
         {
           "name": "exec.egroup",
           "type": "string",
-          "definition": ""
+          "definition": "Effective group of the process"
         },
         {
           "name": "exec.envs",
           "type": "string",
-          "definition": ""
+          "definition": "Environment variables of the process"
         },
         {
           "name": "exec.envs_truncated",
           "type": "bool",
-          "definition": ""
+          "definition": "Indicator of environment variables truncation"
         },
         {
           "name": "exec.euid",
           "type": "int",
-          "definition": ""
+          "definition": "Effective UID of the process"
         },
         {
           "name": "exec.euser",
           "type": "string",
-          "definition": ""
+          "definition": "Effective user of the process"
         },
         {
           "name": "exec.file.filesystem",
           "type": "string",
-          "definition": ""
+          "definition": "FileSystem of the process executable"
         },
         {
           "name": "exec.file.gid",
           "type": "int",
-          "definition": ""
+          "definition": "GID of the file's owner"
         },
         {
           "name": "exec.file.group",
           "type": "string",
-          "definition": ""
+          "definition": "Group of the file's owner"
         },
         {
           "name": "exec.file.in_upper_layer",
           "type": "bool",
-          "definition": ""
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
         },
         {
           "name": "exec.file.inode",
           "type": "int",
-          "definition": ""
+          "definition": "Inode of the file"
         },
         {
           "name": "exec.file.mode",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "exec.file.mount_id",
           "type": "int",
-          "definition": ""
+          "definition": "Mount ID of the file"
         },
         {
           "name": "exec.file.name",
           "type": "string",
-          "definition": ""
+          "definition": "Basename of the path of the process executable"
         },
         {
           "name": "exec.file.path",
           "type": "string",
-          "definition": ""
+          "definition": "Path of the process executable"
         },
         {
           "name": "exec.file.rights",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "exec.file.uid",
           "type": "int",
-          "definition": "uid field definition"
+          "definition": "UID of the file's owner"
         },
         {
           "name": "exec.file.user",
           "type": "string",
-          "definition": ""
+          "definition": "User of the file's owner"
         },
         {
           "name": "exec.fsgid",
           "type": "int",
-          "definition": ""
+          "definition": "FileSystem-gid of the process"
         },
         {
           "name": "exec.fsgroup",
           "type": "string",
-          "definition": ""
+          "definition": "FileSystem-group of the process"
         },
         {
           "name": "exec.fsuid",
           "type": "int",
-          "definition": ""
+          "definition": "FileSystem-uid of the process"
         },
         {
           "name": "exec.fsuser",
           "type": "string",
-          "definition": ""
+          "definition": "FileSystem-user of the process"
         },
         {
           "name": "exec.gid",
           "type": "int",
-          "definition": ""
+          "definition": "GID of the process"
         },
         {
           "name": "exec.group",
           "type": "string",
-          "definition": ""
+          "definition": "Group of the process"
         },
         {
           "name": "exec.pid",
           "type": "int",
-          "definition": ""
+          "definition": "Process ID of the process (also called thread group ID)"
         },
         {
           "name": "exec.ppid",
           "type": "int",
-          "definition": ""
+          "definition": "Parent process ID"
         },
         {
           "name": "exec.tid",
           "type": "int",
-          "definition": ""
+          "definition": "Thread ID of the thread"
         },
         {
           "name": "exec.tty_name",
           "type": "string",
-          "definition": ""
+          "definition": "Name of the TTY associated with the process"
         },
         {
           "name": "exec.uid",
           "type": "int",
-          "definition": ""
+          "definition": "UID of the process"
         },
         {
           "name": "exec.user",
           "type": "string",
-          "definition": ""
+          "definition": "User of the process"
         }
       ]
     },
@@ -774,127 +774,127 @@
         {
           "name": "link.file.destination.filesystem",
           "type": "string",
-          "definition": ""
+          "definition": "File's filesystem"
         },
         {
           "name": "link.file.destination.gid",
           "type": "int",
-          "definition": ""
+          "definition": "GID of the file's owner"
         },
         {
           "name": "link.file.destination.group",
           "type": "string",
-          "definition": ""
+          "definition": "Group of the file's owner"
         },
         {
           "name": "link.file.destination.in_upper_layer",
           "type": "bool",
-          "definition": ""
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
         },
         {
           "name": "link.file.destination.inode",
           "type": "int",
-          "definition": ""
+          "definition": "Inode of the file"
         },
         {
           "name": "link.file.destination.mode",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "link.file.destination.mount_id",
           "type": "int",
-          "definition": ""
+          "definition": "Mount ID of the file"
         },
         {
           "name": "link.file.destination.name",
           "type": "string",
-          "definition": ""
+          "definition": "File's basename"
         },
         {
           "name": "link.file.destination.path",
           "type": "string",
-          "definition": ""
+          "definition": "File's path"
         },
         {
           "name": "link.file.destination.rights",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "link.file.destination.uid",
           "type": "int",
-          "definition": "uid field definition"
+          "definition": "UID of the file's owner"
         },
         {
           "name": "link.file.destination.user",
           "type": "string",
-          "definition": ""
+          "definition": "User of the file's owner"
         },
         {
           "name": "link.file.filesystem",
           "type": "string",
-          "definition": ""
+          "definition": "File's filesystem"
         },
         {
           "name": "link.file.gid",
           "type": "int",
-          "definition": ""
+          "definition": "GID of the file's owner"
         },
         {
           "name": "link.file.group",
           "type": "string",
-          "definition": ""
+          "definition": "Group of the file's owner"
         },
         {
           "name": "link.file.in_upper_layer",
           "type": "bool",
-          "definition": ""
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
         },
         {
           "name": "link.file.inode",
           "type": "int",
-          "definition": ""
+          "definition": "Inode of the file"
         },
         {
           "name": "link.file.mode",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "link.file.mount_id",
           "type": "int",
-          "definition": ""
+          "definition": "Mount ID of the file"
         },
         {
           "name": "link.file.name",
           "type": "string",
-          "definition": ""
+          "definition": "File's basename"
         },
         {
           "name": "link.file.path",
           "type": "string",
-          "definition": ""
+          "definition": "File's path"
         },
         {
           "name": "link.file.rights",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "link.file.uid",
           "type": "int",
-          "definition": "uid field definition"
+          "definition": "UID of the file's owner"
         },
         {
           "name": "link.file.user",
           "type": "string",
-          "definition": ""
+          "definition": "User of the file's owner"
         },
         {
           "name": "link.retval",
           "type": "int",
-          "definition": ""
+          "definition": "Return value of the syscall"
         }
       ]
     },
@@ -907,77 +907,77 @@
         {
           "name": "mkdir.file.destination.mode",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the new directory"
         },
         {
           "name": "mkdir.file.destination.rights",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the new directory"
         },
         {
           "name": "mkdir.file.filesystem",
           "type": "string",
-          "definition": ""
+          "definition": "File's filesystem"
         },
         {
           "name": "mkdir.file.gid",
           "type": "int",
-          "definition": ""
+          "definition": "GID of the file's owner"
         },
         {
           "name": "mkdir.file.group",
           "type": "string",
-          "definition": ""
+          "definition": "Group of the file's owner"
         },
         {
           "name": "mkdir.file.in_upper_layer",
           "type": "bool",
-          "definition": ""
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
         },
         {
           "name": "mkdir.file.inode",
           "type": "int",
-          "definition": ""
+          "definition": "Inode of the file"
         },
         {
           "name": "mkdir.file.mode",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "mkdir.file.mount_id",
           "type": "int",
-          "definition": ""
+          "definition": "Mount ID of the file"
         },
         {
           "name": "mkdir.file.name",
           "type": "string",
-          "definition": ""
+          "definition": "File's basename"
         },
         {
           "name": "mkdir.file.path",
           "type": "string",
-          "definition": ""
+          "definition": "File's path"
         },
         {
           "name": "mkdir.file.rights",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "mkdir.file.uid",
           "type": "int",
-          "definition": "uid field definition"
+          "definition": "UID of the file's owner"
         },
         {
           "name": "mkdir.file.user",
           "type": "string",
-          "definition": ""
+          "definition": "User of the file's owner"
         },
         {
           "name": "mkdir.retval",
           "type": "int",
-          "definition": ""
+          "definition": "Return value of the syscall"
         }
       ]
     },
@@ -990,77 +990,77 @@
         {
           "name": "open.file.destination.mode",
           "type": "int",
-          "definition": ""
+          "definition": "Mode of the created file"
         },
         {
           "name": "open.file.filesystem",
           "type": "string",
-          "definition": ""
+          "definition": "File's filesystem"
         },
         {
           "name": "open.file.gid",
           "type": "int",
-          "definition": ""
+          "definition": "GID of the file's owner"
         },
         {
           "name": "open.file.group",
           "type": "string",
-          "definition": ""
+          "definition": "Group of the file's owner"
         },
         {
           "name": "open.file.in_upper_layer",
           "type": "bool",
-          "definition": ""
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
         },
         {
           "name": "open.file.inode",
           "type": "int",
-          "definition": ""
+          "definition": "Inode of the file"
         },
         {
           "name": "open.file.mode",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "open.file.mount_id",
           "type": "int",
-          "definition": ""
+          "definition": "Mount ID of the file"
         },
         {
           "name": "open.file.name",
           "type": "string",
-          "definition": ""
+          "definition": "File's basename"
         },
         {
           "name": "open.file.path",
           "type": "string",
-          "definition": ""
+          "definition": "File's path"
         },
         {
           "name": "open.file.rights",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "open.file.uid",
           "type": "int",
-          "definition": "uid field definition"
+          "definition": "UID of the file's owner"
         },
         {
           "name": "open.file.user",
           "type": "string",
-          "definition": ""
+          "definition": "User of the file's owner"
         },
         {
           "name": "open.flags",
           "type": "int",
-          "definition": ""
+          "definition": "Flags used when opening the file"
         },
         {
           "name": "open.retval",
           "type": "int",
-          "definition": ""
+          "definition": "Return value of the syscall"
         }
       ]
     },
@@ -1073,77 +1073,77 @@
         {
           "name": "removexattr.file.destination.name",
           "type": "string",
-          "definition": ""
+          "definition": "Name of the extended attribute"
         },
         {
           "name": "removexattr.file.destination.namespace",
           "type": "string",
-          "definition": ""
+          "definition": "Namespace of the extended attribute"
         },
         {
           "name": "removexattr.file.filesystem",
           "type": "string",
-          "definition": ""
+          "definition": "File's filesystem"
         },
         {
           "name": "removexattr.file.gid",
           "type": "int",
-          "definition": ""
+          "definition": "GID of the file's owner"
         },
         {
           "name": "removexattr.file.group",
           "type": "string",
-          "definition": ""
+          "definition": "Group of the file's owner"
         },
         {
           "name": "removexattr.file.in_upper_layer",
           "type": "bool",
-          "definition": ""
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
         },
         {
           "name": "removexattr.file.inode",
           "type": "int",
-          "definition": ""
+          "definition": "Inode of the file"
         },
         {
           "name": "removexattr.file.mode",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "removexattr.file.mount_id",
           "type": "int",
-          "definition": ""
+          "definition": "Mount ID of the file"
         },
         {
           "name": "removexattr.file.name",
           "type": "string",
-          "definition": ""
+          "definition": "File's basename"
         },
         {
           "name": "removexattr.file.path",
           "type": "string",
-          "definition": ""
+          "definition": "File's path"
         },
         {
           "name": "removexattr.file.rights",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "removexattr.file.uid",
           "type": "int",
-          "definition": "uid field definition"
+          "definition": "UID of the file's owner"
         },
         {
           "name": "removexattr.file.user",
           "type": "string",
-          "definition": ""
+          "definition": "User of the file's owner"
         },
         {
           "name": "removexattr.retval",
           "type": "int",
-          "definition": ""
+          "definition": "Return value of the syscall"
         }
       ]
     },
@@ -1156,127 +1156,127 @@
         {
           "name": "rename.file.destination.filesystem",
           "type": "string",
-          "definition": ""
+          "definition": "File's filesystem"
         },
         {
           "name": "rename.file.destination.gid",
           "type": "int",
-          "definition": ""
+          "definition": "GID of the file's owner"
         },
         {
           "name": "rename.file.destination.group",
           "type": "string",
-          "definition": ""
+          "definition": "Group of the file's owner"
         },
         {
           "name": "rename.file.destination.in_upper_layer",
           "type": "bool",
-          "definition": ""
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
         },
         {
           "name": "rename.file.destination.inode",
           "type": "int",
-          "definition": ""
+          "definition": "Inode of the file"
         },
         {
           "name": "rename.file.destination.mode",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "rename.file.destination.mount_id",
           "type": "int",
-          "definition": ""
+          "definition": "Mount ID of the file"
         },
         {
           "name": "rename.file.destination.name",
           "type": "string",
-          "definition": ""
+          "definition": "File's basename"
         },
         {
           "name": "rename.file.destination.path",
           "type": "string",
-          "definition": ""
+          "definition": "File's path"
         },
         {
           "name": "rename.file.destination.rights",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "rename.file.destination.uid",
           "type": "int",
-          "definition": "uid field definition"
+          "definition": "UID of the file's owner"
         },
         {
           "name": "rename.file.destination.user",
           "type": "string",
-          "definition": ""
+          "definition": "User of the file's owner"
         },
         {
           "name": "rename.file.filesystem",
           "type": "string",
-          "definition": ""
+          "definition": "File's filesystem"
         },
         {
           "name": "rename.file.gid",
           "type": "int",
-          "definition": ""
+          "definition": "GID of the file's owner"
         },
         {
           "name": "rename.file.group",
           "type": "string",
-          "definition": ""
+          "definition": "Group of the file's owner"
         },
         {
           "name": "rename.file.in_upper_layer",
           "type": "bool",
-          "definition": ""
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
         },
         {
           "name": "rename.file.inode",
           "type": "int",
-          "definition": ""
+          "definition": "Inode of the file"
         },
         {
           "name": "rename.file.mode",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "rename.file.mount_id",
           "type": "int",
-          "definition": ""
+          "definition": "Mount ID of the file"
         },
         {
           "name": "rename.file.name",
           "type": "string",
-          "definition": ""
+          "definition": "File's basename"
         },
         {
           "name": "rename.file.path",
           "type": "string",
-          "definition": ""
+          "definition": "File's path"
         },
         {
           "name": "rename.file.rights",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "rename.file.uid",
           "type": "int",
-          "definition": "uid field definition"
+          "definition": "UID of the file's owner"
         },
         {
           "name": "rename.file.user",
           "type": "string",
-          "definition": ""
+          "definition": "User of the file's owner"
         },
         {
           "name": "rename.retval",
           "type": "int",
-          "definition": ""
+          "definition": "Return value of the syscall"
         }
       ]
     },
@@ -1289,67 +1289,67 @@
         {
           "name": "rmdir.file.filesystem",
           "type": "string",
-          "definition": ""
+          "definition": "File's filesystem"
         },
         {
           "name": "rmdir.file.gid",
           "type": "int",
-          "definition": ""
+          "definition": "GID of the file's owner"
         },
         {
           "name": "rmdir.file.group",
           "type": "string",
-          "definition": ""
+          "definition": "Group of the file's owner"
         },
         {
           "name": "rmdir.file.in_upper_layer",
           "type": "bool",
-          "definition": ""
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
         },
         {
           "name": "rmdir.file.inode",
           "type": "int",
-          "definition": ""
+          "definition": "Inode of the file"
         },
         {
           "name": "rmdir.file.mode",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "rmdir.file.mount_id",
           "type": "int",
-          "definition": ""
+          "definition": "Mount ID of the file"
         },
         {
           "name": "rmdir.file.name",
           "type": "string",
-          "definition": ""
+          "definition": "File's basename"
         },
         {
           "name": "rmdir.file.path",
           "type": "string",
-          "definition": ""
+          "definition": "File's path"
         },
         {
           "name": "rmdir.file.rights",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "rmdir.file.uid",
           "type": "int",
-          "definition": "uid field definition"
+          "definition": "UID of the file's owner"
         },
         {
           "name": "rmdir.file.user",
           "type": "string",
-          "definition": ""
+          "definition": "User of the file's owner"
         },
         {
           "name": "rmdir.retval",
           "type": "int",
-          "definition": ""
+          "definition": "Return value of the syscall"
         }
       ]
     },
@@ -1362,22 +1362,22 @@
         {
           "name": "selinux.bool.name",
           "type": "string",
-          "definition": ""
+          "definition": "SELinux boolean name"
         },
         {
           "name": "selinux.bool.state",
           "type": "string",
-          "definition": ""
+          "definition": "SELinux boolean new value"
         },
         {
           "name": "selinux.bool_commit.state",
           "type": "bool",
-          "definition": ""
+          "definition": "Indicator of a SELinux boolean commit operation"
         },
         {
           "name": "selinux.enforce.status",
           "type": "string",
-          "definition": ""
+          "definition": "SELinux enforcement status (one of \"enforcing\", \"permissive\", \"disabled\"\")"
         }
       ]
     },
@@ -1390,32 +1390,32 @@
         {
           "name": "setgid.egid",
           "type": "int",
-          "definition": ""
+          "definition": "New effective GID of the process"
         },
         {
           "name": "setgid.egroup",
           "type": "string",
-          "definition": ""
+          "definition": "New effective group of the process"
         },
         {
           "name": "setgid.fsgid",
           "type": "int",
-          "definition": ""
+          "definition": "New FileSystem GID of the process"
         },
         {
           "name": "setgid.fsgroup",
           "type": "string",
-          "definition": ""
+          "definition": "New FileSystem group of the process"
         },
         {
           "name": "setgid.gid",
           "type": "int",
-          "definition": ""
+          "definition": "New GID of the process"
         },
         {
           "name": "setgid.group",
           "type": "string",
-          "definition": ""
+          "definition": "New group of the process"
         }
       ]
     },
@@ -1428,32 +1428,32 @@
         {
           "name": "setuid.euid",
           "type": "int",
-          "definition": ""
+          "definition": "New effective UID of the process"
         },
         {
           "name": "setuid.euser",
           "type": "string",
-          "definition": ""
+          "definition": "New effective user of the process"
         },
         {
           "name": "setuid.fsuid",
           "type": "int",
-          "definition": ""
+          "definition": "New FileSystem UID of the process"
         },
         {
           "name": "setuid.fsuser",
           "type": "string",
-          "definition": ""
+          "definition": "New FileSystem user of the process"
         },
         {
           "name": "setuid.uid",
           "type": "int",
-          "definition": ""
+          "definition": "New UID of the process"
         },
         {
           "name": "setuid.user",
           "type": "string",
-          "definition": ""
+          "definition": "New user of the process"
         }
       ]
     },
@@ -1466,77 +1466,77 @@
         {
           "name": "setxattr.file.destination.name",
           "type": "string",
-          "definition": ""
+          "definition": "Name of the extended attribute"
         },
         {
           "name": "setxattr.file.destination.namespace",
           "type": "string",
-          "definition": ""
+          "definition": "Namespace of the extended attribute"
         },
         {
           "name": "setxattr.file.filesystem",
           "type": "string",
-          "definition": ""
+          "definition": "File's filesystem"
         },
         {
           "name": "setxattr.file.gid",
           "type": "int",
-          "definition": ""
+          "definition": "GID of the file's owner"
         },
         {
           "name": "setxattr.file.group",
           "type": "string",
-          "definition": ""
+          "definition": "Group of the file's owner"
         },
         {
           "name": "setxattr.file.in_upper_layer",
           "type": "bool",
-          "definition": ""
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
         },
         {
           "name": "setxattr.file.inode",
           "type": "int",
-          "definition": ""
+          "definition": "Inode of the file"
         },
         {
           "name": "setxattr.file.mode",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "setxattr.file.mount_id",
           "type": "int",
-          "definition": ""
+          "definition": "Mount ID of the file"
         },
         {
           "name": "setxattr.file.name",
           "type": "string",
-          "definition": ""
+          "definition": "File's basename"
         },
         {
           "name": "setxattr.file.path",
           "type": "string",
-          "definition": ""
+          "definition": "File's path"
         },
         {
           "name": "setxattr.file.rights",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "setxattr.file.uid",
           "type": "int",
-          "definition": "uid field definition"
+          "definition": "UID of the file's owner"
         },
         {
           "name": "setxattr.file.user",
           "type": "string",
-          "definition": ""
+          "definition": "User of the file's owner"
         },
         {
           "name": "setxattr.retval",
           "type": "int",
-          "definition": ""
+          "definition": "Return value of the syscall"
         }
       ]
     },
@@ -1549,67 +1549,67 @@
         {
           "name": "unlink.file.filesystem",
           "type": "string",
-          "definition": ""
+          "definition": "File's filesystem"
         },
         {
           "name": "unlink.file.gid",
           "type": "int",
-          "definition": ""
+          "definition": "GID of the file's owner"
         },
         {
           "name": "unlink.file.group",
           "type": "string",
-          "definition": ""
+          "definition": "Group of the file's owner"
         },
         {
           "name": "unlink.file.in_upper_layer",
           "type": "bool",
-          "definition": ""
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
         },
         {
           "name": "unlink.file.inode",
           "type": "int",
-          "definition": ""
+          "definition": "Inode of the file"
         },
         {
           "name": "unlink.file.mode",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "unlink.file.mount_id",
           "type": "int",
-          "definition": ""
+          "definition": "Mount ID of the file"
         },
         {
           "name": "unlink.file.name",
           "type": "string",
-          "definition": ""
+          "definition": "File's basename"
         },
         {
           "name": "unlink.file.path",
           "type": "string",
-          "definition": ""
+          "definition": "File's path"
         },
         {
           "name": "unlink.file.rights",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "unlink.file.uid",
           "type": "int",
-          "definition": "uid field definition"
+          "definition": "UID of the file's owner"
         },
         {
           "name": "unlink.file.user",
           "type": "string",
-          "definition": ""
+          "definition": "User of the file's owner"
         },
         {
           "name": "unlink.retval",
           "type": "int",
-          "definition": ""
+          "definition": "Return value of the syscall"
         }
       ]
     },
@@ -1622,67 +1622,67 @@
         {
           "name": "utimes.file.filesystem",
           "type": "string",
-          "definition": ""
+          "definition": "File's filesystem"
         },
         {
           "name": "utimes.file.gid",
           "type": "int",
-          "definition": ""
+          "definition": "GID of the file's owner"
         },
         {
           "name": "utimes.file.group",
           "type": "string",
-          "definition": ""
+          "definition": "Group of the file's owner"
         },
         {
           "name": "utimes.file.in_upper_layer",
           "type": "bool",
-          "definition": ""
+          "definition": "Indicator of the file layer, in an OverlayFS for example"
         },
         {
           "name": "utimes.file.inode",
           "type": "int",
-          "definition": ""
+          "definition": "Inode of the file"
         },
         {
           "name": "utimes.file.mode",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "utimes.file.mount_id",
           "type": "int",
-          "definition": ""
+          "definition": "Mount ID of the file"
         },
         {
           "name": "utimes.file.name",
           "type": "string",
-          "definition": ""
+          "definition": "File's basename"
         },
         {
           "name": "utimes.file.path",
           "type": "string",
-          "definition": ""
+          "definition": "File's path"
         },
         {
           "name": "utimes.file.rights",
           "type": "int",
-          "definition": ""
+          "definition": "Mode/rights of the file's owner"
         },
         {
           "name": "utimes.file.uid",
           "type": "int",
-          "definition": "uid field definition"
+          "definition": "UID of the file's owner"
         },
         {
           "name": "utimes.file.user",
           "type": "string",
-          "definition": ""
+          "definition": "User of the file's owner"
         },
         {
           "name": "utimes.retval",
           "type": "int",
-          "definition": ""
+          "definition": "Return value of the syscall"
         }
       ]
     }

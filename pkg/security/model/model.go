@@ -87,23 +87,23 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 type ChmodEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode" field:"file.destination.rights"`
+	Mode uint32    `field:"file.destination.mode" field:"file.destination.rights"` // New mode/rights of the chmod-ed file
 }
 
 // ChownEvent represents a chown event
 type ChownEvent struct {
 	SyscallEvent
 	File  FileEvent `field:"file"`
-	UID   uint32    `field:"file.destination.uid"`
-	User  string    `field:"file.destination.user,ResolveChownUID"`
-	GID   uint32    `field:"file.destination.gid"`
-	Group string    `field:"file.destination.group,ResolveChownGID"`
+	UID   uint32    `field:"file.destination.uid"`                   // New UID of the chown-ed file's owner
+	User  string    `field:"file.destination.user,ResolveChownUID"`  // New user of the chown-ed file's owner
+	GID   uint32    `field:"file.destination.gid"`                   // New GID of the chown-ed file's owner
+	Group string    `field:"file.destination.group,ResolveChownGID"` // New group of the chown-ed file's owner
 }
 
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
-	ID   string   `field:"id,ResolveContainerID"`
-	Tags []string `field:"tags,ResolveContainerTags:9999"`
+	ID   string   `field:"id,ResolveContainerID"`          // ID of the container
+	Tags []string `field:"tags,ResolveContainerTags:9999"` // Tags of the container
 }
 
 // Event represents an event sent from the kernel
@@ -112,7 +112,7 @@ type Event struct {
 	ID           string    `field:"-"`
 	Type         uint64    `field:"-"`
 	TimestampRaw uint64    `field:"-"`
-	Timestamp    time.Time `field:"timestamp"`
+	Timestamp    time.Time `field:"timestamp"` // Timestamp of the event
 
 	ProcessContext   ProcessContext   `field:"process" event:"*"`
 	ContainerContext ContainerContext `field:"container"`
@@ -171,49 +171,49 @@ func (e *Event) GetPointer() unsafe.Pointer {
 
 // SetuidEvent represents a setuid event
 type SetuidEvent struct {
-	UID    uint32 `field:"uid"`
-	User   string `field:"user,ResolveSetuidUser"`
-	EUID   uint32 `field:"euid"`
-	EUser  string `field:"euser,ResolveSetuidEUser"`
-	FSUID  uint32 `field:"fsuid"`
-	FSUser string `field:"fsuser,ResolveSetuidFSUser"`
+	UID    uint32 `field:"uid"`                        // New UID of the process
+	User   string `field:"user,ResolveSetuidUser"`     // New user of the process
+	EUID   uint32 `field:"euid"`                       // New effective UID of the process
+	EUser  string `field:"euser,ResolveSetuidEUser"`   // New effective user of the process
+	FSUID  uint32 `field:"fsuid"`                      // New FileSystem UID of the process
+	FSUser string `field:"fsuser,ResolveSetuidFSUser"` // New FileSystem user of the process
 }
 
 // SetgidEvent represents a setgid event
 type SetgidEvent struct {
-	GID     uint32 `field:"gid"`
-	Group   string `field:"group,ResolveSetgidGroup"`
-	EGID    uint32 `field:"egid"`
-	EGroup  string `field:"egroup,ResolveSetgidEGroup"`
-	FSGID   uint32 `field:"fsgid"`
-	FSGroup string `field:"fsgroup,ResolveSetgidFSGroup"`
+	GID     uint32 `field:"gid"`                          // New GID of the process
+	Group   string `field:"group,ResolveSetgidGroup"`     // New group of the process
+	EGID    uint32 `field:"egid"`                         // New effective GID of the process
+	EGroup  string `field:"egroup,ResolveSetgidEGroup"`   // New effective group of the process
+	FSGID   uint32 `field:"fsgid"`                        // New FileSystem GID of the process
+	FSGroup string `field:"fsgroup,ResolveSetgidFSGroup"` // New FileSystem group of the process
 }
 
 // CapsetEvent represents a capset event
 type CapsetEvent struct {
-	CapEffective uint64 `field:"cap_effective"`
-	CapPermitted uint64 `field:"cap_permitted"`
+	CapEffective uint64 `field:"cap_effective"` // Effective capability set of the process
+	CapPermitted uint64 `field:"cap_permitted"` // Permitted capability set of the process
 }
 
 // Credentials represents the kernel credentials of a process
 type Credentials struct {
-	UID   uint32 `field:"uid"`
-	GID   uint32 `field:"gid"`
-	User  string `field:"user"`
-	Group string `field:"group"`
+	UID   uint32 `field:"uid"`   // UID of the process
+	GID   uint32 `field:"gid"`   // GID of the process
+	User  string `field:"user"`  // User of the process
+	Group string `field:"group"` // Group of the process
 
-	EUID   uint32 `field:"euid"`
-	EGID   uint32 `field:"egid"`
-	EUser  string `field:"euser"`
-	EGroup string `field:"egroup"`
+	EUID   uint32 `field:"euid"`   // Effective UID of the process
+	EGID   uint32 `field:"egid"`   // Effective GID of the process
+	EUser  string `field:"euser"`  // Effective user of the process
+	EGroup string `field:"egroup"` // Effective group of the process
 
-	FSUID   uint32 `field:"fsuid"`
-	FSGID   uint32 `field:"fsgid"`
-	FSUser  string `field:"fsuser"`
-	FSGroup string `field:"fsgroup"`
+	FSUID   uint32 `field:"fsuid"`   // FileSystem-uid of the process
+	FSGID   uint32 `field:"fsgid"`   // FileSystem-gid of the process
+	FSUser  string `field:"fsuser"`  // FileSystem-user of the process
+	FSGroup string `field:"fsgroup"` // FileSystem-group of the process
 
-	CapEffective uint64 `field:"cap_effective"`
-	CapPermitted uint64 `field:"cap_permitted"`
+	CapEffective uint64 `field:"cap_effective"` // Effective capability set of the process
+	CapPermitted uint64 `field:"cap_permitted"` // Permitted capability set of the process
 }
 
 // GetPathResolutionError returns the path resolution error as a string if there is one
@@ -229,28 +229,28 @@ type Process struct {
 	// proc_cache_t
 	FileFields FileFields `field:"file"`
 
-	Pid uint32 `field:"pid"`
-	Tid uint32 `field:"tid"`
+	Pid uint32 `field:"pid"` // Process ID of the process (also called thread group ID)
+	Tid uint32 `field:"tid"` // Thread ID of the thread
 
-	PathnameStr         string `field:"file.path"`
-	BasenameStr         string `field:"file.name"`
-	Filesystem          string `field:"file.filesystem"`
+	PathnameStr         string `field:"file.path"`       // Path of the process executable
+	BasenameStr         string `field:"file.name"`       // Basename of the path of the process executable
+	Filesystem          string `field:"file.filesystem"` // FileSystem of the process executable
 	PathResolutionError error  `field:"-"`
 
-	ContainerID string `field:"container.id"`
+	ContainerID string `field:"container.id"` // Container ID
 
-	TTYName string `field:"tty_name"`
-	Comm    string `field:"comm"`
+	TTYName string `field:"tty_name"` // Name of the TTY associated with the process
+	Comm    string `field:"comm"`     // Comm attribute of the process
 
 	// pid_cache_t
 	ForkTime time.Time `field:"-"`
 	ExitTime time.Time `field:"-"`
 	ExecTime time.Time `field:"-"`
 
-	CreatedAt uint64 `field:"created_at,ResolveProcessCreatedAt"`
+	CreatedAt uint64 `field:"created_at,ResolveProcessCreatedAt"` // Timestamp of the creation of the process
 
-	Cookie uint32 `field:"cookie"`
-	PPid   uint32 `field:"ppid"`
+	Cookie uint32 `field:"cookie"` // Cookie of the process
+	PPid   uint32 `field:"ppid"`   // Parent process ID
 
 	// credentials_t section of pid_cache_t
 	Credentials
@@ -269,28 +269,28 @@ type ExecEvent struct {
 	Process
 
 	// defined to generate accessors
-	Args          string   `field:"args,ResolveExecArgs"`
-	Argv          []string `field:"argv,ResolveExecArgv" field:"args_flags,ResolveExecArgsFlags" field:"args_options,ResolveExecArgsOptions"`
-	ArgsTruncated bool     `field:"args_truncated,ResolveExecArgsTruncated"`
-	Envs          []string `field:"envs,ResolveExecEnvs"`
-	EnvsTruncated bool     `field:"envs_truncated,ResolveExecEnvsTruncated"`
+	Args          string   `field:"args,ResolveExecArgs"`                                                                                     // Arguments of the process (as a string)
+	Argv          []string `field:"argv,ResolveExecArgv" field:"args_flags,ResolveExecArgsFlags" field:"args_options,ResolveExecArgsOptions"` // Arguments of the process (as an array)
+	ArgsTruncated bool     `field:"args_truncated,ResolveExecArgsTruncated"`                                                                  // Indicator of arguments truncation
+	Envs          []string `field:"envs,ResolveExecEnvs"`                                                                                     // Environment variables of the process
+	EnvsTruncated bool     `field:"envs_truncated,ResolveExecEnvsTruncated"`                                                                  // Indicator of environment variables truncation
 }
 
 // FileFields holds the information required to identify a file
 type FileFields struct {
-	UID   uint32 `field:"uid"`
-	User  string `field:"user,ResolveFileFieldsUser"`
-	GID   uint32 `field:"gid"`
-	Group string `field:"group,ResolveFileFieldsGroup"`
-	Mode  uint16 `field:"mode" field:"rights,ResolveRights"`
+	UID   uint32 `field:"uid"`                               // UID of the file's owner
+	User  string `field:"user,ResolveFileFieldsUser"`        // User of the file's owner
+	GID   uint32 `field:"gid"`                               // GID of the file's owner
+	Group string `field:"group,ResolveFileFieldsGroup"`      // Group of the file's owner
+	Mode  uint16 `field:"mode" field:"rights,ResolveRights"` // Mode/rights of the file's owner
 	CTime uint64 `field:"change_time"`
 	MTime uint64 `field:"modification_time"`
 
-	MountID      uint32 `field:"mount_id"`
-	Inode        uint64 `field:"inode"`
+	MountID      uint32 `field:"mount_id"` // Mount ID of the file
+	Inode        uint64 `field:"inode"`    // Inode of the file
 	PathID       uint32 `field:"-"`
 	Flags        int32  `field:"-"`
-	InUpperLayer bool   `field:"in_upper_layer,ResolveFileFieldsInUpperLayer"`
+	InUpperLayer bool   `field:"in_upper_layer,ResolveFileFieldsInUpperLayer"` // Indicator of the file layer, in an OverlayFS for example
 }
 
 // GetInLowerLayer returns whether a file is in a lower layer
@@ -306,9 +306,9 @@ func (f *FileFields) GetInUpperLayer() bool {
 // FileEvent is the common file event type
 type FileEvent struct {
 	FileFields
-	PathnameStr string `field:"path,ResolveFilePath"`
-	BasenameStr string `field:"name,ResolveFileBasename"`
-	Filesytem   string `field:"filesystem,ResolveFileFilesystem"`
+	PathnameStr string `field:"path,ResolveFilePath"`             // File's path
+	BasenameStr string `field:"name,ResolveFileBasename"`         // File's basename
+	Filesytem   string `field:"filesystem,ResolveFileFilesystem"` // File's filesystem
 
 	PathResolutionError error `field:"-"`
 }
@@ -345,7 +345,7 @@ type LinkEvent struct {
 type MkdirEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode" field:"file.destination.rights"`
+	Mode uint32    `field:"file.destination.mode" field:"file.destination.rights"` // Mode/rights of the new directory
 }
 
 // ArgsEnvsEvent defines a args/envs event
@@ -405,8 +405,8 @@ func (m *MountEvent) GetMountPointPathResolutionError() string {
 type OpenEvent struct {
 	SyscallEvent
 	File  FileEvent `field:"file"`
-	Flags uint32    `field:"flags"`
-	Mode  uint32    `field:"file.destination.mode"`
+	Flags uint32    `field:"flags"`                 // Flags used when opening the file
+	Mode  uint32    `field:"file.destination.mode"` // Mode of the created file
 }
 
 // SELinuxEventKind represents the event kind for SELinux events
@@ -425,10 +425,10 @@ const (
 type SELinuxEvent struct {
 	File            FileEvent        `field:"-"`
 	EventKind       SELinuxEventKind `field:"-"`
-	BoolName        string           `field:"bool.name,ResolveSELinuxBoolName"`
-	BoolChangeValue string           `field:"bool.state"`
-	BoolCommitValue bool             `field:"bool_commit.state"`
-	EnforceStatus   string           `field:"enforce.status"`
+	BoolName        string           `field:"bool.name,ResolveSELinuxBoolName"` // SELinux boolean name
+	BoolChangeValue string           `field:"bool.state"`                       // SELinux boolean new value
+	BoolCommitValue bool             `field:"bool_commit.state"`                // Indicator of a SELinux boolean commit operation
+	EnforceStatus   string           `field:"enforce.status"`                   // SELinux enforcement status (one of "enforcing", "permissive", "disabled"")
 }
 
 var zeroProcessContext ProcessContext
@@ -522,15 +522,15 @@ type RmdirEvent struct {
 type SetXAttrEvent struct {
 	SyscallEvent
 	File      FileEvent `field:"file"`
-	Namespace string    `field:"file.destination.namespace,ResolveXAttrNamespace"`
-	Name      string    `field:"file.destination.name,ResolveXAttrName"`
+	Namespace string    `field:"file.destination.namespace,ResolveXAttrNamespace"` // Namespace of the extended attribute
+	Name      string    `field:"file.destination.name,ResolveXAttrName"`           // Name of the extended attribute
 
 	NameRaw [200]byte
 }
 
 // SyscallEvent contains common fields for all the event
 type SyscallEvent struct {
-	Retval int64 `field:"retval"`
+	Retval int64 `field:"retval"` // Return value of the syscall
 }
 
 // UnlinkEvent represents an unlink event

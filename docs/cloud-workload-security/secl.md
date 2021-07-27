@@ -1,6 +1,6 @@
 # SECL Documentation
 
-### Event types
+## Event types
 
 | SECL Event | Type | Definition | Agent Version |
 | ---------- | ---- | ---------- | ------------- |
@@ -22,399 +22,431 @@
 | `utimes` | File | Change file access/modification times | 7.27 |
 
 
-### Common to all event types
+## Common to all event types
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `*.container.id` |  |  |
-| `*.container.tags` |  |  |
-| `*.process.ancestors.cap_effective` |  |  |
-| `*.process.ancestors.cap_permitted` |  |  |
-| `*.process.ancestors.comm` |  |  |
-| `*.process.ancestors.container.id` |  |  |
-| `*.process.ancestors.cookie` |  |  |
-| `*.process.ancestors.created_at` |  |  |
-| `*.process.ancestors.egid` |  |  |
-| `*.process.ancestors.egroup` |  |  |
-| `*.process.ancestors.euid` |  |  |
-| `*.process.ancestors.euser` |  |  |
-| `*.process.ancestors.file.filesystem` |  |  |
-| `*.process.ancestors.file.gid` |  |  |
-| `*.process.ancestors.file.group` |  |  |
-| `*.process.ancestors.file.in_upper_layer` |  |  |
-| `*.process.ancestors.file.inode` |  |  |
-| `*.process.ancestors.file.mode` |  |  |
-| `*.process.ancestors.file.mount_id` |  |  |
-| `*.process.ancestors.file.name` |  |  |
-| `*.process.ancestors.file.path` |  |  |
-| `*.process.ancestors.file.rights` |  |  |
-| `*.process.ancestors.file.uid` |  | uid field definition |
-| `*.process.ancestors.file.user` |  |  |
-| `*.process.ancestors.fsgid` |  |  |
-| `*.process.ancestors.fsgroup` |  |  |
-| `*.process.ancestors.fsuid` |  |  |
-| `*.process.ancestors.fsuser` |  |  |
-| `*.process.ancestors.gid` |  |  |
-| `*.process.ancestors.group` |  |  |
-| `*.process.ancestors.pid` |  |  |
-| `*.process.ancestors.ppid` |  |  |
-| `*.process.ancestors.tid` |  |  |
-| `*.process.ancestors.tty_name` |  |  |
-| `*.process.ancestors.uid` |  |  |
-| `*.process.ancestors.user` |  |  |
-| `*.process.cap_effective` |  |  |
-| `*.process.cap_permitted` |  |  |
-| `*.process.comm` |  |  |
-| `*.process.container.id` |  |  |
-| `*.process.cookie` |  |  |
-| `*.process.created_at` |  |  |
-| `*.process.egid` |  |  |
-| `*.process.egroup` |  |  |
-| `*.process.euid` |  |  |
-| `*.process.euser` |  |  |
-| `*.process.file.filesystem` |  |  |
-| `*.process.file.gid` |  |  |
-| `*.process.file.group` |  |  |
-| `*.process.file.in_upper_layer` |  |  |
-| `*.process.file.inode` |  |  |
-| `*.process.file.mode` |  |  |
-| `*.process.file.mount_id` |  |  |
-| `*.process.file.name` |  |  |
-| `*.process.file.path` |  |  |
-| `*.process.file.rights` |  |  |
-| `*.process.file.uid` |  | uid field definition |
-| `*.process.file.user` |  |  |
-| `*.process.fsgid` |  |  |
-| `*.process.fsgroup` |  |  |
-| `*.process.fsuid` |  |  |
-| `*.process.fsuser` |  |  |
-| `*.process.gid` |  |  |
-| `*.process.group` |  |  |
-| `*.process.pid` |  |  |
-| `*.process.ppid` |  |  |
-| `*.process.tid` |  |  |
-| `*.process.tty_name` |  |  |
-| `*.process.uid` |  |  |
-| `*.process.user` |  |  |
+| `*.container.id` | string | ID of the container |
+| `*.container.tags` | string | Tags of the container |
+| `*.process.ancestors.cap_effective` | int | Effective capability set of the process |
+| `*.process.ancestors.cap_permitted` | int | Permitted capability set of the process |
+| `*.process.ancestors.comm` | string | Comm attribute of the process |
+| `*.process.ancestors.container.id` | string | Container ID |
+| `*.process.ancestors.cookie` | int | Cookie of the process |
+| `*.process.ancestors.created_at` | int | Timestamp of the creation of the process |
+| `*.process.ancestors.egid` | int | Effective GID of the process |
+| `*.process.ancestors.egroup` | string | Effective group of the process |
+| `*.process.ancestors.euid` | int | Effective UID of the process |
+| `*.process.ancestors.euser` | string | Effective user of the process |
+| `*.process.ancestors.file.filesystem` | string | FileSystem of the process executable |
+| `*.process.ancestors.file.gid` | int | GID of the file's owner |
+| `*.process.ancestors.file.group` | string | Group of the file's owner |
+| `*.process.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `*.process.ancestors.file.inode` | int | Inode of the file |
+| `*.process.ancestors.file.mode` | int | Mode/rights of the file's owner |
+| `*.process.ancestors.file.mount_id` | int | Mount ID of the file |
+| `*.process.ancestors.file.name` | string | Basename of the path of the process executable |
+| `*.process.ancestors.file.path` | string | Path of the process executable |
+| `*.process.ancestors.file.rights` | int | Mode/rights of the file's owner |
+| `*.process.ancestors.file.uid` | int | UID of the file's owner |
+| `*.process.ancestors.file.user` | string | User of the file's owner |
+| `*.process.ancestors.fsgid` | int | FileSystem-gid of the process |
+| `*.process.ancestors.fsgroup` | string | FileSystem-group of the process |
+| `*.process.ancestors.fsuid` | int | FileSystem-uid of the process |
+| `*.process.ancestors.fsuser` | string | FileSystem-user of the process |
+| `*.process.ancestors.gid` | int | GID of the process |
+| `*.process.ancestors.group` | string | Group of the process |
+| `*.process.ancestors.pid` | int | Process ID of the process (also called thread group ID) |
+| `*.process.ancestors.ppid` | int | Parent process ID |
+| `*.process.ancestors.tid` | int | Thread ID of the thread |
+| `*.process.ancestors.tty_name` | string | Name of the TTY associated with the process |
+| `*.process.ancestors.uid` | int | UID of the process |
+| `*.process.ancestors.user` | string | User of the process |
+| `*.process.cap_effective` | int | Effective capability set of the process |
+| `*.process.cap_permitted` | int | Permitted capability set of the process |
+| `*.process.comm` | string | Comm attribute of the process |
+| `*.process.container.id` | string | Container ID |
+| `*.process.cookie` | int | Cookie of the process |
+| `*.process.created_at` | int | Timestamp of the creation of the process |
+| `*.process.egid` | int | Effective GID of the process |
+| `*.process.egroup` | string | Effective group of the process |
+| `*.process.euid` | int | Effective UID of the process |
+| `*.process.euser` | string | Effective user of the process |
+| `*.process.file.filesystem` | string | FileSystem of the process executable |
+| `*.process.file.gid` | int | GID of the file's owner |
+| `*.process.file.group` | string | Group of the file's owner |
+| `*.process.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `*.process.file.inode` | int | Inode of the file |
+| `*.process.file.mode` | int | Mode/rights of the file's owner |
+| `*.process.file.mount_id` | int | Mount ID of the file |
+| `*.process.file.name` | string | Basename of the path of the process executable |
+| `*.process.file.path` | string | Path of the process executable |
+| `*.process.file.rights` | int | Mode/rights of the file's owner |
+| `*.process.file.uid` | int | UID of the file's owner |
+| `*.process.file.user` | string | User of the file's owner |
+| `*.process.fsgid` | int | FileSystem-gid of the process |
+| `*.process.fsgroup` | string | FileSystem-group of the process |
+| `*.process.fsuid` | int | FileSystem-uid of the process |
+| `*.process.fsuser` | string | FileSystem-user of the process |
+| `*.process.gid` | int | GID of the process |
+| `*.process.group` | string | Group of the process |
+| `*.process.pid` | int | Process ID of the process (also called thread group ID) |
+| `*.process.ppid` | int | Parent process ID |
+| `*.process.tid` | int | Thread ID of the thread |
+| `*.process.tty_name` | string | Name of the TTY associated with the process |
+| `*.process.uid` | int | UID of the process |
+| `*.process.user` | string | User of the process |
 
-### Event `capset`
+## Event `capset`
 
-| Property | Type | Definition |
-| -------- | ---- | ---------- |
-| `capset.cap_effective` |  |  |
-| `capset.cap_permitted` |  |  |
-
-### Event `chmod`
+A process changed its capacity set
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `chmod.file.destination.mode` |  |  |
-| `chmod.file.destination.rights` |  |  |
-| `chmod.file.filesystem` |  |  |
-| `chmod.file.gid` |  |  |
-| `chmod.file.group` |  |  |
-| `chmod.file.in_upper_layer` |  |  |
-| `chmod.file.inode` |  |  |
-| `chmod.file.mode` |  |  |
-| `chmod.file.mount_id` |  |  |
-| `chmod.file.name` |  |  |
-| `chmod.file.path` |  |  |
-| `chmod.file.rights` |  |  |
-| `chmod.file.uid` |  | uid field definition |
-| `chmod.file.user` |  |  |
-| `chmod.retval` |  |  |
+| `capset.cap_effective` | int | Effective capability set of the process |
+| `capset.cap_permitted` | int | Permitted capability set of the process |
 
-### Event `chown`
+## Event `chmod`
+
+A file’s permissions were changed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `chown.file.destination.gid` |  |  |
-| `chown.file.destination.group` |  |  |
-| `chown.file.destination.uid` |  |  |
-| `chown.file.destination.user` |  |  |
-| `chown.file.filesystem` |  |  |
-| `chown.file.gid` |  |  |
-| `chown.file.group` |  |  |
-| `chown.file.in_upper_layer` |  |  |
-| `chown.file.inode` |  |  |
-| `chown.file.mode` |  |  |
-| `chown.file.mount_id` |  |  |
-| `chown.file.name` |  |  |
-| `chown.file.path` |  |  |
-| `chown.file.rights` |  |  |
-| `chown.file.uid` |  | uid field definition |
-| `chown.file.user` |  |  |
-| `chown.retval` |  |  |
+| `chmod.file.destination.mode` | int | New mode/rights of the chmod-ed file |
+| `chmod.file.destination.rights` | int | New mode/rights of the chmod-ed file |
+| `chmod.file.filesystem` | string | File's filesystem |
+| `chmod.file.gid` | int | GID of the file's owner |
+| `chmod.file.group` | string | Group of the file's owner |
+| `chmod.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `chmod.file.inode` | int | Inode of the file |
+| `chmod.file.mode` | int | Mode/rights of the file's owner |
+| `chmod.file.mount_id` | int | Mount ID of the file |
+| `chmod.file.name` | string | File's basename |
+| `chmod.file.path` | string | File's path |
+| `chmod.file.rights` | int | Mode/rights of the file's owner |
+| `chmod.file.uid` | int | UID of the file's owner |
+| `chmod.file.user` | string | User of the file's owner |
+| `chmod.retval` | int | Return value of the syscall |
 
-### Event `exec`
+## Event `chown`
 
-| Property | Type | Definition |
-| -------- | ---- | ---------- |
-| `exec.args` |  |  |
-| `exec.args_flags` |  |  |
-| `exec.args_options` |  |  |
-| `exec.args_truncated` |  |  |
-| `exec.argv` |  |  |
-| `exec.cap_effective` |  |  |
-| `exec.cap_permitted` |  |  |
-| `exec.comm` |  |  |
-| `exec.container.id` |  |  |
-| `exec.cookie` |  |  |
-| `exec.created_at` |  |  |
-| `exec.egid` |  |  |
-| `exec.egroup` |  |  |
-| `exec.envs` |  |  |
-| `exec.envs_truncated` |  |  |
-| `exec.euid` |  |  |
-| `exec.euser` |  |  |
-| `exec.file.filesystem` |  |  |
-| `exec.file.gid` |  |  |
-| `exec.file.group` |  |  |
-| `exec.file.in_upper_layer` |  |  |
-| `exec.file.inode` |  |  |
-| `exec.file.mode` |  |  |
-| `exec.file.mount_id` |  |  |
-| `exec.file.name` |  |  |
-| `exec.file.path` |  |  |
-| `exec.file.rights` |  |  |
-| `exec.file.uid` |  | uid field definition |
-| `exec.file.user` |  |  |
-| `exec.fsgid` |  |  |
-| `exec.fsgroup` |  |  |
-| `exec.fsuid` |  |  |
-| `exec.fsuser` |  |  |
-| `exec.gid` |  |  |
-| `exec.group` |  |  |
-| `exec.pid` |  |  |
-| `exec.ppid` |  |  |
-| `exec.tid` |  |  |
-| `exec.tty_name` |  |  |
-| `exec.uid` |  |  |
-| `exec.user` |  |  |
-
-### Event `link`
+A file’s owner was changed
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `link.file.destination.filesystem` |  |  |
-| `link.file.destination.gid` |  |  |
-| `link.file.destination.group` |  |  |
-| `link.file.destination.in_upper_layer` |  |  |
-| `link.file.destination.inode` |  |  |
-| `link.file.destination.mode` |  |  |
-| `link.file.destination.mount_id` |  |  |
-| `link.file.destination.name` |  |  |
-| `link.file.destination.path` |  |  |
-| `link.file.destination.rights` |  |  |
-| `link.file.destination.uid` |  | uid field definition |
-| `link.file.destination.user` |  |  |
-| `link.file.filesystem` |  |  |
-| `link.file.gid` |  |  |
-| `link.file.group` |  |  |
-| `link.file.in_upper_layer` |  |  |
-| `link.file.inode` |  |  |
-| `link.file.mode` |  |  |
-| `link.file.mount_id` |  |  |
-| `link.file.name` |  |  |
-| `link.file.path` |  |  |
-| `link.file.rights` |  |  |
-| `link.file.uid` |  | uid field definition |
-| `link.file.user` |  |  |
-| `link.retval` |  |  |
+| `chown.file.destination.gid` | int | New GID of the chown-ed file's owner |
+| `chown.file.destination.group` | string | New group of the chown-ed file's owner |
+| `chown.file.destination.uid` | int | New UID of the chown-ed file's owner |
+| `chown.file.destination.user` | string | New user of the chown-ed file's owner |
+| `chown.file.filesystem` | string | File's filesystem |
+| `chown.file.gid` | int | GID of the file's owner |
+| `chown.file.group` | string | Group of the file's owner |
+| `chown.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `chown.file.inode` | int | Inode of the file |
+| `chown.file.mode` | int | Mode/rights of the file's owner |
+| `chown.file.mount_id` | int | Mount ID of the file |
+| `chown.file.name` | string | File's basename |
+| `chown.file.path` | string | File's path |
+| `chown.file.rights` | int | Mode/rights of the file's owner |
+| `chown.file.uid` | int | UID of the file's owner |
+| `chown.file.user` | string | User of the file's owner |
+| `chown.retval` | int | Return value of the syscall |
 
-### Event `mkdir`
+## Event `exec`
+
+A process was executed or forked
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `mkdir.file.destination.mode` |  |  |
-| `mkdir.file.destination.rights` |  |  |
-| `mkdir.file.filesystem` |  |  |
-| `mkdir.file.gid` |  |  |
-| `mkdir.file.group` |  |  |
-| `mkdir.file.in_upper_layer` |  |  |
-| `mkdir.file.inode` |  |  |
-| `mkdir.file.mode` |  |  |
-| `mkdir.file.mount_id` |  |  |
-| `mkdir.file.name` |  |  |
-| `mkdir.file.path` |  |  |
-| `mkdir.file.rights` |  |  |
-| `mkdir.file.uid` |  | uid field definition |
-| `mkdir.file.user` |  |  |
-| `mkdir.retval` |  |  |
+| `exec.args` | string | Arguments of the process (as a string) |
+| `exec.args_flags` | string | Arguments of the process (as an array) |
+| `exec.args_options` | string | Arguments of the process (as an array) |
+| `exec.args_truncated` | bool | Indicator of arguments truncation |
+| `exec.argv` | string | Arguments of the process (as an array) |
+| `exec.cap_effective` | int | Effective capability set of the process |
+| `exec.cap_permitted` | int | Permitted capability set of the process |
+| `exec.comm` | string | Comm attribute of the process |
+| `exec.container.id` | string | Container ID |
+| `exec.cookie` | int | Cookie of the process |
+| `exec.created_at` | int | Timestamp of the creation of the process |
+| `exec.egid` | int | Effective GID of the process |
+| `exec.egroup` | string | Effective group of the process |
+| `exec.envs` | string | Environment variables of the process |
+| `exec.envs_truncated` | bool | Indicator of environment variables truncation |
+| `exec.euid` | int | Effective UID of the process |
+| `exec.euser` | string | Effective user of the process |
+| `exec.file.filesystem` | string | FileSystem of the process executable |
+| `exec.file.gid` | int | GID of the file's owner |
+| `exec.file.group` | string | Group of the file's owner |
+| `exec.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `exec.file.inode` | int | Inode of the file |
+| `exec.file.mode` | int | Mode/rights of the file's owner |
+| `exec.file.mount_id` | int | Mount ID of the file |
+| `exec.file.name` | string | Basename of the path of the process executable |
+| `exec.file.path` | string | Path of the process executable |
+| `exec.file.rights` | int | Mode/rights of the file's owner |
+| `exec.file.uid` | int | UID of the file's owner |
+| `exec.file.user` | string | User of the file's owner |
+| `exec.fsgid` | int | FileSystem-gid of the process |
+| `exec.fsgroup` | string | FileSystem-group of the process |
+| `exec.fsuid` | int | FileSystem-uid of the process |
+| `exec.fsuser` | string | FileSystem-user of the process |
+| `exec.gid` | int | GID of the process |
+| `exec.group` | string | Group of the process |
+| `exec.pid` | int | Process ID of the process (also called thread group ID) |
+| `exec.ppid` | int | Parent process ID |
+| `exec.tid` | int | Thread ID of the thread |
+| `exec.tty_name` | string | Name of the TTY associated with the process |
+| `exec.uid` | int | UID of the process |
+| `exec.user` | string | User of the process |
 
-### Event `open`
+## Event `link`
 
-| Property | Type | Definition |
-| -------- | ---- | ---------- |
-| `open.file.destination.mode` |  |  |
-| `open.file.filesystem` |  |  |
-| `open.file.gid` |  |  |
-| `open.file.group` |  |  |
-| `open.file.in_upper_layer` |  |  |
-| `open.file.inode` |  |  |
-| `open.file.mode` |  |  |
-| `open.file.mount_id` |  |  |
-| `open.file.name` |  |  |
-| `open.file.path` |  |  |
-| `open.file.rights` |  |  |
-| `open.file.uid` |  | uid field definition |
-| `open.file.user` |  | test traduction |
-| `open.flags` |  |  |
-| `open.retval` |  |  |
-
-### Event `removexattr`
-
-| Property | Type | Definition |
-| -------- | ---- | ---------- |
-| `removexattr.file.destination.name` |  |  |
-| `removexattr.file.destination.namespace` |  |  |
-| `removexattr.file.filesystem` |  |  |
-| `removexattr.file.gid` |  |  |
-| `removexattr.file.group` |  |  |
-| `removexattr.file.in_upper_layer` |  |  |
-| `removexattr.file.inode` |  |  |
-| `removexattr.file.mode` |  |  |
-| `removexattr.file.mount_id` |  |  |
-| `removexattr.file.name` |  |  |
-| `removexattr.file.path` |  |  |
-| `removexattr.file.rights` |  |  |
-| `removexattr.file.uid` |  | uid field definition |
-| `removexattr.file.user` |  |  |
-| `removexattr.retval` |  |  |
-
-### Event `rename`
+Create a new name/alias for a file
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `rename.file.destination.filesystem` |  |  |
-| `rename.file.destination.gid` |  |  |
-| `rename.file.destination.group` |  |  |
-| `rename.file.destination.in_upper_layer` |  |  |
-| `rename.file.destination.inode` |  |  |
-| `rename.file.destination.mode` |  |  |
-| `rename.file.destination.mount_id` |  |  |
-| `rename.file.destination.name` |  |  |
-| `rename.file.destination.path` |  |  |
-| `rename.file.destination.rights` |  |  |
-| `rename.file.destination.uid` |  | uid field definition |
-| `rename.file.destination.user` |  |  |
-| `rename.file.filesystem` |  |  |
-| `rename.file.gid` |  |  |
-| `rename.file.group` |  |  |
-| `rename.file.in_upper_layer` |  |  |
-| `rename.file.inode` |  |  |
-| `rename.file.mode` |  |  |
-| `rename.file.mount_id` |  |  |
-| `rename.file.name` |  |  |
-| `rename.file.path` |  |  |
-| `rename.file.rights` |  |  |
-| `rename.file.uid` |  | uid field definition |
-| `rename.file.user` |  |  |
-| `rename.retval` |  |  |
+| `link.file.destination.filesystem` | string | File's filesystem |
+| `link.file.destination.gid` | int | GID of the file's owner |
+| `link.file.destination.group` | string | Group of the file's owner |
+| `link.file.destination.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `link.file.destination.inode` | int | Inode of the file |
+| `link.file.destination.mode` | int | Mode/rights of the file's owner |
+| `link.file.destination.mount_id` | int | Mount ID of the file |
+| `link.file.destination.name` | string | File's basename |
+| `link.file.destination.path` | string | File's path |
+| `link.file.destination.rights` | int | Mode/rights of the file's owner |
+| `link.file.destination.uid` | int | UID of the file's owner |
+| `link.file.destination.user` | string | User of the file's owner |
+| `link.file.filesystem` | string | File's filesystem |
+| `link.file.gid` | int | GID of the file's owner |
+| `link.file.group` | string | Group of the file's owner |
+| `link.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `link.file.inode` | int | Inode of the file |
+| `link.file.mode` | int | Mode/rights of the file's owner |
+| `link.file.mount_id` | int | Mount ID of the file |
+| `link.file.name` | string | File's basename |
+| `link.file.path` | string | File's path |
+| `link.file.rights` | int | Mode/rights of the file's owner |
+| `link.file.uid` | int | UID of the file's owner |
+| `link.file.user` | string | User of the file's owner |
+| `link.retval` | int | Return value of the syscall |
 
-### Event `rmdir`
+## Event `mkdir`
 
-| Property | Type | Definition |
-| -------- | ---- | ---------- |
-| `rmdir.file.filesystem` |  |  |
-| `rmdir.file.gid` |  |  |
-| `rmdir.file.group` |  |  |
-| `rmdir.file.in_upper_layer` |  |  |
-| `rmdir.file.inode` |  |  |
-| `rmdir.file.mode` |  |  |
-| `rmdir.file.mount_id` |  |  |
-| `rmdir.file.name` |  |  |
-| `rmdir.file.path` |  |  |
-| `rmdir.file.rights` |  |  |
-| `rmdir.file.uid` |  | uid field definition |
-| `rmdir.file.user` |  |  |
-| `rmdir.retval` |  |  |
-
-### Event `selinux`
+A directory was created
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `selinux.bool.name` |  |  |
-| `selinux.bool.state` |  |  |
-| `selinux.bool_commit.state` |  |  |
-| `selinux.enforce.status` |  |  |
+| `mkdir.file.destination.mode` | int | Mode/rights of the new directory |
+| `mkdir.file.destination.rights` | int | Mode/rights of the new directory |
+| `mkdir.file.filesystem` | string | File's filesystem |
+| `mkdir.file.gid` | int | GID of the file's owner |
+| `mkdir.file.group` | string | Group of the file's owner |
+| `mkdir.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `mkdir.file.inode` | int | Inode of the file |
+| `mkdir.file.mode` | int | Mode/rights of the file's owner |
+| `mkdir.file.mount_id` | int | Mount ID of the file |
+| `mkdir.file.name` | string | File's basename |
+| `mkdir.file.path` | string | File's path |
+| `mkdir.file.rights` | int | Mode/rights of the file's owner |
+| `mkdir.file.uid` | int | UID of the file's owner |
+| `mkdir.file.user` | string | User of the file's owner |
+| `mkdir.retval` | int | Return value of the syscall |
 
-### Event `setgid`
+## Event `open`
 
-| Property | Type | Definition |
-| -------- | ---- | ---------- |
-| `setgid.egid` |  |  |
-| `setgid.egroup` |  |  |
-| `setgid.fsgid` |  |  |
-| `setgid.fsgroup` |  |  |
-| `setgid.gid` |  |  |
-| `setgid.group` |  |  |
-
-### Event `setuid`
-
-| Property | Type | Definition |
-| -------- | ---- | ---------- |
-| `setuid.euid` |  |  |
-| `setuid.euser` |  |  |
-| `setuid.fsuid` |  |  |
-| `setuid.fsuser` |  |  |
-| `setuid.uid` |  |  |
-| `setuid.user` |  |  |
-
-### Event `setxattr`
+A file was opened
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `setxattr.file.destination.name` |  |  |
-| `setxattr.file.destination.namespace` |  |  |
-| `setxattr.file.filesystem` |  |  |
-| `setxattr.file.gid` |  |  |
-| `setxattr.file.group` |  |  |
-| `setxattr.file.in_upper_layer` |  |  |
-| `setxattr.file.inode` |  |  |
-| `setxattr.file.mode` |  |  |
-| `setxattr.file.mount_id` |  |  |
-| `setxattr.file.name` |  |  |
-| `setxattr.file.path` |  |  |
-| `setxattr.file.rights` |  |  |
-| `setxattr.file.uid` |  | uid field definition |
-| `setxattr.file.user` |  |  |
-| `setxattr.retval` |  |  |
+| `open.file.destination.mode` | int | Mode of the created file |
+| `open.file.filesystem` | string | File's filesystem |
+| `open.file.gid` | int | GID of the file's owner |
+| `open.file.group` | string | Group of the file's owner |
+| `open.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `open.file.inode` | int | Inode of the file |
+| `open.file.mode` | int | Mode/rights of the file's owner |
+| `open.file.mount_id` | int | Mount ID of the file |
+| `open.file.name` | string | File's basename |
+| `open.file.path` | string | File's path |
+| `open.file.rights` | int | Mode/rights of the file's owner |
+| `open.file.uid` | int | UID of the file's owner |
+| `open.file.user` | string | test traduction |
+| `open.flags` | int | Flags used when opening the file |
+| `open.retval` | int | Return value of the syscall |
 
-### Event `unlink`
+## Event `removexattr`
 
-| Property | Type | Definition |
-| -------- | ---- | ---------- |
-| `unlink.file.filesystem` |  |  |
-| `unlink.file.gid` |  |  |
-| `unlink.file.group` |  |  |
-| `unlink.file.in_upper_layer` |  |  |
-| `unlink.file.inode` |  |  |
-| `unlink.file.mode` |  |  |
-| `unlink.file.mount_id` |  |  |
-| `unlink.file.name` |  |  |
-| `unlink.file.path` |  |  |
-| `unlink.file.rights` |  |  |
-| `unlink.file.uid` |  | uid field definition |
-| `unlink.file.user` |  |  |
-| `unlink.retval` |  |  |
-
-### Event `utimes`
+Remove extended attributes
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `utimes.file.filesystem` |  |  |
-| `utimes.file.gid` |  |  |
-| `utimes.file.group` |  |  |
-| `utimes.file.in_upper_layer` |  |  |
-| `utimes.file.inode` |  |  |
-| `utimes.file.mode` |  |  |
-| `utimes.file.mount_id` |  |  |
-| `utimes.file.name` |  |  |
-| `utimes.file.path` |  |  |
-| `utimes.file.rights` |  |  |
-| `utimes.file.uid` |  | uid field definition |
-| `utimes.file.user` |  |  |
-| `utimes.retval` |  |  |
+| `removexattr.file.destination.name` | string | Name of the extended attribute |
+| `removexattr.file.destination.namespace` | string | Namespace of the extended attribute |
+| `removexattr.file.filesystem` | string | File's filesystem |
+| `removexattr.file.gid` | int | GID of the file's owner |
+| `removexattr.file.group` | string | Group of the file's owner |
+| `removexattr.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `removexattr.file.inode` | int | Inode of the file |
+| `removexattr.file.mode` | int | Mode/rights of the file's owner |
+| `removexattr.file.mount_id` | int | Mount ID of the file |
+| `removexattr.file.name` | string | File's basename |
+| `removexattr.file.path` | string | File's path |
+| `removexattr.file.rights` | int | Mode/rights of the file's owner |
+| `removexattr.file.uid` | int | UID of the file's owner |
+| `removexattr.file.user` | string | User of the file's owner |
+| `removexattr.retval` | int | Return value of the syscall |
+
+## Event `rename`
+
+A file/directory was renamed
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `rename.file.destination.filesystem` | string | File's filesystem |
+| `rename.file.destination.gid` | int | GID of the file's owner |
+| `rename.file.destination.group` | string | Group of the file's owner |
+| `rename.file.destination.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `rename.file.destination.inode` | int | Inode of the file |
+| `rename.file.destination.mode` | int | Mode/rights of the file's owner |
+| `rename.file.destination.mount_id` | int | Mount ID of the file |
+| `rename.file.destination.name` | string | File's basename |
+| `rename.file.destination.path` | string | File's path |
+| `rename.file.destination.rights` | int | Mode/rights of the file's owner |
+| `rename.file.destination.uid` | int | UID of the file's owner |
+| `rename.file.destination.user` | string | User of the file's owner |
+| `rename.file.filesystem` | string | File's filesystem |
+| `rename.file.gid` | int | GID of the file's owner |
+| `rename.file.group` | string | Group of the file's owner |
+| `rename.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `rename.file.inode` | int | Inode of the file |
+| `rename.file.mode` | int | Mode/rights of the file's owner |
+| `rename.file.mount_id` | int | Mount ID of the file |
+| `rename.file.name` | string | File's basename |
+| `rename.file.path` | string | File's path |
+| `rename.file.rights` | int | Mode/rights of the file's owner |
+| `rename.file.uid` | int | UID of the file's owner |
+| `rename.file.user` | string | User of the file's owner |
+| `rename.retval` | int | Return value of the syscall |
+
+## Event `rmdir`
+
+A directory was removed
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `rmdir.file.filesystem` | string | File's filesystem |
+| `rmdir.file.gid` | int | GID of the file's owner |
+| `rmdir.file.group` | string | Group of the file's owner |
+| `rmdir.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `rmdir.file.inode` | int | Inode of the file |
+| `rmdir.file.mode` | int | Mode/rights of the file's owner |
+| `rmdir.file.mount_id` | int | Mount ID of the file |
+| `rmdir.file.name` | string | File's basename |
+| `rmdir.file.path` | string | File's path |
+| `rmdir.file.rights` | int | Mode/rights of the file's owner |
+| `rmdir.file.uid` | int | UID of the file's owner |
+| `rmdir.file.user` | string | User of the file's owner |
+| `rmdir.retval` | int | Return value of the syscall |
+
+## Event `selinux`
+
+An SELinux operation was run
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `selinux.bool.name` | string | SELinux boolean name |
+| `selinux.bool.state` | string | SELinux boolean new value |
+| `selinux.bool_commit.state` | bool | Indicator of a SELinux boolean commit operation |
+| `selinux.enforce.status` | string | SELinux enforcement status (one of "enforcing", "permissive", "disabled"") |
+
+## Event `setgid`
+
+A process changed its effective gid
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `setgid.egid` | int | New effective GID of the process |
+| `setgid.egroup` | string | New effective group of the process |
+| `setgid.fsgid` | int | New FileSystem GID of the process |
+| `setgid.fsgroup` | string | New FileSystem group of the process |
+| `setgid.gid` | int | New GID of the process |
+| `setgid.group` | string | New group of the process |
+
+## Event `setuid`
+
+A process changed its effective uid
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `setuid.euid` | int | New effective UID of the process |
+| `setuid.euser` | string | New effective user of the process |
+| `setuid.fsuid` | int | New FileSystem UID of the process |
+| `setuid.fsuser` | string | New FileSystem user of the process |
+| `setuid.uid` | int | New UID of the process |
+| `setuid.user` | string | New user of the process |
+
+## Event `setxattr`
+
+Set exteneded attributes
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `setxattr.file.destination.name` | string | Name of the extended attribute |
+| `setxattr.file.destination.namespace` | string | Namespace of the extended attribute |
+| `setxattr.file.filesystem` | string | File's filesystem |
+| `setxattr.file.gid` | int | GID of the file's owner |
+| `setxattr.file.group` | string | Group of the file's owner |
+| `setxattr.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `setxattr.file.inode` | int | Inode of the file |
+| `setxattr.file.mode` | int | Mode/rights of the file's owner |
+| `setxattr.file.mount_id` | int | Mount ID of the file |
+| `setxattr.file.name` | string | File's basename |
+| `setxattr.file.path` | string | File's path |
+| `setxattr.file.rights` | int | Mode/rights of the file's owner |
+| `setxattr.file.uid` | int | UID of the file's owner |
+| `setxattr.file.user` | string | User of the file's owner |
+| `setxattr.retval` | int | Return value of the syscall |
+
+## Event `unlink`
+
+A file was deleted
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `unlink.file.filesystem` | string | File's filesystem |
+| `unlink.file.gid` | int | GID of the file's owner |
+| `unlink.file.group` | string | Group of the file's owner |
+| `unlink.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `unlink.file.inode` | int | Inode of the file |
+| `unlink.file.mode` | int | Mode/rights of the file's owner |
+| `unlink.file.mount_id` | int | Mount ID of the file |
+| `unlink.file.name` | string | File's basename |
+| `unlink.file.path` | string | File's path |
+| `unlink.file.rights` | int | Mode/rights of the file's owner |
+| `unlink.file.uid` | int | UID of the file's owner |
+| `unlink.file.user` | string | User of the file's owner |
+| `unlink.retval` | int | Return value of the syscall |
+
+## Event `utimes`
+
+Change file access/modification times
+
+| Property | Type | Definition |
+| -------- | ---- | ---------- |
+| `utimes.file.filesystem` | string | File's filesystem |
+| `utimes.file.gid` | int | GID of the file's owner |
+| `utimes.file.group` | string | Group of the file's owner |
+| `utimes.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `utimes.file.inode` | int | Inode of the file |
+| `utimes.file.mode` | int | Mode/rights of the file's owner |
+| `utimes.file.mount_id` | int | Mount ID of the file |
+| `utimes.file.name` | string | File's basename |
+| `utimes.file.path` | string | File's path |
+| `utimes.file.rights` | int | Mode/rights of the file's owner |
+| `utimes.file.uid` | int | UID of the file's owner |
+| `utimes.file.user` | string | User of the file's owner |
+| `utimes.retval` | int | Return value of the syscall |
 
 

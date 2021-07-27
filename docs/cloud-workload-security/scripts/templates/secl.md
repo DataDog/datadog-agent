@@ -18,12 +18,14 @@
 {% else %}
 {% set prefix = "" %}
 ## Event `{{ event_type.name }}`
+
+{{ event_type.definition }}
 {% endif %}
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
 {% for property in event_type.properties %}
-| `{{ prefix }}{{ property.name }}` | {{ property.type }} | {{ property.definition }} |
+| `{{ prefix }}{{ property.name }}` | {{ property.datatype }} | {{ property.definition }} |
 {% endfor %}
 
 {% endfor %}
