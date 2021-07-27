@@ -838,7 +838,7 @@ func TestCheck_Run(t *testing.T) {
 		},
 	}
 
-	sysObjectIDPacketInvalidOMock := gosnmp.SnmpPacket{
+	sysObjectIDPacketInvalidOidMock := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
 			{
 				Name:  "1.3.6.1.6.3.15.1.1.1.0", // usmStatsUnsupportedSecLevels
@@ -932,7 +932,7 @@ func TestCheck_Run(t *testing.T) {
 		},
 		{
 			name:              "failed to fetch sysobjectid with error oid",
-			sysObjectIDPacket: sysObjectIDPacketInvalidOMock,
+			sysObjectIDPacket: sysObjectIDPacketInvalidOidMock,
 			expectedErr:       "failed to autodetect profile: failed to fetch sysobjectid: expect `1.3.6.1.2.1.1.2.0` OID but got `1.3.6.1.6.3.15.1.1.1.0` OID with value `{counter 123}`",
 		},
 		{
