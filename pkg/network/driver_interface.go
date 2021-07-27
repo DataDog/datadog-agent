@@ -55,16 +55,19 @@ type DriverInterface struct {
 
 	bufferLock sync.Mutex
 	readBuffer []uint8
+
+	cfg *config.Config
 }
 
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
-func NewDriverInterface(config *config.Config) (*DriverInterface, error) {
+func NewDriverInterface(cfg *config.Config) (*DriverInterface, error) {
 	dc := &DriverInterface{
-		enableMonotonicCounts: config.EnableMonotonicCount,
-		readBuffer:            make([]byte, config.DriverBufferSize),
-		bufferSize:            int64(config.DriverBufferSize),
-		maxOpenFlows:          uint64(config.MaxTrackedConnections),
-		maxClosedFlows:        uint64(config.MaxClosedConnectionsBuffered),
+		cfg:                   cfg,
+		enableMonotonicCounts: cfg.EnableMonotonicCount,
+		readBuffer:            make([]byte, cfg.DriverBufferSize),
+		bufferSize:            int64(cfg.DriverBufferSize),
+		maxOpenFlows:          uint64(cfg.MaxTrackedConnections),
+		maxClosedFlows:        uint64(cfg.MaxClosedConnectionsBuffered),
 	}
 
 	err := dc.setupFlowHandle()
@@ -100,7 +103,7 @@ func (di *DriverInterface) setupFlowHandle() error {
 	}
 	di.driverFlowHandle = dh
 
-	filters, err := createFlowHandleFilters()
+	filters, err := di.createFlowHandleFilters()
 	if err != nil {
 		return err
 	}
@@ -254,43 +257,93 @@ func (di *DriverInterface) setFlowParams() error {
 	return err
 }
 
-func createFlowHandleFilters() (filters []driver.FilterDefinition, err error) {
+func (di *DriverInterface) createFlowHandleFilters() ([]driver.FilterDefinition, error) {
 	ifaces, err := net.Interfaces()
-
-	// Two filters per iface
 	if err != nil {
 		return nil, fmt.Errorf("error getting interfaces: %s", err.Error())
 	}
 
+	var filters []driver.FilterDefinition
 	for _, iface := range ifaces {
 		log.Debugf("Creating filters for interface: %s [%+v]", iface.Name, iface)
-		// Set ipv4 Traffic
-		filters = append(filters, newDDAPIFilter(driver.DirectionOutbound, driver.LayerTransport, iface.Index, true))
-		filters = append(filters, newDDAPIFilter(driver.DirectionInbound, driver.LayerTransport, iface.Index, true))
-		// Set ipv6
-		filters = append(filters, newDDAPIFilter(driver.DirectionOutbound, driver.LayerTransport, iface.Index, false))
-		filters = append(filters, newDDAPIFilter(driver.DirectionInbound, driver.LayerTransport, iface.Index, false))
+		if di.cfg.CollectTCPConns {
+			filters = append(filters, driver.FilterDefinition{
+				FilterVersion:  driver.Signature,
+				Size:           driver.FilterDefinitionSize,
+				Direction:      driver.DirectionOutbound,
+				FilterLayer:    driver.LayerTransport,
+				InterfaceIndex: uint64(iface.Index),
+				Af:             windows.AF_INET,
+				Protocol:       windows.IPPROTO_TCP,
+			}, driver.FilterDefinition{
+				FilterVersion:  driver.Signature,
+				Size:           driver.FilterDefinitionSize,
+				Direction:      driver.DirectionInbound,
+				FilterLayer:    driver.LayerTransport,
+				InterfaceIndex: uint64(iface.Index),
+				Af:             windows.AF_INET,
+				Protocol:       windows.IPPROTO_TCP,
+			})
+			if di.cfg.CollectIPv6Conns {
+				filters = append(filters, driver.FilterDefinition{
+					FilterVersion:  driver.Signature,
+					Size:           driver.FilterDefinitionSize,
+					Direction:      driver.DirectionOutbound,
+					FilterLayer:    driver.LayerTransport,
+					InterfaceIndex: uint64(iface.Index),
+					Af:             windows.AF_INET6,
+					Protocol:       windows.IPPROTO_TCP,
+				}, driver.FilterDefinition{
+					FilterVersion:  driver.Signature,
+					Size:           driver.FilterDefinitionSize,
+					Direction:      driver.DirectionInbound,
+					FilterLayer:    driver.LayerTransport,
+					InterfaceIndex: uint64(iface.Index),
+					Af:             windows.AF_INET6,
+					Protocol:       windows.IPPROTO_TCP,
+				})
+			}
+		}
+
+		if di.cfg.CollectUDPConns {
+			filters = append(filters, driver.FilterDefinition{
+				FilterVersion:  driver.Signature,
+				Size:           driver.FilterDefinitionSize,
+				Direction:      driver.DirectionOutbound,
+				FilterLayer:    driver.LayerTransport,
+				InterfaceIndex: uint64(iface.Index),
+				Af:             windows.AF_INET,
+				Protocol:       windows.IPPROTO_UDP,
+			}, driver.FilterDefinition{
+				FilterVersion:  driver.Signature,
+				Size:           driver.FilterDefinitionSize,
+				Direction:      driver.DirectionInbound,
+				FilterLayer:    driver.LayerTransport,
+				InterfaceIndex: uint64(iface.Index),
+				Af:             windows.AF_INET,
+				Protocol:       windows.IPPROTO_UDP,
+			})
+			if di.cfg.CollectIPv6Conns {
+				filters = append(filters, driver.FilterDefinition{
+					FilterVersion:  driver.Signature,
+					Size:           driver.FilterDefinitionSize,
+					Direction:      driver.DirectionOutbound,
+					FilterLayer:    driver.LayerTransport,
+					InterfaceIndex: uint64(iface.Index),
+					Af:             windows.AF_INET6,
+					Protocol:       windows.IPPROTO_UDP,
+				}, driver.FilterDefinition{
+					FilterVersion:  driver.Signature,
+					Size:           driver.FilterDefinitionSize,
+					Direction:      driver.DirectionInbound,
+					FilterLayer:    driver.LayerTransport,
+					InterfaceIndex: uint64(iface.Index),
+					Af:             windows.AF_INET6,
+					Protocol:       windows.IPPROTO_UDP,
+				})
+			}
+		}
 	}
 
 	return filters, nil
-}
-
-// NewDDAPIFilter returns a filter we can apply to the driver
-func newDDAPIFilter(direction, layer uint64, ifaceIndex int, isIPV4 bool) driver.FilterDefinition {
-	var fd driver.FilterDefinition
-	fd.FilterVersion = driver.Signature
-	fd.Size = driver.FilterDefinitionSize
-	// TODO Remove direction setting for flow filters once all verification code has been removed from driver
-	fd.Direction = direction
-	fd.FilterLayer = layer
-
-	if isIPV4 {
-		fd.Af = windows.AF_INET
-		fd.V4InterfaceIndex = uint64(ifaceIndex)
-	} else {
-		fd.Af = windows.AF_INET6
-		fd.V6InterfaceIndex = uint64(ifaceIndex)
-	}
-
-	return fd
 }

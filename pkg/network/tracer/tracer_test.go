@@ -380,9 +380,6 @@ func TestTCPOverIPv6(t *testing.T) {
 }
 
 func TestTCPCollectionDisabled(t *testing.T) {
-	// config flag is not respected yet
-	skipIfWindows(t)
-
 	// Enable BPF-based system probe with TCP disabled
 	config := testConfig()
 	config.CollectTCPConns = false
@@ -478,8 +475,6 @@ func TestUDPSendAndReceive(t *testing.T) {
 }
 
 func TestUDPDisabled(t *testing.T) {
-	// config flag not respected
-	skipIfWindows(t)
 	// Enable BPF-based system probe with UDP disabled
 	config := testConfig()
 	config.CollectUDPConns = false
