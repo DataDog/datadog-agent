@@ -30,7 +30,6 @@
     - include_tasks: ../common/create/test-for-presence-of-local-keypair.yml
     - include_tasks: ../common/create/delete-remote-keypair.yml
     - include_tasks: ../common/create/create-keypair.yml
-    - include_tasks: ../common/create/dump-ssh-key.yml
     - include_tasks: ../common/create/persist-the-keypair.yml
     - include_tasks: ../common/create/write-keypair-to-encrypted-file.yml
     - include_tasks: ../common/create/create-molecule-instances-sda-volume.yml
