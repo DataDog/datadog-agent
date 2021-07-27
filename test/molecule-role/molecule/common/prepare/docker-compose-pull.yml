@@ -5,4 +5,3 @@
 
 - debug: msg="{{ compose.stdout }}"
 - debug: msg="{{ compose.stderr }}"
-
