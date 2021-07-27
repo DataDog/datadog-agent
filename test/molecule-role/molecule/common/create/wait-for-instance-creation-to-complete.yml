@@ -26,8 +26,14 @@
     instance_conf: "{{ instance_config_dict.results | map(attribute='ansible_facts.instance_conf_dict') | list }}"
   when: server.changed | bool
 
-- name: Dump instance config
+- name: Dump instance config in the temp storage
+  when: server.changed | bool
   copy:
     content: "{{ instance_conf | to_json | from_json | molecule_to_yaml | molecule_header }}"
-    dest: "{{ molecule_instance_config }}"
-  when: server.changed | bool
+    dest: ".molecule-temp/{{ molecule_scenario_name }}/instance_config.yml"
+
+- name: (CI) Dump instance config in the artifactory directory
+  when: (server.changed | bool) and ci_project_dir is defined and ci_project_dir != ""
+  copy:
+    content: "{{ instance_conf | to_json | from_json | molecule_to_yaml | molecule_header }}"
+    dest: "{{ci_project_dir}}/.molecule-temp/{{ molecule_scenario_name }}/instance_config.yml"

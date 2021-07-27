@@ -1,6 +1,5 @@
 ---
 - name: Create molecule instance(s)
-  when: molecule_scenario_name is defined and molecule_scenario_name != "" and agent_current_branch is defined and agent_current_branch != ""
   ec2_instance:
     key_name: "{{ keypair_name }}"
     image_id: "{{ item.image }}"

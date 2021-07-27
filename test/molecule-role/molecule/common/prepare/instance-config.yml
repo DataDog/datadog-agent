@@ -1,0 +1,18 @@
+---
+- name: (Local) Restore instance config for connection
+  when: ci_project_dir is undefined or ci_project_dir == ""
+  copy:
+    src: ".molecule-temp/{{ molecule_scenario_name }}/instance_config.yml"
+    dest: "{{ molecule_instance_config }}"
+    mode: preserve
+
+- name: (CI) Restore instance config for connection
+  when: ci_project_dir is defined and ci_project_dir != ""
+  copy:
+    src: "{{ci_project_dir}}/.molecule-temp/{{ molecule_scenario_name }}/instance_config.yml"
+    dest: "{{ molecule_instance_config }}"
+    mode: preserve
+
+- name: Wait (Instance Config Restore)
+  pause:
+    seconds: 3
