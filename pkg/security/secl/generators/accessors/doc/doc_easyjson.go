@@ -17,105 +17,7 @@ var (
 	_ easyjson.Marshaler
 )
 
-func easyjson9972aa54DecodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc(in *jlexer.Lexer, out *Documentation) {
-	isTopLevel := in.IsStart()
-	if in.IsNull() {
-		if isTopLevel {
-			in.Consumed()
-		}
-		in.Skip()
-		return
-	}
-	in.Delim('{')
-	for !in.IsDelim('}') {
-		key := in.UnsafeFieldName(false)
-		in.WantColon()
-		if in.IsNull() {
-			in.Skip()
-			in.WantComma()
-			continue
-		}
-		switch key {
-		case "secl":
-			if in.IsNull() {
-				in.Skip()
-				out.Kinds = nil
-			} else {
-				in.Delim('[')
-				if out.Kinds == nil {
-					if !in.IsDelim(']') {
-						out.Kinds = make([]DocEventKind, 0, 0)
-					} else {
-						out.Kinds = []DocEventKind{}
-					}
-				} else {
-					out.Kinds = (out.Kinds)[:0]
-				}
-				for !in.IsDelim(']') {
-					var v1 DocEventKind
-					(v1).UnmarshalEasyJSON(in)
-					out.Kinds = append(out.Kinds, v1)
-					in.WantComma()
-				}
-				in.Delim(']')
-			}
-		default:
-			in.SkipRecursive()
-		}
-		in.WantComma()
-	}
-	in.Delim('}')
-	if isTopLevel {
-		in.Consumed()
-	}
-}
-func easyjson9972aa54EncodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc(out *jwriter.Writer, in Documentation) {
-	out.RawByte('{')
-	first := true
-	_ = first
-	{
-		const prefix string = ",\"secl\":"
-		out.RawString(prefix[1:])
-		if in.Kinds == nil && (out.Flags&jwriter.NilSliceAsEmpty) == 0 {
-			out.RawString("null")
-		} else {
-			out.RawByte('[')
-			for v2, v3 := range in.Kinds {
-				if v2 > 0 {
-					out.RawByte(',')
-				}
-				(v3).MarshalEasyJSON(out)
-			}
-			out.RawByte(']')
-		}
-	}
-	out.RawByte('}')
-}
-
-// MarshalJSON supports json.Marshaler interface
-func (v Documentation) MarshalJSON() ([]byte, error) {
-	w := jwriter.Writer{}
-	easyjson9972aa54EncodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc(&w, v)
-	return w.Buffer.BuildBytes(), w.Error
-}
-
-// MarshalEasyJSON supports easyjson.Marshaler interface
-func (v Documentation) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson9972aa54EncodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc(w, v)
-}
-
-// UnmarshalJSON supports json.Unmarshaler interface
-func (v *Documentation) UnmarshalJSON(data []byte) error {
-	r := jlexer.Lexer{Data: data}
-	easyjson9972aa54DecodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc(&r, v)
-	return r.Error()
-}
-
-// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
-func (v *Documentation) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson9972aa54DecodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc(l, v)
-}
-func easyjson9972aa54DecodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc1(in *jlexer.Lexer, out *DocEventProperty) {
+func easyjson9972aa54DecodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc(in *jlexer.Lexer, out *eventTypeProperty) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -150,7 +52,7 @@ func easyjson9972aa54DecodeGithubComDataDogDatadogAgentPkgSecuritySeclGenerators
 		in.Consumed()
 	}
 }
-func easyjson9972aa54EncodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc1(out *jwriter.Writer, in DocEventProperty) {
+func easyjson9972aa54EncodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc(out *jwriter.Writer, in eventTypeProperty) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -173,29 +75,29 @@ func easyjson9972aa54EncodeGithubComDataDogDatadogAgentPkgSecuritySeclGenerators
 }
 
 // MarshalJSON supports json.Marshaler interface
-func (v DocEventProperty) MarshalJSON() ([]byte, error) {
+func (v eventTypeProperty) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson9972aa54EncodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc1(&w, v)
+	easyjson9972aa54EncodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
-func (v DocEventProperty) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson9972aa54EncodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc1(w, v)
+func (v eventTypeProperty) MarshalEasyJSON(w *jwriter.Writer) {
+	easyjson9972aa54EncodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
-func (v *DocEventProperty) UnmarshalJSON(data []byte) error {
+func (v *eventTypeProperty) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson9972aa54DecodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc1(&r, v)
+	easyjson9972aa54DecodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
-func (v *DocEventProperty) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson9972aa54DecodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc1(l, v)
+func (v *eventTypeProperty) UnmarshalEasyJSON(l *jlexer.Lexer) {
+	easyjson9972aa54DecodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc(l, v)
 }
-func easyjson9972aa54DecodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc2(in *jlexer.Lexer, out *DocEventKind) {
+func easyjson9972aa54DecodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc1(in *jlexer.Lexer, out *eventType) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -230,17 +132,17 @@ func easyjson9972aa54DecodeGithubComDataDogDatadogAgentPkgSecuritySeclGenerators
 				in.Delim('[')
 				if out.Properties == nil {
 					if !in.IsDelim(']') {
-						out.Properties = make([]DocEventProperty, 0, 1)
+						out.Properties = make([]eventTypeProperty, 0, 1)
 					} else {
-						out.Properties = []DocEventProperty{}
+						out.Properties = []eventTypeProperty{}
 					}
 				} else {
 					out.Properties = (out.Properties)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v4 DocEventProperty
-					(v4).UnmarshalEasyJSON(in)
-					out.Properties = append(out.Properties, v4)
+					var v1 eventTypeProperty
+					(v1).UnmarshalEasyJSON(in)
+					out.Properties = append(out.Properties, v1)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -255,7 +157,7 @@ func easyjson9972aa54DecodeGithubComDataDogDatadogAgentPkgSecuritySeclGenerators
 		in.Consumed()
 	}
 }
-func easyjson9972aa54EncodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc2(out *jwriter.Writer, in DocEventKind) {
+func easyjson9972aa54EncodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc1(out *jwriter.Writer, in eventType) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -286,7 +188,105 @@ func easyjson9972aa54EncodeGithubComDataDogDatadogAgentPkgSecuritySeclGenerators
 			out.RawString("null")
 		} else {
 			out.RawByte('[')
-			for v5, v6 := range in.Properties {
+			for v2, v3 := range in.Properties {
+				if v2 > 0 {
+					out.RawByte(',')
+				}
+				(v3).MarshalEasyJSON(out)
+			}
+			out.RawByte(']')
+		}
+	}
+	out.RawByte('}')
+}
+
+// MarshalJSON supports json.Marshaler interface
+func (v eventType) MarshalJSON() ([]byte, error) {
+	w := jwriter.Writer{}
+	easyjson9972aa54EncodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc1(&w, v)
+	return w.Buffer.BuildBytes(), w.Error
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v eventType) MarshalEasyJSON(w *jwriter.Writer) {
+	easyjson9972aa54EncodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc1(w, v)
+}
+
+// UnmarshalJSON supports json.Unmarshaler interface
+func (v *eventType) UnmarshalJSON(data []byte) error {
+	r := jlexer.Lexer{Data: data}
+	easyjson9972aa54DecodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc1(&r, v)
+	return r.Error()
+}
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *eventType) UnmarshalEasyJSON(l *jlexer.Lexer) {
+	easyjson9972aa54DecodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc1(l, v)
+}
+func easyjson9972aa54DecodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc2(in *jlexer.Lexer, out *documentation) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "secl":
+			if in.IsNull() {
+				in.Skip()
+				out.Types = nil
+			} else {
+				in.Delim('[')
+				if out.Types == nil {
+					if !in.IsDelim(']') {
+						out.Types = make([]eventType, 0, 0)
+					} else {
+						out.Types = []eventType{}
+					}
+				} else {
+					out.Types = (out.Types)[:0]
+				}
+				for !in.IsDelim(']') {
+					var v4 eventType
+					(v4).UnmarshalEasyJSON(in)
+					out.Types = append(out.Types, v4)
+					in.WantComma()
+				}
+				in.Delim(']')
+			}
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson9972aa54EncodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc2(out *jwriter.Writer, in documentation) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"secl\":"
+		out.RawString(prefix[1:])
+		if in.Types == nil && (out.Flags&jwriter.NilSliceAsEmpty) == 0 {
+			out.RawString("null")
+		} else {
+			out.RawByte('[')
+			for v5, v6 := range in.Types {
 				if v5 > 0 {
 					out.RawByte(',')
 				}
@@ -299,25 +299,25 @@ func easyjson9972aa54EncodeGithubComDataDogDatadogAgentPkgSecuritySeclGenerators
 }
 
 // MarshalJSON supports json.Marshaler interface
-func (v DocEventKind) MarshalJSON() ([]byte, error) {
+func (v documentation) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
 	easyjson9972aa54EncodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc2(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
-func (v DocEventKind) MarshalEasyJSON(w *jwriter.Writer) {
+func (v documentation) MarshalEasyJSON(w *jwriter.Writer) {
 	easyjson9972aa54EncodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc2(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
-func (v *DocEventKind) UnmarshalJSON(data []byte) error {
+func (v *documentation) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
 	easyjson9972aa54DecodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc2(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
-func (v *DocEventKind) UnmarshalEasyJSON(l *jlexer.Lexer) {
+func (v *documentation) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjson9972aa54DecodeGithubComDataDogDatadogAgentPkgSecuritySeclGeneratorsAccessorsDoc2(l, v)
 }

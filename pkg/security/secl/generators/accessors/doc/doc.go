@@ -18,25 +18,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors/common"
 )
 
-// Documentation represents the top-level documentation node
 // easyjson:json
-type Documentation struct {
-	Kinds []DocEventKind `json:"secl"`
+type documentation struct {
+	Types []eventType `json:"secl"`
 }
 
-// DocEventKind is the documentation node representing an event kind (its children are the different fields)
 // easyjson:json
-type DocEventKind struct {
-	Name             string             `json:"name"`
-	Definition       string             `json:"definition"`
-	Type             string             `json:"type"`
-	FromAgentVersion string             `json:"from_agent_version"`
-	Properties       []DocEventProperty `json:"properties"`
+type eventType struct {
+	Name             string              `json:"name"`
+	Definition       string              `json:"definition"`
+	Type             string              `json:"type"`
+	FromAgentVersion string              `json:"from_agent_version"`
+	Properties       []eventTypeProperty `json:"properties"`
 }
 
-// DocEventProperty represents a field/property that is accessible through a SECL expression
 // easyjson:json
-type DocEventProperty struct {
+type eventTypeProperty struct {
 	Name string `json:"name"`
 	Type string `json:"type"`
 	Doc  string `json:"definition"`
@@ -58,24 +55,24 @@ func prettyprint(v interface{}) ([]byte, error) {
 
 // GenerateDocJSON generates the SECL json documentation file to the provided outputPath
 func GenerateDocJSON(module *common.Module, outputPath string) error {
-	kinds := make(map[string][]DocEventProperty)
+	kinds := make(map[string][]eventTypeProperty)
 
 	for name, field := range module.Fields {
-		kinds[field.Event] = append(kinds[field.Event], DocEventProperty{
+		kinds[field.Event] = append(kinds[field.Event], eventTypeProperty{
 			Name: name,
 			Type: field.ReturnType,
 			Doc:  strings.TrimSpace(field.CommentText),
 		})
 	}
 
-	docKinds := make([]DocEventKind, 0)
+	eventTypes := make([]eventType, 0)
 	for name, properties := range kinds {
 		sort.Slice(properties, func(i, j int) bool {
 			return properties[i].Name < properties[j].Name
 		})
 
 		info := extractVersionAndDefinition(module.EventTypeDocs[name])
-		docKinds = append(docKinds, DocEventKind{
+		eventTypes = append(eventTypes, eventType{
 			Name:             name,
 			Definition:       info.Definition,
 			Type:             info.Type,
@@ -85,12 +82,12 @@ func GenerateDocJSON(module *common.Module, outputPath string) error {
 	}
 
 	// for stability
-	sort.Slice(docKinds, func(i, j int) bool {
-		return docKinds[i].Name < docKinds[j].Name
+	sort.Slice(eventTypes, func(i, j int) bool {
+		return eventTypes[i].Name < eventTypes[j].Name
 	})
 
-	doc := Documentation{
-		Kinds: docKinds,
+	doc := documentation{
+		Types: eventTypes,
 	}
 
 	res, err := prettyprint(doc)

@@ -738,7 +738,10 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	}
 
 	if genDoc {
-		doc.GenerateDocJSON(module, output)
+		err := doc.GenerateDocJSON(module, output)
+		if err != nil {
+			panic(err)
+		}
 		return
 	}
 
