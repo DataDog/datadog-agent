@@ -2,10 +2,10 @@ image: docker.io/stackstate/stackstate-agent-runner-gitlab:latest7
 
 stages:
   - test
+  - acceptance
   - prepare
   - build_prepare_and_test
   - pre_release
-  - acceptance
   - acceptance_cleanup
   - release
 
@@ -705,7 +705,7 @@ test_compose_molecule:
   dependencies:
     - create_compose_molecule
   needs:
-    - pre_release_main_agent_image
+    # - pre_release_main_agent_image
     - create_compose_molecule
   script:
     - cd $CI_PROJECT_DIR/test
