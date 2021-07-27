@@ -41,18 +41,14 @@ func newStore() *store {
 	return &s
 }
 
-// getConfigsForService gets config for a specified service
-func (s *store) getConfigsForService(serviceEntity string) []integration.Config {
-	s.m.RLock()
-	defer s.m.RUnlock()
-	return s.serviceToConfigs[serviceEntity]
-}
-
-// removeConfigsForService removes a config for a specified service
-func (s *store) removeConfigsForService(serviceEntity string) {
+// removeConfigsForService removes a config for a specified service, returning
+// the configs that were removed
+func (s *store) removeConfigsForService(serviceEntity string) []integration.Config {
 	s.m.Lock()
 	defer s.m.Unlock()
+	removed := s.serviceToConfigs[serviceEntity]
 	delete(s.serviceToConfigs, serviceEntity)
+	return removed
 }
 
 // addConfigForService adds a config for a specified service
