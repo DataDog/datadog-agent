@@ -6,5 +6,5 @@
 
 - name: "Remove molecule temp data"
   file:
-    path: "./.molecule-temp/{{ molecule_scenario_name }}"
+    path: ".molecule-temp/{{ molecule_scenario_name }}"
     state: absent

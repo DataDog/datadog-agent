@@ -3,10 +3,10 @@
   ec2_instance_info:
     filters:
       instance-state-name: [ "running" ]
-      "tag:molecule_run_id": "{{ molecule_run_id }}"
+      "tag:ci_sts_major_python_version": "{{ ci_sts_major_python_version }}"
       "tag:agent_current_branch": "{{ agent_current_branch }}"
       "tag:molecule_scenario_name": "{{ molecule_scenario_name }}"
-  when: molecule_run_id is defined and molecule_run_id != "" and molecule_scenario_name is defined and molecule_scenario_name != "" and agent_current_branch is defined and agent_current_branch != ""
+  when: ci_sts_major_python_version is defined and ci_sts_major_python_version != "" and molecule_scenario_name is defined and molecule_scenario_name != "" and agent_current_branch is defined and agent_current_branch != ""
   register: ec2_molecule_instances
 
 - name: Wait for SSH
