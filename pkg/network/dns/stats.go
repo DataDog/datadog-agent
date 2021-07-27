@@ -1,4 +1,6 @@
-package network
+//+build windows linux_bpf
+
+package dns
 
 import (
 	"sync"
@@ -8,35 +10,35 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// DNSPacketType tells us whether the packet is a query or a reply (successful/failed)
-type DNSPacketType uint8
+// packetType tells us whether the packet is a query or a reply (successful/failed)
+type packetType uint8
 
 const (
-	// SuccessfulResponse means the packet contains a DNS response and the response code is 0 (no error)
-	SuccessfulResponse DNSPacketType = iota
-	// FailedResponse means the packet contains a DNS response and the response code is not 0
-	FailedResponse
-	// Query means the packet contains a DNS query
-	Query
+	// successfulResponse means the packet contains a DNS response and the response code is 0 (no error)
+	successfulResponse packetType = iota
+	// failedResponse means the packet contains a DNS response and the response code is not 0
+	failedResponse
+	// query means the packet contains a DNS query
+	query
 )
 
 // This const limits the maximum size of the state map. Benchmark results show that allocated space is less than 3MB
 // for 10000 entries.
 const (
-	MaxStateMapSize = 10000
+	maxStateMapSize = 10000
 )
 
 type dnsPacketInfo struct {
 	transactionID uint16
-	key           DNSKey
-	pktType       DNSPacketType
+	key           Key
+	pktType       packetType
 	rCode         uint8  // responseCode
 	question      string // only relevant for query packets
 	queryType     QueryType
 }
 
 type stateKey struct {
-	key DNSKey
+	key Key
 	id  uint16
 }
 
@@ -49,7 +51,7 @@ type stateValue struct {
 type dnsStatKeeper struct {
 	mux sync.Mutex
 	// map a DNS key to a map of domain strings to a map of query types to a map of  DNS stats
-	stats            map[DNSKey]map[string]map[QueryType]DNSStats
+	stats            map[Key]map[string]map[QueryType]Stats
 	state            map[stateKey]stateValue
 	expirationPeriod time.Duration
 	exit             chan struct{}
@@ -64,11 +66,11 @@ type dnsStatKeeper struct {
 
 func newDNSStatkeeper(timeout time.Duration, maxStats int) *dnsStatKeeper {
 	statsKeeper := &dnsStatKeeper{
-		stats:            make(map[DNSKey]map[string]map[QueryType]DNSStats),
+		stats:            make(map[Key]map[string]map[QueryType]Stats),
 		state:            make(map[stateKey]stateValue),
 		expirationPeriod: timeout,
 		exit:             make(chan struct{}),
-		maxSize:          MaxStateMapSize,
+		maxSize:          maxStateMapSize,
 		maxStats:         maxStats,
 	}
 
@@ -96,7 +98,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 	defer d.mux.Unlock()
 	sk := stateKey{key: info.key, id: info.transactionID}
 
-	if info.pktType == Query {
+	if info.pktType == query {
 		if len(d.state) == d.maxSize {
 			return
 		}
@@ -121,7 +123,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 
 	allStats, ok := d.stats[info.key]
 	if !ok {
-		allStats = make(map[string]map[QueryType]DNSStats)
+		allStats = make(map[string]map[QueryType]Stats)
 	}
 	stats, ok := allStats[start.question]
 	if !ok {
@@ -129,7 +131,7 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 			d.droppedStats++
 			return
 		}
-		stats = make(map[QueryType]DNSStats)
+		stats = make(map[QueryType]Stats)
 	}
 	byqtype, ok := stats[start.qtype]
 	if !ok {
@@ -137,19 +139,19 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 			d.droppedStats++
 			return
 		}
-		byqtype.DNSCountByRcode = make(map[uint32]uint32)
+		byqtype.CountByRcode = make(map[uint32]uint32)
 		d.numStats++
 	}
 
 	// Note: time.Duration in the agent version of go (1.12.9) does not have the Microseconds method.
 	if latency > uint64(d.expirationPeriod.Microseconds()) {
-		byqtype.DNSTimeouts++
+		byqtype.Timeouts++
 	} else {
-		byqtype.DNSCountByRcode[uint32(info.rCode)]++
-		if info.pktType == SuccessfulResponse {
-			byqtype.DNSSuccessLatencySum += latency
-		} else if info.pktType == FailedResponse {
-			byqtype.DNSFailureLatencySum += latency
+		byqtype.CountByRcode[uint32(info.rCode)]++
+		if info.pktType == successfulResponse {
+			byqtype.SuccessLatencySum += latency
+		} else if info.pktType == failedResponse {
+			byqtype.FailureLatencySum += latency
 		}
 	}
 	stats[start.qtype] = byqtype
@@ -163,11 +165,11 @@ func (d *dnsStatKeeper) GetNumStats() (int32, int32) {
 	return numStats, droppedStats
 }
 
-func (d *dnsStatKeeper) GetAndResetAllStats() map[DNSKey]map[string]map[QueryType]DNSStats {
+func (d *dnsStatKeeper) GetAndResetAllStats() map[Key]map[string]map[QueryType]Stats {
 	d.mux.Lock()
 	defer d.mux.Unlock()
 	ret := d.stats // No deep copy needed since `d.stats` gets reset
-	d.stats = make(map[DNSKey]map[string]map[QueryType]DNSStats)
+	d.stats = make(map[Key]map[string]map[QueryType]Stats)
 	log.Debugf("[DNS Stats] Number of processed stats: %d, Number of dropped stats: %d", d.numStats, d.droppedStats)
 	atomic.StoreInt32(&d.lastNumStats, int32(d.numStats))
 	atomic.StoreInt32(&d.lastDroppedStats, int32(d.droppedStats))
@@ -178,22 +180,22 @@ func (d *dnsStatKeeper) GetAndResetAllStats() map[DNSKey]map[string]map[QueryTyp
 
 // Snapshot returns a deep copy of all DNS stats.
 // Please only use this for testing.
-func (d *dnsStatKeeper) Snapshot() map[DNSKey]map[string]map[QueryType]DNSStats {
+func (d *dnsStatKeeper) Snapshot() map[Key]map[string]map[QueryType]Stats {
 	d.mux.Lock()
 	defer d.mux.Unlock()
 
-	snapshot := make(map[DNSKey]map[string]map[QueryType]DNSStats)
+	snapshot := make(map[Key]map[string]map[QueryType]Stats)
 	for key, statsByDomain := range d.stats {
-		snapshot[key] = make(map[string]map[QueryType]DNSStats)
+		snapshot[key] = make(map[string]map[QueryType]Stats)
 		for domain, statsByQType := range statsByDomain {
-			snapshot[key][domain] = make(map[QueryType]DNSStats)
+			snapshot[key][domain] = make(map[QueryType]Stats)
 			for qtype, statsCopy := range statsByQType {
-				// Copy DNSCountByRcode map
+				// Copy CountByRcode map
 				rcodeCopy := make(map[uint32]uint32)
-				for rcode, count := range statsCopy.DNSCountByRcode {
+				for rcode, count := range statsCopy.CountByRcode {
 					rcodeCopy[rcode] = count
 				}
-				statsCopy.DNSCountByRcode = rcodeCopy
+				statsCopy.CountByRcode = rcodeCopy
 				snapshot[key][domain][qtype] = statsCopy
 			}
 		}
@@ -215,7 +217,7 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 			// When we expire a state, we need to increment timeout count for that key:domain
 			allStats, ok := d.stats[k.key]
 			if !ok {
-				allStats = make(map[string]map[QueryType]DNSStats)
+				allStats = make(map[string]map[QueryType]Stats)
 			}
 			bytype, ok := allStats[v.question]
 			if !ok {
@@ -223,14 +225,14 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 					d.droppedStats++
 					continue
 				}
-				bytype = make(map[QueryType]DNSStats)
+				bytype = make(map[QueryType]Stats)
 			}
 			stats, ok := bytype[v.qtype]
 			if !ok {
 				d.numStats++
-				stats.DNSCountByRcode = make(map[uint32]uint32)
+				stats.CountByRcode = make(map[uint32]uint32)
 			}
-			stats.DNSTimeouts++
+			stats.Timeouts++
 			bytype[v.qtype] = stats
 			allStats[v.question] = bytype
 			d.stats[k.key] = allStats

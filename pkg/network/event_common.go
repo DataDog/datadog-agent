@@ -6,9 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	humanize "github.com/dustin/go-humanize"
+	"github.com/dustin/go-humanize"
 )
 
 // ConnectionType will be either TCP or UDP
@@ -189,7 +190,7 @@ type ConnectionStats struct {
 	DNSSuccessLatencySum        uint64
 	DNSFailureLatencySum        uint64
 	DNSCountByRcode             map[uint32]uint32
-	DNSStatsByDomainByQueryType map[string]map[QueryType]DNSStats
+	DNSStatsByDomainByQueryType map[string]map[dns.QueryType]dns.Stats
 
 	Via *Via
 }
@@ -279,8 +280,9 @@ func BeautifyKey(key string) string {
 // ConnectionSummary returns a string summarizing a connection
 func ConnectionSummary(c *ConnectionStats, names map[util.Address][]string) string {
 	str := fmt.Sprintf(
-		"[%s] [PID: %d] [%v:%d ⇄ %v:%d] ",
+		"[%s%s] [PID: %d] [%v:%d ⇄ %v:%d] ",
 		c.Type,
+		c.Family,
 		c.Pid,
 		printAddress(c.Source, names[c.Source]),
 		c.SPort,
@@ -321,21 +323,4 @@ func printAddress(address util.Address, names []string) string {
 	}
 
 	return strings.Join(names, ",")
-}
-
-// DNSKey is an identifier for a set of DNS connections
-type DNSKey struct {
-	serverIP   util.Address
-	clientIP   util.Address
-	clientPort uint16
-	// ConnectionType will be either TCP or UDP
-	protocol ConnectionType
-}
-
-// DNSStats holds statistics corresponding to a particular domain
-type DNSStats struct {
-	DNSTimeouts          uint32
-	DNSSuccessLatencySum uint64
-	DNSFailureLatencySum uint64
-	DNSCountByRcode      map[uint32]uint32
 }

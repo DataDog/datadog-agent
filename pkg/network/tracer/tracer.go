@@ -22,9 +22,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
+	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -36,7 +36,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const defaultUDPConnTimeoutNanoSeconds uint64 = uint64(time.Duration(120) * time.Second)
+const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
 
 type Tracer struct {
 	m *manager.Manager
@@ -46,9 +46,7 @@ type Tracer struct {
 	state network.State
 
 	conntracker netlink.Conntracker
-
-	reverseDNS network.ReverseDNS
-
+	reverseDNS  dns.ReverseDNS
 	httpMonitor *http.Monitor
 
 	perfHandler   *ddebpf.PerfHandler
@@ -139,11 +137,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		return nil, fmt.Errorf("invalid probe configuration: %v", err)
 	}
 
-	enableSocketFilter := config.DNSInspection && !pre410Kernel
-	if enableSocketFilter {
-		enabledProbes[probes.SocketDnsFilter] = struct{}{}
-	}
-
 	mgrOptions := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
@@ -189,13 +182,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error guessing offsets: %s", err)
 		}
-
-		if enableSocketFilter && config.CollectDNSStats {
-			mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, manager.ConstantEditor{
-				Name:  "dns_stats_enabled",
-				Value: uint64(1),
-			})
-		}
 	}
 
 	closedChannelSize := defaultClosedChannelSize
@@ -225,7 +211,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)
 	}
 
-	reverseDNS, err := newReverseDNS(config, m, pre410Kernel)
+	reverseDNS, err := newReverseDNS(!pre410Kernel, config)
 	if err != nil {
 		return nil, fmt.Errorf("error enabling DNS traffic inspection: %s", err)
 	}
@@ -344,36 +330,22 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 	return nil
 }
 
-func newReverseDNS(cfg *config.Config, m *manager.Manager, pre410Kernel bool) (network.ReverseDNS, error) {
-	if !cfg.DNSInspection {
-		return network.NewNullReverseDNS(), nil
+func newReverseDNS(supported bool, c *config.Config) (dns.ReverseDNS, error) {
+	if !c.DNSInspection {
+		return dns.NewNullReverseDNS(), nil
+	}
+	if !supported {
+		log.Warnf("DNS inspection not supported by kernel versions < 4.1.0. Please see https://docs.datadoghq.com/network_performance_monitoring/installation for more details.")
+		return dns.NewNullReverseDNS(), nil
 	}
 
-	if pre410Kernel {
-		log.Warn("DNS inspection not supported by kernel versions < 4.1.0. Please see https://docs.datadoghq.com/network_performance_monitoring/installation for more details.")
-		return network.NewNullReverseDNS(), nil
-	}
-
-	filter, _ := m.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketDnsFilter)})
-	if filter == nil {
-		return nil, fmt.Errorf("error retrieving socket filter")
-	}
-
-	// Create the RAW_SOCKET inside the root network namespace
-	var (
-		packetSrc *filterpkg.AFPacketSource
-		srcErr    error
-	)
-	err := util.WithRootNS(cfg.ProcRoot, func() error {
-		packetSrc, srcErr = filterpkg.NewPacketSource(filter)
-		return srcErr
-	})
-
+	rdns, err := dns.NewReverseDNS(c)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not create dns inspector: %s", err)
 	}
 
-	return network.NewSocketFilterSnooper(cfg, packetSrc)
+	log.Info("dns inspection enabled")
+	return rdns, nil
 }
 
 func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manager.ConstantEditor, error) {
@@ -529,7 +501,11 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	<-done
 
 	delta := t.state.GetDelta(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
-	names := t.reverseDNS.Resolve(delta.Connections)
+	ips := make([]util.Address, 0, len(delta.Connections)*2)
+	for _, conn := range delta.Connections {
+		ips = append(ips, conn.Source, conn.Dest)
+	}
+	names := t.reverseDNS.Resolve(ips)
 	ctm := t.getConnTelemetry(len(latestConns))
 	rctm := t.getRuntimeCompilationTelemetry()
 
