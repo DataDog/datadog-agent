@@ -822,10 +822,10 @@ destroy_local_install_molecule:
   interruptible: true
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s localinstall
-   when:
-     - on_failure
-     - always
-     - manual
+  when:
+    - on_failure
+    - always
+    - manual
   allow_failure: true
   only:
     - tags
