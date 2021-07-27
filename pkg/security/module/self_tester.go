@@ -56,8 +56,12 @@ func NewSelfTester() *SelfTester {
 	}
 }
 
-// CreateTargetFile creates the needed target file for self test operations
-func (t *SelfTester) CreateTargetFile() error {
+// CreateTargetFileIfNeeded creates the needed target file for self test operations
+func (t *SelfTester) CreateTargetFileIfNeeded() error {
+	if t.targetFilePath != "" {
+		return nil
+	}
+
 	// Create temp directory to put target file in
 	tmpDir, err := ioutil.TempDir("", "datadog_agent_cws_self_test")
 	if err != nil {

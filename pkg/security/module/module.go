@@ -120,12 +120,6 @@ func (m *Module) Start() error {
 		return err
 	}
 
-	if m.selfTester != nil {
-		if err := m.selfTester.CreateTargetFile(); err != nil {
-			log.Errorf("failed to create target file for self test: %v", err)
-		}
-	}
-
 	if err := m.Reload(); err != nil {
 		return err
 	}
@@ -261,6 +255,9 @@ func (m *Module) Reload() error {
 	ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleSet, loadErr)
 
 	if m.selfTester != nil {
+		if err := m.selfTester.CreateTargetFileIfNeeded(); err != nil {
+			log.Errorf("failed to create self-test target file: %+v", err)
+		}
 		m.selfTester.AddSelfTestRulesToRuleSets(ruleSet, approverRuleSet)
 	}
 
