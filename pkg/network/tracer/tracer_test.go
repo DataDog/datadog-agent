@@ -1261,6 +1261,7 @@ func TestConnectionClobber(t *testing.T) {
 
 	preCap := connectionBufferCapacity(tr)
 	connections := getConnections(t, tr)
+	require.NotEmpty(t, connections)
 	src := connections.Conns[0].SPort
 	dst := connections.Conns[0].DPort
 	t.Logf("got %d connections", len(connections.Conns))
