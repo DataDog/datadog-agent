@@ -148,11 +148,12 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	configs := common.AC.GetLoadedConfigs()
 	configSlice := make([]integration.Config, 0)
-	for _, config := range configs {
-		configSlice = append(configSlice, config)
-	}
+	common.AC.WithLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
+		for _, config := range loadedConfigs {
+			configSlice = append(configSlice, config)
+		}
+	})
 	sort.Slice(configSlice, func(i, j int) bool {
 		return configSlice[i].Name < configSlice[j].Name
 	})

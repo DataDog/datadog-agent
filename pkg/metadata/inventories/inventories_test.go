@@ -39,17 +39,17 @@ L:
 
 type mockAutoConfig struct{}
 
-func (*mockAutoConfig) GetLoadedConfigs() map[string]integration.Config {
-	ret := make(map[string]integration.Config)
-	ret["check1_digest"] = integration.Config{
+func (*mockAutoConfig) WithLoadedConfigs(f func(map[string]integration.Config)) {
+	configs := make(map[string]integration.Config)
+	configs["check1_digest"] = integration.Config{
 		Name:     "check1",
 		Provider: "provider1",
 	}
-	ret["check2_digest"] = integration.Config{
+	configs["check2_digest"] = integration.Config{
 		Name:     "check2",
 		Provider: "provider2",
 	}
-	return ret
+	f(configs)
 }
 
 type mockCollector struct{}

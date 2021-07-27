@@ -325,6 +325,14 @@ func TestResolveTemplate(t *testing.T) {
 	assert.Len(t, res, 1)
 }
 
+func countLoadedConfigs(ac *AutoConfig) int {
+	count := -1 // -1 would indicate f was not called
+	ac.WithLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
+		count = len(loadedConfigs)
+	})
+	return count
+}
+
 func TestRemoveTemplate(t *testing.T) {
 	ctx := context.Background()
 
@@ -335,7 +343,7 @@ func TestRemoveTemplate(t *testing.T) {
 		Name: "memory",
 	}
 	ac.processNewConfig(c)
-	assert.Len(t, ac.GetLoadedConfigs(), 1)
+	assert.Equal(t, countLoadedConfigs(ac), 1)
 
 	// Add new service
 	service := dummyService{
@@ -351,17 +359,16 @@ func TestRemoveTemplate(t *testing.T) {
 	}
 	configs := ac.processNewConfig(tpl)
 	assert.Len(t, configs, 1)
-	assert.Len(t, ac.GetLoadedConfigs(), 2)
+	assert.Equal(t, countLoadedConfigs(ac), 2)
 
 	// Remove the template, config should be removed too
 	ac.removeConfigTemplates([]integration.Config{tpl})
-	assert.Len(t, ac.GetLoadedConfigs(), 1)
+	assert.Equal(t, countLoadedConfigs(ac), 1)
 }
 
 func TestGetLoadedConfigNotInitialized(t *testing.T) {
 	ac := AutoConfig{}
-	cfgs := ac.GetLoadedConfigs()
-	require.Len(t, cfgs, 0)
+	assert.Equal(t, countLoadedConfigs(&ac), 0)
 }
 
 func TestCheckOverride(t *testing.T) {

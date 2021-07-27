@@ -416,9 +416,11 @@ func (ac *AutoConfig) AddScheduler(name string, s scheduler.Scheduler, replayCon
 	}
 
 	var configs []integration.Config
-	for _, c := range ac.store.getLoadedConfigs() {
-		configs = append(configs, c)
-	}
+	ac.store.withLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
+		for _, c := range loadedConfigs {
+			configs = append(configs, c)
+		}
+	})
 	s.Schedule(configs)
 }
 
@@ -563,13 +565,16 @@ func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc list
 	return resolvedConfig, nil
 }
 
-// GetLoadedConfigs returns configs loaded
-func (ac *AutoConfig) GetLoadedConfigs() map[string]integration.Config {
+// WithLoadedConfigs calls the given function with the map of all
+// loaded configs.  This is done with the config store locked, so
+// callers should perform minimal work within f.
+func (ac *AutoConfig) WithLoadedConfigs(f func(map[string]integration.Config)) {
 	if ac == nil || ac.store == nil {
 		log.Error("Autoconfig store not initialized")
-		return map[string]integration.Config{}
+		f(map[string]integration.Config{})
+		return
 	}
-	return ac.store.getLoadedConfigs()
+	ac.store.withLoadedConfigs(f)
 }
 
 // GetUnresolvedTemplates returns templates in cache yet to be resolved

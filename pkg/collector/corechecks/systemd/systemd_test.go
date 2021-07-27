@@ -969,8 +969,8 @@ func TestGetPropertyBool(t *testing.T) {
 
 type mockAutoConfig struct{}
 
-func (*mockAutoConfig) GetLoadedConfigs() map[string]integration.Config {
-	return make(map[string]integration.Config)
+func (*mockAutoConfig) WithLoadedConfigs(f func(map[string]integration.Config)) {
+	f(map[string]integration.Config{})
 }
 
 type mockCollector struct{}
