@@ -31,6 +31,10 @@
   debug:
     msg: "{{command_output.stdout}}"
 
+- name: "Debug Information E"
+  debug:
+    msg: "{{keypair_path}}"
+
 - name: Wait (Instance Config Restore)
   pause:
     seconds: 30
