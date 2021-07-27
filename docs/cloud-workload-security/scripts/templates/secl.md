@@ -1,6 +1,6 @@
 # SECL Documentation
 
-### Event types
+## Event types
 
 | SECL Event | Type | Definition | Agent Version |
 | ---------- | ---- | ---------- | ------------- |
@@ -14,10 +14,10 @@
 {% for event_type in event_types %}
 {% if event_type.name == "*" %}
 {% set prefix = "*." %}
-### Common to all event types
+## Common to all event types
 {% else %}
 {% set prefix = "" %}
-### Event `{{ event_type.name }}`
+## Event `{{ event_type.name }}`
 {% endif %}
 
 | Property | Type | Definition |
