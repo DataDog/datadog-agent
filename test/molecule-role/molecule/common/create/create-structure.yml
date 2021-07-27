@@ -1,11 +1,11 @@
 ---
-- name: Create the molecule temp storage directory
-  file:
-    path: ".molecule/{{ molecule_scenario_name }}"
-    state: directory
-
-# - name: (CI) Create the molecule temp storage artifactory directory
-#   when: ci_project_dir is defined and ci_project_dir != ""
+# - name: Create the molecule temp storage directory
 #   file:
-#     path: "{{ ci_project_dir }}/.molecule/{{ molecule_scenario_name }}"
+#     path: ".molecule/{{ molecule_scenario_name }}"
 #     state: directory
+
+- name: (CI) Create the molecule temp storage artifactory directory
+  when: ci_project_dir is defined and ci_project_dir != ""
+  file:
+    path: "{{ ci_project_dir }}/.molecule/{{ molecule_scenario_name }}"
+    state: directory

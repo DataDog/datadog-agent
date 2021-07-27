@@ -32,11 +32,11 @@
     dest: "{{ molecule_instance_config }}"
   when: server.changed | bool
 
-- name: Dump instance config in the temp storage
-  copy:
-    content: "{{ instance_conf | to_json | from_json | molecule_to_yaml | molecule_header }}"
-    dest: ".molecule/{{ molecule_scenario_name }}/instance_config.yml"
-  when: server.changed | bool
+# - name: Dump instance config in the temp storage
+#   copy:
+#     content: "{{ instance_conf | to_json | from_json | molecule_to_yaml | molecule_header }}"
+#     dest: ".molecule/{{ molecule_scenario_name }}/instance_config.yml"
+#   when: server.changed | bool
 
 # - name: (CI) Dump instance config in the artifactory directory
 #   when: (server.changed | bool) and ci_project_dir is defined and ci_project_dir != ""

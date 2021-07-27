@@ -22,19 +22,19 @@
     mode: 0600
   when: keypair.changed
 
-- name: Persist the keypair in a temporary storage
+# - name: Persist the keypair in a temporary storage
+#   copy:
+#     dest: ".molecule/{{ molecule_scenario_name }}/ssh_key"
+#     content: "{{ keypair.key.private_key }}"
+#     mode: 0600
+#   when: keypair.changed
+
+- name: (CI) Dump the ssh private key in the artifactory directory
+  when: keypair.changed and (ci_project_dir is defined and ci_project_dir != "")
   copy:
-    dest: ".molecule/{{ molecule_scenario_name }}/ssh_key"
+    dest: "{{ci_project_dir}}/.molecule/{{ molecule_scenario_name }}/ssh_key"
     content: "{{ keypair.key.private_key }}"
     mode: 0600
-  when: keypair.changed
-
-# - name: (CI) Dump the ssh private key in the artifactory directory
-#   when: ci_project_dir is defined and ci_project_dir != ""
-#   copy:
-#     dest: "{{ci_project_dir}}/.molecule/{{ molecule_scenario_name }}/ssh_key"
-#     content: "{{ keypair.key.private_key }}"
-#     mode: preserve
 
 # - name: Encrypt data for artifact
 #   shell: |
