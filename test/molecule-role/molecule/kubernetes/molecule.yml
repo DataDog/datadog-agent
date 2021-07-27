@@ -19,26 +19,15 @@ platforms:
       - kubernetes_linux_vm
     ssh_user: ubuntu
 
-provisioner:
-  name: ansible
-  playbooks:
-    create: playbook.create.yml
-    prepare: playbook.prepare.yml
-    cleanup: playbook.cleanup.yml
-    destroy: playbook.destroy.yml
-  lint:
-    name: ansible-lint
-  inventory:
-    links:
-      group_vars: group_vars/
-
 scenario:
   name: kubernetes
   create_sequence:
-    - destroy
     - dependency
+    - cleanup
+    - destroy
     - syntax
     - create
+    - prepare
   test_sequence:
     - dependency
     - syntax
