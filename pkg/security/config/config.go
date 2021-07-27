@@ -84,8 +84,6 @@ type Config struct {
 	LogPatterns []string
 	// SelfTestEnabled defines if the self tester should be enabled (useful for tests for example)
 	SelfTestEnabled bool
-	// SelfTestAtStartEnabled defines if we should run self test at start
-	SelfTestAtStartEnabled bool
 }
 
 // IsEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -124,7 +122,6 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		RemoteTaggerEnabled:                aconfig.Datadog.GetBool("runtime_security_config.remote_tagger"),
 		LogPatterns:                        aconfig.Datadog.GetStringSlice("runtime_security_config.log_patterns"),
 		SelfTestEnabled:                    aconfig.Datadog.GetBool("runtime_security_config.self_test.enabled"),
-		SelfTestAtStartEnabled:             aconfig.Datadog.GetBool("runtime_security_config.self_test.run_at_startup"),
 	}
 
 	// if runtime is enabled then we force fim
@@ -146,10 +143,6 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 
 	if !c.EnableApprovers && !c.EnableDiscarders {
 		c.EnableKernelFilters = false
-	}
-
-	if !c.SelfTestEnabled {
-		c.SelfTestAtStartEnabled = false
 	}
 
 	if c.ERPCDentryResolutionEnabled == false && c.MapDentryResolutionEnabled == false {

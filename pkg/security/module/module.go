@@ -129,14 +129,6 @@ func (m *Module) Start() error {
 
 	signal.Notify(m.sigupChan, syscall.SIGHUP)
 
-	if m.selfTester != nil && m.config.SelfTestAtStartEnabled {
-		if err := m.selfTester.RunSelfTest(); err != nil {
-			log.Errorf("failed to run self-test: %v", err)
-		} else {
-			log.Debugf("Successfully completed self-test")
-		}
-	}
-
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()
