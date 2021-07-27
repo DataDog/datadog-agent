@@ -4,7 +4,7 @@
   connection: local
   gather_facts: true
   tasks:
-    - include_tasks: ../common/prepare/restore-backup-ssh-key.yml
+    - include_tasks: ../common/prepare/restore-and-decrypt-keypair.yml
 
 - name: Prepare Integrations and Dependencies
   hosts: agent-integrations

@@ -32,10 +32,7 @@
     - include_tasks: ../common/create/create-keypair.yml
     - include_tasks: ../common/create/dump-ssh-key.yml
     - include_tasks: ../common/create/persist-the-keypair.yml
+    - include_tasks: ../common/create/write-keypair-to-encrypted-file.yml
     - include_tasks: ../common/create/create-molecule-instances.yml
     - include_tasks: ../common/create/wait-for-instance-creation-to-complete.yml
-    - include_tasks: ../common/create/populate-instance-config-dict.yml
-    - include_tasks: ../common/create/convert-instance-config-dict-to-a-list.yml
-    - include_tasks: ../common/create/dump-instance-config.yml
     - include_tasks: ../common/create/wait-for-ssh.yml
-    # - include_tasks: ../common/create/wait-for-boot-process-to-finish.yml

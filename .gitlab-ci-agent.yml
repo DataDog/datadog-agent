@@ -727,7 +727,55 @@ destroy_compose_molecule:
    interruptible: true
    script:
      - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s compose
-   when: on_failure
+   when:
+     - on_failure
+     - always
+     - manual
+   allow_failure: true
+
+# Molecule Integrations
+
+create_integrations_molecule:
+  <<: *molecule_base_prepare
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh create -s integrations
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/*.log
+      - $CI_PROJECT_DIR/tmp_molecule_inventory
+      - $CI_PROJECT_DIR/.molecule-temp
+    expire_in: 1 week
+
+test_integrations_molecule:
+  <<: *molecule_base
+  dependencies:
+    - create_integrations_molecule
+  needs:
+    - pre_release_main_agent_image
+    - create_integrations_molecule
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test --destroy=never -s integrations
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/*.log
+      - $CI_PROJECT_DIR/tmp_molecule_inventory
+      - $CI_PROJECT_DIR/.molecule-temp
+    expire_in: 1 week
+
+destroy_integrations_molecule:
+   <<: *molecule_base
+   stage: acceptance_cleanup
+   interruptible: true
+   script:
+     - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s integrations
+   when:
+     - on_failure
+     - always
+     - manual
    allow_failure: true
 
 ## release stage
