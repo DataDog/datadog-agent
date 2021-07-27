@@ -14,7 +14,7 @@
           volume_size: 30
           volume_type: gp2
     tags:
-      Name: "{{ item.name }}"
+      Name: "{{ item.name }}-py{{ ci_sts_python_runtime }}"
       instance: "{{ item.name }}"
       molecule_run_id: "{{ molecule_run_id }}"
       agent_current_branch: "{{ agent_current_branch }}"
