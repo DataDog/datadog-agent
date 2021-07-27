@@ -29,28 +29,15 @@ platforms:
       - agent_linux_vm
     ssh_user: centos
 
-provisioner:
-  name: ansible
-  config_options:
-    defaults:
-      any_errors_fatal: true
-  playbooks:
-    create: playbook.create.yml
-    destroy: playbook.destroy.yml
-    prepare: playbook.prepare.yml
-  lint:
-    name: ansible-lint
-  inventory:
-    links:
-      group_vars: group_vars/
-
 scenario:
   name: localinstall
   create_sequence:
-    - destroy
     - dependency
+    - cleanup
+    - destroy
     - syntax
     - create
+    - prepare
   test_sequence:
     - dependency
     - syntax

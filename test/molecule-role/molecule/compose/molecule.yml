@@ -22,8 +22,9 @@ platforms:
 scenario:
   name: compose
   create_sequence:
-    - destroy
     - dependency
+    - cleanup
+    - destroy
     - syntax
     - create
     - prepare
