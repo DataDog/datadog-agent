@@ -738,7 +738,7 @@ destroy_compose_molecule:
 
 release_deb:
   interruptible: true
-  stage: manual
+  stage: release
   dependencies:
     - deps_deb
     - build_deb
@@ -761,7 +761,7 @@ release_deb:
 
 release_rpm:
   interruptible: true
-  stage: manual
+  stage: release
   dependencies:
     - build_rpm
   before_script:
@@ -782,7 +782,7 @@ release_rpm:
 
 release_win:
   interruptible: true
-  stage: manual
+  stage: release
   dependencies:
     - deps_win
     - build_win
@@ -834,7 +834,6 @@ release_win:
 
 release_main_agent_image:
   <<: *base_release_image
-  stage: manual
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
