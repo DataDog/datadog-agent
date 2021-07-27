@@ -56,7 +56,7 @@ int __attribute__((always_inline)) handle_discard_pid(void *data) {
     return discard_pid(discarder.req.event_type, discarder.pid, discarder.req.timeout);
 }
 
-int __attribute__((always_inline)) is_eprc_request(struct pt_regs *ctx) {
+int __attribute__((always_inline)) is_erpc_request(struct pt_regs *ctx) {
     u64 fd, pid;
 
     LOAD_CONSTANT("erpc_fd", fd);
@@ -85,8 +85,11 @@ int __attribute__((always_inline)) is_eprc_request(struct pt_regs *ctx) {
 int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
     void *req = (void *)PT_REGS_PARM4(ctx);
 
-    u8 op;
-    bpf_probe_read(&op, sizeof(op), req);
+    u8 op = 0;
+    int ret = bpf_probe_read(&op, sizeof(op), req);
+    if (ret < 0) {
+        return 0;
+    }
 
     void *data = req + sizeof(op);
 

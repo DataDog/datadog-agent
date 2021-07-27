@@ -84,7 +84,7 @@ type Tracer struct {
 	// Internal buffer used to compute bytekeys
 	buf []byte
 
-	// Connections for the tracer to blacklist
+	// Connections for the tracer to exclude
 	sourceExcludes []*network.ConnectionFilter
 	destExcludes   []*network.ConnectionFilter
 
@@ -160,6 +160,8 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 			string(probes.TcpStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.UdpPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.SockByPidFDMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
+			string(probes.PidFDBySockMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 		},
 	}
 
@@ -479,18 +481,6 @@ func (t *Tracer) initPerfPolling(perf *ddebpf.PerfHandler) (*PerfBatchManager, e
 	return batchManager, nil
 }
 
-// shouldSkipConnection returns whether or not the tracer should ignore a given connection:
-//  • Local DNS (*:53) requests if configured (default: true)
-func (t *Tracer) shouldSkipConnection(conn *network.ConnectionStats) bool {
-	isDNSConnection := conn.DPort == 53 || conn.SPort == 53
-	if !t.config.CollectLocalDNS && isDNSConnection && conn.Dest.IsLoopback() {
-		return true
-	} else if network.IsExcludedConnection(t.sourceExcludes, t.destExcludes, conn) {
-		return true
-	}
-	return false
-}
-
 func (t *Tracer) storeClosedConn(cs *network.ConnectionStats) {
 	if t.shouldSkipConnection(cs) {
 		atomic.AddInt64(&t.skippedConns, 1)
@@ -606,6 +596,9 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 		}
 		if result, ok := telemetry["runtime_compilation_result"]; ok {
 			tm.RuntimeCompilationResult = int32(result)
+		}
+		if result, ok := telemetry["kernel_header_fetch_result"]; ok {
+			tm.KernelHeaderFetchResult = int32(result)
 		}
 		if duration, ok := telemetry["runtime_compilation_duration"]; ok {
 			tm.RuntimeCompilationDuration = duration

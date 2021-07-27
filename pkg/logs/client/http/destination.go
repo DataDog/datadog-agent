@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -50,6 +51,8 @@ type Destination struct {
 	backoff             backoff.Policy
 	nbErrors            int
 	blockedUntil        time.Time
+	protocol            config.IntakeProtocol
+	source              config.IntakeSource
 }
 
 // NewDestination returns a new Destination.
@@ -83,6 +86,8 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 		destinationsContext: destinationsContext,
 		climit:              make(chan struct{}, maxConcurrentBackgroundSends),
 		backoff:             policy,
+		protocol:            endpoint.Protocol,
+		source:              endpoint.Source,
 	}
 }
 
@@ -140,6 +145,12 @@ func (d *Destination) unconditionalSend(payload []byte) (err error) {
 	req.Header.Set("DD-API-KEY", d.apiKey)
 	req.Header.Set("Content-Type", d.contentType)
 	req.Header.Set("Content-Encoding", d.contentEncoding.name())
+	if d.protocol != "" {
+		req.Header.Set("DD-PROTOCOL", string(d.protocol))
+	}
+	if d.source != "" {
+		req.Header.Set("DD-SOURCE", string(d.source))
+	}
 	req = req.WithContext(ctx)
 
 	resp, err := d.client.Do(req)
@@ -161,9 +172,9 @@ func (d *Destination) unconditionalSend(payload []byte) (err error) {
 	if resp.StatusCode >= 400 {
 		log.Warnf("failed to post http payload. code=%d host=%s response=%s", resp.StatusCode, d.host, string(response))
 	}
-	if resp.StatusCode >= 500 {
-		// the server could not serve the request,
-		// most likely because of an internal error
+	if resp.StatusCode == 429 || resp.StatusCode >= 500 {
+		// the server could not serve the request, most likely because of an
+		// internal error or, (429) because it is overwhelmed
 		return client.NewRetryableError(errServer)
 	} else if resp.StatusCode >= 400 {
 		// the logs-agent is likely to be misconfigured,
@@ -232,7 +243,16 @@ func buildURL(endpoint config.Endpoint) string {
 	} else {
 		address = endpoint.Host
 	}
-	return fmt.Sprintf("%v://%v/v1/input", scheme, address)
+	url := url.URL{
+		Scheme: scheme,
+		Host:   address,
+	}
+	if endpoint.Version == config.EPIntakeVersion2 && endpoint.TrackType != "" {
+		url.Path = fmt.Sprintf("/api/v2/%s", endpoint.TrackType)
+	} else {
+		url.Path = "/v1/input"
+	}
+	return url.String()
 }
 
 func buildContentEncoding(endpoint config.Endpoint) ContentEncoding {

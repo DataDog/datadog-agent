@@ -81,6 +81,7 @@ func (d *DockerUtil) dispatchEvents(sub *eventSubscriber) {
 	fltrs.Add("type", "container")
 	fltrs.Add("event", "start")
 	fltrs.Add("event", "die")
+	fltrs.Add("event", "died")
 	fltrs.Add("event", "rename")
 
 	// On initial subscribe, don't go back in time. On reconnect, we'll
@@ -117,7 +118,7 @@ CONNECT: // Outer loop handles re-connecting in case the docker daemon closes th
 				continue CONNECT // Re-connect to docker
 			case msg := <-messages:
 				latestTimestamp = msg.Time
-				event, err := d.processContainerEvent(msg)
+				event, err := d.processContainerEvent(ctx, msg)
 				if err != nil {
 					log.Debugf("Skipping event: %s", err)
 					continue

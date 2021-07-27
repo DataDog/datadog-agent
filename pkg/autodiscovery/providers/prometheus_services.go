@@ -9,6 +9,7 @@
 package providers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -128,7 +129,7 @@ func (p *PrometheusServicesConfigProvider) String() string {
 }
 
 // Collect retrieves services from the apiserver, builds Config objects and returns them
-func (p *PrometheusServicesConfigProvider) Collect() ([]integration.Config, error) {
+func (p *PrometheusServicesConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	services, err := p.api.ListServices()
 	if err != nil {
 		return nil, err
@@ -182,7 +183,7 @@ func (p *PrometheusServicesConfigProvider) setUpToDate(v bool) {
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
-func (p *PrometheusServicesConfigProvider) IsUpToDate() (bool, error) {
+func (p *PrometheusServicesConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	p.RLock()
 	defer p.RUnlock()
 	return p.upToDate, nil

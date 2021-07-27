@@ -189,6 +189,11 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
+          name: setting env vars for click
+          command: |
+              echo 'export LC_ALL="C.UTF-8"' >> $BASH_ENV
+              echo 'export LANG="C.UTF-8"' >> $BASH_ENV
+      - run:
           name: lint python files
           command: inv -e lint-python
 
@@ -242,7 +247,7 @@ jobs:
     macos:
       xcode: 11.7.0
     environment:
-      BUILDIMAGES_VERSION: "68f7e123fea89b2b9c06a5251b26249ee76e3877" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
+      BUILDIMAGES_VERSION: "0f65dfe0488a16bcf63b19e0376185bfcac74503" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
     working_directory: ~/go/src/github.com/DataDog/datadog-agent
     steps:
       - checkout
@@ -320,7 +325,7 @@ workflows:
       - release_note:
           filters:
             branches:
-              ignore: 
+              ignore:
                 - master
                 - main
           requires:
@@ -328,7 +333,7 @@ workflows:
       - team_label:
           filters:
             branches:
-              ignore: 
+              ignore:
                 - master
                 - main
           requires:
@@ -336,7 +341,7 @@ workflows:
       - milestone:
           filters:
             branches:
-              ignore: 
+              ignore:
                 - master
                 - main
           requires:

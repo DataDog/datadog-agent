@@ -12,9 +12,6 @@
                 "name": {
                     "type": "string"
                 },
-                "container_path": {
-                    "$ref": "file:///container_path.json"
-                },
                 "inode": {
                     "type": "integer"
                 },
@@ -53,7 +50,6 @@
                         }
                     },
                     "required": [
-                        "mode",
                         "uid",
                         "gid"
                     ]
@@ -74,8 +70,6 @@
                 "mode",
                 "mount_id",
                 "filesystem",
-                "user",
-                "group",
                 "modification_time",
                 "change_time"
             ]

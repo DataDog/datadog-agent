@@ -190,6 +190,9 @@ func TestRTProcMessageNotRetried(t *testing.T) {
 func TestSendPodMessage(t *testing.T) {
 	clusterID := "d801b2b1-4811-11ea-8618-121d4d0938a3"
 
+	cfg := config.NewDefaultAgentConfig(false)
+	cfg.Orchestrator.OrchestrationCollectionEnabled = true
+
 	orig := os.Getenv("DD_ORCHESTRATOR_CLUSTER_ID")
 	_ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", clusterID)
 	defer func() { _ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", orig) }()
@@ -204,7 +207,7 @@ func TestSendPodMessage(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, config.NewDefaultAgentConfig(false), &endpointConfig{}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
+	runCollectorTest(t, check, cfg, &endpointConfig{}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/orchestrator", req.uri)

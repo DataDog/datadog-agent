@@ -14,11 +14,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
@@ -30,6 +30,8 @@ const (
 	// key used to display a warning message on the agent status
 	invalidProcessingRules = "invalid_global_processing_rules"
 	invalidEndpoints       = "invalid_endpoints"
+	intakeTrackType        = "logs"
+	intakeProtocol         = "agent-json"
 )
 
 var (
@@ -54,6 +56,18 @@ func StartServerless(getAC func() *autodiscovery.AutoConfig, logsChan chan *conf
 	return start(getAC, true, logsChan, extraTags)
 }
 
+// buildEndpoints builds endpoints for the logs agent
+func buildEndpoints(serverless bool) (*config.Endpoints, error) {
+	if serverless {
+		return config.BuildServerlessEndpoints(intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeSource)
+	}
+	httpConnectivity := config.HTTPConnectivityFailure
+	if endpoints, err := config.BuildHTTPEndpoints(intakeTrackType, intakeProtocol, config.DefaultIntakeSource); err == nil {
+		httpConnectivity = http.CheckConnectivity(endpoints.Main)
+	}
+	return config.BuildEndpoints(httpConnectivity, intakeTrackType, intakeProtocol, config.DefaultIntakeSource)
+}
+
 func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan chan *config.ChannelMessage, extraTags []string) error {
 	if IsAgentRunning() {
 		return nil
@@ -67,14 +81,8 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 	scheduler.CreateScheduler(sources, services)
 
 	// setup the server config
-	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpoints(); err == nil {
-		httpConnectivity = http.CheckConnectivity(endpoints.Main)
-	}
-	endpoints, err := config.BuildEndpoints(httpConnectivity)
-	if serverless {
-		endpoints, err = config.BuildServerlessEndpoints()
-	}
+	endpoints, err := buildEndpoints(serverless)
+
 	if err != nil {
 		message := fmt.Sprintf("Invalid endpoints: %v", err)
 		status.AddGlobalError(invalidEndpoints, message)

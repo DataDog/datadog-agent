@@ -12,17 +12,12 @@ import (
 
 const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
 
-// Using too high max repetitions might lead to tooBig SNMP error messages.
-// - Java SNMP and gosnmp (gosnmp.defaultMaxRepetitions) uses 50
-// - snmp-net uses 10
-const bulkMaxRepetition = 10
-
 type sessionAPI interface {
 	Configure(config snmpConfig) error
 	Connect() error
 	Close() error
 	Get(oids []string) (result *gosnmp.SnmpPacket, err error)
-	GetBulk(oids []string) (result *gosnmp.SnmpPacket, err error)
+	GetBulk(oids []string, bulkMaxRepetitions uint32) (result *gosnmp.SnmpPacket, err error)
 	GetNext(oids []string) (result *gosnmp.SnmpPacket, err error)
 	GetVersion() gosnmp.SnmpVersion
 }
@@ -115,8 +110,8 @@ func (s *snmpSession) Get(oids []string) (result *gosnmp.SnmpPacket, err error) 
 	return s.gosnmpInst.Get(oids)
 }
 
-func (s *snmpSession) GetBulk(oids []string) (result *gosnmp.SnmpPacket, err error) {
-	return s.gosnmpInst.GetBulk(oids, 0, bulkMaxRepetition)
+func (s *snmpSession) GetBulk(oids []string, bulkMaxRepetitions uint32) (result *gosnmp.SnmpPacket, err error) {
+	return s.gosnmpInst.GetBulk(oids, 0, bulkMaxRepetitions)
 }
 
 func (s *snmpSession) GetNext(oids []string) (result *gosnmp.SnmpPacket, err error) {

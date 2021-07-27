@@ -3,6 +3,7 @@ import glob
 import os
 import shutil
 import sys
+import tempfile
 
 from invoke import task
 
@@ -25,6 +26,7 @@ from .utils import (
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent", android=False))
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
+CLANG_EXE_CMD = "clang {flags} '{c_file}' -o '{out_file}'"
 
 
 def get_go_env(ctx, go_version):
@@ -165,6 +167,32 @@ def run_functional_tests(
     ctx.run(cmd.format(**args))
 
 
+def build_syscall_tester(ctx, build_dir, static=True):
+    syscall_tester_c_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "c")
+    syscall_tester_c_file = os.path.join(syscall_tester_c_dir, "syscall_x86_tester.c")
+    syscall_tester_exe_file = os.path.join(build_dir, "syscall_x86_tester")
+
+    flags = '-m32'
+    if static:
+        flags += ' -static'
+    ctx.run(CLANG_EXE_CMD.format(flags=flags, c_file=syscall_tester_c_file, out_file=syscall_tester_exe_file,))
+    return syscall_tester_exe_file
+
+
+@task
+def build_embed_syscall_tester(ctx, static=True):
+    syscall_tester_bin = build_syscall_tester(ctx, os.path.join(".", "bin"), static=static)
+    bundle_files(
+        ctx,
+        [syscall_tester_bin],
+        "bin",
+        "pkg/security/tests/syscall_tester/bindata.go",
+        "syscall_tester",
+        "functionaltests,amd64",
+        False,
+    )
+
+
 @task
 def build_functional_tests(
     ctx,
@@ -173,6 +201,7 @@ def build_functional_tests(
     arch="x64",
     major_version='7',
     build_tags='functionaltests',
+    build_flags='',
     bundle_ebpf=True,
     static=False,
 ):
@@ -205,11 +234,12 @@ def build_functional_tests(
     )
 
     cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
-    cmd += '{repo_path}/pkg/security/tests'
+    cmd += '{build_flags} {repo_path}/pkg/security/tests'
 
     args = {
         "output": output,
         "ldflags": ldflags,
+        "build_flags": build_flags,
         "build_tags": build_tags,
         "repo_path": REPO_PATH,
     }
@@ -319,18 +349,41 @@ def docker_functional_tests(
         bundle_ebpf=True,
     )
 
+    dockerfile = """
+FROM debian:bullseye
+
+RUN dpkg --add-architecture i386
+
+RUN apt-get update -y \
+    && apt-get install -y --no-install-recommends xfsprogs libc6:i386 \
+    && rm -rf /var/lib/apt/lists/*
+    """
+
+    docker_image_tag_name = "docker-functional-tests"
+
+    # build docker image
+    with tempfile.TemporaryDirectory() as temp_dir:
+        print("Create tmp dir:", temp_dir)
+        with open(os.path.join(temp_dir, "Dockerfile"), "w") as f:
+            f.write(dockerfile)
+
+        cmd = 'docker build {docker_file_ctx} --tag {image_tag}'
+        ctx.run(cmd.format(**{"docker_file_ctx": temp_dir, "image_tag": docker_image_tag_name,}))
+
     container_name = 'security-agent-tests'
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
 
     cmd = 'docker run --name {container_name} {caps} --privileged -d --pid=host '
+    cmd += '-v /dev:/dev '
     cmd += '-v /proc:/host/proc -e HOST_PROC=/host/proc '
-    cmd += '-v {GOPATH}/src/{REPO_PATH}/pkg/security/tests:/tests debian:bullseye sleep 3600'
+    cmd += '-v {GOPATH}/src/{REPO_PATH}/pkg/security/tests:/tests {image_tag} sleep 3600'
 
     args = {
         "GOPATH": get_gopath(ctx),
         "REPO_PATH": REPO_PATH,
         "container_name": container_name,
         "caps": ' '.join(['--cap-add ' + cap for cap in capabilities]),
+        "image_tag": docker_image_tag_name + ":latest",
     }
 
     ctx.run(cmd.format(**args))

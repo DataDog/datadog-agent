@@ -7,6 +7,7 @@ package dogstatsd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"expvar"
 	"fmt"
@@ -267,7 +268,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 	}
 	metricPrefixBlacklist := config.Datadog.GetStringSlice("statsd_metric_namespace_blacklist")
 
-	defaultHostname, err := util.GetHostname()
+	defaultHostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		log.Errorf("Dogstatsd: unable to determine default hostname: %s", err.Error())
 	}
@@ -832,4 +833,9 @@ func FormatDebugStats(stats []byte) (string, error) {
 	}
 
 	return buf.String(), nil
+}
+
+// SetExtraTags sets extra tags. All metrics sent to the DogstatsD will be tagged with them.
+func (s *Server) SetExtraTags(tags []string) {
+	s.extraTags = tags
 }

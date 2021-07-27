@@ -129,9 +129,10 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]pb.ClientStatsBucket {
 			continue
 		}
 		key := PayloadAggregationKey{
-			Hostname: k.Hostname,
-			Version:  k.Version,
-			Env:      k.Env,
+			Hostname:    k.Hostname,
+			Version:     k.Version,
+			Env:         k.Env,
+			ContainerID: k.ContainerID,
 		}
 		s, ok := m[key]
 		if !ok {
@@ -147,11 +148,11 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]pb.ClientStatsBucket {
 }
 
 // HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators
-func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, agentHostname string) {
+func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, agentHostname, containerID string) {
 	if env == "" {
 		panic("env should never be empty")
 	}
-	aggr := NewAggregationFromSpan(s.Span, env, agentHostname)
+	aggr := NewAggregationFromSpan(s.Span, env, agentHostname, containerID)
 	sb.add(s, aggr)
 }
 

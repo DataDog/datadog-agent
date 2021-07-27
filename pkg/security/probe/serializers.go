@@ -22,6 +22,7 @@ import (
 const (
 	FIMCategory     = "File Activity"
 	ProcessActivity = "Process Activity"
+	KernelActivity  = "Kernel Activity"
 )
 
 // FileSerializer serializes a file to JSON
@@ -29,7 +30,6 @@ const (
 type FileSerializer struct {
 	Path                string     `json:"path,omitempty"`
 	Name                string     `json:"name,omitempty"`
-	ContainerPath       string     `json:"container_path,omitempty"`
 	PathResolutionError string     `json:"path_resolution_error,omitempty"`
 	Inode               *uint64    `json:"inode,omitempty"`
 	Mode                *uint32    `json:"mode,omitempty"`
@@ -131,7 +131,6 @@ type ProcessCacheEntrySerializer struct {
 	GID                 int                           `json:"gid"`
 	User                string                        `json:"user,omitempty"`
 	Group               string                        `json:"group,omitempty"`
-	ContainerPath       string                        `json:"executable_container_path,omitempty"`
 	Path                string                        `json:"executable_path,omitempty"`
 	PathResolutionError string                        `json:"path_resolution_error,omitempty"`
 	Comm                string                        `json:"comm,omitempty"`
@@ -186,11 +185,36 @@ type ProcessContextSerializer struct {
 	Ancestors []*ProcessCacheEntrySerializer `json:"ancestors,omitempty"`
 }
 
+// easyjson:json
+type selinuxBoolChangeSerializer struct {
+	Name  string `json:"name,omitempty"`
+	State string `json:"state,omitempty"`
+}
+
+// easyjson:json
+type selinuxEnforceStatusSerializer struct {
+	Status string `json:"status,omitempty"`
+}
+
+// easyjson:json
+type selinuxBoolCommitSerializer struct {
+	State bool `json:"state,omitempty"`
+}
+
+// SELinuxEventSerializer serializes a SELinux context to JSON
+// easyjson:json
+type SELinuxEventSerializer struct {
+	BoolChange    *selinuxBoolChangeSerializer    `json:"bool,omitempty"`
+	EnforceStatus *selinuxEnforceStatusSerializer `json:"enforce,omitempty"`
+	BoolCommit    *selinuxBoolCommitSerializer    `json:"bool_commit,omitempty"`
+}
+
 // EventSerializer serializes an event to JSON
 // easyjson:json
 type EventSerializer struct {
 	*EventContextSerializer    `json:"evt,omitempty"`
 	*FileEventSerializer       `json:"file,omitempty"`
+	*SELinuxEventSerializer    `json:"selinux,omitempty"`
 	UserContextSerializer      UserContextSerializer       `json:"usr,omitempty"`
 	ProcessContextSerializer   *ProcessContextSerializer   `json:"process,omitempty"`
 	ContainerContextSerializer *ContainerContextSerializer `json:"container,omitempty"`
@@ -212,7 +236,6 @@ func newFileSerializer(fe *model.FileEvent, e *Event) *FileSerializer {
 		Path:                e.ResolveFilePath(fe),
 		PathResolutionError: fe.GetPathResolutionError(),
 		Name:                e.ResolveFileBasename(fe),
-		ContainerPath:       e.ResolveFileContainerPath(fe),
 		Inode:               getUint64Pointer(&fe.Inode),
 		MountID:             getUint32Pointer(&fe.MountID),
 		Filesystem:          e.ResolveFileFilesystem(fe),
@@ -233,7 +256,6 @@ func newProcessFileSerializerWithResolvers(process *model.Process, r *Resolvers)
 		Path:                process.PathnameStr,
 		PathResolutionError: process.GetPathResolutionError(),
 		Name:                process.BasenameStr,
-		ContainerPath:       process.ContainerPath,
 		Inode:               getUint64Pointer(&process.FileFields.Inode),
 		MountID:             getUint32Pointer(&process.FileFields.MountID),
 		Filesystem:          process.Filesystem,
@@ -334,7 +356,6 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *Pro
 		Tid:           pce.Process.Tid,
 		PPid:          pce.Process.PPid,
 		Path:          pce.Process.PathnameStr,
-		ContainerPath: pce.Process.ContainerPath,
 		Comm:          pce.Process.Comm,
 		TTY:           pce.Process.TTYName,
 		Executable:    newProcessFileSerializerWithResolvers(&pce.Process, e.resolvers),
@@ -410,6 +431,32 @@ func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Re
 		ptr = it.Next()
 	}
 	return ps
+}
+
+func newSELinuxSerializer(e *Event) *SELinuxEventSerializer {
+	switch e.SELinux.EventKind {
+	case model.SELinuxBoolChangeEventKind:
+		return &SELinuxEventSerializer{
+			BoolChange: &selinuxBoolChangeSerializer{
+				Name:  e.ResolveSELinuxBoolName(&e.SELinux),
+				State: e.SELinux.BoolChangeValue,
+			},
+		}
+	case model.SELinuxStatusChangeEventKind:
+		return &SELinuxEventSerializer{
+			EnforceStatus: &selinuxEnforceStatusSerializer{
+				Status: e.SELinux.EnforceStatus,
+			},
+		}
+	case model.SELinuxBoolCommitEventKind:
+		return &SELinuxEventSerializer{
+			BoolCommit: &selinuxBoolCommitSerializer{
+				State: e.SELinux.BoolCommitValue,
+			},
+		}
+	default:
+		return nil
+	}
 }
 
 func serializeSyscallRetval(retval int64) string {
@@ -597,6 +644,13 @@ func newEventSerializer(event *Event) *EventSerializer {
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
 		s.Category = ProcessActivity
+	case model.SELinuxEventType:
+		s.EventContextSerializer.Outcome = serializeSyscallRetval(0)
+		s.FileEventSerializer = &FileEventSerializer{
+			FileSerializer: *newFileSerializer(&event.SELinux.File, event),
+		}
+		s.SELinuxEventSerializer = newSELinuxSerializer(event)
+		s.Category = KernelActivity
 	}
 
 	return s

@@ -45,6 +45,8 @@
     DEFAULT_KITCHEN_OSVERS: "win20h2"
   before_script:  # test all of the kernels to make sure the driver loads and runs properly
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
+    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export RELEASE_VERSION=$RELEASE_VERSION_7; else export RELEASE_VERSION=$RELEASE_VERSION_6; fi
+    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-variable --name WINDOWS_DDNPM_DRIVER --version $RELEASE_VERSION)
     - rsync -azr --delete ./ $SRC_PATH
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
@@ -57,6 +59,8 @@
     KITCHEN_OSVERS: "win2016"
   before_script:  # Use only 2016 and 2019 for testing that we upgrade properly and don't install the driver when not specified
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
+    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export RELEASE_VERSION=$RELEASE_VERSION_7; else export RELEASE_VERSION=$RELEASE_VERSION_6; fi
+    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-variable --name WINDOWS_DDNPM_DRIVER --version $RELEASE_VERSION)
     - rsync -azr --delete ./ $SRC_PATH
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh

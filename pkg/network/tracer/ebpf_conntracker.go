@@ -31,10 +31,6 @@ import (
 */
 import "C"
 
-const (
-	initializationTimeout = time.Second * 10
-)
-
 var tuplePool = sync.Pool{
 	New: func() interface{} {
 		return new(ConnTuple)
@@ -95,13 +91,13 @@ func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 		telemetryMap: telemetryMap,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), initializationTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.ConntrackInitTimeout)
 	defer cancel()
 
 	err = e.dumpInitialTables(ctx, cfg)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, fmt.Errorf("could not initialize conntrack after %s", initializationTimeout)
+			return nil, fmt.Errorf("could not initialize conntrack after %s", cfg.ConntrackInitTimeout)
 		}
 		return nil, err
 	}

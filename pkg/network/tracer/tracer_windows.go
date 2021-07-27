@@ -1,4 +1,4 @@
-// +build windows
+// +build windows,npm
 
 package tracer
 
@@ -17,6 +17,7 @@ import (
 
 const (
 	defaultPollInterval = int(15)
+	defaultBufferSize   = 512
 )
 
 // Tracer struct for tracking network state and connections
@@ -36,6 +37,10 @@ type Tracer struct {
 	// ticker for the polling interval for writing
 	inTicker            *time.Ticker
 	stopInTickerRoutine chan bool
+
+	// Connections for the tracer to exclude
+	sourceExcludes []*network.ConnectionFilter
+	destExcludes   []*network.ConnectionFilter
 }
 
 // NewTracer returns an initialized tracer struct
@@ -66,13 +71,16 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	}
 
 	tr := &Tracer{
+		config:          config,
 		driverInterface: di,
 		stopChan:        make(chan struct{}),
 		timerInterval:   defaultPollInterval,
 		state:           state,
-		connStatsActive: network.NewDriverBuffer(512),
-		connStatsClosed: network.NewDriverBuffer(512),
+		connStatsActive: network.NewDriverBuffer(defaultBufferSize),
+		connStatsClosed: network.NewDriverBuffer(defaultBufferSize),
 		reverseDNS:      reverseDNS,
+		sourceExcludes:  network.ParseConnectionFilters(config.ExcludedSourceConnections),
+		destExcludes:    network.ParseConnectionFilters(config.ExcludedDestinationConnections),
 	}
 
 	return tr, nil
@@ -81,6 +89,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 // Stop function stops running tracer
 func (t *Tracer) Stop() {
 	close(t.stopChan)
+	t.reverseDNS.Close()
 	err := t.driverInterface.Close()
 	if err != nil {
 		log.Errorf("error closing driver interface: %s", err)
@@ -97,15 +106,22 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	_, _, err := t.driverInterface.GetConnectionStats(t.connStatsActive, t.connStatsClosed)
 	if err != nil {
-		log.Errorf("failed to get connections")
-		return nil, err
+		return nil, fmt.Errorf("error retrieving connections from driver: %w", err)
 	}
 
 	activeConnStats := t.connStatsActive.Connections()
 	closedConnStats := t.connStatsClosed.Connections()
 
+	// TODO filter connections using shouldSkipConnection
+	//for _, connStat := range activeConnStats {
+	//	if !t.shouldSkipConnection(&connStat) {
+	//		// TODO figure out way to filter active without allocating
+	//	}
+	//}
 	for _, connStat := range closedConnStats {
+		//if !t.shouldSkipConnection(&connStat) {
 		t.state.StoreClosedConnection(&connStat)
+		//}
 	}
 
 	// check for expired clients in the state
@@ -124,9 +140,9 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		log.Errorf("not printing driver stats: %v", err)
 	}
 
-	stateStats := t.state.GetStats()
 	stats := map[string]interface{}{
-		"state": stateStats,
+		"state": t.state.GetStats(),
+		"dns":   t.reverseDNS.GetStats(),
 	}
 	for _, name := range network.DriverExpvarNames {
 		stats[string(name)] = driverStats[name]

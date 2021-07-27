@@ -23,7 +23,7 @@ type metricAggregator interface {
 // and GO accepts arrays as valid map key type, but not slices.
 // This hard coded limit is fine because the metrics to aggregate and the label list to use are hardcoded
 // in the code and cannot be arbitrarily set by the end-user.
-const maxNumberOfAllowedLabels = 3
+const maxNumberOfAllowedLabels = 4
 
 type counterAggregator struct {
 	metricName    string
@@ -122,55 +122,57 @@ func (a *counterAggregator) flush(sender aggregator.Sender, k *KSMCheck, labelJo
 	a.accumulator = make(map[[maxNumberOfAllowedLabels]string]float64)
 }
 
-var (
-	metricAggregators = map[string]metricAggregator{
-		"kube_persistentvolume_status_phase": newSumValuesAggregator(
-			"persistentvolumes.by_phase",
-			[]string{"storageclass", "phase"},
-		),
-		"kube_service_spec_type": newCountObjectsAggregator(
-			"service.count",
-			[]string{"namespace", "type"},
-		),
-		"kube_namespace_status_phase": newSumValuesAggregator(
-			"namespace.count",
-			[]string{"phase"},
-		),
-		"kube_replicaset_owner": newCountObjectsAggregator(
-			"replicaset.count",
-			[]string{"namespace", "owner_name", "owner_kind"},
-		),
-		"kube_job_owner": newCountObjectsAggregator(
-			"job.count",
-			[]string{"namespace", "owner_name", "owner_kind"},
-		),
-		"kube_deployment_labels": newCountObjectsAggregator(
-			"deployment.count",
-			[]string{"namespace"},
-		),
-		"kube_daemonset_labels": newCountObjectsAggregator(
-			"daemonset.count",
-			[]string{"namespace"},
-		),
-		"kube_statefulset_labels": newCountObjectsAggregator(
-			"statefulset.count",
-			[]string{"namespace"},
-		),
-		"kube_cronjob_labels": newCountObjectsAggregator(
-			"cronjob.count",
-			[]string{"namespace"},
-		),
-		"kube_endpoint_labels": newCountObjectsAggregator(
-			"endpoint.count",
-			[]string{"namespace"},
-		),
-		"kube_horizontalpodautoscaler_labels": newCountObjectsAggregator(
-			"hpa.count",
-			[]string{"namespace"},
-		),
-		"kube_verticalpodautoscaler_labels": newCountObjectsAggregator(
-			"vpa.count",
-			[]string{"namespace"},
-		),
-	}
-)
+var metricAggregators = map[string]metricAggregator{
+	"kube_persistentvolume_status_phase": newSumValuesAggregator(
+		"persistentvolumes.by_phase",
+		[]string{"storageclass", "phase"},
+	),
+	"kube_service_spec_type": newCountObjectsAggregator(
+		"service.count",
+		[]string{"namespace", "type"},
+	),
+	"kube_namespace_status_phase": newSumValuesAggregator(
+		"namespace.count",
+		[]string{"phase"},
+	),
+	"kube_replicaset_owner": newCountObjectsAggregator(
+		"replicaset.count",
+		[]string{"namespace", "owner_name", "owner_kind"},
+	),
+	"kube_job_owner": newCountObjectsAggregator(
+		"job.count",
+		[]string{"namespace", "owner_name", "owner_kind"},
+	),
+	"kube_deployment_labels": newCountObjectsAggregator(
+		"deployment.count",
+		[]string{"namespace"},
+	),
+	"kube_daemonset_labels": newCountObjectsAggregator(
+		"daemonset.count",
+		[]string{"namespace"},
+	),
+	"kube_statefulset_labels": newCountObjectsAggregator(
+		"statefulset.count",
+		[]string{"namespace"},
+	),
+	"kube_cronjob_labels": newCountObjectsAggregator(
+		"cronjob.count",
+		[]string{"namespace"},
+	),
+	"kube_endpoint_labels": newCountObjectsAggregator(
+		"endpoint.count",
+		[]string{"namespace"},
+	),
+	"kube_horizontalpodautoscaler_labels": newCountObjectsAggregator(
+		"hpa.count",
+		[]string{"namespace"},
+	),
+	"kube_verticalpodautoscaler_labels": newCountObjectsAggregator(
+		"vpa.count",
+		[]string{"namespace"},
+	),
+	"kube_node_info": newCountObjectsAggregator(
+		"node.count",
+		[]string{"kubelet_version", "container_runtime_version", "kernel_version", "os_image"},
+	),
+}

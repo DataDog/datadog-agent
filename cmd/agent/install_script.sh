@@ -6,7 +6,7 @@
 # using the package manager and Datadog repositories.
 
 set -e
-install_script_version=1.4.0
+install_script_version=1.6.0.post
 logfile="ddagent-install.log"
 support_email=support@datadoghq.com
 
@@ -126,7 +126,7 @@ function verify_agent_version(){
     if [ -z "$agent_version_custom" ]; then
         echo -e "
   \033[33mWarning: Specified version not found: $agent_major_version.$agent_minor_version
-  Check available versions at: https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst\033[0m"
+  Check available versions at: https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst\033[0m"
         fallback_msg
         exit 1;
     else
@@ -261,6 +261,11 @@ if [ ! "$apikey" ]; then
   fi
 fi
 
+if [[ `uname -m` == "armv7l" ]] && [[ $agent_flavor == "datadog-agent" ]]; then
+    printf "\033[31mThe full Datadog Agent isn't available for your architecture (armv7l).\nInstall the Datadog IoT Agent by setting DD_AGENT_FLAVOR='datadog-iot'agent'.\033[0m\n"
+    exit 1;
+fi
+
 # OS/Distro Detection
 # Try lsb_release, fallback with /etc/issue then uname command
 KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
@@ -379,6 +384,9 @@ elif [ "$OS" = "Debian" ]; then
     if [ ! -f $apt_usr_share_keyring ]; then
         $sudo_cmd touch $apt_usr_share_keyring
     fi
+    # ensure that the _apt user used on Ubuntu/Debian systems to read GPG keyrings
+    # can read our keyring
+    $sudo_cmd chmod a+r $apt_usr_share_keyring
 
     for key in "${APT_GPG_KEYS[@]}"; do
         $sudo_cmd curl --retry 5 -o "/tmp/${key}" "https://${keys_url}/${key}"
@@ -388,7 +396,8 @@ elif [ "$OS" = "Debian" ]; then
     release_version="$(grep VERSION_ID /etc/os-release | cut -d = -f 2 | xargs echo | cut -d "." -f 1)"
     if { [ "$DISTRIBUTION" == "Debian" ] && [ "$release_version" -lt 9 ]; } || \
        { [ "$DISTRIBUTION" == "Ubuntu" ] && [ "$release_version" -lt 16 ]; }; then
-        $sudo_cmd cp $apt_usr_share_keyring $apt_trusted_d_keyring
+        # copy with -a to preserve file permissions
+        $sudo_cmd cp -a $apt_usr_share_keyring $apt_trusted_d_keyring
     fi
 
     printf "\033[34m\n* Installing the Datadog Agent package\n\033[0m\n"
@@ -434,6 +443,7 @@ elif [ "$OS" = "SUSE" ]; then
   fi
 
   # Try to guess if we're installing on SUSE 11, as it needs a different flow to work
+  # Note that SUSE11 doesn't have /etc/os-release file, so we have to use /etc/SuSE-release
   if cat /etc/SuSE-release 2>/dev/null | grep VERSION | grep 11; then
     SUSE11="yes"
   fi
@@ -462,9 +472,13 @@ elif [ "$OS" = "SUSE" ]; then
     fi
   fi
 
-  # parse the major version number out of the distro release info file. xargs is used to trim whitespace.
-  SUSE_VER=$( (cat /etc/SuSE-release 2>/dev/null; cat /etc/SUSE-brand 2>/dev/null) | grep VERSION | tr . = | cut -d = -f 2 | xargs echo)
-  if [ "$SUSE_VER" -ge 15 ]; then
+  # Parse the major version number out of the distro release info file. xargs is used to trim whitespace.
+  # NOTE: We use this to find out whether or not release version is >= 15, so we have to use /etc/os-release,
+  # as /etc/SuSE-release has been deprecated and is no longer present everywhere, e.g. in AWS AMI.
+  # See https://www.suse.com/releasenotes/x86_64/SUSE-SLES/15/#fate-324409
+  SUSE_VER=$(cat /etc/os-release 2>/dev/null | grep VERSION_ID | tr -d '"' | tr . = | cut -d = -f 2 | xargs echo)
+  gpgkeys="https://${keys_url}/DATADOG_RPM_KEY_CURRENT.public"
+  if [ -n "$SUSE_VER" ] && [ "$SUSE_VER" -ge 15 ]; then
     gpgkeys=''
     separator='\n       '
     for key_path in "${RPM_GPG_KEYS[@]}"; do
@@ -475,8 +489,6 @@ elif [ "$OS" = "SUSE" ]; then
         gpgkeys="${gpgkeys:+"${gpgkeys}${separator}"}https://${keys_url}/${key_path}"
       done
     fi
-  else
-    gpgkeys="https://${keys_url}/DATADOG_RPM_KEY_CURRENT.public"
   fi
 
   echo -e "\033[34m\n* Installing YUM Repository for Datadog\n\033[0m"
@@ -583,8 +595,8 @@ restart_cmd="$sudo_cmd $service_cmd datadog-agent restart"
 stop_instructions="$sudo_cmd $service_cmd datadog-agent stop"
 start_instructions="$sudo_cmd $service_cmd datadog-agent start"
 
-if command -v systemctl 2>&1; then
-  # Use systemd if systemctl binary exists
+if [[ `$sudo_cmd ps --no-headers -o comm 1 2>&1` == "systemd" ]] && command -v systemctl 2>&1; then
+  # Use systemd if systemctl binary exists and systemd is the init process
   restart_cmd="$sudo_cmd systemctl restart datadog-agent.service"
   stop_instructions="$sudo_cmd systemctl stop datadog-agent"
   start_instructions="$sudo_cmd systemctl start datadog-agent"

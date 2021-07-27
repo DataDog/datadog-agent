@@ -386,6 +386,8 @@ func getSizeOfStructInode(probe *Probe) uint64 {
 		sizeOf = 560
 	case probe.kernelVersion.IsSLES15Kernel():
 		sizeOf = 592
+	case probe.kernelVersion.IsOracleUEKKernel():
+		sizeOf = 632
 	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < kernel.Kernel4_16:
 		sizeOf = 608
 	}

@@ -77,6 +77,31 @@ func (d ConnectionDirection) String() string {
 	}
 }
 
+// EphemeralPortType will be either EphemeralUnknown, EphemeralTrue, EphemeralFalse
+type EphemeralPortType uint8
+
+const (
+	// EphemeralUnknown indicates inability to determine whether the port is in the ephemeral range or not
+	EphemeralUnknown EphemeralPortType = 0
+
+	// EphemeralTrue means the port has been detected to be in the configured ephemeral range
+	EphemeralTrue EphemeralPortType = 1
+
+	// EphemeralFalse means the port has been detected to not be in the configured ephemeral range
+	EphemeralFalse EphemeralPortType = 2
+)
+
+func (e EphemeralPortType) String() string {
+	switch e {
+	case EphemeralTrue:
+		return "ephemeral"
+	case EphemeralFalse:
+		return "not ephemeral"
+	default:
+		return "unspecified"
+	}
+}
+
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
 	DNS                         map[util.Address][]string
@@ -105,6 +130,7 @@ type ConnectionsTelemetry struct {
 type RuntimeCompilationTelemetry struct {
 	RuntimeCompilationEnabled  bool
 	RuntimeCompilationResult   int32
+	KernelHeaderFetchResult    int32
 	RuntimeCompilationDuration int64
 }
 
@@ -149,20 +175,21 @@ type ConnectionStats struct {
 	Pid   uint32
 	NetNS uint32
 
-	SPort                  uint16
-	DPort                  uint16
-	Type                   ConnectionType
-	Family                 ConnectionFamily
-	Direction              ConnectionDirection
-	IPTranslation          *IPTranslation
-	IntraHost              bool
-	DNSSuccessfulResponses uint32
-	DNSFailedResponses     uint32
-	DNSTimeouts            uint32
-	DNSSuccessLatencySum   uint64
-	DNSFailureLatencySum   uint64
-	DNSCountByRcode        map[uint32]uint32
-	DNSStatsByDomain       map[string]DNSStats
+	SPort                       uint16
+	DPort                       uint16
+	Type                        ConnectionType
+	Family                      ConnectionFamily
+	Direction                   ConnectionDirection
+	SPortIsEphemeral            EphemeralPortType
+	IPTranslation               *IPTranslation
+	IntraHost                   bool
+	DNSSuccessfulResponses      uint32
+	DNSFailedResponses          uint32
+	DNSTimeouts                 uint32
+	DNSSuccessLatencySum        uint64
+	DNSFailureLatencySum        uint64
+	DNSCountByRcode             map[uint32]uint32
+	DNSStatsByDomainByQueryType map[string]map[QueryType]DNSStats
 
 	Via *Via
 }
@@ -252,13 +279,25 @@ func BeautifyKey(key string) string {
 // ConnectionSummary returns a string summarizing a connection
 func ConnectionSummary(c *ConnectionStats, names map[util.Address][]string) string {
 	str := fmt.Sprintf(
-		"[%s] [PID: %d] [%v:%d ⇄ %v:%d] (%s) %s sent (+%s), %s received (+%s)",
+		"[%s] [PID: %d] [%v:%d ⇄ %v:%d] ",
 		c.Type,
 		c.Pid,
 		printAddress(c.Source, names[c.Source]),
 		c.SPort,
 		printAddress(c.Dest, names[c.Dest]),
 		c.DPort,
+	)
+	if c.IPTranslation != nil {
+		str += fmt.Sprintf(
+			"xlated [%v:%d ⇄ %v:%d] ",
+			c.IPTranslation.ReplSrcIP,
+			c.IPTranslation.ReplSrcPort,
+			c.IPTranslation.ReplDstIP,
+			c.IPTranslation.ReplDstPort,
+		)
+	}
+
+	str += fmt.Sprintf("(%s) %s sent (+%s), %s received (+%s)",
 		c.Direction,
 		humanize.Bytes(c.MonotonicSentBytes), humanize.Bytes(c.LastSentBytes),
 		humanize.Bytes(c.MonotonicRecvBytes), humanize.Bytes(c.LastRecvBytes),

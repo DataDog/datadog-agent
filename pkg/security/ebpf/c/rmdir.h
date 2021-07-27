@@ -9,8 +9,6 @@ struct rmdir_event_t {
     struct container_context_t container;
     struct syscall_t syscall;
     struct file_t file;
-    u32 discarder_revision;
-    u32 padding;
 };
 
 int __attribute__((always_inline)) rmdir_approvers(struct syscall_cache_t *syscall) {
@@ -117,20 +115,19 @@ int __attribute__((always_inline)) dr_security_inode_rmdir_callback(struct pt_re
 }
 
 int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
-    if (IS_UNHANDLED_ERROR(retval)) {
-        return 0;
-    }
-
     struct syscall_cache_t *syscall = pop_syscall_with(rmdir_predicate);
     if (!syscall)
         return 0;
+
+    if (IS_UNHANDLED_ERROR(retval)) {
+        return 0;
+    }
 
     int pass_to_userspace = !syscall->discarded && is_event_enabled(EVENT_RMDIR);
     if (pass_to_userspace) {
         struct rmdir_event_t event = {
             .syscall.retval = retval,
             .file = syscall->rmdir.file,
-            .discarder_revision = get_discarder_revision(syscall->rmdir.file.path_key.mount_id),
         };
 
         struct proc_cache_t *entry = fill_process_context(&event.process);
@@ -152,6 +149,11 @@ int tracepoint_syscalls_sys_exit_rmdir(struct tracepoint_syscalls_sys_exit_t *ar
 SYSCALL_KRETPROBE(rmdir) {
     int retval = PT_REGS_RC(ctx);
     return sys_rmdir_ret(ctx, retval);
+}
+
+SEC("tracepoint/handle_sys_rmdir_exit")
+int tracepoint_handle_sys_rmdir_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_rmdir_ret(args, args->ret);
 }
 
 #endif
