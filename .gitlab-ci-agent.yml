@@ -294,7 +294,7 @@ build_binaries:
   tags:
     - sts-k8s-m-runner
   retry:
-    max: 3
+    max: 2
     when:
       - always
 
@@ -315,7 +315,7 @@ build_cluster_agent:
   rules:
     - *only_agent_3
   retry:
-    max: 3
+    max: 2
     when:
       - always
 
@@ -397,7 +397,7 @@ build_deb:
       - $CI_PROJECT_DIR/outcomes/binary/trace-agent
     expire_in: 1 week
   retry:
-    max: 3
+    max: 2
     when:
       - always
 
@@ -458,7 +458,7 @@ build_rpm:
       - $CI_PROJECT_DIR/version.txt
     expire_in: 1 week
   retry:
-    max: 3
+    max: 2
     when:
       - always
 
@@ -489,7 +489,7 @@ build_win:
   tags:
     - windows_agent7_ps1
   retry:
-    max: 3
+    max: 2
     when:
       - always
 
