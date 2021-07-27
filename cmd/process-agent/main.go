@@ -4,6 +4,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"log"
@@ -19,7 +20,7 @@ func setupConfig() {
 		strings.ToLower(flag.Arg(2)),
 		flag.Arg(3)
 
-	// Set session token
+	// Configure a session token so nothing gets rejected
 	err := util.SetAuthToken()
 	if err != nil {
 		log.Fatal(err)
@@ -35,7 +36,7 @@ func setupConfig() {
 	if verb == "get" {
 		get, err := settingsClient.Get(key)
 		if err == nil {
-			log.Println(get)
+			fmt.Println(get)
 		}
 	} else if verb == "set" {
 		_, err = settingsClient.Set(key, value)
@@ -45,7 +46,6 @@ func setupConfig() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
 }
 
 func main() {
@@ -63,10 +63,7 @@ func main() {
 	flag.StringVar(&opts.check, "check", "", "Run a specific check and print the results. Choose from: process, connections, realtime")
 	flag.Parse()
 
-	if flag.Arg(0) == "config" {
-		setupConfig()
-		return
-	}
+	opts.isConfig = flag.Arg(0) == "config"
 
 	exit := make(chan struct{})
 
