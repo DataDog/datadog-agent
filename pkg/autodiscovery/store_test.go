@@ -28,20 +28,24 @@ func TestServiceToConfig(t *testing.T) {
 	assert.Equal(t, len(s.getConfigsForService(service.GetEntity())), 1)
 }
 
+func countConfigsForTemplate(s *store, template string) int {
+	return len(s.templateToConfigs[template])
+}
+
 func TestTemplateToConfig(t *testing.T) {
 	s := newStore()
 	s.addConfigForTemplate("digest1", integration.Config{Name: "foo"})
 	s.addConfigForTemplate("digest1", integration.Config{Name: "bar"})
 	s.addConfigForTemplate("digest2", integration.Config{Name: "foo"})
 
-	assert.Len(t, s.getConfigsForTemplate("digest1"), 2)
-	assert.Len(t, s.getConfigsForTemplate("digest2"), 1)
+	assert.Equal(t, countConfigsForTemplate(s, "digest1"), 2)
+	assert.Equal(t, countConfigsForTemplate(s, "digest2"), 1)
 
 	s.removeConfigsForTemplate("digest1")
-	assert.Len(t, s.getConfigsForTemplate("digest1"), 0)
-	assert.Len(t, s.getConfigsForTemplate("digest2"), 1)
+	assert.Equal(t, countConfigsForTemplate(s, "digest1"), 0)
+	assert.Equal(t, countConfigsForTemplate(s, "digest2"), 1)
 
 	s.addConfigForTemplate("digest1", integration.Config{Name: "foo"})
-	assert.Len(t, s.getConfigsForTemplate("digest1"), 1)
-	assert.Len(t, s.getConfigsForTemplate("digest2"), 1)
+	assert.Equal(t, countConfigsForTemplate(s, "digest1"), 1)
+	assert.Equal(t, countConfigsForTemplate(s, "digest2"), 1)
 }

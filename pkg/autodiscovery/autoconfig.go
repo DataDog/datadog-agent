@@ -478,9 +478,8 @@ func (ac *AutoConfig) removeConfigTemplates(configs []integration.Config) {
 		if c.IsTemplate() {
 			// Remove the resolved configurations
 			tplDigest := c.Digest()
-			configs := ac.store.getConfigsForTemplate(tplDigest)
-			ac.store.removeConfigsForTemplate(tplDigest)
-			ac.processRemovedConfigs(configs)
+			removedConfigs := ac.store.removeConfigsForTemplate(tplDigest)
+			ac.processRemovedConfigs(removedConfigs)
 
 			// Remove template from the cache
 			err := ac.store.templateCache.Del(c)

@@ -67,18 +67,14 @@ func (s *store) addConfigForService(serviceEntity string, config integration.Con
 	}
 }
 
-// getConfigsForTemplate gets config for a specified template
-func (s *store) getConfigsForTemplate(templateDigest string) []integration.Config {
-	s.m.RLock()
-	defer s.m.RUnlock()
-	return s.templateToConfigs[templateDigest]
-}
-
-// removeConfigsForTemplate removes a config for a specified template
-func (s *store) removeConfigsForTemplate(templateDigest string) {
+// removeConfigsForTemplate removes all configs for a specified template, returning
+// those configs
+func (s *store) removeConfigsForTemplate(templateDigest string) []integration.Config {
 	s.m.Lock()
 	defer s.m.Unlock()
+	removed := s.templateToConfigs[templateDigest]
 	delete(s.templateToConfigs, templateDigest)
+	return removed
 }
 
 // addConfigForTemplate adds a config for a specified template
