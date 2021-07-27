@@ -1051,3 +1051,60 @@ func TestKSMCheckInitTags(t *testing.T) {
 		})
 	}
 }
+
+func TestOwnerTags(t *testing.T) {
+	tests := []struct {
+		tc   string
+		kind string
+		name string
+		want []string
+	}{
+		{
+			tc:   "rs + deploy",
+			kind: "ReplicaSet",
+			name: "foo-6768ddc4d",
+			want: []string{"kube_replica_set:foo-6768ddc4d", "kube_deployment:foo"},
+		},
+		{
+			tc:   "rs only",
+			kind: "ReplicaSet",
+			name: "foo",
+			want: []string{"kube_replica_set:foo"},
+		},
+		{
+			tc:   "job + cronjob",
+			kind: "Job",
+			name: "foo-1627309500",
+			want: []string{"kube_job:foo-1627309500", "kube_cronjob:foo"},
+		},
+		{
+			tc:   "job only",
+			kind: "Job",
+			name: "foo",
+			want: []string{"kube_job:foo"},
+		},
+		{
+			tc:   "sts",
+			kind: "StatefulSet",
+			name: "foo",
+			want: []string{"kube_stateful_set:foo"},
+		},
+		{
+			tc:   "ds",
+			kind: "DaemonSet",
+			name: "foo",
+			want: []string{"kube_daemon_set:foo"},
+		},
+		{
+			tc:   "replication",
+			kind: "ReplicationController",
+			name: "foo",
+			want: []string{"kube_replication_controller:foo"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.tc, func(t *testing.T) {
+			assert.EqualValues(t, tt.want, ownerTags(tt.kind, tt.name))
+		})
+	}
+}
