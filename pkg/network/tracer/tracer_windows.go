@@ -1,8 +1,9 @@
-// +build windows
+// +build windows,npm
 
 package tracer
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"syscall"
@@ -11,12 +12,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/pkg/errors"
 )
 
 const (
 	defaultPollInterval = int(15)
+	defaultBufferSize   = 512
 )
 
 // Tracer struct for tracking network state and connections
@@ -25,7 +28,7 @@ type Tracer struct {
 	driverInterface *network.DriverInterface
 	stopChan        chan struct{}
 	state           network.State
-	reverseDNS      network.ReverseDNS
+	reverseDNS      dns.ReverseDNS
 
 	connStatsActive *network.DriverBuffer
 	connStatsClosed *network.DriverBuffer
@@ -36,13 +39,17 @@ type Tracer struct {
 	// ticker for the polling interval for writing
 	inTicker            *time.Ticker
 	stopInTickerRoutine chan bool
+
+	// Connections for the tracer to exclude
+	sourceExcludes []*network.ConnectionFilter
+	destExcludes   []*network.ConnectionFilter
 }
 
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *config.Config) (*Tracer, error) {
 	di, err := network.NewDriverInterface(config)
 
-	if err != nil && errors.Cause(err) == syscall.Errno(syscall.ERROR_FILE_NOT_FOUND) {
+	if err != nil && errors.Is(err, syscall.ERROR_FILE_NOT_FOUND) {
 		log.Debugf("could not create driver interface: %v", err)
 		return nil, fmt.Errorf("The Windows driver was not installed, reinstall the Datadog Agent with network performance monitoring enabled")
 	} else if err != nil {
@@ -58,21 +65,25 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.CollectDNSDomains,
 	)
 
-	packetSrc := network.NewWindowsPacketSource(di)
-
-	reverseDNS, err := network.NewSocketFilterSnooper(config, packetSrc)
-	if err != nil {
-		return nil, err
+	reverseDNS := dns.NewNullReverseDNS()
+	if config.DNSInspection {
+		reverseDNS, err = dns.NewReverseDNS(config)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	tr := &Tracer{
+		config:          config,
 		driverInterface: di,
 		stopChan:        make(chan struct{}),
 		timerInterval:   defaultPollInterval,
 		state:           state,
-		connStatsActive: network.NewDriverBuffer(512),
-		connStatsClosed: network.NewDriverBuffer(512),
+		connStatsActive: network.NewDriverBuffer(defaultBufferSize),
+		connStatsClosed: network.NewDriverBuffer(defaultBufferSize),
 		reverseDNS:      reverseDNS,
+		sourceExcludes:  network.ParseConnectionFilters(config.ExcludedSourceConnections),
+		destExcludes:    network.ParseConnectionFilters(config.ExcludedDestinationConnections),
 	}
 
 	return tr, nil
@@ -104,8 +115,16 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	activeConnStats := t.connStatsActive.Connections()
 	closedConnStats := t.connStatsClosed.Connections()
 
+	// TODO filter connections using shouldSkipConnection
+	//for _, connStat := range activeConnStats {
+	//	if !t.shouldSkipConnection(&connStat) {
+	//		// TODO figure out way to filter active without allocating
+	//	}
+	//}
 	for _, connStat := range closedConnStats {
+		//if !t.shouldSkipConnection(&connStat) {
 		t.state.StoreClosedConnection(&connStat)
+		//}
 	}
 
 	// check for expired clients in the state
@@ -113,7 +132,11 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
 	conns := delta.Connections
-	names := t.reverseDNS.Resolve(conns)
+	var ips []util.Address
+	for _, conn := range delta.Connections {
+		ips = append(ips, conn.Source, conn.Dest)
+	}
+	names := t.reverseDNS.Resolve(ips)
 	return &network.Connections{Conns: conns, DNS: names}, nil
 }
 
@@ -124,9 +147,8 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		log.Errorf("not printing driver stats: %v", err)
 	}
 
-	stateStats := t.state.GetStats()
 	stats := map[string]interface{}{
-		"state": stateStats,
+		"state": t.state.GetStats(),
 		"dns":   t.reverseDNS.GetStats(),
 	}
 	for _, name := range network.DriverExpvarNames {

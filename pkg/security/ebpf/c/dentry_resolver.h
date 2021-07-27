@@ -331,9 +331,19 @@ int __attribute__((always_inline)) handle_resolve_path(struct pt_regs* ctx, void
     if (state == NULL)
         return 0;
 
-    bpf_probe_read(&state->key, sizeof(state->key), data);
-    bpf_probe_read(&state->userspace_buffer, sizeof(state->userspace_buffer), data + sizeof(state->key));
-    bpf_probe_read(&state->buffer_size, sizeof(state->buffer_size), data + sizeof(state->key) + sizeof(state->userspace_buffer));
+    int ret = bpf_probe_read(&state->key, sizeof(state->key), data);
+    if (ret < 0) {
+        return 0;
+    }
+    ret = bpf_probe_read(&state->userspace_buffer, sizeof(state->userspace_buffer), data + sizeof(state->key));
+    if (ret < 0) {
+        return 0;
+    }
+    ret = bpf_probe_read(&state->buffer_size, sizeof(state->buffer_size), data + sizeof(state->key) + sizeof(state->userspace_buffer));
+    if (ret < 0) {
+        return 0;
+    }
+
     state->iteration = 0;
     state->ret = 0;
     state->cursor = 0;

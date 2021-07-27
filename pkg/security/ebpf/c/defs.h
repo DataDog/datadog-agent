@@ -302,13 +302,9 @@ static __attribute__((always_inline)) u32 get_path_id(int invalidate) {
 
     u32 *prev_id = bpf_map_lookup_elem(&path_id, &key);
     if (!prev_id) {
-        u32 first_id = 1;
-        bpf_map_update_elem(&path_id, &key, &first_id, BPF_ANY);
-
-        return first_id;
+        return 0;
     }
 
-    // return the current id so that the current event will use it. Increase the id for the next event only.
     u32 id = *prev_id;
 
     // need to invalidate the current path id for event which may change the association inode/name like

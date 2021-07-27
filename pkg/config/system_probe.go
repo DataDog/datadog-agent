@@ -99,6 +99,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "conntrack_rate_limit"), 500)
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_conntrack_all_namespaces"), true, "DD_SYSTEM_PROBE_ENABLE_CONNTRACK_ALL_NAMESPACES")
 	cfg.BindEnvAndSetDefault(join(netNS, "ignore_conntrack_init_failure"), false, "DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE")
+	cfg.BindEnvAndSetDefault(join(netNS, "conntrack_init_timeout"), 10*time.Second)
 
 	cfg.BindEnvAndSetDefault(join(spNS, "source_excludes"), map[string][]string{})
 	cfg.BindEnvAndSetDefault(join(spNS, "dest_excludes"), map[string][]string{})
@@ -106,6 +107,11 @@ func InitSystemProbeConfig(cfg Config) {
 	// network_config namespace only
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_http_monitoring"), false, "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), false, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
+
+	// list of DNS query types to be recorded
+	cfg.BindEnvAndSetDefault(join(netNS, "dns_recorded_query_types"), []string{})
+	// (temporary) enable submitting DNS stats by query type.
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_dns_by_querytype"), false)
 
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)
@@ -118,6 +124,7 @@ func InitSystemProbeConfig(cfg Config) {
 	// process module
 	// nested within system_probe_config to not conflict with process-agent's process_config
 	cfg.BindEnvAndSetDefault(join(spNS, "process_config.enabled"), false, "DD_SYSTEM_PROBE_PROCESS_ENABLED")
+
 }
 
 func join(pieces ...string) string {

@@ -14,6 +14,15 @@ import (
 // EPIntakeVersion is the events platform intake API version
 type EPIntakeVersion uint8
 
+// IntakeTrackType indicates the type of an endpoint intake.
+type IntakeTrackType string
+
+// IntakeProtocol indicates the protocol to use for an endpoint intake.
+type IntakeProtocol string
+
+// IntakeSource indicates the log source to use for an endpoint intake.
+type IntakeSource string
+
 const (
 	_ EPIntakeVersion = iota
 	// EPIntakeVersion1 is version 1 of the envets platform intake API
@@ -40,8 +49,9 @@ type Endpoint struct {
 	RecoveryReset    bool
 
 	Version   EPIntakeVersion
-	TrackType string
-	Protocol  string
+	TrackType IntakeTrackType
+	Protocol  IntakeProtocol
+	Source    IntakeSource
 }
 
 // Endpoints holds the main endpoint and additional ones to dualship logs.

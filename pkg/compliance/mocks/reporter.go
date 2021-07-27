@@ -17,14 +17,14 @@ func (_m *Reporter) Report(_a0 *event.Event) {
 	_m.Called(_a0)
 }
 
-// ReportRaw provides a mock function with given fields: content, tags
-func (_m *Reporter) ReportRaw(content []byte, tags ...string) {
+// ReportRaw provides a mock function with given fields: content, service, tags
+func (_m *Reporter) ReportRaw(content []byte, service string, tags ...string) {
 	_va := make([]interface{}, len(tags))
 	for _i := range tags {
 		_va[_i] = tags[_i]
 	}
 	var _ca []interface{}
-	_ca = append(_ca, content)
+	_ca = append(_ca, content, service)
 	_ca = append(_ca, _va...)
 	_m.Called(_ca...)
 }

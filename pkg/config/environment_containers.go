@@ -6,7 +6,6 @@
 package config
 
 import (
-	"net"
 	"os"
 	"path"
 	"runtime"
@@ -44,8 +43,7 @@ const (
 	unixSocketPrefix               = "unix://"
 	winNamedPipePrefix             = "npipe://"
 
-	socketTimeout     = 500 * time.Millisecond
-	connectionTimeout = 1 * time.Second
+	socketTimeout = 500 * time.Millisecond
 )
 
 func init() {
@@ -148,29 +146,8 @@ func detectFargate(features FeatureMap) {
 }
 
 func detectCloudFoundry(features FeatureMap) {
-	network := Datadog.GetString("cloud_foundry_garden.listen_network")
-	addr := Datadog.GetString("cloud_foundry_garden.listen_address")
-
-	if strings.HasPrefix(network, "unix") {
-		prefixes := getHostMountPrefixes()
-
-		for _, p := range prefixes {
-			fullAddr := path.Join(p, addr)
-			exists, reachable := system.CheckSocketAvailable(fullAddr, socketTimeout)
-			if exists && reachable {
-				features[CloudFoundry] = struct{}{}
-				break
-			}
-
-			if exists && !reachable {
-				log.Infof("Agent found cloud foundry socket at: %s but socket not reachable (permissions?)", fullAddr)
-			}
-		}
-	} else {
-		_, err := net.DialTimeout(network, addr, connectionTimeout)
-		if err == nil {
-			features[CloudFoundry] = struct{}{}
-		}
+	if Datadog.GetBool("cloud_foundry") {
+		features[CloudFoundry] = struct{}{}
 	}
 }
 

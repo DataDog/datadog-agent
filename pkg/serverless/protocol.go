@@ -75,6 +75,12 @@ type Daemon struct {
 	// Wait on this WaitGroup to be sure that the daemon isn't doing any pending
 	// work before finishing an invocation
 	InvcWg *sync.WaitGroup
+
+	extraTags []string
+
+	// finishInvocationOnce assert that FinishedInvocation will be called only once (at the end of the function OR after a timeout)
+	// this should be reset before each invocation
+	finishInvocationOnce sync.Once
 }
 
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
@@ -152,7 +158,7 @@ func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 
 // Stop causes the Daemon to gracefully shut down. After a delay, the HTTP server
 // is shut down, data is flushed a final time, and then the agents are shut down.
-func (d *Daemon) Stop() {
+func (d *Daemon) Stop(isTimeout bool) {
 	// Can't shut down before starting
 	// If the DogStatsD daemon isn't ready, wait for it.
 	d.ReadyWg.Wait()
@@ -163,9 +169,12 @@ func (d *Daemon) Stop() {
 	}
 	d.stopped = true
 
-	// Wait for any remaining logs to arrive via the logs API before shutting down the HTTP server
-	log.Debug("Waiting to shut down HTTP server")
-	time.Sleep(shutdownDelay)
+	if !isTimeout {
+		// Wait for any remaining logs to arrive via the logs API before shutting down the HTTP server
+		log.Debug("Waiting to shut down HTTP server")
+		time.Sleep(shutdownDelay)
+	}
+
 	log.Debug("Shutting down HTTP server")
 	err := d.httpServer.Shutdown(context.Background())
 	if err != nil {
@@ -211,6 +220,7 @@ func StartDaemon(stopTraceAgent context.CancelFunc) *Daemon {
 		useAdaptiveFlush: true,
 		clientLibReady:   false,
 		flushStrategy:    &flush.AtTheEnd{},
+		extraTags:        nil,
 	}
 
 	log.Debug("Adaptive flush is enabled")
@@ -244,12 +254,15 @@ func (d *Daemon) EnableLogsCollection() (string, chan *logConfig.ChannelMessage,
 
 // StartInvocation tells the daemon the invocation began
 func (d *Daemon) StartInvocation() {
+	d.finishInvocationOnce = sync.Once{}
 	d.InvcWg.Add(1)
 }
 
 // FinishInvocation finishes the current invocation
 func (d *Daemon) FinishInvocation() {
-	d.InvcWg.Done()
+	d.finishInvocationOnce.Do(func() {
+		d.InvcWg.Done()
+	})
 }
 
 // WaitForDaemon waits until invocation finished any pending work
@@ -271,6 +284,25 @@ func (d *Daemon) WaitUntilClientReady(timeout time.Duration) bool {
 	}
 	<-time.After(timeout)
 	return d.clientLibReady
+}
+
+// ComputeGlobalTags extracts tags from the ARN, merges them with any user-defined tags and adds them to traces, logs and metrics
+func (d *Daemon) ComputeGlobalTags(arn string, configTags []string) {
+	if len(d.extraTags) == 0 {
+		tagMap := buildTagMap(arn, configTags)
+		tagArray := buildTagsFromMap(tagMap)
+		if d.statsdServer != nil {
+			d.statsdServer.SetExtraTags(tagArray)
+		}
+		if d.traceAgent != nil {
+			d.traceAgent.SetGlobalTagsUnsafe(buildTracerTags(tagMap))
+		}
+		d.extraTags = tagArray
+		source := aws.GetLambdaSource()
+		if source != nil {
+			source.Config.Tags = tagArray
+		}
+	}
 }
 
 // LogsCollection is the route on which the AWS environment is sending the logs
@@ -300,25 +332,24 @@ func (l *LogsCollection) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func processLogMessages(l *LogsCollection, messages []aws.LogMessage) {
 	metricsChan := l.daemon.aggregator.GetBufferedMetricsWithTsChannel()
-	metricTags := getTagsForEnhancedMetrics()
+	metricTags := addColdStartTag(l.daemon.extraTags)
 	logsEnabled := config.Datadog.GetBool("serverless.logs_enabled")
 	enhancedMetricsEnabled := config.Datadog.GetBool("enhanced_metrics")
 	arn := aws.GetARN()
 	lastRequestID := aws.GetRequestID()
-	functionName := aws.FunctionNameFromARN()
 	for _, message := range messages {
-		processMessage(message, arn, lastRequestID, functionName, enhancedMetricsEnabled, metricTags, metricsChan)
+		processMessage(message, arn, lastRequestID, enhancedMetricsEnabled, metricTags, metricsChan)
 		// We always collect and process logs for the purpose of extracting enhanced metrics.
 		// However, if logs are not enabled, we do not send them to the intake.
 		if logsEnabled {
-			logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.StringRecord), message.Time, arn, lastRequestID, functionName)
+			logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.StringRecord), message.Time, arn, lastRequestID)
 			l.ch <- logMessage
 		}
 	}
 }
 
 // processMessage performs logic about metrics and tags on the message
-func processMessage(message aws.LogMessage, arn string, lastRequestID string, functionName string, computeEnhancedMetrics bool, metricTags []string, metricsChan chan []metrics.MetricSample) {
+func processMessage(message aws.LogMessage, arn string, lastRequestID string, computeEnhancedMetrics bool, metricTags []string, metricsChan chan []metrics.MetricSample) {
 	// Do not send logs or metrics if we can't associate them with an ARN or Request ID
 	// First, if the log has a Request ID, set the global Request ID variable
 	if message.Type == aws.LogTypePlatformStart {
@@ -367,7 +398,6 @@ type Flush struct {
 // ServeHTTP - see type Flush comment.
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Flush route.")
-
 	if !f.daemon.flushStrategy.ShouldFlush(flush.Stopping, time.Now()) {
 		log.Debug("The flush strategy", f.daemon.flushStrategy, " has decided to not flush in moment:", flush.Stopping)
 		f.daemon.FinishInvocation()

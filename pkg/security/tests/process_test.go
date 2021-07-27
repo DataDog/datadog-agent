@@ -165,7 +165,7 @@ func TestProcessContext(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_exec_time")
 
 			if !validateExecSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 	})
@@ -190,7 +190,7 @@ func TestProcessContext(t *testing.T) {
 			return f.Close()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertFieldEqual(t, event, "process.file.path", executable)
-			assert.Equal(t, event.ResolveProcessCacheEntry().FileFields.Inode, getInode(t, executable), "wrong inode")
+			assert.Equal(t, getInode(t, executable), event.ResolveProcessCacheEntry().FileFields.Inode, "wrong inode")
 		})
 	})
 
@@ -253,7 +253,7 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			if !validateExecSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 	})
@@ -322,8 +322,8 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			argv := strings.Split(args.(string), " ")
-			assert.Equal(t, len(argv), 2, "incorrect number of args: %s", argv)
-			assert.Equal(t, strings.HasSuffix(argv[1], "..."), true, "args not truncated")
+			assert.Equal(t, 2, len(argv), "incorrect number of args: %s", argv)
+			assert.Equal(t, true, strings.HasSuffix(argv[1], "..."), "args not truncated")
 		})
 		if err != nil {
 			t.Error(err)
@@ -360,7 +360,7 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			if !validateExecSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 	})
@@ -453,10 +453,10 @@ func TestProcessContext(t *testing.T) {
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_ancestors")
-			assert.Equal(t, event.ProcessContext.Ancestor.Comm, "sh")
+			assert.Equal(t, "sh", event.ProcessContext.Ancestor.Comm)
 
 			if !validateExecSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 	})
@@ -480,10 +480,10 @@ func TestProcessContext(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, rule.ID, "test_rule_pid1", "wrong rule triggered")
+			assert.Equal(t, "test_rule_pid1", rule.ID, "wrong rule triggered")
 
 			if !validateExecSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 	})
@@ -508,14 +508,14 @@ func TestProcessContext(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, rule.ID, "test_rule_inode", "wrong rule triggered")
+			assert.Equal(t, "test_rule_inode", rule.ID, "wrong rule triggered")
 
 			if !validateExecSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 
 			service := event.GetProcessServiceTag()
-			assert.Equal(t, "myservice", service)
+			assert.Equal(t, service, "myservice")
 		})
 		if err != nil {
 			t.Error(err)
@@ -596,7 +596,7 @@ func TestProcessMetadata(t *testing.T) {
 			cmd := exec.Command(testFile)
 			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "exec", "wrong event type")
+			assert.Equal(t, "exec", event.GetType(), "wrong event type")
 			assertRights(t, event.Exec.FileFields.Mode, uint16(expectedMode))
 			assertNearTime(t, event.Exec.FileFields.MTime)
 			assertNearTime(t, event.Exec.FileFields.CTime)
@@ -625,14 +625,14 @@ func TestProcessMetadata(t *testing.T) {
 			}()
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "exec", "wrong event type")
+			assert.Equal(t, "exec", event.GetType(), "wrong event type")
 
-			assert.Equal(t, int(event.Exec.Credentials.UID), 1001, "wrong uid")
-			assert.Equal(t, int(event.Exec.Credentials.EUID), 1001, "wrong euid")
-			assert.Equal(t, int(event.Exec.Credentials.FSUID), 1001, "wrong fsuid")
-			assert.Equal(t, int(event.Exec.Credentials.GID), 2001, "wrong gid")
-			assert.Equal(t, int(event.Exec.Credentials.EGID), 2001, "wrong egid")
-			assert.Equal(t, int(event.Exec.Credentials.FSGID), 2001, "wrong fsgid")
+			assert.Equal(t, 1001, int(event.Exec.Credentials.UID), "wrong uid")
+			assert.Equal(t, 1001, int(event.Exec.Credentials.EUID), "wrong euid")
+			assert.Equal(t, 1001, int(event.Exec.Credentials.FSUID), "wrong fsuid")
+			assert.Equal(t, 2001, int(event.Exec.Credentials.GID), "wrong gid")
+			assert.Equal(t, 2001, int(event.Exec.Credentials.EGID), "wrong egid")
+			assert.Equal(t, 2001, int(event.Exec.Credentials.FSGID), "wrong fsgid")
 		})
 		if err != nil {
 			t.Error(err)
@@ -640,7 +640,7 @@ func TestProcessMetadata(t *testing.T) {
 	})
 }
 
-func TestProcessLineage(t *testing.T) {
+func TestProcessExecExit(t *testing.T) {
 	executable := "/usr/bin/touch"
 	if resolved, err := os.Readlink(executable); err == nil {
 		executable = resolved
@@ -661,45 +661,57 @@ func TestProcessLineage(t *testing.T) {
 	}
 	defer test.Close()
 
-	var execPid int
-	var lastEvent model.EventType
+	var execPid int // will be set by the first fork event
 
 	err = test.GetProbeEvent(func() error {
 		cmd := exec.Command(executable, "-t", "01010101", "/dev/null")
 		return cmd.Run()
 	}, func(event *sprobe.Event) bool {
 		switch event.GetEventType() {
-		case model.ForkEventType:
-			if filename, err := event.GetFieldValue("process.file.name"); err == nil && filename.(string) == "testsuite" {
-				testProcessLineageFork(t, event)
-			}
 		case model.ExecEventType:
-			if lastEvent != model.ForkEventType {
-				t.Error("exec event should follow a fork event")
+			if testProcessEEIsExpectedExecEvent(event) {
+				execPid = int(event.ProcessContext.Pid)
+				if err := testProcessEEExec(t, event); err != nil {
+					t.Error(err)
+				}
 			}
-			if err := testProcessLineageExec(t, event); err != nil {
-				t.Error(err)
-			}
-			execPid = int(event.ProcessContext.Pid)
 		case model.ExitEventType:
-			if lastEvent != model.ExecEventType {
-				t.Error("exit event should follow an exec event")
-			}
-			if int(event.ProcessContext.Pid) == execPid {
+			if execPid != 0 && int(event.ProcessContext.Pid) == execPid {
 				return true
 			}
 		}
-		lastEvent = event.GetEventType()
 		return false
-	}, time.Second*3, model.ForkEventType, model.ExecEventType, model.ExitEventType)
+	}, time.Second*3, model.ExecEventType, model.ExitEventType)
 	if err != nil {
 		t.Error(err)
 	}
 
-	testProcessLineageExit(t, uint32(execPid), test)
+	testProcessEEExit(t, uint32(execPid), test)
 }
 
-func testProcessLineageExec(t *testing.T, event *probe.Event) error {
+func testProcessEEIsExpectedExecEvent(event *sprobe.Event) bool {
+	if event.GetEventType() != model.ExecEventType {
+		return false
+	}
+
+	basename, err := event.GetFieldValue("exec.file.name")
+	if err != nil {
+		return false
+	}
+
+	if basename.(string) != "touch" {
+		return false
+	}
+
+	args, err := event.GetFieldValue("exec.args")
+	if err != nil {
+		return false
+	}
+
+	return strings.Contains(args.(string), "01010101")
+}
+
+func testProcessEEExec(t *testing.T, event *probe.Event) error {
 	// check for the new process context
 	cacheEntry := event.ResolveProcessCacheEntry()
 	if cacheEntry == nil {
@@ -709,39 +721,14 @@ func testProcessLineageExec(t *testing.T, event *probe.Event) error {
 		if cacheEntry.Ancestor == nil {
 			return errors.New("expected a parent, got nil")
 		} else {
-			assert.Equal(t, cacheEntry.ContainerID, cacheEntry.Ancestor.ContainerID)
+			assert.Equal(t, cacheEntry.Ancestor.ContainerID, cacheEntry.ContainerID)
 		}
 	}
 
 	return nil
 }
 
-func testProcessLineageFork(t *testing.T, event *probe.Event) {
-	// we need to make sure that the child entry if properly populated with its parent metadata
-	newEntry := event.ResolveProcessCacheEntry()
-	if newEntry == nil {
-		t.Errorf("expected a new process cache entry, got nil")
-	} else {
-		// fetch the parent of the new entry, it should the test binary itself
-		parentEntry := newEntry.Ancestor
-
-		if parentEntry == nil {
-			t.Errorf("expected a parent cache entry, got nil")
-		} else {
-			// checking cookie and pathname str should be enough to make sure that the metadata were properly
-			// copied from kernel space (those 2 information are stored in 2 different maps)
-			assert.Equal(t, newEntry.Cookie, parentEntry.Cookie, "wrong cookie")
-			assert.Equal(t, newEntry.PPid, parentEntry.Pid, "wrong ppid")
-			assert.Equal(t, newEntry.ContainerID, parentEntry.ContainerID, "wrong container id")
-
-			// We can't check that the new entry is in the list of the children of its parent because the exit event
-			// has probably already been processed (thus the parent list of children has already been updated and the
-			// child entry deleted).
-		}
-	}
-}
-
-func testProcessLineageExit(t *testing.T, pid uint32, test *testModule) {
+func testProcessEEExit(t *testing.T, pid uint32, test *testModule) {
 	// make sure that the process cache entry of the process was properly deleted from the cache
 	err := retry.Do(func() error {
 		resolvers := test.probe.GetResolvers()
@@ -816,7 +803,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setuid")
-			assert.Equal(t, event.SetUID.UID, uint32(1001), "wrong uid")
+			assert.Equal(t, uint32(1001), event.SetUID.UID, "wrong uid")
 		})
 		if err != nil {
 			t.Error(err)
@@ -841,8 +828,8 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setreuid")
-			assert.Equal(t, event.SetUID.UID, uint32(1002), "wrong uid")
-			assert.Equal(t, event.SetUID.EUID, uint32(1003), "wrong euid")
+			assert.Equal(t, uint32(1002), event.SetUID.UID, "wrong uid")
+			assert.Equal(t, uint32(1003), event.SetUID.EUID, "wrong euid")
 		})
 		if err != nil {
 			t.Error(err)
@@ -868,8 +855,8 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setreuid")
-			assert.Equal(t, event.SetUID.UID, uint32(1002), "wrong uid")
-			assert.Equal(t, event.SetUID.EUID, uint32(1003), "wrong euid")
+			assert.Equal(t, uint32(1002), event.SetUID.UID, "wrong uid")
+			assert.Equal(t, uint32(1003), event.SetUID.EUID, "wrong euid")
 		})
 		if err != nil {
 			t.Error(err)
@@ -894,7 +881,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setfsuid")
-			assert.Equal(t, event.SetUID.FSUID, uint32(1004), "wrong fsuid")
+			assert.Equal(t, uint32(1004), event.SetUID.FSUID, "wrong fsuid")
 		})
 		if err != nil {
 			t.Error(err)
@@ -919,7 +906,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setgid")
-			assert.Equal(t, event.SetGID.GID, uint32(1005), "wrong gid")
+			assert.Equal(t, uint32(1005), event.SetGID.GID, "wrong gid")
 		})
 		if err != nil {
 			t.Error(err)
@@ -944,8 +931,8 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setregid")
-			assert.Equal(t, event.SetGID.GID, uint32(1006), "wrong gid")
-			assert.Equal(t, event.SetGID.EGID, uint32(1007), "wrong egid")
+			assert.Equal(t, uint32(1006), event.SetGID.GID, "wrong gid")
+			assert.Equal(t, uint32(1007), event.SetGID.EGID, "wrong egid")
 		})
 		if err != nil {
 			t.Error(err)
@@ -970,8 +957,8 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setregid")
-			assert.Equal(t, event.SetGID.GID, uint32(1006), "wrong gid")
-			assert.Equal(t, event.SetGID.EGID, uint32(1007), "wrong egid")
+			assert.Equal(t, uint32(1006), event.SetGID.GID, "wrong gid")
+			assert.Equal(t, uint32(1007), event.SetGID.EGID, "wrong egid")
 		})
 		if err != nil {
 			t.Error(err)
@@ -996,7 +983,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setfsgid")
-			assert.Equal(t, event.SetGID.FSGID, uint32(1008), "wrong gid")
+			assert.Equal(t, uint32(1008), event.SetGID.FSGID, "wrong gid")
 		})
 		if err != nil {
 			t.Error(err)
@@ -1042,7 +1029,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			// transform the collected kernel capabilities into a usable capability set
 			newSet, err := capability.NewPid2(0)
 			if err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 			newSet.Clear(capability.PERMITTED | capability.EFFECTIVE)
 			parseCapIntoSet(event.Capset.CapEffective, capability.EFFECTIVE, newSet, t)

@@ -2,6 +2,30 @@
 Release Notes
 =============
 
+.. _Release Notes_installscript-1.6.0:
+
+installscript-1.6.0
+===================
+
+.. _Release Notes_installscript-1.6.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Suggest installing the IoT Agent on armv7l.
+
+
+.. _Release Notes_installscript-1.6.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Ensure that Debian/Ubuntu APT keyrings get created world-readable, so that
+  the ``_apt`` user can read them.
+
+- Improved detection of systemd as init system.
+
+
 .. _Release Notes_installscript-1.5.0:
 
 installscript-1.5.0

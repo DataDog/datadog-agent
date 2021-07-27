@@ -11,7 +11,8 @@ cookbook 'apt', '< 4.0'
 
 # Version 7.3.0 of the cookbook depends on chef version >= 15.0 but right now we are running 14.12.9
 cookbook 'docker', '< 7.3.0'
-cookbook 'selinux'
+# Version 4.0.0 of the cookbook depends on chef version >= 15.3 but right now we are running 14.12.9
+cookbook 'selinux', '< 4.0.0'
 
 cookbook 'dd-agent-disable-system-repos', path: './site-cookbooks/dd-agent-disable-system-repos'
 cookbook 'dd-agent-enable-fips', path: './site-cookbooks/dd-agent-enable-fips'

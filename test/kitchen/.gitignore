@@ -14,5 +14,6 @@ ssh-key.pub
 azureid.sh
 *.bat
 *.ps1
+!site-cookbooks/**/files/**/*.ps1
 localplatforms.json
 uservars.json

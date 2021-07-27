@@ -691,18 +691,13 @@ func (s *Server) Stop() {
 	s.Started = false
 }
 
-// storeMetricStats stores stats on the given metric sample.
-// It is storing the stats of the sample as they are received: it means that if
-// a metric is received with duplicated tags, it will be stored this way here.
-// It can help troubleshooting clients with bad behaviors but it is different that
-// what will be outputted by the aggregator, which takes care of deduping the tags
-// to aggregate the metrics.
 func (s *Server) storeMetricStats(sample metrics.MetricSample) {
 	now := time.Now()
 	s.Debug.Lock()
 	defer s.Debug.Unlock()
 
 	// key
+	util.SortUniqInPlace(sample.Tags)
 	key := s.Debug.keyGen.Generate(sample.Name, "", sample.Tags)
 
 	// store
@@ -838,4 +833,9 @@ func FormatDebugStats(stats []byte) (string, error) {
 	}
 
 	return buf.String(), nil
+}
+
+// SetExtraTags sets extra tags. All metrics sent to the DogstatsD will be tagged with them.
+func (s *Server) SetExtraTags(tags []string) {
+	s.extraTags = tags
 }

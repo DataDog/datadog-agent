@@ -7,7 +7,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	_ "expvar"
 	"fmt"
 	_ "net/http/pprof"
@@ -18,10 +17,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/kms"
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
-	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -65,30 +60,23 @@ where they can be graphed on dashboards. The Datadog Serverless Agent implements
 		Long:  ``,
 		Run: func(cmd *cobra.Command, args []string) {
 			av, _ := version.Agent()
-			fmt.Println(fmt.Sprintf("Serverless Datadog Agent %s - Codename: %s - Commit: %s - Serialization version: %s - Go version: %s",
-				av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion, runtime.Version()))
+			fmt.Printf("Serverless Datadog Agent %s - Codename: %s - Commit: %s - Serialization version: %s - Go version: %s\n",
+				av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion, runtime.Version())
 		},
 	}
 
 	statsdServer *dogstatsd.Server
 
-	// Apikey reading priority:
-	// KSM > SSM > Apikey in environment var
-	// If one is set but failing, the next will be tried
-	kmsAPIKeyEnvVar = "DD_KMS_API_KEY"
-	ssmAPIKeyEnvVar = "DD_API_KEY_SECRET_ARN"
-	apiKeyEnvVar    = "DD_API_KEY"
-
-	logLevelEnvVar = "DD_LOG_LEVEL"
-
-	flushStrategyEnvVar = "DD_SERVERLESS_FLUSH_STRATEGY"
-
-	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
+	kmsAPIKeyEnvVar            = "DD_KMS_API_KEY"
+	secretsManagerAPIKeyEnvVar = "DD_API_KEY_SECRET_ARN"
+	apiKeyEnvVar               = "DD_API_KEY"
+	logLevelEnvVar             = "DD_LOG_LEVEL"
+	flushStrategyEnvVar        = "DD_SERVERLESS_FLUSH_STRATEGY"
+	logsLogsTypeSubscribed     = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
 
 	// AWS Lambda is writing the Lambda function files in /var/task, we want the
 	// configuration file to be at the root of this directory.
-	datadogConfigPath     = "/var/task/datadog.yaml"
-	fetchAccountIDTimeout = 500.0 * time.Millisecond
+	datadogConfigPath = "/var/task/datadog.yaml"
 )
 
 const (
@@ -180,13 +168,17 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	// api key reading
 	// ---------------
 
+	// API key reading priority:
+	// KSM > Secrets Manager > Plaintext API key
+	// If one is set but failing, the next will be tried
+
 	// some useful warnings first
 
 	var apikeySetIn = []string{}
 	if os.Getenv(kmsAPIKeyEnvVar) != "" {
 		apikeySetIn = append(apikeySetIn, "KMS")
 	}
-	if os.Getenv(ssmAPIKeyEnvVar) != "" {
+	if os.Getenv(secretsManagerAPIKeyEnvVar) != "" {
 		apikeySetIn = append(apikeySetIn, "SSM")
 	}
 	if os.Getenv(apiKeyEnvVar) != "" {
@@ -197,53 +189,37 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 		log.Warn("An API Key has been set in multiple places:", strings.Join(apikeySetIn, ", "))
 	}
 
-	// try to read apikey from KMS
+	// try to read API key from KMS
 
 	var apiKey string
 	if apiKey, err = readAPIKeyFromKMS(); err != nil {
 		log.Errorf("Error while trying to read an API Key from KMS: %s", err)
 	} else if apiKey != "" {
 		log.Info("Using deciphered KMS API Key.")
-		os.Setenv(apiKeyEnvVar, apiKey) // it will be catched up by config.Load()
+		os.Setenv(apiKeyEnvVar, apiKey)
 	}
 
-	// try to read the apikey from SSM, only if not set from KMS
+	// try to read the API key from Secrets Manager, only if not set from KMS
 
 	if apiKey == "" {
-		if apiKey, err = readAPIKeyFromSSM(); err != nil {
-			log.Errorf("Error while trying to read an API Key from SSM: %s", err)
+		if apiKey, err = readAPIKeyFromSecretsManager(); err != nil {
+			log.Errorf("Error while trying to read an API Key from Secrets Manager: %s", err)
 		} else if apiKey != "" {
-			log.Info("Using API key set in SSM.")
-			os.Setenv(apiKeyEnvVar, apiKey) // it will be catched up by config.Load()
+			log.Info("Using API key set in Secrets Manager.")
+			os.Setenv(apiKeyEnvVar, apiKey)
 		}
 	}
 
 	// read configuration from both the environment vars and the config file
 	// if one is provided
 	// --------------------------
-	svc := sts.New(session.New())
-	ctx, cancel := context.WithTimeout(context.Background(), fetchAccountIDTimeout)
-	defer cancel()
 
-	accountID, _ := aws.FetchAccountID(ctx, svc)
-	functionARN, err := aws.FetchFunctionARNFromEnv(accountID)
-	if err == nil {
-		log.Debugf("Extension found function ARN: %s", functionARN)
-		aws.SetARN(functionARN)
-	} else {
-		log.Debugf("Extension couldn't find function ARN")
-	}
 	aws.SetColdStart(true)
 
 	config.Datadog.SetConfigFile(datadogConfigPath)
 	if _, confErr := config.LoadWithoutSecret(); confErr == nil {
 		log.Info("A configuration file has been found and read.")
 	}
-
-	// extra tags to append to all logs / metrics
-	extraTags := config.GetConfiguredTags(true)
-	extraTags = append(extraTags, aws.GetARNTags()...)
-	log.Debugf("Adding tags to telemetry: %s", extraTags)
 
 	// adaptive flush configuration
 	if v, exists := os.LookupEnv(flushStrategyEnvVar); exists {
@@ -257,7 +233,7 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 		daemon.UseAdaptiveFlush(true) // already initialized to true, but let's be explicit just in case
 	}
 
-	// validate that an apikey has been set, either by the env var, read from KMS or SSM.
+	// validate that an apikey has been set, either by the env var, read from KMS or Secrets Manager.
 	// ---------------------------
 
 	if !config.Datadog.IsSet("api_key") {
@@ -266,14 +242,6 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 		// of reporting non-critical init errors.
 		// serverless.ReportInitError(serverlessID, serverless.FatalNoAPIKey)
 		log.Error("No API key configured, exiting")
-	}
-
-	// restore the current function ARN and request ID from the cache in case the extension was restarted
-	// ---------------------------
-
-	err = aws.RestoreCurrentStateFromFile()
-	if err != nil {
-		log.Debug("Did not restore current state from file")
 	}
 
 	// starts logs collection
@@ -308,7 +276,7 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 			// a logs agent to collect/process/flush the logs.
 			if err := logs.StartServerless(
 				func() *autodiscovery.AutoConfig { return common.AC },
-				logsChan, extraTags,
+				logsChan, nil,
 			); err != nil {
 				log.Error("Could not start an instance of the Logs Agent:", err)
 			}
@@ -334,10 +302,14 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	aggregatorInstance := aggregator.InitAggregator(serializer, nil, "serverless")
 	metricsChan := aggregatorInstance.GetBufferedMetricsWithTsChannel()
 
+	// prevents any UDP packets from being stuck in the buffer and not parsed during the current invocation
+	// by setting this option to 1ms, all packets received will directly be sent to the parser
+	config.Datadog.Set("dogstatsd_packet_buffer_flush_timeout", 1*time.Millisecond)
+
 	// initializes the DogStatsD server
 	// --------------------------------
 
-	statsdServer, err = dogstatsd.NewServer(aggregatorInstance, extraTags)
+	statsdServer, err = dogstatsd.NewServer(aggregatorInstance, nil)
 	if err != nil {
 		// we're not reporting the error to AWS because we don't want the function
 		// execution to be stopped. TODO(remy): discuss with AWS if there is way
@@ -353,10 +325,6 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	if config.Datadog.GetBool("apm_config.enabled") {
 		tc, confErr := traceConfig.Load(datadogConfigPath)
 		tc.Hostname = ""
-		globalTags := aws.BuildGlobalTagsMap(functionARN, aws.FunctionNameFromARN(), os.Getenv(aws.RegionEnvVar), accountID)
-		for key, value := range globalTags {
-			tc.GlobalTags[key] = value
-		}
 		tc.SynchronousFlushing = true
 		if confErr != nil {
 			log.Errorf("Unable to load trace agent config: %s", confErr)
@@ -385,6 +353,18 @@ func runAgent(stopCh chan struct{}) (daemon *serverless.Daemon, err error) {
 	daemon.SetStatsdServer(statsdServer)
 	daemon.SetTraceAgent(ta)
 	daemon.SetAggregator(aggregatorInstance)
+
+	// restore the current function ARN and request ID from the cache in case the extension was restarted
+	// ---------------------------
+
+	errRestore := aws.RestoreCurrentStateFromFile()
+	if errRestore != nil {
+		log.Debug("Did not restore current state from file")
+	} else {
+		log.Debug("Restored from previous state")
+		daemon.ComputeGlobalTags(aws.GetARN(), config.GetConfiguredTags(true))
+	}
+
 	daemon.ReadyWg.Done()
 
 	log.Debugf("serverless agent ready in %v", time.Since(startTime))
@@ -404,82 +384,9 @@ func handleSignals(daemon *serverless.Daemon, stopCh chan struct{}) {
 		switch signo {
 		default:
 			log.Infof("Received signal '%s', shutting down...", signo)
-			daemon.Stop()
+			daemon.Stop(false)
 			stopCh <- struct{}{}
 			return
 		}
 	}
-}
-
-// decryptKMS deciphered the cipherText given as parameter.
-// Function stolen and adapted from datadog-lambda-go/internal/metrics/kms_decrypter.go
-func decryptKMS(cipherText string) (string, error) {
-	kmsClient := kms.New(session.New(nil))
-	decodedBytes, err := base64.StdEncoding.DecodeString(cipherText)
-	if err != nil {
-		return "", fmt.Errorf("Failed to encode cipher text to base64: %v", err)
-	}
-
-	params := &kms.DecryptInput{
-		CiphertextBlob: decodedBytes,
-	}
-
-	response, err := kmsClient.Decrypt(params)
-	if err != nil {
-		return "", fmt.Errorf("Failed to decrypt ciphertext with kms: %v", err)
-	}
-	// Plaintext is a byte array, so convert to string
-	decrypted := string(response.Plaintext[:])
-
-	return decrypted, nil
-}
-
-// readAPIKeyFromKMS reads an API Key in KMS if the env var DD_KMS_API_KEY has
-// been set.
-// If none has been set, it is returning an empty string and a nil error
-func readAPIKeyFromKMS() (string, error) {
-	ciphered := os.Getenv(kmsAPIKeyEnvVar)
-	if ciphered == "" {
-		return "", nil
-	}
-	log.Debug("Found DD_KMS_API_KEY value, trying to decipher it.")
-	rv, err := decryptKMS(ciphered)
-	if err != nil {
-		return "", fmt.Errorf("decryptKMS error: %s", err)
-	}
-	return rv, nil
-}
-
-// readAPIKeyFromSSM reads an API Key in SSM if the env var DD_API_KEY_SECRET_ARN
-// has been set.
-// If none has been set, it is returning an empty string and a nil error.
-func readAPIKeyFromSSM() (string, error) {
-	arn := os.Getenv(ssmAPIKeyEnvVar)
-	if arn == "" {
-		return "", nil
-	}
-	log.Debug("Found DD_API_KEY_SECRET_ARN value, trying to use it.")
-	ssmClient := secretsmanager.New(session.New(nil))
-	secret := &secretsmanager.GetSecretValueInput{}
-	secret.SetSecretId(arn)
-
-	output, err := ssmClient.GetSecretValue(secret)
-	if err != nil {
-		return "", fmt.Errorf("SSM read error: %s", err)
-	}
-
-	if output.SecretString != nil {
-		secretString := *output.SecretString // create a copy to not return an object within the AWS response
-		return secretString, nil
-	} else if output.SecretBinary != nil {
-		decodedBinarySecretBytes := make([]byte, base64.StdEncoding.DecodedLen(len(output.SecretBinary)))
-		len, err := base64.StdEncoding.Decode(decodedBinarySecretBytes, output.SecretBinary)
-		if err != nil {
-			return "", fmt.Errorf("Can't base64 decode SSM secret: %s", err)
-		}
-		return string(decodedBinarySecretBytes[:len]), nil
-	}
-	// should not happen but let's handle this gracefully
-	log.Warn("SSM returned something but there seems to be no data available;")
-	return "", nil
 }
