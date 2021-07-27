@@ -945,6 +945,8 @@ create_kubernetes_molecule:
       - $CI_PROJECT_DIR/tmp_molecule_inventory
       - $CI_PROJECT_DIR/.molecule-temp
     expire_in: 1 week
+   rules:
+     - *only_agent_3
 
 test_kubernetes_molecule:
   <<: *molecule_base
@@ -978,8 +980,6 @@ destroy_kubernetes_molecule:
    rules:
      - *only_agent_3
 
-
-
 # Molecule Swarm
 
 create_swarm_molecule:
@@ -993,6 +993,8 @@ create_swarm_molecule:
       - $CI_PROJECT_DIR/tmp_molecule_inventory
       - $CI_PROJECT_DIR/.molecule-temp
     expire_in: 1 week
+  rules:
+    - *only_agent_3
 
 test_swarm_molecule:
   <<: *molecule_base
