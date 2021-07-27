@@ -891,6 +891,62 @@ destroy_local_install_molecule:
   #   - master
 
 
+# Molecule Secrets
+
+create_secrets_molecule:
+  <<: *molecule_base_prepare
+  script:
+    - cd $CI_PROJECT_DIR/test
+    - ./molecule3.sh --base-config ./molecule/secrets/provisioner.setup.yml create --scenario-name secrets
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/*.log
+      - $CI_PROJECT_DIR/tmp_molecule_inventory
+      - $CI_PROJECT_DIR/.molecule
+      - $MOLECULE_EPHEMERAL_DIRECTORY
+    expire_in: 1 week
+  # only:
+  #   - tags
+  #   - master
+
+test_secrets_molecule:
+  <<: *molecule_base
+  dependencies:
+    - create_secrets_molecule
+  needs:
+    - pre_release_deb
+    - create_secrets_molecule
+  script:
+    - cd $CI_PROJECT_DIR/test
+    - ./molecule3.sh --base-config ./molecule/secrets/provisioner.run.yml prepare --force --scenario-name secrets
+    - ./molecule3.sh --base-config ./molecule/secrets/provisioner.run.yml test --scenario-name secrets --destroy=never
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/secrets/*.log
+      - $CI_PROJECT_DIR/tmp_molecule_inventory
+      - $CI_PROJECT_DIR/.molecule
+      - $MOLECULE_EPHEMERAL_DIRECTORY
+    expire_in: 1 week
+  # only:
+  #   - tags
+  #   - master
+
+destroy_secrets_molecule:
+  <<: *molecule_base
+  stage: acceptance_cleanup
+  interruptible: true
+  script:
+    - cd $CI_PROJECT_DIR/test
+    - ./molecule3.sh --base-config ./molecule/secrets/provisioner.setup.yml destroy --scenario-name secrets
+  allow_failure: true
+  # only:
+  #   - tags
+  #   - master
+
+
 
 
 
