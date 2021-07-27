@@ -158,6 +158,7 @@ int __attribute__((always_inline)) dr_mount_callback(void *ctx, int retval) {
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
+    fill_span_context(&event.span);
 
     send_event(ctx, EVENT_MOUNT, event);
 

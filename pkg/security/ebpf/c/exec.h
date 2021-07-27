@@ -395,8 +395,9 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         struct exit_event_t event = {};
         struct proc_cache_t *cache_entry = fill_process_context(&event.process);
         fill_container_context(cache_entry, &event.container);
-
         send_event(ctx, EVENT_EXIT, event);
+
+        unregister_span_memory();
     }
 
     return 0;

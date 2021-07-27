@@ -142,6 +142,7 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, int retval) {
     fill_file_metadata(syscall->mkdir.dentry, &event.file.metadata);
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
+    fill_span_context(&event.span);
 
     send_event(ctx, EVENT_MKDIR, event);
     return 0;

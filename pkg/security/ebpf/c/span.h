@@ -30,6 +30,15 @@ int __attribute__((always_inline)) handle_register_span_memory(void *data) {
    return 0;
 }
 
+int __attribute__((always_inline)) unregister_span_memory() {
+   u64 pid_tgid = bpf_get_current_pid_tgid();
+   u32 tgid = pid_tgid >> 32;
+
+   bpf_map_delete_elem(&span_tls, &tgid);
+
+   return 0;
+}
+
 void __attribute__((always_inline)) fill_span_context(struct span_context_t *span) {
    u64 pid_tgid = bpf_get_current_pid_tgid();
    u32 tgid = pid_tgid >> 32;
@@ -38,7 +47,11 @@ void __attribute__((always_inline)) fill_span_context(struct span_context_t *spa
    struct span_tls_t *tls = bpf_map_lookup_elem(&span_tls, &tgid);
    if (tls) {
       int offset = (tid % tls->max_threads) * sizeof(struct span_context_t);
-      bpf_probe_read(span, sizeof(struct span_context_t), tls->base + offset);
+      int ret = bpf_probe_read(span, sizeof(struct span_context_t), tls->base + offset);
+      if (ret < 0) {
+         span->span_id = 0;
+         span->trace_id = 0;
+      }
    }
 }
 
