@@ -933,7 +933,7 @@ func TestCheck_Run(t *testing.T) {
 		{
 			name:              "failed to fetching sysobjectid with error oid",
 			sysObjectIDPacket: sysObjectIDPacketInvalidOMock,
-			expectedErr:       "failed to fetching sysobjectid: expect `1.3.6.1.2.1.1.2.0` OID but got `1.3.6.1.6.3.15.1.1.1.0` OID with value `{counter 123}`",
+			expectedErr:       "failed to autodetect profile: failed to fetching sysobjectid: expect `1.3.6.1.2.1.1.2.0` OID but got `1.3.6.1.6.3.15.1.1.1.0` OID with value `{counter 123}`",
 		},
 		{
 			name:              "failed to get profile sys object id",
