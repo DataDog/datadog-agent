@@ -1,20 +1,29 @@
 ---
-- name: "Gather existing EC2 instances for the branch '{{ agent_current_branch }}'"
-  ec2_instance_info:
-    filters:
-      instance-state-name: [ "running" ]
-      "tag:ci_sts_major_python_version": "{{ ci_sts_major_python_version }}"
-      "tag:agent_current_branch": "{{ agent_current_branch }}"
-      "tag:molecule_scenario_name": "{{ molecule_scenario_name }}"
-  when: ci_sts_major_python_version is defined and ci_sts_major_python_version != "" and molecule_scenario_name is defined and molecule_scenario_name != "" and agent_current_branch is defined and agent_current_branch != ""
-  register: ec2_molecule_instances
+# - name: "Gather existing EC2 instances for the branch '{{ agent_current_branch }}'"
+#   ec2_instance_info:
+#     filters:
+#       instance-state-name: [ "running" ]
+#       "tag:ci_sts_major_python_version": "{{ ci_sts_major_python_version }}"
+#       "tag:agent_current_branch": "{{ agent_current_branch }}"
+#       "tag:molecule_scenario_name": "{{ molecule_scenario_name }}"
+#   when: ci_sts_major_python_version is defined and ci_sts_major_python_version != "" and molecule_scenario_name is defined and molecule_scenario_name != "" and agent_current_branch is defined and agent_current_branch != ""
+#   register: ec2_molecule_instances
+
+# - name: Wait for SSH
+#   when: (ec2_molecule_instances.instances | length) > 0
+#   wait_for:
+#     port: "{{ ssh_port }}"
+#     host: "{{ item.public_ip_address }}"
+#     search_regex: SSH
+#     delay: 10
+#     timeout: 320
+#   with_items: "{{ ec2_molecule_instances.instances }}"
 
 - name: Wait for SSH
-  when: (ec2_molecule_instances.instances | length) > 0
   wait_for:
     port: "{{ ssh_port }}"
-    host: "{{ item.public_ip_address }}"
+    host: "{{ item.address }}"
     search_regex: SSH
     delay: 10
     timeout: 320
-  with_items: "{{ ec2_molecule_instances.instances }}"
+  with_items: "{{ lookup('file', molecule_instance_config) | molecule_from_yaml }}"

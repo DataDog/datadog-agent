@@ -1,12 +1,4 @@
 ---
-- name: Prepare Connection
-  hosts: localhost
-  connection: local
-  gather_facts: true
-  tasks:
-    - include_tasks: ../common/prepare/keypair.yml
-    # - include_tasks: ../common/prepare/instance-config.yml
-
 - name: Prepare Trace Java
   hosts: trace-java-demo
   gather_facts: true

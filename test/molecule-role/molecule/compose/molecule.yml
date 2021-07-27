@@ -31,6 +31,28 @@ platforms:
       - compose_linux_vm
     ssh_user: ubuntu
 
+scenario:
+  name: compose
+  create_sequence:
+    - destroy
+    - dependency
+    - syntax
+    - create
+    - prepare
+  test_sequence:
+    - dependency
+    - syntax
+    - prepare
+    - converge
+    - idempotence
+    - lint
+    - side_effect
+    - verify
+  destroy_sequence:
+    - dependency
+    - cleanup
+    - destroy
+
 verifier:
   name: testinfra
   lint:

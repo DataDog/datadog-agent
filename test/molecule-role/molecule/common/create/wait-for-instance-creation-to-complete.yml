@@ -2,8 +2,8 @@
 - name: Wait for instance(s) creation to complete
   async_status:
     jid: "{{ item.ansible_job_id }}"
-  register: ec2_jobs
-  until: ec2_jobs.finished
+  register: "ec2_jobs"
+  until: "ec2_jobs.finished"
   retries: 300
   with_items: "{{ server.results }}"
 
@@ -18,7 +18,7 @@
       'identity_file': "{{ keypair_path }}",
       'instance_ids': "{{ item.instance_ids }}", }
   with_items: "{{ ec2_jobs.results }}"
-  register: instance_config_dict
+  register: "instance_config_dict"
   when: server.changed | bool
 
 - name: Convert instance config dict to a list
@@ -26,14 +26,20 @@
     instance_conf: "{{ instance_config_dict.results | map(attribute='ansible_facts.instance_conf_dict') | list }}"
   when: server.changed | bool
 
-- name: Dump instance config in the temp storage
+- name: Dump instance config
+  copy:
+    content: "{{ instance_conf | to_json | from_json | molecule_to_yaml | molecule_header }}"
+    dest: "{{ molecule_instance_config }}"
   when: server.changed | bool
-  copy:
-    content: "{{ instance_conf | to_json | from_json | molecule_to_yaml | molecule_header }}"
-    dest: ".molecule-temp/{{ molecule_scenario_name }}/instance_config.yml"
 
-- name: (CI) Dump instance config in the artifactory directory
-  when: (server.changed | bool) and ci_project_dir is defined and ci_project_dir != ""
+- name: Dump instance config in the temp storage
   copy:
     content: "{{ instance_conf | to_json | from_json | molecule_to_yaml | molecule_header }}"
-    dest: "{{ci_project_dir}}/.molecule-temp/{{ molecule_scenario_name }}/instance_config.yml"
+    dest: ".molecule/{{ molecule_scenario_name }}/instance_config.yml"
+  when: server.changed | bool
+
+# - name: (CI) Dump instance config in the artifactory directory
+#   when: (server.changed | bool) and ci_project_dir is defined and ci_project_dir != ""
+#   copy:
+#     content: "{{ instance_conf | to_json | from_json | molecule_to_yaml | molecule_header }}"
+#     dest: "{{ci_project_dir}}/.molecule/{{ molecule_scenario_name }}/instance_config.yml"

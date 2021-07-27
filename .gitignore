@@ -158,7 +158,7 @@ version.txt
 
 # molecule local json files
 /test/molecule-role/molecule/*/topic-*.json
-.molecule-temp
+.molecule
 
 # cluster agent generated files
 Dockerfiles/cluster-agent/stackstate-cluster.yaml

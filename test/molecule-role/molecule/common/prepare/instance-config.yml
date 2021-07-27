@@ -2,13 +2,13 @@
 - name: (Local) Restore instance config for connection
   when: ci_project_dir is undefined or ci_project_dir == ""
   copy:
-    src: ".molecule-temp/{{ molecule_scenario_name }}/instance_config.yml"
+    src: ".molecule/{{ molecule_scenario_name }}/instance_config.yml"
     dest: "{{ molecule_instance_config }}"
 
 - name: (CI) Restore instance config for connection
   when: ci_project_dir is defined and ci_project_dir != ""
   copy:
-    src: "{{ci_project_dir}}/.molecule-temp/{{ molecule_scenario_name }}/instance_config.yml"
+    src: "{{ci_project_dir}}/.molecule/{{ molecule_scenario_name }}/instance_config.yml"
     dest: "{{ molecule_instance_config }}"
 
 - name: "Debug Information A"
@@ -24,7 +24,7 @@
     msg: "{{ ci_project_dir }}"
 
 - name: instance_config content get
-  command: cat "{{ci_project_dir}}/.molecule-temp/{{ molecule_scenario_name }}/instance_config.yml"
+  command: cat "{{ci_project_dir}}/.molecule/{{ molecule_scenario_name }}/instance_config.yml"
   register: command_output
 
 - name: "Debug Information D"
