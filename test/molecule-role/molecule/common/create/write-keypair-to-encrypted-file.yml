@@ -25,8 +25,8 @@
     dest: "{{ci_project_dir}}/.molecule-temp/{{ molecule_scenario_name }}/ssh_key"
     mode: preserve
 
-- name: Encrypt data for artifact
-  shell: |
-    echo "{{ ci_job_token }}" > password
-    ansible-vault encrypt --vault-id test@password "{{ci_project_dir}}/.molecule-temp/{{ molecule_scenario_name }}/ssh_key"
-    rm password
+# - name: Encrypt data for artifact
+#   shell: |
+#     echo "{{ ci_job_token }}" > password
+#     ansible-vault encrypt --vault-id test@password "{{ci_project_dir}}/.molecule-temp/{{ molecule_scenario_name }}/ssh_key"
+#     rm password
