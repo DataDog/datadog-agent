@@ -1,5 +1,0 @@
----
-- name: Test for presence of local keypair
-  stat:
-    path: "{{ keypair_path }}"
-  register: keypair_local

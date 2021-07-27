@@ -13,12 +13,21 @@
 #     ansible-vault decrypt --vault-id test@password ".molecule-temp/{{ molecule_scenario_name }}/ssh_key"
 #     rm password
 
-- name: (CI) Restore artifact ssh key
-  when: ci_project_dir is defined and ci_project_dir != ""
-  copy:
-    src: "{{ci_project_dir}}/.molecule-temp/{{ molecule_scenario_name }}/ssh_key"
-    dest: "{{ keypair_path }}"
-    mode: preserve
+# - name: (CI) Restore artifact ssh key
+#   when: ci_project_dir is defined and ci_project_dir != ""
+#   copy:
+#     src: "{{ci_project_dir}}/.molecule-temp/{{ molecule_scenario_name }}/ssh_key"
+#     dest: "{{ keypair_path }}"
+#     mode: preserve
+-
+- name: Existing keypair path
+  debug:
+    msg: "{{ keypair_path }}"
+
+- name: Remove existing keys
+  file:
+    path: "{{ keypair_path }}"
+    state: absent
 
 - name: (Local) Restore artifact ssh key
   when: ci_project_dir is undefined or ci_project_dir == ""
@@ -27,6 +36,13 @@
     dest: "{{ keypair_path }}"
     mode: preserve
 
+- name: (CI) Restore artifact ssh key
+  when: ci_project_dir is defined and ci_project_dir != ""
+  copy:
+    src: "{{ci_project_dir}}/.molecule-temp/{{ molecule_scenario_name }}/ssh_key"
+    dest: "{{ keypair_path }}"
+    mode: preserve
+
 - name: Wait (SSH Key Restore)
   pause:
-    seconds: 5
+    seconds: 15

@@ -1,9 +1,26 @@
 ---
-- name: Create the molecule temp storage directory
-  file:
-    path: ".molecule-temp/{{ molecule_scenario_name }}"
-    state: directory
-    mode: '0755'
+- name: Test for presence of local keypair
+  stat:
+    path: "{{ keypair_path }}"
+  register: keypair_local
+
+- name: Delete remote keypair
+  ec2_key:
+    name: "{{ keypair_name }}"
+    state: absent
+  when: not keypair_local.stat.exists
+
+- name: Create keypair
+  ec2_key:
+    name: "{{ keypair_name }}"
+  register: keypair
+
+- name: Persist the keypair
+  copy:
+    dest: "{{ keypair_path }}"
+    content: "{{ keypair.key.private_key }}"
+    mode: 0600
+  when: keypair.changed
 
 - name: Dump the ssh private key in the temp storage
   copy:
@@ -11,18 +28,11 @@
     content: "{{ keypair.key.private_key }}"
     mode: preserve
 
-- name: Create the molecule temp storage artifactory directory
-  when: ci_project_dir is defined and ci_project_dir != ""
-  file:
-    path: "{{ci_project_dir}}/.molecule-temp/{{ molecule_scenario_name }}"
-    state: directory
-    mode: '0755'
-
-- name: Create copy for artifact
+- name: (CI) Dump the ssh private key in the artifactory directory
   when: ci_project_dir is defined and ci_project_dir != ""
   copy:
-    src: ".molecule-temp/{{ molecule_scenario_name }}/ssh_key"
     dest: "{{ci_project_dir}}/.molecule-temp/{{ molecule_scenario_name }}/ssh_key"
+    content: "{{ keypair.key.private_key }}"
     mode: preserve
 
 # - name: Encrypt data for artifact

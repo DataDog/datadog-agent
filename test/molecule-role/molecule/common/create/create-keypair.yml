@@ -1,5 +1,0 @@
----
-- name: Create keypair
-  ec2_key:
-    name: "{{ keypair_name }}"
-  register: keypair
