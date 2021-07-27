@@ -6,6 +6,8 @@
 package telemetry
 
 import (
+	"fmt"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -33,10 +35,6 @@ type Counter interface {
 	// Even if less convenient, this signature could be used in hot path
 	// instead of Delete(...string) to avoid escaping the parameters on the heap.
 	DeleteWithTags(tags map[string]string)
-	// WithValues returns SimpleCounter for this metric with the given tag values.
-	WithValues(tagsValue ...string) SimpleCounter
-	// WithTags returns SimpleCounter for this metric with the given tqg values.
-	WithTags(tags map[string]string) SimpleCounter
 }
 
 // NewCounter creates a Counter with default options for telemetry purpose.
@@ -48,7 +46,13 @@ func NewCounter(subsystem, name string, tags []string, help string) Counter {
 // NewCounterWithOpts creates a Counter with the given options for telemetry purpose.
 // See NewCounter()
 func NewCounterWithOpts(subsystem, name string, tags []string, help string, opts Options) Counter {
-	name = opts.NameWithSeparator(subsystem, name)
+	// subsystem is optional
+	if subsystem != "" && !opts.NoDoubleUnderscoreSep {
+		// Prefix metrics with a _, prometheus will add a second _
+		// It will create metrics with a custom separator and
+		// will let us replace it to a dot later in the process.
+		name = fmt.Sprintf("_%s", name)
+	}
 
 	c := &promCounter{
 		pc: prometheus.NewCounterVec(
