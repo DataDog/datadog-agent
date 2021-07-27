@@ -1,6 +1,7 @@
 image: docker.io/stackstate/stackstate-agent-runner-gitlab:latest7
 
 stages:
+  - manual
   - acceptance_build_test
   - prepare
   - build_prepare_and_test
@@ -67,7 +68,7 @@ before_script:
 ## prepare stage
 
 clear_deps_deb_cache:
-  stage: prepare
+  stage: manual
   interruptible: true
   before_script: []
   cache:
@@ -82,7 +83,7 @@ clear_deps_deb_cache:
     - rm -rf $CI_PROJECT_DIR/vendor
 
 clear_deps_rpm_cache:
-  stage: prepare
+  stage: manual
   interruptible: true
   before_script: []
   cache:
@@ -97,7 +98,7 @@ clear_deps_rpm_cache:
     - rm -rf $CI_PROJECT_DIR/vendor
 
 clear_deps_win_cache:
-  stage: prepare
+  stage: manual
   interruptible: true
   before_script:
     - set WIN_CI_PROJECT_DIR=%CD%
@@ -320,7 +321,7 @@ build_cluster_agent:
       - always
 
 clear_build_deb_cache:
-  stage: build_prepare_and_test
+  stage: manual
   interruptible: true
   cache:
     policy: push
@@ -333,7 +334,7 @@ clear_build_deb_cache:
     - rm -rf .omnibus/*
 
 clear_build_rpm_cache:
-  stage: build_prepare_and_test
+  stage: manual
   interruptible: true
   cache:
     policy: push
@@ -736,7 +737,7 @@ destroy_compose_molecule:
 
 release_deb:
   interruptible: true
-  stage: release
+  stage: manual
   dependencies:
     - deps_deb
     - build_deb
@@ -759,7 +760,7 @@ release_deb:
 
 release_rpm:
   interruptible: true
-  stage: release
+  stage: manual
   dependencies:
     - build_rpm
   before_script:
@@ -780,7 +781,7 @@ release_rpm:
 
 release_win:
   interruptible: true
-  stage: release
+  stage: manual
   dependencies:
     - deps_win
     - build_win
@@ -832,6 +833,7 @@ release_win:
 
 release_main_agent_image:
   <<: *base_release_image
+  stage: manual
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
