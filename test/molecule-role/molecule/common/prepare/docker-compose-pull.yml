@@ -1,3 +1,8 @@
 ---
 - name: Docker compose pull images (cache purposes)
-  command: docker-compose pull
+  command: "cd /home/ubuntu/ && docker-compose pull"
+  register: compose
+
+- debug: msg="{{ compose.stdout }}"
+- debug: msg="{{ compose.stderr }}"
+

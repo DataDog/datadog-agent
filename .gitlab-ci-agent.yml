@@ -733,6 +733,52 @@ destroy_compose_molecule:
    allow_failure: true
 
 
+# Molecule Integrations
+
+create_integrations_molecule:
+  <<: *molecule_base_prepare
+  script:
+    - cd $CI_PROJECT_DIR/test
+    - ./molecule3.sh --base-config ./molecule/integrations/provisioner.setup.yml create --scenario-name integrations
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/*.log
+      - $CI_PROJECT_DIR/tmp_molecule_inventory
+      - $CI_PROJECT_DIR/.molecule
+      - $MOLECULE_EPHEMERAL_DIRECTORY
+    expire_in: 1 week
+
+test_integrations_molecule:
+  <<: *molecule_base
+  dependencies:
+    - create_integrations_molecule
+  needs:
+    - pre_release_main_agent_image
+    - create_integrations_molecule
+  script:
+    - cd $CI_PROJECT_DIR/test
+    - ./molecule3.sh --base-config ./molecule/integrations/provisioner.run.yml prepare --force --scenario-name integrations
+    - ./molecule3.sh --base-config ./molecule/integrations/provisioner.run.yml test --scenario-name integrations --destroy=never
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/*.log
+      - $CI_PROJECT_DIR/tmp_molecule_inventory
+      - $CI_PROJECT_DIR/.molecule
+      - $MOLECULE_EPHEMERAL_DIRECTORY
+    expire_in: 1 week
+
+destroy_integrations_molecule:
+   <<: *molecule_base
+   stage: acceptance_cleanup
+   interruptible: true
+   script:
+     - cd $CI_PROJECT_DIR/test
+     - ./molecule3.sh --base-config ./molecule/integrations/provisioner.setup.yml destroy --scenario-name integrations
+   allow_failure: true
 
 ## release stage
 

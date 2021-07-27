@@ -19,18 +19,6 @@ platforms:
       - integrations_linux_vm
     ssh_user: ubuntu
 
-provisioner:
-  name: ansible
-  playbooks:
-    create: playbook.create.yml
-    prepare: playbook.prepare.yml
-    destroy: playbook.destroy.yml
-  lint:
-    name: ansible-lint
-  inventory:
-    links:
-      group_vars: group_vars/
-
 scenario:
   name: integrations
   create_sequence:
@@ -38,6 +26,7 @@ scenario:
     - dependency
     - syntax
     - create
+    - prepare
   test_sequence:
     - dependency
     - syntax
