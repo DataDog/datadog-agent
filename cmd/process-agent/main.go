@@ -4,7 +4,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"log"
@@ -36,7 +35,7 @@ func setupConfig() {
 	if verb == "get" {
 		get, err := settingsClient.Get(key)
 		if err == nil {
-			fmt.Println(get)
+			log.Println(get)
 		}
 	} else if verb == "set" {
 		_, err = settingsClient.Set(key, value)
