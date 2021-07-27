@@ -667,20 +667,18 @@ func TestProcessExecExit(t *testing.T) {
 		cmd := exec.Command(executable, "-t", "01010101", "/dev/null")
 		return cmd.Run()
 	}, func(event *sprobe.Event) bool {
-		if execPid != 0 && int(event.ProcessContext.Pid) != execPid {
-			return false
-		}
-
 		switch event.GetEventType() {
 		case model.ExecEventType:
-			if isExpectedExecEvent(event) {
+			if testProcessEEIsExpectedExecEvent(event) {
 				execPid = int(event.ProcessContext.Pid)
 				if err := testProcessEEExec(t, event); err != nil {
 					t.Error(err)
 				}
 			}
 		case model.ExitEventType:
-			return true
+			if execPid != 0 && int(event.ProcessContext.Pid) == execPid {
+				return true
+			}
 		}
 		return false
 	}, time.Second*3, model.ExecEventType, model.ExitEventType)
@@ -691,7 +689,7 @@ func TestProcessExecExit(t *testing.T) {
 	testProcessEEExit(t, uint32(execPid), test)
 }
 
-func isExpectedExecEvent(event *sprobe.Event) bool {
+func testProcessEEIsExpectedExecEvent(event *sprobe.Event) bool {
 	if event.GetEventType() != model.ExecEventType {
 		return false
 	}
