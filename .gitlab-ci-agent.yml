@@ -884,6 +884,147 @@ destroy_secrets_molecule:
   #   - tags
   #   - master
 
+
+# Molecule VMS
+create_vms_molecule:
+  <<: *molecule_base_prepare
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh create -s vms
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/vms/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/vms/*.log
+      - $CI_PROJECT_DIR/tmp_molecule_inventory
+      - $CI_PROJECT_DIR/.molecule-temp
+    expire_in: 1 week
+
+test_vms_molcule:
+  <<: *molecule_base
+  needs:
+    - create_vms_molecule
+    - pre_release_deb
+    - pre_release_rpm
+    - pre_release_win
+  dependencies:
+    - create_vms_molecule
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test --destroy=never -s vms
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/vms/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/vms/*.log
+      - $CI_PROJECT_DIR/tmp_molecule_inventory
+      - $CI_PROJECT_DIR/.molecule-temp
+    expire_in: 1 week
+
+destroy_vms_molecule:
+   <<: *molecule_base
+   stage: acceptance_cleanup
+   interruptible: true
+   script:
+     - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s vms
+   when:
+     - on_failure
+     - always
+     - manual
+   allow_failure: true
+
+# Molecule Kubernetes
+
+create_kubernetes_molecule:
+  <<: *molecule_base_prepare
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh create -s kubernetes
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/*.log
+      - $CI_PROJECT_DIR/tmp_molecule_inventory
+      - $CI_PROJECT_DIR/.molecule-temp
+    expire_in: 1 week
+
+test_kubernetes_molecule:
+  <<: *molecule_base
+  needs:
+    - pre_release_cluster_agent_image
+    - pre_release_main_agent_image
+    - create_kubernetes_molecule
+  dependencies:
+    - create_kubernetes_molecule
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test --destroy=never -s kubernetes
+  resource_group: eks_test_cluster
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/*.log
+      - $CI_PROJECT_DIR/tmp_molecule_inventory
+      - $CI_PROJECT_DIR/.molecule-temp
+    expire_in: 1 week
+  rules:
+    - *only_agent_3
+
+destroy_kubernetes_molecule:
+   <<: *molecule_base
+   stage: acceptance_cleanup
+   interruptible: true
+   script:
+     - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s kubernetes
+   allow_failure: true
+   rules:
+     - *only_agent_3
+
+
+
+# Molecule Swarm
+
+create_swarm_molecule:
+  <<: *molecule_base_prepare
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh create -s swarm
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/swarm/topic-*.json
+      - $CI_PROJECT_DIR/tmp_molecule_inventory
+      - $CI_PROJECT_DIR/.molecule-temp
+    expire_in: 1 week
+
+test_swarm_molecule:
+  <<: *molecule_base
+  needs:
+    - pre_release_cluster_agent_image
+    - pre_release_main_agent_image
+    - create_swarm_molecule
+  dependencies:
+    - create_swarm_molecule
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test --destroy=never -s swarm
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/swarm/topic-*.json
+      - $CI_PROJECT_DIR/tmp_molecule_inventory
+      - $CI_PROJECT_DIR/.molecule-temp
+    expire_in: 1 week
+  rules:
+    - *only_agent_3
+
+destroy_swarm_molecule:
+  <<: *molecule_base
+  stage: acceptance_cleanup
+  interruptible: true
+  script:
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh destroy -s swarm
+  allow_failure: true
+  rules:
+    - *only_agent_3
+
+
 ## release stage
 
 release_deb:
