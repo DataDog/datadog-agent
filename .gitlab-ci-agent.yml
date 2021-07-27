@@ -690,7 +690,7 @@ create_compose_molecule:
   <<: *molecule_base_prepare
   script:
     - cd $CI_PROJECT_DIR/test
-    - ./molecule3.sh --base-config ./molecule/compose/molecule.create.yml create --scenario-name compose
+    - ./molecule3.sh --base-config ./molecule/compose/provisioner.setup.yml create --scenario-name compose
   artifacts:
     when: always
     paths:
@@ -710,8 +710,8 @@ test_compose_molecule:
     - create_compose_molecule
   script:
     - cd $CI_PROJECT_DIR/test
-    - ./molecule3.sh --base-config ./molecule/compose/molecule.run.yml prepare --force --scenario-name compose
-    - ./molecule3.sh --base-config ./molecule/compose/molecule.run.yml test --scenario-name compose --destroy=never
+    - ./molecule3.sh --base-config ./molecule/compose/provisioner.run.yml prepare --force --scenario-name compose
+    - ./molecule3.sh --base-config ./molecule/compose/provisioner.run.yml test --scenario-name compose --destroy=never
   artifacts:
     when: always
     paths:
@@ -728,7 +728,7 @@ destroy_compose_molecule:
    interruptible: true
    script:
      - cd $CI_PROJECT_DIR/test
-     - ./molecule3.sh --base-config ./molecule/compose/molecule.setup.yml destroy --scenario-name compose
+     - ./molecule3.sh --base-config ./molecule/compose/provisioner.setup.yml destroy --scenario-name compose
    allow_failure: true
 
 
