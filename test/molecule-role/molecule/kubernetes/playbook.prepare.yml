@@ -1,4 +1,11 @@
 ---
+- name: Prepare Connection
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  tasks:
+    - include_tasks: ../common/prepare/restore-and-decrypt-keypair.yml
+
 - name: Prepare Receiver and EKS cluster
   hosts: kubernetes-cluster-agent
   gather_facts: true

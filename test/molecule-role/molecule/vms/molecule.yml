@@ -86,6 +86,24 @@ provisioner:
 
 scenario:
   name: vms
+  create_sequence:
+    - destroy
+    - dependency
+    - syntax
+    - create
+  test_sequence:
+    - dependency
+    - syntax
+    - prepare
+    - converge
+    - idempotence
+    - lint
+    - side_effect
+    - verify
+  destroy_sequence:
+    - dependency
+    - cleanup
+    - destroy
 
 verifier:
   name: testinfra
