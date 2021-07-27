@@ -635,6 +635,7 @@ pre_release_cluster_agent_image:
   interruptible: true
   needs:
     - build_cluster_agent
+    - unit_tests_cluster_agent
   script:
     - cd $CI_PROJECT_DIR
     - cp -r ./bin/stackstate-cluster-agent* ./Dockerfiles/cluster-agent
