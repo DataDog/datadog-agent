@@ -1,0 +1,3 @@
+---
+- name: Docker compose pull images (cache purposes)
+  command: docker-compose pull

@@ -1,16 +1,4 @@
 ---
-# Molecule structure:
-#
-# molecule.yml
-#   This is the base file containing the default settings for the molecule scenario
-#
-# molecule.setup.yml
-#   This file contains the steps to set everything up just before executing steps that will require any stackstate programs
-#   This allows us to run this file as the base before any builds is done
-#
-# molecule.run.yml
-#   This file contains the primary run state for the stackstate program
-
 dependency:
   name: galaxy
 

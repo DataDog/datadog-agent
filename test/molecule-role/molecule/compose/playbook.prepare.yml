@@ -17,3 +17,4 @@
           DOCKER_HOST_IP={{ ansible_docker0['ipv4']['address'] }}
           STACKSTATE_BRANCH={{ stackstate_branch }}
         dest: /home/ubuntu/.env
+    - include_tasks: ../common/prepare/docker-compose-pull.yml
