@@ -885,8 +885,6 @@ destroy_secrets_molecule:
   #   - master
 
 
-
-
 # Molecule Kubernetes
 
 create_kubernetes_molecule:
@@ -901,8 +899,8 @@ create_kubernetes_molecule:
       - $CI_PROJECT_DIR/tmp_molecule_inventory
       - $CI_PROJECT_DIR/.molecule-temp
     expire_in: 1 week
-   rules:
-     - *only_agent_3
+  rules:
+    - *only_agent_3
 
 test_kubernetes_molecule:
   <<: *molecule_base
