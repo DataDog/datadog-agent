@@ -13,6 +13,11 @@
     # cleanup before a rerun
     - include_tasks: ../common/prepare/docker-compose-cleanup-receiver.yml
 
+    # - name: Kustomization template
+    #   template:
+    #     src: /home/ubuntu/overlays-original/kustomization.yaml
+    #     dest: /home/ubuntu/deployment/agents/overlays
+
     - name: Delete namespace '{{namespace}}' and global lock if we took it
       ignore_errors: yes
       shell: kubectl delete ns test-global-lock
@@ -26,11 +31,6 @@
         chdir: /home/ubuntu/deployment/agents
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
-
-    - name: Kustomization template
-      template:
-        src: /home/ubuntu/overlays-original/kustomization.yaml
-        dest: /home/ubuntu/deployment/agents/overlays
 
     - name: Delete test namespace '{{namespace}}'
       ignore_errors: yes
