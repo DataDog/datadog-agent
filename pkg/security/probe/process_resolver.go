@@ -122,7 +122,9 @@ type ProcessResolver struct {
 	cacheSize        int64
 	opts             ProcessResolverOpts
 	hitsStats        map[string]*int64
-	missStats        *int64
+	missStats        int64
+	addedEntries     int64
+	flushedEntries   int64
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU
@@ -215,7 +217,7 @@ func (p *ProcessResolver) DequeueExited() {
 
 	delEntry := func(pid uint32, exitTime time.Time) {
 		p.deleteEntry(pid, exitTime)
-		_ = p.client.Count(metrics.MetricProcessResolverFlushed, 1, []string{}, 1.0)
+		atomic.AddInt64(&p.flushedEntries, 1)
 	}
 
 	now := time.Now()
@@ -268,13 +270,27 @@ func (p *ProcessResolver) SendStats() error {
 	}
 
 	if count = atomic.SwapInt64(p.hitsStats[metrics.ProcFSTag], 0); count > 0 {
-		if err = p.client.Count(metrics.MetricProcessResolverCacheHits, atomic.SwapInt64(p.hitsStats[metrics.ProcFSTag], 0), []string{metrics.ProcFSTag}, 1.0); err != nil {
+		if err = p.client.Count(metrics.MetricProcessResolverCacheHits, count, []string{metrics.ProcFSTag}, 1.0); err != nil {
 			return errors.Wrap(err, "failed to send process_resolver procfs hits metric")
 		}
 	}
 
-	if err = p.client.Count(metrics.MetricProcessResolverCacheMiss, atomic.SwapInt64(p.missStats, 0), []string{}, 1.0); err != nil {
-		return errors.Wrap(err, "failed to send process_resolver procfs hits metric")
+	if count = atomic.SwapInt64(&p.missStats, 0); count > 0 {
+		if err = p.client.Count(metrics.MetricProcessResolverCacheMiss, count, []string{}, 1.0); err != nil {
+			return errors.Wrap(err, "failed to send process_resolver misses metric")
+		}
+	}
+
+	if count = atomic.SwapInt64(&p.addedEntries, 0); count > 0 {
+		if err = p.client.Count(metrics.MetricProcessResolverAdded, count, []string{}, 1.0); err != nil {
+			return errors.Wrap(err, "failed to send process_resolver added entries metric")
+		}
+	}
+
+	if count = atomic.SwapInt64(&p.flushedEntries, 0); count > 0 {
+		if err = p.client.Count(metrics.MetricProcessResolverFlushed, count, []string{}, 1.0); err != nil {
+			return errors.Wrap(err, "failed to send process_resolver flushed entries metric")
+		}
 	}
 
 	return nil
@@ -429,7 +445,7 @@ func (p *ProcessResolver) insertEntry(pid uint32, entry, prev *model.ProcessCach
 		prev.Release()
 	}
 
-	_ = p.client.Count(metrics.MetricProcessResolverAdded, 1, []string{}, 1.0)
+	atomic.AddInt64(&p.addedEntries, 1)
 	atomic.AddInt64(&p.cacheSize, 1)
 
 	return entry
@@ -506,7 +522,7 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 		return entry
 	}
 
-	atomic.AddInt64(p.missStats, 1)
+	atomic.AddInt64(&p.missStats, 1)
 	return nil
 }
 
@@ -933,7 +949,6 @@ func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Clien
 		return nil, err
 	}
 
-	zero := int64(0)
 	p := &ProcessResolver{
 		probe:         probe,
 		resolvers:     resolvers,
@@ -944,13 +959,12 @@ func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Clien
 		state:         snapshotting,
 		argsEnvsPool:  NewArgsEnvsPool(),
 		hitsStats:     map[string]*int64{},
-		missStats:     &zero,
+	}
+	for _, t := range metrics.AllTypesTags {
+		zero := int64(0)
+		p.hitsStats[t] = &zero
 	}
 	p.processCacheEntryPool = NewProcessCacheEntryPool(p)
-	for _, t := range metrics.AllTypesTags {
-		hits := int64(0)
-		p.hitsStats[t] = &hits
-	}
 
 	return p, nil
 }
