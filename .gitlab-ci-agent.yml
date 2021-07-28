@@ -117,7 +117,7 @@ clear_deps_win_cache:
     - windows_agent7_ps1
 
 initialize:
-  image: docker.io/hello-world:latest
+  image: docker:18.06.0
   interruptible: true
   stage: prepare
   script:
