@@ -2,7 +2,6 @@ image: docker.io/stackstate/stackstate-agent-runner-gitlab:latest7
 
 stages:
   - manual
-  - acceptance_build_test
   - prepare
   - build_prepare_and_test
   - pre_release
@@ -646,7 +645,7 @@ pre_release_cluster_agent_image:
 ## acceptance stage
 
 .molecule_base_prepare: &molecule_base_prepare
-  stage: acceptance_build_test
+  stage: build_prepare_and_test
   interruptible: true
   dependencies: []
   variables:
