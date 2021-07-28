@@ -648,8 +648,6 @@ pre_release_cluster_agent_image:
   stage: prepare
   interruptible: true
   dependencies: []
-  needs:
-    - initialize
   variables:
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
   before_script:
