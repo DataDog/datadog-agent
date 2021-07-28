@@ -1,6 +1,9 @@
 package telemetry
 
-import "github.com/DataDog/datadog-agent/pkg/telemetry"
+import (
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+)
 
 // PruneType represents the `prune_type` tag for the pruned_entities metric
 type PruneType string
@@ -28,8 +31,10 @@ var (
 		[]string{}, "Number of pruned tagger entities.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 
-	// Queries tracks the number of queries made against the tagger.
-	Queries = telemetry.NewCounterWithOpts("tagger", "queries",
+	// queries tracks the number of queries made against the tagger.
+	//
+	// Use IncQueriesForCardinality instead of access this directly.
+	queries = telemetry.NewCounterWithOpts("tagger", "queries",
 		[]string{"cardinality"}, "Queries made against the tagger.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 
@@ -67,3 +72,21 @@ var (
 		[]string{}, "Number of of times the tagger has received a notification with a group of events",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
+
+var queriesForCardinality []telemetry.SimpleCounter
+
+func init() {
+	queriesForCardinality = make([]telemetry.SimpleCounter, collectors.HighCardinality+1)
+	queriesForCardinality[collectors.LowCardinality] = queries.WithValues(collectors.LowCardinalityString)
+	queriesForCardinality[collectors.OrchestratorCardinality] = queries.WithValues(collectors.OrchestratorCardinalityString)
+	queriesForCardinality[collectors.HighCardinality] = queries.WithValues(collectors.HighCardinalityString)
+}
+
+// IncQueriesForCardinality increments the telemetry counter for number of tags queries with specific cardinality.
+func IncQueriesForCardinality(card collectors.TagCardinality) {
+	if card <= collectors.HighCardinality && queriesForCardinality[card] != nil {
+		queriesForCardinality[card].Inc()
+	} else {
+		queries.Inc(collectors.TagCardinalityToString(card))
+	}
+}

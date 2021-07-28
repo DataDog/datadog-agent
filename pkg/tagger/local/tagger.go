@@ -241,7 +241,7 @@ func (t *Tagger) Stop() error {
 
 // getTags returns a read only list of tags for a given entity.
 func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) ([]string, error) {
-	telemetry.Queries.Inc(collectors.TagCardinalityToString(cardinality))
+	telemetry.IncQueriesForCardinality(cardinality)
 
 	if entity == "" {
 		return nil, fmt.Errorf("empty entity ID")

@@ -33,6 +33,10 @@ type Counter interface {
 	// Even if less convenient, this signature could be used in hot path
 	// instead of Delete(...string) to avoid escaping the parameters on the heap.
 	DeleteWithTags(tags map[string]string)
+	// WithValues returns SimpleCounter for this metric with the given tag values.
+	WithValues(tagsValue ...string) SimpleCounter
+	// WithTags returns SimpleCounter for this metric with the given tqg values.
+	WithTags(tags map[string]string) SimpleCounter
 }
 
 // NewCounter creates a Counter with default options for telemetry purpose.
