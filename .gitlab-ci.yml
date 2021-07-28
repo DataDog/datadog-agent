@@ -1,6 +1,5 @@
 stages:
-  - prepare
-  - build
+  - triggers
 
 variables: &commonvariables
   # The SRC_PATH is in the GOPATH of the builders which
@@ -61,82 +60,38 @@ variables: &commonvariables
     if: $CI_COMMIT_MESSAGE =~ /\[cluster-agent]/
     when: on_success
 
-# Prepare step
-
-prepare_v2:
-  stage: prepare
-  trigger:
-    include:
-      - local: .gitlab-ci/.gitlab-ci-prepare.yml
-    strategy: depend
+agent2:
+  stage: triggers
   variables:
     <<: *commonvariables
     <<: *agent2_variables
-
-build_v2:
-  stage: build
   trigger:
-    include:
-      - local: .gitlab-ci/.gitlab-ci-build.yml
+    include: .gitlab-ci-agent.yml
     strategy: depend
-  variables:
-    <<: *commonvariables
-    <<: *agent2_variables
+  rules:
+    - <<: *exclude_on_cluster_agent
+    - when: on_success
 
-
-prepare_v3:
-  stage: prepare
-  trigger:
-    include:
-      - local: .gitlab-ci/.gitlab-ci-prepare.yml
-    strategy: depend
+agent3:
+  stage: triggers
   variables:
     <<: *commonvariables
     <<: *agent3_variables
-
-build_v3:
-  stage: build
   trigger:
-    include:
-      - local: .gitlab-ci/.gitlab-ci-build.yml
+    include: .gitlab-ci-agent.yml
     strategy: depend
+  rules:
+    - <<: *exclude_on_cluster_agent
+    - when: on_success
+
+cluster_agent:
+  stage: triggers
   variables:
     <<: *commonvariables
     <<: *agent3_variables
-
-
-# agent2:
-#   stage: triggers
-#   variables:
-#     <<: *commonvariables
-#     <<: *agent2_variables
-#   trigger:
-#     include: .gitlab-ci-agent.yml
-#     strategy: depend
-#   rules:
-#     - <<: *exclude_on_cluster_agent
-#     - when: on_success
-
-# agent3:
-#   stage: triggers
-#   variables:
-#     <<: *commonvariables
-#     <<: *agent3_variables
-#   trigger:
-#     include: .gitlab-ci-agent.yml
-#     strategy: depend
-#   rules:
-#     - <<: *exclude_on_cluster_agent
-#     - when: on_success
-
-# cluster_agent:
-#   stage: triggers
-#   variables:
-#     <<: *commonvariables
-#     <<: *agent3_variables
-#   trigger:
-#     include: .gitlab-ci-cluster-agent.yml
-#     strategy: depend
-#   rules:
-#     - <<: *include_on_cluster_agent
-#     - when: never
+  trigger:
+    include: .gitlab-ci-cluster-agent.yml
+    strategy: depend
+  rules:
+    - <<: *include_on_cluster_agent
+    - when: never
