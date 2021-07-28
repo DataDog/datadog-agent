@@ -60,38 +60,61 @@ variables: &commonvariables
     if: $CI_COMMIT_MESSAGE =~ /\[cluster-agent]/
     when: on_success
 
-agent2:
-  stage: triggers
+flow_a:
+  stage: prepare
+  trigger:
+    include:
+      - local: .gitlab-ci/.gitlab-ci-agent-prepare.yml
+    strategy: depend
   variables:
     <<: *commonvariables
     <<: *agent2_variables
-  trigger:
-    include: .gitlab-ci-agent.yml
-    strategy: depend
-  rules:
-    - <<: *exclude_on_cluster_agent
-    - when: on_success
 
-agent3:
-  stage: triggers
+flow_b:
+  stage: build
+  needs:
+    - flow_a
+  trigger:
+    include:
+      - local: .gitlab-ci/.gitlab-ci-agent-prepare.yml
+    strategy: depend
   variables:
     <<: *commonvariables
-    <<: *agent3_variables
-  trigger:
-    include: .gitlab-ci-agent.yml
-    strategy: depend
-  rules:
-    - <<: *exclude_on_cluster_agent
-    - when: on_success
+    <<: *agent2_variables
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
 
-cluster_agent:
-  stage: triggers
-  variables:
-    <<: *commonvariables
-    <<: *agent3_variables
-  trigger:
-    include: .gitlab-ci-cluster-agent.yml
-    strategy: depend
-  rules:
-    - <<: *include_on_cluster_agent
-    - when: never
+# agent2:
+#   stage: triggers
+#   variables:
+#     <<: *commonvariables
+#     <<: *agent2_variables
+#   trigger:
+#     include: .gitlab-ci-agent.yml
+#     strategy: depend
+#   rules:
+#     - <<: *exclude_on_cluster_agent
+#     - when: on_success
+
+# agent3:
+#   stage: triggers
+#   variables:
+#     <<: *commonvariables
+#     <<: *agent3_variables
+#   trigger:
+#     include: .gitlab-ci-agent.yml
+#     strategy: depend
+#   rules:
+#     - <<: *exclude_on_cluster_agent
+#     - when: on_success
+
+# cluster_agent:
+#   stage: triggers
+#   variables:
+#     <<: *commonvariables
+#     <<: *agent3_variables
+#   trigger:
+#     include: .gitlab-ci-cluster-agent.yml
+#     strategy: depend
+#   rules:
+#     - <<: *include_on_cluster_agent
+#     - when: never
