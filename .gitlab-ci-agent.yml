@@ -117,9 +117,10 @@ clear_deps_win_cache:
     - windows_agent7_ps1
 
 initialize:
+  image: docker.io/hello-world:latest
   stage: prepare
-  script:
-    - echo "This build is a workaround for 'https://gitlab.com/gitlab-org/gitlab/issues/30631'"
+  # script:
+  #   - echo "This build is a workaround for 'https://gitlab.com/gitlab-org/gitlab/issues/30631'"
   dependencies: []
 
 deps_deb:
