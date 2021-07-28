@@ -1,8 +1,5 @@
 image: docker.io/stackstate/stackstate-agent-runner-gitlab:latest7
 
-stages:
-  - prepare
-
 ######################### pipeline bricks
 
 .retrieve_linux_go_deps_script: &retrieve_linux_go_deps_script |
@@ -41,16 +38,6 @@ stages:
   cmd /c if exist %GOPATH%\src\github.com\StackVista\stackstate-agent rd /s/q %GOPATH%\src\github.com\StackVista\stackstate-agent
   New-Item -ItemType SymbolicLink -Path "$Env:GOPATH\\src\\github.com\\StackVista\\stackstate-agent" -Target $current_dir -Force
 
-.rules:
-  - &only_agent_3
-    if: $MAJOR_VERSION == "3"
-  - &only_agent_3_always
-    if: $MAJOR_VERSION == "3"
-    when: always
-  - &only_agent_3_release
-    if: $MAJOR_VERSION == "3" && ($CI_COMMIT_TAG || $CI_JOB_TRIGGERED == "true")
-    when: manual
-
 ######################### /pipeline bricks
 
 before_script:
@@ -58,7 +45,6 @@ before_script:
   - *retrieve_linux_go_deps_script
 
 deps_deb:
-  stage: prepare
   interruptible: true
   cache:
     key: "deps-deb-$STS_VER-$CI_COMMIT_REF_SLUG"
@@ -86,7 +72,6 @@ deps_deb:
       - stuck_or_timeout_failure
 
 deps_rpm:
-  stage: prepare
   interruptible: true
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_latest_v7
   cache:
@@ -116,7 +101,6 @@ deps_rpm:
       - stuck_or_timeout_failure
 
 deps_win:
-  stage: prepare
   interruptible: true
   before_script:
     - *configure_windows_ps1_env_script

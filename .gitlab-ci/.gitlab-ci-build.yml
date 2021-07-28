@@ -1,0 +1,89 @@
+image: docker.io/stackstate/stackstate-agent-runner-gitlab:latest7
+
+######################### pipeline bricks
+
+.retrieve_linux_go_deps_script: &retrieve_linux_go_deps_script |
+  echo "~~~~~> Trying to retrieve_linux_go_deps"
+  ls *.tar.gz || true
+  [ -e "go-bin.tar.gz" ] && mkdir -p $GOPATH/bin && tar xzf go-bin.tar.gz -C $GOPATH/bin
+  [ -e "go-pkg.tar.gz" ] && mkdir -p $GOPATH/pkg && tar xzf go-pkg.tar.gz -C $GOPATH/pkg
+  [ -e "vendor.tar.gz" ] && mkdir vendor && tar xzf vendor.tar.gz -C vendor
+  rm -f go-bin.tar.gz go-pkg.tar.gz vendor.tar.gz || true
+  echo "~~~~~> /Trying..."
+
+.configure_centos_env_script: &configure_centos_env_script |
+  . /root/.gimme/envs/go1.13.11.env
+  . /root/miniconda3/etc/profile.d/conda.sh
+  conda activate $CONDA_ENV
+  mkdir -p /go/src/github.com/StackVista
+  rm -rf /go/src/github.com/StackVista/stackstate-agent || true
+  ln -s $CI_PROJECT_DIR /go/src/github.com/StackVista/stackstate-agent
+  . /usr/local/rvm/scripts/rvm
+  export PATH=/go/bin:/usr/local/go/bin:$PATH
+  eval $(gimme)
+
+.configure_debian_env_script: &configure_debian_env_script |
+  . /root/miniconda3/etc/profile.d/conda.sh # TODO: check possibility to use bash from the start
+  conda activate $CONDA_ENV
+  mkdir -p /go/src/github.com/StackVista
+  rm -rf /go/src/github.com/StackVista/stackstate-agent || true
+  . /usr/local/rvm/scripts/rvm
+  ln -s $CI_PROJECT_DIR /go/src/github.com/StackVista/stackstate-agent
+
+.configure_windows_ps1_env_script: &configure_windows_ps1_env_script |
+  Import-Module C:\tools\miniconda3\shell\condabin\conda-hook.ps1
+  conda activate $CONDA_ENV
+  $current_dir=Get-Location
+  New-Item -ItemType Directory -Force -Path "$Env:GOPATH\\src\\github.com\\StackVista"
+  cmd /c if exist %GOPATH%\src\github.com\StackVista\stackstate-agent rd /s/q %GOPATH%\src\github.com\StackVista\stackstate-agent
+  New-Item -ItemType SymbolicLink -Path "$Env:GOPATH\\src\\github.com\\StackVista\\stackstate-agent" -Target $current_dir -Force
+
+######################### /pipeline bricks
+
+before_script:
+  - *configure_debian_env_script
+  - *retrieve_linux_go_deps_script
+
+.rules:
+  - &only_agent_3
+    if: $MAJOR_VERSION == "3"
+
+build_binaries:
+  stage: build_prepare_and_test
+  interruptible: true
+  needs:
+    - deps_deb
+  script:
+    - conda activate $CONDA_ENV
+    - inv -e dogstatsd.build --static --major-version $MAJOR_VERSION
+    - inv -e rtloader.make
+    - inv -e rtloader.install
+    - cd $SRC_PATH
+    - inv -e agent.build --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
+  tags:
+    - sts-k8s-m-runner
+  retry:
+    max: 2
+    when:
+      - always
+
+build_cluster_agent:
+  stage: build_prepare_and_test
+  interruptible: true
+  needs:
+    - deps_deb
+  script:
+    - conda activate $CONDA_ENV
+    - inv -e cluster-agent.build
+    - ls -la $CI_PROJECT_DIR/bin/
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/bin/stackstate-cluster-agent
+      - $CI_PROJECT_DIR/Dockerfiles/cluster-agent/stackstate-cluster.yaml
+      - $CI_PROJECT_DIR/version.txt
+  rules:
+    - *only_agent_3
+  retry:
+    max: 2
+    when:
+      - always

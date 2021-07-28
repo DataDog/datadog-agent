@@ -61,25 +61,54 @@ variables: &commonvariables
     if: $CI_COMMIT_MESSAGE =~ /\[cluster-agent]/
     when: on_success
 
-flow_a:
+# Prepare step
+
+agent_2_prepare:
   stage: prepare
   trigger:
     include:
-      - local: .gitlab-ci/.gitlab-ci-agent-prepare.yml
+      - local: .gitlab-ci/.gitlab-ci-prepare.yml
     strategy: depend
   variables:
     <<: *commonvariables
     <<: *agent2_variables
 
-flow_b:
-  stage: build
+agent_3_prepare:
+  stage: prepare
   trigger:
     include:
-      - local: .gitlab-ci/.gitlab-ci-agent-prepare.yml
+      - local: .gitlab-ci/.gitlab-ci-prepare.yml
+    strategy: depend
+  variables:
+    <<: *commonvariables
+    <<: *agent3_variables
+
+# Prepare step
+
+agent_2_build:
+  stage: build
+  needs:
+    - agent_2_prepare
+  trigger:
+    include:
+      - local: .gitlab-ci/.gitlab-ci-build.yml
     strategy: depend
   variables:
     <<: *commonvariables
     <<: *agent2_variables
+
+agent_3_build:
+  stage: build
+  needs:
+    - agent_3_prepare
+  trigger:
+    include:
+      - local: .gitlab-ci/.gitlab-ci-build.yml
+    strategy: depend
+  variables:
+    <<: *commonvariables
+    <<: *agent3_variables
+
 
 # agent2:
 #   stage: triggers
