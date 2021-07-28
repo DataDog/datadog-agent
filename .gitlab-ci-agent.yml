@@ -722,7 +722,11 @@ test_compose_molecule:
 
 destroy_compose_molecule:
    <<: *molecule_base
+   when:
+     - on_failure
+     - on_success
    needs:
+     - create_compose_molecule
      - test_compose_molecule
    stage: acceptance_cleanup
    interruptible: true
@@ -772,9 +776,13 @@ test_integrations_molecule:
 
 destroy_integrations_molecule:
    <<: *molecule_base
+   when:
+     - on_failure
+     - on_success
    stage: acceptance_cleanup
    needs:
      - test_integrations_molecule
+     - create_integrations_molecule
    interruptible: true
    script:
      - cd $CI_PROJECT_DIR/test
@@ -827,9 +835,13 @@ test_kubernetes_molecule:
 
 destroy_kubernetes_molecule:
    <<: *molecule_base
+   when:
+     - on_failure
+     - on_success
    stage: acceptance_cleanup
    needs:
      - test_kubernetes_molecule
+     - create_kubernetes_molecule
    interruptible: true
    script:
      - cd $CI_PROJECT_DIR/test
@@ -883,9 +895,13 @@ test_local_install_molecule:
 
 destroy_local_install_molecule:
   <<: *molecule_base
+  when:
+    - on_failure
+    - on_success
   stage: acceptance_cleanup
   needs:
     - test_local_install_molecule
+    - create_local_install_molecule
   interruptible: true
   script:
     - cd $CI_PROJECT_DIR/test
@@ -941,7 +957,11 @@ test_secrets_molecule:
 destroy_secrets_molecule:
   <<: *molecule_base
   stage: acceptance_cleanup
+  when:
+    - on_failure
+    - on_success
   needs:
+    - create_secrets_molecule
     - test_secrets_molecule
   interruptible: true
   script:
@@ -996,7 +1016,11 @@ test_swarm_molecule:
 destroy_swarm_molecule:
   <<: *molecule_base
   stage: acceptance_cleanup
+  when:
+    - on_failure
+    - on_success
   needs:
+    - create_swarm_molecule
     - test_swarm_molecule
   interruptible: true
   script:
@@ -1048,8 +1072,12 @@ test_vms_molcule:
 
 destroy_vms_molecule:
    <<: *molecule_base
+   when:
+     - on_failure
+     - on_success
    stage: acceptance_cleanup
    needs:
+     - create_vms_molecule
      - test_vms_molcule
    interruptible: true
    script:
