@@ -20,6 +20,8 @@ and instructions on how this should be tested in QA.
 
 - [ ] A [release note](https://github.com/DataDog/datadog-agent/blob/main/docs/dev/contributing.md#reno) has been added or the `changelog/no-changelog` label has been applied.
 - [ ] The `need-change/operator` and `need-change/helm` labels has been applied if applicable.
+- [ ] The appropriate `team/..` label has been applied, if known.
+- [ ]  if known, an appropriate milestone has been selected otherwise `Triage` milestone is set.
 - [ ] The [config template](https://github.com/DataDog/datadog-agent/blob/main/pkg/config/config_template.yaml) has been updated if applicable.
 
 Note: Adding GitHub labels is only possible for contributors with write access.
