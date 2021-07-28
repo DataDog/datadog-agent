@@ -217,7 +217,7 @@ func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 
 // Stop causes the Daemon to gracefully shut down. After a delay, the HTTP server
 // is shut down, data is flushed a final time, and then the agents are shut down.
-func (d *Daemon) Stop(isTimeout bool) {
+func (d *Daemon) Stop() {
 	// Can't shut down before starting
 	// If the DogStatsD daemon isn't ready, wait for it.
 
@@ -330,7 +330,7 @@ func (d *Daemon) ComputeGlobalTags(configTags []string) {
 			d.MetricAgent.DogStatDServer.SetExtraTags(tagArray)
 		}
 		if d.TraceAgent != nil {
-			d.TraceAgent.Get().SetGlobalTags(tags.BuildTracerTags(tagMap))
+			d.TraceAgent.Get().SetGlobalTagsUnsafe(tags.BuildTracerTags(tagMap))
 		}
 		d.ExtraTags.Tags = tagArray
 		source := serverlessLog.GetLambdaSource()
