@@ -102,7 +102,10 @@
                     "$ref": "#/definitions/bool_commit"
                 }
             ]
-        }
+        },
+        "required": [
+            "selinux"
+        ]
     },
     "allOf": [
         {
