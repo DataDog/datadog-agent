@@ -1,7 +1,7 @@
 ---
 - name: "Gather existing EC2 instances for the branch '{{ agent_current_branch }}'"
   ec2_instance_info:
-    minimum_uptime: 60
+    uptime: 60
     filters:
       instance-state-name: [ "running" ]
       "tag:ci_sts_major_python_version": "{{ ci_sts_major_python_version }}"

@@ -743,7 +743,7 @@ compose_molecule_acceptance_success_cleanup:
 compose_molecule_acceptance_failure_cleanup:
    <<: *compose_cleanup_base
    stage: acceptance_cleanup
-   when: success
+   when: on_success
    needs:
      - compose_molecule_test
 
@@ -815,7 +815,7 @@ integrations_molecule_acceptance_success_cleanup:
 integrations_molecule_acceptance_failure_cleanup:
    <<: *integrations_cleanup_base
    stage: acceptance_cleanup
-   when: success
+   when: on_success
    needs:
      - integrations_molecule_test
 
@@ -892,7 +892,7 @@ kubernetes_molecule_acceptance_success_cleanup:
 kubernetes_molecule_acceptance_failure_cleanup:
    <<: *kubernetes_cleanup_base
    stage: acceptance_cleanup
-   when: success
+   when: on_success
    needs:
      - kubernetes_molecule_test
 
@@ -968,7 +968,7 @@ localinstall_molecule_acceptance_success_cleanup:
 localinstall_molecule_acceptance_failure_cleanup:
    <<: *localinstall_cleanup_base
    stage: acceptance_cleanup
-   when: success
+   when: on_success
    needs:
      - localinstall_molecule_test
 
@@ -1045,7 +1045,7 @@ secrets_molecule_acceptance_success_cleanup:
 secrets_molecule_acceptance_failure_cleanup:
    <<: *secrets_cleanup_base
    stage: acceptance_cleanup
-   when: success
+   when: on_success
    needs:
      - secrets_molecule_test
 
@@ -1121,7 +1121,7 @@ swarm_molecule_acceptance_success_cleanup:
 swarm_molecule_acceptance_failure_cleanup:
    <<: *swarm_cleanup_base
    stage: acceptance_cleanup
-   when: success
+   when: on_success
    needs:
      - swarm_molecule_test
 
@@ -1195,7 +1195,7 @@ vms_molecule_acceptance_success_cleanup:
 vms_molecule_acceptance_failure_cleanup:
    <<: *vms_cleanup_base
    stage: acceptance_cleanup
-   when: success
+   when: on_success
    needs:
      - vms_molecule_test
 
