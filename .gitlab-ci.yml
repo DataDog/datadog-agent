@@ -73,7 +73,7 @@ flow_a:
 flow_b:
   stage: build
   needs:
-    - flow_a
+    - prepare
   trigger:
     include:
       - local: .gitlab-ci/.gitlab-ci-agent-prepare.yml
