@@ -61,6 +61,12 @@
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
 
+    - name: Delete namespace '{{namespace}}' and global lock if we took it
+      ignore_errors: yes
+      shell: kubectl delete ns test-global-lock
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
     - name: Create global lock namespace (only one test can run on the cluster at the same time)
       shell: kubectl create ns test-global-lock
       args:

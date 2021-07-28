@@ -681,7 +681,6 @@ pre_release_cluster_agent_image:
     when:
       - always
 
-
 # Job Seq: Molecule
 # Type: Compose
 # Steps: Create, Create Cleanup (optional), Test, (Test Cleanup)
@@ -1160,7 +1159,7 @@ swarm_molecule_acceptance_failure_cleanup:
    <<: *swarm_cleanup_base
    stage: acceptance_cleanup
    rules:
-     - *only_agent_3
+     - *only_agent_3_failure
    needs:
      - swarm_molecule_test
 
