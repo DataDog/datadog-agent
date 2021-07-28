@@ -56,6 +56,9 @@ stages:
   - &only_agent_3_failure
     if: $MAJOR_VERSION == "3"
     when: on_failure
+  - &only_agent_3_always
+    if: $MAJOR_VERSION == "3"
+    when: always
   - &only_agent_3_release
     if: $MAJOR_VERSION == "3" && ($CI_COMMIT_TAG || $CI_JOB_TRIGGERED == "true")
     when: manual
@@ -728,6 +731,7 @@ destroy_compose_molecule:
    when:
      - on_failure
      - on_success
+     - always
    needs:
      - create_compose_molecule
      - test_compose_molecule
@@ -782,6 +786,7 @@ destroy_integrations_molecule:
    when:
      - on_failure
      - on_success
+     - always
    stage: acceptance_cleanup
    needs:
      - test_integrations_molecule
@@ -849,6 +854,7 @@ destroy_kubernetes_molecule:
    allow_failure: true
    rules:
      - *only_agent_3_failure
+     - *only_agent_3_always
      - *only_agent_3_success
 
 # Molecule Local Install
@@ -899,6 +905,7 @@ destroy_local_install_molecule:
   when:
     - on_failure
     - on_success
+    - always
   stage: acceptance_cleanup
   needs:
     - test_local_install_molecule
@@ -958,17 +965,18 @@ test_secrets_molecule:
 destroy_secrets_molecule:
   <<: *molecule_base
   stage: acceptance_cleanup
+  interruptible: true
+  allow_failure: true
   when:
     - on_failure
     - on_success
+    - always
   needs:
     - create_secrets_molecule
     - test_secrets_molecule
-  interruptible: true
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/secrets/provisioner.setup.yml destroy --scenario-name secrets
-  allow_failure: true
   # only:
   #   - tags
   #   - master
@@ -1027,6 +1035,7 @@ destroy_swarm_molecule:
   allow_failure: true
   rules:
      - *only_agent_3_failure
+     - *only_agent_3_always
      - *only_agent_3_success
 
 # Molecule VMS
@@ -1074,6 +1083,7 @@ destroy_vms_molecule:
    when:
      - on_failure
      - on_success
+     - always
    stage: acceptance_cleanup
    needs:
      - create_vms_molecule
