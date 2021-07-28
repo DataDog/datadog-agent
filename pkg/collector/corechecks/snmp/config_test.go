@@ -105,20 +105,6 @@ tags:
 profiles:
   f5-big-ip:
     definition_file: f5-big-ip.yaml
-    inline-profile:
-      device:
-        vendor: "f5"
-      sysobjectid: 1.2.3
-      metric_tags:
-        - OID: 1.3.6.1.2.1.1.5.0
-          symbol: sysName
-          tag: snmp_host
-      metrics:
-        - MIB: MY-PROFILE-MIB
-          forced_type: gauge
-          symbol:
-            OID: 1.4.5
-            name: myMetric
 global_metrics:
 - symbol:
     OID: 1.2.3.4
