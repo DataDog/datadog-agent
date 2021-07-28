@@ -661,8 +661,7 @@ pre_release_cluster_agent_image:
   retry:
     max: 2
     when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
+      - always
 
 # ===
 
@@ -682,8 +681,7 @@ pre_release_cluster_agent_image:
   retry:
     max: 2
     when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
+      - always
 
 # Molecule Compose
 
