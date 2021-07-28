@@ -415,12 +415,7 @@ func (ac *AutoConfig) AddScheduler(name string, s scheduler.Scheduler, replayCon
 		return
 	}
 
-	var configs []integration.Config
-	ac.store.withLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
-		for _, c := range loadedConfigs {
-			configs = append(configs, c)
-		}
-	})
+	configs := ac.AllLoadedConfigs()
 	s.Schedule(configs)
 }
 
@@ -574,6 +569,20 @@ func (ac *AutoConfig) WithLoadedConfigs(f func(map[string]integration.Config)) {
 		return
 	}
 	ac.store.withLoadedConfigs(f)
+}
+
+// AllLoadedConfigs returns a slice of all loaded configs.  This slice
+// is freshly created and will not be modified after return.
+func (ac *AutoConfig) AllLoadedConfigs() []integration.Config {
+	var configs []integration.Config
+	ac.store.withLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
+		configs = make([]integration.Config, 0, len(loadedConfigs))
+		for _, c := range loadedConfigs {
+			configs = append(configs, c)
+		}
+	})
+
+	return configs
 }
 
 // GetUnresolvedTemplates returns templates in cache yet to be resolved
