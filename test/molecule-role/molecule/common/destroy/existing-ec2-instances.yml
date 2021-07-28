@@ -4,6 +4,8 @@
 # This search is based on the agent_current_branch variable
 
 # We limit the max to be deleted under or equal to 3 if more than 3 is found then I'll assume that a bug has pulled through
+
+# Beware !!! if you remove tag:usage you may delete all the ec2 instances
 - name: "Gather existing EC2 instances for the branch '{{ agent_current_branch }}'"
   ec2_instance_info:
     filters:

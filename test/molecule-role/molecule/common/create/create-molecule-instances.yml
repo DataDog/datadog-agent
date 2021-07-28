@@ -13,6 +13,7 @@
       agent_current_branch: "{{ agent_current_branch }}"
       molecule_scenario_name: "{{ molecule_scenario_name }}"
       ci_sts_major_python_version: "{{ ci_sts_major_python_version }}"
+      usage: "molecule-build"
       molecule: yes
     wait: true
     network:
