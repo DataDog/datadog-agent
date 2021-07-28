@@ -68,29 +68,15 @@ platforms:
       - receiver_vm
     ssh_user: ubuntu
 
-provisioner:
-  name: ansible
-  config_options:
-    defaults:
-      any_errors_fatal: true
-  playbooks:
-    create: playbook.create.yml
-    destroy: playbook.destroy.yml
-    prepare: playbook.prepare.yml
-  inventory:
-    links:
-      group_vars: group_vars/
-      host_vars: host_vars/
-  lint:
-    name: ansible-lint
-
 scenario:
   name: vms
   create_sequence:
-    - destroy
     - dependency
+    - cleanup
+    - destroy
     - syntax
     - create
+    - prepare
   test_sequence:
     - dependency
     - syntax

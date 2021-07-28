@@ -69,14 +69,11 @@
         to_port: 0
         cidr_ip: '0.0.0.0/0'
   tasks:
+    - include_tasks: ../common/create/create-structure.yml
     - include_tasks: ../common/create/create-security-group.yml
-    - include_tasks: ../common/create/test-for-presence-of-local-keypair.yml
-    - include_tasks: ../common/create/delete-remote-keypair.yml
-    - include_tasks: ../common/create/create-keypair.yml
-    - include_tasks: ../common/create/persist-the-keypair.yml
-    - include_tasks: ../common/create/write-keypair-to-encrypted-file.yml
+    - include_tasks: ../common/create/keypair.yml
     - include_tasks: ../common/create/create-molecule-instances.yml
     - include_tasks: ../common/create/wait-for-instance-creation-to-complete.yml
-    - include_tasks: ../common/create/wait-for-ssh-instance-check.yml
+    - include_tasks: ../common/create/wait-for-ssh.yml
     - include_tasks: ../common/create/wait-for-winrm-instance-check.yml
     - include_tasks: ../common/create/wait-for-boot-process-to-finish.yml
