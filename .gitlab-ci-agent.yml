@@ -116,6 +116,12 @@ clear_deps_win_cache:
   tags:
     - windows_agent7_ps1
 
+initialize:
+  stage: prepare
+  script:
+    - echo "This build is a workaround for 'https://gitlab.com/gitlab-org/gitlab/issues/30631'"
+  dependencies: []
+
 deps_deb:
   stage: prepare
   interruptible: true
@@ -648,6 +654,8 @@ pre_release_cluster_agent_image:
   stage: build_prepare_and_test
   interruptible: true
   dependencies: []
+  needs:
+    - initialize
   variables:
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
   before_script:
