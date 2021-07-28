@@ -50,11 +50,9 @@ stages:
 .rules:
   - &only_agent_3
     if: $MAJOR_VERSION == "3"
-  - &only_agent_3_success_and_failure
+  - &only_agent_3_success
     if: $MAJOR_VERSION == "3"
-    when:
-      - on_failure
-      - on_success
+    when: on_success
   - &only_agent_3_failure
     if: $MAJOR_VERSION == "3"
     when: on_failure
@@ -850,7 +848,8 @@ destroy_kubernetes_molecule:
      - ./molecule3.sh --base-config ./molecule/kubernetes/provisioner.setup.yml destroy --scenario-name kubernetes
    allow_failure: true
    rules:
-     - *only_agent_3_success_and_failure
+     - *only_agent_3_failure
+     - *only_agent_3_success
 
 # Molecule Local Install
 
@@ -1027,7 +1026,8 @@ destroy_swarm_molecule:
     - ./molecule3.sh --base-config ./molecule/swarm/provisioner.setup.yml destroy --scenario-name swarm
   allow_failure: true
   rules:
-    - *only_agent_3_success_and_failure
+     - *only_agent_3_failure
+     - *only_agent_3_success
 
 # Molecule VMS
 
