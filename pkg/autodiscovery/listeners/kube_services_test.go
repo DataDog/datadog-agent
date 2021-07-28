@@ -9,6 +9,7 @@
 package listeners
 
 import (
+	"context"
 	"sort"
 	"testing"
 
@@ -21,6 +22,7 @@ import (
 )
 
 func TestProcessService(t *testing.T) {
+	ctx := context.Background()
 	ksvc := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			ResourceVersion: "123",
@@ -51,15 +53,15 @@ func TestProcessService(t *testing.T) {
 	assert.Equal(t, "kube_service_uid://test", svc.GetEntity())
 	assert.Equal(t, integration.Before, svc.GetCreationTime())
 
-	adID, err := svc.GetADIdentifiers()
+	adID, err := svc.GetADIdentifiers(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"kube_service_uid://test"}, adID)
 
-	hosts, err := svc.GetHosts()
+	hosts, err := svc.GetHosts(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]string{"cluster": "10.0.0.1"}, hosts)
 
-	ports, err := svc.GetPorts()
+	ports, err := svc.GetPorts(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, []ContainerPort{{123, "test1"}, {126, "test2"}}, ports)
 

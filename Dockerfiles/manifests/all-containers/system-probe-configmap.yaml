@@ -15,8 +15,8 @@ data:
       bpf_debug: false
       enable_tcp_queue_length: false
       enable_oom_kill: false
-      collect_dns_stats: false
-      max_tracked_connections: 65536
+      collect_dns_stats: true
+      max_tracked_connections: 131072
       conntrack_max_state_size: 131072
     network_config:
       enabled: true
@@ -186,6 +186,7 @@ data:
             "stat64",
             "statfs",
             "sysinfo",
+            "tgkill",
             "umask",
             "uname",
             "unlink",
@@ -193,7 +194,10 @@ data:
             "wait4",
             "waitid",
             "waitpid",
-            "write"
+            "write",
+            "getgroups",
+            "getpgrp",
+            "setpgid"
           ],
           "action": "SCMP_ACT_ALLOW",
           "args": null

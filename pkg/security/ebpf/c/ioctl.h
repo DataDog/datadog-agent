@@ -5,7 +5,7 @@
 
 SEC("kprobe/do_vfs_ioctl")
 int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
-    if (is_eprc_request(ctx)) {
+    if (is_erpc_request(ctx)) {
         return handle_erpc_request(ctx);
     }
 

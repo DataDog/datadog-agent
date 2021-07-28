@@ -133,6 +133,8 @@ type Event struct {
 	SetGID SetgidEvent `field:"setgid" event:"setgid"`
 	Capset CapsetEvent `field:"capset" event:"capset"`
 
+	SELinux SELinuxEvent `field:"selinux" event:"selinux"`
+
 	Mount            MountEvent            `field:"-"`
 	Umount           UmountEvent           `field:"-"`
 	InvalidateDentry InvalidateDentryEvent `field:"-"`
@@ -230,7 +232,6 @@ type Process struct {
 	Tid uint32 `field:"tid"`
 
 	PathnameStr         string `field:"file.path"`
-	ContainerPath       string `field:"file.container_path"`
 	BasenameStr         string `field:"file.name"`
 	Filesystem          string `field:"file.filesystem"`
 	PathResolutionError error  `field:"-"`
@@ -304,10 +305,9 @@ func (f *FileFields) GetInUpperLayer() bool {
 // FileEvent is the common file event type
 type FileEvent struct {
 	FileFields
-	PathnameStr   string `field:"path,ResolveFilePath"`
-	ContainerPath string `field:"container_path,ResolveFileContainerPath"`
-	BasenameStr   string `field:"name,ResolveFileBasename"`
-	Filesytem     string `field:"filesystem,ResolveFileFilesystem"`
+	PathnameStr string `field:"path,ResolveFilePath"`
+	BasenameStr string `field:"name,ResolveFileBasename"`
+	Filesytem   string `field:"filesystem,ResolveFileFilesystem"`
 
 	PathResolutionError error `field:"-"`
 }
@@ -406,6 +406,28 @@ type OpenEvent struct {
 	File  FileEvent `field:"file"`
 	Flags uint32    `field:"flags"`
 	Mode  uint32    `field:"file.destination.mode"`
+}
+
+// SELinuxEventKind represents the event kind for SELinux events
+type SELinuxEventKind uint32
+
+const (
+	// SELinuxBoolChangeEventKind represents SELinux boolean change events
+	SELinuxBoolChangeEventKind SELinuxEventKind = iota
+	// SELinuxStatusChangeEventKind represents SELinux status change events
+	SELinuxStatusChangeEventKind
+	// SELinuxBoolCommitEventKind represents SELinux boolean commit events
+	SELinuxBoolCommitEventKind
+)
+
+// SELinuxEvent represents a selinux event
+type SELinuxEvent struct {
+	File            FileEvent        `field:"-"`
+	EventKind       SELinuxEventKind `field:"-"`
+	BoolName        string           `field:"bool.name,ResolveSELinuxBoolName"`
+	BoolChangeValue string           `field:"bool.state"`
+	BoolCommitValue bool             `field:"bool_commit.state"`
+	EnforceStatus   string           `field:"enforce.status"`
 }
 
 var zeroProcessContext ProcessContext

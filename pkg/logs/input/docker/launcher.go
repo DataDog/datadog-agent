@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -62,14 +63,16 @@ type Launcher struct {
 
 // IsAvailable retrues true if the launcher is available and a retrier otherwise
 func IsAvailable() (bool, *retry.Retrier) {
+	if !coreConfig.IsFeaturePresent(coreConfig.Docker) {
+		return false, nil
+	}
+
 	util, retrier := dockerutil.GetDockerUtilWithRetrier()
 	if util != nil {
 		log.Info("Docker launcher is available")
 		return true, nil
 	}
-	if coreConfig.IsFeaturePresent(coreConfig.Docker) {
-		log.Warnf("Docker launcher is not available: %v", retrier.LastError())
-	}
+
 	return false, retrier
 }
 
@@ -150,7 +153,7 @@ func (l *Launcher) run() {
 				log.Warnf("Could not use docker client, logs for container %s won’t be collected: %v", service.Identifier, err)
 				continue
 			}
-			dockerContainer, err := dockerutil.Inspect(service.Identifier, false)
+			dockerContainer, err := dockerutil.Inspect(context.TODO(), service.Identifier, false)
 			if err != nil {
 				log.Warnf("Could not find container with id: %v", err)
 				continue
@@ -221,7 +224,7 @@ func (l *Launcher) overrideSource(container *Container, source *config.LogSource
 		l.collectAllSource.RegisterInfo(l.collectAllInfo)
 	}
 
-	shortName, err := container.getShortImageName()
+	shortName, err := container.getShortImageName(context.TODO())
 	containerID := container.service.Identifier
 	if err != nil {
 		log.Warnf("Could not get short image name for container %v: %v", ShortContainerID(containerID), err)
@@ -253,8 +256,7 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 	}
 
 	standardService := l.serviceNameFunc(container.container.Name, dockerutil.ContainerIDToTaggerEntityName(containerID))
-	shortName, err := container.getShortImageName()
-
+	shortName, err := container.getShortImageName(context.TODO())
 	if err != nil {
 		log.Warnf("Could not get short image name for container %v: %v", ShortContainerID(containerID), err)
 	}
@@ -262,6 +264,9 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 	// Update parent source with additional information
 	sourceInfo.SetMessage(containerID, fmt.Sprintf("Container ID: %s, Image: %s, Created: %s, Tailing from file: %s", ShortContainerID(containerID), shortName, container.container.Created, l.getPath(containerID)))
 
+	// When ContainerCollectAll is not enabled, we try to derive the service and source names from container labels
+	// provided by AD (in this case, the parent source config). Otherwise we use the standard service or short image
+	// name for the service name and always use the short image name for the source name.
 	var serviceName string
 	if source.Name != config.ContainerCollectAll && source.Config.Service != "" {
 		serviceName = source.Config.Service
@@ -271,13 +276,18 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 		serviceName = shortName
 	}
 
+	sourceName := shortName
+	if source.Name != config.ContainerCollectAll && source.Config.Source != "" {
+		sourceName = source.Config.Source
+	}
+
 	// New file source that inherit most of its parent properties
 	fileSource := config.NewLogSource(source.Name, &config.LogsConfig{
 		Type:            config.FileType,
 		Identifier:      containerID,
 		Path:            l.getPath(containerID),
 		Service:         serviceName,
-		Source:          shortName,
+		Source:          sourceName,
 		Tags:            source.Config.Tags,
 		ProcessingRules: source.Config.ProcessingRules,
 	})

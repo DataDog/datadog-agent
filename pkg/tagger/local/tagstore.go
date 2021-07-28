@@ -32,14 +32,12 @@ type entityTags struct {
 	cachedAll          []string // Low + orchestrator + high
 	cachedOrchestrator []string // Low + orchestrator (subslice of cachedAll)
 	cachedLow          []string // Sub-slice of cachedAll
-	toDelete           map[string]struct{}
 }
 
 func newEntityTags(entityID string) *entityTags {
 	return &entityTags{
 		entityID:   entityID,
 		sourceTags: make(map[string]sourceTags),
-		toDelete:   make(map[string]struct{}),
 		cacheValid: true,
 	}
 }
@@ -63,6 +61,8 @@ type tagStore struct {
 	telemetry map[string]map[string]float64
 
 	subscriber *subscriber.Subscriber
+
+	clock clock
 }
 
 func newTagStore() *tagStore {
@@ -70,6 +70,7 @@ func newTagStore() *tagStore {
 		telemetry:  make(map[string]map[string]float64),
 		store:      make(map[string]*entityTags),
 		subscriber: subscriber.NewSubscriber(),
+		clock:      realClock{},
 	}
 }
 
@@ -97,7 +98,11 @@ func (s *tagStore) processTagInfo(tagInfos []*collectors.TagInfo) {
 
 		if info.DeleteEntity {
 			if exist {
-				storedTags.toDelete[info.Source] = struct{}{}
+				st, ok := storedTags.sourceTags[info.Source]
+				if ok {
+					st.expiryDate = s.clock.Now().Add(deletedTTL)
+					storedTags.sourceTags[info.Source] = st
+				}
 			}
 
 			continue
@@ -201,21 +206,11 @@ func (s *tagStore) prune() {
 	s.Lock()
 	defer s.Unlock()
 
-	now := time.Now()
+	now := s.clock.Now()
 	events := []types.EntityEvent{}
 
 	for entity, storedTags := range s.store {
 		changed := false
-
-		// remove any sourceTags queued for deletion
-		for source := range storedTags.toDelete {
-			if _, ok := storedTags.sourceTags[source]; !ok {
-				continue
-			}
-
-			delete(storedTags.sourceTags, source)
-			changed = true
-		}
 
 		// remove any sourceTags that have expired
 		for source, st := range storedTags.sourceTags {
@@ -244,7 +239,6 @@ func (s *tagStore) prune() {
 			})
 		} else {
 			storedTags.cacheValid = false
-			storedTags.toDelete = make(map[string]struct{})
 			events = append(events, types.EntityEvent{
 				EventType: types.EventTypeModified,
 				Entity:    storedTags.toEntity(),

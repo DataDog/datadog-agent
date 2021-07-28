@@ -19,7 +19,7 @@ type MockCollector struct {
 	SendCalledC chan bool
 }
 
-func (c MockCollector) Send(s *serializer.Serializer) error {
+func (c MockCollector) Send(ctx context.Context, s *serializer.Serializer) error {
 	c.SendCalledC <- true
 	return nil
 }
@@ -28,7 +28,7 @@ type MockCollectorWithInit struct {
 	InitCalledC chan bool
 }
 
-func (c MockCollectorWithInit) Send(s *serializer.Serializer) error {
+func (c MockCollectorWithInit) Send(ctx context.Context, s *serializer.Serializer) error {
 	return nil
 }
 

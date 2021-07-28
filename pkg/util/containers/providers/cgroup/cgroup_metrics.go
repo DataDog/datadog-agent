@@ -266,7 +266,8 @@ func (c ContainerCgroup) CPUPeriods() (throttledNr uint64, throttledTime float64
 
 // CPULimit would show CPU limit for this cgroup.
 // It does so by checking the cpu period and cpu quota config
-// if a user does this:
+// or cpuset if CPUs are pinned.
+// If a user does this:
 //
 //	docker run --cpus='0.5' ubuntu:latest
 //
@@ -274,28 +275,53 @@ func (c ContainerCgroup) CPUPeriods() (throttledNr uint64, throttledTime float64
 //
 // However cfs_period_us is per CPU, which means that
 //
-// docker run --cpu='2' ubuntu:latest
+// docker run --cpus='2' ubuntu:latest
 //
 // Will yield 200% (cfs_period_us = 100000, cfs_quota_us = 200000)
+//
+// If a user does:
+//
+// docker run --cpuset-cpus='1,3' ubuntu:latest
+//
+// we should return 200%
+//
+// In the case that both CFS quota and CPU sets are defined, we take the minimum.
 //
 // If the limits files aren't available (on older version) then
 // we'll return the default value of numCPU * 100.
 func (c ContainerCgroup) CPULimit() (float64, error) {
-	limit := float64(system.HostCPUCount()) * 100.0
+	defaultLimit := float64(system.HostCPUCount()) * 100.0
+	limitFromCPUSet := float64(-1)
+	limitFromQuota := float64(-1)
+
+	cpusetFile := c.cgroupFilePath("cpuset", "cpuset.cpus")
+	cpuLines, err := readLines(cpusetFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Debugf("Missing cgroup file: %s", cpusetFile)
+		} else {
+			return 0, err
+		}
+	} else {
+		numCPUs := parseCPUSetFile(cpuLines)
+		if numCPUs > 0 {
+			limitFromCPUSet = float64(numCPUs) * 100.0
+		}
+	}
 
 	periodFile := c.cgroupFilePath("cpu", "cpu.cfs_period_us")
 	quotaFile := c.cgroupFilePath("cpu", "cpu.cfs_quota_us")
 	plines, err := readLines(periodFile)
 	if os.IsNotExist(err) {
 		log.Debugf("Missing cgroup file: %s", periodFile)
-		return limit, nil
+		return defaultLimit, nil
 	} else if err != nil {
 		return 0, err
 	}
 	qlines, err := readLines(quotaFile)
 	if os.IsNotExist(err) {
 		log.Debugf("Missing cgroup file: %s", quotaFile)
-		return limit, nil
+		return defaultLimit, nil
 	} else if err != nil {
 		return 0, err
 	}
@@ -334,9 +360,23 @@ func (c ContainerCgroup) CPULimit() (float64, error) {
 
 	// default cpu limit is 100%
 	if (period > 0) && (quota > 0) {
-		limit = quota / period * 100.0
+		limitFromQuota = quota / period * 100.0
 	}
-	return limit, nil
+
+	// Return min of limitFromCPUSet and limitFromQuota. If they are both -1, return default
+	if limitFromCPUSet == -1 && limitFromQuota == -1 {
+		return defaultLimit, nil
+	}
+
+	if limitFromCPUSet == -1 {
+		return limitFromQuota, nil
+	}
+
+	if limitFromQuota == -1 {
+		return limitFromCPUSet, nil
+	}
+
+	return math.Min(limitFromQuota, limitFromCPUSet), nil
 }
 
 // IO returns the disk read and write bytes stats for this cgroup.

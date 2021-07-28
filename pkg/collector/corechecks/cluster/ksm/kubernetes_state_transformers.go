@@ -313,8 +313,9 @@ var jobTimestampPattern = regexp.MustCompile(`(-\d{4,10}$)`)
 
 // trimJobTag removes the timestamp from the job name tag
 // Expected job tag format: <job>-<timestamp>
-func trimJobTag(tag string) string {
-	return jobTimestampPattern.ReplaceAllString(tag, "")
+func trimJobTag(tag string) (string, bool) {
+	trimmed := jobTimestampPattern.ReplaceAllString(tag, "")
+	return trimmed, tag != trimmed
 }
 
 // validateJob detects active jobs and strips the timestamp from the job_name tag
@@ -328,7 +329,11 @@ func validateJob(val float64, tags []string) ([]string, bool) {
 		split := strings.Split(tag, ":")
 		if len(split) == 2 && split[0] == "kube_job" || split[0] == "job" || split[0] == "job_name" {
 			// Trim the timestamp suffix to avoid high cardinality
-			tags[i] = fmt.Sprintf("%s:%s", split[0], trimJobTag(split[1]))
+			if name, trimmed := trimJobTag(split[1]); trimmed {
+				// The trimmed job name corresponds to the parent cronjob name
+				// https://github.com/kubernetes/kubernetes/blob/v1.21.0/pkg/controller/cronjob/utils.go#L240
+				tags[i] = "kube_cronjob:" + name
+			}
 		}
 	}
 

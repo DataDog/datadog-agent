@@ -8,8 +8,9 @@ package rules
 import (
 	"sort"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/pkg/errors"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 )
 
 // RuleBucket groups rules with the same event type

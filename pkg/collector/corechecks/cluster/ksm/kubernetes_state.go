@@ -9,6 +9,7 @@ package ksm
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -35,6 +37,11 @@ import (
 const (
 	kubeStateMetricsCheckName = "kubernetes_state_core"
 	maximumWaitForAPIServer   = 10 * time.Second
+
+	// createdByKind represents the KSM label key created_by_kind
+	createdByKind = "created_by_kind"
+	// createdByName represents the KSM label key created_by_name
+	createdByName = "created_by_name"
 )
 
 // KSMConfig contains the check config parameters
@@ -71,6 +78,9 @@ type KSMConfig struct {
 	//   - zone:eu
 	Tags []string `yaml:"tags"`
 
+	// DisableGlobalTags disables adding the global host tags defined via tags/DD_TAG in the Agent config, default false.
+	DisableGlobalTags bool `yaml:"disable_global_tags"`
+
 	// Namespaces contains the namespaces from which we collect metrics
 	// Example: Enable metric collection for objects in prod and kube-system namespaces.
 	// namespaces:
@@ -98,6 +108,7 @@ type KSMCheck struct {
 	telemetry   *telemetryCache
 	cancel      context.CancelFunc
 	isCLCRunner bool
+	clusterName string
 }
 
 // JoinsConfig contains the config parameters for label joins
@@ -159,6 +170,9 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 	// Prepare labels mapper
 	k.mergeLabelsMapper(defaultLabelsMapper)
 
+	// Retrieve cluster name
+	k.getClusterName()
+
 	k.initTags()
 
 	builder := kubestatemetrics.New()
@@ -174,6 +188,16 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 	if err := builder.WithEnabledResources(collectors); err != nil {
 		return err
 	}
+
+	// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
+	// Equivalent to configuring --metric-labels-allowlist.
+	allowedLabels := map[string][]string{}
+	for _, collector := range collectors {
+		// Any label can be used for label joins.
+		allowedLabels[collector] = []string{"*"}
+	}
+
+	builder.WithAllowLabels(allowedLabels)
 
 	// Prepare watched namespaces
 	namespaces := k.instance.Namespaces
@@ -302,11 +326,6 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 				// Some metrics can be aggregated and consumed as-is or by a transformer.
 				// So, let’s continue the processing.
 			}
-			if metadataMetricsRegex.MatchString(metricFamily.Name) {
-				// metadata metrics are only used by the check for label joins
-				// they shouldn't be forwarded to Datadog
-				continue
-			}
 			if transform, found := metricTransformers[metricFamily.Name]; found {
 				for _, m := range metricFamily.ListMetrics {
 					hostname, tags := k.hostnameAndTags(m.Labels, labelJoiner)
@@ -322,6 +341,11 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 				continue
 			}
 			if _, found := metricAggregators[metricFamily.Name]; found {
+				continue
+			}
+			if metadataMetricsRegex.MatchString(metricFamily.Name) {
+				// metadata metrics are only used by the check for label joins
+				// they shouldn't be forwarded to Datadog
 				continue
 			}
 			// ignore the metric if it doesn't have a transformer
@@ -345,17 +369,37 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 		tag, hostTag := k.buildTag(key, value)
 		tags = append(tags, tag)
 		if hostTag != "" {
-			hostname = hostTag
+			if k.clusterName != "" {
+				hostname = hostTag + "-" + k.clusterName
+			} else {
+				hostname = hostTag
+			}
 		}
 	}
 
 	// apply label joins
+	ownerKind, ownerName := "", ""
 	for _, label := range labelsToAdd {
-		tag, hostTag := k.buildTag(label.key, label.value)
-		tags = append(tags, tag)
-		if hostTag != "" {
-			hostname = hostTag
+		switch label.key {
+		case createdByKind:
+			ownerKind = label.value
+		case createdByName:
+			ownerName = label.value
+		default:
+			tag, hostTag := k.buildTag(label.key, label.value)
+			tags = append(tags, tag)
+			if hostTag != "" {
+				if k.clusterName != "" {
+					hostname = hostTag + "-" + k.clusterName
+				} else {
+					hostname = hostTag
+				}
+			}
 		}
+	}
+
+	if owners := ownerTags(ownerKind, ownerName); len(owners) != 0 {
+		tags = append(tags, owners...)
 	}
 
 	return hostname, append(tags, k.instance.Tags...)
@@ -419,15 +463,28 @@ func (k *KSMCheck) mergeLabelJoins(extra map[string]*JoinsConfig) {
 	}
 }
 
+// getClusterName retrieves the name of the cluster, if found
+func (k *KSMCheck) getClusterName() {
+	hostname, _ := util.GetHostname(context.TODO())
+	if clusterName := clustername.GetClusterName(context.TODO(), hostname); clusterName != "" {
+		k.clusterName = clusterName
+	}
+}
+
 // initTags avoids keeping a nil Tags field in the check instance
-// and sets the kube_cluster_name tag for all metrics
+// Sets the kube_cluster_name tag for all metrics.
+// Adds the global user-defined tags from the Agent config.
 func (k *KSMCheck) initTags() {
 	if k.instance.Tags == nil {
 		k.instance.Tags = []string{}
 	}
-	hostname, _ := util.GetHostname()
-	if clusterName := clustername.GetClusterName(hostname); clusterName != "" {
-		k.instance.Tags = append(k.instance.Tags, "kube_cluster_name:"+clusterName)
+
+	if k.clusterName != "" {
+		k.instance.Tags = append(k.instance.Tags, "kube_cluster_name:"+k.clusterName)
+	}
+
+	if !k.instance.DisableGlobalTags {
+		k.instance.Tags = append(k.instance.Tags, config.GetConfiguredTags(false)...)
 	}
 }
 
@@ -549,4 +606,35 @@ func buildDeniedMetricsSet(collectors []string) options.MetricSet {
 	}
 
 	return deniedMetrics
+}
+
+// ownerTags returns kube_<kind> tags based on given kind and name.
+// If the owner is a replicaset, it tries to get the kube_deployment tag in addition to kube_replica_set.
+// If the owner is a job, it tries to get the kube_cronjob tag in addition to kube_job.
+func ownerTags(kind, name string) []string {
+	if kind == "" || name == "" {
+		log.Debugf("Empty kind: %q or name: %q", kind, name)
+		return nil
+	}
+
+	tagKey, found := kubernetes.KindToTagName[kind]
+	if !found {
+		log.Debugf("Unknown owner kind %q", kind)
+		return nil
+	}
+
+	tagFormat := "%s:%s"
+	tags := []string{fmt.Sprintf(tagFormat, tagKey, name)}
+	switch kind {
+	case kubernetes.JobKind:
+		if cronjob := kubernetes.ParseCronJobForJob(name); cronjob != "" {
+			return append(tags, fmt.Sprintf(tagFormat, kubernetes.CronJobTagName, cronjob))
+		}
+	case kubernetes.ReplicaSetKind:
+		if deployment := kubernetes.ParseDeploymentForReplicaSet(name); deployment != "" {
+			return append(tags, fmt.Sprintf(tagFormat, kubernetes.DeploymentTagName, deployment))
+		}
+	}
+
+	return tags
 }

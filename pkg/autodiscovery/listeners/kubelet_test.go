@@ -8,6 +8,7 @@
 package listeners
 
 import (
+	"context"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -135,10 +136,17 @@ func getMockedPods() []*kubelet.Pod {
 			},
 		},
 	}
+	initContainerSpecs := []kubelet.ContainerSpec{
+		{
+			Name:  "init",
+			Image: "org/init:latest",
+		},
+	}
 	kubeletSpec := kubelet.Spec{
-		HostNetwork: false,
-		NodeName:    "mockn-node",
-		Containers:  containerSpecs,
+		HostNetwork:    false,
+		NodeName:       "mockn-node",
+		Containers:     containerSpecs,
+		InitContainers: initContainerSpecs,
 	}
 	containerStatuses := []kubelet.ContainerStatus{
 		{
@@ -187,20 +195,33 @@ func getMockedPods() []*kubelet.Pod {
 			ID:    "docker://custom-check-id",
 		},
 	}
-	kubeletStatus := kubelet.Status{
-		Phase:         "Running",
-		PodIP:         "127.0.0.1",
-		HostIP:        "127.0.0.2",
-		Containers:    containerStatuses,
-		AllContainers: containerStatuses,
+
+	initContainerStatuses := []kubelet.ContainerStatus{
+		{
+			Name:  "init",
+			Image: "org/init:latest",
+			ID:    "docker://init-container",
+			State: kubelet.ContainerState{Terminated: &kubelet.ContainerStateTerminated{ExitCode: 0}},
+		},
 	}
+
+	kubeletStatus := kubelet.Status{
+		Phase:          "Running",
+		PodIP:          "127.0.0.1",
+		HostIP:         "127.0.0.2",
+		Containers:     containerStatuses,
+		InitContainers: initContainerStatuses,
+		AllContainers:  append(containerStatuses, initContainerStatuses...),
+	}
+
 	return []*kubelet.Pod{
 		{
 			Spec:   kubeletSpec,
 			Status: kubeletStatus,
 			Metadata: kubelet.PodMetadata{
-				UID:  "mock-pod-uid",
-				Name: "mock-pod",
+				UID:       "mock-pod-uid",
+				Name:      "mock-pod",
+				Namespace: "mock-pod-namespace",
 				Annotations: map[string]string{
 					"ad.datadoghq.com/baz.check_names": "[\"baz_check\"]",
 					"ad.datadoghq.com/baz.instances":   "[]",
@@ -212,6 +233,8 @@ func getMockedPods() []*kubelet.Pod {
 }
 
 func TestProcessNewPod(t *testing.T) {
+	ctx := context.Background()
+
 	config.Datadog.SetDefault("ac_include", []string{"name:baz"})
 	config.Datadog.SetDefault("ac_exclude", []string{"image:datadoghq.com/baz.*"})
 	config.Datadog.SetDefault("container_exclude_metrics", []string{"name:metrics-excluded"})
@@ -226,7 +249,7 @@ func TestProcessNewPod(t *testing.T) {
 		config.Datadog.SetDefault("exclude_pause_container", true)
 	}()
 
-	services := make(chan Service, 9)
+	services := make(chan Service, 10)
 	listener := KubeletListener{
 		newService: services,
 		services:   make(map[string]Service),
@@ -239,18 +262,27 @@ func TestProcessNewPod(t *testing.T) {
 	case service := <-services:
 		assert.Equal(t, "docker://foorandomhash", service.GetEntity())
 		assert.Equal(t, "container_id://foorandomhash", service.GetTaggerEntity())
-		adIdentifiers, err := service.GetADIdentifiers()
+		adIdentifiers, err := service.GetADIdentifiers(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"docker://foorandomhash", "datadoghq.com/foo:latest", "foo"}, adIdentifiers)
-		hosts, err := service.GetHosts()
+		hosts, err := service.GetHosts(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
-		ports, err := service.GetPorts()
+		ports, err := service.GetPorts(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, []ContainerPort{{1337, "footcpport"}, {1339, "fooudpport"}}, ports)
-		_, err = service.GetPid()
+		_, err = service.GetPid(ctx)
 		assert.Equal(t, ErrNotSupported, err)
-		assert.Len(t, service.GetCheckNames(), 0)
+		assert.Len(t, service.GetCheckNames(ctx), 0)
+		podName, err := service.GetExtraConfig([]byte("pod_name"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod"), podName)
+		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-uid"), podUID)
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
 		assert.FailNow(t, "first service not in channel")
 	}
@@ -259,20 +291,29 @@ func TestProcessNewPod(t *testing.T) {
 	case service := <-services:
 		assert.Equal(t, "rkt://bar-random-hash", service.GetEntity())
 		assert.Equal(t, "container_id://bar-random-hash", service.GetTaggerEntity())
-		adIdentifiers, err := service.GetADIdentifiers()
+		adIdentifiers, err := service.GetADIdentifiers(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"rkt://bar-random-hash", "datadoghq.com/bar:latest", "bar"}, adIdentifiers)
-		hosts, err := service.GetHosts()
+		hosts, err := service.GetHosts(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
-		ports, err := service.GetPorts()
+		ports, err := service.GetPorts(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, []ContainerPort{{1122, "barport"}}, ports)
-		_, err = service.GetPid()
+		_, err = service.GetPid(ctx)
 		assert.Equal(t, ErrNotSupported, err)
-		assert.Len(t, service.GetCheckNames(), 0)
+		assert.Len(t, service.GetCheckNames(ctx), 0)
 		assert.False(t, service.HasFilter(containers.MetricsFilter))
 		assert.False(t, service.HasFilter(containers.LogsFilter))
+		podName, err := service.GetExtraConfig([]byte("pod_name"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod"), podName)
+		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-uid"), podUID)
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
 		assert.FailNow(t, "second service not in channel")
 	}
@@ -281,20 +322,29 @@ func TestProcessNewPod(t *testing.T) {
 	case service := <-services:
 		assert.Equal(t, "docker://containerid", service.GetEntity())
 		assert.Equal(t, "container_id://containerid", service.GetTaggerEntity())
-		adIdentifiers, err := service.GetADIdentifiers()
+		adIdentifiers, err := service.GetADIdentifiers(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"docker://containerid", "datadoghq.com/baz:latest", "baz"}, adIdentifiers)
-		hosts, err := service.GetHosts()
+		hosts, err := service.GetHosts(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
-		ports, err := service.GetPorts()
+		ports, err := service.GetPorts(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, []ContainerPort{{1122, "barport"}}, ports)
-		_, err = service.GetPid()
+		_, err = service.GetPid(ctx)
 		assert.Equal(t, ErrNotSupported, err)
-		assert.Equal(t, []string{"baz_check"}, service.GetCheckNames())
+		assert.Equal(t, []string{"baz_check"}, service.GetCheckNames(ctx))
 		assert.False(t, service.HasFilter(containers.MetricsFilter))
 		assert.False(t, service.HasFilter(containers.LogsFilter))
+		podName, err := service.GetExtraConfig([]byte("pod_name"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod"), podName)
+		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-uid"), podUID)
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
 		assert.FailNow(t, "third service not in channel")
 	}
@@ -303,20 +353,29 @@ func TestProcessNewPod(t *testing.T) {
 	case service := <-services:
 		assert.Equal(t, "docker://clustercheck", service.GetEntity())
 		assert.Equal(t, "container_id://clustercheck", service.GetTaggerEntity())
-		adIdentifiers, err := service.GetADIdentifiers()
+		adIdentifiers, err := service.GetADIdentifiers(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"docker://clustercheck", "k8s.gcr.io/pause:latest", "pause"}, adIdentifiers)
-		hosts, err := service.GetHosts()
+		hosts, err := service.GetHosts(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
-		ports, err := service.GetPorts()
+		ports, err := service.GetPorts(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, []ContainerPort{{1122, "barport"}}, ports)
-		_, err = service.GetPid()
+		_, err = service.GetPid(ctx)
 		assert.Equal(t, ErrNotSupported, err)
-		assert.Len(t, service.GetCheckNames(), 0)
+		assert.Len(t, service.GetCheckNames(ctx), 0)
 		assert.False(t, service.HasFilter(containers.MetricsFilter))
 		assert.False(t, service.HasFilter(containers.LogsFilter))
+		podName, err := service.GetExtraConfig([]byte("pod_name"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod"), podName)
+		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-uid"), podUID)
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
 		assert.FailNow(t, "fourth service not in channel")
 	}
@@ -328,20 +387,29 @@ func TestProcessNewPod(t *testing.T) {
 	case service := <-services:
 		assert.Equal(t, "docker://metrics-excluded", service.GetEntity())
 		assert.Equal(t, "container_id://metrics-excluded", service.GetTaggerEntity())
-		adIdentifiers, err := service.GetADIdentifiers()
+		adIdentifiers, err := service.GetADIdentifiers(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"docker://metrics-excluded", "metrics/excluded:latest", "excluded"}, adIdentifiers)
-		hosts, err := service.GetHosts()
+		hosts, err := service.GetHosts(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
-		ports, err := service.GetPorts()
+		ports, err := service.GetPorts(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, []ContainerPort{{1122, "barport"}}, ports)
-		_, err = service.GetPid()
+		_, err = service.GetPid(ctx)
 		assert.Equal(t, ErrNotSupported, err)
-		assert.Len(t, service.GetCheckNames(), 0)
+		assert.Len(t, service.GetCheckNames(ctx), 0)
 		assert.True(t, service.HasFilter(containers.MetricsFilter))
 		assert.False(t, service.HasFilter(containers.LogsFilter))
+		podName, err := service.GetExtraConfig([]byte("pod_name"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod"), podName)
+		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-uid"), podUID)
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
 		assert.FailNow(t, "fifth service not in channel")
 	}
@@ -350,20 +418,29 @@ func TestProcessNewPod(t *testing.T) {
 	case service := <-services:
 		assert.Equal(t, "docker://logs-excluded", service.GetEntity())
 		assert.Equal(t, "container_id://logs-excluded", service.GetTaggerEntity())
-		adIdentifiers, err := service.GetADIdentifiers()
+		adIdentifiers, err := service.GetADIdentifiers(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"docker://logs-excluded", "logs/excluded:latest", "excluded"}, adIdentifiers)
-		hosts, err := service.GetHosts()
+		hosts, err := service.GetHosts(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
-		ports, err := service.GetPorts()
+		ports, err := service.GetPorts(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, []ContainerPort{{1122, "barport"}}, ports)
-		_, err = service.GetPid()
+		_, err = service.GetPid(ctx)
 		assert.Equal(t, ErrNotSupported, err)
-		assert.Len(t, service.GetCheckNames(), 0)
+		assert.Len(t, service.GetCheckNames(ctx), 0)
 		assert.False(t, service.HasFilter(containers.MetricsFilter))
 		assert.True(t, service.HasFilter(containers.LogsFilter))
+		podName, err := service.GetExtraConfig([]byte("pod_name"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod"), podName)
+		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-uid"), podUID)
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
 		assert.FailNow(t, "sixth service not in channel")
 	}
@@ -373,20 +450,29 @@ func TestProcessNewPod(t *testing.T) {
 	case service := <-services:
 		assert.Equal(t, "docker://bad-status-random-hash", service.GetEntity())
 		assert.Equal(t, "container_id://bad-status-random-hash", service.GetTaggerEntity())
-		adIdentifiers, err := service.GetADIdentifiers()
+		adIdentifiers, err := service.GetADIdentifiers(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"docker://bad-status-random-hash", "datadoghq.com/foo:latest", "foo"}, adIdentifiers)
-		hosts, err := service.GetHosts()
+		hosts, err := service.GetHosts(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
-		ports, err := service.GetPorts()
+		ports, err := service.GetPorts(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, []ContainerPort{{1122, "barport"}}, ports)
-		_, err = service.GetPid()
+		_, err = service.GetPid(ctx)
 		assert.Equal(t, ErrNotSupported, err)
-		assert.Len(t, service.GetCheckNames(), 0)
+		assert.Len(t, service.GetCheckNames(ctx), 0)
 		assert.False(t, service.HasFilter(containers.MetricsFilter))
 		assert.False(t, service.HasFilter(containers.LogsFilter))
+		podName, err := service.GetExtraConfig([]byte("pod_name"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod"), podName)
+		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-uid"), podUID)
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
 		assert.FailNow(t, "eighth service not in channel")
 	}
@@ -395,22 +481,62 @@ func TestProcessNewPod(t *testing.T) {
 	case service := <-services:
 		assert.Equal(t, "docker://custom-check-id", service.GetEntity())
 		assert.Equal(t, "container_id://custom-check-id", service.GetTaggerEntity())
-		adIdentifiers, err := service.GetADIdentifiers()
+		adIdentifiers, err := service.GetADIdentifiers(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"custom-check-id", "docker://custom-check-id", "org/custom:latest", "custom"}, adIdentifiers)
-		hosts, err := service.GetHosts()
+		hosts, err := service.GetHosts(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
-		ports, err := service.GetPorts()
+		ports, err := service.GetPorts(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, []ContainerPort{{1122, "barport"}}, ports)
-		_, err = service.GetPid()
+		_, err = service.GetPid(ctx)
 		assert.Equal(t, ErrNotSupported, err)
-		assert.Len(t, service.GetCheckNames(), 0)
+		assert.Len(t, service.GetCheckNames(ctx), 0)
 		assert.False(t, service.HasFilter(containers.MetricsFilter))
 		assert.False(t, service.HasFilter(containers.LogsFilter))
+		podName, err := service.GetExtraConfig([]byte("pod_name"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod"), podName)
+		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-uid"), podUID)
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
 	default:
 		assert.FailNow(t, "ninth service not in channel")
+	}
+
+	select {
+	case service := <-services:
+		assert.Equal(t, "docker://init-container", service.GetEntity())
+		assert.Equal(t, "container_id://init-container", service.GetTaggerEntity())
+		adIdentifiers, err := service.GetADIdentifiers(ctx)
+		assert.Nil(t, err)
+		assert.Equal(t, []string{"docker://init-container", "org/init:latest", "init"}, adIdentifiers)
+		hosts, err := service.GetHosts(ctx)
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
+		ports, err := service.GetPorts(ctx)
+		assert.Nil(t, err)
+		assert.Len(t, ports, 0)
+		_, err = service.GetPid(ctx)
+		assert.Equal(t, ErrNotSupported, err)
+		assert.Len(t, service.GetCheckNames(ctx), 0)
+		assert.True(t, service.HasFilter(containers.MetricsFilter)) // Init containers are excluded
+		assert.False(t, service.HasFilter(containers.LogsFilter))
+		podName, err := service.GetExtraConfig([]byte("pod_name"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod"), podName)
+		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-uid"), podUID)
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
+	default:
+		assert.FailNow(t, "tenth service not in channel")
 	}
 
 	// Pod service
@@ -418,18 +544,18 @@ func TestProcessNewPod(t *testing.T) {
 	case service := <-services:
 		assert.Equal(t, "kubernetes_pod://mock-pod-uid", service.GetEntity())
 		assert.Equal(t, "kubernetes_pod_uid://mock-pod-uid", service.GetTaggerEntity())
-		adIdentifiers, err := service.GetADIdentifiers()
+		adIdentifiers, err := service.GetADIdentifiers(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"kubernetes_pod://mock-pod-uid"}, adIdentifiers)
-		hosts, err := service.GetHosts()
+		hosts, err := service.GetHosts(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
-		ports, err := service.GetPorts()
+		ports, err := service.GetPorts(ctx)
 		assert.Nil(t, err)
 		assert.Equal(t, []ContainerPort{{1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1122, "barport"}, {1337, "footcpport"}, {1339, "fooudpport"}}, ports)
-		_, err = service.GetPid()
+		_, err = service.GetPid(ctx)
 		assert.Equal(t, ErrNotSupported, err)
-		assert.Len(t, service.GetCheckNames(), 0)
+		assert.Len(t, service.GetCheckNames(ctx), 0)
 		assert.False(t, service.HasFilter(containers.MetricsFilter))
 		assert.False(t, service.HasFilter(containers.LogsFilter))
 	default:

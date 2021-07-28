@@ -9,6 +9,7 @@
 package providers
 
 import (
+	"context"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
@@ -270,6 +271,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
 			api := &MockServiceAPI{}
 			defer api.AssertExpectations(t)
 
@@ -283,7 +285,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 			}
 
 			p := newPromServicesProvider(test.checks, api, test.collectEndpoints)
-			configs, err := p.Collect()
+			configs, err := p.Collect(ctx)
 
 			assert.Equal(t, test.expectConfigs, configs)
 			assert.Equal(t, test.expectErr, err)
@@ -292,6 +294,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 }
 
 func TestPrometheusServicesInvalidate(t *testing.T) {
+	ctx := context.Background()
 	api := &MockServiceAPI{}
 	svc := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -310,7 +313,7 @@ func TestPrometheusServicesInvalidate(t *testing.T) {
 	p.setUpToDate(true)
 	p.invalidate(svc)
 
-	upToDate, err := p.IsUpToDate()
+	upToDate, err := p.IsUpToDate(ctx)
 	assert.NoError(t, err)
 	assert.False(t, upToDate)
 	assert.Empty(t, p.monitoredEndpoints)
@@ -427,11 +430,12 @@ func TestPrometheusServicesInvalidateIfChanged(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
 			p := newPromServicesProvider(checks, api, true)
 			p.setUpToDate(true)
 			p.invalidateIfChanged(test.old, test.new)
 
-			upToDate, err := p.IsUpToDate()
+			upToDate, err := p.IsUpToDate(ctx)
 			assert.NoError(t, err)
 			assert.Equal(t, test.expectUpToDate, upToDate)
 		})
@@ -612,6 +616,7 @@ func TestPrometheusServicesInvalidateIfChangedEndpoints(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
 			p := newPromServicesProvider(checks, api, true)
 			p.setUpToDate(true)
 			for _, monitored := range test.monitoredEndpoints {
@@ -619,7 +624,7 @@ func TestPrometheusServicesInvalidateIfChangedEndpoints(t *testing.T) {
 			}
 			p.invalidateIfChangedEndpoints(test.old, test.new)
 
-			upToDate, err := p.IsUpToDate()
+			upToDate, err := p.IsUpToDate(ctx)
 			assert.NoError(t, err)
 			assert.Equal(t, test.expectUpToDate, upToDate)
 		})

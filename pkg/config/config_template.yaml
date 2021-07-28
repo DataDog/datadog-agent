@@ -500,6 +500,11 @@ api_key:
 #
 # secret_backend_timeout: 30
 
+## @param secret_backend_skip_checks - boolean - optional - default: false
+## Disable fetching secrets for check configurations
+#
+# secret_backend_skip_checks: false
+
 ## @param snmp_listener - custom object - optional
 ## Creates and schedules a listener to automatically discover your SNMP devices.
 ## Discovered devices can then be monitored with the SNMP integration by using
@@ -581,9 +586,10 @@ api_key:
 
     ## @param community_string - string - optional
     ## Required for SNMP v1 & v2.
+    ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
     ## Ex: 'public'
     #
-    # community_string: <COMMUNITY>
+    # community_string: '<COMMUNITY>'
 
     ## @param user - string - optional
     ## The username to connect to your SNMP devices.
@@ -733,6 +739,11 @@ api_key:
   #
   # compression_level: 6
 
+  ## @param batch_wait - integer - optional - default: 5
+  ## The maximum time the Datadog Agent waits to fill each batch of logs before sending.
+  #
+  # batch_wait: 5
+
 {{ end -}}
 {{- if .TraceAgent }}
 
@@ -864,6 +875,56 @@ api_key:
   ## Limits the total number of warnings and errors to 10 for every 10 second interval.
   #
   # log_throttling: true
+
+  {{- if .InternalProfiling -}}
+  ## @param profiling - custom object - optional
+  ## Enter specific configurations for internal profiling.
+  ##
+  ## Please note that:
+  ##   1. This does *not* enable profiling for user applications.
+  ##   2. This only enables internal profiling of the agent go runtime.
+  ##   3. To enable profiling for user apps please refer to
+  ##      https://docs.datadoghq.com/tracing/profiling/
+  ##   4. Enabling this feature will incur in billing charges and other
+  ##      unexpected side-effects (ie. agent profiles showing with your
+  ##      services).
+  ##
+  ## Uncomment this parameter and the one below to enable profiling.
+  #
+  # internal_profiling:
+  #
+    ## @param enabled - boolean - optional - default: false
+    ## Enable internal profiling for the trace-agent process.
+    #
+    # enabled: false
+
+  {{ end }}
+
+####################################
+## AppSec Configuration           ##
+####################################
+
+## @param appsec_config - custom object - optional
+## Enter specific configurations for your AppSec collection.
+## Uncomment the parameters `appsec_config` and `enabled` to enable AppSec.
+#
+# appsec_config:
+
+  ## @param enabled - boolean - optional - default: true
+  ## Enable the AppSec proxy in the APM Agent.
+  #
+  # enabled: true
+
+  ## @param appsec_dd_url - string - optional
+  ## Define the endpoint and port to hit when using a proxy for AppSec. Logs are forwarded by TCP;
+  ## therefore, the proxy must be able to handle TCP connections.
+  #
+  # appsec_dd_url: <ENDPOINT>:<PORT>
+
+  ## @param max_payload_size - integer - optional - default: 5242880 (5MB)
+  ## Define the maximum HTTP payload size (the body) in bytes the AppSec proxy allows.
+  #
+  # max_payload_size: 5242880
 
 {{ end -}}
 {{- if .ProcessAgent }}
@@ -1545,6 +1606,34 @@ api_key:
 # extra_config_providers:
 #   - clusterchecks
 
+## @param autoconfig_exclude_features - list of comma separated strings - optional
+## Exclude features automatically detected and enabled by environment autodiscovery.
+## Supported syntax is a list of `(<attribute>:)<regexp>`. Currently only the `name` attribute is supported.
+## When no attribute is present, it defaults to `name:` attribute.
+#
+# autoconfig_exclude_features:
+#  - cloudfoundry
+#  - containerd
+#  - cri
+#  - docker
+#  - ecsfargate
+#  - eksfargate
+#  - kubernetes
+#  - orchestratorexplorer
+
+## @param autoconfig_include_features - list of comma separated strings - optional
+## Force activation of features (as if they were discovered by environment autodiscovery).
+#
+# autoconfig_include_features:
+#  - cloudfoundry
+#  - containerd
+#  - cri
+#  - docker
+#  - ecsfargate
+#  - eksfargate
+#  - kubernetes
+#  - orchestratorexplorer
+
 {{ end -}}
 {{- if .Autodiscovery }}
 
@@ -2089,6 +2178,11 @@ api_key:
   #
   # poll_interval: 60
 
+  ## @param apps_batch_size - integer - optional - default: 5000
+  ## Number of apps per page to collect when calling the list apps endpoint of the CC API. Max 5000.
+  #
+  # apps_batch_size: 5000
+
 {{ end -}}
 {{- if .SNMP }}
 
@@ -2116,11 +2210,12 @@ api_key:
   ## @param community_strings - list of strings - required
   ## A list of known SNMPv2 community strings that devices can use to send traps to the Agent.
   ## Traps with an unknown community string are ignored.
+  ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
   ## Must be non-empty.
   #
   # community_strings:
-  #   - <COMMUNITY_1>
-  #   - <COMMUNITY_2>
+  #   - '<COMMUNITY_1>'
+  #   - '<COMMUNITY_2>'
 
   ## @param bind_host - string - optional
   ## The hostname to listen on for incoming trap packets.
