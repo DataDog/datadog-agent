@@ -7,7 +7,7 @@
 
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors -mock -tags linux -output accessors.go
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors -tags linux -output ../probe/accessors.go
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors -doc -output ../../../docs/cloud-workload-security/secl.json
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors -doc -output ../../../docs/cloud-workload-security
 
 package model
 
