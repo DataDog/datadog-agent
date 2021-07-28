@@ -167,11 +167,12 @@ func (di *DriverInterface) GetStats() (map[DriverExpvar]interface{}, error) {
 
 // GetConnectionStats will read all flows from the driver and convert them into ConnectionStats.
 // It returns the count of connections added to the active and closed buffers, respectively.
-func (di *DriverInterface) GetConnectionStats(activeBuf *DriverBuffer, closedBuf *DriverBuffer) (int, int, error) {
+func (di *DriverInterface) GetConnectionStats(activeBuf *DriverBuffer, closedBuf *DriverBuffer, filter func(*ConnectionStats) bool) (int, int, error) {
 	di.bufferLock.Lock()
 	defer di.bufferLock.Unlock()
 
-	var activeCount, closedCount int
+	startActive, startClosed := activeBuf.Len(), closedBuf.Len()
+
 	var bytesRead uint32
 	var totalBytesRead uint32
 	// keep reading while driver says there is more data available
@@ -194,11 +195,19 @@ func (di *DriverInterface) GetConnectionStats(activeBuf *DriverBuffer, closedBuf
 			pfd := (*driver.PerFlowData)(unsafe.Pointer(&(buf[0])))
 
 			if isFlowClosed(pfd.Flags) {
-				FlowToConnStat(closedBuf.Next(), pfd, di.enableMonotonicCounts)
-				closedCount++
+				c := closedBuf.Next()
+				FlowToConnStat(c, pfd, di.enableMonotonicCounts)
+				if !filter(c) {
+					closedBuf.Reclaim(1)
+					continue
+				}
 			} else {
-				FlowToConnStat(activeBuf.Next(), pfd, di.enableMonotonicCounts)
-				activeCount++
+				c := activeBuf.Next()
+				FlowToConnStat(c, pfd, di.enableMonotonicCounts)
+				if !filter(c) {
+					activeBuf.Reclaim(1)
+					continue
+				}
 			}
 		}
 	}
@@ -206,6 +215,8 @@ func (di *DriverInterface) GetConnectionStats(activeBuf *DriverBuffer, closedBuf
 	di.readBuffer = resizeDriverBuffer(int(totalBytesRead), di.readBuffer)
 	atomic.StoreInt64(&di.bufferSize, int64(len(di.readBuffer)))
 
+	activeCount := activeBuf.Len() - startActive
+	closedCount := closedBuf.Len() - startClosed
 	atomic.AddInt64(&di.openFlows, int64(activeCount))
 	atomic.AddInt64(&di.closedFlows, int64(closedCount))
 	atomic.AddInt64(&di.totalFlows, int64(activeCount+closedCount))

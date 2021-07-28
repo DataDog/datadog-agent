@@ -517,8 +517,6 @@ func TestUDPDisabled(t *testing.T) {
 }
 
 func TestLocalDNSCollectionDisabled(t *testing.T) {
-	// config flag not respected
-	skipIfWindows(t)
 	// Enable BPF-based system probe with DNS disabled (by default)
 	config := testConfig()
 
