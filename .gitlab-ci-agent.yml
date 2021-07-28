@@ -51,6 +51,12 @@ stages:
 .rules:
   - &only_agent_3
     if: $MAJOR_VERSION == "3"
+  - &only_agent_3_failure
+    if: $MAJOR_VERSION == "3"
+    when: on_failure
+  - &only_agent_3_success
+    if: $MAJOR_VERSION == "3"
+    when: on_success
   - &only_agent_3_always
     if: $MAJOR_VERSION == "3"
     when: always
@@ -737,13 +743,13 @@ compose_molecule_test:
 compose_molecule_acceptance_success_cleanup:
    <<: *compose_cleanup_base
    stage: acceptance_cleanup
+   when: on_success
    needs:
      - compose_molecule_test
 
 compose_molecule_acceptance_failure_cleanup:
    <<: *compose_cleanup_base
    stage: acceptance_cleanup
-   when: on_success
    needs:
      - compose_molecule_test
 
@@ -809,13 +815,13 @@ integrations_molecule_test:
 integrations_molecule_acceptance_success_cleanup:
    <<: *integrations_cleanup_base
    stage: acceptance_cleanup
+   when: on_success
    needs:
      - integrations_molecule_test
 
 integrations_molecule_acceptance_failure_cleanup:
    <<: *integrations_cleanup_base
    stage: acceptance_cleanup
-   when: on_success
    needs:
      - integrations_molecule_test
 
@@ -824,22 +830,20 @@ integrations_molecule_acceptance_failure_cleanup:
 # Type: kubernetes
 # Steps: Create, Create Cleanup (optional), Test, (Test Cleanup)
 
-# TODO
-# rules:
-#  - *only_agent_3
-
 .kubernetes_cleanup_base: &kubernetes_cleanup_base
    <<: *molecule_base
-   when: on_failure
    interruptible: true
    script:
      - cd $CI_PROJECT_DIR/test
      - ./molecule3.sh --base-config ./molecule/kubernetes/provisioner.run.yml destroy --scenario-name kubernetes
+   rules:
+     - *only_agent_3_failure
 
 kubernetes_molecule_create:
   <<: *molecule_base_prepare
   interruptible: true
-  when: always
+  rules:
+    - *only_agent_3_always
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/kubernetes/provisioner.setup.yml create --scenario-name kubernetes
@@ -858,11 +862,15 @@ kubernetes_molecule_prepare_cleanup:
    stage: prepare_cleanup
    needs:
      - kubernetes_molecule_create
+   rules:
+     - *only_agent_3
 
 kubernetes_molecule_test:
   <<: *molecule_base
   interruptible: true
   when: on_success
+  rules:
+    - *only_agent_3
   dependencies:
     - kubernetes_molecule_create
   needs:
@@ -886,13 +894,14 @@ kubernetes_molecule_test:
 kubernetes_molecule_acceptance_success_cleanup:
    <<: *kubernetes_cleanup_base
    stage: acceptance_cleanup
+   rules:
+     - *only_agent_3_success
    needs:
      - kubernetes_molecule_test
 
 kubernetes_molecule_acceptance_failure_cleanup:
    <<: *kubernetes_cleanup_base
    stage: acceptance_cleanup
-   when: on_success
    needs:
      - kubernetes_molecule_test
 
@@ -901,11 +910,6 @@ kubernetes_molecule_acceptance_failure_cleanup:
 # Type: localinstall
 # Steps: Create, Create Cleanup (optional), Test, (Test Cleanup)
 
-# TODO
-# only:
-#   - tags
-#   - master
-
 .localinstall_cleanup_base: &localinstall_cleanup_base
    <<: *molecule_base
    when: on_failure
@@ -913,6 +917,9 @@ kubernetes_molecule_acceptance_failure_cleanup:
    script:
      - cd $CI_PROJECT_DIR/test
      - ./molecule3.sh --base-config ./molecule/localinstall/provisioner.run.yml destroy --scenario-name localinstall
+  only:
+    - tags
+    - master
 
 localinstall_molecule_create:
   <<: *molecule_base_prepare
@@ -930,12 +937,18 @@ localinstall_molecule_create:
       - $CI_PROJECT_DIR/.molecule
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
+  only:
+    - tags
+    - master
 
 localinstall_molecule_prepare_cleanup:
    <<: *localinstall_cleanup_base
    stage: prepare_cleanup
    needs:
      - localinstall_molecule_create
+   only:
+     - tags
+     - master
 
 localinstall_molecule_test:
   <<: *molecule_base
@@ -958,29 +971,33 @@ localinstall_molecule_test:
       - $CI_PROJECT_DIR/.molecule
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
+  only:
+    - tags
+    - master
 
 localinstall_molecule_acceptance_success_cleanup:
-   <<: *localinstall_cleanup_base
-   stage: acceptance_cleanup
-   needs:
-     - localinstall_molecule_test
-
-localinstall_molecule_acceptance_failure_cleanup:
    <<: *localinstall_cleanup_base
    stage: acceptance_cleanup
    when: on_success
    needs:
      - localinstall_molecule_test
+   only:
+     - tags
+     - master
+
+localinstall_molecule_acceptance_failure_cleanup:
+   <<: *localinstall_cleanup_base
+   stage: acceptance_cleanup
+   needs:
+     - localinstall_molecule_test
+   only:
+     - tags
+     - master
 
 
 # Job Seq: Molecule
 # Type: secrets
 # Steps: Create, Create Cleanup (optional), Test, (Test Cleanup)
-
-# TODO
-# only:
-#   - tags
-#   - master
 
 .secrets_cleanup_base: &secrets_cleanup_base
    <<: *molecule_base
@@ -989,6 +1006,9 @@ localinstall_molecule_acceptance_failure_cleanup:
    script:
      - cd $CI_PROJECT_DIR/test
      - ./molecule3.sh --base-config ./molecule/secrets/provisioner.run.yml destroy --scenario-name secrets
+   only:
+     - tags
+     - master
 
 secrets_molecule_create:
   <<: *molecule_base_prepare
@@ -1006,12 +1026,18 @@ secrets_molecule_create:
       - $CI_PROJECT_DIR/.molecule
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
+   only:
+     - tags
+     - master
 
 secrets_molecule_prepare_cleanup:
    <<: *secrets_cleanup_base
    stage: prepare_cleanup
    needs:
      - secrets_molecule_create
+   only:
+     - tags
+     - master
 
 secrets_molecule_test:
   <<: *molecule_base
@@ -1035,31 +1061,38 @@ secrets_molecule_test:
       - $CI_PROJECT_DIR/.molecule
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
+  only:
+    - tags
+    - master
 
 secrets_molecule_acceptance_success_cleanup:
-   <<: *secrets_cleanup_base
-   stage: acceptance_cleanup
-   needs:
-     - secrets_molecule_test
-
-secrets_molecule_acceptance_failure_cleanup:
    <<: *secrets_cleanup_base
    stage: acceptance_cleanup
    when: on_success
    needs:
      - secrets_molecule_test
+   only:
+     - tags
+     - master
+
+secrets_molecule_acceptance_failure_cleanup:
+   <<: *secrets_cleanup_base
+   stage: acceptance_cleanup
+   needs:
+     - secrets_molecule_test
+   only:
+     - tags
+     - master
 
 
 # Job Seq: Molecule
 # Type: swarm
 # Steps: Create, Create Cleanup (optional), Test, (Test Cleanup)
 
-# rules:
-#   - *only_agent_3
-
 .swarm_cleanup_base: &swarm_cleanup_base
    <<: *molecule_base
-   when: on_failure
+   rules:
+     - *only_agent_3_failure
    interruptible: true
    script:
      - cd $CI_PROJECT_DIR/test
@@ -1068,7 +1101,8 @@ secrets_molecule_acceptance_failure_cleanup:
 swarm_molecule_create:
   <<: *molecule_base_prepare
   interruptible: true
-  when: always
+  rules:
+    - *only_agent_3_always
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/swarm/provisioner.setup.yml create --scenario-name swarm
@@ -1085,13 +1119,16 @@ swarm_molecule_create:
 swarm_molecule_prepare_cleanup:
    <<: *swarm_cleanup_base
    stage: prepare_cleanup
+   rules:
+     - *only_agent_3
    needs:
      - swarm_molecule_create
 
 swarm_molecule_test:
   <<: *molecule_base
   interruptible: true
-  when: on_success
+  rules:
+    - *only_agent_3_success
   dependencies:
     - swarm_molecule_create
   needs:
@@ -1115,13 +1152,16 @@ swarm_molecule_test:
 swarm_molecule_acceptance_success_cleanup:
    <<: *swarm_cleanup_base
    stage: acceptance_cleanup
+   rules:
+     - *only_agent_3_success
    needs:
      - swarm_molecule_test
 
 swarm_molecule_acceptance_failure_cleanup:
    <<: *swarm_cleanup_base
    stage: acceptance_cleanup
-   when: on_success
+   rules:
+     - *only_agent_3
    needs:
      - swarm_molecule_test
 
@@ -1189,13 +1229,13 @@ vms_molecule_test:
 vms_molecule_acceptance_success_cleanup:
    <<: *vms_cleanup_base
    stage: acceptance_cleanup
+   when: on_success
    needs:
      - vms_molecule_test
 
 vms_molecule_acceptance_failure_cleanup:
    <<: *vms_cleanup_base
    stage: acceptance_cleanup
-   when: on_success
    needs:
      - vms_molecule_test
 
