@@ -125,6 +125,8 @@ initialize:
 deps_deb:
   stage: prepare
   interruptible: true
+  needs:
+    - initialize
   cache:
     key: "deps-deb-$STS_VER-$CI_COMMIT_REF_SLUG"
     paths:
@@ -152,6 +154,8 @@ deps_deb:
 
 deps_rpm:
   stage: prepare
+  needs:
+    - initialize
   interruptible: true
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_latest_v7
   cache:
@@ -182,6 +186,8 @@ deps_rpm:
 
 deps_win:
   stage: prepare
+  needs:
+    - initialize
   interruptible: true
   before_script:
     - *configure_windows_ps1_env_script
