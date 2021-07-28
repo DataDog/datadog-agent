@@ -14,7 +14,11 @@
     - include_tasks: ../common/prepare/install-provisioning-dependencies.yml
     - include_tasks: ../common/prepare/configure-aws-credentials.yml
     - include_tasks: ../common/prepare/docker-login.yml
-    - include_tasks: ../common/prepare/copy-receiver-files.yml
+    # - include_tasks: ../common/prepare/copy-receiver-files.yml
+    - name: Copy Receiver files
+      copy:
+        src: "files/receiver/"
+        dest: "/home/ubuntu/"
     - include_tasks: ../common/prepare/copy-verify-and-create-script-file.yml
     - name: Configure .env file used by docker-compose
       copy:
