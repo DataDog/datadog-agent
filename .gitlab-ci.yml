@@ -62,6 +62,7 @@ variables: &commonvariables
 
 agent2:
   stage: triggers
+  interruptible: true
   variables:
     <<: *commonvariables
     <<: *agent2_variables
@@ -74,6 +75,7 @@ agent2:
 
 agent3:
   stage: triggers
+  interruptible: true
   variables:
     <<: *commonvariables
     <<: *agent3_variables
@@ -86,6 +88,7 @@ agent3:
 
 cluster_agent:
   stage: triggers
+  interruptible: true
   variables:
     <<: *commonvariables
     <<: *agent3_variables

@@ -118,6 +118,7 @@ clear_deps_win_cache:
 
 initialize:
   image: docker.io/hello-world:latest
+  interruptible: true
   stage: prepare
   script:
     - echo "This build is a workaround for 'https://gitlab.com/gitlab-org/gitlab/issues/30631'"
