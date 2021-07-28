@@ -63,7 +63,7 @@ variables: &commonvariables
 
 # Prepare step
 
-agent_2_prepare:
+prepare_v2:
   stage: prepare
   trigger:
     include:
@@ -73,7 +73,18 @@ agent_2_prepare:
     <<: *commonvariables
     <<: *agent2_variables
 
-agent_3_prepare:
+build_v2:
+  stage: build
+  trigger:
+    include:
+      - local: .gitlab-ci/.gitlab-ci-build.yml
+    strategy: depend
+  variables:
+    <<: *commonvariables
+    <<: *agent2_variables
+
+
+prepare_v3:
   stage: prepare
   trigger:
     include:
@@ -83,24 +94,8 @@ agent_3_prepare:
     <<: *commonvariables
     <<: *agent3_variables
 
-# Prepare step
-
-agent_2_build:
+build_v3:
   stage: build
-  needs:
-    - agent_2_prepare
-  trigger:
-    include:
-      - local: .gitlab-ci/.gitlab-ci-build.yml
-    strategy: depend
-  variables:
-    <<: *commonvariables
-    <<: *agent2_variables
-
-agent_3_build:
-  stage: build
-  needs:
-    - agent_3_prepare
   trigger:
     include:
       - local: .gitlab-ci/.gitlab-ci-build.yml
