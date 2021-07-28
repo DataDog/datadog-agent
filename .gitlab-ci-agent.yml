@@ -1,13 +1,13 @@
 image: docker.io/stackstate/stackstate-agent-runner-gitlab:latest7
 
 stages:
-  - manual
   - prepare
   - build_prepare_and_test
   - pre_release
   - acceptance
   - acceptance_cleanup
   - release
+  - manual
 
 ######################### pipeline bricks
 
