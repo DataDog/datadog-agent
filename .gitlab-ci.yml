@@ -1,5 +1,6 @@
 stages:
-  - triggers
+  - prepare
+  - build
 
 variables: &commonvariables
   # The SRC_PATH is in the GOPATH of the builders which
