@@ -2,6 +2,7 @@ image: docker.io/stackstate/stackstate-agent-runner-gitlab:latest7
 
 stages:
   - prepare
+  - prepare_cleanup
   - build_prepare_and_test
   - pre_release
   - acceptance
@@ -674,11 +675,13 @@ pre_release_cluster_agent_image:
     when:
       - always
 
-# Molecule Compose
+# Job Seq: Molecule
+# Type: Compose
 
-create_compose_molecule:
+compose_molecule_create:
   <<: *molecule_base_prepare
   interruptible: true
+  when: always
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/compose/provisioner.setup.yml create --scenario-name compose
@@ -692,14 +695,27 @@ create_compose_molecule:
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
 
-test_compose_molecule:
+compose_molecule_prepare_cleanup:
+   <<: *molecule_base
+   stage: prepare_cleanup
+   when: on_failure
+   interruptible: true
+   needs:
+     - compose_molecule_create
+   script:
+     - cd $CI_PROJECT_DIR/test
+     - ./molecule3.sh --base-config ./molecule/compose/provisioner.run.yml destroy --scenario-name compose
+
+compose_molecule_test:
   <<: *molecule_base
   interruptible: true
+  when: on_success
   dependencies:
-    - create_compose_molecule
+    - compose_molecule_create
   needs:
+    - compose_molecule_prepare_cleanup
     - pre_release_main_agent_image
-    - create_compose_molecule
+    - compose_molecule_create
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/compose/provisioner.run.yml prepare --force --scenario-name compose
@@ -714,19 +730,20 @@ test_compose_molecule:
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
 
-destroy_compose_molecule:
+compose_molecule_acceptance_cleanup:
    <<: *molecule_base
-   when:
-     - always
-   needs:
-     - create_compose_molecule
-     - test_compose_molecule
    stage: acceptance_cleanup
    interruptible: true
+   when: on_failure
+   needs:
+     - compose_molecule_test
    script:
      - cd $CI_PROJECT_DIR/test
      - ./molecule3.sh --base-config ./molecule/compose/provisioner.run.yml destroy --scenario-name compose
-   allow_failure: true
+
+
+
+
 
 
 # Molecule Integrations
@@ -771,17 +788,14 @@ test_integrations_molecule:
 
 destroy_integrations_molecule:
    <<: *molecule_base
-   when:
-     - always
+   interruptible: true
    stage: acceptance_cleanup
    needs:
      - test_integrations_molecule
      - create_integrations_molecule
-   interruptible: true
    script:
      - cd $CI_PROJECT_DIR/test
      - ./molecule3.sh --base-config ./molecule/integrations/provisioner.setup.yml destroy --scenario-name integrations
-   allow_failure: true
 
 # Molecule Kubernetes
 
@@ -832,16 +846,15 @@ test_kubernetes_molecule:
 destroy_kubernetes_molecule:
    <<: *molecule_base
    stage: acceptance_cleanup
+   interruptible: true
    needs:
      - test_kubernetes_molecule
      - create_kubernetes_molecule
-   interruptible: true
    script:
      - cd $CI_PROJECT_DIR/test
      - ./molecule3.sh --base-config ./molecule/kubernetes/provisioner.setup.yml destroy --scenario-name kubernetes
-   allow_failure: true
    rules:
-     - *only_agent_3_always
+     - *only_agent_3
 
 # Molecule Local Install
 
@@ -890,17 +903,14 @@ test_local_install_molecule:
 
 destroy_local_install_molecule:
   <<: *molecule_base
-  when:
-    - always
   stage: acceptance_cleanup
+  interruptible: true
   needs:
     - test_local_install_molecule
     - create_local_install_molecule
-  interruptible: true
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/localinstall/provisioner.setup.yml destroy --scenario-name localinstall
-  allow_failure: true
   # only:
   #   - tags
   #   - master
@@ -954,9 +964,6 @@ destroy_secrets_molecule:
   <<: *molecule_base
   stage: acceptance_cleanup
   interruptible: true
-  allow_failure: true
-  when:
-    - always
   needs:
     - create_secrets_molecule
     - test_secrets_molecule
