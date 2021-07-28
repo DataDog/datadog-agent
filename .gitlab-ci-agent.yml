@@ -868,9 +868,8 @@ kubernetes_molecule_prepare_cleanup:
 kubernetes_molecule_test:
   <<: *molecule_base
   interruptible: true
-  when: on_success
   rules:
-    - *only_agent_3
+    - *only_agent_3_success
   dependencies:
     - kubernetes_molecule_create
   needs:
@@ -917,9 +916,9 @@ kubernetes_molecule_acceptance_failure_cleanup:
    script:
      - cd $CI_PROJECT_DIR/test
      - ./molecule3.sh --base-config ./molecule/localinstall/provisioner.run.yml destroy --scenario-name localinstall
-  only:
-    - tags
-    - master
+   only:
+     - tags
+     - master
 
 localinstall_molecule_create:
   <<: *molecule_base_prepare
@@ -1026,9 +1025,9 @@ secrets_molecule_create:
       - $CI_PROJECT_DIR/.molecule
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
-   only:
-     - tags
-     - master
+  only:
+    - tags
+    - master
 
 secrets_molecule_prepare_cleanup:
    <<: *secrets_cleanup_base
