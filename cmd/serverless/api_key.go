@@ -31,26 +31,25 @@ func decryptKMS(kmsClient kmsiface.KMSAPI, ciphertext string) (string, error) {
 		return "", fmt.Errorf("Failed to decode ciphertext from base64: %v", err)
 	}
 
-	// The Lambda console UI changed the way it encrypts environment variables.
-	// The current behavior as of May 2021 is to encrypt environment variables using the function name as an encryption context.
-	// Previously, the behavior was to encrypt environment variables without an encryption context.
-	// We need to try both, as supplying the incorrect encryption context will cause decryption to fail.
+	// When the API key is encrypted using the AWS console, the function name is added as an
+	// encryption context. When the API key is encrypted using the AWS CLI, no encryption context
+	// is added. We need to try decrypting the API key both with and without the encryption context.
 
-	// Try with encryption context
+	// Try without encryption context, in case API key was encrypted using the AWS CLI
 	functionName := os.Getenv(functionNameEnvVar)
 	params := &kms.DecryptInput{
 		CiphertextBlob: decodedBytes,
-		EncryptionContext: map[string]*string{
-			encryptionContextKey: &functionName,
-		},
 	}
 	response, err := kmsClient.Decrypt(params)
 
 	if err != nil {
-		log.Debug("Failed to decrypt ciphertext with encryption context, retrying without encryption context")
-		// Try without encryption context
+		log.Debug("Failed to decrypt ciphertext without encryption context, retrying with encryption context")
+		// Try with encryption context, in case API key was encrypted using the AWS Console
 		params = &kms.DecryptInput{
 			CiphertextBlob: decodedBytes,
+			EncryptionContext: map[string]*string{
+				encryptionContextKey: &functionName,
+			},
 		}
 		response, err = kmsClient.Decrypt(params)
 		if err != nil {
