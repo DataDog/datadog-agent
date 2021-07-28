@@ -50,12 +50,6 @@ stages:
 .rules:
   - &only_agent_3
     if: $MAJOR_VERSION == "3"
-  - &only_agent_3_success
-    if: $MAJOR_VERSION == "3"
-    when: on_success
-  - &only_agent_3_failure
-    if: $MAJOR_VERSION == "3"
-    when: on_failure
   - &only_agent_3_always
     if: $MAJOR_VERSION == "3"
     when: always
@@ -723,8 +717,6 @@ test_compose_molecule:
 destroy_compose_molecule:
    <<: *molecule_base
    when:
-     - on_failure
-     - on_success
      - always
    needs:
      - create_compose_molecule
@@ -780,8 +772,6 @@ test_integrations_molecule:
 destroy_integrations_molecule:
    <<: *molecule_base
    when:
-     - on_failure
-     - on_success
      - always
    stage: acceptance_cleanup
    needs:
@@ -851,9 +841,7 @@ destroy_kubernetes_molecule:
      - ./molecule3.sh --base-config ./molecule/kubernetes/provisioner.setup.yml destroy --scenario-name kubernetes
    allow_failure: true
    rules:
-     - *only_agent_3_failure
      - *only_agent_3_always
-     - *only_agent_3_success
 
 # Molecule Local Install
 
@@ -903,8 +891,6 @@ test_local_install_molecule:
 destroy_local_install_molecule:
   <<: *molecule_base
   when:
-    - on_failure
-    - on_success
     - always
   stage: acceptance_cleanup
   needs:
@@ -970,8 +956,6 @@ destroy_secrets_molecule:
   interruptible: true
   allow_failure: true
   when:
-    - on_failure
-    - on_success
     - always
   needs:
     - create_secrets_molecule
@@ -1038,9 +1022,7 @@ destroy_swarm_molecule:
     - ./molecule3.sh --base-config ./molecule/swarm/provisioner.setup.yml destroy --scenario-name swarm
   allow_failure: true
   rules:
-     - *only_agent_3_failure
      - *only_agent_3_always
-     - *only_agent_3_success
 
 # Molecule VMS
 
@@ -1087,8 +1069,6 @@ test_vms_molcule:
 destroy_vms_molecule:
    <<: *molecule_base
    when:
-     - on_failure
-     - on_success
      - always
    stage: acceptance_cleanup
    needs:
