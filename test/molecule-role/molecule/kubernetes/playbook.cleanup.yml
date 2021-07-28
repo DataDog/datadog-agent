@@ -16,6 +16,7 @@
       shell: "if kubectl delete ns {{ namespace }}; then kubectl delete ns test-global-lock; fi"
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
     - name: Delete manifests for stackstate node agent and cluster agent
       command: kubectl delete -k overlays
       args:

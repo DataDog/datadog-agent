@@ -23,7 +23,6 @@ scenario:
   name: kubernetes
   create_sequence:
     - dependency
-    - cleanup
     - destroy
     - syntax
     - create

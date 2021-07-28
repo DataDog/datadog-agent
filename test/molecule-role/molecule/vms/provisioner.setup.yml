@@ -7,6 +7,10 @@ provisioner:
     destroy: playbook.before.destroy.yml
   lint:
     name: ansible-lint
+  config_options:
+    defaults:
+      any_errors_fatal: true
   inventory:
     links:
       group_vars: group_vars/
+      host_vars: host_vars/
