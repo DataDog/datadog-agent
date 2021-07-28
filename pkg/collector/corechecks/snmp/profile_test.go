@@ -63,7 +63,7 @@ func Test_getDefaultProfilesDefinitionFiles(t *testing.T) {
 	confdPath := config.Datadog.GetString("confd_path")
 	expectedProfileConfig := profileConfigMap{
 		"f5-big-ip": {
-			filepath.Join(confdPath, "snmp.d", "profiles", "f5-big-ip.yaml"),
+			DefinitionFile: filepath.Join(confdPath, "snmp.d", "profiles", "f5-big-ip.yaml"),
 		},
 	}
 
@@ -105,7 +105,7 @@ func Test_loadProfiles(t *testing.T) {
 			name: "failed to read profile",
 			inputProfileConfigMap: profileConfigMap{
 				"f5-big-ip": {
-					filepath.Join(string(filepath.Separator), "does", "not", "exist"),
+					DefinitionFile: filepath.Join(string(filepath.Separator), "does", "not", "exist"),
 				},
 			},
 			expectedProfileDefMap: profileDefinitionMap{},
@@ -117,7 +117,7 @@ func Test_loadProfiles(t *testing.T) {
 			name: "invalid extends",
 			inputProfileConfigMap: profileConfigMap{
 				"f5-big-ip": {
-					profileWithInvalidExtends,
+					DefinitionFile: profileWithInvalidExtends,
 				},
 			},
 			expectedProfileDefMap: profileDefinitionMap{},
@@ -130,7 +130,7 @@ func Test_loadProfiles(t *testing.T) {
 			confdPath: profilesWithInvalidExtendConfdPath,
 			inputProfileConfigMap: profileConfigMap{
 				"f5-big-ip": {
-					"f5-big-ip.yaml",
+					DefinitionFile: "f5-big-ip.yaml",
 				},
 			},
 			expectedProfileDefMap: profileDefinitionMap{},
@@ -144,7 +144,7 @@ func Test_loadProfiles(t *testing.T) {
 			confdPath: invalidCyclicConfdPath,
 			inputProfileConfigMap: profileConfigMap{
 				"f5-big-ip": {
-					"f5-big-ip.yaml",
+					DefinitionFile: "f5-big-ip.yaml",
 				},
 			},
 			expectedProfileDefMap: profileDefinitionMap{},
@@ -156,7 +156,7 @@ func Test_loadProfiles(t *testing.T) {
 			name: "invalid yaml profile",
 			inputProfileConfigMap: profileConfigMap{
 				"f5-big-ip": {
-					invalidYamlProfile,
+					DefinitionFile: invalidYamlProfile,
 				},
 			},
 			expectedProfileDefMap: profileDefinitionMap{},
@@ -168,7 +168,7 @@ func Test_loadProfiles(t *testing.T) {
 			name: "validation error profile",
 			inputProfileConfigMap: profileConfigMap{
 				"f5-big-ip": {
-					validationErrorProfile,
+					DefinitionFile: validationErrorProfile,
 				},
 			},
 			expectedProfileDefMap: profileDefinitionMap{},
