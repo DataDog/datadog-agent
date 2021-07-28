@@ -947,6 +947,58 @@ destroy_secrets_molecule:
   #   - master
 
 
+# Molecule Swarm
+
+create_swarm_molecule:
+  <<: *molecule_base_prepare
+  script:
+    - cd $CI_PROJECT_DIR/test
+    - ./molecule3.sh --base-config ./molecule/swarm/provisioner.setup.yml create --scenario-name swarm
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/swarm/topic-*.json
+      - $CI_PROJECT_DIR/tmp_molecule_inventory
+      - $CI_PROJECT_DIR/.molecule
+      - $MOLECULE_EPHEMERAL_DIRECTORY
+    expire_in: 1 week
+  rules:
+    - *only_agent_3
+
+test_swarm_molecule:
+  <<: *molecule_base
+  needs:
+    - pre_release_cluster_agent_image
+    - pre_release_main_agent_image
+    - create_swarm_molecule
+  dependencies:
+    - create_swarm_molecule
+  script:
+    - cd $CI_PROJECT_DIR/test
+    - ./molecule3.sh --base-config ./molecule/swarm/provisioner.run.yml prepare --force --scenario-name swarm
+    - ./molecule3.sh --base-config ./molecule/swarm/provisioner.run.yml test --scenario-name swarm --destroy=never
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/swarm/topic-*.json
+      - $CI_PROJECT_DIR/tmp_molecule_inventory
+      - $CI_PROJECT_DIR/.molecule
+      - $MOLECULE_EPHEMERAL_DIRECTORY
+    expire_in: 1 week
+  rules:
+    - *only_agent_3
+
+destroy_swarm_molecule:
+  <<: *molecule_base
+  stage: acceptance_cleanup
+  interruptible: true
+  script:
+    - cd $CI_PROJECT_DIR/test
+    - ./molecule3.sh --base-config ./molecule/swarm/provisioner.setup.yml destroy --scenario-name swarm
+  allow_failure: true
+  rules:
+    - *only_agent_3
+
 
 
 
