@@ -43,7 +43,7 @@ const (
 
 // GetKernelHeaders attempts to find kernel headers on the host, and if they cannot be found it will attempt
 // to  download them to headerDownloadDir
-func GetKernelHeaders(headerDirs []string, headerDownloadDir string) ([]string, HeaderFetchResult, error) {
+func GetKernelHeaders(headerDirs []string, headerDownloadDir string, containerizedEnv bool) ([]string, HeaderFetchResult, error) {
 	hv, hvErr := HostVersion()
 	if hvErr != nil {
 		return nil, hostVersionErr, fmt.Errorf("unable to determine host kernel version: %w", hvErr)
@@ -78,7 +78,7 @@ func GetKernelHeaders(headerDirs []string, headerDownloadDir string) ([]string, 
 	}
 	log.Debugf("unable to find downloaded kernel headers: %s", err)
 
-	if err = downloadHeaders(headerDownloadDir); err == nil {
+	if err = downloadHeaders(headerDownloadDir, containerizedEnv); err == nil {
 		log.Infof("successfully downloaded kernel headers to %s", dirs)
 		if err = validateHeaderDirs(hv, dirs); err == nil {
 			return dirs, downloadSuccess, nil

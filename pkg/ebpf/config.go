@@ -40,6 +40,9 @@ type Config struct {
 	// RuntimeCompilerOutputDir is the directory where the runtime compiler will store compiled programs
 	RuntimeCompilerOutputDir string
 
+	// ContainerizedEnvironment indicates whether the system-probe is operating within a containerized environment
+	ContainerizedEnvironment bool
+
 	// AllowPrecompiledFallback indicates whether we are allowed to fallback to the prebuilt probes if runtime compilation fails.
 	AllowPrecompiledFallback bool
 }
@@ -64,6 +67,7 @@ func NewConfig() *Config {
 		RuntimeCompilerOutputDir: cfg.GetString(key(spNS, "runtime_compiler_output_dir")),
 		KernelHeadersDirs:        cfg.GetStringSlice(key(spNS, "kernel_header_dirs")),
 		KernelHeadersDownloadDir: cfg.GetString(key(spNS, "kernel_header_download_dir")),
+		ContainerizedEnvironment: cfg.GetBool(key(spNS, "containerized_environment")),
 		AllowPrecompiledFallback: true,
 	}
 }

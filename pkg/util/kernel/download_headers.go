@@ -32,7 +32,7 @@ func (c customLogger) Errorf(format string, args ...interface{}) { log.Errorf(fo
 var _ types.Logger = customLogger{}
 
 // downloadHeaders attempts to download kernel headers & place them in headerDownloadDir
-func downloadHeaders(headerDownloadDir string) error {
+func downloadHeaders(headerDownloadDir string, containerizedEnv bool) error {
 	var (
 		target    types.Target
 		backend   types.Backend
@@ -55,7 +55,7 @@ func downloadHeaders(headerDownloadDir string) error {
 	)
 	log.Debugf("Target OSRelease: %s", target.OSRelease)
 
-	if backend, err = getHeaderDownloadBackend(&target); err != nil {
+	if backend, err = getHeaderDownloadBackend(&target, containerizedEnv); err != nil {
 		return fmt.Errorf("unable to get kernel header download backend: %s", err)
 	}
 
@@ -81,19 +81,36 @@ func getHeaderDownloadTarget() (types.Target, error) {
 	return target, nil
 }
 
-func getHeaderDownloadBackend(target *types.Target) (backend types.Backend, err error) {
-	logger := customLogger{}
-	switch strings.ToLower(target.Distro.Display) {
-	case "fedora", "rhel":
-		backend, err = rpm.NewRedHatBackend(target, "/etc/yum.repos.d", logger)
-	case "centos":
-		backend, err = rpm.NewCentOSBackend(target, "/etc/yum.repos.d", logger)
-	case "opensuse":
-		backend, err = rpm.NewOpenSUSEBackend(target, "/etc/zypp/repos.d", logger)
-	case "sle":
-		backend, err = rpm.NewSLESBackend(target, "/etc/zypp/repos.d", logger)
+func getHeaderDownloadBackend(target *types.Target, containerizedEnv bool) (backend types.Backend, err error) {
+	distro := strings.ToLower(target.Distro.Display)
+
+	var reposDir string
+	switch distro {
+	case "fedora", "rhel", "centos":
+		reposDir = "/etc/yum.repos.d"
+	case "opensuse", "sle":
+		reposDir = "/etc/zypp/repos.d"
 	case "debian", "ubuntu":
-		backend, err = apt.NewBackend(target, "/etc/apt", logger)
+		reposDir = "/etc/apt"
+	default:
+		// nothing to do, reposDir won't be used
+	}
+	if containerizedEnv {
+		reposDir = filepath.Join("/host", reposDir)
+	}
+
+	logger := customLogger{}
+	switch distro {
+	case "fedora", "rhel":
+		backend, err = rpm.NewRedHatBackend(target, reposDir, logger)
+	case "centos":
+		backend, err = rpm.NewCentOSBackend(target, reposDir, logger)
+	case "opensuse":
+		backend, err = rpm.NewOpenSUSEBackend(target, reposDir, logger)
+	case "sle":
+		backend, err = rpm.NewSLESBackend(target, reposDir, logger)
+	case "debian", "ubuntu":
+		backend, err = apt.NewBackend(target, reposDir, logger)
 	case "cos":
 		backend, err = cos.NewBackend(target, logger)
 	case "wsl":
