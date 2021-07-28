@@ -10,7 +10,38 @@
   hosts: kubernetes-cluster-agent
   gather_facts: true
   tasks:
+    # cleanup before a rerun
     - include_tasks: ../common/prepare/docker-compose-cleanup-receiver.yml
+
+    - name: Delete namespace '{{namespace}}' and global lock if we took it
+      ignore_errors: yes
+      shell: kubectl delete ns test-global-lock
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
+    - name: Delete manifests for stackstate node agent and cluster agent
+      ignore_errors: yes
+      command: kubectl delete -k overlays
+      args:
+        chdir: /home/ubuntu/deployment/agents
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
+    - name: Kustomization template
+      template:
+        src: /home/ubuntu/overlays-original/kustomization.yaml
+        dest: /home/ubuntu/deployment/agents/overlays
+
+    - name: Delete test namespace '{{namespace}}'
+      ignore_errors: yes
+      shell: kubectl delete ns {{ namespace }}
+      args:
+        chdir: /home/ubuntu/deployment
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
+    # continue
+
     - name: Run Docker compose
       command: docker-compose up -d
       args:
@@ -58,12 +89,6 @@
 
     - name: Create secret to allow pulling from private docker registry
       shell: kubectl get secret docker-registry-key || kubectl create secret generic docker-registry-key --from-file=.dockerconfigjson=/home/ubuntu/.docker/config.json --type=kubernetes.io/dockerconfigjson
-      environment:
-        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
-
-    - name: Delete namespace '{{namespace}}' and global lock if we took it
-      ignore_errors: yes
-      shell: kubectl delete ns test-global-lock
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
 
