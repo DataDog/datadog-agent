@@ -24,13 +24,13 @@ class EventType:
 
 
 class Translator:
-    def __init__(self, translation_path):
+    def __init__(self, translation_path: str):
         if translation_path:
             translation_file = open(translation_path)
             self.keys = json.load(translation_file)
             translation_file.close()
 
-    def get_or_default(self, key, default):
+    def get_or_default(self, key: str, default):
         return self.keys.get(key, default)
 
     def build_event_type(self, name: str, kind: str, definition: str, min_agent_version: str):
@@ -43,17 +43,7 @@ class Translator:
         return EventTypeProperty(name, datatype, definition)
 
 
-def output_doc(event_types, translator, file=sys.stdout):
-    print("# SECL Documentation\n", file=file)
-    event_types_list(event_types, translator, file=file)
-    print("\n", file=file)
-
-    for event_type in event_types:
-        event_type_properties_list(event_type, translator, file=file)
-        print("\n", file=file)
-
-
-def build_event_types(translator, json_top_node):
+def build_event_types(translator: Translator, json_top_node):
     event_types = []
     for et in json_top_node["secl"]:
         event_type = translator.build_event_type(et["name"], et["type"], et["definition"], et["from_agent_version"])
