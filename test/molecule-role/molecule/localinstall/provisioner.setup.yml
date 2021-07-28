@@ -4,7 +4,7 @@ provisioner:
   playbooks:
     create: playbook.create.yml
     prepare: playbook.prepare.yml
-    destroy: playbook.destroy.yml
+    destroy: playbook.before.destroy.yml
   lint:
     name: ansible-lint
   inventory:

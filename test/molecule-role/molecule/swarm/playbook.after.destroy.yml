@@ -1,0 +1,9 @@
+---
+- name: Destroy
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    # Destroy instances based on your own build id
+    - include_tasks: ../common/destroy/destroy-own-molecule-instances.yml
+    - include_tasks: ../common/destroy/delete-remote-keypair.yml

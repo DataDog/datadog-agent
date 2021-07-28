@@ -1,4 +1,11 @@
 ---
+- name: Prepare Connection
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  tasks:
+    - include_tasks: ../common/prepare/keypair.yml
+
 - name: Cleanup EKS cluster
   hosts: kubernetes-cluster-agent
   ignore_errors: true

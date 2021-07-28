@@ -725,7 +725,7 @@ destroy_compose_molecule:
    interruptible: true
    script:
      - cd $CI_PROJECT_DIR/test
-     - ./molecule3.sh --base-config ./molecule/compose/provisioner.setup.yml destroy --scenario-name compose
+     - ./molecule3.sh --base-config ./molecule/compose/provisioner.run.yml destroy --scenario-name compose
    allow_failure: true
 
 
