@@ -74,7 +74,6 @@ before_script:
 
 clear_deps_deb_cache:
   stage: manual
-  interruptible: true
   before_script: []
   cache:
     policy: push
@@ -89,7 +88,6 @@ clear_deps_deb_cache:
 
 clear_deps_rpm_cache:
   stage: manual
-  interruptible: true
   before_script: []
   cache:
     policy: push
@@ -104,7 +102,6 @@ clear_deps_rpm_cache:
 
 clear_deps_win_cache:
   stage: manual
-  interruptible: true
   before_script:
     - set WIN_CI_PROJECT_DIR=%CD%
     - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
@@ -600,7 +597,6 @@ pre_release_rpm:
 
 pre_release_main_agent_image: &pre_release_image
   stage: pre_release
-  interruptible: true
   image: docker:18.06.0
   needs:
     - build_deb
@@ -652,7 +648,6 @@ pre_release_cluster_agent_image:
 
 .molecule_base_prepare: &molecule_base_prepare
   stage: prepare
-  interruptible: true
   dependencies: []
   variables:
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
@@ -668,11 +663,8 @@ pre_release_cluster_agent_image:
     when:
       - always
 
-# ===
-
 .molecule_base: &molecule_base
   stage: acceptance
-  interruptible: true
   dependencies: []
   variables:
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
@@ -692,6 +684,7 @@ pre_release_cluster_agent_image:
 
 create_compose_molecule:
   <<: *molecule_base_prepare
+  interruptible: true
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/compose/provisioner.setup.yml create --scenario-name compose
@@ -707,6 +700,7 @@ create_compose_molecule:
 
 test_compose_molecule:
   <<: *molecule_base
+  interruptible: true
   dependencies:
     - create_compose_molecule
   needs:
@@ -747,6 +741,7 @@ destroy_compose_molecule:
 
 create_integrations_molecule:
   <<: *molecule_base_prepare
+  interruptible: true
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/integrations/provisioner.setup.yml create --scenario-name integrations
@@ -762,6 +757,7 @@ create_integrations_molecule:
 
 test_integrations_molecule:
   <<: *molecule_base
+  interruptible: true
   dependencies:
     - create_integrations_molecule
   needs:
@@ -801,6 +797,7 @@ destroy_integrations_molecule:
 
 create_kubernetes_molecule:
   <<: *molecule_base_prepare
+  interruptible: true
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/kubernetes/provisioner.setup.yml create --scenario-name kubernetes
@@ -818,6 +815,7 @@ create_kubernetes_molecule:
 
 test_kubernetes_molecule:
   <<: *molecule_base
+  interruptible: true
   needs:
     - pre_release_cluster_agent_image
     - pre_release_main_agent_image
@@ -861,6 +859,7 @@ destroy_kubernetes_molecule:
 
 create_local_install_molecule:
   <<: *molecule_base_prepare
+  interruptible: true
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/localinstall/provisioner.setup.yml create --scenario-name localinstall
@@ -879,6 +878,7 @@ create_local_install_molecule:
 
 test_local_install_molecule:
   <<: *molecule_base
+  interruptible: true
   dependencies:
     - create_local_install_molecule
   needs:
@@ -923,6 +923,7 @@ destroy_local_install_molecule:
 
 create_secrets_molecule:
   <<: *molecule_base_prepare
+  interruptible: true
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/secrets/provisioner.setup.yml create --scenario-name secrets
@@ -941,6 +942,7 @@ create_secrets_molecule:
 
 test_secrets_molecule:
   <<: *molecule_base
+  interruptible: true
   dependencies:
     - create_secrets_molecule
   needs:
@@ -985,6 +987,7 @@ destroy_secrets_molecule:
 
 create_swarm_molecule:
   <<: *molecule_base_prepare
+  interruptible: true
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/swarm/provisioner.setup.yml create --scenario-name swarm
@@ -1001,6 +1004,7 @@ create_swarm_molecule:
 
 test_swarm_molecule:
   <<: *molecule_base
+  interruptible: true
   needs:
     - pre_release_cluster_agent_image
     - pre_release_main_agent_image
@@ -1042,6 +1046,7 @@ destroy_swarm_molecule:
 
 create_vms_molecule:
   <<: *molecule_base_prepare
+  interruptible: true
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/vms/provisioner.setup.yml create --scenario-name vms
@@ -1057,6 +1062,7 @@ create_vms_molecule:
 
 test_vms_molcule:
   <<: *molecule_base
+  interruptible: true
   needs:
     - create_vms_molecule
     - pre_release_deb
@@ -1173,7 +1179,6 @@ release_win:
       - stuck_or_timeout_failure
 
 .base_release_image: &base_release_image
-  interruptible: true
   stage: release
   image: docker:18.06.0
   dependencies:
@@ -1195,6 +1200,7 @@ release_win:
 
 release_main_agent_image:
   <<: *base_release_image
+  interruptible: true
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
@@ -1207,6 +1213,7 @@ release_main_agent_image:
 
 release_trace_agent_image:
   <<: *base_release_image
+  interruptible: true
   script:
     - cd $CI_PROJECT_DIR
     - export VERSION=`cat version.txt`
@@ -1217,6 +1224,7 @@ release_trace_agent_image:
 
 release_cluster_agent_image:
   <<: *base_release_image
+  interruptible: true
   dependencies:
     - build_cluster_agent
   script:
