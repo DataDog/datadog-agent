@@ -6,6 +6,7 @@
 package azure
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 )
 
 func TestGetAlias(t *testing.T) {
+	ctx := context.Background()
 	expected := "5d33a910-a7a0-4443-9f01-6a807801b29b"
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -28,7 +30,7 @@ func TestGetAlias(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 
-	val, err := GetHostAlias()
+	val, err := GetHostAlias(ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/metadata/instance/compute/vmId")
@@ -63,6 +65,7 @@ func TestGetClusterName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
 			var lastRequest *http.Request
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "text/plain")
@@ -71,7 +74,7 @@ func TestGetClusterName(t *testing.T) {
 			}))
 			defer ts.Close()
 			metadataURL = ts.URL
-			got, err := GetClusterName()
+			got, err := GetClusterName(ctx)
 			assert.Equal(t, tt.wantErr, (err != nil))
 			assert.Equal(t, tt.want, got)
 			assert.Equal(t, lastRequest.URL.Path, "/metadata/instance/compute/resourceGroupName")
@@ -81,6 +84,7 @@ func TestGetClusterName(t *testing.T) {
 }
 
 func TestGetNTPHosts(t *testing.T) {
+	ctx := context.Background()
 	expectedHosts := []string{"time.windows.com"}
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -91,12 +95,13 @@ func TestGetNTPHosts(t *testing.T) {
 
 	metadataURL = ts.URL
 	config.Datadog.Set("cloud_provider_metadata", []string{"azure"})
-	actualHosts := GetNTPHosts()
+	actualHosts := GetNTPHosts(ctx)
 
 	assert.Equal(t, expectedHosts, actualHosts)
 }
 
 func TestGetHostname(t *testing.T) {
+	ctx := context.Background()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		io.WriteString(w, `{
@@ -125,13 +130,14 @@ func TestGetHostname(t *testing.T) {
 
 	for _, tt := range cases {
 		mockConfig.Set(hostnameStyleSetting, tt.style)
-		hostname, err := getHostnameWithConfig(mockConfig)
+		hostname, err := getHostnameWithConfig(ctx, mockConfig)
 		assert.Equal(t, tt.value, hostname)
 		assert.Equal(t, tt.err, (err != nil))
 	}
 }
 
 func TestGetHostnameWithInvalidMetadata(t *testing.T) {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	styles := []string{"vmid", "name", "name_and_resource_group", "full"}
@@ -151,7 +157,7 @@ func TestGetHostnameWithInvalidMetadata(t *testing.T) {
 		t.Run(fmt.Sprintf("with response '%s'", response), func(t *testing.T) {
 			for _, style := range styles {
 				mockConfig.Set(hostnameStyleSetting, style)
-				hostname, err := getHostnameWithConfig(mockConfig)
+				hostname, err := getHostnameWithConfig(ctx, mockConfig)
 				assert.Empty(t, hostname)
 				assert.NotNil(t, err)
 			}

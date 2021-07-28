@@ -11,11 +11,8 @@ import (
 	"C"
 	"fmt"
 	"os"
-	"runtime"
 	"sync/atomic"
 	"unsafe"
-
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 
 	"github.com/DataDog/datadog-go/statsd"
 	lib "github.com/DataDog/ebpf"
@@ -23,8 +20,10 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 const (
@@ -45,6 +44,8 @@ type DentryResolver struct {
 	erpcSegmentSize       int
 	erpcRequest           ERPCRequest
 	erpcEnabled           bool
+	erpcStatsZero         []eRPCStats
+	numCPU                int
 	mapEnabled            bool
 
 	hitsCounters map[string]map[string]*int64
@@ -171,12 +172,10 @@ func (dr *DentryResolver) SendStats() error {
 	return dr.sendERPCStats()
 }
 
-var eRPCStatsZero = make([]eRPCStats, runtime.NumCPU())
-
 func (dr *DentryResolver) sendERPCStats() error {
 	buffer := dr.erpcStats[1-dr.activeERPCStatsBuffer]
 	iterator := buffer.Iterate()
-	stats := make([]eRPCStats, runtime.NumCPU())
+	stats := make([]eRPCStats, dr.numCPU)
 	counters := map[eRPCRet]int64{}
 	var ret eRPCRet
 
@@ -197,7 +196,7 @@ func (dr *DentryResolver) sendERPCStats() error {
 		}
 	}
 	for _, r := range allERPCRet() {
-		_ = buffer.Put(r, eRPCStatsZero)
+		_ = buffer.Put(r, dr.erpcStatsZero)
 	}
 
 	dr.activeERPCStatsBuffer = 1 - dr.activeERPCStatsBuffer
@@ -432,6 +431,10 @@ func (dr *DentryResolver) preventSegmentMajorPageFault() {
 	dr.erpcSegment[6*os.Getpagesize()] = 0
 }
 
+func (dr *DentryResolver) markSegmentAsZero() {
+	model.ByteOrder.PutUint64(dr.erpcSegment[0:8], 0)
+}
+
 // GetNameFromERPC resolves the name of the provided inode / mount id / path id
 func (dr *DentryResolver) GetNameFromERPC(mountID uint32, inode uint64, pathID uint32) (name string, err error) {
 	// create eRPC request
@@ -445,12 +448,15 @@ func (dr *DentryResolver) GetNameFromERPC(mountID uint32, inode uint64, pathID u
 	// if we don't try to access the segment, the eBPF program can't write to it ... (major page fault)
 	dr.preventSegmentMajorPageFault()
 
+	// ensure to zero the segments in order check the in-kernel execution
+	dr.markSegmentAsZero()
+
 	if err = dr.erpc.Request(&dr.erpcRequest); err != nil {
 		atomic.AddInt64(dr.missCounters[metrics.SegmentResolutionTag][metrics.ERPCTag], 1)
 		return "", errors.Wrapf(err, "unable to get filename for mountID `%d` and inode `%d` with eRPC", mountID, inode)
 	}
 
-	if dr.erpcSegment[0] == 0 {
+	if model.ByteOrder.Uint64(dr.erpcSegment[0:8]) == 0 {
 		atomic.AddInt64(dr.missCounters[metrics.SegmentResolutionTag][metrics.ERPCTag], 1)
 		return "", errors.Errorf("eRPC request wasn't processed")
 	}
@@ -483,6 +489,9 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 
 	// if we don't try to access the segment, the eBPF program can't write to it ... (major page fault)
 	dr.preventSegmentMajorPageFault()
+
+	// ensure to zero the segments in order check the in-kernel execution
+	dr.markSegmentAsZero()
 
 	if err = dr.erpc.Request(&dr.erpcRequest); err != nil {
 		atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.ERPCTag], 1)
@@ -663,10 +672,7 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 	// For each segment of a path, we write 16 bytes to store (inode, mount_id, path_id), and then at least 2 bytes to
 	// store the smallest possible path (segment of size 1 + trailing 0). 18 * 1500 = 27 000.
 	// Then, 27k + 256 / page_size < 7.
-	segment, err := unix.Mmap(0, 0, 7*os.Getpagesize(), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED|unix.MAP_ANON)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to mmap memory segment")
-	}
+	segment := make([]byte, 7*os.Getpagesize())
 
 	hitsCounters := make(map[string]map[string]*int64)
 	missCounters := make(map[string]map[string]*int64)
@@ -685,6 +691,11 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 		}
 	}
 
+	numCPU, err := utils.NumCPU()
+	if err != nil {
+		return nil, errors.Wrapf(err, "couldn't fetch the host CPU count")
+	}
+
 	return &DentryResolver{
 		client:          probe.statsdClient,
 		cache:           make(map[uint32]*lru.Cache),
@@ -693,8 +704,10 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 		erpcSegmentSize: len(segment),
 		erpcRequest:     ERPCRequest{},
 		erpcEnabled:     probe.config.ERPCDentryResolutionEnabled,
+		erpcStatsZero:   make([]eRPCStats, numCPU),
 		mapEnabled:      probe.config.MapDentryResolutionEnabled,
 		hitsCounters:    hitsCounters,
 		missCounters:    missCounters,
+		numCPU:          numCPU,
 	}, nil
 }

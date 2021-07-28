@@ -7,6 +7,7 @@ package clusteragent
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -23,20 +24,20 @@ const (
 )
 
 // PostClusterCheckStatus is called by the clustercheck config provider
-func (c *DCAClient) PostClusterCheckStatus(identifier string, status types.NodeStatus) (types.StatusResponse, error) {
+func (c *DCAClient) PostClusterCheckStatus(ctx context.Context, identifier string, status types.NodeStatus) (types.StatusResponse, error) {
 	// Retry on the main URL if the leader fails
 	willRetry := c.leaderClient.hasLeader()
 
-	result, err := c.doPostClusterCheckStatus(identifier, status)
+	result, err := c.doPostClusterCheckStatus(ctx, identifier, status)
 	if err != nil && willRetry {
 		log.Debugf("Got error on leader, retrying via the service: %s", err)
 		c.leaderClient.resetURL()
-		return c.doPostClusterCheckStatus(identifier, status)
+		return c.doPostClusterCheckStatus(ctx, identifier, status)
 	}
 	return result, err
 }
 
-func (c *DCAClient) doPostClusterCheckStatus(identifier string, status types.NodeStatus) (types.StatusResponse, error) {
+func (c *DCAClient) doPostClusterCheckStatus(ctx context.Context, identifier string, status types.NodeStatus) (types.StatusResponse, error) {
 	var response types.StatusResponse
 
 	queryBody, err := json.Marshal(status)
@@ -46,7 +47,7 @@ func (c *DCAClient) doPostClusterCheckStatus(identifier string, status types.Nod
 
 	// https://host:port/api/v1/clusterchecks/status/{identifier}
 	rawURL := c.leaderClient.buildURL(dcaClusterChecksStatusPath, identifier)
-	req, err := http.NewRequest("POST", rawURL, bytes.NewBuffer(queryBody))
+	req, err := http.NewRequestWithContext(ctx, "POST", rawURL, bytes.NewBuffer(queryBody))
 	if err != nil {
 		return response, err
 	}
@@ -71,26 +72,26 @@ func (c *DCAClient) doPostClusterCheckStatus(identifier string, status types.Nod
 }
 
 // GetClusterCheckConfigs is called by the clustercheck config provider
-func (c *DCAClient) GetClusterCheckConfigs(identifier string) (types.ConfigResponse, error) {
+func (c *DCAClient) GetClusterCheckConfigs(ctx context.Context, identifier string) (types.ConfigResponse, error) {
 	// Retry on the main URL if the leader fails
 	willRetry := c.leaderClient.hasLeader()
 
-	result, err := c.doGetClusterCheckConfigs(identifier)
+	result, err := c.doGetClusterCheckConfigs(ctx, identifier)
 	if err != nil && willRetry {
 		log.Debugf("Got error on leader, retrying via the service: %s", err)
 		c.leaderClient.resetURL()
-		return c.doGetClusterCheckConfigs(identifier)
+		return c.doGetClusterCheckConfigs(ctx, identifier)
 	}
 	return result, err
 }
 
-func (c *DCAClient) doGetClusterCheckConfigs(identifier string) (types.ConfigResponse, error) {
+func (c *DCAClient) doGetClusterCheckConfigs(ctx context.Context, identifier string) (types.ConfigResponse, error) {
 	var configs types.ConfigResponse
 	var err error
 
 	// https://host:port/api/v1/clusterchecks/configs/{identifier}
 	rawURL := c.leaderClient.buildURL(dcaClusterChecksConfigsPath, identifier)
-	req, err := http.NewRequest("GET", rawURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
 	if err != nil {
 		return configs, err
 	}

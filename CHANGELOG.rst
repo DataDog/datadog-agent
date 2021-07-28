@@ -2,6 +2,37 @@
 Release Notes
 =============
 
+.. _Release Notes_7.29.1:
+
+7.29.1
+======
+
+.. _Release Notes_7.29.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2021-07-13
+
+This is a linux + docker-only release.
+
+
+.. _Release Notes_7.29.1_New Features:
+
+New Features
+------------
+
+- APM: Fargate stats and traces are now correctly computed, aggregated and present the expected tags.
+
+
+.. _Release Notes_7.29.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: The value of the default env is now normalized during trace-agent initialization.
+
+
 .. _Release Notes_7.29.0:
 
 7.29.0 / 6.29.0
@@ -12,7 +43,7 @@ Release Notes
 Prelude
 -------
 
-Release on: 2021-06-21
+Release on: 2021-06-24
 
 - Please refer to the `7.29.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7290>`_ for the list of changes on the Core Checks
 
@@ -4891,7 +4922,7 @@ Upgrade Notes
 
   For more details please read the technical note in the `datadog.yaml`_.
 
-  .. _datadog.yaml: https://github.com/DataDog/datadog-agent/blob/master/pkg/config/config_template.yaml#L130-L140
+  .. _datadog.yaml: https://github.com/DataDog/datadog-agent/blob/main/pkg/config/config_template.yaml#L130-L140
 
 - Prometheus custom checks are now limited to 2000 metrics by default
   to provide users control over the maximum number of custom metrics
@@ -5382,7 +5413,7 @@ Deprecation Notes
   pulled from integrations-core. The code now resides in the `datadog_checks`
   namespace, though the old `checks`, `utils`, etc. paths are still supported.
   Please update your custom checks accordingly. For more information, see
-  https://github.com/DataDog/datadog-agent/blob/master/docs/agent/changes.md#python-modules
+  https://github.com/DataDog/datadog-agent/blob/main/docs/agent/changes.md#python-modules
 
 
 .. _Release Notes_6.3.0_Bug Fixes:
@@ -5554,7 +5585,7 @@ Enhancements
 - Add agent5-like JMXFetch helper commands to help with JMXFetch troubleshooting.
 
 - The agent has been tested on Kubernetes 1.4 & OpenShift 3.4. Refer to
-  https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md
+  https://github.com/DataDog/datadog-agent/blob/main/Dockerfiles/agent/README.md
   for installation instructions
 
 - Extract creator tags from kubernetes legacy `created-by` annotation if

@@ -9,6 +9,7 @@ package probe
 
 import (
 	"context"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-go/statsd"
@@ -31,7 +32,9 @@ func NewReOrderMonitor(p *Probe, client *statsd.Client) (*ReordererMonitor, erro
 }
 
 // Start the reorderer monitor
-func (r *ReordererMonitor) Start(ctx context.Context) {
+func (r *ReordererMonitor) Start(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
+
 	for {
 		select {
 		case metric := <-r.probe.reOrderer.Metrics:

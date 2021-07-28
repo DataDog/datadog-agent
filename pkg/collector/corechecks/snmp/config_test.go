@@ -110,11 +110,13 @@ global_metrics:
     OID: 1.2.3.4
     name: aGlobalMetric
 oid_batch_size: 10
+bulk_max_repetitions: 20
 `)
 	err := check.Configure(rawInstanceConfig, rawInitConfig, "test")
 
 	assert.Nil(t, err)
 	assert.Equal(t, 10, check.config.oidBatchSize)
+	assert.Equal(t, uint32(20), check.config.bulkMaxRepetitions)
 	assert.Equal(t, "1.2.3.4", check.config.ipAddress)
 	assert.Equal(t, uint16(1161), check.config.port)
 	assert.Equal(t, 7, check.config.timeout)
@@ -177,6 +179,7 @@ oid_batch_size: 10
 		{Symbol: symbolConfig{OID: "1.2.3.4", Name: "aGlobalMetric"}},
 	}
 	metrics = append(metrics, mockProfilesDefinitions()["f5-big-ip"].Metrics...)
+	metrics = append(metrics, metricsConfig{Symbol: symbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}})
 
 	metricsTags := []metricTagConfig{
 		{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
@@ -210,6 +213,63 @@ oid_batch_size: 10
 	assert.Equal(t, "780a58c96c908df8", check.config.deviceID)
 	assert.Equal(t, []string{"snmp_device:1.2.3.4", "tag1", "tag2:val2"}, check.config.deviceIDTags)
 	assert.Equal(t, "127.0.0.0/30", check.config.subnet)
+	assert.Equal(t, false, check.config.autodetectProfile)
+}
+
+func TestInlineProfileConfiguration(t *testing.T) {
+	setConfdPathAndCleanProfiles()
+	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+
+	check := Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+snmp_version: 2c
+profile: inline-profile
+community_string: '123'
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+profiles:
+  f5-big-ip:
+    definition_file: f5-big-ip.yaml
+  inline-profile:
+    definition:
+      device:
+        vendor: "f5"
+      sysobjectid: 1.2.3
+      metric_tags:
+        - OID: 1.3.6.1.2.1.1.5.0
+          symbol: sysName
+          tag: snmp_host
+      metrics:
+        - MIB: MY-PROFILE-MIB
+          forced_type: gauge
+          symbol:
+            OID: 1.4.5
+            name: myMetric
+`)
+	err := check.Configure(rawInstanceConfig, rawInitConfig, "test")
+
+	assert.Nil(t, err)
+	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, check.config.getStaticTags())
+	metrics := []metricsConfig{
+		{Symbol: symbolConfig{OID: "1.4.5", Name: "myMetric"}, ForcedType: "gauge"},
+	}
+	//metrics = append(metrics, mockProfilesDefinitions()["f5-big-ip"].Metrics...)
+	metrics = append(metrics, metricsConfig{Symbol: symbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}})
+
+	metricsTags := []metricTagConfig{
+		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+	}
+
+	assert.Equal(t, "123", check.config.communityString)
+	assert.Equal(t, metrics, check.config.metrics)
+	assert.Equal(t, metricsTags, check.config.metricTags)
+	assert.Equal(t, 2, len(check.config.profiles))
+	assert.Equal(t, "74f22f3320d2d692", check.config.deviceID)
+	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, check.config.deviceIDTags)
+	assert.Equal(t, false, check.config.autodetectProfile)
 }
 
 func TestDefaultConfigurations(t *testing.T) {
@@ -230,7 +290,7 @@ community_string: abc
 	assert.Equal(t, uint16(161), check.config.port)
 	assert.Equal(t, 2, check.config.timeout)
 	assert.Equal(t, 3, check.config.retries)
-	var metrics []metricsConfig
+	metrics := []metricsConfig{{Symbol: symbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}}}
 
 	var metricsTags []metricTagConfig
 
@@ -289,7 +349,7 @@ community_string: abc
 `)
 	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
-	assert.Equal(t, 60, check.config.oidBatchSize)
+	assert.Equal(t, 5, check.config.oidBatchSize)
 
 	// TEST Instance config batch size
 	check = Check{session: &snmpSession{}}
@@ -335,6 +395,76 @@ oid_batch_size: 15
 	assert.Equal(t, 20, check.config.oidBatchSize)
 }
 
+func TestBulkMaxRepetitionConfiguration(t *testing.T) {
+	setConfdPathAndCleanProfiles()
+	// TEST Default batch size
+	check := Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+`)
+	err := check.Configure(rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+	assert.Equal(t, uint32(10), check.config.bulkMaxRepetitions)
+
+	// TEST Instance config batch size
+	check = Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+bulk_max_repetitions: 10
+`)
+	err = check.Configure(rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+	assert.Equal(t, uint32(10), check.config.bulkMaxRepetitions)
+
+	// TEST Init config batch size
+	check = Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+bulk_max_repetitions: 15
+`)
+	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
+	assert.Nil(t, err)
+	assert.Equal(t, uint32(15), check.config.bulkMaxRepetitions)
+
+	// TEST Instance & Init config batch size
+	check = Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+bulk_max_repetitions: 20
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+bulk_max_repetitions: 15
+`)
+	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
+	assert.Nil(t, err)
+	assert.Equal(t, uint32(20), check.config.bulkMaxRepetitions)
+
+	// TEST invalid value
+	check = Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: abc
+bulk_max_repetitions: -5
+`)
+	// language=yaml
+	rawInitConfig = []byte(``)
+	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
+	assert.EqualError(t, err, "build config failed: bulk max repetition must be a positive integer. Invalid value: -5")
+}
+
 func TestGlobalMetricsConfigurations(t *testing.T) {
 	setConfdPathAndCleanProfiles()
 
@@ -361,6 +491,7 @@ global_metrics:
 	metrics := []metricsConfig{
 		{Symbol: symbolConfig{OID: "1.3.6.1.2.1.2.1", Name: "ifNumber"}},
 		{Symbol: symbolConfig{OID: "1.2.3.4", Name: "aGlobalMetric"}},
+		{Symbol: symbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
 	}
 	assert.Equal(t, metrics, check.config.metrics)
 }
@@ -391,6 +522,7 @@ global_metrics:
 
 	metrics := []metricsConfig{
 		{Symbol: symbolConfig{OID: "1.3.6.1.2.1.2.1", Name: "aInstanceMetric"}},
+		{Symbol: symbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
 	}
 	assert.Equal(t, metrics, check.config.metrics)
 }
@@ -745,19 +877,10 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 	assert.Equal(t, oidConfig{
 		scalarOids: []string{
 			"1.2.3.4.5",
-			"1.3.6.1.2.1.1.5.0",
-			"1.3.6.1.2.1.1.1.0",
-			"1.3.6.1.2.1.1.2.0",
 		},
 		columnOids: []string{
 			"1.2.3.4.6",
 			"1.2.3.4.7",
-			"1.3.6.1.2.1.31.1.1.1.1",
-			"1.3.6.1.2.1.31.1.1.1.18",
-			"1.3.6.1.2.1.2.2.1.2",
-			"1.3.6.1.2.1.2.2.1.6",
-			"1.3.6.1.2.1.2.2.1.7",
-			"1.3.6.1.2.1.2.2.1.8",
 		},
 	}, c.oidConfig)
 }

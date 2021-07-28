@@ -32,6 +32,7 @@ func AllProbes() []*manager.Probe {
 	allProbes = append(allProbes, getUnlinkProbes()...)
 	allProbes = append(allProbes, getXattrProbes()...)
 	allProbes = append(allProbes, getIoctlProbes()...)
+	allProbes = append(allProbes, getSELinuxProbes()...)
 
 	allProbes = append(allProbes,
 		// Syscall monitor
@@ -76,6 +77,9 @@ func AllMaps() []*manager.Map {
 		{Name: "proc_cache"},
 		{Name: "pid_cache"},
 		{Name: "str_array_buffers"},
+		// SELinux tables
+		{Name: "selinux_write_buffer"},
+		{Name: "selinux_enforce_status"},
 		// Syscall monitor tables
 		{Name: "buffer_selector"},
 		{Name: "noisy_processes_fb"},
@@ -84,6 +88,20 @@ func AllMaps() []*manager.Map {
 		{Name: "flushing_discarders"},
 		// Enabled event mask
 		{Name: "enabled_events"},
+	}
+}
+
+// AllMapSpecEditors returns the list of map editors
+func AllMapSpecEditors(numCPU int) map[string]manager.MapSpecEditor {
+	return map[string]manager.MapSpecEditor{
+		"proc_cache": {
+			MaxEntries: uint32(4096 * numCPU),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"pid_cache": {
+			MaxEntries: uint32(4096 * numCPU),
+			EditorFlag: manager.EditMaxEntries,
+		},
 	}
 }
 
@@ -102,6 +120,7 @@ func AllTailRoutes() []manager.TailCallRoute {
 
 	routes = append(routes, getExecTailCallRoutes()...)
 	routes = append(routes, getDentryResolverTailCallRoutes()...)
+	routes = append(routes, getSysExitTailCallRoutes()...)
 
 	return routes
 }

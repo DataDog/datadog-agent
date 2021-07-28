@@ -9,6 +9,7 @@ package probe
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/DataDog/ebpf/manager"
@@ -180,7 +181,9 @@ type ReOrderer struct {
 }
 
 // Start event handler loop
-func (r *ReOrderer) Start(ctx context.Context) {
+func (r *ReOrderer) Start(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
+
 	flushTicker := time.NewTicker(r.opts.Rate)
 	defer flushTicker.Stop()
 
@@ -217,10 +220,10 @@ func (r *ReOrderer) Start(ctx context.Context) {
 		case <-metricTicker.C:
 			r.metric.QueueSize = r.heap.len()
 
-			//select {
-			//case r.Metrics <- r.metric:
-			//default:
-			//}
+			select {
+			case r.Metrics <- r.metric:
+			default:
+			}
 
 			r.metric.zero()
 		case <-ctx.Done():

@@ -100,7 +100,12 @@ func TestOrderRate(t *testing.T) {
 		})
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go reOrderer.Start(ctx)
+
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	wg.Add(1)
+	go reOrderer.Start(ctx, &wg)
 
 	var e uint8
 	for i := 0; i != 10; i++ {
@@ -122,7 +127,7 @@ func TestOrderRate(t *testing.T) {
 
 	// should now get the elements
 	lock.RLock()
-	assert.Equal(t, event, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9})
+	assert.Equal(t, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, event)
 	lock.RUnlock()
 
 	cancel()

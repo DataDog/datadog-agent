@@ -34,6 +34,9 @@ type Config struct {
 	// KernelHeadersDir is the directories of the kernel headers to use for runtime compilation
 	KernelHeadersDirs []string
 
+	// KernelHeadersDownloadDir is the directory where the system-probe will attempt to download kernel headers, if necessary
+	KernelHeadersDownloadDir string
+
 	// RuntimeCompilerOutputDir is the directory where the runtime compiler will store compiled programs
 	RuntimeCompilerOutputDir string
 
@@ -60,6 +63,7 @@ func NewConfig() *Config {
 		EnableRuntimeCompiler:    cfg.GetBool(key(spNS, "enable_runtime_compiler")),
 		RuntimeCompilerOutputDir: cfg.GetString(key(spNS, "runtime_compiler_output_dir")),
 		KernelHeadersDirs:        cfg.GetStringSlice(key(spNS, "kernel_header_dirs")),
+		KernelHeadersDownloadDir: cfg.GetString(key(spNS, "kernel_header_download_dir")),
 		AllowPrecompiledFallback: true,
 	}
 }

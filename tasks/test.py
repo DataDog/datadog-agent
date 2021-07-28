@@ -21,10 +21,9 @@ from .dogstatsd import integration_tests as dsd_integration_tests
 from .go import fmt, generate, golangci_lint, ineffassign, lint, misspell, staticcheck, vet
 from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
-from .utils import get_build_flags
+from .utils import DEFAULT_BRANCH, get_build_flags
 
 PROFILE_COV = "profile.cov"
-DEFAULT_GIT_BRANCH = 'master'
 
 
 def ensure_bytes(s):
@@ -101,7 +100,7 @@ def test(
     cpus=0,
     major_version='7',
     python_runtimes='3',
-    timeout=120,
+    timeout=180,
     arch="x64",
     cache=True,
     skip_linters=False,
@@ -314,8 +313,8 @@ def lint_teamassignment(_):
     branch = os.environ.get("CIRCLE_BRANCH")
     pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
 
-    if branch == DEFAULT_GIT_BRANCH:
-        print("Running on {}, skipping check for team assignment.".format(DEFAULT_GIT_BRANCH))
+    if branch == DEFAULT_BRANCH:
+        print("Running on {}, skipping check for team assignment.".format(DEFAULT_BRANCH))
     elif pr_url:
         import requests
 
@@ -346,8 +345,8 @@ def lint_milestone(_):
     branch = os.environ.get("CIRCLE_BRANCH")
     pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
 
-    if branch == DEFAULT_GIT_BRANCH:
-        print("Running on {}, skipping check for milestone.".format(DEFAULT_GIT_BRANCH))
+    if branch == DEFAULT_BRANCH:
+        print("Running on {}, skipping check for milestone.".format(DEFAULT_BRANCH))
     elif pr_url:
         import requests
 
@@ -377,8 +376,8 @@ def lint_releasenote(ctx):
     branch = os.environ.get("CIRCLE_BRANCH")
     pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
 
-    if branch == DEFAULT_GIT_BRANCH:
-        print("Running on {}, skipping release note check.".format(DEFAULT_GIT_BRANCH))
+    if branch == DEFAULT_BRANCH:
+        print("Running on {}, skipping release note check.".format(DEFAULT_BRANCH))
     # Check if a releasenote has been added/changed
     elif pr_url:
         import requests
@@ -673,7 +672,7 @@ def lint_python(ctx):
     print(
         """Remember to set up pre-commit to lint your files before committing:
     https://github.com/DataDog/datadog-agent/blob/{}/docs/dev/agent_dev_env.md#pre-commit-hooks""".format(
-            DEFAULT_GIT_BRANCH
+            DEFAULT_BRANCH
         )
     )
 

@@ -8,6 +8,7 @@
 package orchestrator
 
 import (
+	"context"
 	"encoding/json"
 	"expvar"
 	"fmt"
@@ -24,7 +25,7 @@ import (
 )
 
 // GetStatus returns status info for the orchestrator explorer.
-func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
+func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]interface{} {
 	status := make(map[string]interface{})
 	if !config.Datadog.GetBool("orchestrator_explorer.enabled") {
 		status["Disabled"] = "The orchestrator explorer is not enabled on the Cluster Agent"
@@ -44,7 +45,7 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 		status["ClusterID"] = clusterID
 	}
 
-	setClusterName(status)
+	setClusterName(ctx, status)
 	setCollectionIsWorking(status)
 
 	// get orchestrator endpoints
@@ -84,15 +85,6 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 		}
 	}
 
-	// get Leader information
-	engine, err := leaderelection.GetLeaderEngine()
-	if err != nil {
-		status["LeaderError"] = err
-	} else {
-		status["Leader"] = engine.IsLeader()
-		status["LeaderName"] = engine.GetLeader()
-	}
-
 	// get options
 	if config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled") {
 		status["ContainerScrubbing"] = "Container scrubbing: enabled"
@@ -101,14 +93,14 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	return status
 }
 
-func setClusterName(status map[string]interface{}) {
+func setClusterName(ctx context.Context, status map[string]interface{}) {
 	errorMsg := "No cluster name was detected. This means resource collection will not work."
 
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(ctx)
 	if err != nil {
 		status["ClusterNameError"] = fmt.Sprintf("Error detecting cluster name: %s.\n%s", err.Error(), errorMsg)
 	} else {
-		if cName := clustername.GetClusterName(hostname); cName != "" {
+		if cName := clustername.GetClusterName(ctx, hostname); cName != "" {
 			status["ClusterName"] = cName
 		} else {
 			status["ClusterName"] = errorMsg
@@ -118,10 +110,23 @@ func setClusterName(status map[string]interface{}) {
 
 // setCollectionIsWorking checks whether collection is running by checking telemetry/cache data
 func setCollectionIsWorking(status map[string]interface{}) {
-	c := orchestrator.KubernetesResourceCache.ItemCount()
-	if c > 0 {
-		status["CollectionWorking"] = "The collection is at least partially running since the cache has been populated."
-	} else {
-		status["CollectionWorking"] = "The collection has not run successfully yet since the cache is empty."
+	engine, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		status["CollectionWorking"] = "The collection has not run successfully because no leader has been elected."
+		status["LeaderError"] = err
+		return
 	}
+	status["Leader"] = engine.IsLeader()
+	status["LeaderName"] = engine.GetLeader()
+	if engine.IsLeader() {
+		c := orchestrator.KubernetesResourceCache.ItemCount()
+		if c > 0 {
+			status["CollectionWorking"] = "The collection is at least partially running since the cache has been populated."
+		} else {
+			status["CollectionWorking"] = "The collection has not run successfully yet since the cache is empty."
+		}
+	} else {
+		status["CollectionWorking"] = "The collection is not running because this agent is not the leader"
+	}
+
 }

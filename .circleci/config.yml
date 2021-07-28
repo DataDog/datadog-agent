@@ -11,6 +11,7 @@ experimental:
     branches:
       only:
         - master
+        - main
 
 templates:
   job_template: &job_template
@@ -24,13 +25,14 @@ templates:
     - restore_cache: &restore_deps
         keys:
           # The first match will be used. Doing that so new branches
-          # use master's cache but don't pollute it back.
+          # use the default branch's cache but don't pollute it back.
           #
           # If incremental dep fails, increase the cache gen number
           # in restore_deps AND save_deps
           # See https://github.com/DataDog/datadog-agent/pull/2384
           - gen18-godeps-{{ .Branch }}-{{ .Revision }}
           - gen18-godeps-{{ .Branch }}-
+          - gen18-godeps-main-
           - gen18-godeps-master-
     - save_cache: &save_deps
         key: gen18-godeps-{{ .Branch }}-{{ .Revision }}
@@ -187,6 +189,11 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
+          name: setting env vars for click
+          command: |
+              echo 'export LC_ALL="C.UTF-8"' >> $BASH_ENV
+              echo 'export LANG="C.UTF-8"' >> $BASH_ENV
+      - run:
           name: lint python files
           command: inv -e lint-python
 
@@ -240,7 +247,7 @@ jobs:
     macos:
       xcode: 11.7.0
     environment:
-      BUILDIMAGES_VERSION: "68f7e123fea89b2b9c06a5251b26249ee76e3877" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
+      BUILDIMAGES_VERSION: "0f65dfe0488a16bcf63b19e0376185bfcac74503" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
     working_directory: ~/go/src/github.com/DataDog/datadog-agent
     steps:
       - checkout
@@ -254,6 +261,7 @@ jobs:
             # See https://github.com/DataDog/datadog-agent/pull/2384
             - v5-macosdeps-{{ .Branch }}-{{ .Revision }}
             - v5-macosdeps-{{ .Branch }}-
+            - v5-macosdeps-main-
             - v5-macosdeps-master-
       - run:
           name: Setup runner
@@ -317,19 +325,25 @@ workflows:
       - release_note:
           filters:
             branches:
-              ignore: master
+              ignore:
+                - master
+                - main
           requires:
             - dependencies
       - team_label:
           filters:
             branches:
-              ignore: master
+              ignore:
+                - master
+                - main
           requires:
             - dependencies
       - milestone:
           filters:
             branches:
-              ignore: master
+              ignore:
+                - master
+                - main
           requires:
             - dependencies
       - licenses_linting:

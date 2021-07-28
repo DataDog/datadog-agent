@@ -13,6 +13,7 @@ from invoke import task
 
 # constants
 ORG_PATH = "github.com/DataDog"
+DEFAULT_BRANCH = "main"
 REPO_PATH = "{}/datadog-agent".format(ORG_PATH)
 
 
@@ -124,7 +125,7 @@ def get_build_flags(
         ldflags += "-r {} ".format(':'.join(rtloader_lib))
 
     if os.environ.get("DELVE"):
-        gcflags = "-N -l"
+        gcflags = "all=-N -l"
         if sys.platform == 'win32':
             # On windows, need to build with the extra argument -ldflags="-linkmode internal"
             # if you want to be able to use the delve debugger.

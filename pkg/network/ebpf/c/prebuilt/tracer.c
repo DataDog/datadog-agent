@@ -4,12 +4,13 @@
 #include "tracer-maps.h"
 #include "tracer-stats.h"
 #include "tracer-telemetry.h"
+#include "sockfd.h"
 
 #include "bpf_helpers.h"
 #include "bpf_endian.h"
-#include "syscalls.h"
 #include "ip.h"
 #include "ipv6.h"
+#include "defs.h"
 
 #include <linux/kconfig.h>
 #include <net/inet_sock.h>
@@ -20,22 +21,6 @@
 #include <uapi/linux/ptrace.h>
 #include <uapi/linux/tcp.h>
 #include <uapi/linux/udp.h>
-
-/* The LOAD_CONSTANT macro is used to define a named constant that will be replaced
- * at runtime by the Go code. This replaces usage of a bpf_map for storing values, which
- * eliminates a bpf_map_lookup_elem per kprobe hit. The constants are best accessed with a
- * dedicated inlined function. See example functions offset_* below.
- */
-#define LOAD_CONSTANT(param, var) asm("%0 = " param " ll" \
-                                      : "=r"(var))
-
-static const __u64 ENABLED = 1;
-
-static __always_inline bool dns_stats_enabled() {
-    __u64 val = 0;
-    LOAD_CONSTANT("dns_stats_enabled", val);
-    return val == ENABLED;
-}
 
 static __always_inline __u64 offset_family() {
     __u64 val = 0;
@@ -160,6 +145,12 @@ static __always_inline __u64 offset_sport_fl6() {
 static __always_inline __u64 offset_dport_fl6() {
      __u64 val = 0;
      LOAD_CONSTANT("offset_dport_fl6", val);
+     return val;
+}
+
+static __always_inline __u64 offset_socket_sk() {
+     __u64 val = 0;
+     LOAD_CONSTANT("offset_socket_sk", val);
      return val;
 }
 
@@ -364,6 +355,8 @@ int kprobe__tcp_close(struct pt_regs* ctx) {
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     sk = (struct sock*)PT_REGS_PARM1(ctx);
+
+    clear_sockfd_maps(sk);
 
     // Get network namespace id
     log_debug("kprobe/tcp_close: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
@@ -834,25 +827,101 @@ int kretprobe__inet6_bind(struct pt_regs* ctx) {
     return sys_exit_bind(ret);
 }
 
-//endregion
+SEC("kprobe/sockfd_lookup_light")
+int kprobe__sockfd_lookup_light(struct pt_regs* ctx) {
+    int sockfd = (int)PT_REGS_PARM1(ctx);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
 
-// This function is meant to be used as a BPF_PROG_TYPE_SOCKET_FILTER.
-// When attached to a RAW_SOCKET, this code filters out everything but DNS traffic.
-// All structs referenced here are kernel independent as they simply map protocol headers (Ethernet, IP and UDP).
-SEC("socket/dns_filter")
-int socket__dns_filter(struct __sk_buff* skb) {
-    skb_info_t skb_info;
-
-    if (!read_conn_tuple_skb(skb, &skb_info)) {
+    // Check if have already a map entry for this pid_fd_t
+    pid_fd_t key = {
+        .pid = pid_tgid >> 32,
+        .fd = sockfd,
+    };
+    struct sock** sock = bpf_map_lookup_elem(&sock_by_pid_fd, &key);
+    if (sock != NULL) {
         return 0;
     }
 
-    if (skb_info.tup.sport != 53 && (!dns_stats_enabled() || skb_info.tup.dport != 53)) {
-        return 0;
-    }
-
-    return -1;
+    bpf_map_update_elem(&sockfd_lookup_args, &pid_tgid, &sockfd, BPF_ANY);
+    return 0;
 }
+
+// this kretprobe is essentially creating:
+// * an index of pid_fd_t to a struct sock*;
+// * an index of struct sock* to pid_fd_t;
+SEC("kretprobe/sockfd_lookup_light")
+int kretprobe__sockfd_lookup_light(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    int *sockfd = bpf_map_lookup_elem(&sockfd_lookup_args, &pid_tgid);
+    if (sockfd == NULL) {
+        return 0;
+    }
+
+    // For now let's only store information for TCP sockets
+    struct socket* socket = (struct socket*)PT_REGS_RC(ctx);
+    enum sock_type sock_type = 0;
+    bpf_probe_read(&sock_type, sizeof(short), &socket->type);
+    if (sock_type != SOCK_STREAM) {
+        goto cleanup;
+    }
+
+    // Retrieve struct sock* pointer from struct socket*
+    struct sock *sock = NULL;
+    bpf_probe_read(&sock, sizeof(sock), (char*)socket + offset_socket_sk());
+
+    pid_fd_t pid_fd = {
+        .pid = pid_tgid >> 32,
+        .fd = (*sockfd),
+    };
+
+    // These entries are cleaned up by tcp_close
+    bpf_map_update_elem(&pid_fd_by_sock, &sock, &pid_fd, BPF_ANY);
+    bpf_map_update_elem(&sock_by_pid_fd, &pid_fd, &sock, BPF_ANY);
+cleanup:
+    bpf_map_delete_elem(&sockfd_lookup_args, &pid_tgid);
+    return 0;
+}
+
+SEC("kprobe/do_sendfile")
+int kprobe__do_sendfile(struct pt_regs* ctx) {
+    u32 fd_out = (int)PT_REGS_PARM1(ctx);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    pid_fd_t key = {
+        .pid = pid_tgid >> 32,
+        .fd = fd_out,
+    };
+    struct sock** sock = bpf_map_lookup_elem(&sock_by_pid_fd, &key);
+    if (sock == NULL) {
+        return 0;
+    }
+
+    // bring map value to eBPF stack to satisfy Kernel 4.4 verifier
+    struct sock* skp = *sock;
+    bpf_map_update_elem(&do_sendfile_args, &pid_tgid, &skp, BPF_ANY);
+    return 0;
+}
+
+SEC("kretprobe/do_sendfile")
+int kretprobe__do_sendfile(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    struct sock** sock = bpf_map_lookup_elem(&do_sendfile_args, &pid_tgid);
+    if (sock == NULL) {
+        return 0;
+    }
+
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, *sock, pid_tgid, CONN_TYPE_TCP)) {
+        goto cleanup;
+    }
+
+    size_t sent = (size_t)PT_REGS_RC(ctx);
+    handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE);
+cleanup:
+    bpf_map_delete_elem(&do_sendfile_args, &pid_tgid);
+    return 0;
+}
+
+//endregion
 
 // This number will be interpreted by elf-loader to set the current running kernel version
 __u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)

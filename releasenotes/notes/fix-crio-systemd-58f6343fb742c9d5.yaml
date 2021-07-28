@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix a bug in cgroup parser preventing from getting proper metrics in Container Live View when using CRI-O and systemd cgroup manager.

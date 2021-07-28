@@ -28,11 +28,7 @@ func IsContainerized() bool {
 // which is typically only set by Docker
 func IsDockerRuntime() bool {
 	_, err := os.Stat("/.dockerenv")
-	if err == nil {
-		return true
-	}
-
-	return false
+	return err == nil
 }
 
 // IsKubernetes returns whether the Agent is running on a kubernetes cluster

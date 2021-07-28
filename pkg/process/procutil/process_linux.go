@@ -33,8 +33,6 @@ const (
 var (
 	// PageSize is the system's memory page size
 	PageSize = uint64(os.Getpagesize())
-	// bootTime refresh interval
-	bootTimeRefreshInterval = time.Minute
 )
 
 type statusInfo struct {
@@ -74,6 +72,13 @@ func WithPermission(enabled bool) Option {
 	}
 }
 
+// WithBootTimeRefreshInterval configures the boot time refresh interval
+func WithBootTimeRefreshInterval(bootTimeRefreshInterval time.Duration) Option {
+	return func(p *Probe) {
+		p.bootTimeRefreshInterval = bootTimeRefreshInterval
+	}
+}
+
 // Probe is a service that fetches process related info on current host
 type Probe struct {
 	procRootLoc  string // ProcFS
@@ -85,8 +90,9 @@ type Probe struct {
 	exit         chan struct{}
 
 	// configurations
-	withPermission      bool
-	returnZeroPermStats bool
+	withPermission          bool
+	returnZeroPermStats     bool
+	bootTimeRefreshInterval time.Duration
 }
 
 // NewProcessProbe initializes a new Probe object
@@ -98,11 +104,12 @@ func NewProcessProbe(options ...Option) *Probe {
 	}
 
 	p := &Probe{
-		procRootLoc: hostProc,
-		uid:         uint32(os.Getuid()),
-		euid:        uint32(os.Geteuid()),
-		clockTicks:  getClockTicks(),
-		exit:        make(chan struct{}),
+		procRootLoc:             hostProc,
+		uid:                     uint32(os.Getuid()),
+		euid:                    uint32(os.Geteuid()),
+		clockTicks:              getClockTicks(),
+		exit:                    make(chan struct{}),
+		bootTimeRefreshInterval: time.Minute,
 	}
 	atomic.StoreUint64(&p.bootTime, bootTime)
 
@@ -127,7 +134,7 @@ func (p *Probe) Close() {
 // syncBootTime checks bootTime every minute and stores it.
 // Make sure we get the correct boot time if the clock of the host is temporarily drifted but gets corrected later on
 func (p *Probe) syncBootTime() {
-	ticker := time.NewTicker(bootTimeRefreshInterval)
+	ticker := time.NewTicker(p.bootTimeRefreshInterval)
 	defer ticker.Stop()
 
 	select {

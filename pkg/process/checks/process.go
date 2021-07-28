@@ -1,6 +1,7 @@
 package checks
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"sync/atomic"
@@ -56,7 +57,7 @@ func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	p.sysInfo = info
 	p.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
 
-	networkID, err := agentutil.GetNetworkID()
+	networkID, err := agentutil.GetNetworkID(context.TODO())
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}

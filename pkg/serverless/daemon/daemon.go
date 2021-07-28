@@ -217,7 +217,7 @@ func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 
 // Stop causes the Daemon to gracefully shut down. After a delay, the HTTP server
 // is shut down, data is flushed a final time, and then the agents are shut down.
-func (d *Daemon) Stop() {
+func (d *Daemon) Stop(isTimeout bool) {
 	// Can't shut down before starting
 	// If the DogStatsD daemon isn't ready, wait for it.
 

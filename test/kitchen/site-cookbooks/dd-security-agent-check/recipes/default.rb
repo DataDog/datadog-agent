@@ -42,8 +42,21 @@ if node['platform_family'] != 'windows'
       package 'xfsprogs'
     end
 
-    docker_service 'default' do
-      action [:create, :start]
+    if ['oracle'].include?(node[:platform])
+      docker_installation_package 'default' do
+        action :create
+        setup_docker_repo false
+        package_name 'docker-engine'
+        package_options %q|-y|
+      end
+
+      service 'docker' do
+        action [ :enable, :start ]
+      end
+    else
+      docker_service 'default' do
+        action [:create, :start]
+      end
     end
 
     docker_image 'centos' do
@@ -69,7 +82,7 @@ if node['platform_family'] != 'windows'
 
     docker_exec 'install_xfs' do
       container 'docker-testsuite'
-      command ['yum', '-y', 'install', 'xfsprogs', 'e2fsprogs']
+      command ['yum', '-y', 'install', 'xfsprogs', 'e2fsprogs', 'glibc.i686']
     end
 
     for i in 0..7 do
@@ -80,10 +93,10 @@ if node['platform_family'] != 'windows'
     end
   end
 
-  if not platform_family?('suse', 'rhel')
+  if not platform_family?('suse')
     package 'Install i386 libc' do
       case node[:platform]
-      when 'redhat', 'centos', 'fedora'
+      when 'redhat', 'centos', 'fedora', 'oracle'
         package_name 'glibc.i686'
       when 'ubuntu', 'debian'
         package_name 'libc6-i386'

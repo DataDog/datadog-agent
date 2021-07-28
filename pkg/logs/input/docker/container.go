@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"context"
 	"regexp"
 	"strings"
 
@@ -62,7 +63,7 @@ func (c *Container) FindSource(sources []*config.LogSource) *config.LogSource {
 
 // getShortImageName resolves the short image name of a container by calling the docker daemon
 // This call is blocking
-func (c *Container) getShortImageName() (string, error) {
+func (c *Container) getShortImageName(ctx context.Context) (string, error) {
 	var (
 		err       error
 		shortName string
@@ -74,7 +75,7 @@ func (c *Container) getShortImageName() (string, error) {
 		return shortName, err
 	}
 	imageName := c.container.Image
-	imageName, err = du.ResolveImageName(imageName)
+	imageName, err = du.ResolveImageName(ctx, imageName)
 	if err != nil {
 		log.Debugf("Could not resolve image name %s: %s", imageName, err)
 		return shortName, err

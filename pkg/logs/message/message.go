@@ -6,6 +6,7 @@
 package message
 
 import (
+	"context"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -79,7 +80,7 @@ func (m *Message) GetLatency() int64 {
 // GetHostname returns the hostname to applied the given log message
 func (m *Message) GetHostname() string {
 	if m.Lambda == nil {
-		hostname, err := util.GetHostname()
+		hostname, err := util.GetHostname(context.TODO())
 		if err != nil {
 			// this scenario is not likely to happen since
 			// the agent can not start without a hostname

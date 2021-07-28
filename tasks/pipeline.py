@@ -7,6 +7,8 @@ from collections import defaultdict
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.utils import DEFAULT_BRANCH
+
 from .libs.common.color import color_message
 from .libs.common.gitlab import Gitlab
 from .libs.pipeline_notifications import (
@@ -81,7 +83,7 @@ def check_deploy_pipeline(gitlab, project_name, git_ref, release_version_6, rele
 
 
 @task
-def clean_running_pipelines(ctx, git_ref="master", here=False, use_latest_sha=False, sha=None):
+def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_sha=False, sha=None):
     """
     Fetch running pipelines on a target ref (+ optionally a git sha), and ask the user if they
     should be cancelled.
@@ -113,7 +115,9 @@ def clean_running_pipelines(ctx, git_ref="master", here=False, use_latest_sha=Fa
 
 
 @task
-def trigger(ctx, git_ref="master", release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"):
+def trigger(
+    ctx, git_ref=DEFAULT_BRANCH, release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"
+):
     """
     DEPRECATED: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
 
@@ -147,7 +151,7 @@ def trigger(ctx, git_ref="master", release_version_6="nightly", release_version_
 @task
 def run(
     ctx,
-    git_ref="master",
+    git_ref=DEFAULT_BRANCH,
     here=False,
     release_version_6="nightly",
     release_version_7="nightly-a7",
@@ -160,7 +164,7 @@ def run(
     Run a pipeline on the given git ref, or on the current branch if --here is given.
     By default, this pipeline will run all builds & tests, including all kitchen tests, but is not a deploy pipeline.
     Use --deploy to make this pipeline a deploy pipeline, which will upload artifacts to the staging repositories.
-    Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on master pipelines).
+    Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on pipelines on the default branch).
     Use --no-kitchen-tests to not run all kitchen tests on the pipeline.
 
     The --release-version-6 and --release-version-7 options indicate which release.json entries are used.
@@ -280,7 +284,7 @@ def wait_for_pipeline_from_ref(gitlab, project_name, ref):
 
 GITHUB_SLACK_MAP = {
     "@DataDog/agent-platform": "#agent-platform",
-    "@DataDog/container-integrations": "#container-integration",
+    "@DataDog/container-integrations": "#container-integrations",
     "@DataDog/integrations-tools-and-libraries": "#intg-tools-libs",
     "@DataDog/agent-network": "#network-agent",
     "@DataDog/agent-security": "#security-and-compliance-agent",
@@ -323,11 +327,55 @@ def generate_failure_messages(base):
             # message, do not overwrite the failed jobs list
             pass
         else:
-            pass
-            # TODO: enable also jobs
-            # messages_to_send[owner].failed_jobs = jobs
+            messages_to_send[owner].failed_jobs = jobs
 
     return messages_to_send
+
+
+@task
+def trigger_child_pipeline(_, git_ref, project_name, variables=""):
+    """
+    Trigger a child pipeline on a target repository and git ref.
+    Used in CI jobs only (requires CI_JOB_TOKEN).
+
+    Use --variables to specify the environment variables that should be passed to the child pipeline, as a comma-separated list.
+
+    Examples:
+    inv pipeline.trigger-child-pipeline --git-ref "master" --project-name "DataDog/agent-release-management" --variables "RELEASE_VERSION"
+
+    inv pipeline.trigger-child-pipeline --git-ref "master" --project-name "DataDog/agent-release-management" --variables "VAR1,VAR2,VAR3"
+    """
+
+    if not os.environ.get('CI_JOB_TOKEN'):
+        raise Exit("CI_JOB_TOKEN variable needed to create child pipelines.", 1)
+
+    # The Gitlab lib requires `GITLAB_TOKEN` to be set, though
+    # we won't use it here
+    os.environ["GITLAB_TOKEN"] = os.environ['CI_JOB_TOKEN']
+
+    gitlab = Gitlab()
+
+    data = {"token": os.environ['CI_JOB_TOKEN'], "ref": git_ref, "variables": {}}
+
+    # Fill the environment variables to pass to the child pipeline.
+    for v in variables.split(','):
+        data['variables'][v] = os.environ[v]
+
+    print(
+        "Creating child pipeline in repo {}, on git ref {} with params: {}".format(
+            project_name, git_ref, data['variables']
+        )
+    )
+
+    res = gitlab.trigger_pipeline(project_name, data)
+
+    if 'id' not in res:
+        raise Exit("Failed to create child pipeline: {}".format(res), 1)
+
+    print("Created a child pipeline with id={}, url={}".format(res['id'], res['web_url']))
+
+    # TODO: Add mode where we follow the pipeline, for jobs that need to depend on the child
+    # pipeline.
 
 
 @task
