@@ -863,7 +863,7 @@ kubernetes_molecule_prepare_cleanup:
    needs:
      - kubernetes_molecule_create
    rules:
-     - *only_agent_3
+     - *only_agent_3_success
 
 kubernetes_molecule_test:
   <<: *molecule_base
@@ -1119,7 +1119,7 @@ swarm_molecule_prepare_cleanup:
    <<: *swarm_cleanup_base
    stage: prepare_cleanup
    rules:
-     - *only_agent_3
+     - *only_agent_3_success
    needs:
      - swarm_molecule_create
 
