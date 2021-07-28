@@ -73,8 +73,6 @@ flow_a:
 
 flow_b:
   stage: build
-  needs:
-    - prepare
   trigger:
     include:
       - local: .gitlab-ci/.gitlab-ci-agent-prepare.yml
@@ -82,7 +80,6 @@ flow_b:
   variables:
     <<: *commonvariables
     <<: *agent2_variables
-    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
 
 # agent2:
 #   stage: triggers
