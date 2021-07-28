@@ -9,6 +9,11 @@
       "tag:molecule_run_id": "{{ molecule_run_id }}"
   register: own_instances
 
+- name: Instances found
+  debug:
+    msg: "{{ own_instances }}"
+  when: own_instances is defined
+
 - name: Destroy molecule instance(s)
   ec2_instance:
     state: absent

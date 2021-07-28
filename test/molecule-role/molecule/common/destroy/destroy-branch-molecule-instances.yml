@@ -8,6 +8,11 @@
       "tag:molecule_scenario_name": "{{ molecule_scenario_name }}"
   register: branch_instances
 
+- name: Instances found
+  debug:
+    msg: "{{ branch_instances }}"
+  when: branch_instances is defined
+
 - name: Destroy molecule instance(s)
   ec2_instance:
     state: absent
