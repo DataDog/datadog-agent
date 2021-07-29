@@ -56,6 +56,9 @@ func (c *safeConfig) SetKnown(key string) {
 func (c *safeConfig) GetKnownKeys() map[string]interface{} {
 	c.Lock()
 	defer c.Unlock()
+
+	// GetKnownKeys returns a fresh map, so the caller may do with it
+	// as they please without holding the lock.
 	return c.Viper.GetKnownKeys()
 }
 
@@ -340,6 +343,9 @@ func (c *safeConfig) MergeConfigOverride(in io.Reader) error {
 func (c *safeConfig) AllSettings() map[string]interface{} {
 	c.Lock()
 	defer c.Unlock()
+
+	// AllSettings returns a fresh map, so the caller may do with it
+	// as they please without holding the lock.
 	return c.Viper.AllSettings()
 }
 
