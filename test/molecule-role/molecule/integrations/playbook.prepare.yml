@@ -31,6 +31,12 @@
         dest: /home/ubuntu/
         mode: preserve
 
+    - name: Copy docker compose base file
+      copy:
+        src: ../common/files/docker-compose.base.yml
+        dest: /home/ubuntu/
+        mode: preserve
+
     - name: Copy Verify and Create Script file
       copy:
         src: ./../verify-or-create-topics.sh
