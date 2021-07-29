@@ -26,3 +26,33 @@
           STACKSTATE_BRANCH={{ stackstate_branch }}
         dest: /home/ubuntu/.env
     - include_tasks: ../common/prepare/docker-compose-pull.yml
+
+- name: Prepare Linux Agents (pre)
+  hosts: agent_linux_vm
+  gather_facts: false
+  tasks:
+
+- name: Prepare Network Connection Namespaces VM (pre)
+  hosts: agent-connection-namespaces
+  gather_facts: false
+  tasks:
+
+- name: Prepare Windows Agent (pre)
+  hosts: agent_win_vm
+  gather_facts: false
+  tasks:
+
+- name: Prepare Ubuntu Agent listening before start
+  hosts: agent-ubuntu
+  gather_facts: false
+  tasks:
+
+- name: Prepare Fedora Agent connecting before start
+  hosts: agent-fedora
+  gather_facts: false
+  tasks:
+
+- name: Prepare Windows Agent connecting before start
+  hosts: agent-win
+  gather_facts: false
+  tasks:

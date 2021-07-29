@@ -10,6 +10,14 @@
   hosts: receiver_vm
   gather_facts: false
   tasks:
+    - name: Configure .env file used by docker-compose
+      copy:
+        content: |
+          STACKSTATE_BRANCH={{ stackstate_branch }}
+        dest: /home/ubuntu/.env
+
+    - include_tasks: ../common/prepare/docker-compose-cleanup.yml
+
     - name: Run Docker compose (1/2)
       command: docker-compose up -d
       args:

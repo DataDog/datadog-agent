@@ -10,6 +10,14 @@
   hosts: trace-java-demo
   gather_facts: true
   tasks:
+    - include_tasks: ../common/prepare/gather-facts.yml
+    - name: Configure .env file used by docker-compose
+      copy:
+        content: |
+          AGENT_DOCKER_REPO={{ agent_docker_repo }}
+          AGENT_VERSION={{ agent_current_branch }}
+          STACKSTATE_BRANCH={{ stackstate_branch }}
+        dest: /home/ubuntu/.env
     - include_tasks: ../common/prepare/docker-compose-cleanup.yml
     - include_tasks: ../common/prepare/run-docker-compose.yml
     - include_tasks: ../common/prepare/wait-for-receiver.yml
