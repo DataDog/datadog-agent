@@ -1,5 +1,6 @@
 import io
 import os
+import pprint
 import re
 import traceback
 from collections import defaultdict
@@ -418,3 +419,126 @@ def notify_failure(_, notification_type="merge", print_to_stdout=False):
             print("Would send to {channel}:\n{message}".format(channel=channel, message=str(message)))
         else:
             send_slack_message(channel, str(message))  # TODO: use channel variable
+
+
+def _init_pipeline_schedule_task():
+    project_name = "DataDog/datadog-agent"
+    try:
+        project_access_token = os.environ['GITLAB_PROJECT_ACCESS_TOKEN']
+    except KeyError:
+        raise Exit(message="You must specify GITLAB_PROJECT_ACCESS_TOKEN environment variable", code=1)
+    gitlab = Gitlab(api_token=project_access_token)
+    gitlab.test_project_found(project_name)
+    return project_name, gitlab
+
+
+@task
+def get_schedules(_):
+    """
+    Pretty-print all pipeline schedules on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    for ps in gitlab.all_pipeline_schedules(project_name):
+        pprint.pprint(ps)
+
+
+@task
+def get_schedule(_, schedule_id):
+    """
+    Pretty-print a single pipeline schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.pipeline_schedule(project_name, schedule_id)
+    pprint.pprint(result)
+
+
+@task
+def create_schedule(_, description, ref, cron, cron_timezone=None, active=False):
+    """
+    Create a new pipeline schedule on the repository.
+
+    Note that unless you explicitly specify the --active flag, the schedule will be created as inactive.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.create_pipeline_schedule(project_name, description, ref, cron, cron_timezone, active)
+    pprint.pprint(result)
+
+
+@task
+def edit_schedule(_, schedule_id, description=None, ref=None, cron=None, cron_timezone=None):
+    """
+    Edit an existing pipeline schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.edit_pipeline_schedule(project_name, schedule_id, description, ref, cron, cron_timezone)
+    pprint.pprint(result)
+
+
+@task
+def activate_schedule(_, schedule_id):
+    """
+    Activate an existing pipeline schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.edit_pipeline_schedule(project_name, schedule_id, active=True)
+    pprint.pprint(result)
+
+
+@task
+def deactivate_schedule(_, schedule_id):
+    """
+    Deactivate an existing pipeline schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.edit_pipeline_schedule(project_name, schedule_id, active=False)
+    pprint.pprint(result)
+
+
+@task
+def delete_schedule(_, schedule_id):
+    """
+    Delete an existing pipeline schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.delete_pipeline_schedule(project_name, schedule_id)
+    pprint.pprint(result)
+
+
+@task
+def create_schedule_variable(_, schedule_id, key, value):
+    """
+    Create a variable for an existing schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.create_pipeline_schedule_variable(project_name, schedule_id, key, value)
+    pprint.pprint(result)
+
+
+@task
+def edit_schedule_variable(_, schedule_id, key, value):
+    """
+    Edit an existing variable for a schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.edit_pipeline_schedule_variable(project_name, schedule_id, key, value)
+    pprint.pprint(result)
+
+
+@task
+def delete_schedule_variable(_, schedule_id, key):
+    """
+    Delete an existing variable for a schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.delete_pipeline_schedule_variable(project_name, schedule_id, key)
+    pprint.pprint(result)
