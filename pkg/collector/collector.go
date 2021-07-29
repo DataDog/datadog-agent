@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
+	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -154,7 +155,7 @@ func (c *Collector) StopCheck(id check.ID) error {
 	}
 
 	// remove the check from the stats map
-	runner.RemoveCheckStats(id)
+	expvars.RemoveCheckStats(id)
 
 	// vaporize the check
 	c.delete(id)
