@@ -104,7 +104,7 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("The flush strategy", f.daemon.LogFlushStategy(), " has decided to flush in moment:", flush.Stopping)
 
 	// if the DogStatsD daemon isn't ready, wait for it.
-	if f.daemon.MetricAgent.DogStatDServer == nil {
+	if f.daemon.MetricAgent.IsReady() {
 		w.WriteHeader(503)
 		w.Write([]byte("DogStatsD server not ready"))
 		f.daemon.FinishInvocation()
@@ -153,7 +153,7 @@ func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfi
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
 func (d *Daemon) SetStatsdServer(metricAgent *metrics.ServerlessMetricAgent) {
 	d.MetricAgent = metricAgent
-	d.MetricAgent.DogStatDServer.SetExtraTags(d.ExtraTags.Tags)
+	d.MetricAgent.SetExtraTags(d.ExtraTags.Tags)
 }
 
 // SetTraceAgent sets the Agent instance for submitting traces
@@ -188,8 +188,8 @@ func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 
 	// metrics
 	go func() {
-		if d.MetricAgent != nil && d.MetricAgent.DogStatDServer != nil {
-			d.MetricAgent.DogStatDServer.Flush()
+		if d.MetricAgent != nil {
+			d.MetricAgent.Flush()
 		}
 		wg.Done()
 	}()
@@ -249,8 +249,8 @@ func (d *Daemon) Stop() {
 		d.TraceAgent.Stop()
 	}
 
-	if d.MetricAgent != nil && d.MetricAgent.DogStatDServer != nil {
-		d.MetricAgent.DogStatDServer.Stop()
+	if d.MetricAgent != nil {
+		d.MetricAgent.Stop()
 	}
 	logs.Stop()
 	log.Debug("Serverless agent shutdown complete")
@@ -328,8 +328,8 @@ func (d *Daemon) ComputeGlobalTags(configTags []string) {
 	if len(d.ExtraTags.Tags) == 0 {
 		tagMap := tags.BuildTagMap(d.ExecutionContext.ARN, configTags)
 		tagArray := tags.BuildTagsFromMap(tagMap)
-		if d.MetricAgent != nil && d.MetricAgent.DogStatDServer != nil {
-			d.MetricAgent.DogStatDServer.SetExtraTags(tagArray)
+		if d.MetricAgent != nil {
+			d.MetricAgent.SetExtraTags(tagArray)
 		}
 		if d.TraceAgent != nil {
 			d.TraceAgent.Get().SetGlobalTagsUnsafe(tags.BuildTracerTags(tagMap))

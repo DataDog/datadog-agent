@@ -89,6 +89,28 @@ func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEn
 	}
 }
 
+func (c *ServerlessMetricAgent) IsReady() bool {
+	return c.DogStatDServer != nil
+}
+
+func (c *ServerlessMetricAgent) Flush() {
+	if c.IsReady() {
+		c.DogStatDServer.Flush()
+	}
+}
+
+func (c *ServerlessMetricAgent) Stop() {
+	if c.IsReady() {
+		c.DogStatDServer.Stop()
+	}
+}
+
+func (c *ServerlessMetricAgent) SetExtraTags(tagArray []string) {
+	if c.IsReady() {
+		c.DogStatDServer.SetExtraTags(tagArray)
+	}
+}
+
 func buildBufferedAggregator(multipleEndpointConfig MultipleEndpointConfig, forwarderTimeout time.Duration) *aggregator.BufferedAggregator {
 	log.Debugf("Using a SyncForwarder with a %v timeout", forwarderTimeout)
 	keysPerDomain, err := multipleEndpointConfig.GetMultipleEndpoints()
