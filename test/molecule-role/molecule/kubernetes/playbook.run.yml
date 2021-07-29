@@ -10,6 +10,7 @@
   hosts: kubernetes-cluster-agent
   gather_facts: true
   tasks:
+    - include_tasks: ../common/prepare/gather-facts.yml
     # cleanup before a rerun
     - include_tasks: ../common/prepare/docker-compose-cleanup-receiver.yml
 
@@ -17,9 +18,6 @@
     #   template:
     #     src: /home/ubuntu/overlays-original/kustomization.yaml
     #     dest: /home/ubuntu/deployment/agents/overlays
-
-    - include_tasks: ../common/prepare/gather-facts.yml
-    # continue
 
     - name: Run Docker compose
       command: docker-compose up -d

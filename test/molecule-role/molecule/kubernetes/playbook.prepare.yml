@@ -10,6 +10,7 @@
   hosts: kubernetes-cluster-agent
   gather_facts: true
   tasks:
+    - include_tasks: ../common/prepare/gather-facts.yml
     - include_tasks: ../common/prepare/ubuntu18-automatic-updates.yml
     - include_tasks: ../common/prepare/install-provisioning-dependencies.yml
     - include_tasks: ../common/prepare/configure-aws-credentials.yml
