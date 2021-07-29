@@ -10,6 +10,7 @@ package probe
 import (
 	"C"
 	"fmt"
+	"math/rand"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -480,25 +481,24 @@ func (dr *DentryResolver) markSegmentAsZero() {
 // GetNameFromERPC resolves the name of the provided inode / mount id / path id
 func (dr *DentryResolver) GetNameFromERPC(mountID uint32, inode uint64, pathID uint32) (string, error) {
 	// create eRPC request
+	challenge := rand.Uint32()
 	dr.erpcRequest.OP = ResolveSegmentOp
 	model.ByteOrder.PutUint64(dr.erpcRequest.Data[0:8], inode)
 	model.ByteOrder.PutUint32(dr.erpcRequest.Data[8:12], mountID)
 	model.ByteOrder.PutUint32(dr.erpcRequest.Data[12:16], pathID)
 	model.ByteOrder.PutUint64(dr.erpcRequest.Data[16:24], uint64(uintptr(unsafe.Pointer(&dr.erpcSegment[0]))))
 	model.ByteOrder.PutUint32(dr.erpcRequest.Data[24:28], uint32(dr.erpcSegmentSize))
+	model.ByteOrder.PutUint32(dr.erpcRequest.Data[28:32], challenge)
 
 	// if we don't try to access the segment, the eBPF program can't write to it ... (major page fault)
 	dr.preventSegmentMajorPageFault()
-
-	// zero the first uint64 to ensure that we know if the in-kernel resolution succeeded
-	dr.markSegmentAsZero()
 
 	if err := dr.erpc.Request(&dr.erpcRequest); err != nil {
 		atomic.AddInt64(dr.missCounters[metrics.SegmentResolutionTag][metrics.ERPCTag], 1)
 		return "", errors.Wrapf(err, "unable to get the name of mountID `%d` and inode `%d` with eRPC", mountID, inode)
 	}
 
-	if model.ByteOrder.Uint64(dr.erpcSegment[0:8]) == 0 {
+	if challenge != model.ByteOrder.Uint32(dr.erpcSegment[12:16]) {
 		atomic.AddInt64(dr.missCounters[metrics.SegmentResolutionTag][metrics.ERPCTag], 1)
 		return "", errors.Errorf("eRPC request wasn't processed")
 	}
@@ -520,6 +520,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 	var cacheKey PathKey
 	var cacheEntry PathEntry
 	depth := int64(0)
+	challenge := rand.Uint32()
 
 	// create eRPC request
 	dr.erpcRequest.OP = ResolvePathOp
@@ -528,12 +529,10 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 	model.ByteOrder.PutUint32(dr.erpcRequest.Data[12:16], pathID)
 	model.ByteOrder.PutUint64(dr.erpcRequest.Data[16:24], uint64(uintptr(unsafe.Pointer(&dr.erpcSegment[0]))))
 	model.ByteOrder.PutUint32(dr.erpcRequest.Data[24:28], uint32(dr.erpcSegmentSize))
+	model.ByteOrder.PutUint32(dr.erpcRequest.Data[28:32], challenge)
 
 	// if we don't try to access the segment, the eBPF program can't write to it ... (major page fault)
 	dr.preventSegmentMajorPageFault()
-
-	// zero the first uint64 to ensure that we know if the in-kernel resolution succeeded
-	dr.markSegmentAsZero()
 
 	if err = dr.erpc.Request(&dr.erpcRequest); err != nil {
 		atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.ERPCTag], 1)
@@ -543,11 +542,6 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 	var keys []PathKey
 	var entries []PathEntry
 
-	if model.ByteOrder.Uint64(dr.erpcSegment[0:8]) == 0 {
-		atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.ERPCTag], 1)
-		return "", errors.Errorf("eRPC request wasn't processed")
-	}
-
 	i := 0
 	// make sure that we keep room for at least one pathID + character + \0 => (sizeof(pathID) + 1 = 17)
 	for i < dr.erpcSegmentSize-17 {
@@ -556,6 +550,13 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 		// parse the path_key_t structure
 		cacheKey.Inode = model.ByteOrder.Uint64(dr.erpcSegment[i : i+8])
 		cacheKey.MountID = model.ByteOrder.Uint32(dr.erpcSegment[i+8 : i+12])
+
+		// check challenge
+		if challenge != model.ByteOrder.Uint32(dr.erpcSegment[i+12:i+16]) {
+			atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.ERPCTag], 1)
+			return "", errors.Errorf("eRPC request wasn't processed")
+		}
+
 		// skip PathID
 		i += 16
 
@@ -638,26 +639,25 @@ func (dr *DentryResolver) resolveParentFromCache(mountID uint32, inode uint64) (
 
 func (dr *DentryResolver) resolveParentFromERPC(mountID uint32, inode uint64, pathID uint32) (uint32, uint64, error) {
 	// create eRPC request
+	challenge := rand.Uint32()
 	dr.erpcRequest.OP = ResolveParentOp
 	model.ByteOrder.PutUint64(dr.erpcRequest.Data[0:8], inode)
 	model.ByteOrder.PutUint32(dr.erpcRequest.Data[8:12], mountID)
 	model.ByteOrder.PutUint32(dr.erpcRequest.Data[12:16], pathID)
 	model.ByteOrder.PutUint64(dr.erpcRequest.Data[16:24], uint64(uintptr(unsafe.Pointer(&dr.erpcSegment[0]))))
 	model.ByteOrder.PutUint32(dr.erpcRequest.Data[24:28], uint32(dr.erpcSegmentSize))
+	model.ByteOrder.PutUint32(dr.erpcRequest.Data[28:32], challenge)
 
 	// if we don't try to access the segment, the eBPF program can't write to it ... (major page fault)
 	dr.preventSegmentMajorPageFault()
 
-	// zero the first uint64 to ensure that we know if the in-kernel resolution succeeded
-	dr.markSegmentAsZero()
-
 	if err := dr.erpc.Request(&dr.erpcRequest); err != nil {
-		atomic.AddInt64(dr.missCounters[metrics.SegmentResolutionTag][metrics.ERPCTag], 1)
+		atomic.AddInt64(dr.missCounters[metrics.ParentResolutionTag][metrics.ERPCTag], 1)
 		return 0, 0, errors.Wrapf(err, "unable to resolve the parent of mountID `%d` and inode `%d` with eRPC", mountID, inode)
 	}
 
-	if model.ByteOrder.Uint64(dr.erpcSegment[0:8]) == 0 {
-		atomic.AddInt64(dr.missCounters[metrics.SegmentResolutionTag][metrics.ERPCTag], 1)
+	if challenge != model.ByteOrder.Uint32(dr.erpcSegment[12:16]) {
+		atomic.AddInt64(dr.missCounters[metrics.ParentResolutionTag][metrics.ERPCTag], 1)
 		return 0, 0, errors.Errorf("eRPC request wasn't processed")
 	}
 

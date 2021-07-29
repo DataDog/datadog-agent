@@ -86,7 +86,7 @@ func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields) (string, error) {
 
 	_, mountPath, rootPath, mountErr := r.MountResolver.GetMountPath(e.MountID)
 	if mountErr != nil {
-		return "", mountErr
+		return pathStr, mountErr
 	}
 
 	if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {

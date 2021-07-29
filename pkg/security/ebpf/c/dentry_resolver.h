@@ -206,6 +206,7 @@ struct dr_erpc_state_t {
     int ret;
     int iteration;
     u32 buffer_size;
+    u32 challenge;
     u16 cursor;
 };
 
@@ -283,6 +284,11 @@ int kprobe__dentry_resolver_erpc(struct pt_regs *ctx) {
             resolution_err = state->ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
             goto exit;
         }
+        state->ret = bpf_probe_write_user((void *) state->userspace_buffer + state->cursor + offsetof(struct path_key_t, path_id), &state->challenge, sizeof(state->challenge));
+        if (state->ret < 0) {
+            resolution_err = state->ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
+            goto exit;
+        }
 
         state->cursor += sizeof(state->key);
 
@@ -350,6 +356,11 @@ int __attribute__((always_inline)) handle_resolve_path(struct pt_regs* ctx, void
         err = DR_ERPC_READ_PAGE_FAULT;
         goto error;
     }
+    ret = bpf_probe_read(&state->challenge, sizeof(state->challenge), data + sizeof(state->key) + sizeof(state->userspace_buffer) + sizeof(state->buffer_size));
+    if (ret < 0) {
+        err = DR_ERPC_READ_PAGE_FAULT;
+        goto error;
+    }
 
     state->iteration = 0;
     state->ret = 0;
@@ -378,6 +389,7 @@ int __attribute__((always_inline)) handle_resolve_segment(void *data) {
     char *userspace_buffer = 0;
     u32 buffer_size = 0;
     u32 resolution_err = 0;
+    u32 challenge = 0;
 
     int ret = bpf_probe_read(&key, sizeof(key), data);
     if (ret < 0) {
@@ -390,6 +402,11 @@ int __attribute__((always_inline)) handle_resolve_segment(void *data) {
         goto exit;
     }
     ret = bpf_probe_read(&buffer_size, sizeof(buffer_size), data + sizeof(key) + sizeof(userspace_buffer));
+    if (ret < 0) {
+        resolution_err = DR_ERPC_READ_PAGE_FAULT;
+        goto exit;
+    }
+    ret = bpf_probe_read(&challenge, sizeof(challenge), data + sizeof(key) + sizeof(userspace_buffer) + sizeof(buffer_size));
     if (ret < 0) {
         resolution_err = DR_ERPC_READ_PAGE_FAULT;
         goto exit;
@@ -409,6 +426,11 @@ int __attribute__((always_inline)) handle_resolve_segment(void *data) {
     }
 
     ret = bpf_probe_write_user((void *) userspace_buffer, &key, sizeof(key));
+    if (ret < 0) {
+        resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
+        goto exit;
+    }
+    ret = bpf_probe_write_user((void *) userspace_buffer + offsetof(struct path_key_t, path_id), &challenge, sizeof(challenge));
     if (ret < 0) {
         resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
         goto exit;
@@ -441,6 +463,7 @@ int __attribute__((always_inline)) handle_resolve_parent(void *data) {
     char *userspace_buffer = 0;
     u32 buffer_size = 0;
     u32 resolution_err = 0;
+    u32 challenge = 0;
 
     int ret = bpf_probe_read(&key, sizeof(key), data);
     if (ret < 0) {
@@ -453,6 +476,11 @@ int __attribute__((always_inline)) handle_resolve_parent(void *data) {
         goto exit;
     }
     ret = bpf_probe_read(&buffer_size, sizeof(buffer_size), data + sizeof(key) + sizeof(userspace_buffer));
+    if (ret < 0) {
+        resolution_err = DR_ERPC_READ_PAGE_FAULT;
+        goto exit;
+    }
+    ret = bpf_probe_read(&challenge, sizeof(challenge), data + sizeof(key) + sizeof(userspace_buffer) + sizeof(buffer_size));
     if (ret < 0) {
         resolution_err = DR_ERPC_READ_PAGE_FAULT;
         goto exit;
@@ -472,6 +500,11 @@ int __attribute__((always_inline)) handle_resolve_parent(void *data) {
     }
 
     ret = bpf_probe_write_user((void *) userspace_buffer, &map_value->parent, sizeof(map_value->parent));
+    if (ret < 0) {
+        resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
+        goto exit;
+    }
+    ret = bpf_probe_write_user((void *) userspace_buffer + offsetof(struct path_key_t, path_id), &challenge, sizeof(challenge));
     if (ret < 0) {
         resolution_err = ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
         goto exit;
