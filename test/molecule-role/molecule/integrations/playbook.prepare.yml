@@ -75,5 +75,5 @@
       args:
         chdir: /home/ubuntu/
 
-    - import_tasks: ../wait-for-receiver.yml
-    - import_tasks: ../wait-for-agent.yml
+    - import_tasks: ../common/prepare/wait-for-receiver.yml
+    - import_tasks: ../common/prepare/wait-for-agent.yml

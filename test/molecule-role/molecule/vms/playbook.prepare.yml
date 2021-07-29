@@ -71,7 +71,7 @@
         chdir: /home/ubuntu/
       when: docker_compose_result is failed
 
-    - import_tasks: ../wait-for-receiver.yml
+    - import_tasks: ../common/prepare/wait-for-receiver.yml
 
 - name: Prepare Linux Agents (pre)
   hosts: agent_linux_vm
