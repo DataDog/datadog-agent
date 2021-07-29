@@ -117,8 +117,8 @@ type CapsetSerializer struct {
 // ProcessCredentialsSerializer serializes the process credentials to JSON
 // easyjson:json
 type ProcessCredentialsSerializer struct {
-	*CredentialsSerializer `json:",omitempty"`
-	Destination            interface{} `json:"destination,omitempty"`
+	*CredentialsSerializer
+	Destination interface{} `json:"destination,omitempty"`
 }
 
 // ProcessCacheEntrySerializer serializes a process cache entry to JSON
@@ -159,8 +159,8 @@ type ContainerContextSerializer struct {
 // FileEventSerializer serializes a file event to JSON
 // easyjson:json
 type FileEventSerializer struct {
-	FileSerializer `json:",omitempty"`
-	Destination    *FileSerializer `json:"destination,omitempty"`
+	FileSerializer
+	Destination *FileSerializer `json:"destination,omitempty"`
 
 	// Specific to mount events
 	NewMountID uint32 `json:"new_mount_id,omitempty"`
@@ -470,7 +470,8 @@ func serializeSyscallRetval(retval int64) string {
 	}
 }
 
-func newEventSerializer(event *Event) *EventSerializer {
+// NewEventSerializer creates a new event serializer based on the event type
+func NewEventSerializer(event *Event) *EventSerializer {
 	s := &EventSerializer{
 		EventContextSerializer: &EventContextSerializer{
 			Name:     model.EventType(event.Type).String(),
