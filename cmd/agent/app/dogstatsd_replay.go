@@ -29,14 +29,29 @@ import (
 )
 
 var (
+<<<<<<< HEAD
 	dsdReplayFilePath string
 	dsdVerboseReplay  bool
+=======
+	dsdReplayFilePath   string
+	dsdTaggerFilePath   string
+	dsdReplayIterations int
+)
+
+const (
+	defaultIterations = 1
+>>>>>>> 1a935f015 ([dogstatsd] replay: allow for multiple iteration replay)
 )
 
 func init() {
 	AgentCmd.AddCommand(dogstatsdReplayCmd)
 	dogstatsdReplayCmd.Flags().StringVarP(&dsdReplayFilePath, "file", "f", "", "Input file with TCP traffic to replay.")
+<<<<<<< HEAD
 	dogstatsdReplayCmd.Flags().BoolVarP(&dsdVerboseReplay, "verbose", "v", false, "Verbose replay.")
+=======
+	dogstatsdReplayCmd.Flags().IntVarP(&dsdReplayIterations, "loops", "l", defaultIterations, "Number of iterationsi to replay.")
+	dogstatsdReplayCmd.Flags().StringVarP(&dsdTaggerFilePath, "tagger", "t", "", "Input file with TCP traffic to replay.")
+>>>>>>> 1a935f015 ([dogstatsd] replay: allow for multiple iteration replay)
 }
 
 var dogstatsdReplayCmd = &cobra.Command{
@@ -79,6 +94,7 @@ func dogstatsdReplay() error {
 	}()
 
 	fmt.Printf("Replaying dogstatsd traffic...\n\n")
+
 	// TODO: refactor all the instantiation of the SecureAgentClient to a helper
 	token, err := security.FetchAuthToken()
 	if err != nil {
@@ -117,6 +133,7 @@ func dogstatsdReplay() error {
 	}
 
 	if err != nil {
+		fmt.Printf("could not open: %s\n", dsdReplayFilePath)
 		return err
 	}
 
@@ -168,25 +185,30 @@ func dogstatsdReplay() error {
 	// wait for go routine to start processing...
 	time.Sleep(time.Second)
 
-replay:
-	for {
-		select {
-		case msg := <-reader.Traffic:
-			// The cadence is enforced by the reader. The reader will only write to
-			// the traffic channel when it estimates the payload should be submitted.
-			n, oobn, err := conn.(*net.UnixConn).WriteMsgUnix(
-				msg.Payload[:msg.PayloadSize], replay.GetUcredsForPid(msg.Pid), addr)
-			if err != nil {
-				return err
-			}
+iterate:
+	for i := 0; i < dsdReplayIterations || dsdReplayIterations == 0; i++ {
 
-			if dsdVerboseReplay {
-				fmt.Printf("Sent Payload: %d bytes, and OOB: %d bytes\n", n, oobn)
+	replay:
+		for {
+			select {
+			case msg := <-reader.Traffic:
+				// The cadence is enforced by the reader. The reader will only write to
+				// the traffic channel when it estimates the payload should be submitted.
+				n, oobn, err := conn.(*net.UnixConn).WriteMsgUnix(
+					msg.Payload[:msg.PayloadSize], replay.GetUcredsForPid(msg.Pid), addr)
+				if err != nil {
+					return err
+				}
+
+				if dsdVerboseReplay {
+					fmt.Printf("Sent Payload: %d bytes, and OOB: %d bytes\n", n, oobn)
+				}
+			case <-reader.Done:
+				reader.Seek(0)
+				break replay
+			case <-done:
+				break iterate
 			}
-		case <-reader.Done:
-			break replay
-		case <-done:
-			break replay
 		}
 	}
 

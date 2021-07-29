@@ -182,6 +182,20 @@ func (tc *TrafficCaptureReader) ReadNext() (*pb.UnixDogstatsdMsg, error) {
 	return msg, nil
 }
 
+// Seek sets the reader to the specified offset. Please note,
+// the specified offset is relative to the first datagram, not the
+// absolute position in the file, that would include the header. Thus,
+// an offset of 0 would be the first datagram. Use with caution, a bad
+// offset will completely mess up a replay.
+func (tc *TrafficCaptureReader) Seek(offset uint32) {
+
+	tc.Lock()
+	defer tc.Unlock()
+
+	tc.offset = uint32(len(datadogHeader)) + offset
+
+}
+
 // ReadState reads the tagger state from the end of the capture file.
 // The internal offset of the reader is not modified by this operation.
 func (tc *TrafficCaptureReader) ReadState() (map[int32]string, map[string]*pb.Entity, error) {
