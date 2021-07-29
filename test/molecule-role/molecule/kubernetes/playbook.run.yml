@@ -18,6 +18,7 @@
     #     src: /home/ubuntu/overlays-original/kustomization.yaml
     #     dest: /home/ubuntu/deployment/agents/overlays
 
+    - include_tasks: ../common/prepare/gather-facts.yml
     # continue
 
     - name: Run Docker compose
