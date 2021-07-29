@@ -96,12 +96,12 @@ type Flush struct {
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Flush route.")
 	if !f.daemon.ShouldFlush(flush.Stopping, time.Now()) {
-		log.Debug("The flush strategy", f.daemon.LogFlushStatagery(), " has decided to not flush in moment:", flush.Stopping)
+		log.Debug("The flush strategy", f.daemon.LogFlushStategy(), " has decided to not flush in moment:", flush.Stopping)
 		f.daemon.FinishInvocation()
 		return
 	}
 
-	log.Debug("The flush strategy", f.daemon.LogFlushStatagery(), " has decided to flush in moment:", flush.Stopping)
+	log.Debug("The flush strategy", f.daemon.LogFlushStategy(), " has decided to flush in moment:", flush.Stopping)
 
 	// if the DogStatsD daemon isn't ready, wait for it.
 	if f.daemon.MetricAgent.DogStatDServer == nil {
@@ -128,11 +128,13 @@ func (d *Daemon) SetClientReady(isReady bool) {
 	d.clientLibReady = isReady
 }
 
+// ShouldFlush indicated whether or a flush is needed
 func (d *Daemon) ShouldFlush(moment flush.Moment, t time.Time) bool {
 	return d.flushStrategy.ShouldFlush(moment, t)
 }
 
-func (d *Daemon) LogFlushStatagery() string {
+// LogFlushStategy returns the flush stategy
+func (d *Daemon) LogFlushStategy() string {
 	return d.flushStrategy.String()
 }
 
@@ -161,7 +163,7 @@ func (d *Daemon) SetTraceAgent(traceAgent *trace.ServerlessTraceAgent) {
 
 // SetFlushStrategy sets the flush strategy to use.
 func (d *Daemon) SetFlushStrategy(strategy flush.Strategy) {
-	log.Debugf("Set flush strategy: %s (was: %s)", strategy.String(), d.LogFlushStatagery())
+	log.Debugf("Set flush strategy: %s (was: %s)", strategy.String(), d.LogFlushStategy())
 	d.flushStrategy = strategy
 }
 
