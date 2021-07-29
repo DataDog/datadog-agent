@@ -32,6 +32,14 @@ func (d *DriverBuffer) Next() *ConnectionStats {
 	return c
 }
 
+// Reclaim captures the last n entries for usage again.
+func (d *DriverBuffer) Reclaim(n int) {
+	d.off -= n
+	if d.off < 0 {
+		d.off = 0
+	}
+}
+
 // Connections returns a slice of all the `ConnectionStats` objects returned via `Next`
 // since the last `Reset`.
 func (d *DriverBuffer) Connections() []ConnectionStats {
