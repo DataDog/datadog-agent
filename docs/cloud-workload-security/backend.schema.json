@@ -1,0 +1,537 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "properties": {
+    "evt": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/EventContextSerializer"
+    },
+    "file": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/FileEventSerializer"
+    },
+    "selinux": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/SELinuxEventSerializer"
+    },
+    "usr": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/UserContextSerializer"
+    },
+    "process": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/ProcessContextSerializer"
+    },
+    "container": {
+      "$ref": "#/definitions/ContainerContextSerializer"
+    },
+    "date": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "definitions": {
+    "ContainerContextSerializer": {
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "EventContextSerializer": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "outcome": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "FileEventSerializer": {
+      "required": [
+        "uid",
+        "gid"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path_resolution_error": {
+          "type": "string"
+        },
+        "inode": {
+          "type": "integer"
+        },
+        "mode": {
+          "type": "integer"
+        },
+        "in_upper_layer": {
+          "type": "boolean"
+        },
+        "mount_id": {
+          "type": "integer"
+        },
+        "filesystem": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "integer"
+        },
+        "gid": {
+          "type": "integer"
+        },
+        "user": {
+          "type": "string"
+        },
+        "group": {
+          "type": "string"
+        },
+        "attribute_name": {
+          "type": "string"
+        },
+        "attribute_namespace": {
+          "type": "string"
+        },
+        "flags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "access_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "modification_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "change_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "destination": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/FileSerializer"
+        },
+        "new_mount_id": {
+          "type": "integer"
+        },
+        "group_id": {
+          "type": "integer"
+        },
+        "device": {
+          "type": "integer"
+        },
+        "fstype": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "FileSerializer": {
+      "required": [
+        "uid",
+        "gid"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path_resolution_error": {
+          "type": "string"
+        },
+        "inode": {
+          "type": "integer"
+        },
+        "mode": {
+          "type": "integer"
+        },
+        "in_upper_layer": {
+          "type": "boolean"
+        },
+        "mount_id": {
+          "type": "integer"
+        },
+        "filesystem": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "integer"
+        },
+        "gid": {
+          "type": "integer"
+        },
+        "user": {
+          "type": "string"
+        },
+        "group": {
+          "type": "string"
+        },
+        "attribute_name": {
+          "type": "string"
+        },
+        "attribute_namespace": {
+          "type": "string"
+        },
+        "flags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "access_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "modification_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "change_time": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ProcessCacheEntrySerializer": {
+      "required": [
+        "uid",
+        "gid"
+      ],
+      "properties": {
+        "pid": {
+          "type": "integer"
+        },
+        "ppid": {
+          "type": "integer"
+        },
+        "tid": {
+          "type": "integer"
+        },
+        "uid": {
+          "type": "integer"
+        },
+        "gid": {
+          "type": "integer"
+        },
+        "user": {
+          "type": "string"
+        },
+        "group": {
+          "type": "string"
+        },
+        "executable_path": {
+          "type": "string"
+        },
+        "path_resolution_error": {
+          "type": "string"
+        },
+        "comm": {
+          "type": "string"
+        },
+        "executable_inode": {
+          "type": "integer"
+        },
+        "executable_mount_id": {
+          "type": "integer"
+        },
+        "executable_filesystem": {
+          "type": "string"
+        },
+        "tty": {
+          "type": "string"
+        },
+        "fork_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "exec_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "exit_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "credentials": {
+          "$ref": "#/definitions/ProcessCredentialsSerializer"
+        },
+        "executable": {
+          "$ref": "#/definitions/FileSerializer"
+        },
+        "container": {
+          "$ref": "#/definitions/ContainerContextSerializer"
+        },
+        "args": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "args_truncated": {
+          "type": "boolean"
+        },
+        "envs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "envs_truncated": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ProcessContextSerializer": {
+      "required": [
+        "uid",
+        "gid"
+      ],
+      "properties": {
+        "pid": {
+          "type": "integer"
+        },
+        "ppid": {
+          "type": "integer"
+        },
+        "tid": {
+          "type": "integer"
+        },
+        "uid": {
+          "type": "integer"
+        },
+        "gid": {
+          "type": "integer"
+        },
+        "user": {
+          "type": "string"
+        },
+        "group": {
+          "type": "string"
+        },
+        "executable_path": {
+          "type": "string"
+        },
+        "path_resolution_error": {
+          "type": "string"
+        },
+        "comm": {
+          "type": "string"
+        },
+        "executable_inode": {
+          "type": "integer"
+        },
+        "executable_mount_id": {
+          "type": "integer"
+        },
+        "executable_filesystem": {
+          "type": "string"
+        },
+        "tty": {
+          "type": "string"
+        },
+        "fork_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "exec_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "exit_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "credentials": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/ProcessCredentialsSerializer"
+        },
+        "executable": {
+          "$ref": "#/definitions/FileSerializer"
+        },
+        "container": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/ContainerContextSerializer"
+        },
+        "args": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "args_truncated": {
+          "type": "boolean"
+        },
+        "envs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "envs_truncated": {
+          "type": "boolean"
+        },
+        "parent": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/ProcessCacheEntrySerializer"
+        },
+        "ancestors": {
+          "items": {
+            "$ref": "#/definitions/ProcessCacheEntrySerializer"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ProcessCredentialsSerializer": {
+      "required": [
+        "uid",
+        "gid",
+        "euid",
+        "egid",
+        "fsuid",
+        "fsgid",
+        "cap_effective",
+        "cap_permitted"
+      ],
+      "properties": {
+        "uid": {
+          "type": "integer"
+        },
+        "user": {
+          "type": "string"
+        },
+        "gid": {
+          "type": "integer"
+        },
+        "group": {
+          "type": "string"
+        },
+        "euid": {
+          "type": "integer"
+        },
+        "euser": {
+          "type": "string"
+        },
+        "egid": {
+          "type": "integer"
+        },
+        "egroup": {
+          "type": "string"
+        },
+        "fsuid": {
+          "type": "integer"
+        },
+        "fsuser": {
+          "type": "string"
+        },
+        "fsgid": {
+          "type": "integer"
+        },
+        "fsgroup": {
+          "type": "string"
+        },
+        "cap_effective": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "cap_permitted": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "destination": {
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SELinuxEventSerializer": {
+      "properties": {
+        "bool": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/selinuxBoolChangeSerializer"
+        },
+        "enforce": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/selinuxEnforceStatusSerializer"
+        },
+        "bool_commit": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/selinuxBoolCommitSerializer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "UserContextSerializer": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "group": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "selinuxBoolChangeSerializer": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "selinuxBoolCommitSerializer": {
+      "properties": {
+        "state": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "selinuxEnforceStatusSerializer": {
+      "properties": {
+        "status": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    }
+  }
+}
