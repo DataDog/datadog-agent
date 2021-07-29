@@ -421,12 +421,15 @@ def notify_failure(_, notification_type="merge", print_to_stdout=False):
             send_slack_message(channel, str(message))  # TODO: use channel variable
 
 
-def _get_gitlab_with_project_access_token():
+def _init_pipeline_schedule_task():
+    project_name = "DataDog/datadog-agent"
     try:
         project_access_token = os.environ['GITLAB_PROJECT_ACCESS_TOKEN']
     except KeyError:
         raise Exit(message="You must specify GITLAB_PROJECT_ACCESS_TOKEN environment variable", code=1)
-    return Gitlab(api_token=project_access_token)
+    gitlab = Gitlab(api_token=project_access_token)
+    gitlab.test_project_found(project_name)
+    return project_name, gitlab
 
 
 @task
@@ -435,9 +438,7 @@ def get_schedules(_):
     Pretty-print all pipeline schedules on the repository.
     """
 
-    project_name = "DataDog/datadog-agent"
-    gitlab = _get_gitlab_with_project_access_token()
-    gitlab.test_project_found(project_name)
+    project_name, gitlab = _init_pipeline_schedule_task()
     for ps in gitlab.all_pipeline_schedules(project_name):
         pprint.pprint(ps)
 
@@ -448,9 +449,7 @@ def get_schedule(_, schedule_id):
     Pretty-print a single pipeline schedule on the repository.
     """
 
-    project_name = "DataDog/datadog-agent"
-    gitlab = _get_gitlab_with_project_access_token()
-    gitlab.test_project_found(project_name)
+    project_name, gitlab = _init_pipeline_schedule_task()
     result = gitlab.pipeline_schedule(project_name, schedule_id)
     pprint.pprint(result)
 
@@ -463,9 +462,7 @@ def create_schedule(_, description, ref, cron, cron_timezone=None, active=False)
     Note that unless you explicitly specify the --active flag, the schedule will be created as inactive.
     """
 
-    project_name = "DataDog/datadog-agent"
-    gitlab = _get_gitlab_with_project_access_token()
-    gitlab.test_project_found(project_name)
+    project_name, gitlab = _init_pipeline_schedule_task()
     result = gitlab.create_pipeline_schedule(project_name, description, ref, cron, cron_timezone, active)
     pprint.pprint(result)
 
@@ -476,9 +473,7 @@ def edit_schedule(_, schedule_id, description=None, ref=None, cron=None, cron_ti
     Edit an existing pipeline schedule on the repository.
     """
 
-    project_name = "DataDog/datadog-agent"
-    gitlab = _get_gitlab_with_project_access_token()
-    gitlab.test_project_found(project_name)
+    project_name, gitlab = _init_pipeline_schedule_task()
     result = gitlab.edit_pipeline_schedule(project_name, schedule_id, description, ref, cron, cron_timezone)
     pprint.pprint(result)
 
@@ -489,9 +484,7 @@ def activate_schedule(_, schedule_id):
     Activate an existing pipeline schedule on the repository.
     """
 
-    project_name = "DataDog/datadog-agent"
-    gitlab = _get_gitlab_with_project_access_token()
-    gitlab.test_project_found(project_name)
+    project_name, gitlab = _init_pipeline_schedule_task()
     result = gitlab.edit_pipeline_schedule(project_name, schedule_id, active=True)
     pprint.pprint(result)
 
@@ -502,9 +495,7 @@ def deactivate_schedule(_, schedule_id):
     Deactivate an existing pipeline schedule on the repository.
     """
 
-    project_name = "DataDog/datadog-agent"
-    gitlab = _get_gitlab_with_project_access_token()
-    gitlab.test_project_found(project_name)
+    project_name, gitlab = _init_pipeline_schedule_task()
     result = gitlab.edit_pipeline_schedule(project_name, schedule_id, active=False)
     pprint.pprint(result)
 
@@ -515,9 +506,7 @@ def delete_schedule(_, schedule_id):
     Delete an existing pipeline schedule on the repository.
     """
 
-    project_name = "DataDog/datadog-agent"
-    gitlab = _get_gitlab_with_project_access_token()
-    gitlab.test_project_found(project_name)
+    project_name, gitlab = _init_pipeline_schedule_task()
     result = gitlab.delete_pipeline_schedule(project_name, schedule_id)
     pprint.pprint(result)
 
@@ -528,9 +517,7 @@ def create_schedule_variable(_, schedule_id, key, value):
     Create a variable for an existing schedule on the repository.
     """
 
-    project_name = "DataDog/datadog-agent"
-    gitlab = _get_gitlab_with_project_access_token()
-    gitlab.test_project_found(project_name)
+    project_name, gitlab = _init_pipeline_schedule_task()
     result = gitlab.create_pipeline_schedule_variable(project_name, schedule_id, key, value)
     pprint.pprint(result)
 
@@ -541,9 +528,7 @@ def edit_schedule_variable(_, schedule_id, key, value):
     Edit an existing variable for a schedule on the repository.
     """
 
-    project_name = "DataDog/datadog-agent"
-    gitlab = _get_gitlab_with_project_access_token()
-    gitlab.test_project_found(project_name)
+    project_name, gitlab = _init_pipeline_schedule_task()
     result = gitlab.edit_pipeline_schedule_variable(project_name, schedule_id, key, value)
     pprint.pprint(result)
 
@@ -554,8 +539,6 @@ def delete_schedule_variable(_, schedule_id, key):
     Delete an existing variable for a schedule on the repository.
     """
 
-    project_name = "DataDog/datadog-agent"
-    gitlab = _get_gitlab_with_project_access_token()
-    gitlab.test_project_found(project_name)
+    project_name, gitlab = _init_pipeline_schedule_task()
     result = gitlab.delete_pipeline_schedule_variable(project_name, schedule_id, key)
     pprint.pprint(result)
