@@ -323,6 +323,10 @@ func (id *inodeDiscarders) discardParentInode(rs *rules.RuleSet, eventType model
 		return false, 0, 0, err
 	}
 
+	if parentMountID == 0 || parentInode == 0 {
+		return false, 0, 0, nil
+	}
+
 	if err := id.discardInode(eventType, parentMountID, parentInode, false); err != nil {
 		return false, 0, 0, err
 	}
