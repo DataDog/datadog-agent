@@ -64,7 +64,7 @@ func TestBuildTagMapFromArnIncomplete(t *testing.T) {
 	assert.Equal(t, "lambda", tagMap["_dd.origin"])
 	assert.Equal(t, "1", tagMap["_dd.compute_stats"])
 	assert.Equal(t, "function:my-function", tagMap["function_arn"])
-	assert.Equal(t, "xxx", tagMap["extension_version"])
+	assert.Equal(t, "xxx", tagMap["dd_extension_version"])
 	assert.Equal(t, "value0", tagMap["tag0"])
 	assert.Equal(t, "value1", tagMap["tag1"])
 }
@@ -76,7 +76,7 @@ func TestBuildTagMapFromArnIncompleteWithCommaAndSpaceTags(t *testing.T) {
 	assert.Equal(t, "lambda", tagMap["_dd.origin"])
 	assert.Equal(t, "1", tagMap["_dd.compute_stats"])
 	assert.Equal(t, "function:my-function", tagMap["function_arn"])
-	assert.Equal(t, "xxx", tagMap["extension_version"])
+	assert.Equal(t, "xxx", tagMap["dd_extension_version"])
 	assert.Equal(t, "value0", tagMap["tag0"])
 	assert.Equal(t, "value1", tagMap["tag1"])
 	assert.Equal(t, "value2", tagMap["tag2"])
@@ -95,7 +95,7 @@ func TestBuildTagMapFromArnComplete(t *testing.T) {
 	assert.Equal(t, "123456789012", tagMap["account_id"])
 	assert.Equal(t, "my-function", tagMap["functionname"])
 	assert.Equal(t, "my-function", tagMap["resource"])
-	assert.Equal(t, "xxx", tagMap["extension_version"])
+	assert.Equal(t, "xxx", tagMap["dd_extension_version"])
 	assert.Equal(t, "value0", tagMap["tag0"])
 	assert.Equal(t, "value1", tagMap["tag1"])
 }
@@ -112,7 +112,7 @@ func TestBuildTagMapFromArnCompleteWithUpperCase(t *testing.T) {
 	assert.Equal(t, "123456789012", tagMap["account_id"])
 	assert.Equal(t, "my-function", tagMap["functionname"])
 	assert.Equal(t, "my-function", tagMap["resource"])
-	assert.Equal(t, "xxx", tagMap["extension_version"])
+	assert.Equal(t, "xxx", tagMap["dd_extension_version"])
 	assert.Equal(t, "value0", tagMap["tag0"])
 	assert.Equal(t, "value1", tagMap["tag1"])
 }
@@ -130,7 +130,7 @@ func TestBuildTagMapFromArnCompleteWithLatest(t *testing.T) {
 	assert.Equal(t, "123456789012", tagMap["account_id"])
 	assert.Equal(t, "my-function", tagMap["functionname"])
 	assert.Equal(t, "my-function", tagMap["resource"])
-	assert.Equal(t, "xxx", tagMap["extension_version"])
+	assert.Equal(t, "xxx", tagMap["dd_extension_version"])
 	assert.Equal(t, "value0", tagMap["tag0"])
 	assert.Equal(t, "value1", tagMap["tag1"])
 }
@@ -149,7 +149,7 @@ func TestBuildTagMapFromArnCompleteWithVersionNumber(t *testing.T) {
 	assert.Equal(t, "my-function", tagMap["functionname"])
 	assert.Equal(t, "my-function:888", tagMap["resource"])
 	assert.Equal(t, "888", tagMap["executedversion"])
-	assert.Equal(t, "xxx", tagMap["extension_version"])
+	assert.Equal(t, "xxx", tagMap["dd_extension_version"])
 	assert.Equal(t, "value0", tagMap["tag0"])
 	assert.Equal(t, "value1", tagMap["tag1"])
 }

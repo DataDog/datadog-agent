@@ -25,7 +25,7 @@ const (
 	awsAccountKey            = "aws_account"
 	resourceKey              = "resource"
 	executedVersionKey       = "executedversion"
-	extensionVersionKey      = "extension_version"
+	extensionVersionKey      = "dd_extension_version"
 )
 
 // currentExtensionVersion represents the current version of the Datadog Lambda Extension.
