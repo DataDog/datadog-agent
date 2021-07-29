@@ -270,7 +270,7 @@ func (c *safeConfig) SetEnvPrefix(in string) {
 }
 
 // BindEnv wraps Viper for concurrent access, and adds tracking of the configurable env vars
-func (c *safeConfig) BindEnv(input ...string) error {
+func (c *safeConfig) BindEnv(input ...string) {
 	c.Lock()
 	defer c.Unlock()
 	if len(input) == 1 {
@@ -280,7 +280,7 @@ func (c *safeConfig) BindEnv(input ...string) error {
 		envVarName := strings.Join([]string{c.envPrefix, strings.ToUpper(key)}, "_")
 		c.configEnvVars = append(c.configEnvVars, envVarName)
 	}
-	return c.Viper.BindEnv(input...)
+	_ = c.Viper.BindEnv(input...)
 }
 
 // SetEnvKeyReplacer wraps Viper for concurrent access
