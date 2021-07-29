@@ -90,28 +90,33 @@ func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEn
 	}
 }
 
+// IsReady indicates whether or not the DogStatsD server is ready
 func (c *ServerlessMetricAgent) IsReady() bool {
 	return c.dogStatDServer != nil
 }
 
+// Flush triggers a DogStatsD flush
 func (c *ServerlessMetricAgent) Flush() {
 	if c.IsReady() {
 		c.dogStatDServer.Flush()
 	}
 }
 
+// Stop stops the DogStatsD server
 func (c *ServerlessMetricAgent) Stop() {
 	if c.IsReady() {
 		c.dogStatDServer.Stop()
 	}
 }
 
+// SetExtraTags sets extra tags on the DogStatsD server
 func (c *ServerlessMetricAgent) SetExtraTags(tagArray []string) {
 	if c.IsReady() {
 		c.dogStatDServer.SetExtraTags(tagArray)
 	}
 }
 
+// GetMetricChannel returns a channel where metrics can be sent to
 func (c *ServerlessMetricAgent) GetMetricChannel() chan []metrics.MetricSample {
 	return c.aggregator.GetBufferedMetricsWithTsChannel()
 }
