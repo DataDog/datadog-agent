@@ -425,8 +425,7 @@ def _get_gitlab_with_project_access_token():
     try:
         project_access_token = os.environ['GITLAB_PROJECT_ACCESS_TOKEN']
     except KeyError:
-        print("You must specify GITLAB_PROJECT_ACCESS_TOKEN environment variable")
-        raise Exit(code=1)
+        raise Exit(message="You must specify GITLAB_PROJECT_ACCESS_TOKEN environment variable", code=1)
     return Gitlab(api_token=project_access_token)
 
 
