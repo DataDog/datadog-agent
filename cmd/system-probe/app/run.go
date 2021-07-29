@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -53,7 +55,9 @@ func init() {
 
 // Start the main loop
 func run(_ *cobra.Command, _ []string) error {
+	mainCtx, mainCancel := context.WithCancel(context.Background())
 	defer func() {
+		mainCancel()
 		StopSystemProbe()
 	}()
 
@@ -104,12 +108,15 @@ func run(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
+	err := manager.ConfigureAutoExit(mainCtx)
+	if err != nil {
+		return log.Criticalf("Unable to configure auto-exit, err: %w", err)
+	}
+
 	log.Infof("system probe successfully started")
 
-	select {
-	case err := <-stopCh:
-		return err
-	}
+	err = <-stopCh
+	return err
 }
 
 // StartSystemProbe Initializes the system-probe process

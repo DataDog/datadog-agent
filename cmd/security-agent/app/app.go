@@ -8,6 +8,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"path"
@@ -15,13 +16,14 @@ import (
 	"time"
 
 	_ "expvar" // Blank import used because this isn't directly used in this file
-	"net/http"
+
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	commonagent "github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -100,8 +102,10 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 )
 
 func init() {
-	var defaultConfPathArray = []string{path.Join(commonagent.DefaultConfPath, "datadog.yaml"),
-		path.Join(commonagent.DefaultConfPath, "security-agent.yaml")}
+	defaultConfPathArray := []string{
+		path.Join(commonagent.DefaultConfPath, "datadog.yaml"),
+		path.Join(commonagent.DefaultConfPath, "security-agent.yaml"),
+	}
 	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&confPathArray, "cfgpath", "c", defaultConfPathArray, "path to a yaml configuration file")
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
 
@@ -213,8 +217,14 @@ func RunAgent(ctx context.Context) (err error) {
 		return nil
 	}
 
+	err = manager.ConfigureAutoExit(ctx)
+	if err != nil {
+		log.Criticalf("Unable to configure auto-exit, err: %w", err)
+		return nil
+	}
+
 	// Setup expvar server
-	var port = coreconfig.Datadog.GetString("security_agent.expvar_port")
+	port := coreconfig.Datadog.GetString("security_agent.expvar_port")
 	coreconfig.Datadog.Set("expvar_port", port)
 	if coreconfig.Datadog.GetBool("telemetry.enabled") {
 		http.Handle("/telemetry", telemetry.Handler())

@@ -340,6 +340,33 @@ api_key:
 #
 # use_proxy_for_cloud_metadata: false
 
+## @param auto_exit - custom object - optional
+## Configuration for the automatic exit mechanism: the Agent stops when some conditions are met.
+#
+# auto_exit:
+
+  ## @param noprocess - custom object - optional
+  ## Configure the `noprocess` automatic exit method.
+  ## Detect when no other processes (non-agent) are running to trigger automatic exit. `HOST_PROC` is taken into account when gathering processes.
+  ## Feature is only supported on POSIX systems.
+  #
+  # noprocess:
+    ## @param enabled - boolean - optional - default: false
+    ## Enable the `noprocess` method
+    #
+    # enabled: false
+
+    ## @param enabled - list of strings - optional
+    ## List of regular expressions to exclude extra processes (on top of built-in list).
+    #
+    # excluded_processes: []
+
+  ## @param validation_period - int - optional - default: 60
+  ## Time (in seconds) during which the auto shutdown validates that the selected shutdown mechanism returns true.
+  ## The value is verified every 30s. By default, three consecutive checks need to return true to trigger an automatic exit.
+  #
+  # validation_period: 60
+
 {{ end }}
 {{- if .Agent }}
 {{- if .Python }}

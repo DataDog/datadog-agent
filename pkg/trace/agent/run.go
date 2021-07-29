@@ -14,6 +14,7 @@ import (
 	"runtime/pprof"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/manager"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -121,6 +122,12 @@ func Run(ctx context.Context) {
 
 	if err := util.SetupCoreDump(); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+	}
+
+	err = manager.ConfigureAutoExit(ctx)
+	if err != nil {
+		osutil.Exitf("Unable to configure auto-exit, err: %v", err)
+		return
 	}
 
 	err = metrics.Configure(cfg, []string{"version:" + info.Version})

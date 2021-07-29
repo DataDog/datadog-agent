@@ -220,6 +220,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 
+	// Auto exit configuration
+	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
+	config.BindEnvAndSetDefault("auto_exit.noprocess.enabled", false)
+	config.BindEnvAndSetDefault("auto_exit.noprocess.excluded_processes", []string{})
+
 	// The number of commits before expiring a context. The value is 2 to handle
 	// the case where a check miss to send a metric.
 	config.BindEnvAndSetDefault("check_sampler_bucket_commits_count_expiry", 2)
