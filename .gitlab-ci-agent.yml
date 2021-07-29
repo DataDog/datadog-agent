@@ -763,44 +763,44 @@ compose_molecule_acceptance_failure_cleanup:
    interruptible: true
    script:
      - cd $CI_PROJECT_DIR/test
-     - ./molecule3.sh --base-config ./molecule/integrations/provisioner.run.yml destroy --scenario-name integrations
+     - ./molecule3.sh destroy --scenario-name integrations
 
-integrations_molecule_create:
-  <<: *molecule_base_prepare
-  interruptible: true
-  when: always
-  script:
-    - cd $CI_PROJECT_DIR/test
-    - ./molecule3.sh --base-config ./molecule/integrations/provisioner.setup.yml create --scenario-name integrations
-  artifacts:
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/topic-*.json
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/*.log
-      - $CI_PROJECT_DIR/tmp_molecule_inventory
-      - $CI_PROJECT_DIR/.molecule
-      - $MOLECULE_EPHEMERAL_DIRECTORY
-    expire_in: 1 week
+# integrations_molecule_create:
+#   <<: *molecule_base_prepare
+#   interruptible: true
+#   when: always
+#   script:
+#     - cd $CI_PROJECT_DIR/test
+#     - ./molecule3.sh --base-config ./molecule/integrations/provisioner.setup.yml create --scenario-name integrations
+#   artifacts:
+#     when: always
+#     paths:
+#       - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/topic-*.json
+#       - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/*.log
+#       - $CI_PROJECT_DIR/tmp_molecule_inventory
+#       - $CI_PROJECT_DIR/.molecule
+#       - $MOLECULE_EPHEMERAL_DIRECTORY
+#     expire_in: 1 week
 
-integrations_molecule_prepare_cleanup:
-   <<: *integrations_cleanup_base
-   stage: prepare_cleanup
-   needs:
-     - integrations_molecule_create
+# integrations_molecule_prepare_cleanup:
+#    <<: *integrations_cleanup_base
+#    stage: prepare_cleanup
+#    needs:
+#      - integrations_molecule_create
 
 integrations_molecule_test:
   <<: *molecule_base
   interruptible: true
   when: on_success
-  dependencies:
-    - integrations_molecule_create
+  # dependencies:
+  #   - integrations_molecule_create
   needs:
     - pre_release_main_agent_image
-    - integrations_molecule_create
+    # - integrations_molecule_create
   script:
     - cd $CI_PROJECT_DIR/test
-    - ./molecule3.sh --base-config ./molecule/integrations/provisioner.run.yml prepare --force --scenario-name integrations
-    - ./molecule3.sh --base-config ./molecule/integrations/provisioner.run.yml test --scenario-name integrations --destroy=never
+    # - ./molecule3.sh --base-config ./molecule/integrations/provisioner.run.yml prepare --force --scenario-name integrations
+    - ./molecule3.sh test --scenario-name integrations --destroy=never
   artifacts:
     when: always
     paths:
@@ -834,51 +834,51 @@ integrations_molecule_acceptance_failure_cleanup:
    interruptible: true
    script:
      - cd $CI_PROJECT_DIR/test
-     - ./molecule3.sh --base-config ./molecule/kubernetes/provisioner.run.yml destroy --scenario-name kubernetes
+     - ./molecule3.sh destroy --scenario-name kubernetes
    rules:
      - *only_agent_3_failure
 
-kubernetes_molecule_create:
-  <<: *molecule_base_prepare
-  interruptible: true
-  rules:
-    - *only_agent_3_always
-  script:
-    - cd $CI_PROJECT_DIR/test
-    - ./molecule3.sh --base-config ./molecule/kubernetes/provisioner.setup.yml create --scenario-name kubernetes
-  artifacts:
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/topic-*.json
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/*.log
-      - $CI_PROJECT_DIR/tmp_molecule_inventory
-      - $CI_PROJECT_DIR/.molecule
-      - $MOLECULE_EPHEMERAL_DIRECTORY
-    expire_in: 1 week
+# kubernetes_molecule_create:
+#   <<: *molecule_base_prepare
+#   interruptible: true
+#   rules:
+#     - *only_agent_3_always
+#   script:
+#     - cd $CI_PROJECT_DIR/test
+#     - ./molecule3.sh --base-config ./molecule/kubernetes/provisioner.setup.yml create --scenario-name kubernetes
+#   artifacts:
+#     when: always
+#     paths:
+#       - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/topic-*.json
+#       - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/*.log
+#       - $CI_PROJECT_DIR/tmp_molecule_inventory
+#       - $CI_PROJECT_DIR/.molecule
+#       - $MOLECULE_EPHEMERAL_DIRECTORY
+#     expire_in: 1 week
 
-kubernetes_molecule_prepare_cleanup:
-   <<: *kubernetes_cleanup_base
-   stage: prepare_cleanup
-   needs:
-     - kubernetes_molecule_create
-   rules:
-     - *only_agent_3_failure
+# kubernetes_molecule_prepare_cleanup:
+#    <<: *kubernetes_cleanup_base
+#    stage: prepare_cleanup
+#    needs:
+#      - kubernetes_molecule_create
+#    rules:
+#      - *only_agent_3_failure
 
 kubernetes_molecule_test:
   <<: *molecule_base
   interruptible: true
   rules:
     - *only_agent_3_success
-  dependencies:
-    - kubernetes_molecule_create
+  # dependencies:
+  #   - kubernetes_molecule_create
   needs:
     - pre_release_cluster_agent_image
     - pre_release_main_agent_image
-    - kubernetes_molecule_create
+    # - kubernetes_molecule_create
   script:
     - cd $CI_PROJECT_DIR/test
-    - ./molecule3.sh --base-config ./molecule/kubernetes/provisioner.run.yml prepare --force --scenario-name kubernetes
-    - ./molecule3.sh --base-config ./molecule/kubernetes/provisioner.run.yml test --scenario-name kubernetes --destroy=never
+    # - ./molecule3.sh --base-config ./molecule/kubernetes/provisioner.run.yml prepare --force --scenario-name kubernetes
+    - ./molecule3.sh test --scenario-name kubernetes --destroy=never
   artifacts:
     when: always
     paths:
