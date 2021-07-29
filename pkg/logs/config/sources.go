@@ -86,10 +86,13 @@ func (s *LogSources) GetRemovedForType(sourceType string) chan *LogSource {
 	return stream
 }
 
-// GetSources returns all the sources currently held.
+// GetSources returns all the sources currently held.  The result is copied and
+// will not be modified after it is returned.  However, the copy in the LogSources
+// instance may change in that time (changing indexes or adding/removing entries).
 func (s *LogSources) GetSources() []*LogSource {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.sources
+	clone := append([]*LogSource{}, s.sources...)
+	return clone
 }
