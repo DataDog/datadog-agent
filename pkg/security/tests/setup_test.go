@@ -53,7 +53,7 @@ var (
 )
 
 const (
-	getEventTimeout = 3 * time.Second
+	getEventTimeout = 10 * time.Second
 )
 
 type stringSlice []string

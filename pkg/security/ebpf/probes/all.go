@@ -105,8 +105,8 @@ func AllMapSpecEditors(numCPU int) map[string]manager.MapSpecEditor {
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"pathnames": {
-			// max 600,000 | min 64,000 entrie => max ~180 MB | min ~18 MB
-			MaxEntries: uint32(math.Max(math.Min(640000, float64(64000*numCPU/4)), 64000)),
+			// max 600,000 | min 64,000 entrie => max ~180 MB | min ~27 MB
+			MaxEntries: uint32(math.Max(math.Min(640000, float64(64000*numCPU/4)), 96000)),
 		},
 	}
 }

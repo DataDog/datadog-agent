@@ -120,6 +120,9 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(struct dentry_resolv
         if (dentry != d_parent) {
             write_dentry_inode(d_parent, &d_inode);
             write_inode_ino(d_inode, &next_key.ino);
+        } else {
+            next_key.ino = 0;
+            next_key.mount_id = 0;
         }
 
         // discard filename and its parent only in order to limit the number of lookup
@@ -139,8 +142,6 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(struct dentry_resolv
 
         if (map_value.name[0] == '/' || map_value.name[0] == 0) {
             map_value.name[0] = '/';
-            next_key.ino = 0;
-            next_key.mount_id = 0;
         }
 
         map_value.parent = next_key;

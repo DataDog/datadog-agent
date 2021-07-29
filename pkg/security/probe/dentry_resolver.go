@@ -29,8 +29,7 @@ import (
 )
 
 var (
-	errDentryPathKeyNotFound = errors.New("error: dentry path key not found")
-	fakeInodeMSW             = uint64(0xdeadc001)
+	fakeInodeMSW = uint64(0xdeadc001)
 )
 
 // DentryResolver resolves inode/mountID to full paths
@@ -416,7 +415,11 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		cacheEntry = PathEntry{Parent: path.Parent, Name: ""}
 
 		if path.Name[0] == '\x00' {
-			resolutionErr = errTruncatedParents
+			if depth >= model.MaxPathDepth {
+				resolutionErr = errTruncatedParents
+			} else {
+				resolutionErr = errKernelMapResolution
+			}
 			break
 		}
 
@@ -438,17 +441,13 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		key = path.Parent
 	}
 
-	if depth > 0 {
-		atomic.AddInt64(dr.hitsCounters[metrics.PathResolutionTag][metrics.KernelMapsTag], depth)
+	if len(filename) == 0 {
+		filename = "/"
 	}
 
 	// resolution errors are more important than regular map lookup errors
 	if resolutionErr != nil {
 		err = resolutionErr
-	}
-
-	if len(filename) == 0 {
-		filename = "/"
 	}
 
 	if err == nil {
@@ -458,6 +457,11 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 				_ = dr.cacheInode(k, v)
 			}
 		}
+		if depth > 0 {
+			atomic.AddInt64(dr.hitsCounters[metrics.PathResolutionTag][metrics.KernelMapsTag], depth)
+		}
+	} else {
+		atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.KernelMapsTag], 1)
 	}
 
 	return filename, err
@@ -553,6 +557,10 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 
 		// check challenge
 		if challenge != model.ByteOrder.Uint32(dr.erpcSegment[i+12:i+16]) {
+			if depth >= model.MaxPathDepth {
+				resolutionErr = errTruncatedParentsERPC
+				break
+			}
 			atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.ERPCTag], 1)
 			return "", errors.Errorf("eRPC request wasn't processed")
 		}
@@ -562,7 +570,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 
 		if dr.erpcSegment[i] == 0 {
 			if depth >= model.MaxPathDepth {
-				resolutionErr = errTruncatedParents
+				resolutionErr = errTruncatedParentsERPC
 			} else {
 				resolutionErr = errERPCResolution
 			}
@@ -620,7 +628,7 @@ func (dr *DentryResolver) Resolve(mountID uint32, inode uint64, pathID uint32) (
 	if err != nil && dr.erpcEnabled {
 		path, err = dr.ResolveFromERPC(mountID, inode, pathID)
 	}
-	if err != nil && err != errTruncatedParents && dr.mapEnabled {
+	if err != nil && err != errTruncatedParentsERPC && dr.mapEnabled {
 		path, err = dr.ResolveFromMap(mountID, inode, pathID)
 	}
 	return path, err
@@ -685,7 +693,7 @@ func (dr *DentryResolver) GetParent(mountID uint32, inode uint64, pathID uint32)
 	if err != nil && dr.erpcEnabled {
 		parentMountID, parentInode, err = dr.resolveParentFromERPC(mountID, inode, pathID)
 	}
-	if err != nil && err != errTruncatedParents && dr.mapEnabled {
+	if err != nil && err != errTruncatedParentsERPC && dr.mapEnabled {
 		parentMountID, parentInode, err = dr.resolveParentFromMap(mountID, inode, pathID)
 	}
 	return parentMountID, parentInode, err
@@ -735,6 +743,15 @@ func (dr *DentryResolver) Close() error {
 	return errors.Wrap(unix.Munmap(dr.erpcSegment), "couldn't cleanup eRPC memory segment")
 }
 
+// ErrTruncatedParentsERPC is used to notify that some parents of the path are missing
+type ErrTruncatedParentsERPC struct{}
+
+func (err ErrTruncatedParentsERPC) Error() string {
+	return "truncated_parents_erpc"
+}
+
+var errTruncatedParentsERPC ErrTruncatedParentsERPC
+
 // ErrTruncatedParents is used to notify that some parents of the path are missing
 type ErrTruncatedParents struct{}
 
@@ -752,6 +769,24 @@ func (err ErrERPCResolution) Error() string {
 }
 
 var errERPCResolution ErrERPCResolution
+
+// ErrKernelMapResolution is used to notify that the Kernel maps resolution failed
+type ErrKernelMapResolution struct{}
+
+func (err ErrKernelMapResolution) Error() string {
+	return "map_resolution"
+}
+
+var errKernelMapResolution ErrKernelMapResolution
+
+// ErrDentryPathKeyNotFound is used to notify that the request key is missing from the kernel maps
+type ErrDentryPathKeyNotFound struct{}
+
+func (err ErrDentryPathKeyNotFound) Error() string {
+	return "dentry_path_key_not_found"
+}
+
+var errDentryPathKeyNotFound ErrDentryPathKeyNotFound
 
 // NewDentryResolver returns a new dentry resolver
 func NewDentryResolver(probe *Probe) (*DentryResolver, error) {

@@ -191,19 +191,20 @@ func (mr *MountResolver) IsOverlayFS(mountID uint32) bool {
 }
 
 // Insert a new mount point in the cache
-func (mr *MountResolver) Insert(e model.MountEvent) {
+func (mr *MountResolver) Insert(e model.MountEvent) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
 	if e.MountPointPathResolutionError != nil || e.RootPathResolutionError != nil {
 		// do not insert an invalid value
-		return
+		return errors.Errorf("couldn't insert mount_id %d: mount_point_error:%v root_error:%v", e.MountID, e.MountPointPathResolutionError, e.RootPathResolutionError)
 	}
 
 	mr.insert(e)
 
 	// init discarder revisions
 	mr.probe.inodeDiscarders.initRevision(&e)
+	return nil
 }
 
 func (mr *MountResolver) insert(e model.MountEvent) {
@@ -344,7 +345,7 @@ func (mr *MountResolver) Start(ctx context.Context) {
 }
 
 // GetMountPath returns the path of a mount identified by its mount ID. The first path is the container mount path if
-// it exists
+// it exists, the second parameter is the mount point path, and the third parameter is the root path.
 func (mr *MountResolver) GetMountPath(mountID uint32) (string, string, string, error) {
 	if mountID == 0 {
 		return "", "", "", nil

@@ -97,12 +97,6 @@ func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields) (string, error) {
 	return pathStr, err
 }
 
-// ResolveFilePath resolves the inode to a full path. Returns the path and true if it was entirely resolved
-func (r *Resolvers) ResolveFilePath(e *model.FileEvent) string {
-	path, _ := r.resolveFileFieldsPath(&e.FileFields)
-	return path
-}
-
 // ResolveFileFieldsUser resolves the user id of the file to a username
 func (r *Resolvers) ResolveFileFieldsUser(e *model.FileFields) string {
 	if len(e.User) == 0 {
