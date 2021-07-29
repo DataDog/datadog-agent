@@ -120,9 +120,9 @@
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
 
     - name: Create secret to allow pulling from private docker registry
-        shell: kubectl get secret docker-registry-key || kubectl create secret generic docker-registry-key --from-file=.dockerconfigjson=/home/ubuntu/.docker/config.json --type=kubernetes.io/dockerconfigjson
-        environment:
-          KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+      shell: kubectl get secret docker-registry-key || kubectl create secret generic docker-registry-key --from-file=.dockerconfigjson=/home/ubuntu/.docker/config.json --type=kubernetes.io/dockerconfigjson
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
 
     - name: Destroy global lock namespace
       ignore_errors: true
