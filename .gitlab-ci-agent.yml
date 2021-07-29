@@ -1206,13 +1206,10 @@ vms_molecule_test:
   <<: *molecule_base
   interruptible: true
   when: on_success
-  dependencies:
-    - vms_molecule_create
   needs:
     - pre_release_deb
     - pre_release_rpm
     - pre_release_win
-    - vms_molecule_create
   script:
     - cd $CI_PROJECT_DIR/test
     # - ./molecule3.sh --base-config ./molecule/vms/provisioner.run.yml prepare --force --scenario-name vms
