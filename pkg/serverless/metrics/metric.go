@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -34,8 +35,8 @@ type ReportLogMetrics struct {
 
 // ServerlessMetricAgent represents the DogStatsD server and the aggregator
 type ServerlessMetricAgent struct {
-	DogStatDServer *dogstatsd.Server
-	Aggregator     *aggregator.BufferedAggregator
+	dogStatDServer *dogstatsd.Server
+	aggregator     *aggregator.BufferedAggregator
 }
 
 // MetricConfig abstacts the config package
@@ -83,32 +84,36 @@ func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEn
 			log.Errorf("Unable to start the DogStatsD server: %s", err)
 		} else {
 			statsd.ServerlessMode = true // we're running in a serverless environment (will removed host field from samples)
-			c.DogStatDServer = statsd
-			c.Aggregator = aggregatorInstance
+			c.dogStatDServer = statsd
+			c.aggregator = aggregatorInstance
 		}
 	}
 }
 
 func (c *ServerlessMetricAgent) IsReady() bool {
-	return c.DogStatDServer != nil
+	return c.dogStatDServer != nil
 }
 
 func (c *ServerlessMetricAgent) Flush() {
 	if c.IsReady() {
-		c.DogStatDServer.Flush()
+		c.dogStatDServer.Flush()
 	}
 }
 
 func (c *ServerlessMetricAgent) Stop() {
 	if c.IsReady() {
-		c.DogStatDServer.Stop()
+		c.dogStatDServer.Stop()
 	}
 }
 
 func (c *ServerlessMetricAgent) SetExtraTags(tagArray []string) {
 	if c.IsReady() {
-		c.DogStatDServer.SetExtraTags(tagArray)
+		c.dogStatDServer.SetExtraTags(tagArray)
 	}
+}
+
+func (c *ServerlessMetricAgent) GetMetricChannel() chan []metrics.MetricSample {
+	return c.aggregator.GetBufferedMetricsWithTsChannel()
 }
 
 func buildBufferedAggregator(multipleEndpointConfig MultipleEndpointConfig, forwarderTimeout time.Duration) *aggregator.BufferedAggregator {

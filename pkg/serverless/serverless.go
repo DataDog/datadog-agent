@@ -170,7 +170,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {
 			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, daemon.ExecutionContext.Coldstart)
-			metricsChan := daemon.MetricAgent.Aggregator.GetBufferedMetricsWithTsChannel()
+			metricsChan := daemon.MetricAgent.GetMetricChannel()
 			metrics.SendTimeoutEnhancedMetric(metricTags, metricsChan)
 			if err != nil {
 				log.Error("Unable to persist current state to file while shutting down")

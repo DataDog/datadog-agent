@@ -144,7 +144,7 @@ func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfi
 		ExtraTags:              d.ExtraTags,
 		ExecutionContext:       d.ExecutionContext,
 		LogChannel:             logsChan,
-		MetricChannel:          d.MetricAgent.Aggregator.GetBufferedMetricsWithTsChannel(),
+		MetricChannel:          d.MetricAgent.GetMetricChannel(),
 		LogsEnabled:            logsEnabled,
 		EnhancedMetricsEnabled: enhancedMetricsEnabled,
 	})
