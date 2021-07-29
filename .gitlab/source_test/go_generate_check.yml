@@ -1,16 +1,12 @@
 ---
 # check that go generate has been run in the pkg/security directory
 security_go_generate_check:
-  extends: .tests_linux_ebpf
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: [ "runner:main", "size:large" ]
   stage: source_test
   needs: [ "linux_x64_go_deps" ]
-  variables:
-    ARCH: amd64
   before_script:
     - !reference [.retrieve_linux_go_deps]
-    - cd $SRC_PATH
   script:
     - go generate ./pkg/security/...
     - git status --porcelain
