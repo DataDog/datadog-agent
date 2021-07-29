@@ -86,29 +86,6 @@ platforms:
 
 scenario:
   name: vms
-  create_sequence:
-    - dependency
-    - cleanup
-    - destroy
-    - syntax
-    - create
-    - prepare
-  test_sequence:
-    - dependency
-    - cleanup
-    - destroy
-    - syntax
-    - create
-    - prepare
-    - converge
-    - idempotence
-    - lint
-    - side_effect
-    - verify
-  destroy_sequence:
-    - dependency
-    - cleanup
-    - destroy
 
 verifier:
   name: testinfra
