@@ -61,6 +61,7 @@ core,"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb",Apache-2.0
 core,"github.com/DataDog/sketches-go/ddsketch/store",Apache-2.0
 core,"github.com/DataDog/viper",MIT
 core,"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1",Apache-2.0
+core,"github.com/DataDog/zstd",BSD-3-Clause
 core,"github.com/DataDog/zstd_0",BSD-3-Clause
 core,"github.com/DisposaBoy/JsonConfigReader",MIT
 core,"github.com/Masterminds/goutils",Apache-2.0
