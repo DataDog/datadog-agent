@@ -11,6 +11,7 @@ import (
 	// stdlib
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -34,6 +35,10 @@ func resetAggregator() {
 	senderInit = sync.Once{}
 	senderPool = &checkSenderPool{
 		senders: make(map[check.ID]Sender),
+	}
+	for i := range tagsetSizeThresholds {
+		atomic.StoreUint64(&hugeSeriesCount[i], uint64(0))
+		atomic.StoreUint64(&hugeSketchesCount[i], uint64(0))
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"expvar"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
@@ -35,6 +36,30 @@ const DefaultFlushInterval = 15 * time.Second // flush interval
 const bucketSize = 10                         // fixed for now
 // MetricSamplePoolBatchSize is the batch size of the metric sample pool.
 const MetricSamplePoolBatchSize = 32
+
+// tagsetSizeThresholdsCount is the size of tagsetSizeThresholds
+const tagsetSizeThresholdsCount = 2
+
+// tagsetSizeThresholds are thresholds for large tagsets.  For troubleshooting,
+// we want to know how many of these "large" tagsets we are handling for both
+// timeseries and sketches.
+var tagsetSizeThresholds = [tagsetSizeThresholdsCount]uint64{90, 100}
+
+// hugeSeriesCounts contais the total count of huge metric series, by
+// threshold. Access must be atomic.
+var hugeSeriesCount [tagsetSizeThresholdsCount]uint64
+
+// tlmHugeSeries is an array containing counters with the same values as
+// hugeSeriesCount.
+var tlmHugeSeries [tagsetSizeThresholdsCount]telemetry.Counter
+
+// hugeSketchesCount contains the total count of huge distributions, by
+// threshold. Access must be atomic.
+var hugeSketchesCount [tagsetSizeThresholdsCount]uint64
+
+// tlmHugeSketches is an array containing counters with the same values as
+// hugeSketchesCount.
+var tlmHugeSketches [tagsetSizeThresholdsCount]telemetry.Counter
 
 // Stats stores a statistic from several past flushes allowing computations like median or percentiles
 type Stats struct {
@@ -79,6 +104,22 @@ func expStatsMap(statsMap map[string]*Stats) func() interface{} {
 	return func() interface{} {
 		return statsMap
 	}
+}
+
+func expMetricTags() interface{} {
+	rv := map[string]map[string]uint64{
+		"Series":   {},
+		"Sketches": {},
+	}
+
+	for i, thresh := range tagsetSizeThresholds {
+		serieCount := atomic.LoadUint64(&hugeSeriesCount[i])
+		distributionCount := atomic.LoadUint64(&hugeSketchesCount[i])
+		rv["Series"][fmt.Sprintf("Above%d", thresh)] = serieCount
+		rv["Sketches"][fmt.Sprintf("Above%d", thresh)] = distributionCount
+	}
+
+	return rv
 }
 
 func timeNowNano() float64 {
@@ -162,6 +203,12 @@ func init() {
 	aggregatorExpvars.Set("DogstatsdContexts", &aggregatorDogstatsdContexts)
 	aggregatorExpvars.Set("EventPlatformEvents", &aggregatorEventPlatformEvents)
 	aggregatorExpvars.Set("EventPlatformEventsErrors", &aggregatorEventPlatformEventsErrors)
+
+	for i, thresh := range tagsetSizeThresholds {
+		tlmHugeSeries[i] = telemetry.NewCounter("aggregator", fmt.Sprintf("series_tags_above_%d", thresh), nil, fmt.Sprintf("Count of timeseries with over %d tags", thresh))
+		tlmHugeSketches[i] = telemetry.NewCounter("aggregator", fmt.Sprintf("distributions_tags_above_%d", thresh), nil, fmt.Sprintf("Count of distributions with over %d tags", thresh))
+	}
+	aggregatorExpvars.Set("MetricTags", expvar.Func(expMetricTags))
 }
 
 // InitAggregator returns the Singleton instance
@@ -449,6 +496,31 @@ func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.S
 	return series, sketches
 }
 
+// updateHugeSketches huge and almost-huge series in the given value
+func updateHugeSketchesTelemetry(sketches *metrics.SketchSeriesList) {
+	var counts [tagsetSizeThresholdsCount]uint64
+	var found bool
+
+	for _, s := range *sketches {
+		tags := uint64(len(s.Tags))
+		for i, thresh := range tagsetSizeThresholds {
+			if tags > thresh {
+				counts[i]++
+				found = true
+			}
+		}
+	}
+
+	if found {
+		for i, count := range counts {
+			if count > 0 {
+				atomic.AddUint64(&hugeSketchesCount[i], count)
+				tlmHugeSketches[i].Add(float64(count))
+			}
+		}
+	}
+}
+
 func (agg *BufferedAggregator) pushSketches(start time.Time, sketches metrics.SketchSeriesList) {
 	log.Debugf("Flushing %d sketches to the forwarder", len(sketches))
 	err := agg.serializer.SendSketch(sketches)
@@ -461,6 +533,33 @@ func (agg *BufferedAggregator) pushSketches(start time.Time, sketches metrics.Sk
 	addFlushTime("MetricSketchFlushTime", int64(time.Since(start)))
 	aggregatorSketchesFlushed.Add(int64(len(sketches)))
 	tlmFlush.Add(float64(len(sketches)), "sketches", state)
+
+	updateHugeSketchesTelemetry(&sketches)
+}
+
+// updateHugeSeriesTelemetry counts huge and almost-huge series in the given value
+func updateHugeSeriesTelemetry(series *metrics.Series) {
+	var counts [tagsetSizeThresholdsCount]uint64
+	var found bool
+
+	for _, s := range *series {
+		tags := uint64(len(s.Tags))
+		for i, thresh := range tagsetSizeThresholds {
+			if tags > thresh {
+				counts[i]++
+				found = true
+			}
+		}
+	}
+
+	if found {
+		for i, count := range counts {
+			if count > 0 {
+				atomic.AddUint64(&hugeSeriesCount[i], count)
+				tlmHugeSeries[i].Add(float64(count))
+			}
+		}
+	}
 }
 
 func (agg *BufferedAggregator) pushSeries(start time.Time, series metrics.Series) {
@@ -475,6 +574,8 @@ func (agg *BufferedAggregator) pushSeries(start time.Time, series metrics.Series
 	addFlushTime("ChecksMetricSampleFlushTime", int64(time.Since(start)))
 	aggregatorSeriesFlushed.Add(int64(len(series)))
 	tlmFlush.Add(float64(len(series)), "series", state)
+
+	updateHugeSeriesTelemetry(&series)
 }
 
 func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series, waitForSerializer bool) {
