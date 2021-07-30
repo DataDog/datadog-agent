@@ -23,8 +23,7 @@ type sessionAPI interface {
 }
 
 type snmpSession struct {
-	gosnmpInst    gosnmp.GoSNMP
-	loggerEnabled bool
+	gosnmpInst gosnmp.GoSNMP
 }
 
 func (s *snmpSession) Configure(config snmpConfig) error {
@@ -86,19 +85,13 @@ func (s *snmpSession) Configure(config snmpConfig) error {
 	} else {
 		if lvl == seelog.TraceLvl {
 			traceLevelLogWriter := traceLevelLogWriter{}
-			s.gosnmpInst.Logger = stdlog.New(&traceLevelLogWriter, "", stdlog.Lshortfile)
-			s.loggerEnabled = true
+			s.gosnmpInst.Logger = gosnmp.NewLogger(stdlog.New(&traceLevelLogWriter, "", stdlog.Lshortfile))
 		}
 	}
 	return nil
 }
 
 func (s *snmpSession) Connect() error {
-	if s.loggerEnabled == false {
-		// Setting Logger everytime GoSNMP.Connect is called is need to avoid gosnmp
-		// logging to be enabled. Related upstream issue https://github.com/gosnmp/gosnmp/issues/313
-		s.gosnmpInst.Logger = nil
-	}
 	return s.gosnmpInst.Connect()
 }
 
