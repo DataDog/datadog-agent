@@ -331,7 +331,10 @@ def lint_licenses(ctx):
         print("- {}".format(license))
 
     if len(removed_licenses) + len(added_licenses) > 0:
-        raise Exit(message="Licenses are not up-to-date.\n\nPlease run 'inv generate-licenses' to update licenses file.", code=1)
+        raise Exit(
+            message="Licenses are not up-to-date.\n\nPlease run 'inv generate-licenses' to update licenses file.",
+            code=1,
+        )
 
     print("Licenses are ok.")
 
