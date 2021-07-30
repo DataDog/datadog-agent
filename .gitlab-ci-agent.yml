@@ -893,6 +893,7 @@ kubernetes_molecule_test:
 kubernetes_molecule_acceptance_success_cleanup:
    <<: *kubernetes_cleanup_base
    stage: acceptance_cleanup
+   resource_group: eks_test_cluster
    rules:
      - *only_agent_3_success
    needs:
@@ -900,6 +901,7 @@ kubernetes_molecule_acceptance_success_cleanup:
 
 kubernetes_molecule_acceptance_failure_cleanup:
    <<: *kubernetes_cleanup_base
+   resource_group: eks_test_cluster
    stage: acceptance_cleanup
    needs:
      - kubernetes_molecule_test
