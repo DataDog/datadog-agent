@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -80,7 +81,7 @@ func newJobQueue(interval time.Duration) *jobQueue {
 		stop:         make(chan bool),
 		stopped:      make(chan bool),
 		health:       health.RegisterLiveness("collector-queue"),
-		bucketTicker: time.NewTicker(bucketTickerDuration * time.Millisecond),
+		bucketTicker: time.NewTicker(time.Duration(bucketTickerDuration) * time.Millisecond),
 	}
 
 	var nb int
