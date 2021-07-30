@@ -1,5 +1,6 @@
 # Backend event Documentation
 
+The CWS event sent to the backend by the security agent respects the following schema:
 INTRO MSG:
 ```
 BACKEND_EVENT_SCHEMA = {{ event_schema }}
@@ -16,7 +17,6 @@ BACKEND_EVENT_SCHEMA = {{ event_schema }}
 
 ## `{{ def.name }}`
 
-INTRO_MSG:
 ```
 {{ def.schema }}
 ```

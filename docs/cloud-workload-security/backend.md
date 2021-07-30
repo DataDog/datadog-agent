@@ -1,26 +1,27 @@
 # Backend event Documentation
 
+The CWS event sent to the backend by the security agent respects the following schema:
 INTRO MSG:
 ```
 BACKEND_EVENT_SCHEMA = {
     "properties": {
         "evt": {
-            "$ref": "#/definitions/EventContextSerializer"
+            "$ref": "#/definitions/EventContext"
         },
         "file": {
-            "$ref": "#/definitions/FileEventSerializer"
+            "$ref": "#/definitions/FileEvent"
         },
         "selinux": {
-            "$ref": "#/definitions/SELinuxEventSerializer"
+            "$ref": "#/definitions/SELinuxEvent"
         },
         "usr": {
-            "$ref": "#/definitions/UserContextSerializer"
+            "$ref": "#/definitions/UserContext"
         },
         "process": {
-            "$ref": "#/definitions/ProcessContextSerializer"
+            "$ref": "#/definitions/ProcessContext"
         },
         "container": {
-            "$ref": "#/definitions/ContainerContextSerializer"
+            "$ref": "#/definitions/ContainerContext"
         },
         "date": {
             "type": "string",
@@ -34,19 +35,18 @@ BACKEND_EVENT_SCHEMA = {
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `evt` | $ref | Please see #/definitions/EventContextSerializer |
-| `file` | $ref | Please see #/definitions/FileEventSerializer |
-| `selinux` | $ref | Please see #/definitions/SELinuxEventSerializer |
-| `usr` | $ref | Please see #/definitions/UserContextSerializer |
-| `process` | $ref | Please see #/definitions/ProcessContextSerializer |
-| `container` | $ref | Please see #/definitions/ContainerContextSerializer |
+| `evt` | $ref | Please see #/definitions/EventContext |
+| `file` | $ref | Please see #/definitions/FileEvent |
+| `selinux` | $ref | Please see #/definitions/SELinuxEvent |
+| `usr` | $ref | Please see #/definitions/UserContext |
+| `process` | $ref | Please see #/definitions/ProcessContext |
+| `container` | $ref | Please see #/definitions/ContainerContext |
 | `date` | string |  |
 
 
 
-## `ContainerContextSerializer`
+## `ContainerContext`
 
-INTRO_MSG:
 ```
 {
     "properties": {
@@ -60,9 +60,8 @@ INTRO_MSG:
 ```
 
 
-## `EventContextSerializer`
+## `EventContext`
 
-INTRO_MSG:
 ```
 {
     "properties": {
@@ -82,9 +81,84 @@ INTRO_MSG:
 ```
 
 
-## `FileEventSerializer`
+## `File`
 
-INTRO_MSG:
+```
+{
+    "required": [
+        "uid",
+        "gid"
+    ],
+    "properties": {
+        "path": {
+            "type": "string"
+        },
+        "name": {
+            "type": "string"
+        },
+        "path_resolution_error": {
+            "type": "string"
+        },
+        "inode": {
+            "type": "integer"
+        },
+        "mode": {
+            "type": "integer"
+        },
+        "in_upper_layer": {
+            "type": "boolean"
+        },
+        "mount_id": {
+            "type": "integer"
+        },
+        "filesystem": {
+            "type": "string"
+        },
+        "uid": {
+            "type": "integer"
+        },
+        "gid": {
+            "type": "integer"
+        },
+        "user": {
+            "type": "string"
+        },
+        "group": {
+            "type": "string"
+        },
+        "attribute_name": {
+            "type": "string"
+        },
+        "attribute_namespace": {
+            "type": "string"
+        },
+        "flags": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array"
+        },
+        "access_time": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "modification_time": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "change_time": {
+            "type": "string",
+            "format": "date-time"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+```
+
+
+## `FileEvent`
+
 ```
 {
     "required": [
@@ -153,7 +227,7 @@ INTRO_MSG:
             "format": "date-time"
         },
         "destination": {
-            "$ref": "#/definitions/FileSerializer"
+            "$ref": "#/definitions/File"
         },
         "new_mount_id": {
             "type": "integer"
@@ -174,86 +248,8 @@ INTRO_MSG:
 ```
 
 
-## `FileSerializer`
+## `ProcessCacheEntry`
 
-INTRO_MSG:
-```
-{
-    "required": [
-        "uid",
-        "gid"
-    ],
-    "properties": {
-        "path": {
-            "type": "string"
-        },
-        "name": {
-            "type": "string"
-        },
-        "path_resolution_error": {
-            "type": "string"
-        },
-        "inode": {
-            "type": "integer"
-        },
-        "mode": {
-            "type": "integer"
-        },
-        "in_upper_layer": {
-            "type": "boolean"
-        },
-        "mount_id": {
-            "type": "integer"
-        },
-        "filesystem": {
-            "type": "string"
-        },
-        "uid": {
-            "type": "integer"
-        },
-        "gid": {
-            "type": "integer"
-        },
-        "user": {
-            "type": "string"
-        },
-        "group": {
-            "type": "string"
-        },
-        "attribute_name": {
-            "type": "string"
-        },
-        "attribute_namespace": {
-            "type": "string"
-        },
-        "flags": {
-            "items": {
-                "type": "string"
-            },
-            "type": "array"
-        },
-        "access_time": {
-            "type": "string",
-            "format": "date-time"
-        },
-        "modification_time": {
-            "type": "string",
-            "format": "date-time"
-        },
-        "change_time": {
-            "type": "string",
-            "format": "date-time"
-        }
-    },
-    "additionalProperties": false,
-    "type": "object"
-}
-```
-
-
-## `ProcessCacheEntrySerializer`
-
-INTRO_MSG:
 ```
 {
     "required": [
@@ -316,13 +312,13 @@ INTRO_MSG:
             "format": "date-time"
         },
         "credentials": {
-            "$ref": "#/definitions/ProcessCredentialsSerializer"
+            "$ref": "#/definitions/ProcessCredentials"
         },
         "executable": {
-            "$ref": "#/definitions/FileSerializer"
+            "$ref": "#/definitions/File"
         },
         "container": {
-            "$ref": "#/definitions/ContainerContextSerializer"
+            "$ref": "#/definitions/ContainerContext"
         },
         "args": {
             "items": {
@@ -349,9 +345,8 @@ INTRO_MSG:
 ```
 
 
-## `ProcessContextSerializer`
+## `ProcessContext`
 
-INTRO_MSG:
 ```
 {
     "required": [
@@ -414,13 +409,13 @@ INTRO_MSG:
             "format": "date-time"
         },
         "credentials": {
-            "$ref": "#/definitions/ProcessCredentialsSerializer"
+            "$ref": "#/definitions/ProcessCredentials"
         },
         "executable": {
-            "$ref": "#/definitions/FileSerializer"
+            "$ref": "#/definitions/File"
         },
         "container": {
-            "$ref": "#/definitions/ContainerContextSerializer"
+            "$ref": "#/definitions/ContainerContext"
         },
         "args": {
             "items": {
@@ -441,11 +436,11 @@ INTRO_MSG:
             "type": "boolean"
         },
         "parent": {
-            "$ref": "#/definitions/ProcessCacheEntrySerializer"
+            "$ref": "#/definitions/ProcessCacheEntry"
         },
         "ancestors": {
             "items": {
-                "$ref": "#/definitions/ProcessCacheEntrySerializer"
+                "$ref": "#/definitions/ProcessCacheEntry"
             },
             "type": "array"
         }
@@ -456,9 +451,8 @@ INTRO_MSG:
 ```
 
 
-## `ProcessCredentialsSerializer`
+## `ProcessCredentials`
 
-INTRO_MSG:
 ```
 {
     "required": [
@@ -530,50 +524,8 @@ INTRO_MSG:
 ```
 
 
-## `SELinuxEventSerializer`
+## `SELinuxBoolChange`
 
-INTRO_MSG:
-```
-{
-    "properties": {
-        "bool": {
-            "$ref": "#/definitions/selinuxBoolChangeSerializer"
-        },
-        "enforce": {
-            "$ref": "#/definitions/selinuxEnforceStatusSerializer"
-        },
-        "bool_commit": {
-            "$ref": "#/definitions/selinuxBoolCommitSerializer"
-        }
-    },
-    "additionalProperties": false,
-    "type": "object"
-}
-```
-
-
-## `UserContextSerializer`
-
-INTRO_MSG:
-```
-{
-    "properties": {
-        "id": {
-            "type": "string"
-        },
-        "group": {
-            "type": "string"
-        }
-    },
-    "additionalProperties": false,
-    "type": "object"
-}
-```
-
-
-## `selinuxBoolChangeSerializer`
-
-INTRO_MSG:
 ```
 {
     "properties": {
@@ -590,9 +542,8 @@ INTRO_MSG:
 ```
 
 
-## `selinuxBoolCommitSerializer`
+## `SELinuxBoolCommit`
 
-INTRO_MSG:
 ```
 {
     "properties": {
@@ -606,13 +557,51 @@ INTRO_MSG:
 ```
 
 
-## `selinuxEnforceStatusSerializer`
+## `SELinuxEnforceStatus`
 
-INTRO_MSG:
 ```
 {
     "properties": {
         "status": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+```
+
+
+## `SELinuxEvent`
+
+```
+{
+    "properties": {
+        "bool": {
+            "$ref": "#/definitions/SELinuxBoolChange"
+        },
+        "enforce": {
+            "$ref": "#/definitions/SELinuxEnforceStatus"
+        },
+        "bool_commit": {
+            "$ref": "#/definitions/SELinuxBoolCommit"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+```
+
+
+## `UserContext`
+
+```
+{
+    "properties": {
+        "id": {
+            "type": "string"
+        },
+        "group": {
             "type": "string"
         }
     },
