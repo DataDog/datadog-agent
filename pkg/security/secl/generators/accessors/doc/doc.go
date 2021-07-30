@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io/ioutil"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -124,5 +125,16 @@ func extractVersionAndDefinition(comment string) eventTypeInfo {
 
 	return eventTypeInfo{
 		Definition: trimmed,
+	}
+}
+
+func JSONTypeMapper(ty reflect.Type) string {
+	const selinuxPrefix = "selinux"
+
+	base := strings.TrimSuffix(ty.Name(), "Serializer")
+	if strings.HasPrefix(base, selinuxPrefix) {
+		return "SELinux" + strings.TrimPrefix(base, selinuxPrefix)
+	} else {
+		return base
 	}
 }

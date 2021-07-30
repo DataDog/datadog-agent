@@ -420,6 +420,7 @@ func genDocMain(module *common.Module, output string) error {
 	reflector := jsonschema.Reflector{
 		ExpandedStruct: true,
 		DoNotReference: false,
+		TypeNamer:      doc.JSONTypeMapper,
 	}
 	schema := reflector.Reflect(&probe.EventSerializer{})
 	schemaJson, err := schema.MarshalJSON()
