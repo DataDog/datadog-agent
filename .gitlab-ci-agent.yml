@@ -871,6 +871,7 @@ kubernetes_molecule_test:
     - *only_agent_3_success
   # dependencies:
   #   - kubernetes_molecule_create
+  resource_group: eks_test_cluster
   needs:
     - pre_release_cluster_agent_image
     - pre_release_main_agent_image
