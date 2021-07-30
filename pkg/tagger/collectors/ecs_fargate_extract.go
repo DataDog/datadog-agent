@@ -42,7 +42,8 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 	}
 
 	for _, ctr := range meta.Containers {
-		if c.expire.Update(ctr.DockerID, now) || parseAll {
+		entityID := containers.BuildTaggerEntityName(ctr.DockerID)
+		if c.expire.Update(entityID, now) || parseAll {
 			tags := utils.NewTagList()
 
 			// cluster
@@ -113,7 +114,7 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 			low, orch, high, standard := tags.Compute()
 			info := &TagInfo{
 				Source:               ecsFargateCollectorName,
-				Entity:               containers.BuildTaggerEntityName(ctr.DockerID),
+				Entity:               entityID,
 				HighCardTags:         high,
 				OrchestratorCardTags: orch,
 				LowCardTags:          low,
