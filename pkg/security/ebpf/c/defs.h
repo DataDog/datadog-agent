@@ -514,4 +514,8 @@ static __attribute__((always_inline)) int is_event_enabled(enum event_type event
     return mask_has_event(get_enabled_events(), event);
 }
 
+static __attribute__((always_inline)) void add_event_to_mask(u64 *mask, enum event_type event) {
+    *mask |= 1 << (event - EVENT_FIRST_DISCARDER);
+}
+
 #endif
