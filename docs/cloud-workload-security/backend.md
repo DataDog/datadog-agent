@@ -1,7 +1,6 @@
 # Backend event Documentation
 
 The CWS event sent to the backend by the security agent respects the following schema:
-INTRO MSG:
 ```
 BACKEND_EVENT_SCHEMA = {
     "properties": {
@@ -35,15 +34,13 @@ BACKEND_EVENT_SCHEMA = {
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `evt` | $ref | Please see #/definitions/EventContext |
-| `file` | $ref | Please see #/definitions/FileEvent |
-| `selinux` | $ref | Please see #/definitions/SELinuxEvent |
-| `usr` | $ref | Please see #/definitions/UserContext |
-| `process` | $ref | Please see #/definitions/ProcessContext |
-| `container` | $ref | Please see #/definitions/ContainerContext |
+| `evt` | $ref | Please see [EventContext](#eventcontext) |
+| `file` | $ref | Please see [FileEvent](#fileevent) |
+| `selinux` | $ref | Please see [SELinuxEvent](#selinuxevent) |
+| `usr` | $ref | Please see [UserContext](#usercontext) |
+| `process` | $ref | Please see [ProcessContext](#processcontext) |
+| `container` | $ref | Please see [ContainerContext](#containercontext) |
 | `date` | string |  |
-
-
 
 ## `ContainerContext`
 
@@ -247,6 +244,9 @@ BACKEND_EVENT_SCHEMA = {
 }
 ```
 
+| References |
+| ---------- |
+| [`File`](#file) |
 
 ## `ProcessCacheEntry`
 
@@ -344,6 +344,11 @@ BACKEND_EVENT_SCHEMA = {
 }
 ```
 
+| References |
+| ---------- |
+| [`ProcessCredentials`](#processcredentials) |
+| [`File`](#file) |
+| [`ContainerContext`](#containercontext) |
 
 ## `ProcessContext`
 
@@ -450,6 +455,12 @@ BACKEND_EVENT_SCHEMA = {
 }
 ```
 
+| References |
+| ---------- |
+| [`ProcessCredentials`](#processcredentials) |
+| [`File`](#file) |
+| [`ContainerContext`](#containercontext) |
+| [`ProcessCacheEntry`](#processcacheentry) |
 
 ## `ProcessCredentials`
 
@@ -592,6 +603,11 @@ BACKEND_EVENT_SCHEMA = {
 }
 ```
 
+| References |
+| ---------- |
+| [`SELinuxBoolChange`](#selinuxboolchange) |
+| [`SELinuxEnforceStatus`](#selinuxenforcestatus) |
+| [`SELinuxBoolCommit`](#selinuxboolcommit) |
 
 ## `UserContext`
 
@@ -609,5 +625,6 @@ BACKEND_EVENT_SCHEMA = {
     "type": "object"
 }
 ```
+
 
 
