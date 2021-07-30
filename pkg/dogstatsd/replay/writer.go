@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -136,6 +137,8 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration, compressed bool) {
 		return
 	}
 
+	var target io.Writer
+
 	// inMemoryFS is used for testing purposes
 	if atomic.LoadInt64(&inMemoryFs) > 0 {
 		appFS := afero.NewMemMapFs()
@@ -156,12 +159,7 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration, compressed bool) {
 		}
 
 		tc.testFile = fp
-		if compressed {
-			tc.zWriter = zstd.NewWriter(tc.testFile)
-			tc.writer = bufio.NewWriter(tc.zWriter)
-		} else {
-			tc.writer = bufio.NewWriter(tc.testFile)
-		}
+		target = tc.testFile
 	} else {
 		fp, err := os.Create(p)
 		if err != nil {
@@ -171,12 +169,14 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration, compressed bool) {
 			return
 		}
 		tc.File = fp
-		if compressed {
-			tc.zWriter = zstd.NewWriter(tc.File)
-			tc.writer = bufio.NewWriter(tc.zWriter)
-		} else {
-			tc.writer = bufio.NewWriter(tc.File)
-		}
+		target = tc.File
+	}
+
+	if compressed {
+		tc.zWriter = zstd.NewWriter(target)
+		tc.writer = bufio.NewWriter(tc.zWriter)
+	} else {
+		tc.writer = bufio.NewWriter(target)
 	}
 
 	tc.shutdown = make(chan struct{})
