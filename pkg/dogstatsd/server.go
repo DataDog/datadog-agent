@@ -47,8 +47,9 @@ var (
 
 	tlmProcessed = telemetry.NewCounter("dogstatsd", "processed",
 		[]string{"message_type", "state", "origin"}, "Count of service checks/events/metrics processed by dogstatsd")
-	tlmProcessedErrorTags = map[string]string{"message_type": "metrics", "state": "error", "origin": ""}
-	tlmProcessedOkTags    = map[string]string{"message_type": "metrics", "state": "ok", "origin": ""}
+	tlmProcessedErrorTags       = map[string]string{"message_type": "metrics", "state": "error", "origin": ""}
+	tlmProcessedOkTags          = map[string]string{"message_type": "metrics", "state": "ok", "origin": ""}
+	tlmUnterminatedMetricErrors = telemetry.NewCounter("dogstatsd", "unterminated_metrics", nil, "Count of unterminated metrics")
 
 	// while we try to add the origin tag in the tlmProcessed metric, we want to
 	// avoid having it growing indefinitely, hence this safeguard to limit the
@@ -468,7 +469,7 @@ func ScanLines(data []byte, atEOF bool) (advance int, token []byte, eol bool, er
 	return 0, nil, false, nil
 }
 
-func nextMessage(packet *[]byte, eolTermination bool) (message []byte) {
+func nextMessage(packet *[]byte, eolTermination bool, origin string) (message []byte) {
 	if len(*packet) == 0 {
 		return nil
 	}
@@ -480,6 +481,7 @@ func nextMessage(packet *[]byte, eolTermination bool) (message []byte) {
 
 	if eolTermination && !eol {
 		dogstatsdUnterminatedMetricErrors.Add(1)
+		tlmUnterminatedMetricErrors.IncWithTags(map[string]string{"origin": origin})
 		return nil
 	}
 
@@ -503,7 +505,7 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 	for _, packet := range packets {
 		log.Tracef("Dogstatsd receive: %q", packet.Contents)
 		for {
-			message := nextMessage(&packet.Contents, s.eolEnabled(packet.Source))
+			message := nextMessage(&packet.Contents, s.eolEnabled(packet.Source), packet.Origin)
 			if message == nil {
 				break
 			}
