@@ -59,6 +59,7 @@ require (
 	github.com/DataDog/sketches-go v1.0.0
 	github.com/DataDog/viper v1.9.0
 	github.com/DataDog/watermarkpodautoscaler v0.2.1-0.20210323121426-cfb2caa5613f
+	github.com/DataDog/zstd v1.4.8
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver v1.5.0
@@ -113,7 +114,7 @@ require (
 	github.com/gosnmp/gosnmp v1.32.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
-	github.com/h2non/filetype v1.1.1
+	github.com/h2non/filetype v1.1.2-0.20210602110014-3305bbb7ac7b
 	github.com/hashicorp/consul/api v1.8.1
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v0.5.4
