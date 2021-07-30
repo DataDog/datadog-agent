@@ -207,6 +207,12 @@ func (jq *jobQueue) process(s *Scheduler) bool {
 				jq.health.Deregister() //nolint:errcheck
 				return false
 			}
+
+			select {
+			// we were able to schedule a check so we're not stuck, therefore poll the health chan
+			case <-jq.health.C:
+			default:
+			}
 		}
 		jq.mu.Lock()
 		jq.currentBucketIdx = (jq.currentBucketIdx + 1) % uint(len(jq.buckets))
