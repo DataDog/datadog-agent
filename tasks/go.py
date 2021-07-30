@@ -331,16 +331,18 @@ def lint_licenses(ctx):
         print("- {}".format(license))
 
     if len(removed_licenses) + len(added_licenses) > 0:
-        print("licenses are not up-to-date")
-        raise Exit(code=1)
+        raise Exit(
+            message="Licenses are not up-to-date.\n\nPlease run 'inv generate-licenses' to update licenses file.",
+            code=1,
+        )
 
-    print("licenses ok")
+    print("Licenses are ok.")
 
 
 @task
 def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
     """
-    Generates that the LICENSE-3rdparty.csv file is up-to-date with contents of go.sum
+    Generates the LICENSE-3rdparty.csv file. Run this if `inv lint-licenses` fails.
     """
     with open(filename, 'w') as f:
         f.write("Component,Origin,License\n")
