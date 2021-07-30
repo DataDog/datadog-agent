@@ -246,7 +246,7 @@ BACKEND_EVENT_SCHEMA = {
 
 | References |
 | ---------- |
-| [`File`](#file) |
+| [File](#file) |
 
 ## `ProcessCacheEntry`
 
@@ -346,9 +346,9 @@ BACKEND_EVENT_SCHEMA = {
 
 | References |
 | ---------- |
-| [`ProcessCredentials`](#processcredentials) |
-| [`File`](#file) |
-| [`ContainerContext`](#containercontext) |
+| [ProcessCredentials](#processcredentials) |
+| [File](#file) |
+| [ContainerContext](#containercontext) |
 
 ## `ProcessContext`
 
@@ -457,10 +457,10 @@ BACKEND_EVENT_SCHEMA = {
 
 | References |
 | ---------- |
-| [`ProcessCredentials`](#processcredentials) |
-| [`File`](#file) |
-| [`ContainerContext`](#containercontext) |
-| [`ProcessCacheEntry`](#processcacheentry) |
+| [ProcessCredentials](#processcredentials) |
+| [File](#file) |
+| [ContainerContext](#containercontext) |
+| [ProcessCacheEntry](#processcacheentry) |
 
 ## `ProcessCredentials`
 
@@ -605,9 +605,9 @@ BACKEND_EVENT_SCHEMA = {
 
 | References |
 | ---------- |
-| [`SELinuxBoolChange`](#selinuxboolchange) |
-| [`SELinuxEnforceStatus`](#selinuxenforcestatus) |
-| [`SELinuxBoolCommit`](#selinuxboolcommit) |
+| [SELinuxBoolChange](#selinuxboolchange) |
+| [SELinuxEnforceStatus](#selinuxenforcestatus) |
+| [SELinuxBoolCommit](#selinuxboolcommit) |
 
 ## `UserContext`
 

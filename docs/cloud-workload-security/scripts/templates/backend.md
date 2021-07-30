@@ -22,7 +22,7 @@ BACKEND_EVENT_SCHEMA = {{ event_schema }}
 | References |
 | ---------- |
 {% for ref in def.references %}
-| [`{{ ref.name }}`](#{{ ref.anchor }}) |
+| [{{ ref.name }}](#{{ ref.anchor }}) |
 {% endfor %}
 {% endif %}
 

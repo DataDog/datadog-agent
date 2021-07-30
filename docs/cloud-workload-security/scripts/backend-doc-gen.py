@@ -70,6 +70,8 @@ if __name__ == "__main__":
             parameters.append(SchemaParameter(name, prop["type"], ""))
 
     definitions = []
+    definitions.sort(key=lambda d:d.name)
+
     for name, definition in json_top_node["definitions"].items():
         references = []
         for prop_name, prop in definition["properties"].items():
