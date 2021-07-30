@@ -10,7 +10,6 @@ package kubelet
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func init() {
@@ -20,8 +19,5 @@ func init() {
 // diagnose the API server availability
 func diagnose() error {
 	_, err := GetKubeUtil()
-	if err != nil {
-		log.Error(err)
-	}
 	return err
 }

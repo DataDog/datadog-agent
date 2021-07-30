@@ -26,13 +26,11 @@ func init() {
 func diagnoseECS() error {
 	client, err := ecsmeta.V1()
 	if err != nil {
-		log.Error(err)
 		return err
 	}
 	log.Info("successfully detected ECS metadata server endpoint")
 
 	if _, err = client.GetTasks(context.TODO()); err != nil {
-		log.Error(err)
 		return err
 	}
 	log.Info("successfully retrieved task list from ECS metadata server")
@@ -44,13 +42,11 @@ func diagnoseECS() error {
 func diagnoseECSTags() error {
 	client, err := ecsmeta.V3FromCurrentTask()
 	if err != nil {
-		log.Error(err)
 		return err
 	}
 	log.Info("successfully detected ECS metadata server endpoint for resource tags")
 
 	if _, err = client.GetTaskWithTags(context.TODO()); err != nil {
-		log.Error(err)
 		return err
 	}
 	log.Info("successfully retrieved task with potential tags from ECS metadata server")
@@ -62,12 +58,10 @@ func diagnoseECSTags() error {
 func diagnoseFargate() error {
 	client, err := ecsmeta.V2()
 	if err != nil {
-		log.Debugf("error while initializing ECS metadata V2 client: %s", err)
-		return err
+		return log.Errorf("error while initializing ECS metadata V2 client: %w", err)
 	}
 
 	if _, err := client.GetTask(context.TODO()); err != nil {
-		log.Error(err)
 		return err
 	}
 	log.Info("successfully retrieved task from Fargate metadata endpoint")

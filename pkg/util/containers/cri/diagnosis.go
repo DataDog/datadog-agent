@@ -9,7 +9,6 @@ package cri
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func init() {
@@ -19,8 +18,5 @@ func init() {
 // diagnose the CRI socket connectivity
 func diagnose() error {
 	_, err := GetUtil()
-	if err != nil {
-		log.Error(err)
-	}
 	return err
 }
