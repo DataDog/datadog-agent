@@ -880,8 +880,8 @@ github.com/kubernetes-sigs/custom-metrics-apiserver v0.0.0-20210311094424-0ca2b1
 github.com/kubernetes-sigs/custom-metrics-apiserver v0.0.0-20210311094424-0ca2b1909cdc/go.mod h1:o4psv/D+LJC+NGyL66BoKWXLkzlJeUqhL6/3rjFKXw0=
 github.com/kylelemons/godebug v0.0.0-20170820004349-d65d576e9348/go.mod h1:B69LEHPfb2qLo0BaaOLcbitczOKLWTsrBG9LczfCD4k=
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
-github.com/lebauce/aptly v0.7.2-0.20201005164315-09522984a976 h1:AqaR29P5INgl7Uqwmu7kdbB7GYZIv/NsgUXUdnFXECg=
-github.com/lebauce/aptly v0.7.2-0.20201005164315-09522984a976/go.mod h1:+3II479yQc6qORocqKTXZQupY2SVnKPWDC2VMA7Zk9s=
+github.com/lebauce/aptly v0.7.2-0.20210723103859-345a32860f4d h1:6k4uyp3yRFzEmzQZjnneNYhIvNvvcu9XIvFyalzuBAE=
+github.com/lebauce/aptly v0.7.2-0.20210723103859-345a32860f4d/go.mod h1:Uot/EzgnIw6okZTyEZ/Q8+er5ZXy2Bqrrabr/M6OxUE=
 github.com/leodido/go-urn v1.2.0/go.mod h1:+8+nEpDfqqsY+g338gtMEUOtuK+4dEMhiQEgxpxOKII=
 github.com/lib/pq v1.10.0 h1:Zx5DJFEYQXio93kgXnQ09fXNiUKsqv4OUEu2UtGcB1E=
 github.com/lib/pq v1.10.0/go.mod h1:AlVN5x4E4T544tWzH6hKfbfQvm3HdbOxrmggDNAPY9o=
