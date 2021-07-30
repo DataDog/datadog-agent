@@ -7,7 +7,9 @@ package decoder
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
+	"time"
 )
 
 func benchmarkSingleLineHandler(b *testing.B, logs int) {
@@ -40,7 +42,30 @@ func benchmarkAutoMultiLineHandler(b *testing.B, logs int, line string) {
 	}
 
 	outputChan := make(chan *Message, 10)
-	h := NewAutoMultilineHandler(outputChan, defaultContentLenLimit, 100, 0.9, 1000)
+	h := NewAutoMultilineHandler(outputChan, defaultContentLenLimit, 1000, 0.9, 1000*time.Millisecond)
+	h.Start()
+
+	go func() {
+		for {
+			<-outputChan
+		}
+	}()
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		for _, v := range tags {
+			h.inputChan <- v
+		}
+	}
+}
+
+func benchmarkMultiLineHandler(b *testing.B, logs int, line string) {
+	tags := make([]*Message, logs)
+	for i := 0; i < logs; i++ {
+		tags[i] = getDummyMessageWithLF(fmt.Sprintf("%s %d", line, i))
+	}
+
+	outputChan := make(chan *Message, 10)
+	h := NewMultiLineHandler(outputChan, regexp.MustCompile(`^[A-Za-z_]+ \d+, \d+ \d+:\d+:\d+ (AM|PM)`), 1000*time.Millisecond, 100)
 	h.Start()
 
 	go func() {
@@ -100,4 +125,22 @@ func BenchmarkAutoMultiLineHandlerMatch10000(b *testing.B) {
 }
 func BenchmarkAutoMultiLineHandlerMatch100000(b *testing.B) {
 	benchmarkAutoMultiLineHandler(b, 100000, matchLine)
+}
+func BenchmarkMultiLineHandler1(b *testing.B) {
+	benchmarkMultiLineHandler(b, 1, matchLine)
+}
+func BenchmarkMultiLineHandler10(b *testing.B) {
+	benchmarkMultiLineHandler(b, 10, matchLine)
+}
+func BenchmarkMultiLineHandler100(b *testing.B) {
+	benchmarkMultiLineHandler(b, 100, matchLine)
+}
+func BenchmarkMultiLineHandler1000(b *testing.B) {
+	benchmarkMultiLineHandler(b, 1000, matchLine)
+}
+func BenchmarkMultiLineHandler10000(b *testing.B) {
+	benchmarkMultiLineHandler(b, 10000, matchLine)
+}
+func BenchmarkMultiLineHandler100000(b *testing.B) {
+	benchmarkMultiLineHandler(b, 100000, matchLine)
 }
