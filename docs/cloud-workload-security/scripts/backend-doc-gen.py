@@ -1,8 +1,10 @@
 import argparse
 import json
-from dataclasses import dataclass
-import jinja2
 import os
+from dataclasses import dataclass
+
+import jinja2
+
 
 @dataclass
 class SchemaParameter:
@@ -10,17 +12,18 @@ class SchemaParameter:
     type: str
     description: str
 
+
 @dataclass
 class DefinitionReference:
     name: str
     anchor: str
+
 
 @dataclass
 class SchemaDefinition:
     name: str
     schema: str
     references: list[DefinitionReference]
-
 
 
 def remove_schema_props(node):
@@ -39,15 +42,18 @@ def fill_template(event_schema, parameters, definitions, template_name):
     templ = env.get_template(template_name)
     return templ.render(event_schema=event_schema, parameters=parameters, definitions=definitions)
 
+
 def presentable_top_node(top_node):
     without_defs = {key: item for key, item in top_node.items() if key not in ["definitions"]}
     return json.dumps(without_defs, indent=4)
 
+
 def extract_ref_name_and_anchor(ref):
     prefix = "#/definitions/"
     if ref.startswith(prefix):
-        name = ref[len(prefix):]
+        name = ref[len(prefix) :]
     return name, name.lower()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate Backend JSON documentation")
@@ -70,11 +76,11 @@ if __name__ == "__main__":
             parameters.append(SchemaParameter(name, prop["type"], ""))
 
     definitions = []
-    definitions.sort(key=lambda d:d.name)
+    definitions.sort(key=lambda d: d.name)
 
     for name, definition in json_top_node["definitions"].items():
         references = []
-        for prop_name, prop in definition["properties"].items():
+        for prop in definition["properties"].values():
             if "$ref" in prop:
                 ref_name, ref_anchor = extract_ref_name_and_anchor(prop["$ref"])
                 references.append(DefinitionReference(ref_name, ref_anchor))

@@ -128,13 +128,14 @@ func extractVersionAndDefinition(comment string) eventTypeInfo {
 	}
 }
 
+// JSONTypeMapper maps an internal serializers type to a user-facing documentation name
 func JSONTypeMapper(ty reflect.Type) string {
 	const selinuxPrefix = "selinux"
 
 	base := strings.TrimSuffix(ty.Name(), "Serializer")
 	if strings.HasPrefix(base, selinuxPrefix) {
 		return "SELinux" + strings.TrimPrefix(base, selinuxPrefix)
-	} else {
-		return base
 	}
+
+	return base
 }
