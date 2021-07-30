@@ -73,12 +73,14 @@ type jobQueue struct {
 
 // newJobQueue creates a new jobQueue instance
 func newJobQueue(interval time.Duration) *jobQueue {
+	bucketTickerDuration := config.Datadog.GetInt("bucket_ticker_duration")
+
 	jq := &jobQueue{
 		interval:     interval,
 		stop:         make(chan bool),
 		stopped:      make(chan bool),
 		health:       health.RegisterLiveness("collector-queue"),
-		bucketTicker: time.NewTicker(time.Second),
+		bucketTicker: time.NewTicker(bucketTickerDuration * time.Millisecond),
 	}
 
 	var nb int

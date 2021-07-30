@@ -205,6 +205,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("syslog_tls_verify", true)
 	config.BindEnvAndSetDefault("cmd_host", "localhost")
 	config.BindEnvAndSetDefault("cmd_port", 5001)
+	config.BindEnvAndSetDefault("bucket_ticker_duration", 1000) // milliseconds
 	config.BindEnvAndSetDefault("cluster_agent.cmd_port", 5005)
 	config.BindEnvAndSetDefault("default_integration_http_timeout", 9)
 	config.BindEnvAndSetDefault("enable_metadata_collection", true)
