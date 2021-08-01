@@ -25,7 +25,3 @@
           AGENT_VERSION={{ agent_current_branch }}
           STACKSTATE_BRANCH={{ stackstate_branch }}
         dest: /home/ubuntu/.env
-
-    - include_tasks: ../common/prepare/run-docker-compose.yml
-    - import_tasks: ../common/prepare/wait-for-receiver.yml
-    - import_tasks: ../common/prepare/wait-for-agent.yml
