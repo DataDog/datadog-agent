@@ -14,7 +14,7 @@ provisioner:
   playbooks:
     create: playbook.create.yml
     prepare: playbook.prepare.yml
-    destroy: playbook.after.destroy.yml
+    destroy: playbook.destroy.yml
   config_options:
     defaults:
       any_errors_fatal: true

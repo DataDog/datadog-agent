@@ -3,7 +3,7 @@ provisioner:
   name: ansible
   playbooks:
     prepare: playbook.run.yml
-    destroy: playbook.after.destroy.yml
+    destroy: playbook.destroy.yml
   lint:
     name: ansible-lint
   inventory:

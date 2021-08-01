@@ -765,41 +765,41 @@ compose_molecule_acceptance_failure_cleanup:
      - cd $CI_PROJECT_DIR/test
      - ./molecule3.sh destroy --scenario-name integrations
 
-# integrations_molecule_create:
-#   <<: *molecule_base_prepare
-#   interruptible: true
-#   when: always
-#   script:
-#     - cd $CI_PROJECT_DIR/test
-#     - ./molecule3.sh --base-config ./molecule/integrations/provisioner.setup.yml create --scenario-name integrations
-#   artifacts:
-#     when: always
-#     paths:
-#       - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/topic-*.json
-#       - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/*.log
-#       - $CI_PROJECT_DIR/tmp_molecule_inventory
-#       - $CI_PROJECT_DIR/.molecule
-#       - $MOLECULE_EPHEMERAL_DIRECTORY
-#     expire_in: 1 week
+integrations_molecule_create:
+  <<: *molecule_base_prepare
+  interruptible: true
+  when: always
+  script:
+    - cd $CI_PROJECT_DIR/test
+    - ./molecule3.sh --base-config ./molecule/integrations/provisioner.setup.yml create --scenario-name integrations
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/integrations/*.log
+      - $CI_PROJECT_DIR/tmp_molecule_inventory
+      - $CI_PROJECT_DIR/.molecule
+      - $MOLECULE_EPHEMERAL_DIRECTORY
+    expire_in: 1 week
 
-# integrations_molecule_prepare_cleanup:
-#    <<: *integrations_cleanup_base
-#    stage: prepare_cleanup
-#    needs:
-#      - integrations_molecule_create
+integrations_molecule_prepare_cleanup:
+   <<: *integrations_cleanup_base
+   stage: prepare_cleanup
+   needs:
+     - integrations_molecule_create
 
 integrations_molecule_test:
   <<: *molecule_base
   interruptible: true
   when: on_success
-  # dependencies:
-  #   - integrations_molecule_create
+  dependencies:
+    - integrations_molecule_create
   needs:
     - pre_release_main_agent_image
-    # - integrations_molecule_create
+    - integrations_molecule_create
   script:
     - cd $CI_PROJECT_DIR/test
-    # - ./molecule3.sh --base-config ./molecule/integrations/provisioner.run.yml prepare --force --scenario-name integrations
+    - ./molecule3.sh --base-config ./molecule/integrations/provisioner.run.yml prepare --force --scenario-name integrations
     - ./molecule3.sh test --scenario-name integrations --destroy=never
   artifacts:
     when: always
