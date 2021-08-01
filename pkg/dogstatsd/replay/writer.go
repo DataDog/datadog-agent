@@ -138,13 +138,18 @@ func (tc *TrafficCaptureWriter) Capture(l string, d time.Duration, compressed bo
 		if location == "" {
 			location = path.Join(config.Datadog.GetString("run_path"), "dsd_capture")
 		}
-	} else {
+	} else if atomic.LoadInt64(&inMemoryFs) == 0 {
 		s, err := os.Stat(l)
 		if os.IsNotExist(err) {
 			log.Errorf("specified location does not exist: %v ", err)
 			return
 		} else if !s.IsDir() {
-			log.Errorf("specified location is not a directory: %v ", err)
+			log.Errorf("specified location is not a directory: %v ", l)
+			return
+		}
+
+		if s.Mode()&os.FileMode(2) == 0 {
+			log.Errorf("specified location (%v) is not world writable: %v", l, s.Mode())
 			return
 		}
 
