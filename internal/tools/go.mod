@@ -17,6 +17,6 @@ require (
 	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83 // indirect
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/perf v0.0.0-20210220033136-40a54f11e909
-	gotest.tools/gotestsum v1.6.4
+	gotest.tools/gotestsum v1.7.0
 	honnef.co/go/tools v0.2.0
 )
