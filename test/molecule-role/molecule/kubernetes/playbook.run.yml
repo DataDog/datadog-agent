@@ -165,4 +165,3 @@
     - name: Pause for 2 minutes to perform some http requests
       pause:
         minutes: 2
-
