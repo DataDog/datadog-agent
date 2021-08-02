@@ -1,9 +1,7 @@
 ---
 .retrieve_sysprobe_deps:
-  - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/libbcc-$ARCH-$BCC_VERSION.tar.xz /tmp/libbcc.tar.xz
   - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-$ARCH-11.0.1.tar.xz /tmp/clang.tar.xz
   - mkdir -p $DATADOG_AGENT_EMBEDDED_PATH
-  - tar -xvf /tmp/libbcc.tar.xz -C $DATADOG_AGENT_EMBEDDED_PATH
   - tar -xvf /tmp/clang.tar.xz -C $DATADOG_AGENT_EMBEDDED_PATH
 
 .build_sysprobe_artifacts:
