@@ -11,7 +11,33 @@ import (
 
 func TestLibsFromMaps(t *testing.T) {
 	r := strings.NewReader(mapsFile)
-	libs := parseMaps(bufio.NewReader(r), AllLibraries)
+	maps, err := parseMaps("1234", bufio.NewReader(r))
+	if err != nil {
+		t.Fatal(err)
+	}
+	libs := maps.GetSharedLibraries()
+	expected := []string{
+		"/usr/lib/x86_64-linux-gnu/libc-2.31.so",
+		"/usr/lib/x86_64-linux-gnu/ld-2.31.so",
+		"[stack]",
+		"[vvar]",
+		"[vdso]",
+		"[vsyscall]",
+		"/usr/lib/locale/C.UTF-8/LC_TELEPHONE",
+		"/usr/lib/locale/C.UTF-8/LC_IDENTIFICATION",
+		"/usr/lib/locale/C.UTF-8/LC_MEASUREMENT",
+		"/usr/lib/x86_64-linux-gnu/gconv/gconv-modules.cache",
+	}
+	assert.ElementsMatch(t, expected, libs)
+}
+
+func TestLibsFromMapsAllSo(t *testing.T) {
+	r := strings.NewReader(mapsFile)
+	maps, err := parseMaps("1234", bufio.NewReader(r))
+	if err != nil {
+		t.Fatal(err)
+	}
+	libs := maps.GetSharedLibraries(AllLibraries)
 	expected := []string{
 		"/usr/lib/x86_64-linux-gnu/libc-2.31.so",
 		"/usr/lib/x86_64-linux-gnu/ld-2.31.so",
@@ -22,13 +48,16 @@ func TestLibsFromMaps(t *testing.T) {
 func TestLibsFromMapsWithFilter(t *testing.T) {
 	filter := regexp.MustCompile("libc")
 	r := strings.NewReader(mapsFile)
-	libs := parseMaps(bufio.NewReader(r), filter)
+	maps, err := parseMaps("1234", bufio.NewReader(r))
+	if err != nil {
+		t.Fatal(err)
+	}
+	libs := maps.GetSharedLibraries(filter)
 	expected := []string{"/usr/lib/x86_64-linux-gnu/libc-2.31.so"}
 	assert.ElementsMatch(t, expected, libs)
 }
 
-var mapsFile = `
-7f178d0a6000-7f178d0cb000 r--p 00000000 fd:00 268741                     /usr/lib/x86_64-linux-gnu/libc-2.31.so
+var mapsFile = `7f178d0a6000-7f178d0cb000 r--p 00000000 fd:00 268741                     /usr/lib/x86_64-linux-gnu/libc-2.31.so
 7f178d0cb000-7f178d243000 r-xp 00025000 fd:00 268741                     /usr/lib/x86_64-linux-gnu/libc-2.31.so
 7f178d243000-7f178d28d000 r--p 0019d000 fd:00 268741                     /usr/lib/x86_64-linux-gnu/libc-2.31.so
 7f178d28d000-7f178d28e000 ---p 001e7000 fd:00 268741                     /usr/lib/x86_64-linux-gnu/libc-2.31.so

@@ -22,8 +22,13 @@ func Find(procRoot string, filter *regexp.Regexp) []string {
 // FromPID returns all shared libraries matching the given filter that are mapped into memory by a given PID
 func FromPID(procRoot string, pid int32, filter *regexp.Regexp) []string {
 	pidPath := filepath.Join(procRoot, strconv.Itoa(int(pid)))
+
 	buffer := bufio.NewReader(nil)
-	libs := getSharedLibraries(pidPath, buffer, filter)
+	pidMaps, err := ParseProcPidMaps(pidPath, buffer)
+	if err != nil {
+		return nil
+	}
+	libs := pidMaps.GetSharedLibraries(filter)
 	if len(libs) == 0 {
 		return nil
 	}

@@ -28,7 +28,11 @@ func (f *finder) Find(filter *regexp.Regexp) []string {
 	seen := make(map[key]struct{})
 	result := common.NewStringSet()
 	iteratePIDS(f.procRoot, func(pidPath string, info os.FileInfo, mntNS ns) {
-		libs := getSharedLibraries(pidPath, f.buffer, filter)
+		pidMaps, err := ParseProcPidMaps(pidPath, f.buffer)
+		if err != nil {
+			return
+		}
+		libs := pidMaps.GetSharedLibraries(filter)
 
 		// If we have already seen (mntNS, lib) we skip the path resolution process
 		libs = excludeAlreadySeen(seen, mntNS, libs)

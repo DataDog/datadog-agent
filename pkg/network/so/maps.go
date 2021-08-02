@@ -2,31 +2,97 @@ package so
 
 import (
 	"bufio"
-	"bytes"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
-	"unicode"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
-const soColumnIdx = 5
+var regexProcPidMapEntry *regexp.Regexp
 
-func getSharedLibraries(pidPath string, b *bufio.Reader, filter *regexp.Regexp) []string {
-	f, err := os.Open(filepath.Join(pidPath, "/maps"))
-	if err != nil {
-		return nil
-	}
-	defer f.Close()
-	b.Reset(f)
+const regexProcPidMapEntry_NR = 8
 
-	return parseMaps(b, filter)
+func init() {
+	regexProcPidMapEntry = regexp.MustCompile(`(?P<VaddrStart>[\da-f]+)-(?P<VaddrEnd>[\da-f]+) (?P<Permission>[-rwxsp]+) (?P<Offset>[\da-f]+) (?P<Device>[\da-f:]+) (?P<Inode>\d+)[ ]*(?P<Pathname>.*)`)
 }
 
-// parseMaps takes in an bufio.Reader representing a memory mapping
-// file from the procfs (eg. /proc/<PID>/maps) and extracts the shared library names from it
-// that match the given filter
+type ProcPidMaps struct {
+	ProcPidPath string
+	Libraries   map[string]ProcPidMapLibrary
+}
+
+type ProcPidMapLibrary struct {
+	Mapping []*ProcPidMapEntry
+}
+
+type ProcPidMapEntry struct {
+	VaddrStart uint64
+	VaddrEnd   uint64
+	Permission string
+	Offset     uint64
+	Device     string
+	Inode      uint64
+	Pathname   string
+}
+
+func (l ProcPidMapLibrary) String() string {
+	b := ""
+	for _, entry := range l.Mapping {
+		b += fmt.Sprintf("%+v\n", entry)
+	}
+	return b
+}
+
+func ParseProcPidMaps(pidPath string, buffer *bufio.Reader) (*ProcPidMaps, error) {
+	f, err := os.Open(filepath.Join(pidPath, "/maps"))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	buffer.Reset(f)
+
+	return parseMaps(pidPath, buffer)
+}
+
+func parseMaps(pidPath string, buffer *bufio.Reader) (*ProcPidMaps, error) {
+	procPidMaps := &ProcPidMaps{
+		ProcPidPath: pidPath,
+		Libraries:   make(map[string]ProcPidMapLibrary),
+	}
+
+	lastPathname := ""
+	for {
+		line, _, err := buffer.ReadLine()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		entry, err := procPidMapLineToEntry(string(line))
+		if err != nil {
+			return nil, err
+		}
+		pathname := entry.Pathname
+		if pathname == "" { /* add anonymous entry to the latest library */
+			pathname = lastPathname
+		}
+		lib := procPidMaps.Libraries[pathname]
+		lib.Mapping = append(lib.Mapping, entry)
+		procPidMaps.Libraries[pathname] = lib
+		lastPathname = pathname
+	}
+
+	return procPidMaps, nil
+}
+
+// GetSharedLibraries() takes an opitonal regex filter in parameter
+// and return an array of pathname that match the filter.
 //
 // Example:
 // 7f135146b000-7f135147a000 r--p 00000000 fd:00 268743 /usr/lib/x86_64-linux-gnu/libm-2.31.so
@@ -35,35 +101,58 @@ func getSharedLibraries(pidPath string, b *bufio.Reader, filter *regexp.Regexp) 
 // 7f13515b8000-7f13515b9000 r--p 0014c000 fd:00 268743 /usr/lib/x86_64-linux-gnu/libm-2.31.so
 //
 // Would return ["/usr/lib/x86_64-linux-gnu/libm-2.31.so"]
-func parseMaps(r *bufio.Reader, filter *regexp.Regexp) []string {
+func (p *ProcPidMaps) GetSharedLibraries(filter ...*regexp.Regexp) []string {
 	set := common.NewStringSet()
-	for {
-		line, _, err := r.ReadLine()
-		if err != nil {
-			break
-		}
-
-		start := bytes.IndexFunc(line, occurrence(soColumnIdx, ' '))
-		if start == -1 {
-			continue
-		}
-
-		entry := line[start:]
-		entry = bytes.TrimFunc(entry, unicode.IsSpace)
-		if filter.Match(entry) {
-			set.Add(string(entry))
+	for pathname := range p.Libraries {
+		if len(filter) == 0 || filter[0].MatchString(pathname) {
+			set.Add(pathname)
 		}
 	}
-
 	return set.GetAll()
 }
 
-func occurrence(n int, want rune) func(r rune) bool {
-	return func(r rune) bool {
-		if r == want {
-			n--
-		}
-
-		return n <= 0
+func procPidMapLineToEntry(line string) (*ProcPidMapEntry, error) {
+	stringEntry := regexProcPidMapEntry.FindStringSubmatch(line)
+	if len(stringEntry) != regexProcPidMapEntry_NR {
+		return nil, fmt.Errorf("parsing map entry error : '%s' '%+v'", line, stringEntry)
 	}
+	var u uint64
+	var err error
+	entry := &ProcPidMapEntry{}
+	for i, field := range regexProcPidMapEntry.SubexpNames() {
+		str := stringEntry[i]
+		switch field {
+		case "VaddrStart":
+			u, err = strconv.ParseUint(str, 16, 64)
+			if err != nil {
+				return nil, fmt.Errorf("field VaddrStart parse error '%s' : %s", str, err)
+			}
+			entry.VaddrStart = u
+		case "VaddrEnd":
+			u, err = strconv.ParseUint(str, 16, 64)
+			if err != nil {
+				return nil, fmt.Errorf("field VaddrEnd parse error '%s' : %s", str, err)
+			}
+			entry.VaddrEnd = u
+		case "Permission":
+			entry.Permission = str
+		case "Offset":
+			u, err = strconv.ParseUint(str, 16, 64)
+			if err != nil {
+				return nil, fmt.Errorf("field Offset parse error '%s' : %s", str, err)
+			}
+			entry.Offset = u
+		case "Device":
+			entry.Device = str
+		case "Inode":
+			u, err = strconv.ParseUint(str, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("field Inode parse error '%s' : %s", str, err)
+			}
+			entry.Offset = u
+		case "Pathname":
+			entry.Pathname = str
+		}
+	}
+	return entry, nil
 }
