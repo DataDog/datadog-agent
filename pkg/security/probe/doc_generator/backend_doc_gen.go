@@ -25,13 +25,13 @@ func generateBackendJSON(output string) error {
 		TypeNamer:      doc.JSONTypeMapper,
 	}
 	schema := reflector.Reflect(&probe.EventSerializer{})
-	schemaJson, err := schema.MarshalJSON()
+	schemaJSON, err := schema.MarshalJSON()
 	if err != nil {
 		return err
 	}
 
 	var out bytes.Buffer
-	if err := json.Indent(&out, schemaJson, "", "  "); err != nil {
+	if err := json.Indent(&out, schemaJSON, "", "  "); err != nil {
 		return err
 	}
 
