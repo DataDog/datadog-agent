@@ -526,9 +526,9 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
     for mod in DEFAULT_MODULES.values():
         with ctx.cd(mod.full_path()):
             ctx.run("go mod tidy")
-            res = ctx.run("git diff-files --exit-code go.mod", warn=True)
+            res = ctx.run("git diff-files --exit-code go.mod go.sum", warn=True)
             if res.exited is None or res.exited > 0:
-                errors_found.append("go.mod for {} module is out of sync".format(mod.import_path))
+                errors_found.append("go.mod or go.sum for {} module is out of sync".format(mod.import_path))
 
     generate_dummy_package(ctx, test_folder)
     with ctx.cd(test_folder):
