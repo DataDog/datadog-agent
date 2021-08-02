@@ -10,7 +10,7 @@
   hosts: kubernetes-cluster-agent
   gather_facts: true
   tasks:
-    - include_tasks: ../common/prepare/docker-compose-cleanup-receiver.yml
+    # - include_tasks: ../common/prepare/docker-compose-cleanup-receiver.yml
 
     - name: Run Docker compose
       command: docker-compose up -d
