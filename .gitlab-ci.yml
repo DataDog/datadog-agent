@@ -51,7 +51,6 @@ variables: &commonvariables
   STS_DOCKER_RELEASE_REPO_CLUSTER: stackstate-cluster-agent
   STS_DOCKER_TEST_REPO_CLUSTER: stackstate-cluster-agent-test
 
-
 .rules:
   - &exclude_on_cluster_agent
     if: $CI_COMMIT_MESSAGE =~ /\[cluster-agent]/

@@ -10,8 +10,13 @@
   hosts: kubernetes-cluster-agent
   gather_facts: true
   tasks:
-    - include_tasks: ../common/prepare/docker-compose-cleanup.yml
-    - include_tasks: ../common/prepare/run-docker-compose.yml
+    - include_tasks: ../common/prepare/docker-compose-cleanup-receiver.yml
+
+    - name: Run Docker compose
+      command: docker-compose up -d
+      args:
+        chdir: /home/ubuntu/receiver
+
     - import_tasks: ../common/prepare/wait-for-receiver.yml
 
     - name: Removing existing config files if exists

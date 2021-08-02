@@ -21,6 +21,12 @@
       ci_sts_major_python_version: "{{ ci_sts_major_python_version }}"
       usage: "molecule-build"
       molecule: yes
+      VantaOwner: "stackstate@stackstate.com"
+      VantaNonProd: true
+      VantaDescription: "Machines used by CI pipeline"
+      VantaContainsUserData: false
+      VantaUserDataStored: "NA"
+      VantaNoAlert: "This is for test isn't part of our production systems."
     wait: true
     network:
       assign_public_ip: true
