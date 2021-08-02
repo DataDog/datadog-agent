@@ -10,18 +10,59 @@
   hosts: kubernetes-cluster-agent
   gather_facts: true
   tasks:
-    - include_tasks: ../common/prepare/ubuntu18-automatic-updates.yml
-    - include_tasks: ../common/prepare/install-provisioning-dependencies.yml
-    - include_tasks: ../common/prepare/configure-aws-credentials.yml
-    - include_tasks: ../common/prepare/docker-login.yml
+    - name: Ubuntu18 automatic updates (wait for lock) (1/2)
+      shell: "while fuser /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 10; done;"
+      become: yes
+
+    - name: Ubuntu18 automatic updates (wait for lock) (2/2)
+      shell: "sleep 15; while fuser /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 10; done;"
+      become: yes
+
+    - name: Install provisioning dependencies (1/2)
+      apt:
+        name:
+          python3-pip
+        state: present
+      become: yes
+      register: pip3_res
+      retries: 15
+      delay: 5
+      until: pip3_res is success
+
+    - name: Install provisioning dependencies (2/2)
+      shell: pip3 install docker
+      become: yes
+
+    - name: Configure aws credentials
+      copy:
+        content: |
+          [default]
+          aws_access_key_id = {{ lookup("env", "AWS_ACCESS_KEY_ID")}}
+          aws_secret_access_key = {{ lookup("env", "AWS_SECRET_ACCESS_KEY")}}
+        dest: /home/ubuntu/.aws/credentials
+
+    - name: Docker login
+      docker_login:
+        registry: quay.io
+        username: "{{ quay_user }}"
+        password: "{{ quay_password }}"
+        reauthorize: yes
 
     - name: Copy Terraform Files and Manifests
       copy:
         src: "../../../../deployment/kubernetes/"
         dest: "/home/ubuntu/deployment"
 
-    - include_tasks: ../common/prepare/copy-receiver-files.yml
-    - include_tasks: ../common/prepare/copy-verify-and-create-script-file.yml
+    - name: Copy Receiver files
+      copy:
+        src: "files/receiver"
+        dest: "/home/ubuntu/"
+
+    - name: Copy Verify and Create Script file
+      copy:
+        src: ./../verify-or-create-topics.sh
+        dest: /home/ubuntu/receiver
+        mode: u+x
 
     - name: Generate env token
       shell: echo token=$(cat /dev/urandom | env LC_CTYPE=C tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1) > env.txt
