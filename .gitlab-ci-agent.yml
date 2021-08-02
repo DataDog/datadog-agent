@@ -659,10 +659,10 @@ pre_release_cluster_agent_image:
     - export LC_CTYPE=en_US.UTF-8
     - export LANG=en_US.UTF-8
     - mkdir -p $CI_PROJECT_DIR/tmp_molecule_inventory
-  retry:
-    max: 2
-    when:
-      - always
+  # retry:
+  #   max: 2
+  #   when:
+  #     - always
 
 .molecule_base: &molecule_base
   stage: acceptance
