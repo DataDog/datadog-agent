@@ -166,7 +166,7 @@ require (
 	github.com/vishvananda/netlink v1.1.1-0.20210508154835-66ddd91f7ddd
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f
 	github.com/vito/go-sse v1.0.0 // indirect
-	github.com/vmihailenco/msgpack/v4 v4.3.11
+	github.com/vmihailenco/msgpack/v4 v4.3.12
 	github.com/xeipuuv/gojsonschema v0.0.0-20180618132009-1d523034197f
 	go.etcd.io/etcd/client/v2 v2.305.0
 	go.opencensus.io v0.22.6 // indirect
