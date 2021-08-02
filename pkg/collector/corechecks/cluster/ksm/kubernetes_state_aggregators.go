@@ -175,4 +175,8 @@ var metricAggregators = map[string]metricAggregator{
 		"node.count",
 		[]string{"kubelet_version", "container_runtime_version", "kernel_version", "os_image"},
 	),
+	"kube_pod_info": newCountObjectsAggregator(
+		"pod.count",
+		[]string{"namespace", "created_by_kind", "created_by_name"},
+	),
 }
