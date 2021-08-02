@@ -693,8 +693,12 @@ pre_release_cluster_agent_image:
      - cd $CI_PROJECT_DIR/test
      - ./molecule3.sh --base-config ./molecule/compose/provisioner.run.yml destroy --scenario-name compose
 
+.compose_branch_lock: &compose_branch_lock
+  resource_group: "{{STS_VER}}_{{MAJOR_VERSION}}_{{PYTHON_RUNTIMES}}_{{AGENT_CURRENT_BRANCH}}_compose_branch_lock"
+
 compose_molecule_create:
   <<: *molecule_base_prepare
+  <<: *compose_branch_lock
   interruptible: true
   when: always
   script:
@@ -712,12 +716,14 @@ compose_molecule_create:
 
 compose_molecule_prepare_cleanup:
    <<: *compose_cleanup_base
+   <<: *compose_branch_lock
    stage: prepare_cleanup
    needs:
      - compose_molecule_create
 
 compose_molecule_test:
   <<: *molecule_base
+  <<: *compose_branch_lock
   interruptible: true
   when: on_success
   dependencies:
@@ -741,6 +747,7 @@ compose_molecule_test:
 
 compose_molecule_acceptance_success_cleanup:
    <<: *compose_cleanup_base
+   <<: *compose_branch_lock
    stage: acceptance_cleanup
    when: on_success
    needs:
@@ -748,6 +755,7 @@ compose_molecule_acceptance_success_cleanup:
 
 compose_molecule_acceptance_failure_cleanup:
    <<: *compose_cleanup_base
+   <<: *compose_branch_lock
    stage: acceptance_cleanup
    needs:
      - compose_molecule_test
@@ -765,8 +773,12 @@ compose_molecule_acceptance_failure_cleanup:
      - cd $CI_PROJECT_DIR/test
      - ./molecule3.sh destroy --scenario-name integrations
 
+.integrations_branch_lock: &integrations_branch_lock
+  resource_group: "{{STS_VER}}_{{MAJOR_VERSION}}_{{PYTHON_RUNTIMES}}_{{AGENT_CURRENT_BRANCH}}_integrations_branch_lock"
+
 integrations_molecule_create:
   <<: *molecule_base_prepare
+  <<: *integrations_branch_lock
   interruptible: true
   when: always
   script:
@@ -784,12 +796,14 @@ integrations_molecule_create:
 
 integrations_molecule_prepare_cleanup:
    <<: *integrations_cleanup_base
+   <<: *integrations_branch_lock
    stage: prepare_cleanup
    needs:
      - integrations_molecule_create
 
 integrations_molecule_test:
   <<: *molecule_base
+  <<: *integrations_branch_lock
   interruptible: true
   when: on_success
   dependencies:
@@ -813,6 +827,7 @@ integrations_molecule_test:
 
 integrations_molecule_acceptance_success_cleanup:
    <<: *integrations_cleanup_base
+   <<: *integrations_branch_lock
    stage: acceptance_cleanup
    when: on_success
    needs:
@@ -820,6 +835,7 @@ integrations_molecule_acceptance_success_cleanup:
 
 integrations_molecule_acceptance_failure_cleanup:
    <<: *integrations_cleanup_base
+   <<: *integrations_branch_lock
    stage: acceptance_cleanup
    needs:
      - integrations_molecule_test
@@ -832,7 +848,6 @@ integrations_molecule_acceptance_failure_cleanup:
 .kubernetes_cleanup_base: &kubernetes_cleanup_base
    <<: *molecule_base
    interruptible: true
-   resource_group: eks_test_cluster
    script:
      - cd $CI_PROJECT_DIR/test
      - ./molecule3.sh destroy --scenario-name kubernetes
@@ -881,6 +896,7 @@ kubernetes_molecule_test:
     - kubernetes_molecule_create
   script:
     - cd $CI_PROJECT_DIR/test
+    - ./molecule3.sh --base-config ./molecule/kubernetes/provisioner.run.yml cleanup --scenario-name kubernetes
     - ./molecule3.sh --base-config ./molecule/kubernetes/provisioner.run.yml prepare --force --scenario-name kubernetes
     - ./molecule3.sh test --scenario-name kubernetes --destroy=never
   artifacts:
@@ -925,8 +941,12 @@ kubernetes_molecule_acceptance_failure_cleanup:
    #   - tags
    #   - master
 
+.localinstall_branch_lock: &localinstall_branch_lock
+  resource_group: "{{STS_VER}}_{{MAJOR_VERSION}}_{{PYTHON_RUNTIMES}}_{{AGENT_CURRENT_BRANCH}}_localinstall_branch_lock"
+
 localinstall_molecule_create:
   <<: *molecule_base_prepare
+  <<: *localinstall_branch_lock
   interruptible: true
   when: always
   script:
@@ -947,6 +967,7 @@ localinstall_molecule_create:
 
 localinstall_molecule_prepare_cleanup:
    <<: *localinstall_cleanup_base
+   <<: *localinstall_branch_lock
    stage: prepare_cleanup
    needs:
      - localinstall_molecule_create
@@ -956,6 +977,7 @@ localinstall_molecule_prepare_cleanup:
 
 localinstall_molecule_test:
   <<: *molecule_base
+  <<: *localinstall_branch_lock
   interruptible: true
   when: on_success
   dependencies:
@@ -981,6 +1003,7 @@ localinstall_molecule_test:
 
 localinstall_molecule_acceptance_success_cleanup:
    <<: *localinstall_cleanup_base
+   <<: *localinstall_branch_lock
    stage: acceptance_cleanup
    when: on_success
    needs:
@@ -991,6 +1014,7 @@ localinstall_molecule_acceptance_success_cleanup:
 
 localinstall_molecule_acceptance_failure_cleanup:
    <<: *localinstall_cleanup_base
+   <<: *localinstall_branch_lock
    stage: acceptance_cleanup
    needs:
      - localinstall_molecule_test
@@ -1014,8 +1038,12 @@ localinstall_molecule_acceptance_failure_cleanup:
    #   - tags
    #   - master
 
+.secrets_branch_lock: &secrets_branch_lock
+  resource_group: "{{STS_VER}}_{{MAJOR_VERSION}}_{{PYTHON_RUNTIMES}}_{{AGENT_CURRENT_BRANCH}}_secrets_branch_lock"
+
 secrets_molecule_create:
   <<: *molecule_base_prepare
+  <<: *secrets_branch_lock
   interruptible: true
   when: always
   script:
@@ -1036,6 +1064,7 @@ secrets_molecule_create:
 
 secrets_molecule_prepare_cleanup:
    <<: *secrets_cleanup_base
+   <<: *secrets_branch_lock
    stage: prepare_cleanup
    needs:
      - secrets_molecule_create
@@ -1045,6 +1074,7 @@ secrets_molecule_prepare_cleanup:
 
 secrets_molecule_test:
   <<: *molecule_base
+  <<: *secrets_branch_lock
   interruptible: true
   when: on_success
   dependencies:
@@ -1071,6 +1101,7 @@ secrets_molecule_test:
 
 secrets_molecule_acceptance_success_cleanup:
    <<: *secrets_cleanup_base
+   <<: *secrets_branch_lock
    stage: acceptance_cleanup
    when: on_success
    needs:
@@ -1081,6 +1112,7 @@ secrets_molecule_acceptance_success_cleanup:
 
 secrets_molecule_acceptance_failure_cleanup:
    <<: *secrets_cleanup_base
+   <<: *secrets_branch_lock
    stage: acceptance_cleanup
    needs:
      - secrets_molecule_test
@@ -1102,8 +1134,12 @@ secrets_molecule_acceptance_failure_cleanup:
      - cd $CI_PROJECT_DIR/test
      - ./molecule3.sh --base-config ./molecule/swarm/provisioner.run.yml destroy --scenario-name swarm
 
+.swarm_branch_lock: &swarm_branch_lock
+  resource_group: "{{STS_VER}}_{{MAJOR_VERSION}}_{{PYTHON_RUNTIMES}}_{{AGENT_CURRENT_BRANCH}}_swarm_branch_lock"
+
 swarm_molecule_create:
   <<: *molecule_base_prepare
+  <<: *swarm_branch_lock
   interruptible: true
   rules:
     - *only_agent_3_always
@@ -1122,6 +1158,7 @@ swarm_molecule_create:
 
 swarm_molecule_prepare_cleanup:
    <<: *swarm_cleanup_base
+   <<: *swarm_branch_lock
    stage: prepare_cleanup
    rules:
      - *only_agent_3_failure
@@ -1130,6 +1167,7 @@ swarm_molecule_prepare_cleanup:
 
 swarm_molecule_test:
   <<: *molecule_base
+  <<: *swarm_branch_lock
   interruptible: true
   rules:
     - *only_agent_3_success
@@ -1155,6 +1193,7 @@ swarm_molecule_test:
 
 swarm_molecule_acceptance_success_cleanup:
    <<: *swarm_cleanup_base
+   <<: *swarm_branch_lock
    stage: acceptance_cleanup
    rules:
      - *only_agent_3_success
@@ -1163,6 +1202,7 @@ swarm_molecule_acceptance_success_cleanup:
 
 swarm_molecule_acceptance_failure_cleanup:
    <<: *swarm_cleanup_base
+   <<: *swarm_branch_lock
    stage: acceptance_cleanup
    rules:
      - *only_agent_3_failure
@@ -1185,8 +1225,12 @@ swarm_molecule_acceptance_failure_cleanup:
      - cd $CI_PROJECT_DIR/test
      - ./molecule3.sh destroy --scenario-name vms
 
+.vms_branch_lock: &vms_branch_lock
+  resource_group: "{{STS_VER}}_{{MAJOR_VERSION}}_{{PYTHON_RUNTIMES}}_{{AGENT_CURRENT_BRANCH}}_vms_branch_lock"
+
 vms_molecule_create:
   <<: *molecule_base_prepare
+  <<: *vms_branch_lock
   interruptible: true
   when: always
   script:
@@ -1204,12 +1248,14 @@ vms_molecule_create:
 
 vms_molecule_prepare_cleanup:
    <<: *vms_cleanup_base
+   <<: *vms_branch_lock
    stage: prepare_cleanup
    needs:
      - vms_molecule_create
 
 vms_molecule_test:
   <<: *molecule_base
+  <<: *vms_branch_lock
   interruptible: true
   when: on_success
   dependencies:
@@ -1235,6 +1281,7 @@ vms_molecule_test:
 
 vms_molecule_acceptance_success_cleanup:
    <<: *vms_cleanup_base
+   <<: *vms_branch_lock
    stage: acceptance_cleanup
    when: on_success
    needs:
@@ -1242,6 +1289,7 @@ vms_molecule_acceptance_success_cleanup:
 
 vms_molecule_acceptance_failure_cleanup:
    <<: *vms_cleanup_base
+   <<: *vms_branch_lock
    stage: acceptance_cleanup
    needs:
      - vms_molecule_test
