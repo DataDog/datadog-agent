@@ -16,14 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	v3 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3"
 )
 
 func TestECSParseTasks(t *testing.T) {
 	ecsExpireFreq := 5 * time.Minute
-	expiretest, _ := taggerutil.NewExpire(ecsExpireFreq)
+	expiretest, err := newExpire(ecsCollectorName, ecsExpireFreq)
+	require.NoError(t, err)
 	ecsCollector := &ECSCollector{
 		expire:      expiretest,
 		clusterName: "test-cluster",
@@ -157,7 +157,8 @@ func TestECSParseTasksTargetting(t *testing.T) {
 	ctx := context.Background()
 
 	ecsExpireFreq := 5 * time.Minute
-	expiretest, _ := taggerutil.NewExpire(ecsExpireFreq)
+	expiretest, err := newExpire(ecsCollectorName, ecsExpireFreq)
+	require.NoError(t, err)
 	ecsCollector := &ECSCollector{
 		expire: expiretest,
 	}

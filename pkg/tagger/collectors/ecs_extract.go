@@ -27,8 +27,9 @@ func (c *ECSCollector) parseTasks(ctx context.Context, tasks []v1.Task, targetDo
 			continue
 		}
 		for _, container := range task.Containers {
+			entityID := containers.BuildTaggerEntityName(container.DockerID)
 			// Only collect new containers + the targeted container, to avoid empty tags on race conditions
-			if c.expire.Update(container.DockerID, now) || container.DockerID == targetDockerID {
+			if c.expire.Update(entityID, now) || container.DockerID == targetDockerID {
 				tags := utils.NewTagList()
 				tags.AddLow("task_version", task.Version)
 				tags.AddLow("task_name", task.Family)
@@ -62,7 +63,7 @@ func (c *ECSCollector) parseTasks(ctx context.Context, tasks []v1.Task, targetDo
 
 				info := &TagInfo{
 					Source:               ecsCollectorName,
-					Entity:               containers.BuildTaggerEntityName(container.DockerID),
+					Entity:               entityID,
 					HighCardTags:         high,
 					OrchestratorCardTags: orch,
 					LowCardTags:          low,
