@@ -803,6 +803,50 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "node:foo"},
 			wantHostname: "foo-bar",
 		},
+		{
+			name: "created_by_kind/created_by_name",
+			config: &KSMConfig{
+				LabelJoins: map[string]*JoinsConfig{
+					"foo": {
+						LabelsToMatch: []string{"foo_label"},
+						LabelsToGet:   []string{"created_by_kind", "created_by_name"},
+					},
+				},
+			},
+			args: args{
+				labels: map[string]string{"foo_label": "foo_value"},
+				metricsToGet: []ksmstore.DDMetricsFam{
+					{
+						Name:        "foo",
+						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"foo_label": "foo_value", "created_by_kind": "DaemonSet", "created_by_name": "foo_name"}}},
+					},
+				},
+			},
+			wantTags:     []string{"foo_label:foo_value", "kube_daemon_set:foo_name"},
+			wantHostname: "",
+		},
+		{
+			name: "owner_kind/owner_name",
+			config: &KSMConfig{
+				LabelJoins: map[string]*JoinsConfig{
+					"foo": {
+						LabelsToMatch: []string{"foo_label"},
+						LabelsToGet:   []string{"owner_kind", "owner_name"},
+					},
+				},
+			},
+			args: args{
+				labels: map[string]string{"foo_label": "foo_value"},
+				metricsToGet: []ksmstore.DDMetricsFam{
+					{
+						Name:        "foo",
+						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"foo_label": "foo_value", "owner_kind": "DaemonSet", "owner_name": "foo_name"}}},
+					},
+				},
+			},
+			wantTags:     []string{"foo_label:foo_value", "kube_daemon_set:foo_name"},
+			wantHostname: "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
