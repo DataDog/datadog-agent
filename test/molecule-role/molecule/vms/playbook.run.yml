@@ -13,7 +13,11 @@
     - name: Gather facts (we need the docker network interface ip)
       setup:
 
-    - include_tasks: ../common/prepare/docker-compose-cleanup.yml
+    - name: Stop and Remove Existing Docker Compose
+      command: docker-compose rm --stop -v --force
+      ignore_errors: true
+      args:
+        chdir: /home/ubuntu/
 
     - name: Run Docker compose (1/2)
       command: docker-compose up -d
