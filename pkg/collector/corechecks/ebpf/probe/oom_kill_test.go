@@ -27,7 +27,7 @@ while True:
 `
 
 func TestOOMKillProbe(t *testing.T) {
-	cfg := ebpf.NewDefaultConfig()
+	cfg := ebpf.NewConfig()
 	oomKillProbe, err := NewOOMKillProbe(cfg)
 	if err != nil {
 		t.Fatal(err)
