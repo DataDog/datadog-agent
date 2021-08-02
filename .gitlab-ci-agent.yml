@@ -1185,28 +1185,28 @@ swarm_molecule_acceptance_failure_cleanup:
      - cd $CI_PROJECT_DIR/test
      - ./molecule3.sh destroy --scenario-name vms
 
-# vms_molecule_create:
-#   <<: *molecule_base_prepare
-#   interruptible: true
-#   when: always
-#   script:
-#     - cd $CI_PROJECT_DIR/test
-#     - ./molecule3.sh --base-config ./molecule/vms/provisioner.setup.yml create --scenario-name vms
-#   artifacts:
-#     when: always
-#     paths:
-#       - $CI_PROJECT_DIR/test/molecule-role/molecule/vms/topic-*.json
-#       - $CI_PROJECT_DIR/test/molecule-role/molecule/vms/*.log
-#       - $CI_PROJECT_DIR/tmp_molecule_inventory
-#       - $CI_PROJECT_DIR/.molecule
-#       - $MOLECULE_EPHEMERAL_DIRECTORY
-#     expire_in: 1 week
+vms_molecule_create:
+  <<: *molecule_base_prepare
+  interruptible: true
+  when: always
+  script:
+    - cd $CI_PROJECT_DIR/test
+    - ./molecule3.sh --base-config ./molecule/vms/provisioner.setup.yml create --scenario-name vms
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/vms/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/vms/*.log
+      - $CI_PROJECT_DIR/tmp_molecule_inventory
+      - $CI_PROJECT_DIR/.molecule
+      - $MOLECULE_EPHEMERAL_DIRECTORY
+    expire_in: 1 week
 
-# vms_molecule_prepare_cleanup:
-#    <<: *vms_cleanup_base
-#    stage: prepare_cleanup
-#    needs:
-#      - vms_molecule_create
+vms_molecule_prepare_cleanup:
+   <<: *vms_cleanup_base
+   stage: prepare_cleanup
+   needs:
+     - vms_molecule_create
 
 vms_molecule_test:
   <<: *molecule_base
@@ -1216,9 +1216,10 @@ vms_molecule_test:
     - pre_release_deb
     - pre_release_rpm
     - pre_release_win
+    - vms_molecule_create
   script:
     - cd $CI_PROJECT_DIR/test
-    # - ./molecule3.sh --base-config ./molecule/vms/provisioner.run.yml prepare --force --scenario-name vms
+    - ./molecule3.sh --base-config ./molecule/vms/provisioner.run.yml prepare --force --scenario-name vms
     - ./molecule3.sh test --scenario-name vms --destroy=never
   artifacts:
     when: always
