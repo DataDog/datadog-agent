@@ -15,6 +15,10 @@ Anything else we should know when reviewing?
 Write here in detail how you have tested your changes
 and instructions on how this should be tested in QA.
 
+Describe or link instructions to set up environment 
+for testing, if the process requires more than just
+running the agent on one of the supported platforms.
+
 ### Checklist
 <!-- Place an '[x]' (no spaces) in all applicable fields. Please remove unrelated fields. -->
 
