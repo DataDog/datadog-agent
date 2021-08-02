@@ -51,7 +51,12 @@ func updateContainerRunningCount(images map[string]*containerPerImage, c *contai
 	var containerTags []string
 	var err error
 
-	if c.Excluded {
+	// Containers that are not running (either pending or stopped) are not
+	// collected by the tagger, so they won't have any tags and will cause
+	// an expensive tagger fetch.  To have *some* tags for stopped
+	// containers, we treat them as excluded containers and make a
+	// synthetic list of tags from basic container information.
+	if c.Excluded || c.State != containers.ContainerRunningState {
 		// TODO we can do SplitImageName because we are in the docker corecheck and the image name is not a sha[...]
 		// We should resolve the image tags in the tagger as a real entity.
 		long, short, tag, err := containers.SplitImageName(c.Image)
