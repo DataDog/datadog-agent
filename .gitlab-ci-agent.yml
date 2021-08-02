@@ -1212,6 +1212,8 @@ vms_molecule_test:
   <<: *molecule_base
   interruptible: true
   when: on_success
+  dependencies:
+    - vms_molecule_create
   needs:
     - pre_release_deb
     - pre_release_rpm
