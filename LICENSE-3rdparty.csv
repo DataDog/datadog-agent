@@ -170,7 +170,6 @@ core,"github.com/blabber/go-freebsd-sysctl/sysctl",0BSD
 core,"github.com/blang/semver",MIT
 core,"github.com/bmizerany/pat",UNKNOWN
 core,"github.com/cenkalti/backoff",MIT
-core,"github.com/cespare/xxhash",MIT
 core,"github.com/cespare/xxhash/v2",MIT
 core,"github.com/cihub/seelog",BSD-3-Clause
 core,"github.com/clbanning/mxj",MIT
@@ -251,6 +250,7 @@ core,"github.com/cyphar/filepath-securejoin",BSD-3-Clause
 core,"github.com/davecgh/go-spew/spew",ISC
 core,"github.com/dgraph-io/ristretto",Apache-2.0
 core,"github.com/dgraph-io/ristretto/z",MIT
+core,"github.com/dgraph-io/ristretto/z/simd",MIT
 core,"github.com/dgryski/go-jump",MIT
 core,"github.com/docker/distribution/digestset",Apache-2.0
 core,"github.com/docker/distribution/reference",Apache-2.0
