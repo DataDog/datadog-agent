@@ -745,26 +745,21 @@ compose_molecule_test:
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
 
-compose_molecule_acceptance_success_cleanup:
+compose_molecule_create_failure_cleanup:
    <<: *compose_cleanup_base
    <<: *compose_branch_lock
-   # stage: acceptance_cleanup
-   when: on_success
+   stage: acceptance_cleanup
+   when: on_failure
    needs:
      - job: compose_molecule_create
-       optional: true
-     - job: compose_molecule_test
-       optional: true
 
-compose_molecule_acceptance_failure_cleanup:
+compose_molecule_cleanup:
    <<: *compose_cleanup_base
    <<: *compose_branch_lock
-   # stage: acceptance_cleanup
+   stage: acceptance_cleanup
+   when: always
    needs:
-     - job: compose_molecule_create
-       optional: true
      - job: compose_molecule_test
-       optional: true
 
 
 # Job Seq: Molecule
@@ -834,7 +829,7 @@ integrations_molecule_test:
 integrations_molecule_acceptance_success_cleanup:
    <<: *integrations_cleanup_base
    <<: *integrations_branch_lock
-   # stage: acceptance_cleanup
+   stage: acceptance_cleanup
    when: on_success
    needs:
      - integrations_molecule_test
@@ -842,7 +837,7 @@ integrations_molecule_acceptance_success_cleanup:
 integrations_molecule_acceptance_failure_cleanup:
    <<: *integrations_cleanup_base
    <<: *integrations_branch_lock
-   # stage: acceptance_cleanup
+   stage: acceptance_cleanup
    needs:
      - integrations_molecule_test
 
@@ -917,7 +912,7 @@ kubernetes_molecule_test:
 
 kubernetes_molecule_acceptance_success_cleanup:
    <<: *kubernetes_cleanup_base
-   # stage: acceptance_cleanup
+   stage: acceptance_cleanup
    resource_group: eks_test_cluster
    rules:
      - *only_agent_3_success
@@ -927,7 +922,7 @@ kubernetes_molecule_acceptance_success_cleanup:
 kubernetes_molecule_acceptance_failure_cleanup:
    <<: *kubernetes_cleanup_base
    resource_group: eks_test_cluster
-   # stage: acceptance_cleanup
+   stage: acceptance_cleanup
    needs:
      - kubernetes_molecule_test
 
@@ -1010,7 +1005,7 @@ localinstall_molecule_test:
 localinstall_molecule_acceptance_success_cleanup:
    <<: *localinstall_cleanup_base
    <<: *localinstall_branch_lock
-   # stage: acceptance_cleanup
+   stage: acceptance_cleanup
    when: on_success
    needs:
      - localinstall_molecule_test
@@ -1021,7 +1016,7 @@ localinstall_molecule_acceptance_success_cleanup:
 localinstall_molecule_acceptance_failure_cleanup:
    <<: *localinstall_cleanup_base
    <<: *localinstall_branch_lock
-   # stage: acceptance_cleanup
+   stage: acceptance_cleanup
    needs:
      - localinstall_molecule_test
    # only:
@@ -1108,7 +1103,7 @@ secrets_molecule_test:
 secrets_molecule_acceptance_success_cleanup:
    <<: *secrets_cleanup_base
    <<: *secrets_branch_lock
-   # stage: acceptance_cleanup
+   stage: acceptance_cleanup
    when: on_success
    needs:
      - secrets_molecule_test
@@ -1119,7 +1114,7 @@ secrets_molecule_acceptance_success_cleanup:
 secrets_molecule_acceptance_failure_cleanup:
    <<: *secrets_cleanup_base
    <<: *secrets_branch_lock
-   # stage: acceptance_cleanup
+   stage: acceptance_cleanup
    needs:
      - secrets_molecule_test
    # only:
@@ -1200,7 +1195,7 @@ swarm_molecule_test:
 swarm_molecule_acceptance_success_cleanup:
    <<: *swarm_cleanup_base
    <<: *swarm_branch_lock
-   # stage: acceptance_cleanup
+   stage: acceptance_cleanup
    rules:
      - *only_agent_3_success
    needs:
@@ -1209,7 +1204,7 @@ swarm_molecule_acceptance_success_cleanup:
 swarm_molecule_acceptance_failure_cleanup:
    <<: *swarm_cleanup_base
    <<: *swarm_branch_lock
-   # stage: acceptance_cleanup
+   stage: acceptance_cleanup
    rules:
      - *only_agent_3_failure
    needs:
@@ -1288,7 +1283,7 @@ vms_molecule_test:
 vms_molecule_acceptance_success_cleanup:
    <<: *vms_cleanup_base
    <<: *vms_branch_lock
-   # stage: acceptance_cleanup
+   stage: acceptance_cleanup
    when: on_success
    needs:
      - vms_molecule_test
@@ -1296,7 +1291,7 @@ vms_molecule_acceptance_success_cleanup:
 vms_molecule_acceptance_failure_cleanup:
    <<: *vms_cleanup_base
    <<: *vms_branch_lock
-   # stage: acceptance_cleanup
+   stage: acceptance_cleanup
    needs:
      - vms_molecule_test
 
