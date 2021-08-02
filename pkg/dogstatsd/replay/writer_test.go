@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"io"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,12 +16,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/zstd"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 )
 
 func writerTest(t *testing.T, z bool) {
-	atomic.StoreInt64(&inMemoryFs, 1)
-	defer atomic.StoreInt64(&inMemoryFs, 0)
+	appFs := afero.NewMemMapFs()
+	testFs.Lock()
+	testFs.fs = &appFs
+	testFs.Unlock()
+
+	defer func() {
+		testFs.Lock()
+		defer testFs.Unlock()
+
+		testFs.fs = nil
+	}()
 
 	writer := NewTrafficCaptureWriter(1)
 

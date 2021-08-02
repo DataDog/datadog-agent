@@ -14,7 +14,6 @@ import (
 	"path"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	// Refactor relevant bits
@@ -44,15 +43,22 @@ type CaptureBuffer struct {
 	Buff        *packets.Packet
 }
 
+// for testing purposes
+type inMemoryFs struct {
+	fs *afero.Fs
+
+	sync.RWMutex
+}
+
+// testFs, used exclusively for testing purposes
+var testFs = inMemoryFs{}
+
 // CapPool is a pool of CaptureBuffer
 var CapPool = sync.Pool{
 	New: func() interface{} {
 		return new(CaptureBuffer)
 	},
 }
-
-// for testing purposes, modify atomically
-var inMemoryFs int64
 
 // TrafficCaptureWriter allows writing dogstatsd traffic to a file.
 type TrafficCaptureWriter struct {
@@ -133,12 +139,16 @@ func (tc *TrafficCaptureWriter) Capture(l string, d time.Duration, compressed bo
 		location string
 	)
 
+	testFs.Lock()
+	memFs := *testFs.fs
+	testFs.Unlock()
+
 	if l == "" {
 		location = config.Datadog.GetString("dogstatsd_capture_path")
 		if location == "" {
 			location = path.Join(config.Datadog.GetString("run_path"), "dsd_capture")
 		}
-	} else if atomic.LoadInt64(&inMemoryFs) == 0 {
+	} else if memFs == nil {
 		s, err := os.Stat(l)
 		if os.IsNotExist(err) {
 			log.Errorf("specified location does not exist: %v ", err)
@@ -156,21 +166,15 @@ func (tc *TrafficCaptureWriter) Capture(l string, d time.Duration, compressed bo
 		location = l
 	}
 
+	var target io.Writer
+
 	tc.Lock()
 	tc.Location = location
 	p := path.Join(tc.Location, fmt.Sprintf(fileTemplate, time.Now().Unix()))
-	if err = os.MkdirAll(filepath.Dir(p), 0770); err != nil {
-		log.Errorf("There was an issue writing the expected location: %v ", err)
-		tc.Unlock()
-		return
-	}
-
-	var target io.Writer
 
 	// inMemoryFS is used for testing purposes
-	if atomic.LoadInt64(&inMemoryFs) > 0 {
-		appFS := afero.NewMemMapFs()
-		err := appFS.MkdirAll(tc.Location, 0755)
+	if memFs != nil {
+		err := memFs.MkdirAll(tc.Location, 0755)
 		if err != nil {
 			log.Errorf("There was an issue starting the capture: %v ", err)
 
@@ -178,7 +182,7 @@ func (tc *TrafficCaptureWriter) Capture(l string, d time.Duration, compressed bo
 			return
 		}
 
-		fp, err := appFS.Create(p)
+		fp, err := memFs.Create(p)
 		if err != nil {
 			log.Errorf("There was an issue starting the capture: %v ", err)
 
