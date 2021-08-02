@@ -1,6 +1,7 @@
 import json
 import os
 import util
+import pytest
 
 from testinfra.utils.ansible_runner import AnsibleRunner
 
@@ -38,6 +39,7 @@ def test_agents_running(host):
 
 
 def test_agent_http_metrics(host):
+    pytest.skip("Disabled HTTP Metrics: https://stackstate.atlassian.net/browse/STAC-13669.")
     url = "http://localhost:7070/api/topic/sts_multi_metrics?limit=1000"
 
     def wait_for_metrics():

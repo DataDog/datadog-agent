@@ -3,6 +3,7 @@
 package python
 
 import (
+	"encoding/json"
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	"github.com/StackVista/stackstate-agent/pkg/health"
@@ -17,6 +18,16 @@ import "C"
 func testComponentTopology(t *testing.T) {
 	mockBatcher := batcher.NewMockBatcher()
 
+	c := &topology.Component{
+		ExternalID: "external-id",
+		Type:       topology.Type{Name: "component-type"},
+		Data: map[string]interface{}{
+			"some": "data",
+		},
+	}
+	data, err := json.Marshal(c)
+	assert.NoError(t, err)
+
 	checkId := C.CString("check-id")
 	instanceKey := C.instance_key_t{}
 	instanceKey.type_ = C.CString("instance-type")
@@ -27,7 +38,7 @@ func testComponentTopology(t *testing.T) {
 		&instanceKey,
 		C.CString("external-id"),
 		C.CString("component-type"),
-		C.CString("some: data"))
+		C.CString(string(data)))
 	SubmitStopSnapshot(checkId, &instanceKey)
 
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
@@ -56,6 +67,17 @@ func testComponentTopology(t *testing.T) {
 func testRelationTopology(t *testing.T) {
 	mockBatcher := batcher.NewMockBatcher()
 
+	c := &topology.Relation{
+		SourceID: "source-id",
+		TargetID: "target-id",
+		Type:     topology.Type{Name: "relation-type"},
+		Data: map[string]interface{}{
+			"some": "data",
+		},
+	}
+	data, err := json.Marshal(c)
+	assert.NoError(t, err)
+
 	checkId := C.CString("check-id")
 	instanceKey := C.instance_key_t{}
 	instanceKey.type_ = C.CString("instance-type")
@@ -66,7 +88,7 @@ func testRelationTopology(t *testing.T) {
 		C.CString("source-id"),
 		C.CString("target-id"),
 		C.CString("relation-type"),
-		C.CString("some: data"))
+		C.CString(string(data)))
 
 	expectedTopology := mockBatcher.CollectedTopology.Flush()
 	instance := topology.Instance{Type: "instance-type", URL: "instance-url"}

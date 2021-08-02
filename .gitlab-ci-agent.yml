@@ -855,7 +855,6 @@ release_deb:
     - deps_deb
     - build_deb
   script:
-    - source .gitlab-scripts/setup_env.sh
     - apt-get install -y apt-utils libtool debsigs
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./sign_debian_package.sh
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package.sh $STS_AWS_RELEASE_BUCKET stable

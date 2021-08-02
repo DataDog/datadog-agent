@@ -8,11 +8,11 @@
 package python
 
 import (
+	"encoding/json"
 	"github.com/StackVista/stackstate-agent/pkg/aggregator"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	"github.com/StackVista/stackstate-agent/pkg/metrics"
 	"github.com/StackVista/stackstate-agent/pkg/util/log"
-	"github.com/mitchellh/mapstructure"
 )
 
 /*
@@ -42,17 +42,14 @@ func SubmitTopologyEvent(id *C.char, data *C.char) {
 		return
 	}
 
-	_json, err := tryParseYamlToMap(data)
-	if err == nil || len(_json) != 0 {
-		var topologyEvent metrics.Event
-		err = mapstructure.Decode(_json, &topologyEvent)
-		if err != nil {
-			_ = log.Error(err)
-			return
-		}
+	var topologyEvent metrics.Event
+	rawEvent := C.GoString(data)
+	err = json.Unmarshal([]byte(rawEvent), &topologyEvent)
 
+	if err == nil {
 		sender.Event(topologyEvent)
 	} else {
-		_ = log.Errorf("Empty topology event not sent. Json: %v, Error: %v", _json, err)
+		_ = log.Errorf("Empty topology event not sent. Raw: %v, Json: %v, Error: %v", rawEvent,
+			topologyEvent.String(), err)
 	}
 }

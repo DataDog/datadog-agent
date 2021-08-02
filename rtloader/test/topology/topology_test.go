@@ -2,6 +2,7 @@ package testtopology
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"os"
 	"strings"
 	"testing"
@@ -19,57 +20,82 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// topoData contains various types of topology that can be produced by an agent check
+// strings (including special chars)
+// list[string], list[int], list[double]
+// empty values / None
+// objects + nested objects
+// we produce octal numbers as string; valid - 04 and invalid 09 to make sure they remain unchanged by the
+// serialization of json data
+// we also verify that nested objects remains key:string -> value:interface{} in go, such that they can be correctly
+// serialized to JSON.
 const topoData = `
 {
   "key": "value ®",
-  "stringlist": ["a", "b", "c"],
+  "stringlist": ["a", "b", "c", "04", "09"],
   "boollist": [True, False],
   "intlist": [1],
   "doublelist": [0.7, 1.42],
   "emptykey": None,
-  "nestedobject": {"nestedkey": "nestedValue"}
+  "nestedobject": {
+    "nestedkey": "nestedValue",
+    "animals": {
+      "legs":  "dog",
+      "wings": "eagle",
+      "tail":  "crocodile",
+    }
+  }
 }`
 
 func testTopoData(t *testing.T) {
-	if _data["key"] != "value ®" {
-		t.Fatalf("Unexpected component data 'key' value: %s", _data["key"])
+	if result["key"] != "value ®" {
+		t.Fatalf("Unexpected component data 'key' value: %s: %s", result["key"], _raw_data)
 	}
-	var stringlist = _data["stringlist"].([]interface{})
-	if len(stringlist) != 3 {
-		t.Fatalf("Unexpected component data 'stringlist' size: %v", len(stringlist))
+	var stringlist = result["stringlist"].([]interface{})
+	if len(stringlist) != 5 {
+		t.Fatalf("Unexpected component data 'stringlist' size: %v, %v, raw: %v",
+			len(stringlist), _data, _raw_data)
 	}
-	if stringlist[0] != "a" && stringlist[1] != "b"  && stringlist[2] != "c" {
-		t.Fatalf("Unexpected component data 'stringlist' value: %s", _data["stringlist"])
+	if assert.ObjectsAreEqualValues(stringlist, []string{"a", "b", "c", "04", "09"}) {
+		t.Fatalf("Unexpected component data 'stringlist' value: %s", result["stringlist"])
 	}
-	var boollist = _data["boollist"].([]interface{})
+	var boollist = result["boollist"].([]interface{})
 	if len(boollist) != 2 {
 		t.Fatalf("Unexpected component data 'boollist' size: %v", len(boollist))
 	}
-	if boollist[0] != true && boollist[1] != false {
-		t.Fatalf("Unexpected component data 'boollist' value: %s", _data["boollist"])
+	if assert.ObjectsAreEqualValues(boollist, []bool{true, false}) {
+		t.Fatalf("Unexpected component data 'boollist' value: %s", result["boollist"])
 	}
-	var intlist = _data["intlist"].([]interface{})
+	var intlist = result["intlist"].([]interface{})
 	if len(intlist) != 1 {
 		t.Fatalf("Unexpected component data 'intlist' size: %v", len(intlist))
 	}
-	if intlist[0] != 1 {
-		t.Fatalf("Unexpected component data 'intlist' value: %s", _data["intlist"])
+	if assert.ObjectsAreEqualValues(intlist, []int64{1}) {
+		t.Fatalf("Unexpected component data 'intlist' value: %s", result["intlist"])
 	}
-	var doublelist = _data["doublelist"].([]interface{})
+	var doublelist = result["doublelist"].([]interface{})
 	if len(doublelist) != 2 {
 		t.Fatalf("Unexpected component data 'doublelist' size: %v", len(doublelist))
 	}
-	if doublelist[0] != 0.7 && doublelist[1] != 1.42 {
-		t.Fatalf("Unexpected component data 'doublelist' value: %s", _data["doublelist"])
+	if assert.ObjectsAreEqualValues(doublelist, []float64{0.7, 1.42}) {
+		t.Fatalf("Unexpected component data 'doublelist' value: %s", result["doublelist"])
 	}
-	if _data["emptykey"] != nil {
-		t.Fatalf("Unexpected component data 'emptykey' value: %s", _data["emptykey"])
+	if result["emptykey"] != nil {
+		t.Fatalf("Unexpected component data 'emptykey' value: %s", result["emptykey"])
 	}
-	if _data["nestedobject"] == nil {
-		t.Fatalf("Unexpected component data 'nestedobject' value: %s", _data["nestedobject"])
+	if result["nestedobject"] == nil {
+		t.Fatalf("Unexpected component data 'nestedobject' value: %s", result["nestedobject"])
 	}
-	var nestedObj = _data["nestedobject"].(map[interface{}]interface{})
+	var nestedObj = result["nestedobject"].(map[string]interface{})
 	if nestedObj["nestedkey"] != "nestedValue" {
+		t.Fatalf("Unexpected component data 'nestedkey' value: %s", nestedObj["nestedkey"])
+	}
+	var nestedAnimals = map[string]interface{}{
+		"legs":  "dog",
+		"wings": "eagle",
+		"tail":  "crocodile",
+	}
+	if !assert.ObjectsAreEqualValues(nestedObj["animals"], nestedAnimals) {
 		t.Fatalf("Unexpected component data 'nestedkey' value: %s", nestedObj["nestedkey"])
 	}
 }
@@ -135,11 +161,48 @@ func TestSubmitComponentCannotBeSerialized(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// example error 'RepresenterError: ('cannot represent an object', <object object at 0x7fc1df8f3e90>)'
-	if !strings.HasPrefix(out, "RepresenterError: ('cannot represent an object'") {
+	// keys must be a string
+	if !strings.Contains(out, "keys must be") {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestSubmitRelationPerformance(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	out, err := run(fmt.Sprintf(`for i in range(10000): topology.submit_relation(None, "checkid", {"type": "instance.type", "url": "instance.url"}, "source", "target", "mytype", %s)`, topoData))
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+
+	if checkID != "checkid" {
+		t.Fatalf("Unexpected check id value: %s", checkID)
+	}
+	if _instance.Type != "instance.type" {
+		t.Fatalf("Unexpected instance type value: %s", _instance.Type)
+	}
+	if _instance.URL != "instance.url" {
+		t.Fatalf("Unexpected instance url value: %s", _instance.URL)
+	}
+	if _sourceID != "source" {
+		t.Fatalf("Unexpected relation source value: %s", _sourceID)
+	}
+	if _targetID != "target" {
+		t.Fatalf("Unexpected relation target value: %s", _targetID)
+	}
+	if _relationType != "mytype" {
+		t.Fatalf("Unexpected relation type value: %s", _relationType)
+	}
+
+	testTopoData(t)
 	// Check for leaks
 	helpers.AssertMemoryUsage(t)
 }
@@ -208,8 +271,8 @@ func TestSubmitRelationCannotBeSerialized(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// example error 'RepresenterError: ('cannot represent an object', <object object at 0x7fc1df8f3e90>)'
-	if !strings.HasPrefix(out, "RepresenterError: ('cannot represent an object'") {
+	// keys must be a string
+	if !strings.Contains(out, "keys must be") {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 

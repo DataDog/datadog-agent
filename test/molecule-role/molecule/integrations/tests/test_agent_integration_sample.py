@@ -465,6 +465,7 @@ def test_agent_integration_sample_health_synchronization(host):
         assert _health_contains_payload(
             {
                 "IntakeHealthCheckStates": {
+                    "consistencyModel": "REPEAT_SNAPSHOTS",
                     "intakeCheckStates": [
                         {"data":"{\"checkStateId\":\"id\",\"health\":\"CRITICAL\",\"message\":\"msg\",\"name\":\"name\",\"topologyElementIdentifier\":\"identifier\"}"}
                     ]

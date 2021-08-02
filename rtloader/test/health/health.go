@@ -1,7 +1,9 @@
 package testhealth
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/StackVista/stackstate-agent/pkg/health"
 	"io/ioutil"
 	"log"
 	"os"
@@ -11,7 +13,6 @@ import (
 
 	common "github.com/StackVista/stackstate-agent/rtloader/test/common"
 	"github.com/StackVista/stackstate-agent/rtloader/test/helpers"
-	"gopkg.in/yaml.v2"
 )
 
 /*
@@ -31,23 +32,20 @@ static void initHealthTests(rtloader_t *rtloader) {
 import "C"
 
 var (
-	rtloader			   *C.rtloader_t
-	checkID				   string
-	_healthStream		   *HealthStream
-	_data				   map[string]interface{}
-	_expirySeconds		   int
+	rtloader               *C.rtloader_t
+	checkID                string
+	_healthStream          *health.Stream
+	_data                  map[string]interface{}
+	result                 map[string]interface{}
+	_expirySeconds         int
 	_repeatIntervalSeconds int
 )
-
-type HealthStream struct {
-	Urn string `json:"urn"`
-	SubStream  string `json:"sub_stream"`
-}
 
 func resetOuputValues() {
 	checkID = ""
 	_healthStream = nil
 	_data = nil
+	result = nil
 	_expirySeconds = 0
 	_repeatIntervalSeconds = 0
 }
@@ -112,23 +110,20 @@ except Exception as e:
 //export submitHealthCheckData
 func submitHealthCheckData(id *C.char, healthStream *C.health_stream_t, data *C.char) {
 	checkID = C.GoString(id)
-
-	_healthStream = &HealthStream{
-		Urn: C.GoString(healthStream.urn),
-		SubStream:  C.GoString(healthStream.sub_stream),
-	}
-
-	_data = make(map[string]interface{})
-	yaml.Unmarshal([]byte(C.GoString(data)), _data)
+	_raw_data := C.GoString(data)
+	healthPayload := &health.Payload{}
+	json.Unmarshal([]byte(_raw_data), healthPayload)
+	result = healthPayload.Data
+	_healthStream = &healthPayload.Stream
 }
 
 //export submitHealthStartSnapshot
 func submitHealthStartSnapshot(id *C.char, healthStream *C.health_stream_t, expirySeconds C.int, repeatIntervalSeconds C.int) {
 	checkID = C.GoString(id)
 
-	_healthStream = &HealthStream{
-		Urn: C.GoString(healthStream.urn),
-		SubStream:  C.GoString(healthStream.sub_stream),
+	_healthStream = &health.Stream{
+		Urn:       C.GoString(healthStream.urn),
+		SubStream: C.GoString(healthStream.sub_stream),
 	}
 
 	_expirySeconds = int(expirySeconds)
@@ -138,9 +133,8 @@ func submitHealthStartSnapshot(id *C.char, healthStream *C.health_stream_t, expi
 //export submitHealthStopSnapshot
 func submitHealthStopSnapshot(id *C.char, healthStream *C.health_stream_t) {
 	checkID = C.GoString(id)
-
-	_healthStream = &HealthStream{
-		Urn: C.GoString(healthStream.urn),
-		SubStream:  C.GoString(healthStream.sub_stream),
+	_healthStream = &health.Stream{
+		Urn:       C.GoString(healthStream.urn),
+		SubStream: C.GoString(healthStream.sub_stream),
 	}
 }
