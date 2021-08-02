@@ -142,6 +142,8 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(struct dentry_resolv
 
         if (map_value.name[0] == '/' || map_value.name[0] == 0) {
             map_value.name[0] = '/';
+            next_key.ino = 0;
+            next_key.mount_id = 0;
         }
 
         map_value.parent = next_key;
