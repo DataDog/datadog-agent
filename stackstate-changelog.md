@@ -1,5 +1,15 @@
 # StackState Agent v2 releases
 
+## 2.13.0 (???)
+
+**Features**
+- Integrations
+  - [StackState Agent Integrations 1.15.0](https://github.com/StackVista/stackstate-agent-integrations/blob/master/stackstate-changelog.md#1140--2021-07-09)
+
+**Improvements**
+
+**Bugfix**
+
 ## 2.12.0 (2021-07-09)
 **Features**
 - Collect HTTP/1.x request rate and response time metrics for connection discovered by the StackState process agent. [(STAC-11668)](https://stackstate.atlassian.net/browse/STAC-11668)
