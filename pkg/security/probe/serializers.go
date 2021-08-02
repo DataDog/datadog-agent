@@ -28,24 +28,24 @@ const (
 // FileSerializer serializes a file to JSON
 // easyjson:json
 type FileSerializer struct {
-	Path                string     `json:"path,omitempty"`
-	Name                string     `json:"name,omitempty"`
-	PathResolutionError string     `json:"path_resolution_error,omitempty"`
-	Inode               *uint64    `json:"inode,omitempty"`
-	Mode                *uint32    `json:"mode,omitempty"`
-	InUpperLayer        *bool      `json:"in_upper_layer,omitempty"`
-	MountID             *uint32    `json:"mount_id,omitempty"`
-	Filesystem          string     `json:"filesystem,omitempty"`
-	UID                 uint32     `json:"uid"`
-	GID                 uint32     `json:"gid"`
-	User                string     `json:"user,omitempty"`
-	Group               string     `json:"group,omitempty"`
-	XAttrName           string     `json:"attribute_name,omitempty"`
-	XAttrNamespace      string     `json:"attribute_namespace,omitempty"`
-	Flags               []string   `json:"flags,omitempty"`
-	Atime               *time.Time `json:"access_time,omitempty"`
-	Mtime               *time.Time `json:"modification_time,omitempty"`
-	Ctime               *time.Time `json:"change_time,omitempty"`
+	Path                string     `json:"path,omitempty" jsonschema_description:"File path"`
+	Name                string     `json:"name,omitempty" jsonschema_description:"File basename"`
+	PathResolutionError string     `json:"path_resolution_error,omitempty" jsonschema_description:"Error message from path resolution"`
+	Inode               *uint64    `json:"inode,omitempty" jsonschema_description:"File inode number"`
+	Mode                *uint32    `json:"mode,omitempty" jsonschema_description:"File mode"`
+	InUpperLayer        *bool      `json:"in_upper_layer,omitempty" jsonschema_description:"Indicator of file OverlayFS layer"`
+	MountID             *uint32    `json:"mount_id,omitempty" jsonschema_description:"File mount ID"`
+	Filesystem          string     `json:"filesystem,omitempty" jsonschema_description:"File filesystem name"`
+	UID                 uint32     `json:"uid" jsonschema_description:"File User ID"`
+	GID                 uint32     `json:"gid" jsonschema_description:"File Group ID"`
+	User                string     `json:"user,omitempty" jsonschema_description:"File user"`
+	Group               string     `json:"group,omitempty" jsonschema_description:"File group"`
+	XAttrName           string     `json:"attribute_name,omitempty" jsonschema_description:"File extended attribute name"`
+	XAttrNamespace      string     `json:"attribute_namespace,omitempty" jsonschema_description:"File extended attribute namespace"`
+	Flags               []string   `json:"flags,omitempty" jsonschema_description:"File flags"`
+	Atime               *time.Time `json:"access_time,omitempty" jsonschema_descrition:"File access time"`
+	Mtime               *time.Time `json:"modification_time,omitempty" jsonschema_description:"File modified time"`
+	Ctime               *time.Time `json:"change_time,omitempty" jsonschema_description:"File change time"`
 }
 
 // UserContextSerializer serializes a user context to JSON

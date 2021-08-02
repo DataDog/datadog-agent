@@ -18,12 +18,17 @@ class DefinitionReference:
     name: str
     anchor: str
 
+@dataclass
+class DefinitionFieldDescription:
+    field_name: str
+    description: str
 
 @dataclass
 class SchemaDefinition:
     name: str
     schema: str
     references: list[DefinitionReference]
+    descriptions: list[DefinitionFieldDescription]
 
 
 def remove_schema_props(node):
@@ -80,11 +85,15 @@ if __name__ == "__main__":
 
     for name, definition in json_top_node["definitions"].items():
         references = []
-        for prop in definition["properties"].values():
+        descriptions = []
+        for prop_name, prop in definition["properties"].items():
             if "$ref" in prop:
                 ref_name, ref_anchor = extract_ref_name_and_anchor(prop["$ref"])
                 references.append(DefinitionReference(ref_name, ref_anchor))
-        definitions.append(SchemaDefinition(name, presentable_top_node(definition), references))
+            if "description" in prop:
+                descriptions.append(DefinitionFieldDescription(prop_name, prop["description"]))
+
+        definitions.append(SchemaDefinition(name, presentable_top_node(definition), references, descriptions))
 
     presentable_json = presentable_top_node(json_top_node)
 

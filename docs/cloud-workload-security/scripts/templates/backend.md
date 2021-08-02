@@ -18,6 +18,14 @@ BACKEND_EVENT_SCHEMA = {{ event_schema }}
 {{ def.schema }}
 ```
 
+{% if def.descriptions %}
+| Field | Description |
+| ----- | ----------- |
+{% for desc in def.descriptions %}
+| `{{ desc.field_name }}` | {{ desc.description }} |
+{% endfor %}
+{% endif %}
+
 {% if def.references %}
 | References |
 | ---------- |

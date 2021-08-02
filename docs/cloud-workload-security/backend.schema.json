@@ -63,52 +63,67 @@
       ],
       "properties": {
         "path": {
-          "type": "string"
+          "type": "string",
+          "description": "File path"
         },
         "name": {
-          "type": "string"
+          "type": "string",
+          "description": "File basename"
         },
         "path_resolution_error": {
-          "type": "string"
+          "type": "string",
+          "description": "Error message from path resolution"
         },
         "inode": {
-          "type": "integer"
+          "type": "integer",
+          "description": "File inode number"
         },
         "mode": {
-          "type": "integer"
+          "type": "integer",
+          "description": "File mode"
         },
         "in_upper_layer": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Indicator of file OverlayFS layer"
         },
         "mount_id": {
-          "type": "integer"
+          "type": "integer",
+          "description": "File mount ID"
         },
         "filesystem": {
-          "type": "string"
+          "type": "string",
+          "description": "File filesystem name"
         },
         "uid": {
-          "type": "integer"
+          "type": "integer",
+          "description": "File User ID"
         },
         "gid": {
-          "type": "integer"
+          "type": "integer",
+          "description": "File Group ID"
         },
         "user": {
-          "type": "string"
+          "type": "string",
+          "description": "File user"
         },
         "group": {
-          "type": "string"
+          "type": "string",
+          "description": "File group"
         },
         "attribute_name": {
-          "type": "string"
+          "type": "string",
+          "description": "File extended attribute name"
         },
         "attribute_namespace": {
-          "type": "string"
+          "type": "string",
+          "description": "File extended attribute namespace"
         },
         "flags": {
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "type": "array",
+          "description": "File flags"
         },
         "access_time": {
           "type": "string",
@@ -116,10 +131,12 @@
         },
         "modification_time": {
           "type": "string",
+          "description": "File modified time",
           "format": "date-time"
         },
         "change_time": {
           "type": "string",
+          "description": "File change time",
           "format": "date-time"
         }
       },
@@ -133,52 +150,67 @@
       ],
       "properties": {
         "path": {
-          "type": "string"
+          "type": "string",
+          "description": "File path"
         },
         "name": {
-          "type": "string"
+          "type": "string",
+          "description": "File basename"
         },
         "path_resolution_error": {
-          "type": "string"
+          "type": "string",
+          "description": "Error message from path resolution"
         },
         "inode": {
-          "type": "integer"
+          "type": "integer",
+          "description": "File inode number"
         },
         "mode": {
-          "type": "integer"
+          "type": "integer",
+          "description": "File mode"
         },
         "in_upper_layer": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Indicator of file OverlayFS layer"
         },
         "mount_id": {
-          "type": "integer"
+          "type": "integer",
+          "description": "File mount ID"
         },
         "filesystem": {
-          "type": "string"
+          "type": "string",
+          "description": "File filesystem name"
         },
         "uid": {
-          "type": "integer"
+          "type": "integer",
+          "description": "File User ID"
         },
         "gid": {
-          "type": "integer"
+          "type": "integer",
+          "description": "File Group ID"
         },
         "user": {
-          "type": "string"
+          "type": "string",
+          "description": "File user"
         },
         "group": {
-          "type": "string"
+          "type": "string",
+          "description": "File group"
         },
         "attribute_name": {
-          "type": "string"
+          "type": "string",
+          "description": "File extended attribute name"
         },
         "attribute_namespace": {
-          "type": "string"
+          "type": "string",
+          "description": "File extended attribute namespace"
         },
         "flags": {
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "type": "array",
+          "description": "File flags"
         },
         "access_time": {
           "type": "string",
@@ -186,10 +218,12 @@
         },
         "modification_time": {
           "type": "string",
+          "description": "File modified time",
           "format": "date-time"
         },
         "change_time": {
           "type": "string",
+          "description": "File change time",
           "format": "date-time"
         },
         "destination": {

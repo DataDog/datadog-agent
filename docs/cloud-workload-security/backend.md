@@ -57,6 +57,7 @@ BACKEND_EVENT_SCHEMA = {
 ```
 
 
+
 ## `EventContext`
 
 ```
@@ -78,6 +79,7 @@ BACKEND_EVENT_SCHEMA = {
 ```
 
 
+
 ## `File`
 
 ```
@@ -88,52 +90,67 @@ BACKEND_EVENT_SCHEMA = {
     ],
     "properties": {
         "path": {
-            "type": "string"
+            "type": "string",
+            "description": "File path"
         },
         "name": {
-            "type": "string"
+            "type": "string",
+            "description": "File basename"
         },
         "path_resolution_error": {
-            "type": "string"
+            "type": "string",
+            "description": "Error message from path resolution"
         },
         "inode": {
-            "type": "integer"
+            "type": "integer",
+            "description": "File inode number"
         },
         "mode": {
-            "type": "integer"
+            "type": "integer",
+            "description": "File mode"
         },
         "in_upper_layer": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Indicator of file OverlayFS layer"
         },
         "mount_id": {
-            "type": "integer"
+            "type": "integer",
+            "description": "File mount ID"
         },
         "filesystem": {
-            "type": "string"
+            "type": "string",
+            "description": "File filesystem name"
         },
         "uid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "File User ID"
         },
         "gid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "File Group ID"
         },
         "user": {
-            "type": "string"
+            "type": "string",
+            "description": "File user"
         },
         "group": {
-            "type": "string"
+            "type": "string",
+            "description": "File group"
         },
         "attribute_name": {
-            "type": "string"
+            "type": "string",
+            "description": "File extended attribute name"
         },
         "attribute_namespace": {
-            "type": "string"
+            "type": "string",
+            "description": "File extended attribute namespace"
         },
         "flags": {
             "items": {
                 "type": "string"
             },
-            "type": "array"
+            "type": "array",
+            "description": "File flags"
         },
         "access_time": {
             "type": "string",
@@ -141,10 +158,12 @@ BACKEND_EVENT_SCHEMA = {
         },
         "modification_time": {
             "type": "string",
+            "description": "File modified time",
             "format": "date-time"
         },
         "change_time": {
             "type": "string",
+            "description": "File change time",
             "format": "date-time"
         }
     },
@@ -152,6 +171,26 @@ BACKEND_EVENT_SCHEMA = {
     "type": "object"
 }
 ```
+
+| Field | Description |
+| ----- | ----------- |
+| `path` | File path |
+| `name` | File basename |
+| `path_resolution_error` | Error message from path resolution |
+| `inode` | File inode number |
+| `mode` | File mode |
+| `in_upper_layer` | Indicator of file OverlayFS layer |
+| `mount_id` | File mount ID |
+| `filesystem` | File filesystem name |
+| `uid` | File User ID |
+| `gid` | File Group ID |
+| `user` | File user |
+| `group` | File group |
+| `attribute_name` | File extended attribute name |
+| `attribute_namespace` | File extended attribute namespace |
+| `flags` | File flags |
+| `modification_time` | File modified time |
+| `change_time` | File change time |
 
 
 ## `FileEvent`
@@ -164,52 +203,67 @@ BACKEND_EVENT_SCHEMA = {
     ],
     "properties": {
         "path": {
-            "type": "string"
+            "type": "string",
+            "description": "File path"
         },
         "name": {
-            "type": "string"
+            "type": "string",
+            "description": "File basename"
         },
         "path_resolution_error": {
-            "type": "string"
+            "type": "string",
+            "description": "Error message from path resolution"
         },
         "inode": {
-            "type": "integer"
+            "type": "integer",
+            "description": "File inode number"
         },
         "mode": {
-            "type": "integer"
+            "type": "integer",
+            "description": "File mode"
         },
         "in_upper_layer": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Indicator of file OverlayFS layer"
         },
         "mount_id": {
-            "type": "integer"
+            "type": "integer",
+            "description": "File mount ID"
         },
         "filesystem": {
-            "type": "string"
+            "type": "string",
+            "description": "File filesystem name"
         },
         "uid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "File User ID"
         },
         "gid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "File Group ID"
         },
         "user": {
-            "type": "string"
+            "type": "string",
+            "description": "File user"
         },
         "group": {
-            "type": "string"
+            "type": "string",
+            "description": "File group"
         },
         "attribute_name": {
-            "type": "string"
+            "type": "string",
+            "description": "File extended attribute name"
         },
         "attribute_namespace": {
-            "type": "string"
+            "type": "string",
+            "description": "File extended attribute namespace"
         },
         "flags": {
             "items": {
                 "type": "string"
             },
-            "type": "array"
+            "type": "array",
+            "description": "File flags"
         },
         "access_time": {
             "type": "string",
@@ -217,10 +271,12 @@ BACKEND_EVENT_SCHEMA = {
         },
         "modification_time": {
             "type": "string",
+            "description": "File modified time",
             "format": "date-time"
         },
         "change_time": {
             "type": "string",
+            "description": "File change time",
             "format": "date-time"
         },
         "destination": {
@@ -243,6 +299,26 @@ BACKEND_EVENT_SCHEMA = {
     "type": "object"
 }
 ```
+
+| Field | Description |
+| ----- | ----------- |
+| `path` | File path |
+| `name` | File basename |
+| `path_resolution_error` | Error message from path resolution |
+| `inode` | File inode number |
+| `mode` | File mode |
+| `in_upper_layer` | Indicator of file OverlayFS layer |
+| `mount_id` | File mount ID |
+| `filesystem` | File filesystem name |
+| `uid` | File User ID |
+| `gid` | File Group ID |
+| `user` | File user |
+| `group` | File group |
+| `attribute_name` | File extended attribute name |
+| `attribute_namespace` | File extended attribute namespace |
+| `flags` | File flags |
+| `modification_time` | File modified time |
+| `change_time` | File change time |
 
 | References |
 | ---------- |
@@ -343,6 +419,7 @@ BACKEND_EVENT_SCHEMA = {
     "type": "object"
 }
 ```
+
 
 | References |
 | ---------- |
@@ -455,6 +532,7 @@ BACKEND_EVENT_SCHEMA = {
 }
 ```
 
+
 | References |
 | ---------- |
 | [ProcessCredentials](#processcredentials) |
@@ -535,6 +613,7 @@ BACKEND_EVENT_SCHEMA = {
 ```
 
 
+
 ## `SELinuxBoolChange`
 
 ```
@@ -553,6 +632,7 @@ BACKEND_EVENT_SCHEMA = {
 ```
 
 
+
 ## `SELinuxBoolCommit`
 
 ```
@@ -568,6 +648,7 @@ BACKEND_EVENT_SCHEMA = {
 ```
 
 
+
 ## `SELinuxEnforceStatus`
 
 ```
@@ -581,6 +662,7 @@ BACKEND_EVENT_SCHEMA = {
     "type": "object"
 }
 ```
+
 
 
 ## `SELinuxEvent`
@@ -602,6 +684,7 @@ BACKEND_EVENT_SCHEMA = {
     "type": "object"
 }
 ```
+
 
 | References |
 | ---------- |
@@ -625,6 +708,7 @@ BACKEND_EVENT_SCHEMA = {
     "type": "object"
 }
 ```
+
 
 
 
