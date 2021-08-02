@@ -29,7 +29,7 @@
     - include_tasks: ../common/create/create-structure.yml
     - include_tasks: ../common/create/create-security-group.yml
     - include_tasks: ../common/create/keypair.yml
-    - include_tasks: ../common/create/create-molecule-instances-sda-volume.yml
+    - include_tasks: ../common/create/create-molecule-instances.yml
     - include_tasks: ../common/create/wait-for-instance-creation-to-complete.yml
     - include_tasks: ../common/create/wait-for-ssh.yml
     - include_tasks: ../common/create/wait-for-boot-process-to-finish.yml
