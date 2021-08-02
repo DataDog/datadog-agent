@@ -2,7 +2,7 @@ image: docker.io/stackstate/stackstate-agent-runner-gitlab:latest7
 
 stages:
   - prepare
-  - prepare_cleanup
+  # - prepare_cleanup
   - build_prepare_and_test
   - pre_release
   - acceptance
@@ -714,12 +714,12 @@ compose_molecule_create:
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
 
-compose_molecule_prepare_cleanup:
-   <<: *compose_cleanup_base
-   <<: *compose_branch_lock
-   stage: prepare_cleanup
-   needs:
-     - compose_molecule_create
+# compose_molecule_prepare_cleanup:
+#    <<: *compose_cleanup_base
+#    <<: *compose_branch_lock
+#    stage: prepare_cleanup
+#    needs:
+#      - compose_molecule_create
 
 compose_molecule_test:
   <<: *molecule_base
@@ -751,14 +751,20 @@ compose_molecule_acceptance_success_cleanup:
    stage: acceptance_cleanup
    when: on_success
    needs:
-     - compose_molecule_test
+     - job: compose_molecule_create
+       optional: true
+     - job: compose_molecule_test
+       optional: true
 
 compose_molecule_acceptance_failure_cleanup:
    <<: *compose_cleanup_base
    <<: *compose_branch_lock
    stage: acceptance_cleanup
    needs:
-     - compose_molecule_test
+     - job: compose_molecule_create
+       optional: true
+     - job: compose_molecule_test
+       optional: true
 
 
 # Job Seq: Molecule
@@ -794,12 +800,12 @@ integrations_molecule_create:
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
 
-integrations_molecule_prepare_cleanup:
-   <<: *integrations_cleanup_base
-   <<: *integrations_branch_lock
-   stage: prepare_cleanup
-   needs:
-     - integrations_molecule_create
+# integrations_molecule_prepare_cleanup:
+#    <<: *integrations_cleanup_base
+#    <<: *integrations_branch_lock
+#    stage: prepare_cleanup
+#    needs:
+#      - integrations_molecule_create
 
 integrations_molecule_test:
   <<: *molecule_base
@@ -873,14 +879,14 @@ kubernetes_molecule_create:
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
 
-kubernetes_molecule_prepare_cleanup:
-   <<: *kubernetes_cleanup_base
-   resource_group: eks_test_cluster
-   stage: prepare_cleanup
-   needs:
-     - kubernetes_molecule_create
-   rules:
-     - *only_agent_3_failure
+# kubernetes_molecule_prepare_cleanup:
+#    <<: *kubernetes_cleanup_base
+#    resource_group: eks_test_cluster
+#    stage: prepare_cleanup
+#    needs:
+#      - kubernetes_molecule_create
+#    rules:
+#      - *only_agent_3_failure
 
 kubernetes_molecule_test:
   <<: *molecule_base
@@ -965,15 +971,15 @@ localinstall_molecule_create:
   #   - tags
   #   - master
 
-localinstall_molecule_prepare_cleanup:
-   <<: *localinstall_cleanup_base
-   <<: *localinstall_branch_lock
-   stage: prepare_cleanup
-   needs:
-     - localinstall_molecule_create
-   # only:
-   #   - tags
-   #   - master
+# localinstall_molecule_prepare_cleanup:
+#    <<: *localinstall_cleanup_base
+#    <<: *localinstall_branch_lock
+#    stage: prepare_cleanup
+#    needs:
+#      - localinstall_molecule_create
+#    # only:
+#    #   - tags
+#    #   - master
 
 localinstall_molecule_test:
   <<: *molecule_base
@@ -1062,15 +1068,15 @@ secrets_molecule_create:
   #   - tags
   #   - master
 
-secrets_molecule_prepare_cleanup:
-   <<: *secrets_cleanup_base
-   <<: *secrets_branch_lock
-   stage: prepare_cleanup
-   needs:
-     - secrets_molecule_create
-   # only:
-   #   - tags
-   #   - master
+# secrets_molecule_prepare_cleanup:
+#    <<: *secrets_cleanup_base
+#    <<: *secrets_branch_lock
+#    stage: prepare_cleanup
+#    needs:
+#      - secrets_molecule_create
+#    # only:
+#    #   - tags
+#    #   - master
 
 secrets_molecule_test:
   <<: *molecule_base
@@ -1156,14 +1162,14 @@ swarm_molecule_create:
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
 
-swarm_molecule_prepare_cleanup:
-   <<: *swarm_cleanup_base
-   <<: *swarm_branch_lock
-   stage: prepare_cleanup
-   rules:
-     - *only_agent_3_failure
-   needs:
-     - swarm_molecule_create
+# swarm_molecule_prepare_cleanup:
+#    <<: *swarm_cleanup_base
+#    <<: *swarm_branch_lock
+#    stage: prepare_cleanup
+#    rules:
+#      - *only_agent_3_failure
+#    needs:
+#      - swarm_molecule_create
 
 swarm_molecule_test:
   <<: *molecule_base
@@ -1246,12 +1252,12 @@ vms_molecule_create:
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
 
-vms_molecule_prepare_cleanup:
-   <<: *vms_cleanup_base
-   <<: *vms_branch_lock
-   stage: prepare_cleanup
-   needs:
-     - vms_molecule_create
+# vms_molecule_prepare_cleanup:
+#    <<: *vms_cleanup_base
+#    <<: *vms_branch_lock
+#    stage: prepare_cleanup
+#    needs:
+#      - vms_molecule_create
 
 vms_molecule_test:
   <<: *molecule_base
