@@ -119,8 +119,8 @@ github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 h1:UcKqIrOowv2PjTkOC2
 github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/nikos v1.0.0 h1:rpZRYzsT8sCOGmYCOuFGIW9TEQJ4zGEz1UPi7J3wUz8=
 github.com/DataDog/nikos v1.0.0/go.mod h1:m4dT3ncRR/jXiTdwg4GLK8gGJdGJILin+3A4paL8Rxg=
-github.com/DataDog/sketches-go v1.0.0 h1:chm5KSXO7kO+ywGWJ0Zs6tdmWU8PBXSbywFVciL6BG4=
-github.com/DataDog/sketches-go v1.0.0/go.mod h1:O+XkJHWk9w4hDwY2ZUDU31ZC9sNYlYo8DiFsxjYeo1k=
+github.com/DataDog/sketches-go v1.1.0 h1:eeUOWMFL6Yygjq/8Lv116uanBlHXiF5kLihR7kYLnH4=
+github.com/DataDog/sketches-go v1.1.0/go.mod h1:O+XkJHWk9w4hDwY2ZUDU31ZC9sNYlYo8DiFsxjYeo1k=
 github.com/DataDog/viper v1.9.0 h1:9Ha1yJebecIKtboH/GXUM3brfoMofvdd8BlMck8Cs8Q=
 github.com/DataDog/viper v1.9.0/go.mod h1:Gx7+/WONkbQIh3ac52KqcFTzipQ1OYHhCQGWAgHlzpc=
 github.com/DataDog/watermarkpodautoscaler v0.2.1-0.20210323121426-cfb2caa5613f h1:MESPSq9d/7I0plUd8M4e4jD8DQ/aMA2sc634hZAsKGQ=

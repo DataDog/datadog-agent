@@ -56,6 +56,7 @@ core,"github.com/DataDog/nikos/tarball",MIT
 core,"github.com/DataDog/nikos/types",MIT
 core,"github.com/DataDog/nikos/wsl",MIT
 core,"github.com/DataDog/sketches-go/ddsketch",Apache-2.0
+core,"github.com/DataDog/sketches-go/ddsketch/encoding",Apache-2.0
 core,"github.com/DataDog/sketches-go/ddsketch/mapping",Apache-2.0
 core,"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb",Apache-2.0
 core,"github.com/DataDog/sketches-go/ddsketch/store",Apache-2.0
