@@ -15,7 +15,7 @@
       args:
         chdir: /home/ubuntu/receiver
 
-    - import_tasks: ../wait-for-receiver.yml
+    - import_tasks: ../common/prepare/wait-for-receiver.yml
 
     - name: Removing existing config files if exists
       file:
