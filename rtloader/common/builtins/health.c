@@ -81,6 +81,8 @@ static PyObject *submit_health_check_data(PyObject *self, PyObject *args) {
     char *sub_stream = NULL;
     health_stream_t *health_stream_key = NULL;
     char *json_data = NULL;
+    PyObject * stream = NULL;
+    PyObject * health = NULL;
     PyObject * retval = NULL;
 
     PyGILState_STATE gstate = PyGILState_Ensure();
@@ -114,8 +116,8 @@ static PyObject *submit_health_check_data(PyObject *self, PyObject *args) {
     health_stream_key->urn = urn;
     health_stream_key->sub_stream = sub_stream;
 
-    PyObject *stream = Py_BuildValue("{s:s, s:s}", "urn", urn, "sub_stream", sub_stream);
-    PyObject *health = Py_BuildValue("{s:O, s:O}", "stream", stream, "data", data_dict);
+    stream = Py_BuildValue("{s:s, s:s}", "urn", urn, "sub_stream", sub_stream);
+    health = Py_BuildValue("{s:O, s:O}", "stream", stream, "data", data_dict);
     json_data = as_json(health);
     if (json_data == NULL) {
         // If as_json fails it sets a python exception, so we just return
@@ -137,6 +139,8 @@ done:
     if (json_data != NULL) {
         _free(json_data);
     }
+    Py_XDECREF(stream);
+    Py_XDECREF(health);
     PyGILState_Release(gstate);
     return retval;
 }
