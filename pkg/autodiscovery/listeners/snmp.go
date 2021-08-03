@@ -441,16 +441,10 @@ tags:
 `, s.deviceIP, s.config.Community)
 	config := integration.Config{
 		Name:              "snmp",
-		//Instances:       make([]integration.Data, len(tpl.Instances)),
 		Instances:         []integration.Data{integration.Data(instanceConfig)},
-		//InitConfig:        []integration.Data{"loader:core"},
 		InitConfig:        integration.Data("loader: core"),
-		//MetricConfig:    tpl.MetricConfig,
-		//LogsConfig:      tpl.LogsConfig,
-		//ADIdentifiers:   tpl.ADIdentifiers,
 		//ClusterCheck:    tpl.ClusterCheck,  // TODO: impl me
 		Provider:          "snmp_listener",
-		//NodeName:        tpl.NodeName,
 		Source:            "snmp_listener",
 	}
 	return []integration.Config{config}, nil
