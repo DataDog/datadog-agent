@@ -48,7 +48,7 @@ func TestOOMKillProbe(t *testing.T) {
 	}
 	defer os.Remove(f.Name())
 
-	cmd := exec.Command("python", f.Name())
+	cmd := exec.Command("python3", f.Name())
 
 	oomKilled := false
 	if err := cmd.Run(); err != nil {
