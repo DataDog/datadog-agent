@@ -8,6 +8,7 @@
 package probe
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -26,6 +27,28 @@ while True:
 	l.append("." * (1024 * 1024))
 `
 
+const oomKilledBashScript = `
+sysctl -w vm.overcommit_memory=1 # always overcommit
+exec python3 %v # replace shell, so that the process launched by Go is the one getting oom-killed
+`
+
+func writeTempFile(pattern string, content string) (*os.File, error) {
+	f, err := ioutil.TempFile("", pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := f.WriteString(content); err != nil {
+		return nil, err
+	}
+
+	if err := f.Close(); err != nil {
+		return nil, err
+	}
+
+	return f, nil
+}
+
 func TestOOMKillProbe(t *testing.T) {
 	cfg := ebpf.NewConfig()
 	oomKillProbe, err := NewOOMKillProbe(cfg)
@@ -34,27 +57,25 @@ func TestOOMKillProbe(t *testing.T) {
 	}
 	defer oomKillProbe.Close()
 
-	f, err := ioutil.TempFile("", "oom-kill-py")
+	pf, err := writeTempFile("oom-kill-py", oomKilledPython)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer os.Remove(pf.Name())
 
-	if _, err := f.WriteString(oomKilledPython); err != nil {
+	bf, err := writeTempFile("oom-trigger-sh", fmt.Sprintf(oomKilledBashScript, pf.Name()))
+	if err != nil {
 		t.Fatal(err)
 	}
+	defer os.Remove(bf.Name())
 
-	if err := f.Close(); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(f.Name())
-
-	cmd := exec.Command("python3", f.Name())
+	cmd := exec.Command("bash", bf.Name())
 
 	oomKilled := false
 	if err := cmd.Run(); err != nil {
 		if exiterr, ok := err.(*exec.ExitError); ok {
 			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
-				if status.Signaled() && status.Signal() == unix.SIGKILL {
+				if (status.Signaled() && status.Signal() == unix.SIGKILL) || status.ExitStatus() == 137 {
 					oomKilled = true
 				}
 			}
