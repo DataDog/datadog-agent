@@ -695,7 +695,7 @@ pre_release_cluster_agent_image:
 .compose_branch_lock: &compose_branch_lock
   resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$AGENT_CURRENT_BRANCH-compose_branch_lock"
 
-compose_molecule_create:
+molecule_compose_create:
   <<: *molecule_base_prepare
   <<: *compose_branch_lock
   interruptible: true
@@ -713,16 +713,16 @@ compose_molecule_create:
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
 
-compose_molecule_test:
+molecule_compose_test:
   <<: *molecule_base
   <<: *compose_branch_lock
   interruptible: true
   when: on_success
   dependencies:
-    - compose_molecule_create
+    - molecule_compose_create
   needs:
     - pre_release_main_agent_image
-    - compose_molecule_create
+    - molecule_compose_create
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/compose/provisioner.run.yml prepare --force --scenario-name compose
@@ -737,21 +737,21 @@ compose_molecule_test:
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
 
-compose_molecule_create_failure_cleanup:
+molecule_compose_create_failure_cleanup:
    <<: *compose_cleanup_base
    <<: *compose_branch_lock
    stage: acceptance_cleanup
    when: on_failure
    needs:
-     - job: compose_molecule_create
+     - job: molecule_compose_create
 
-compose_molecule_cleanup:
+molecule_compose_cleanup:
    <<: *compose_cleanup_base
    <<: *compose_branch_lock
    stage: acceptance_cleanup
    when: always
    needs:
-     - job: compose_molecule_test
+     - job: molecule_compose_test
 
 
 # Job Seq: Molecule
@@ -768,7 +768,7 @@ compose_molecule_cleanup:
 .integrations_branch_lock: &integrations_branch_lock
   resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$AGENT_CURRENT_BRANCH-integrations_branch_lock"
 
-integrations_molecule_create:
+molecule_integrations_create:
   <<: *molecule_base_prepare
   <<: *integrations_branch_lock
   interruptible: true
@@ -786,16 +786,16 @@ integrations_molecule_create:
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
 
-integrations_molecule_test:
+molecule_integrations_test:
   <<: *molecule_base
   <<: *integrations_branch_lock
   interruptible: true
   when: on_success
   dependencies:
-    - integrations_molecule_create
+    - molecule_integrations_create
   needs:
     - pre_release_main_agent_image
-    - integrations_molecule_create
+    - molecule_integrations_create
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/integrations/provisioner.run.yml prepare --force --scenario-name integrations
@@ -810,21 +810,21 @@ integrations_molecule_test:
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
 
-integrations_molecule_create_failure_cleanup:
+molecule_integrations_create_failure_cleanup:
   <<: *integrations_cleanup_base
   <<: *integrations_branch_lock
   stage: acceptance_cleanup
   when: on_failure
   needs:
-    - job: integrations_molecule_create
+    - job: molecule_integrations_create
 
-integrations_molecule_cleanup:
+molecule_integrations_cleanup:
   <<: *integrations_cleanup_base
   <<: *integrations_branch_lock
   stage: acceptance_cleanup
   when: always
   needs:
-    - job: integrations_molecule_test
+    - job: molecule_integrations_test
 
 
 # Job Seq: Molecule
@@ -838,7 +838,7 @@ integrations_molecule_cleanup:
      - cd $CI_PROJECT_DIR/test
      - ./molecule3.sh destroy --scenario-name kubernetes
 
-kubernetes_molecule_create:
+molecule_kubernetes_create:
   <<: *molecule_base_prepare
   interruptible: true
   resource_group: eks_test_cluster
@@ -857,18 +857,18 @@ kubernetes_molecule_create:
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
 
-kubernetes_molecule_test:
+molecule_kubernetes_test:
   <<: *molecule_base
   interruptible: true
   rules:
     - *only_agent_3_success
   dependencies:
-    - kubernetes_molecule_create
+    - molecule_kubernetes_create
   resource_group: eks_test_cluster
   needs:
     - pre_release_cluster_agent_image
     - pre_release_main_agent_image
-    - kubernetes_molecule_create
+    - molecule_kubernetes_create
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/kubernetes/provisioner.run.yml cleanup --scenario-name kubernetes
@@ -884,23 +884,23 @@ kubernetes_molecule_test:
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
 
-kubernetes_molecule_create_failure_cleanup:
+molecule_kubernetes_create_failure_cleanup:
   <<: *kubernetes_cleanup_base
   stage: acceptance_cleanup
   resource_group: eks_test_cluster
   rules:
     - *only_agent_3_failure
   needs:
-    - job: kubernetes_molecule_create
+    - job: molecule_kubernetes_create
 
-kubernetes_molecule_cleanup:
+molecule_kubernetes_cleanup:
   <<: *kubernetes_cleanup_base
   stage: acceptance_cleanup
   resource_group: eks_test_cluster
   rules:
     - *only_agent_3_always
   needs:
-    - job: kubernetes_molecule_test
+    - job: molecule_kubernetes_test
 
 
 # Job Seq: Molecule
@@ -920,7 +920,7 @@ kubernetes_molecule_cleanup:
 .localinstall_branch_lock: &localinstall_branch_lock
   resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$AGENT_CURRENT_BRANCH-localinstall_branch_lock"
 
-localinstall_molecule_create:
+molecule_localinstall_create:
   <<: *molecule_base_prepare
   <<: *localinstall_branch_lock
   interruptible: true
@@ -941,17 +941,17 @@ localinstall_molecule_create:
   #   - tags
   #   - master
 
-localinstall_molecule_test:
+molecule_localinstall_test:
   <<: *molecule_base
   <<: *localinstall_branch_lock
   interruptible: true
   when: on_success
   dependencies:
-    - localinstall_molecule_create
+    - molecule_localinstall_create
   needs:
     - pre_release_deb
     - pre_release_rpm
-    - localinstall_molecule_create
+    - molecule_localinstall_create
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/localinstall/provisioner.run.yml prepare --force --scenario-name localinstall
@@ -967,24 +967,24 @@ localinstall_molecule_test:
   #   - tags
   #   - master
 
-localinstall_molecule_create_failure_cleanup:
+molecule_localinstall_create_failure_cleanup:
   <<: *localinstall_cleanup_base
   <<: *localinstall_branch_lock
   stage: acceptance_cleanup
   when: on_failure
   needs:
-    - job: localinstall_molecule_create
+    - job: molecule_localinstall_create
   # only:
   #   - tags
   #   - master
 
-localinstall_molecule_cleanup:
+molecule_localinstall_cleanup:
   <<: *localinstall_cleanup_base
   <<: *localinstall_branch_lock
   stage: acceptance_cleanup
   when: always
   needs:
-    - job: localinstall_molecule_test
+    - job: molecule_localinstall_test
   # only:
   #   - tags
   #   - master
@@ -1007,7 +1007,7 @@ localinstall_molecule_cleanup:
 .secrets_branch_lock: &secrets_branch_lock
   resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$AGENT_CURRENT_BRANCH-secrets_branch_lock"
 
-secrets_molecule_create:
+molecule_secrets_create:
   <<: *molecule_base_prepare
   <<: *secrets_branch_lock
   interruptible: true
@@ -1028,16 +1028,16 @@ secrets_molecule_create:
   #   - tags
   #   - master
 
-secrets_molecule_test:
+molecule_secrets_test:
   <<: *molecule_base
   <<: *secrets_branch_lock
   interruptible: true
   when: on_success
   dependencies:
-    - secrets_molecule_create
+    - molecule_secrets_create
   needs:
     - pre_release_deb
-    - secrets_molecule_create
+    - molecule_secrets_create
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/secrets/provisioner.run.yml prepare --force --scenario-name secrets
@@ -1055,24 +1055,24 @@ secrets_molecule_test:
   #   - tags
   #   - master
 
-secrets_molecule_create_failure_cleanup:
+molecule_secrets_create_failure_cleanup:
   <<: *secrets_cleanup_base
   <<: *secrets_branch_lock
   stage: acceptance_cleanup
   when: on_failure
   needs:
-    - job: secrets_molecule_create
+    - job: molecule_secrets_create
   # only:
   #   - tags
   #   - master
 
-secrets_molecule_cleanup:
+molecule_secrets_cleanup:
   <<: *secrets_cleanup_base
   <<: *secrets_branch_lock
   stage: acceptance_cleanup
   when: always
   needs:
-    - job: secrets_molecule_test
+    - job: molecule_secrets_test
   # only:
   #   - tags
   #   - master
@@ -1092,7 +1092,7 @@ secrets_molecule_cleanup:
 .swarm_branch_lock: &swarm_branch_lock
   resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$AGENT_CURRENT_BRANCH-swarm_branch_lock"
 
-swarm_molecule_create:
+molecule_swarm_create:
   <<: *molecule_base_prepare
   <<: *swarm_branch_lock
   interruptible: true
@@ -1111,18 +1111,18 @@ swarm_molecule_create:
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
 
-swarm_molecule_test:
+molecule_swarm_test:
   <<: *molecule_base
   <<: *swarm_branch_lock
   interruptible: true
   rules:
     - *only_agent_3_success
   dependencies:
-    - swarm_molecule_create
+    - molecule_swarm_create
   needs:
     - pre_release_cluster_agent_image
     - pre_release_main_agent_image
-    - swarm_molecule_create
+    - molecule_swarm_create
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/swarm/provisioner.run.yml prepare --force --scenario-name swarm
@@ -1137,23 +1137,23 @@ swarm_molecule_test:
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
 
-swarm_molecule_create_failure_cleanup:
+molecule_swarm_create_failure_cleanup:
   <<: *swarm_cleanup_base
   <<: *swarm_branch_lock
   stage: acceptance_cleanup
   rules:
     - *only_agent_3_failure
   needs:
-    - job: swarm_molecule_create
+    - job: molecule_swarm_create
 
-swarm_molecule_cleanup:
+molecule_swarm_cleanup:
   <<: *swarm_cleanup_base
   <<: *swarm_branch_lock
   stage: acceptance_cleanup
   rules:
     - *only_agent_3_always
   needs:
-    - job: swarm_molecule_test
+    - job: molecule_swarm_test
 
 # Job Seq: Molecule
 # Type: vms
@@ -1172,7 +1172,7 @@ swarm_molecule_cleanup:
 .vms_branch_lock: &vms_branch_lock
   resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$AGENT_CURRENT_BRANCH-vms_branch_lock"
 
-vms_molecule_create:
+molecule_vms_create:
   <<: *molecule_base_prepare
   <<: *vms_branch_lock
   interruptible: true
@@ -1190,18 +1190,18 @@ vms_molecule_create:
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
 
-vms_molecule_test:
+molecule_vms_test:
   <<: *molecule_base
   <<: *vms_branch_lock
   interruptible: true
   when: on_success
   dependencies:
-    - vms_molecule_create
+    - molecule_vms_create
   needs:
     - pre_release_deb
     - pre_release_rpm
     - pre_release_win
-    - vms_molecule_create
+    - molecule_vms_create
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/vms/provisioner.run.yml prepare --force --scenario-name vms
@@ -1216,21 +1216,21 @@ vms_molecule_test:
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
 
-vms_molecule_create_failure_cleanup:
+molecule_vms_create_failure_cleanup:
   <<: *vms_cleanup_base
   <<: *vms_branch_lock
   stage: acceptance_cleanup
   when: on_failure
   needs:
-    - job: vms_molecule_create
+    - job: molecule_vms_create
 
-vms_molecule_cleanup:
+molecule_vms_cleanup:
   <<: *vms_cleanup_base
   <<: *vms_branch_lock
   stage: acceptance_cleanup
   when: always
   needs:
-    - job: vms_molecule_test
+    - job: molecule_vms_test
 
 ## release stage
 
