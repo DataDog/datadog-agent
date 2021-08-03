@@ -39,21 +39,27 @@ int kprobe__oom_kill_process(struct pt_regs *ctx) {
 
     s->pid = pid;
 
-    // From bpf-common.h
-    get_cgroup_name(s->cgroup_name, sizeof(s->cgroup_name));
+    #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,8,0)
+        // From bpf-common.h
+        get_cgroup_name(s->cgroup_name, sizeof(s->cgroup_name));
+    #endif
 
     struct task_struct *p;
     bpf_probe_read(&p, sizeof(p), &oc->chosen);
     bpf_probe_read(&s->tpid, sizeof(s->tpid), &p->pid);
 
     bpf_get_current_comm(&s->fcomm, sizeof(s->fcomm));
-    bpf_probe_read_str(&s->tcomm, sizeof(s->tcomm), (void*) &p->comm);
+    #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,8,0)
+        bpf_probe_read_str(&s->tcomm, sizeof(s->tcomm), (void*) &p->comm);
+    #else
+        bpf_probe_read(&s->tcomm, sizeof(s->tcomm), (void*) &p->comm);
+    #endif
     bpf_probe_read(&s->pages, sizeof(s->pages), &oc->totalpages);
 
     #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,8,0)
-      struct mem_cgroup *memcg;
-      bpf_probe_read(&memcg, sizeof(memcg), &oc->memcg);
-      s->memcg_oom = memcg != NULL ? 1 : 0;
+        struct mem_cgroup *memcg;
+        bpf_probe_read(&memcg, sizeof(memcg), &oc->memcg);
+        s->memcg_oom = memcg != NULL ? 1 : 0;
     #endif
 
     return 0;
