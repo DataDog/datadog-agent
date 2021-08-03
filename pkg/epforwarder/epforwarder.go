@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	eventTypeDBMSamples = "dbm-samples"
-	eventTypeDBMMetrics = "dbm-metrics"
+	eventTypeDBMSamples  = "dbm-samples"
+	eventTypeDBMMetrics  = "dbm-metrics"
 	eventTypeDBMActivity = "dbm-activity"
 
 	// EventTypeNetworkDevicesMetadata is the event type for network devices metadata
