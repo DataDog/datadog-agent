@@ -500,7 +500,7 @@ build_win:
 ## pre_release stage
 
 test_deb_renaming:
-  stage: pre_release
+  stage: test
   interruptible: true
   needs:
     - build_deb
@@ -514,7 +514,7 @@ test_deb_renaming:
       - stuck_or_timeout_failure
 
 test_rpm_renaming:
-  stage: pre_release
+  stage: test
   interruptible: true
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_20190429
   needs:
