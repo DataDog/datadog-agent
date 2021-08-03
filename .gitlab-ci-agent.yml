@@ -741,9 +741,16 @@ compose_molecule_create_failure_cleanup:
    <<: *compose_cleanup_base
    <<: *compose_branch_lock
    stage: acceptance_cleanup
-   when: always
+   when: on_failure
    needs:
      - job: compose_molecule_create
+
+compose_molecule_cleanup:
+   <<: *compose_cleanup_base
+   <<: *compose_branch_lock
+   stage: acceptance_cleanup
+   when: always
+   needs:
      - job: compose_molecule_test
 
 
@@ -807,10 +814,18 @@ integrations_molecule_create_failure_cleanup:
   <<: *integrations_cleanup_base
   <<: *integrations_branch_lock
   stage: acceptance_cleanup
-  when: always
+  when: on_failure
   needs:
     - job: integrations_molecule_create
+
+integrations_molecule_cleanup:
+  <<: *integrations_cleanup_base
+  <<: *integrations_branch_lock
+  stage: acceptance_cleanup
+  when: always
+  needs:
     - job: integrations_molecule_test
+
 
 # Job Seq: Molecule
 # Type: kubernetes
@@ -874,9 +889,17 @@ kubernetes_molecule_create_failure_cleanup:
   stage: acceptance_cleanup
   resource_group: eks_test_cluster
   rules:
-    - *only_agent_3_always
+    - *only_agent_3_failure
   needs:
     - job: kubernetes_molecule_create
+
+kubernetes_molecule_cleanup:
+  <<: *kubernetes_cleanup_base
+  stage: acceptance_cleanup
+  resource_group: eks_test_cluster
+  rules:
+    - *only_agent_3_always
+  needs:
     - job: kubernetes_molecule_test
 
 
@@ -948,9 +971,19 @@ localinstall_molecule_create_failure_cleanup:
   <<: *localinstall_cleanup_base
   <<: *localinstall_branch_lock
   stage: acceptance_cleanup
-  when: always
+  when: on_failure
   needs:
     - job: localinstall_molecule_create
+  # only:
+  #   - tags
+  #   - master
+
+localinstall_molecule_cleanup:
+  <<: *localinstall_cleanup_base
+  <<: *localinstall_branch_lock
+  stage: acceptance_cleanup
+  when: always
+  needs:
     - job: localinstall_molecule_test
   # only:
   #   - tags
@@ -1026,13 +1059,24 @@ secrets_molecule_create_failure_cleanup:
   <<: *secrets_cleanup_base
   <<: *secrets_branch_lock
   stage: acceptance_cleanup
-  when: always
+  when: on_failure
   needs:
     - job: secrets_molecule_create
+  # only:
+  #   - tags
+  #   - master
+
+secrets_molecule_cleanup:
+  <<: *secrets_cleanup_base
+  <<: *secrets_branch_lock
+  stage: acceptance_cleanup
+  when: always
+  needs:
     - job: secrets_molecule_test
   # only:
   #   - tags
   #   - master
+
 
 # Job Seq: Molecule
 # Type: swarm
@@ -1098,9 +1142,17 @@ swarm_molecule_create_failure_cleanup:
   <<: *swarm_branch_lock
   stage: acceptance_cleanup
   rules:
-    - *only_agent_3_always
+    - *only_agent_3_failure
   needs:
     - job: swarm_molecule_create
+
+swarm_molecule_cleanup:
+  <<: *swarm_cleanup_base
+  <<: *swarm_branch_lock
+  stage: acceptance_cleanup
+  rules:
+    - *only_agent_3_always
+  needs:
     - job: swarm_molecule_test
 
 # Job Seq: Molecule
@@ -1168,9 +1220,16 @@ vms_molecule_create_failure_cleanup:
   <<: *vms_cleanup_base
   <<: *vms_branch_lock
   stage: acceptance_cleanup
-  when: always
+  when: on_failure
   needs:
     - job: vms_molecule_create
+
+vms_molecule_cleanup:
+  <<: *vms_cleanup_base
+  <<: *vms_branch_lock
+  stage: acceptance_cleanup
+  when: always
+  needs:
     - job: vms_molecule_test
 
 ## release stage
