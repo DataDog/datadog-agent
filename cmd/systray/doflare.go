@@ -206,12 +206,14 @@ func requestFlare(caseID, customerEmail string) (response string, e error) {
 	if e != nil {
 		if r != nil && string(r) != "" {
 			log.Warnf("The agent ran into an error while making the flare: %s\n", string(r))
+			e = fmt.Errorf("Error getting flare from running agent: %s", string(r))
 		} else {
 			log.Debug("The agent was unable to make the flare.")
+			e = fmt.Errorf("Error getting flare from running agent: %w", e)
 		}
 		log.Debug("Initiating flare locally.")
 
-		filePath, e = flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, nil)
+		filePath, e = flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, nil, e)
 		if e != nil {
 			log.Errorf("The flare zipfile failed to be created: %s\n", e)
 			return
