@@ -11,12 +11,15 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestStartDoesNotBlock(t *testing.T) {
+	config.DetectFeatures()
 	metricAgent := &ServerlessMetricAgent{}
+	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
 	assert.NotNil(t, metricAgent.GetMetricChannel())
 	assert.True(t, metricAgent.IsReady())
@@ -31,6 +34,7 @@ func (m *MetricConfigMocked) GetMultipleEndpoints() (map[string][]string, error)
 
 func TestStartInvalidConfig(t *testing.T) {
 	metricAgent := &ServerlessMetricAgent{}
+	defer metricAgent.Stop()
 	go metricAgent.Start(1*time.Second, &MetricConfigMocked{}, &MetricDogStatsD{})
 	assert.False(t, metricAgent.IsReady())
 }
@@ -44,6 +48,7 @@ func (m *MetricDogStatsDMocked) NewServer(aggregator *aggregator.BufferedAggrega
 
 func TestStartInvalidDogStatsD(t *testing.T) {
 	metricAgent := &ServerlessMetricAgent{}
+	defer metricAgent.Stop()
 	go metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{})
 	assert.False(t, metricAgent.IsReady())
 }

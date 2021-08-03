@@ -60,5 +60,7 @@ func (s *ServerlessTraceAgent) Get() *agent.Agent {
 
 // Stop stops the trace agent
 func (s *ServerlessTraceAgent) Stop() {
-	s.cancel()
+	if s.cancel != nil {
+		s.cancel()
+	}
 }
