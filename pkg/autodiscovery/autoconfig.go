@@ -597,6 +597,8 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 		tagger.GetEntityHash(svc.GetTaggerEntity(), tagger.ChecksCardinality),
 	)
 
+
+
 	// get all the templates matching service identifiers
 	var templates []integration.Config
 	ADIdentifiers, err := svc.GetADIdentifiers(ctx)

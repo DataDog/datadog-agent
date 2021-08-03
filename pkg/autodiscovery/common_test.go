@@ -88,3 +88,8 @@ func (s *dummyService) HasFilter(filter containers.FilterType) bool {
 func (s *dummyService) GetExtraConfig(key []byte) ([]byte, error) {
 	return []byte{}, nil
 }
+
+// GetIntegrationConfigs isn't supported
+func (s *dummyService) GetIntegrationConfigs() ([]integration.Config, error) {
+	return []integration.Config{}, nil
+}

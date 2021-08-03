@@ -267,3 +267,8 @@ func (s *CloudFoundryService) HasFilter(filter containers.FilterType) bool {
 func (s *CloudFoundryService) GetExtraConfig(key []byte) ([]byte, error) {
 	return []byte{}, ErrNotSupported
 }
+
+// GetIntegrationConfigs isn't supported
+func (s *CloudFoundryService) GetIntegrationConfigs() ([]integration.Config, error) {
+	return []integration.Config{}, ErrNotSupported
+}

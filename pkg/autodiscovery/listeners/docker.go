@@ -664,3 +664,8 @@ func (s *DockerService) HasFilter(filter containers.FilterType) bool {
 func (s *DockerService) GetExtraConfig(key []byte) ([]byte, error) {
 	return []byte{}, ErrNotSupported
 }
+
+// GetIntegrationConfigs isn't supported
+func (s *DockerService) GetIntegrationConfigs() ([]integration.Config, error) {
+	return []integration.Config{}, ErrNotSupported
+}

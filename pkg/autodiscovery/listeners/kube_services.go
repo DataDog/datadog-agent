@@ -319,3 +319,8 @@ func (s *KubeServiceService) HasFilter(filter containers.FilterType) bool {
 func (s *KubeServiceService) GetExtraConfig(key []byte) ([]byte, error) {
 	return []byte{}, ErrNotSupported
 }
+
+// GetIntegrationConfigs isn't supported
+func (s *KubeServiceService) GetIntegrationConfigs() ([]integration.Config, error) {
+	return []integration.Config{}, ErrNotSupported
+}

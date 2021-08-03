@@ -17,6 +17,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
@@ -126,4 +127,9 @@ func (s *DockerKubeletService) HasFilter(filter containers.FilterType) bool {
 // GetExtraConfig isn't supported
 func (s *DockerKubeletService) GetExtraConfig(key []byte) ([]byte, error) {
 	return []byte{}, ErrNotSupported
+}
+
+// GetIntegrationConfigs isn't supported
+func (s *DockerKubeletService) GetIntegrationConfigs() ([]integration.Config, error) {
+	return []integration.Config{}, ErrNotSupported
 }

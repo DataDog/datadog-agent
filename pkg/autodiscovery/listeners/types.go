@@ -37,6 +37,7 @@ type Service interface {
 	GetCheckNames(context.Context) []string              // slice of check names defined in kubernetes annotations or docker labels
 	HasFilter(containers.FilterType) bool                // whether the service is excluded by metrics or logs exclusion config
 	GetExtraConfig([]byte) ([]byte, error)               // Extra configuration values
+	GetIntegrationConfigs() ([]integration.Config, error)  // identifiers on which templates will be matched
 }
 
 // ServiceListener monitors running services and triggers check (un)scheduling

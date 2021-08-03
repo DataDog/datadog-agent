@@ -133,3 +133,8 @@ func (s *EnvironmentService) HasFilter(filter containers.FilterType) bool {
 func (s *EnvironmentService) GetExtraConfig(key []byte) ([]byte, error) {
 	return []byte{}, ErrNotSupported
 }
+
+// GetIntegrationConfigs isn't supported
+func (s *EnvironmentService) GetIntegrationConfigs() ([]integration.Config, error) {
+	return []integration.Config{}, ErrNotSupported
+}

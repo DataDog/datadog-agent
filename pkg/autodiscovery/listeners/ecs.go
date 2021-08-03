@@ -301,3 +301,8 @@ func (s *ECSService) HasFilter(filter containers.FilterType) bool {
 func (s *ECSService) GetExtraConfig(key []byte) ([]byte, error) {
 	return []byte{}, ErrNotSupported
 }
+
+// GetIntegrationConfigs isn't supported
+func (s *ECSService) GetIntegrationConfigs() ([]integration.Config, error) {
+	return []integration.Config{}, ErrNotSupported
+}

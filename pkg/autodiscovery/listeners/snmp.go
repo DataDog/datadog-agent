@@ -424,6 +424,12 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 	return []byte{}, ErrNotSupported
 }
 
+
+// GetIntegrationConfigs isn't supported
+func (s *SNMPService) GetIntegrationConfigs() ([]integration.Config, error) {
+	return []integration.Config{}, ErrNotSupported
+}
+
 func convertToCommaSepTags(tags []string) string {
 	normalizedTags := make([]string, 0, len(tags))
 	for _, tag := range tags {
