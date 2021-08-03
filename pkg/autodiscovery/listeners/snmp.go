@@ -333,7 +333,9 @@ func (s *SNMPService) GetTaggerEntity() string {
 
 // GetADIdentifiers returns a set of AD identifiers
 func (s *SNMPService) GetADIdentifiers(context.Context) ([]string, error) {
-	return []string{s.adIdentifier}, nil
+	//return []string{s.adIdentifier}, nil
+	// TODO: handle legacy?
+	return []string{}, nil
 }
 
 // GetHosts returns the device IP
@@ -427,7 +429,28 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 
 // GetIntegrationConfigs isn't supported
 func (s *SNMPService) GetIntegrationConfigs() ([]integration.Config, error) {
-	return []integration.Config{}, ErrNotSupported
+	// use corecheck snmp config serializer structs
+	instanceConfig := fmt.Sprintf(`
+ip_address: "%s"
+community_string: "%s"
+tags:
+- foo:bar
+`, s.deviceIP, s.config.Community)
+	config := integration.Config{
+		Name:              "snmp",
+		//Instances:       make([]integration.Data, len(tpl.Instances)),
+		Instances:         []integration.Data{integration.Data(instanceConfig)},
+		//InitConfig:        []integration.Data{"loader:core"},
+		InitConfig:        integration.Data("loader: core"),
+		//MetricConfig:    tpl.MetricConfig,
+		//LogsConfig:      tpl.LogsConfig,
+		//ADIdentifiers:   tpl.ADIdentifiers,
+		//ClusterCheck:    tpl.ClusterCheck,  // TODO: impl me
+		Provider:          "snmp_listener",
+		//NodeName:        tpl.NodeName,
+		Source:            "snmp_listener",
+	}
+	return []integration.Config{config}, nil
 }
 
 func convertToCommaSepTags(tags []string) string {

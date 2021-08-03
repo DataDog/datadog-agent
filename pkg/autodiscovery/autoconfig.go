@@ -646,11 +646,24 @@ func (ac *AutoConfig) processWithADTemplate(ctx context.Context, svc listeners.S
 
 func (ac *AutoConfig) processWithIntegrationConfigs(ctx context.Context, svc listeners.Service) {
 	configs, err := svc.GetIntegrationConfigs()
+	log.Warnf("[DEV] configs: %v", configs)
 	if err != nil {
-		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetEntity(), err)
+		log.Errorf("Failed to get Integration Configs for service %s, it will not be monitored - %s", svc.GetEntity(), err)
 		return
 	}
-	ac.schedule(configs)
+	for _, integrationConfig := range configs {
+		integrationConfig.Entity = svc.GetEntity()
+		integrationConfig.CreationTime = svc.GetCreationTime()
+		integrationConfig.MetricsExcluded = svc.HasFilter(containers.MetricsFilter)
+		integrationConfig.LogsExcluded = svc.HasFilter(containers.LogsFilter)
+
+		// TODO: Concat service tags ?
+		//   - addConfigForTemplate ?
+		ac.store.setLoadedConfig(integrationConfig)
+		ac.store.addConfigForService(svc.GetEntity(), integrationConfig)
+
+		ac.schedule([]integration.Config{integrationConfig})
+	}
 }
 
 // processDelService takes a service, stops its associated checks, and updates the cache
