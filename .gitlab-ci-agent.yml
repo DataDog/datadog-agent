@@ -765,7 +765,7 @@ molecule_compose_cleanup:
    interruptible: true
    script:
      - cd $CI_PROJECT_DIR/test
-     - ./molecule3.sh destroy --scenario-name integrations
+     - ./molecule3.sh --base-config ./molecule/integrations/provisioner.run.yml destroy --scenario-name integrations
 
 .integrations_branch_lock: &integrations_branch_lock
   resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$AGENT_CURRENT_BRANCH-integrations_branch_lock"
@@ -840,7 +840,7 @@ molecule_integrations_cleanup:
    interruptible: true
    script:
      - cd $CI_PROJECT_DIR/test
-     - ./molecule3.sh destroy --scenario-name kubernetes
+     - ./molecule3.sh --base-config ./molecule/kubernetes/provisioner.run.yml destroy --scenario-name kubernetes
 
 molecule_kubernetes_create:
   <<: *molecule_base_prepare
@@ -1179,7 +1179,7 @@ molecule_swarm_cleanup:
    interruptible: true
    script:
      - cd $CI_PROJECT_DIR/test
-     - ./molecule3.sh destroy --scenario-name vms
+     - ./molecule3.sh --base-config ./molecule/vms/provisioner.run.yml destroy --scenario-name vms
 
 .vms_branch_lock: &vms_branch_lock
   resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$AGENT_CURRENT_BRANCH-vms_branch_lock"
