@@ -27,7 +27,7 @@ var (
 		"daemonset":                           "kube_daemon_set",
 		"replicationcontroller":               "kube_replication_controller",
 		"replicaset":                          "kube_replica_set",
-		"statefulset ":                        "kube_stateful_set",
+		"statefulset":                         "kube_stateful_set",
 		"deployment":                          "kube_deployment",
 		"service":                             "kube_service",
 		"endpoint":                            "kube_endpoint",
