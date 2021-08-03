@@ -597,8 +597,24 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 		tagger.GetEntityHash(svc.GetTaggerEntity(), tagger.ChecksCardinality),
 	)
 
+	ac.processWithADTemplate(ctx, svc)
+	ac.processWithIntegrationConfigs(ctx, svc)
 
+	// FIXME: schedule new services as well
+	ac.schedule([]integration.Config{
+		{
+			LogsConfig:      integration.Data{},
+			Entity:          svc.GetEntity(),
+			TaggerEntity:    svc.GetTaggerEntity(),
+			CreationTime:    svc.GetCreationTime(),
+			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
+			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
+		},
+	})
 
+}
+
+func (ac *AutoConfig) processWithADTemplate(ctx context.Context, svc listeners.Service) {
 	// get all the templates matching service identifiers
 	var templates []integration.Config
 	ADIdentifiers, err := svc.GetADIdentifiers(ctx)
@@ -626,18 +642,15 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 		// ask the Collector to schedule the checks
 		ac.schedule([]integration.Config{resolvedConfig})
 	}
-	// FIXME: schedule new services as well
-	ac.schedule([]integration.Config{
-		{
-			LogsConfig:      integration.Data{},
-			Entity:          svc.GetEntity(),
-			TaggerEntity:    svc.GetTaggerEntity(),
-			CreationTime:    svc.GetCreationTime(),
-			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
-			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
-		},
-	})
+}
 
+func (ac *AutoConfig) processWithIntegrationConfigs(ctx context.Context, svc listeners.Service) {
+	configs, err := svc.GetIntegrationConfigs()
+	if err != nil {
+		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetEntity(), err)
+		return
+	}
+	ac.schedule(configs)
 }
 
 // processDelService takes a service, stops its associated checks, and updates the cache
