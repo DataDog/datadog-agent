@@ -750,9 +750,10 @@ molecule_compose_cleanup:
    <<: *compose_branch_lock
    stage: cleanup
    when: always
+   dependencies:
+     - molecule_compose_test
    needs:
      - molecule_compose_test
-     - acceptance
 
 
 # Job Seq: Molecule
@@ -824,9 +825,10 @@ molecule_integrations_cleanup:
   <<: *integrations_branch_lock
   stage: cleanup
   when: always
+  dependencies:
+    - molecule_integrations_test
   needs:
     - molecule_integrations_test
-    - acceptance
 
 
 # Job Seq: Molecule
@@ -901,9 +903,10 @@ molecule_kubernetes_cleanup:
   resource_group: eks_test_cluster
   rules:
     - *only_agent_3_always
+  dependencies:
+    - molecule_kubernetes_test
   needs:
     - molecule_kubernetes_test
-    - acceptance
 
 
 # Job Seq: Molecule
@@ -986,9 +989,10 @@ molecule_localinstall_cleanup:
   <<: *localinstall_branch_lock
   stage: cleanup
   when: always
+  dependencies:
+    - molecule_localinstall_test
   needs:
     - molecule_localinstall_test
-    - acceptance
   # only:
   #   - tags
   #   - master
@@ -1075,9 +1079,10 @@ molecule_secrets_cleanup:
   <<: *secrets_branch_lock
   stage: cleanup
   when: always
+  dependencies:
+    - molecule_secrets_test
   needs:
     - molecule_secrets_test
-    - acceptance
   # only:
   #   - tags
   #   - master
@@ -1157,9 +1162,10 @@ molecule_swarm_cleanup:
   stage: cleanup
   rules:
     - *only_agent_3_always
+  dependencies:
+    - molecule_swarm_test
   needs:
     - molecule_swarm_test
-    - acceptance
 
 # Job Seq: Molecule
 # Type: vms
@@ -1235,9 +1241,10 @@ molecule_vms_cleanup:
   <<: *vms_branch_lock
   stage: cleanup
   when: always
+  dependencies:
+    - molecule_vms_test
   needs:
     - molecule_vms_test
-    - acceptance
 
 ## release stage
 
