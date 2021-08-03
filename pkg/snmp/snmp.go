@@ -94,7 +94,10 @@ func NewListenerConfig() (ListenerConfig, error) {
 		},
 	)
 
-	if err := config.Datadog.UnmarshalKey("snmp_listener", &snmpConfig, opt); err != nil {
+	//if err := config.Datadog.UnmarshalKey("snmp_listener", &snmpConfig, opt); err != nil {
+	//	return snmpConfig, err
+	//}
+	if err := config.Datadog.UnmarshalKey("ndm_config.snmp_autodiscovery", &snmpConfig, opt); err != nil {
 		return snmpConfig, err
 	}
 

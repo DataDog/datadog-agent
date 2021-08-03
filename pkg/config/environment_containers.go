@@ -34,6 +34,8 @@ const (
 	KubeOrchestratorExplorer Feature = "orchestratorexplorer"
 	// CloudFoundry socket present
 	CloudFoundry Feature = "cloudfoundry"
+	// Ndm enabled
+	Ndm Feature = "ndm"
 
 	defaultLinuxDockerSocket       = "/var/run/docker.sock"
 	defaultWindowsDockerSocketPath = "//./pipe/docker_engine"
@@ -63,6 +65,7 @@ func detectContainerFeatures(features FeatureMap) {
 	detectContainerd(features)
 	detectFargate(features)
 	detectCloudFoundry(features)
+	detectSnmp(features)
 }
 
 func detectKubernetes(features FeatureMap) {
@@ -142,6 +145,12 @@ func detectFargate(features FeatureMap) {
 	if Datadog.GetBool("eks_fargate") {
 		features[EKSFargate] = struct{}{}
 		features[Kubernetes] = struct{}{}
+	}
+}
+
+func detectSnmp(features FeatureMap) {
+	if Datadog.GetBool("ndm_config.enabled") {
+		features[Ndm] = struct{}{}
 	}
 }
 

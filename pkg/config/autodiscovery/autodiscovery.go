@@ -66,5 +66,10 @@ func DiscoverComponentsFromEnv() ([]config.ConfigurationProviders, []config.List
 		log.Info("Adding ECS Fargate autodiscovery provider and listener from environment")
 	}
 
+	if config.IsFeaturePresent(config.Ndm) {
+		detectedListeners = append(detectedListeners, config.Listeners{Name: "snmp"})
+		log.Info("Adding SNMP listener from environment")
+	}
+
 	return detectedProviders, detectedListeners
 }
