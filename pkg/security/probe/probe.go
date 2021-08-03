@@ -282,7 +282,7 @@ func (p *Probe) unmarshalProcessContainer(data []byte, event *Event) (int, error
 func (p *Probe) invalidateDentry(mountID uint32, inode uint64) {
 	// sanity check
 	if mountID == 0 || inode == 0 {
-		log.Tracef("invalid mount_id/inode tuple %d:%d", mountID, inode)
+		seclog.Tracef("invalid mount_id/inode tuple %d:%d", mountID, inode)
 		return
 	}
 
