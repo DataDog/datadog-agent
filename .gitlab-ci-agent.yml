@@ -743,7 +743,7 @@ molecule_compose_create_failure_cleanup:
    stage: cleanup
    when: on_failure
    needs:
-     - job: molecule_compose_create
+     - molecule_compose_create
 
 molecule_compose_cleanup:
    <<: *compose_cleanup_base
@@ -751,7 +751,8 @@ molecule_compose_cleanup:
    stage: cleanup
    when: always
    needs:
-     - job: molecule_compose_test
+     - molecule_compose_test
+     - acceptance
 
 
 # Job Seq: Molecule
@@ -816,7 +817,7 @@ molecule_integrations_create_failure_cleanup:
   stage: cleanup
   when: on_failure
   needs:
-    - job: molecule_integrations_create
+    - molecule_integrations_create
 
 molecule_integrations_cleanup:
   <<: *integrations_cleanup_base
@@ -824,7 +825,8 @@ molecule_integrations_cleanup:
   stage: cleanup
   when: always
   needs:
-    - job: molecule_integrations_test
+    - molecule_integrations_test
+    - acceptance
 
 
 # Job Seq: Molecule
@@ -891,7 +893,7 @@ molecule_kubernetes_create_failure_cleanup:
   rules:
     - *only_agent_3_failure
   needs:
-    - job: molecule_kubernetes_create
+    - molecule_kubernetes_create
 
 molecule_kubernetes_cleanup:
   <<: *kubernetes_cleanup_base
@@ -900,7 +902,8 @@ molecule_kubernetes_cleanup:
   rules:
     - *only_agent_3_always
   needs:
-    - job: molecule_kubernetes_test
+    - molecule_kubernetes_test
+    - acceptance
 
 
 # Job Seq: Molecule
@@ -973,7 +976,7 @@ molecule_localinstall_create_failure_cleanup:
   stage: cleanup
   when: on_failure
   needs:
-    - job: molecule_localinstall_create
+    - molecule_localinstall_create
   # only:
   #   - tags
   #   - master
@@ -984,7 +987,8 @@ molecule_localinstall_cleanup:
   stage: cleanup
   when: always
   needs:
-    - job: molecule_localinstall_test
+    - molecule_localinstall_test
+    - acceptance
   # only:
   #   - tags
   #   - master
@@ -1061,7 +1065,7 @@ molecule_secrets_create_failure_cleanup:
   stage: cleanup
   when: on_failure
   needs:
-    - job: molecule_secrets_create
+    - molecule_secrets_create
   # only:
   #   - tags
   #   - master
@@ -1072,7 +1076,8 @@ molecule_secrets_cleanup:
   stage: cleanup
   when: always
   needs:
-    - job: molecule_secrets_test
+    - molecule_secrets_test
+    - acceptance
   # only:
   #   - tags
   #   - master
@@ -1144,7 +1149,7 @@ molecule_swarm_create_failure_cleanup:
   rules:
     - *only_agent_3_failure
   needs:
-    - job: molecule_swarm_create
+    - molecule_swarm_create
 
 molecule_swarm_cleanup:
   <<: *swarm_cleanup_base
@@ -1153,7 +1158,8 @@ molecule_swarm_cleanup:
   rules:
     - *only_agent_3_always
   needs:
-    - job: molecule_swarm_test
+    - molecule_swarm_test
+    - acceptance
 
 # Job Seq: Molecule
 # Type: vms
@@ -1222,7 +1228,7 @@ molecule_vms_create_failure_cleanup:
   stage: cleanup
   when: on_failure
   needs:
-    - job: molecule_vms_create
+    - molecule_vms_create
 
 molecule_vms_cleanup:
   <<: *vms_cleanup_base
@@ -1230,7 +1236,8 @@ molecule_vms_cleanup:
   stage: cleanup
   when: always
   needs:
-    - job: molecule_vms_test
+    - molecule_vms_test
+    - acceptance
 
 ## release stage
 
