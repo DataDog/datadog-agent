@@ -156,3 +156,15 @@ func TestCountBasedExpireContexts(t *testing.T) {
 	require.Len(t, contextResolver.expireContexts(), 0)
 	require.Len(t, contextResolver.resolver.contextsByKey, 0)
 }
+
+func TestTagDeduplication(t *testing.T) {
+	resolver := newContextResolver()
+
+	ckey := resolver.trackContext(&metrics.MetricSample{
+		Name: "foo",
+		Tags: []string{"bar", "bar"},
+	})
+
+	assert.Equal(t, len(resolver.contextsByKey[ckey].Tags), 1)
+	assert.Equal(t, resolver.contextsByKey[ckey].Tags, []string{"bar"})
+}

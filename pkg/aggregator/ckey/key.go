@@ -62,6 +62,7 @@ type KeyGenerator struct {
 }
 
 // Generate returns the ContextKey hash for the given parameters.
+// tagsBuf is re-arranged in place and truncated to only contain unique tags.
 func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder) ContextKey {
 	// between two generations, we have to set the hash to something neutral, let's
 	// use this big value seed from the murmur3 implementations
@@ -69,6 +70,9 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 
 	g.intb = g.intb ^ murmur3.StringSum64(name)
 	g.intb = g.intb ^ murmur3.StringSum64(hostname)
+
+	// This is used to track number of unique tags seen so far in both versions of the algorithm.
+	g.idx = 0
 
 	tags := tagsBuf.Get()
 
@@ -96,6 +100,8 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 					// See https://github.com/DataDog/datadog-agent/pull/8529#discussion_r661493647
 					g.seen[j] = h
 					g.intb = g.intb ^ h // add this tag into the hash
+					tags[g.idx] = tags[i]
+					g.idx++
 					break
 				} else if g.seen[j] == h {
 					// already seen, we do not want to xor multiple times the same tag
@@ -109,7 +115,6 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 			}
 		}
 	} else {
-		g.idx = 0
 	OUTER:
 		for i := range tags {
 			h := murmur3.StringSum64(tags[i])
@@ -120,9 +125,12 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 			}
 			g.intb = g.intb ^ h
 			g.seen[g.idx] = h
+			tags[g.idx] = tags[i]
 			g.idx++
 		}
 	}
+
+	tagsBuf.Truncate(g.idx)
 
 	return ContextKey(g.intb)
 }

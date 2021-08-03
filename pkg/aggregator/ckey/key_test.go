@@ -72,6 +72,7 @@ func TestTagsOrderAndDupsDontMatter(t *testing.T) {
 	tagsBuf3 := util.NewTagsBuilderFromSlice(tags)
 	key3 := generator.Generate(name, hostname, tagsBuf3)
 	assert.Equal(key, key3, "duplicated tags should not matter")
+	assert.Equal(tagsBuf2.Get(), tagsBuf3.Get(), "duplicated tags should be removed from the buffer")
 
 	// and now, completely change of the tag, the generated key should NOT be the same
 	tags[2] = "another:tag"
