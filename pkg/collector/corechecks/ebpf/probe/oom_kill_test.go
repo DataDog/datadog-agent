@@ -37,12 +37,9 @@ func writeTempFile(pattern string, content string) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
 
 	if _, err := f.WriteString(content); err != nil {
-		return nil, err
-	}
-
-	if err := f.Close(); err != nil {
 		return nil, err
 	}
 
