@@ -49,7 +49,7 @@ var (
 		[]string{"message_type", "state", "origin"}, "Count of service checks/events/metrics processed by dogstatsd")
 	tlmProcessedErrorTags       = map[string]string{"message_type": "metrics", "state": "error", "origin": ""}
 	tlmProcessedOkTags          = map[string]string{"message_type": "metrics", "state": "ok", "origin": ""}
-	tlmUnterminatedMetricErrors = telemetry.NewCounter("dogstatsd", "unterminated_metrics", nil, "Count of unterminated metrics")
+	tlmUnterminatedMetricErrors = telemetry.NewCounter("dogstatsd", "unterminated_metrics", []string{"origin"}, "Count of unterminated metrics")
 
 	// while we try to add the origin tag in the tlmProcessed metric, we want to
 	// avoid having it growing indefinitely, hence this safeguard to limit the
