@@ -32,6 +32,7 @@ scenario:
     - dependency
     - syntax
     - cleanup
+    - create
     - prepare
     - converge
     - idempotence
