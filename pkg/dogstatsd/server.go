@@ -692,25 +692,23 @@ func (s *Server) Stop() {
 }
 
 // storeMetricStats stores stats on the given metric sample.
-// It is storing the stats of the sample as they are received: it means that if
-// a metric is received with duplicated tags, it will be stored this way here.
-// It can help troubleshooting clients with bad behaviors but it is different that
-// what will be outputted by the aggregator, which takes care of deduping the tags
-// to aggregate the metrics.
+//
+// It can help troubleshooting clients with bad behaviors.
 func (s *Server) storeMetricStats(sample metrics.MetricSample) {
 	now := time.Now()
 	s.Debug.Lock()
 	defer s.Debug.Unlock()
 
 	// key
-	key := s.Debug.keyGen.Generate(sample.Name, "", sample.Tags)
+	tags := util.NewTagsBuilderFromSlice(sample.Tags)
+	key := s.Debug.keyGen.Generate(sample.Name, "", tags)
 
 	// store
 	ms := s.Debug.Stats[key]
 	ms.Count++
 	ms.LastSeen = now
 	ms.Name = sample.Name
-	ms.Tags = strings.Join(sample.Tags, " ") // we don't want/need to share the underlying array
+	ms.Tags = strings.Join(tags.Get(), " ") // we don't want/need to share the underlying array
 	s.Debug.Stats[key] = ms
 
 	s.Debug.metricsCounts.metricChan <- struct{}{}

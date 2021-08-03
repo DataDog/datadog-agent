@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,7 +21,7 @@ func TestIsZero(t *testing.T) {
 func TestGenerateReproductible(t *testing.T) {
 	name := "metric.name"
 	hostname := "hostname"
-	tags := []string{"bar", "foo", "key:value", "key:value2"}
+	tags := util.NewTagsBuilderFromSlice([]string{"bar", "foo", "key:value", "key:value2"})
 
 	generator := NewKeyGenerator()
 
@@ -57,21 +58,24 @@ func TestTagsOrderAndDupsDontMatter(t *testing.T) {
 	tags := []string{"bar", "foo", "key:value", "key:value2"}
 
 	generator := NewKeyGenerator()
-	key := generator.Generate(name, hostname, tags)
+	tagsBuf := util.NewTagsBuilderFromSlice(tags)
+	key := generator.Generate(name, hostname, tagsBuf)
 
 	// change tags order, the generated key should be the same
 	tags[0], tags[1], tags[2], tags[3] = tags[3], tags[0], tags[1], tags[2]
-	key2 := generator.Generate(name, hostname, tags)
+	tagsBuf2 := util.NewTagsBuilderFromSlice(tags)
+	key2 := generator.Generate(name, hostname, tagsBuf2)
 	assert.Equal(key, key2, "order of tags should not matter")
 
 	// add a duplicated tag
 	tags = append(tags, "key:value", "foo")
-	key3 := generator.Generate(name, hostname, tags)
+	tagsBuf3 := util.NewTagsBuilderFromSlice(tags)
+	key3 := generator.Generate(name, hostname, tagsBuf3)
 	assert.Equal(key, key3, "duplicated tags should not matter")
 
 	// and now, completely change of the tag, the generated key should NOT be the same
 	tags[2] = "another:tag"
-	key4 := generator.Generate(name, hostname, tags)
+	key4 := generator.Generate(name, hostname, util.NewTagsBuilderFromSlice(tags))
 	assert.NotEqual(key, key4, "tags content should matter")
 }
 
@@ -89,7 +93,7 @@ func BenchmarkKeyGeneration(b *testing.B) {
 	for i := 1; i < 256; i *= 2 {
 		b.Run(fmt.Sprintf("%d-tags", i), func(b *testing.B) {
 			generator := NewKeyGenerator()
-			tags := genTags(i)
+			tags := util.NewTagsBuilderFromSlice(genTags(i))
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {
 				generator.Generate(name, host, tags)

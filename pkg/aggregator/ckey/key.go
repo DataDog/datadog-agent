@@ -6,6 +6,7 @@
 package ckey
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/twmb/murmur3"
 )
 
@@ -61,14 +62,15 @@ type KeyGenerator struct {
 }
 
 // Generate returns the ContextKey hash for the given parameters.
-// The tags array is sorted in place to avoid heap allocations.
-func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey {
+func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder) ContextKey {
 	// between two generations, we have to set the hash to something neutral, let's
 	// use this big value seed from the murmur3 implementations
 	g.intb = 0xc6a4a7935bd1e995
 
 	g.intb = g.intb ^ murmur3.StringSum64(name)
 	g.intb = g.intb ^ murmur3.StringSum64(hostname)
+
+	tags := tagsBuf.Get()
 
 	// there is two implementations used here to deduplicate the tags depending on how
 	// many tags we have to process:
