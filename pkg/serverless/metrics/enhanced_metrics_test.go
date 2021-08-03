@@ -41,19 +41,10 @@ func TestGenerateEnhancedMetricsFromFunctionLogNoMetric(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
-	objectRecord := PlatformObjectRecord{
-		Metrics: ReportLogMetrics{
-			DurationMs:       1000.0,
-			BilledDurationMs: 800.0,
-			MemorySizeMB:     1024.0,
-			MaxMemoryUsedMB:  256.0,
-			InitDurationMs:   100.0,
-		},
-	}
 	metricsChan := make(chan []metrics.MetricSample)
 	tags := []string{"functionname:test-function"}
 	reportLogTime := time.Now()
-	go GenerateEnhancedMetricsFromReportLog(objectRecord, reportLogTime, tags, metricsChan)
+	go GenerateEnhancedMetricsFromReportLog(100.0, 1000.0, 800.0, 1024.0, 256.0, reportLogTime, tags, metricsChan)
 
 	generatedMetrics := <-metricsChan
 
@@ -103,20 +94,11 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
-	objectRecord := PlatformObjectRecord{
-		Metrics: ReportLogMetrics{
-			DurationMs:       1000.0,
-			BilledDurationMs: 800.0,
-			MemorySizeMB:     1024.0,
-			MaxMemoryUsedMB:  256.0,
-			InitDurationMs:   0,
-		},
-	}
 	metricsChan := make(chan []metrics.MetricSample)
 	tags := []string{"functionname:test-function"}
 	reportLogTime := time.Now()
 
-	go GenerateEnhancedMetricsFromReportLog(objectRecord, reportLogTime, tags, metricsChan)
+	go GenerateEnhancedMetricsFromReportLog(0, 1000.0, 800.0, 1024.0, 256.0, reportLogTime, tags, metricsChan)
 
 	generatedMetrics := <-metricsChan
 
