@@ -77,10 +77,6 @@ func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEn
 	if aggregatorInstance != nil {
 		statsd, err := dogstatFactory.NewServer(aggregatorInstance, nil)
 		if err != nil {
-			// we're not reporting the error to AWS because we don't want the function
-			// execution to be stopped. TODO(remy): discuss with AWS if there is way
-			// of reporting non-critical init errors.
-			// serverless.ReportInitError(serverlessID, serverless.FatalDogstatsdInit)
 			log.Errorf("Unable to start the DogStatsD server: %s", err)
 		} else {
 			statsd.ServerlessMode = true // we're running in a serverless environment (will removed host field from samples)
@@ -125,9 +121,6 @@ func buildBufferedAggregator(multipleEndpointConfig MultipleEndpointConfig, forw
 	log.Debugf("Using a SyncForwarder with a %v timeout", forwarderTimeout)
 	keysPerDomain, err := multipleEndpointConfig.GetMultipleEndpoints()
 	if err != nil {
-		// we're not reporting the error to AWS because we don't want the function
-		// execution to be stopped. TODO(remy): discuss with AWS if there is way
-		// of reporting non-critical init errors.
 		log.Errorf("Misconfiguration of agent endpoints: %s", err)
 		return nil
 	}

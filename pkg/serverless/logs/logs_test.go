@@ -237,7 +237,7 @@ func TestProcessMessageStartValid(t *testing.T) {
 	assert.Equal(t, lastRequestID, executionContext.LastLogRequestID)
 }
 
-func TestProcessMessageShouldNotProcess(t *testing.T) {
+func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
 	message := LogMessage{
 		Type: LogTypePlatformReport,
 		Time: time.Now(),

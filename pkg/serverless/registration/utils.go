@@ -10,7 +10,7 @@ import (
 	"net/http"
 )
 
-// ID is the extension ID within the AWS Extension environment.
+// ID is the extension ID within the AWS Lambda environment.
 type ID string
 
 // String returns the string value for this ID.

@@ -83,7 +83,7 @@ func (m *Message) GetHostname() string {
 		hostname, err := util.GetHostname(context.TODO())
 		if err != nil {
 			// this scenario is not likely to happen since
-			// the agent can not start without a hostname
+			// the agent cannot start without a hostname
 			hostname = "unknown"
 		}
 		return hostname

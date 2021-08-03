@@ -165,7 +165,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	serverlessDaemon = daemon.StartDaemon(httpServerAddr)
 	err = serverlessDaemon.RestoreCurrentStateFromFile()
 	if err != nil {
-		log.Debug("Impossible to restore the state")
+		log.Debug("Unable to restore the state from file")
 	} else {
 		serverlessDaemon.ComputeGlobalTags(config.GetConfiguredTags(true))
 	}
@@ -230,7 +230,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// adaptive flush configuration
 	if v, exists := os.LookupEnv(flushStrategyEnvVar); exists {
 		if flushStrategy, err := flush.StrategyFromString(v); err != nil {
-			log.Debugf("Wrong flush strategy %s, will use the adaptive flush instead. Err: %s", v, err)
+			log.Debugf("Invalid flush strategy %s, will use adaptive flush instead. Err: %s", v, err)
 		} else {
 			serverlessDaemon.UseAdaptiveFlush(false) // we're forcing the flush strategy, we won't be using the adaptive flush
 			serverlessDaemon.SetFlushStrategy(flushStrategy)
@@ -331,8 +331,6 @@ func handleSignals(serverlessDaemon *daemon.Daemon, stopCh chan struct{}) {
 }
 
 func setupLogAgent(logChannel chan *logConfig.ChannelMessage) {
-	// we subscribed to the logs collection on the platform, let's instantiate
-	// a logs agent to collect/process/flush the logs.
 	if err := logs.StartServerless(
 		func() *autodiscovery.AutoConfig { return common.AC },
 		logChannel, nil,
