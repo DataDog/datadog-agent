@@ -21,12 +21,6 @@
     dest: "{{ keypair_path }}"
     mode: preserve
 
-- name: Force Fail
-  copy:
-    src: "test/random/force/error"
-    dest: "test/random/force/error"
-    mode: preserve
-
 # - name: (Local) Restore artifact ssh key
 #   when: ci_project_dir is undefined or ci_project_dir == ""
 #   copy:
