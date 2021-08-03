@@ -430,6 +430,7 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 // GetIntegrationConfigs isn't supported
 func (s *SNMPService) GetIntegrationConfigs() ([]integration.Config, error) {
 	// TODO: snmp integration `snmpInstanceConfig` as serializer
+	//   https://github.com/DataDog/datadog-agent/blob/9e5e643b8988fc31881f5a8f81c3c411e380f741/pkg/collector/corechecks/snmp/config.go#L39-L65
 	// use corecheck snmp config serializer structs
 	instanceConfig := fmt.Sprintf(`
 ip_address: "%s"
