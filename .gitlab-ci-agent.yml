@@ -2,13 +2,13 @@ image: docker.io/stackstate/stackstate-agent-runner-gitlab:latest7
 
 stages:
   - prepare
-  # - prepare_cleanup
-  - build_prepare_and_test
+  - build
+  - test
   - pre_release
   - acceptance
-  - acceptance_cleanup
+  - cleanup
   - release
-  - manual
+  - manual_cleanup
 
 ######################### pipeline bricks
 
@@ -74,7 +74,7 @@ before_script:
 ## prepare stage
 
 clear_deps_deb_cache:
-  stage: manual
+  stage: manual_cleanup
   before_script: []
   cache:
     policy: push
@@ -88,7 +88,7 @@ clear_deps_deb_cache:
     - rm -rf $CI_PROJECT_DIR/vendor
 
 clear_deps_rpm_cache:
-  stage: manual
+  stage: manual_cleanup
   before_script: []
   cache:
     policy: push
@@ -102,7 +102,7 @@ clear_deps_rpm_cache:
     - rm -rf $CI_PROJECT_DIR/vendor
 
 clear_deps_win_cache:
-  stage: manual
+  stage: manual_cleanup
   before_script:
     - set WIN_CI_PROJECT_DIR=%CD%
     - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
@@ -209,10 +209,10 @@ deps_win:
       - runner_system_failure
       - stuck_or_timeout_failure
 
-## build_prepare_and_test stage
+## build stage
 
 unit_tests:
-  stage: build_prepare_and_test
+  stage: test
   interruptible: true
   needs:
     - deps_deb
@@ -234,7 +234,7 @@ unit_tests:
       - stuck_or_timeout_failure
 
 unit_tests_cluster_agent:
-  stage: build_prepare_and_test
+  stage: test
   interruptible: true
   needs:
     - deps_deb
@@ -259,7 +259,7 @@ unit_tests_cluster_agent:
       - stuck_or_timeout_failure
 
 filename_linting:
-  stage: build_prepare_and_test
+  stage: test
   interruptible: true
   needs:
     - deps_deb
@@ -269,7 +269,7 @@ filename_linting:
 
 # TODO:  Not observed in v7 in a direct form ?
 #docker_integration_tests:
-#  stage: build_prepare_and_test
+#  stage: test
 #  needs:
 #    - deps_deb
 #  variables:
@@ -284,7 +284,7 @@ filename_linting:
 #    - sts-aws
 
 build_binaries:
-  stage: build_prepare_and_test
+  stage: build
   interruptible: true
   needs:
     - deps_deb
@@ -303,7 +303,7 @@ build_binaries:
       - always
 
 build_cluster_agent:
-  stage: build_prepare_and_test
+  stage: build
   interruptible: true
   needs:
     - deps_deb
@@ -324,7 +324,7 @@ build_cluster_agent:
       - always
 
 clear_build_deb_cache:
-  stage: manual
+  stage: manual_cleanup
   interruptible: true
   cache:
     policy: push
@@ -337,7 +337,7 @@ clear_build_deb_cache:
     - rm -rf .omnibus/*
 
 clear_build_rpm_cache:
-  stage: manual
+  stage: manual_cleanup
   interruptible: true
   cache:
     policy: push
@@ -350,7 +350,7 @@ clear_build_rpm_cache:
     - rm -rf .omnibus/*
 
 build_deb:
-  stage: build_prepare_and_test
+  stage: build
   interruptible: true
   needs:
     - deps_deb
@@ -406,7 +406,7 @@ build_deb:
       - always
 
 build_rpm:
-  stage: build_prepare_and_test
+  stage: build
   interruptible: true
   image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_latest_v7
   needs:
@@ -467,7 +467,7 @@ build_rpm:
       - always
 
 build_win:
-  stage: build_prepare_and_test
+  stage: build
   interruptible: true
   needs:
     - deps_win
@@ -740,7 +740,7 @@ molecule_compose_test:
 molecule_compose_create_failure_cleanup:
    <<: *compose_cleanup_base
    <<: *compose_branch_lock
-   stage: acceptance_cleanup
+   stage: cleanup
    when: on_failure
    needs:
      - job: molecule_compose_create
@@ -748,7 +748,7 @@ molecule_compose_create_failure_cleanup:
 molecule_compose_cleanup:
    <<: *compose_cleanup_base
    <<: *compose_branch_lock
-   stage: acceptance_cleanup
+   stage: cleanup
    when: always
    needs:
      - job: molecule_compose_test
@@ -813,7 +813,7 @@ molecule_integrations_test:
 molecule_integrations_create_failure_cleanup:
   <<: *integrations_cleanup_base
   <<: *integrations_branch_lock
-  stage: acceptance_cleanup
+  stage: cleanup
   when: on_failure
   needs:
     - job: molecule_integrations_create
@@ -821,7 +821,7 @@ molecule_integrations_create_failure_cleanup:
 molecule_integrations_cleanup:
   <<: *integrations_cleanup_base
   <<: *integrations_branch_lock
-  stage: acceptance_cleanup
+  stage: cleanup
   when: always
   needs:
     - job: molecule_integrations_test
@@ -886,7 +886,7 @@ molecule_kubernetes_test:
 
 molecule_kubernetes_create_failure_cleanup:
   <<: *kubernetes_cleanup_base
-  stage: acceptance_cleanup
+  stage: cleanup
   resource_group: eks_test_cluster
   rules:
     - *only_agent_3_failure
@@ -895,7 +895,7 @@ molecule_kubernetes_create_failure_cleanup:
 
 molecule_kubernetes_cleanup:
   <<: *kubernetes_cleanup_base
-  stage: acceptance_cleanup
+  stage: cleanup
   resource_group: eks_test_cluster
   rules:
     - *only_agent_3_always
@@ -970,7 +970,7 @@ molecule_localinstall_test:
 molecule_localinstall_create_failure_cleanup:
   <<: *localinstall_cleanup_base
   <<: *localinstall_branch_lock
-  stage: acceptance_cleanup
+  stage: cleanup
   when: on_failure
   needs:
     - job: molecule_localinstall_create
@@ -981,7 +981,7 @@ molecule_localinstall_create_failure_cleanup:
 molecule_localinstall_cleanup:
   <<: *localinstall_cleanup_base
   <<: *localinstall_branch_lock
-  stage: acceptance_cleanup
+  stage: cleanup
   when: always
   needs:
     - job: molecule_localinstall_test
@@ -1058,7 +1058,7 @@ molecule_secrets_test:
 molecule_secrets_create_failure_cleanup:
   <<: *secrets_cleanup_base
   <<: *secrets_branch_lock
-  stage: acceptance_cleanup
+  stage: cleanup
   when: on_failure
   needs:
     - job: molecule_secrets_create
@@ -1069,7 +1069,7 @@ molecule_secrets_create_failure_cleanup:
 molecule_secrets_cleanup:
   <<: *secrets_cleanup_base
   <<: *secrets_branch_lock
-  stage: acceptance_cleanup
+  stage: cleanup
   when: always
   needs:
     - job: molecule_secrets_test
@@ -1140,7 +1140,7 @@ molecule_swarm_test:
 molecule_swarm_create_failure_cleanup:
   <<: *swarm_cleanup_base
   <<: *swarm_branch_lock
-  stage: acceptance_cleanup
+  stage: cleanup
   rules:
     - *only_agent_3_failure
   needs:
@@ -1149,7 +1149,7 @@ molecule_swarm_create_failure_cleanup:
 molecule_swarm_cleanup:
   <<: *swarm_cleanup_base
   <<: *swarm_branch_lock
-  stage: acceptance_cleanup
+  stage: cleanup
   rules:
     - *only_agent_3_always
   needs:
@@ -1219,7 +1219,7 @@ molecule_vms_test:
 molecule_vms_create_failure_cleanup:
   <<: *vms_cleanup_base
   <<: *vms_branch_lock
-  stage: acceptance_cleanup
+  stage: cleanup
   when: on_failure
   needs:
     - job: molecule_vms_create
@@ -1227,7 +1227,7 @@ molecule_vms_create_failure_cleanup:
 molecule_vms_cleanup:
   <<: *vms_cleanup_base
   <<: *vms_branch_lock
-  stage: acceptance_cleanup
+  stage: cleanup
   when: always
   needs:
     - job: molecule_vms_test

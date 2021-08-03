@@ -33,9 +33,3 @@
     - include_tasks: ../common/create/wait-for-instance-creation-to-complete.yml
     - include_tasks: ../common/create/wait-for-ssh.yml
     - include_tasks: ../common/create/wait-for-boot-process-to-finish.yml
-
-
-
-
-
-
