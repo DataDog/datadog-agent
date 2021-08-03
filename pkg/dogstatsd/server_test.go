@@ -449,10 +449,10 @@ func TestEOLParsing(t *testing.T) {
 	messages := []string{"foo", "bar", "baz", "quz", "hax", ""}
 	packet := []byte(strings.Join(messages, "\n"))
 	cnt := 0
-	msg := nextMessage(&packet, true)
+	msg := nextMessage(&packet, true, "")
 	for msg != nil {
 		assert.Equal(t, string(msg), messages[cnt])
-		msg = nextMessage(&packet, true)
+		msg = nextMessage(&packet, true, "")
 		cnt++
 	}
 
@@ -460,9 +460,9 @@ func TestEOLParsing(t *testing.T) {
 
 	packet = []byte(strings.Join(messages[0:len(messages)-1], "\r\n"))
 	cnt = 0
-	msg = nextMessage(&packet, true)
+	msg = nextMessage(&packet, true, "")
 	for msg != nil {
-		msg = nextMessage(&packet, true)
+		msg = nextMessage(&packet, true, "")
 		cnt++
 	}
 
