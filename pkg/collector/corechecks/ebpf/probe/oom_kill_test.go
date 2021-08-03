@@ -19,6 +19,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const oomKilledPython = `
@@ -47,6 +48,14 @@ func writeTempFile(pattern string, content string) (*os.File, error) {
 }
 
 func TestOOMKillProbe(t *testing.T) {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if kv < kernel.VersionCode(4, 9, 0) {
+		t.Skipf("Kernel version %v is not supported by the OOM probe", kv)
+	}
+
 	cfg := ebpf.NewConfig()
 	oomKillProbe, err := NewOOMKillProbe(cfg)
 	if err != nil {
