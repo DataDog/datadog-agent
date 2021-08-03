@@ -702,6 +702,7 @@ func InitConfig(config Config) {
 	bindEnvAndSetLogsConfigKeys(config, "logs_config.", false)
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.", false)
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.", false)
+	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.activity.", true)
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.", false)
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
