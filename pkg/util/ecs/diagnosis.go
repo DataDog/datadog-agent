@@ -58,7 +58,7 @@ func diagnoseECSTags() error {
 func diagnoseFargate() error {
 	client, err := ecsmeta.V2()
 	if err != nil {
-		return log.Errorf("error while initializing ECS metadata V2 client: %w", err)
+		return fmt.Errorf("error while initializing ECS metadata V2 client: %w", err)
 	}
 
 	if _, err := client.GetTask(context.TODO()); err != nil {
