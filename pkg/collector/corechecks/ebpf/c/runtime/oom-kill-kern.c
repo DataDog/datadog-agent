@@ -10,6 +10,12 @@
 #include "oom-kill-kern-user.h"
 
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,9,0)
+    // 4.8 is the first version where `struct oom_control*` is the first argument of `oom_kill_process`
+    // 4.9 is the first version where the field `totalpages` is available in `struct oom_control`
+    #error Version of Linux previous to 4.9.0 are not supported by this probe
+#endif
+
 /*
  * The `oom_stats` hash map is used to share with the userland program system-probe
  * the statistics per pid
