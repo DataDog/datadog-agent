@@ -429,10 +429,12 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 
 // GetIntegrationConfigs isn't supported
 func (s *SNMPService) GetIntegrationConfigs() ([]integration.Config, error) {
+	// TODO: snmp integration `snmpInstanceConfig` as serializer
 	// use corecheck snmp config serializer structs
 	instanceConfig := fmt.Sprintf(`
 ip_address: "%s"
 community_string: "%s"
+min_collection_interval: 60
 tags:
 - foo:bar
 `, s.deviceIP, s.config.Community)
