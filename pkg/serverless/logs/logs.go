@@ -3,19 +3,66 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package aws
+package logs
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"strings"
 	"time"
 
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// Tags contains the actual array of Tags (useful for passing it via reference)
+type Tags struct {
+	Tags []string
+}
+
+// ExecutionContext represents the execution context
+type ExecutionContext struct {
+	ARN                string
+	LastRequestID      string
+	ColdstartRequestID string
+	LastLogRequestID   string
+	Coldstart          bool
+}
+
+// CollectionRouteInfo is the route on which the AWS environment is sending the logs
+// for the extension to collect them. It is attached to the main HTTP server
+// already receiving hits from the libraries client.
+type CollectionRouteInfo struct {
+	LogChannel             chan *logConfig.ChannelMessage
+	MetricChannel          chan []metrics.MetricSample
+	ExtraTags              *Tags
+	ExecutionContext       *ExecutionContext
+	LogsEnabled            bool
+	EnhancedMetricsEnabled bool
+}
+
+// PlatformObjectRecord contains additional information found in Platform log messages
+type PlatformObjectRecord struct {
+	RequestID string           // uuid; present in LogTypePlatform{Start,End,Report}
+	Version   string           // present in LogTypePlatformStart only
+	Metrics   ReportLogMetrics // present in LogTypePlatformReport only
+}
+
+// ReportLogMetrics contains metrics found in a LogTypePlatformReport log
+type ReportLogMetrics struct {
+	DurationMs       float64
+	BilledDurationMs int
+	MemorySizeMB     int
+	MaxMemoryUsedMB  int
+	InitDurationMs   float64
+}
 
 // logMessageTimeLayout is the layout string used to format timestamps from logs
 const logMessageTimeLayout = "2006-01-02T15:04:05.999Z"
@@ -49,22 +96,6 @@ type LogMessage struct {
 	// "extension" / "function" log messages contain a record which is basically a log string
 	StringRecord string `json:"record"`
 	ObjectRecord PlatformObjectRecord
-}
-
-// PlatformObjectRecord contains additional information found in Platform log messages
-type PlatformObjectRecord struct {
-	RequestID string           // uuid; present in LogTypePlatform{Start,End,Report}
-	Version   string           // present in LogTypePlatformStart only
-	Metrics   ReportLogMetrics // present in LogTypePlatformReport only
-}
-
-// ReportLogMetrics contains metrics found in a LogTypePlatformReport log
-type ReportLogMetrics struct {
-	DurationMs       float64
-	BilledDurationMs int
-	MemorySizeMB     int
-	MaxMemoryUsedMB  int
-	InitDurationMs   float64
 }
 
 // UnmarshalJSON unmarshals the given bytes in a LogMessage object.
@@ -109,7 +140,6 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 
 			switch typ {
 			case LogTypePlatformStart:
-				SetRequestID(l.ObjectRecord.RequestID)
 				if version, ok := objectRecord["version"].(string); ok {
 					l.ObjectRecord.Version = version
 				}
@@ -154,10 +184,10 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// ShouldProcessLog returns whether or not the log should be further processed.
-func ShouldProcessLog(arn string, lastRequestID string, message LogMessage) bool {
+// shouldProcessLog returns whether or not the log should be further processed.
+func shouldProcessLog(executionContext *ExecutionContext, message LogMessage) bool {
 	// If the global request ID or ARN variable isn't set at this point, do not process further
-	if arn == "" || lastRequestID == "" {
+	if len(executionContext.ARN) == 0 || len(executionContext.LastRequestID) == 0 {
 		return false
 	}
 	// Making sure that we do not process these types of logs since they are not tied to specific invovations
@@ -182,8 +212,8 @@ func createStringRecordForReportLog(l *LogMessage) string {
 	return stringRecord
 }
 
-// ParseLogsAPIPayload transforms the payload received from the Logs API to an array of LogMessage
-func ParseLogsAPIPayload(data []byte) ([]LogMessage, error) {
+// parseLogsAPIPayload transforms the payload received from the Logs API to an array of LogMessage
+func parseLogsAPIPayload(data []byte) ([]LogMessage, error) {
 	var messages []LogMessage
 	if err := json.Unmarshal(data, &messages); err != nil {
 		// Temporary fix to handle malformed JSON tracing object : retry with sanitization
@@ -213,4 +243,61 @@ func GetLambdaSource() *logConfig.LogSource {
 	}
 	log.Debug("Impossible to retrieve the lambda LogSource")
 	return nil
+}
+
+// ServeHTTP - see type CollectionRouteInfo comment.
+func (c *CollectionRouteInfo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	data, _ := ioutil.ReadAll(r.Body)
+	defer r.Body.Close()
+	messages, err := parseLogsAPIPayload(data)
+	if err != nil {
+		w.WriteHeader(400)
+	} else {
+		processLogMessages(c, messages)
+		w.WriteHeader(200)
+	}
+}
+
+func processLogMessages(c *CollectionRouteInfo, messages []LogMessage) {
+	for _, message := range messages {
+		processMessage(message, c.ExecutionContext, c.EnhancedMetricsEnabled, c.ExtraTags.Tags, c.MetricChannel)
+		// We always collect and process logs for the purpose of extracting enhanced metrics.
+		// However, if logs are not enabled, we do not send them to the intake.
+		if c.LogsEnabled {
+			logMessage := logConfig.NewChannelMessageFromLambda([]byte(message.StringRecord), message.Time, c.ExecutionContext.ARN, c.ExecutionContext.LastRequestID)
+			c.LogChannel <- logMessage
+		}
+	}
+}
+
+// processMessage performs logic about metrics and tags on the message
+func processMessage(message LogMessage, executionContext *ExecutionContext, enhancedMetricsEnabled bool, metricTags []string, metricsChan chan []metrics.MetricSample) {
+	// Do not send logs or metrics if we can't associate them with an ARN or Request ID
+	if !shouldProcessLog(executionContext, message) {
+		return
+	}
+
+	if message.Type == LogTypePlatformStart {
+		executionContext.LastLogRequestID = message.ObjectRecord.RequestID
+	}
+
+	if enhancedMetricsEnabled {
+		tags := tags.AddColdStartTag(metricTags, executionContext.LastLogRequestID == executionContext.ColdstartRequestID)
+		if message.Type == LogTypeFunction {
+			serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.StringRecord, message.Time, tags, metricsChan)
+		}
+		if message.Type == LogTypePlatformReport {
+			serverlessMetrics.GenerateEnhancedMetricsFromReportLog(
+				message.ObjectRecord.Metrics.InitDurationMs,
+				message.ObjectRecord.Metrics.DurationMs,
+				message.ObjectRecord.Metrics.BilledDurationMs,
+				message.ObjectRecord.Metrics.MemorySizeMB,
+				message.ObjectRecord.Metrics.MaxMemoryUsedMB,
+				message.Time, tags, metricsChan)
+		}
+	}
+
+	if message.Type == LogTypePlatformLogsDropped {
+		log.Debug("Logs were dropped by the AWS Lambda Logs API")
+	}
 }
