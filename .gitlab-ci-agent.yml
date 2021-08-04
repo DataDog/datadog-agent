@@ -801,7 +801,7 @@ molecule_integrations_test:
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/integrations/provisioner.run.yml prepare --force --scenario-name integrations
-    - ./molecule3.sh test --scenario-name integrations --destroy=never
+    - ./molecule3.sh --base-config ./molecule/integrations/provisioner.run.yml test --scenario-name integrations --destroy=never
   artifacts:
     when: always
     paths:
@@ -875,9 +875,8 @@ molecule_kubernetes_test:
     - molecule_kubernetes_create
   script:
     - cd $CI_PROJECT_DIR/test
-    - ./molecule3.sh --base-config ./molecule/kubernetes/provisioner.run.yml cleanup --scenario-name kubernetes
     - ./molecule3.sh --base-config ./molecule/kubernetes/provisioner.run.yml prepare --force --scenario-name kubernetes
-    - ./molecule3.sh test --scenario-name kubernetes --destroy=never
+    - ./molecule3.sh --base-config ./molecule/kubernetes/provisioner.run.yml test --scenario-name kubernetes --destroy=never
   artifacts:
     when: always
     paths:
@@ -919,9 +918,9 @@ molecule_kubernetes_cleanup:
    script:
      - cd $CI_PROJECT_DIR/test
      - ./molecule3.sh --base-config ./molecule/localinstall/provisioner.run.yml destroy --scenario-name localinstall
-   # only:
-   #   - tags
-   #   - master
+   only:
+     - tags
+     - master
 
 .localinstall_branch_lock: &localinstall_branch_lock
   resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$AGENT_CURRENT_BRANCH-localinstall_branch_lock"
@@ -943,9 +942,9 @@ molecule_localinstall_create:
       - $CI_PROJECT_DIR/.molecule
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
-  # only:
-  #   - tags
-  #   - master
+  only:
+    - tags
+    - master
 
 molecule_localinstall_test:
   <<: *molecule_base
@@ -969,9 +968,9 @@ molecule_localinstall_test:
       - $CI_PROJECT_DIR/.molecule
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
-  # only:
-  #   - tags
-  #   - master
+  only:
+    - tags
+    - master
 
 molecule_localinstall_create_failure_cleanup:
   <<: *localinstall_cleanup_base
@@ -980,9 +979,9 @@ molecule_localinstall_create_failure_cleanup:
   when: on_failure
   needs:
     - molecule_localinstall_create
-  # only:
-  #   - tags
-  #   - master
+  only:
+    - tags
+    - master
 
 molecule_localinstall_cleanup:
   <<: *localinstall_cleanup_base
@@ -993,9 +992,9 @@ molecule_localinstall_cleanup:
     - molecule_localinstall_test
   needs:
     - molecule_localinstall_test
-  # only:
-  #   - tags
-  #   - master
+  only:
+    - tags
+    - master
 
 
 # Job Seq: Molecule
@@ -1008,9 +1007,9 @@ molecule_localinstall_cleanup:
    script:
      - cd $CI_PROJECT_DIR/test
      - ./molecule3.sh --base-config ./molecule/secrets/provisioner.run.yml destroy --scenario-name secrets
-   # only:
-   #   - tags
-   #   - master
+   only:
+     - tags
+     - master
 
 .secrets_branch_lock: &secrets_branch_lock
   resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$AGENT_CURRENT_BRANCH-secrets_branch_lock"
@@ -1032,9 +1031,9 @@ molecule_secrets_create:
       - $CI_PROJECT_DIR/.molecule
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
-  # only:
-  #   - tags
-  #   - master
+  only:
+    - tags
+    - master
 
 molecule_secrets_test:
   <<: *molecule_base
@@ -1059,9 +1058,9 @@ molecule_secrets_test:
       - $CI_PROJECT_DIR/.molecule
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
-  # only:
-  #   - tags
-  #   - master
+  only:
+    - tags
+    - master
 
 molecule_secrets_create_failure_cleanup:
   <<: *secrets_cleanup_base
@@ -1070,9 +1069,9 @@ molecule_secrets_create_failure_cleanup:
   when: on_failure
   needs:
     - molecule_secrets_create
-  # only:
-  #   - tags
-  #   - master
+  only:
+    - tags
+    - master
 
 molecule_secrets_cleanup:
   <<: *secrets_cleanup_base
@@ -1083,9 +1082,9 @@ molecule_secrets_cleanup:
     - molecule_secrets_test
   needs:
     - molecule_secrets_test
-  # only:
-  #   - tags
-  #   - master
+  only:
+    - tags
+    - master
 
 
 # Job Seq: Molecule
@@ -1217,7 +1216,7 @@ molecule_vms_test:
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/vms/provisioner.run.yml prepare --force --scenario-name vms
-    - ./molecule3.sh test --scenario-name vms --destroy=never
+    - ./molecule3.sh --base-config ./molecule/vms/provisioner.run.yml test --scenario-name vms --destroy=never
   artifacts:
     when: always
     paths:
