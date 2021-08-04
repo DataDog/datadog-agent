@@ -333,8 +333,7 @@ func (s *SNMPService) GetTaggerEntity() string {
 
 // GetADIdentifiers returns a set of AD identifiers
 func (s *SNMPService) GetADIdentifiers(context.Context) ([]string, error) {
-	//return []string{s.adIdentifier}, nil
-	// TODO: handle legacy?
+	// TODO: handle legacy behaviour using AD template by returning s.adIdentifier
 	return []string{}, nil
 }
 
