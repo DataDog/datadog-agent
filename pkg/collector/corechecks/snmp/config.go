@@ -39,28 +39,32 @@ type snmpInitConfig struct {
 }
 
 type snmpInstanceConfig struct {
-	IPAddress                  string            `yaml:"ip_address"`
-	Port                       Number            `yaml:"port"`
-	CommunityString            string            `yaml:"community_string"`
-	SnmpVersion                string            `yaml:"snmp_version"`
-	Timeout                    Number            `yaml:"timeout"`
-	Retries                    Number            `yaml:"retries"`
-	OidBatchSize               Number            `yaml:"oid_batch_size"`
-	BulkMaxRepetitions         Number            `yaml:"bulk_max_repetitions"`
-	User                       string            `yaml:"user"`
-	AuthProtocol               string            `yaml:"authProtocol"`
-	AuthKey                    string            `yaml:"authKey"`
-	PrivProtocol               string            `yaml:"privProtocol"`
-	PrivKey                    string            `yaml:"privKey"`
-	ContextName                string            `yaml:"context_name"`
-	Metrics                    []metricsConfig   `yaml:"metrics"`
-	MetricTags                 []metricTagConfig `yaml:"metric_tags"`
-	Profile                    string            `yaml:"profile"`
-	UseGlobalMetrics           bool              `yaml:"use_global_metrics"`
-	ExtraTags                  string            `yaml:"extra_tags"` // comma separated tags
-	ExtraMinCollectionInterval Number            `yaml:"extra_min_collection_interval"`
-	Tags                       []string          `yaml:"tags"` // used for device metadata
-	CollectDeviceMetadata      *Boolean          `yaml:"collect_device_metadata"`
+	IPAddress             string            `yaml:"ip_address"`
+	Port                  Number            `yaml:"port"`
+	CommunityString       string            `yaml:"community_string"`
+	SnmpVersion           string            `yaml:"snmp_version"`
+	Timeout               Number            `yaml:"timeout"`
+	Retries               Number            `yaml:"retries"`
+	OidBatchSize          Number            `yaml:"oid_batch_size"`
+	BulkMaxRepetitions    Number            `yaml:"bulk_max_repetitions"`
+	User                  string            `yaml:"user"`
+	AuthProtocol          string            `yaml:"authProtocol"`
+	AuthKey               string            `yaml:"authKey"`
+	PrivProtocol          string            `yaml:"privProtocol"`
+	PrivKey               string            `yaml:"privKey"`
+	ContextName           string            `yaml:"context_name"`
+	Metrics               []metricsConfig   `yaml:"metrics"`
+	MetricTags            []metricTagConfig `yaml:"metric_tags"`
+	Profile               string            `yaml:"profile"`
+	UseGlobalMetrics      bool              `yaml:"use_global_metrics"`
+	ExtraTags             string            `yaml:"extra_tags"` // comma separated tags
+	Tags                  []string          `yaml:"tags"`       // used for device metadata
+	CollectDeviceMetadata *Boolean          `yaml:"collect_device_metadata"`
+
+	// To accept min collection interval from snmp_listener, we need to accept it as string
+	// extra_min_collection_interval can accept both string and integer value
+	MinCollectionInterval      int    `yaml:"min_collection_interval"`
+	ExtraMinCollectionInterval Number `yaml:"extra_min_collection_interval"`
 
 	// `network` config is only available in Python SNMP integration
 	// it's added here to raise warning if used with corecheck SNMP integration
@@ -222,8 +226,11 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		c.timeout = int(instance.Timeout)
 	}
 
-	if instance.ExtraMinCollectionInterval == 0 {
+	// Original `min_collection_interval` has precedence over `extra_min_collection_interval`
+	if instance.ExtraMinCollectionInterval == 0 && instance.MinCollectionInterval == 0 {
 		c.minCollectionInterval = defaults.DefaultCheckInterval
+	} else if instance.MinCollectionInterval > 0 {
+		c.minCollectionInterval = time.Duration(instance.MinCollectionInterval) * time.Second
 	} else {
 		c.minCollectionInterval = time.Duration(instance.ExtraMinCollectionInterval) * time.Second
 	}

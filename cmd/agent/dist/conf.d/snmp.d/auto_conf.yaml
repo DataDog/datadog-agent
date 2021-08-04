@@ -98,6 +98,11 @@ instances:
     #
     extra_tags: "%%extra_tags%%"
 
+    ## @param extra_min_collection_interval - string - optional
+    ## Used to pass min collection interval from snmp_listener to integration.
+    #
+    extra_min_collection_interval: "%%extra_min_collection_interval%%"
+
     ## @param oid_batch_size - integer - optional - default: 60
     ## The number of OIDs handled by each batch. Increasing this number improves performance but
     ## uses more resources.
