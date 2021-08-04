@@ -431,20 +431,22 @@ func (s *SNMPService) GetIntegrationConfigs() ([]integration.Config, error) {
 	tags := []string{"autodiscovery_subnet:" + s.config.Network}
 	tags = append(tags, s.config.Tags...)
 	instanceConfig := snmp.CheckConfig{
-		IPAddress:       s.deviceIP,
-		Port:            s.config.Port,
-		CommunityString: s.config.Community,
-		SnmpVersion:     s.config.Version,
-		Timeout:         s.config.Timeout,
-		Retries:         s.config.Retries,
-		OidBatchSize:    s.config.OidBatchSize,
-		User:            s.config.User,
-		AuthProtocol:    s.config.AuthProtocol,
-		AuthKey:         s.config.AuthKey,
-		PrivProtocol:    s.config.PrivProtocol,
-		PrivKey:         s.config.PrivKey,
-		Tags:            tags,
+		IPAddress:             s.deviceIP,
+		Port:                  s.config.Port,
+		CommunityString:       s.config.Community,
+		SnmpVersion:           s.config.Version,
+		Timeout:               s.config.Timeout,
+		Retries:               s.config.Retries,
+		OidBatchSize:          s.config.OidBatchSize,
+		User:                  s.config.User,
+		AuthProtocol:          s.config.AuthProtocol,
+		AuthKey:               s.config.AuthKey,
+		PrivProtocol:          s.config.PrivProtocol,
+		PrivKey:               s.config.PrivKey,
+		Tags:                  tags,
+		MinCollectionInterval: s.config.MinCollectionInterval,
 	}
+	log.Warnf("s.config.MinCollectionInterval: %v", s.config.MinCollectionInterval)
 
 	rawInstanceConfig, _ := yaml.Marshal(instanceConfig)
 	config := integration.Config{

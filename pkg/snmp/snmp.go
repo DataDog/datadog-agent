@@ -63,6 +63,7 @@ type Config struct {
 	CollectDeviceMetadataConfig *bool           `mapstructure:"collect_device_metadata"`
 	CollectDeviceMetadata       bool
 	Tags                        []string `mapstructure:"tags"`
+	MinCollectionInterval       *uint    `mapstructure:"min_collection_interval,omitempty"`
 
 	// Legacy
 	NetworkLegacy      string `mapstructure:"network"`
