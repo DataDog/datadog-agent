@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"gopkg.in/yaml.v2"
 	"net"
 	"strconv"
 	"strings"
@@ -425,26 +426,34 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 	return []byte{}, ErrNotSupported
 }
 
-
 // GetIntegrationConfigs isn't supported
 func (s *SNMPService) GetIntegrationConfigs() ([]integration.Config, error) {
-	// TODO: snmp integration `snmpInstanceConfig` as serializer
-	//   https://github.com/DataDog/datadog-agent/blob/9e5e643b8988fc31881f5a8f81c3c411e380f741/pkg/collector/corechecks/snmp/config.go#L39-L65
-	// use corecheck snmp config serializer structs
-	instanceConfig := fmt.Sprintf(`
-ip_address: "%s"
-community_string: "%s"
-min_collection_interval: 60
-tags:
-- foo:bar
-`, s.deviceIP, s.config.Community)
+	tags := []string{"autodiscovery_subnet:" + s.config.Network}
+	tags = append(tags, s.config.Tags...)
+	instanceConfig := snmp.CheckConfig{
+		IPAddress:       s.deviceIP,
+		Port:            s.config.Port,
+		CommunityString: s.config.Community,
+		SnmpVersion:     s.config.Version,
+		Timeout:         s.config.Timeout,
+		Retries:         s.config.Retries,
+		OidBatchSize:    s.config.OidBatchSize,
+		User:            s.config.User,
+		AuthProtocol:    s.config.AuthProtocol,
+		AuthKey:         s.config.AuthKey,
+		PrivProtocol:    s.config.PrivProtocol,
+		PrivKey:         s.config.PrivKey,
+		Tags:            tags,
+	}
+
+	rawInstanceConfig, _ := yaml.Marshal(instanceConfig)
 	config := integration.Config{
-		Name:              "snmp",
-		Instances:         []integration.Data{integration.Data(instanceConfig)},
-		InitConfig:        integration.Data("loader: core"),
+		Name:       "snmp",
+		Instances:  []integration.Data{integration.Data(rawInstanceConfig)},
+		InitConfig: integration.Data("loader: core"),
 		//ClusterCheck:    tpl.ClusterCheck,  // TODO: impl me
-		Provider:          "snmp_listener",
-		Source:            "snmp_listener",
+		Provider: "snmp_listener",
+		Source:   "snmp_listener",
 	}
 	return []integration.Config{config}, nil
 }
