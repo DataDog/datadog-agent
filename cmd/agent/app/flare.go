@@ -204,7 +204,7 @@ func requestArchive(logFiles []string, pdata flare.ProfileData) (string, error) 
 	if e != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintln(color.Output, fmt.Sprintf("The agent ran into an error while making the flare: %s", color.RedString(string(r))))
-			e = fmt.Errorf("Error getting flare from running agent: %s", string(r))
+			e = fmt.Errorf("Error getting flare from running agent: %s", r)
 		} else {
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make the flare. (is it running?)"))
 			e = fmt.Errorf("Error getting flare from running agent: %w", e)

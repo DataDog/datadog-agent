@@ -205,8 +205,8 @@ func requestFlare(caseID, customerEmail string) (response string, e error) {
 	var filePath string
 	if e != nil {
 		if r != nil && string(r) != "" {
-			log.Warnf("The agent ran into an error while making the flare: %s\n", string(r))
-			e = fmt.Errorf("Error getting flare from running agent: %s", string(r))
+			log.Warnf("The agent ran into an error while making the flare: %s\n", r)
+			e = fmt.Errorf("Error getting flare from running agent: %s", r)
 		} else {
 			log.Debug("The agent was unable to make the flare.")
 			e = fmt.Errorf("Error getting flare from running agent: %w", e)
