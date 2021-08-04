@@ -22,7 +22,7 @@ metadata:
   namespace: default
   labels:
     app: "datadog"
-    chart: "datadog-2.19.4"
+    chart: "datadog-2.19.8"
     release: "datadog"
     heritage: "Helm"
 spec:

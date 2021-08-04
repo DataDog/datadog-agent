@@ -48,6 +48,22 @@ type CollectionRouteInfo struct {
 	EnhancedMetricsEnabled bool
 }
 
+// PlatformObjectRecord contains additional information found in Platform log messages
+type PlatformObjectRecord struct {
+	RequestID string           // uuid; present in LogTypePlatform{Start,End,Report}
+	Version   string           // present in LogTypePlatformStart only
+	Metrics   ReportLogMetrics // present in LogTypePlatformReport only
+}
+
+// ReportLogMetrics contains metrics found in a LogTypePlatformReport log
+type ReportLogMetrics struct {
+	DurationMs       float64
+	BilledDurationMs int
+	MemorySizeMB     int
+	MaxMemoryUsedMB  int
+	InitDurationMs   float64
+}
+
 // logMessageTimeLayout is the layout string used to format timestamps from logs
 const logMessageTimeLayout = "2006-01-02T15:04:05.999Z"
 
@@ -79,7 +95,7 @@ type LogMessage struct {
 	Type string
 	// "extension" / "function" log messages contain a record which is basically a log string
 	StringRecord string `json:"record"`
-	ObjectRecord serverlessMetrics.PlatformObjectRecord
+	ObjectRecord PlatformObjectRecord
 }
 
 // UnmarshalJSON unmarshals the given bytes in a LogMessage object.
@@ -271,7 +287,13 @@ func processMessage(message LogMessage, executionContext *ExecutionContext, enha
 			serverlessMetrics.GenerateEnhancedMetricsFromFunctionLog(message.StringRecord, message.Time, tags, metricsChan)
 		}
 		if message.Type == LogTypePlatformReport {
-			serverlessMetrics.GenerateEnhancedMetricsFromReportLog(message.ObjectRecord, message.Time, tags, metricsChan)
+			serverlessMetrics.GenerateEnhancedMetricsFromReportLog(
+				message.ObjectRecord.Metrics.InitDurationMs,
+				message.ObjectRecord.Metrics.DurationMs,
+				message.ObjectRecord.Metrics.BilledDurationMs,
+				message.ObjectRecord.Metrics.MemorySizeMB,
+				message.ObjectRecord.Metrics.MaxMemoryUsedMB,
+				message.Time, tags, metricsChan)
 		}
 	}
 

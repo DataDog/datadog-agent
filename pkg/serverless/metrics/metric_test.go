@@ -11,16 +11,29 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+<<<<<<< HEAD
+=======
+	"github.com/DataDog/datadog-agent/pkg/config"
+>>>>>>> main
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestStartDoesNotBlock(t *testing.T) {
+<<<<<<< HEAD
 	metricAgent := &ServerlessMetricAgent{}
 	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
 	assert.NotNil(t, metricAgent.Aggregator)
 	assert.NotNil(t, metricAgent.DogStatDServer)
 	assert.True(t, metricAgent.DogStatDServer.ServerlessMode)
+=======
+	config.DetectFeatures()
+	metricAgent := &ServerlessMetricAgent{}
+	defer metricAgent.Stop()
+	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
+	assert.NotNil(t, metricAgent.GetMetricChannel())
+	assert.True(t, metricAgent.IsReady())
+>>>>>>> main
 }
 
 type MetricConfigMocked struct {
@@ -32,9 +45,15 @@ func (m *MetricConfigMocked) GetMultipleEndpoints() (map[string][]string, error)
 
 func TestStartInvalidConfig(t *testing.T) {
 	metricAgent := &ServerlessMetricAgent{}
+<<<<<<< HEAD
 	go metricAgent.Start(1*time.Second, &MetricConfigMocked{}, &MetricDogStatsD{})
 	assert.Nil(t, metricAgent.Aggregator)
 	assert.Nil(t, metricAgent.DogStatDServer)
+=======
+	defer metricAgent.Stop()
+	go metricAgent.Start(1*time.Second, &MetricConfigMocked{}, &MetricDogStatsD{})
+	assert.False(t, metricAgent.IsReady())
+>>>>>>> main
 }
 
 type MetricDogStatsDMocked struct {
@@ -46,7 +65,13 @@ func (m *MetricDogStatsDMocked) NewServer(aggregator *aggregator.BufferedAggrega
 
 func TestStartInvalidDogStatsD(t *testing.T) {
 	metricAgent := &ServerlessMetricAgent{}
+<<<<<<< HEAD
 	go metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{})
 	assert.Nil(t, metricAgent.Aggregator)
 	assert.Nil(t, metricAgent.DogStatDServer)
+=======
+	defer metricAgent.Stop()
+	go metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{})
+	assert.False(t, metricAgent.IsReady())
+>>>>>>> main
 }

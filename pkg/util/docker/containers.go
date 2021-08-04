@@ -259,7 +259,7 @@ func (d *DockerUtil) dockerContainers(ctx context.Context, cfg *ContainerListCon
 		d.Unlock()
 	}
 
-	if d.lastInvalidate.Add(invalidationInterval).After(time.Now()) {
+	if time.Now().Sub(d.lastInvalidate) > invalidationInterval {
 		d.cleanupCaches(cList)
 	}
 
@@ -375,6 +375,7 @@ func (d *DockerUtil) cleanupCaches(containers []types.Container) {
 			delete(d.imageNameBySha, image)
 		}
 	}
+	d.lastInvalidate = time.Now()
 	d.Unlock()
 }
 

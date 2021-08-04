@@ -19,6 +19,7 @@ import (
 func TestStartEnabledFalse(t *testing.T) {
 	var agent = &ServerlessTraceAgent{}
 	agent.Start(false, nil)
+	defer agent.Stop()
 	assert.Nil(t, agent.ta)
 	assert.Nil(t, agent.Get())
 	assert.Nil(t, agent.cancel)
@@ -35,6 +36,7 @@ func (l *LoadConfigMocked) Load() (*config.AgentConfig, error) {
 func TestStartEnabledTrueInvalidConfig(t *testing.T) {
 	var agent = &ServerlessTraceAgent{}
 	agent.Start(true, &LoadConfigMocked{})
+	defer agent.Stop()
 	assert.Nil(t, agent.ta)
 	assert.Nil(t, agent.Get())
 	assert.Nil(t, agent.cancel)
@@ -46,29 +48,19 @@ func TestStartEnabledTrueValidConfigUnvalidPath(t *testing.T) {
 	os.Setenv("DD_API_KEY", "x")
 	defer os.Unsetenv("DD_API_KEY")
 	agent.Start(true, &LoadConfig{Path: "invalid.yml"})
-
+	defer agent.Stop()
 	assert.NotNil(t, agent.ta)
 	assert.NotNil(t, agent.Get())
 	assert.NotNil(t, agent.cancel)
-	agent.Stop()
 }
 
 func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 	var agent = &ServerlessTraceAgent{}
 
 	agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"})
-
+	defer agent.Stop()
 	assert.NotNil(t, agent.ta)
 	assert.NotNil(t, agent.Get())
 	assert.NotNil(t, agent.cancel)
-	agent.Stop()
-}
 
-func TestCancel(t *testing.T) {
-	var agent = &ServerlessTraceAgent{}
-	agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"})
-	agent.Stop()
-	agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"})
-	agent.Stop()
-	// should not have any "bind: address already in use issues"
 }

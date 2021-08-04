@@ -56,6 +56,14 @@ api_key:
 #
 # hostname: <HOSTNAME_NAME>
 
+## @param hostname_file - string - optional
+## In some environments, auto-detection of the hostname is not adequate and
+## environment variables cannot be used to set the value. In such cases, the
+## file on the host can also be used provide an appropriate value. If
+## 'hostname' value has been set to a non-empty value, this option is ignored.
+#
+# hostname_file: /var/lib/cloud/data/instance-id
+
 ## @param hostname_fqdn - boolean - optional - default: false
 ## When the Agent relies on the OS to determine the hostname, make it use the
 ## FQDN instead of the short hostname. Recommended value: true

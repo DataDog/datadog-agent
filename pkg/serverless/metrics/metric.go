@@ -12,30 +12,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// PlatformObjectRecord contains additional information found in Platform log messages
-type PlatformObjectRecord struct {
-	RequestID string           // uuid; present in LogTypePlatform{Start,End,Report}
-	Version   string           // present in LogTypePlatformStart only
-	Metrics   ReportLogMetrics // present in LogTypePlatformReport only
-}
-
-// ReportLogMetrics contains metrics found in a LogTypePlatformReport log
-type ReportLogMetrics struct {
-	DurationMs       float64
-	BilledDurationMs int
-	MemorySizeMB     int
-	MaxMemoryUsedMB  int
-	InitDurationMs   float64
-}
-
 // ServerlessMetricAgent represents the DogStatsD server and the aggregator
 type ServerlessMetricAgent struct {
-	DogStatDServer *dogstatsd.Server
-	Aggregator     *aggregator.BufferedAggregator
+	dogStatDServer *dogstatsd.Server
+	aggregator     *aggregator.BufferedAggregator
 }
 
 // MetricConfig abstacts the config package
@@ -76,26 +61,50 @@ func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEn
 	if aggregatorInstance != nil {
 		statsd, err := dogstatFactory.NewServer(aggregatorInstance, nil)
 		if err != nil {
-			// we're not reporting the error to AWS because we don't want the function
-			// execution to be stopped. TODO(remy): discuss with AWS if there is way
-			// of reporting non-critical init errors.
-			// serverless.ReportInitError(serverlessID, serverless.FatalDogstatsdInit)
 			log.Errorf("Unable to start the DogStatsD server: %s", err)
 		} else {
 			statsd.ServerlessMode = true // we're running in a serverless environment (will removed host field from samples)
-			c.DogStatDServer = statsd
-			c.Aggregator = aggregatorInstance
+			c.dogStatDServer = statsd
+			c.aggregator = aggregatorInstance
 		}
 	}
+}
+
+// IsReady indicates whether or not the DogStatsD server is ready
+func (c *ServerlessMetricAgent) IsReady() bool {
+	return c.dogStatDServer != nil
+}
+
+// Flush triggers a DogStatsD flush
+func (c *ServerlessMetricAgent) Flush() {
+	if c.IsReady() {
+		c.dogStatDServer.Flush()
+	}
+}
+
+// Stop stops the DogStatsD server
+func (c *ServerlessMetricAgent) Stop() {
+	if c.IsReady() {
+		c.dogStatDServer.Stop()
+	}
+}
+
+// SetExtraTags sets extra tags on the DogStatsD server
+func (c *ServerlessMetricAgent) SetExtraTags(tagArray []string) {
+	if c.IsReady() {
+		c.dogStatDServer.SetExtraTags(tagArray)
+	}
+}
+
+// GetMetricChannel returns a channel where metrics can be sent to
+func (c *ServerlessMetricAgent) GetMetricChannel() chan []metrics.MetricSample {
+	return c.aggregator.GetBufferedMetricsWithTsChannel()
 }
 
 func buildBufferedAggregator(multipleEndpointConfig MultipleEndpointConfig, forwarderTimeout time.Duration) *aggregator.BufferedAggregator {
 	log.Debugf("Using a SyncForwarder with a %v timeout", forwarderTimeout)
 	keysPerDomain, err := multipleEndpointConfig.GetMultipleEndpoints()
 	if err != nil {
-		// we're not reporting the error to AWS because we don't want the function
-		// execution to be stopped. TODO(remy): discuss with AWS if there is way
-		// of reporting non-critical init errors.
 		log.Errorf("Misconfiguration of agent endpoints: %s", err)
 		return nil
 	}

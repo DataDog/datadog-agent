@@ -49,50 +49,50 @@ func GenerateEnhancedMetricsFromFunctionLog(logString string, time time.Time, ta
 }
 
 // GenerateEnhancedMetricsFromReportLog generates enhanced metrics from a LogTypePlatformReport log message
-func GenerateEnhancedMetricsFromReportLog(objectRecord PlatformObjectRecord, time time.Time, tags []string, metricsChan chan []metrics.MetricSample) {
-	memorySizeMb := float64(objectRecord.Metrics.MemorySizeMB)
-	billedDurationMs := float64(objectRecord.Metrics.BilledDurationMs)
+func GenerateEnhancedMetricsFromReportLog(initDurationMs float64, durationMs float64, billedDurationMs int, memorySizeMb int, maxMemoryUsedMb int, time time.Time, tags []string, metricsChan chan []metrics.MetricSample) {
 	timestamp := float64(time.UnixNano())
+	billedDuration := float64(billedDurationMs)
+	memorySize := float64(memorySizeMb)
 	enhancedMetrics := []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.max_memory_used",
-		Value:      float64(objectRecord.Metrics.MaxMemoryUsedMB),
+		Value:      float64(maxMemoryUsedMb),
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
 	}, {
 		Name:       "aws.lambda.enhanced.memorysize",
-		Value:      memorySizeMb,
+		Value:      memorySize,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
 	}, {
 		Name:       "aws.lambda.enhanced.billed_duration",
-		Value:      billedDurationMs * msToSec,
+		Value:      billedDuration * msToSec,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
 	}, {
 		Name:       "aws.lambda.enhanced.duration",
-		Value:      objectRecord.Metrics.DurationMs * msToSec,
+		Value:      durationMs * msToSec,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
 	}, {
 		Name:       "aws.lambda.enhanced.estimated_cost",
-		Value:      calculateEstimatedCost(billedDurationMs, memorySizeMb),
+		Value:      calculateEstimatedCost(billedDuration, memorySize),
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
 	}}
-	if objectRecord.Metrics.InitDurationMs > 0 {
+	if initDurationMs > 0 {
 		initDurationMetric := metrics.MetricSample{
 			Name:       "aws.lambda.enhanced.init_duration",
-			Value:      objectRecord.Metrics.InitDurationMs * msToSec,
+			Value:      initDurationMs * msToSec,
 			Mtype:      metrics.DistributionType,
 			Tags:       tags,
 			SampleRate: 1,

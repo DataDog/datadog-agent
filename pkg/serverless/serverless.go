@@ -170,7 +170,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {
 			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, daemon.ExecutionContext.Coldstart)
-			metricsChan := daemon.MetricAgent.Aggregator.GetBufferedMetricsWithTsChannel()
+			metricsChan := daemon.MetricAgent.GetMetricChannel()
 			metrics.SendTimeoutEnhancedMetric(metricTags, metricsChan)
 			if err != nil {
 				log.Error("Unable to persist current state to file while shutting down")
@@ -194,7 +194,7 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 		log.Debug("Timeout detected, finishing the current invocation now to allow receiving the SHUTDOWN event")
 		err := daemon.SaveCurrentExecutionContext()
 		if err != nil {
-			log.Debug("Impossible to save the current state")
+			log.Debug("Unable to save the current state")
 		}
 		daemon.FinishInvocation()
 		return
@@ -226,13 +226,13 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 	// to avoid blocking for too long.
 	// This flushTimeout is re-using the forwarder_timeout value.
 	if daemon.ShouldFlush(flush.Starting, time.Now()) {
-		log.Debugf("The flush strategy %s has decided to flush the data in the moment: %s", daemon.LogFlushStatagery(), flush.Starting)
+		log.Debugf("The flush strategy %s has decided to flush the data in the moment: %s", daemon.LogFlushStategy(), flush.Starting)
 		flushTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
 		ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 		daemon.TriggerFlush(ctx, false)
 		cancel() // free the resource of the context
 	} else {
-		log.Debugf("The flush strategy %s has decided to not flush in the moment: %s", daemon.LogFlushStatagery(), flush.Starting)
+		log.Debugf("The flush strategy %s has decided to not flush in the moment: %s", daemon.LogFlushStategy(), flush.Starting)
 	}
 	daemon.WaitForDaemon()
 	doneChannel <- true

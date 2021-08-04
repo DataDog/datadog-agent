@@ -4,7 +4,7 @@ kind: ServiceAccount
 metadata:
   labels:
     app: "datadog"
-    chart: "datadog-2.19.4"
+    chart: "datadog-2.19.8"
     heritage: "Helm"
     release: "datadog"
   name: datadog-cluster-agent

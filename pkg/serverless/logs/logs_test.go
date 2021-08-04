@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -78,9 +77,9 @@ func TestShouldProcessLog(t *testing.T) {
 
 func TestCreateStringRecordForReportLogWithInitDuration(t *testing.T) {
 	var sampleLogMessage = LogMessage{
-		ObjectRecord: serverlessMetrics.PlatformObjectRecord{
+		ObjectRecord: PlatformObjectRecord{
 			RequestID: "cf84ebaf-606a-4b0f-b99b-3685bfe973d7",
-			Metrics: serverlessMetrics.ReportLogMetrics{
+			Metrics: ReportLogMetrics{
 				DurationMs:       100.00,
 				BilledDurationMs: 100,
 				MemorySizeMB:     128,
@@ -96,9 +95,9 @@ func TestCreateStringRecordForReportLogWithInitDuration(t *testing.T) {
 
 func TestCreateStringRecordForReportLogWithoutInitDuration(t *testing.T) {
 	var sampleLogMessage = LogMessage{
-		ObjectRecord: serverlessMetrics.PlatformObjectRecord{
+		ObjectRecord: PlatformObjectRecord{
 			RequestID: "cf84ebaf-606a-4b0f-b99b-3685bfe973d7",
-			Metrics: serverlessMetrics.ReportLogMetrics{
+			Metrics: ReportLogMetrics{
 				DurationMs:       100.00,
 				BilledDurationMs: 100,
 				MemorySizeMB:     128,
@@ -181,8 +180,8 @@ func TestProcessMessageValid(t *testing.T) {
 	message := LogMessage{
 		Type: LogTypePlatformReport,
 		Time: time.Now(),
-		ObjectRecord: serverlessMetrics.PlatformObjectRecord{
-			Metrics: serverlessMetrics.ReportLogMetrics{
+		ObjectRecord: PlatformObjectRecord{
+			Metrics: ReportLogMetrics{
 				DurationMs:       1000.0,
 				BilledDurationMs: 800.0,
 				MemorySizeMB:     1024.0,
@@ -222,7 +221,7 @@ func TestProcessMessageStartValid(t *testing.T) {
 	message := LogMessage{
 		Type: LogTypePlatformStart,
 		Time: time.Now(),
-		ObjectRecord: serverlessMetrics.PlatformObjectRecord{
+		ObjectRecord: PlatformObjectRecord{
 			RequestID: "8286a188-ba32-4475-8077-530cd35c09a9",
 		},
 	}
@@ -237,12 +236,12 @@ func TestProcessMessageStartValid(t *testing.T) {
 	assert.Equal(t, lastRequestID, executionContext.LastLogRequestID)
 }
 
-func TestProcessMessageShouldNotProcess(t *testing.T) {
+func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
 	message := LogMessage{
 		Type: LogTypePlatformReport,
 		Time: time.Now(),
-		ObjectRecord: serverlessMetrics.PlatformObjectRecord{
-			Metrics: serverlessMetrics.ReportLogMetrics{
+		ObjectRecord: PlatformObjectRecord{
+			Metrics: ReportLogMetrics{
 				DurationMs:       1000.0,
 				BilledDurationMs: 800.0,
 				MemorySizeMB:     1024.0,

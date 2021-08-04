@@ -96,15 +96,15 @@ type Flush struct {
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Flush route.")
 	if !f.daemon.ShouldFlush(flush.Stopping, time.Now()) {
-		log.Debug("The flush strategy", f.daemon.LogFlushStatagery(), " has decided to not flush in moment:", flush.Stopping)
+		log.Debug("The flush strategy", f.daemon.LogFlushStategy(), " has decided to not flush in moment:", flush.Stopping)
 		f.daemon.FinishInvocation()
 		return
 	}
 
-	log.Debug("The flush strategy", f.daemon.LogFlushStatagery(), " has decided to flush in moment:", flush.Stopping)
+	log.Debug("The flush strategy", f.daemon.LogFlushStategy(), " has decided to flush in moment:", flush.Stopping)
 
 	// if the DogStatsD daemon isn't ready, wait for it.
-	if f.daemon.MetricAgent.DogStatDServer == nil {
+	if f.daemon.MetricAgent.IsReady() {
 		w.WriteHeader(503)
 		w.Write([]byte("DogStatsD server not ready"))
 		f.daemon.FinishInvocation()
@@ -128,11 +128,13 @@ func (d *Daemon) SetClientReady(isReady bool) {
 	d.clientLibReady = isReady
 }
 
+// ShouldFlush indicated whether or a flush is needed
 func (d *Daemon) ShouldFlush(moment flush.Moment, t time.Time) bool {
 	return d.flushStrategy.ShouldFlush(moment, t)
 }
 
-func (d *Daemon) LogFlushStatagery() string {
+// LogFlushStategy returns the flush stategy
+func (d *Daemon) LogFlushStategy() string {
 	return d.flushStrategy.String()
 }
 
@@ -142,7 +144,7 @@ func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfi
 		ExtraTags:              d.ExtraTags,
 		ExecutionContext:       d.ExecutionContext,
 		LogChannel:             logsChan,
-		MetricChannel:          d.MetricAgent.Aggregator.GetBufferedMetricsWithTsChannel(),
+		MetricChannel:          d.MetricAgent.GetMetricChannel(),
 		LogsEnabled:            logsEnabled,
 		EnhancedMetricsEnabled: enhancedMetricsEnabled,
 	})
@@ -151,7 +153,7 @@ func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfi
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
 func (d *Daemon) SetStatsdServer(metricAgent *metrics.ServerlessMetricAgent) {
 	d.MetricAgent = metricAgent
-	d.MetricAgent.DogStatDServer.SetExtraTags(d.ExtraTags.Tags)
+	d.MetricAgent.SetExtraTags(d.ExtraTags.Tags)
 }
 
 // SetTraceAgent sets the Agent instance for submitting traces
@@ -161,7 +163,7 @@ func (d *Daemon) SetTraceAgent(traceAgent *trace.ServerlessTraceAgent) {
 
 // SetFlushStrategy sets the flush strategy to use.
 func (d *Daemon) SetFlushStrategy(strategy flush.Strategy) {
-	log.Debugf("Set flush strategy: %s (was: %s)", strategy.String(), d.LogFlushStatagery())
+	log.Debugf("Set flush strategy: %s (was: %s)", strategy.String(), d.LogFlushStategy())
 	d.flushStrategy = strategy
 }
 
@@ -186,8 +188,8 @@ func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 
 	// metrics
 	go func() {
-		if d.MetricAgent != nil && d.MetricAgent.DogStatDServer != nil {
-			d.MetricAgent.DogStatDServer.Flush()
+		if d.MetricAgent != nil {
+			d.MetricAgent.Flush()
 		}
 		wg.Done()
 	}()
@@ -247,8 +249,8 @@ func (d *Daemon) Stop() {
 		d.TraceAgent.Stop()
 	}
 
-	if d.MetricAgent != nil && d.MetricAgent.DogStatDServer != nil {
-		d.MetricAgent.DogStatDServer.Stop()
+	if d.MetricAgent != nil {
+		d.MetricAgent.Stop()
 	}
 	logs.Stop()
 	log.Debug("Serverless agent shutdown complete")
@@ -326,8 +328,8 @@ func (d *Daemon) ComputeGlobalTags(configTags []string) {
 	if len(d.ExtraTags.Tags) == 0 {
 		tagMap := tags.BuildTagMap(d.ExecutionContext.ARN, configTags)
 		tagArray := tags.BuildTagsFromMap(tagMap)
-		if d.MetricAgent != nil && d.MetricAgent.DogStatDServer != nil {
-			d.MetricAgent.DogStatDServer.SetExtraTags(tagArray)
+		if d.MetricAgent != nil {
+			d.MetricAgent.SetExtraTags(tagArray)
 		}
 		if d.TraceAgent != nil {
 			d.TraceAgent.Get().SetGlobalTagsUnsafe(tags.BuildTracerTags(tagMap))

@@ -3,7 +3,7 @@
 
 package driver
 
-const Signature = 0xddfd00000009
+const Signature = 0xddfd0000000a
 
 const (
 	GetStatsIOCTL      = 0x122004
@@ -21,21 +21,20 @@ type FilterAddress struct {
 }
 
 type FilterDefinition struct {
-	FilterVersion    uint64
-	Size             uint64
-	FilterLayer      uint64
-	Af               uint64
-	LocalAddress     FilterAddress
-	RemoteAddress    FilterAddress
-	LocalPort        uint64
-	RemotePort       uint64
-	Protocol         uint64
-	Direction        uint64
-	V4InterfaceIndex uint64
-	V6InterfaceIndex uint64
+	FilterVersion  uint64
+	Size           uint64
+	FilterLayer    uint64
+	Af             uint64
+	LocalAddress   FilterAddress
+	RemoteAddress  FilterAddress
+	LocalPort      uint64
+	RemotePort     uint64
+	Protocol       uint64
+	Direction      uint64
+	InterfaceIndex uint64
 }
 
-const FilterDefinitionSize = 0xa0
+const FilterDefinitionSize = 0x98
 
 type FilterPacketHeader struct {
 	FilterVersion    uint64
