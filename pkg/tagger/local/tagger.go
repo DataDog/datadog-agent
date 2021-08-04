@@ -227,7 +227,7 @@ func (t *Tagger) pull(ctx context.Context) {
 	for name, puller := range t.pullers {
 		err := puller.Pull(ctx)
 		if err != nil {
-			log.Warnf("Error pulling from %s: %s", name, err.Error())
+			log.Debugf("Error pulling from %s: %s", name, err.Error())
 		}
 	}
 	t.RUnlock()
