@@ -9,11 +9,10 @@
 #include "bpf-common.h"
 #include "oom-kill-kern-user.h"
 
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,9,0)
     // 4.8 is the first version where `struct oom_control*` is the first argument of `oom_kill_process`
     // 4.9 is the first version where the field `totalpages` is available in `struct oom_control`
-    #error Version of Linux previous to 4.9.0 are not supported by this probe
+    #error Versions of Linux previous to 4.9.0 are not supported by this probe
 #endif
 
 /*

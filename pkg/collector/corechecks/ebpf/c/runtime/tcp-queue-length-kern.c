@@ -17,6 +17,11 @@
 #include "bpf-common.h"
 #include "tcp-queue-length-kern-user.h"
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,8,0)
+    // 4.8 is the first version where `bpf_get_current_task` is available
+    #error Versions of Linux previous to 4.8.0 are not supported by this probe
+#endif
+
 /*
  * The `tcp_queue_stats` map is used to share with the userland program system-probe
  * the statistics (max size of receive/send buffer)
