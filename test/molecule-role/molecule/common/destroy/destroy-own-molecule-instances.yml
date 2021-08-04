@@ -7,6 +7,8 @@
       "tag:agent_current_branch": "{{ agent_current_branch }}"
       "tag:molecule_scenario_name": "{{ molecule_scenario_name }}"
       "tag:molecule_run_id": "{{ molecule_run_id }}"
+      "tag:dev": "{{ dev_mode }}"
+      "tag:usage": "molecule-build"
   register: own_instances
 
 - name: Instances found

@@ -20,6 +20,12 @@ def lambda_handler(event, context):
                 ]
             },
             {
+                'Name': 'tag:dev',
+                'Values': [
+                    'false'
+                ]
+            },
+            {
                 'Name': 'instance-state-name',
                 'Values': [
                     'running'
@@ -47,6 +53,12 @@ def lambda_handler(event, context):
                     'Name': 'tag:usage',
                     'Values': [
                         'molecule-build'
+                    ]
+                },
+                {
+                    'Name': 'tag:dev',
+                    'Values': [
+                        'false'
                     ]
                 },
                 {

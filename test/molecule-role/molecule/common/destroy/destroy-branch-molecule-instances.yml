@@ -6,6 +6,8 @@
       "tag:ci_sts_major_python_version": "{{ ci_sts_major_python_version }}"
       "tag:agent_current_branch": "{{ agent_current_branch }}"
       "tag:molecule_scenario_name": "{{ molecule_scenario_name }}"
+      "tag:dev": "{{ dev_mode }}"
+      "tag:usage": "molecule-build"
   register: branch_instances
 
 - name: Instances found
