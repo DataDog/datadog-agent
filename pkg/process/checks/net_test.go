@@ -267,13 +267,13 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 			assert.NotContains(t, domaindb, domains[1])
 
 			indexzero := indexOf(domains[0], domaindb)
-			indexdextwo := indexOf(domains[2], domaindb)
+			indextwo := indexOf(domains[2], domaindb)
 			conn := connections.Connections[0]
 			val, ok := conn.DnsStatsByDomainByQueryType[indexzero]
 			assert.True(t, ok)
 			assert.Equal(t, val.DnsStatsByQueryType[int32(network.DNSTypeA)].DnsTimeouts, uint32(2))
 
-			val, ok = conn.DnsStatsByDomainByQueryType[indexdextwo]
+			val, ok = conn.DnsStatsByDomainByQueryType[indextwo]
 			assert.True(t, ok)
 			assert.Equal(t, val.DnsStatsByQueryType[int32(network.DNSTypeA)].DnsTimeouts, uint32(3))
 
@@ -284,13 +284,13 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 			assert.NotContains(t, domaindb, domains[0])
 
 			indexone := indexOf(domains[1], domaindb)
-			indexdextwo := indexOf(domains[2], domaindb)
+			indextwo := indexOf(domains[2], domaindb)
 			conn := connections.Connections[0]
 			val, ok := conn.DnsStatsByDomainByQueryType[indexone]
 			assert.True(t, ok)
 			assert.Equal(t, val.DnsStatsByQueryType[int32(network.DNSTypeA)].DnsTimeouts, uint32(4))
 
-			val, ok = conn.DnsStatsByDomainByQueryType[indexdextwo]
+			val, ok = conn.DnsStatsByDomainByQueryType[indextwo]
 			assert.True(t, ok)
 			assert.Equal(t, val.DnsStatsByQueryType[int32(network.DNSTypeA)].DnsTimeouts, uint32(5))
 		}

@@ -258,8 +258,9 @@ func batchConnections(
 
 		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
 			if entries, ok := dns[c.Raddr.Ip]; ok {
-				//batchDNS[c.Raddr.Ip] = entries
-				convertDNSEntry(batchDNS, namemap, &namedb, c.Raddr.Ip, entries)
+				if _, present := batchDNS[c.Raddr.Ip]; !present {
+					convertDNSEntry(batchDNS, namemap, &namedb, c.Raddr.Ip, entries)
+				}
 			}
 
 			if c.Laddr.ContainerId != "" {
