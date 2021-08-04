@@ -131,9 +131,12 @@ func fetchSysObjectID(session sessionAPI) (string, error) {
 		return "", fmt.Errorf("expected 1 value, but got %d: variables=%v", len(result.Variables), result.Variables)
 	}
 	pduVar := result.Variables[0]
-	_, value, err := getValueFromPDU(pduVar)
+	oid, value, err := getValueFromPDU(pduVar)
 	if err != nil {
 		return "", fmt.Errorf("error getting value from pdu: %s", err)
+	}
+	if oid != sysObjectIDOid {
+		return "", fmt.Errorf("expect `%s` OID but got `%s` OID with value `%v`", sysObjectIDOid, oid, value)
 	}
 	strValue, err := value.toString()
 	if err != nil {

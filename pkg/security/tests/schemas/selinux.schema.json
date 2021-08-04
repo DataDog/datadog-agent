@@ -16,15 +16,11 @@
                                 "on",
                                 "off"
                             ]
-                        },
-                        "changed": {
-                            "type": "boolean"
                         }
                     },
                     "required": [
                         "name",
-                        "state",
-                        "changed"
+                        "state"
                     ]
                 }
             },
@@ -44,14 +40,10 @@
                                 "permissive",
                                 "disabled"
                             ]
-                        },
-                        "changed": {
-                            "type": "boolean"
                         }
                     },
                     "required": [
-                        "status",
-                        "changed"
+                        "status"
                     ]
                 }
             },
@@ -139,5 +131,8 @@
                 }
             }
         }
+    ],
+    "required": [
+        "selinux"
     ]
 }
