@@ -597,20 +597,6 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 		tagger.GetEntityHash(svc.GetTaggerEntity(), tagger.ChecksCardinality),
 	)
 
-	configs, err := svc.GetIntegrationConfigs()
-	if err != nil {
-		log.Errorf("Failed to get Integration Configs for service %s, it will not be monitored - %s", svc.GetEntity(), err)
-		return
-	}
-	for _, conf := range configs {
-		conf.Entity = svc.GetEntity()
-		conf.CreationTime = svc.GetCreationTime()
-		conf.MetricsExcluded = svc.HasFilter(containers.MetricsFilter)
-		conf.LogsExcluded = svc.HasFilter(containers.LogsFilter)
-		ac.store.setLoadedConfig(conf)
-		ac.store.addConfigForService(svc.GetEntity(), conf)
-	}
-
 	// get all the templates matching service identifiers
 	var templates []integration.Config
 	ADIdentifiers, err := svc.GetADIdentifiers(ctx)
@@ -638,6 +624,21 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 		// ask the Collector to schedule the checks
 		ac.schedule([]integration.Config{resolvedConfig})
 	}
+
+	configs, err := svc.GetIntegrationConfigs()
+	if err != nil {
+		log.Errorf("Failed to get Integration Configs for service %s, it will not be monitored - %s", svc.GetEntity(), err)
+		return
+	}
+	for _, conf := range configs {
+		conf.Entity = svc.GetEntity()
+		conf.CreationTime = svc.GetCreationTime()
+		conf.MetricsExcluded = svc.HasFilter(containers.MetricsFilter)
+		conf.LogsExcluded = svc.HasFilter(containers.LogsFilter)
+		ac.store.setLoadedConfig(conf)
+		ac.store.addConfigForService(svc.GetEntity(), conf)
+	}
+
 	// FIXME: schedule new services as well
 	ac.schedule([]integration.Config{
 		{
