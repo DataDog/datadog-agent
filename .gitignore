@@ -14,7 +14,6 @@ venv/
 .python-version
 venv27/
 venv3[78]/
-.molecule-temp
 
 **/*.tmp
 **/debug.test
