@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
         - name: agent
-          image: "gcr.io/datadoghq/agent:7.29.0"
+          image: "gcr.io/datadoghq/agent:7.29.1"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           resources: {}
@@ -122,7 +122,7 @@ spec:
             timeoutSeconds: 5
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/agent:7.29.0"
+          image: "gcr.io/datadoghq/agent:7.29.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -132,7 +132,7 @@ spec:
               mountPath: /opt/datadog-agent
           resources: {}
         - name: init-config
-          image: "gcr.io/datadoghq/agent:7.29.0"
+          image: "gcr.io/datadoghq/agent:7.29.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:

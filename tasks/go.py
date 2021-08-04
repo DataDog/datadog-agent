@@ -331,16 +331,18 @@ def lint_licenses(ctx):
         print("- {}".format(license))
 
     if len(removed_licenses) + len(added_licenses) > 0:
-        print("licenses are not up-to-date")
-        raise Exit(code=1)
+        raise Exit(
+            message="Licenses are not up-to-date.\n\nPlease run 'inv generate-licenses' to update licenses file.",
+            code=1,
+        )
 
-    print("licenses ok")
+    print("Licenses are ok.")
 
 
 @task
 def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
     """
-    Generates that the LICENSE-3rdparty.csv file is up-to-date with contents of go.sum
+    Generates the LICENSE-3rdparty.csv file. Run this if `inv lint-licenses` fails.
     """
     with open(filename, 'w') as f:
         f.write("Component,Origin,License\n")
@@ -524,9 +526,9 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
     for mod in DEFAULT_MODULES.values():
         with ctx.cd(mod.full_path()):
             ctx.run("go mod tidy")
-            res = ctx.run("git diff-files --exit-code go.mod", warn=True)
+            res = ctx.run("git diff-files --exit-code go.mod go.sum", warn=True)
             if res.exited is None or res.exited > 0:
-                errors_found.append("go.mod for {} module is out of sync".format(mod.import_path))
+                errors_found.append("go.mod or go.sum for {} module is out of sync".format(mod.import_path))
 
     generate_dummy_package(ctx, test_folder)
     with ctx.cd(test_folder):

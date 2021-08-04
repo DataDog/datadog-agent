@@ -380,9 +380,6 @@ func TestTCPOverIPv6(t *testing.T) {
 }
 
 func TestTCPCollectionDisabled(t *testing.T) {
-	// config flag is not respected yet
-	skipIfWindows(t)
-
 	// Enable BPF-based system probe with TCP disabled
 	config := testConfig()
 	config.CollectTCPConns = false
@@ -478,8 +475,6 @@ func TestUDPSendAndReceive(t *testing.T) {
 }
 
 func TestUDPDisabled(t *testing.T) {
-	// config flag not respected
-	skipIfWindows(t)
 	// Enable BPF-based system probe with UDP disabled
 	config := testConfig()
 	config.CollectUDPConns = false
@@ -522,8 +517,6 @@ func TestUDPDisabled(t *testing.T) {
 }
 
 func TestLocalDNSCollectionDisabled(t *testing.T) {
-	// config flag not respected
-	skipIfWindows(t)
 	// Enable BPF-based system probe with DNS disabled (by default)
 	config := testConfig()
 
@@ -1266,6 +1259,7 @@ func TestConnectionClobber(t *testing.T) {
 
 	preCap := connectionBufferCapacity(tr)
 	connections := getConnections(t, tr)
+	require.NotEmpty(t, connections)
 	src := connections.Conns[0].SPort
 	dst := connections.Conns[0].DPort
 	t.Logf("got %d connections", len(connections.Conns))

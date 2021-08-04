@@ -8,4 +8,6 @@
 ---
 fixes:
   - |
-    In case of internal problem to the tagger, flag the `tagger` component as unhealthy (in the output of `agent health`) instead of leaking goroutines.
+    Fixes a bug where the Agent would hold on to tags from stopped ECS EC2 (but
+    not Fargate) tags forever, resulting in increased memory consumption on EC2
+    instances handling a lot of short scheduled tasks.

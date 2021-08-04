@@ -4,12 +4,14 @@
 #########################
 
 ## @param api_key - string - required
+## @env DD_API_KEY - string - required
 ## The Datadog API key to associate your Agent's data with your organization.
 ## Create a new API key here: https://app.datadoghq.com/account/settings
 #
 api_key:
 
 ## @param site - string - optional - default: datadoghq.com
+## @env DD_SITE - string - optional - default: datadoghq.com
 ## The site of the Datadog intake to send Agent data to.
 ## Set to 'datadoghq.eu' to send data to the EU site.
 ## Set to 'us3.datadoghq.com' to send data to the US3 site.
@@ -18,6 +20,7 @@ api_key:
 # site: datadoghq.com
 
 ## @param dd_url - string - optional - default: https://app.datadoghq.com
+## @env DD_URL - string - optional - default: https://app.datadoghq.com
 ## The host of the Datadog intake server to send metrics to, only set this option
 ## if you need the Agent to send metrics to a custom URL, it overrides the site
 ## setting defined in "site". It does not affect APM, Logs or Live Process intake which have their
@@ -52,6 +55,14 @@ api_key:
 ## Force the hostname name.
 #
 # hostname: <HOSTNAME_NAME>
+
+## @param hostname_file - string - optional
+## In some environments, auto-detection of the hostname is not adequate and
+## environment variables cannot be used to set the value. In such cases, the
+## file on the host can also be used provide an appropriate value. If
+## 'hostname' value has been set to a non-empty value, this option is ignored.
+#
+# hostname_file: /var/lib/cloud/data/instance-id
 
 ## @param hostname_fqdn - boolean - optional - default: false
 ## When the Agent relies on the OS to determine the hostname, make it use the
