@@ -17,8 +17,8 @@ const (
 	// defaultRuntimeCompilerOutputDir is the default path for output from the system-probe runtime compiler
 	defaultRuntimeCompilerOutputDir = "/var/tmp/datadog-agent/system-probe/build"
 
-	// DefaultKernelHeadersDownloadDir is the default path for downloading kernel headers for runtime compilation
-	DefaultKernelHeadersDownloadDir = "/var/tmp/datadog-agent/system-probe/kernel-headers"
+	// defaultKernelHeadersDownloadDir is the default path for downloading kernel headers for runtime compilation
+	defaultKernelHeadersDownloadDir = "/var/tmp/datadog-agent/system-probe/kernel-headers"
 
 	defaultOffsetThreshold = 400
 )
@@ -71,7 +71,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_runtime_compiler"), false, "DD_ENABLE_RUNTIME_COMPILER")
 	cfg.BindEnvAndSetDefault(join(spNS, "runtime_compiler_output_dir"), defaultRuntimeCompilerOutputDir, "DD_RUNTIME_COMPILER_OUTPUT_DIR")
 	cfg.BindEnvAndSetDefault(join(spNS, "kernel_header_dirs"), []string{}, "DD_KERNEL_HEADER_DIRS")
-	cfg.BindEnvAndSetDefault(join(spNS, "kernel_header_download_dir"), DefaultKernelHeadersDownloadDir, "DD_KERNEL_HEADER_DOWNLOAD_DIR")
+	cfg.BindEnvAndSetDefault(join(spNS, "kernel_header_download_dir"), defaultKernelHeadersDownloadDir, "DD_KERNEL_HEADER_DOWNLOAD_DIR")
 	cfg.BindEnvAndSetDefault(join(spNS, "containerized_environment"), false)
 
 	// network_tracer settings
