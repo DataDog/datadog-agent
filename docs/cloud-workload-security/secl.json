@@ -67,6 +67,11 @@
           "definition": "Effective user of the process"
         },
         {
+          "name": "process.ancestors.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
+        {
           "name": "process.ancestors.file.filesystem",
           "type": "string",
           "definition": "FileSystem of the process executable"
@@ -94,7 +99,12 @@
         {
           "name": "process.ancestors.file.mode",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "process.ancestors.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
         },
         {
           "name": "process.ancestors.file.mount_id",
@@ -114,7 +124,7 @@
         {
           "name": "process.ancestors.file.rights",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
         },
         {
           "name": "process.ancestors.file.uid",
@@ -237,6 +247,11 @@
           "definition": "Effective user of the process"
         },
         {
+          "name": "process.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
+        {
           "name": "process.file.filesystem",
           "type": "string",
           "definition": "FileSystem of the process executable"
@@ -264,7 +279,12 @@
         {
           "name": "process.file.mode",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "process.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
         },
         {
           "name": "process.file.mount_id",
@@ -284,7 +304,7 @@
         {
           "name": "process.file.rights",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
         },
         {
           "name": "process.file.uid",
@@ -383,6 +403,11 @@
       "from_agent_version": "7.27",
       "properties": [
         {
+          "name": "chmod.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
+        {
           "name": "chmod.file.destination.mode",
           "type": "int",
           "definition": "New mode/rights of the chmod-ed file"
@@ -420,7 +445,12 @@
         {
           "name": "chmod.file.mode",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "chmod.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
         },
         {
           "name": "chmod.file.mount_id",
@@ -440,7 +470,7 @@
         {
           "name": "chmod.file.rights",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
         },
         {
           "name": "chmod.file.uid",
@@ -465,6 +495,11 @@
       "type": "File",
       "from_agent_version": "7.27",
       "properties": [
+        {
+          "name": "chown.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
         {
           "name": "chown.file.destination.gid",
           "type": "int",
@@ -513,7 +548,12 @@
         {
           "name": "chown.file.mode",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "chown.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
         },
         {
           "name": "chown.file.mount_id",
@@ -533,7 +573,7 @@
         {
           "name": "chown.file.rights",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
         },
         {
           "name": "chown.file.uid",
@@ -644,6 +684,11 @@
           "definition": "Effective user of the process"
         },
         {
+          "name": "exec.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
+        {
           "name": "exec.file.filesystem",
           "type": "string",
           "definition": "FileSystem of the process executable"
@@ -671,7 +716,12 @@
         {
           "name": "exec.file.mode",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "exec.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
         },
         {
           "name": "exec.file.mount_id",
@@ -691,7 +741,7 @@
         {
           "name": "exec.file.rights",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
         },
         {
           "name": "exec.file.uid",
@@ -772,6 +822,16 @@
       "from_agent_version": "7.27",
       "properties": [
         {
+          "name": "link.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
+        {
+          "name": "link.file.destination.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
+        {
           "name": "link.file.destination.filesystem",
           "type": "string",
           "definition": "File's filesystem"
@@ -799,7 +859,12 @@
         {
           "name": "link.file.destination.mode",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "link.file.destination.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
         },
         {
           "name": "link.file.destination.mount_id",
@@ -819,7 +884,7 @@
         {
           "name": "link.file.destination.rights",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
         },
         {
           "name": "link.file.destination.uid",
@@ -859,7 +924,12 @@
         {
           "name": "link.file.mode",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "link.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
         },
         {
           "name": "link.file.mount_id",
@@ -879,7 +949,7 @@
         {
           "name": "link.file.rights",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
         },
         {
           "name": "link.file.uid",
@@ -904,6 +974,11 @@
       "type": "File",
       "from_agent_version": "7.27",
       "properties": [
+        {
+          "name": "mkdir.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
         {
           "name": "mkdir.file.destination.mode",
           "type": "int",
@@ -942,7 +1017,12 @@
         {
           "name": "mkdir.file.mode",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "mkdir.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
         },
         {
           "name": "mkdir.file.mount_id",
@@ -962,7 +1042,7 @@
         {
           "name": "mkdir.file.rights",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
         },
         {
           "name": "mkdir.file.uid",
@@ -987,6 +1067,11 @@
       "type": "File",
       "from_agent_version": "7.27",
       "properties": [
+        {
+          "name": "open.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
         {
           "name": "open.file.destination.mode",
           "type": "int",
@@ -1020,7 +1105,12 @@
         {
           "name": "open.file.mode",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "open.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
         },
         {
           "name": "open.file.mount_id",
@@ -1040,7 +1130,7 @@
         {
           "name": "open.file.rights",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
         },
         {
           "name": "open.file.uid",
@@ -1070,6 +1160,11 @@
       "type": "File",
       "from_agent_version": "7.27",
       "properties": [
+        {
+          "name": "removexattr.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
         {
           "name": "removexattr.file.destination.name",
           "type": "string",
@@ -1108,7 +1203,12 @@
         {
           "name": "removexattr.file.mode",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "removexattr.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
         },
         {
           "name": "removexattr.file.mount_id",
@@ -1128,7 +1228,7 @@
         {
           "name": "removexattr.file.rights",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
         },
         {
           "name": "removexattr.file.uid",
@@ -1153,6 +1253,16 @@
       "type": "File",
       "from_agent_version": "7.27",
       "properties": [
+        {
+          "name": "rename.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
+        {
+          "name": "rename.file.destination.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
         {
           "name": "rename.file.destination.filesystem",
           "type": "string",
@@ -1181,7 +1291,12 @@
         {
           "name": "rename.file.destination.mode",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "rename.file.destination.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
         },
         {
           "name": "rename.file.destination.mount_id",
@@ -1201,7 +1316,7 @@
         {
           "name": "rename.file.destination.rights",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
         },
         {
           "name": "rename.file.destination.uid",
@@ -1241,7 +1356,12 @@
         {
           "name": "rename.file.mode",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "rename.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
         },
         {
           "name": "rename.file.mount_id",
@@ -1261,7 +1381,7 @@
         {
           "name": "rename.file.rights",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
         },
         {
           "name": "rename.file.uid",
@@ -1286,6 +1406,11 @@
       "type": "File",
       "from_agent_version": "7.27",
       "properties": [
+        {
+          "name": "rmdir.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
         {
           "name": "rmdir.file.filesystem",
           "type": "string",
@@ -1314,7 +1439,12 @@
         {
           "name": "rmdir.file.mode",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "rmdir.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
         },
         {
           "name": "rmdir.file.mount_id",
@@ -1334,7 +1464,7 @@
         {
           "name": "rmdir.file.rights",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
         },
         {
           "name": "rmdir.file.uid",
@@ -1464,6 +1594,11 @@
       "from_agent_version": "7.27",
       "properties": [
         {
+          "name": "setxattr.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
+        {
           "name": "setxattr.file.destination.name",
           "type": "string",
           "definition": "Name of the extended attribute"
@@ -1501,7 +1636,12 @@
         {
           "name": "setxattr.file.mode",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "setxattr.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
         },
         {
           "name": "setxattr.file.mount_id",
@@ -1521,7 +1661,7 @@
         {
           "name": "setxattr.file.rights",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
         },
         {
           "name": "setxattr.file.uid",
@@ -1546,6 +1686,11 @@
       "type": "File",
       "from_agent_version": "7.27",
       "properties": [
+        {
+          "name": "unlink.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
         {
           "name": "unlink.file.filesystem",
           "type": "string",
@@ -1574,7 +1719,12 @@
         {
           "name": "unlink.file.mode",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "unlink.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
         },
         {
           "name": "unlink.file.mount_id",
@@ -1594,7 +1744,7 @@
         {
           "name": "unlink.file.rights",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
         },
         {
           "name": "unlink.file.uid",
@@ -1619,6 +1769,11 @@
       "type": "File",
       "from_agent_version": "7.27",
       "properties": [
+        {
+          "name": "utimes.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file"
+        },
         {
           "name": "utimes.file.filesystem",
           "type": "string",
@@ -1647,7 +1802,12 @@
         {
           "name": "utimes.file.mode",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
+        },
+        {
+          "name": "utimes.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file"
         },
         {
           "name": "utimes.file.mount_id",
@@ -1667,7 +1827,7 @@
         {
           "name": "utimes.file.rights",
           "type": "int",
-          "definition": "Mode/rights of the file's owner"
+          "definition": "Mode/rights of the file"
         },
         {
           "name": "utimes.file.uid",

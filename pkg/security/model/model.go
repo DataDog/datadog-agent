@@ -282,9 +282,9 @@ type FileFields struct {
 	User  string `field:"user,ResolveFileFieldsUser"`        // User of the file's owner
 	GID   uint32 `field:"gid"`                               // GID of the file's owner
 	Group string `field:"group,ResolveFileFieldsGroup"`      // Group of the file's owner
-	Mode  uint16 `field:"mode" field:"rights,ResolveRights"` // Mode/rights of the file's owner
-	CTime uint64 `field:"change_time"`
-	MTime uint64 `field:"modification_time"`
+	Mode  uint16 `field:"mode" field:"rights,ResolveRights"` // Mode/rights of the file
+	CTime uint64 `field:"change_time"`                       // Change time of the file
+	MTime uint64 `field:"modification_time"`                 // Modification time of the file
 
 	MountID      uint32 `field:"mount_id"` // Mount ID of the file
 	Inode        uint64 `field:"inode"`    // Inode of the file
