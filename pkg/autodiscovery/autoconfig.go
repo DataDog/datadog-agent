@@ -597,24 +597,20 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 		tagger.GetEntityHash(svc.GetTaggerEntity(), tagger.ChecksCardinality),
 	)
 
-	ac.processWithADTemplate(ctx, svc)
-	ac.processWithIntegrationConfigs(ctx, svc)
+	configs, err := svc.GetIntegrationConfigs()
+	if err != nil {
+		log.Errorf("Failed to get Integration Configs for service %s, it will not be monitored - %s", svc.GetEntity(), err)
+		return
+	}
+	for _, conf := range configs {
+		conf.Entity = svc.GetEntity()
+		conf.CreationTime = svc.GetCreationTime()
+		conf.MetricsExcluded = svc.HasFilter(containers.MetricsFilter)
+		conf.LogsExcluded = svc.HasFilter(containers.LogsFilter)
+		ac.store.setLoadedConfig(conf)
+		ac.store.addConfigForService(svc.GetEntity(), conf)
+	}
 
-	// FIXME: schedule new services as well
-	ac.schedule([]integration.Config{
-		{
-			LogsConfig:      integration.Data{},
-			Entity:          svc.GetEntity(),
-			TaggerEntity:    svc.GetTaggerEntity(),
-			CreationTime:    svc.GetCreationTime(),
-			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
-			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
-		},
-	})
-
-}
-
-func (ac *AutoConfig) processWithADTemplate(ctx context.Context, svc listeners.Service) {
 	// get all the templates matching service identifiers
 	var templates []integration.Config
 	ADIdentifiers, err := svc.GetADIdentifiers(ctx)
@@ -642,26 +638,19 @@ func (ac *AutoConfig) processWithADTemplate(ctx context.Context, svc listeners.S
 		// ask the Collector to schedule the checks
 		ac.schedule([]integration.Config{resolvedConfig})
 	}
-}
 
-func (ac *AutoConfig) processWithIntegrationConfigs(ctx context.Context, svc listeners.Service) {
-	configs, err := svc.GetIntegrationConfigs()
-	log.Warnf("[DEV] configs: %v", configs)
-	if err != nil {
-		log.Errorf("Failed to get Integration Configs for service %s, it will not be monitored - %s", svc.GetEntity(), err)
-		return
-	}
-	for _, conf := range configs {
-		conf.Entity = svc.GetEntity()
-		conf.CreationTime = svc.GetCreationTime()
-		conf.MetricsExcluded = svc.HasFilter(containers.MetricsFilter)
-		conf.LogsExcluded = svc.HasFilter(containers.LogsFilter)
+	// FIXME: schedule new services as well
+	ac.schedule([]integration.Config{
+		{
+			LogsConfig:      integration.Data{},
+			Entity:          svc.GetEntity(),
+			TaggerEntity:    svc.GetTaggerEntity(),
+			CreationTime:    svc.GetCreationTime(),
+			MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
+			LogsExcluded:    svc.HasFilter(containers.LogsFilter),
+		},
+	})
 
-		ac.store.setLoadedConfig(conf)
-		ac.store.addConfigForService(svc.GetEntity(), conf)
-
-		ac.schedule([]integration.Config{conf})
-	}
 }
 
 // processDelService takes a service, stops its associated checks, and updates the cache
