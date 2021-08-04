@@ -52,7 +52,7 @@ const (
 	DefaultBatchWait = 5
 
 	// DefaultBatchMaxConcurrentSend is the default HTTP batch max concurrent send for logs
-	DefaultBatchMaxConcurrentSend = 0
+	DefaultBatchMaxConcurrentSend = 1
 
 	// DefaultBatchMaxSize is the default HTTP batch max size (maximum number of events in a single batch) for logs
 	DefaultBatchMaxSize = 100
