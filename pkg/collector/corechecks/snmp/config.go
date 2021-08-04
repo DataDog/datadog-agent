@@ -2,9 +2,11 @@ package snmp
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v2"
 
@@ -37,27 +39,28 @@ type snmpInitConfig struct {
 }
 
 type snmpInstanceConfig struct {
-	IPAddress             string            `yaml:"ip_address"`
-	Port                  Number            `yaml:"port"`
-	CommunityString       string            `yaml:"community_string"`
-	SnmpVersion           string            `yaml:"snmp_version"`
-	Timeout               Number            `yaml:"timeout"`
-	Retries               Number            `yaml:"retries"`
-	OidBatchSize          Number            `yaml:"oid_batch_size"`
-	BulkMaxRepetitions    Number            `yaml:"bulk_max_repetitions"`
-	User                  string            `yaml:"user"`
-	AuthProtocol          string            `yaml:"authProtocol"`
-	AuthKey               string            `yaml:"authKey"`
-	PrivProtocol          string            `yaml:"privProtocol"`
-	PrivKey               string            `yaml:"privKey"`
-	ContextName           string            `yaml:"context_name"`
-	Metrics               []metricsConfig   `yaml:"metrics"`
-	MetricTags            []metricTagConfig `yaml:"metric_tags"`
-	Profile               string            `yaml:"profile"`
-	UseGlobalMetrics      bool              `yaml:"use_global_metrics"`
-	ExtraTags             string            `yaml:"extra_tags"` // comma separated tags
-	Tags                  []string          `yaml:"tags"`       // used for device metadata
-	CollectDeviceMetadata *Boolean          `yaml:"collect_device_metadata"`
+	IPAddress                  string            `yaml:"ip_address"`
+	Port                       Number            `yaml:"port"`
+	CommunityString            string            `yaml:"community_string"`
+	SnmpVersion                string            `yaml:"snmp_version"`
+	Timeout                    Number            `yaml:"timeout"`
+	Retries                    Number            `yaml:"retries"`
+	OidBatchSize               Number            `yaml:"oid_batch_size"`
+	BulkMaxRepetitions         Number            `yaml:"bulk_max_repetitions"`
+	User                       string            `yaml:"user"`
+	AuthProtocol               string            `yaml:"authProtocol"`
+	AuthKey                    string            `yaml:"authKey"`
+	PrivProtocol               string            `yaml:"privProtocol"`
+	PrivKey                    string            `yaml:"privKey"`
+	ContextName                string            `yaml:"context_name"`
+	Metrics                    []metricsConfig   `yaml:"metrics"`
+	MetricTags                 []metricTagConfig `yaml:"metric_tags"`
+	Profile                    string            `yaml:"profile"`
+	UseGlobalMetrics           bool              `yaml:"use_global_metrics"`
+	ExtraTags                  string            `yaml:"extra_tags"` // comma separated tags
+	ExtraMinCollectionInterval Number            `yaml:"extra_min_collection_interval"`
+	Tags                       []string          `yaml:"tags"` // used for device metadata
+	CollectDeviceMetadata      *Boolean          `yaml:"collect_device_metadata"`
 
 	// `network` config is only available in Python SNMP integration
 	// it's added here to raise warning if used with corecheck SNMP integration
@@ -93,6 +96,7 @@ type snmpConfig struct {
 	deviceIDTags          []string
 	subnet                string
 	autodetectProfile     bool
+	minCollectionInterval time.Duration
 }
 
 func (c *snmpConfig) refreshWithProfile(profile string) error {
@@ -216,6 +220,12 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		c.timeout = defaultTimeout
 	} else {
 		c.timeout = int(instance.Timeout)
+	}
+
+	if instance.ExtraMinCollectionInterval == 0 {
+		c.minCollectionInterval = defaults.DefaultCheckInterval
+	} else {
+		c.minCollectionInterval = time.Duration(instance.ExtraMinCollectionInterval) * time.Second
 	}
 
 	// SNMP connection configs
