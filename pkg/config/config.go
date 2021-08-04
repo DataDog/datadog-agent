@@ -532,14 +532,6 @@ func InitConfig(config Config) {
 	config.SetKnown("snmp_listener.workers")
 	config.SetKnown("snmp_listener.configs")
 
-	config.BindEnvAndSetDefault("ndm_config.enabled", false)
-	config.SetKnown("ndm_config.snmp_autodiscovery.discovery_interval")
-	config.SetKnown("ndm_config.snmp_autodiscovery.allowed_failures")
-	config.SetKnown("ndm_config.snmp_autodiscovery.collect_device_metadata")
-	config.SetKnown("ndm_config.snmp_autodiscovery.workers")
-	config.SetKnown("ndm_config.snmp_autodiscovery.configs")
-
-
 	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
 	config.BindEnvAndSetDefault("snmp_traps_config.port", 162)
 	config.BindEnvAndSetDefault("snmp_traps_config.community_strings", []string{})

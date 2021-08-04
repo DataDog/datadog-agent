@@ -95,10 +95,8 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 		}
 	}
 
-	log.Warnf("[DEV] extraEnvListeners: %s", extraEnvListeners)
 	var listeners []config.Listeners
 	err = config.Datadog.UnmarshalKey("listeners", &listeners)
-	log.Warnf("[DEV] config listeners: %s", listeners)
 	if err == nil {
 		// Add extra listeners
 		for _, name := range config.Datadog.GetStringSlice("extra_listeners") {
@@ -118,7 +116,6 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 				listeners = append(listeners, listener)
 			}
 		}
-
 
 		// For extraEnvListeners, we need to check incompatibleListeners to avoid generation of duplicate checks
 		for _, listener := range extraEnvListeners {
@@ -147,8 +144,6 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 	} else {
 		log.Errorf("Error while reading 'listeners' settings: %v", err)
 	}
-
-	log.Warnf("[DEV] listeners: %s", listeners)
 
 	return ad
 }
