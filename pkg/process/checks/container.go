@@ -134,10 +134,6 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 		ctr = fillNilContainer(ctr)
 		lastCtr = fillNilRates(lastCtr)
 
-		ifStats := ctr.Network.SumInterfaces()
-		cpus := system.HostCPUCount()
-		sys2, sys1 := ctr.CPU.SystemUsage, lastCtr.CPU.SystemUsage
-
 		// Retrieves metadata tags
 		tags, err := tagger.Tag(ctr.EntityID, collectors.HighCardinality)
 		if err != nil {
@@ -152,13 +148,26 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 			continue
 		}
 
+		ifStats := ctr.Network.SumInterfaces()
+		cpus := system.HostCPUCount()
+		sys2, sys1 := ctr.CPU.SystemUsage, lastCtr.CPU.SystemUsage
+
+		userPct := calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, lastRun)
+		systemPct := calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, lastRun)
+		var totalPct float32
+		if userPct == -1 || systemPct == -1 {
+			totalPct = -1
+		} else {
+			totalPct = calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, lastRun)
+		}
+
 		containersList = append(containersList, &model.Container{
 			Id:          ctr.ID,
 			Type:        ctr.Type,
 			CpuLimit:    float32(ctr.Limits.CPULimit),
-			UserPct:     calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, lastRun),
-			SystemPct:   calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, lastRun),
-			TotalPct:    calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, lastRun),
+			UserPct:     userPct,
+			SystemPct:   systemPct,
+			TotalPct:    totalPct,
 			MemoryLimit: ctr.Limits.MemLimit,
 			MemRss:      ctr.Memory.RSS,
 			MemCache:    ctr.Memory.Cache,
