@@ -35,7 +35,7 @@ type SwarmConfig struct {
 // SwarmCheck grabs Swarm topology and replica metrics
 type SwarmCheck struct {
 	core.CheckBase
-	instance       *SwarmConfig
+	instance *SwarmConfig
 	// sts
 	topologyCollector *SwarmTopologyCollector
 }

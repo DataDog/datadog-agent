@@ -318,6 +318,8 @@ func StartAgent() error {
 		if err := metadata.SetupInventories(common.MetadataScheduler, common.AC, common.Coll); err != nil {
 			return err
 		}
+	} else {
+		log.Info("Metadata inventory collection disabled")
 	}
 
 	// start dependent services

@@ -3,6 +3,7 @@
 package python
 
 import (
+	"encoding/json"
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	"github.com/StackVista/stackstate-agent/pkg/health"
@@ -13,34 +14,11 @@ import (
 // #include <datadog_agent_rtloader.h>
 import "C"
 
-const healthYamlData = `
-key: value ®
-stringlist:
-  - a
-  - b
-  - c
-boollist:
-  - true
-  - false
-intlist:
-  - 1
-doublelist:
-  - 0.7
-  - 1.42
-emptykey: null
-nestedobject:
-  nestedkey: nestedValue
-  animals:
-    legs: dog
-    wings: eagle
-    tail: crocodile
-`
-
 var expectedCheckData = health.CheckData{
 	"key":        "value ®",
 	"stringlist": []interface{}{"a", "b", "c"},
 	"boollist":   []interface{}{true, false},
-	"intlist":    []interface{}{1},
+	"intlist":    []interface{}{float64(1)},
 	"doublelist": []interface{}{0.7, 1.42},
 	"emptykey":   nil,
 	"nestedobject": map[string]interface{}{
@@ -56,6 +34,16 @@ var expectedCheckData = health.CheckData{
 func testHealthCheckData(t *testing.T) {
 	mockBatcher := batcher.NewMockBatcher()
 
+	c := &health.Payload{
+		Stream: health.Stream{
+			Urn:       "myurn",
+			SubStream: "substream",
+		},
+		Data: expectedCheckData,
+	}
+	data, err := json.Marshal(c)
+	assert.NoError(t, err)
+
 	checkId := C.CString("check-id")
 	stream := C.health_stream_t{}
 	stream.urn = C.CString("myurn")
@@ -64,7 +52,7 @@ func testHealthCheckData(t *testing.T) {
 	SubmitHealthCheckData(
 		checkId,
 		&stream,
-		C.CString(healthYamlData))
+		C.CString(string(data)))
 	SubmitHealthStopSnapshot(checkId, &stream)
 
 	expectedState := mockBatcher.CollectedTopology.Flush()
