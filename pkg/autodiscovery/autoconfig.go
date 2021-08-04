@@ -638,7 +638,6 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 		// ask the Collector to schedule the checks
 		ac.schedule([]integration.Config{resolvedConfig})
 	}
-
 	// FIXME: schedule new services as well
 	ac.schedule([]integration.Config{
 		{
