@@ -32,7 +32,7 @@ func (c customLogger) Errorf(format string, args ...interface{}) { log.Errorf(fo
 var _ types.Logger = customLogger{}
 
 // downloadHeaders attempts to download kernel headers & place them in headerDownloadDir
-func downloadHeaders(headerDownloadDir string, containerizedEnv bool) error {
+func downloadHeaders(headerDownloadDir, aptConfigDir, yumReposDir, zypperReposDir string) error {
 	var (
 		target    types.Target
 		backend   types.Backend
@@ -55,7 +55,7 @@ func downloadHeaders(headerDownloadDir string, containerizedEnv bool) error {
 	)
 	log.Debugf("Target OSRelease: %s", target.OSRelease)
 
-	if backend, err = getHeaderDownloadBackend(&target, containerizedEnv); err != nil {
+	if backend, err = getHeaderDownloadBackend(&target, aptConfigDir, yumReposDir, zypperReposDir); err != nil {
 		return fmt.Errorf("unable to get kernel header download backend: %s", err)
 	}
 
@@ -81,36 +81,19 @@ func getHeaderDownloadTarget() (types.Target, error) {
 	return target, nil
 }
 
-func getHeaderDownloadBackend(target *types.Target, containerizedEnv bool) (backend types.Backend, err error) {
-	distro := strings.ToLower(target.Distro.Display)
-
-	var reposDir string
-	switch distro {
-	case "fedora", "rhel", "centos":
-		reposDir = "/etc/yum.repos.d"
-	case "opensuse", "sle":
-		reposDir = "/etc/zypp/repos.d"
-	case "debian", "ubuntu":
-		reposDir = "/etc/apt"
-	default:
-		// nothing to do, reposDir won't be used
-	}
-	if containerizedEnv {
-		reposDir = filepath.Join("/host", reposDir)
-	}
-
+func getHeaderDownloadBackend(target *types.Target, aptConfigDir, yumReposDir, zypperReposDir string) (backend types.Backend, err error) {
 	logger := customLogger{}
-	switch distro {
+	switch strings.ToLower(target.Distro.Display) {
 	case "fedora", "rhel":
-		backend, err = rpm.NewRedHatBackend(target, reposDir, logger)
+		backend, err = rpm.NewRedHatBackend(target, yumReposDir, logger)
 	case "centos":
-		backend, err = rpm.NewCentOSBackend(target, reposDir, logger)
+		backend, err = rpm.NewCentOSBackend(target, yumReposDir, logger)
 	case "opensuse":
-		backend, err = rpm.NewOpenSUSEBackend(target, reposDir, logger)
+		backend, err = rpm.NewOpenSUSEBackend(target, zypperReposDir, logger)
 	case "sle":
-		backend, err = rpm.NewSLESBackend(target, reposDir, logger)
+		backend, err = rpm.NewSLESBackend(target, zypperReposDir, logger)
 	case "debian", "ubuntu":
-		backend, err = apt.NewBackend(target, reposDir, logger)
+		backend, err = apt.NewBackend(target, aptConfigDir, logger)
 	case "cos":
 		backend, err = cos.NewBackend(target, logger)
 	case "wsl":
