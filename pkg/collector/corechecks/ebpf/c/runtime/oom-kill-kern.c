@@ -59,6 +59,7 @@ int kprobe__oom_kill_process(struct pt_regs *ctx) {
         bpf_probe_read_str(&s->tcomm, sizeof(s->tcomm), (void*) &p->comm);
     #else
         bpf_probe_read(&s->tcomm, sizeof(s->tcomm), (void*) &p->comm);
+        s->tcomm[TASK_COMM_LEN-1] = 0;
     #endif
     bpf_probe_read(&s->pages, sizeof(s->pages), &oc->totalpages);
 
