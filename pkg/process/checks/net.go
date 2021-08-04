@@ -268,11 +268,11 @@ func batchConnections(
 			}
 
 			remapDNSStatsByDomainByQueryType(c, namemap, &namedb, domains)
-			
+
 			for d := range c.DnsStatsByDomain {
 				domainIndices[d] = struct{}{}
 			}
-			
+
 			for d := range c.DnsStatsByDomainByQueryType {
 				domainIndices[d] = struct{}{}
 			}

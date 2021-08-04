@@ -214,15 +214,6 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 		2: {
 			DnsStatsByQueryType: map[int32]*model.DNSStats{
 				int32(dnspkg.TypeA): {
-					DnsTimeouts: 3,
-				},
-			},
-		},
-	}
-	conns[3].DnsStatsByDomainByQueryType = map[int32]*model.DNSStatsByQueryType{
-		1: {
-			DnsStatsByQueryType: map[int32]*model.DNSStats{
-				int32(dnspkg.TypeA): {
 					DnsTimeouts: 4,
 				},
 			},
