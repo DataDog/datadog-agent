@@ -35,6 +35,7 @@ type ListenerConfig struct {
 	AllowedFailures       int      `mapstructure:"discovery_allowed_failures"`
 	Loader                string   `mapstructure:"loader"`
 	CollectDeviceMetadata bool     `mapstructure:"collect_device_metadata"`
+	MinCollectionInterval uint     `mapstructure:"min_collection_interval"`
 	Configs               []Config `mapstructure:"configs"`
 
 	// legacy
@@ -63,6 +64,7 @@ type Config struct {
 	CollectDeviceMetadataConfig *bool           `mapstructure:"collect_device_metadata"`
 	CollectDeviceMetadata       bool
 	Tags                        []string `mapstructure:"tags"`
+	MinCollectionInterval       uint     `mapstructure:"min_collection_interval"`
 
 	// Legacy
 	NetworkLegacy      string `mapstructure:"network"`
@@ -122,6 +124,9 @@ func NewListenerConfig() (ListenerConfig, error) {
 		}
 		if config.Loader == "" {
 			config.Loader = snmpConfig.Loader
+		}
+		if config.MinCollectionInterval == 0 {
+			config.MinCollectionInterval = snmpConfig.MinCollectionInterval
 		}
 		config.Community = firstNonEmpty(config.Community, config.CommunityLegacy)
 		config.AuthKey = firstNonEmpty(config.AuthKey, config.AuthKeyLegacy)

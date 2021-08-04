@@ -420,6 +420,8 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 		return []byte(strconv.FormatBool(s.config.CollectDeviceMetadata)), nil
 	case "tags":
 		return []byte(convertToCommaSepTags(s.config.Tags)), nil
+	case "min_collection_interval":
+		return []byte(fmt.Sprintf("%d", s.config.MinCollectionInterval)), nil
 	}
 	return []byte{}, ErrNotSupported
 }

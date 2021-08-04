@@ -129,6 +129,25 @@ snmp_listener:
 
 }
 
+func Test_MinCollectionInterval(t *testing.T) {
+	config.Datadog.SetConfigType("yaml")
+	err := config.Datadog.ReadConfig(strings.NewReader(`
+snmp_listener:
+  min_collection_interval: 60
+  configs:
+   - network: 127.1.0.0/30
+     min_collection_interval: 30
+   - network: 127.2.0.0/30
+`))
+	assert.NoError(t, err)
+
+	conf, err := NewListenerConfig()
+	assert.NoError(t, err)
+
+	assert.Equal(t, uint(30), conf.Configs[0].MinCollectionInterval)
+	assert.Equal(t, uint(60), conf.Configs[1].MinCollectionInterval)
+}
+
 func Test_Configs(t *testing.T) {
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.ReadConfig(strings.NewReader(`
