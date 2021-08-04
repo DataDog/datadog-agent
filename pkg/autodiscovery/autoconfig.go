@@ -627,16 +627,17 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 
 	configs, err := svc.GetIntegrationConfigs()
 	if err != nil {
-		log.Errorf("Failed to get Integration Configs for service %s, it will not be monitored - %s", svc.GetEntity(), err)
-		return
-	}
-	for _, conf := range configs {
-		conf.Entity = svc.GetEntity()
-		conf.CreationTime = svc.GetCreationTime()
-		conf.MetricsExcluded = svc.HasFilter(containers.MetricsFilter)
-		conf.LogsExcluded = svc.HasFilter(containers.LogsFilter)
-		ac.store.setLoadedConfig(conf)
-		ac.store.addConfigForService(svc.GetEntity(), conf)
+		log.Errorf("Failed to get Integration Configs for service %s - %s", svc.GetEntity(), err)
+	} else {
+		for _, conf := range configs {
+			conf.Entity = svc.GetEntity()
+			conf.CreationTime = svc.GetCreationTime()
+			conf.MetricsExcluded = svc.HasFilter(containers.MetricsFilter)
+			conf.LogsExcluded = svc.HasFilter(containers.LogsFilter)
+			ac.store.setLoadedConfig(conf)
+			ac.store.addConfigForService(svc.GetEntity(), conf)
+			ac.schedule([]integration.Config{conf})
+		}
 	}
 
 	// FIXME: schedule new services as well
