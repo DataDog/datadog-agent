@@ -9,6 +9,7 @@ package ecs
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
