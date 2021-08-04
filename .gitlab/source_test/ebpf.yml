@@ -48,7 +48,7 @@
 tests_ebpf_x64:
   extends: .tests_linux_ebpf
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: [ "runner:main", "size:large" ]
+  tags: [ "runner:main" ]
   needs: [ "linux_x64_go_deps" ]
   variables:
     ARCH: amd64
