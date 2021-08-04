@@ -667,5 +667,5 @@ func (s *DockerService) GetExtraConfig(key []byte) ([]byte, error) {
 
 // GetIntegrationConfigs isn't supported
 func (s *DockerService) GetIntegrationConfigs() ([]integration.Config, error) {
-	return []integration.Config{}, ErrNotSupported
+	return []integration.Config{}, nil
 }

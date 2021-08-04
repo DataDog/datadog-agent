@@ -131,5 +131,5 @@ func (s *DockerKubeletService) GetExtraConfig(key []byte) ([]byte, error) {
 
 // GetIntegrationConfigs isn't supported
 func (s *DockerKubeletService) GetIntegrationConfigs() ([]integration.Config, error) {
-	return []integration.Config{}, ErrNotSupported
+	return []integration.Config{}, nil
 }

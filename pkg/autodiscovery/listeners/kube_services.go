@@ -322,5 +322,5 @@ func (s *KubeServiceService) GetExtraConfig(key []byte) ([]byte, error) {
 
 // GetIntegrationConfigs isn't supported
 func (s *KubeServiceService) GetIntegrationConfigs() ([]integration.Config, error) {
-	return []integration.Config{}, ErrNotSupported
+	return []integration.Config{}, nil
 }

@@ -486,7 +486,7 @@ func (s *KubeContainerService) GetExtraConfig(key []byte) ([]byte, error) {
 
 // GetIntegrationConfigs isn't supported
 func (s *KubeContainerService) GetIntegrationConfigs() ([]integration.Config, error) {
-	return []integration.Config{}, ErrNotSupported
+	return []integration.Config{}, nil
 }
 
 // GetCheckNames returns names of checks defined in pod annotations
@@ -579,5 +579,5 @@ func (s *KubePodService) GetExtraConfig(key []byte) ([]byte, error) {
 
 // GetIntegrationConfigs isn't supported
 func (s *KubePodService) GetIntegrationConfigs() ([]integration.Config, error) {
-	return []integration.Config{}, ErrNotSupported
+	return []integration.Config{}, nil
 }

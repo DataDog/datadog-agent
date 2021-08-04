@@ -270,5 +270,5 @@ func (s *CloudFoundryService) GetExtraConfig(key []byte) ([]byte, error) {
 
 // GetIntegrationConfigs isn't supported
 func (s *CloudFoundryService) GetIntegrationConfigs() ([]integration.Config, error) {
-	return []integration.Config{}, ErrNotSupported
+	return []integration.Config{}, nil
 }
