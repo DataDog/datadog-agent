@@ -11,7 +11,7 @@
     - .kitchen_datadog_agent_flavor
   rules:
     !reference [.on_system_probe_changes_or_manual]
-  stage: functional_test
+  stage: functional_test_system_probe
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7

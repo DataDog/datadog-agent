@@ -1,5 +1,5 @@
 ---
-# functional_test stage
+# functional_test_{security_agent, system_probe} stages
 # Contains jobs which run kitchen tests on the security-agent and on system-probe
 
 include:

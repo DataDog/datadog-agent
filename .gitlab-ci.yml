@@ -73,7 +73,8 @@ stages:
   - trigger_release
   - e2e
   - kitchen_cleanup
-  - functional_test
+  - functional_test_security_agent
+  - functional_test_system_probe
   - functional_test_cleanup
   - notify
 

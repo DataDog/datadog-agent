@@ -11,7 +11,7 @@
     - .kitchen_datadog_agent_flavor
   rules:
     !reference [.manual]
-  stage: functional_test
+  stage: functional_test_security_agent
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -45,7 +45,7 @@
     - .kitchen_azure_location_north_central_us
   rules:
     !reference [.manual]
-  stage: functional_test
+  stage: functional_test_security_agent
   needs: ["tests_ebpf_x64"]
   variables:
     AGENT_MAJOR_VERSION: 7
