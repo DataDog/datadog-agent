@@ -19,5 +19,6 @@ init_config:
   #
   # lowercase_device_tag: false
 
+loader: core
 instances:
 - {}

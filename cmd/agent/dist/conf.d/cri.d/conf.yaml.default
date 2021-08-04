@@ -2,6 +2,7 @@ ad_identifiers:
   - _cri
 init_config:
 
+loader: core
 instances:
 
     -

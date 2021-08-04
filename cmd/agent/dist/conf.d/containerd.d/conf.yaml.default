@@ -1,6 +1,7 @@
 ad_identifiers:
   - _containerd
 init_config:
+loader: core
 instances:
   -
     ## @param filters - list of strings - optional

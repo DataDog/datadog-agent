@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    Checks defined in the agent core no longer log messages about not finding a
+    subclass of the base check.  This error occurred because the agent looked
+    first for a Python module and only then fell back to a core module.  The
+    default configurations (`<checkname>.yaml.default`) for core modules now
+    contain `loader: core`, causing the core loader to be used without first trying
+    Python.  Customers with custom configuration for these checks can add a
+    similar setting to their configuration files.

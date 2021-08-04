@@ -6,6 +6,7 @@ init_config:
 
 ## The Network check only supports one configured instance.
 
+loader: core
 instances:
 
     ## @param collect_connection_state - boolean - required

@@ -4,6 +4,7 @@
 
 init_config:
 
+loader: core
 instances:
 
   -
