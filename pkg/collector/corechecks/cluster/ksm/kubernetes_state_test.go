@@ -134,7 +134,7 @@ func TestProcessMetrics(t *testing.T) {
 			expected:           []metricsExpected{},
 		},
 		{
-			name:   "datadog standard tags via label join, default label mapper, default label joins",
+			name:   "datadog standard tags via label join, default label mapper, default label joins (deployment)",
 			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, LabelJoins: defaultLabelJoins},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_deployment_status_replicas": {
@@ -162,6 +162,39 @@ func TestProcessMetrics(t *testing.T) {
 					name:     "kubernetes_state.deployment.replicas",
 					val:      1,
 					tags:     []string{"kube_namespace:default", "kube_deployment:redis", "env:dev", "service:redis", "version:v1"},
+					hostname: "",
+				},
+			},
+		},
+		{
+			name:   "datadog standard tags via label join, default label mapper, default label joins (statefulset)",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, LabelJoins: defaultLabelJoins},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_statefulset_replicas": {
+					{
+						Type: "*v1.Statefulset",
+						Name: "kube_statefulset_replicas",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"namespace": "default", "statefulset": "redis"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_statefulset_labels",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"namespace": "default", "statefulset": "redis", "label_tags_datadoghq_com_env": "dev", "label_tags_datadoghq_com_service": "redis", "label_tags_datadoghq_com_version": "v1"}}},
+				},
+			},
+			metricTransformers: metricTransformers,
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.statefulset.replicas_desired",
+					val:      1,
+					tags:     []string{"kube_namespace:default", "kube_stateful_set:redis", "env:dev", "service:redis", "version:v1"},
 					hostname: "",
 				},
 			},
