@@ -48,7 +48,8 @@ BACKEND_EVENT_SCHEMA = {
 {
     "properties": {
         "id": {
-            "type": "string"
+            "type": "string",
+            "description": "Container ID"
         }
     },
     "additionalProperties": false,
@@ -56,6 +57,9 @@ BACKEND_EVENT_SCHEMA = {
 }
 ```
 
+| Field | Description |
+| ----- | ----------- |
+| `id` | Container ID |
 
 
 ## `EventContext`
@@ -64,13 +68,16 @@ BACKEND_EVENT_SCHEMA = {
 {
     "properties": {
         "name": {
-            "type": "string"
+            "type": "string",
+            "description": "Event name"
         },
         "category": {
-            "type": "string"
+            "type": "string",
+            "description": "Event category"
         },
         "outcome": {
-            "type": "string"
+            "type": "string",
+            "description": "Event outcome"
         }
     },
     "additionalProperties": false,
@@ -78,6 +85,11 @@ BACKEND_EVENT_SCHEMA = {
 }
 ```
 
+| Field | Description |
+| ----- | ----------- |
+| `name` | Event name |
+| `category` | Event category |
+| `outcome` | Event outcome |
 
 
 ## `File`
@@ -280,19 +292,24 @@ BACKEND_EVENT_SCHEMA = {
             "format": "date-time"
         },
         "destination": {
-            "$ref": "#/definitions/File"
+            "$ref": "#/definitions/File",
+            "description": "Target file information"
         },
         "new_mount_id": {
-            "type": "integer"
+            "type": "integer",
+            "description": "New Mount ID"
         },
         "group_id": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Group ID"
         },
         "device": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Device associated with the file"
         },
         "fstype": {
-            "type": "string"
+            "type": "string",
+            "description": "Filesystem type"
         }
     },
     "additionalProperties": false,
@@ -319,6 +336,11 @@ BACKEND_EVENT_SCHEMA = {
 | `flags` | File flags |
 | `modification_time` | File modified time |
 | `change_time` | File change time |
+| `destination` | Target file information |
+| `new_mount_id` | New Mount ID |
+| `group_id` | Group ID |
+| `device` | Device associated with the file |
+| `fstype` | Filesystem type |
 
 | References |
 | ---------- |
@@ -334,85 +356,109 @@ BACKEND_EVENT_SCHEMA = {
     ],
     "properties": {
         "pid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Process ID"
         },
         "ppid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Parent Process ID"
         },
         "tid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Thread ID"
         },
         "uid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "User ID"
         },
         "gid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Group ID"
         },
         "user": {
-            "type": "string"
+            "type": "string",
+            "description": "User name"
         },
         "group": {
-            "type": "string"
+            "type": "string",
+            "description": "Group name"
         },
         "executable_path": {
-            "type": "string"
+            "type": "string",
+            "description": "Path of the process executable"
         },
         "path_resolution_error": {
-            "type": "string"
+            "type": "string",
+            "description": "Description of an error in the path resolution"
         },
         "comm": {
-            "type": "string"
+            "type": "string",
+            "description": "Command name"
         },
         "executable_inode": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Inode of the process executable"
         },
         "executable_mount_id": {
-            "type": "integer"
+            "type": "integer",
+            "description": "MountID of the process executable"
         },
         "executable_filesystem": {
-            "type": "string"
+            "type": "string",
+            "description": "Filesystem of the process executable"
         },
         "tty": {
-            "type": "string"
+            "type": "string",
+            "description": "TTY associated with the process"
         },
         "fork_time": {
             "type": "string",
+            "description": "Fork time of the process",
             "format": "date-time"
         },
         "exec_time": {
             "type": "string",
+            "description": "Exec time of the process",
             "format": "date-time"
         },
         "exit_time": {
             "type": "string",
+            "description": "Exit time of the process",
             "format": "date-time"
         },
         "credentials": {
-            "$ref": "#/definitions/ProcessCredentials"
+            "$ref": "#/definitions/ProcessCredentials",
+            "description": "Credentials associated with the process"
         },
         "executable": {
-            "$ref": "#/definitions/File"
+            "$ref": "#/definitions/File",
+            "description": "File information of the executable"
         },
         "container": {
-            "$ref": "#/definitions/ContainerContext"
+            "$ref": "#/definitions/ContainerContext",
+            "description": "Container context"
         },
         "args": {
             "items": {
                 "type": "string"
             },
-            "type": "array"
+            "type": "array",
+            "description": "Command line arguments"
         },
         "args_truncated": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Indicator of arguments truncation"
         },
         "envs": {
             "items": {
                 "type": "string"
             },
-            "type": "array"
+            "type": "array",
+            "description": "Environment variables of the process"
         },
         "envs_truncated": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Indicator of environments variable truncation"
         }
     },
     "additionalProperties": false,
@@ -420,6 +466,32 @@ BACKEND_EVENT_SCHEMA = {
 }
 ```
 
+| Field | Description |
+| ----- | ----------- |
+| `pid` | Process ID |
+| `ppid` | Parent Process ID |
+| `tid` | Thread ID |
+| `uid` | User ID |
+| `gid` | Group ID |
+| `user` | User name |
+| `group` | Group name |
+| `executable_path` | Path of the process executable |
+| `path_resolution_error` | Description of an error in the path resolution |
+| `comm` | Command name |
+| `executable_inode` | Inode of the process executable |
+| `executable_mount_id` | MountID of the process executable |
+| `executable_filesystem` | Filesystem of the process executable |
+| `tty` | TTY associated with the process |
+| `fork_time` | Fork time of the process |
+| `exec_time` | Exec time of the process |
+| `exit_time` | Exit time of the process |
+| `credentials` | Credentials associated with the process |
+| `executable` | File information of the executable |
+| `container` | Container context |
+| `args` | Command line arguments |
+| `args_truncated` | Indicator of arguments truncation |
+| `envs` | Environment variables of the process |
+| `envs_truncated` | Indicator of environments variable truncation |
 
 | References |
 | ---------- |
@@ -437,94 +509,120 @@ BACKEND_EVENT_SCHEMA = {
     ],
     "properties": {
         "pid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Process ID"
         },
         "ppid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Parent Process ID"
         },
         "tid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Thread ID"
         },
         "uid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "User ID"
         },
         "gid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Group ID"
         },
         "user": {
-            "type": "string"
+            "type": "string",
+            "description": "User name"
         },
         "group": {
-            "type": "string"
+            "type": "string",
+            "description": "Group name"
         },
         "executable_path": {
-            "type": "string"
+            "type": "string",
+            "description": "Path of the process executable"
         },
         "path_resolution_error": {
-            "type": "string"
+            "type": "string",
+            "description": "Description of an error in the path resolution"
         },
         "comm": {
-            "type": "string"
+            "type": "string",
+            "description": "Command name"
         },
         "executable_inode": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Inode of the process executable"
         },
         "executable_mount_id": {
-            "type": "integer"
+            "type": "integer",
+            "description": "MountID of the process executable"
         },
         "executable_filesystem": {
-            "type": "string"
+            "type": "string",
+            "description": "Filesystem of the process executable"
         },
         "tty": {
-            "type": "string"
+            "type": "string",
+            "description": "TTY associated with the process"
         },
         "fork_time": {
             "type": "string",
+            "description": "Fork time of the process",
             "format": "date-time"
         },
         "exec_time": {
             "type": "string",
+            "description": "Exec time of the process",
             "format": "date-time"
         },
         "exit_time": {
             "type": "string",
+            "description": "Exit time of the process",
             "format": "date-time"
         },
         "credentials": {
-            "$ref": "#/definitions/ProcessCredentials"
+            "$ref": "#/definitions/ProcessCredentials",
+            "description": "Credentials associated with the process"
         },
         "executable": {
-            "$ref": "#/definitions/File"
+            "$ref": "#/definitions/File",
+            "description": "File information of the executable"
         },
         "container": {
-            "$ref": "#/definitions/ContainerContext"
+            "$ref": "#/definitions/ContainerContext",
+            "description": "Container context"
         },
         "args": {
             "items": {
                 "type": "string"
             },
-            "type": "array"
+            "type": "array",
+            "description": "Command line arguments"
         },
         "args_truncated": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Indicator of arguments truncation"
         },
         "envs": {
             "items": {
                 "type": "string"
             },
-            "type": "array"
+            "type": "array",
+            "description": "Environment variables of the process"
         },
         "envs_truncated": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Indicator of environments variable truncation"
         },
         "parent": {
-            "$ref": "#/definitions/ProcessCacheEntry"
+            "$ref": "#/definitions/ProcessCacheEntry",
+            "description": "Parent process"
         },
         "ancestors": {
             "items": {
                 "$ref": "#/definitions/ProcessCacheEntry"
             },
-            "type": "array"
+            "type": "array",
+            "description": "Ancestor processes"
         }
     },
     "additionalProperties": false,
@@ -532,6 +630,34 @@ BACKEND_EVENT_SCHEMA = {
 }
 ```
 
+| Field | Description |
+| ----- | ----------- |
+| `pid` | Process ID |
+| `ppid` | Parent Process ID |
+| `tid` | Thread ID |
+| `uid` | User ID |
+| `gid` | Group ID |
+| `user` | User name |
+| `group` | Group name |
+| `executable_path` | Path of the process executable |
+| `path_resolution_error` | Description of an error in the path resolution |
+| `comm` | Command name |
+| `executable_inode` | Inode of the process executable |
+| `executable_mount_id` | MountID of the process executable |
+| `executable_filesystem` | Filesystem of the process executable |
+| `tty` | TTY associated with the process |
+| `fork_time` | Fork time of the process |
+| `exec_time` | Exec time of the process |
+| `exit_time` | Exit time of the process |
+| `credentials` | Credentials associated with the process |
+| `executable` | File information of the executable |
+| `container` | Container context |
+| `args` | Command line arguments |
+| `args_truncated` | Indicator of arguments truncation |
+| `envs` | Environment variables of the process |
+| `envs_truncated` | Indicator of environments variable truncation |
+| `parent` | Parent process |
+| `ancestors` | Ancestor processes |
 
 | References |
 | ---------- |
@@ -556,55 +682,70 @@ BACKEND_EVENT_SCHEMA = {
     ],
     "properties": {
         "uid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "User ID"
         },
         "user": {
-            "type": "string"
+            "type": "string",
+            "description": "User name"
         },
         "gid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Group ID"
         },
         "group": {
-            "type": "string"
+            "type": "string",
+            "description": "Group name"
         },
         "euid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Effective User ID"
         },
         "euser": {
-            "type": "string"
+            "type": "string",
+            "description": "Effective User name"
         },
         "egid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Effective Group ID"
         },
         "egroup": {
-            "type": "string"
+            "type": "string",
+            "description": "Effective Group name"
         },
         "fsuid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Filesystem User ID"
         },
         "fsuser": {
-            "type": "string"
+            "type": "string",
+            "description": "Filesystem User name"
         },
         "fsgid": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Filesystem Group ID"
         },
         "fsgroup": {
-            "type": "string"
+            "type": "string",
+            "description": "Filesystem Group name"
         },
         "cap_effective": {
             "items": {
                 "type": "string"
             },
-            "type": "array"
+            "type": "array",
+            "description": "Effective Capacity set"
         },
         "cap_permitted": {
             "items": {
                 "type": "string"
             },
-            "type": "array"
+            "type": "array",
+            "description": "Permitted Capacity set"
         },
         "destination": {
-            "additionalProperties": true
+            "additionalProperties": true,
+            "description": "Credentials after the operation"
         }
     },
     "additionalProperties": false,
@@ -612,6 +753,23 @@ BACKEND_EVENT_SCHEMA = {
 }
 ```
 
+| Field | Description |
+| ----- | ----------- |
+| `uid` | User ID |
+| `user` | User name |
+| `gid` | Group ID |
+| `group` | Group name |
+| `euid` | Effective User ID |
+| `euser` | Effective User name |
+| `egid` | Effective Group ID |
+| `egroup` | Effective Group name |
+| `fsuid` | Filesystem User ID |
+| `fsuser` | Filesystem User name |
+| `fsgid` | Filesystem Group ID |
+| `fsgroup` | Filesystem Group name |
+| `cap_effective` | Effective Capacity set |
+| `cap_permitted` | Permitted Capacity set |
+| `destination` | Credentials after the operation |
 
 
 ## `SELinuxBoolChange`
@@ -620,10 +778,12 @@ BACKEND_EVENT_SCHEMA = {
 {
     "properties": {
         "name": {
-            "type": "string"
+            "type": "string",
+            "description": "SELinux boolean name"
         },
         "state": {
-            "type": "string"
+            "type": "string",
+            "description": "SELinux boolean state ('on' or 'off')"
         }
     },
     "additionalProperties": false,
@@ -631,6 +791,10 @@ BACKEND_EVENT_SCHEMA = {
 }
 ```
 
+| Field | Description |
+| ----- | ----------- |
+| `name` | SELinux boolean name |
+| `state` | SELinux boolean state ('on' or 'off') |
 
 
 ## `SELinuxBoolCommit`
@@ -639,7 +803,8 @@ BACKEND_EVENT_SCHEMA = {
 {
     "properties": {
         "state": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "SELinux boolean commit operation"
         }
     },
     "additionalProperties": false,
@@ -647,6 +812,9 @@ BACKEND_EVENT_SCHEMA = {
 }
 ```
 
+| Field | Description |
+| ----- | ----------- |
+| `state` | SELinux boolean commit operation |
 
 
 ## `SELinuxEnforceStatus`
@@ -655,7 +823,8 @@ BACKEND_EVENT_SCHEMA = {
 {
     "properties": {
         "status": {
-            "type": "string"
+            "type": "string",
+            "description": "SELinux enforcement status (one of 'enforcing', 'permissive' or 'disabled')"
         }
     },
     "additionalProperties": false,
@@ -663,6 +832,9 @@ BACKEND_EVENT_SCHEMA = {
 }
 ```
 
+| Field | Description |
+| ----- | ----------- |
+| `status` | SELinux enforcement status (one of 'enforcing', 'permissive' or 'disabled') |
 
 
 ## `SELinuxEvent`
@@ -671,13 +843,16 @@ BACKEND_EVENT_SCHEMA = {
 {
     "properties": {
         "bool": {
-            "$ref": "#/definitions/SELinuxBoolChange"
+            "$ref": "#/definitions/SELinuxBoolChange",
+            "description": "SELinux boolean operation"
         },
         "enforce": {
-            "$ref": "#/definitions/SELinuxEnforceStatus"
+            "$ref": "#/definitions/SELinuxEnforceStatus",
+            "description": "SELinux enforcement change"
         },
         "bool_commit": {
-            "$ref": "#/definitions/SELinuxBoolCommit"
+            "$ref": "#/definitions/SELinuxBoolCommit",
+            "description": "SELinux boolean commit"
         }
     },
     "additionalProperties": false,
@@ -685,6 +860,11 @@ BACKEND_EVENT_SCHEMA = {
 }
 ```
 
+| Field | Description |
+| ----- | ----------- |
+| `bool` | SELinux boolean operation |
+| `enforce` | SELinux enforcement change |
+| `bool_commit` | SELinux boolean commit |
 
 | References |
 | ---------- |
@@ -698,10 +878,12 @@ BACKEND_EVENT_SCHEMA = {
 {
     "properties": {
         "id": {
-            "type": "string"
+            "type": "string",
+            "description": "User name"
         },
         "group": {
-            "type": "string"
+            "type": "string",
+            "description": "Group name"
         }
     },
     "additionalProperties": false,
@@ -709,6 +891,10 @@ BACKEND_EVENT_SCHEMA = {
 }
 ```
 
+| Field | Description |
+| ----- | ----------- |
+| `id` | User name |
+| `group` | Group name |
 
 
 
