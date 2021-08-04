@@ -426,7 +426,7 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 	return []byte{}, ErrNotSupported
 }
 
-// GetIntegrationConfigs isn't supported
+// GetIntegrationConfigs converts service to integration config
 func (s *SNMPService) GetIntegrationConfigs() ([]integration.Config, error) {
 	tags := []string{"autodiscovery_subnet:" + s.config.Network}
 	tags = append(tags, s.config.Tags...)
