@@ -651,18 +651,16 @@ func (ac *AutoConfig) processWithIntegrationConfigs(ctx context.Context, svc lis
 		log.Errorf("Failed to get Integration Configs for service %s, it will not be monitored - %s", svc.GetEntity(), err)
 		return
 	}
-	for _, integrationConfig := range configs {
-		integrationConfig.Entity = svc.GetEntity()
-		integrationConfig.CreationTime = svc.GetCreationTime()
-		integrationConfig.MetricsExcluded = svc.HasFilter(containers.MetricsFilter)
-		integrationConfig.LogsExcluded = svc.HasFilter(containers.LogsFilter)
+	for _, conf := range configs {
+		conf.Entity = svc.GetEntity()
+		conf.CreationTime = svc.GetCreationTime()
+		conf.MetricsExcluded = svc.HasFilter(containers.MetricsFilter)
+		conf.LogsExcluded = svc.HasFilter(containers.LogsFilter)
 
-		// TODO: Concat service tags ?
-		//   - addConfigForTemplate ?
-		ac.store.setLoadedConfig(integrationConfig)
-		ac.store.addConfigForService(svc.GetEntity(), integrationConfig)
+		ac.store.setLoadedConfig(conf)
+		ac.store.addConfigForService(svc.GetEntity(), conf)
 
-		ac.schedule([]integration.Config{integrationConfig})
+		ac.schedule([]integration.Config{conf})
 	}
 }
 
