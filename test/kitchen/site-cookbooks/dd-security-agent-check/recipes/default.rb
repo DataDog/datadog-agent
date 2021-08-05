@@ -17,12 +17,9 @@ if node['platform_family'] != 'windows'
     mode '755'
   end
 
-  # This cookbook doesn't work on Oracle Linux
-  # for reasons that could be related to https://github.com/chef/chef/issues/7072
-  if not platform?('oracle')
-    swap_file '/swapfile' do
-      size 1024
-    end
+  # `/swapfile` doesn't work on Oracle Linux, so we use `/mnt/swapfile`
+  swap_file '/mnt/swapfile' do
+    size 1024
   end
 
   # To uncomment when gitlab runner are able to build with GOARCH=386

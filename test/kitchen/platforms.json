@@ -76,7 +76,7 @@
     "oracle" : {
         "azure": {
             "x86_64": {
-                "oracle-7-9": "urn,Oracle:Oracle-Linux:ol79:7.9.4"
+                "oracle-7-9": "urn,Oracle:Oracle-Linux:ol79:7.9.6"
             }
         }
     },
