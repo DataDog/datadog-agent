@@ -692,14 +692,19 @@ pre_release_cluster_agent_image:
 #     - if: $CI_COMMIT_MESSAGE == /.*?\[molecule\-.*?\].*?/ && $CI_COMMIT_MESSAGE != /.*?\[molecule\-compose\].*?/
 
 
-
 .molecule_compose_only_rules: &molecule_compose_only_rules
   rules:
     - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-compose]/ && $CI_JOB_NAME =~ /molecule_compose_create/
       when: always
+    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-compose]/ && $CI_JOB_NAME =~ /molecule_compose_test/
+      when: on_success
+    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-compose]/ && $CI_JOB_NAME =~ /molecule_compose_failure_cleanup/
+      when: on_failure
+    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-compose]/ && $CI_JOB_NAME =~ /molecule_compose_cleanup/
+      when: always
     - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-/
       when: never
-    # - when: always
+    - when: always
 
 .molecule_compose_cleanup: &molecule_compose_cleanup
   <<: *molecule_base
@@ -733,8 +738,8 @@ molecule_compose_create:
 molecule_compose_test:
   <<: *molecule_base
   <<: *molecule_compose_resource_lock
+  <<: *molecule_compose_only_rules
   interruptible: true
-  when: on_success
   dependencies:
     - molecule_compose_create
   needs:
@@ -757,14 +762,14 @@ molecule_compose_test:
 molecule_compose_failure_cleanup:
   <<: *molecule_compose_cleanup
   <<: *molecule_compose_resource_lock
-  when: on_failure
+  <<: *molecule_compose_only_rules
   needs:
     - molecule_compose_create
 
 molecule_compose_cleanup:
   <<: *molecule_compose_cleanup
   <<: *molecule_compose_resource_lock
-  when: always
+  <<: *molecule_compose_only_rules
   dependencies:
     - molecule_compose_test
     - molecule_compose_create
