@@ -1,4 +1,8 @@
 ---
+- name: "Dev Mode for gathering EC2 instances enabled"
+  debug:
+    msg: "{{ dev_mode }}"
+
 - name: "Gather existing EC2 instances for the branch '{{ agent_current_branch }}'"
   ec2_instance_info:
     filters:
