@@ -89,6 +89,8 @@ static PyObject *submit_component(PyObject *self, PyObject *args) {
     PyObject *data_dict = NULL; // borrowed
     instance_key_t *instance_key = NULL;
     char *json_data = NULL;
+    PyObject * type = NULL;
+    PyObject * component = NULL;
     PyObject * retval = NULL;
 
     PyGILState_STATE gstate = PyGILState_Ensure();
@@ -120,8 +122,8 @@ static PyObject *submit_component(PyObject *self, PyObject *args) {
     instance_key->type_ = as_string(PyDict_GetItemString(instance_key_dict, "type"));
     instance_key->url = as_string(PyDict_GetItemString(instance_key_dict, "url"));
 
-    PyObject *type = Py_BuildValue("{s:s}", "name", component_type);
-    PyObject *component = Py_BuildValue("{s:s, s:O, s:O}", "externalId", component_id, "type", type, "data", data_dict);
+    type = Py_BuildValue("{s:s}", "name", component_type);
+    component = Py_BuildValue("{s:s, s:O, s:O}", "externalId", component_id, "type", type, "data", data_dict);
     json_data = as_json(component);
     if (json_data == NULL) {
         // If as_json fails it sets a python exception, so we just return
@@ -143,6 +145,8 @@ done:
     if (json_data != NULL) {
         _free(json_data);
     }
+    Py_XDECREF(type);
+    Py_XDECREF(component);
     PyGILState_Release(gstate);
     return retval;
 }
@@ -171,6 +175,8 @@ static PyObject *submit_relation(PyObject *self, PyObject *args) {
     PyObject *data_dict = NULL; // borrowed
     instance_key_t *instance_key = NULL;
     char *json_data = NULL;
+    PyObject *type = NULL;
+    PyObject *relation = NULL;
     PyObject * retval = NULL;
 
     PyGILState_STATE gstate = PyGILState_Ensure();
@@ -202,8 +208,8 @@ static PyObject *submit_relation(PyObject *self, PyObject *args) {
     instance_key->type_ = as_string(PyDict_GetItemString(instance_key_dict, "type"));
     instance_key->url = as_string(PyDict_GetItemString(instance_key_dict, "url"));
 
-    PyObject *type = Py_BuildValue("{s:s}", "name", relation_type);
-    PyObject *relation = Py_BuildValue("{s:s, s:s, s:O, s:O}", "sourceId", source_id, "targetId", target_id, "type",
+    type = Py_BuildValue("{s:s}", "name", relation_type);
+    relation = Py_BuildValue("{s:s, s:s, s:O, s:O}", "sourceId", source_id, "targetId", target_id, "type",
         type, "data", data_dict);
     json_data = as_json(relation);
     if (json_data == NULL) {
@@ -226,6 +232,8 @@ done:
     if (json_data != NULL) {
         _free(json_data);
     }
+    Py_XDECREF(type);
+    Py_XDECREF(relation);
     PyGILState_Release(gstate);
     return retval;
 }

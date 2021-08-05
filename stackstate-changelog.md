@@ -1,5 +1,16 @@
 # StackState Agent v2 releases
 
+## 2.13.0 (2021-08-05)
+
+**Features**
+- Integrations
+  - [StackState Agent Integrations 1.15.0](https://github.com/StackVista/stackstate-agent-integrations/blob/master/stackstate-changelog.md#1140--2021-07-09)
+- Extend the Agent with external Health Check API. [(STAC-12961)](https://stackstate.atlassian.net/browse/STAC-12961)
+
+**Bugfix**
+- StackState Process Agent:
+  - Fixed bytes sent/received metrics for network connections going enormously high sometimes. [(STAC-13637)](https://stackstate.atlassian.net/browse/STAC-13637)
+
 ## 2.12.0 (2021-07-09)
 **Features**
 - Collect HTTP/1.x request rate and response time metrics for connection discovered by the StackState process agent. [(STAC-11668)](https://stackstate.atlassian.net/browse/STAC-11668)
