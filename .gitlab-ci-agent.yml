@@ -693,7 +693,7 @@ pre_release_cluster_agent_image:
      - ./molecule3.sh --base-config ./molecule/compose/provisioner.run.yml destroy --scenario-name compose
 
 .compose_branch_lock: &compose_branch_lock
-  resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$AGENT_CURRENT_BRANCH-compose_branch_lock"
+  resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$CI_COMMIT_BRANCH-compose_branch_lock"
 
 molecule_compose_create:
   <<: *molecule_base_prepare
@@ -768,7 +768,7 @@ molecule_compose_cleanup:
      - ./molecule3.sh --base-config ./molecule/integrations/provisioner.run.yml destroy --scenario-name integrations
 
 .integrations_branch_lock: &integrations_branch_lock
-  resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$AGENT_CURRENT_BRANCH-integrations_branch_lock"
+  resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$CI_COMMIT_BRANCH-integrations_branch_lock"
 
 molecule_integrations_create:
   <<: *molecule_base_prepare
@@ -923,7 +923,7 @@ molecule_kubernetes_cleanup:
      - master
 
 .localinstall_branch_lock: &localinstall_branch_lock
-  resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$AGENT_CURRENT_BRANCH-localinstall_branch_lock"
+  resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$CI_COMMIT_BRANCH-localinstall_branch_lock"
 
 molecule_localinstall_create:
   <<: *molecule_base_prepare
@@ -1012,7 +1012,7 @@ molecule_localinstall_cleanup:
      - master
 
 .secrets_branch_lock: &secrets_branch_lock
-  resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$AGENT_CURRENT_BRANCH-secrets_branch_lock"
+  resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$CI_COMMIT_BRANCH-secrets_branch_lock"
 
 molecule_secrets_create:
   <<: *molecule_base_prepare
@@ -1099,7 +1099,7 @@ molecule_secrets_cleanup:
      - ./molecule3.sh --base-config ./molecule/swarm/provisioner.run.yml destroy --scenario-name swarm
 
 .swarm_branch_lock: &swarm_branch_lock
-  resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$AGENT_CURRENT_BRANCH-swarm_branch_lock"
+  resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$CI_COMMIT_BRANCH-swarm_branch_lock"
 
 molecule_swarm_create:
   <<: *molecule_base_prepare
@@ -1181,7 +1181,7 @@ molecule_swarm_cleanup:
      - ./molecule3.sh --base-config ./molecule/vms/provisioner.run.yml destroy --scenario-name vms
 
 .vms_branch_lock: &vms_branch_lock
-  resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$AGENT_CURRENT_BRANCH-vms_branch_lock"
+  resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$CI_COMMIT_BRANCH-vms_branch_lock"
 
 molecule_vms_create:
   <<: *molecule_base_prepare
