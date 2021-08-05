@@ -700,29 +700,31 @@ pre_release_cluster_agent_image:
 
 .molecule_compose_only_rules: &molecule_compose_only_rules
   rules:
-    # Include
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule-compose]/ && $CI_JOB_NAME =~ /molecule_compose_create/
-      when: always
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule-compose]/ && $CI_JOB_NAME =~ /molecule_compose_test/
-      when: on_success
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule-compose]/ && $CI_JOB_NAME =~ /molecule_compose_cleanup/
-      when: always
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule-compose]/ && $CI_JOB_NAME =~ /molecule_compose_failure_cleanup/
-      when: on_failure
-
-    # Exclude
-    - if: $CI_COMMIT_MESSAGE !~ /\[molecule-/
+    - if: $CI_COMMIT_MESSAGE =~ /-stop$/
       when: never
+    - when: always
 
-    # Default job states
-    - if: $CI_JOB_NAME =~ /molecule_compose_create/
-      when: always
-    - if: $CI_JOB_NAME =~ /molecule_compose_test/
-      when: on_success
-    - if: $CI_JOB_NAME =~ /molecule_compose_cleanup/
-      when: always
-    - if: $CI_JOB_NAME =~ /molecule_compose_failure_cleanup/
-      when: on_failure
+    # Include
+    # - if: $CI_COMMIT_MESSAGE =~ /\[molecule-compose]/ && $CI_JOB_NAME =~ /molecule_compose_create/
+    #   when: always
+    # - if: $CI_COMMIT_MESSAGE =~ /\[molecule-compose]/ && $CI_JOB_NAME =~ /molecule_compose_test/
+    #   when: on_success
+    # - if: $CI_COMMIT_MESSAGE =~ /\[molecule-compose]/ && $CI_JOB_NAME =~ /molecule_compose_cleanup/
+    #   when: always
+    # - if: $CI_COMMIT_MESSAGE =~ /\[molecule-compose]/ && $CI_JOB_NAME =~ /molecule_compose_failure_cleanup/
+    #   when: on_failure
+    # # Exclude
+    # - if: $CI_COMMIT_MESSAGE !~ /\[molecule-/
+    #   when: never
+    # # Default job states
+    # - if: $CI_JOB_NAME =~ /molecule_compose_create/
+    #   when: always
+    # - if: $CI_JOB_NAME =~ /molecule_compose_test/
+    #   when: on_success
+    # - if: $CI_JOB_NAME =~ /molecule_compose_cleanup/
+    #   when: always
+    # - if: $CI_JOB_NAME =~ /molecule_compose_failure_cleanup/
+    #   when: on_failure
 
 .molecule_compose_cleanup: &molecule_compose_cleanup
   <<: *molecule_base
