@@ -688,13 +688,41 @@ pre_release_cluster_agent_image:
 # Steps: Destroy Compose, Create Compose, Prepare Compose, Second Prepare Compose, Test Compose, Destroy Compose
 
 # Target only compose molecule testing
-# .molecule_compose_only_rules: &molecule_compose_only_rules
-#   rules:
 #     - if: $CI_COMMIT_MESSAGE == /.*?\[molecule\-.*?\].*?/
-#       when: always
 #     - if: $CI_COMMIT_MESSAGE == /.*?\[molecule\-.*?\].*?/ && $CI_COMMIT_MESSAGE != /.*?\[molecule\-compose\].*?/
-#       when: never
-#     - when: always
+# rules:
+#   - if: $CI_COMMIT_MESSAGE == /.*?\[molecule\-.*?\].*?/ && $CI_COMMIT_MESSAGE != /.*?\[molecule\-compose\].*?/
+#     when: never
+#   - if: $CI_COMMIT_MESSAGE == /.*?\[molecule\-.*?\].*?/
+#     when: always
+#   - when: always
+#  && $CI_JOB_NAME =~ /molecule_compose_create/
+
+.molecule_compose_only_rules: &molecule_compose_only_rules
+  rules:
+    # Include
+    - if: $CI_COMMIT_MESSAGE =~ /\[molecule-compose]/ && $CI_JOB_NAME =~ /molecule_compose_create/
+      when: always
+    - if: $CI_COMMIT_MESSAGE =~ /\[molecule-compose]/ && $CI_JOB_NAME =~ /molecule_compose_test/
+      when: on_success
+    - if: $CI_COMMIT_MESSAGE =~ /\[molecule-compose]/ && $CI_JOB_NAME =~ /molecule_compose_cleanup/
+      when: always
+    - if: $CI_COMMIT_MESSAGE =~ /\[molecule-compose]/ && $CI_JOB_NAME =~ /molecule_compose_failure_cleanup/
+      when: on_failure
+
+    # Exclude
+    - if: $CI_COMMIT_MESSAGE !~ /\[molecule-/
+      when: never
+
+    # Default job states
+    - if: $CI_JOB_NAME =~ /molecule_compose_create/
+      when: always
+    - if: $CI_JOB_NAME =~ /molecule_compose_test/
+      when: on_success
+    - if: $CI_JOB_NAME =~ /molecule_compose_cleanup/
+      when: always
+    - if: $CI_JOB_NAME =~ /molecule_compose_failure_cleanup/
+      when: on_failure
 
 .molecule_compose_cleanup: &molecule_compose_cleanup
   <<: *molecule_base
@@ -710,16 +738,7 @@ pre_release_cluster_agent_image:
 molecule_compose_create:
   <<: *molecule_base_prepare
   <<: *molecule_compose_resource_lock
-  rules:
-    - if: $CI_COMMIT_MESSAGE =~ /\[stop-test]/
-      when: never
-
-  # rules:
-  #   - if: $CI_COMMIT_MESSAGE == /.*?\[molecule\-.*?\].*?/ && $CI_COMMIT_MESSAGE != /.*?\[molecule\-compose\].*?/
-  #     when: never
-  #   - if: $CI_COMMIT_MESSAGE == /.*?\[molecule\-.*?\].*?/
-  #     when: always
-  #   - when: always
+  <<: *molecule_compose_only_rules
   interruptible: true
   script:
     - cd $CI_PROJECT_DIR/test
@@ -737,8 +756,8 @@ molecule_compose_create:
 molecule_compose_test:
   <<: *molecule_base
   <<: *molecule_compose_resource_lock
+  <<: *molecule_compose_only_rules
   interruptible: true
-  when: on_success
   dependencies:
     - molecule_compose_create
   needs:
@@ -761,14 +780,14 @@ molecule_compose_test:
 molecule_compose_failure_cleanup:
   <<: *molecule_compose_cleanup
   <<: *molecule_compose_resource_lock
-  when: on_failure
+  <<: *molecule_compose_only_rules
   needs:
     - molecule_compose_create
 
 molecule_compose_cleanup:
   <<: *molecule_compose_cleanup
   <<: *molecule_compose_resource_lock
-  when: always
+  <<: *molecule_compose_only_rules
   dependencies:
     - molecule_compose_test
     - molecule_compose_create
