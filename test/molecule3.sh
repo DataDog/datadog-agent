@@ -2,7 +2,7 @@
 
 # Determine if you are running locally or on CI
 export DEV_MODE="false"
-if [ -z "$CI_JOB_ID" ]; then
+if [ -z "$CI_COMMIT_SHA" ]; then
     export DEV_MODE="true"
 fi
 
@@ -56,4 +56,5 @@ echo "===== MOLECULE_RUN_ID=${CI_JOB_ID:-unknown}  ======="
 echo "====== AGENT_CURRENT_BRANCH=${AGENT_CURRENT_BRANCH} ======="
 
 molecule "$@"
+
 

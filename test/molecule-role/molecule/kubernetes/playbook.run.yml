@@ -1,4 +1,4 @@
----
+~~---
 - name: Prepare Connection
   hosts: localhost
   connection: local
