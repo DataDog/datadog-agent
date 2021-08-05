@@ -682,6 +682,7 @@ pre_release_cluster_agent_image:
     when:
       - always
 
+
 # Job Seq: Molecule
 # Type: Compose
 # Steps: Destroy Compose, Create Compose, Prepare Compose, Second Prepare Compose, Test Compose, Destroy Compose
