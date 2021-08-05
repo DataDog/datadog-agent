@@ -711,9 +711,7 @@ molecule_compose_create:
   <<: *molecule_base_prepare
   <<: *molecule_compose_resource_lock
   rules:
-    - if: $CI_COMMIT_MESSAGE =~ /^.*\[molecule\-compose\].*$/
-      when: always
-    - if: $CI_COMMIT_MESSAGE =~ /^.*\[molecule\-.*\].*$/
+    - if: $CI_COMMIT_MESSAGE =~ /-stop$/
       when: never
     - when: always
 
