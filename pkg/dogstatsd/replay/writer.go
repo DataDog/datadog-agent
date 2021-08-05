@@ -44,14 +44,16 @@ type CaptureBuffer struct {
 }
 
 // for testing purposes
-type inMemoryFs struct {
-	fs *afero.Fs
+type backendFs struct {
+	fs afero.Fs
 
 	sync.RWMutex
 }
 
-// testFs, used exclusively for testing purposes
-var testFs = inMemoryFs{}
+// captureFs, used exclusively for testing purposes
+var captureFs = backendFs{
+	fs: afero.NewOsFs(),
+}
 
 // CapPool is a pool of CaptureBuffer
 var CapPool = sync.Pool{
@@ -62,8 +64,7 @@ var CapPool = sync.Pool{
 
 // TrafficCaptureWriter allows writing dogstatsd traffic to a file.
 type TrafficCaptureWriter struct {
-	File     *os.File
-	testFile afero.File
+	File     afero.File
 	zWriter  *zstd.Writer
 	writer   *bufio.Writer
 	Traffic  chan *CaptureBuffer
@@ -139,31 +140,35 @@ func (tc *TrafficCaptureWriter) Capture(l string, d time.Duration, compressed bo
 		location string
 	)
 
-	testFs.Lock()
-	memFs := *testFs.fs
-	testFs.Unlock()
+	captureFs.Lock()
+	defer captureFs.Unlock()
+
+	if captureFs.fs == nil {
+		log.Errorf("no filesystem backend available, impossible to start capture")
+		return
+	}
 
 	if l == "" {
 		location = config.Datadog.GetString("dogstatsd_capture_path")
 		if location == "" {
 			location = path.Join(config.Datadog.GetString("run_path"), "dsd_capture")
 		}
-	} else if memFs == nil {
-		s, err := os.Stat(l)
-		if os.IsNotExist(err) {
-			log.Errorf("specified location does not exist: %v ", err)
-			return
-		} else if !s.IsDir() {
-			log.Errorf("specified location is not a directory: %v ", l)
-			return
-		}
-
-		if s.Mode()&os.FileMode(2) == 0 {
-			log.Errorf("specified location (%v) is not world writable: %v", l, s.Mode())
-			return
-		}
-
+	} else {
 		location = l
+	}
+
+	s, err := captureFs.fs.Stat(location)
+	if os.IsNotExist(err) {
+		log.Errorf("specified location does not exist: %v ", err)
+		return
+	} else if !s.IsDir() {
+		log.Errorf("specified location is not a directory: %v ", l)
+		return
+	}
+
+	if s.Mode()&os.FileMode(2) == 0 {
+		log.Errorf("specified location (%v) is not world writable: %v", l, s.Mode())
+		return
 	}
 
 	var target io.Writer
@@ -172,37 +177,15 @@ func (tc *TrafficCaptureWriter) Capture(l string, d time.Duration, compressed bo
 	tc.Location = location
 	p := path.Join(tc.Location, fmt.Sprintf(fileTemplate, time.Now().Unix()))
 
-	// inMemoryFS is used for testing purposes
-	if memFs != nil {
-		err := memFs.MkdirAll(tc.Location, 0755)
-		if err != nil {
-			log.Errorf("There was an issue starting the capture: %v ", err)
+	fp, err := captureFs.fs.Create(p)
+	if err != nil {
+		log.Errorf("There was an issue starting the capture: %v ", err)
 
-			tc.Unlock()
-			return
-		}
-
-		fp, err := memFs.Create(p)
-		if err != nil {
-			log.Errorf("There was an issue starting the capture: %v ", err)
-
-			tc.Unlock()
-			return
-		}
-
-		tc.testFile = fp
-		target = tc.testFile
-	} else {
-		fp, err := os.Create(p)
-		if err != nil {
-			log.Errorf("There was an issue starting the capture: %v ", err)
-
-			tc.Unlock()
-			return
-		}
-		tc.File = fp
-		target = tc.File
+		tc.Unlock()
+		return
 	}
+	tc.File = fp
+	target = tc.File
 
 	if compressed {
 		tc.zWriter = zstd.NewWriter(target)

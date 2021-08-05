@@ -21,16 +21,19 @@ import (
 )
 
 func writerTest(t *testing.T, z bool) {
-	appFs := afero.NewMemMapFs()
-	testFs.Lock()
-	testFs.fs = &appFs
-	testFs.Unlock()
+	captureFs.Lock()
+	originalFs := captureFs.fs
+	captureFs.fs = afero.NewMemMapFs()
+	captureFs.Unlock()
+
+	// setup directory
+	captureFs.fs.MkdirAll("foo/bar", 0777)
 
 	defer func() {
-		testFs.Lock()
-		defer testFs.Unlock()
+		captureFs.Lock()
+		defer captureFs.Unlock()
 
-		testFs.fs = nil
+		captureFs.fs = originalFs
 	}()
 
 	writer := NewTrafficCaptureWriter(1)
@@ -86,13 +89,13 @@ func writerTest(t *testing.T, z bool) {
 
 	// assert file
 	writer.RLock()
-	assert.NotNil(t, writer.testFile)
+	assert.NotNil(t, writer.File)
 	assert.False(t, writer.ongoing)
 
-	stats, _ := writer.testFile.Stat()
+	stats, _ := writer.File.Stat()
 	assert.Greater(t, stats.Size(), int64(0))
 
-	fp := writer.testFile
+	fp := writer.File
 	writer.RUnlock()
 
 	fp.Seek(0, io.SeekStart)
