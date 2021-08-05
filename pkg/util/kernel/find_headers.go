@@ -78,7 +78,8 @@ func GetKernelHeaders(headerDirs []string, headerDownloadDir, aptConfigDir, yumR
 	}
 	log.Debugf("unable to find downloaded kernel headers: %s", err)
 
-	if err = downloadHeaders(headerDownloadDir, aptConfigDir, yumReposDir, zypperReposDir); err == nil {
+	d := headerDownloader{aptConfigDir, yumReposDir, zypperReposDir}
+	if err = d.downloadHeaders(headerDownloadDir); err == nil {
 		log.Infof("successfully downloaded kernel headers to %s", dirs)
 		if err = validateHeaderDirs(hv, dirs); err == nil {
 			return dirs, downloadSuccess, nil

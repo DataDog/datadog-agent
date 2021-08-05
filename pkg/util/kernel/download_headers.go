@@ -31,8 +31,14 @@ func (c customLogger) Errorf(format string, args ...interface{}) { log.Errorf(fo
 
 var _ types.Logger = customLogger{}
 
+type headerDownloader struct {
+	aptConfigDir   string
+	yumReposDir    string
+	zypperReposDir string
+}
+
 // downloadHeaders attempts to download kernel headers & place them in headerDownloadDir
-func downloadHeaders(headerDownloadDir, aptConfigDir, yumReposDir, zypperReposDir string) error {
+func (h *headerDownloader) downloadHeaders(headerDownloadDir string) error {
 	var (
 		target    types.Target
 		backend   types.Backend
@@ -55,7 +61,7 @@ func downloadHeaders(headerDownloadDir, aptConfigDir, yumReposDir, zypperReposDi
 	)
 	log.Debugf("Target OSRelease: %s", target.OSRelease)
 
-	if backend, err = getHeaderDownloadBackend(&target, aptConfigDir, yumReposDir, zypperReposDir); err != nil {
+	if backend, err = h.getHeaderDownloadBackend(&target); err != nil {
 		return fmt.Errorf("unable to get kernel header download backend: %s", err)
 	}
 
@@ -64,6 +70,29 @@ func downloadHeaders(headerDownloadDir, aptConfigDir, yumReposDir, zypperReposDi
 	}
 
 	return nil
+}
+
+func (h *headerDownloader) getHeaderDownloadBackend(target *types.Target) (backend types.Backend, err error) {
+	logger := customLogger{}
+	switch strings.ToLower(target.Distro.Display) {
+	case "fedora", "rhel":
+		backend, err = rpm.NewRedHatBackend(target, h.yumReposDir, logger)
+	case "centos":
+		backend, err = rpm.NewCentOSBackend(target, h.yumReposDir, logger)
+	case "opensuse":
+		backend, err = rpm.NewOpenSUSEBackend(target, h.zypperReposDir, logger)
+	case "sle":
+		backend, err = rpm.NewSLESBackend(target, h.zypperReposDir, logger)
+	case "debian", "ubuntu":
+		backend, err = apt.NewBackend(target, h.aptConfigDir, logger)
+	case "cos":
+		backend, err = cos.NewBackend(target, logger)
+	case "wsl":
+		backend, err = wsl.NewBackend(target, logger)
+	default:
+		err = fmt.Errorf("Unsupported distribution '%s'", target.Distro.Display)
+	}
+	return
 }
 
 func getHeaderDownloadTarget() (types.Target, error) {
@@ -79,29 +108,6 @@ func getHeaderDownloadTarget() (types.Target, error) {
 	}
 
 	return target, nil
-}
-
-func getHeaderDownloadBackend(target *types.Target, aptConfigDir, yumReposDir, zypperReposDir string) (backend types.Backend, err error) {
-	logger := customLogger{}
-	switch strings.ToLower(target.Distro.Display) {
-	case "fedora", "rhel":
-		backend, err = rpm.NewRedHatBackend(target, yumReposDir, logger)
-	case "centos":
-		backend, err = rpm.NewCentOSBackend(target, yumReposDir, logger)
-	case "opensuse":
-		backend, err = rpm.NewOpenSUSEBackend(target, zypperReposDir, logger)
-	case "sle":
-		backend, err = rpm.NewSLESBackend(target, zypperReposDir, logger)
-	case "debian", "ubuntu":
-		backend, err = apt.NewBackend(target, aptConfigDir, logger)
-	case "cos":
-		backend, err = cos.NewBackend(target, logger)
-	case "wsl":
-		backend, err = wsl.NewBackend(target, logger)
-	default:
-		err = fmt.Errorf("Unsupported distribution '%s'", target.Distro.Display)
-	}
-	return
 }
 
 func createOutputDir(path string) (string, error) {
