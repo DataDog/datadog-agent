@@ -690,9 +690,9 @@ pre_release_cluster_agent_image:
 # Target only compose molecule testing
 .molecule_compose_only_rules: &molecule_compose_only_rules
   rules:
-    - if: $CI_COMMIT_MESSAGE == /\[molecule\-compose\]/
+    - if: $CI_COMMIT_MESSAGE == /.*?\[molecule\-.*?\].*?/
       when: always
-    - if: $CI_COMMIT_MESSAGE == /\[molecule\-.*?\]/ && $CI_COMMIT_MESSAGE != /\[molecule\-compose\]/
+    - if: $CI_COMMIT_MESSAGE == /.*?\[molecule\-.*?\].*?/ && $CI_COMMIT_MESSAGE != /.*?\[molecule\-compose\].*?/
       when: never
     - when: always
 
