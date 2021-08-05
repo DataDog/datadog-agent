@@ -42,6 +42,7 @@ allowedCapabilities:
 - NET_ADMIN
 - NET_BROADCAST
 - IPC_LOCK
+- NET_RAW
 #
 # The rest is copied from restricted SCC
 #

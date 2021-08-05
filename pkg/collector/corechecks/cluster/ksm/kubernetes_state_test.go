@@ -134,7 +134,7 @@ func TestProcessMetrics(t *testing.T) {
 			expected:           []metricsExpected{},
 		},
 		{
-			name:   "datadog standard tags via label join, default label mapper, default label joins",
+			name:   "datadog standard tags via label join, default label mapper, default label joins (deployment)",
 			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, LabelJoins: defaultLabelJoins},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
 				"kube_deployment_status_replicas": {
@@ -162,6 +162,39 @@ func TestProcessMetrics(t *testing.T) {
 					name:     "kubernetes_state.deployment.replicas",
 					val:      1,
 					tags:     []string{"kube_namespace:default", "kube_deployment:redis", "env:dev", "service:redis", "version:v1"},
+					hostname: "",
+				},
+			},
+		},
+		{
+			name:   "datadog standard tags via label join, default label mapper, default label joins (statefulset)",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper, LabelJoins: defaultLabelJoins},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_statefulset_replicas": {
+					{
+						Type: "*v1.Statefulset",
+						Name: "kube_statefulset_replicas",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"namespace": "default", "statefulset": "redis"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_statefulset_labels",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"namespace": "default", "statefulset": "redis", "label_tags_datadoghq_com_env": "dev", "label_tags_datadoghq_com_service": "redis", "label_tags_datadoghq_com_version": "v1"}}},
+				},
+			},
+			metricTransformers: metricTransformers,
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.statefulset.replicas_desired",
+					val:      1,
+					tags:     []string{"kube_namespace:default", "kube_stateful_set:redis", "env:dev", "service:redis", "version:v1"},
 					hostname: "",
 				},
 			},
@@ -803,6 +836,50 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 			wantTags:     []string{"foo_label:foo_value", "bar_label:bar_value", "node:foo"},
 			wantHostname: "foo-bar",
 		},
+		{
+			name: "created_by_kind/created_by_name",
+			config: &KSMConfig{
+				LabelJoins: map[string]*JoinsConfig{
+					"foo": {
+						LabelsToMatch: []string{"foo_label"},
+						LabelsToGet:   []string{"created_by_kind", "created_by_name"},
+					},
+				},
+			},
+			args: args{
+				labels: map[string]string{"foo_label": "foo_value"},
+				metricsToGet: []ksmstore.DDMetricsFam{
+					{
+						Name:        "foo",
+						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"foo_label": "foo_value", "created_by_kind": "DaemonSet", "created_by_name": "foo_name"}}},
+					},
+				},
+			},
+			wantTags:     []string{"foo_label:foo_value", "kube_daemon_set:foo_name"},
+			wantHostname: "",
+		},
+		{
+			name: "owner_kind/owner_name",
+			config: &KSMConfig{
+				LabelJoins: map[string]*JoinsConfig{
+					"foo": {
+						LabelsToMatch: []string{"foo_label"},
+						LabelsToGet:   []string{"owner_kind", "owner_name"},
+					},
+				},
+			},
+			args: args{
+				labels: map[string]string{"foo_label": "foo_value"},
+				metricsToGet: []ksmstore.DDMetricsFam{
+					{
+						Name:        "foo",
+						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"foo_label": "foo_value", "owner_kind": "DaemonSet", "owner_name": "foo_name"}}},
+					},
+				},
+			},
+			wantTags:     []string{"foo_label:foo_value", "kube_daemon_set:foo_name"},
+			wantHostname: "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1048,6 +1125,63 @@ func TestKSMCheckInitTags(t *testing.T) {
 			k.initTags()
 			assert.ElementsMatch(t, tt.expected, k.instance.Tags)
 			tt.resetFunc()
+		})
+	}
+}
+
+func TestOwnerTags(t *testing.T) {
+	tests := []struct {
+		tc   string
+		kind string
+		name string
+		want []string
+	}{
+		{
+			tc:   "rs + deploy",
+			kind: "ReplicaSet",
+			name: "foo-6768ddc4d",
+			want: []string{"kube_replica_set:foo-6768ddc4d", "kube_deployment:foo"},
+		},
+		{
+			tc:   "rs only",
+			kind: "ReplicaSet",
+			name: "foo",
+			want: []string{"kube_replica_set:foo"},
+		},
+		{
+			tc:   "job + cronjob",
+			kind: "Job",
+			name: "foo-1627309500",
+			want: []string{"kube_job:foo-1627309500", "kube_cronjob:foo"},
+		},
+		{
+			tc:   "job only",
+			kind: "Job",
+			name: "foo",
+			want: []string{"kube_job:foo"},
+		},
+		{
+			tc:   "sts",
+			kind: "StatefulSet",
+			name: "foo",
+			want: []string{"kube_stateful_set:foo"},
+		},
+		{
+			tc:   "ds",
+			kind: "DaemonSet",
+			name: "foo",
+			want: []string{"kube_daemon_set:foo"},
+		},
+		{
+			tc:   "replication",
+			kind: "ReplicationController",
+			name: "foo",
+			want: []string{"kube_replication_controller:foo"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.tc, func(t *testing.T) {
+			assert.EqualValues(t, tt.want, ownerTags(tt.kind, tt.name))
 		})
 	}
 }

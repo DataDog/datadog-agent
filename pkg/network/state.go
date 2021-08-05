@@ -2,8 +2,10 @@ package network
 
 import (
 	"sync"
+	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -35,7 +37,7 @@ type State interface {
 		clientID string,
 		latestTime uint64,
 		latestConns []ConnectionStats,
-		dns map[DNSKey]map[string]map[QueryType]DNSStats,
+		dns map[dns.Key]map[string]map[dns.QueryType]dns.Stats,
 		http map[http.Key]http.RequestStats,
 	) Delta
 
@@ -90,7 +92,7 @@ type client struct {
 	closedConnections map[string]ConnectionStats
 	stats             map[string]*stats
 	// maps by dns key the domain (string) to stats structure
-	dnsStats       map[DNSKey]map[string]map[QueryType]DNSStats
+	dnsStats       map[dns.Key]map[string]map[dns.QueryType]dns.Stats
 	httpStatsDelta map[http.Key]http.RequestStats
 }
 
@@ -147,7 +149,7 @@ func (ns *networkState) GetDelta(
 	id string,
 	latestTime uint64,
 	latestConns []ConnectionStats,
-	dnsStats map[DNSKey]map[string]map[QueryType]DNSStats,
+	dnsStats map[dns.Key]map[string]map[dns.QueryType]dns.Stats,
 	httpStats map[http.Key]http.RequestStats,
 ) Delta {
 	ns.Lock()
@@ -223,17 +225,22 @@ func (ns *networkState) GetDelta(
 }
 
 func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
-	seen := make(map[DNSKey]struct{}, len(conns))
+	seen := make(map[dns.Key]struct{}, len(conns))
 	for i := range conns {
 		conn := &conns[i]
 		if conn.DPort != 53 {
 			continue
 		}
-		key := DNSKey{
-			serverIP:   conn.Dest,
-			clientIP:   conn.Source,
-			clientPort: conn.SPort,
-			protocol:   conn.Type,
+		key := dns.Key{
+			ServerIP:   conn.Dest,
+			ClientIP:   conn.Source,
+			ClientPort: conn.SPort,
+		}
+		switch conn.Type {
+		case TCP:
+			key.Protocol = syscall.IPPROTO_TCP
+		case UDP:
+			key.Protocol = syscall.IPPROTO_UDP
 		}
 
 		if _, alreadySeen := seen[key]; alreadySeen {
@@ -243,33 +250,33 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 
 		if dnsStatsByDomain, ok := ns.clients[id].dnsStats[key]; ok {
 			if ns.collectDNSDomains {
-				conn.DNSStatsByDomainByQueryType = make(map[string]map[QueryType]DNSStats)
+				conn.DNSStatsByDomainByQueryType = make(map[string]map[dns.QueryType]dns.Stats)
 			} else {
 				conn.DNSCountByRcode = make(map[uint32]uint32)
 			}
 			var total uint32
 			for domain, byType := range dnsStatsByDomain {
 				if ns.collectDNSDomains {
-					conn.DNSStatsByDomainByQueryType[domain] = make(map[QueryType]DNSStats)
+					conn.DNSStatsByDomainByQueryType[domain] = make(map[dns.QueryType]dns.Stats)
 				}
 				for qtype, dnsStats := range byType {
 					if ns.collectDNSDomains {
-						var ds DNSStats
+						var ds dns.Stats
 
-						ds.DNSTimeouts = dnsStats.DNSTimeouts
-						ds.DNSSuccessLatencySum = dnsStats.DNSSuccessLatencySum
-						ds.DNSFailureLatencySum = dnsStats.DNSFailureLatencySum
-						ds.DNSCountByRcode = make(map[uint32]uint32)
-						for rcode, count := range dnsStats.DNSCountByRcode {
-							ds.DNSCountByRcode[rcode] = count
+						ds.Timeouts = dnsStats.Timeouts
+						ds.SuccessLatencySum = dnsStats.SuccessLatencySum
+						ds.FailureLatencySum = dnsStats.FailureLatencySum
+						ds.CountByRcode = make(map[uint32]uint32)
+						for rcode, count := range dnsStats.CountByRcode {
+							ds.CountByRcode[rcode] = count
 						}
 						conn.DNSStatsByDomainByQueryType[domain][qtype] = ds
 					} else {
-						conn.DNSSuccessfulResponses += dnsStats.DNSCountByRcode[DNSResponseCodeNoError]
-						conn.DNSTimeouts += dnsStats.DNSTimeouts
-						conn.DNSSuccessLatencySum += dnsStats.DNSSuccessLatencySum
-						conn.DNSFailureLatencySum += dnsStats.DNSFailureLatencySum
-						for rcode, count := range dnsStats.DNSCountByRcode {
+						conn.DNSSuccessfulResponses += dnsStats.CountByRcode[DNSResponseCodeNoError]
+						conn.DNSTimeouts += dnsStats.Timeouts
+						conn.DNSSuccessLatencySum += dnsStats.SuccessLatencySum
+						conn.DNSFailureLatencySum += dnsStats.FailureLatencySum
+						for rcode, count := range dnsStats.CountByRcode {
 							conn.DNSCountByRcode[rcode] += count
 							total += count
 						}
@@ -284,7 +291,7 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 	}
 
 	// flush the DNS stats
-	ns.clients[id].dnsStats = make(map[DNSKey]map[string]map[QueryType]DNSStats)
+	ns.clients[id].dnsStats = make(map[dns.Key]map[string]map[dns.QueryType]dns.Stats)
 }
 
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation
@@ -333,7 +340,7 @@ func (ns *networkState) StoreClosedConnection(conn *ConnectionStats) {
 	}
 }
 
-func getDeepDNSStatsCount(stats map[DNSKey]map[string]map[QueryType]DNSStats) int {
+func getDeepDNSStatsCount(stats map[dns.Key]map[string]map[dns.QueryType]dns.Stats) int {
 	var count int
 	for _, bykey := range stats {
 		for _, bydomain := range bykey {
@@ -344,35 +351,35 @@ func getDeepDNSStatsCount(stats map[DNSKey]map[string]map[QueryType]DNSStats) in
 }
 
 // storeDNSStats stores latest DNS stats for all clients
-func (ns *networkState) storeDNSStats(stats map[DNSKey]map[string]map[QueryType]DNSStats) {
+func (ns *networkState) storeDNSStats(stats map[dns.Key]map[string]map[dns.QueryType]dns.Stats) {
 	for _, client := range ns.clients {
 		dnsStatsThisClient := getDeepDNSStatsCount(client.dnsStats)
 		for key, statsByDomain := range stats {
 			for domain, statsByQtype := range statsByDomain {
-				for qtype, dns := range statsByQtype {
+				for qtype, dnsStats := range statsByQtype {
 
 					if _, ok := client.dnsStats[key]; !ok {
 						if dnsStatsThisClient >= ns.maxDNSStats {
 							ns.telemetry.dnsStatsDropped++
 							continue
 						}
-						client.dnsStats[key] = make(map[string]map[QueryType]DNSStats)
+						client.dnsStats[key] = make(map[string]map[dns.QueryType]dns.Stats)
 					}
 					if _, ok := client.dnsStats[key][domain]; !ok {
 						if dnsStatsThisClient >= ns.maxDNSStats {
 							ns.telemetry.dnsStatsDropped++
 							continue
 						}
-						client.dnsStats[key][domain] = make(map[QueryType]DNSStats)
+						client.dnsStats[key][domain] = make(map[dns.QueryType]dns.Stats)
 					}
 
 					// If we've seen DNS stats for this key already, let's combine the two
 					if prev, ok := client.dnsStats[key][domain][qtype]; ok {
-						prev.DNSTimeouts += dns.DNSTimeouts
-						prev.DNSSuccessLatencySum += dns.DNSSuccessLatencySum
-						prev.DNSFailureLatencySum += dns.DNSFailureLatencySum
-						for rcode, count := range dns.DNSCountByRcode {
-							prev.DNSCountByRcode[rcode] += count
+						prev.Timeouts += dnsStats.Timeouts
+						prev.SuccessLatencySum += dnsStats.SuccessLatencySum
+						prev.FailureLatencySum += dnsStats.FailureLatencySum
+						for rcode, count := range dnsStats.CountByRcode {
+							prev.CountByRcode[rcode] += count
 						}
 						client.dnsStats[key][domain][qtype] = prev
 					} else {
@@ -380,7 +387,7 @@ func (ns *networkState) storeDNSStats(stats map[DNSKey]map[string]map[QueryType]
 							ns.telemetry.dnsStatsDropped++
 							continue
 						}
-						client.dnsStats[key][domain][qtype] = dns
+						client.dnsStats[key][domain][qtype] = dnsStats
 						dnsStatsThisClient++
 					}
 				}
@@ -421,7 +428,7 @@ func (ns *networkState) newClient(clientID string) (*client, bool) {
 		lastFetch:         time.Now(),
 		stats:             map[string]*stats{},
 		closedConnections: map[string]ConnectionStats{},
-		dnsStats:          map[DNSKey]map[string]map[QueryType]DNSStats{},
+		dnsStats:          map[dns.Key]map[string]map[dns.QueryType]dns.Stats{},
 		httpStatsDelta:    map[http.Key]http.RequestStats{},
 	}
 	ns.clients[clientID] = c

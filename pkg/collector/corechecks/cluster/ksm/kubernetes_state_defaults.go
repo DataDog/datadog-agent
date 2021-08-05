@@ -27,7 +27,7 @@ var (
 		"daemonset":                           "kube_daemon_set",
 		"replicationcontroller":               "kube_replication_controller",
 		"replicaset":                          "kube_replica_set",
-		"statefulset ":                        "kube_stateful_set",
+		"statefulset":                         "kube_stateful_set",
 		"deployment":                          "kube_deployment",
 		"service":                             "kube_service",
 		"endpoint":                            "kube_endpoint",
@@ -158,7 +158,7 @@ var (
 		},
 		"kube_pod_info": {
 			LabelsToMatch: []string{"pod", "namespace"},
-			LabelsToGet:   []string{"node"},
+			LabelsToGet:   []string{"node", "created_by_kind", "created_by_name"},
 		},
 		"kube_persistentvolume_info": {
 			LabelsToMatch: []string{"persistentvolume"}, // persistent volumes are not namespaced

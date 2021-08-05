@@ -69,9 +69,9 @@ func TestMount(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event) bool {
-			assert.Equal(t, event.GetType(), "mount", "wrong event type")
-			assert.Equal(t, event.Mount.MountPointStr, "/"+dstMntBasename, "wrong mount point")
-			assert.Equal(t, event.Mount.GetFSType(), "xfs", "wrong mount fs type")
+			assert.Equal(t, "mount", event.GetType(), "wrong event type")
+			assert.Equal(t, "/"+dstMntBasename, event.Mount.MountPointStr, "wrong mount point")
+			assert.Equal(t, "xfs", event.Mount.GetFSType(), "wrong mount fs type")
 
 			mntID = event.Mount.MountID
 			return true
@@ -100,8 +100,8 @@ func TestMount(t *testing.T) {
 		err = test.GetSignal(t, func() error {
 			return os.Chmod(file, 0707)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "chmod", "wrong event type")
-			assert.Equal(t, event.Chmod.File.PathnameStr, file, "wrong path")
+			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
+			assert.Equal(t, file, event.Chmod.File.PathnameStr, "wrong path")
 		})
 		if err != nil {
 			t.Error(err)
@@ -122,8 +122,8 @@ func TestMount(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event) bool {
-			assert.Equal(t, event.GetType(), "umount", "wrong event type")
-			assert.Equal(t, event.Umount.MountID, mntID, "wrong mount id")
+			assert.Equal(t, "umount", event.GetType(), "wrong event type")
+			assert.Equal(t, mntID, event.Umount.MountID, "wrong mount id")
 			return true
 		}, 3*time.Second, model.FileUmountEventType)
 		if err != nil {
@@ -135,7 +135,7 @@ func TestMount(t *testing.T) {
 		err = test.GetSignal(t, func() error {
 			return syscall.Fchownat(int(releaseFile.Fd()), "", 123, 123, unix.AT_EMPTY_PATH)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "chown", "wrong event type")
+			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assertTriggeredRule(t, rule, "test_rule_pending")
 		})
 		if err != nil {
