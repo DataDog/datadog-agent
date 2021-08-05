@@ -752,8 +752,10 @@ molecule_compose_cleanup:
    when: always
    dependencies:
      - molecule_compose_test
+     - molecule_compose_create
    needs:
      - molecule_compose_test
+     - molecule_compose_create
 
 
 # Job Seq: Molecule
@@ -827,8 +829,10 @@ molecule_integrations_cleanup:
   when: always
   dependencies:
     - molecule_integrations_test
+    - molecule_integrations_create
   needs:
     - molecule_integrations_test
+    - molecule_integrations_create
 
 
 # Job Seq: Molecule
@@ -904,8 +908,10 @@ molecule_kubernetes_cleanup:
     - *only_agent_3_always
   dependencies:
     - molecule_kubernetes_test
+    - molecule_kubernetes_create
   needs:
     - molecule_kubernetes_test
+    - molecule_kubernetes_create
 
 
 # Job Seq: Molecule
@@ -990,8 +996,10 @@ molecule_localinstall_cleanup:
   when: always
   dependencies:
     - molecule_localinstall_test
+    - molecule_localinstall_create
   needs:
     - molecule_localinstall_test
+    - molecule_localinstall_create
   only:
     - tags
     - master
@@ -1080,8 +1088,10 @@ molecule_secrets_cleanup:
   when: always
   dependencies:
     - molecule_secrets_test
+    - molecule_secrets_create
   needs:
     - molecule_secrets_test
+    - molecule_secrets_create
   only:
     - tags
     - master
@@ -1162,8 +1172,10 @@ molecule_swarm_cleanup:
   rules:
     - *only_agent_3_always
   dependencies:
+    - molecule_swarm_create
     - molecule_swarm_test
   needs:
+    - molecule_swarm_create
     - molecule_swarm_test
 
 # Job Seq: Molecule
@@ -1241,8 +1253,10 @@ molecule_vms_cleanup:
   stage: cleanup
   when: always
   dependencies:
+    - molecule_vms_create
     - molecule_vms_test
   needs:
+    - molecule_vms_create
     - molecule_vms_test
 
 ## release stage
