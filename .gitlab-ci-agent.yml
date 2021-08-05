@@ -40,6 +40,7 @@ stages:
 
 .configure_windows_ps1_env_script: &configure_windows_ps1_env_script |
   Import-Module C:\tools\miniconda3\shell\condabin\conda-hook.ps1
+  ./.gitlab-scripts/conda_env.ps1 $CONDA_ENV $PYTHON_RUNTIMES
   conda activate $CONDA_ENV
   $current_dir=Get-Location
   New-Item -ItemType Directory -Force -Path "$Env:GOPATH\\src\\github.com\\StackVista"
