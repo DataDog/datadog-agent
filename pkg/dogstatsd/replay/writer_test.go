@@ -6,8 +6,8 @@
 package replay
 
 import (
-	"bytes"
 	"io"
+	"path"
 	"sync"
 	"testing"
 	"time"
@@ -95,26 +95,27 @@ func writerTest(t *testing.T, z bool) {
 	stats, _ := writer.File.Stat()
 	assert.Greater(t, stats.Size(), int64(0))
 
-	fp := writer.File
+	var (
+		err    error
+		buf    []byte
+		reader *TrafficCaptureReader
+	)
+
+	info, err := writer.File.Stat()
+	assert.Nil(t, err)
+	fp, err := captureFs.fs.Open(path.Join(writer.Location, info.Name()))
+	assert.Nil(t, err)
+	buf, err = afero.ReadAll(fp)
+	assert.Nil(t, err)
 	writer.RUnlock()
 
-	fp.Seek(0, io.SeekStart)
-
-	buf := bytes.NewBuffer(nil)
-	_, _ = io.Copy(buf, fp)
-
-	var reader *TrafficCaptureReader
-	var contents []byte
-	var err error
 	if z {
-		contents, err = zstd.Decompress(nil, buf.Bytes())
+		buf, err = zstd.Decompress(nil, buf)
 		assert.Nil(t, err)
-	} else {
-		contents = buf.Bytes()
 	}
 
 	reader = &TrafficCaptureReader{
-		Contents: contents,
+		Contents: buf,
 		Version:  int(datadogFileVersion),
 		Traffic:  make(chan *pb.UnixDogstatsdMsg, 1),
 	}
