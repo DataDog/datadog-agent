@@ -4,68 +4,63 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"log"
-	_ "net/http/pprof"
-	"strings"
-
+	"github.com/DataDog/datadog-agent/cmd/agent/common/commands"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	"github.com/spf13/cobra"
+	_ "net/http/pprof"
 )
 
-func setupConfig() {
-	verb, key, value :=
-		strings.ToLower(flag.Arg(1)),
-		strings.ToLower(flag.Arg(2)),
-		flag.Arg(3)
+var (
+	RootCmd = &cobra.Command{
+		Run: func(_ *cobra.Command, _ []string) {
+			ignore := ""
+			flag.StringVar(&opts.configPath, "config", flags.DefaultConfPath, "Path to datadog.yaml config")
+			flag.StringVar(&ignore, "ddconfig", "", "[deprecated] Path to dd-agent config")
 
+			if flags.DefaultSysProbeConfPath != "" {
+				flag.StringVar(&opts.sysProbeConfigPath, "sysprobe-config", flags.DefaultSysProbeConfPath, "Path to system-probe.yaml config")
+			}
+
+			flag.StringVar(&opts.pidfilePath, "pid", "", "Path to set pidfile for process")
+			flag.BoolVar(&opts.info, "info", false, "Show info about running process agent and exit")
+			flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
+			flag.StringVar(&opts.check, "check", "", "Run a specific check and print the results. Choose from: process, connections, realtime")
+			flag.Parse()
+
+			exit := make(chan struct{})
+
+			// Invoke the Agent
+			runAgent(exit)
+		},
+	}
+)
+
+func setupConfig() (cli settings.Client, err error) {
 	// Configure a session token so nothing gets rejected
-	err := util.SetAuthToken()
+	err = common.SetupConfigWithoutSecrets("", "")
 	if err != nil {
-		log.Fatal(err)
-		return
-	}
-	settingsClient, err := common.NewSettingsClient()
-
-	if err != nil {
-		log.Fatal(err)
 		return
 	}
 
-	if verb == "get" {
-		get, err := settingsClient.Get(key)
-		if err == nil {
-			log.Println(get)
-		}
-	} else if verb == "set" {
-		_, err = settingsClient.Set(key, value)
-	} else {
-		log.Println("Usage: process-agent config {get setting, set setting value}")
-	}
+	err = util.SetAuthToken()
 	if err != nil {
-		log.Fatal(err)
+		return
 	}
+
+	return common.NewSettingsClient()
+}
+
+func init() {
+	RootCmd.AddCommand(commands.Config(setupConfig))
 }
 
 func main() {
-	ignore := ""
-	flag.StringVar(&opts.configPath, "config", flags.DefaultConfPath, "Path to datadog.yaml config")
-	flag.StringVar(&ignore, "ddconfig", "", "[deprecated] Path to dd-agent config")
-
-	if flags.DefaultSysProbeConfPath != "" {
-		flag.StringVar(&opts.sysProbeConfigPath, "sysprobe-config", flags.DefaultSysProbeConfPath, "Path to system-probe.yaml config")
+	err := RootCmd.Execute()
+	if err != nil {
+		fmt.Println(err)
 	}
-
-	flag.StringVar(&opts.pidfilePath, "pid", "", "Path to set pidfile for process")
-	flag.BoolVar(&opts.info, "info", false, "Show info about running process agent and exit")
-	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
-	flag.StringVar(&opts.check, "check", "", "Run a specific check and print the results. Choose from: process, connections, realtime")
-	flag.Parse()
-
-	opts.isConfig = flag.Arg(0) == "config"
-
-	exit := make(chan struct{})
-
-	// Invoke the Agent
-	runAgent(exit)
 }

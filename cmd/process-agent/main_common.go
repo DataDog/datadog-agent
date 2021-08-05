@@ -39,7 +39,6 @@ var opts struct {
 	version            bool
 	check              string
 	info               bool
-	isConfig           bool
 }
 
 // version info sourced from build flags
@@ -113,11 +112,6 @@ func runAgent(exit chan struct{}) {
 	if err != nil {
 		log.Criticalf("Error parsing config: %s", err)
 		cleanupAndExit(1)
-	}
-
-	if opts.isConfig {
-		setupConfig()
-		cleanupAndExit(0)
 	}
 
 	// Now that the logger is configured log host info
