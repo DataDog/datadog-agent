@@ -700,7 +700,6 @@ pre_release_cluster_agent_image:
     - when: always
 
 
-
 .molecule_compose_cleanup: &molecule_compose_cleanup
   <<: *molecule_base
   stage: cleanup
