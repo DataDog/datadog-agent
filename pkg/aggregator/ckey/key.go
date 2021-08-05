@@ -34,11 +34,23 @@ type ContextKey uint64
 // even if the backend is truncating after 100 tags.
 const hashSetSize = 512
 
+// bruteforceSize is the threshold number of tags below which a bruteforce algorithm is
+// faster than a hashset.
+const bruteforceSize = 16
+
+// blank is a marker value to indicate that hashset slot is vacant.
+const blank = -1
+
 // NewKeyGenerator creates a new key generator
 func NewKeyGenerator() *KeyGenerator {
+	empty := make([]int, 0, hashSetSize)
+	for len(empty) < hashSetSize {
+		empty = append(empty, blank)
+	}
 	return &KeyGenerator{
-		seen:  make([]uint64, 512, 512),
-		empty: make([]uint64, 512, 512),
+		seen:    make([]uint64, hashSetSize),
+		seenIdx: make([]int, hashSetSize),
+		empty:   empty,
 	}
 }
 
@@ -53,8 +65,10 @@ type KeyGenerator struct {
 	// seen is used as a hashset to deduplicate the tags when there is more than
 	// 16 and less than 512 tags.
 	seen []uint64
-	// empty is an empty hashset with all values set to 0, to reset `seen`
-	empty []uint64
+	// seenIdx is the index of the tag stored in the hashset
+	seenIdx []int
+	// empty is an empty hashset with all values set to `blank`, to reset `seenIdx`
+	empty []int
 
 	// idx is used to deduplicate tags when there is less than 16 tags (faster than the
 	// hashset) or more than 512 tags (hashset has been allocated with 512 values max)
@@ -89,26 +103,23 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 			h := murmur3.StringSum64(tag)
 			g.intb = g.intb ^ h
 		}
-	} else if len(tags) > 16 {
+	} else if len(tags) > bruteforceSize {
 		// reset the `seen` hashset.
 		// it copies `g.empty` instead of using make because it's faster
-		copy(g.seen, g.empty)
+		copy(g.seenIdx, g.empty)
 		for i := range tags {
 			h := murmur3.StringSum64(tags[i])
 			j := h & (hashSetSize - 1) // address this hash into the hashset
 			for {
-				if g.seen[j] == 0 {
+				if g.seenIdx[j] == blank {
 					// not seen, we will add it to the hash
-					// TODO(remy): we may want to store the original bytes instead
-					// of the hash, even if the comparison would be slower, we would
-					// be able to avoid collisions here.
-					// See https://github.com/DataDog/datadog-agent/pull/8529#discussion_r661493647
 					g.seen[j] = h
+					g.seenIdx[j] = g.idx
 					g.intb = g.intb ^ h // add this tag into the hash
 					tags[g.idx] = tags[i]
 					g.idx++
 					break
-				} else if g.seen[j] == h {
+				} else if g.seen[j] == h && tags[g.seenIdx[j]] == tags[i] {
 					// already seen, we do not want to xor multiple times the same tag
 					break
 				} else {
@@ -125,7 +136,7 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 		for i := range tags {
 			h := murmur3.StringSum64(tags[i])
 			for j := 0; j < g.idx; j++ {
-				if g.seen[j] == h {
+				if g.seen[j] == h && tags[j] == tags[i] {
 					continue OUTER // we do not want to xor multiple times the same tag
 				}
 			}
@@ -136,7 +147,6 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 		}
 		tagsBuf.Truncate(g.idx)
 	}
-
 
 	return ContextKey(g.intb)
 }
