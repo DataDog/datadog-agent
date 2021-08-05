@@ -695,7 +695,7 @@ pre_release_cluster_agent_image:
 
 .molecule_compose_only_rules: &molecule_compose_only_rules
   rules:
-    - if: $CI_COMMIT_MESSAGE =~ /\[stop\-compose]/
+    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-/
       when: never
 
 
