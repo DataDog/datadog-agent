@@ -23,7 +23,7 @@ func newWalker(procRoot string, callbackFn callback) *walker {
 
 func (w *walker) walk(path string, info os.FileInfo, err error) error {
 	if err != nil {
-		return err
+		return filepath.SkipDir
 	}
 
 	// We're only interested in /proc subdirectories
