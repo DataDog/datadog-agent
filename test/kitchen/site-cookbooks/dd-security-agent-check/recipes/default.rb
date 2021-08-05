@@ -19,7 +19,7 @@ if node['platform_family'] != 'windows'
 
   # `/swapfile` doesn't work on Oracle Linux, so we use `/mnt/swapfile`
   swap_file '/mnt/swapfile' do
-    size 1024
+    size 2048
   end
 
   # To uncomment when gitlab runner are able to build with GOARCH=386
