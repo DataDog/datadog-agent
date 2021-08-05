@@ -24,6 +24,7 @@ func fstat(path string) (stat unix.Stat_t, err error) {
 	if err != nil {
 		return
 	}
+	defer unix.Close(fd)
 
 	err = unix.Fstat(fd, &stat)
 	return
