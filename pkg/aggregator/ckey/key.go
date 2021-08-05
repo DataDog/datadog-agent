@@ -74,17 +74,22 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 	// This is used to track number of unique tags seen so far in both versions of the algorithm.
 	g.idx = 0
 
-	tags := tagsBuf.Get()
-
-	// there is two implementations used here to deduplicate the tags depending on how
+	// There are three implementations used here to deduplicate the tags depending on how
 	// many tags we have to process:
 	//   -  16 < n < hashSetSize:	we use a hashset of `hashSetSize` values.
-	//   -  n < 16 or n > hashSetSize: we use a simple for loops, which is faster than
-	//                         	the hashset when there is less than 16 tags, and
-	//                         	we use it as fallback when there is more than `hashSetSize`
-	//                         	because it is the maximum size the allocated
-	//                         	hashset can handle.
-	if len(tags) > 16 && len(tags) < hashSetSize {
+	//   -  n < 16:                 we use a simple for loops, which is faster than
+	//                          	the hashset when there is less than 16 tags
+	//   - n > hashSetSize:         sort
+
+	tags := tagsBuf.Get()
+
+	if len(tags) > hashSetSize {
+		tagsBuf.SortUniq()
+		for _, tag := range tagsBuf.Get() {
+			h := murmur3.StringSum64(tag)
+			g.intb = g.intb ^ h
+		}
+	} else if len(tags) > 16 {
 		// reset the `seen` hashset.
 		// it copies `g.empty` instead of using make because it's faster
 		copy(g.seen, g.empty)
@@ -114,6 +119,7 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 				}
 			}
 		}
+		tagsBuf.Truncate(g.idx)
 	} else {
 	OUTER:
 		for i := range tags {
@@ -128,9 +134,9 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 			tags[g.idx] = tags[i]
 			g.idx++
 		}
+		tagsBuf.Truncate(g.idx)
 	}
 
-	tagsBuf.Truncate(g.idx)
 
 	return ContextKey(g.intb)
 }

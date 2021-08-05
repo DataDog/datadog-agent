@@ -7,6 +7,7 @@ package ckey
 
 import (
 	"fmt"
+	"math/rand"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -80,21 +81,70 @@ func TestTagsOrderAndDupsDontMatter(t *testing.T) {
 	assert.NotEqual(key, key4, "tags content should matter")
 }
 
-func genTags(count int) []string {
+func genTags(count int, div int) ([]string, []string) {
 	var tags []string
+	uniqMap := make(map[string]struct{})
 	for i := 0; i < count; i++ {
-		tags = append(tags, fmt.Sprintf("tag%d:value%d", i, i))
+		tag := fmt.Sprintf("tag%d:value%d", i / div, i / div)
+		tags = append(tags, tag)
+		uniqMap[tag] = struct{}{}
 	}
-	return tags
+
+	uniq := []string{}
+	for tag := range uniqMap {
+		uniq = append(uniq, tag)
+	}
+
+	return tags, uniq
+}
+
+func TestTagsAreDedupedWhileGeneratingCKey(t *testing.T) {
+	withSizeAndSeed := func(size, iterations int, seed int64) func(*testing.T) {
+		return func(t *testing.T) {
+			assert := assert.New(t)
+			r := rand.New(rand.NewSource(seed))
+			name := "metrics.to.test.hashing"
+			hostname := "hostname.localhost"
+			tags, expUniq := genTags(size, 2)
+			tagsBuf := util.NewTagsBuilderFromSlice(tags)
+
+			generator := NewKeyGenerator()
+			expKey := generator.Generate(name, hostname, util.NewTagsBuilderFromSlice(tagsBuf.Copy()))
+			for i := 0; i < iterations; i++ {
+				tags := tagsBuf.Copy()
+				r.Shuffle(size, func(i, j int) { tags[i], tags[j] = tags[j], tags[i] })
+				tagsBuf := util.NewTagsBuilderFromSlice(tags)
+				key := generator.Generate(name, hostname, tagsBuf)
+				assert.Equal(expKey, key, "order of tags should not matter")
+
+				newTags := tagsBuf.Get()
+				newUniq := make(map[string]int, len(newTags))
+				// make sure every tag occurs only once
+				for _, tag := range newTags {
+					newUniq[tag]++
+					assert.Equal(newUniq[tag], 1)
+				}
+				// make sure all unique tags are present
+				for _, tag := range expUniq {
+					assert.Equal(newUniq[tag], 1)
+				}
+			}
+		}
+	}
+	t.Run("smallish", withSizeAndSeed(10, 200, 0x398192f0a9c0))
+	t.Run("bigger", withSizeAndSeed(50, 100, 0x398192f0a9c0))
+	t.Run("huge", withSizeAndSeed(600, 10, 0x398192f0a9c0))
 }
 
 func BenchmarkKeyGeneration(b *testing.B) {
 	name := "testname"
 	host := "myhost"
-	for i := 1; i < 256; i *= 2 {
+	for i := 1; i < 4096; i *= 2 {
+		tags, _ := genTags(i, 1)
+		tagsBuf := util.NewTagsBuilderFromSlice(tags)
 		b.Run(fmt.Sprintf("%d-tags", i), func(b *testing.B) {
 			generator := NewKeyGenerator()
-			tags := util.NewTagsBuilderFromSlice(genTags(i))
+			tags := util.NewTagsBuilderFromSlice(tagsBuf.Copy())
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {
 				generator.Generate(name, host, tags)
