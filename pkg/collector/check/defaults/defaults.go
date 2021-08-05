@@ -12,5 +12,5 @@ import (
 const (
 	// DefaultCheckInterval is the interval in seconds the scheduler should apply
 	// when no value was provided in Check configuration.
-	DefaultCheckInterval time.Duration = 15 * time.Second
+	DefaultCheckInterval time.Duration = 40 * time.Second
 )
