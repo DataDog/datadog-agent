@@ -841,6 +841,7 @@ molecule_integrations_cleanup:
 
 .kubernetes_cleanup_base: &kubernetes_cleanup_base
    <<: *molecule_base
+   resource_group: eks_test_cluster
    interruptible: true
    script:
      - cd $CI_PROJECT_DIR/test
@@ -868,11 +869,11 @@ molecule_kubernetes_create:
 molecule_kubernetes_test:
   <<: *molecule_base
   interruptible: true
+  resource_group: eks_test_cluster
   rules:
     - *only_agent_3_success
   dependencies:
     - molecule_kubernetes_create
-  resource_group: eks_test_cluster
   needs:
     - pre_release_cluster_agent_image
     - pre_release_main_agent_image
