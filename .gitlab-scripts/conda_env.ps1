@@ -14,5 +14,5 @@ conda create -n $envName python python=$pythonVersion -y
 conda activate $envName
 pip install -i https://pypi.python.org/simple pip==$DD_PIP_VERSION
 pip install --ignore-installed setuptools==$DD_SETUPTOOLS_VERSION
-pip install invoke distro=='1.4.0'
+pip install invoke distro=='1.4.0' awscli=='1.16.240'
 pip install -r requirements.txt
