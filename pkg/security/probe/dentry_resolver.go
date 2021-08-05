@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"sync"
 	"sync/atomic"
 	"unsafe"
 
@@ -41,8 +40,7 @@ type DentryResolver struct {
 	activeERPCStatsBuffer uint32
 	dentryCacheSize       int
 	cache                 map[uint32]*lru.Cache
-	cacheGenerations      map[uint32]int
-	cacheGenerationsLock  sync.Mutex
+	cacheGeneration       uint64
 	erpc                  *ERPC
 	erpcSegment           []byte
 	erpcSegmentSize       int
@@ -114,7 +112,7 @@ type PathLeaf struct {
 type PathEntry struct {
 	Parent     PathKey
 	Name       string
-	Generation int
+	Generation uint64
 }
 
 // GetName returns the path value as a string
@@ -258,9 +256,7 @@ func (dr *DentryResolver) lookupInodeFromCache(mountID uint32, inode uint64) (*P
 	}
 
 	cacheEntry := entry.(PathEntry)
-	dr.cacheGenerationsLock.Lock()
-	defer dr.cacheGenerationsLock.Unlock()
-	if cacheEntry.Generation < dr.cacheGenerations[mountID] {
+	if cacheEntry.Generation < atomic.LoadUint64(&dr.cacheGeneration) {
 		return nil, ErrEntryNotFound
 	}
 
@@ -268,9 +264,6 @@ func (dr *DentryResolver) lookupInodeFromCache(mountID uint32, inode uint64) (*P
 }
 
 func (dr *DentryResolver) cacheInode(key PathKey, path PathEntry) error {
-	dr.cacheGenerationsLock.Lock()
-	defer dr.cacheGenerationsLock.Unlock()
-
 	entries, exists := dr.cache[key.MountID]
 	if !exists {
 		var err error
@@ -280,11 +273,10 @@ func (dr *DentryResolver) cacheInode(key PathKey, path PathEntry) error {
 			return err
 		}
 		dr.cache[key.MountID] = entries
-		dr.cacheGenerations[key.MountID] = 0
 		path.Generation = 0
 	} else {
 		// lookup mount_id generation
-		path.Generation = dr.cacheGenerations[key.MountID]
+		path.Generation = atomic.LoadUint64(&dr.cacheGeneration)
 	}
 
 	entries.Add(key.Inode, path)
@@ -504,7 +496,7 @@ func (dr *DentryResolver) GetNameFromERPC(mountID uint32, inode uint64, pathID u
 
 	if challenge != model.ByteOrder.Uint32(dr.erpcSegment[12:16]) {
 		atomic.AddInt64(dr.missCounters[metrics.SegmentResolutionTag][metrics.ERPCTag], 1)
-		return "", errors.Errorf("eRPC request wasn't processed")
+		return "", errERPCRequestNotProcessed
 	}
 
 	seg := C.GoString((*C.char)(unsafe.Pointer(&dr.erpcSegment[16])))
@@ -562,7 +554,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 				break
 			}
 			atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.ERPCTag], 1)
-			return "", errors.Errorf("eRPC request wasn't processed")
+			return "", errERPCRequestNotProcessed
 		}
 
 		// skip PathID
@@ -666,7 +658,7 @@ func (dr *DentryResolver) resolveParentFromERPC(mountID uint32, inode uint64, pa
 
 	if challenge != model.ByteOrder.Uint32(dr.erpcSegment[12:16]) {
 		atomic.AddInt64(dr.missCounters[metrics.ParentResolutionTag][metrics.ERPCTag], 1)
-		return 0, 0, errors.Errorf("eRPC request wasn't processed")
+		return 0, 0, errERPCRequestNotProcessed
 	}
 
 	parentInode := model.ByteOrder.Uint64(dr.erpcSegment[0:8])
@@ -701,12 +693,7 @@ func (dr *DentryResolver) GetParent(mountID uint32, inode uint64, pathID uint32)
 
 // BumpCacheGenerations bumps the generations of all the mount points
 func (dr *DentryResolver) BumpCacheGenerations() {
-	dr.cacheGenerationsLock.Lock()
-	defer dr.cacheGenerationsLock.Unlock()
-
-	for genMountID := range dr.cacheGenerations {
-		dr.cacheGenerations[genMountID]++
-	}
+	atomic.AddUint64(&dr.cacheGeneration, 1)
 }
 
 // Start the dentry resolver
@@ -742,6 +729,15 @@ func (dr *DentryResolver) Start(probe *Probe) error {
 func (dr *DentryResolver) Close() error {
 	return errors.Wrap(unix.Munmap(dr.erpcSegment), "couldn't cleanup eRPC memory segment")
 }
+
+// ErrERPCRequestNotProcessed is used to notify that the eRPC request was not processed
+type ErrERPCRequestNotProcessed struct{}
+
+func (err ErrERPCRequestNotProcessed) Error() string {
+	return "erpc_not_processed"
+}
+
+var errERPCRequestNotProcessed ErrERPCRequestNotProcessed
 
 // ErrTruncatedParentsERPC is used to notify that some parents of the path are missing
 type ErrTruncatedParentsERPC struct{}
@@ -819,19 +815,18 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 	}
 
 	return &DentryResolver{
-		client:           probe.statsdClient,
-		cache:            make(map[uint32]*lru.Cache),
-		cacheGenerations: make(map[uint32]int),
-		dentryCacheSize:  probe.config.DentryCacheSize,
-		erpc:             probe.erpc,
-		erpcSegment:      segment,
-		erpcSegmentSize:  len(segment),
-		erpcRequest:      ERPCRequest{},
-		erpcEnabled:      probe.config.ERPCDentryResolutionEnabled,
-		erpcStatsZero:    make([]eRPCStats, numCPU),
-		mapEnabled:       probe.config.MapDentryResolutionEnabled,
-		hitsCounters:     hitsCounters,
-		missCounters:     missCounters,
-		numCPU:           numCPU,
+		client:          probe.statsdClient,
+		cache:           make(map[uint32]*lru.Cache),
+		dentryCacheSize: probe.config.DentryCacheSize,
+		erpc:            probe.erpc,
+		erpcSegment:     segment,
+		erpcSegmentSize: len(segment),
+		erpcRequest:     ERPCRequest{},
+		erpcEnabled:     probe.config.ERPCDentryResolutionEnabled,
+		erpcStatsZero:   make([]eRPCStats, numCPU),
+		mapEnabled:      probe.config.MapDentryResolutionEnabled,
+		hitsCounters:    hitsCounters,
+		missCounters:    missCounters,
+		numCPU:          numCPU,
 	}, nil
 }

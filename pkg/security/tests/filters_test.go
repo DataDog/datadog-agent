@@ -262,7 +262,7 @@ func TestDiscarderFilterMask(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{wantProbeEvents: true})
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
