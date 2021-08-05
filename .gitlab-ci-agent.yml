@@ -688,14 +688,13 @@ pre_release_cluster_agent_image:
 # Steps: Destroy Compose, Create Compose, Prepare Compose, Second Prepare Compose, Test Compose, Destroy Compose
 
 # Target only compose molecule testing
-.molecule_compose_only_rules: &molecule_compose_only_rules
-  rules:
-    - if: $CI_COMMIT_MESSAGE == /.*?\[molecule\-.*?\].*?/
-      when: always
-    - if: $CI_COMMIT_MESSAGE == /.*?\[molecule\-.*?\].*?/ && $CI_COMMIT_MESSAGE != /.*?\[molecule\-compose\].*?/
-      when: never
-    - when: always
-
+# .molecule_compose_only_rules: &molecule_compose_only_rules
+#   rules:
+#     - if: $CI_COMMIT_MESSAGE == /.*?\[molecule\-.*?\].*?/
+#       when: always
+#     - if: $CI_COMMIT_MESSAGE == /.*?\[molecule\-.*?\].*?/ && $CI_COMMIT_MESSAGE != /.*?\[molecule\-compose\].*?/
+#       when: never
+#     - when: always
 
 .molecule_compose_cleanup: &molecule_compose_cleanup
   <<: *molecule_base
@@ -711,7 +710,19 @@ pre_release_cluster_agent_image:
 molecule_compose_create:
   <<: *molecule_base_prepare
   <<: *molecule_compose_resource_lock
-  <<: *molecule_compose_only_rules
+  rules:
+    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-compose\]$/i
+      when: always
+    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-.*?\]$/i
+      when: never
+    - when: always
+
+  # rules:
+  #   - if: $CI_COMMIT_MESSAGE == /.*?\[molecule\-.*?\].*?/ && $CI_COMMIT_MESSAGE != /.*?\[molecule\-compose\].*?/
+  #     when: never
+  #   - if: $CI_COMMIT_MESSAGE == /.*?\[molecule\-.*?\].*?/
+  #     when: always
+  #   - when: always
   interruptible: true
   script:
     - cd $CI_PROJECT_DIR/test
