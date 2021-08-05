@@ -14,6 +14,8 @@ PyObject * ydump = NULL;
 PyObject * loader = NULL;
 PyObject * dumper = NULL;
 
+PyObject * json_dump = NULL;
+
 /**
  * returns a C (NULL terminated UTF-8) string from a python string.
  *
@@ -119,10 +121,24 @@ int init_stringutils(void) {
         }
     }
 
+    // import json
+    char module_name_json[] = "json";
+    PyObject *json_module = PyImport_ImportModule(module_name_json);
+    if (json_module == NULL) {
+        goto done;
+    }
+    // json.dumps(...)
+    char dumps_name[] = "dumps";
+    json_dump = PyObject_GetAttrString(json_module, dumps_name);
+    if (json_dump == NULL) {
+        goto done;
+    }
+
     ret = EXIT_SUCCESS;
 
 done:
     Py_XDECREF(yaml);
+    Py_XDECREF(json_module);
     return ret;
 }
 
@@ -172,5 +188,26 @@ done:
     Py_XDECREF(dumped);
     Py_XDECREF(kwargs);
     Py_XDECREF(args);
+    return retval;
+}
+
+char *as_json(PyObject *object) {
+    char *retval = NULL;
+    PyObject *packed = NULL;
+
+    // json.dumps(data) --> returns binary
+    PyObject *args = PyTuple_New(0);
+    PyObject *kwargs = Py_BuildValue("{s:O}", "obj", object);
+    packed = PyObject_Call(json_dump, args, kwargs);
+    if (packed == NULL) {
+        goto done;
+    }
+
+    retval = as_string(packed);
+done:
+    //Py_XDECREF can accept (and ignore) NULL references
+    Py_XDECREF(args);
+    Py_XDECREF(kwargs);
+    Py_XDECREF(packed);
     return retval;
 }

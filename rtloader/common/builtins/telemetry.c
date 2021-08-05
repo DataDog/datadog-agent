@@ -62,9 +62,9 @@ static PyObject *submit_topology_event(PyObject *self, PyObject *args) {
         goto error;
     }
 
-    topology_event = as_yaml(event_dict);
+    topology_event = as_json(event_dict);
     if (topology_event == NULL) {
-        // If as_yaml fails it sets a python exception, so we just return
+        // If as_json fails it sets a python exception, so we just return
         goto error;
     } else {
         cb_submit_topology_event(check_id, topology_event);

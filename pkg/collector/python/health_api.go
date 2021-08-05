@@ -8,6 +8,7 @@
 package python
 
 import (
+	"encoding/json"
 	"github.com/StackVista/stackstate-agent/pkg/batcher"
 	"github.com/StackVista/stackstate-agent/pkg/collector/check"
 	"github.com/StackVista/stackstate-agent/pkg/health"
@@ -29,19 +30,21 @@ import "C"
 
 // SubmitHealthCheckData is the method exposed to Python scripts to submit health check data
 //export SubmitHealthCheckData
-func SubmitHealthCheckData(id *C.char, healthStream *C.health_stream_t, data *C.char) {
+func SubmitHealthCheckData(id *C.char, _ *C.health_stream_t, data *C.char) {
 	goCheckID := C.GoString(id)
-	_stream := convertStream(healthStream)
-	_json, err := tryParseYamlToMap(data)
+	rawHealthPayload := C.GoString(data)
+	healthPayload := health.Payload{}
+	err := json.Unmarshal([]byte(rawHealthPayload), &healthPayload)
 
 	if err == nil {
-		if len(_json) != 0 {
-			batcher.GetBatcher().SubmitHealthCheckData(check.ID(goCheckID), _stream, _json)
+		if len(healthPayload.Data) != 0 {
+			batcher.GetBatcher().SubmitHealthCheckData(check.ID(goCheckID), healthPayload.Stream, healthPayload.Data)
 		} else {
 			_ = log.Errorf("Empty json submitted to as check data, this is not allowed, data will not be forwarded.")
 		}
 	} else {
-		_ = log.Errorf("Error converting health data yaml to go: Error: %v", err)
+		_ = log.Errorf("Empty health data event not sent. Raw: %v, Json: %v, Error: %v", rawHealthPayload,
+			healthPayload.JSONString(), err)
 	}
 }
 

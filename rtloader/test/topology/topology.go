@@ -1,7 +1,9 @@
 package testtopology
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/StackVista/stackstate-agent/pkg/topology"
 	"io/ioutil"
 	"log"
 	"os"
@@ -11,7 +13,6 @@ import (
 
 	common "github.com/StackVista/stackstate-agent/rtloader/test/common"
 	"github.com/StackVista/stackstate-agent/rtloader/test/helpers"
-	"gopkg.in/yaml.v2"
 )
 
 /*
@@ -33,15 +34,17 @@ static void initTopologyTests(rtloader_t *rtloader) {
 import "C"
 
 var (
-	rtloader		*C.rtloader_t
-	checkID			string
-	_instance		*Instance
-	_data			map[string]interface{}
-	_externalID		string
-	_componentType	string
-	_sourceID		string
-	_targetID		string
-	_relationType	string
+	rtloader       *C.rtloader_t
+	checkID        string
+	_instance      *Instance
+	_raw_data      string
+	_data          map[string]interface{}
+	result         map[string]interface{}
+	_externalID    string
+	_componentType string
+	_sourceID      string
+	_targetID      string
+	_relationType  string
 )
 
 type Instance struct {
@@ -52,7 +55,9 @@ type Instance struct {
 func resetOuputValues() {
 	checkID = ""
 	_instance = nil
+	_raw_data = ""
 	_data = nil
+	result = nil
 	_externalID = ""
 	_componentType = ""
 	_sourceID = ""
@@ -128,8 +133,10 @@ func submitComponent(id *C.char, instanceKey *C.instance_key_t, externalID *C.ch
 
 	_externalID = C.GoString(externalID)
 	_componentType = C.GoString(componentType)
-	_data = make(map[string]interface{})
-	yaml.Unmarshal([]byte(C.GoString(data)), _data)
+	_raw_data = C.GoString(data)
+	component := &topology.Component{}
+	json.Unmarshal([]byte(_raw_data), component)
+	result = component.Data
 }
 
 //export submitRelation
@@ -148,7 +155,10 @@ func submitRelation(id *C.char, instanceKey *C.instance_key_t, sourceID *C.char,
 	_externalID = fmt.Sprintf("%s-%s-%s", _sourceID, _relationType, _targetID)
 
 	_data = make(map[string]interface{})
-	yaml.Unmarshal([]byte(C.GoString(data)), _data)
+	_raw_data = C.GoString(data)
+	relation := &topology.Relation{}
+	json.Unmarshal([]byte(_raw_data), relation)
+	result = relation.Data
 }
 
 //export submitStartSnapshot

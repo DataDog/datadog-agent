@@ -159,6 +159,9 @@ version.txt
 /test/molecule-role/molecule/*/topic-*.json
 .molecule
 
+# ignore manual test files
+test/manual/*
+
 # cluster agent generated files
 Dockerfiles/cluster-agent/stackstate-cluster.yaml
 Dockerfiles/cluster-agent/auth_token
@@ -171,3 +174,6 @@ deployment/kubernetes/k8s-*/
 
 # windows ami
 .cd-builders/windows/builder/runner/roles/sa_gitlab_runner_win
+
+# msgpack gen files
+*_gen*.go
