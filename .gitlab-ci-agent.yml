@@ -697,6 +697,7 @@ pre_release_cluster_agent_image:
   rules:
     - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-/
       when: never
+    - when: always
 
 
 
