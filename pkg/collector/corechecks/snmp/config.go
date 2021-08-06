@@ -36,6 +36,7 @@ type snmpInitConfig struct {
 	OidBatchSize          Number           `yaml:"oid_batch_size"`
 	BulkMaxRepetitions    Number           `yaml:"bulk_max_repetitions"`
 	CollectDeviceMetadata Boolean          `yaml:"collect_device_metadata"`
+	MinCollectionInterval int              `yaml:"min_collection_interval"`
 }
 
 type snmpInstanceConfig struct {
@@ -226,13 +227,17 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		c.timeout = int(instance.Timeout)
 	}
 
-	if instance.ExtraMinCollectionInterval == 0 && instance.MinCollectionInterval == 0 {
-		c.minCollectionInterval = defaults.DefaultCheckInterval
-	} else if instance.MinCollectionInterval > 0 {
-		// Original `min_collection_interval` has precedence over `extra_min_collection_interval`
-		c.minCollectionInterval = time.Duration(instance.MinCollectionInterval) * time.Second
-	} else {
+	if instance.ExtraMinCollectionInterval != 0 {
 		c.minCollectionInterval = time.Duration(instance.ExtraMinCollectionInterval) * time.Second
+	} else if instance.MinCollectionInterval != 0 {
+		c.minCollectionInterval = time.Duration(instance.MinCollectionInterval) * time.Second
+	} else if initConfig.MinCollectionInterval != 0 {
+		c.minCollectionInterval = time.Duration(initConfig.MinCollectionInterval) * time.Second
+	} else {
+		c.minCollectionInterval = defaults.DefaultCheckInterval
+	}
+	if c.minCollectionInterval < 0 {
+		return snmpConfig{}, fmt.Errorf("min collection interval must be > 0, but got: %v", c.minCollectionInterval.Seconds())
 	}
 
 	// SNMP connection configs
