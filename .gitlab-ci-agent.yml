@@ -836,26 +836,34 @@ molecule_integrations_cleanup:
     - if: $MAJOR_VERSION == "3"
       when: always
 
-molecule_kubernetes_create:
-  <<: *molecule_base_create
-  <<: *molecule_kubernetes_only_rules
-  <<: *molecule_artifacts
-  interruptible: true
-  variables:
-    MOLECULE_SCENARIO: kubernetes
-    MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
-  resource_group: eks_test_cluster
+# molecule_kubernetes_create:
+#   resource_group: eks_test_cluster
+#   <<: *molecule_base_create
+#   <<: *molecule_kubernetes_only_rules
+#   <<: *molecule_artifacts
+#   interruptible: true
+#   variables:
+#     MOLECULE_SCENARIO: kubernetes
+#     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
 
 molecule_kubernetes_test:
-  <<: *molecule_base
-  <<: *molecule_base_test
+  resource_group: eks_test_cluster
+  # <<: *molecule_base
+  # <<: *molecule_base_test
+  stage: acceptance
+  script:
+    - cd $CI_PROJECT_DIR/test
+    -./molecule3.sh test -s kubernetes
+    # - ./molecule3.sh --base-config ./molecule/$MOLECULE_SCENARIO/provisioner.setup.yml create --scenario-name $MOLECULE_SCENARIO
+    # - cd $CI_PROJECT_DIR/test
+    # - ./molecule3.sh --base-config ./molecule/$MOLECULE_SCENARIO/provisioner.run.yml prepare --force --scenario-name $MOLECULE_SCENARIO
+    # - ./molecule3.sh --base-config ./molecule/$MOLECULE_SCENARIO/provisioner.run.yml test --scenario-name $MOLECULE_SCENARIO --destroy=never
   <<: *molecule_kubernetes_only_rules
   <<: *molecule_artifacts
   interruptible: true
   variables:
     MOLECULE_SCENARIO: kubernetes
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
-  resource_group: eks_test_cluster
   dependencies:
     - molecule_kubernetes_create
   needs:
@@ -864,20 +872,20 @@ molecule_kubernetes_test:
     - molecule_kubernetes_create
 
 molecule_kubernetes_failure_cleanup:
+  resource_group: eks_test_cluster
   variables:
     MOLECULE_SCENARIO: kubernetes
   <<: *molecule_base_cleanup
   <<: *molecule_kubernetes_only_rules
-  resource_group: eks_test_cluster
   needs:
     - molecule_kubernetes_create
 
 molecule_kubernetes_cleanup:
+  resource_group: eks_test_cluster
   variables:
     MOLECULE_SCENARIO: kubernetes
   <<: *molecule_base_cleanup
   <<: *molecule_kubernetes_only_rules
-  resource_group: eks_test_cluster
   dependencies:
     - molecule_kubernetes_test
     - molecule_kubernetes_create
