@@ -45,6 +45,7 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 		"functionname:my-function",
 		"region:us-east-1",
 		"resource:my-function",
+		"dd_extension_version:xxx",
 	}
 
 	sort.Strings(d.ExtraTags.Tags)
