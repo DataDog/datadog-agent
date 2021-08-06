@@ -61,5 +61,4 @@
         content: |
           STACKSTATE_BRANCH={{ stackstate_branch }}
         dest: /home/ubuntu/.env
-
     - include_tasks: ../common/prepare/encrypt-key.yml
