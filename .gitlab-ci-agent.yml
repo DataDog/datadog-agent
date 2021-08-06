@@ -52,15 +52,6 @@ stages:
 .rules:
   - &only_agent_3
     if: $MAJOR_VERSION == "3"
-  - &only_agent_3_failure
-    if: $MAJOR_VERSION == "3"
-    when: on_failure
-  - &only_agent_3_success
-    if: $MAJOR_VERSION == "3"
-    when: on_success
-  - &only_agent_3_always
-    if: $MAJOR_VERSION == "3"
-    when: always
   - &only_agent_3_release
     if: $MAJOR_VERSION == "3" && ($CI_COMMIT_TAG || $CI_JOB_TRIGGERED == "true")
     when: manual
