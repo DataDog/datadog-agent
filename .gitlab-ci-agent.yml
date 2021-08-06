@@ -669,15 +669,15 @@ pre_release_cluster_agent_image:
       - always
 
 .molecule_base_create: &molecule_base_create
-  <<: *molecule_base
   stage: prepare
+  <<: *molecule_base
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/$MOLECULE_SCENARIO/provisioner.setup.yml create --scenario-name $MOLECULE_SCENARIO
 
 .molecule_base_cleanup: &molecule_base_cleanup
-  <<: *molecule_base
   stage: cleanup
+  <<: *molecule_base
   interruptible: true
   script:
     - cd $CI_PROJECT_DIR/test
@@ -715,10 +715,10 @@ molecule_compose_create:
   variables:
     MOLECULE_SCENARIO: compose
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
-  <<: *molecule_base_create
   <<: *molecule_base_resource_lock
   <<: *molecule_compose_only_rules
   <<: *molecule_artifacts
+  <<: *molecule_base_create
   interruptible: true
 
 molecule_compose_test:
@@ -726,10 +726,10 @@ molecule_compose_test:
     MOLECULE_SCENARIO: compose
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
   <<: *molecule_base
-  <<: *molecule_base_test
   <<: *molecule_base_resource_lock
   <<: *molecule_compose_only_rules
   <<: *molecule_artifacts
+  <<: *molecule_base_test
   interruptible: true
   dependencies:
     - molecule_compose_create

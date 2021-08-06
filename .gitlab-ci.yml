@@ -22,10 +22,11 @@ stages:
 #   - "<commit message> [py2]"
 #   - "<commit message> [py3]"
 #
+# TODO: Debugging required for the combination steps, causes pipeline to fail
+#       This would be ideal to reduce the pipeline build to only what's required
 # You can combine tags from the top to stack filters for example:
 #   - "<commit message> [py2][molecule-compose]"
 #   - "<commit message> [py3][molecule-secrets][molecule-vms]"
-
 
 variables: &commonvariables
   # The SRC_PATH is in the GOPATH of the builders which
