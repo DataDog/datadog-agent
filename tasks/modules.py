@@ -103,7 +103,7 @@ def generate_dummy_package(ctx, folder):
             )
         print("Done")
 
-        ctx.run("go mod init")
+        ctx.run("go mod init example.com/testmodule")
         for mod in DEFAULT_MODULES.values():
             if mod.path != ".":
                 ctx.run("go mod edit -require={}".format(mod.dependency_path("0.0.0")))

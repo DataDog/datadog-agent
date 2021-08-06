@@ -138,6 +138,10 @@ struct bpf_map_def SEC("maps/inode_discarders") inode_discarders = {
 };
 
 int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u64 inode, u64 timeout, u32 is_leaf) {
+    if (!mount_id || !inode) {
+        return 0;
+    }
+
     struct inode_discarder_t key = {
         .path_key = {
             .ino = inode,
@@ -151,14 +155,14 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
 
     struct inode_discarder_params_t *inode_params = bpf_map_lookup_elem(&inode_discarders, &key);
     if (inode_params) {
-        inode_params->params.event_mask |= event_type;
+        inode_params->params.event_mask |= 1 << (event_type - EVENT_FIRST_DISCARDER);
 
         if ((discarder_timestamp = get_discarder_timestamp(&inode_params->params, event_type)) != NULL) {
             *discarder_timestamp = timestamp;
         }
     } else {
         struct inode_discarder_params_t new_inode_params = {
-            .params.event_mask = event_type,
+            .params.event_mask = 1 << (event_type - EVENT_FIRST_DISCARDER),
             .revision = get_discarder_revision(mount_id),
         };
 

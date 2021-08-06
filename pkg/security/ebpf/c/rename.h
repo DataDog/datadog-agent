@@ -109,12 +109,14 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
     u64 inode = get_dentry_ino(syscall->rename.src_dentry);
 
     // invalidate inode from src dentry to handle ovl folder
-    if (syscall->rename.target_file.path_key.ino != inode) {
+    if (syscall->rename.target_file.path_key.ino != inode && retval >= 0) {
         invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, inode, 1);
     }
 
     // invalidate user face inode, so no need to bump the discarder revision in the event
-    invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, syscall->rename.target_file.path_key.ino, 1);
+    if (retval >= 0) {
+        invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, syscall->rename.target_file.path_key.ino, 1);
+    }
 
     if (!syscall->discarded && is_event_enabled(EVENT_RENAME)) {
         // for centos7, use src dentry for target resolution as the pointers have been swapped

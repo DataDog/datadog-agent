@@ -141,7 +141,7 @@ func (mp *provider) GetNetworkMetrics(containerID string, networks map[string]st
 		return nil, errors.New("no pid for this container")
 	}
 
-	metrics, err := collectNetworkStats(int(cg.Pids[0]), networks)
+	metrics, err := collectNetworkStats(int(cg.Pids[len(cg.Pids)-1]), networks)
 	if err != nil {
 		return nil, fmt.Errorf("Could not collect network stats for container %s: %s", containerID[:12], err)
 	}

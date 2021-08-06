@@ -6,7 +6,6 @@
 #include "tracer-telemetry.h"
 #include "bpf_helpers.h"
 #include "bpf_endian.h"
-#include "syscalls.h"
 #include "ip.h"
 #include "netns.h"
 #include "sockfd.h"
@@ -736,30 +735,6 @@ cleanup:
 }
 
 //endregion
-
-// This function is meant to be used as a BPF_PROG_TYPE_SOCKET_FILTER.
-// When attached to a RAW_SOCKET, this code filters out everything but DNS traffic.
-// All structs referenced here are kernel independent as they simply map protocol headers (Ethernet, IP and UDP).
-SEC("socket/dns_filter")
-int socket__dns_filter(struct __sk_buff* skb) {
-    skb_info_t skb_info;
-
-    if (!read_conn_tuple_skb(skb, &skb_info)) {
-        return 0;
-    }
-
-#ifdef FEATURE_DNS_STATS_ENABLED
-    if (skb_info.tup.sport != 53 && skb_info.tup.dport != 53) {
-        return 0;
-    }
-#else
-    if (skb_info.tup.sport != 53) {
-        return 0;
-    }
-#endif
-
-    return -1;
-}
 
 // This number will be interpreted by elf-loader to set the current running kernel version
 __u32 _version SEC("version") = 0xFFFFFFFE; // NOLINT(bugprone-reserved-identifier)

@@ -143,7 +143,7 @@ func makeFlare(caseID string) error {
 
 	var filePath string
 	if forceLocal {
-		filePath, err = createArchive(logFiles, profile)
+		filePath, err = createArchive(logFiles, profile, nil)
 	} else {
 		filePath, err = requestArchive(logFiles, profile)
 	}
@@ -182,7 +182,7 @@ func requestArchive(logFiles []string, pdata flare.ProfileData) (string, error) 
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting IPC address for the agent: %s", err)))
-		return createArchive(logFiles, pdata)
+		return createArchive(logFiles, pdata, err)
 	}
 
 	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, config.Datadog.GetInt("cmd_port"))
@@ -191,7 +191,7 @@ func requestArchive(logFiles []string, pdata flare.ProfileData) (string, error) 
 	e = util.SetAuthToken()
 	if e != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error: %s", e)))
-		return createArchive(logFiles, pdata)
+		return createArchive(logFiles, pdata, e)
 	}
 
 	p, err := json.Marshal(pdata)
@@ -204,17 +204,19 @@ func requestArchive(logFiles []string, pdata flare.ProfileData) (string, error) 
 	if e != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintln(color.Output, fmt.Sprintf("The agent ran into an error while making the flare: %s", color.RedString(string(r))))
+			e = fmt.Errorf("Error getting flare from running agent: %s", r)
 		} else {
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make the flare. (is it running?)"))
+			e = fmt.Errorf("Error getting flare from running agent: %w", e)
 		}
-		return createArchive(logFiles, pdata)
+		return createArchive(logFiles, pdata, e)
 	}
 	return string(r), nil
 }
 
-func createArchive(logFiles []string, pdata flare.ProfileData) (string, error) {
+func createArchive(logFiles []string, pdata flare.ProfileData, ipcError error) (string, error) {
 	fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
-	filePath, e := flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFiles, pdata)
+	filePath, e := flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFiles, pdata, ipcError)
 	if e != nil {
 		fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 		return "", e

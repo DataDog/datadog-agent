@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -189,7 +189,7 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 	conns[1].DnsStatsByDomainByQueryType = map[int32]*model.DNSStatsByQueryType{
 		0: {
 			DnsStatsByQueryType: map[int32]*model.DNSStats{
-				int32(network.DNSTypeA): {
+				int32(dns.TypeA): {
 					DnsTimeouts: 1,
 				},
 			},
@@ -198,14 +198,14 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 	conns[2].DnsStatsByDomainByQueryType = map[int32]*model.DNSStatsByQueryType{
 		0: {
 			DnsStatsByQueryType: map[int32]*model.DNSStats{
-				int32(network.DNSTypeA): {
+				int32(dns.TypeA): {
 					DnsTimeouts: 1,
 				},
 			},
 		},
 		2: {
 			DnsStatsByQueryType: map[int32]*model.DNSStats{
-				int32(network.DNSTypeA): {
+				int32(dns.TypeA): {
 					DnsTimeouts: 1,
 				},
 			},
@@ -214,14 +214,14 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 	conns[3].DnsStatsByDomainByQueryType = map[int32]*model.DNSStatsByQueryType{
 		1: {
 			DnsStatsByQueryType: map[int32]*model.DNSStats{
-				int32(network.DNSTypeA): {
+				int32(dns.TypeA): {
 					DnsTimeouts: 1,
 				},
 			},
 		},
 		2: {
 			DnsStatsByQueryType: map[int32]*model.DNSStats{
-				int32(network.DNSTypeA): {
+				int32(dns.TypeA): {
 					DnsTimeouts: 1,
 				},
 			},
