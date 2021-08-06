@@ -708,6 +708,7 @@ pre_release_cluster_agent_image:
       when: never
     - when: always
 
+
 molecule_compose_create:
   <<: *molecule_base_resource_lock
   <<: *molecule_compose_only_rules
