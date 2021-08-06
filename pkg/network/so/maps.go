@@ -34,7 +34,7 @@ func getSharedLibraries(pidPath string, b *bufio.Reader, filter *regexp.Regexp) 
 // 7f13515b8000-7f13515b9000 r--p 0014c000 fd:00 268743 /usr/lib/x86_64-linux-gnu/libm-2.31.so
 //
 // Would return ["/usr/lib/x86_64-linux-gnu/libm-2.31.so"]
-func parseMaps(r *bufio.Reader, filter *regexp.Regexp) []string {
+func parseMaps(r *bufio.Reader, filter *regexp.Regexp) (libs []string) {
 	set := common.NewStringSet()
 	for {
 		line, _, err := r.ReadLine()
@@ -48,12 +48,16 @@ func parseMaps(r *bufio.Reader, filter *regexp.Regexp) []string {
 		}
 
 		entry := field[soPathnameColumnIdx]
-		if filter.Match(entry) {
-			set.Add(string(entry))
+		set.Add(string(entry))
+	}
+
+	for _, lib := range set.GetAll() {
+		if filter.MatchString(lib) {
+			libs = append(libs, lib)
 		}
 	}
 
-	return set.GetAll()
+	return libs
 }
 
 func occurrence(n int, want rune) func(r rune) bool {
