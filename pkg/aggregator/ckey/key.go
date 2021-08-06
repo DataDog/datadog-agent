@@ -64,9 +64,9 @@ type KeyGenerator struct {
 	// 16 and less than 512 tags.
 	seen [hashSetSize]uint64
 	// seenIdx is the index of the tag stored in the hashset
-	seenIdx [hashSetSize]int
+	seenIdx [hashSetSize]int16
 	// empty is an empty hashset with all values set to `blank`, to reset `seenIdx`
-	empty [hashSetSize]int
+	empty [hashSetSize]int16
 
 	// idx is used to deduplicate tags when there is less than 16 tags (faster than the
 	// hashset) or more than 512 tags (hashset has been allocated with 512 values max)
@@ -112,7 +112,7 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 				if g.seenIdx[j] == blank {
 					// not seen, we will add it to the hash
 					g.seen[j] = h
-					g.seenIdx[j] = g.idx
+					g.seenIdx[j] = int16(g.idx)
 					g.intb = g.intb ^ h // add this tag into the hash
 					tags[g.idx] = tags[i]
 					g.idx++
