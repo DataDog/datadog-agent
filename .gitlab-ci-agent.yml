@@ -711,28 +711,27 @@ pre_release_cluster_agent_image:
       when: never
     - when: always
 
-
 molecule_compose_create:
-  stage: prepare
-  variables:
-    MOLECULE_SCENARIO: compose
-    MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
   <<: *molecule_base_resource_lock
   <<: *molecule_compose_only_rules
   <<: *molecule_artifacts
   <<: *molecule_base_create
-  interruptible: true
-
-molecule_compose_test:
-  stage: acceptance
+  stage: prepare
   variables:
     MOLECULE_SCENARIO: compose
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
+  interruptible: true
+
+molecule_compose_test:
   <<: *molecule_base
   <<: *molecule_base_resource_lock
   <<: *molecule_compose_only_rules
   <<: *molecule_artifacts
   <<: *molecule_base_test
+  stage: acceptance
+  variables:
+    MOLECULE_SCENARIO: compose
+    MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
   interruptible: true
   dependencies:
     - molecule_compose_create
@@ -741,29 +740,28 @@ molecule_compose_test:
     - molecule_compose_create
 
 molecule_compose_failure_cleanup:
-  stage: cleanup
-  variables:
-    MOLECULE_SCENARIO: compose
   <<: *molecule_base_cleanup
   <<: *molecule_base_resource_lock
   <<: *molecule_compose_only_rules
+  stage: cleanup
+  variables:
+    MOLECULE_SCENARIO: compose
   needs:
     - molecule_compose_create
 
 molecule_compose_cleanup:
-  stage: cleanup
-  variables:
-    MOLECULE_SCENARIO: compose
   <<: *molecule_base_cleanup
   <<: *molecule_base_resource_lock
   <<: *molecule_compose_only_rules
+  stage: cleanup
+  variables:
+    MOLECULE_SCENARIO: compose
   dependencies:
     - molecule_compose_test
     - molecule_compose_create
   needs:
     - molecule_compose_test
     - molecule_compose_create
-
 
 # Job Seq: Molecule
 # Type: Integrations
