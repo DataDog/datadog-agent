@@ -101,18 +101,29 @@ func fmtContainerStats(
 			lastCtr = util.NullContainerRates
 		}
 
-		// Just in case the container is found, but refs are nil
+		// Just in case the container is found, but refs are nil.
+		// Note some CPU values are set to -1, to be skipped on the backend, because they are reported cumulatively
 		ctr = fillNilContainer(ctr)
 		lastCtr = fillNilRates(lastCtr)
 
 		ifStats := ctr.Network.SumInterfaces()
 		cpus := system.HostCPUCount()
 		sys2, sys1 := ctr.CPU.SystemUsage, lastCtr.CPU.SystemUsage
+
+		userPct := calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, lastRun)
+		systemPct := calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, lastRun)
+		var totalPct float32
+		if userPct == -1 || systemPct == -1 {
+			totalPct = -1
+		} else {
+			totalPct = calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, lastRun)
+		}
+
 		chunk = append(chunk, &model.ContainerStat{
 			Id:          ctr.ID,
-			UserPct:     calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, lastRun),
-			SystemPct:   calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, lastRun),
-			TotalPct:    calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, lastRun),
+			UserPct:     userPct,
+			SystemPct:   systemPct,
+			TotalPct:    totalPct,
 			CpuLimit:    float32(ctr.Limits.CPULimit),
 			MemRss:      ctr.Memory.RSS,
 			MemCache:    ctr.Memory.Cache,

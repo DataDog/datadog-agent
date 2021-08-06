@@ -144,4 +144,10 @@ func TestCalculateCtrPct(t *testing.T) {
 
 	// Calculate based off all values
 	assert.InEpsilon(t, 66.66667, calculateCtrPct(3, 1, 4, 1, 1, before), epsilon)
+
+	// cur=-1 because of missing cgroup file
+	assert.Equal(t, float32(-1), calculateCtrPct(-1, 1, 0, 0, 1, emptyTime))
+
+	// prev=-1 because of missing cgroup file in last run
+	assert.Equal(t, float32(-1), calculateCtrPct(3, -1, 0, 0, 1, emptyTime))
 }

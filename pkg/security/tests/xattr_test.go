@@ -298,12 +298,14 @@ func TestRemoveXAttr(t *testing.T) {
 			}
 
 			now := time.Now()
-			if event.RemoveXAttr.File.MTime.After(now) || event.RemoveXAttr.File.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.RemoveXAttr.File.MTime)
+			mtime := time.Unix(0, int64(event.RemoveXAttr.File.MTime))
+			if mtime.After(now) || mtime.Before(now.Add(-1*time.Hour)) {
+				t.Errorf("expected mtime close to %s, got %s", now, mtime)
 			}
 
-			if event.RemoveXAttr.File.CTime.After(now) || event.RemoveXAttr.File.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.RemoveXAttr.File.CTime)
+			ctime := time.Unix(0, int64(event.RemoveXAttr.File.CTime))
+			if ctime.After(now) || ctime.Before(now.Add(-1*time.Hour)) {
+				t.Errorf("expected ctime close to %s, got %s", now, ctime)
 			}
 		})
 	})
