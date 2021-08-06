@@ -41,11 +41,11 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 		"a_maj:valueamaj",
 		"account_id:123456789012",
 		"aws_account:123456789012",
+		"dd_extension_version:xxx",
 		"function_arn:arn:aws:lambda:us-east-1:123456789012:function:my-function",
 		"functionname:my-function",
 		"region:us-east-1",
 		"resource:my-function",
-		"dd_extension_version:xxx",
 	}
 
 	sort.Strings(d.ExtraTags.Tags)
