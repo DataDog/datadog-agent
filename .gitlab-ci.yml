@@ -1,8 +1,6 @@
 stages:
   - triggers
 
-# TODO: The following needs to be looked, something small is breaking it
-#
 # Supported Commit Message Functionality:
 #   ** Default: Note these do not have to be defined, by default everything will be included except secrets and localinstall which **
 #   ** falls on master and tags **
@@ -24,7 +22,7 @@ stages:
 #   - "<commit message> [py2]"
 #   - "<commit message> [py3]"
 #
-#       This would be ideal to reduce the pipeline build to only what's required
+# This would be ideal to reduce the pipeline build to only what's required
 # You can combine tags from the top to stack filters for example:
 #   - "<commit message> [py2][molecule-compose]"
 #   - "<commit message> [py3][molecule-secrets][molecule-vms]"
