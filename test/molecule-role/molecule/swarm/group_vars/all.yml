@@ -18,4 +18,5 @@ stackstate_branch: "{{ lookup('env', 'STACKSTATE_BRANCH') or STACKSTATE_BRANCH }
 dev_mode: "{{ lookup('env', 'DEV_MODE') }}"
 
 ci_project_dir: "{{ lookup('env', 'CI_PROJECT_DIR') }}"
+ci_job_token: "{{ lookup('env', 'CI_JOB_TOKEN') }}"
 ci_sts_major_python_version: "{{ lookup('env', 'STS_VER') }}.{{ lookup('env', 'MAJOR_VERSION') }}.{{ lookup('env', 'PYTHON_RUNTIMES') }}"
