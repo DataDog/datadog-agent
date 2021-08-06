@@ -226,11 +226,10 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		c.timeout = int(instance.Timeout)
 	}
 
-	// TODO: test me
-	// Original `min_collection_interval` has precedence over `extra_min_collection_interval`
 	if instance.ExtraMinCollectionInterval == 0 && instance.MinCollectionInterval == 0 {
 		c.minCollectionInterval = defaults.DefaultCheckInterval
 	} else if instance.MinCollectionInterval > 0 {
+		// Original `min_collection_interval` has precedence over `extra_min_collection_interval`
 		c.minCollectionInterval = time.Duration(instance.MinCollectionInterval) * time.Second
 	} else {
 		c.minCollectionInterval = time.Duration(instance.ExtraMinCollectionInterval) * time.Second
