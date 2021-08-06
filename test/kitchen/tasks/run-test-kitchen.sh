@@ -121,6 +121,7 @@ berks vendor ./cookbooks
 
 set +o pipefail
 
+# Initially test every suite, as we only generate those we want to run
 test_suites=".*"
 # This for loop retries kitchen tests failing because of infrastructure/networking issues
 for attempt in $(seq 0 ${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}); do
