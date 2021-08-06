@@ -2,11 +2,13 @@ stages:
   - triggers
 
 # Supported Commit Message Functionality:
+#   ** Default: Note these do not have to be defined, by default everything will be included except secrets and localinstall which **
+#   ** falls on master and tags **
 #
-# All the molecule builds will be included this includes secrets and localinstall which is only ran on master and tags
+# All the molecule builds will be included, This includes secrets and localinstall which usually only runs on master and tags
 #   - "<commit message> [all]"
 #
-# The following will run a single molecule pipeline and ignoring the rest
+# The following will run a single molecule pipeline and ignore the rest
 # this will reduce ec2 costs, possible wait times and clutter
 #   - "<commit message> [molecule-compose]"
 #   - "<commit message> [molecule-integrations]"
@@ -22,7 +24,7 @@ stages:
 #
 # You can combine tags from the top to stack filters for example:
 #   - "<commit message> [py2][molecule-compose]"
-#   - "<commit message> [py3][molecule-localinstall][molecule-vms]"
+#   - "<commit message> [py3][molecule-secrets][molecule-vms]"
 
 
 variables: &commonvariables
