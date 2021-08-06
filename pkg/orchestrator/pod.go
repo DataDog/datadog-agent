@@ -419,6 +419,9 @@ func ExtractMetadata(m *metav1.ObjectMeta) *model.Metadata {
 	if len(m.Labels) > 0 {
 		meta.Labels = mapToTags(m.Labels)
 	}
+	if len(m.Finalizers) > 0 {
+		meta.Finalizers = m.Finalizers
+	}
 	for _, o := range m.OwnerReferences {
 		owner := model.OwnerReference{
 			Name: o.Name,

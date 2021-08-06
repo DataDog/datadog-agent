@@ -48,4 +48,8 @@ const (
 	DaemonSetsInformer InformerName = "daemonSets"
 	// StatefulSetsInformer holds the name of the informer
 	StatefulSetsInformer InformerName = "statefulSets"
+	// PersistentVolumeInformer holds the name of the informer
+	PersistentVolumeInformer InformerName = "persistentvolume"
+	// PersistentVolumeClaimInformer holds the name of the informer
+	PersistentVolumeClaimInformer InformerName = "persistentvolumeclaim"
 )
