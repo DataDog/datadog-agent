@@ -4,7 +4,6 @@
   connection: local
   gather_facts: true
   tasks:
-    - include_tasks: ../common/prepare/decrypt-key.yml
     - include_tasks: ../common/prepare/keypair.yml
 
 - name: Create global service on Master
