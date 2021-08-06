@@ -1162,6 +1162,7 @@ molecule_secrets_cleanup:
 .swarm_branch_lock: &swarm_branch_lock
   resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$CI_COMMIT_BRANCH-swarm_branch_lock"
 
+
 molecule_swarm_create:
   <<: *molecule_base_prepare
   <<: *swarm_branch_lock
