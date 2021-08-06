@@ -5,8 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-
-	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
 type finder struct {
@@ -24,31 +22,45 @@ func newFinder(procRoot string) *finder {
 	}
 }
 
-func (f *finder) Find(filter *regexp.Regexp) []string {
-	seen := make(map[key]struct{})
-	result := common.NewStringSet()
+func (f *finder) Find(filter *regexp.Regexp) (result []Library) {
+	mapLib := make(map[libraryKey]Library)
 	iteratePIDS(f.procRoot, func(pidPath string, info os.FileInfo, mntNS ns) {
 		libs := getSharedLibraries(pidPath, f.buffer, filter)
 
-		// If we have already seen (mntNS, lib) we skip the path resolution process
-		libs = excludeAlreadySeen(seen, mntNS, libs)
-
-		if len(libs) == 0 {
-			return
-		}
-
-		mountInfo := getMountInfo(pidPath, f.buffer)
-		if mountInfo == nil {
-			return
-		}
-
 		for _, lib := range libs {
-			if hostPath := f.pathResolver.Resolve(lib, mountInfo); hostPath != "" {
-				result.Add(hostPath)
+			k := libraryKey{
+				Pathname:       lib,
+				MountNameSpace: mntNS,
+			}
+			if m, ok := mapLib[k]; ok {
+				m.PidsPath = append(m.PidsPath, pidPath)
+				continue
+			}
+
+			/* per PID we add mountInfo and resolv the host path */
+			mountInfo := getMountInfo(pidPath, f.buffer)
+			/* some /proc/pid/mountinfo could be empty */
+			if mountInfo == nil || len(mountInfo.mounts) == 0 {
+				continue
+			}
+
+			hostPath := f.pathResolver.Resolve(lib, mountInfo)
+			if hostPath == "" {
+				continue
+			}
+
+			mapLib[k] = Library{
+				libraryKey: k,
+				HostPath:   hostPath,
+				PidsPath:   []string{pidPath},
+				MountInfo:  mountInfo,
 			}
 		}
 	})
-	return result.GetAll()
+	for _, l := range mapLib {
+		result = append(result, l)
+	}
+	return result
 }
 
 func iteratePIDS(procRoot string, fn callback) {

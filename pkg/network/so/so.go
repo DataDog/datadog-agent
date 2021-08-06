@@ -12,9 +12,9 @@ import (
 // AllLibraries represents a filter that matches all shared libraries
 var AllLibraries = regexp.MustCompile(`\.so($|\.)`)
 
-// Find returns the host-resolved paths of all shared libraries matching the given filter
+// Find returns the host-resolved paths of all shared libraries (per mount namespace) matching the given filter
 // It does so by iterating over all /proc/<PID>/maps and /proc/<PID>/mountinfo files in the host
-func Find(procRoot string, filter *regexp.Regexp) []string {
+func Find(procRoot string, filter *regexp.Regexp) []Library {
 	finder := newFinder(procRoot)
 	return finder.Find(filter)
 }
