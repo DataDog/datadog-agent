@@ -73,3 +73,4 @@
         STACKSTATE_BRANCH: "{{ stackstate_branch }}"
 
     - include_tasks: ../common/prepare/docker-compose-pull.yml
+    - include_tasks: ../common/prepare/encrypt-key.yml

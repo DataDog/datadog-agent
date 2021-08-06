@@ -70,3 +70,5 @@
           STACKSTATE_BRANCH={{ stackstate_branch }}
           CLUSTER_NAME={{ cluster_name }}
         dest: /home/ubuntu/receiver/.env
+
+    - include_tasks: ../common/prepare/encrypt-key.yml
