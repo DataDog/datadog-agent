@@ -4,7 +4,6 @@
   connection: local
   gather_facts: true
   tasks:
-    - include_tasks: ../common/prepare/decrypt-key.yml
     - include_tasks: ../common/prepare/keypair.yml
 
 - name: Prepare Trace Java
@@ -15,10 +14,3 @@
     - include_tasks: ../common/prepare/run-docker-compose.yml
     - include_tasks: ../common/prepare/wait-for-receiver.yml
     - include_tasks: ../common/prepare/wait-for-agent.yml
-
-- name: Prepare Connection
-  hosts: localhost
-  connection: local
-  gather_facts: true
-  tasks:
-    - include_tasks: ../common/prepare/encrypt-key.yml

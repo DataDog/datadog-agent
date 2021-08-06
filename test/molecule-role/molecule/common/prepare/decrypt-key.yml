@@ -1,8 +1,7 @@
 ---
-- name: (CI) Decrypt data
-  when: ci_project_dir is defined and ci_project_dir != ""
-  ignore_errors: true
-  shell: |
-    echo "{{ ci_job_token }}" > password
-    ansible-vault decrypt --vault-id ansible@password "{{ci_project_dir}}/.molecule/{{ molecule_scenario_name }}/ssh_key"
-    rm password
+# - name: (CI) Decrypt data for artifact
+#   when: ci_project_dir is defined and ci_project_dir != ""
+#   shell: |
+#     echo "{{ ci_job_token }}" > password
+#     ansible-vault decrypt --vault-id ansible@password "{{ci_project_dir}}/.molecule/{{ molecule_scenario_name }}/ssh_key"
+#     rm password

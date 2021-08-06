@@ -1,6 +1,8 @@
 ---
 provisioner:
   name: ansible
+  options:
+    'vault-id': "compose@${CI_JOB_TOKEN}"
   playbooks:
     create: playbook.create.yml
     prepare: playbook.prepare.yml
