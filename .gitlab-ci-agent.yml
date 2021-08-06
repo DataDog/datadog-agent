@@ -779,23 +779,23 @@ molecule_compose_cleanup:
     - when: always
 
 molecule_integrations_create:
+  <<: *molecule_integrations_only_rules
   variables:
     MOLECULE_SCENARIO: integrations
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
   <<: *molecule_base_create
   <<: *molecule_base_resource_lock
-  <<: *molecule_integrations_only_rules
   <<: *molecule_artifacts
   interruptible: true
 
 molecule_integrations_test:
+  <<: *molecule_integrations_only_rules
   variables:
     MOLECULE_SCENARIO: integrations
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
   <<: *molecule_base
   <<: *molecule_base_test
   <<: *molecule_base_resource_lock
-  <<: *molecule_integrations_only_rules
   <<: *molecule_artifacts
   interruptible: true
   dependencies:
@@ -805,20 +805,20 @@ molecule_integrations_test:
     - molecule_integrations_create
 
 molecule_integrations_failure_cleanup:
+  <<: *molecule_integrations_only_rules
   variables:
     MOLECULE_SCENARIO: integrations
   <<: *molecule_base_cleanup
   <<: *molecule_base_resource_lock
-  <<: *molecule_integrations_only_rules
   needs:
     - molecule_integrations_create
 
 molecule_integrations_cleanup:
+  <<: *molecule_integrations_only_rules
   variables:
     MOLECULE_SCENARIO: integrations
   <<: *molecule_base_cleanup
   <<: *molecule_base_resource_lock
-  <<: *molecule_integrations_only_rules
   dependencies:
     - molecule_integrations_test
     - molecule_integrations_create
