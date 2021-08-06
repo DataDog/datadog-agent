@@ -67,3 +67,10 @@
       register: install_agent_result
       until: install_agent_result is not failed
       retries: 5
+
+- name: Prepare Connection
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  tasks:
+    - include_tasks: ../common/prepare/encrypt-key.yml

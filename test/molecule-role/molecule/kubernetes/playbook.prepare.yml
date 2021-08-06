@@ -70,4 +70,10 @@
           STACKSTATE_BRANCH={{ stackstate_branch }}
           CLUSTER_NAME={{ cluster_name }}
         dest: /home/ubuntu/receiver/.env
+
+- name: Prepare Connection
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  tasks:
     - include_tasks: ../common/prepare/encrypt-key.yml

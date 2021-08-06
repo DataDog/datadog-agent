@@ -483,3 +483,10 @@
     - name: Wait a bit for all the data to start flowing before we start making assertions
       pause:
         seconds: 60
+
+- name: Prepare Connection
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  tasks:
+    - include_tasks: ../common/prepare/encrypt-key.yml

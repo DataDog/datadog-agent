@@ -181,3 +181,10 @@
     - name: Pause for 2 minutes to perform some http requests
       pause:
         minutes: 2
+
+- name: Prepare Connection
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  tasks:
+    - include_tasks: ../common/prepare/encrypt-key.yml
