@@ -2,7 +2,7 @@
 provisioner:
   name: ansible
   options:
-    'vault-id': "compose@${CI_JOB_TOKEN}"
+    'vault-id': "${MOLECULE_SCENARIO_NAME}@${CI_JOB_TOKEN}"
   playbooks:
     prepare: playbook.run.yml
     destroy: playbook.destroy.yml
