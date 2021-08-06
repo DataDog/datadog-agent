@@ -691,7 +691,6 @@ pre_release_cluster_agent_image:
 .molecule_base_resource_lock: &molecule_base_resource_lock
   resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$CI_COMMIT_BRANCH-$MOLECULE_SCENARIO-branch-lock"
 
-
 # Job Seq: Molecule
 # Type: Compose
 
