@@ -24,6 +24,7 @@ stages:
 #   - "<commit message> [py2][molecule-compose]"
 #   - "<commit message> [py3][molecule-localinstall][molecule-vms]"
 
+
 variables: &commonvariables
   # The SRC_PATH is in the GOPATH of the builders which
   # currently is /go
