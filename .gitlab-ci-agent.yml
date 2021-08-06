@@ -1149,7 +1149,8 @@ molecule_secrets_cleanup:
       when: always
     - if: $MAJOR_VERSION == "3" && $CI_COMMIT_MESSAGE =~ /\[molecule\-/
       when: never
-    - when: always
+    - if: $MAJOR_VERSION == "3"
+      when: always
 
 .swarm_cleanup_base: &swarm_cleanup_base
   <<: *molecule_base
