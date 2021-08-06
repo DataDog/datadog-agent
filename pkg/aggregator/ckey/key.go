@@ -6,6 +6,8 @@
 package ckey
 
 import (
+	"math/bits"
+
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/twmb/murmur3"
 )
@@ -36,7 +38,7 @@ const hashSetSize = 512
 
 // bruteforceSize is the threshold number of tags below which a bruteforce algorithm is
 // faster than a hashset.
-const bruteforceSize = 16
+const bruteforceSize = 4
 
 // blank is a marker value to indicate that hashset slot is vacant.
 const blank = -1
@@ -45,7 +47,7 @@ const blank = -1
 func NewKeyGenerator() *KeyGenerator {
 	g := &KeyGenerator{}
 
-	for i := 0; i < len(g.empty); i++{
+	for i := 0; i < len(g.empty); i++ {
 		g.empty[i] = blank
 	}
 
@@ -104,10 +106,19 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 	} else if len(tags) > bruteforceSize {
 		// reset the `seen` hashset.
 		// it copies `g.empty` instead of using make because it's faster
-		copy(g.seenIdx[:], g.empty[:])
+
+		// for smaller tag sets, initialize only a portion of the array. when len(tags) is
+		// close to a power of two, size one up to keep hashset load low.
+		size := 1 << bits.Len(uint(len(tags)+len(tags)/8))
+		if size > hashSetSize {
+			size = hashSetSize
+		}
+		mask := uint64(size - 1)
+		copy(g.seenIdx[:size], g.empty[:size])
+
 		for i := range tags {
 			h := murmur3.StringSum64(tags[i])
-			j := h & (hashSetSize - 1) // address this hash into the hashset
+			j := h & mask // address this hash into the hashset
 			for {
 				if g.seenIdx[j] == blank {
 					// not seen, we will add it to the hash
@@ -124,7 +135,7 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 					// move 'right' in the hashset because there is already a value,
 					// in this bucket, which is not the one we're dealing with right now,
 					// we may have already seen this tag
-					j = (j + 1) & (hashSetSize - 1)
+					j = (j + 1) & mask
 				}
 			}
 		}

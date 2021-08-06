@@ -131,7 +131,7 @@ func TestTagsAreDedupedWhileGeneratingCKey(t *testing.T) {
 			}
 		}
 	}
-	t.Run("smallish", withSizeAndSeed(10, 200, 0x398192f0a9c0))
+	t.Run("smallish", withSizeAndSeed(3, 200, 0x398192f0a9c0))
 	t.Run("bigger", withSizeAndSeed(50, 100, 0x398192f0a9c0))
 	t.Run("huge", withSizeAndSeed(600, 10, 0x398192f0a9c0))
 }
