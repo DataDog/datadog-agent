@@ -15,7 +15,7 @@ cluster_agent-build_amd64:
   rules:
     !reference [.on_tag_or_a7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   needs: ["go_mod_tidy_check", "linux_x64_go_deps"]
   variables:
     ARCH: amd64
