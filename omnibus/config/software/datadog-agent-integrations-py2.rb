@@ -76,6 +76,9 @@ blacklist_packages = Array.new
 # We build these manually
 blacklist_packages.push(/^snowflake-connector-python==/)
 
+# Avi Vantage is py3 only
+blacklist_folders.push('avi_vantage')
+
 if suse?
   # Temporarily blacklist Aerospike until builder supports new dependency
   blacklist_packages.push(/^aerospike==/)

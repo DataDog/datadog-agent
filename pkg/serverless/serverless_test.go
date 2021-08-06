@@ -6,22 +6,20 @@
 package serverless
 
 import (
-	"context"
 	"os"
 	"sort"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
-	_, cancel := context.WithCancel(context.Background())
-	d := StartDaemon(cancel)
-	d.ReadyWg.Done()
-	defer d.Stop(false)
+	d := daemon.StartDaemon("http://localhost:8124")
+	defer d.Stop()
 
-	d.clientLibReady = false
+	d.SetClientReady(false)
 	d.WaitForDaemon()
 
 	d.StartInvocation()
@@ -33,7 +31,7 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 	os.Setenv("DD_TAGS", "a1:valueA1,a2:valueA2,A_MAJ:valueAMaj")
 	os.Setenv("DD_EXTRA_TAGS", "a3:valueA3 a4:valueA4")
 
-	callInvocationHandler(d, "arn:aws:lambda:us-east-1:123456789012:function:my-function", deadlineMs, 0, true, handleInvocation)
+	callInvocationHandler(d, "arn:aws:lambda:us-east-1:123456789012:function:my-function", deadlineMs, 0, "myRequestID", handleInvocation)
 
 	expectedTagArray := []string{
 		"a1:valuea1",
@@ -49,8 +47,10 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 		"resource:my-function",
 	}
 
-	sort.Strings(d.extraTags)
-	assert.Equal(t, expectedTagArray, d.extraTags)
+	sort.Strings(d.ExtraTags.Tags)
+	assert.Equal(t, expectedTagArray, d.ExtraTags.Tags)
+	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-function", d.ExecutionContext.ARN)
+	assert.Equal(t, "myRequestID", d.ExecutionContext.LastRequestID)
 }
 
 func TestComputeTimeout(t *testing.T) {

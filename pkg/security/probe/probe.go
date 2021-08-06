@@ -282,7 +282,7 @@ func (p *Probe) unmarshalProcessContainer(data []byte, event *Event) (int, error
 func (p *Probe) invalidateDentry(mountID uint32, inode uint64) {
 	// sanity check
 	if mountID == 0 || inode == 0 {
-		log.Tracef("invalid mount_id/inode tuple %d:%d", mountID, inode)
+		seclog.Tracef("invalid mount_id/inode tuple %d:%d", mountID, inode)
 		return
 	}
 
@@ -394,23 +394,30 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			return
 		}
 
-		// defer it do ensure that it will be done after the dispatch that could re-add it
-		defer p.invalidateDentry(event.Rmdir.File.MountID, event.Rmdir.File.Inode)
+		if event.Rmdir.Retval >= 0 {
+			// defer it do ensure that it will be done after the dispatch that could re-add it
+			defer p.invalidateDentry(event.Rmdir.File.MountID, event.Rmdir.File.Inode)
+		}
 	case model.FileUnlinkEventType:
 		if _, err := event.Unlink.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode unlink event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
-		// defer it do ensure that it will be done after the dispatch that could re-add it
-		defer p.invalidateDentry(event.Unlink.File.MountID, event.Unlink.File.Inode)
+		if event.Unlink.Retval >= 0 {
+			// defer it do ensure that it will be done after the dispatch that could re-add it
+			defer p.invalidateDentry(event.Unlink.File.MountID, event.Unlink.File.Inode)
+		}
 	case model.FileRenameEventType:
 		if _, err := event.Rename.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 
-		defer p.invalidateDentry(event.Rename.New.MountID, event.Rename.New.Inode)
+		if event.Rename.Retval >= 0 {
+			// defer it do ensure that it will be done after the dispatch that could re-add it
+			defer p.invalidateDentry(event.Rename.New.MountID, event.Rename.New.Inode)
+		}
 	case model.FileChmodEventType:
 		if _, err := event.Chmod.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode chmod event: %s (offset %d, len %d)", err, offset, dataLen)

@@ -242,7 +242,7 @@ const (
 	SysFadvise64
 	SysTimerCreate
 	SysTimerSettime
-	SysTimersysReadGettime
+	SysTimerGettime
 	SysTimerGetoverrun
 	SysTimerDelete
 	SysClockSettime
@@ -321,6 +321,63 @@ const (
 	SysFanotifyInit
 	SysFanotifyMark
 	SysPrlimit64
+	SysNameToHandleAt
+	SysOpenByHandleAt
+	SysClockAdjtime
+	SysSyncfs
+	SysSendmmsg
+	SysSetns
+	SysGetcpu
+	SysProcessVMReadv
+	SysProcessVMWritev
+	SysKcmp
+	SysFinitModule
+	SysSchedSetattr
+	SysSchedGetattr
+	SysRenameat2
+	SysSeccomp
+	SysGetrandom
+	SysMemfdCreate
+	SysKexecFileLoad
+	SysBpf
+	SysExecveat
+	SysUserfaultfd
+	SysMembarrier
+	SysMlock2
+	SysCopyFileRange
+	SysPreadv2
+	SysPwritev2
+	SysPkeyMprotect
+	SysPkeyAlloc
+	SysPkeyFree
+	SysStatx
+	SysIoPgetevents
+	SysRseq
+)
+
+// jump 424, see: https://elixir.bootlin.com/linux/v5.13.7/source/arch/x86/entry/syscalls/syscall_64.tbl#L346
+const (
+	SysPidfdSendSignal Syscall = iota + 424
+	SysIoUringSetup
+	SysIoUringEnter
+	SysIoUringRegister
+	SysOpenTree
+	SysMoveMount
+	SysFsopen
+	SysFsconfig
+	SysFsmount
+	SysFspick
+	SysPidfdOpen
+	SysClone3
+	SysCloseRange
+	SysOpenat2
+	SysPidfdGetfd
+	SysFaccessat2
+	SysProcessMadvise
+	SysEpollPwait2
+	SysMountSetattr
+	SysLandlockCreateRuleset
+	SysLandlockAddRule
 )
 
 // MarshalText maps the syscall identifier to UTF-8-encoded text and returns the result

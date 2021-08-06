@@ -3,16 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package serverless
+package metrics
 
 import (
-	"fmt"
 	"math"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serverless/aws"
 )
 
 // Latest Lambda pricing per https://aws.amazon.com/lambda/pricing/
@@ -33,9 +31,8 @@ func getOutOfMemorySubstrings() []string {
 	}
 }
 
-// generateEnhancedMetricsFromRegularLog generates enhanced metrics from a LogTypeFunction message
-func generateEnhancedMetricsFromFunctionLog(message aws.LogMessage, tags []string, metricsChan chan []metrics.MetricSample) {
-	logString := message.StringRecord
+// GenerateEnhancedMetricsFromFunctionLog generates enhanced metrics from a LogTypeFunction message
+func GenerateEnhancedMetricsFromFunctionLog(logString string, time time.Time, tags []string, metricsChan chan []metrics.MetricSample) {
 	for _, substring := range getOutOfMemorySubstrings() {
 		if strings.Contains(logString, substring) {
 			metricsChan <- []metrics.MetricSample{{
@@ -44,70 +41,70 @@ func generateEnhancedMetricsFromFunctionLog(message aws.LogMessage, tags []strin
 				Mtype:      metrics.DistributionType,
 				Tags:       tags,
 				SampleRate: 1,
-				Timestamp:  float64(message.Time.UnixNano()),
+				Timestamp:  float64(time.UnixNano()),
 			}}
 			return
 		}
 	}
 }
 
-// generateEnhancedMetricsFromReportLog generates enhanced metrics from a LogTypePlatformReport log message
-func generateEnhancedMetricsFromReportLog(message aws.LogMessage, tags []string, metricsChan chan []metrics.MetricSample) {
-	memorySizeMb := float64(message.ObjectRecord.Metrics.MemorySizeMB)
-	billedDurationMs := float64(message.ObjectRecord.Metrics.BilledDurationMs)
-
+// GenerateEnhancedMetricsFromReportLog generates enhanced metrics from a LogTypePlatformReport log message
+func GenerateEnhancedMetricsFromReportLog(initDurationMs float64, durationMs float64, billedDurationMs int, memorySizeMb int, maxMemoryUsedMb int, time time.Time, tags []string, metricsChan chan []metrics.MetricSample) {
+	timestamp := float64(time.UnixNano())
+	billedDuration := float64(billedDurationMs)
+	memorySize := float64(memorySizeMb)
 	enhancedMetrics := []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.max_memory_used",
-		Value:      float64(message.ObjectRecord.Metrics.MaxMemoryUsedMB),
+		Value:      float64(maxMemoryUsedMb),
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(message.Time.UnixNano()),
+		Timestamp:  timestamp,
 	}, {
 		Name:       "aws.lambda.enhanced.memorysize",
-		Value:      memorySizeMb,
+		Value:      memorySize,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(message.Time.UnixNano()),
+		Timestamp:  timestamp,
 	}, {
 		Name:       "aws.lambda.enhanced.billed_duration",
-		Value:      billedDurationMs * msToSec,
+		Value:      billedDuration * msToSec,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(message.Time.UnixNano()),
+		Timestamp:  timestamp,
 	}, {
 		Name:       "aws.lambda.enhanced.duration",
-		Value:      message.ObjectRecord.Metrics.DurationMs * msToSec,
+		Value:      durationMs * msToSec,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(message.Time.UnixNano()),
+		Timestamp:  timestamp,
 	}, {
 		Name:       "aws.lambda.enhanced.estimated_cost",
-		Value:      calculateEstimatedCost(billedDurationMs, memorySizeMb),
+		Value:      calculateEstimatedCost(billedDuration, memorySize),
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  float64(message.Time.UnixNano()),
+		Timestamp:  timestamp,
 	}}
-	if message.ObjectRecord.Metrics.InitDurationMs > 0 {
+	if initDurationMs > 0 {
 		initDurationMetric := metrics.MetricSample{
 			Name:       "aws.lambda.enhanced.init_duration",
-			Value:      message.ObjectRecord.Metrics.InitDurationMs * msToSec,
+			Value:      initDurationMs * msToSec,
 			Mtype:      metrics.DistributionType,
 			Tags:       tags,
 			SampleRate: 1,
-			Timestamp:  float64(message.Time.UnixNano()),
+			Timestamp:  timestamp,
 		}
 		enhancedMetrics = append(enhancedMetrics, initDurationMetric)
 	}
 	metricsChan <- enhancedMetrics
 }
 
-// sendTimeoutEnhancedMetric sends an enhanced metric representing a timeout
-func sendTimeoutEnhancedMetric(tags []string, metricsChan chan []metrics.MetricSample) {
+// SendTimeoutEnhancedMetric sends an enhanced metric representing a timeout
+func SendTimeoutEnhancedMetric(tags []string, metricsChan chan []metrics.MetricSample) {
 	metricsChan <- []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.timeouts",
 		Value:      1.0,
@@ -118,13 +115,6 @@ func sendTimeoutEnhancedMetric(tags []string, metricsChan chan []metrics.MetricS
 	}}
 }
 
-// addColdStartTag appends the cold_start tag to existing tags
-func addColdStartTag(tags []string) []string {
-	coldStart := aws.GetColdStart()
-	tags = append(tags, fmt.Sprintf("cold_start:%v", coldStart))
-	return tags
-}
-
 // calculateEstimatedCost returns the estimated cost in USD of a Lambda invocation
 func calculateEstimatedCost(billedDurationMs float64, memorySizeMb float64) float64 {
 	billedDurationSeconds := billedDurationMs / 1000.0
@@ -133,14 +123,4 @@ func calculateEstimatedCost(billedDurationMs float64, memorySizeMb float64) floa
 	// round the final float result because float math could have float point imprecision
 	// on some arch. (i.e. 1.00000000000002 values)
 	return math.Round((baseLambdaInvocationPrice+(gbSeconds*lambdaPricePerGbSecond))*10e12) / 10e12
-}
-
-// generateEnhancedMetrics generates enhanced metrics from logs and dispatch them to the chan
-func generateEnhancedMetrics(message aws.LogMessage, tags []string, metricsChan chan []metrics.MetricSample) {
-	switch message.Type {
-	case aws.LogTypeFunction:
-		generateEnhancedMetricsFromFunctionLog(message, tags, metricsChan)
-	case aws.LogTypePlatformReport:
-		generateEnhancedMetricsFromReportLog(message, tags, metricsChan)
-	}
 }

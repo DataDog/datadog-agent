@@ -91,10 +91,10 @@ type ContainerCPUStats struct {
 	Timestsamp time.Time
 
 	// docker.cpu.system
-	System uint64
+	System float64
 
 	// docker.cpu.user
-	User uint64
+	User float64
 
 	// docker.cpu.usage
 	UsageTotal float64
@@ -102,7 +102,7 @@ type ContainerCPUStats struct {
 	SystemUsage uint64
 
 	// docker.cpu.shares
-	Shares uint64
+	Shares float64
 
 	// docker.cpu.throttled
 	NrThrottled   uint64
