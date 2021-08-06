@@ -6,12 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
-const soColumnIdx = 5
+const soPathnameColumnIdx = 5
 
 func getSharedLibraries(pidPath string, b *bufio.Reader, filter *regexp.Regexp) []string {
 	f, err := os.Open(filepath.Join(pidPath, "/maps"))
@@ -43,13 +42,12 @@ func parseMaps(r *bufio.Reader, filter *regexp.Regexp) []string {
 			break
 		}
 
-		start := bytes.IndexFunc(line, occurrence(soColumnIdx, ' '))
-		if start == -1 {
+		field := bytes.Fields(line)
+		if len(field) < 6 {
 			continue
 		}
 
-		entry := line[start:]
-		entry = bytes.TrimFunc(entry, unicode.IsSpace)
+		entry := field[soPathnameColumnIdx]
 		if filter.Match(entry) {
 			set.Add(string(entry))
 		}
