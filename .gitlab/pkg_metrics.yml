@@ -8,7 +8,7 @@ send_pkg_size-a6:
     !reference [.on_deploy_a6]
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   dependencies:
     - agent_deb-x64-a6
     - agent_rpm-x64-a6
@@ -53,7 +53,7 @@ send_pkg_size-a7:
     !reference [.on_deploy_a7]
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   dependencies:
     - agent_deb-x64-a7
     - iot_agent_deb-x64

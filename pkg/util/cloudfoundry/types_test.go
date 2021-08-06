@@ -26,11 +26,15 @@ var v3App1 = cfclient.V3App{
 	UpdatedAt:     "",
 	Relationships: nil,
 	Links:         nil,
-	Metadata:      cfclient.V3Metadata{},
+	Metadata: cfclient.V3Metadata{
+		Labels:      map[string]string{"tags.datadoghq.com/env": "test-env", "toto": "tata"},
+		Annotations: map[string]string{"tags.datadoghq.com/service": "test-service", "foo": "bar"},
+	},
 }
 
 var cfApp1 = CFApp{
 	Name: "name_of_app_cc",
+	Tags: []string{"env:test-env", "service:test-service"},
 }
 
 var v3App2 = cfclient.V3App{
@@ -42,7 +46,10 @@ var v3App2 = cfclient.V3App{
 	UpdatedAt:     "",
 	Relationships: nil,
 	Links:         nil,
-	Metadata:      cfclient.V3Metadata{},
+	Metadata: cfclient.V3Metadata{
+		Labels:      map[string]string{},
+		Annotations: map[string]string{},
+	},
 }
 
 var cfApp2 = CFApp{
@@ -176,7 +183,7 @@ var ExpectedD1 = DesiredLRP{
 	ProcessGUID:      "0123456789012345678901234567890123456789",
 	SpaceGUID:        "random_space_guid",
 	SpaceName:        "name_of_the_space",
-	TagsFromEnv:      nil,
+	CustomTags:       []string{"env:test-env", "service:test-service"},
 }
 
 var ExpectedD2 = DesiredLRP{
@@ -197,9 +204,11 @@ var ExpectedD2 = DesiredLRP{
 	ProcessGUID:      "0123456789012345678901234567890123456789",
 	SpaceGUID:        "random_space_guid",
 	SpaceName:        "name_of_the_space",
-	TagsFromEnv: []string{
+	CustomTags: []string{
 		"CUSTOM_TAG_1:TEST1",
 		"CUSTOM_TAG_2:TEST2",
+		"env:test-env",
+		"service:test-service",
 	},
 }
 

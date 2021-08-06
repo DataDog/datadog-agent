@@ -2,7 +2,12 @@ package checks
 
 import "time"
 
-func calculateCtrPct(cur, prev, sys2, sys1 uint64, numCPU int, before time.Time) float32 {
+func calculateCtrPct(cur, prev float64, sys2, sys1 uint64, numCPU int, before time.Time) float32 {
+	// -1 is returned if a cgroup file is missing or the `ContainerCPUStats` object is nil.
+	// In these situations, return -1 so that the metric is skipped on the backend.
+	if cur == -1 || prev == -1 {
+		return -1
+	}
 	now := time.Now()
 	diff := now.Unix() - before.Unix()
 	if before.IsZero() || diff <= 0 {

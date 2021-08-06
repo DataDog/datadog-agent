@@ -549,9 +549,15 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 		}
 		// figure out system-probe file path based on main config path,
 		// and use best effort to include system-probe.yaml to the flare
-		systemProbePath := getSystemProbePath(filePath)
+		systemProbePath := getConfigPath(filePath, "system-probe.yaml")
 		if systemErr := createConfigFiles(systemProbePath, tempDir, hostname, permsInfos); systemErr != nil {
 			log.Warnf("could not zip system-probe.yaml, system-probe might not be configured, or is in a different directory with datadog.yaml: %s", systemErr)
+		}
+
+		// use best effort to include security-agent.yaml to the flare
+		securityAgentPath := getConfigPath(filePath, "security-agent.yaml")
+		if secErr := createConfigFiles(securityAgentPath, tempDir, hostname, permsInfos); secErr != nil {
+			log.Warnf("could not zip security-agent.yaml, security-agent might not be configured, or is in a different directory with datadog.yaml: %s", secErr)
 		}
 	}
 
@@ -953,8 +959,8 @@ func createConfigFiles(filePath, tempDir, hostname string, permsInfos permission
 	return err
 }
 
-// getSystemProbePath would take the path to datadog.yaml and replace the file name with system-probe.yaml
-func getSystemProbePath(ddCfgFilePath string) string {
+// getConfigPath would take the path to datadog.yaml and replace the file name with the given agent file name
+func getConfigPath(ddCfgFilePath string, agentFileName string) string {
 	path := filepath.Dir(ddCfgFilePath)
-	return filepath.Join(path, "system-probe.yaml")
+	return filepath.Join(path, agentFileName)
 }
