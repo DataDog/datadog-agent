@@ -873,6 +873,7 @@ release_deb:
 
 release_rpm:
   stage: release
+  image: docker.io/stackstate/stackstate-agent-runner-gitlab:deb-rpmpublisher
   dependencies:
     - build_rpm
   before_script:
@@ -896,19 +897,19 @@ release_win:
   dependencies:
     - deps_win
     - build_win
-  before_script: []
+  before_script:
+    - *configure_windows_ps1_env_script
   script:
-    - set WIN_CI_PROJECT_DIR=%CD%
-    - set WORKON_HOME=%WIN_CI_PROJECT_DIR%
-    - call %WORKON_HOME%\venv\Scripts\activate.bat
-    - call ridk enable
     - $env:VERSION = Get-Content version.txt -First 1
     - $filename = "stackstate-agent-" + $Env:VERSION + "-1-x86_64.msi"
     - $filename
     - Copy-Item $filename -Destination stackstate-agent-latest-1-x86_64.msi
-    - inv release.generate-install
-    - aws.exe s3 cp . s3://%STS_AWS_RELEASE_BUCKET_WIN%/windows/stable --recursive --exclude "*" --include "*.msi" --acl public-read
-    - cd %WIN_CI_PROJECT_DIR%/cmd/agent && aws.exe s3 cp . s3://%STS_AWS_RELEASE_BUCKET_WIN% --recursive --exclude "*" --include "install.ps1" --acl public-read
+    - ls
+    - inv release.generate-install -t
+    - aws.exe s3 cp ./cmd/agent/install.ps1 s3://$Env:STS_AWS_RELEASE_BUCKET_WIN/install.ps1 --acl public-read
+    - aws.exe s3 cp . s3://$Env:STS_AWS_RELEASE_BUCKET_WIN/windows/stable --recursive --exclude "*" --include "*.msi" --acl public-read
+    - aws.exe s3 ls s3://$Env:STS_AWS_RELEASE_BUCKET_WIN/windows/stable/
+    - aws.exe s3 ls s3://$Env:STS_AWS_RELEASE_BUCKET_WIN/
   when: manual
   only:
     - tags
