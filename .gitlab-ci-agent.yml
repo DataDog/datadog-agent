@@ -957,17 +957,18 @@ molecule_kubernetes_cleanup:
 
 .molecule_localinstall_only_rules: &molecule_localinstall_only_rules
   rules:
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-localinstall]/ && $CI_JOB_NAME =~ /molecule_localinstall_create/
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && $CI_COMMIT_MESSAGE =~ /\[molecule\-localinstall]/ && $CI_JOB_NAME =~ /molecule_localinstall_create/
       when: always
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-localinstall]/ && $CI_JOB_NAME =~ /molecule_localinstall_test/
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && $CI_COMMIT_MESSAGE =~ /\[molecule\-localinstall]/ && $CI_JOB_NAME =~ /molecule_localinstall_test/
       when: on_success
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-localinstall]/ && $CI_JOB_NAME =~ /molecule_localinstall_failure_cleanup/
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && $CI_COMMIT_MESSAGE =~ /\[molecule\-localinstall]/ && $CI_JOB_NAME =~ /molecule_localinstall_failure_cleanup/
       when: on_failure
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-localinstall]/ && $CI_JOB_NAME =~ /molecule_localinstall_cleanup/
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && $CI_COMMIT_MESSAGE =~ /\[molecule\-localinstall]/ && $CI_JOB_NAME =~ /molecule_localinstall_cleanup/
       when: always
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-/
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && $CI_COMMIT_MESSAGE =~ /\[molecule\-/
       when: never
-    - when: always
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master")
+      when: always
 
 .localinstall_cleanup_base: &localinstall_cleanup_base
   <<: *molecule_base
@@ -975,9 +976,6 @@ molecule_kubernetes_cleanup:
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/localinstall/provisioner.run.yml destroy --scenario-name localinstall
-  only:
-    - tags
-    - master
 
 .localinstall_branch_lock: &localinstall_branch_lock
   resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$CI_COMMIT_BRANCH-localinstall_branch_lock"
@@ -999,9 +997,6 @@ molecule_localinstall_create:
       - $CI_PROJECT_DIR/.molecule
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
-  only:
-    - tags
-    - master
 
 molecule_localinstall_test:
   <<: *molecule_base
@@ -1025,9 +1020,6 @@ molecule_localinstall_test:
       - $CI_PROJECT_DIR/.molecule
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
-  only:
-    - tags
-    - master
 
 molecule_localinstall_failure_cleanup:
   <<: *localinstall_cleanup_base
@@ -1036,9 +1028,6 @@ molecule_localinstall_failure_cleanup:
   stage: cleanup
   needs:
     - molecule_localinstall_create
-  only:
-    - tags
-    - master
 
 molecule_localinstall_cleanup:
   <<: *localinstall_cleanup_base
@@ -1051,9 +1040,6 @@ molecule_localinstall_cleanup:
   needs:
     - molecule_localinstall_test
     - molecule_localinstall_create
-  only:
-    - tags
-    - master
 
 # Job Seq: Molecule
 # Type: secrets
@@ -1061,17 +1047,18 @@ molecule_localinstall_cleanup:
 
 .molecule_secrets_only_rules: &molecule_secrets_only_rules
   rules:
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-secrets]/ && $CI_JOB_NAME =~ /molecule_secrets_create/
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && $CI_COMMIT_MESSAGE =~ /\[molecule\-secrets]/ && $CI_JOB_NAME =~ /molecule_secrets_create/
       when: always
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-secrets]/ && $CI_JOB_NAME =~ /molecule_secrets_test/
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && $CI_COMMIT_MESSAGE =~ /\[molecule\-secrets]/ && $CI_JOB_NAME =~ /molecule_secrets_test/
       when: on_success
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-secrets]/ && $CI_JOB_NAME =~ /molecule_secrets_failure_cleanup/
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && $CI_COMMIT_MESSAGE =~ /\[molecule\-secrets]/ && $CI_JOB_NAME =~ /molecule_secrets_failure_cleanup/
       when: on_failure
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-secrets]/ && $CI_JOB_NAME =~ /molecule_secrets_cleanup/
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && $CI_COMMIT_MESSAGE =~ /\[molecule\-secrets]/ && $CI_JOB_NAME =~ /molecule_secrets_cleanup/
       when: always
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-/
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && $CI_COMMIT_MESSAGE =~ /\[molecule\-/
       when: never
-    - when: always
+    - if: $CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master"
+      when: always
 
 .secrets_cleanup_base: &secrets_cleanup_base
   <<: *molecule_base
@@ -1079,9 +1066,6 @@ molecule_localinstall_cleanup:
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/secrets/provisioner.run.yml destroy --scenario-name secrets
-  only:
-    - tags
-    - master
 
 .secrets_branch_lock: &secrets_branch_lock
   resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$CI_COMMIT_BRANCH-secrets_branch_lock"
@@ -1103,9 +1087,6 @@ molecule_secrets_create:
       - $CI_PROJECT_DIR/.molecule
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
-  only:
-    - tags
-    - master
 
 molecule_secrets_test:
   <<: *molecule_base
@@ -1130,9 +1111,6 @@ molecule_secrets_test:
       - $CI_PROJECT_DIR/.molecule
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
-  only:
-    - tags
-    - master
 
 molecule_secrets_failure_cleanup:
   <<: *secrets_cleanup_base
@@ -1141,9 +1119,6 @@ molecule_secrets_failure_cleanup:
   stage: cleanup
   needs:
     - molecule_secrets_create
-  only:
-    - tags
-    - master
 
 molecule_secrets_cleanup:
   <<: *secrets_cleanup_base
@@ -1156,9 +1131,6 @@ molecule_secrets_cleanup:
   needs:
     - molecule_secrets_test
     - molecule_secrets_create
-  only:
-    - tags
-    - master
 
 # Job Seq: Molecule
 # Type: swarm
