@@ -43,15 +43,13 @@ const blank = -1
 
 // NewKeyGenerator creates a new key generator
 func NewKeyGenerator() *KeyGenerator {
-	empty := make([]int, 0, hashSetSize)
-	for len(empty) < hashSetSize {
-		empty = append(empty, blank)
+	g := &KeyGenerator{}
+
+	for i := 0; i < len(g.empty); i++{
+		g.empty[i] = blank
 	}
-	return &KeyGenerator{
-		seen:    make([]uint64, hashSetSize),
-		seenIdx: make([]int, hashSetSize),
-		empty:   empty,
-	}
+
+	return g
 }
 
 // KeyGenerator generates hash for the given name, hostname and tags.
@@ -64,11 +62,11 @@ type KeyGenerator struct {
 
 	// seen is used as a hashset to deduplicate the tags when there is more than
 	// 16 and less than 512 tags.
-	seen []uint64
+	seen [hashSetSize]uint64
 	// seenIdx is the index of the tag stored in the hashset
-	seenIdx []int
+	seenIdx [hashSetSize]int
 	// empty is an empty hashset with all values set to `blank`, to reset `seenIdx`
-	empty []int
+	empty [hashSetSize]int
 
 	// idx is used to deduplicate tags when there is less than 16 tags (faster than the
 	// hashset) or more than 512 tags (hashset has been allocated with 512 values max)
@@ -106,7 +104,7 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 	} else if len(tags) > bruteforceSize {
 		// reset the `seen` hashset.
 		// it copies `g.empty` instead of using make because it's faster
-		copy(g.seenIdx, g.empty)
+		copy(g.seenIdx[:], g.empty[:])
 		for i := range tags {
 			h := murmur3.StringSum64(tags[i])
 			j := h & (hashSetSize - 1) // address this hash into the hashset
