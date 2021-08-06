@@ -383,10 +383,6 @@ BACKEND_EVENT_SCHEMA = {
             "type": "string",
             "description": "Group name"
         },
-        "executable_path": {
-            "type": "string",
-            "description": "Path of the process executable"
-        },
         "path_resolution_error": {
             "type": "string",
             "description": "Description of an error in the path resolution"
@@ -394,18 +390,6 @@ BACKEND_EVENT_SCHEMA = {
         "comm": {
             "type": "string",
             "description": "Command name"
-        },
-        "executable_inode": {
-            "type": "integer",
-            "description": "Inode of the process executable"
-        },
-        "executable_mount_id": {
-            "type": "integer",
-            "description": "MountID of the process executable"
-        },
-        "executable_filesystem": {
-            "type": "string",
-            "description": "Filesystem of the process executable"
         },
         "tty": {
             "type": "string",
@@ -475,12 +459,8 @@ BACKEND_EVENT_SCHEMA = {
 | `gid` | Group ID |
 | `user` | User name |
 | `group` | Group name |
-| `executable_path` | Path of the process executable |
 | `path_resolution_error` | Description of an error in the path resolution |
 | `comm` | Command name |
-| `executable_inode` | Inode of the process executable |
-| `executable_mount_id` | MountID of the process executable |
-| `executable_filesystem` | Filesystem of the process executable |
 | `tty` | TTY associated with the process |
 | `fork_time` | Fork time of the process |
 | `exec_time` | Exec time of the process |
@@ -536,10 +516,6 @@ BACKEND_EVENT_SCHEMA = {
             "type": "string",
             "description": "Group name"
         },
-        "executable_path": {
-            "type": "string",
-            "description": "Path of the process executable"
-        },
         "path_resolution_error": {
             "type": "string",
             "description": "Description of an error in the path resolution"
@@ -547,18 +523,6 @@ BACKEND_EVENT_SCHEMA = {
         "comm": {
             "type": "string",
             "description": "Command name"
-        },
-        "executable_inode": {
-            "type": "integer",
-            "description": "Inode of the process executable"
-        },
-        "executable_mount_id": {
-            "type": "integer",
-            "description": "MountID of the process executable"
-        },
-        "executable_filesystem": {
-            "type": "string",
-            "description": "Filesystem of the process executable"
         },
         "tty": {
             "type": "string",
@@ -639,12 +603,8 @@ BACKEND_EVENT_SCHEMA = {
 | `gid` | Group ID |
 | `user` | User name |
 | `group` | Group name |
-| `executable_path` | Path of the process executable |
 | `path_resolution_error` | Description of an error in the path resolution |
 | `comm` | Command name |
-| `executable_inode` | Inode of the process executable |
-| `executable_mount_id` | MountID of the process executable |
-| `executable_filesystem` | Filesystem of the process executable |
 | `tty` | TTY associated with the process |
 | `fork_time` | Fork time of the process |
 | `exec_time` | Exec time of the process |

@@ -289,10 +289,6 @@
           "type": "string",
           "description": "Group name"
         },
-        "executable_path": {
-          "type": "string",
-          "description": "Path of the process executable"
-        },
         "path_resolution_error": {
           "type": "string",
           "description": "Description of an error in the path resolution"
@@ -300,18 +296,6 @@
         "comm": {
           "type": "string",
           "description": "Command name"
-        },
-        "executable_inode": {
-          "type": "integer",
-          "description": "Inode of the process executable"
-        },
-        "executable_mount_id": {
-          "type": "integer",
-          "description": "MountID of the process executable"
-        },
-        "executable_filesystem": {
-          "type": "string",
-          "description": "Filesystem of the process executable"
         },
         "tty": {
           "type": "string",
@@ -404,10 +388,6 @@
           "type": "string",
           "description": "Group name"
         },
-        "executable_path": {
-          "type": "string",
-          "description": "Path of the process executable"
-        },
         "path_resolution_error": {
           "type": "string",
           "description": "Description of an error in the path resolution"
@@ -415,18 +395,6 @@
         "comm": {
           "type": "string",
           "description": "Command name"
-        },
-        "executable_inode": {
-          "type": "integer",
-          "description": "Inode of the process executable"
-        },
-        "executable_mount_id": {
-          "type": "integer",
-          "description": "MountID of the process executable"
-        },
-        "executable_filesystem": {
-          "type": "string",
-          "description": "Filesystem of the process executable"
         },
         "tty": {
           "type": "string",

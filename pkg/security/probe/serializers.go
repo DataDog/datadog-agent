@@ -133,7 +133,6 @@ type ProcessCacheEntrySerializer struct {
 	GID                 int                           `json:"gid" jsonschema_description:"Group ID"`
 	User                string                        `json:"user,omitempty" jsonschema_description:"User name"`
 	Group               string                        `json:"group,omitempty" jsonschema_description:"Group name"`
-	Path                string                        `json:"executable_path,omitempty" jsonschema_description:"Path of the process executable"`
 	PathResolutionError string                        `json:"path_resolution_error,omitempty" jsonschema_description:"Description of an error in the path resolution"`
 	Comm                string                        `json:"comm,omitempty" jsonschema_description:"Command name"`
 	TTY                 string                        `json:"tty,omitempty" jsonschema_description:"TTY associated with the process"`
