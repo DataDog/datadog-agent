@@ -64,16 +64,6 @@
         dest: /home/ubuntu/receiver
         mode: u+x
 
-    - name: Generate env token
-      shell: echo token=$(cat /dev/urandom | env LC_CTYPE=C tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1) > env.txt
-      args:
-        chdir: /home/ubuntu/deployment/agents/overlays
-
-    - name: Kustomization template
-      template:
-        src: files/template/kustomization.yaml
-        dest: /home/ubuntu/deployment/agents/overlays
-
     - name: Configure .env file used by docker-compose
       copy:
         content: |
