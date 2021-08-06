@@ -713,6 +713,7 @@ pre_release_cluster_agent_image:
 
 
 molecule_compose_create:
+  stage: prepare
   variables:
     MOLECULE_SCENARIO: compose
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
@@ -723,6 +724,7 @@ molecule_compose_create:
   interruptible: true
 
 molecule_compose_test:
+  stage: acceptance
   variables:
     MOLECULE_SCENARIO: compose
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
@@ -739,6 +741,7 @@ molecule_compose_test:
     - molecule_compose_create
 
 molecule_compose_failure_cleanup:
+  stage: cleanup
   variables:
     MOLECULE_SCENARIO: compose
   <<: *molecule_base_cleanup
@@ -748,6 +751,7 @@ molecule_compose_failure_cleanup:
     - molecule_compose_create
 
 molecule_compose_cleanup:
+  stage: cleanup
   variables:
     MOLECULE_SCENARIO: compose
   <<: *molecule_base_cleanup
@@ -779,13 +783,13 @@ molecule_compose_cleanup:
     - when: always
 
 molecule_integrations_create:
-  <<: *molecule_integrations_only_rules
   variables:
     MOLECULE_SCENARIO: integrations
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
   <<: *molecule_base_create
   <<: *molecule_base_resource_lock
   <<: *molecule_artifacts
+  <<: *molecule_integrations_only_rules
   interruptible: true
 
 molecule_integrations_test:
