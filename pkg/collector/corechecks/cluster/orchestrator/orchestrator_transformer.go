@@ -438,7 +438,8 @@ func extractPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) *model.Pers
 			Capacity: map[string]int64{},
 		},
 	}
-
+	// TODO: phase to tag
+	// todo: type to tag
 	extractSpec(pvc, message)
 	extractStatus(pvc, message)
 

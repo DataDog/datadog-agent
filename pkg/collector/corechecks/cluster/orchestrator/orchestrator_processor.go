@@ -648,6 +648,8 @@ func ProcessPersistentVolumeList(pvcList []*corev1.PersistentVolume, groupID int
 		}
 		pvModel.Yaml = jsonSvc
 
+		addAdditionalPVTags(pvModel)
+
 		pvMsgs = append(pvMsgs, pvModel)
 	}
 
@@ -669,6 +671,14 @@ func ProcessPersistentVolumeList(pvcList []*corev1.PersistentVolume, groupID int
 
 	log.Debugf("Collected & enriched %d out of %d Persistent volumes in %s", len(pvMsgs), len(pvcList), time.Since(start))
 	return messages, nil
+}
+
+func addAdditionalPVTags(pvModel *model.PersistentVolume) {
+	// additional tags
+	pvPhaseTag := "pv_phase" + pvModel.Status.Phase
+	pvTypeTag := "pv_type" + pvModel.Spec.PersistentVolumeType
+	pvModel.Tags = append(pvModel.Tags, pvPhaseTag)
+	pvModel.Tags = append(pvModel.Tags, pvTypeTag)
 }
 
 // chunkServices chunks the given list of services, honoring the given chunk count and size.
