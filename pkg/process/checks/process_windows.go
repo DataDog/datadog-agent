@@ -11,6 +11,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
+func init() {
+	legacyProbe = &legacyWindowsProbe{}
+}
+
 func formatUser(fp *procutil.Process) *model.ProcessUser {
 	return &model.ProcessUser{
 		Name: fp.Username,

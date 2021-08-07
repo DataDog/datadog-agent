@@ -22,7 +22,7 @@ import (
 const emptyCtrID = ""
 
 // Process is a singleton ProcessCheck.
-var Process = &ProcessCheck{probe: procutil.NewProcessProbe()}
+var Process = &ProcessCheck{}
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
@@ -35,7 +35,7 @@ type ctrProcMsgFactory func([]*model.Process, ...*model.Container) *model.Collec
 type ProcessCheck struct {
 	sync.RWMutex
 
-	probe *procutil.Probe
+	probe procutil.Probe
 
 	sysInfo         *model.SystemInfo
 	lastCPUTime     cpu.TimesStat
@@ -53,8 +53,10 @@ type ProcessCheck struct {
 }
 
 // Init initializes the singleton ProcessCheck.
-func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
+func (p *ProcessCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 	p.sysInfo = info
+	p.probe = getProcessProbe(cfg)
+
 	p.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
 
 	networkID, err := agentutil.GetNetworkID(context.TODO())
@@ -316,6 +318,18 @@ func fmtProcesses(
 		// Hide blacklisted args if the Scrubber is enabled
 		fp.Cmdline = cfg.Scrubber.ScrubProcessCommand(fp)
 
+		var ioStat *model.IOStat
+		if fp.Stats.IORateStat != nil {
+			ioStat = &model.IOStat{
+				ReadRate:       float32(fp.Stats.IORateStat.ReadRate),
+				WriteRate:      float32(fp.Stats.IORateStat.WriteRate),
+				ReadBytesRate:  float32(fp.Stats.IORateStat.ReadBytesRate),
+				WriteBytesRate: float32(fp.Stats.IORateStat.WriteBytesRate),
+			}
+		} else {
+			ioStat = formatIO(fp.Stats, lastProcs[fp.Pid].Stats.IOStat, lastRun)
+		}
+
 		proc := &model.Process{
 			Pid:                    fp.Pid,
 			NsPid:                  fp.NsPid,
@@ -326,7 +340,7 @@ func fmtProcesses(
 			CreateTime:             fp.Stats.CreateTime,
 			OpenFdCount:            fp.Stats.OpenFdCount,
 			State:                  model.ProcessState(model.ProcessState_value[fp.Stats.Status]),
-			IoStat:                 formatIO(fp.Stats, lastProcs[fp.Pid].Stats.IOStat, lastRun),
+			IoStat:                 ioStat,
 			VoluntaryCtxSwitches:   uint64(fp.Stats.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[fp.Pid],

@@ -21,6 +21,35 @@ type Process struct {
 	Stats *Stats
 }
 
+// DeepCopy creates a deep copy of Process
+func (p *Process) DeepCopy() *Process {
+	copy := &Process{
+		Pid:      p.Pid,
+		Ppid:     p.Ppid,
+		NsPid:    p.NsPid,
+		Name:     p.Name,
+		Cwd:      p.Cwd,
+		Exe:      p.Exe,
+		Username: p.Username,
+	}
+	copy.Cmdline = make([]string, len(p.Cmdline))
+	for i := range p.Cmdline {
+		copy.Cmdline[i] = p.Cmdline[i]
+	}
+	copy.Uids = make([]int32, len(p.Uids))
+	for i := range p.Uids {
+		copy.Uids[i] = p.Uids[i]
+	}
+	copy.Gids = make([]int32, len(p.Gids))
+	for i := range p.Gids {
+		copy.Gids[i] = p.Gids[i]
+	}
+	if p.Stats != nil {
+		copy.Stats = p.Stats.DeepCopy()
+	}
+	return copy
+}
+
 // Stats holds all relevant stats metrics of a process
 type Stats struct {
 	CreateTime int64
@@ -37,7 +66,44 @@ type Stats struct {
 	MemInfo     *MemoryInfoStat
 	MemInfoEx   *MemoryInfoExStat
 	IOStat      *IOCountersStat
+	IORateStat  *IOCountersRateStat
 	CtxSwitches *NumCtxSwitchesStat
+}
+
+// DeepCopy creates a deep copy of Stats
+func (s *Stats) DeepCopy() *Stats {
+	copy := &Stats{
+		CreateTime:  s.CreateTime,
+		Status:      s.Status,
+		Nice:        s.Nice,
+		OpenFdCount: s.OpenFdCount,
+		NumThreads:  s.NumThreads,
+	}
+	if s.CPUTime != nil {
+		copy.CPUTime = &CPUTimesStat{}
+		*copy.CPUTime = *s.CPUTime
+	}
+	if s.MemInfo != nil {
+		copy.MemInfo = &MemoryInfoStat{}
+		*copy.MemInfo = *s.MemInfo
+	}
+	if s.MemInfoEx != nil {
+		copy.MemInfoEx = &MemoryInfoExStat{}
+		*copy.MemInfoEx = *s.MemInfoEx
+	}
+	if s.IOStat != nil {
+		copy.IOStat = &IOCountersStat{}
+		*copy.IOStat = *s.IOStat
+	}
+	if s.IORateStat != nil {
+		copy.IORateStat = &IOCountersRateStat{}
+		*copy.IORateStat = *s.IORateStat
+	}
+	if s.CtxSwitches != nil {
+		copy.CtxSwitches = &NumCtxSwitchesStat{}
+		*copy.CtxSwitches = *s.CtxSwitches
+	}
+	return copy
 }
 
 // StatsWithPerm is a collection of stats that require elevated permission to collect in linux
@@ -92,6 +158,14 @@ type IOCountersStat struct {
 	WriteCount int64
 	ReadBytes  int64
 	WriteBytes int64
+}
+
+// IOCountersRateStat holds IO metrics for a process represented as rates (/sec)
+type IOCountersRateStat struct {
+	ReadRate       float64
+	WriteRate      float64
+	ReadBytesRate  float64
+	WriteBytesRate float64
 }
 
 // IsZeroValue checks whether all fields are 0 in value for IOCountersStat

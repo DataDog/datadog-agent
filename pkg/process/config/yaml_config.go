@@ -199,6 +199,11 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		a.Windows.AddNewArgs = config.Datadog.GetBool(addArgsKey)
 	}
 
+	// Windows: Controls using the new check based on performance counters PDH APIs
+	if usePerfCountersKey := key(ns, "windows", "use_perf_counters"); config.Datadog.IsSet(usePerfCountersKey) {
+		a.Windows.UsePerfCounters = config.Datadog.GetBool(usePerfCountersKey)
+	}
+
 	// Optional additional pairs of endpoint_url => []apiKeys to submit to other locations.
 	if k := key(ns, "additional_endpoints"); config.Datadog.IsSet(k) {
 		for endpointURL, apiKeys := range config.Datadog.GetStringMapStringSlice(k) {

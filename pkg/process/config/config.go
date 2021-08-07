@@ -76,6 +76,8 @@ type WindowsConfig struct {
 	ArgsRefreshInterval int
 	// Controls getting process arguments immediately when a new process is discovered
 	AddNewArgs bool
+	// UsePerfCounters enables new process check using performance counters for process collection
+	UsePerfCounters bool
 }
 
 // AgentConfig is the global config for the process-agent. This information

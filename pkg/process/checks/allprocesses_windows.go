@@ -4,6 +4,7 @@ package checks
 
 import (
 	"bytes"
+	"fmt"
 	"runtime"
 	"strings"
 	"sync"
@@ -60,6 +61,14 @@ type IO_COUNTERS struct {
 	OtherTransferCount  uint64
 }
 
+func getAllProcesses(probe procutil.Probe) (map[int32]*procutil.Process, error) {
+	return probe.ProcessesByPID(time.Now())
+}
+
+func getAllProcStats(probe procutil.Probe, pids []int32) (map[int32]*procutil.Stats, error) {
+	return probe.StatsForPIDs(pids, time.Now())
+}
+
 func getProcessMemoryInfo(h windows.Handle, mem *process.PROCESS_MEMORY_COUNTERS) (err error) {
 	r1, _, e1 := procGetProcessMemoryInfo.Call(uintptr(h), uintptr(unsafe.Pointer(mem)), uintptr(unsafe.Sizeof(*mem)))
 	if r1 == 0 {
@@ -84,8 +93,13 @@ func getProcessIoCounters(h windows.Handle, counters *IO_COUNTERS) (err error) {
 	return nil
 }
 
-func getAllProcStats(probe *procutil.Probe, pids []int32) (map[int32]*procutil.Stats, error) {
-	procs, err := getAllProcesses(probe, true)
+type legacyWindowsProbe struct {
+}
+
+func (p *legacyWindowsProbe) Close() {}
+
+func (p *legacyWindowsProbe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*procutil.Stats, error) {
+	procs, err := p.ProcessesByPID(now)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +110,12 @@ func getAllProcStats(probe *procutil.Probe, pids []int32) (map[int32]*procutil.S
 	return stats, nil
 }
 
-func getAllProcesses(probe *procutil.Probe, collectStats bool) (map[int32]*procutil.Process, error) {
+// StatsWithPermByPID is currently not implemented in non-linux environments
+func (p *legacyWindowsProbe) StatsWithPermByPID(pids []int32) (map[int32]*procutil.StatsWithPerm, error) {
+	return nil, fmt.Errorf("legacyWindowsProbe: StatsWithPermByPID is not implemented")
+}
+
+func (p *legacyWindowsProbe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*procutil.Process, error) {
 	// make sure we get the consistent snapshot by using the same OS thread
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -308,10 +327,12 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error)
 	}
 	var cmderr error
 	cp.executablePath = winutil.ConvertWindowsString16(pe32.SzExeFile[:])
-	cp.commandLine, cmderr = winutil.GetCommandLineForProcess(cp.procHandle)
+	commandParams, cmderr := winutil.GetCommandParamsForProcess(cp.procHandle, false)
 	if cmderr != nil {
 		log.Debugf("Error retrieving full command line %v", cmderr)
 		cp.commandLine = cp.executablePath
+	} else {
+		cp.commandLine = commandParams.CmdLine
 	}
 
 	cp.parsedArgs = parseCmdLineArgs(cp.commandLine)

@@ -14,7 +14,7 @@ import (
 )
 
 // RTProcess is a singleton RTProcessCheck.
-var RTProcess = &RTProcessCheck{probe: procutil.NewProcessProbe()}
+var RTProcess = &RTProcessCheck{}
 
 // RTProcessCheck collects numeric statistics about the live processes.
 // The instance stores state between checks for calculation of rates and CPU.
@@ -27,12 +27,14 @@ type RTProcessCheck struct {
 
 	notInitializedLogLimit *util.LogLimit
 
-	probe *procutil.Probe
+	probe procutil.Probe
 }
 
 // Init initializes a new RTProcessCheck instance.
-func (r *RTProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
+func (r *RTProcessCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 	r.sysInfo = info
+	r.probe = getProcessProbe(cfg)
+
 	r.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
 }
 
@@ -153,6 +155,18 @@ func fmtProcessStats(
 			continue
 		}
 
+		var ioStat *model.IOStat
+		if fp.IORateStat != nil {
+			ioStat = &model.IOStat{
+				ReadRate:       float32(fp.IORateStat.ReadRate),
+				WriteRate:      float32(fp.IORateStat.WriteRate),
+				ReadBytesRate:  float32(fp.IORateStat.ReadBytesRate),
+				WriteBytesRate: float32(fp.IORateStat.WriteBytesRate),
+			}
+		} else {
+			ioStat = formatIO(fp, lastProcs[pid].IOStat, lastRun)
+		}
+
 		chunk = append(chunk, &model.ProcessStat{
 			Pid:                    pid,
 			CreateTime:             fp.CreateTime,
@@ -162,7 +176,7 @@ func fmtProcessStats(
 			Threads:                fp.NumThreads,
 			OpenFdCount:            fp.OpenFdCount,
 			ProcessState:           model.ProcessState(model.ProcessState_value[fp.Status]),
-			IoStat:                 formatIO(fp, lastProcs[pid].IOStat, lastRun),
+			IoStat:                 ioStat,
 			VoluntaryCtxSwitches:   uint64(fp.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.CtxSwitches.Involuntary),
 			ContainerId:            cidByPid[pid],

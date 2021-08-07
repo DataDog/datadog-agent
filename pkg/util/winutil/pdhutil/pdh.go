@@ -132,6 +132,42 @@ const (
 	ERROR_SUCCESS = 0
 )
 
+const (
+	CounterAllProcessPctProcessorTime   = `\Process(*)\% Processor Time`
+	CounterAllProcessPctUserTime        = `\Process(*)\% User Time`
+	CounterAllProcessPctPrivilegedTime  = `\Process(*)\% Privileged Time`
+	CounterAllProcessVirtualBytesPeak   = `\Process(*)\Virtual Bytes Peak`
+	CounterAllProcessVirtualBytes       = `\Process(*)\Virtual Bytes`
+	CounterAllProcessPageFaultsPerSec   = `\Process(*)\Page Faults/sec`
+	CounterAllProcessWorkingSetPeak     = `\Process(*)\Working Set Peak`
+	CounterAllProcessWorkingSet         = `\Process(*)\Working Set`
+	CounterAllProcessPageFileBytesPeak  = `\Process(*)\Page File Bytes Peak`
+	CounterAllProcessPageFileBytes      = `\Process(*)\Page File Bytes`
+	CounterAllProcessPrivateBytes       = `\Process(*)\Private Bytes`
+	CounterAllProcessThreadCount        = `\Process(*)\Thread Count`
+	CounterAllProcessPriorityBase       = `\Process(*)\Priority Base`
+	CounterAllProcessElapsedTime        = `\Process(*)\Elapsed Time`
+	CounterAllProcessPID                = `\Process(*)\ID Process`
+	CounterAllProcessParentPID          = `\Process(*)\Creating Process ID`
+	CounterAllProcessPoolPagedBytes     = `\Process(*)\Pool Paged Bytes`
+	CounterAllProcessPoolNonpagedBytes  = `\Process(*)\Pool Nonpaged Bytes`
+	CounterAllProcessHandleCount        = `\Process(*)\Handle Count`
+	CounterAllProcessIOReadOpsPerSec    = `\Process(*)\IO Read Operations/sec`
+	CounterAllProcessIOWriteOpsPerSec   = `\Process(*)\IO Write Operations/sec`
+	CounterAllProcessIODataOpsPerSec    = `\Process(*)\IO Data Operations/sec`
+	CounterAllProcessIOOtherOpsPerSec   = `\Process(*)\IO Other Operations/sec`
+	CounterAllProcessIOReadBytesPerSec  = `\Process(*)\IO Read Bytes/sec`
+	CounterAllProcessIOWriteBytesPerSec = `\Process(*)\IO Write Bytes/sec`
+	CounterAllProcessIODataBytesPerSec  = `\Process(*)\IO Data Bytes/sec`
+	CounterAllProcessIOOtherBytesPerSec = `\Process(*)\IO Other Bytes/sec`
+	CounterAllProcessWorkingSetPrivate  = `\Process(*)\Working Set - Private`
+)
+
+type PDH_FMT_COUNTERVALUE_ITEM struct {
+	szName *uint8
+	value  PDH_FMT_COUNTERVALUE_LONG
+}
+
 // PdhOpenQuery Creates a new query that is used to manage the collection of performance data.
 /*
 Parameters
