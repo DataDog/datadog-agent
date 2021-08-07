@@ -41,21 +41,6 @@ var (
 	agent *Agent
 )
 
-// Start starts logs-agent
-// getAC is a func returning the prepared AutoConfig. It is nil until
-// the AutoConfig is ready, please consider using BlockUntilAutoConfigRanOnce
-// instead of directly using it.
-// The parameter serverless indicates whether or not this Logs Agent is running
-// in a serverless environment.
-func Start(getAC func() *autodiscovery.AutoConfig) error {
-	return start(getAC, false, nil, nil)
-}
-
-// StartServerless starts a Serverless instance of the Logs Agent.
-func StartServerless(getAC func() *autodiscovery.AutoConfig, logsChan chan *config.ChannelMessage, extraTags []string) error {
-	return start(getAC, true, logsChan, extraTags)
-}
-
 // buildEndpoints builds endpoints for the logs agent
 func buildEndpoints(serverless bool) (*config.Endpoints, error) {
 	if serverless {
@@ -68,7 +53,7 @@ func buildEndpoints(serverless bool) (*config.Endpoints, error) {
 	return config.BuildEndpoints(httpConnectivity, intakeTrackType, intakeProtocol, config.DefaultIntakeSource)
 }
 
-func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan chan *config.ChannelMessage, extraTags []string) error {
+func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan chan *config.ChannelMessage, extraTags []string, agentFactory AgentFactory) error {
 	if IsAgentRunning() {
 		return nil
 	}
@@ -108,12 +93,12 @@ func start(getAC func() *autodiscovery.AutoConfig, serverless bool, logsChan cha
 	if !serverless {
 		// regular logs agent
 		log.Info("Starting logs-agent...")
-		agent = NewAgent(sources, services, processingRules, endpoints)
 	} else {
 		// serverless logs agent
 		log.Info("Starting a serverless logs-agent...")
-		agent = NewServerless(sources, services, processingRules, endpoints)
 	}
+
+	agent = agentFactory.create(sources, services, processingRules, endpoints)
 
 	agent.Start()
 	atomic.StoreInt32(&isRunning, 1)
