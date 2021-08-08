@@ -21,8 +21,6 @@ platforms:
 
 provisioner:
   name: ansible
-  options:
-    'vault-id': "${MOLECULE_SCENARIO_NAME}@${CI_PROJECT_DIR}/test/molecule-role/molecule/common/vault-password.py"
   playbooks:
     cleanup: playbook.cleanup.yml
     create: playbook.create.yml
@@ -34,30 +32,8 @@ provisioner:
     links:
       group_vars: group_vars/
 
-# scenario:
-#   name: kubernetes
-#   create_sequence:
-#     - dependency
-#     - cleanup
-#     - destroy
-#     - syntax
-#     - create
-#     - prepare
-#   test_sequence:
-#     - dependency
-#     - syntax
-#     - cleanup
-#     - create
-#     - prepare
-#     - converge
-#     - idempotence
-#     - lint
-#     - side_effect
-#     - verify
-#   destroy_sequence:
-#     - dependency
-#     - cleanup
-#     - destroy
+scenario:
+  name: kubernetes
 
 verifier:
   name: testinfra
