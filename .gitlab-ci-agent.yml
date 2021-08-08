@@ -858,6 +858,11 @@ molecule_kubernetes_test:
   <<: *molecule_kubernetes_only_rules
   <<: *molecule_artifacts
   interruptible: true
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
   variables:
     MOLECULE_SCENARIO: kubernetes
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
