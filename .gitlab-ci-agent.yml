@@ -688,13 +688,13 @@ pre_release_cluster_agent_image:
 
 .molecule_compose_only_rules: &molecule_compose_only_rules
   rules:
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-compose]/ && $CI_JOB_NAME =~ /molecule_compose_create/
+    - if: ($CI_COMMIT_MESSAGE =~ /\[molecule\-compose]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_compose_create/
       when: always
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-compose]/ && $CI_JOB_NAME =~ /molecule_compose_test/
+    - if: ($CI_COMMIT_MESSAGE =~ /\[molecule\-compose]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_compose_test/
       when: on_success
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-compose]/ && $CI_JOB_NAME =~ /molecule_compose_failure_cleanup/
+    - if: ($CI_COMMIT_MESSAGE =~ /\[molecule\-compose]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_compose_failure_cleanup/
       when: on_failure
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-compose]/ && $CI_JOB_NAME =~ /molecule_compose_cleanup/
+    - if: ($CI_COMMIT_MESSAGE =~ /\[molecule\-compose]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_compose_cleanup/
       when: always
     - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-/
       when: never
@@ -757,13 +757,13 @@ molecule_compose_cleanup:
 
 .molecule_integrations_only_rules: &molecule_integrations_only_rules
   rules:
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-integrations]/ && $CI_JOB_NAME =~ /molecule_integrations_create/
+    - if: ($CI_COMMIT_MESSAGE =~ /\[molecule\-integrations]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_integrations_create/
       when: always
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-integrations]/ && $CI_JOB_NAME =~ /molecule_integrations_test/
+    - if: ($CI_COMMIT_MESSAGE =~ /\[molecule\-integrations]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_integrations_test/
       when: on_success
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-integrations]/ && $CI_JOB_NAME =~ /molecule_integrations_failure_cleanup/
+    - if: ($CI_COMMIT_MESSAGE =~ /\[molecule\-integrations]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_integrations_failure_cleanup/
       when: on_failure
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-integrations]/ && $CI_JOB_NAME =~ /molecule_integrations_cleanup/
+    - if: ($CI_COMMIT_MESSAGE =~ /\[molecule\-integrations]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_integrations_cleanup/
       when: always
     - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-/
       when: never
@@ -822,13 +822,13 @@ molecule_integrations_cleanup:
 
 .molecule_kubernetes_only_rules: &molecule_kubernetes_only_rules
   rules:
-    - if: $MAJOR_VERSION == "3" && $CI_COMMIT_MESSAGE =~ /\[molecule\-kubernetes]/ && $CI_JOB_NAME =~ /molecule_kubernetes_create/
+    - if: $MAJOR_VERSION == "3" && ($CI_COMMIT_MESSAGE =~ /\[molecule\-kubernetes]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_kubernetes_create/
       when: always
-    - if: $MAJOR_VERSION == "3" && $CI_COMMIT_MESSAGE =~ /\[molecule\-kubernetes]/ && $CI_JOB_NAME =~ /molecule_kubernetes_test/
+    - if: $MAJOR_VERSION == "3" && ($CI_COMMIT_MESSAGE =~ /\[molecule\-kubernetes]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_kubernetes_test/
       when: on_success
-    - if: $MAJOR_VERSION == "3" && $CI_COMMIT_MESSAGE =~ /\[molecule\-kubernetes]/ && $CI_JOB_NAME =~ /molecule_kubernetes_failure_cleanup/
+    - if: $MAJOR_VERSION == "3" && ($CI_COMMIT_MESSAGE =~ /\[molecule\-kubernetes]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_kubernetes_failure_cleanup/
       when: on_failure
-    - if: $MAJOR_VERSION == "3" && $CI_COMMIT_MESSAGE =~ /\[molecule\-kubernetes]/ && $CI_JOB_NAME =~ /molecule_kubernetes_cleanup/
+    - if: $MAJOR_VERSION == "3" && ($CI_COMMIT_MESSAGE =~ /\[molecule\-kubernetes]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_kubernetes_cleanup/
       when: always
     - if: $MAJOR_VERSION == "3" && $CI_COMMIT_MESSAGE =~ /\[molecule\-/
       when: never
@@ -896,13 +896,13 @@ molecule_kubernetes_cleanup:
 
 .molecule_localinstall_only_rules: &molecule_localinstall_only_rules
   rules:
-    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && $CI_COMMIT_MESSAGE =~ /\[molecule\-localinstall]/ && $CI_JOB_NAME =~ /molecule_localinstall_create/
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && ($CI_COMMIT_MESSAGE =~ /\[molecule\-localinstall]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_localinstall_create/
       when: always
-    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && $CI_COMMIT_MESSAGE =~ /\[molecule\-localinstall]/ && $CI_JOB_NAME =~ /molecule_localinstall_test/
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && ($CI_COMMIT_MESSAGE =~ /\[molecule\-localinstall]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_localinstall_test/
       when: on_success
-    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && $CI_COMMIT_MESSAGE =~ /\[molecule\-localinstall]/ && $CI_JOB_NAME =~ /molecule_localinstall_failure_cleanup/
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && ($CI_COMMIT_MESSAGE =~ /\[molecule\-localinstall]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_localinstall_failure_cleanup/
       when: on_failure
-    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && $CI_COMMIT_MESSAGE =~ /\[molecule\-localinstall]/ && $CI_JOB_NAME =~ /molecule_localinstall_cleanup/
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && ($CI_COMMIT_MESSAGE =~ /\[molecule\-localinstall]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_localinstall_cleanup/
       when: always
     - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && $CI_COMMIT_MESSAGE =~ /\[molecule\-/
       when: never
@@ -963,13 +963,13 @@ molecule_localinstall_cleanup:
 
 .molecule_secrets_only_rules: &molecule_secrets_only_rules
   rules:
-    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && $CI_COMMIT_MESSAGE =~ /\[molecule\-secrets]/ && $CI_JOB_NAME =~ /molecule_secrets_create/
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && ($CI_COMMIT_MESSAGE =~ /\[molecule\-secrets]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_secrets_create/
       when: always
-    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && $CI_COMMIT_MESSAGE =~ /\[molecule\-secrets]/ && $CI_JOB_NAME =~ /molecule_secrets_test/
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && ($CI_COMMIT_MESSAGE =~ /\[molecule\-secrets]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_secrets_test/
       when: on_success
-    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && $CI_COMMIT_MESSAGE =~ /\[molecule\-secrets]/ && $CI_JOB_NAME =~ /molecule_secrets_failure_cleanup/
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && ($CI_COMMIT_MESSAGE =~ /\[molecule\-secrets]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_secrets_failure_cleanup/
       when: on_failure
-    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && $CI_COMMIT_MESSAGE =~ /\[molecule\-secrets]/ && $CI_JOB_NAME =~ /molecule_secrets_cleanup/
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && ($CI_COMMIT_MESSAGE =~ /\[molecule\-secrets]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_secrets_cleanup/
       when: always
     - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && $CI_COMMIT_MESSAGE =~ /\[molecule\-/
       when: never
@@ -1029,13 +1029,13 @@ molecule_secrets_cleanup:
 
 .molecule_swarm_only_rules: &molecule_swarm_only_rules
   rules:
-    - if: $MAJOR_VERSION == "3" && $CI_COMMIT_MESSAGE =~ /\[molecule\-swarm]/ && $CI_JOB_NAME =~ /molecule_swarm_create/
+    - if: $MAJOR_VERSION == "3" && ($CI_COMMIT_MESSAGE =~ /\[molecule\-swarm]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_swarm_create/
       when: always
-    - if: $MAJOR_VERSION == "3" && $CI_COMMIT_MESSAGE =~ /\[molecule\-swarm]/ && $CI_JOB_NAME =~ /molecule_swarm_test/
+    - if: $MAJOR_VERSION == "3" && ($CI_COMMIT_MESSAGE =~ /\[molecule\-swarm]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_swarm_test/
       when: on_success
-    - if: $MAJOR_VERSION == "3" && $CI_COMMIT_MESSAGE =~ /\[molecule\-swarm]/ && $CI_JOB_NAME =~ /molecule_swarm_failure_cleanup/
+    - if: $MAJOR_VERSION == "3" && ($CI_COMMIT_MESSAGE =~ /\[molecule\-swarm]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_swarm_failure_cleanup/
       when: on_failure
-    - if: $MAJOR_VERSION == "3" && $CI_COMMIT_MESSAGE =~ /\[molecule\-swarm]/ && $CI_JOB_NAME =~ /molecule_swarm_cleanup/
+    - if: $MAJOR_VERSION == "3" && ($CI_COMMIT_MESSAGE =~ /\[molecule\-swarm]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_swarm_cleanup/
       when: always
     - if: $MAJOR_VERSION == "3" && $CI_COMMIT_MESSAGE =~ /\[molecule\-/
       when: never
@@ -1094,13 +1094,13 @@ molecule_swarm_cleanup:
 
 .molecule_vms_only_rules: &molecule_vms_only_rules
   rules:
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-vms]/ && $CI_JOB_NAME =~ /molecule_vms_create/
+    - if: ($CI_COMMIT_MESSAGE =~ /\[molecule\-vms]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_vms_create/
       when: always
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-vms]/ && $CI_JOB_NAME =~ /molecule_vms_test/
+    - if: ($CI_COMMIT_MESSAGE =~ /\[molecule\-vms]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_vms_test/
       when: on_success
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-vms]/ && $CI_JOB_NAME =~ /molecule_vms_failure_cleanup/
+    - if: ($CI_COMMIT_MESSAGE =~ /\[molecule\-vms]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_vms_failure_cleanup/
       when: on_failure
-    - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-vms]/ && $CI_JOB_NAME =~ /molecule_vms_cleanup/
+    - if: ($CI_COMMIT_MESSAGE =~ /\[molecule\-vms]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_vms_cleanup/
       when: always
     - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-/
       when: never
