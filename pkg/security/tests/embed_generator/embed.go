@@ -6,6 +6,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"flag"
 	"go/ast"
@@ -112,7 +113,7 @@ func embedTestFile(fset *token.FileSet, opts EmbedFileOptions) error {
 		keep := false
 		funcDecl, ok := decl.(*ast.FuncDecl)
 		if ok {
-			info := funcDeclKeepInfo(funcDecl)
+			info := funcDeclKeepInfo(fset, funcDecl)
 			keep = info.keep
 			if info.isTest {
 				shouldExportEmbedFile = true
@@ -159,8 +160,8 @@ type FuncDeclKeepInfo struct {
 	isTest bool
 }
 
-func funcDeclKeepInfo(funcDecl *ast.FuncDecl) FuncDeclKeepInfo {
-	if strings.HasPrefix(funcDecl.Name.Name, "Test") {
+func funcDeclKeepInfo(fset *token.FileSet, funcDecl *ast.FuncDecl) FuncDeclKeepInfo {
+	if isTestFunction(fset, funcDecl) {
 		if funcDecl.Doc != nil {
 			for _, comment := range funcDecl.Doc.List {
 				if embedCmdRegex.MatchString(comment.Text) {
@@ -181,6 +182,34 @@ func funcDeclKeepInfo(funcDecl *ast.FuncDecl) FuncDeclKeepInfo {
 			isTest: false,
 		}
 	}
+}
+
+func isTestFunction(fset *token.FileSet, funcDecl *ast.FuncDecl) bool {
+	funcName := funcDecl.Name.Name
+	if !strings.HasPrefix(funcName, "Test") {
+		return false
+	}
+
+	testName := strings.TrimPrefix(funcName, "Test")
+	if !ast.IsExported(testName) {
+		return false
+	}
+
+	params := funcDecl.Type.Params.List
+	if len(params) != 1 {
+		return false
+	}
+
+	return typeToStr(fset, params[0].Type) == "*testing.T"
+}
+
+func typeToStr(fset *token.FileSet, ty ast.Expr) string {
+	var buf bytes.Buffer
+	err := printer.Fprint(&buf, fset, ty)
+	if err != nil {
+		return ""
+	}
+	return buf.String()
 }
 
 var filesToKeep = []string{
