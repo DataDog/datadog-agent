@@ -52,6 +52,9 @@ stages:
 .rules:
   - &only_agent_3
     if: $MAJOR_VERSION == "3"
+  - &only_agent_3_always
+    if: $MAJOR_VERSION == "3"
+    when: always
   - &only_agent_3_release
     if: $MAJOR_VERSION == "3" && ($CI_COMMIT_TAG || $CI_JOB_TRIGGERED == "true")
     when: manual
@@ -632,7 +635,22 @@ pre_release_cluster_agent_image:
   rules:
     - *only_agent_3
 
+# Core Molecule Structure for all the molecule steps
+.molecule: &molecule
+  interruptible: true
+  resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$CI_COMMIT_BRANCH-$MOLECULE_SCENARIO-branch-lock"
+  dependencies: []
+  before_script:
+    - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
+    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
+    - export MOLECULE_RUN_ID=${CI_JOB_ID}
+    - export LC_CTYPE=en_US.UTF-8
+    - export LANG=en_US.UTF-8
+    - mkdir -p $CI_PROJECT_DIR/tmp_molecule_inventory
+  retry:
+    max: 2
 
+# Base artifacts for create and test steps
 .molecule_artifacts: &molecule_artifacts
   artifacts:
     when: always
@@ -644,49 +662,35 @@ pre_release_cluster_agent_image:
       - $MOLECULE_EPHEMERAL_DIRECTORY
     expire_in: 1 week
 
-.molecule_base: &molecule_base
-  dependencies: []
-  before_script:
-    - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
-    - export AWS_SECRET_ACCESS_KEY=${MOLECULE_AWS_SECRET_ACCESS_KEY}
-    - export MOLECULE_RUN_ID=${CI_JOB_ID}
-    - export LC_CTYPE=en_US.UTF-8
-    - export LANG=en_US.UTF-8
-    - mkdir -p $CI_PROJECT_DIR/tmp_molecule_inventory
-  retry:
-    max: 2
-    when:
-      - always
-
-.molecule_base_create: &molecule_base_create
+# Primary create steps for all the molecule builds
+.molecule_create: &molecule_create
+  <<: *molecule_artifacts
   stage: prepare
-  <<: *molecule_base
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/$MOLECULE_SCENARIO/provisioner.setup.yml create --scenario-name $MOLECULE_SCENARIO
 
-.molecule_base_test: &molecule_base_test
+# Primary test steps for all the molecule builds
+.molecule_test: &molecule_test
+  <<: *molecule_artifacts
   stage: acceptance
   script:
     - cd $CI_PROJECT_DIR/test
-    - ./molecule3.sh --base-config ./molecule/$MOLECULE_SCENARIO/provisioner.run.yml prepare --force --scenario-name $MOLECULE_SCENARIO
+    - ./molecule3.sh --base-config ./molecule/$MOLECULE_SCENARIO/provisioner.run.yml create --scenario-name $MOLECULE_SCENARIO # Rerun create step, assist with if a destroy was triggered
+    - ./molecule3.sh --base-config ./molecule/$MOLECULE_SCENARIO/provisioner.run.yml prepare --force --scenario-name $MOLECULE_SCENARIO # This is the secondary prepare step which does the run file step
     - ./molecule3.sh --base-config ./molecule/$MOLECULE_SCENARIO/provisioner.run.yml test --scenario-name $MOLECULE_SCENARIO --destroy=never
 
-.molecule_base_cleanup: &molecule_base_cleanup
+# Primary destroy steps for all the molecule builds
+.molecule_destroy: &molecule_destroy
   stage: cleanup
-  <<: *molecule_base
-  interruptible: true
   script:
     - cd $CI_PROJECT_DIR/test
-    - ./molecule3.sh --base-config ./molecule/$MOLECULE_SCENARIO/provisioner.run.yml destroy --scenario-name $MOLECULE_SCENARIO
-
-.molecule_base_resource_lock: &molecule_base_resource_lock
-  resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$CI_COMMIT_BRANCH-$MOLECULE_SCENARIO-branch-lock"
+    - ./molecule3.sh --base-config ./molecule/$MOLECULE_SCENARIO/provisioner.setup.yml destroy --scenario-name $MOLECULE_SCENARIO
 
 # Job Seq: Molecule
 # Type: Compose
 
-.molecule_compose_only_rules: &molecule_compose_only_rules
+.molecule_compose_rules: &molecule_compose_rules
   rules:
     - if: ($CI_COMMIT_MESSAGE =~ /\[molecule\-compose]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_compose_create/
       when: always
@@ -699,29 +703,21 @@ pre_release_cluster_agent_image:
     - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-/
       when: never
 
-
 molecule_compose_create:
-  <<: *molecule_base_resource_lock
-  <<: *molecule_compose_only_rules
-  <<: *molecule_artifacts
-  <<: *molecule_base_create
-  stage: prepare
+  <<: *molecule
+  <<: *molecule_create
+  <<: *molecule_compose_rules
   variables:
     MOLECULE_SCENARIO: compose
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
-  interruptible: true
 
 molecule_compose_test:
-  <<: *molecule_base
-  <<: *molecule_base_resource_lock
-  <<: *molecule_compose_only_rules
-  <<: *molecule_artifacts
-  <<: *molecule_base_test
-  stage: acceptance
+  <<: *molecule
+  <<: *molecule_test
+  <<: *molecule_compose_rules
   variables:
     MOLECULE_SCENARIO: compose
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
-  interruptible: true
   dependencies:
     - molecule_compose_create
   needs:
@@ -729,20 +725,16 @@ molecule_compose_test:
     - molecule_compose_create
 
 molecule_compose_failure_cleanup:
-  <<: *molecule_base_cleanup
-  <<: *molecule_base_resource_lock
-  <<: *molecule_compose_only_rules
-  stage: cleanup
+  <<: *molecule_destroy
+  <<: *molecule_compose_rules
   variables:
     MOLECULE_SCENARIO: compose
   needs:
     - molecule_compose_create
 
 molecule_compose_cleanup:
-  <<: *molecule_base_cleanup
-  <<: *molecule_base_resource_lock
-  <<: *molecule_compose_only_rules
-  stage: cleanup
+  <<: *molecule_destroy
+  <<: *molecule_compose_rules
   variables:
     MOLECULE_SCENARIO: compose
   dependencies:
@@ -755,7 +747,7 @@ molecule_compose_cleanup:
 # Job Seq: Molecule
 # Type: Integrations
 
-.molecule_integrations_only_rules: &molecule_integrations_only_rules
+.molecule_integrations_rules: &molecule_integrations_rules
   rules:
     - if: ($CI_COMMIT_MESSAGE =~ /\[molecule\-integrations]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_integrations_create/
       when: always
@@ -769,25 +761,20 @@ molecule_compose_cleanup:
       when: never
 
 molecule_integrations_create:
+  <<: *molecule
+  <<: *molecule_create
+  <<: *molecule_integrations_rules
   variables:
     MOLECULE_SCENARIO: integrations
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
-  <<: *molecule_base_create
-  <<: *molecule_base_resource_lock
-  <<: *molecule_artifacts
-  <<: *molecule_integrations_only_rules
-  interruptible: true
 
 molecule_integrations_test:
-  <<: *molecule_integrations_only_rules
   variables:
     MOLECULE_SCENARIO: integrations
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
-  <<: *molecule_base
-  <<: *molecule_base_test
-  <<: *molecule_base_resource_lock
-  <<: *molecule_artifacts
-  interruptible: true
+  <<: *molecule
+  <<: *molecule_test
+  <<: *molecule_integrations_rules
   dependencies:
     - molecule_integrations_create
   needs:
@@ -795,20 +782,20 @@ molecule_integrations_test:
     - molecule_integrations_create
 
 molecule_integrations_failure_cleanup:
-  <<: *molecule_integrations_only_rules
   variables:
     MOLECULE_SCENARIO: integrations
-  <<: *molecule_base_cleanup
-  <<: *molecule_base_resource_lock
+  <<: *molecule
+  <<: *molecule_destroy
+  <<: *molecule_integrations_rules
   needs:
     - molecule_integrations_create
 
 molecule_integrations_cleanup:
-  <<: *molecule_integrations_only_rules
   variables:
     MOLECULE_SCENARIO: integrations
-  <<: *molecule_base_cleanup
-  <<: *molecule_base_resource_lock
+  <<: *molecule
+  <<: *molecule_destroy
+  <<: *molecule_integrations_rules
   dependencies:
     - molecule_integrations_test
     - molecule_integrations_create
@@ -819,34 +806,17 @@ molecule_integrations_cleanup:
 
 # Job Seq: Molecule
 # Type: kubernetes
-
-.molecule_kubernetes_only_rules: &molecule_kubernetes_only_rules
-  rules:
-    - if: $MAJOR_VERSION == "3" && ($CI_COMMIT_MESSAGE =~ /\[molecule\-kubernetes]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_kubernetes_create/
-      when: always
-    - if: $MAJOR_VERSION == "3" && ($CI_COMMIT_MESSAGE =~ /\[molecule\-kubernetes]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_kubernetes_test/
-      when: on_success
-    - if: $MAJOR_VERSION == "3" && ($CI_COMMIT_MESSAGE =~ /\[molecule\-kubernetes]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_kubernetes_failure_cleanup/
-      when: on_failure
-    - if: $MAJOR_VERSION == "3" && ($CI_COMMIT_MESSAGE =~ /\[molecule\-kubernetes]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_kubernetes_cleanup/
-      when: always
-    - if: $MAJOR_VERSION == "3" && $CI_COMMIT_MESSAGE =~ /\[molecule\-/
-      when: never
+# TODO: Split into two stages instead of one test stage, Unit Test fails SSH when split debug required
 
 molecule_tests_kubernetes:
-  <<: *molecule_base
+  <<: *molecule
+  resource_group: eks_test_cluster
   stage: acceptance
   needs:
     - pre_release_cluster_agent_image
     - pre_release_main_agent_image
   script:
     - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s kubernetes
-  resource_group: eks_test_cluster
-  retry:
-    max: 2
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
   artifacts:
     when: always
     paths:
@@ -858,21 +828,23 @@ molecule_tests_kubernetes:
     - *only_agent_3
 
 molecule_kubernetes_cleanup:
+  <<: *molecule
+  <<: *molecule_destroy
   resource_group: eks_test_cluster
   variables:
     MOLECULE_SCENARIO: kubernetes
-  <<: *molecule_base_cleanup
-  <<: *molecule_kubernetes_only_rules
   dependencies:
     - molecule_tests_kubernetes
   needs:
     - molecule_tests_kubernetes
+  rules:
+    - *only_agent_3_always
 
 
 # Job Seq: Molecule
 # Type: localinstall
 
-.molecule_localinstall_only_rules: &molecule_localinstall_only_rules
+.molecule_localinstall_rules: &molecule_localinstall_rules
   rules:
     - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && ($CI_COMMIT_MESSAGE =~ /\[molecule\-localinstall]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_localinstall_create/
       when: always
@@ -886,25 +858,20 @@ molecule_kubernetes_cleanup:
       when: never
 
 molecule_localinstall_create:
+  <<: *molecule
+  <<: *molecule_create
+  <<: *molecule_localinstall_rules
   variables:
     MOLECULE_SCENARIO: localinstall
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
-  <<: *molecule_base_create
-  <<: *molecule_base_resource_lock
-  <<: *molecule_localinstall_only_rules
-  <<: *molecule_artifacts
-  interruptible: true
 
 molecule_localinstall_test:
+  <<: *molecule
+  <<: *molecule_test
+  <<: *molecule_localinstall_rules
   variables:
     MOLECULE_SCENARIO: localinstall
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
-  <<: *molecule_base
-  <<: *molecule_base_test
-  <<: *molecule_base_resource_lock
-  <<: *molecule_localinstall_only_rules
-  <<: *molecule_artifacts
-  interruptible: true
   dependencies:
     - molecule_localinstall_create
   needs:
@@ -915,18 +882,18 @@ molecule_localinstall_test:
 molecule_localinstall_failure_cleanup:
   variables:
     MOLECULE_SCENARIO: localinstall
-  <<: *molecule_base_cleanup
-  <<: *molecule_base_resource_lock
-  <<: *molecule_localinstall_only_rules
+  <<: *molecule
+  <<: *molecule_destroy
+  <<: *molecule_localinstall_rules
   needs:
     - molecule_localinstall_create
 
 molecule_localinstall_cleanup:
   variables:
     MOLECULE_SCENARIO: localinstall
-  <<: *molecule_base_cleanup
-  <<: *molecule_base_resource_lock
-  <<: *molecule_localinstall_only_rules
+  <<: *molecule
+  <<: *molecule_destroy
+  <<: *molecule_localinstall_rules
   dependencies:
     - molecule_localinstall_test
     - molecule_localinstall_create
@@ -937,7 +904,7 @@ molecule_localinstall_cleanup:
 # Job Seq: Molecule
 # Type: secrets
 
-.molecule_secrets_only_rules: &molecule_secrets_only_rules
+.molecule_secrets_rules: &molecule_secrets_rules
   rules:
     - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && ($CI_COMMIT_MESSAGE =~ /\[molecule\-secrets]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_secrets_create/
       when: always
@@ -951,25 +918,20 @@ molecule_localinstall_cleanup:
       when: never
 
 molecule_secrets_create:
+  <<: *molecule
+  <<: *molecule_create
+  <<: *molecule_secrets_rules
   variables:
     MOLECULE_SCENARIO: secrets
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
-  <<: *molecule_base_create
-  <<: *molecule_base_resource_lock
-  <<: *molecule_secrets_only_rules
-  <<: *molecule_artifacts
-  interruptible: true
 
 molecule_secrets_test:
+  <<: *molecule
+  <<: *molecule_test
+  <<: *molecule_secrets_rules
   variables:
     MOLECULE_SCENARIO: secrets
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
-  <<: *molecule_base
-  <<: *molecule_base_test
-  <<: *molecule_base_resource_lock
-  <<: *molecule_secrets_only_rules
-  <<: *molecule_artifacts
-  interruptible: true
   dependencies:
     - molecule_secrets_create
   needs:
@@ -979,18 +941,18 @@ molecule_secrets_test:
 molecule_secrets_failure_cleanup:
   variables:
     MOLECULE_SCENARIO: secrets
-  <<: *molecule_base_cleanup
-  <<: *molecule_base_resource_lock
-  <<: *molecule_secrets_only_rules
+  <<: *molecule
+  <<: *molecule_destroy
+  <<: *molecule_secrets_rules
   needs:
     - molecule_secrets_create
 
 molecule_secrets_cleanup:
   variables:
     MOLECULE_SCENARIO: vms
-  <<: *molecule_base_cleanup
-  <<: *molecule_base_resource_lock
-  <<: *molecule_secrets_only_rules
+  <<: *molecule
+  <<: *molecule_destroy
+  <<: *molecule_secrets_rules
   dependencies:
     - molecule_secrets_test
     - molecule_secrets_create
@@ -1001,7 +963,7 @@ molecule_secrets_cleanup:
 # Job Seq: Molecule
 # Type: swarm
 
-.molecule_swarm_only_rules: &molecule_swarm_only_rules
+.molecule_swarm_rules: &molecule_swarm_rules
   rules:
     - if: $MAJOR_VERSION == "3" && ($CI_COMMIT_MESSAGE =~ /\[molecule\-swarm]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_swarm_create/
       when: always
@@ -1015,27 +977,22 @@ molecule_secrets_cleanup:
       when: never
 
 molecule_swarm_create:
+  <<: *molecule
+  <<: *molecule_create
+  <<: *molecule_swarm_rules
   variables:
     MOLECULE_SCENARIO: swarm
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
-  <<: *molecule_base_create
-  <<: *molecule_base_resource_lock
-  <<: *molecule_swarm_only_rules
-  <<: *molecule_artifacts
-  interruptible: true
 
 molecule_swarm_test:
+  <<: *molecule
+  <<: *molecule_test
+  <<: *molecule_swarm_rules
+  dependencies:
+    - molecule_swarm_create
   variables:
     MOLECULE_SCENARIO: swarm
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
-  <<: *molecule_base
-  <<: *molecule_base_test
-  <<: *molecule_base_resource_lock
-  <<: *molecule_swarm_only_rules
-  <<: *molecule_artifacts
-  interruptible: true
-  dependencies:
-    - molecule_swarm_create
   needs:
     - pre_release_cluster_agent_image
     - pre_release_main_agent_image
@@ -1044,18 +1001,18 @@ molecule_swarm_test:
 molecule_swarm_failure_cleanup:
   variables:
     MOLECULE_SCENARIO: swarm
-  <<: *molecule_base_cleanup
-  <<: *molecule_base_resource_lock
-  <<: *molecule_swarm_only_rules
+  <<: *molecule
+  <<: *molecule_destroy
+  <<: *molecule_swarm_rules
   needs:
     - molecule_swarm_create
 
 molecule_swarm_cleanup:
   variables:
     MOLECULE_SCENARIO: swarm
-  <<: *molecule_base_cleanup
-  <<: *molecule_base_resource_lock
-  <<: *molecule_swarm_only_rules
+  <<: *molecule
+  <<: *molecule_destroy
+  <<: *molecule_swarm_rules
   dependencies:
     - molecule_swarm_create
     - molecule_swarm_test
@@ -1066,7 +1023,7 @@ molecule_swarm_cleanup:
 # Job Seq: Molecule
 # Type: vms
 
-.molecule_vms_only_rules: &molecule_vms_only_rules
+.molecule_vms_rules: &molecule_vms_rules
   rules:
     - if: ($CI_COMMIT_MESSAGE =~ /\[molecule\-vms]/ || $CI_COMMIT_MESSAGE !~ /\[molecule\-/) && $CI_JOB_NAME =~ /molecule_vms_create/
       when: always
@@ -1080,25 +1037,20 @@ molecule_swarm_cleanup:
       when: never
 
 molecule_vms_create:
+  <<: *molecule
+  <<: *molecule_create
+  <<: *molecule_vms_rules
   variables:
     MOLECULE_SCENARIO: vms
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
-  <<: *molecule_base_create
-  <<: *molecule_base_resource_lock
-  <<: *molecule_vms_only_rules
-  <<: *molecule_artifacts
-  interruptible: true
 
 molecule_vms_test:
+  <<: *molecule
+  <<: *molecule_test
+  <<: *molecule_vms_rules
   variables:
     MOLECULE_SCENARIO: vms
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
-  <<: *molecule_base
-  <<: *molecule_base_test
-  <<: *molecule_base_resource_lock
-  <<: *molecule_vms_only_rules
-  <<: *molecule_artifacts
-  interruptible: true
   dependencies:
     - molecule_vms_create
   needs:
@@ -1110,18 +1062,18 @@ molecule_vms_test:
 molecule_vms_failure_cleanup:
   variables:
     MOLECULE_SCENARIO: vms
-  <<: *molecule_base_cleanup
-  <<: *molecule_base_resource_lock
-  <<: *molecule_vms_only_rules
+  <<: *molecule
+  <<: *molecule_destroy
+  <<: *molecule_vms_rules
   needs:
     - molecule_vms_create
 
 molecule_vms_cleanup:
   variables:
     MOLECULE_SCENARIO: vms
-  <<: *molecule_base_cleanup
-  <<: *molecule_base_resource_lock
-  <<: *molecule_vms_only_rules
+  <<: *molecule
+  <<: *molecule_destroy
+  <<: *molecule_vms_rules
   dependencies:
     - molecule_vms_create
     - molecule_vms_test

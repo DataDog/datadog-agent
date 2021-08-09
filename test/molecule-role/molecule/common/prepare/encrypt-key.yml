@@ -3,4 +3,4 @@
   when: ci_project_dir is defined and ci_project_dir != ""
   ignore_errors: true
   shell: |
-    ansible-vault encrypt --vault-id "{{molecule_scenario_name}}@{{ci_project_dir}}/test/molecule-role/molecule/common/vault-password.py" "{{ci_project_dir}}/.molecule/{{ molecule_scenario_name }}/ssh_key"
+    ansible-vault encrypt --vault-id "{{molecule_scenario_name}}@{{ci_project_dir}}/test/molecule-role/molecule/vault-password.py" "{{ci_project_dir}}/.molecule/{{ molecule_scenario_name }}/ssh_key"
