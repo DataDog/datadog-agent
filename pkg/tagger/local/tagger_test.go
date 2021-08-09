@@ -95,7 +95,7 @@ func TestInit(t *testing.T) {
 	assert.NotNil(t, puller)
 	puller.AssertCalled(t, "Detect", mock.Anything)
 
-	fetcher := tagger.fetchers["fetcher"].(*DummyCollector)
+	fetcher := tagger.fetchers["fetcher"].fetcher.(*DummyCollector)
 	assert.NotNil(t, fetcher)
 	fetcher.AssertCalled(t, "Detect", mock.Anything)
 }
@@ -218,7 +218,7 @@ func TestFetchOneCached(t *testing.T) {
 	assert.NotNil(t, puller)
 	puller.On("Fetch", "entity_name").Return([]string{"low2"}, []string{}, []string{}, nil)
 
-	fetcher := tagger.fetchers["fetcher"].(*DummyCollector)
+	fetcher := tagger.fetchers["fetcher"].fetcher.(*DummyCollector)
 	assert.NotNil(t, fetcher)
 	fetcher.On("Fetch", "entity_name").Return([]string{"low3"}, []string{}, []string{}, nil)
 
