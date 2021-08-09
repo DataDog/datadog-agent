@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
+// Remember to also register feature in init()
 const (
 	// Docker socket present
 	Docker Feature = "docker"
@@ -30,7 +31,9 @@ const (
 	// EKSFargate environment
 	EKSFargate Feature = "eksfargate"
 	// KubeOrchestratorExplorer can be enabled
-	KubeOrchestratorExplorer Feature = "orchestratorExplorer"
+	KubeOrchestratorExplorer Feature = "orchestratorexplorer"
+	// CloudFoundry socket present
+	CloudFoundry Feature = "cloudfoundry"
 
 	defaultLinuxDockerSocket       = "/var/run/docker.sock"
 	defaultWindowsDockerSocketPath = "//./pipe/docker_engine"
@@ -43,11 +46,23 @@ const (
 	socketTimeout = 500 * time.Millisecond
 )
 
+func init() {
+	registerFeature(Docker)
+	registerFeature(Containerd)
+	registerFeature(Cri)
+	registerFeature(Kubernetes)
+	registerFeature(ECSFargate)
+	registerFeature(EKSFargate)
+	registerFeature(KubeOrchestratorExplorer)
+	registerFeature(CloudFoundry)
+}
+
 func detectContainerFeatures(features FeatureMap) {
 	detectKubernetes(features)
 	detectDocker(features)
 	detectContainerd(features)
 	detectFargate(features)
+	detectCloudFoundry(features)
 }
 
 func detectKubernetes(features FeatureMap) {
@@ -127,6 +142,12 @@ func detectFargate(features FeatureMap) {
 	if Datadog.GetBool("eks_fargate") {
 		features[EKSFargate] = struct{}{}
 		features[Kubernetes] = struct{}{}
+	}
+}
+
+func detectCloudFoundry(features FeatureMap) {
+	if Datadog.GetBool("cloud_foundry") {
+		features[CloudFoundry] = struct{}{}
 	}
 }
 

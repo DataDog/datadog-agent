@@ -14,7 +14,7 @@
 .kitchen_os_centos_all_non_fips:
   variables:
     KITCHEN_PLATFORM: "centos"
-    KITCHEN_OSVERS: "centos-69,centos-77,rhel-81"
+    KITCHEN_OSVERS: "centos-610,centos-77,rhel-81"
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - cd $DD_AGENT_TESTING_DIR
@@ -23,7 +23,7 @@
 .kitchen_os_centos_6_7_non_fips:
   variables:
     KITCHEN_PLATFORM: "centos"
-    KITCHEN_OSVERS: "centos-69,centos-77"
+    KITCHEN_OSVERS: "centos-610,centos-77"
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - cd $DD_AGENT_TESTING_DIR

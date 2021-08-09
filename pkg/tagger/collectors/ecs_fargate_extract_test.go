@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 )
 
@@ -44,6 +43,7 @@ func TestParseFargateRegion(t *testing.T) {
 }
 
 func TestParseMetadata(t *testing.T) {
+	now := time.Now()
 	raw, err := ioutil.ReadFile("./testdata/fargate_meta.json")
 	require.NoError(t, err)
 	var meta v2.Task
@@ -57,11 +57,13 @@ func TestParseMetadata(t *testing.T) {
 			"mylabel":   "lowtag",
 		},
 	}
-	collector.expire, err = taggerutil.NewExpire(ecsFargateExpireFreq)
+
+	collector.expire, err = newExpire(ecsFargateCollectorName, ecsFargateExpireFreq)
+	collector.expire.lastExpire = now.Add(-15 * time.Minute)
 	require.NoError(t, err)
 
-	collector.expire.Update("3827da9d51f12276b4ed2d2a2dfb624b96b239b20d052b859e26c13853071e7c", time.Now())
-	collector.expire.Update("unknownID", time.Now().Add(-10*time.Minute))
+	collector.expire.Update("container_id://3827da9d51f12276b4ed2d2a2dfb624b96b239b20d052b859e26c13853071e7c", now)
+	collector.expire.Update("unknownID", now.Add(-10*time.Minute))
 
 	expectedUpdates := []*TagInfo{
 		{
@@ -146,9 +148,14 @@ func TestParseMetadata(t *testing.T) {
 	assertTagInfoListEqual(t, expectedUpdates, updates)
 
 	// One container expires
-	expires, err := collector.expire.ComputeExpires()
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"unknownID"}, expires)
+	expires := collector.expire.ComputeExpires()
+	assert.Equal(t, []*TagInfo{
+		{
+			Source:       ecsFargateCollectorName,
+			Entity:       "unknownID",
+			DeleteEntity: true,
+		},
+	}, expires)
 
 	// Diff parsing should show 0 containers + 1 tag for task_arn
 	updates, err = collector.parseMetadata(&meta, false)
@@ -170,7 +177,7 @@ func TestParseMetadataV10(t *testing.T) {
 	require.Len(t, meta.Containers, 3)
 
 	collector := &ECSFargateCollector{}
-	collector.expire, err = taggerutil.NewExpire(ecsFargateExpireFreq)
+	collector.expire, err = newExpire(ecsFargateCollectorName, ecsFargateExpireFreq)
 	require.NoError(t, err)
 
 	expectedUpdates := []*TagInfo{
@@ -269,30 +276,4 @@ func TestParseMetadataV10(t *testing.T) {
 	updates, err := collector.parseMetadata(&meta, false)
 	assert.NoError(t, err)
 	assertTagInfoListEqual(t, expectedUpdates, updates)
-}
-
-func TestParseExpires(t *testing.T) {
-	collector := &ECSFargateCollector{}
-
-	dead := []string{
-		"1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
-		"0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
-	}
-
-	expected := []*TagInfo{
-		{
-			Source:       "ecs_fargate",
-			Entity:       "container_id://1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
-			DeleteEntity: true,
-		},
-		{
-			Source:       "ecs_fargate",
-			Entity:       "container_id://0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
-			DeleteEntity: true,
-		},
-	}
-
-	out, err := collector.parseExpires(dead)
-	assert.NoError(t, err)
-	assert.Equal(t, expected, out)
 }

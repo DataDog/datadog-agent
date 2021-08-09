@@ -323,6 +323,10 @@ func (id *inodeDiscarders) discardParentInode(rs *rules.RuleSet, eventType model
 		return false, 0, 0, err
 	}
 
+	if parentMountID == 0 || parentInode == 0 {
+		return false, 0, 0, nil
+	}
+
 	if err := id.discardInode(eventType, parentMountID, parentInode, false); err != nil {
 		return false, 0, 0, err
 	}
@@ -483,8 +487,8 @@ func init() {
 			}))
 	SupportedDiscarders["chown.file.path"] = true
 
-	allDiscarderHandlers["utimes"] = processDiscarderWrapper(model.FileUtimeEventType,
-		filenameDiscarderWrapper(model.FileUtimeEventType, nil,
+	allDiscarderHandlers["utimes"] = processDiscarderWrapper(model.FileUtimesEventType,
+		filenameDiscarderWrapper(model.FileUtimesEventType, nil,
 			func(event *Event) (eval.Field, uint32, uint64, uint32, bool) {
 				return "utimes.file.path", event.Utimes.File.MountID, event.Utimes.File.Inode, event.Utimes.File.PathID, false
 			}))

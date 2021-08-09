@@ -95,8 +95,9 @@
 /cmd/cluster-agent-cloudfoundry/        @DataDog/integrations-tools-and-libraries
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/integrations-tools-and-libraries
 /cmd/process-agent/                     @DataDog/processes
+/cmd/serverless/                        @DataDog/serverless
 /cmd/system-probe/                      @DataDog/agent-network
-/cmd/security-agent/                    @DataDog/container-integrations @DataDog/agent-security
+/cmd/security-agent/                    @DataDog/agent-security
 
 /dev/                                   @DataDog/agent-platform
 /devenv/                                @DataDog/agent-platform
@@ -125,7 +126,7 @@
 /omnibus/                               @DataDog/agent-platform
 /omnibus/config/software/datadog-agent*.rb                @Datadog/agent-core @DataDog/agent-platform
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
-/omnibus/config/software/datadog-security-agent*.rb       @Datadog/container-integrations @DataDog/agent-platform
+/omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-platform
 
 /pkg/                                   @DataDog/agent-core
 /pkg/aggregator/                        @DataDog/agent-core
@@ -160,6 +161,8 @@
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-platform
 /pkg/config/config_template.yaml        @DataDog/agent-all @DataDog/documentation
+/pkg/config/apm.go                      @DataDog/agent-apm
+/pkg/config/system_probe.go             @DataDog/agent-network
 /pkg/tagger/                            @DataDog/container-integrations
 /pkg/tagger/collectors/garden*.go       @DataDog/integrations-tools-and-libraries
 /pkg/util/cloudfoundry/                 @DataDog/integrations-tools-and-libraries
@@ -178,16 +181,19 @@
 /pkg/metadata/kubernetes/               @DataDog/agent-network
 /pkg/process/                           @DataDog/processes
 /pkg/process/checks/pod*.go             @DataDog/container-app
+/pkg/process/net/                       @DataDog/processes @DataDog/agent-network
 /pkg/orchestrator/                      @DataDog/container-app
 /pkg/network/                           @DataDog/agent-network
 /pkg/ebpf/                              @DataDog/agent-network
 /pkg/ebpf/bytecode/runtime/runtime-security.go  @DataDog/agent-security
 /pkg/ebpf/bytecode/bindata/bindataRuntimesecurity*      @DataDog/agent-security
 /pkg/quantile/                          @DataDog/metrics-aggregation
-/pkg/compliance/                        @DataDog/container-integrations
+/pkg/compliance/                        @DataDog/agent-security
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
 /pkg/snmp/                              @DataDog/infrastructure-integrations
+/pkg/appsec/                            @DataDog/agent-appsec
+/pkg/config/appsec.go                   @DataDog/agent-appsec
 
 /pkg-config/                            @DataDog/agent-platform
 

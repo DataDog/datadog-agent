@@ -124,9 +124,9 @@ func (t *Tagger) run() error {
 		case msg := <-t.infoIn:
 			t.store.processTagInfo(msg)
 		case <-t.retryTicker.C:
-			t.startCollectors(ctx)
+			go t.startCollectors(ctx)
 		case <-t.pullTicker.C:
-			t.pull(ctx)
+			go t.pull(ctx)
 		case <-t.pruneTicker.C:
 			t.store.prune()
 		case <-t.telemetryTicker.C:
@@ -150,10 +150,11 @@ func (t *Tagger) startCollectors(ctx context.Context) {
 }
 
 func (t *Tagger) tryCollectors(ctx context.Context) []collectorReply {
-	t.RLock()
+	t.Lock()
+	defer t.Unlock()
+
 	if t.candidates == nil {
 		log.Warnf("called with empty candidate map, skipping")
-		t.RUnlock()
 		return nil
 	}
 	var replies []collectorReply
@@ -161,6 +162,11 @@ func (t *Tagger) tryCollectors(ctx context.Context) []collectorReply {
 	for name, factory := range t.candidates {
 		collector := factory()
 		mode, err := collector.Detect(ctx, t.infoIn)
+		if mode == collectors.NoCollection && err == nil {
+			log.Infof("collector %s skipped as feature not activated", name)
+			delete(t.candidates, name)
+			continue
+		}
 		if retry.IsErrWillRetry(err) {
 			log.Debugf("will retry %s later: %s", name, err)
 			continue // don't add it to the modes map as we want to retry later
@@ -176,7 +182,7 @@ func (t *Tagger) tryCollectors(ctx context.Context) []collectorReply {
 			instance: collector,
 		})
 	}
-	t.RUnlock()
+
 	return replies
 }
 
@@ -221,7 +227,7 @@ func (t *Tagger) pull(ctx context.Context) {
 	for name, puller := range t.pullers {
 		err := puller.Pull(ctx)
 		if err != nil {
-			log.Warnf("Error pulling from %s: %s", name, err.Error())
+			log.Debugf("Error pulling from %s: %s", name, err.Error())
 		}
 	}
 	t.RUnlock()
@@ -235,17 +241,18 @@ func (t *Tagger) Stop() error {
 
 // getTags returns a read only list of tags for a given entity.
 func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) ([]string, error) {
-	telemetry.Queries.Inc(collectors.TagCardinalityToString(cardinality))
-
 	if entity == "" {
+		telemetry.Queries.Inc(collectors.TagCardinalityToString(cardinality), telemetry.QueryEmptyEntityID)
 		return nil, fmt.Errorf("empty entity ID")
 	}
+
 	cachedTags, sources := t.store.lookup(entity, cardinality)
 
 	if len(sources) == len(t.fetchers) {
-		// All sources sent data to cache
+		telemetry.Queries.Inc(collectors.TagCardinalityToString(cardinality), telemetry.QuerySuccess)
 		return cachedTags, nil
 	}
+
 	// Else, partial cache miss, query missing data
 	// TODO: get logging on that to make sure we should optimize
 	tagArrays := [][]string{cachedTags}
@@ -263,17 +270,23 @@ IterCollectors:
 
 		var cacheMiss bool
 		var expiryDate time.Time
+
 		low, orch, high, err := collector.Fetch(context.TODO(), entity)
+
 		switch {
 		case errors.IsNotFound(err):
 			log.Debugf("entity %s not found in %s, skipping: %v", entity, name, err)
+			telemetry.Fetches.Inc(name, telemetry.FetchNotFound)
 
 			cacheMiss = true
 			expiryDate = time.Now().Add(notFoundTTL)
 		case err != nil:
 			log.Warnf("error collecting from %s: %s", name, err)
+			telemetry.Fetches.Inc(name, telemetry.FetchError)
 
 			expiryDate = time.Now().Add(errTTL)
+		default:
+			telemetry.Fetches.Inc(name, telemetry.FetchSuccess)
 		}
 
 		tagArrays = append(tagArrays, low)
@@ -299,7 +312,15 @@ IterCollectors:
 	}
 	t.RUnlock()
 
-	return utils.ConcatenateTags(tagArrays), nil
+	tags := utils.ConcatenateTags(tagArrays)
+
+	if len(tags) > 0 {
+		telemetry.Queries.Inc(collectors.TagCardinalityToString(cardinality), telemetry.QuerySuccess)
+	} else {
+		telemetry.Queries.Inc(collectors.TagCardinalityToString(cardinality), telemetry.QueryEmptyTags)
+	}
+
+	return tags, nil
 }
 
 // TagBuilder appends tags for a given entity from the tagger to the TagsBuilder
@@ -347,7 +368,6 @@ func (t *Tagger) Standard(entity string) ([]string, error) {
 
 // GetEntity returns the entity corresponding to the specified id and an error
 func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
-
 	tags, err := t.store.getEntityTags(entityID)
 	if err != nil {
 		return nil, err

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/mailru/easyjson/jlexer"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -221,11 +222,21 @@ func lazyInitObfuscator() *obfuscate.Obfuscator {
 }
 
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
-// fails
+// fails. An optional configuration may be passed to change the behavior of the obfuscator.
 //export ObfuscateSQL
-func ObfuscateSQL(rawQuery *C.char, errResult **C.char) *C.char {
+func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
+	var sqlOpts obfuscate.SQLOptions
+	if opts != nil {
+		jl := &jlexer.Lexer{Data: []byte(C.GoString(opts))}
+		sqlOpts.UnmarshalEasyJSON(jl)
+		if jl.Error() != nil {
+			log.Errorf("Failed to unmarshal obfuscation options: %s", jl.Error())
+			*errResult = TrackedCString(jl.Error().Error())
+			return nil
+		}
+	}
 	s := C.GoString(rawQuery)
-	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLString(s)
+	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLStringWithOptions(s, sqlOpts)
 	if err != nil {
 		// memory will be freed by caller
 		*errResult = TrackedCString(err.Error())

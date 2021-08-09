@@ -21,7 +21,7 @@ deploy_deb_testing-a6:
     !reference [.on_kitchen_tests_a6]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   needs: ["agent_deb-x64-a6"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
@@ -39,7 +39,7 @@ deploy_deb_testing-a7:
     !reference [.on_default_kitchen_tests_a7]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   needs: ["agent_deb-x64-a7", "iot_agent_deb-x64", "dogstatsd_deb-x64"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -57,7 +57,7 @@ deploy_rpm_testing-a6:
     !reference [.on_kitchen_tests_a6]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   needs: ["agent_rpm-x64-a6"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
@@ -73,7 +73,7 @@ deploy_rpm_testing-a7:
     !reference [.on_default_kitchen_tests_a7]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   needs: ["agent_rpm-x64-a7", "iot_agent_rpm-x64", "dogstatsd_rpm-x64"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -89,7 +89,7 @@ deploy_suse_rpm_testing-a6:
     !reference [.on_kitchen_tests_a6]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   needs: ["agent_suse-x64-a6"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
@@ -105,7 +105,7 @@ deploy_suse_rpm_testing-a7:
     !reference [.on_default_kitchen_tests_a7]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   needs: ["agent_suse-x64-a7", "iot_agent_suse-x64", "dogstatsd_suse-x64"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -121,7 +121,7 @@ deploy_windows_testing-a6:
     !reference [.on_kitchen_tests_a6]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   needs: ["windows_msi_x64-a6"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -133,7 +133,7 @@ deploy_windows_testing-a7:
     !reference [.on_default_kitchen_tests_a7]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   needs: ["windows_msi_and_bosh_zip_x64-a7"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR

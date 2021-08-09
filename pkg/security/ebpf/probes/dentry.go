@@ -106,6 +106,13 @@ func getDentryResolverTailCallRoutes() []manager.TailCallRoute {
 				Section: "kprobe/dr_rename_callback",
 			},
 		},
+		{
+			ProgArrayName: "dentry_resolver_kprobe_callbacks",
+			Key:           DentryResolverSELinuxCallbackKprobeKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				Section: "kprobe/dr_selinux_callback",
+			},
+		},
 
 		// dentry resolver tracepoint callbacks
 		{

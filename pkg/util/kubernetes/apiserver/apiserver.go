@@ -160,6 +160,15 @@ func getClientConfig(timeout time.Duration) (*rest.Config, error) {
 	cfgPath := config.Datadog.GetString("kubernetes_kubeconfig_path")
 	if cfgPath == "" {
 		clientConfig, err = rest.InClusterConfig()
+
+		if !config.Datadog.GetBool("kubernetes_apiserver_tls_verify") {
+			clientConfig.TLSClientConfig.Insecure = true
+		}
+
+		if customCAPath := config.Datadog.GetString("kubernetes_apiserver_ca_path"); customCAPath != "" {
+			clientConfig.TLSClientConfig.CAFile = customCAPath
+		}
+
 		if err != nil {
 			log.Debugf("Can't create a config for the official client from the service account's token: %v", err)
 			return nil, err
@@ -606,6 +615,14 @@ func (c *APIClient) GetRESTObject(path string, output runtime.Object) error {
 	}
 
 	return result.Into(output)
+}
+
+// IsAPIServerReady retrieves the API Server readiness status
+func (c *APIClient) IsAPIServerReady(ctx context.Context) (bool, error) {
+	path := "/readyz"
+	_, err := c.Cl.Discovery().RESTClient().Get().AbsPath(path).DoRaw(ctx)
+
+	return err == nil, err
 }
 
 func convertmetadataMapperBundleToAPI(input *metadataMapperBundle) *apiv1.MetadataResponseBundle {

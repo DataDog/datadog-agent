@@ -63,10 +63,10 @@ func TestSetXAttr(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "setxattr", "wrong event type")
-			assert.Equal(t, event.SetXAttr.Name, "user.test_xattr")
-			assert.Equal(t, event.SetXAttr.Namespace, "user")
-			assert.Equal(t, event.SetXAttr.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, "setxattr", event.GetType(), "wrong event type")
+			assert.Equal(t, "user.test_xattr", event.SetXAttr.Name)
+			assert.Equal(t, "user", event.SetXAttr.Namespace)
+			assert.Equal(t, getInode(t, testFile), event.SetXAttr.File.Inode, "wrong inode")
 			assertRights(t, event.SetXAttr.File.Mode, uint16(expectedMode))
 
 			assertNearTime(t, event.SetXAttr.File.MTime)
@@ -101,10 +101,10 @@ func TestSetXAttr(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "setxattr", "wrong event type")
-			assert.Equal(t, event.SetXAttr.Name, "user.test_xattr")
-			assert.Equal(t, event.SetXAttr.Namespace, "user")
-			assert.Equal(t, event.SetXAttr.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, "setxattr", event.GetType(), "wrong event type")
+			assert.Equal(t, "user.test_xattr", event.SetXAttr.Name)
+			assert.Equal(t, "user", event.SetXAttr.Namespace)
+			assert.Equal(t, getInode(t, testFile), event.SetXAttr.File.Inode, "wrong inode")
 			assertRights(t, event.SetXAttr.File.Mode, 0777)
 
 			assertNearTime(t, event.SetXAttr.File.MTime)
@@ -132,10 +132,10 @@ func TestSetXAttr(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "setxattr", "wrong event type")
-			assert.Equal(t, event.SetXAttr.Name, "user.test_xattr")
-			assert.Equal(t, event.SetXAttr.Namespace, "user")
-			assert.Equal(t, event.SetXAttr.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, "setxattr", event.GetType(), "wrong event type")
+			assert.Equal(t, "user.test_xattr", event.SetXAttr.Name)
+			assert.Equal(t, "user", event.SetXAttr.Namespace)
+			assert.Equal(t, getInode(t, testFile), event.SetXAttr.File.Inode, "wrong inode")
 			assertRights(t, event.SetXAttr.File.Mode, uint16(expectedMode))
 
 			assertNearTime(t, event.SetXAttr.File.MTime)
@@ -199,10 +199,10 @@ func TestRemoveXAttr(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "removexattr", "wrong event type")
-			assert.Equal(t, event.RemoveXAttr.Name, "user.test_xattr")
+			assert.Equal(t, "removexattr", event.GetType(), "wrong event type")
+			assert.Equal(t, "user.test_xattr", event.RemoveXAttr.Name)
 
-			assert.Equal(t, event.RemoveXAttr.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, getInode(t, testFile), event.RemoveXAttr.File.Inode, "wrong inode")
 			assertRights(t, event.RemoveXAttr.File.Mode, uint16(expectedMode))
 
 			assertNearTime(t, event.RemoveXAttr.File.MTime)
@@ -244,10 +244,10 @@ func TestRemoveXAttr(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "removexattr", "wrong event type")
-			assert.Equal(t, event.RemoveXAttr.Name, "user.test_xattr")
+			assert.Equal(t, "removexattr", event.GetType(), "wrong event type")
+			assert.Equal(t, "user.test_xattr", event.RemoveXAttr.Name)
 
-			assert.Equal(t, event.RemoveXAttr.File.Inode, getInode(t, testFile), "wrong inode")
+			assert.Equal(t, getInode(t, testFile), event.RemoveXAttr.File.Inode, "wrong inode")
 			assertRights(t, event.RemoveXAttr.File.Mode, 0777)
 
 			assertNearTime(t, event.RemoveXAttr.File.MTime)
@@ -298,12 +298,14 @@ func TestRemoveXAttr(t *testing.T) {
 			}
 
 			now := time.Now()
-			if event.RemoveXAttr.File.MTime.After(now) || event.RemoveXAttr.File.MTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected mtime close to %s, got %s", now, event.RemoveXAttr.File.MTime)
+			mtime := time.Unix(0, int64(event.RemoveXAttr.File.MTime))
+			if mtime.After(now) || mtime.Before(now.Add(-1*time.Hour)) {
+				t.Errorf("expected mtime close to %s, got %s", now, mtime)
 			}
 
-			if event.RemoveXAttr.File.CTime.After(now) || event.RemoveXAttr.File.CTime.Before(now.Add(-1*time.Hour)) {
-				t.Errorf("expected ctime close to %s, got %s", now, event.RemoveXAttr.File.CTime)
+			ctime := time.Unix(0, int64(event.RemoveXAttr.File.CTime))
+			if ctime.After(now) || ctime.Before(now.Add(-1*time.Hour)) {
+				t.Errorf("expected ctime close to %s, got %s", now, ctime)
 			}
 		})
 	})

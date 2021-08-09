@@ -8,6 +8,7 @@ build_clang*                         @DataDog/agent-network
 # Notifications are handled separately for more fine-grained control on go tests
 tests_*                              @DataDog/multiple
 tests_ebpf                           @DataDog/agent-network
+security_go_generate_check           @DataDog/agent-security
 
 # Binary build
 build_system-probe*                  @DataDog/agent-network
@@ -42,4 +43,4 @@ kitchen_*_security_agent*            @DataDog/agent-security
 cleanup_kitchen_functional_test      @DataDog/agent-network @DataDog/agent-security
 
 # E2E
-pupernetes-*                         @DataDog/container-integrations
+k8s-e2e-*                         @DataDog/container-integrations

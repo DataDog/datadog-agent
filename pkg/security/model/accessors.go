@@ -50,6 +50,8 @@ func (m *Model) GetEventTypes() []eval.EventType {
 
 		eval.EventType("rmdir"),
 
+		eval.EventType("selinux"),
+
 		eval.EventType("setgid"),
 
 		eval.EventType("setuid"),
@@ -80,6 +82,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Capset.CapPermitted)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "chmod.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Chmod.File.FileFields.CTime)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -165,6 +177,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "chmod.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Chmod.File.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "chmod.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -230,6 +252,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Chmod.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "chown.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Chown.File.FileFields.CTime)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -330,6 +362,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Chown.File.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "chown.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Chown.File.FileFields.MTime)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -600,6 +642,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "exec.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Exec.Process.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "exec.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -655,6 +707,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Exec.Process.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "exec.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Exec.Process.FileFields.MTime)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -840,6 +902,26 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "link.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Link.Source.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "link.file.destination.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Link.Target.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "link.file.destination.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -895,6 +977,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Link.Target.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "link.file.destination.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Link.Target.FileFields.MTime)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1020,6 +1112,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "link.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Link.Source.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "link.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1085,6 +1187,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Link.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "mkdir.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Mkdir.File.FileFields.CTime)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1170,6 +1282,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "mkdir.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Mkdir.File.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "mkdir.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1240,6 +1362,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "open.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Open.File.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "open.file.destination.mode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1305,6 +1437,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Open.File.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "open.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Open.File.FileFields.MTime)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1640,6 +1782,31 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.IteratorWeight,
 		}, nil
 
+	case "process.ancestors.file.change_time":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.FileFields.CTime)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
 	case "process.ancestors.file.filesystem":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -1779,6 +1946,31 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					element := (*ProcessCacheEntry)(value)
 
 					result = int(element.ProcessContext.Process.FileFields.Mode)
+
+					results = append(results, result)
+
+					value = iterator.Next()
+				}
+
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+
+	case "process.ancestors.file.modification_time":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+
+				iterator := &ProcessAncestorsIterator{}
+
+				value := iterator.Front(ctx)
+				for value != nil {
+					var result int
+
+					element := (*ProcessCacheEntry)(value)
+
+					result = int(element.ProcessContext.Process.FileFields.MTime)
 
 					results = append(results, result)
 
@@ -2340,6 +2532,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "process.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "process.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -2395,6 +2597,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "process.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).ProcessContext.Process.FileFields.MTime)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -2580,6 +2792,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "removexattr.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "removexattr.file.destination.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -2660,6 +2882,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "removexattr.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).RemoveXAttr.File.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "removexattr.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -2730,6 +2962,26 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "rename.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Rename.Old.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "rename.file.destination.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Rename.New.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "rename.file.destination.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -2785,6 +3037,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Rename.New.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "rename.file.destination.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Rename.New.FileFields.MTime)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -2910,6 +3172,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "rename.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Rename.Old.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "rename.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -2980,6 +3252,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "rmdir.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Rmdir.File.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "rmdir.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -3035,6 +3317,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Rmdir.File.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "rmdir.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Rmdir.File.FileFields.MTime)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3105,6 +3397,46 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Rmdir.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "selinux.bool.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).SELinux.BoolName
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+
+	case "selinux.bool.state":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).SELinux.BoolChangeValue
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "selinux.bool_commit.state":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+
+				return (*Event)(ctx.Object).SELinux.BoolCommitValue
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "selinux.enforce.status":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+
+				return (*Event)(ctx.Object).SELinux.EnforceStatus
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3230,6 +3562,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.HandlerWeight,
 		}, nil
 
+	case "setxattr.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "setxattr.file.destination.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -3310,6 +3652,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "setxattr.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).SetXAttr.File.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "setxattr.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -3380,6 +3732,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "unlink.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Unlink.File.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "unlink.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -3435,6 +3797,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Unlink.File.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "unlink.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Unlink.File.FileFields.MTime)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3510,6 +3882,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: eval.FunctionWeight,
 		}, nil
 
+	case "utimes.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Utimes.File.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "utimes.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -3565,6 +3947,16 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 
 				return int((*Event)(ctx.Object).Utimes.File.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "utimes.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).Utimes.File.FileFields.MTime)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3652,6 +4044,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"capset.cap_permitted",
 
+		"chmod.file.change_time",
+
 		"chmod.file.destination.mode",
 
 		"chmod.file.destination.rights",
@@ -3668,6 +4062,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"chmod.file.mode",
 
+		"chmod.file.modification_time",
+
 		"chmod.file.mount_id",
 
 		"chmod.file.name",
@@ -3681,6 +4077,8 @@ func (e *Event) GetFields() []eval.Field {
 		"chmod.file.user",
 
 		"chmod.retval",
+
+		"chown.file.change_time",
 
 		"chown.file.destination.gid",
 
@@ -3701,6 +4099,8 @@ func (e *Event) GetFields() []eval.Field {
 		"chown.file.inode",
 
 		"chown.file.mode",
+
+		"chown.file.modification_time",
 
 		"chown.file.mount_id",
 
@@ -3754,6 +4154,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"exec.euser",
 
+		"exec.file.change_time",
+
 		"exec.file.filesystem",
 
 		"exec.file.gid",
@@ -3765,6 +4167,8 @@ func (e *Event) GetFields() []eval.Field {
 		"exec.file.inode",
 
 		"exec.file.mode",
+
+		"exec.file.modification_time",
 
 		"exec.file.mount_id",
 
@@ -3802,6 +4206,10 @@ func (e *Event) GetFields() []eval.Field {
 
 		"exec.user",
 
+		"link.file.change_time",
+
+		"link.file.destination.change_time",
+
 		"link.file.destination.filesystem",
 
 		"link.file.destination.gid",
@@ -3813,6 +4221,8 @@ func (e *Event) GetFields() []eval.Field {
 		"link.file.destination.inode",
 
 		"link.file.destination.mode",
+
+		"link.file.destination.modification_time",
 
 		"link.file.destination.mount_id",
 
@@ -3838,6 +4248,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"link.file.mode",
 
+		"link.file.modification_time",
+
 		"link.file.mount_id",
 
 		"link.file.name",
@@ -3851,6 +4263,8 @@ func (e *Event) GetFields() []eval.Field {
 		"link.file.user",
 
 		"link.retval",
+
+		"mkdir.file.change_time",
 
 		"mkdir.file.destination.mode",
 
@@ -3868,6 +4282,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"mkdir.file.mode",
 
+		"mkdir.file.modification_time",
+
 		"mkdir.file.mount_id",
 
 		"mkdir.file.name",
@@ -3882,6 +4298,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"mkdir.retval",
 
+		"open.file.change_time",
+
 		"open.file.destination.mode",
 
 		"open.file.filesystem",
@@ -3895,6 +4313,8 @@ func (e *Event) GetFields() []eval.Field {
 		"open.file.inode",
 
 		"open.file.mode",
+
+		"open.file.modification_time",
 
 		"open.file.mount_id",
 
@@ -3932,6 +4352,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"process.ancestors.euser",
 
+		"process.ancestors.file.change_time",
+
 		"process.ancestors.file.filesystem",
 
 		"process.ancestors.file.gid",
@@ -3943,6 +4365,8 @@ func (e *Event) GetFields() []eval.Field {
 		"process.ancestors.file.inode",
 
 		"process.ancestors.file.mode",
+
+		"process.ancestors.file.modification_time",
 
 		"process.ancestors.file.mount_id",
 
@@ -4000,6 +4424,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"process.euser",
 
+		"process.file.change_time",
+
 		"process.file.filesystem",
 
 		"process.file.gid",
@@ -4011,6 +4437,8 @@ func (e *Event) GetFields() []eval.Field {
 		"process.file.inode",
 
 		"process.file.mode",
+
+		"process.file.modification_time",
 
 		"process.file.mount_id",
 
@@ -4048,6 +4476,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"process.user",
 
+		"removexattr.file.change_time",
+
 		"removexattr.file.destination.name",
 
 		"removexattr.file.destination.namespace",
@@ -4064,6 +4494,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"removexattr.file.mode",
 
+		"removexattr.file.modification_time",
+
 		"removexattr.file.mount_id",
 
 		"removexattr.file.name",
@@ -4078,6 +4510,10 @@ func (e *Event) GetFields() []eval.Field {
 
 		"removexattr.retval",
 
+		"rename.file.change_time",
+
+		"rename.file.destination.change_time",
+
 		"rename.file.destination.filesystem",
 
 		"rename.file.destination.gid",
@@ -4089,6 +4525,8 @@ func (e *Event) GetFields() []eval.Field {
 		"rename.file.destination.inode",
 
 		"rename.file.destination.mode",
+
+		"rename.file.destination.modification_time",
 
 		"rename.file.destination.mount_id",
 
@@ -4114,6 +4552,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"rename.file.mode",
 
+		"rename.file.modification_time",
+
 		"rename.file.mount_id",
 
 		"rename.file.name",
@@ -4128,6 +4568,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"rename.retval",
 
+		"rmdir.file.change_time",
+
 		"rmdir.file.filesystem",
 
 		"rmdir.file.gid",
@@ -4139,6 +4581,8 @@ func (e *Event) GetFields() []eval.Field {
 		"rmdir.file.inode",
 
 		"rmdir.file.mode",
+
+		"rmdir.file.modification_time",
 
 		"rmdir.file.mount_id",
 
@@ -4153,6 +4597,14 @@ func (e *Event) GetFields() []eval.Field {
 		"rmdir.file.user",
 
 		"rmdir.retval",
+
+		"selinux.bool.name",
+
+		"selinux.bool.state",
+
+		"selinux.bool_commit.state",
+
+		"selinux.enforce.status",
 
 		"setgid.egid",
 
@@ -4178,6 +4630,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"setuid.user",
 
+		"setxattr.file.change_time",
+
 		"setxattr.file.destination.name",
 
 		"setxattr.file.destination.namespace",
@@ -4194,6 +4648,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"setxattr.file.mode",
 
+		"setxattr.file.modification_time",
+
 		"setxattr.file.mount_id",
 
 		"setxattr.file.name",
@@ -4208,6 +4664,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"setxattr.retval",
 
+		"unlink.file.change_time",
+
 		"unlink.file.filesystem",
 
 		"unlink.file.gid",
@@ -4219,6 +4677,8 @@ func (e *Event) GetFields() []eval.Field {
 		"unlink.file.inode",
 
 		"unlink.file.mode",
+
+		"unlink.file.modification_time",
 
 		"unlink.file.mount_id",
 
@@ -4234,6 +4694,8 @@ func (e *Event) GetFields() []eval.Field {
 
 		"unlink.retval",
 
+		"utimes.file.change_time",
+
 		"utimes.file.filesystem",
 
 		"utimes.file.gid",
@@ -4245,6 +4707,8 @@ func (e *Event) GetFields() []eval.Field {
 		"utimes.file.inode",
 
 		"utimes.file.mode",
+
+		"utimes.file.modification_time",
 
 		"utimes.file.mount_id",
 
@@ -4272,6 +4736,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "capset.cap_permitted":
 
 		return int(e.Capset.CapPermitted), nil
+
+	case "chmod.file.change_time":
+
+		return int(e.Chmod.File.FileFields.CTime), nil
 
 	case "chmod.file.destination.mode":
 
@@ -4305,6 +4773,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Chmod.File.FileFields.Mode), nil
 
+	case "chmod.file.modification_time":
+
+		return int(e.Chmod.File.FileFields.MTime), nil
+
 	case "chmod.file.mount_id":
 
 		return int(e.Chmod.File.FileFields.MountID), nil
@@ -4332,6 +4804,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "chmod.retval":
 
 		return int(e.Chmod.SyscallEvent.Retval), nil
+
+	case "chown.file.change_time":
+
+		return int(e.Chown.File.FileFields.CTime), nil
 
 	case "chown.file.destination.gid":
 
@@ -4372,6 +4848,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "chown.file.mode":
 
 		return int(e.Chown.File.FileFields.Mode), nil
+
+	case "chown.file.modification_time":
+
+		return int(e.Chown.File.FileFields.MTime), nil
 
 	case "chown.file.mount_id":
 
@@ -4477,6 +4957,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.Exec.Process.Credentials.EUser, nil
 
+	case "exec.file.change_time":
+
+		return int(e.Exec.Process.FileFields.CTime), nil
+
 	case "exec.file.filesystem":
 
 		return e.Exec.Process.Filesystem, nil
@@ -4500,6 +4984,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "exec.file.mode":
 
 		return int(e.Exec.Process.FileFields.Mode), nil
+
+	case "exec.file.modification_time":
+
+		return int(e.Exec.Process.FileFields.MTime), nil
 
 	case "exec.file.mount_id":
 
@@ -4573,6 +5061,14 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.Exec.Process.Credentials.User, nil
 
+	case "link.file.change_time":
+
+		return int(e.Link.Source.FileFields.CTime), nil
+
+	case "link.file.destination.change_time":
+
+		return int(e.Link.Target.FileFields.CTime), nil
+
 	case "link.file.destination.filesystem":
 
 		return e.Link.Target.Filesytem, nil
@@ -4596,6 +5092,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "link.file.destination.mode":
 
 		return int(e.Link.Target.FileFields.Mode), nil
+
+	case "link.file.destination.modification_time":
+
+		return int(e.Link.Target.FileFields.MTime), nil
 
 	case "link.file.destination.mount_id":
 
@@ -4645,6 +5145,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Link.Source.FileFields.Mode), nil
 
+	case "link.file.modification_time":
+
+		return int(e.Link.Source.FileFields.MTime), nil
+
 	case "link.file.mount_id":
 
 		return int(e.Link.Source.FileFields.MountID), nil
@@ -4672,6 +5176,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "link.retval":
 
 		return int(e.Link.SyscallEvent.Retval), nil
+
+	case "mkdir.file.change_time":
+
+		return int(e.Mkdir.File.FileFields.CTime), nil
 
 	case "mkdir.file.destination.mode":
 
@@ -4705,6 +5213,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Mkdir.File.FileFields.Mode), nil
 
+	case "mkdir.file.modification_time":
+
+		return int(e.Mkdir.File.FileFields.MTime), nil
+
 	case "mkdir.file.mount_id":
 
 		return int(e.Mkdir.File.FileFields.MountID), nil
@@ -4733,6 +5245,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Mkdir.SyscallEvent.Retval), nil
 
+	case "open.file.change_time":
+
+		return int(e.Open.File.FileFields.CTime), nil
+
 	case "open.file.destination.mode":
 
 		return int(e.Open.Mode), nil
@@ -4760,6 +5276,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "open.file.mode":
 
 		return int(e.Open.File.FileFields.Mode), nil
+
+	case "open.file.modification_time":
+
+		return int(e.Open.File.FileFields.MTime), nil
 
 	case "open.file.mount_id":
 
@@ -5013,6 +5533,28 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return values, nil
 
+	case "process.ancestors.file.change_time":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.FileFields.CTime)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
 	case "process.ancestors.file.filesystem":
 
 		var values []string
@@ -5137,6 +5679,28 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := (*ProcessCacheEntry)(ptr)
 
 			result := int(element.ProcessContext.Process.FileFields.Mode)
+
+			values = append(values, result)
+
+			ptr = iterator.Next()
+		}
+
+		return values, nil
+
+	case "process.ancestors.file.modification_time":
+
+		var values []int
+
+		ctx := eval.NewContext(unsafe.Pointer(e))
+
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+
+		for ptr != nil {
+
+			element := (*ProcessCacheEntry)(ptr)
+
+			result := int(element.ProcessContext.Process.FileFields.MTime)
 
 			values = append(values, result)
 
@@ -5581,6 +6145,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.ProcessContext.Process.Credentials.EUser, nil
 
+	case "process.file.change_time":
+
+		return int(e.ProcessContext.Process.FileFields.CTime), nil
+
 	case "process.file.filesystem":
 
 		return e.ProcessContext.Process.Filesystem, nil
@@ -5604,6 +6172,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "process.file.mode":
 
 		return int(e.ProcessContext.Process.FileFields.Mode), nil
+
+	case "process.file.modification_time":
+
+		return int(e.ProcessContext.Process.FileFields.MTime), nil
 
 	case "process.file.mount_id":
 
@@ -5677,6 +6249,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.ProcessContext.Process.Credentials.User, nil
 
+	case "removexattr.file.change_time":
+
+		return int(e.RemoveXAttr.File.FileFields.CTime), nil
+
 	case "removexattr.file.destination.name":
 
 		return e.RemoveXAttr.Name, nil
@@ -5709,6 +6285,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.RemoveXAttr.File.FileFields.Mode), nil
 
+	case "removexattr.file.modification_time":
+
+		return int(e.RemoveXAttr.File.FileFields.MTime), nil
+
 	case "removexattr.file.mount_id":
 
 		return int(e.RemoveXAttr.File.FileFields.MountID), nil
@@ -5737,6 +6317,14 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.RemoveXAttr.SyscallEvent.Retval), nil
 
+	case "rename.file.change_time":
+
+		return int(e.Rename.Old.FileFields.CTime), nil
+
+	case "rename.file.destination.change_time":
+
+		return int(e.Rename.New.FileFields.CTime), nil
+
 	case "rename.file.destination.filesystem":
 
 		return e.Rename.New.Filesytem, nil
@@ -5760,6 +6348,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "rename.file.destination.mode":
 
 		return int(e.Rename.New.FileFields.Mode), nil
+
+	case "rename.file.destination.modification_time":
+
+		return int(e.Rename.New.FileFields.MTime), nil
 
 	case "rename.file.destination.mount_id":
 
@@ -5809,6 +6401,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Rename.Old.FileFields.Mode), nil
 
+	case "rename.file.modification_time":
+
+		return int(e.Rename.Old.FileFields.MTime), nil
+
 	case "rename.file.mount_id":
 
 		return int(e.Rename.Old.FileFields.MountID), nil
@@ -5837,6 +6433,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Rename.SyscallEvent.Retval), nil
 
+	case "rmdir.file.change_time":
+
+		return int(e.Rmdir.File.FileFields.CTime), nil
+
 	case "rmdir.file.filesystem":
 
 		return e.Rmdir.File.Filesytem, nil
@@ -5860,6 +6460,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "rmdir.file.mode":
 
 		return int(e.Rmdir.File.FileFields.Mode), nil
+
+	case "rmdir.file.modification_time":
+
+		return int(e.Rmdir.File.FileFields.MTime), nil
 
 	case "rmdir.file.mount_id":
 
@@ -5888,6 +6492,22 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "rmdir.retval":
 
 		return int(e.Rmdir.SyscallEvent.Retval), nil
+
+	case "selinux.bool.name":
+
+		return e.SELinux.BoolName, nil
+
+	case "selinux.bool.state":
+
+		return e.SELinux.BoolChangeValue, nil
+
+	case "selinux.bool_commit.state":
+
+		return e.SELinux.BoolCommitValue, nil
+
+	case "selinux.enforce.status":
+
+		return e.SELinux.EnforceStatus, nil
 
 	case "setgid.egid":
 
@@ -5937,6 +6557,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return e.SetUID.User, nil
 
+	case "setxattr.file.change_time":
+
+		return int(e.SetXAttr.File.FileFields.CTime), nil
+
 	case "setxattr.file.destination.name":
 
 		return e.SetXAttr.Name, nil
@@ -5969,6 +6593,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.SetXAttr.File.FileFields.Mode), nil
 
+	case "setxattr.file.modification_time":
+
+		return int(e.SetXAttr.File.FileFields.MTime), nil
+
 	case "setxattr.file.mount_id":
 
 		return int(e.SetXAttr.File.FileFields.MountID), nil
@@ -5997,6 +6625,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.SetXAttr.SyscallEvent.Retval), nil
 
+	case "unlink.file.change_time":
+
+		return int(e.Unlink.File.FileFields.CTime), nil
+
 	case "unlink.file.filesystem":
 
 		return e.Unlink.File.Filesytem, nil
@@ -6020,6 +6652,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "unlink.file.mode":
 
 		return int(e.Unlink.File.FileFields.Mode), nil
+
+	case "unlink.file.modification_time":
+
+		return int(e.Unlink.File.FileFields.MTime), nil
 
 	case "unlink.file.mount_id":
 
@@ -6049,6 +6685,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 		return int(e.Unlink.SyscallEvent.Retval), nil
 
+	case "utimes.file.change_time":
+
+		return int(e.Utimes.File.FileFields.CTime), nil
+
 	case "utimes.file.filesystem":
 
 		return e.Utimes.File.Filesytem, nil
@@ -6072,6 +6712,10 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "utimes.file.mode":
 
 		return int(e.Utimes.File.FileFields.Mode), nil
+
+	case "utimes.file.modification_time":
+
+		return int(e.Utimes.File.FileFields.MTime), nil
 
 	case "utimes.file.mount_id":
 
@@ -6115,6 +6759,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "capset.cap_permitted":
 		return "capset", nil
 
+	case "chmod.file.change_time":
+		return "chmod", nil
+
 	case "chmod.file.destination.mode":
 		return "chmod", nil
 
@@ -6139,6 +6786,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "chmod.file.mode":
 		return "chmod", nil
 
+	case "chmod.file.modification_time":
+		return "chmod", nil
+
 	case "chmod.file.mount_id":
 		return "chmod", nil
 
@@ -6159,6 +6809,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "chmod.retval":
 		return "chmod", nil
+
+	case "chown.file.change_time":
+		return "chown", nil
 
 	case "chown.file.destination.gid":
 		return "chown", nil
@@ -6188,6 +6841,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "chown", nil
 
 	case "chown.file.mode":
+		return "chown", nil
+
+	case "chown.file.modification_time":
 		return "chown", nil
 
 	case "chown.file.mount_id":
@@ -6268,6 +6924,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exec.euser":
 		return "exec", nil
 
+	case "exec.file.change_time":
+		return "exec", nil
+
 	case "exec.file.filesystem":
 		return "exec", nil
 
@@ -6284,6 +6943,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 
 	case "exec.file.mode":
+		return "exec", nil
+
+	case "exec.file.modification_time":
 		return "exec", nil
 
 	case "exec.file.mount_id":
@@ -6340,6 +7002,12 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exec.user":
 		return "exec", nil
 
+	case "link.file.change_time":
+		return "link", nil
+
+	case "link.file.destination.change_time":
+		return "link", nil
+
 	case "link.file.destination.filesystem":
 		return "link", nil
 
@@ -6356,6 +7024,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "link", nil
 
 	case "link.file.destination.mode":
+		return "link", nil
+
+	case "link.file.destination.modification_time":
 		return "link", nil
 
 	case "link.file.destination.mount_id":
@@ -6394,6 +7065,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "link.file.mode":
 		return "link", nil
 
+	case "link.file.modification_time":
+		return "link", nil
+
 	case "link.file.mount_id":
 		return "link", nil
 
@@ -6414,6 +7088,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "link.retval":
 		return "link", nil
+
+	case "mkdir.file.change_time":
+		return "mkdir", nil
 
 	case "mkdir.file.destination.mode":
 		return "mkdir", nil
@@ -6439,6 +7116,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "mkdir.file.mode":
 		return "mkdir", nil
 
+	case "mkdir.file.modification_time":
+		return "mkdir", nil
+
 	case "mkdir.file.mount_id":
 		return "mkdir", nil
 
@@ -6460,6 +7140,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "mkdir.retval":
 		return "mkdir", nil
 
+	case "open.file.change_time":
+		return "open", nil
+
 	case "open.file.destination.mode":
 		return "open", nil
 
@@ -6479,6 +7162,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "open", nil
 
 	case "open.file.mode":
+		return "open", nil
+
+	case "open.file.modification_time":
 		return "open", nil
 
 	case "open.file.mount_id":
@@ -6535,6 +7221,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.ancestors.euser":
 		return "*", nil
 
+	case "process.ancestors.file.change_time":
+		return "*", nil
+
 	case "process.ancestors.file.filesystem":
 		return "*", nil
 
@@ -6551,6 +7240,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 
 	case "process.ancestors.file.mode":
+		return "*", nil
+
+	case "process.ancestors.file.modification_time":
 		return "*", nil
 
 	case "process.ancestors.file.mount_id":
@@ -6637,6 +7329,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.euser":
 		return "*", nil
 
+	case "process.file.change_time":
+		return "*", nil
+
 	case "process.file.filesystem":
 		return "*", nil
 
@@ -6653,6 +7348,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 
 	case "process.file.mode":
+		return "*", nil
+
+	case "process.file.modification_time":
 		return "*", nil
 
 	case "process.file.mount_id":
@@ -6709,6 +7407,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.user":
 		return "*", nil
 
+	case "removexattr.file.change_time":
+		return "removexattr", nil
+
 	case "removexattr.file.destination.name":
 		return "removexattr", nil
 
@@ -6733,6 +7434,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "removexattr.file.mode":
 		return "removexattr", nil
 
+	case "removexattr.file.modification_time":
+		return "removexattr", nil
+
 	case "removexattr.file.mount_id":
 		return "removexattr", nil
 
@@ -6754,6 +7458,12 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "removexattr.retval":
 		return "removexattr", nil
 
+	case "rename.file.change_time":
+		return "rename", nil
+
+	case "rename.file.destination.change_time":
+		return "rename", nil
+
 	case "rename.file.destination.filesystem":
 		return "rename", nil
 
@@ -6770,6 +7480,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "rename", nil
 
 	case "rename.file.destination.mode":
+		return "rename", nil
+
+	case "rename.file.destination.modification_time":
 		return "rename", nil
 
 	case "rename.file.destination.mount_id":
@@ -6808,6 +7521,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "rename.file.mode":
 		return "rename", nil
 
+	case "rename.file.modification_time":
+		return "rename", nil
+
 	case "rename.file.mount_id":
 		return "rename", nil
 
@@ -6829,6 +7545,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "rename.retval":
 		return "rename", nil
 
+	case "rmdir.file.change_time":
+		return "rmdir", nil
+
 	case "rmdir.file.filesystem":
 		return "rmdir", nil
 
@@ -6845,6 +7564,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "rmdir", nil
 
 	case "rmdir.file.mode":
+		return "rmdir", nil
+
+	case "rmdir.file.modification_time":
 		return "rmdir", nil
 
 	case "rmdir.file.mount_id":
@@ -6867,6 +7589,18 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 
 	case "rmdir.retval":
 		return "rmdir", nil
+
+	case "selinux.bool.name":
+		return "selinux", nil
+
+	case "selinux.bool.state":
+		return "selinux", nil
+
+	case "selinux.bool_commit.state":
+		return "selinux", nil
+
+	case "selinux.enforce.status":
+		return "selinux", nil
 
 	case "setgid.egid":
 		return "setgid", nil
@@ -6904,6 +7638,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "setuid.user":
 		return "setuid", nil
 
+	case "setxattr.file.change_time":
+		return "setxattr", nil
+
 	case "setxattr.file.destination.name":
 		return "setxattr", nil
 
@@ -6928,6 +7665,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "setxattr.file.mode":
 		return "setxattr", nil
 
+	case "setxattr.file.modification_time":
+		return "setxattr", nil
+
 	case "setxattr.file.mount_id":
 		return "setxattr", nil
 
@@ -6949,6 +7689,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "setxattr.retval":
 		return "setxattr", nil
 
+	case "unlink.file.change_time":
+		return "unlink", nil
+
 	case "unlink.file.filesystem":
 		return "unlink", nil
 
@@ -6965,6 +7708,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "unlink", nil
 
 	case "unlink.file.mode":
+		return "unlink", nil
+
+	case "unlink.file.modification_time":
 		return "unlink", nil
 
 	case "unlink.file.mount_id":
@@ -6988,6 +7734,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "unlink.retval":
 		return "unlink", nil
 
+	case "utimes.file.change_time":
+		return "utimes", nil
+
 	case "utimes.file.filesystem":
 		return "utimes", nil
 
@@ -7004,6 +7753,9 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "utimes", nil
 
 	case "utimes.file.mode":
+		return "utimes", nil
+
+	case "utimes.file.modification_time":
 		return "utimes", nil
 
 	case "utimes.file.mount_id":
@@ -7043,6 +7795,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "chmod.file.change_time":
+
+		return reflect.Int, nil
+
 	case "chmod.file.destination.mode":
 
 		return reflect.Int, nil
@@ -7075,6 +7831,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "chmod.file.modification_time":
+
+		return reflect.Int, nil
+
 	case "chmod.file.mount_id":
 
 		return reflect.Int, nil
@@ -7100,6 +7860,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 
 	case "chmod.retval":
+
+		return reflect.Int, nil
+
+	case "chown.file.change_time":
 
 		return reflect.Int, nil
 
@@ -7140,6 +7904,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "chown.file.mode":
+
+		return reflect.Int, nil
+
+	case "chown.file.modification_time":
 
 		return reflect.Int, nil
 
@@ -7247,6 +8015,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "exec.file.change_time":
+
+		return reflect.Int, nil
+
 	case "exec.file.filesystem":
 
 		return reflect.String, nil
@@ -7268,6 +8040,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "exec.file.mode":
+
+		return reflect.Int, nil
+
+	case "exec.file.modification_time":
 
 		return reflect.Int, nil
 
@@ -7343,6 +8119,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "link.file.change_time":
+
+		return reflect.Int, nil
+
+	case "link.file.destination.change_time":
+
+		return reflect.Int, nil
+
 	case "link.file.destination.filesystem":
 
 		return reflect.String, nil
@@ -7364,6 +8148,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "link.file.destination.mode":
+
+		return reflect.Int, nil
+
+	case "link.file.destination.modification_time":
 
 		return reflect.Int, nil
 
@@ -7415,6 +8203,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "link.file.modification_time":
+
+		return reflect.Int, nil
+
 	case "link.file.mount_id":
 
 		return reflect.Int, nil
@@ -7440,6 +8232,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 
 	case "link.retval":
+
+		return reflect.Int, nil
+
+	case "mkdir.file.change_time":
 
 		return reflect.Int, nil
 
@@ -7475,6 +8271,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "mkdir.file.modification_time":
+
+		return reflect.Int, nil
+
 	case "mkdir.file.mount_id":
 
 		return reflect.Int, nil
@@ -7503,6 +8303,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "open.file.change_time":
+
+		return reflect.Int, nil
+
 	case "open.file.destination.mode":
 
 		return reflect.Int, nil
@@ -7528,6 +8332,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "open.file.mode":
+
+		return reflect.Int, nil
+
+	case "open.file.modification_time":
 
 		return reflect.Int, nil
 
@@ -7603,6 +8411,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "process.ancestors.file.change_time":
+
+		return reflect.Int, nil
+
 	case "process.ancestors.file.filesystem":
 
 		return reflect.String, nil
@@ -7624,6 +8436,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "process.ancestors.file.mode":
+
+		return reflect.Int, nil
+
+	case "process.ancestors.file.modification_time":
 
 		return reflect.Int, nil
 
@@ -7739,6 +8555,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "process.file.change_time":
+
+		return reflect.Int, nil
+
 	case "process.file.filesystem":
 
 		return reflect.String, nil
@@ -7760,6 +8580,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "process.file.mode":
+
+		return reflect.Int, nil
+
+	case "process.file.modification_time":
 
 		return reflect.Int, nil
 
@@ -7835,6 +8659,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "removexattr.file.change_time":
+
+		return reflect.Int, nil
+
 	case "removexattr.file.destination.name":
 
 		return reflect.String, nil
@@ -7867,6 +8695,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "removexattr.file.modification_time":
+
+		return reflect.Int, nil
+
 	case "removexattr.file.mount_id":
 
 		return reflect.Int, nil
@@ -7895,6 +8727,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "rename.file.change_time":
+
+		return reflect.Int, nil
+
+	case "rename.file.destination.change_time":
+
+		return reflect.Int, nil
+
 	case "rename.file.destination.filesystem":
 
 		return reflect.String, nil
@@ -7916,6 +8756,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "rename.file.destination.mode":
+
+		return reflect.Int, nil
+
+	case "rename.file.destination.modification_time":
 
 		return reflect.Int, nil
 
@@ -7967,6 +8811,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "rename.file.modification_time":
+
+		return reflect.Int, nil
+
 	case "rename.file.mount_id":
 
 		return reflect.Int, nil
@@ -7995,6 +8843,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "rmdir.file.change_time":
+
+		return reflect.Int, nil
+
 	case "rmdir.file.filesystem":
 
 		return reflect.String, nil
@@ -8016,6 +8868,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "rmdir.file.mode":
+
+		return reflect.Int, nil
+
+	case "rmdir.file.modification_time":
 
 		return reflect.Int, nil
 
@@ -8046,6 +8902,22 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "rmdir.retval":
 
 		return reflect.Int, nil
+
+	case "selinux.bool.name":
+
+		return reflect.String, nil
+
+	case "selinux.bool.state":
+
+		return reflect.String, nil
+
+	case "selinux.bool_commit.state":
+
+		return reflect.Bool, nil
+
+	case "selinux.enforce.status":
+
+		return reflect.String, nil
 
 	case "setgid.egid":
 
@@ -8095,6 +8967,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "setxattr.file.change_time":
+
+		return reflect.Int, nil
+
 	case "setxattr.file.destination.name":
 
 		return reflect.String, nil
@@ -8127,6 +9003,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "setxattr.file.modification_time":
+
+		return reflect.Int, nil
+
 	case "setxattr.file.mount_id":
 
 		return reflect.Int, nil
@@ -8155,6 +9035,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "unlink.file.change_time":
+
+		return reflect.Int, nil
+
 	case "unlink.file.filesystem":
 
 		return reflect.String, nil
@@ -8176,6 +9060,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "unlink.file.mode":
+
+		return reflect.Int, nil
+
+	case "unlink.file.modification_time":
 
 		return reflect.Int, nil
 
@@ -8207,6 +9095,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 
 		return reflect.Int, nil
 
+	case "utimes.file.change_time":
+
+		return reflect.Int, nil
+
 	case "utimes.file.filesystem":
 
 		return reflect.String, nil
@@ -8228,6 +9120,10 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 
 	case "utimes.file.mode":
+
+		return reflect.Int, nil
+
+	case "utimes.file.modification_time":
 
 		return reflect.Int, nil
 
@@ -8285,6 +9181,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Capset.CapPermitted"}
 		}
 		e.Capset.CapPermitted = uint64(v)
+		return nil
+
+	case "chmod.file.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.CTime"}
+		}
+		e.Chmod.File.FileFields.CTime = uint64(v)
 		return nil
 
 	case "chmod.file.destination.mode":
@@ -8367,6 +9273,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Chmod.File.FileFields.Mode = uint16(v)
 		return nil
 
+	case "chmod.file.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.MTime"}
+		}
+		e.Chmod.File.FileFields.MTime = uint64(v)
+		return nil
+
 	case "chmod.file.mount_id":
 
 		var ok bool
@@ -8438,6 +9354,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.SyscallEvent.Retval"}
 		}
 		e.Chmod.SyscallEvent.Retval = int64(v)
+		return nil
+
+	case "chown.file.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.CTime"}
+		}
+		e.Chown.File.FileFields.CTime = uint64(v)
 		return nil
 
 	case "chown.file.destination.gid":
@@ -8540,6 +9466,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.Mode"}
 		}
 		e.Chown.File.FileFields.Mode = uint16(v)
+		return nil
+
+	case "chown.file.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.MTime"}
+		}
+		e.Chown.File.FileFields.MTime = uint64(v)
 		return nil
 
 	case "chown.file.mount_id":
@@ -8812,6 +9748,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "exec.file.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileFields.CTime"}
+		}
+		e.Exec.Process.FileFields.CTime = uint64(v)
+		return nil
+
 	case "exec.file.filesystem":
 
 		var ok bool
@@ -8870,6 +9816,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileFields.Mode"}
 		}
 		e.Exec.Process.FileFields.Mode = uint16(v)
+		return nil
+
+	case "exec.file.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileFields.MTime"}
+		}
+		e.Exec.Process.FileFields.MTime = uint64(v)
 		return nil
 
 	case "exec.file.mount_id":
@@ -9060,6 +10016,26 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "link.file.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.CTime"}
+		}
+		e.Link.Source.FileFields.CTime = uint64(v)
+		return nil
+
+	case "link.file.destination.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.CTime"}
+		}
+		e.Link.Target.FileFields.CTime = uint64(v)
+		return nil
+
 	case "link.file.destination.filesystem":
 
 		var ok bool
@@ -9118,6 +10094,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.Mode"}
 		}
 		e.Link.Target.FileFields.Mode = uint16(v)
+		return nil
+
+	case "link.file.destination.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.MTime"}
+		}
+		e.Link.Target.FileFields.MTime = uint64(v)
 		return nil
 
 	case "link.file.destination.mount_id":
@@ -9243,6 +10229,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Link.Source.FileFields.Mode = uint16(v)
 		return nil
 
+	case "link.file.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.MTime"}
+		}
+		e.Link.Source.FileFields.MTime = uint64(v)
+		return nil
+
 	case "link.file.mount_id":
 
 		var ok bool
@@ -9314,6 +10310,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Link.SyscallEvent.Retval"}
 		}
 		e.Link.SyscallEvent.Retval = int64(v)
+		return nil
+
+	case "mkdir.file.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.CTime"}
+		}
+		e.Mkdir.File.FileFields.CTime = uint64(v)
 		return nil
 
 	case "mkdir.file.destination.mode":
@@ -9396,6 +10402,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.File.FileFields.Mode = uint16(v)
 		return nil
 
+	case "mkdir.file.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.MTime"}
+		}
+		e.Mkdir.File.FileFields.MTime = uint64(v)
+		return nil
+
 	case "mkdir.file.mount_id":
 
 		var ok bool
@@ -9469,6 +10485,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Mkdir.SyscallEvent.Retval = int64(v)
 		return nil
 
+	case "open.file.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.CTime"}
+		}
+		e.Open.File.FileFields.CTime = uint64(v)
+		return nil
+
 	case "open.file.destination.mode":
 
 		var ok bool
@@ -9537,6 +10563,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.Mode"}
 		}
 		e.Open.File.FileFields.Mode = uint16(v)
+		return nil
+
+	case "open.file.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.MTime"}
+		}
+		e.Open.File.FileFields.MTime = uint64(v)
 		return nil
 
 	case "open.file.mount_id":
@@ -9766,6 +10802,20 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "process.ancestors.file.change_time":
+
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileFields.CTime"}
+		}
+		e.ProcessContext.Ancestor.ProcessContext.Process.FileFields.CTime = uint64(v)
+		return nil
+
 	case "process.ancestors.file.filesystem":
 
 		if e.ProcessContext.Ancestor == nil {
@@ -9848,6 +10898,20 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileFields.Mode"}
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.FileFields.Mode = uint16(v)
+		return nil
+
+	case "process.ancestors.file.modification_time":
+
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileFields.MTime"}
+		}
+		e.ProcessContext.Ancestor.ProcessContext.Process.FileFields.MTime = uint64(v)
 		return nil
 
 	case "process.ancestors.file.mount_id":
@@ -10214,6 +11278,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "process.file.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileFields.CTime"}
+		}
+		e.ProcessContext.Process.FileFields.CTime = uint64(v)
+		return nil
+
 	case "process.file.filesystem":
 
 		var ok bool
@@ -10272,6 +11346,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileFields.Mode"}
 		}
 		e.ProcessContext.Process.FileFields.Mode = uint16(v)
+		return nil
+
+	case "process.file.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileFields.MTime"}
+		}
+		e.ProcessContext.Process.FileFields.MTime = uint64(v)
 		return nil
 
 	case "process.file.mount_id":
@@ -10462,6 +11546,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "removexattr.file.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.CTime"}
+		}
+		e.RemoveXAttr.File.FileFields.CTime = uint64(v)
+		return nil
+
 	case "removexattr.file.destination.name":
 
 		var ok bool
@@ -10544,6 +11638,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.RemoveXAttr.File.FileFields.Mode = uint16(v)
 		return nil
 
+	case "removexattr.file.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.MTime"}
+		}
+		e.RemoveXAttr.File.FileFields.MTime = uint64(v)
+		return nil
+
 	case "removexattr.file.mount_id":
 
 		var ok bool
@@ -10617,6 +11721,26 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.RemoveXAttr.SyscallEvent.Retval = int64(v)
 		return nil
 
+	case "rename.file.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.CTime"}
+		}
+		e.Rename.Old.FileFields.CTime = uint64(v)
+		return nil
+
+	case "rename.file.destination.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.CTime"}
+		}
+		e.Rename.New.FileFields.CTime = uint64(v)
+		return nil
+
 	case "rename.file.destination.filesystem":
 
 		var ok bool
@@ -10675,6 +11799,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.Mode"}
 		}
 		e.Rename.New.FileFields.Mode = uint16(v)
+		return nil
+
+	case "rename.file.destination.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.MTime"}
+		}
+		e.Rename.New.FileFields.MTime = uint64(v)
 		return nil
 
 	case "rename.file.destination.mount_id":
@@ -10800,6 +11934,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.Old.FileFields.Mode = uint16(v)
 		return nil
 
+	case "rename.file.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.MTime"}
+		}
+		e.Rename.Old.FileFields.MTime = uint64(v)
+		return nil
+
 	case "rename.file.mount_id":
 
 		var ok bool
@@ -10873,6 +12017,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Rename.SyscallEvent.Retval = int64(v)
 		return nil
 
+	case "rmdir.file.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.CTime"}
+		}
+		e.Rmdir.File.FileFields.CTime = uint64(v)
+		return nil
+
 	case "rmdir.file.filesystem":
 
 		var ok bool
@@ -10931,6 +12085,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.Mode"}
 		}
 		e.Rmdir.File.FileFields.Mode = uint16(v)
+		return nil
+
+	case "rmdir.file.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.MTime"}
+		}
+		e.Rmdir.File.FileFields.MTime = uint64(v)
 		return nil
 
 	case "rmdir.file.mount_id":
@@ -11004,6 +12168,47 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.SyscallEvent.Retval"}
 		}
 		e.Rmdir.SyscallEvent.Retval = int64(v)
+		return nil
+
+	case "selinux.bool.name":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.BoolName"}
+		}
+		e.SELinux.BoolName = str
+
+		return nil
+
+	case "selinux.bool.state":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.BoolChangeValue"}
+		}
+		e.SELinux.BoolChangeValue = str
+
+		return nil
+
+	case "selinux.bool_commit.state":
+
+		var ok bool
+		if e.SELinux.BoolCommitValue, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.BoolCommitValue"}
+		}
+		return nil
+
+	case "selinux.enforce.status":
+
+		var ok bool
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SELinux.EnforceStatus"}
+		}
+		e.SELinux.EnforceStatus = str
+
 		return nil
 
 	case "setgid.egid":
@@ -11132,6 +12337,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return nil
 
+	case "setxattr.file.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.CTime"}
+		}
+		e.SetXAttr.File.FileFields.CTime = uint64(v)
+		return nil
+
 	case "setxattr.file.destination.name":
 
 		var ok bool
@@ -11214,6 +12429,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetXAttr.File.FileFields.Mode = uint16(v)
 		return nil
 
+	case "setxattr.file.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.MTime"}
+		}
+		e.SetXAttr.File.FileFields.MTime = uint64(v)
+		return nil
+
 	case "setxattr.file.mount_id":
 
 		var ok bool
@@ -11287,6 +12512,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.SetXAttr.SyscallEvent.Retval = int64(v)
 		return nil
 
+	case "unlink.file.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.CTime"}
+		}
+		e.Unlink.File.FileFields.CTime = uint64(v)
+		return nil
+
 	case "unlink.file.filesystem":
 
 		var ok bool
@@ -11345,6 +12580,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.Mode"}
 		}
 		e.Unlink.File.FileFields.Mode = uint16(v)
+		return nil
+
+	case "unlink.file.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.MTime"}
+		}
+		e.Unlink.File.FileFields.MTime = uint64(v)
 		return nil
 
 	case "unlink.file.mount_id":
@@ -11420,6 +12665,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		e.Unlink.SyscallEvent.Retval = int64(v)
 		return nil
 
+	case "utimes.file.change_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.CTime"}
+		}
+		e.Utimes.File.FileFields.CTime = uint64(v)
+		return nil
+
 	case "utimes.file.filesystem":
 
 		var ok bool
@@ -11478,6 +12733,16 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.Mode"}
 		}
 		e.Utimes.File.FileFields.Mode = uint16(v)
+		return nil
+
+	case "utimes.file.modification_time":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.MTime"}
+		}
+		e.Utimes.File.FileFields.MTime = uint64(v)
 		return nil
 
 	case "utimes.file.mount_id":

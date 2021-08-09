@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -34,15 +33,17 @@ const (
 // Relies on the DockerCollector to trigger deletions, it's not intended to run standalone
 type ECSCollector struct {
 	infoOut     chan<- []*TagInfo
-	expire      *taggerutil.Expire
-	lastExpire  time.Time
-	expireFreq  time.Duration
+	expire      *expire
 	metaV1      *v1.Client
 	clusterName string
 }
 
 // Detect tries to connect to the ECS agent
 func (c *ECSCollector) Detect(ctx context.Context, out chan<- []*TagInfo) (CollectionMode, error) {
+	if !config.IsFeaturePresent(config.Docker) {
+		return NoCollection, nil
+	}
+
 	if ecsutil.IsFargateInstance(ctx) {
 		return NoCollection, fmt.Errorf("ECS collector is disabled on Fargate")
 	}
@@ -54,10 +55,8 @@ func (c *ECSCollector) Detect(ctx context.Context, out chan<- []*TagInfo) (Colle
 
 	c.metaV1 = metaV1
 	c.infoOut = out
-	c.lastExpire = time.Now()
-	c.expireFreq = ecsExpireFreq
 
-	c.expire, err = taggerutil.NewExpire(ecsExpireFreq)
+	c.expire, err = newExpire(ecsCollectorName, ecsExpireFreq)
 	if err != nil {
 		return NoCollection, err
 	}
@@ -97,12 +96,9 @@ func (c *ECSCollector) Fetch(ctx context.Context, entity string) ([]string, []st
 
 	c.infoOut <- updates
 
-	// Only run the expire process with the most up to date tasks parsed.
-	// Using a go routine as the expire process can be done asynchronously.
-	// We do not use the output as the ECSCollector is not meant run in standalone.
-	if time.Now().Sub(c.lastExpire) >= c.expireFreq {
-		go c.expire.ComputeExpires() //nolint:errcheck
-		c.lastExpire = time.Now()
+	expires := c.expire.ComputeExpires()
+	if len(expires) > 0 {
+		c.infoOut <- expires
 	}
 
 	for _, info := range updates {

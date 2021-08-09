@@ -408,8 +408,8 @@ func (s *Server) handleMessages() {
 }
 
 // Capture starts a traffic capture with the specified duration, returns an error if any
-func (s *Server) Capture(d time.Duration) error {
-	return s.TCapture.Start(d)
+func (s *Server) Capture(d time.Duration, compressed bool) error {
+	return s.TCapture.Start(d, compressed)
 }
 
 func (s *Server) forwarder(fcon net.Conn, packetsChannel chan packets.Packets) {
@@ -833,4 +833,9 @@ func FormatDebugStats(stats []byte) (string, error) {
 	}
 
 	return buf.String(), nil
+}
+
+// SetExtraTags sets extra tags. All metrics sent to the DogstatsD will be tagged with them.
+func (s *Server) SetExtraTags(tags []string) {
+	s.extraTags = tags
 }

@@ -1,0 +1,28 @@
+---
+# Python 2 does not run on nanoserver
+docker_build_agent6_windows1809_core:
+  extends:
+    - .docker_build_agent6_windows_servercore_common
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  variables:
+    VARIANT: 1809
+    TAG_SUFFIX: -6
+    WITH_JMX: "false"
+
+docker_build_agent6_windows1909_core:
+  extends:
+    - .docker_build_agent6_windows_servercore_common
+  tags: ["runner:windows-docker", "windowsversion:1909"]
+  variables:
+    VARIANT: 1909
+    TAG_SUFFIX: -6
+    WITH_JMX: "false"
+
+docker_build_agent6_windows2004_core:
+  extends:
+    - .docker_build_agent6_windows_servercore_common
+  tags: ["runner:windows-docker", "windowsversion:2004"]
+  variables:
+    VARIANT: 2004
+    TAG_SUFFIX: -6
+    WITH_JMX: "false"

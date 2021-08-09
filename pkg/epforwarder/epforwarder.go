@@ -2,9 +2,10 @@ package epforwarder
 
 import (
 	"fmt"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"strings"
 	"sync"
+
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -30,6 +31,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		eventType:              eventTypeDBMSamples,
 		endpointsConfigPrefix:  "database_monitoring.samples.",
 		hostnameEndpointPrefix: "dbquery-http-intake.logs.",
+		intakeTrackType:        "databasequery",
 		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
@@ -39,6 +41,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		eventType:              eventTypeDBMMetrics,
 		endpointsConfigPrefix:  "database_monitoring.metrics.",
 		hostnameEndpointPrefix: "dbm-metrics-intake.",
+		intakeTrackType:        "dbmmetrics",
 		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    20e6,
@@ -133,6 +136,7 @@ type passthroughPipeline struct {
 
 type passthroughPipelineDesc struct {
 	eventType                     string
+	intakeTrackType               config.IntakeTrackType
 	endpointsConfigPrefix         string
 	hostnameEndpointPrefix        string
 	defaultBatchMaxConcurrentSend int
@@ -144,7 +148,7 @@ type passthroughPipelineDesc struct {
 // without any of the processing that exists in regular logs pipelines.
 func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext) (p *passthroughPipeline, err error) {
 	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, coreConfig.Datadog)
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(configKeys, desc.hostnameEndpointPrefix)
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeSource)
 	if err != nil {
 		return nil, err
 	}

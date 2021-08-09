@@ -29,8 +29,8 @@ const (
 	FileChmodEventType
 	// FileChownEventType Chown event
 	FileChownEventType
-	// FileUtimeEventType Utime event
-	FileUtimeEventType
+	// FileUtimesEventType Utime event
+	FileUtimesEventType
 	// FileSetXAttrEventType Setxattr event
 	FileSetXAttrEventType
 	// FileRemoveXAttrEventType Removexattr event
@@ -57,6 +57,8 @@ const (
 	ArgsEnvsEventType
 	// MountReleasedEventType sent when a mount point is released
 	MountReleasedEventType
+	// SELinuxEventType selinux event
+	SELinuxEventType
 	// MaxEventType is used internally to get the maximum number of kernel events.
 	MaxEventType
 
@@ -98,7 +100,7 @@ func (t EventType) String() string {
 		return "chmod"
 	case FileChownEventType:
 		return "chown"
-	case FileUtimeEventType:
+	case FileUtimesEventType:
 		return "utimes"
 	case FileMountEventType:
 		return "mount"
@@ -126,6 +128,8 @@ func (t EventType) String() string {
 		return "args_envs"
 	case MountReleasedEventType:
 		return "mount_released"
+	case SELinuxEventType:
+		return "selinux"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"

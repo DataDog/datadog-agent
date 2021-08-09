@@ -133,6 +133,8 @@ type Event struct {
 	SetGID SetgidEvent `field:"setgid" event:"setgid"`
 	Capset CapsetEvent `field:"capset" event:"capset"`
 
+	SELinux SELinuxEvent `field:"selinux" event:"selinux"`
+
 	Mount            MountEvent            `field:"-"`
 	Umount           UmountEvent           `field:"-"`
 	InvalidateDentry InvalidateDentryEvent `field:"-"`
@@ -275,13 +277,13 @@ type ExecEvent struct {
 
 // FileFields holds the information required to identify a file
 type FileFields struct {
-	UID   uint32    `field:"uid"`
-	User  string    `field:"user,ResolveFileFieldsUser"`
-	GID   uint32    `field:"gid"`
-	Group string    `field:"group,ResolveFileFieldsGroup"`
-	Mode  uint16    `field:"mode" field:"rights,ResolveRights"`
-	CTime time.Time `field:"-"`
-	MTime time.Time `field:"-"`
+	UID   uint32 `field:"uid"`
+	User  string `field:"user,ResolveFileFieldsUser"`
+	GID   uint32 `field:"gid"`
+	Group string `field:"group,ResolveFileFieldsGroup"`
+	Mode  uint16 `field:"mode" field:"rights,ResolveRights"`
+	CTime uint64 `field:"change_time"`
+	MTime uint64 `field:"modification_time"`
 
 	MountID      uint32 `field:"mount_id"`
 	Inode        uint64 `field:"inode"`
@@ -404,6 +406,28 @@ type OpenEvent struct {
 	File  FileEvent `field:"file"`
 	Flags uint32    `field:"flags"`
 	Mode  uint32    `field:"file.destination.mode"`
+}
+
+// SELinuxEventKind represents the event kind for SELinux events
+type SELinuxEventKind uint32
+
+const (
+	// SELinuxBoolChangeEventKind represents SELinux boolean change events
+	SELinuxBoolChangeEventKind SELinuxEventKind = iota
+	// SELinuxStatusChangeEventKind represents SELinux status change events
+	SELinuxStatusChangeEventKind
+	// SELinuxBoolCommitEventKind represents SELinux boolean commit events
+	SELinuxBoolCommitEventKind
+)
+
+// SELinuxEvent represents a selinux event
+type SELinuxEvent struct {
+	File            FileEvent        `field:"-"`
+	EventKind       SELinuxEventKind `field:"-"`
+	BoolName        string           `field:"bool.name,ResolveSELinuxBoolName"`
+	BoolChangeValue string           `field:"bool.state"`
+	BoolCommitValue bool             `field:"bool_commit.state"`
+	EnforceStatus   string           `field:"enforce.status"`
 }
 
 var zeroProcessContext ProcessContext
