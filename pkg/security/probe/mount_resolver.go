@@ -48,7 +48,7 @@ func newMountEventFromMountInfo(mnt *mountinfo.Info) (*model.MountEvent, error) 
 			if len(optionSplit) == 2 {
 				target, value := optionSplit[0], optionSplit[1]
 				if target == "shared" || target == "master" {
-					if groupID, err = strconv.ParseUint(value, 10, 64); err != nil {
+					if groupID, err = strconv.ParseUint(value, 10, 32); err != nil {
 						return nil, err
 					}
 				}

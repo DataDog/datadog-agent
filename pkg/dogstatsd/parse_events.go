@@ -3,6 +3,8 @@ package dogstatsd
 import (
 	"bytes"
 	"fmt"
+	"strconv"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -84,7 +86,7 @@ func parseHeader(rawHeader []byte) (eventHeader, error) {
 	rawTextLength := rawLengths[sepIndex+1:]
 
 	// Convert title length to workable type and do a basic validity check on value
-	titleLength, err := parseInt64(rawTitleLength)
+	titleLength, err := strconv.Atoi(*(*string)(unsafe.Pointer(&rawTitleLength)))
 	if err != nil || titleLength < 0 {
 		return eventHeader{}, fmt.Errorf("invalid event header: %q", rawHeader)
 	}
@@ -95,14 +97,14 @@ func parseHeader(rawHeader []byte) (eventHeader, error) {
 	}
 
 	// Convert text length to workable type and do a basic validity check on value
-	textLength, err := parseInt64(rawTextLength)
+	textLength, err := strconv.Atoi(*(*string)(unsafe.Pointer(&rawTextLength)))
 	if err != nil || textLength < 0 {
 		return eventHeader{}, fmt.Errorf("invalid event header: %q", rawHeader)
 	}
 
 	return eventHeader{
-		titleLength: int(titleLength),
-		textLength:  int(textLength),
+		titleLength: titleLength,
+		textLength:  textLength,
 	}, nil
 }
 
