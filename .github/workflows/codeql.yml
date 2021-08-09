@@ -29,16 +29,8 @@ jobs:
 
       - working-directory: go/src/github.com/DataDog/datadog-agent
         run: |
-          which python
-          ls -lah `which python`
-          which python3
-          ls -lah `which python3`
-          which pip
-          ls -lah `which pip`
-          which pip3
-          ls -lah `which pip3`
-          pip3 install -r requirements.txt
-          echo "CODEQL_PYTHON=$(which python3)" >> $GITHUB_ENV
+          pip install -r requirements.txt
+          echo "CODEQL_PYTHON=$(which python)" >> $GITHUB_ENV
 
       # Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
@@ -72,11 +64,8 @@ jobs:
           GOPATH: /home/runner/work/datadog-agent/go
         working-directory: go/src/github.com/DataDog/datadog-agent
         run: |
-          echo ${PATH}
           export CGO_LDFLAGS=" -L${GITHUB_WORKSPACE}/go/src/github.com/DataDog/datadog-agent/rtloader/build/rtloader -ldl "
           export CGO_CFLAGS=" -I${GITHUB_WORKSPACE}/go/src/github.com/DataDog/datadog-agent/rtloader/include  -I${GITHUB_WORKSPACE}/go/src/github.com/DataDog/datadog-agent/rtloader/common "
-          echo ${CGO_LDFLAGS}
-          echo ${CGO_CFLAGS}
           invoke -d install-tools
           invoke -d deps
           invoke agent.build -d --build-exclude=systemd
