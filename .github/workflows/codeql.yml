@@ -57,9 +57,10 @@ jobs:
         working-directory: go/src/github.com/DataDog/datadog-agent
         run: |
          echo ${PATH}
-         echo ${SRCDIR}
-         export CGO_LDFLAGS=" -L${SRCDIR}/../../../rtloader/build/rtloader -ldl "
-         export CGO_CFLAGS=" -I${SRCDIR}/../../../rtloader/include  -I${SRCDIR}/../../../rtloader/common "
+         export CGO_LDFLAGS=" -L${GITHUB_WORKSPACE}/rtloader/build/rtloader -ldl "
+         export CGO_CFLAGS=" -I${GITHUB_WORKSPACE}/rtloader/include  -I${GITHUB_WORKSPACE}/rtloader/common "
+         echo ${CGO_LDFLAGS}
+         echo ${CGO_CFLAGS}
          pip3 install -r requirements.txt
          invoke -d install-tools
          invoke -d deps
