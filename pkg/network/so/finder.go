@@ -67,23 +67,3 @@ func iteratePIDS(procRoot string, fn callback) {
 	w := newWalker(procRoot, fn)
 	filepath.Walk(procRoot, filepath.WalkFunc(w.walk))
 }
-
-// key is used to keep track of which libraries we've seen
-type key struct {
-	ns   ns
-	name string
-}
-
-func excludeAlreadySeen(seen map[key]struct{}, ns ns, libs []string) []string {
-	var n int
-	for _, lib := range libs {
-		k := key{ns, lib}
-		if _, ok := seen[k]; !ok {
-			seen[k] = struct{}{}
-			libs[n] = lib
-			n++
-		}
-	}
-
-	return libs[0:n]
-}
