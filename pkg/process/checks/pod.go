@@ -9,10 +9,10 @@ package checks
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"

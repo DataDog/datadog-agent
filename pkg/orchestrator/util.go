@@ -37,8 +37,6 @@ const (
 	K8sDaemonSet
 	// K8sStatefulSet represents a Kubernetes StatefulSet
 	K8sStatefulSet
-	// lastElement represents the lastElement of the enums iota
-	lastElement
 )
 
 var telemetryTags = map[NodeType][]string{}
@@ -51,11 +49,18 @@ func init() {
 
 // NodeTypes returns the current existing NodesTypes as a slice to iterate over.
 func NodeTypes() []NodeType {
-	var types []NodeType
-	for t := NodeType(0); t < lastElement; t++ {
-		types = append(types, t)
+	return []NodeType{
+		K8sCluster,
+		K8sCronJob,
+		K8sDeployment,
+		K8sDaemonSet,
+		K8sJob,
+		K8sNode,
+		K8sPod,
+		K8sReplicaSet,
+		K8sService,
+		K8sStatefulSet,
 	}
-	return types
 }
 
 func (n NodeType) String() string {
