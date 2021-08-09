@@ -9,10 +9,7 @@
 package embed_tests
 
 import (
-	"fmt"
 	"os"
-	"path"
-	"sync/atomic"
 	"syscall"
 	"testing"
 

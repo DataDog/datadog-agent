@@ -243,7 +243,7 @@ func writeOutputFile(outputPath string, content []byte) error {
 		return err
 	}
 
-	cmd := exec.Command("gofmt", "-s", "-w", tmp.Name())
+	cmd := exec.Command("go", "run", "golang.org/x/tools/cmd/goimports", "-w", tmp.Name())
 	if err := cmd.Run(); err != nil {
 		panic(err)
 	}
