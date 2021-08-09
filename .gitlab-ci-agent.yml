@@ -808,7 +808,7 @@ molecule_integrations_cleanup:
 # Type: kubernetes
 # TODO: Split into two stages instead of one test stage, Unit Test fails SSH when split debug required
 
-molecule_tests_kubernetes:
+molecule_kubernetes_test:
   <<: *molecule
   resource_group: eks_test_cluster
   stage: acceptance
@@ -834,9 +834,9 @@ molecule_kubernetes_cleanup:
   variables:
     MOLECULE_SCENARIO: kubernetes
   dependencies:
-    - molecule_tests_kubernetes
+    - molecule_kubernetes_test
   needs:
-    - molecule_tests_kubernetes
+    - molecule_kubernetes_test
   rules:
     - *only_agent_3_always
 
