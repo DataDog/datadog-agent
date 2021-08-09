@@ -27,6 +27,10 @@ jobs:
           fetch-depth: 0
           path: go/src/github.com/DataDog/datadog-agent
 
+      - run: |
+          pip3 install -r requirements.txt
+          echo "CODEQL_PYTHON=$(which python)" >> $GITHUB_ENV
+
       # Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v1
@@ -35,6 +39,7 @@ jobs:
         # Override language selection by uncommenting this and choosing your languages
         with:
           languages: go, javascript, python, cpp
+          setup-python-dependencies: false
           # TODO determine if this can be enabled
           # source-root: go/src/github.com/DataDog/datadog-agent
 
@@ -58,15 +63,14 @@ jobs:
           GOPATH: /home/runner/work/datadog-agent/go
         working-directory: go/src/github.com/DataDog/datadog-agent
         run: |
-         echo ${PATH}
-         export CGO_LDFLAGS=" -L${GITHUB_WORKSPACE}/go/src/github.com/DataDog/datadog-agent/rtloader/build/rtloader -ldl "
-         export CGO_CFLAGS=" -I${GITHUB_WORKSPACE}/go/src/github.com/DataDog/datadog-agent/rtloader/include  -I${GITHUB_WORKSPACE}/go/src/github.com/DataDog/datadog-agent/rtloader/common "
-         echo ${CGO_LDFLAGS}
-         echo ${CGO_CFLAGS}
-         pip3 install -r requirements.txt
-         invoke -d install-tools
-         invoke -d deps
-         invoke agent.build -d --build-exclude=systemd
+          echo ${PATH}
+          export CGO_LDFLAGS=" -L${GITHUB_WORKSPACE}/go/src/github.com/DataDog/datadog-agent/rtloader/build/rtloader -ldl "
+          export CGO_CFLAGS=" -I${GITHUB_WORKSPACE}/go/src/github.com/DataDog/datadog-agent/rtloader/include  -I${GITHUB_WORKSPACE}/go/src/github.com/DataDog/datadog-agent/rtloader/common "
+          echo ${CGO_LDFLAGS}
+          echo ${CGO_CFLAGS}
+          invoke -d install-tools
+          invoke -d deps
+          invoke agent.build -d --build-exclude=systemd
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v1
