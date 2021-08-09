@@ -72,9 +72,6 @@ platforms:
 scenario:
   name: vms
   create_sequence:
-    - dependency
-    - cleanup
-    - destroy
     - syntax
     - create
     - prepare
