@@ -50,8 +50,10 @@ jobs:
 
       - env:
           GOPATH: /home/runner/work/datadog-agent/go
+          PATH: "${GOPATH}/bin:${PATH}"
         working-directory: go/src/github.com/DataDog/datadog-agent
         run: |
+         echo ${PATH}
          pip3 install -r requirements.txt
          invoke -d install-tools
          invoke -d deps
