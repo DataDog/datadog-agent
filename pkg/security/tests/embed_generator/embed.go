@@ -64,7 +64,7 @@ func main() {
 		panic(err)
 	}
 
-	if err := finishOutputDir(output, pkgName, totalTests); err != nil {
+	if err := finishOutputDir(input, output, pkgName, totalTests); err != nil {
 		panic(err)
 	}
 }
@@ -74,7 +74,7 @@ type DriverInfo struct {
 	TestNames []string
 }
 
-func finishOutputDir(outputDir string, pkgName string, testNames []string) error {
+func finishOutputDir(inputDir, outputDir string, pkgName string, testNames []string) error {
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return err
 	}
@@ -102,7 +102,7 @@ func finishOutputDir(outputDir string, pkgName string, testNames []string) error
 		return err
 	}
 
-	if err := writeOutputFile(path.Join(outputDir, "driver.go"), buf.Bytes(), true); err != nil {
+	if err := writeOutputFile(inputDir, outputDir, path.Join(outputDir, "driver.go"), buf.Bytes(), true); err != nil {
 		return err
 	}
 
@@ -110,7 +110,9 @@ func finishOutputDir(outputDir string, pkgName string, testNames []string) error
 }
 
 type EmbedFileOptions struct {
+	inputDir   string
 	inputPath  string
+	outputDir  string
 	outputPath string
 }
 
@@ -123,7 +125,9 @@ func NewEmbedFileOptions(inputPath, inputDir, outputDir string) EmbedFileOptions
 	}
 
 	return EmbedFileOptions{
+		inputDir:   inputDir,
 		inputPath:  inputPath,
+		outputDir:  outputDir,
 		outputPath: outputPath,
 	}
 }
@@ -137,7 +141,7 @@ func embedVerbatimFile(opts EmbedFileOptions, pkgName string) error {
 	}
 
 	content = packageNameReplacer.ReplaceAll(content, []byte(fmt.Sprintf("package %v\n", pkgName)))
-	return writeOutputFile(opts.outputPath, content, false)
+	return writeOutputFile(opts.inputDir, opts.outputDir, opts.outputPath, content, false)
 }
 
 func embedTestFile(fset *token.FileSet, opts EmbedFileOptions, pkgName string) ([]string, error) {
@@ -177,7 +181,7 @@ func embedTestFile(fset *token.FileSet, opts EmbedFileOptions, pkgName string) (
 			return nil, err
 		}
 
-		if err := writeOutputFile(opts.outputPath, buf.Bytes(), false); err != nil {
+		if err := writeOutputFile(opts.inputDir, opts.outputDir, opts.outputPath, buf.Bytes(), false); err != nil {
 			return nil, err
 		}
 		return tests, nil
@@ -266,7 +270,7 @@ func shouldKeepVerbatim(filePath string) bool {
 
 const editProtector = "// Code generated - DO NOT EDIT.\n"
 
-func writeOutputFile(outputPath string, content []byte, skipBuildConstraintConversion bool) error {
+func writeOutputFile(inputDir, outputDir, outputPath string, content []byte, skipBuildConstraintConversion bool) error {
 	// create all needed subdirectories
 	dirPath := path.Dir(outputPath)
 	if err := os.MkdirAll(dirPath, 0755); err != nil {
@@ -280,7 +284,11 @@ func writeOutputFile(outputPath string, content []byte, skipBuildConstraintConve
 	defer os.Remove(tmp.Name())
 	defer tmp.Close()
 
+	inputPackage := path.Join("github.com/DataDog/datadog-agent", inputDir)
+	outputPackage := path.Join("github.com/DataDog/datadog-agent", outputDir)
+
 	prefixedContent := append([]byte(editProtector), content...)
+	prefixedContent = bytes.Replace(prefixedContent, []byte(inputPackage), []byte(outputPackage), -1)
 	var finalContent []byte
 	if skipBuildConstraintConversion {
 		finalContent = prefixedContent
