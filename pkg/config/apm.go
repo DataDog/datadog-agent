@@ -83,6 +83,7 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.filter_tags.require", "DD_APM_FILTER_TAGS_REQUIRE")
 	config.BindEnv("apm_config.filter_tags.reject", "DD_APM_FILTER_TAGS_REJECT")
 	config.BindEnv("apm_config.internal_profiling.enabled", "DD_APM_INTERNAL_PROFILING_ENABLED")
+	config.BindEnv("apm_config.debugger_dd_url", "DD_APM_DEBUGGER_DD_URL")
 	config.BindEnv("experimental.otlp.http_port", "DD_OTLP_HTTP_PORT")
 	config.BindEnv("experimental.otlp.grpc_port", "DD_OTLP_GRPC_PORT")
 
