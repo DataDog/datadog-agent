@@ -833,50 +833,28 @@ molecule_integrations_cleanup:
     - if: $MAJOR_VERSION == "3" && $CI_COMMIT_MESSAGE =~ /\[molecule\-/
       when: never
 
-# molecule_kubernetes_create:
-#   resource_group: eks_test_cluster
-#   <<: *molecule_base_create
-#   <<: *molecule_kubernetes_only_rules
-#   <<: *molecule_artifacts
-#   interruptible: true
-#   variables:
-#     MOLECULE_SCENARIO: kubernetes
-#     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
-
-molecule_kubernetes_test:
-  resource_group: eks_test_cluster
-  # <<: *molecule_base
-  # <<: *molecule_base_test
-  stage: acceptance
+molecule_tests_kubernetes:
+  <<: *molecule_base
+  needs:
+    - pre_release_cluster_agent_image
+    - pre_release_main_agent_image
   script:
-    - cd $CI_PROJECT_DIR/test
-    - ./molecule3.sh test -s kubernetes
-  <<: *molecule_kubernetes_only_rules
-  <<: *molecule_artifacts
-  interruptible: true
+    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s kubernetes
+  resource_group: eks_test_cluster
   retry:
     max: 2
     when:
       - runner_system_failure
       - stuck_or_timeout_failure
-  variables:
-    MOLECULE_SCENARIO: kubernetes
-    MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
-  # dependencies:
-  #   - molecule_kubernetes_create
-  needs:
-    - pre_release_cluster_agent_image
-    - pre_release_main_agent_image
-  #   - molecule_kubernetes_create
-
-molecule_kubernetes_failure_cleanup:
-  resource_group: eks_test_cluster
-  variables:
-    MOLECULE_SCENARIO: kubernetes
-  <<: *molecule_base_cleanup
-  <<: *molecule_kubernetes_only_rules
-  # needs:
-  #   - molecule_kubernetes_create
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/*.log
+      - $CI_PROJECT_DIR/tmp_molecule_inventory
+    expire_in: 1 week
+  rules:
+    - *only_agent_3
 
 molecule_kubernetes_cleanup:
   resource_group: eks_test_cluster
@@ -885,11 +863,10 @@ molecule_kubernetes_cleanup:
   <<: *molecule_base_cleanup
   <<: *molecule_kubernetes_only_rules
   dependencies:
-    - molecule_kubernetes_test
-  #   - molecule_kubernetes_create
+    - molecule_tests_kubernetes
   needs:
-    - molecule_kubernetes_test
-  #   - molecule_kubernetes_create
+    - molecule_tests_kubernetes
+
 
 # Job Seq: Molecule
 # Type: localinstall
