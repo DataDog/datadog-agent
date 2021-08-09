@@ -2030,6 +2030,20 @@ api_key:
 #
 # kubernetes_kubeconfig_path: ""
 
+## @param kubernetes_apiserver_ca_path - string - optional - default: ""
+## When running in a pod, the Agent automatically uses the pod's service account CA.
+## Use this option to keep using the InCluster config but overriding the default CA Path.
+## This parameter has no effect if `kubernetes_kubeconfig_path` is set.
+#
+# kubernetes_apiserver_ca_path: ""
+
+## @param kubernetes_apiserver_tls_verify - boolean - optional - default: true
+## When running in a pod, the Agent automatically uses the pod's service account CA.
+## Use this option to keep using the InCluster config but deactivating TLS verification (in case APIServer CA is not ServiceAccount CA)
+## This parameter has no effect if `kubernetes_kubeconfig_path` is set.
+#
+# kubernetes_apiserver_tls_verify: true
+
 ## @param kubernetes_apiserver_use_protobuf - boolean - optional - default: false
 ## By default, communication with the apiserver is in json format. Setting the following
 ## option to true allows communication in the binary protobuf format.
