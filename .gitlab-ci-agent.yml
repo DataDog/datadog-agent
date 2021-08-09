@@ -676,7 +676,8 @@ pre_release_cluster_agent_image:
   stage: acceptance
   script:
     - cd $CI_PROJECT_DIR/test
-    - ./molecule3.sh --base-config ./molecule/$MOLECULE_SCENARIO/provisioner.run.yml create --scenario-name $MOLECULE_SCENARIO # Rerun create step, assist with if a destroy was triggered
+    # TODO: We can add this step if you are able to detect that the create already happened, and if destroy did run then run create
+    # - ./molecule3.sh --base-config ./molecule/$MOLECULE_SCENARIO/provisioner.run.yml create --scenario-name $MOLECULE_SCENARIO # Rerun create step, assist with if a destroy was triggered
     - ./molecule3.sh --base-config ./molecule/$MOLECULE_SCENARIO/provisioner.run.yml prepare --force --scenario-name $MOLECULE_SCENARIO # This is the secondary prepare step which does the run file step
     - ./molecule3.sh --base-config ./molecule/$MOLECULE_SCENARIO/provisioner.run.yml test --scenario-name $MOLECULE_SCENARIO --destroy=never
 

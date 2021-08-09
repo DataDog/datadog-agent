@@ -1,18 +1,5 @@
 ---
-- name: Check if no instances exists before creating more
-  ec2_instance_info:
-    filters:
-      instance-state-name: [ "running" ]
-      "tag:ci_sts_major_python_version": "{{ ci_sts_major_python_version }}"
-      "tag:agent_current_branch": "{{ agent_current_branch }}"
-      "tag:molecule_scenario_name": "{{ molecule_scenario_name }}"
-      "tag:molecule_run_id": "{{ molecule_run_id }}"
-      "tag:dev": "{{ dev_mode }}"
-      "tag:usage": "molecule-build"
-  register: find_instances
-
 - name: Create molecule instance(s)
-  when: find_instances is undefined or find_instances|length == 0
   ec2_instance:
     key_name: "{{ keypair_name }}"
     image_id: "{{ item.image }}"

@@ -6,7 +6,6 @@
   until: "ec2_jobs.finished"
   retries: 300
   with_items: "{{ server.results }}"
-  when: server is defined and ec2_jobs is defined
 
 - name: Populate instance config dict
   set_fact:
@@ -20,15 +19,15 @@
       'instance_ids': "{{ item.instance_ids }}", }
   with_items: "{{ ec2_jobs.results }}"
   register: "instance_config_dict"
-  when: ec2_jobs is defined and server.changed | bool
+  when: server.changed | bool
 
 - name: Convert instance config dict to a list
   set_fact:
     instance_conf: "{{ instance_config_dict.results | map(attribute='ansible_facts.instance_conf_dict') | list }}"
-  when: server is defined and server.changed | bool
+  when: server.changed | bool
 
 - name: Dump instance config
   copy:
     content: "{{ instance_conf | to_json | from_json | molecule_to_yaml | molecule_header }}"
     dest: "{{ molecule_instance_config }}"
-  when: server is defined and server.changed | bool
+  when: server.changed | bool
