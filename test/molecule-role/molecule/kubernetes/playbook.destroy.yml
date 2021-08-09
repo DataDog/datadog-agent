@@ -33,6 +33,9 @@
       retries: 300
       with_items: "{{ server.results }}"
 
+    - include_tasks: ../common/destroy/destroy-branch-molecule-instances.yml
+    - include_tasks: ../common/destroy/destroy-own-molecule-instances.yml
+
     - name: Delete remote keypair
       ec2_key:
         name: "{{ keypair_name }}"
