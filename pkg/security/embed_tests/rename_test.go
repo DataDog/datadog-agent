@@ -1,3 +1,4 @@
+// Code generated - DO NOT EDIT.
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -5,7 +6,7 @@
 
 // +build functionaltests
 
-package tests
+package embed_tests
 
 import (
 	"fmt"
@@ -206,158 +207,8 @@ func TestRenameInvalidate(t *testing.T) {
 	}
 }
 
-func TestRenameReuseInode(t *testing.T) {
-	ruleDefs := []*rules.RuleDefinition{{
-		ID:         "test_rule",
-		Expression: `open.file.path == "{{.Root}}/test-rename-reuse-inode"`,
-	}, {
-		ID:         "test_rule2",
-		Expression: `open.file.path == "{{.Root}}/test-rename-new"`,
-	}}
+// At this point, the inode of test-rename-new was freed. We then
+// create a new file - with xfs, it will recycle the inode. This test
+// checks that we properly invalidated the cache entry of this inode.
 
-	testDrive, err := newTestDrive("xfs", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer testDrive.Close()
-
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{testDir: testDrive.Root()})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-
-	testOldFile, _, err := test.Path("test-rename-old")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	f, err := os.Create(testOldFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(testOldFile)
-
-	if err := f.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	testNewFile, _, err := test.Path("test-rename-new")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(testNewFile)
-
-	err = test.GetSignal(t, func() error {
-		f, err = os.Create(testNewFile)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return nil
-	}, func(event *sprobe.Event, rule *rules.Rule) {
-		assert.Equal(t, "open", event.GetType(), "wrong event type")
-	})
-	if err != nil {
-		t.Error(err)
-	}
-
-	testNewFileInode := getInode(t, testNewFile)
-
-	if err := f.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := os.Rename(testOldFile, testNewFile); err != nil {
-		t.Fatal(err)
-	}
-
-	// At this point, the inode of test-rename-new was freed. We then
-	// create a new file - with xfs, it will recycle the inode. This test
-	// checks that we properly invalidated the cache entry of this inode.
-
-	testReuseInodeFile, _, err := test.Path("test-rename-reuse-inode")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	defer os.Remove(testReuseInodeFile)
-
-	err = test.GetSignal(t, func() error {
-		f, err = os.Create(testReuseInodeFile)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return f.Close()
-	}, func(event *sprobe.Event, rule *rules.Rule) {
-		assert.Equal(t, "open", event.GetType(), "wrong event type")
-		assertFieldEqual(t, event, "open.file.inode", int(testNewFileInode))
-		assertFieldEqual(t, event, "open.file.path", testReuseInodeFile)
-
-		if !validateOpenSchema(t, event) {
-			t.Error(event.String())
-		}
-	})
-	if err != nil {
-		t.Error(err)
-	}
-}
-
-func TestRenameFolder(t *testing.T) {
-	rule := &rules.RuleDefinition{
-		ID:         "test_rule",
-		Expression: `open.file.name == "test-rename" && (open.flags & O_CREAT) > 0`,
-	}
-
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-
-	testOldFolder, _, err := test.Path(path.Dir("folder/folder-old/test-rename"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	os.MkdirAll(testOldFolder, os.ModePerm)
-
-	testNewFolder, _, err := test.Path(path.Dir("folder/folder-new/test-rename"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var filename atomic.Value
-	filename.Store(fmt.Sprintf("%s/test-rename", testOldFolder))
-	defer os.Remove(filename.Load().(string))
-
-	for i := 0; i != 5; i++ {
-		err = test.GetSignal(t, func() error {
-			testFile, err := os.OpenFile(filename.Load().(string), os.O_RDWR|os.O_CREATE, 0755)
-			if err != nil {
-				t.Fatal(err)
-			}
-			return testFile.Close()
-		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, "open", event.GetType(), "wrong event type")
-			assertFieldEqual(t, event, "open.file.path", filename.Load().(string))
-
-			if !validateOpenSchema(t, event) {
-				t.Error(event.String())
-			}
-
-			// swap
-			if err := os.Rename(testOldFolder, testNewFolder); err != nil {
-				t.Error(err)
-			}
-
-			old := testOldFolder
-			testOldFolder = testNewFolder
-			testNewFolder = old
-
-			filename.Store(fmt.Sprintf("%s/test-rename", testOldFolder))
-		})
-		if err != nil {
-			t.Error(err)
-		}
-	}
-}
+// swap
