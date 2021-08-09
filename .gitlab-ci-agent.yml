@@ -698,7 +698,6 @@ pre_release_cluster_agent_image:
       when: always
     - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-/
       when: never
-    - when: always
 
 
 molecule_compose_create:
@@ -768,7 +767,6 @@ molecule_compose_cleanup:
       when: always
     - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-/
       when: never
-    - when: always
 
 molecule_integrations_create:
   variables:
@@ -834,8 +832,6 @@ molecule_integrations_cleanup:
       when: always
     - if: $MAJOR_VERSION == "3" && $CI_COMMIT_MESSAGE =~ /\[molecule\-/
       when: never
-    - if: $MAJOR_VERSION == "3"
-      when: always
 
 # molecule_kubernetes_create:
 #   resource_group: eks_test_cluster
@@ -1043,8 +1039,6 @@ molecule_secrets_cleanup:
       when: always
     - if: $MAJOR_VERSION == "3" && $CI_COMMIT_MESSAGE =~ /\[molecule\-/
       when: never
-    - if: $MAJOR_VERSION == "3"
-      when: always
 
 molecule_swarm_create:
   variables:
@@ -1110,7 +1104,6 @@ molecule_swarm_cleanup:
       when: always
     - if: $CI_COMMIT_MESSAGE =~ /\[molecule\-/
       when: never
-    - when: always
 
 molecule_vms_create:
   variables:
