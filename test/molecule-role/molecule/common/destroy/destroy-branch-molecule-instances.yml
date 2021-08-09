@@ -3,6 +3,7 @@
   debug:
     msg: "{{ dev_mode }}"
 
+# Do not edit or change this function, If the filters are removed then you will delete ec2 instance that do not belong to molecule
 - name: "Gather existing EC2 instances for the branch '{{ agent_current_branch }}'"
   ec2_instance_info:
     filters:
