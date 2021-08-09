@@ -34,7 +34,7 @@ jobs:
           GOPATH: /home/runner/work/datadog-agent/go
         # Override language selection by uncommenting this and choosing your languages
         with:
-          languages: go, javascript, csharp, python, cpp
+          languages: go, javascript, python, cpp
           source-root: go/src/github.com/DataDog/datadog-agent
 
       # Autobuild attempts to build any compiled languages (C/C++, C#, or Java).
