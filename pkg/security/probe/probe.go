@@ -209,7 +209,7 @@ func (p *Probe) Init(client *statsd.Client) error {
 // Start the runtime security probe
 func (p *Probe) Start() error {
 	p.wg.Add(1)
-	go p.reOrderer.Start(p.ctx, &p.wg)
+	go p.reOrderer.Start(&p.wg)
 
 	if err := p.manager.Start(); err != nil {
 		return err
@@ -776,12 +776,19 @@ func (p *Probe) Snapshot() error {
 
 // Close the probe
 func (p *Probe) Close() error {
+	// Cancelling the context will stop the reorderer = we won't dequeue events anymore and new events from the
+	// perf map reader are ignored
 	p.cancelFnc()
+
+	// we wait until both the reorderer and the monitor are stopped
 	p.wg.Wait()
 
+	// Stopping the manager will stop the perf map reader and unload eBPF programs
 	if err := p.manager.Stop(manager.CleanAll); err != nil {
 		return err
 	}
+
+	// when we reach this point, we do not generate nor consume events anymore, we can close the resolvers
 	return p.resolvers.Close()
 }
 
@@ -908,7 +915,8 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	}
 	p.resolvers = resolvers
 
-	p.reOrderer = NewReOrderer(p.handleEvent,
+	p.reOrderer = NewReOrderer(ctx,
+		p.handleEvent,
 		ExtractEventInfo,
 		ReOrdererOpts{
 			QueueSize:  10000,
