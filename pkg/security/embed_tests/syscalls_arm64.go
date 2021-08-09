@@ -1,6 +1,6 @@
 // Code generated - DO NOT EDIT.
-// +build functionaltests,!amd64 stresstests,!amd64
+// +build !amd64,!functionaltests,!stresstests
 
-package embed_tests
+package embedtests
 
 var supportedSyscalls = map[string]uintptr{}

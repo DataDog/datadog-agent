@@ -4,9 +4,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build functionaltests,!386
+// +build !386,!functionaltests,!stresstests
 
-package embed_tests
+package embedtests
 
 import (
 	"os"

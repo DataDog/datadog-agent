@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"text/template"
 )
 
 func main() {
@@ -33,7 +34,7 @@ func main() {
 
 	flag.StringVar(&input, "input", "", "Go tests folder")
 	flag.StringVar(&output, "output", "", "Go embeded tests output folder")
-	flag.StringVar(&pkgName, "pkg_name", "embed_tests", "Output package name")
+	flag.StringVar(&pkgName, "pkg_name", "embedtests", "Output package name")
 	flag.Parse()
 
 	if input == "" || output == "" {
@@ -41,11 +42,9 @@ func main() {
 	}
 
 	os.RemoveAll(output)
-	if err := prepareOutputDir(output); err != nil {
-		panic(err)
-	}
 
 	fset := token.NewFileSet()
+	totalTests := make([]string, 0)
 
 	if err := filepath.Walk(input, func(filepath string, info fs.FileInfo, err error) error {
 		opts := NewEmbedFileOptions(filepath, input, output)
@@ -54,23 +53,60 @@ func main() {
 				return err
 			}
 		} else if strings.HasSuffix(path.Base(filepath), "_test.go") {
-			if err := embedTestFile(fset, opts, pkgName); err != nil {
+			tests, err := embedTestFile(fset, opts, pkgName)
+			if err != nil {
 				return err
 			}
+			totalTests = append(totalTests, tests...)
 		}
 		return nil
 	}); err != nil {
 		panic(err)
 	}
+
+	if err := finishOutputDir(output, pkgName, totalTests); err != nil {
+		panic(err)
+	}
 }
 
-func prepareOutputDir(outputDir string) error {
-	if err := os.Mkdir(outputDir, 0755); err != nil {
+type DriverInfo struct {
+	PkgName   string
+	TestNames []string
+}
+
+func finishOutputDir(outputDir string, pkgName string, testNames []string) error {
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return err
 	}
 
 	gitignoreContent := "testsuite\n"
-	return ioutil.WriteFile(path.Join(outputDir, ".gitignore"), []byte(gitignoreContent), 0644)
+	if err := ioutil.WriteFile(path.Join(outputDir, ".gitignore"), []byte(gitignoreContent), 0644); err != nil {
+		return err
+	}
+
+	templateCode, err := ioutil.ReadFile("pkg/security/tests/embed_generator/test_driver.go.tmpl")
+	if err != nil {
+		return err
+	}
+
+	tmpl, err := template.New("test-driver").Parse(string(templateCode))
+	if err != nil {
+		return err
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, DriverInfo{
+		PkgName:   pkgName,
+		TestNames: testNames,
+	}); err != nil {
+		return err
+	}
+
+	if err := writeOutputFile(path.Join(outputDir, "driver.go"), buf.Bytes(), true); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type EmbedFileOptions struct {
@@ -81,6 +117,11 @@ type EmbedFileOptions struct {
 func NewEmbedFileOptions(inputPath, inputDir, outputDir string) EmbedFileOptions {
 	fileName := strings.TrimPrefix(inputPath, inputDir)
 	outputPath := path.Join(outputDir, fileName)
+
+	if strings.HasSuffix(outputPath, "_test.go") {
+		outputPath = strings.TrimSuffix(outputPath, "_test.go") + ".go"
+	}
+
 	return EmbedFileOptions{
 		inputPath:  inputPath,
 		outputPath: outputPath,
@@ -96,15 +137,16 @@ func embedVerbatimFile(opts EmbedFileOptions, pkgName string) error {
 	}
 
 	content = packageNameReplacer.ReplaceAll(content, []byte(fmt.Sprintf("package %v\n", pkgName)))
-	return writeOutputFile(opts.outputPath, content)
+	return writeOutputFile(opts.outputPath, content, false)
 }
 
-func embedTestFile(fset *token.FileSet, opts EmbedFileOptions, pkgName string) error {
+func embedTestFile(fset *token.FileSet, opts EmbedFileOptions, pkgName string) ([]string, error) {
 	node, err := parser.ParseFile(fset, opts.inputPath, nil, parser.ParseComments)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	tests := make([]string, 0)
 	shouldExportEmbedFile := false
 	resDecls := make([]ast.Decl, 0, len(node.Decls))
 	for _, decl := range node.Decls {
@@ -115,6 +157,7 @@ func embedTestFile(fset *token.FileSet, opts EmbedFileOptions, pkgName string) e
 			keep = info.keep
 			if info.isTest {
 				shouldExportEmbedFile = true
+				tests = append(tests, funcDecl.Name.Name)
 			}
 		} else {
 			keep = true
@@ -131,13 +174,16 @@ func embedTestFile(fset *token.FileSet, opts EmbedFileOptions, pkgName string) e
 
 		var buf bytes.Buffer
 		if err := printer.Fprint(&buf, fset, node); err != nil {
-			return err
+			return nil, err
 		}
 
-		return writeOutputFile(opts.outputPath, buf.Bytes())
+		if err := writeOutputFile(opts.outputPath, buf.Bytes(), false); err != nil {
+			return nil, err
+		}
+		return tests, nil
 	}
 
-	return nil
+	return nil, nil
 }
 
 var embedCmdRegex = regexp.MustCompile(`//\s*test:embed`)
@@ -220,7 +266,7 @@ func shouldKeepVerbatim(filePath string) bool {
 
 const editProtector = "// Code generated - DO NOT EDIT.\n"
 
-func writeOutputFile(outputPath string, content []byte) error {
+func writeOutputFile(outputPath string, content []byte, skipBuildConstraintConversion bool) error {
 	// create all needed subdirectories
 	dirPath := path.Dir(outputPath)
 	if err := os.MkdirAll(dirPath, 0755); err != nil {
@@ -235,7 +281,18 @@ func writeOutputFile(outputPath string, content []byte) error {
 	defer tmp.Close()
 
 	prefixedContent := append([]byte(editProtector), content...)
-	if _, err := tmp.Write(prefixedContent); err != nil {
+	var finalContent []byte
+	if skipBuildConstraintConversion {
+		finalContent = prefixedContent
+	} else {
+		buildEditedContent, err := convertBuildTags(string(prefixedContent))
+		if err != nil {
+			return err
+		}
+		finalContent = []byte(buildEditedContent)
+	}
+
+	if _, err := tmp.Write(finalContent); err != nil {
 		return err
 	}
 
@@ -245,7 +302,7 @@ func writeOutputFile(outputPath string, content []byte) error {
 
 	cmd := exec.Command("go", "run", "golang.org/x/tools/cmd/goimports", "-w", tmp.Name())
 	if err := cmd.Run(); err != nil {
-		panic(err)
+		return err
 	}
 
 	return os.Rename(tmp.Name(), outputPath)
