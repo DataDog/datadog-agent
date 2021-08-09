@@ -85,7 +85,7 @@ func genTags(count int, div int) ([]string, []string) {
 	var tags []string
 	uniqMap := make(map[string]struct{})
 	for i := 0; i < count; i++ {
-		tag := fmt.Sprintf("tag%d:value%d", i / div, i / div)
+		tag := fmt.Sprintf("tag%d:value%d", i/div, i/div)
 		tags = append(tags, tag)
 		uniqMap[tag] = struct{}{}
 	}
