@@ -23,7 +23,7 @@
 
 - name: Destroy molecule instance(s)
   ec2_instance:
-    state: stopped
+    state: absent
     instance_ids: "{{ item.instance_id }}"
   register: own_instances_server
   with_items: "{{ own_instances.instances }}"
