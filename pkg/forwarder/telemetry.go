@@ -7,6 +7,7 @@ package forwarder
 
 import (
 	"expvar"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -100,7 +101,11 @@ func initOrchestratorExpVars() {
 }
 
 func bumpOrchestratorPayload(nodeType int) {
-	e := transactionsIntakeOrchestrator[orchestrator.NodeType(nodeType)]
+	e, ok := transactionsIntakeOrchestrator[orchestrator.NodeType(nodeType)]
+	if !ok {
+		log.Errorf("Unknown NodeType %v, cannot bump expvar", nodeType)
+		return
+	}
 	e.Add(1)
 }
 
