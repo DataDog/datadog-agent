@@ -59,8 +59,8 @@ jobs:
 
       - env:
           GOPATH: /home/runner/work/datadog-agent/go
-        working-directory: go/src/github.com/DataDog/datadog-agent
         run: |
+          cd go/src/github.com/DataDog/datadog-agent
           export CGO_LDFLAGS=" -L${GITHUB_WORKSPACE}/go/src/github.com/DataDog/datadog-agent/rtloader/build/rtloader -ldl "
           export CGO_CFLAGS=" -I${GITHUB_WORKSPACE}/go/src/github.com/DataDog/datadog-agent/rtloader/include  -I${GITHUB_WORKSPACE}/go/src/github.com/DataDog/datadog-agent/rtloader/common "
           invoke -d install-tools
