@@ -69,7 +69,7 @@ jobs:
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v1
-        # with:
-        #   checkout_path: go/src/github.com/DataDog/datadog-agent
+        with:
+          checkout_path: go/src/github.com/DataDog/datadog-agent
         env:
           GOPATH: /home/runner/work/datadog-agent/go
