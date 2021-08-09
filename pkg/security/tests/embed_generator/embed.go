@@ -17,13 +17,12 @@ import (
 	"io/fs"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
 )
-
-const editProtector = "// Code generated - DO NOT EDIT.\n"
 
 func main() {
 	var (
@@ -97,15 +96,7 @@ func embedVerbatimFile(opts EmbedFileOptions, pkgName string) error {
 	}
 
 	content = packageNameReplacer.ReplaceAll(content, []byte(fmt.Sprintf("package %v\n", pkgName)))
-
-	// create all needed subdirectories
-	dirPath := path.Dir(opts.outputPath)
-	if err := os.MkdirAll(dirPath, 0755); err != nil {
-		return err
-	}
-
-	prefixedContent := append([]byte(editProtector), content...)
-	return ioutil.WriteFile(opts.outputPath, prefixedContent, 0666)
+	return writeOutputFile(opts.outputPath, content)
 }
 
 func embedTestFile(fset *token.FileSet, opts EmbedFileOptions, pkgName string) error {
@@ -138,25 +129,12 @@ func embedTestFile(fset *token.FileSet, opts EmbedFileOptions, pkgName string) e
 	if shouldExportEmbedFile {
 		node.Name = ast.NewIdent(pkgName)
 
-		// create all needed subdirectories
-		dirPath := path.Dir(opts.outputPath)
-		if err := os.MkdirAll(dirPath, 0755); err != nil {
+		var buf bytes.Buffer
+		if err := printer.Fprint(&buf, fset, node); err != nil {
 			return err
 		}
 
-		f, err := os.Create(opts.outputPath)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-
-		if _, err := f.WriteString(editProtector); err != nil {
-			return err
-		}
-
-		if err := printer.Fprint(f, fset, node); err != nil {
-			return err
-		}
+		return writeOutputFile(opts.outputPath, buf.Bytes())
 	}
 
 	return nil
@@ -238,4 +216,37 @@ func shouldKeepVerbatim(filePath string) bool {
 		}
 	}
 	return false
+}
+
+const editProtector = "// Code generated - DO NOT EDIT.\n"
+
+func writeOutputFile(outputPath string, content []byte) error {
+	// create all needed subdirectories
+	dirPath := path.Dir(outputPath)
+	if err := os.MkdirAll(dirPath, 0755); err != nil {
+		return err
+	}
+
+	tmp, err := ioutil.TempFile(dirPath, "temp-pre-fmt")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	defer tmp.Close()
+
+	prefixedContent := append([]byte(editProtector), content...)
+	if _, err := tmp.Write(prefixedContent); err != nil {
+		return err
+	}
+
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+
+	cmd := exec.Command("gofmt", "-s", "-w", tmp.Name())
+	if err := cmd.Run(); err != nil {
+		panic(err)
+	}
+
+	return os.Rename(tmp.Name(), outputPath)
 }
