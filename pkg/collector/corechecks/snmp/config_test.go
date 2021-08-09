@@ -1047,7 +1047,7 @@ min_collection_interval: 20
 			expectedInterval: 40 * time.Second,
 		},
 		{
-			name: "instance min_collection_interval with extra = 0",
+			name: "negative min_collection_interval",
 			// language=yaml
 			rawInstanceConfig: []byte(`
 ip_address: 1.2.3.4
