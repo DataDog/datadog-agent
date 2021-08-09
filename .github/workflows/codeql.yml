@@ -48,9 +48,12 @@ jobs:
       #    three lines and modify them (or add more) to build your code if your
       #    project uses a compiled language
 
+      - run: echo "$GOPATH/bin" >> $GITHUB_PATH
+        env:
+          GOPATH: /home/runner/work/datadog-agent/go
+
       - env:
           GOPATH: /home/runner/work/datadog-agent/go
-          PATH: "${GOPATH}/bin:${PATH}"
         working-directory: go/src/github.com/DataDog/datadog-agent
         run: |
          echo ${PATH}
