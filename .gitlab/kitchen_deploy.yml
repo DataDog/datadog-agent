@@ -16,6 +16,15 @@
 
   - printf -- "$APT_SIGNING_PRIVATE_KEY" | gpg --import --batch
 
+.setup_signing_keys_package: &setup_signing_keys_package
+  # Set up prod apt repo to get the datadog-signing-keys package
+  - echo 'deb [signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] https://apt.datadoghq.com/ stable 7' > /etc/apt/sources.list.d/datadog.list
+  - sudo touch /usr/share/keyrings/datadog-archive-keyring.gpg
+  - sudo chmod a+r /usr/share/keyrings/datadog-archive-keyring.gpg
+  - curl https://keys.datadoghq.com/DATADOG_APT_KEY_CURRENT.public | gpg --no-default-keyring --keyring /usr/share/keyrings/datadog-archive-keyring.gpg --import --batch
+
+  - apt-get install --download-only datadog-signing-keys
+
 deploy_deb_testing-a6:
   rules:
     !reference [.on_kitchen_tests_a6]
@@ -31,8 +40,13 @@ deploy_deb_testing-a6:
     - *setup_apt_signing_key
     - set +x  # make sure we don't output the creds to the build log
 
+    - *setup_signing_keys_package
+
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 6 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_6*amd64.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 6 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_6*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 6 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public ./datadog-signing-keys*.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 6 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public ./datadog-signing-keys*.deb
+
 
 deploy_deb_testing-a7:
   rules:
@@ -49,8 +63,12 @@ deploy_deb_testing-a7:
     - *setup_apt_signing_key
     - set +x  # make sure we don't output the creds to the build log
 
+    - *setup_signing_keys_package
+
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public ./datadog-signing-keys*.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public ./datadog-signing-keys*.deb
 
 deploy_rpm_testing-a6:
   rules:
