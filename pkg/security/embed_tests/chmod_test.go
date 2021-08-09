@@ -1,3 +1,4 @@
+// Code generated - DO NOT EDIT.
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -21,8 +22,8 @@ import (
 // test:embed
 func TestChmod(t *testing.T) {
 	rule := &rules.RuleDefinition{
-		ID:         "test_rule",
-		Expression: `chmod.file.path == "{{.Root}}/test-chmod" && chmod.file.destination.rights in [0707, 0717, 0757] && chmod.file.uid == 98 && chmod.file.gid == 99`,
+		ID:		"test_rule",
+		Expression:	`chmod.file.path == "{{.Root}}/test-chmod" && chmod.file.destination.rights in [0707, 0717, 0757] && chmod.file.uid == 98 && chmod.file.gid == 99`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
