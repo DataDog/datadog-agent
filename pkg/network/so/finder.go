@@ -42,6 +42,7 @@ func (f *finder) Find(filter *regexp.Regexp) (result []Library) {
 			}
 			if m, ok := mapLib[k]; ok {
 				m.PidsPath = append(m.PidsPath, pidPath)
+				mapLib[k] = m
 				continue
 			}
 
