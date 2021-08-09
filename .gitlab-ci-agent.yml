@@ -665,6 +665,13 @@ pre_release_cluster_agent_image:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/$MOLECULE_SCENARIO/provisioner.setup.yml create --scenario-name $MOLECULE_SCENARIO
 
+.molecule_base_test: &molecule_base_test
+  stage: acceptance
+  script:
+    - cd $CI_PROJECT_DIR/test
+    - ./molecule3.sh --base-config ./molecule/$MOLECULE_SCENARIO/provisioner.run.yml prepare --force --scenario-name $MOLECULE_SCENARIO
+    - ./molecule3.sh --base-config ./molecule/$MOLECULE_SCENARIO/provisioner.run.yml test --scenario-name $MOLECULE_SCENARIO --destroy=never
+
 .molecule_base_cleanup: &molecule_base_cleanup
   stage: cleanup
   <<: *molecule_base
@@ -672,13 +679,6 @@ pre_release_cluster_agent_image:
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh --base-config ./molecule/$MOLECULE_SCENARIO/provisioner.run.yml destroy --scenario-name $MOLECULE_SCENARIO
-
-.molecule_base_test: &molecule_base_test
-  stage: acceptance
-  script:
-    - cd $CI_PROJECT_DIR/test
-    - ./molecule3.sh --base-config ./molecule/$MOLECULE_SCENARIO/provisioner.run.yml prepare --force --scenario-name $MOLECULE_SCENARIO
-    - ./molecule3.sh --base-config ./molecule/$MOLECULE_SCENARIO/provisioner.run.yml test --scenario-name $MOLECULE_SCENARIO --destroy=never
 
 .molecule_base_resource_lock: &molecule_base_resource_lock
   resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$CI_COMMIT_BRANCH-$MOLECULE_SCENARIO-branch-lock"
@@ -884,8 +884,6 @@ molecule_kubernetes_cleanup:
       when: always
     - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && $CI_COMMIT_MESSAGE =~ /\[molecule\-/
       when: never
-    - if: $CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master" || $CI_COMMIT_MESSAGE =~ /\[all]/
-      when: always
 
 molecule_localinstall_create:
   variables:
@@ -951,8 +949,6 @@ molecule_localinstall_cleanup:
       when: always
     - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master") && $CI_COMMIT_MESSAGE =~ /\[molecule\-/
       when: never
-    - if: $CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master" || $CI_COMMIT_MESSAGE =~ /\[all]/
-      when: always
 
 molecule_secrets_create:
   variables:
