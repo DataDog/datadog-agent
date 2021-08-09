@@ -367,12 +367,12 @@ func (b *builder) GetCheckStatus() compliance.CheckStatusList {
 }
 
 func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) (compliance.Check, error) {
-	ruleScope, err := getRuleScope(meta, rule)
+	ruleScope, err := getRuleScope(meta, rule.Scope)
 	if err != nil {
 		return nil, err
 	}
 
-	eligible, err := b.hostMatcher(ruleScope, rule)
+	eligible, err := b.hostMatcher(ruleScope, rule.ID, rule.HostSelector)
 	if err != nil {
 		return nil, err
 	}
@@ -382,24 +382,44 @@ func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.Rul
 		return nil, ErrRuleDoesNotApply
 	}
 
-	resourceReporter := b.getRuleResourceReporter(ruleScope, *rule)
+	resourceReporter := b.getRuleResourceReporter(ruleScope, rule.ResourceType)
 	return b.newCheck(meta, ruleScope, rule, resourceReporter)
 }
 
-func getRuleScope(meta *compliance.SuiteMeta, rule *compliance.Rule) (compliance.RuleScope, error) {
+func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance.RegoRule) (compliance.Check, error) {
+	ruleScope, err := getRuleScope(meta, rule.Scope)
+	if err != nil {
+		return nil, err
+	}
+
+	eligible, err := b.hostMatcher(ruleScope, rule.ID, rule.HostSelector)
+	if err != nil {
+		return nil, err
+	}
+
+	if !eligible {
+		log.Debugf("rule %s/%s discarded by hostMatcher", meta.Framework, rule.ID)
+		return nil, ErrRuleDoesNotApply
+	}
+
+	resourceReporter := b.getRuleResourceReporter(ruleScope, rule.ResourceType)
+	return b.newRegoCheck(meta, ruleScope, rule, resourceReporter)
+}
+
+func getRuleScope(meta *compliance.SuiteMeta, scopeList compliance.RuleScopeList) (compliance.RuleScope, error) {
 	switch {
-	case rule.Scope.Includes(compliance.DockerScope):
+	case scopeList.Includes(compliance.DockerScope):
 		return compliance.DockerScope, nil
-	case rule.Scope.Includes(compliance.KubernetesNodeScope):
+	case scopeList.Includes(compliance.KubernetesNodeScope):
 		return compliance.KubernetesNodeScope, nil
-	case rule.Scope.Includes(compliance.KubernetesClusterScope):
+	case scopeList.Includes(compliance.KubernetesClusterScope):
 		return compliance.KubernetesClusterScope, nil
 	default:
 		return "", ErrRuleScopeNotSupported
 	}
 }
 
-func (b *builder) kubeResourceReporter(rule compliance.Rule, resourceType string) resourceReporter {
+func (b *builder) kubeResourceReporter(resourceType string) resourceReporter {
 	return func(report *compliance.Report) compliance.ReportResource {
 		var clusterID string
 		var err error
@@ -415,15 +435,11 @@ func (b *builder) kubeResourceReporter(rule compliance.Rule, resourceType string
 			clusterID = b.Hostname()
 		}
 
-		if !report.Aggregated && rule.ResourceType == "" && strings.HasPrefix(report.Resource.Type, "kube_") {
+		if !report.Aggregated && resourceType == "" && strings.HasPrefix(report.Resource.Type, "kube_") {
 			return compliance.ReportResource{
 				ID:   clusterID + "_" + report.Resource.ID,
 				Type: report.Resource.Type,
 			}
-		}
-
-		if rule.ResourceType != "" {
-			resourceType = rule.ResourceType
 		}
 
 		return compliance.ReportResource{
@@ -433,18 +449,18 @@ func (b *builder) kubeResourceReporter(rule compliance.Rule, resourceType string
 	}
 }
 
-func (b *builder) getRuleResourceReporter(scope compliance.RuleScope, rule compliance.Rule) resourceReporter {
+func (b *builder) getRuleResourceReporter(scope compliance.RuleScope, resourceType string) resourceReporter {
 	switch scope {
 	case compliance.DockerScope:
 		return func(report *compliance.Report) compliance.ReportResource {
-			if !report.Aggregated && rule.ResourceType == "" && strings.HasPrefix(report.Resource.Type, "docker_") {
+			if !report.Aggregated && resourceType == "" && strings.HasPrefix(report.Resource.Type, "docker_") {
 				return compliance.ReportResource{
 					ID:   b.Hostname() + "_" + report.Resource.ID,
 					Type: report.Resource.Type,
 				}
 			}
 
-			resourceType := rule.ResourceType
+			resourceType := resourceType
 			if resourceType == "" {
 				resourceType = "docker_daemon"
 			}
@@ -456,10 +472,10 @@ func (b *builder) getRuleResourceReporter(scope compliance.RuleScope, rule compl
 		}
 
 	case compliance.KubernetesNodeScope:
-		return b.kubeResourceReporter(rule, "kubernetes_node")
+		return b.kubeResourceReporter("kubernetes_node")
 
 	case compliance.KubernetesClusterScope:
-		return b.kubeResourceReporter(rule, "kubernetes_cluster")
+		return b.kubeResourceReporter("kubernetes_cluster")
 
 	default:
 		return func(report *compliance.Report) compliance.ReportResource {
@@ -471,23 +487,23 @@ func (b *builder) getRuleResourceReporter(scope compliance.RuleScope, rule compl
 	}
 }
 
-func (b *builder) hostMatcher(scope compliance.RuleScope, rule *compliance.Rule) (bool, error) {
+func (b *builder) hostMatcher(scope compliance.RuleScope, ruleID string, hostSelector string) (bool, error) {
 	switch scope {
 	case compliance.DockerScope:
 		if b.dockerClient == nil {
-			log.Infof("rule %s skipped - not running in a docker environment", rule.ID)
+			log.Infof("rule %s skipped - not running in a docker environment", ruleID)
 			return false, nil
 		}
 	case compliance.KubernetesClusterScope:
 		if b.kubeClient == nil {
-			log.Infof("rule %s skipped - not running as Cluster Agent", rule.ID)
+			log.Infof("rule %s skipped - not running as Cluster Agent", ruleID)
 			return false, nil
 		}
 	case compliance.KubernetesNodeScope:
 		if config.IsKubernetes() {
-			return b.isKubernetesNodeEligible(rule.HostSelector)
+			return b.isKubernetesNodeEligible(hostSelector)
 		}
-		log.Infof("rule %s skipped - not running on a Kubernetes node", rule.ID)
+		log.Infof("rule %s skipped - not running on a Kubernetes node", ruleID)
 		return false, nil
 	}
 
@@ -588,6 +604,29 @@ func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.Rule
 
 		eventNotify: notify,
 	}, nil
+}
+
+func (b *builder) newRegoCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.RegoRule, handler resourceReporter) (compliance.Check, error) {
+	check := &regoCheck{
+		Env: b,
+
+		ruleID:      rule.ID,
+		description: rule.Description,
+		interval:    b.checkInterval,
+
+		suiteMeta: meta,
+
+		resourceHandler: handler,
+		scope:           ruleScope,
+
+		resources: rule.Resources,
+	}
+
+	if err := check.compileQuery(rule.Module, rule.Query); err != nil {
+		return nil, err
+	}
+
+	return check, nil
 }
 
 func (b *builder) Reporter() event.Reporter {

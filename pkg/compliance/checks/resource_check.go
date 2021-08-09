@@ -162,21 +162,9 @@ func newResourceCheck(env env.Env, ruleID string, resource compliance.Resource) 
 	switch kind {
 	case compliance.KindCustom:
 		return newCustomCheck(ruleID, resource)
-	case compliance.KindAudit:
-		if env.AuditClient() == nil {
-			return nil, log.Errorf("%s: audit client not initialized", ruleID)
-		}
-	case compliance.KindDocker:
-		if env.DockerClient() == nil {
-			return nil, log.Errorf("%s: docker client not initialized", ruleID)
-		}
-	case compliance.KindKubernetes:
-		if env.KubeClient() == nil {
-			return nil, log.Errorf("%s: kube client not initialized", ruleID)
-		}
 	}
 
-	resolve, reportedFields, err := resourceKindToResolverAndFields(kind)
+	resolve, reportedFields, err := resourceKindToResolverAndFields(env, ruleID, kind)
 	if err != nil {
 		return nil, log.Errorf("%s: failed to find resource resolver for resource kind: %s", ruleID, kind)
 	}
@@ -198,7 +186,7 @@ func newResourceCheck(env env.Env, ruleID string, resource compliance.Resource) 
 	}, nil
 }
 
-func resourceKindToResolverAndFields(kind compliance.ResourceKind) (resolveFunc, []string, error) {
+func resourceKindToResolverAndFields(env env.Env, ruleID string, kind compliance.ResourceKind) (resolveFunc, []string, error) {
 	switch kind {
 	case compliance.KindFile:
 		return resolveFile, fileReportedFields, nil
@@ -211,8 +199,14 @@ func resourceKindToResolverAndFields(kind compliance.ResourceKind) (resolveFunc,
 	case compliance.KindProcess:
 		return resolveProcess, processReportedFields, nil
 	case compliance.KindDocker:
+		if env.DockerClient() == nil {
+			return nil, nil, log.Errorf("%s: docker client not initialized", ruleID)
+		}
 		return resolveDocker, dockerReportedFields, nil
 	case compliance.KindKubernetes:
+		if env.KubeClient() == nil {
+			return nil, nil, log.Errorf("%s: kube client not initialized", ruleID)
+		}
 		return resolveKubeapiserver, kubeResourceReportedFields, nil
 	default:
 		return nil, nil, ErrResourceKindNotSupported

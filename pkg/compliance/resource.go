@@ -48,6 +48,18 @@ type Resource struct {
 	Fallback      *Fallback           `yaml:"fallback,omitempty"`
 }
 
+// RegoResource describes supported resource types observed by a Rego Rule
+type RegoResource struct {
+	File          *File               `yaml:"file,omitempty"`
+	Process       *Process            `yaml:"process,omitempty"`
+	Group         *Group              `yaml:"group,omitempty"`
+	Command       *Command            `yaml:"command,omitempty"`
+	Audit         *Audit              `yaml:"audit,omitempty"`
+	Docker        *DockerResource     `yaml:"docker,omitempty"`
+	KubeApiserver *KubernetesResource `yaml:"kubeApiserver,omitempty"`
+	Custom        *Custom             `yaml:"custom,omitempty"`
+}
+
 // Kind returns ResourceKind of the resource
 func (r *Resource) Kind() ResourceKind {
 	switch {

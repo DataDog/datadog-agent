@@ -35,8 +35,9 @@ type SuiteMeta struct {
 
 // Suite represents a set of compliance checks reporting events
 type Suite struct {
-	Meta  SuiteMeta `yaml:",inline"`
-	Rules []Rule    `yaml:"rules,omitempty"`
+	Meta      SuiteMeta  `yaml:",inline"`
+	Rules     []Rule     `yaml:"rules,omitempty"`
+	RegoRules []RegoRule `yaml:"regos,omitempty"`
 }
 
 // ParseSuite loads a single compliance suite
@@ -50,6 +51,7 @@ func ParseSuite(config string) (*Suite, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	s := &Suite{}
 	err = yaml.Unmarshal(f, s)
 	if err != nil {

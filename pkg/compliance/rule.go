@@ -18,6 +18,18 @@ type Rule struct {
 	Resources    []Resource    `yaml:"resources,omitempty"`
 }
 
+// RegoRule defines a rule in a compliance config
+type RegoRule struct {
+	ID           string         `yaml:"id"`
+	Description  string         `yaml:"description,omitempty"`
+	Scope        RuleScopeList  `yaml:"scope,omitempty"`
+	HostSelector string         `yaml:"hostSelector,omitempty"`
+	ResourceType string         `yaml:"resourceType,omitempty"`
+	Resources    []RegoResource `yaml:"resources,omitempty"`
+	Module       string         `yaml:"module,omitempty"`
+	Query        string         `yaml:"query,omitempty"`
+}
+
 // RuleScope defines scope for applicability of a rule
 type RuleScope string
 
