@@ -562,7 +562,7 @@ func NewEventSerializer(event *Event) *EventSerializer {
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.SetXAttr.Retval)
-	case model.FileUtimeEventType:
+	case model.FileUtimesEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Utimes.File, event),
 			Destination: &FileSerializer{
