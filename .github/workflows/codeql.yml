@@ -27,7 +27,8 @@ jobs:
           fetch-depth: 0
           path: go/src/github.com/DataDog/datadog-agent
 
-      - run: |
+      - working-directory: go/src/github.com/DataDog/datadog-agent
+        run: |
           pip3 install -r requirements.txt
           echo "CODEQL_PYTHON=$(which python)" >> $GITHUB_ENV
 
