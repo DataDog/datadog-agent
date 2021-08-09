@@ -64,7 +64,7 @@ delete_docker_tag:
     !reference [.on_main_manual]
   stage: maintenance_jobs
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-notary:v2718650-9ce6565-0.6.1-py3
-  tags: ["runner:docker", "size:large"]
+  tags: ["runner:docker"]
   dependencies: []
   variables:
     IMAGE: ""  # image name, for example "agent"

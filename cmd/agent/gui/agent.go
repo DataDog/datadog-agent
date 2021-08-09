@@ -140,7 +140,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		jmxLogFile = common.DefaultJmxLogFile
 	}
 
-	filePath, e := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, nil)
+	filePath, e := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, nil, nil)
 	if e != nil {
 		w.Write([]byte("Error creating flare zipfile: " + e.Error()))
 		log.Errorf("Error creating flare zipfile: " + e.Error())

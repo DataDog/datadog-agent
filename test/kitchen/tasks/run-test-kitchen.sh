@@ -121,11 +121,19 @@ berks vendor ./cookbooks
 
 set +o pipefail
 
+# Initially test every suite, as we only generate those we want to run
+test_suites=".*"
 # This for loop retries kitchen tests failing because of infrastructure/networking issues
 for attempt in $(seq 0 ${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}); do
-  # Test every suite, as we only generate those we want to run
-  bundle exec kitchen test ".*" -c -d always 2>&1 | tee /tmp/runlog$attempt
+  bundle exec kitchen verify "$test_suites" -c -d always 2>&1 | tee /tmp/runlog$attempt
   result=${PIPESTATUS[0]}
+  # Before destroying the kitchen machines, get the list of failed suites,
+  # as their status will be reset to non-failing once they're destroyed.
+  # failing_test_suites is a newline-separated list of the failing test suite names.
+  failing_test_suites=$(bundle exec kitchen list --json | jq -cr "[ .[] | select( .last_error != null ) ] | map( .instance ) | .[]")
+
+  # Then, destroy the kitchen machines
+  bundle exec kitchen destroy "$test_suites"
   if [ "$result" -eq 0 ]; then
       # if kitchen test succeeded, exit with 0
       exit 0
@@ -135,9 +143,14 @@ for attempt in $(seq 0 ${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}); do
       exit 1
     else
       cp -R ${DD_AGENT_TESTING_DIR}/.kitchen/logs ${DD_AGENT_TESTING_DIR}/.kitchen/logs-${attempt}
+      # Only keep test suites that have a non-null error code
+      # Build the result as a regexp: "test_suite1|test_suite2|test_suite3", as kitchen only
+      # supports one instance name or a regexp as argument.
+      test_suites=$(echo -n "$failing_test_suites" | tr '\n' '|')
     fi
   fi
 done
+
 
 # if we ran out of attempts because of infrastructure/networking issues, exit with 1
 echo "Ran out of retry attempts"

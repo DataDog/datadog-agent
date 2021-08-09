@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package serverless
+package tags
 
 import (
 	"fmt"
@@ -25,9 +25,16 @@ const (
 	awsAccountKey            = "aws_account"
 	resourceKey              = "resource"
 	executedVersionKey       = "executedversion"
+	extensionVersionKey      = "dd_extension_version"
 )
 
-func buildTagMap(arn string, configTags []string) map[string]string {
+// currentExtensionVersion represents the current version of the Datadog Lambda Extension.
+// It is applied to all telemetry as a tag.
+// It is replaced at build time with an actual version number.
+var currentExtensionVersion = "xxx"
+
+// BuildTagMap builds a map of tag based on the arn and user defined tags
+func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags := make(map[string]string)
 
 	for _, tag := range configTags {
@@ -40,6 +47,7 @@ func buildTagMap(arn string, configTags []string) map[string]string {
 	tags = setIfNotEmpty(tags, traceOriginMetadataKey, traceOriginMetadataValue)
 	tags = setIfNotEmpty(tags, computeStatsKey, computeStatsValue)
 	tags = setIfNotEmpty(tags, functionARNKey, arn)
+	tags = setIfNotEmpty(tags, extensionVersionKey, currentExtensionVersion)
 
 	parts := strings.Split(arn, ":")
 	if len(parts) < 6 {
@@ -63,7 +71,8 @@ func buildTagMap(arn string, configTags []string) map[string]string {
 	return tags
 }
 
-func buildTagsFromMap(tags map[string]string) []string {
+// BuildTagsFromMap builds an array of tag based on map of tags
+func BuildTagsFromMap(tags map[string]string) []string {
 	tagsMap := make(map[string]string)
 	tagBlackList := []string{traceOriginMetadataKey, computeStatsKey}
 	for k, v := range tags {
@@ -79,7 +88,8 @@ func buildTagsFromMap(tags map[string]string) []string {
 	return tagsArray
 }
 
-func buildTracerTags(tags map[string]string) map[string]string {
+// BuildTracerTags builds a map of tag from an existing map of tag removing useless tags for traces
+func BuildTracerTags(tags map[string]string) map[string]string {
 	tagsMap := make(map[string]string)
 	tagBlackList := []string{resourceKey}
 	for k, v := range tags {
@@ -89,6 +99,12 @@ func buildTracerTags(tags map[string]string) map[string]string {
 		delete(tagsMap, blackListKey)
 	}
 	return tagsMap
+}
+
+// AddColdStartTag appends the cold_start tag to existing tags
+func AddColdStartTag(tags []string, coldStart bool) []string {
+	tags = append(tags, fmt.Sprintf("cold_start:%v", coldStart))
+	return tags
 }
 
 func setIfNotEmpty(tagMap map[string]string, key string, value string) map[string]string {

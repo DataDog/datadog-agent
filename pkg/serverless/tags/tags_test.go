@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package serverless
+package tags
 
 import (
 	"os"
@@ -32,7 +32,7 @@ func TestBuildTracerTags(t *testing.T) {
 		"resource": "value1",
 		"key1":     "value1",
 	}
-	resultTagsMap := buildTracerTags(tagsMap)
+	resultTagsMap := BuildTracerTags(tagsMap)
 	assert.Equal(t, 2, len(resultTagsMap))
 	assert.Equal(t, "value0", resultTagsMap["key0"])
 	assert.Equal(t, "value1", resultTagsMap["key1"])
@@ -47,7 +47,7 @@ func TestBuildTagsFromMap(t *testing.T) {
 		"_dd.origin":        "xxx",
 		"_dd.compute_stats": "xxx",
 	}
-	resultTagsArray := buildTagsFromMap(tagsMap)
+	resultTagsArray := BuildTagsFromMap(tagsMap)
 	sort.Strings(resultTagsArray)
 	assert.Equal(t, []string{
 		"key0:value0",
@@ -59,22 +59,24 @@ func TestBuildTagsFromMap(t *testing.T) {
 
 func TestBuildTagMapFromArnIncomplete(t *testing.T) {
 	arn := "function:my-function"
-	tagMap := buildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
-	assert.Equal(t, 5, len(tagMap))
+	tagMap := BuildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
+	assert.Equal(t, 6, len(tagMap))
 	assert.Equal(t, "lambda", tagMap["_dd.origin"])
 	assert.Equal(t, "1", tagMap["_dd.compute_stats"])
 	assert.Equal(t, "function:my-function", tagMap["function_arn"])
+	assert.Equal(t, "xxx", tagMap["dd_extension_version"])
 	assert.Equal(t, "value0", tagMap["tag0"])
 	assert.Equal(t, "value1", tagMap["tag1"])
 }
 
 func TestBuildTagMapFromArnIncompleteWithCommaAndSpaceTags(t *testing.T) {
 	arn := "function:my-function"
-	tagMap := buildTagMap(arn, []string{"tag0:value0", "tag1:value1,tag2:VALUE2", "TAG3:VALUE3"})
-	assert.Equal(t, 7, len(tagMap))
+	tagMap := BuildTagMap(arn, []string{"tag0:value0", "tag1:value1,tag2:VALUE2", "TAG3:VALUE3"})
+	assert.Equal(t, 8, len(tagMap))
 	assert.Equal(t, "lambda", tagMap["_dd.origin"])
 	assert.Equal(t, "1", tagMap["_dd.compute_stats"])
 	assert.Equal(t, "function:my-function", tagMap["function_arn"])
+	assert.Equal(t, "xxx", tagMap["dd_extension_version"])
 	assert.Equal(t, "value0", tagMap["tag0"])
 	assert.Equal(t, "value1", tagMap["tag1"])
 	assert.Equal(t, "value2", tagMap["tag2"])
@@ -83,8 +85,8 @@ func TestBuildTagMapFromArnIncompleteWithCommaAndSpaceTags(t *testing.T) {
 
 func TestBuildTagMapFromArnComplete(t *testing.T) {
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
-	tagMap := buildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
-	assert.Equal(t, 10, len(tagMap))
+	tagMap := BuildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
+	assert.Equal(t, 11, len(tagMap))
 	assert.Equal(t, "lambda", tagMap["_dd.origin"])
 	assert.Equal(t, "1", tagMap["_dd.compute_stats"])
 	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-function", tagMap["function_arn"])
@@ -93,14 +95,15 @@ func TestBuildTagMapFromArnComplete(t *testing.T) {
 	assert.Equal(t, "123456789012", tagMap["account_id"])
 	assert.Equal(t, "my-function", tagMap["functionname"])
 	assert.Equal(t, "my-function", tagMap["resource"])
+	assert.Equal(t, "xxx", tagMap["dd_extension_version"])
 	assert.Equal(t, "value0", tagMap["tag0"])
 	assert.Equal(t, "value1", tagMap["tag1"])
 }
 
 func TestBuildTagMapFromArnCompleteWithUpperCase(t *testing.T) {
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:My-Function"
-	tagMap := buildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
-	assert.Equal(t, 10, len(tagMap))
+	tagMap := BuildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
+	assert.Equal(t, 11, len(tagMap))
 	assert.Equal(t, "lambda", tagMap["_dd.origin"])
 	assert.Equal(t, "1", tagMap["_dd.compute_stats"])
 	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-function", tagMap["function_arn"])
@@ -109,6 +112,7 @@ func TestBuildTagMapFromArnCompleteWithUpperCase(t *testing.T) {
 	assert.Equal(t, "123456789012", tagMap["account_id"])
 	assert.Equal(t, "my-function", tagMap["functionname"])
 	assert.Equal(t, "my-function", tagMap["resource"])
+	assert.Equal(t, "xxx", tagMap["dd_extension_version"])
 	assert.Equal(t, "value0", tagMap["tag0"])
 	assert.Equal(t, "value1", tagMap["tag1"])
 }
@@ -116,8 +120,8 @@ func TestBuildTagMapFromArnCompleteWithUpperCase(t *testing.T) {
 func TestBuildTagMapFromArnCompleteWithLatest(t *testing.T) {
 	os.Setenv("AWS_LAMBDA_FUNCTION_VERSION", "$LATEST")
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
-	tagMap := buildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
-	assert.Equal(t, 10, len(tagMap))
+	tagMap := BuildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
+	assert.Equal(t, 11, len(tagMap))
 	assert.Equal(t, "lambda", tagMap["_dd.origin"])
 	assert.Equal(t, "1", tagMap["_dd.compute_stats"])
 	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-function", tagMap["function_arn"])
@@ -126,6 +130,7 @@ func TestBuildTagMapFromArnCompleteWithLatest(t *testing.T) {
 	assert.Equal(t, "123456789012", tagMap["account_id"])
 	assert.Equal(t, "my-function", tagMap["functionname"])
 	assert.Equal(t, "my-function", tagMap["resource"])
+	assert.Equal(t, "xxx", tagMap["dd_extension_version"])
 	assert.Equal(t, "value0", tagMap["tag0"])
 	assert.Equal(t, "value1", tagMap["tag1"])
 }
@@ -133,8 +138,8 @@ func TestBuildTagMapFromArnCompleteWithLatest(t *testing.T) {
 func TestBuildTagMapFromArnCompleteWithVersionNumber(t *testing.T) {
 	os.Setenv("AWS_LAMBDA_FUNCTION_VERSION", "888")
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
-	tagMap := buildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
-	assert.Equal(t, 11, len(tagMap))
+	tagMap := BuildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
+	assert.Equal(t, 12, len(tagMap))
 	assert.Equal(t, "lambda", tagMap["_dd.origin"])
 	assert.Equal(t, "1", tagMap["_dd.compute_stats"])
 	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-function", tagMap["function_arn"])
@@ -144,6 +149,7 @@ func TestBuildTagMapFromArnCompleteWithVersionNumber(t *testing.T) {
 	assert.Equal(t, "my-function", tagMap["functionname"])
 	assert.Equal(t, "my-function:888", tagMap["resource"])
 	assert.Equal(t, "888", tagMap["executedversion"])
+	assert.Equal(t, "xxx", tagMap["dd_extension_version"])
 	assert.Equal(t, "value0", tagMap["tag0"])
 	assert.Equal(t, "value1", tagMap["tag1"])
 }
@@ -190,4 +196,30 @@ func TestAddTag(t *testing.T) {
 	assert.Equal(t, "value_a", tagMap["key_a"])
 	assert.Equal(t, "value_b", tagMap["key_b"])
 	assert.Equal(t, "tag", tagMap["valid"])
+}
+
+func TestAddColdStartTagWithoutColdStart(t *testing.T) {
+	generatedTags := AddColdStartTag([]string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+	}, false)
+
+	assert.Equal(t, generatedTags, []string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+		"cold_start:false",
+	})
+}
+
+func TestAddColdStartTagWithColdStart(t *testing.T) {
+	generatedTags := AddColdStartTag([]string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+	}, true)
+
+	assert.Equal(t, generatedTags, []string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+		"cold_start:true",
+	})
 }

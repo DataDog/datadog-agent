@@ -83,6 +83,7 @@ func processUDSOrigin(ancillary []byte) (int, string, error) {
 	if err != nil {
 		return int(pid), packets.NoOrigin, err
 	}
+
 	return int(pid), entity, nil
 }
 

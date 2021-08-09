@@ -4,7 +4,7 @@
 periodic_kitchen_cleanup_s3:
   stage: maintenance_jobs
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   rules:
     !reference [.on_testing_cleanup]
   script:
@@ -19,7 +19,7 @@ periodic_kitchen_cleanup_s3:
 periodic_kitchen_cleanup_azure:
   stage: maintenance_jobs
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   rules:
     !reference [.on_testing_cleanup]
   script:

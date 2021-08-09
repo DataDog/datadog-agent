@@ -17,6 +17,11 @@ if node['platform_family'] != 'windows'
     mode '755'
   end
 
+  # `/swapfile` doesn't work on Oracle Linux, so we use `/mnt/swapfile`
+  swap_file '/mnt/swapfile' do
+    size 2048
+  end
+
   # To uncomment when gitlab runner are able to build with GOARCH=386
   # cookbook_file "#{wrk_dir}/testsuite32" do
   #   source "testsuite32"
@@ -68,7 +73,7 @@ if node['platform_family'] != 'windows'
       repo 'centos'
       tag '7'
       cap_add ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
-      command "sleep 3600"
+      command "sleep 7200"
       volumes ['/tmp/security-agent:/tmp/security-agent', '/proc:/host/proc', '/etc/os-release:/host/etc/os-release']
       env ['HOST_PROC=/host/proc', 'DOCKER_DD_AGENT=yes']
       privileged true

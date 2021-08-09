@@ -189,6 +189,9 @@ func (c ContainerCgroup) CPU() (*metrics.ContainerCPUStats, error) {
 	f, err := os.Open(statfile)
 	if os.IsNotExist(err) {
 		log.Debugf("Missing cgroup file: %s", statfile)
+		ret.User = -1
+		ret.System = -1
+		ret.Shares = -1
 		return ret, nil
 	} else if err != nil {
 		return nil, err
@@ -200,13 +203,13 @@ func (c ContainerCgroup) CPU() (*metrics.ContainerCPUStats, error) {
 		if fields[0] == "user" {
 			user, err := strconv.ParseUint(fields[1], 10, 64)
 			if err == nil {
-				ret.User = user
+				ret.User = float64(user)
 			}
 		}
 		if fields[0] == "system" {
 			system, err := strconv.ParseUint(fields[1], 10, 64)
 			if err == nil {
-				ret.System = system
+				ret.System = float64(system)
 			}
 		}
 	}
@@ -224,7 +227,7 @@ func (c ContainerCgroup) CPU() (*metrics.ContainerCPUStats, error) {
 
 	shares, err := c.ParseSingleStat("cpu", "cpu.shares")
 	if err == nil {
-		ret.Shares = shares
+		ret.Shares = float64(shares)
 	} else {
 		log.Debugf("Missing cpu shares stat for %s: %s", c.ContainerID, err.Error())
 	}
