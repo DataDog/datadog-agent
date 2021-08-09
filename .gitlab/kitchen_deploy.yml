@@ -19,10 +19,11 @@
 .setup_signing_keys_package: &setup_signing_keys_package
   # Set up prod apt repo to get the datadog-signing-keys package
   - echo 'deb [signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] https://apt.datadoghq.com/ stable 7' > /etc/apt/sources.list.d/datadog.list
-  - sudo touch /usr/share/keyrings/datadog-archive-keyring.gpg
-  - sudo chmod a+r /usr/share/keyrings/datadog-archive-keyring.gpg
+  - touch /usr/share/keyrings/datadog-archive-keyring.gpg
+  - chmod a+r /usr/share/keyrings/datadog-archive-keyring.gpg
   - curl https://keys.datadoghq.com/DATADOG_APT_KEY_CURRENT.public | gpg --no-default-keyring --keyring /usr/share/keyrings/datadog-archive-keyring.gpg --import --batch
 
+  - apt-get update
   - apt-get install --download-only datadog-signing-keys
 
 deploy_deb_testing-a6:
