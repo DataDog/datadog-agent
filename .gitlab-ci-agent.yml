@@ -835,6 +835,7 @@ molecule_integrations_cleanup:
 
 molecule_tests_kubernetes:
   <<: *molecule_base
+  stage: acceptance
   needs:
     - pre_release_cluster_agent_image
     - pre_release_main_agent_image
