@@ -12,11 +12,9 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	coreutil "github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -154,24 +152,4 @@ func extractOrchestratorDDUrl() (*url.URL, error) {
 		return nil, fmt.Errorf("error parsing orchestrator_dd_url: %s", err)
 	}
 	return URL, nil
-}
-
-// NewOrchestratorForwarder returns an orchestratorForwarder
-// if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
-func NewOrchestratorForwarder() *forwarder.DefaultForwarder {
-	if !config.Datadog.GetBool("orchestrator_explorer.enabled") {
-		return nil
-	}
-	if flavor.GetFlavor() == flavor.DefaultAgent && !config.IsCLCRunner() {
-		return nil
-	}
-	orchestratorCfg := NewDefaultOrchestratorConfig()
-	if err := orchestratorCfg.Load(); err != nil {
-		log.Errorf("Error loading the orchestrator config: %s", err)
-	}
-	keysPerDomain := apicfg.KeysPerDomains(orchestratorCfg.OrchestratorEndpoints)
-	orchestratorForwarderOpts := forwarder.NewOptions(keysPerDomain)
-	orchestratorForwarderOpts.DisableAPIKeyChecking = true
-
-	return forwarder.NewDefaultForwarder(orchestratorForwarderOpts)
 }

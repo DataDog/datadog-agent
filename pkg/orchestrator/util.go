@@ -39,14 +39,6 @@ const (
 	K8sStatefulSet
 )
 
-var telemetryTags = map[NodeType][]string{}
-
-func init() {
-	for _, nodeType := range NodeTypes() {
-		telemetryTags[nodeType] = getTelemetryTags(nodeType)
-	}
-}
-
 // NodeTypes returns the current existing NodesTypes as a slice to iterate over.
 func NodeTypes() []NodeType {
 	return []NodeType{
@@ -105,11 +97,11 @@ func (n NodeType) Orchestrator() string {
 
 // TelemetryTags return tags used for telemetry.
 func (n NodeType) TelemetryTags() []string {
-	tags, ok := telemetryTags[n]
-	if !ok {
+	if n.String() == "" {
 		log.Errorf("Unknown NodeType %v", n)
 		return []string{"unknown", "unknown"}
 	}
+	tags := getTelemetryTags(n)
 	return tags
 }
 

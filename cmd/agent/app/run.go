@@ -36,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
@@ -355,7 +354,7 @@ func StartAgent() error {
 	log.Debugf("Forwarder started")
 
 	// setup the orchestrator forwarder (only on cluster check runners)
-	orchestratorForwarder = orchcfg.NewOrchestratorForwarder()
+	orchestratorForwarder = forwarder.NewOrchestratorForwarder()
 	if orchestratorForwarder != nil {
 		orchestratorForwarder.Start() //nolint:errcheck
 	}

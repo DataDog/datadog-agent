@@ -1,7 +1,9 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+/*
+ * Unless explicitly stated otherwise all files in this repository are licensed
+ * under the Apache License Version 2.0.
+ * This product includes software developed at Datadog (https://www.datadoghq.com/).
+ * Copyright 2016-2021 Datadog, Inc.
+ */
 
 // +build orchestrator
 
@@ -16,7 +18,6 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -77,7 +78,7 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 			continue
 		}
 
-		if orchestrator.SkipKubernetesResource(p.UID, podModel.Metadata.ResourceVersion, orchestrator.K8sPod) {
+		if SkipKubernetesResource(p.UID, podModel.Metadata.ResourceVersion, K8sPod) {
 			continue
 		}
 
@@ -130,7 +131,7 @@ func chunkPods(pods []*model.Pod, chunkCount, chunkSize int) [][]*model.Pod {
 	chunks := make([][]*model.Pod, 0, chunkCount)
 
 	for counter := 1; counter <= chunkCount; counter++ {
-		chunkStart, chunkEnd := orchestrator.ChunkRange(len(pods), chunkCount, chunkSize, counter)
+		chunkStart, chunkEnd := ChunkRange(len(pods), chunkCount, chunkSize, counter)
 		chunks = append(chunks, pods[chunkStart:chunkEnd])
 	}
 
@@ -140,7 +141,7 @@ func chunkPods(pods []*model.Pod, chunkCount, chunkSize int) [][]*model.Pod {
 // extractPodMessage extracts pod info into the proto model
 func extractPodMessage(p *v1.Pod) *model.Pod {
 	podModel := model.Pod{
-		Metadata: orchestrator.ExtractMetadata(&p.ObjectMeta),
+		Metadata: ExtractMetadata(&p.ObjectMeta),
 	}
 	// pod spec
 	podModel.NodeName = p.Spec.NodeName

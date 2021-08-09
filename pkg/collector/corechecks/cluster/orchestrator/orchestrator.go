@@ -546,7 +546,7 @@ func (o *OrchestratorCheck) processPods(sender aggregator.Sender) {
 	}
 
 	// we send an empty hostname for unassigned pods
-	messages, err := ProcessPodList(podList, atomic.AddInt32(&o.groupID, 1), "", o.clusterID, o.orchestratorConfig)
+	messages, err := orchestrator.ProcessPodList(podList, atomic.AddInt32(&o.groupID, 1), "", o.clusterID, o.orchestratorConfig)
 	if err != nil {
 		_ = o.Warnf("Unable to process pod list: %v", err)
 		return

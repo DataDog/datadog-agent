@@ -7,6 +7,7 @@ package orchestrator
 
 import (
 	"expvar"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"time"
 
 	"github.com/patrickmn/go-cache"
@@ -73,12 +74,20 @@ func SkipKubernetesResource(uid types.UID, resourceVersion string, nodeType Node
 }
 
 func incCacheHit(nodeType NodeType) {
+	if nodeType.String() == "" {
+		log.Errorf("Unknown NodeType %v will not update cache hits", nodeType)
+		return
+	}
 	e := cacheHits[nodeType]
 	e.Add(1)
 	tlmCacheHits.Inc(nodeType.TelemetryTags()...)
 }
 
 func incCacheMiss(nodeType NodeType) {
+	if nodeType.String() == "" {
+		log.Errorf("Unknown NodeType %v will not update cache misses", nodeType)
+		return
+	}
 	e := cacheMiss[nodeType]
 	e.Add(1)
 	tlmCacheMisses.Inc(nodeType.TelemetryTags()...)
