@@ -25,7 +25,7 @@ func getSharedLibraries(pidPath string, b *bufio.Reader, filter *regexp.Regexp) 
 
 // parseMaps takes in an bufio.Reader representing a memory mapping
 // file from the procfs (eg. /proc/<PID>/maps) and extracts the shared library names from it
-// that match the given filter
+// that match the given filter. If filter is nil all entries are returned.
 //
 // Example:
 // 7f135146b000-7f135147a000 r--p 00000000 fd:00 268743 /usr/lib/x86_64-linux-gnu/libm-2.31.so
@@ -52,7 +52,7 @@ func parseMaps(r *bufio.Reader, filter *regexp.Regexp) (libs []string) {
 	}
 
 	for _, lib := range set.GetAll() {
-		if filter.MatchString(lib) {
+		if filter == nil || filter.MatchString(lib) {
 			libs = append(libs, lib)
 		}
 	}
