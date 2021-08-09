@@ -39,6 +39,7 @@ type Agent struct {
 	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
 }
 
+// AgentFactory allows to create a Logs Agent
 type AgentFactory interface {
 	create(sources *config.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent
 }

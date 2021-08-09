@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
+// LogAgent represents the Logs Agent
 type LogAgent struct {
 }
 

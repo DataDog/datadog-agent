@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
+// ServerlessLogAgent represents the serverless flavor of the Logs Agent
 type ServerlessLogAgent struct {
 }
 
@@ -46,7 +47,7 @@ func (s *ServerlessLogAgent) create(sources *config.LogSources, services *servic
 	}
 }
 
-// Start starts a Serverless instance of the Logs Agent.
+// StartServerless starts a Serverless instance of the Logs Agent.
 func StartServerless(getAC func() *autodiscovery.AutoConfig, logsChan chan *config.ChannelMessage, extraTags []string) error {
 	return start(getAC, true, logsChan, extraTags, &ServerlessLogAgent{})
 }
