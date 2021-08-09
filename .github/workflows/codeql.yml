@@ -58,7 +58,7 @@ jobs:
         run: |
          echo ${PATH}
          echo ${SRCDIR}
-         export CGO_LDFLAGS=" -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -ldl "
+         export CGO_LDFLAGS=" -L${SRCDIR}/../../../rtloader/build/rtloader -ldl "
          export CGO_CFLAGS=" -I${SRCDIR}/../../../rtloader/include  -I${SRCDIR}/../../../rtloader/common "
          pip3 install -r requirements.txt
          invoke -d install-tools
