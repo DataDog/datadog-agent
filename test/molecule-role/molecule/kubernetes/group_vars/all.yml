@@ -25,5 +25,3 @@ dnat_server_port: 123
 container_to_container_server_port: 234
 headless_service_port: 543
 namespace: "{{ agent_current_branch.replace('.','-') | lower }}"
-
-
