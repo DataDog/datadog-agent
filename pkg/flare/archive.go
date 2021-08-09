@@ -302,6 +302,10 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 	if err != nil {
 		log.Errorf("Could not export Windows event logs: %s", err)
 	}
+	err = zipServiceStatus(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not export Windows driver status: %s", err)
+	}
 
 	// force a log flush before zipping them
 	log.Flush()
