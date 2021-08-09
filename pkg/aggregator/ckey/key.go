@@ -34,6 +34,8 @@ type ContextKey uint64
 // while generating the hash. This size has been selected to have space for
 // approximately 500 tags since it's not impacting much the performances,
 // even if the backend is truncating after 100 tags.
+//
+// Must be a power of two.
 const hashSetSize = 512
 
 // bruteforceSize is the threshold number of tags below which a bruteforce algorithm is
