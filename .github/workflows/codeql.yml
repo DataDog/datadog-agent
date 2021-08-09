@@ -31,6 +31,7 @@ jobs:
         run: |
           pip install -r requirements.txt
           echo "CODEQL_PYTHON=$(which python)" >> $GITHUB_ENV
+          echo "$GOPATH/bin" >> $GITHUB_PATH
 
       # Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
@@ -42,7 +43,7 @@ jobs:
           languages: go, javascript, python, cpp
           setup-python-dependencies: false
           # TODO determine if this can be enabled
-          # source-root: go/src/github.com/DataDog/datadog-agent
+          source-root: go/src/github.com/DataDog/datadog-agent
 
       # Autobuild attempts to build any compiled languages (C/C++, C#, or Java).
       # If this step fails, then you should remove it and run the build manually (see below).
@@ -55,10 +56,6 @@ jobs:
       # ✏️ If the Autobuild fails above, remove it and uncomment the following
       #    three lines and modify them (or add more) to build your code if your
       #    project uses a compiled language
-
-      - run: echo "$GOPATH/bin" >> $GITHUB_PATH
-        env:
-          GOPATH: /home/runner/work/datadog-agent/go
 
       - env:
           GOPATH: /home/runner/work/datadog-agent/go
