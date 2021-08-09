@@ -26,14 +26,17 @@ func (w *walker) walk(path string, info os.FileInfo, err error) error {
 		return filepath.SkipDir
 	}
 
-	// We're only interested in /proc subdirectories
-	if path == w.procRoot || !info.IsDir() {
+	if !info.IsDir() {
 		return nil
 	}
 
 	// Check if we're in a /proc/<PID> directory
 	_, err = strconv.Atoi(info.Name())
 	if err != nil {
+		/* We want to continue walking from /proc */
+		if path == w.procRoot {
+			return nil
+		}
 		return filepath.SkipDir
 	}
 

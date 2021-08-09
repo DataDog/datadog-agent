@@ -3,8 +3,10 @@ package so
 import (
 	"bufio"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
+	"strconv"
 )
 
 type finder struct {
@@ -15,9 +17,15 @@ type finder struct {
 
 func newFinder(procRoot string) *finder {
 	buffer := bufio.NewReader(nil)
+	realProcRoot := procRoot
+	/* if /proc/<pid> is passed directly, use the dirname() as proc root */
+	_, err := strconv.Atoi(path.Base(procRoot))
+	if err == nil {
+		realProcRoot = path.Dir(procRoot)
+	}
 	return &finder{
 		procRoot:     procRoot,
-		pathResolver: newPathResolver(procRoot, buffer),
+		pathResolver: newPathResolver(realProcRoot, buffer),
 		buffer:       buffer,
 	}
 }
