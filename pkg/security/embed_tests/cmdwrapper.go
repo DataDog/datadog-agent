@@ -6,7 +6,7 @@
 
 //+build functionaltests stresstests
 
-package tests
+package embed_tests
 
 import (
 	"fmt"

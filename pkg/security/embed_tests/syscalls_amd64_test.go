@@ -1,7 +1,7 @@
 // Code generated - DO NOT EDIT.
 // +build functionaltests,amd64 stresstests,amd64
 
-package tests
+package embed_tests
 
 import "syscall"
 

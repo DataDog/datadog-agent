@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"flag"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/printer"
@@ -22,16 +23,18 @@ import (
 	"strings"
 )
 
-var (
-	input  string
-	output string
-)
-
 const editProtector = "// Code generated - DO NOT EDIT.\n"
 
 func main() {
+	var (
+		input   string
+		output  string
+		pkgName string
+	)
+
 	flag.StringVar(&input, "input", "", "Go tests folder")
 	flag.StringVar(&output, "output", "", "Go embeded tests output folder")
+	flag.StringVar(&pkgName, "pkg_name", "embed_tests", "Output package name")
 	flag.Parse()
 
 	if input == "" || output == "" {
@@ -48,11 +51,11 @@ func main() {
 	if err := filepath.Walk(input, func(filepath string, info fs.FileInfo, err error) error {
 		opts := NewEmbedFileOptions(filepath, input, output)
 		if shouldKeepVerbatim(filepath) {
-			if err := embedVerbatimFile(opts); err != nil {
+			if err := embedVerbatimFile(opts, pkgName); err != nil {
 				return err
 			}
 		} else if strings.HasSuffix(path.Base(filepath), "_test.go") {
-			if err := embedTestFile(fset, opts); err != nil {
+			if err := embedTestFile(fset, opts, pkgName); err != nil {
 				return err
 			}
 		}
@@ -85,11 +88,15 @@ func NewEmbedFileOptions(inputPath, inputDir, outputDir string) EmbedFileOptions
 	}
 }
 
-func embedVerbatimFile(opts EmbedFileOptions) error {
+var packageNameReplacer = regexp.MustCompile(`(?m)^package tests\s*$`)
+
+func embedVerbatimFile(opts EmbedFileOptions, pkgName string) error {
 	content, err := ioutil.ReadFile(opts.inputPath)
 	if err != nil {
 		return err
 	}
+
+	content = packageNameReplacer.ReplaceAll(content, []byte(fmt.Sprintf("package %v\n", pkgName)))
 
 	// create all needed subdirectories
 	dirPath := path.Dir(opts.outputPath)
@@ -101,7 +108,7 @@ func embedVerbatimFile(opts EmbedFileOptions) error {
 	return ioutil.WriteFile(opts.outputPath, prefixedContent, 0666)
 }
 
-func embedTestFile(fset *token.FileSet, opts EmbedFileOptions) error {
+func embedTestFile(fset *token.FileSet, opts EmbedFileOptions, pkgName string) error {
 	node, err := parser.ParseFile(fset, opts.inputPath, nil, parser.ParseComments)
 	if err != nil {
 		return err
@@ -129,6 +136,8 @@ func embedTestFile(fset *token.FileSet, opts EmbedFileOptions) error {
 	node.Decls = resDecls
 
 	if shouldExportEmbedFile {
+		node.Name = ast.NewIdent(pkgName)
+
 		// create all needed subdirectories
 		dirPath := path.Dir(opts.outputPath)
 		if err := os.MkdirAll(dirPath, 0755); err != nil {

@@ -6,7 +6,7 @@
 
 // +build functionaltests
 
-package tests
+package embed_tests
 
 import (
 	"os"
