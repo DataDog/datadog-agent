@@ -29,6 +29,6 @@ var embedTests = []testing.InternalTest{
 	},
 }
 
-func runEmbedTests() {
+func RunEmbedTests() {
 	testing.RunTests(func(pat, str string) (bool, error) { return true, nil }, embedTests)
 }
