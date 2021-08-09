@@ -22,6 +22,9 @@ platforms:
 scenario:
   name: integrations
   create_sequence:
+    - dependency
+    - cleanup
+    - destroy
     - syntax
     - create
     - prepare

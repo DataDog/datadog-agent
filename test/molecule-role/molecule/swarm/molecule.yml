@@ -30,6 +30,9 @@ platforms:
 scenario:
   name: swarm
   create_sequence:
+    - dependency
+    - cleanup
+    - destroy
     - syntax
     - create
     - prepare

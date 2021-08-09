@@ -33,6 +33,9 @@ platforms:
 scenario:
   name: localinstall
   create_sequence:
+    - dependency
+    - cleanup
+    - destroy
     - syntax
     - create
     - prepare
