@@ -36,7 +36,7 @@ jobs:
         with:
           languages: go, javascript, python, cpp
           # TODO determine if this can be enabled
-          # source-root: go/src/github.com/DataDog/datadog-agent
+          source-root: go/src/github.com/DataDog/datadog-agent
 
       # Autobuild attempts to build any compiled languages (C/C++, C#, or Java).
       # If this step fails, then you should remove it and run the build manually (see below).
@@ -70,7 +70,7 @@ jobs:
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v1
-        with:
-          checkout_path: go/src/github.com/DataDog/datadog-agent
+        # with:
+        #   checkout_path: go/src/github.com/DataDog/datadog-agent
         env:
           GOPATH: /home/runner/work/datadog-agent/go
