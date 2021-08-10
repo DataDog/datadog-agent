@@ -128,6 +128,13 @@ type AgentConfig struct {
 	Windows WindowsConfig
 
 	grpcConnectionTimeout time.Duration
+
+	runtimeConfigPort string
+}
+
+// RuntimeConfigPort retrieves the port for configuring a runtime agent, which is immutable.
+func (a *AgentConfig) RuntimeConfigPort() string {
+	return a.runtimeConfigPort
 }
 
 // CheckIsEnabled returns a bool indicating if the given check name is enabled.
@@ -392,6 +399,7 @@ func loadEnvVariables() {
 		{"DD_PROCESS_AGENT_REMOTE_TAGGER", "process_config.remote_tagger"},
 		{"DD_PROCESS_AGENT_MAX_PER_MESSAGE", "process_config.max_per_message"},
 		{"DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "process_config.max_ctr_procs_per_message"},
+		{"DD_PROCESS_AGENT_CONFIG_PORT", "process_config.config_port"},
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},

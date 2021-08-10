@@ -217,6 +217,11 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		a.ProfilingWithGoroutines = config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces")
 	}
 
+	if !config.Datadog.IsSet(key(ns, "config_port")) {
+		config.Datadog.Set(key(ns, "config_port"), "5053")
+	}
+	a.runtimeConfigPort = config.Datadog.GetString(key(ns, "config_port"))
+
 	// Used to override container source auto-detection
 	// and to enable multiple collector sources if needed.
 	// "docker", "ecs_fargate", "kubelet", "kubelet docker", etc.
