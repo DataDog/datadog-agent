@@ -8,9 +8,7 @@ package orchestrator
 import (
 	"strings"
 
-	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // NodeType represents a kind of resource used by a container orchestrator.
@@ -132,50 +130,4 @@ func GroupSize(msgs, maxPerMessage int) int {
 		groupSize++
 	}
 	return groupSize
-}
-
-// ExtractMetadata extracts standard metadata into the model
-func ExtractMetadata(m *metav1.ObjectMeta) *model.Metadata {
-	meta := model.Metadata{
-		Name:            m.Name,
-		Namespace:       m.Namespace,
-		Uid:             string(m.UID),
-		ResourceVersion: m.ResourceVersion,
-	}
-	if !m.CreationTimestamp.IsZero() {
-		meta.CreationTimestamp = m.CreationTimestamp.Unix()
-	}
-	if !m.DeletionTimestamp.IsZero() {
-		meta.DeletionTimestamp = m.DeletionTimestamp.Unix()
-	}
-	if len(m.Annotations) > 0 {
-		meta.Annotations = mapToTags(m.Annotations)
-	}
-	if len(m.Labels) > 0 {
-		meta.Labels = mapToTags(m.Labels)
-	}
-	for _, o := range m.OwnerReferences {
-		owner := model.OwnerReference{
-			Name: o.Name,
-			Uid:  string(o.UID),
-			Kind: o.Kind,
-		}
-		meta.OwnerReferences = append(meta.OwnerReferences, &owner)
-	}
-
-	return &meta
-}
-
-// mapToTags converts a map for which both keys and values are strings to a
-// slice of strings containing those key-value pairs under the "key:value" form.
-func mapToTags(m map[string]string) []string {
-	slice := make([]string, len(m))
-
-	i := 0
-	for k, v := range m {
-		slice[i] = k + ":" + v
-		i++
-	}
-
-	return slice
 }
