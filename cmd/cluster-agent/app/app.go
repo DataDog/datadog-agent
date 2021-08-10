@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -219,7 +220,7 @@ func start(cmd *cobra.Command, args []string) error {
 	f := forwarder.NewDefaultForwarder(forwarderOpts)
 	f.Start() //nolint:errcheck
 	// setup the orchestrator forwarder
-	orchestratorForwarder = forwarder.NewOrchestratorForwarder()
+	orchestratorForwarder = orchcfg.NewOrchestratorForwarder()
 	if orchestratorForwarder != nil {
 		orchestratorForwarder.Start() //nolint:errcheck
 	}
