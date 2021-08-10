@@ -634,8 +634,10 @@ func (tm *testModule) GetProbeEvent(action func() error, cb func(event *sprobe.E
 	})
 	defer tm.RegisterEventHandler(nil)
 
-	if err := action(); err != nil {
-		return err
+	if action != nil {
+		if err := action(); err != nil {
+			return err
+		}
 	}
 
 	select {

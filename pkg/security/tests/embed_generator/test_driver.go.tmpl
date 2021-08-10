@@ -19,5 +19,5 @@ var embedTests = []testing.InternalTest{
 }
 
 func RunEmbedTests() {
-	testing.RunTests(func(pat, str string) (bool, error) { return true, nil }, embedTests)
+	testing.Main(func(pat, str string) (bool, error) { return true, nil }, embedTests, nil, nil)
 }
