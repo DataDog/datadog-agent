@@ -235,7 +235,12 @@ def omnibus_build(
             args['populate_s3_cache'] = " --populate-s3-cache "
 
         env['PACKAGE_VERSION'] = get_version(
-            ctx, include_git=True, url_safe=True, git_sha_length=7, major_version=major_version
+            ctx,
+            include_git=True,
+            url_safe=True,
+            git_sha_length=7,
+            major_version=major_version,
+            include_pipeline_id=True,
         )
         env['MAJOR_VERSION'] = major_version
 
