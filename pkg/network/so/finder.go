@@ -62,7 +62,6 @@ func (f *finder) Find(filter *regexp.Regexp) (result []Library) {
 				libraryKey: k,
 				HostPath:   hostPath,
 				PidsPath:   []string{pidPath},
-				MountInfo:  mountInfo,
 			}
 		}
 	})

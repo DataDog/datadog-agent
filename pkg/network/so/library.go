@@ -7,7 +7,6 @@ type libraryKey struct {
 
 type Library struct {
 	libraryKey
-	PidsPath  []string
-	MountInfo *mountInfo
-	HostPath  string
+	PidsPath []string
+	HostPath string
 }
