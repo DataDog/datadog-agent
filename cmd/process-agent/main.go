@@ -8,6 +8,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/commands"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/runtime_config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/spf13/cobra"
@@ -55,7 +56,7 @@ func setupConfig() (cli settings.Client, err error) {
 }
 
 func init() {
-	RootCmd.AddCommand(commands.Config(setupConfig))
+	RootCmd.AddCommand(commands.Config(runtime_config.SetupConfig))
 }
 
 func main() {

@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/process-agent/runtime_config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
@@ -204,6 +205,12 @@ func runAgent(exit chan struct{}) {
 			cleanupAndExit(1)
 		}
 		return
+	}
+
+	// Start runtime config server asynchronously because why not
+	err, _ = runtime_config.StartRuntimeSettingRPCService(cfg)
+	if err != nil {
+		log.Error(err)
 	}
 
 	// Run a profile & telemetry server.
