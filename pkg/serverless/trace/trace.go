@@ -8,6 +8,7 @@ package trace
 import (
 	"context"
 
+	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,6 +38,9 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 // Start starts the agent
 func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load) {
 	if enabled {
+		//this will fail the grpc client and allow to skip hostname resolution
+		ddConfig.Datadog.Set("cmd_port", "0")
+
 		tc, confErr := loadConfig.Load()
 		if confErr != nil {
 			log.Errorf("Unable to load trace agent config: %s", confErr)
