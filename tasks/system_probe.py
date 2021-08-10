@@ -84,7 +84,7 @@ def build(
         )
     elif compile_ebpf:
         # Only build ebpf files on unix
-        build_object_files(ctx, bundle_ebpf=bundle_ebpf)
+        build_object_files(ctx)
 
     generate_cgo_types(ctx, windows=windows)
     ldflags, gcflags, env = get_build_flags(
@@ -145,7 +145,7 @@ def test(
         clang_tidy(ctx)
 
     if not skip_object_files and not windows:
-        build_object_files(ctx, bundle_ebpf=bundle_ebpf)
+        build_object_files(ctx)
 
     build_tags = [NPM_TAG]
     if not windows:
@@ -264,7 +264,7 @@ def nettop(ctx, incremental_build=False, go_mod="mod"):
     """
     Build and run the `nettop` utility for testing
     """
-    build_object_files(ctx, bundle_ebpf=False)
+    build_object_files(ctx)
 
     cmd = 'go build -mod={go_mod} {build_type} -tags {tags} -o {bin_path} {path}'
     bin_path = os.path.join(BIN_DIR, "nettop")
@@ -368,9 +368,9 @@ def run_tidy(ctx, files, build_flags, fix=False, fail_on_issue=False):
 
 
 @task
-def object_files(ctx, bundle_ebpf=False):
+def object_files(ctx):
     """object_files builds the eBPF object files"""
-    build_object_files(ctx, bundle_ebpf=bundle_ebpf)
+    build_object_files(ctx)
 
 
 def get_ebpf_c_files():
@@ -558,9 +558,8 @@ def build_bcc_files(ctx, build_dir):
         ctx.run("cp {file} {dest}".format(file=f, dest=build_dir))
 
 
-def build_object_files(ctx, bundle_ebpf=False):
+def build_object_files(ctx):
     """build_object_files builds only the eBPF object
-    set bundle_ebpf to False to disable replacing the assets
     """
 
     # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
@@ -581,9 +580,8 @@ def build_object_files(ctx, bundle_ebpf=False):
 
     generate_runtime_files(ctx)
 
-    if bundle_ebpf:
-        go_dir = os.path.join(bpf_dir, "bytecode", "bindata")
-        bundle_files(ctx, bindata_files, "pkg/.*/", go_dir, "bindata", BUNDLE_TAG)
+    go_dir = os.path.join(bpf_dir, "bytecode", "bindata")
+    bundle_files(ctx, bindata_files, "pkg/.*/", go_dir, "bindata", BUNDLE_TAG)
 
 
 @task
