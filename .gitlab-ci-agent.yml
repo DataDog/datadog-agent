@@ -869,7 +869,9 @@ molecule_localinstall_create:
   <<: *molecule_create
   rules:
     - *localinstall_ignore_rule
-    - when: always
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master")
+      when: always
+    - when: never
   variables:
     MOLECULE_SCENARIO: localinstall
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
@@ -879,7 +881,9 @@ molecule_localinstall_test:
   <<: *molecule_test
   rules:
     - *localinstall_ignore_rule
-    - when: on_success
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master")
+      when: on_success
+    - when: never
   variables:
     MOLECULE_SCENARIO: localinstall
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
@@ -897,7 +901,9 @@ molecule_localinstall_failure_cleanup:
   <<: *molecule_destroy
   rules:
     - *localinstall_ignore_rule
-    - when: on_failure
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master")
+      when: on_failure
+    - when: never
   needs:
     - molecule_localinstall_create
 
@@ -908,7 +914,9 @@ molecule_localinstall_cleanup:
   <<: *molecule_destroy
   rules:
     - *localinstall_ignore_rule
-    - when: always
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master")
+      when: always
+    - when: never
   dependencies:
     - molecule_localinstall_test
     - molecule_localinstall_create
@@ -929,7 +937,9 @@ molecule_secrets_create:
   <<: *molecule_create
   rules:
     - *secrets_ignore_rule
-    - when: always
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master")
+      when: always
+    - when: never
   variables:
     MOLECULE_SCENARIO: secrets
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
@@ -939,7 +949,9 @@ molecule_secrets_test:
   <<: *molecule_test
   rules:
     - *secrets_ignore_rule
-    - when: on_success
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master")
+      when: on_success
+    - when: never
   variables:
     MOLECULE_SCENARIO: secrets
     MOLECULE_EPHEMERAL_DIRECTORY: $CI_PROJECT_DIR/tmp_molecule_inventory
@@ -956,7 +968,9 @@ molecule_secrets_failure_cleanup:
   <<: *molecule_destroy
   rules:
     - *secrets_ignore_rule
-    - when: on_failure
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master")
+      when: on_failure
+    - when: never
   needs:
     - molecule_secrets_create
 
@@ -967,7 +981,9 @@ molecule_secrets_cleanup:
   <<: *molecule_destroy
   rules:
     - *secrets_ignore_rule
-    - when: always
+    - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master")
+      when: always
+    - when: never
   dependencies:
     - molecule_secrets_test
     - molecule_secrets_create
