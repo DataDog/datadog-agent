@@ -46,7 +46,7 @@ func main() {
 	totalTests := make([]string, 0)
 
 	if err := filepath.Walk(input, func(filepath string, info os.FileInfo, err error) error {
-		opts := NewEmbedFileOptions(filepath, input, output)
+		opts := newEmbedFileOptions(filepath, input, output)
 		if shouldKeepVerbatim(filepath) {
 			if err := embedVerbatimFile(opts, pkgName); err != nil {
 				return err
@@ -68,7 +68,7 @@ func main() {
 	}
 }
 
-type DriverInfo struct {
+type driverInfo struct {
 	PkgName   string
 	TestNames []string
 }
@@ -94,7 +94,7 @@ func finishOutputDir(inputDir, outputDir string, pkgName string, testNames []str
 	}
 
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, DriverInfo{
+	if err := tmpl.Execute(&buf, driverInfo{
 		PkgName:   pkgName,
 		TestNames: testNames,
 	}); err != nil {
@@ -108,14 +108,14 @@ func finishOutputDir(inputDir, outputDir string, pkgName string, testNames []str
 	return nil
 }
 
-type EmbedFileOptions struct {
+type embedFileOptions struct {
 	inputDir   string
 	inputPath  string
 	outputDir  string
 	outputPath string
 }
 
-func NewEmbedFileOptions(inputPath, inputDir, outputDir string) EmbedFileOptions {
+func newEmbedFileOptions(inputPath, inputDir, outputDir string) embedFileOptions {
 	fileName := strings.TrimPrefix(inputPath, inputDir)
 	outputPath := path.Join(outputDir, fileName)
 
@@ -123,7 +123,7 @@ func NewEmbedFileOptions(inputPath, inputDir, outputDir string) EmbedFileOptions
 		outputPath = strings.TrimSuffix(outputPath, "_test.go") + ".go"
 	}
 
-	return EmbedFileOptions{
+	return embedFileOptions{
 		inputDir:   inputDir,
 		inputPath:  inputPath,
 		outputDir:  outputDir,
@@ -133,7 +133,7 @@ func NewEmbedFileOptions(inputPath, inputDir, outputDir string) EmbedFileOptions
 
 var packageNameReplacer = regexp.MustCompile(`(?m)^package tests\s*$`)
 
-func embedVerbatimFile(opts EmbedFileOptions, pkgName string) error {
+func embedVerbatimFile(opts embedFileOptions, pkgName string) error {
 	content, err := ioutil.ReadFile(opts.inputPath)
 	if err != nil {
 		return err
@@ -143,7 +143,7 @@ func embedVerbatimFile(opts EmbedFileOptions, pkgName string) error {
 	return writeOutputFile(opts.inputDir, opts.outputDir, opts.outputPath, content, false)
 }
 
-func embedTestFile(fset *token.FileSet, opts EmbedFileOptions, pkgName string) ([]string, error) {
+func embedTestFile(fset *token.FileSet, opts embedFileOptions, pkgName string) ([]string, error) {
 	node, err := parser.ParseFile(fset, opts.inputPath, nil, parser.ParseComments)
 	if err != nil {
 		return nil, err
@@ -156,7 +156,7 @@ func embedTestFile(fset *token.FileSet, opts EmbedFileOptions, pkgName string) (
 		keep := false
 		funcDecl, ok := decl.(*ast.FuncDecl)
 		if ok {
-			info := funcDeclKeepInfo(fset, funcDecl)
+			info := getFuncDeclKeepInfo(fset, funcDecl)
 			keep = info.keep
 			if info.isTest {
 				shouldExportEmbedFile = true
@@ -191,32 +191,31 @@ func embedTestFile(fset *token.FileSet, opts EmbedFileOptions, pkgName string) (
 
 var embedCmdRegex = regexp.MustCompile(`//\s*test:embed`)
 
-type FuncDeclKeepInfo struct {
+type funcDeclKeepInfo struct {
 	keep   bool
 	isTest bool
 }
 
-func funcDeclKeepInfo(fset *token.FileSet, funcDecl *ast.FuncDecl) FuncDeclKeepInfo {
+func getFuncDeclKeepInfo(fset *token.FileSet, funcDecl *ast.FuncDecl) funcDeclKeepInfo {
 	if isTestFunction(fset, funcDecl) {
 		if funcDecl.Doc != nil {
 			for _, comment := range funcDecl.Doc.List {
 				if embedCmdRegex.MatchString(comment.Text) {
-					return FuncDeclKeepInfo{
+					return funcDeclKeepInfo{
 						keep:   true,
 						isTest: true,
 					}
 				}
 			}
 		}
-		return FuncDeclKeepInfo{
+		return funcDeclKeepInfo{
 			keep:   false,
 			isTest: false,
 		}
-	} else {
-		return FuncDeclKeepInfo{
-			keep:   true,
-			isTest: false,
-		}
+	}
+	return funcDeclKeepInfo{
+		keep:   true,
+		isTest: false,
 	}
 }
 

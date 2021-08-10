@@ -81,9 +81,8 @@ func convertConstraintExpr(expr constraint.Expr) constraint.Expr {
 	case *constraint.TagExpr:
 		if e.Tag == "functionaltests" || e.Tag == "stresstests" {
 			return nil
-		} else {
-			return e
 		}
+		return e
 	default:
 		panic("Unsupported build constraint node")
 	}
