@@ -6,25 +6,24 @@
 package app
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/embedtests"
+	"github.com/DataDog/datadog-agent/pkg/security/embeddedtests"
 	"github.com/spf13/cobra"
 )
 
 var (
-	runtimeEmbededTestsCmd = &cobra.Command{
-		Use:   "ret",
+	runtimeEmbeddedTestsCmd = &cobra.Command{
+		Use:   "runtime-embedded-tests",
 		Short: "Run the CWS embeded tests",
 		Long:  `Runs the CWS embeded tests`,
-		RunE:  runtimeRunEmbededTests,
+		Run:   runtimeRunEmbeddedTests,
 	}
 )
 
 func init() {
 	// attach the command to the root
-	SysprobeCmd.AddCommand(runtimeEmbededTestsCmd)
+	SysprobeCmd.AddCommand(runtimeEmbeddedTestsCmd)
 }
 
-func runtimeRunEmbededTests(cmd *cobra.Command, args []string) error {
-	embedtests.RunEmbedTests()
-	return nil
+func runtimeRunEmbeddedTests(cmd *cobra.Command, args []string) {
+	embeddedtests.RunEmbeddedTests()
 }

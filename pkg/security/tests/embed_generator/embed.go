@@ -34,7 +34,7 @@ func main() {
 
 	flag.StringVar(&input, "input", "", "Go tests folder")
 	flag.StringVar(&output, "output", "", "Go embeded tests output folder")
-	flag.StringVar(&pkgName, "pkg_name", "embedtests", "Output package name")
+	flag.StringVar(&pkgName, "pkg_name", "embeddedtests", "Output package name")
 	flag.Parse()
 
 	if input == "" || output == "" {

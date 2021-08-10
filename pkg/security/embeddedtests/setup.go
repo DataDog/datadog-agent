@@ -6,7 +6,7 @@
 
 // +build !functionaltests,!stresstests
 
-package embedtests
+package embeddedtests
 
 import (
 	"bytes"

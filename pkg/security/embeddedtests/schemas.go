@@ -6,7 +6,7 @@
 
 // +build !functionaltests,!stresstests
 
-package embedtests
+package embeddedtests
 
 import (
 	"bytes"
@@ -16,7 +16,7 @@ import (
 
 	"github.com/xeipuuv/gojsonschema"
 
-	"github.com/DataDog/datadog-agent/pkg/security/embedtests/schemas"
+	"github.com/DataDog/datadog-agent/pkg/security/embeddedtests/schemas"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 )
 

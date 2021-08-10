@@ -6,11 +6,14 @@
 
 // +build !functionaltests
 
-package embedtests
+package embeddedtests
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
-var embedTests = []testing.InternalTest{
+var embeddedTests = []testing.InternalTest{
 	{
 		Name: "TestChmod",
 		F:    TestChmod,
@@ -29,6 +32,7 @@ var embedTests = []testing.InternalTest{
 	},
 }
 
-func RunEmbedTests() {
-	testing.Main(func(pat, str string) (bool, error) { return true, nil }, embedTests, nil, nil)
+func RunEmbeddedTests() {
+	os.Args = []string{"embeddedtester", "-loglevel", "debug", "-test.v"}
+	testing.Main(func(pat, str string) (bool, error) { return true, nil }, embeddedTests, nil, nil)
 }

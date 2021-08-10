@@ -6,7 +6,7 @@
 
 // +build !386,!functionaltests,!stresstests
 
-package embedtests
+package embeddedtests
 
 import (
 	"os"
