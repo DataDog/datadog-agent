@@ -960,8 +960,6 @@ collect_device_metadata: true
 }
 
 func Test_buildConfig_minCollectionInterval(t *testing.T) {
-	check := Check{session: &snmpSession{}}
-
 	tests := []struct {
 		name              string
 		rawInstanceConfig []byte
@@ -1062,6 +1060,7 @@ min_collection_interval: -10
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			check := Check{session: &snmpSession{}}
 			err := check.Configure(tt.rawInstanceConfig, tt.rawInitConfig, "test")
 			if tt.expectedErr != "" {
 				assert.EqualError(t, err, tt.expectedErr)
