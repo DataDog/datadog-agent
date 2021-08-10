@@ -110,6 +110,7 @@ func dogstatsdCapture() error {
 
 	resp, err := cli.DogstatsdCaptureTrigger(ctx, &pb.CaptureTriggerRequest{
 		Duration:   dsdCaptureDuration.String(),
+		Path:       dsdCaptureFilePath,
 		Compressed: dsdCaptureCompressed,
 	})
 	if err != nil {

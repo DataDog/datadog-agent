@@ -144,3 +144,32 @@ func TestWriterUncompressed(t *testing.T) {
 func TestWriterCompressed(t *testing.T) {
 	writerTest(t, true)
 }
+
+func TestValidateLocation(t *testing.T) {
+	captureFs.Lock()
+	originalFs := captureFs.fs
+	captureFs.fs = afero.NewMemMapFs()
+	captureFs.Unlock()
+
+	locationBad := "foo/bar"
+	locationGood := "bar/quz"
+
+	// setup directory
+	captureFs.fs.MkdirAll(locationBad, 0770)
+	captureFs.fs.MkdirAll(locationGood, 0776)
+
+	defer func() {
+		captureFs.Lock()
+		defer captureFs.Unlock()
+
+		captureFs.fs = originalFs
+	}()
+
+	writer := NewTrafficCaptureWriter(1)
+	_, err := writer.ValidateLocation(locationBad)
+	assert.NotNil(t, err)
+	l, err := writer.ValidateLocation(locationGood)
+	assert.Nil(t, err)
+	assert.Equal(t, locationGood, l)
+
+}

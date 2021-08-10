@@ -129,6 +129,50 @@ func (tc *TrafficCaptureWriter) ProcessMessage(msg *CaptureBuffer) error {
 	return nil
 }
 
+// ValidateLocation validates the location passed as an argument is writable.
+// The location and/or and error if any are returned.
+func (tc *TrafficCaptureWriter) ValidateLocation(l string) (string, error) {
+	captureFs.RLock()
+	defer captureFs.RUnlock()
+
+	if captureFs.fs == nil {
+		return "", fmt.Errorf("no filesystem backend available, impossible to start capture")
+	}
+
+	defaultLocation := (l == "")
+
+	var location string
+	if defaultLocation {
+		location = config.Datadog.GetString("dogstatsd_capture_path")
+		if location == "" {
+			location = path.Join(config.Datadog.GetString("run_path"), "dsd_capture")
+		}
+	} else {
+		location = l
+	}
+
+	s, err := captureFs.fs.Stat(location)
+	if os.IsNotExist(err) {
+		if defaultLocation {
+			err := captureFs.fs.MkdirAll(location, 0755)
+			if err != nil {
+				return "", err
+			}
+		} else {
+			return "", log.Errorf("specified location does not exist: %v ", err)
+		}
+	} else if !s.IsDir() {
+		return "", log.Errorf("specified location is not a directory: %v ", l)
+	}
+
+	if !defaultLocation && s.Mode()&os.FileMode(2) == 0 {
+		return "", log.Errorf("specified location (%v) is not world writable: %v", l, s.Mode())
+	}
+
+	return location, nil
+
+}
+
 // Capture start the traffic capture and writes the packets to file at the
 // specified location and for the specified duration.
 func (tc *TrafficCaptureWriter) Capture(l string, d time.Duration, compressed bool) {
@@ -140,34 +184,16 @@ func (tc *TrafficCaptureWriter) Capture(l string, d time.Duration, compressed bo
 		location string
 	)
 
-	captureFs.Lock()
-	defer captureFs.Unlock()
+	captureFs.RLock()
+	defer captureFs.RUnlock()
 
 	if captureFs.fs == nil {
 		log.Errorf("no filesystem backend available, impossible to start capture")
 		return
 	}
 
-	if l == "" {
-		location = config.Datadog.GetString("dogstatsd_capture_path")
-		if location == "" {
-			location = path.Join(config.Datadog.GetString("run_path"), "dsd_capture")
-		}
-	} else {
-		location = l
-	}
-
-	s, err := captureFs.fs.Stat(location)
-	if os.IsNotExist(err) {
-		log.Errorf("specified location does not exist: %v ", err)
-		return
-	} else if !s.IsDir() {
-		log.Errorf("specified location is not a directory: %v ", l)
-		return
-	}
-
-	if s.Mode()&os.FileMode(2) == 0 {
-		log.Errorf("specified location (%v) is not world writable: %v", l, s.Mode())
+	location, err = tc.ValidateLocation(l)
+	if err != nil {
 		return
 	}
 

@@ -60,6 +60,11 @@ func (tc *TrafficCapture) Start(p string, d time.Duration, compressed bool) erro
 		return fmt.Errorf("Ongoing capture in progress")
 	}
 
+	_, err := tc.Writer.ValidateLocation(p)
+	if err != nil {
+		return err
+	}
+
 	go tc.Writer.Capture(p, d, compressed)
 
 	return nil
