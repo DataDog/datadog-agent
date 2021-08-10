@@ -14,7 +14,6 @@ import (
 	"go/parser"
 	"go/printer"
 	"go/token"
-	"io/fs"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -46,7 +45,7 @@ func main() {
 	fset := token.NewFileSet()
 	totalTests := make([]string, 0)
 
-	if err := filepath.Walk(input, func(filepath string, info fs.FileInfo, err error) error {
+	if err := filepath.Walk(input, func(filepath string, info os.FileInfo, err error) error {
 		opts := NewEmbedFileOptions(filepath, input, output)
 		if shouldKeepVerbatim(filepath) {
 			if err := embedVerbatimFile(opts, pkgName); err != nil {
