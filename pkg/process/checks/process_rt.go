@@ -13,44 +13,14 @@ import (
 	"github.com/DataDog/gopsutil/cpu"
 )
 
-// RTProcess is a singleton RTProcessCheck.
-var RTProcess = &RTProcessCheck{}
-
-// RTProcessCheck collects numeric statistics about the live processes.
-// The instance stores state between checks for calculation of rates and CPU.
-type RTProcessCheck struct {
-	sysInfo      *model.SystemInfo
-	lastCPUTime  cpu.TimesStat
-	lastProcs    map[int32]*procutil.Stats
-	lastCtrRates map[string]util.ContainerRateMetrics
-	lastRun      time.Time
-
-	notInitializedLogLimit *util.LogLimit
-
-	probe procutil.Probe
-}
-
-// Init initializes a new RTProcessCheck instance.
-func (r *RTProcessCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
-	r.sysInfo = info
-	r.probe = getProcessProbe(cfg)
-
-	r.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
-}
-
-// Name returns the name of the RTProcessCheck.
-func (r *RTProcessCheck) Name() string { return config.RTProcessCheckName }
-
-// RealTime indicates if this check only runs in real-time mode.
-func (r *RTProcessCheck) RealTime() bool { return true }
-
-// Run runs the RTProcessCheck to collect statistics about the running processes.
+// TODO: this comment is no longer accurate (describe procutil.Probe and hint at various implementations here)
+// runRealtime runs the RTProcessCheck to collect statistics about the running processes.
 // On most POSIX systems these statistics are collected from procfs. The bulk
 // of this collection is abstracted into the `gopsutil` library.
 // Processes are split up into a chunks of at most 100 processes per message to
 // limit the message size on intake.
 // See agent.proto for the schema of the message and models used.
-func (r *RTProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
+func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) ([]RunResult, error) {
 	cpuTimes, err := cpu.Times(false)
 	if err != nil {
 		return nil, err
@@ -60,8 +30,7 @@ func (r *RTProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	}
 
 	// if processCheck haven't fetched any PIDs, return early
-	lastPIDs := Process.GetLastPIDs()
-	if len(lastPIDs) == 0 {
+	if len(p.lastPIDs) == 0 {
 		return nil, nil
 	}
 
@@ -69,40 +38,44 @@ func (r *RTProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	// if the Process module is disabled, we allow Probe to collect
 	// fields that require elevated permission to collect with best effort
 	if !cfg.CheckIsEnabled(config.ProcessModuleCheckName) {
-		procutil.WithPermission(true)(r.probe)
+		procutil.WithPermission(true)(p.probe)
 	} else {
-		procutil.WithPermission(false)(r.probe)
+		procutil.WithPermission(false)(p.probe)
 		if pu, err := net.GetRemoteSystemProbeUtil(); err == nil {
 			sysProbeUtil = pu
-		} else if r.notInitializedLogLimit.ShouldLog() {
+		} else if p.notInitializedLogLimit.ShouldLog() {
 			log.Warnf("could not initialize system-probe connection in rtprocess check: %v (will only log every 10 minutes)", err)
 		}
 	}
 
-	procs, err := getAllProcStats(r.probe, lastPIDs)
+	procs, err := getAllProcStats(p.probe, p.lastPIDs)
+
 	if err != nil {
 		return nil, err
 	}
 
 	if sysProbeUtil != nil {
-		mergeStatWithSysprobeStats(lastPIDs, procs, sysProbeUtil)
+		mergeStatWithSysprobeStats(p.lastPIDs, procs, sysProbeUtil)
 	}
 
 	ctrList, _ := util.GetContainers()
 
 	// End check early if this is our first run.
-	if r.lastProcs == nil {
-		r.lastCtrRates = util.ExtractContainerRateMetric(ctrList)
-		r.lastProcs = procs
-		r.lastCPUTime = cpuTimes[0]
-		r.lastRun = time.Now()
+	if p.realtimeLastProcs == nil {
+		p.realtimeLastCtrRates = util.ExtractContainerRateMetric(ctrList)
+		p.realtimeLastProcs = procs
+		p.realtimeLastCPUTime = cpuTimes[0]
+		p.realtimeLastRun = time.Now()
+		log.Debug("first run of rtprocess check - no stats to report")
 		return nil, nil
 	}
 
 	connsByPID := Connections.getLastConnectionsByPID()
-	chunkedStats := fmtProcessStats(cfg, procs, r.lastProcs, ctrList, cpuTimes[0], r.lastCPUTime, r.lastRun, connsByPID)
+
+	chunkedStats := fmtProcessStats(cfg, procs, p.realtimeLastProcs, ctrList, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
 	groupSize := len(chunkedStats)
-	chunkedCtrStats := fmtContainerStats(ctrList, r.lastCtrRates, r.lastRun, groupSize)
+	chunkedCtrStats := fmtContainerStats(ctrList, p.realtimeLastCtrRates, p.realtimeLastRun, groupSize)
+
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorRealTime{
@@ -111,20 +84,25 @@ func (r *RTProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 			ContainerStats:    chunkedCtrStats[i],
 			GroupId:           groupID,
 			GroupSize:         int32(groupSize),
-			NumCpus:           int32(len(r.sysInfo.Cpus)),
-			TotalMemory:       r.sysInfo.TotalMemory,
+			NumCpus:           int32(len(p.sysInfo.Cpus)),
+			TotalMemory:       p.sysInfo.TotalMemory,
 			ContainerHostType: cfg.ContainerHostType,
 		})
 	}
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
-	r.lastRun = time.Now()
-	r.lastProcs = procs
-	r.lastCtrRates = util.ExtractContainerRateMetric(ctrList)
-	r.lastCPUTime = cpuTimes[0]
+	p.realtimeLastRun = time.Now()
+	p.realtimeLastProcs = procs
+	p.realtimeLastCtrRates = util.ExtractContainerRateMetric(ctrList)
+	p.realtimeLastCPUTime = cpuTimes[0]
 
-	return messages, nil
+	return []RunResult{
+		{
+			CheckName: p.RealTimeName(),
+			Messages:  messages,
+		},
+	}, nil
 }
 
 // fmtProcessStats formats and chunks a slice of ProcessStat into chunks.

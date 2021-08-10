@@ -3,7 +3,6 @@ package checks
 import (
 	"context"
 	"errors"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -24,6 +23,8 @@ const emptyCtrID = ""
 // Process is a singleton ProcessCheck.
 var Process = &ProcessCheck{}
 
+var _ CheckWithRealTime = (*ProcessCheck)(nil)
+
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
 // ctrProcMsgFactory builds a CollectorProc
@@ -33,8 +34,6 @@ type ctrProcMsgFactory func([]*model.Process, ...*model.Container) *model.Collec
 // for live and running processes. The instance will store some state between
 // checks that will be used for rates, cpu calculations, etc.
 type ProcessCheck struct {
-	sync.RWMutex
-
 	probe procutil.Probe
 
 	sysInfo         *model.SystemInfo
@@ -45,11 +44,19 @@ type ProcessCheck struct {
 	lastRun         time.Time
 	networkID       string
 
+	realtimeLastCPUTime  cpu.TimesStat
+	realtimeLastProcs    map[int32]*procutil.Stats
+	realtimeLastCtrRates map[string]util.ContainerRateMetrics
+	realtimeLastRun      time.Time
+
 	notInitializedLogLimit *util.LogLimit
 
 	// lastPIDs is []int32 that holds PIDs that the check fetched last time,
-	// will be reused by RTProcessCheck to get stats
-	lastPIDs atomic.Value
+	// will be reused by RT process collection to get stats
+	lastPIDs []int32
+
+	// Create times by PID used in the network check
+	createTimes atomic.Value
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -69,6 +76,9 @@ func (p *ProcessCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 // Name returns the name of the ProcessCheck.
 func (p *ProcessCheck) Name() string { return config.ProcessCheckName }
 
+// RealTimeName returns the name of the RTProcessCheck
+func (p *ProcessCheck) RealTimeName() string { return config.RTProcessCheckName }
+
 // RealTime indicates if this check only runs in real-time mode.
 func (p *ProcessCheck) RealTime() bool { return false }
 
@@ -80,9 +90,17 @@ func (p *ProcessCheck) RealTime() bool { return false }
 // limit the message size on intake.
 // See agent.proto for the schema of the message and models used.
 func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
-	p.Lock()
-	defer p.Unlock()
+	results, err := p.run(cfg, groupID, false)
+	if err != nil {
+		return nil, err
+	}
+	if len(results) == 0 {
+		return nil, nil
+	}
+	return results[0].Messages, nil
+}
 
+func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTime bool) ([]RunResult, error) {
 	start := time.Now()
 	cpuTimes, err := cpu.Times(false)
 	if err != nil {
@@ -92,6 +110,7 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 		return nil, errEmptyCPUTime
 	}
 
+	// TODO: deduplicate system probe or WithPermission with RT collection
 	var sysProbeUtil *net.RemoteSysProbeUtil
 	// if the Process module is disabled, we allow Probe to collect
 	// fields that require elevated permission to collect with best effort
@@ -112,14 +131,13 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	}
 
 	// stores lastPIDs to be used by RTProcess
-	lastPIDs := make([]int32, 0, len(procs))
+	p.lastPIDs = make([]int32, 0, len(procs))
 	for pid := range procs {
-		lastPIDs = append(lastPIDs, pid)
+		p.lastPIDs = append(p.lastPIDs, pid)
 	}
-	p.lastPIDs.Store(lastPIDs)
 
 	if sysProbeUtil != nil {
-		mergeProcWithSysprobeStats(lastPIDs, procs, sysProbeUtil)
+		mergeProcWithSysprobeStats(p.lastPIDs, procs, sysProbeUtil)
 	}
 
 	ctrList, _ := util.GetContainers()
@@ -135,6 +153,14 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 		p.lastCtrRates = util.ExtractContainerRateMetric(ctrList)
 		p.lastCtrIDForPID = ctrByProc
 		p.lastRun = time.Now()
+		p.storeCreateTimes()
+
+		if collectRealTime {
+			p.realtimeLastCPUTime = p.lastCPUTime
+			p.realtimeLastProcs = procsToStats(p.lastProcs)
+			p.realtimeLastCtrRates = p.lastCtrRates
+			p.realtimeLastRun = p.lastRun
+		}
 		return nil, nil
 	}
 
@@ -152,19 +178,74 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 	p.lastCPUTime = cpuTimes[0]
 	p.lastRun = time.Now()
 	p.lastCtrIDForPID = ctrByProc
+	p.storeCreateTimes()
+
+	results := []RunResult{
+		{
+			CheckName: p.Name(),
+			Messages:  messages,
+		},
+	}
+	if collectRealTime {
+		stats := procsToStats(p.lastProcs)
+
+		if p.realtimeLastProcs != nil {
+			// TODO: deduplicate chunking with RT collection
+			chunkedStats := fmtProcessStats(cfg, stats, p.realtimeLastProcs, ctrList, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
+			groupSize := len(chunkedStats)
+			chunkedCtrStats := fmtContainerStats(ctrList, p.realtimeLastCtrRates, p.realtimeLastRun, groupSize)
+
+			messages := make([]model.MessageBody, 0, groupSize)
+			for i := 0; i < groupSize; i++ {
+				messages = append(messages, &model.CollectorRealTime{
+					HostName:          cfg.HostName,
+					Stats:             chunkedStats[i],
+					ContainerStats:    chunkedCtrStats[i],
+					GroupId:           groupID,
+					GroupSize:         int32(groupSize),
+					NumCpus:           int32(len(p.sysInfo.Cpus)),
+					TotalMemory:       p.sysInfo.TotalMemory,
+					ContainerHostType: cfg.ContainerHostType,
+				})
+			}
+			results = append(results, RunResult{
+				CheckName: p.RealTimeName(),
+				Messages:  messages,
+			})
+		}
+
+		p.realtimeLastCPUTime = p.lastCPUTime
+		p.realtimeLastProcs = stats
+		p.realtimeLastCtrRates = p.lastCtrRates
+		p.realtimeLastRun = p.lastRun
+	}
 
 	statsd.Client.Gauge("datadog.process.containers.host_count", float64(totalContainers), []string{}, 1) //nolint:errcheck
 	statsd.Client.Gauge("datadog.process.processes.host_count", float64(totalProcs), []string{}, 1)       //nolint:errcheck
 	log.Debugf("collected processes in %s", time.Now().Sub(start))
-	return messages, nil
+
+	return results, nil
 }
 
-// GetLastPIDs returns the lastPIDs as []int32 slice
-func (p *ProcessCheck) GetLastPIDs() []int32 {
-	if result := p.lastPIDs.Load(); result != nil {
-		return result.([]int32)
+func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
+	stats := map[int32]*procutil.Stats{}
+	for pid, proc := range procs {
+		stats[pid] = proc.Stats
 	}
-	return nil
+	return stats
+}
+
+// RunWithOptions collects process data (regular metadata + stats) and/or realtime process data (stats only)
+// Messages are grouped as RunResult instances with CheckName identifying the type
+func (p *ProcessCheck) RunWithOptions(cfg *config.AgentConfig, groupID int32, options RunOptions) ([]RunResult, error) {
+	if options.RunRegular {
+		return p.run(cfg, groupID, options.RunRealTime)
+	}
+
+	if options.RunRealTime {
+		return p.runRealtime(cfg, groupID)
+	}
+	return nil, errors.New("invalid run options for check")
 }
 
 func createProcCtrMessages(
@@ -453,17 +534,26 @@ func skipProcess(
 	return false
 }
 
-func (p *ProcessCheck) createTimesforPIDs(pids []int32) map[int32]int64 {
-	p.RLock()
-	defer p.RUnlock()
-
-	createTimeForPID := make(map[int32]int64)
-	for _, pid := range pids {
-		if p, ok := p.lastProcs[pid]; ok {
-			createTimeForPID[pid] = p.Stats.CreateTime
-		}
+func (p *ProcessCheck) storeCreateTimes() {
+	createTimes := map[int32]int64{}
+	for pid, proc := range p.lastProcs {
+		createTimes[pid] = proc.Stats.CreateTime
 	}
-	return createTimeForPID
+	p.createTimes.Store(createTimes)
+}
+
+func (p *ProcessCheck) createTimesforPIDs(pids []int32) map[int32]int64 {
+	if result := p.createTimes.Load(); result != nil {
+		createTimesAllPIDs := result.(map[int32]int64)
+		createTimeForPID := make(map[int32]int64)
+		for _, pid := range pids {
+			if ctime, ok := createTimesAllPIDs[pid]; ok {
+				createTimeForPID[pid] = ctime
+			}
+		}
+		return createTimeForPID
+	}
+	return nil
 }
 
 // mergeProcWithSysprobeStats takes a process by PID map and fill the stats from system probe into the processes in the map

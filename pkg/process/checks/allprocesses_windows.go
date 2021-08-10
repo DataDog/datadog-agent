@@ -29,6 +29,7 @@ var (
 
 	// XXX: Cross-check state is stored globally so the checks are not thread-safe.
 	cachedProcesses = map[uint32]*cachedProcess{}
+	// TODO: remove locking here
 	// cacheProcessesMutex is a mutex to protect cachedProcesses from being accessed concurrently.
 	// So far this is the case for Process check and RTProcess check
 	// TODO: revisit cacheProcesses usage so that we don't need to lock the whole getAllProcesses()
@@ -36,21 +37,6 @@ var (
 	checkCount          = 0
 	haveWarnedNoArgs    = false
 )
-
-type SystemProcessInformation struct {
-	NextEntryOffset   uint64
-	NumberOfThreads   uint64
-	Reserved1         [48]byte
-	Reserved2         [3]byte
-	UniqueProcessID   uintptr
-	Reserved3         uintptr
-	HandleCount       uint64
-	Reserved4         [4]byte
-	Reserved5         [11]byte
-	PeakPagefileUsage uint64
-	PrivatePageCount  uint64
-	Reserved6         [6]uint64
-}
 
 type IO_COUNTERS struct {
 	ReadOperationCount  uint64
