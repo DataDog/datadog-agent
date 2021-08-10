@@ -182,7 +182,7 @@ func WithMatchSuite(matcher SuiteMatcher) BuilderOption {
 }
 
 // RuleMatcher checks if a compliance rule is included
-type RuleMatcher func(*compliance.Rule) bool
+type RuleMatcher func(*compliance.RuleBase) bool
 
 // WithMatchRule configures builder to use a suite matcher
 func WithMatchRule(matcher RuleMatcher) BuilderOption {
@@ -223,7 +223,7 @@ func IsFramework(framework string) SuiteMatcher {
 
 // IsRuleID matches a compliance rule by ID
 func IsRuleID(ruleID string) RuleMatcher {
-	return func(r *compliance.Rule) bool {
+	return func(r *compliance.RuleBase) bool {
 		return r.ID == ruleID
 	}
 }
@@ -309,8 +309,10 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 
 	matchedCount := 0
 	for _, r := range suite.Rules {
+		fmt.Printf("Rule: %+v\n", r)
+
 		if b.ruleMatcher != nil {
-			if b.ruleMatcher(&r) {
+			if b.ruleMatcher(&r.RuleBase) {
 				log.Infof("%s/%s: matched rule %s in %s", suite.Meta.Name, suite.Meta.Version, r.ID, file)
 			} else {
 				log.Tracef("%s/%s: skipped rule %s in %s", suite.Meta.Name, suite.Meta.Version, r.ID, file)
@@ -345,7 +347,51 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 				InitError:   err,
 			})
 		}
-		ok := onCheck(&r, check, err)
+		ok := onCheck(&r.RuleBase, check, err)
+		if !ok {
+			log.Infof("%s/%s: stopping rule enumeration", suite.Meta.Name, suite.Meta.Version)
+			return err
+		}
+	}
+
+	for _, r := range suite.RegoRules {
+		if b.ruleMatcher != nil {
+			if b.ruleMatcher(&r.RuleBase) {
+				log.Infof("%s/%s: matched rule %s in %s", suite.Meta.Name, suite.Meta.Version, r.ID, file)
+			} else {
+				log.Tracef("%s/%s: skipped rule %s in %s", suite.Meta.Name, suite.Meta.Version, r.ID, file)
+				continue
+			}
+		}
+		matchedCount++
+
+		if len(r.Resources) == 0 {
+			log.Infof("%s/%s: skipped rule %s - no configured resources", suite.Meta.Name, suite.Meta.Version, r.ID)
+			continue
+		}
+
+		log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)
+		check, err := b.checkFromRegoRule(&suite.Meta, &r)
+
+		if err != nil {
+			if err != ErrRuleDoesNotApply {
+				log.Warnf("%s/%s: failed to load rule %s: %v", suite.Meta.Name, suite.Meta.Version, r.ID, err)
+			}
+			log.Infof("%s/%s: skipped rule %s - does not apply to this system", suite.Meta.Name, suite.Meta.Version, r.ID)
+		}
+
+		if b.status != nil {
+			b.status.addCheck(&compliance.CheckStatus{
+				RuleID:      r.ID,
+				Description: r.Description,
+				Name:        compliance.CheckName(r.ID, r.Description),
+				Framework:   suite.Meta.Framework,
+				Source:      suite.Meta.Source,
+				Version:     suite.Meta.Version,
+				InitError:   err,
+			})
+		}
+		ok := onCheck(&r.RuleBase, check, err)
 		if !ok {
 			log.Infof("%s/%s: stopping rule enumeration", suite.Meta.Name, suite.Meta.Version)
 			return err

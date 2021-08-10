@@ -117,7 +117,7 @@ func (a *Agent) Run() error {
 		}),
 	)
 
-	onCheck := func(rule *compliance.Rule, check compliance.Check, err error) bool {
+	onCheck := func(rule *compliance.RuleBase, check compliance.Check, err error) bool {
 		if err != nil {
 			log.Errorf("%s: check not scheduled: %v", rule.ID, err)
 			return true
@@ -134,7 +134,7 @@ func (a *Agent) Run() error {
 	return a.buildChecks(onCheck)
 }
 
-func runCheck(rule *compliance.Rule, check compliance.Check, err error) bool {
+func runCheck(rule *compliance.RuleBase, check compliance.Check, err error) bool {
 	if err != nil {
 		log.Infof("%s: Not running check: %v", rule.ID, err)
 		return true

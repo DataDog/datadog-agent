@@ -34,8 +34,7 @@ const (
 	KindCustom = ResourceKind("custom")
 )
 
-// Resource describes supported resource types observed by a Rule
-type Resource struct {
+type BaseResource struct {
 	File          *File               `yaml:"file,omitempty"`
 	Process       *Process            `yaml:"process,omitempty"`
 	Group         *Group              `yaml:"group,omitempty"`
@@ -45,23 +44,21 @@ type Resource struct {
 	KubeApiserver *KubernetesResource `yaml:"kubeApiserver,omitempty"`
 	Custom        *Custom             `yaml:"custom,omitempty"`
 	Condition     string              `yaml:"condition"`
-	Fallback      *Fallback           `yaml:"fallback,omitempty"`
+}
+
+// Resource describes supported resource types observed by a Rule
+type Resource struct {
+	BaseResource `yaml:",inline"`
+	Fallback     *Fallback `yaml:"fallback,omitempty"`
 }
 
 // RegoResource describes supported resource types observed by a Rego Rule
 type RegoResource struct {
-	File          *File               `yaml:"file,omitempty"`
-	Process       *Process            `yaml:"process,omitempty"`
-	Group         *Group              `yaml:"group,omitempty"`
-	Command       *Command            `yaml:"command,omitempty"`
-	Audit         *Audit              `yaml:"audit,omitempty"`
-	Docker        *DockerResource     `yaml:"docker,omitempty"`
-	KubeApiserver *KubernetesResource `yaml:"kubeApiserver,omitempty"`
-	Custom        *Custom             `yaml:"custom,omitempty"`
+	BaseResource `yaml:",inline"`
 }
 
 // Kind returns ResourceKind of the resource
-func (r *Resource) Kind() ResourceKind {
+func (r *BaseResource) Kind() ResourceKind {
 	switch {
 	case r.File != nil:
 		return KindFile

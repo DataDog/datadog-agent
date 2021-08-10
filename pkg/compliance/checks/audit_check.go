@@ -23,7 +23,7 @@ var auditReportedFields = []string{
 	compliance.AuditFieldPermissions,
 }
 
-func resolveAudit(_ context.Context, e env.Env, ruleID string, res compliance.Resource) (resolved, error) {
+func resolveAudit(_ context.Context, e env.Env, ruleID string, res compliance.BaseResource) (resolved, error) {
 	if res.Audit == nil {
 		return nil, fmt.Errorf("%s: expecting audit resource in audit check", ruleID)
 	}

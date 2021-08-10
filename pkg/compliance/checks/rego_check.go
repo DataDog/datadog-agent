@@ -100,5 +100,44 @@ func (r *regoCheck) Run() error {
 
 	var err error
 
+	fmt.Printf("Hey I'm executed\n")
+
+	for _, resource := range r.resources {
+		resolve, reportedFields, err := resourceKindToResolverAndFields(r.Env, r.ruleID, resource.Kind())
+		if err != nil {
+			return fmt.Errorf("%s: failed to find resource resolver for resource kind: %s", r.ruleID, resource.Kind())
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+
+		resolved, err := resolve(ctx, r.Env, r.ruleID, resource.BaseResource)
+		if err != nil {
+			cancel()
+			return err
+		}
+		cancel()
+
+		switch instance := resolved.(type) {
+		case resolvedInstance:
+			fmt.Printf("Exec: %+v, %+v\n", instance.Vars(), reportedFields)
+		}
+
+		/*e := &event.Event{
+			AgentRuleID:      r.ruleID,
+			AgentFrameworkID: r.suiteMeta.Framework,
+			ResourceID:       resource.ID,
+			ResourceType:     resource.Type,
+			Result:           result,
+			Data:             data,
+		}
+
+		log.Debugf("%s: reporting [%s] [%s] [%s]", c.ruleID, e.Result, e.ResourceID, e.ResourceType)
+
+		c.Reporter().Report(e)
+		if c.eventNotify != nil {
+			c.eventNotify(c.ruleID, e)
+		}*/
+	}
+
 	return err
 }

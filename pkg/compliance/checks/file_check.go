@@ -24,7 +24,7 @@ var fileReportedFields = []string{
 	compliance.FileFieldGroup,
 }
 
-func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Resource) (resolved, error) {
+func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.BaseResource) (resolved, error) {
 	if res.File == nil {
 		return nil, fmt.Errorf("expecting file resource in file check")
 	}
