@@ -326,7 +326,7 @@ func Load(path string) (*AgentConfig, error) {
 }
 
 // LoadServerless see Load comment
-// This will skip hostname resolution as hostname need to be empty in a serverless context
+// This will skip hostname resolution as hostname is empty in a serverless context
 func LoadServerless(path string) (*AgentConfig, error) {
 	return load(path, false)
 }
