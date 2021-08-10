@@ -4,12 +4,14 @@
 #########################
 
 ## @param api_key - string - required
+## @env DD_API_KEY - string - required
 ## The Datadog API key to associate your Agent's data with your organization.
 ## Create a new API key here: https://app.datadoghq.com/account/settings
 #
 api_key:
 
 ## @param site - string - optional - default: datadoghq.com
+## @env DD_SITE - string - optional - default: datadoghq.com
 ## The site of the Datadog intake to send Agent data to.
 ## Set to 'datadoghq.eu' to send data to the EU site.
 ## Set to 'us3.datadoghq.com' to send data to the US3 site.
@@ -18,6 +20,7 @@ api_key:
 # site: datadoghq.com
 
 ## @param dd_url - string - optional - default: https://app.datadoghq.com
+## @env DD_URL - string - optional - default: https://app.datadoghq.com
 ## The host of the Datadog intake server to send metrics to, only set this option
 ## if you need the Agent to send metrics to a custom URL, it overrides the site
 ## setting defined in "site". It does not affect APM, Logs or Live Process intake which have their
@@ -52,6 +55,14 @@ api_key:
 ## Force the hostname name.
 #
 # hostname: <HOSTNAME_NAME>
+
+## @param hostname_file - string - optional
+## In some environments, auto-detection of the hostname is not adequate and
+## environment variables cannot be used to set the value. In such cases, the
+## file on the host can also be used provide an appropriate value. If
+## 'hostname' value has been set to a non-empty value, this option is ignored.
+#
+# hostname_file: /var/lib/cloud/data/instance-id
 
 ## @param hostname_fqdn - boolean - optional - default: false
 ## When the Agent relies on the OS to determine the hostname, make it use the
@@ -586,9 +597,10 @@ api_key:
 
     ## @param community_string - string - optional
     ## Required for SNMP v1 & v2.
+    ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
     ## Ex: 'public'
     #
-    # community_string: <COMMUNITY>
+    # community_string: '<COMMUNITY>'
 
     ## @param user - string - optional
     ## The username to connect to your SNMP devices.
@@ -742,7 +754,7 @@ api_key:
   ## The maximum time the Datadog Agent waits to fill each batch of logs before sending.
   #
   # batch_wait: 5
-  
+
 {{ end -}}
 {{- if .TraceAgent }}
 
@@ -898,6 +910,32 @@ api_key:
     # enabled: false
 
   {{ end }}
+
+####################################
+## AppSec Configuration           ##
+####################################
+
+## @param appsec_config - custom object - optional
+## Enter specific configurations for your AppSec collection.
+## Uncomment the parameters `appsec_config` and `enabled` to enable AppSec.
+#
+# appsec_config:
+
+  ## @param enabled - boolean - optional - default: true
+  ## Enable the AppSec proxy in the APM Agent.
+  #
+  # enabled: true
+
+  ## @param appsec_dd_url - string - optional
+  ## Define the endpoint and port to hit when using a proxy for AppSec. Logs are forwarded by TCP;
+  ## therefore, the proxy must be able to handle TCP connections.
+  #
+  # appsec_dd_url: <ENDPOINT>:<PORT>
+
+  ## @param max_payload_size - integer - optional - default: 5242880 (5MB)
+  ## Define the maximum HTTP payload size (the body) in bytes the AppSec proxy allows.
+  #
+  # max_payload_size: 5242880
 
 {{ end -}}
 {{- if .ProcessAgent }}
@@ -1992,6 +2030,20 @@ api_key:
 #
 # kubernetes_kubeconfig_path: ""
 
+## @param kubernetes_apiserver_ca_path - string - optional - default: ""
+## When running in a pod, the Agent automatically uses the pod's service account CA.
+## Use this option to keep using the InCluster config but overriding the default CA Path.
+## This parameter has no effect if `kubernetes_kubeconfig_path` is set.
+#
+# kubernetes_apiserver_ca_path: ""
+
+## @param kubernetes_apiserver_tls_verify - boolean - optional - default: true
+## When running in a pod, the Agent automatically uses the pod's service account CA.
+## Use this option to keep using the InCluster config but deactivating TLS verification (in case APIServer CA is not ServiceAccount CA)
+## This parameter has no effect if `kubernetes_kubeconfig_path` is set.
+#
+# kubernetes_apiserver_tls_verify: true
+
 ## @param kubernetes_apiserver_use_protobuf - boolean - optional - default: false
 ## By default, communication with the apiserver is in json format. Setting the following
 ## option to true allows communication in the binary protobuf format.
@@ -2151,6 +2203,11 @@ api_key:
   #
   # poll_interval: 60
 
+  ## @param apps_batch_size - integer - optional - default: 5000
+  ## Number of apps per page to collect when calling the list apps endpoint of the CC API. Max 5000.
+  #
+  # apps_batch_size: 5000
+
 {{ end -}}
 {{- if .SNMP }}
 
@@ -2178,11 +2235,12 @@ api_key:
   ## @param community_strings - list of strings - required
   ## A list of known SNMPv2 community strings that devices can use to send traps to the Agent.
   ## Traps with an unknown community string are ignored.
+  ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
   ## Must be non-empty.
   #
   # community_strings:
-  #   - <COMMUNITY_1>
-  #   - <COMMUNITY_2>
+  #   - '<COMMUNITY_1>'
+  #   - '<COMMUNITY_2>'
 
   ## @param bind_host - string - optional
   ## The hostname to listen on for incoming trap packets.

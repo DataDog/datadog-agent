@@ -314,7 +314,7 @@ func NewAbnormalPathEvent(event *Event, pathResolutionError error) (*rules.Rule,
 			ID: AbnormalPathRuleID,
 		}), newCustomEvent(resolutionErrorToEventType(event.GetPathResolutionError()), AbnormalPathEvent{
 			Timestamp:           event.ResolveEventTimestamp(),
-			Event:               newEventSerializer(event),
+			Event:               NewEventSerializer(event),
 			PathResolutionError: pathResolutionError.Error(),
 		}.MarshalJSON)
 }

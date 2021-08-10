@@ -15,6 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 )
 
+// NOTE: to avoid races, do not modify the contents of the `expectedTags`
+// slice, as those contents are referenced without holding the lock.
+
 type localProvider struct {
 	tags                 []string
 	expectedTags         []string
@@ -39,18 +42,22 @@ func NewLocalProvider(t []string) Provider {
 
 			p.Lock()
 			defer p.Unlock()
-			p.expectedTags = p.tags
+			p.expectedTags = nil
 		}()
 	}
 
 	return p
 }
 
-// GetTags returns an empty list of tags.
+// GetTags returns the list of locally-configured tags.  This will include the
+// expected tags until the expected-tags deadline, if those are configured.  The
+// returned slice is shared and must not be mutated.
 func (p *localProvider) GetTags() []string {
-
 	p.RLock()
 	defer p.RUnlock()
 
-	return p.expectedTags
+	if p.expectedTags != nil {
+		return p.expectedTags
+	}
+	return p.tags
 }

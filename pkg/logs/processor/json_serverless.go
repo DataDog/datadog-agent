@@ -26,7 +26,7 @@ type jsonServerlessPayload struct {
 	Status    string                `json:"status"`
 	Timestamp int64                 `json:"timestamp"`
 	Hostname  string                `json:"hostname"`
-	Service   string                `json:"service"`
+	Service   string                `json:"service,omitempty"`
 	Source    string                `json:"ddsource"`
 	Tags      string                `json:"ddtags"`
 }
@@ -64,7 +64,7 @@ func (j *jsonServerlessEncoder) Encode(msg *message.Message, redactedMsg []byte)
 		},
 		Status:    msg.GetStatus(),
 		Timestamp: ts.UnixNano() / nanoToMillis,
-		Hostname:  getHostname(),
+		Hostname:  msg.GetHostname(),
 		Service:   msg.Origin.Service(),
 		Source:    msg.Origin.Source(),
 		Tags:      msg.Origin.TagsToString(),

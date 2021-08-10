@@ -12,7 +12,7 @@ deploy_staging_deb-6:
   stage: deploy6
   resource_group: deb_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   dependencies: ["agent_deb-x64-a6", "agent_deb-arm64-a6"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -42,7 +42,7 @@ deploy_staging_rpm-6:
   stage: deploy6
   resource_group: rpm_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   dependencies: ["agent_rpm-x64-a6", "agent_rpm-arm64-a6"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -59,7 +59,7 @@ deploy_staging_suse_rpm-6:
   stage: deploy6
   resource_group: suse_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   dependencies: ["agent_suse-x64-a6"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
@@ -75,7 +75,7 @@ deploy_staging_dmg-a6:
     !reference [.on_deploy_a6]
   stage: deploy6
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   dependencies: ["agent_dmg-x64-a6"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR

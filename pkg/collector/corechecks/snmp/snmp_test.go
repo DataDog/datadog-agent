@@ -838,6 +838,16 @@ func TestCheck_Run(t *testing.T) {
 		},
 	}
 
+	sysObjectIDPacketInvalidOidMock := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.6.3.15.1.1.1.0", // usmStatsUnsupportedSecLevels
+				Type:  gosnmp.Counter32,
+				Value: 123,
+			},
+		},
+	}
+
 	sysObjectIDPacketOkMock := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
 			{
@@ -900,25 +910,30 @@ func TestCheck_Run(t *testing.T) {
 			expectedErr:      "snmp connection error: can't connect",
 		},
 		{
-			name:                     "failed to fetching sysobjectid",
+			name:                     "failed to fetch sysobjectid",
 			sysObjectIDError:         fmt.Errorf("no sysobjectid"),
 			valuesPacket:             valuesPacketUptime,
-			expectedErr:              "failed to autodetect profile: failed to fetching sysobjectid: cannot get sysobjectid: no sysobjectid",
+			expectedErr:              "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no sysobjectid",
 			expectedSubmittedMetrics: 1.0,
 		},
 		{
 			name:        "unexpected values count",
-			expectedErr: "failed to autodetect profile: failed to fetching sysobjectid: expected 1 value, but got 0: variables=[]",
+			expectedErr: "failed to autodetect profile: failed to fetch sysobjectid: expected 1 value, but got 0: variables=[]",
 		},
 		{
-			name:              "failed to fetching sysobjectid with invalid value",
+			name:              "failed to fetch sysobjectid with invalid value",
 			sysObjectIDPacket: sysObjectIDPacketInvalidValueMock,
-			expectedErr:       "failed to autodetect profile: failed to fetching sysobjectid: error getting value from pdu: oid 1.3.6.1.2.1.1.2.0: ObjectIdentifier should be string type but got float64 type: gosnmp.SnmpPDU{Name:\"1.3.6.1.2.1.1.2.0\", Type:0x6, Value:1}",
+			expectedErr:       "failed to autodetect profile: failed to fetch sysobjectid: error getting value from pdu: oid 1.3.6.1.2.1.1.2.0: ObjectIdentifier should be string type but got float64 type: gosnmp.SnmpPDU{Name:\"1.3.6.1.2.1.1.2.0\", Type:0x6, Value:1}",
 		},
 		{
-			name:              "failed to fetching sysobjectid with conversion error",
+			name:              "failed to fetch sysobjectid with conversion error",
 			sysObjectIDPacket: sysObjectIDPacketInvalidConversionMock,
-			expectedErr:       "failed to autodetect profile: failed to fetching sysobjectid: error getting value from pdu: oid 1.3.6.1.2.1.1.2.0: ObjectIdentifier should be string type but got gosnmp.SnmpPDU type: gosnmp.SnmpPDU{Name:\"1.3.6.1.2.1.1.2.0\", Type:0x6, Value:gosnmp.SnmpPDU{Name:\"\", Type:0x0, Value:interface {}(nil)}}",
+			expectedErr:       "failed to autodetect profile: failed to fetch sysobjectid: error getting value from pdu: oid 1.3.6.1.2.1.1.2.0: ObjectIdentifier should be string type but got gosnmp.SnmpPDU type: gosnmp.SnmpPDU{Name:\"1.3.6.1.2.1.1.2.0\", Type:0x6, Value:gosnmp.SnmpPDU{Name:\"\", Type:0x0, Value:interface {}(nil)}}",
+		},
+		{
+			name:              "failed to fetch sysobjectid with error oid",
+			sysObjectIDPacket: sysObjectIDPacketInvalidOidMock,
+			expectedErr:       "failed to autodetect profile: failed to fetch sysobjectid: expect `1.3.6.1.2.1.1.2.0` OID but got `1.3.6.1.6.3.15.1.1.1.0` OID with value `{counter 123}`",
 		},
 		{
 			name:              "failed to get profile sys object id",
@@ -933,11 +948,11 @@ func TestCheck_Run(t *testing.T) {
 			expectedErr:       "failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.3.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.999 1.2.3.4.5 1.3.6.1.2.1.1.5.0]`: no value",
 		},
 		{
-			name:             "failed to fetching sysobjectid and failed to fetch values",
+			name:             "failed to fetch sysobjectid and failed to fetch values",
 			sysObjectIDError: fmt.Errorf("no sysobjectid"),
 			valuesPacket:     valuesPacketErrMock,
 			valuesError:      fmt.Errorf("no value"),
-			expectedErr:      "failed to autodetect profile: failed to fetching sysobjectid: cannot get sysobjectid: no sysobjectid; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.3.0]`: no value",
+			expectedErr:      "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no sysobjectid; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.3.0]`: no value",
 		},
 	}
 	for _, tt := range tests {
@@ -1208,7 +1223,7 @@ tags:
 	}, defaultBulkMaxRepetitions).Return(&bulkPacket, nil)
 
 	err = check.Run()
-	assert.EqualError(t, err, "failed to autodetect profile: failed to fetching sysobjectid: cannot get sysobjectid: no value")
+	assert.EqualError(t, err, "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value")
 
 	snmpTags := []string{"snmp_device:1.2.3.4"}
 
@@ -1274,7 +1289,7 @@ tags:
 
 	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
 
-	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, "failed to autodetect profile: failed to fetching sysobjectid: cannot get sysobjectid: no value")
+	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value")
 }
 
 func TestReportDeviceMetadataWithFetchError(t *testing.T) {
@@ -1316,7 +1331,7 @@ tags:
 	}).Return(nilPacket, fmt.Errorf("device failure"))
 
 	err = check.Run()
-	assert.EqualError(t, err, "failed to autodetect profile: failed to fetching sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.1.0 1.3.6.1.2.1.1.2.0 1.3.6.1.2.1.1.3.0]`: device failure")
+	assert.EqualError(t, err, "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.1.0 1.3.6.1.2.1.1.2.0 1.3.6.1.2.1.1.3.0]`: device failure")
 
 	snmpTags := []string{"snmp_device:1.2.3.5"}
 
@@ -1357,5 +1372,5 @@ tags:
 
 	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
 
-	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, "failed to autodetect profile: failed to fetching sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.1.0 1.3.6.1.2.1.1.2.0 1.3.6.1.2.1.1.3.0]`: device failure")
+	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.1.0 1.3.6.1.2.1.1.2.0 1.3.6.1.2.1.1.3.0]`: device failure")
 }

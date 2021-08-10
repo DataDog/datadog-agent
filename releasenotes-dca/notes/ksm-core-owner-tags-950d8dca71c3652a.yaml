@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The Kube State Metrics Core check adds owner tags to pod metrics.
+    (e.g ``kube_deployment``, ``kube_replica_set``, ``kube_cronjob``, ``kube_job``)

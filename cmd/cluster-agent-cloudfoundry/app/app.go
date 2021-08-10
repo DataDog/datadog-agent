@@ -227,7 +227,7 @@ func run(cmd *cobra.Command, args []string) error {
 }
 
 func initializeCCCache(ctx context.Context) error {
-	pollInterval := time.Second * time.Duration(config.Datadog.GetInt("cloud_foundry_bbs.poll_interval"))
+	pollInterval := time.Second * time.Duration(config.Datadog.GetInt("cloud_foundry_cc.poll_interval"))
 	_, err := cloudfoundry.ConfigureGlobalCCCache(
 		ctx,
 		config.Datadog.GetString("cloud_foundry_cc.url"),
@@ -235,6 +235,7 @@ func initializeCCCache(ctx context.Context) error {
 		config.Datadog.GetString("cloud_foundry_cc.client_secret"),
 		config.Datadog.GetBool("cloud_foundry_cc.skip_ssl_validation"),
 		pollInterval,
+		config.Datadog.GetInt("cloud_foundry_cc.apps_batch_size"),
 		nil,
 	)
 	if err != nil {

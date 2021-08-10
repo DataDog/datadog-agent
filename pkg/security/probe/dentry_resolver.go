@@ -431,6 +431,10 @@ func (dr *DentryResolver) preventSegmentMajorPageFault() {
 	dr.erpcSegment[6*os.Getpagesize()] = 0
 }
 
+func (dr *DentryResolver) markSegmentAsZero() {
+	model.ByteOrder.PutUint64(dr.erpcSegment[0:8], 0)
+}
+
 // GetNameFromERPC resolves the name of the provided inode / mount id / path id
 func (dr *DentryResolver) GetNameFromERPC(mountID uint32, inode uint64, pathID uint32) (name string, err error) {
 	// create eRPC request
@@ -444,12 +448,15 @@ func (dr *DentryResolver) GetNameFromERPC(mountID uint32, inode uint64, pathID u
 	// if we don't try to access the segment, the eBPF program can't write to it ... (major page fault)
 	dr.preventSegmentMajorPageFault()
 
+	// ensure to zero the segments in order check the in-kernel execution
+	dr.markSegmentAsZero()
+
 	if err = dr.erpc.Request(&dr.erpcRequest); err != nil {
 		atomic.AddInt64(dr.missCounters[metrics.SegmentResolutionTag][metrics.ERPCTag], 1)
 		return "", errors.Wrapf(err, "unable to get filename for mountID `%d` and inode `%d` with eRPC", mountID, inode)
 	}
 
-	if dr.erpcSegment[0] == 0 {
+	if model.ByteOrder.Uint64(dr.erpcSegment[0:8]) == 0 {
 		atomic.AddInt64(dr.missCounters[metrics.SegmentResolutionTag][metrics.ERPCTag], 1)
 		return "", errors.Errorf("eRPC request wasn't processed")
 	}
@@ -482,6 +489,9 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 
 	// if we don't try to access the segment, the eBPF program can't write to it ... (major page fault)
 	dr.preventSegmentMajorPageFault()
+
+	// ensure to zero the segments in order check the in-kernel execution
+	dr.markSegmentAsZero()
 
 	if err = dr.erpc.Request(&dr.erpcRequest); err != nil {
 		atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.ERPCTag], 1)

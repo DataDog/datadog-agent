@@ -16,10 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/zstd"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestWriter(t *testing.T) {
+func writerTest(t *testing.T, z bool) {
 	atomic.StoreInt64(&inMemoryFs, 1)
 	defer atomic.StoreInt64(&inMemoryFs, 0)
 
@@ -42,7 +43,7 @@ func TestWriter(t *testing.T) {
 		defer wg.Done()
 
 		close(start)
-		writer.Capture(5 * time.Second)
+		writer.Capture(5*time.Second, z)
 	}(&wg)
 
 	wg.Add(1)
@@ -89,8 +90,19 @@ func TestWriter(t *testing.T) {
 
 	buf := bytes.NewBuffer(nil)
 	_, _ = io.Copy(buf, fp)
-	reader := &TrafficCaptureReader{
-		Contents: buf.Bytes(),
+
+	var reader *TrafficCaptureReader
+	var contents []byte
+	var err error
+	if z {
+		contents, err = zstd.Decompress(nil, buf.Bytes())
+		assert.Nil(t, err)
+	} else {
+		contents = buf.Bytes()
+	}
+
+	reader = &TrafficCaptureReader{
+		Contents: contents,
 		Version:  int(datadogFileVersion),
 		Traffic:  make(chan *pb.UnixDogstatsdMsg, 1),
 	}
@@ -110,4 +122,12 @@ func TestWriter(t *testing.T) {
 		cnt++
 	}
 	assert.Equal(t, cnt, iterations)
+}
+
+func TestWriterUncompressed(t *testing.T) {
+	writerTest(t, false)
+}
+
+func TestWriterCompressed(t *testing.T) {
+	writerTest(t, true)
 }

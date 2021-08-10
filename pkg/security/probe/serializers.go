@@ -117,8 +117,8 @@ type CapsetSerializer struct {
 // ProcessCredentialsSerializer serializes the process credentials to JSON
 // easyjson:json
 type ProcessCredentialsSerializer struct {
-	*CredentialsSerializer `json:",omitempty"`
-	Destination            interface{} `json:"destination,omitempty"`
+	*CredentialsSerializer
+	Destination interface{} `json:"destination,omitempty"`
 }
 
 // ProcessCacheEntrySerializer serializes a process cache entry to JSON
@@ -131,12 +131,8 @@ type ProcessCacheEntrySerializer struct {
 	GID                 int                           `json:"gid"`
 	User                string                        `json:"user,omitempty"`
 	Group               string                        `json:"group,omitempty"`
-	Path                string                        `json:"executable_path,omitempty"`
 	PathResolutionError string                        `json:"path_resolution_error,omitempty"`
 	Comm                string                        `json:"comm,omitempty"`
-	Inode               uint64                        `json:"executable_inode,omitempty"`
-	MountID             uint32                        `json:"executable_mount_id,omitempty"`
-	Filesystem          string                        `json:"executable_filesystem,omitempty"`
 	TTY                 string                        `json:"tty,omitempty"`
 	ForkTime            *time.Time                    `json:"fork_time,omitempty"`
 	ExecTime            *time.Time                    `json:"exec_time,omitempty"`
@@ -159,8 +155,8 @@ type ContainerContextSerializer struct {
 // FileEventSerializer serializes a file event to JSON
 // easyjson:json
 type FileEventSerializer struct {
-	FileSerializer `json:",omitempty"`
-	Destination    *FileSerializer `json:"destination,omitempty"`
+	FileSerializer
+	Destination *FileSerializer `json:"destination,omitempty"`
 
 	// Specific to mount events
 	NewMountID uint32 `json:"new_mount_id,omitempty"`
@@ -244,8 +240,8 @@ func newFileSerializer(fe *model.FileEvent, e *Event) *FileSerializer {
 		GID:                 fe.GID,
 		User:                e.ResolveFileFieldsUser(&fe.FileFields),
 		Group:               e.ResolveFileFieldsGroup(&fe.FileFields),
-		Mtime:               &fe.MTime,
-		Ctime:               &fe.CTime,
+		Mtime:               getTimeIfNotZero(time.Unix(0, int64(fe.MTime))),
+		Ctime:               getTimeIfNotZero(time.Unix(0, int64(fe.CTime))),
 		InUpperLayer:        getInUpperLayer(e.resolvers, &fe.FileFields),
 	}
 }
@@ -265,8 +261,8 @@ func newProcessFileSerializerWithResolvers(process *model.Process, r *Resolvers)
 		GID:                 process.FileFields.GID,
 		User:                r.ResolveFileFieldsUser(&process.FileFields),
 		Group:               r.ResolveFileFieldsGroup(&process.FileFields),
-		Mtime:               &process.FileFields.MTime,
-		Ctime:               &process.FileFields.CTime,
+		Mtime:               getTimeIfNotZero(time.Unix(0, int64(process.FileFields.MTime))),
+		Ctime:               getTimeIfNotZero(time.Unix(0, int64(process.FileFields.CTime))),
 	}
 }
 
@@ -345,17 +341,13 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *Pro
 	envs, EnvsTruncated := scrubEnvs(&pce.Process, e)
 
 	pceSerializer := &ProcessCacheEntrySerializer{
-		Inode:               pce.FileFields.Inode,
-		MountID:             pce.FileFields.MountID,
-		PathResolutionError: pce.GetPathResolutionError(),
-		ForkTime:            getTimeIfNotZero(pce.ForkTime),
-		ExecTime:            getTimeIfNotZero(pce.ExecTime),
-		ExitTime:            getTimeIfNotZero(pce.ExitTime),
+		ForkTime: getTimeIfNotZero(pce.ForkTime),
+		ExecTime: getTimeIfNotZero(pce.ExecTime),
+		ExitTime: getTimeIfNotZero(pce.ExitTime),
 
 		Pid:           pce.Process.Pid,
 		Tid:           pce.Process.Tid,
 		PPid:          pce.Process.PPid,
-		Path:          pce.Process.PathnameStr,
 		Comm:          pce.Process.Comm,
 		TTY:           pce.Process.TTYName,
 		Executable:    newProcessFileSerializerWithResolvers(&pce.Process, e.resolvers),
@@ -470,7 +462,8 @@ func serializeSyscallRetval(retval int64) string {
 	}
 }
 
-func newEventSerializer(event *Event) *EventSerializer {
+// NewEventSerializer creates a new event serializer based on the event type
+func NewEventSerializer(event *Event) *EventSerializer {
 	s := &EventSerializer{
 		EventContextSerializer: &EventContextSerializer{
 			Name:     model.EventType(event.Type).String(),
@@ -569,7 +562,7 @@ func newEventSerializer(event *Event) *EventSerializer {
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.SetXAttr.Retval)
-	case model.FileUtimeEventType:
+	case model.FileUtimesEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Utimes.File, event),
 			Destination: &FileSerializer{

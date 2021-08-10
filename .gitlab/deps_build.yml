@@ -33,7 +33,7 @@
 build_libbcc_x64:
   extends: .build_libbcc_common
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   variables:
     ARCH: amd64
 
@@ -87,7 +87,7 @@ build_libbcc_arm64:
 build_clang_x64:
   extends: .build_clang_common
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["runner:main", "size:2xlarge"]
+  tags: ["runner:main"]
   variables:
     ARCH: amd64
 

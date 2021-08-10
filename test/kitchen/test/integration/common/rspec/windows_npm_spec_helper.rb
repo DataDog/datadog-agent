@@ -5,7 +5,7 @@ shared_examples_for 'a Windows Agent with NPM driver that can start' do
   it 'has Windows NPM driver installed' do
     expect(is_windows_service_installed("ddnpm")).to be_truthy
   end
-  it 'has Windws NPM driver files installed' do
+  it 'has Windows NPM driver files installed' do
     expect(File).to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.cat")
     expect(File).to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.sys")
     expect(File).to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.inf")
@@ -44,7 +44,7 @@ shared_examples_for 'a Windows Agent with NPM driver installed' do
   it 'has Windows NPM driver installed' do
     expect(is_windows_service_installed("ddnpm")).to be_truthy
   end
-  it 'has Windws NPM driver files installed' do
+  it 'has Windows NPM driver files installed' do
     expect(File).to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.cat")
     expect(File).to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.sys")
     expect(File).to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddnpm.inf")

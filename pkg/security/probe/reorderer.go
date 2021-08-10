@@ -170,6 +170,7 @@ type ReOrdererMetric struct {
 
 // ReOrderer defines an event re-orderer
 type ReOrderer struct {
+	ctx         context.Context
 	queue       chan []byte
 	handler     func(cpu uint64, data []byte)
 	heap        *reOrdererHeap
@@ -181,7 +182,7 @@ type ReOrderer struct {
 }
 
 // Start event handler loop
-func (r *ReOrderer) Start(ctx context.Context, wg *sync.WaitGroup) {
+func (r *ReOrderer) Start(wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	flushTicker := time.NewTicker(r.opts.Rate)
@@ -226,7 +227,7 @@ func (r *ReOrderer) Start(ctx context.Context, wg *sync.WaitGroup) {
 			}
 
 			r.metric.zero()
-		case <-ctx.Done():
+		case <-r.ctx.Done():
 			return
 		}
 	}
@@ -234,12 +235,18 @@ func (r *ReOrderer) Start(ctx context.Context, wg *sync.WaitGroup) {
 
 // HandleEvent handle event form perf ring
 func (r *ReOrderer) HandleEvent(CPU int, data []byte, perfMap *manager.PerfMap, manager *manager.Manager) {
-	r.queue <- data
+	select {
+	case r.queue <- data:
+		return
+	case <-r.ctx.Done():
+		return
+	}
 }
 
 // NewReOrderer returns a new ReOrderer
-func NewReOrderer(handler func(cpu uint64, data []byte), extractInfo func(data []byte) (uint64, uint64, error), opts ReOrdererOpts) *ReOrderer {
+func NewReOrderer(ctx context.Context, handler func(cpu uint64, data []byte), extractInfo func(data []byte) (uint64, uint64, error), opts ReOrdererOpts) *ReOrderer {
 	return &ReOrderer{
+		ctx:     ctx,
 		queue:   make(chan []byte, opts.QueueSize),
 		handler: handler,
 		heap: &reOrdererHeap{

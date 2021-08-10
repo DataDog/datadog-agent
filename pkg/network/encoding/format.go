@@ -6,6 +6,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/nat"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -286,7 +287,7 @@ func formatEphemeralType(e network.EphemeralPortType) model.EphemeralPortState {
 	}
 }
 
-func formatDNSStatsByDomainByQueryType(stats map[string]map[network.QueryType]network.DNSStats, domainSet map[string]int) map[int32]*model.DNSStatsByQueryType {
+func formatDNSStatsByDomainByQueryType(stats map[string]map[dns.QueryType]dns.Stats, domainSet map[string]int) map[int32]*model.DNSStatsByQueryType {
 	m := make(map[int32]*model.DNSStatsByQueryType)
 	for d, bytype := range stats {
 
@@ -294,10 +295,10 @@ func formatDNSStatsByDomainByQueryType(stats map[string]map[network.QueryType]ne
 		byqtype.DnsStatsByQueryType = make(map[int32]*model.DNSStats)
 		for t, stat := range bytype {
 			var ms model.DNSStats
-			ms.DnsCountByRcode = stat.DNSCountByRcode
-			ms.DnsFailureLatencySum = stat.DNSFailureLatencySum
-			ms.DnsSuccessLatencySum = stat.DNSSuccessLatencySum
-			ms.DnsTimeouts = stat.DNSTimeouts
+			ms.DnsCountByRcode = stat.CountByRcode
+			ms.DnsFailureLatencySum = stat.FailureLatencySum
+			ms.DnsSuccessLatencySum = stat.SuccessLatencySum
+			ms.DnsTimeouts = stat.Timeouts
 			byqtype.DnsStatsByQueryType[int32(t)] = &ms
 		}
 		pos, ok := domainSet[d]
@@ -309,7 +310,8 @@ func formatDNSStatsByDomainByQueryType(stats map[string]map[network.QueryType]ne
 	}
 	return m
 }
-func formatDNSStatsByDomain(stats map[string]map[network.QueryType]network.DNSStats, domainSet map[string]int) map[int32]*model.DNSStats {
+
+func formatDNSStatsByDomain(stats map[string]map[dns.QueryType]dns.Stats, domainSet map[string]int) map[int32]*model.DNSStats {
 	m := make(map[int32]*model.DNSStats)
 	for d, bytype := range stats {
 		pos, ok := domainSet[d]
@@ -321,19 +323,19 @@ func formatDNSStatsByDomain(stats map[string]map[network.QueryType]network.DNSSt
 		for _, stat := range bytype {
 
 			if ms, ok := m[int32(pos)]; ok {
-				for rcode, count := range stat.DNSCountByRcode {
+				for rcode, count := range stat.CountByRcode {
 					ms.DnsCountByRcode[rcode] += count
 				}
-				ms.DnsFailureLatencySum += stat.DNSFailureLatencySum
-				ms.DnsSuccessLatencySum += stat.DNSSuccessLatencySum
-				ms.DnsTimeouts += stat.DNSTimeouts
+				ms.DnsFailureLatencySum += stat.FailureLatencySum
+				ms.DnsSuccessLatencySum += stat.SuccessLatencySum
+				ms.DnsTimeouts += stat.Timeouts
 
 			} else {
 				var ms model.DNSStats
-				ms.DnsCountByRcode = stat.DNSCountByRcode
-				ms.DnsFailureLatencySum = stat.DNSFailureLatencySum
-				ms.DnsSuccessLatencySum = stat.DNSSuccessLatencySum
-				ms.DnsTimeouts = stat.DNSTimeouts
+				ms.DnsCountByRcode = stat.CountByRcode
+				ms.DnsFailureLatencySum = stat.FailureLatencySum
+				ms.DnsSuccessLatencySum = stat.SuccessLatencySum
+				ms.DnsTimeouts = stat.Timeouts
 
 				m[int32(pos)] = &ms
 			}

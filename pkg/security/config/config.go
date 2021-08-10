@@ -82,6 +82,8 @@ type Config struct {
 	HostServiceName string
 	// LogPatterns pattern to be used by the logger for trace level
 	LogPatterns []string
+	// SelfTestEnabled defines if the self tester should be enabled (useful for tests for example)
+	SelfTestEnabled bool
 }
 
 // IsEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -119,6 +121,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		MapDentryResolutionEnabled:         aconfig.Datadog.GetBool("runtime_security_config.map_dentry_resolution_enabled"),
 		RemoteTaggerEnabled:                aconfig.Datadog.GetBool("runtime_security_config.remote_tagger"),
 		LogPatterns:                        aconfig.Datadog.GetStringSlice("runtime_security_config.log_patterns"),
+		SelfTestEnabled:                    aconfig.Datadog.GetBool("runtime_security_config.self_test.enabled"),
 	}
 
 	// if runtime is enabled then we force fim

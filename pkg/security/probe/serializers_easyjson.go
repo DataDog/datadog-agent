@@ -20,7 +20,220 @@ var (
 	_ easyjson.Marshaler
 )
 
-func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlexer.Lexer, out *UserContextSerializer) {
+func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlexer.Lexer, out *selinuxEnforceStatusSerializer) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "status":
+			out.Status = string(in.String())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwriter.Writer, in selinuxEnforceStatusSerializer) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	if in.Status != "" {
+		const prefix string = ",\"status\":"
+		first = false
+		out.RawString(prefix[1:])
+		out.String(string(in.Status))
+	}
+	out.RawByte('}')
+}
+
+// MarshalJSON supports json.Marshaler interface
+func (v selinuxEnforceStatusSerializer) MarshalJSON() ([]byte, error) {
+	w := jwriter.Writer{}
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(&w, v)
+	return w.Buffer.BuildBytes(), w.Error
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v selinuxEnforceStatusSerializer) MarshalEasyJSON(w *jwriter.Writer) {
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(w, v)
+}
+
+// UnmarshalJSON supports json.Unmarshaler interface
+func (v *selinuxEnforceStatusSerializer) UnmarshalJSON(data []byte) error {
+	r := jlexer.Lexer{Data: data}
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(&r, v)
+	return r.Error()
+}
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *selinuxEnforceStatusSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(l, v)
+}
+func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jlexer.Lexer, out *selinuxBoolCommitSerializer) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "state":
+			out.State = bool(in.Bool())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jwriter.Writer, in selinuxBoolCommitSerializer) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	if in.State {
+		const prefix string = ",\"state\":"
+		first = false
+		out.RawString(prefix[1:])
+		out.Bool(bool(in.State))
+	}
+	out.RawByte('}')
+}
+
+// MarshalJSON supports json.Marshaler interface
+func (v selinuxBoolCommitSerializer) MarshalJSON() ([]byte, error) {
+	w := jwriter.Writer{}
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(&w, v)
+	return w.Buffer.BuildBytes(), w.Error
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v selinuxBoolCommitSerializer) MarshalEasyJSON(w *jwriter.Writer) {
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(w, v)
+}
+
+// UnmarshalJSON supports json.Unmarshaler interface
+func (v *selinuxBoolCommitSerializer) UnmarshalJSON(data []byte) error {
+	r := jlexer.Lexer{Data: data}
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(&r, v)
+	return r.Error()
+}
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *selinuxBoolCommitSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(l, v)
+}
+func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jlexer.Lexer, out *selinuxBoolChangeSerializer) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "name":
+			out.Name = string(in.String())
+		case "state":
+			out.State = string(in.String())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(out *jwriter.Writer, in selinuxBoolChangeSerializer) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	if in.Name != "" {
+		const prefix string = ",\"name\":"
+		first = false
+		out.RawString(prefix[1:])
+		out.String(string(in.Name))
+	}
+	if in.State != "" {
+		const prefix string = ",\"state\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.State))
+	}
+	out.RawByte('}')
+}
+
+// MarshalJSON supports json.Marshaler interface
+func (v selinuxBoolChangeSerializer) MarshalJSON() ([]byte, error) {
+	w := jwriter.Writer{}
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(&w, v)
+	return w.Buffer.BuildBytes(), w.Error
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v selinuxBoolChangeSerializer) MarshalEasyJSON(w *jwriter.Writer) {
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(w, v)
+}
+
+// UnmarshalJSON supports json.Unmarshaler interface
+func (v *selinuxBoolChangeSerializer) UnmarshalJSON(data []byte) error {
+	r := jlexer.Lexer{Data: data}
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(&r, v)
+	return r.Error()
+}
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *selinuxBoolChangeSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(l, v)
+}
+func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(in *jlexer.Lexer, out *UserContextSerializer) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -53,7 +266,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 		in.Consumed()
 	}
 }
-func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwriter.Writer, in UserContextSerializer) {
+func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(out *jwriter.Writer, in UserContextSerializer) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -79,27 +292,27 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwr
 // MarshalJSON supports json.Marshaler interface
 func (v UserContextSerializer) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(&w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v UserContextSerializer) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *UserContextSerializer) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(&r, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *UserContextSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(l, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(l, v)
 }
-func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jlexer.Lexer, out *SetuidSerializer) {
+func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(in *jlexer.Lexer, out *SetuidSerializer) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -140,7 +353,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 		in.Consumed()
 	}
 }
-func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jwriter.Writer, in SetuidSerializer) {
+func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(out *jwriter.Writer, in SetuidSerializer) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -180,27 +393,27 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jw
 // MarshalJSON supports json.Marshaler interface
 func (v SetuidSerializer) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(&w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v SetuidSerializer) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *SetuidSerializer) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(&r, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *SetuidSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(l, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(l, v)
 }
-func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jlexer.Lexer, out *SetgidSerializer) {
+func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe5(in *jlexer.Lexer, out *SetgidSerializer) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -241,7 +454,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(in *jle
 		in.Consumed()
 	}
 }
-func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(out *jwriter.Writer, in SetgidSerializer) {
+func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe5(out *jwriter.Writer, in SetgidSerializer) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -281,27 +494,142 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(out *jw
 // MarshalJSON supports json.Marshaler interface
 func (v SetgidSerializer) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(&w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe5(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v SetgidSerializer) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe2(w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe5(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *SetgidSerializer) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(&r, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe5(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *SetgidSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe2(l, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe5(l, v)
 }
-func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(in *jlexer.Lexer, out *ProcessCredentialsSerializer) {
+func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe6(in *jlexer.Lexer, out *SELinuxEventSerializer) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "bool":
+			if in.IsNull() {
+				in.Skip()
+				out.BoolChange = nil
+			} else {
+				if out.BoolChange == nil {
+					out.BoolChange = new(selinuxBoolChangeSerializer)
+				}
+				(*out.BoolChange).UnmarshalEasyJSON(in)
+			}
+		case "enforce":
+			if in.IsNull() {
+				in.Skip()
+				out.EnforceStatus = nil
+			} else {
+				if out.EnforceStatus == nil {
+					out.EnforceStatus = new(selinuxEnforceStatusSerializer)
+				}
+				(*out.EnforceStatus).UnmarshalEasyJSON(in)
+			}
+		case "bool_commit":
+			if in.IsNull() {
+				in.Skip()
+				out.BoolCommit = nil
+			} else {
+				if out.BoolCommit == nil {
+					out.BoolCommit = new(selinuxBoolCommitSerializer)
+				}
+				(*out.BoolCommit).UnmarshalEasyJSON(in)
+			}
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe6(out *jwriter.Writer, in SELinuxEventSerializer) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	if in.BoolChange != nil {
+		const prefix string = ",\"bool\":"
+		first = false
+		out.RawString(prefix[1:])
+		(*in.BoolChange).MarshalEasyJSON(out)
+	}
+	if in.EnforceStatus != nil {
+		const prefix string = ",\"enforce\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.EnforceStatus).MarshalEasyJSON(out)
+	}
+	if in.BoolCommit != nil {
+		const prefix string = ",\"bool_commit\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.BoolCommit).MarshalEasyJSON(out)
+	}
+	out.RawByte('}')
+}
+
+// MarshalJSON supports json.Marshaler interface
+func (v SELinuxEventSerializer) MarshalJSON() ([]byte, error) {
+	w := jwriter.Writer{}
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe6(&w, v)
+	return w.Buffer.BuildBytes(), w.Error
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v SELinuxEventSerializer) MarshalEasyJSON(w *jwriter.Writer) {
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe6(w, v)
+}
+
+// UnmarshalJSON supports json.Unmarshaler interface
+func (v *SELinuxEventSerializer) UnmarshalJSON(data []byte) error {
+	r := jlexer.Lexer{Data: data}
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe6(&r, v)
+	return r.Error()
+}
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *SELinuxEventSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe6(l, v)
+}
+func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe7(in *jlexer.Lexer, out *ProcessCredentialsSerializer) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -409,7 +737,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(in *jle
 		in.Consumed()
 	}
 }
-func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(out *jwriter.Writer, in ProcessCredentialsSerializer) {
+func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe7(out *jwriter.Writer, in ProcessCredentialsSerializer) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -506,27 +834,27 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(out *jw
 // MarshalJSON supports json.Marshaler interface
 func (v ProcessCredentialsSerializer) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(&w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe7(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v ProcessCredentialsSerializer) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe3(w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe7(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *ProcessCredentialsSerializer) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(&r, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe7(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *ProcessCredentialsSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe3(l, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe7(l, v)
 }
-func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(in *jlexer.Lexer, out *ProcessContextSerializer) {
+func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe8(in *jlexer.Lexer, out *ProcessContextSerializer) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -601,18 +929,10 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(in *jle
 			out.User = string(in.String())
 		case "group":
 			out.Group = string(in.String())
-		case "executable_path":
-			out.Path = string(in.String())
 		case "path_resolution_error":
 			out.PathResolutionError = string(in.String())
 		case "comm":
 			out.Comm = string(in.String())
-		case "executable_inode":
-			out.Inode = uint64(in.Uint64())
-		case "executable_mount_id":
-			out.MountID = uint32(in.Uint32())
-		case "executable_filesystem":
-			out.Filesystem = string(in.String())
 		case "tty":
 			out.TTY = string(in.String())
 		case "fork_time":
@@ -741,7 +1061,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(in *jle
 		in.Consumed()
 	}
 }
-func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(out *jwriter.Writer, in ProcessContextSerializer) {
+func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe8(out *jwriter.Writer, in ProcessContextSerializer) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -829,11 +1149,6 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(out *jw
 		out.RawString(prefix)
 		out.String(string(in.Group))
 	}
-	if in.Path != "" {
-		const prefix string = ",\"executable_path\":"
-		out.RawString(prefix)
-		out.String(string(in.Path))
-	}
 	if in.PathResolutionError != "" {
 		const prefix string = ",\"path_resolution_error\":"
 		out.RawString(prefix)
@@ -843,21 +1158,6 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(out *jw
 		const prefix string = ",\"comm\":"
 		out.RawString(prefix)
 		out.String(string(in.Comm))
-	}
-	if in.Inode != 0 {
-		const prefix string = ",\"executable_inode\":"
-		out.RawString(prefix)
-		out.Uint64(uint64(in.Inode))
-	}
-	if in.MountID != 0 {
-		const prefix string = ",\"executable_mount_id\":"
-		out.RawString(prefix)
-		out.Uint32(uint32(in.MountID))
-	}
-	if in.Filesystem != "" {
-		const prefix string = ",\"executable_filesystem\":"
-		out.RawString(prefix)
-		out.String(string(in.Filesystem))
 	}
 	if in.TTY != "" {
 		const prefix string = ",\"tty\":"
@@ -938,27 +1238,27 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(out *jw
 // MarshalJSON supports json.Marshaler interface
 func (v ProcessContextSerializer) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(&w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe8(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v ProcessContextSerializer) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe4(w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe8(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *ProcessContextSerializer) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(&r, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe8(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *ProcessContextSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe4(l, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe8(l, v)
 }
-func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe5(in *jlexer.Lexer, out *ProcessCacheEntrySerializer) {
+func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe9(in *jlexer.Lexer, out *ProcessCacheEntrySerializer) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -991,18 +1291,10 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe5(in *jle
 			out.User = string(in.String())
 		case "group":
 			out.Group = string(in.String())
-		case "executable_path":
-			out.Path = string(in.String())
 		case "path_resolution_error":
 			out.PathResolutionError = string(in.String())
 		case "comm":
 			out.Comm = string(in.String())
-		case "executable_inode":
-			out.Inode = uint64(in.Uint64())
-		case "executable_mount_id":
-			out.MountID = uint32(in.Uint32())
-		case "executable_filesystem":
-			out.Filesystem = string(in.String())
 		case "tty":
 			out.TTY = string(in.String())
 		case "fork_time":
@@ -1131,7 +1423,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe5(in *jle
 		in.Consumed()
 	}
 }
-func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe5(out *jwriter.Writer, in ProcessCacheEntrySerializer) {
+func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe9(out *jwriter.Writer, in ProcessCacheEntrySerializer) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -1186,11 +1478,6 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe5(out *jw
 		out.RawString(prefix)
 		out.String(string(in.Group))
 	}
-	if in.Path != "" {
-		const prefix string = ",\"executable_path\":"
-		out.RawString(prefix)
-		out.String(string(in.Path))
-	}
 	if in.PathResolutionError != "" {
 		const prefix string = ",\"path_resolution_error\":"
 		out.RawString(prefix)
@@ -1200,21 +1487,6 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe5(out *jw
 		const prefix string = ",\"comm\":"
 		out.RawString(prefix)
 		out.String(string(in.Comm))
-	}
-	if in.Inode != 0 {
-		const prefix string = ",\"executable_inode\":"
-		out.RawString(prefix)
-		out.Uint64(uint64(in.Inode))
-	}
-	if in.MountID != 0 {
-		const prefix string = ",\"executable_mount_id\":"
-		out.RawString(prefix)
-		out.Uint32(uint32(in.MountID))
-	}
-	if in.Filesystem != "" {
-		const prefix string = ",\"executable_filesystem\":"
-		out.RawString(prefix)
-		out.String(string(in.Filesystem))
 	}
 	if in.TTY != "" {
 		const prefix string = ",\"tty\":"
@@ -1295,27 +1567,27 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe5(out *jw
 // MarshalJSON supports json.Marshaler interface
 func (v ProcessCacheEntrySerializer) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe5(&w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe9(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v ProcessCacheEntrySerializer) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe5(w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe9(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *ProcessCacheEntrySerializer) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe5(&r, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe9(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *ProcessCacheEntrySerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe5(l, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe9(l, v)
 }
-func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe6(in *jlexer.Lexer, out *FileSerializer) {
+func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe10(in *jlexer.Lexer, out *FileSerializer) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -1463,7 +1735,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe6(in *jle
 		in.Consumed()
 	}
 }
-func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe6(out *jwriter.Writer, in FileSerializer) {
+func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe10(out *jwriter.Writer, in FileSerializer) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -1613,27 +1885,27 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe6(out *jw
 // MarshalJSON supports json.Marshaler interface
 func (v FileSerializer) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe6(&w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe10(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v FileSerializer) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe6(w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe10(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *FileSerializer) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe6(&r, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe10(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *FileSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe6(l, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe10(l, v)
 }
-func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe7(in *jlexer.Lexer, out *FileEventSerializer) {
+func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe11(in *jlexer.Lexer, out *FileEventSerializer) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -1799,7 +2071,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe7(in *jle
 		in.Consumed()
 	}
 }
-func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe7(out *jwriter.Writer, in FileEventSerializer) {
+func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe11(out *jwriter.Writer, in FileEventSerializer) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -1999,27 +2271,27 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe7(out *jw
 // MarshalJSON supports json.Marshaler interface
 func (v FileEventSerializer) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe7(&w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe11(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v FileEventSerializer) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe7(w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe11(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *FileEventSerializer) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe7(&r, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe11(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *FileEventSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe7(l, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe11(l, v)
 }
-func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe8(in *jlexer.Lexer, out *EventSerializer) {
+func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe12(in *jlexer.Lexer, out *EventSerializer) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -2030,6 +2302,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe8(in *jle
 	}
 	out.EventContextSerializer = new(EventContextSerializer)
 	out.FileEventSerializer = new(FileEventSerializer)
+	out.SELinuxEventSerializer = new(SELinuxEventSerializer)
 	in.Delim('{')
 	for !in.IsDelim('}') {
 		key := in.UnsafeFieldName(false)
@@ -2059,6 +2332,16 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe8(in *jle
 					out.FileEventSerializer = new(FileEventSerializer)
 				}
 				(*out.FileEventSerializer).UnmarshalEasyJSON(in)
+			}
+		case "selinux":
+			if in.IsNull() {
+				in.Skip()
+				out.SELinuxEventSerializer = nil
+			} else {
+				if out.SELinuxEventSerializer == nil {
+					out.SELinuxEventSerializer = new(SELinuxEventSerializer)
+				}
+				(*out.SELinuxEventSerializer).UnmarshalEasyJSON(in)
 			}
 		case "usr":
 			(out.UserContextSerializer).UnmarshalEasyJSON(in)
@@ -2096,7 +2379,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe8(in *jle
 		in.Consumed()
 	}
 }
-func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe8(out *jwriter.Writer, in EventSerializer) {
+func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe12(out *jwriter.Writer, in EventSerializer) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -2115,6 +2398,16 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe8(out *jw
 			out.RawString(prefix)
 		}
 		(*in.FileEventSerializer).MarshalEasyJSON(out)
+	}
+	if in.SELinuxEventSerializer != nil {
+		const prefix string = ",\"selinux\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.SELinuxEventSerializer).MarshalEasyJSON(out)
 	}
 	if true {
 		const prefix string = ",\"usr\":"
@@ -2162,27 +2455,27 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe8(out *jw
 // MarshalJSON supports json.Marshaler interface
 func (v EventSerializer) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe8(&w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe12(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v EventSerializer) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe8(w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe12(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *EventSerializer) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe8(&r, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe12(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *EventSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe8(l, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe12(l, v)
 }
-func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe9(in *jlexer.Lexer, out *EventContextSerializer) {
+func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe13(in *jlexer.Lexer, out *EventContextSerializer) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -2217,7 +2510,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe9(in *jle
 		in.Consumed()
 	}
 }
-func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe9(out *jwriter.Writer, in EventContextSerializer) {
+func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe13(out *jwriter.Writer, in EventContextSerializer) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -2253,27 +2546,27 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe9(out *jw
 // MarshalJSON supports json.Marshaler interface
 func (v EventContextSerializer) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe9(&w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe13(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v EventContextSerializer) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe9(w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe13(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *EventContextSerializer) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe9(&r, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe13(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *EventContextSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe9(l, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe13(l, v)
 }
-func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe10(in *jlexer.Lexer, out *CredentialsSerializer) {
+func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe14(in *jlexer.Lexer, out *CredentialsSerializer) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -2372,7 +2665,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe10(in *jl
 		in.Consumed()
 	}
 }
-func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe10(out *jwriter.Writer, in CredentialsSerializer) {
+func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe14(out *jwriter.Writer, in CredentialsSerializer) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -2452,27 +2745,27 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe10(out *j
 // MarshalJSON supports json.Marshaler interface
 func (v CredentialsSerializer) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe10(&w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe14(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v CredentialsSerializer) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe10(w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe14(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *CredentialsSerializer) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe10(&r, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe14(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *CredentialsSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe10(l, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe14(l, v)
 }
-func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe11(in *jlexer.Lexer, out *ContainerContextSerializer) {
+func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe15(in *jlexer.Lexer, out *ContainerContextSerializer) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -2503,7 +2796,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe11(in *jl
 		in.Consumed()
 	}
 }
-func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe11(out *jwriter.Writer, in ContainerContextSerializer) {
+func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe15(out *jwriter.Writer, in ContainerContextSerializer) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -2519,27 +2812,27 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe11(out *j
 // MarshalJSON supports json.Marshaler interface
 func (v ContainerContextSerializer) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe11(&w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe15(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v ContainerContextSerializer) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe11(w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe15(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *ContainerContextSerializer) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe11(&r, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe15(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *ContainerContextSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe11(l, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe15(l, v)
 }
-func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe12(in *jlexer.Lexer, out *CapsetSerializer) {
+func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe16(in *jlexer.Lexer, out *CapsetSerializer) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -2614,7 +2907,7 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe12(in *jl
 		in.Consumed()
 	}
 }
-func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe12(out *jwriter.Writer, in CapsetSerializer) {
+func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe16(out *jwriter.Writer, in CapsetSerializer) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -2634,23 +2927,23 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe12(out *j
 // MarshalJSON supports json.Marshaler interface
 func (v CapsetSerializer) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe12(&w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe16(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v CapsetSerializer) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe12(w, v)
+	easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe16(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *CapsetSerializer) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe12(&r, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe16(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *CapsetSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe12(l, v)
+	easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe16(l, v)
 }

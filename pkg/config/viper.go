@@ -56,6 +56,9 @@ func (c *safeConfig) SetKnown(key string) {
 func (c *safeConfig) GetKnownKeys() map[string]interface{} {
 	c.Lock()
 	defer c.Unlock()
+
+	// GetKnownKeys returns a fresh map, so the caller may do with it
+	// as they please without holding the lock.
 	return c.Viper.GetKnownKeys()
 }
 
@@ -267,7 +270,7 @@ func (c *safeConfig) SetEnvPrefix(in string) {
 }
 
 // BindEnv wraps Viper for concurrent access, and adds tracking of the configurable env vars
-func (c *safeConfig) BindEnv(input ...string) error {
+func (c *safeConfig) BindEnv(input ...string) {
 	c.Lock()
 	defer c.Unlock()
 	if len(input) == 1 {
@@ -277,7 +280,7 @@ func (c *safeConfig) BindEnv(input ...string) error {
 		envVarName := strings.Join([]string{c.envPrefix, strings.ToUpper(key)}, "_")
 		c.configEnvVars = append(c.configEnvVars, envVarName)
 	}
-	return c.Viper.BindEnv(input...)
+	_ = c.Viper.BindEnv(input...)
 }
 
 // SetEnvKeyReplacer wraps Viper for concurrent access
@@ -340,6 +343,9 @@ func (c *safeConfig) MergeConfigOverride(in io.Reader) error {
 func (c *safeConfig) AllSettings() map[string]interface{} {
 	c.Lock()
 	defer c.Unlock()
+
+	// AllSettings returns a fresh map, so the caller may do with it
+	// as they please without holding the lock.
 	return c.Viper.AllSettings()
 }
 

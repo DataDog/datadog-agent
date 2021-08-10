@@ -51,7 +51,12 @@ func updateContainerRunningCount(images map[string]*containerPerImage, c *contai
 	var containerTags []string
 	var err error
 
-	if c.Excluded {
+	// Containers that are not running (either pending or stopped) are not
+	// collected by the tagger, so they won't have any tags and will cause
+	// an expensive tagger fetch.  To have *some* tags for stopped
+	// containers, we treat them as excluded containers and make a
+	// synthetic list of tags from basic container information.
+	if c.Excluded || c.State != containers.ContainerRunningState {
 		// TODO we can do SplitImageName because we are in the docker corecheck and the image name is not a sha[...]
 		// We should resolve the image tags in the tagger as a real entity.
 		long, short, tag, err := containers.SplitImageName(c.Image)
@@ -344,10 +349,10 @@ func (d *DockerCheck) reportCPUMetrics(cpu *cmetrics.ContainerCPUStats, limits *
 		return
 	}
 
-	sender.Rate("docker.cpu.system", float64(cpu.System), "", tags)
-	sender.Rate("docker.cpu.user", float64(cpu.User), "", tags)
+	sender.Rate("docker.cpu.system", cpu.System, "", tags)
+	sender.Rate("docker.cpu.user", cpu.User, "", tags)
 	sender.Rate("docker.cpu.usage", cpu.UsageTotal, "", tags)
-	sender.Gauge("docker.cpu.shares", float64(cpu.Shares), "", tags)
+	sender.Gauge("docker.cpu.shares", cpu.Shares, "", tags)
 	sender.Rate("docker.cpu.throttled", float64(cpu.NrThrottled), "", tags)
 	sender.Rate("docker.cpu.throttled.time", cpu.ThrottledTime, "", tags)
 	if cpu.ThreadCount != 0 {
