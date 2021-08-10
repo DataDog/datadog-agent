@@ -197,14 +197,14 @@ func (c *AgentConfig) APIKey() string {
 }
 
 // Validate validates if the current configuration is good for the agent to start with.
-func (c *AgentConfig) validate() error {
+func (c *AgentConfig) validate(hostNameResolution bool) error {
 	if len(c.Endpoints) == 0 || c.Endpoints[0].APIKey == "" {
 		return ErrMissingAPIKey
 	}
 	if c.DDAgentBin == "" {
 		return errors.New("agent binary path not set")
 	}
-	if c.Hostname == "" {
+	if c.Hostname == "" && hostNameResolution {
 		// no user-set hostname, try to acquire
 		if err := c.acquireHostname(); err != nil {
 			log.Debugf("Could not get hostname via gRPC: %v. Falling back to other methods.", err)
@@ -305,10 +305,7 @@ func (c *AgentConfig) NewHTTPTransport() *http.Transport {
 	return transport
 }
 
-// Load returns a new configuration based on the given path. The path must not necessarily exist
-// and a valid configuration can be returned based on defaults and environment variables. If a
-// valid configuration can not be obtained, an error is returned.
-func Load(path string) (*AgentConfig, error) {
+func load(path string, hostNameResolution bool) (*AgentConfig, error) {
 	cfg, err := prepareConfig(path)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -318,7 +315,20 @@ func Load(path string) (*AgentConfig, error) {
 		log.Infof("Loaded configuration: %s", cfg.ConfigPath)
 	}
 	cfg.applyDatadogConfig()
-	return cfg, cfg.validate()
+	return cfg, cfg.validate(hostNameResolution)
+}
+
+// Load returns a new configuration based on the given path. The path must not necessarily exist
+// and a valid configuration can be returned based on defaults and environment variables. If a
+// valid configuration can not be obtained, an error is returned.
+func Load(path string) (*AgentConfig, error) {
+	return load(path, true)
+}
+
+// LoadServerless see Load comment
+// This will skip hostname resolution as hostname need to be empty in a serverless context
+func LoadServerless(path string) (*AgentConfig, error) {
+	return load(path, false)
 }
 
 func prepareConfig(path string) (*AgentConfig, error) {

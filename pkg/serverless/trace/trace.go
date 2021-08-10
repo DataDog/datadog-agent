@@ -31,7 +31,7 @@ type LoadConfig struct {
 
 // Load loads the config from a file path
 func (l *LoadConfig) Load() (*config.AgentConfig, error) {
-	return config.Load(l.Path)
+	return config.LoadServerless(l.Path)
 }
 
 // Start starts the agent
