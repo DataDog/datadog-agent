@@ -117,7 +117,7 @@ func (f *replaceFilter) Filter(token, lastToken TokenKind, buffer []byte) (token
 	case '?':
 		// Cases like 'ARRAY [ ?, ? ]' should be collapsed into 'ARRAY [ ? ]'
 		return markFilteredGroupable(token), questionMark, nil
-	case TableName:
+	case TableName, ID:
 		if f.quantizeTableNames {
 			return token, replaceDigits(buffer), nil
 		}
