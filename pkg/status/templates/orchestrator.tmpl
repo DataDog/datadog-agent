@@ -50,26 +50,10 @@ Orchestrator Explorer
   Cache Stats
   ===========
     Elements in the cache: {{.CacheNumber}}
-    Pods:
-      Last Run: (Hits: {{.PodsStats.CacheHits}} Miss: {{.PodsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Pod}} Miss: {{.CacheMiss.Pod}})
-    Deployments:
-      Last Run: (Hits: {{.DeploymentsStats.CacheHits}} Miss: {{.DeploymentsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Deployment}} Miss: {{.CacheMiss.Deployment}})
-    ReplicaSets:
-      Last Run: (Hits: {{.ReplicaSetsStats.CacheHits}} Miss: {{.ReplicaSetsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.ReplicaSet}} Miss: {{.CacheMiss.ReplicaSet}})
-    Services:
-      Last Run: (Hits: {{.ServicesStats.CacheHits}} Miss: {{.ServicesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Service}} Miss: {{.CacheMiss.Service}})
-    Nodes:
-      Last Run: (Hits: {{.NodesStats.CacheHits}} Miss: {{.NodesStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Node}} Miss: {{.CacheMiss.Node}})
-    Cluster:
-      Last Run: (Hits: {{.ClustersStats.CacheHits}} Miss: {{.ClustersStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Cluster}} Miss: {{.CacheMiss.Cluster}})
-    Job:
-      Last Run: (Hits: {{.JobsStats.CacheHits}} Miss: {{.JobsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.Job}} Miss: {{.CacheMiss.Job}})
-    CronJob:
-      Last Run: (Hits: {{.CronJobsStats.CacheHits}} Miss: {{.CronJobsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.CronJob}} Miss: {{.CacheMiss.CronJob}})
-    DaemonSets:
-      Last Run: (Hits: {{.DaemonSetsStats.CacheHits}} Miss: {{.DaemonSetsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.DaemonSet}} Miss: {{.CacheMiss.DaemonSet}})
-    StatefulSets:
-      Last Run: (Hits: {{.StatefulSetsStats.CacheHits}} Miss: {{.StatefulSetsStats.CacheMiss}}) | Total: (Hits: {{.CacheHits.StatefulSet}} Miss: {{.CacheMiss.StatefulSet}})
+{{range $index, $element := .CacheInformation}}
+    {{ $element.NodeType }}
+      Last Run: (Hits: {{$element.CacheHits}} Miss: {{$element.CacheMiss}}) | Total: (Hits: {{$element.TotalHits}} Miss: {{$element.TotalMiss}})
+{{end}}
 {{else}}
 {{- if .LeaderName }}
   Status: Follower, cluster agent leader is: {{ .LeaderName }}
