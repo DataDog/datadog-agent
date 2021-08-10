@@ -6,17 +6,23 @@
 package local
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/subscriber"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	tagInfoBufferSize = 50
 )
 
 var errNotFound = errors.New("entity not found")
@@ -59,6 +65,7 @@ type tagStore struct {
 
 	store     map[string]*entityTags
 	telemetry map[string]map[string]float64
+	infoIn    chan []*collectors.TagInfo
 
 	subscriber *subscriber.Subscriber
 
@@ -69,8 +76,36 @@ func newTagStore() *tagStore {
 	return &tagStore{
 		telemetry:  make(map[string]map[string]float64),
 		store:      make(map[string]*entityTags),
+		infoIn:     make(chan []*collectors.TagInfo, tagInfoBufferSize),
 		subscriber: subscriber.NewSubscriber(),
 		clock:      realClock{},
+	}
+}
+
+func (s *tagStore) run(ctx context.Context) {
+	pruneTicker := time.NewTicker(1 * time.Minute)
+	telemetryTicker := time.NewTicker(1 * time.Minute)
+	health := health.RegisterLiveness("tagger-store")
+
+	for {
+		select {
+		case msg := <-s.infoIn:
+			s.processTagInfo(msg)
+
+		case <-telemetryTicker.C:
+			s.collectTelemetry()
+
+		case <-pruneTicker.C:
+			s.prune()
+
+		case <-health.C:
+
+		case <-ctx.Done():
+			pruneTicker.Stop()
+			telemetryTicker.Stop()
+
+			return
+		}
 	}
 }
 
