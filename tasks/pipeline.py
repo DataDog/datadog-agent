@@ -5,6 +5,7 @@ import re
 import traceback
 from collections import defaultdict
 
+import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
@@ -20,6 +21,7 @@ from .libs.pipeline_notifications import (
     send_slack_message,
 )
 from .libs.pipeline_tools import (
+    FilteredOutException,
     cancel_pipelines_with_confirmation,
     get_running_pipelines_on_same_ref,
     trigger_agent_pipeline,
@@ -149,6 +151,12 @@ def trigger(
     )
 
 
+def workflow_rules(gitlab_file=".gitlab-ci.yml"):
+    """Get Gitlab workflow rules list in a YAML-formatted string."""
+    with open(gitlab_file, 'r') as f:
+        return yaml.dump(yaml.safe_load(f.read())["workflow"]["rules"])
+
+
 @task
 def run(
     ctx,
@@ -231,17 +239,26 @@ def run(
         )
         cancel_pipelines_with_confirmation(gitlab, project_name, pipelines)
 
-    pipeline_id = trigger_agent_pipeline(
-        gitlab,
-        project_name,
-        git_ref,
-        release_version_6,
-        release_version_7,
-        repo_branch,
-        deploy=deploy,
-        all_builds=all_builds,
-        kitchen_tests=kitchen_tests,
-    )
+    try:
+        pipeline_id = trigger_agent_pipeline(
+            gitlab,
+            project_name,
+            git_ref,
+            release_version_6,
+            release_version_7,
+            repo_branch,
+            deploy=deploy,
+            all_builds=all_builds,
+            kitchen_tests=kitchen_tests,
+        )
+    except FilteredOutException:
+        print(
+            color_message(
+                "ERROR: pipeline does not match any workflow rule. Rules:\n{}".format(workflow_rules()), "red"
+            )
+        )
+        return
+
     wait_for_pipeline(gitlab, project_name, pipeline_id)
 
 
