@@ -1,5 +1,5 @@
 // Code generated - DO NOT EDIT.
-// +build amd64,!functionaltests,!stresstests
+// +build amd64,!functionaltests,!stresstests,linux
 
 package embeddedtests
 

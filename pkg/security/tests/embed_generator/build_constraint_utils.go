@@ -36,8 +36,11 @@ func convertBuildTags(content string) (string, error) {
 func convertConstraintExprFinal(expr constraint.Expr) constraint.Expr {
 	lhs := convertConstraintExpr(expr)
 	rhs := &constraint.AndExpr{
-		X: &constraint.NotExpr{X: &constraint.TagExpr{Tag: "functionaltests"}},
-		Y: &constraint.NotExpr{X: &constraint.TagExpr{Tag: "stresstests"}},
+		X: &constraint.AndExpr{
+			X: &constraint.NotExpr{X: &constraint.TagExpr{Tag: "functionaltests"}},
+			Y: &constraint.NotExpr{X: &constraint.TagExpr{Tag: "stresstests"}},
+		},
+		Y: &constraint.TagExpr{Tag: "linux"},
 	}
 
 	var res constraint.Expr

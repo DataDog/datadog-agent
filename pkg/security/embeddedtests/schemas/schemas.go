@@ -17,7 +17,7 @@
 // pkg/security/tests/schemas/rename.schema.json
 // pkg/security/tests/schemas/selinux.schema.json
 // pkg/security/tests/schemas/usr.json
-// +build !functionaltests,!stresstests
+// +build !functionaltests,!stresstests,linux
 
 package schemas
 
