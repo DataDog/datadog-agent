@@ -1,11 +1,12 @@
+// Code generated - DO NOT EDIT.
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build functionaltests
+// +build !functionaltests,!stresstests
 
-package tests
+package embeddedtests
 
 import (
 	"fmt"
@@ -56,9 +57,6 @@ func TestUnlink(t *testing.T) {
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	}))
 
 	testAtFile, testAtFilePtr, err := test.CreateWithOptions("test-unlinkat", 98, 99, fileMode)
@@ -83,9 +81,6 @@ func TestUnlink(t *testing.T) {
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 }
 

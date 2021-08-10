@@ -1,11 +1,12 @@
+// Code generated - DO NOT EDIT.
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build functionaltests
+// +build !functionaltests,!stresstests
 
-package tests
+package embeddedtests
 
 import (
 	"errors"
@@ -29,7 +30,7 @@ func TestSELinux(t *testing.T) {
 	ruleset := []*rules.RuleDefinition{
 		{
 			ID:         "test_selinux_enforce",
-			Expression: `selinux.enforce.status in ["disabled", "permissive"]`,
+			Expression: `selinux.enforce.status in ["enabled", "permissive"]`,
 		},
 		{
 			ID:         "test_selinux_write_bool_true",
@@ -50,6 +51,7 @@ func TestSELinux(t *testing.T) {
 	if err != nil {
 		t.Errorf("failed to save enforce status")
 	}
+	setEnforceStatus("permissive")
 	defer setEnforceStatus(currentEnforceStatus)
 
 	test, err := newTestModule(t, nil, ruleset, testOpts{})
@@ -64,17 +66,15 @@ func TestSELinux(t *testing.T) {
 	}
 	defer setBoolValue(TEST_BOOL_NAME, savedBoolValue)
 
-	t.Run("setenforce", func(t *testing.T) {
+	t.Run("sel_disable", func(t *testing.T) {
 		err = test.GetSignal(t, func() error {
-			if err := setEnforceStatus("permissive"); err != nil {
-				t.Errorf("failed to run setenforce: %v", err)
+			if err := rawSudoWrite("/sys/fs/selinux/disable", "0", false); err != nil {
+				t.Errorf("failed to write to selinuxfs: %v", err)
 			}
 			return nil
 		}, func(event *probe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_selinux_enforce")
 			assert.Equal(t, "selinux", event.GetType(), "wrong event type")
-
-			assertFieldEqual(t, event, "selinux.enforce.status", "permissive", "wrong enforce value")
 
 			if !validateSELinuxSchema(t, event) {
 				t.Error(event.String())
@@ -85,15 +85,17 @@ func TestSELinux(t *testing.T) {
 		}
 	})
 
-	t.Run("sel_disable", func(t *testing.T) {
+	t.Run("setenforce", func(t *testing.T) {
 		err = test.GetSignal(t, func() error {
-			if err := rawSudoWrite("/sys/fs/selinux/disable", "0", false); err != nil {
-				t.Errorf("failed to write to selinuxfs: %v", err)
+			if cmd := exec.Command("sudo", "-n", "setenforce", "0"); cmd.Run() != nil {
+				t.Errorf("Failed to run setenforce")
 			}
 			return nil
 		}, func(event *probe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_selinux_enforce")
 			assert.Equal(t, "selinux", event.GetType(), "wrong event type")
+
+			assertFieldEqual(t, event, "selinux.enforce.status", "permissive", "wrong enforce value")
 
 			if !validateSELinuxSchema(t, event) {
 				t.Error(event.String())

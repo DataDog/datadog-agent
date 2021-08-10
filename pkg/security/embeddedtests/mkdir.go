@@ -1,11 +1,12 @@
+// Code generated - DO NOT EDIT.
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build functionaltests
+// +build !functionaltests,!stresstests
 
-package tests
+package embeddedtests
 
 import (
 	"os"
@@ -63,9 +64,6 @@ func TestMkdir(t *testing.T) {
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	}))
 
 	t.Run("mkdirat", func(t *testing.T) {
@@ -91,9 +89,6 @@ func TestMkdir(t *testing.T) {
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 }
 

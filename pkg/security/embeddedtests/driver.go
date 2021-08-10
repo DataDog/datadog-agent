@@ -23,12 +23,92 @@ var embeddedTests = []testing.InternalTest{
 		F:    TestChown,
 	},
 	{
+		Name: "TestLink",
+		F:    TestLink,
+	},
+	{
+		Name: "TestMacros",
+		F:    TestMacros,
+	},
+	{
+		Name: "TestMkdir",
+		F:    TestMkdir,
+	},
+	{
+		Name: "TestMkdirError",
+		F:    TestMkdirError,
+	},
+	{
+		Name: "TestOpen",
+		F:    TestOpen,
+	},
+	{
+		Name: "TestOpenMetadata",
+		F:    TestOpenMetadata,
+	},
+	{
+		Name: "TestRulesetLoaded",
+		F:    TestRulesetLoaded,
+	},
+	{
+		Name: "TestProcess",
+		F:    TestProcess,
+	},
+	{
+		Name: "TestProcessContext",
+		F:    TestProcessContext,
+	},
+	{
+		Name: "TestProcessExecCTime",
+		F:    TestProcessExecCTime,
+	},
+	{
+		Name: "TestProcessExec",
+		F:    TestProcessExec,
+	},
+	{
+		Name: "TestProcessMetadata",
+		F:    TestProcessMetadata,
+	},
+	{
+		Name: "TestProcessExecExit",
+		F:    TestProcessExecExit,
+	},
+	{
 		Name: "TestRename",
 		F:    TestRename,
 	},
 	{
 		Name: "TestRenameInvalidate",
 		F:    TestRenameInvalidate,
+	},
+	{
+		Name: "TestRmdir",
+		F:    TestRmdir,
+	},
+	{
+		Name: "TestRmdirInvalidate",
+		F:    TestRmdirInvalidate,
+	},
+	{
+		Name: "TestSELinux",
+		F:    TestSELinux,
+	},
+	{
+		Name: "TestSELinuxCommitBools",
+		F:    TestSELinuxCommitBools,
+	},
+	{
+		Name: "TestUnlink",
+		F:    TestUnlink,
+	},
+	{
+		Name: "TestUnlinkInvalidate",
+		F:    TestUnlinkInvalidate,
+	},
+	{
+		Name: "TestUtimes",
+		F:    TestUtimes,
 	},
 }
 

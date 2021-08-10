@@ -1,14 +1,16 @@
+// Code generated - DO NOT EDIT.
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build functionaltests
+// +build !functionaltests,!stresstests
 
-package tests
+package embeddedtests
 
 import (
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"os/exec"
@@ -122,6 +124,18 @@ func TestProcessContext(t *testing.T) {
 	}
 	defer test.Close()
 
+	which := func(name string) string {
+		executable := "/usr/bin/" + name
+		if resolved, err := os.Readlink(executable); err == nil {
+			executable = resolved
+		} else {
+			if os.IsNotExist(err) {
+				executable = "/bin/" + name
+			}
+		}
+		return executable
+	}
+
 	t.Run("exec-time", func(t *testing.T) {
 		testFile, _, err := test.Path("test-exec-time")
 		if err != nil {
@@ -158,9 +172,6 @@ func TestProcessContext(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("inode", func(t *testing.T) {
@@ -185,9 +196,6 @@ func TestProcessContext(t *testing.T) {
 			assertFieldEqual(t, event, "process.file.path", executable)
 			assert.Equal(t, getInode(t, executable), event.ResolveProcessCacheEntry().FileFields.Inode, "wrong inode")
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	test.Run(t, "args-envs", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -252,9 +260,6 @@ func TestProcessContext(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("argv", func(t *testing.T) {
@@ -362,9 +367,6 @@ func TestProcessContext(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("tty", func(t *testing.T) {
@@ -461,9 +463,6 @@ func TestProcessContext(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	test.Run(t, "pid1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -539,6 +538,29 @@ func TestProcessExecCTime(t *testing.T) {
 		}
 	}
 
+	copy := func(src string, dst string) error {
+		in, err := os.Open(src)
+		if err != nil {
+			return err
+		}
+		defer in.Close()
+
+		out, err := os.Create(dst)
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+
+		if _, err = io.Copy(out, in); err != nil {
+			return err
+		}
+		if err := os.Chmod(dst, 0o755); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_exec_ctime",
 		Expression: "exec.file.change_time < 5s",
@@ -555,7 +577,7 @@ func TestProcessExecCTime(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		copyFile(executable, testFile, 0755)
+		copy(executable, testFile)
 
 		cmd := exec.Command(testFile, "/tmp/test")
 		return cmd.Run()
@@ -698,7 +720,7 @@ func TestProcessExecExit(t *testing.T) {
 		Expression: fmt.Sprintf(`exec.file.path == "%s" && exec.args in [~"*01010101*"]`, executable),
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -788,319 +810,34 @@ func testProcessEEExit(t *testing.T, pid uint32, test *testModule) {
 	}
 }
 
-func TestProcessCredentialsUpdate(t *testing.T) {
-	ruleDefs := []*rules.RuleDefinition{
-		{
-			ID:         "test_setuid",
-			Expression: `setuid.uid == 1001 && process.file.name == "testsuite"`,
-		},
-		{
-			ID:         "test_setreuid",
-			Expression: `setuid.uid == 1002 && setuid.euid == 1003 && process.file.name == "testsuite"`,
-		},
-		{
-			ID:         "test_setfsuid",
-			Expression: `setuid.fsuid == 1004 && process.file.name == "testsuite"`,
-		},
-		{
-			ID:         "test_setgid",
-			Expression: `setgid.gid == 1005 && process.file.name == "testsuite"`,
-		},
-		{
-			ID:         "test_setregid",
-			Expression: `setgid.gid == 1006 && setgid.egid == 1007 && process.file.name == "testsuite"`,
-		},
-		{
-			ID:         "test_setfsgid",
-			Expression: `setgid.fsgid == 1008 && process.file.name == "testsuite"`,
-		},
-		{
-			ID:         "test_capset",
-			Expression: `capset.cap_effective & CAP_WAKE_ALARM == 0 && capset.cap_permitted & CAP_SYS_BOOT == 0 && process.file.name == "testsuite"`,
-		},
-	}
+// do not unlock, we want the thread to be killed when exiting the goroutine
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
+// do not unlock, we want the thread to be killed when exiting the goroutine
 
-	t.Run("setuid", func(t *testing.T) {
-		err = test.GetSignal(t, func() error {
-			var wg sync.WaitGroup
+// do not unlock, we want the thread to be killed when exiting the goroutine
 
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+// do not unlock, we want the thread to be killed when exiting the goroutine
 
-				runtime.LockOSThread()
-				// do not unlock, we want the thread to be killed when exiting the goroutine
+// do not unlock, we want the thread to be killed when exiting the goroutine
 
-				if _, _, errno := syscall.Syscall(syscall.SYS_SETUID, 1001, 0, 0); errno != 0 {
-					t.Error(errno)
-				}
-			}()
+// do not unlock, we want the thread to be killed when exiting the goroutine
 
-			wg.Wait()
-			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_setuid")
-			assert.Equal(t, uint32(1001), event.SetUID.UID, "wrong uid")
-		})
-		if err != nil {
-			t.Error(err)
-		}
-	})
+// do not unlock, we want the thread to be killed when exiting the goroutine
 
-	t.Run("setreuid", func(t *testing.T) {
-		err = test.GetSignal(t, func() error {
-			var wg sync.WaitGroup
-			wg.Add(1)
+// do not unlock, we want the thread to be killed when exiting the goroutine
 
-			go func() {
-				defer wg.Done()
-				runtime.LockOSThread()
-				// do not unlock, we want the thread to be killed when exiting the goroutine
+// Parse kernel capabilities of the current thread
 
-				if _, _, errno := syscall.Syscall(syscall.SYS_SETREUID, 1002, 1003, 0); errno != 0 {
-					t.Error(errno)
-				}
-			}()
-			wg.Wait()
-			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_setreuid")
-			assert.Equal(t, uint32(1002), event.SetUID.UID, "wrong uid")
-			assert.Equal(t, uint32(1003), event.SetUID.EUID, "wrong euid")
-		})
-		if err != nil {
-			t.Error(err)
-		}
-	})
+// do not unlock, we want the thread to be killed when exiting the goroutine
 
-	t.Run("setresuid", func(t *testing.T) {
-		err = test.GetSignal(t, func() error {
-			var wg sync.WaitGroup
-			wg.Add(1)
+// remove capabilities that we do not need
 
-			go func() {
-				defer wg.Done()
-				runtime.LockOSThread()
-				// do not unlock, we want the thread to be killed when exiting the goroutine
+// transform the collected kernel capabilities into a usable capability set
 
-				if _, _, errno := syscall.Syscall(syscall.SYS_SETRESUID, 1002, 1003, 0); errno != 0 {
-					t.Error(errno)
-				}
-			}()
-
-			wg.Wait()
-			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_setreuid")
-			assert.Equal(t, uint32(1002), event.SetUID.UID, "wrong uid")
-			assert.Equal(t, uint32(1003), event.SetUID.EUID, "wrong euid")
-		})
-		if err != nil {
-			t.Error(err)
-		}
-	})
-
-	t.Run("setfsuid", func(t *testing.T) {
-		err = test.GetSignal(t, func() error {
-			var wg sync.WaitGroup
-			wg.Add(1)
-
-			go func() {
-				defer wg.Done()
-				runtime.LockOSThread()
-				// do not unlock, we want the thread to be killed when exiting the goroutine
-
-				if _, _, errno := syscall.Syscall(syscall.SYS_SETFSUID, 1004, 0, 0); errno != 0 {
-					t.Error(errno)
-				}
-			}()
-			wg.Wait()
-			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_setfsuid")
-			assert.Equal(t, uint32(1004), event.SetUID.FSUID, "wrong fsuid")
-		})
-		if err != nil {
-			t.Error(err)
-		}
-	})
-
-	t.Run("setgid", func(t *testing.T) {
-		err = test.GetSignal(t, func() error {
-			var wg sync.WaitGroup
-			wg.Add(1)
-
-			go func() {
-				defer wg.Done()
-				runtime.LockOSThread()
-				// do not unlock, we want the thread to be killed when exiting the goroutine
-
-				if _, _, errno := syscall.Syscall(syscall.SYS_SETGID, 1005, 0, 0); errno != 0 {
-					t.Error(errno)
-				}
-			}()
-			wg.Wait()
-			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_setgid")
-			assert.Equal(t, uint32(1005), event.SetGID.GID, "wrong gid")
-		})
-		if err != nil {
-			t.Error(err)
-		}
-	})
-
-	t.Run("setregid", func(t *testing.T) {
-		err = test.GetSignal(t, func() error {
-			var wg sync.WaitGroup
-			wg.Add(1)
-
-			go func() {
-				defer wg.Done()
-				runtime.LockOSThread()
-				// do not unlock, we want the thread to be killed when exiting the goroutine
-
-				if _, _, errno := syscall.Syscall(syscall.SYS_SETREGID, 1006, 1007, 0); errno != 0 {
-					t.Error(errno)
-				}
-			}()
-			wg.Wait()
-			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_setregid")
-			assert.Equal(t, uint32(1006), event.SetGID.GID, "wrong gid")
-			assert.Equal(t, uint32(1007), event.SetGID.EGID, "wrong egid")
-		})
-		if err != nil {
-			t.Error(err)
-		}
-	})
-
-	t.Run("setresgid", func(t *testing.T) {
-		err = test.GetSignal(t, func() error {
-			var wg sync.WaitGroup
-			wg.Add(1)
-
-			go func() {
-				defer wg.Done()
-				runtime.LockOSThread()
-				// do not unlock, we want the thread to be killed when exiting the goroutine
-
-				if _, _, errno := syscall.Syscall(syscall.SYS_SETRESGID, 1006, 1007, 0); errno != 0 {
-					t.Error(errno)
-				}
-			}()
-			wg.Wait()
-			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_setregid")
-			assert.Equal(t, uint32(1006), event.SetGID.GID, "wrong gid")
-			assert.Equal(t, uint32(1007), event.SetGID.EGID, "wrong egid")
-		})
-		if err != nil {
-			t.Error(err)
-		}
-	})
-
-	t.Run("setfsgid", func(t *testing.T) {
-		err = test.GetSignal(t, func() error {
-			var wg sync.WaitGroup
-			wg.Add(1)
-
-			go func() {
-				defer wg.Done()
-				runtime.LockOSThread()
-				// do not unlock, we want the thread to be killed when exiting the goroutine
-
-				if _, _, errno := syscall.Syscall(syscall.SYS_SETFSGID, 1008, 0, 0); errno != 0 {
-					t.Error(errno)
-				}
-			}()
-			wg.Wait()
-			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_setfsgid")
-			assert.Equal(t, uint32(1008), event.SetGID.FSGID, "wrong gid")
-		})
-		if err != nil {
-			t.Error(err)
-		}
-	})
-
-	t.Run("capset", func(t *testing.T) {
-		// Parse kernel capabilities of the current thread
-		threadCapabilities, err := capability.NewPid2(0)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := threadCapabilities.Load(); err != nil {
-			t.Fatal(err)
-		}
-
-		var threadCapabilitiesLock sync.Mutex
-
-		err = test.GetSignal(t, func() error {
-			var wg sync.WaitGroup
-			wg.Add(1)
-
-			go func() {
-				defer wg.Done()
-				threadCapabilitiesLock.Lock()
-				defer threadCapabilitiesLock.Unlock()
-
-				runtime.LockOSThread()
-				// do not unlock, we want the thread to be killed when exiting the goroutine
-
-				// remove capabilities that we do not need
-				threadCapabilities.Unset(capability.PERMITTED|capability.EFFECTIVE, capability.CAP_SYS_BOOT)
-				threadCapabilities.Unset(capability.EFFECTIVE, capability.CAP_WAKE_ALARM)
-				if err := threadCapabilities.Apply(capability.CAPS); err != nil {
-					t.Error(err)
-				}
-			}()
-			wg.Wait()
-			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_capset")
-
-			// transform the collected kernel capabilities into a usable capability set
-			newSet, err := capability.NewPid2(0)
-			if err != nil {
-				t.Error(err)
-			}
-			newSet.Clear(capability.PERMITTED | capability.EFFECTIVE)
-			parseCapIntoSet(event.Capset.CapEffective, capability.EFFECTIVE, newSet, t)
-			parseCapIntoSet(event.Capset.CapPermitted, capability.PERMITTED, newSet, t)
-
-			threadCapabilitiesLock.Lock()
-			defer threadCapabilitiesLock.Unlock()
-
-			for _, c := range capability.List() {
-				if expectedValue := threadCapabilities.Get(capability.EFFECTIVE, c); expectedValue != newSet.Get(capability.EFFECTIVE, c) {
-					t.Errorf("expected incorrect %s flag in cap_effective, expected %v", c, expectedValue)
-				}
-				if expectedValue := threadCapabilities.Get(capability.PERMITTED, c); expectedValue != newSet.Get(capability.PERMITTED, c) {
-					t.Errorf("expected incorrect %s flag in cap_permitted, expected %v", c, expectedValue)
-				}
-			}
-		})
-		if err != nil {
-			t.Error(err)
-		}
-	})
-
-	// test_capset can be somewhat noisy and some events may leak to the next tests (there is a short delay between the
-	// reset of the maps and the reload of the rules, we can't move the reset after the reload either, otherwise the
-	// ruleset_reload test won't work => we would have reset the channel that contains the reload event).
-	// Load a fake new test module to empty the rules and properly cleanup the channels.
-	_, _ = newTestModule(t, nil, nil, testOpts{})
-}
+// test_capset can be somewhat noisy and some events may leak to the next tests (there is a short delay between the
+// reset of the maps and the reload of the rules, we can't move the reset after the reload either, otherwise the
+// ruleset_reload test won't work => we would have reset the channel that contains the reload event).
+// Load a fake new test module to empty the rules and properly cleanup the channels.
 
 func parseCapIntoSet(capabilities uint64, flag capability.CapType, c capability.Capabilities, t *testing.T) {
 	for _, v := range model.KernelCapabilityConstants {

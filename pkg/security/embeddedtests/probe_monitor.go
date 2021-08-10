@@ -1,11 +1,12 @@
+// Code generated - DO NOT EDIT.
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build functionaltests
+// +build !functionaltests,!stresstests
 
-package tests
+package embeddedtests
 
 import (
 	"fmt"
@@ -37,13 +38,13 @@ func TestRulesetLoaded(t *testing.T) {
 	}
 
 	t.Run("ruleset_loaded", func(t *testing.T) {
-		if err := test.GetProbeCustomEvent(t, func() error {
+		if err := test.GetProbeCustomEvent(func() error {
 			test.reloadConfiguration()
 			return nil
 		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
 			assert.Equal(t, probe.RulesetLoadedRuleID, rule.ID, "wrong rule")
 			return true
-		}, model.CustomRulesetLoadedEventType); err != nil {
+		}, 3*time.Second, model.CustomRulesetLoadedEventType); err != nil {
 			t.Error(err)
 		}
 	})
@@ -77,7 +78,7 @@ func truncatedParents(t *testing.T, opts testOpts) {
 
 		defer os.Remove(truncatedParentsFile)
 
-		err = test.GetProbeCustomEvent(t, func() error {
+		err = test.GetProbeCustomEvent(func() error {
 			f, err := os.OpenFile(truncatedParentsFile, os.O_CREATE, 0755)
 			if err != nil {
 				t.Fatal(err)
@@ -86,7 +87,7 @@ func truncatedParents(t *testing.T, opts testOpts) {
 		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
 			assert.Equal(t, probe.AbnormalPathRuleID, rule.ID, "wrong rule")
 			return true
-		}, model.CustomTruncatedParentsEventType)
+		}, 3*time.Second, model.CustomTruncatedParentsEventType)
 		if err != nil {
 			t.Error(err)
 		}
@@ -118,52 +119,6 @@ func truncatedParents(t *testing.T, opts testOpts) {
 	})
 }
 
-func TestTruncatedParentsMap(t *testing.T) {
-	truncatedParents(t, testOpts{disableERPCDentryResolution: true})
-}
+// generate load
 
-func TestTruncatedParentsERPC(t *testing.T) {
-	truncatedParents(t, testOpts{disableMapDentryResolution: true})
-}
-
-func TestNoisyProcess(t *testing.T) {
-	rule := &rules.RuleDefinition{
-		ID:         "path_test",
-		Expression: `open.file.path =~ "*do-not-match/test-open" && open.flags & O_CREAT != 0`,
-	}
-
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{disableDiscarders: true, eventsCountThreshold: 1000})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	file, _, err := test.Path("test-open")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Run("noisy_process", func(t *testing.T) {
-		err = test.GetProbeCustomEvent(t, func() error {
-			// generate load
-			for i := int64(0); i < testMod.config.LoadControllerEventsCountThreshold*2; i++ {
-				f, err := os.OpenFile(file, os.O_CREATE, 0755)
-				if err != nil {
-					t.Fatal(err)
-				}
-				_ = f.Close()
-				_ = os.Remove(file)
-			}
-			return nil
-		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
-			assert.Equal(t, probe.NoisyProcessRuleID, rule.ID, "wrong rule")
-			return true
-		}, model.CustomNoisyProcessEventType)
-		if err != nil {
-			t.Error(err)
-		}
-
-		// make sure the discarder has expired before moving on to other tests
-		t.Logf("waiting for the discarder to expire (%s)", testMod.config.LoadControllerDiscarderTimeout)
-		time.Sleep(testMod.config.LoadControllerDiscarderTimeout + 1*time.Second)
-	})
-}
+// make sure the discarder has expired before moving on to other tests
