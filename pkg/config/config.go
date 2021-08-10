@@ -1036,6 +1036,15 @@ func findUnknownKeys(config Config) []string {
 func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	warnings := Warnings{}
 
+	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
+	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
+	defer func() {
+		// Environment feature detection needs to run before applying override funcs
+		// as it may provide such overrides
+		DetectFeatures()
+		applyOverrideFuncs(config)
+	}()
+
 	if err := config.ReadInConfig(); err != nil {
 		if errors.Is(err, os.ErrPermission) {
 			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
@@ -1068,10 +1077,6 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 
 	loadProxyFromEnv(config)
 	SanitizeAPIKeyConfig(config, "api_key")
-	// Environment feature detection needs to run before applying override funcs
-	// as it may provide such overrides
-	DetectFeatures()
-	applyOverrideFuncs(config)
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
 	setNumWorkers(config)
