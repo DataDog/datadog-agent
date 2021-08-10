@@ -13,8 +13,8 @@ import (
 var (
 	runtimeEmbeddedTestsCmd = &cobra.Command{
 		Use:   "runtime-embedded-tests",
-		Short: "Run the CWS embeded tests",
-		Long:  `Runs the CWS embeded tests`,
+		Short: "Run the CWS embedded tests",
+		Long:  `Runs the CWS embedded tests`,
 		Run:   runtimeRunEmbeddedTests,
 	}
 )

@@ -32,7 +32,7 @@ func main() {
 	)
 
 	flag.StringVar(&input, "input", "", "Go tests folder")
-	flag.StringVar(&output, "output", "", "Go embeded tests output folder")
+	flag.StringVar(&output, "output", "", "Go embedded tests output folder")
 	flag.StringVar(&pkgName, "pkg_name", "embeddedtests", "Output package name")
 	flag.Parse()
 
@@ -101,11 +101,7 @@ func finishOutputDir(inputDir, outputDir string, pkgName string, testNames []str
 		return err
 	}
 
-	if err := writeOutputFile(inputDir, outputDir, path.Join(outputDir, "driver.go"), buf.Bytes(), true); err != nil {
-		return err
-	}
-
-	return nil
+	return writeOutputFile(inputDir, outputDir, path.Join(outputDir, "driver.go"), buf.Bytes(), true)
 }
 
 type embedFileOptions struct {
