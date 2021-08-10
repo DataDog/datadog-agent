@@ -3,17 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// +build orchestrator
+
 package orchestrator
 
 import (
 	"expvar"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"time"
 
 	"github.com/patrickmn/go-cache"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
