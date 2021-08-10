@@ -83,25 +83,33 @@ func finishOutputDir(inputDir, outputDir string, pkgName string, testNames []str
 		return err
 	}
 
-	templateCode, err := ioutil.ReadFile("pkg/security/tests/embed_generator/test_driver.go.tmpl")
+	info := &driverInfo{
+		PkgName:   pkgName,
+		TestNames: testNames,
+	}
+	if err := writeTemplateFile(inputDir, outputDir, "driver.go", "pkg/security/tests/embed_generator/driver.go.tmpl", "test-driver", info); err != nil {
+		return err
+	}
+	return writeTemplateFile(inputDir, outputDir, "driver_unsupported.go", "pkg/security/tests/embed_generator/driver_unsupported.go.tmpl", "test-driver-unsupported", info)
+}
+
+func writeTemplateFile(inputDir, outputDir, outputPath, templatePath, templateName string, info *driverInfo) error {
+	templateCode, err := ioutil.ReadFile(templatePath)
 	if err != nil {
 		return err
 	}
 
-	tmpl, err := template.New("test-driver").Parse(string(templateCode))
+	tmpl, err := template.New(templateName).Parse(string(templateCode))
 	if err != nil {
 		return err
 	}
 
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, driverInfo{
-		PkgName:   pkgName,
-		TestNames: testNames,
-	}); err != nil {
+	if err := tmpl.Execute(&buf, info); err != nil {
 		return err
 	}
 
-	return writeOutputFile(inputDir, outputDir, path.Join(outputDir, "driver.go"), buf.Bytes(), true)
+	return writeOutputFile(inputDir, outputDir, path.Join(outputDir, outputPath), buf.Bytes(), true)
 }
 
 type embedFileOptions struct {
