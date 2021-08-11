@@ -203,7 +203,7 @@ func (tc *TrafficCaptureWriter) Capture(l string, d time.Duration, compressed bo
 	tc.Location = location
 	p := path.Join(tc.Location, fmt.Sprintf(fileTemplate, time.Now().Unix()))
 
-	fp, err := captureFs.fs.Create(p)
+	fp, err := captureFs.fs.OpenFile(p, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0660)
 	if err != nil {
 		log.Errorf("There was an issue starting the capture: %v ", err)
 
