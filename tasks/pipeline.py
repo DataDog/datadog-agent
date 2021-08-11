@@ -9,11 +9,7 @@ import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.utils import (
-    DEFAULT_BRANCH,
-    get_all_allowed_repo_branches,
-    is_allowed_repo_branch,
-)
+from tasks.utils import DEFAULT_BRANCH, get_all_allowed_repo_branches, is_allowed_repo_branch
 
 from .libs.common.color import color_message
 from .libs.common.gitlab import Gitlab
