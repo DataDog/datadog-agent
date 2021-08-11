@@ -627,12 +627,12 @@ func chunkStatefulSets(statefulSets []*model.StatefulSet, chunkCount, chunkSize 
 }
 
 // ProcessPersistentVolumeList process a PV list into process messages.
-func ProcessPersistentVolumeList(pvcList []*corev1.PersistentVolume, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
+func ProcessPersistentVolumeList(pvList []*corev1.PersistentVolume, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
 	start := time.Now()
-	pvMsgs := make([]*model.PersistentVolume, 0, len(pvcList))
+	pvMsgs := make([]*model.PersistentVolume, 0, len(pvList))
 
-	for s := 0; s < len(pvcList); s++ {
-		pv := pvcList[s]
+	for s := 0; s < len(pvList); s++ {
+		pv := pvList[s]
 		if orchestrator.SkipKubernetesResource(pv.UID, pv.ResourceVersion, orchestrator.K8sPersistentVolume) {
 			continue
 		}
@@ -669,7 +669,7 @@ func ProcessPersistentVolumeList(pvcList []*corev1.PersistentVolume, groupID int
 		})
 	}
 
-	log.Debugf("Collected & enriched %d out of %d Persistent volumes in %s", len(pvMsgs), len(pvcList), time.Since(start))
+	log.Debugf("Collected & enriched %d out of %d Persistent volumes in %s", len(pvMsgs), len(pvList), time.Since(start))
 	return messages, nil
 }
 

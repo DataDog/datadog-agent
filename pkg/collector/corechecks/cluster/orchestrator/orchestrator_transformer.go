@@ -310,7 +310,7 @@ func extractServiceSelector(ls map[string]string) []*model.LabelSelectorRequirem
 // a Kubernetes persistent volume object.
 func extractPersistentVolume(pv *corev1.PersistentVolume) *model.PersistentVolume {
 	message := &model.PersistentVolume{
-		Metadata: orchestrator.ExtractMetadata(&pv.ObjectMeta),
+		Metadata: orchutil.ExtractMetadata(&pv.ObjectMeta),
 		Spec: &model.PersistentVolumeSpec{
 			Capacity:                      map[string]int64{},
 			PersistentVolumeReclaimPolicy: string(pv.Spec.PersistentVolumeReclaimPolicy),
@@ -428,7 +428,7 @@ func extractPVSelector(ls []corev1.NodeSelectorRequirement) []*model.LabelSelect
 // a Kubernetes persistent volume claim object.
 func extractPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) *model.PersistentVolumeClaim {
 	message := &model.PersistentVolumeClaim{
-		Metadata: orchestrator.ExtractMetadata(&pvc.ObjectMeta),
+		Metadata: orchutil.ExtractMetadata(&pvc.ObjectMeta),
 		Spec: &model.PersistentVolumeClaimSpec{
 			VolumeName: pvc.Spec.VolumeName,
 			Resources:  &model.ResourceRequirements{},
@@ -438,8 +438,6 @@ func extractPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) *model.Pers
 			Capacity: map[string]int64{},
 		},
 	}
-	// TODO: phase to tag
-	// todo: type to tag
 	extractSpec(pvc, message)
 	extractStatus(pvc, message)
 
