@@ -41,7 +41,7 @@ send_pkg_size-a6:
     - |
       curl --fail -X POST -H "Content-type: application/json" \
       -d "{\"series\":[
-        {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:agent\", \"agent:6\", \"bucket_branch:$DEB_RPM_BUCKET_BRANCH\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:agent\", \"agent:6\", \"bucket_branch:$DEB_RPM_BUCKET_BRANCH\"]},
             {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:agent\", \"agent:6\", \"bucket_branch:$DEB_RPM_BUCKET_BRANCH\"]},
             {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_AGENT_SIZE]], \"tags\":[\"os:suse\", \"package:agent\", \"agent:6\", \"bucket_branch:$DEB_RPM_BUCKET_BRANCH\"]}
           ]}" \
