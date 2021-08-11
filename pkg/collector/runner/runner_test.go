@@ -17,33 +17,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
+	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
-
-/*
-type TestCheck struct {
-	check.StubCheck
-	sync.Mutex
-	done   chan interface{}
-}
-
-func newTestCheck(doErr bool, id string) *TestCheck {
-	return &TestCheck{
-		doErr: doErr,
-		id:    id,
-		done:  make(chan interface{}, 1),
-	}
-}
-
-func (c *TestCheck) Run() error {
-	c.Lock()
-	defer c.Unlock()
-	defer func() { close(c.done) }()
-}
-
-func (c *TestCheck) GetWarnings() []error                 { return nil }
-func (c *TestCheck) GetStats() (check.SenderStats, error) { return check.NewSenderStats(), nil }
-*/
 
 // Fixtures
 
@@ -121,6 +97,10 @@ func newCheck(t *testing.T, id string, doErr bool, runFunc func(check.ID)) *test
 		id:      id,
 		runFunc: runFunc,
 	}
+}
+
+func newScheduler() *scheduler.Scheduler {
+	return scheduler.NewScheduler(nil)
 }
 
 func assertAsyncWorkerCount(t *testing.T, count int) {
@@ -344,10 +324,53 @@ func TestRunnerStopCheck(t *testing.T) {
 	assertAsyncBool(t, blockedCheck.IsStopped, true)
 }
 
+func TestRunnerScheduler(t *testing.T) {
+	testSetUp()
+	config.Datadog.Set("check_runners", "3")
+
+	sched1 := newScheduler()
+	sched2 := newScheduler()
+
+	r := NewRunner()
+	require.NotNil(t, r)
+
+	require.Nil(t, r.getScheduler())
+
+	r.SetScheduler(sched1)
+	require.Equal(t, sched1, r.getScheduler())
+
+	r.SetScheduler(sched2)
+	require.Equal(t, sched2, r.getScheduler())
+}
+
+func TestRunnerShouldAddCheckStats(t *testing.T) {
+	testSetUp()
+	config.Datadog.Set("check_runners", "3")
+
+	testCheck := newCheck(t, "test", false, nil)
+	sched := newScheduler()
+
+	r := NewRunner()
+	require.NotNil(t, r)
+	require.Nil(t, r.getScheduler())
+
+	// Unconditionally, if there's no scheduler, we should add the stats
+	require.True(t, r.ShouldAddCheckStats(testCheck.ID()))
+
+	r.SetScheduler(sched)
+	require.Equal(t, sched, r.getScheduler())
+
+	// If there's a scheduler but the check isn't scheduled, don't add the stats
+	require.False(t, r.ShouldAddCheckStats(testCheck.ID()))
+
+	sched.Enter(testCheck)
+	// If there's a scheduler with scheduled check, add the stats
+	require.True(t, r.ShouldAddCheckStats(testCheck.ID()))
+
+}
+
 // Stop()
-// ShouldAddCheckStats
-// SetScheduler
-// Already running check
+// -> Already running check
 
 /*
 func TestWork(t *testing.T) {

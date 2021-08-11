@@ -246,16 +246,21 @@ func (r *Runner) SetScheduler(s *scheduler.Scheduler) {
 	r.schedulerLock.Unlock()
 }
 
+// getScheduler gets the scheduler set on the runner
+func (r *Runner) getScheduler() *scheduler.Scheduler {
+	r.schedulerLock.RLock()
+	defer r.schedulerLock.RUnlock()
+
+	return r.scheduler
+}
+
 // ShouldAddCheckStats returns true if check stats should be preserved or not
 func (r *Runner) ShouldAddCheckStats(id check.ID) bool {
-	r.schedulerLock.Lock()
-	defer r.schedulerLock.Unlock()
+	r.schedulerLock.RLock()
+	defer r.schedulerLock.RUnlock()
 
-	if r.scheduler == nil {
-		return true
-	}
-
-	if r.scheduler.IsCheckScheduled(id) {
+	sc := r.getScheduler()
+	if sc == nil || sc.IsCheckScheduled(id) {
 		return true
 	}
 
