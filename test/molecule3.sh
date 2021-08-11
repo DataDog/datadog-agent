@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+
+# Determine if you are running locally or on CI
+export DEV_MODE="false"
+if [ -z "$CI_COMMIT_SHA" ]; then
+    export DEV_MODE="true"
+fi
+
 export CONDA_BASE="${HOME}/miniconda3"
 
 # see if conda is available -- when running locally and use the conda base path
@@ -42,7 +49,12 @@ fi
 
 cd molecule-role
 
+# Allows the yaml to be tested before spinning up and instance
+yamllint -c .yamllint .
+
 echo "===== MOLECULE_RUN_ID=${CI_JOB_ID:-unknown}  ======="
 echo "====== AGENT_CURRENT_BRANCH=${AGENT_CURRENT_BRANCH} ======="
 
 molecule "$@"
+
+

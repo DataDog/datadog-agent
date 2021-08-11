@@ -1,14 +1,26 @@
 ---
 molecule_run_id: "{{ lookup('env', 'MOLECULE_RUN_ID') or lookup('env', 'USER') }}"
+molecule_scenario_name: "{{ lookup('env', 'MOLECULE_SCENARIO_NAME') }}"
+molecule_ephemeral_directory: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}"
+
 keypair_name: "molecule_key_{{ molecule_run_id }}"
 keypair_path: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/ssh_key"
 
 major_version: "{{ lookup('env', 'MAJOR_VERSION') or MAJOR_VERSION }}"
+
 agent_repo_url: "https://{{ lookup('env', 'STS_AWS_TEST_BUCKET') or STS_AWS_TEST_BUCKET }}.s3.amazonaws.com"
 agent_current_branch: "{{ lookup('env', 'AGENT_CURRENT_BRANCH') or AGENT_CURRENT_BRANCH }}"
+
 quay_password: "{{ lookup('env', 'quay_password') or QUAY_PASSWORD }}"
 quay_user: "{{ lookup('env', 'quay_user') or QUAY_USER }}"
+
 stackstate_branch: "{{ lookup('env', 'STACKSTATE_BRANCH') or STACKSTATE_BRANCH }}"
+
+ci_project_dir: "{{ lookup('env', 'CI_PROJECT_DIR') }}"
+ci_job_token: "{{ lookup('env', 'CI_JOB_TOKEN') }}"
+ci_sts_major_python_version: "{{ lookup('env', 'STS_VER') }}.{{ lookup('env', 'MAJOR_VERSION') }}.{{ lookup('env', 'PYTHON_RUNTIMES') }}"
+
+dev_mode: "{{ lookup('env', 'DEV_MODE') }}"
 
 connection_port_before_start_fedora: 125
 connection_port_after_start_fedora: 126

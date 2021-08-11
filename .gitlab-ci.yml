@@ -1,6 +1,29 @@
 stages:
   - triggers
 
+# Supported Commit Message Functionality:
+#   ** Default: Note these do not have to be defined, by default everything will be included except secrets and localinstall which **
+#   ** falls on master and tags **
+
+# The following will run a single molecule pipeline and ignore the rest
+# this will reduce ec2 costs, possible wait times and clutter
+#   - "<commit message> [molecule-compose]"
+#   - "<commit message> [molecule-integrations]"
+#   - "<commit message> [molecule-secrets]"
+#   - "<commit message> [molecule-localinstall]"
+#   - "<commit message> [molecule-kubernetes]"
+#   - "<commit message> [molecule-swarm]"
+#   - "<commit message> [molecule-vms]"
+
+# You can also reduce ec2 costs and clutter by defining the py version you want to build
+#   - "<commit message> [py2]"
+#   - "<commit message> [py3]"
+
+# This would be ideal to reduce the pipeline build to only what's required
+# You can combine tags from the top to stack filters for example:
+#   - "<commit message> [py2][molecule-compose]"
+#   - "<commit message> [py3][molecule-secrets][molecule-vms]"
+
 variables: &commonvariables
   # The SRC_PATH is in the GOPATH of the builders which
   # currently is /go
@@ -51,7 +74,6 @@ variables: &commonvariables
   STS_DOCKER_RELEASE_REPO_CLUSTER: stackstate-cluster-agent
   STS_DOCKER_TEST_REPO_CLUSTER: stackstate-cluster-agent-test
 
-
 .rules:
   - &exclude_on_cluster_agent
     if: $CI_COMMIT_MESSAGE =~ /\[cluster-agent]/
@@ -70,6 +92,8 @@ agent2:
     strategy: depend
   rules:
     - <<: *exclude_on_cluster_agent
+    - if: $CI_COMMIT_MESSAGE =~ /\[py3]/
+      when: never
     - when: on_success
 
 agent3:
@@ -82,6 +106,8 @@ agent3:
     strategy: depend
   rules:
     - <<: *exclude_on_cluster_agent
+    - if: $CI_COMMIT_MESSAGE =~ /\[py2]/
+      when: never
     - when: on_success
 
 cluster_agent:

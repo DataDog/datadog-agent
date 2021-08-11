@@ -4,8 +4,8 @@ dependency:
 driver:
   name: ec2
 lint: |
-       set -e
-       yamllint -c .yamllint .
+  set -e
+  yamllint -c .yamllint .
 platforms:
   - name: kubernetes-cluster-agent
     image: ami-09ae46ee3ab46c423    # Our Packer image based on Ubuntu 18.04 (EBS-Backed x86_64)
@@ -18,10 +18,10 @@ platforms:
 provisioner:
   name: ansible
   playbooks:
-    create: create.yml
-    prepare: prepare.yml
-    cleanup: cleanup.yml
-    destroy: destroy.yml
+    create: playbook.create.yml
+    prepare: playbook.prepare.yml
+    cleanup: playbook.cleanup.yml
+    destroy: playbook.destroy.yml
   lint:
     name: ansible-lint
   inventory:

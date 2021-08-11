@@ -1,11 +1,14 @@
 ---
 dependency:
   name: galaxy
+
 driver:
   name: ec2
+
 lint: |
        set -e
        yamllint -c .yamllint .
+
 platforms:
   - name: agent-ubuntu
     image: ami-00c25f7948e360133    # Ubuntu 18.04 (EBS-Backed x86_64)
@@ -27,8 +30,9 @@ platforms:
 
   - name: agent-centos
     # image: ami-0451e9d3427711cb1    # CentOS Linux 6.10 x86_64 HVM EBS ENA 1901_01
-    image: ami-04f5641b0d178a27a    # CentOS 7 7.9.2009
-    instance_type: t2.micro
+    # image: ami-04f5641b0d178a27a    # CentOS 7 7.9.2009
+    image: ami-05beabd0fc875ce04      # CentOS 8.4.2105 x86_64
+    instance_type: t3.micro
     vpc_subnet_id: subnet-fa36adb2  # eu-west-1a
     region: eu-west-1
     groups:
@@ -64,23 +68,30 @@ platforms:
     groups:
       - receiver_vm
     ssh_user: ubuntu
-provisioner:
-  name: ansible
-  config_options:
-    defaults:
-      any_errors_fatal: true
-  playbooks:
-    create: create.yml
-    destroy: destroy.yml
-    prepare: prepare.yml
-  inventory:
-    links:
-      group_vars: group_vars/
-      host_vars: host_vars/
-  lint:
-    name: ansible-lint
+
 scenario:
   name: vms
+  create_sequence:
+    - dependency
+    - cleanup
+    - destroy
+    - syntax
+    - create
+    - prepare
+  test_sequence:
+    - dependency
+    - syntax
+    - prepare
+    - converge
+    - idempotence
+    - lint
+    - side_effect
+    - verify
+  destroy_sequence:
+    - dependency
+    - cleanup
+    - destroy
+
 verifier:
   name: testinfra
   lint:

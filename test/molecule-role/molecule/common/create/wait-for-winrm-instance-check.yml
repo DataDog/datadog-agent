@@ -1,0 +1,9 @@
+---
+- name: Wait for WINRM
+  wait_for:
+    port: "5986"
+    host: "{{ item.address }}"
+    delay: 10
+    timeout: 320
+  with_items: "{{ lookup('file', molecule_instance_config) | molecule_from_yaml }}"
+  when: item.instance == "agent-win"

@@ -1,0 +1,8 @@
+---
+- name: Ubuntu18 automatic updates (wait for lock) (1/2)
+  shell: "while fuser /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 10; done;"
+  become: yes
+
+- name: Ubuntu18 automatic updates (wait for lock) (2/2)
+  shell: "sleep 15; while fuser /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 10; done;"
+  become: yes

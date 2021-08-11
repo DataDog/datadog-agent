@@ -1,0 +1,79 @@
+---
+- name: Create
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    ssh_port: 22
+    winrm_http_port: 5985
+    winrm_https_port: 5986
+    winrm_rdp_port: 3389
+    security_group_name: molecule_vms
+    security_group_description: Agent v2 Molecule testing running on EC2 VMs
+    security_group_rules:
+      - proto: tcp
+        from_port: "{{ ssh_port }}"
+        to_port: "{{ ssh_port }}"
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: "{{ winrm_http_port }}"
+        to_port: "{{ winrm_http_port }}"
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: "{{ winrm_https_port }}"
+        to_port: "{{ winrm_https_port }}"
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: "{{ winrm_rdp_port }}"
+        to_port: "{{ winrm_rdp_port }}"
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: 7077  # StackState Receiver API port
+        to_port: 7077
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: 7070  # StackState Topic API port
+        to_port: 7070
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: 443  # HTTPS Port
+        to_port: 443
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: "{{ connection_port_before_start_fedora }}"
+        to_port: "{{ connection_port_before_start_fedora }}"
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: "{{ connection_port_after_start_fedora }}"
+        to_port: "{{ connection_port_after_start_fedora }}"
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: "{{ connection_port_before_start_windows }}"
+        to_port: "{{ connection_port_before_start_windows }}"
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: "{{ connection_port_after_start_windows }}"
+        to_port: "{{ connection_port_after_start_windows }}"
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: "{{ dnat_service_port }}"
+        to_port: "{{ dnat_service_port }}"
+        cidr_ip: '0.0.0.0/0'
+      - proto: icmp
+        from_port: 8
+        to_port: -1
+        cidr_ip: '0.0.0.0/0'
+    security_group_rules_egress:
+      - proto: -1
+        from_port: 0
+        to_port: 0
+        cidr_ip: '0.0.0.0/0'
+  tasks:
+    - include_tasks: ../common/create/create-structure.yml
+    - include_tasks: ../common/create/create-security-group.yml
+    - include_tasks: ../common/create/keypair.yml
+    - include_tasks: ../common/create/create-molecule-instances.yml
+    - include_tasks: ../common/create/wait-for-instance-creation-to-complete.yml
+    - include_tasks: ../common/create/wait-for-ssh.yml
+    - include_tasks: ../common/create/wait-for-winrm-instance-check.yml
+    - include_tasks: ../common/create/wait-for-boot-process-to-finish.yml

@@ -15,7 +15,6 @@ venv/
 venv27/
 venv3[78]/
 
-
 **/*.tmp
 **/debug.test
 # files
@@ -158,6 +157,7 @@ version.txt
 
 # molecule local json files
 /test/molecule-role/molecule/*/topic-*.json
+.molecule
 
 # ignore manual test files
 test/manual/*

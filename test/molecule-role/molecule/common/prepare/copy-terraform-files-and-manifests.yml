@@ -1,0 +1,5 @@
+---
+- name: Copy Terraform Files and Manifests
+  copy:
+    src: "../../../../deployment/kubernetes/"
+    dest: "/home/ubuntu/deployment"

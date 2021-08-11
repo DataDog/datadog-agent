@@ -1,0 +1,10 @@
+---
+- name: Wait for SSH
+  wait_for:
+    port: "{{ ssh_port }}"
+    host: "{{ item.address }}"
+    search_regex: SSH
+    delay: 10
+    timeout: 320
+  with_items: "{{ lookup('file', molecule_instance_config) | molecule_from_yaml }}"
+  when: item.instance != "agent-win"

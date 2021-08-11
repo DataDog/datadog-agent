@@ -158,3 +158,4 @@ bump the ruby version > 2.6.5 because libyajl2 compiles proper on those ruby ver
 ## GitLab cluster agent pipeline
 
 If you want to speed up the GitLab pipeline and run only the steps related to the cluster agent, include the string `[cluster-agent]` in your commit message.
+

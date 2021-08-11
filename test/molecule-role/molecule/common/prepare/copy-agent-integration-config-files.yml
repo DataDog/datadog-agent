@@ -1,0 +1,6 @@
+---
+- name: Copy agent integration config files
+  copy:
+    src: files/agent/agent_integration_sample.d/conf.yaml
+    dest: /home/ubuntu/agent/agent_integration_sample.d/
+    mode: preserve

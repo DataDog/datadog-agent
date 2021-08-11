@@ -1,0 +1,10 @@
+---
+- name: Docker compose pull images (cache purposes)
+  shell:
+    cmd: docker-compose pull
+    chdir: /home/ubuntu/
+  ignore_errors: true
+  register: compose
+
+- debug: msg="{{ compose.stdout }}"
+- debug: msg="{{ compose.stderr }}"

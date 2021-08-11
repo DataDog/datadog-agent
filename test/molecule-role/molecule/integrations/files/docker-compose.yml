@@ -3,97 +3,60 @@ version: '2.4'
 
 services:
   zookeeper:
-    image: wurstmeister/zookeeper
-    ports:
-      - 2181:2181
-    mem_limit: 1G
-    healthcheck:
-      test: [ "CMD-SHELL", "echo ruok | nc -w 2 zookeeper 2181" ]
-      interval: 5s
-      timeout: 10s
-      retries: 3
+    extends:
+      file: docker-compose.base.yml
+      service: zookeeper
 
   kafka:
-    image: wurstmeister/kafka:2.12-2.3.1
-    ports:
-      - 9092:9092
     depends_on:
       zookeeper:
         condition: service_healthy
+    extends:
+      file: docker-compose.base.yml
+      service: kafka
     environment:
-      KAFKA_ADVERTISED_HOST_NAME: kafka
-      KAFKA_ADVERTISED_PORT: 9092
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_CREATE_TOPICS: "sts_connection_beat_events:1:1,sts_correlate_endpoints:1:1,sts_generic_events:1:1,sts_intake_health:1:1,sts_multi_metrics:1:1,sts_state_events:1:1,sts_topo_agent_integrations:1:1,sts_topology_events:1:1,sts_topo_process_agents:1:1,sts_trace_events:1:1"
-    volumes:
-      - "./verify-or-create-topics.sh:/usr/local/bin/verify-or-create-topics.sh"
-    healthcheck:
-      test: [ "CMD", "verify-or-create-topics.sh" ]
-      interval: 10s
-      timeout: 45s
-      retries: 10
-    restart: always
-    mem_limit: 1G
 
   receiver:
-    image: "quay.io/stackstate/stackstate-receiver:${STACKSTATE_BRANCH}"
-    ports:
-      - 7077:7077
-      - 1618:1618
     depends_on:
       kafka:
         condition: service_healthy
-    environment:
-      KAFKA_BROKERS: kafka:9092
-    restart: always
-    mem_limit: 1G
+    extends:
+      file: docker-compose.base.yml
+      service: receiver
 
   correlate:
-    image: "quay.io/stackstate/stackstate-correlate:${STACKSTATE_BRANCH}"
     depends_on:
       kafka:
         condition: service_healthy
-    environment:
-      KAFKA_BROKERS: kafka:9092
-      STACKSTATE_CORRELATE_LOG_LEVEL: "DEBUG"
-    restart: always
-    mem_limit: 1G
+    extends:
+      file: docker-compose.base.yml
+      service: correlate
 
   topic-api:
-    image: "quay.io/stackstate/stackstate-topic-api:${STACKSTATE_BRANCH}"
-    ports:
-      - 7070:7070
     depends_on:
       kafka:
         condition: service_healthy
-    environment:
-      KAFKA_BROKERS: kafka:9092
-      ZOOKEEPER_QUORUM: kafka
-    restart: always
-    mem_limit: 1G
+    extends:
+      file: docker-compose.base.yml
+      service: topic-api
 
   mysql:
-    image: mysql:5.7
-    volumes:
-      - ./mysql:/docker-entrypoint-initdb.d
-    restart: always
-    ports:
-      - 3306:3306
-    environment:
-      MYSQL_ALLOW_EMPTY_PASSWORD: 1
+    extends:
+      file: docker-compose.base.yml
+      service: mysql
 
   nagios:
-    build: nagios
-    ports:
-      - 8080:80
-    volumes:
-      - nagios_logs:/opt/nagios/var/log
-      - nagios_conf:/opt/nagios/etc
     depends_on:
       - mysql
+    extends:
+      file: docker-compose.base.yml
+      service: nagios
+
   nginx:
     image: nginx:1.14.2
     container_name: nginx-1
+
   stackstate-agent:
     image: docker.io/stackstate/${AGENT_DOCKER_REPO}:${AGENT_VERSION}
     network_mode: "host"
@@ -128,11 +91,6 @@ services:
       - nagios
       - receiver
 
-#    healthcheck:
-#      test: curl --fail -s http://localhost:5000/ || exit 1
-#      interval: 1m30s
-#      timeout: 10s
-#      retries: 3
 
 volumes:
   nagios_logs:

@@ -1,0 +1,10 @@
+---
+- name: Delete remote keypair
+  ec2_key:
+    name: "{{ keypair_name }}"
+    state: absent
+
+- name: "Remove molecule temp data"
+  file:
+    path: ".molecule/{{ molecule_scenario_name }}"
+    state: absent
