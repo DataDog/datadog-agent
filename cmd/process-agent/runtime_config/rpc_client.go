@@ -18,23 +18,23 @@ func NewProcessAgentRuntimeConfigClient(port string) (*ProcessAgentRuntimeConfig
 }
 
 func (p *ProcessAgentRuntimeConfigClient) Get(key string) (result interface{}, err error) {
-	err = p.rpcClient.Call("RuntimeSettingRPCService.Get", &key, &result)
+	err = p.rpcClient.Call("RuntimeSettingRPCService.Get", key, &result)
 	return
 }
 
 func (p *ProcessAgentRuntimeConfigClient) Set(key string, value string) (hidden bool, err error) {
-	err = p.rpcClient.Call("RuntimeSettingRPCService.Set", &SetArg{key, value}, &hidden)
+	err = p.rpcClient.Call("RuntimeSettingRPCService.Set", SetArg{key, value}, &hidden)
 	return
 }
 
 func (p *ProcessAgentRuntimeConfigClient) List() (map[string]settings.RuntimeSettingResponse, error) {
 	result := make(map[string]settings.RuntimeSettingResponse)
-	err := p.rpcClient.Call("RuntimeSettingRPCService.List", &struct{}{}, &result)
+	err := p.rpcClient.Call("RuntimeSettingRPCService.List", struct{}{}, &result)
 	return result, err
 }
 
 func (p *ProcessAgentRuntimeConfigClient) FullConfig() (string, error) {
 	var result string
-	err := p.rpcClient.Call("RuntimeSettingRPCService.FullConfig", &struct{}{}, &result)
+	err := p.rpcClient.Call("RuntimeSettingRPCService.FullConfig", struct{}{}, &result)
 	return result, err
 }

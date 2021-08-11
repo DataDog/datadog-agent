@@ -22,8 +22,8 @@ type RuntimeSettingRPCService struct {
 	agentConfig *config.AgentConfig
 }
 
-func (svc *RuntimeSettingRPCService) Get(key *string, settingResult *interface{}) error {
-	setting, err := settings.GetRuntimeSetting(*key)
+func (svc *RuntimeSettingRPCService) Get(key string, settingResult *interface{}) error {
+	setting, err := settings.GetRuntimeSetting(key)
 	if err != nil {
 		return err
 	}
@@ -38,7 +38,7 @@ type SetArg struct {
 	Key, Value string
 }
 
-func (svc *RuntimeSettingRPCService) Set(arg *SetArg, hidden *bool) error {
+func (svc *RuntimeSettingRPCService) Set(arg SetArg, hidden *bool) error {
 	err := settings.SetRuntimeSetting(arg.Key, arg.Value)
 	if err != nil {
 		return err
@@ -50,7 +50,8 @@ func (svc *RuntimeSettingRPCService) Set(arg *SetArg, hidden *bool) error {
 	return nil
 }
 
-func (svc *RuntimeSettingRPCService) List(_ *struct{}, allSettings *map[string]settings.RuntimeSettingResponse) error {
+// List is an RPC endpoint for
+func (svc *RuntimeSettingRPCService) List(_ struct{}, allSettings *map[string]settings.RuntimeSettingResponse) error {
 	runtimeSettings := settings.RuntimeSettings()
 	for _, setting := range runtimeSettings {
 		(*allSettings)[setting.Name()] = settings.RuntimeSettingResponse{
@@ -61,7 +62,7 @@ func (svc *RuntimeSettingRPCService) List(_ *struct{}, allSettings *map[string]s
 	return nil
 }
 
-func (svc *RuntimeSettingRPCService) FullConfig(_ *struct{}, result *string) error {
+func (svc *RuntimeSettingRPCService) FullConfig(_ struct{}, result *string) error {
 	// For some reason calling Get doesn't return the full namespace, so we have to do this
 	fullConfig, ok := ddconfig.Datadog.AllSettings()["process_config"]
 	if !ok {
