@@ -121,7 +121,6 @@ func (r *Runner) newWorker() (*worker.Worker, error) {
 		r.checksTracker,
 		r.ShouldAddCheckStats,
 	)
-
 	if err != nil {
 		log.Errorf("Runner %d was unable to instantiate a worker: %s", err)
 		return nil, err
