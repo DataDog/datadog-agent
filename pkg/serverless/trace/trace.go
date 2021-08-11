@@ -38,7 +38,9 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 // Start starts the agent
 func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load) {
 	if enabled {
-		//this will fail the grpc client and allow to skip hostname resolution
+		// during hostname resolution the first step is to make a GRPC call which is timeboxed to a 2 seconds deadline
+		// in the serverless mode, we don't start the GRPC server so this call will fail and cause a 2 seconds delay
+		// by setting cmd_port to 0, this will cause the GRPC client to fail instantly
 		ddConfig.Datadog.Set("cmd_port", "0")
 
 		tc, confErr := loadConfig.Load()
