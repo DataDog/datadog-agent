@@ -6,6 +6,25 @@ import (
 	"strconv"
 )
 
+type libraryKey struct {
+	Pathname       string
+	MountNameSpace ns
+}
+
+/*
+ Library define a dynamic library, defined by his
+    o Process point of view :
+      o Pathname
+      o MountNameSpace
+    o PidsPath : list all /proc/pid for a tuple {Pathname, MountNameSpace}
+    o HostPath : the library path from the Host point of view
+*/
+type Library struct {
+	libraryKey
+	PidsPath []string
+	HostPath string
+}
+
 // AllLibraries represents a filter that matches all shared libraries
 var AllLibraries = regexp.MustCompile(`\.so($|\.)`)
 
