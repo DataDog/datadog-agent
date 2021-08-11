@@ -204,6 +204,18 @@ def build_embed_syscall_tester(ctx, static=True):
 
 
 @task
+def embed_embedded_tests(ctx):
+    cmd = (
+        "go run github.com/DataDog/datadog-agent/pkg/security/tests/embed_generator"
+        + " -input '{input_dir}'"
+        + " -output '{output_dir}'"
+    )
+    input_dir = "pkg/security/tests/"
+    output_dir = "pkg/security/embeddedtests"
+    ctx.run(cmd.format(input_dir=input_dir, output_dir=output_dir))
+
+
+@task
 def build_functional_tests(
     ctx,
     output='pkg/security/tests/testsuite',

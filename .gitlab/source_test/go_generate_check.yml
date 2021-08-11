@@ -11,5 +11,6 @@ security_go_generate_check:
   script:
     - go generate ./pkg/security/...
     - inv -e security-agent.generate-documentation
+    - inv -e security-agent.embed-embedded-tests
     - git status --porcelain
     - test -z "$(git status --porcelain)"
