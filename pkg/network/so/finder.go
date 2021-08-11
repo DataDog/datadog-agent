@@ -32,7 +32,7 @@ func newFinder(procRoot string) *finder {
 
 func (f *finder) Find(filter *regexp.Regexp) (result []Library) {
 	mapLib := make(map[libraryKey]Library)
-	iteratePIDS(f.procRoot, func(pidPath string, info os.FileInfo, mntNS ns) {
+	err := iteratePIDS(f.procRoot, func(pidPath string, info os.FileInfo, mntNS ns) {
 		libs := getSharedLibraries(pidPath, f.buffer, filter)
 
 		for _, lib := range libs {
@@ -65,13 +65,16 @@ func (f *finder) Find(filter *regexp.Regexp) (result []Library) {
 			}
 		}
 	})
+	if err != nil {
+		return result
+	}
 	for _, l := range mapLib {
 		result = append(result, l)
 	}
 	return result
 }
 
-func iteratePIDS(procRoot string, fn callback) {
+func iteratePIDS(procRoot string, fn callback) error {
 	w := newWalker(procRoot, fn)
-	filepath.Walk(procRoot, filepath.WalkFunc(w.walk))
+	return filepath.Walk(procRoot, filepath.WalkFunc(w.walk))
 }
