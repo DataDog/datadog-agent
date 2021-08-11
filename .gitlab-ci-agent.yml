@@ -731,7 +731,7 @@ molecule_compose_failure_cleanup:
   <<: *molecule_destroy
   rules:
     - *compose_ignore_rule
-    - when: always
+    - when: on_failure
   variables:
     MOLECULE_SCENARIO: compose
   needs:
@@ -741,7 +741,7 @@ molecule_compose_cleanup:
   <<: *molecule_destroy
   rules:
     - *compose_ignore_rule
-    - when: on_failure
+    - when: always
   variables:
     MOLECULE_SCENARIO: compose
   dependencies:
