@@ -446,6 +446,8 @@ core,github.com/hectane/go-acl/api,MIT,Nathan Osman
 core,github.com/huandu/xstrings,MIT,Huan Du
 core,github.com/iancoleman/orderedmap,MIT,Ian Coleman
 core,github.com/ianlancetaylor/cgosymbolizer,BSD-3-Clause,"Free Software Foundation, Inc | The Go Authors"
+core,github.com/iceber/iouring-go,MIT,IceberGu
+core,github.com/iceber/iouring-go/syscall,MIT,IceberGu
 core,github.com/imdario/mergo,BSD-3-Clause,Dario Castañé | The Go Authors
 core,github.com/inconshreveable/mousetrap,Apache-2.0,Alan Shreve
 core,github.com/iovisor/gobpf/pkg/cpupossible,Apache-2.0,Kinvolk | PLUMgrid
@@ -1047,6 +1049,11 @@ core,gopkg.in/natefinch/lumberjack.v2,MIT,Nate Finch
 core,gopkg.in/yaml.v2,Apache-2.0,Canonical Ltd
 core,gopkg.in/yaml.v3,MIT,"Canonical, Ltd. | Kirill Simonov"
 core,gopkg.in/zorkian/go-datadog-api.v2,BSD-3-Clause,authors and contributors
+core,gotest.tools/assert,Apache-2.0,gotest.tools authors
+core,gotest.tools/assert/cmp,Apache-2.0,gotest.tools authors
+core,gotest.tools/internal/difflib,BSD-3-Clause,Patrick Mezard | gotest.tools authors
+core,gotest.tools/internal/format,Apache-2.0,gotest.tools authors
+core,gotest.tools/internal/source,Apache-2.0,gotest.tools authors
 core,k8s.io/api/admission/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
 core,k8s.io/api/admission/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
 core,k8s.io/api/admissionregistration/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
