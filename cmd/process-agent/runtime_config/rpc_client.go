@@ -5,10 +5,13 @@ import (
 	"net/rpc"
 )
 
+// ProcessAgentRuntimeConfigClient is a client designed to consume the RPC endpoints opened by RuntimeSettingRPCService.
+// It implements the settings.Client interface, so that the process-agent cli can act similar to the core agent's.
 type ProcessAgentRuntimeConfigClient struct {
 	rpcClient *rpc.Client
 }
 
+// NewProcessAgentRuntimeConfigClient creates a new client and opens a connection to the RPC endpoint created by RuntimeSettingRPCService.
 func NewProcessAgentRuntimeConfigClient(port string) (*ProcessAgentRuntimeConfigClient, error) {
 	rpcClient, err := rpc.DialHTTP("tcp", "localhost:"+port)
 	if err != nil {
