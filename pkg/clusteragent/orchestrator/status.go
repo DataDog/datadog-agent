@@ -90,8 +90,8 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 	for _, node := range orchestrator.NodeTypes() {
 		if value, found := orchestrator.KubernetesResourceCache.Get(orchestrator.BuildStatsKey(node)); found {
 			orcStats := value.(orchestrator.CheckStats)
-			totalMiss := cacheMiss[orcStats.String()+"s"]
-			totalHit := cacheHits[orcStats.String()+"s"]
+			totalMiss := cacheMiss[orcStats.String()]
+			totalHit := cacheHits[orcStats.String()]
 			s := stats{
 				CheckStats: orcStats,
 				NodeType:   orcStats.String(),

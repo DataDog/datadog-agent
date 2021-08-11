@@ -37,21 +37,6 @@ const (
 	K8sStatefulSet
 )
 
-var (
-	telemetryTags = map[NodeType][]string{
-		K8sCluster:     getTelemetryTags(K8sCluster),
-		K8sCronJob:     getTelemetryTags(K8sCronJob),
-		K8sDeployment:  getTelemetryTags(K8sDeployment),
-		K8sJob:         getTelemetryTags(K8sJob),
-		K8sNode:        getTelemetryTags(K8sNode),
-		K8sPod:         getTelemetryTags(K8sPod),
-		K8sReplicaSet:  getTelemetryTags(K8sReplicaSet),
-		K8sService:     getTelemetryTags(K8sService),
-		K8sDaemonSet:   getTelemetryTags(K8sDaemonSet),
-		K8sStatefulSet: getTelemetryTags(K8sStatefulSet),
-	}
-)
-
 // NodeTypes returns the current existing NodesTypes as a slice to iterate over.
 func NodeTypes() []NodeType {
 	return []NodeType{
@@ -110,11 +95,11 @@ func (n NodeType) Orchestrator() string {
 
 // TelemetryTags return tags used for telemetry.
 func (n NodeType) TelemetryTags() []string {
-	tags, ok := telemetryTags[n]
-	if !ok {
+	if n.String() == "" {
 		log.Errorf("Unknown NodeType %v", n)
 		return []string{"unknown", "unknown"}
 	}
+	tags := getTelemetryTags(n)
 	return tags
 }
 
