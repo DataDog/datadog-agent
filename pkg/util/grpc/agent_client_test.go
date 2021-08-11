@@ -25,12 +25,12 @@ func TestGetDDAgentClientTimeout(t *testing.T) {
 }
 
 func TestGetDDAgentClientWithCmdPort0(t *testing.T) {
-	os.Setenv("DD_CMD_PORT", "0")
+	os.Setenv("DD_CMD_PORT", "-1")
 	defer os.Unsetenv("DD_CMD_PORT")
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	_, err := GetDDAgentClient(ctx)
 	assert.NotNil(t, err)
-	assert.Equal(t, "grpc client disabled via cmd_port: 0", err.Error())
+	assert.Equal(t, "grpc client disabled via cmd_port: -1", err.Error())
 }

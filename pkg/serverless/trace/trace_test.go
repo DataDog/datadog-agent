@@ -67,7 +67,7 @@ func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 }
 
 func TestLoadConfigShouldBeFast(t *testing.T) {
-	timeout := time.After(100 * time.Millisecond)
+	timeout := time.After(1 * time.Second)
 	done := make(chan bool)
 	go func() {
 		var agent = &ServerlessTraceAgent{}
