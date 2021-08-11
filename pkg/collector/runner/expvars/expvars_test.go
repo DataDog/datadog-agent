@@ -219,8 +219,9 @@ func TestExpvarsCheckStats(t *testing.T) {
 				// Copy the index value since loop reuses pointers
 				runIdx := rIdx
 
+				wg.Add(1)
+
 				go func() {
-					wg.Add(1)
 					defer wg.Done()
 
 					duration := time.Duration(runIdx+1) * time.Second

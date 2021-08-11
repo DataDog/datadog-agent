@@ -75,8 +75,9 @@ func TestRunningChecksTrackerAddAndDeleteLocking(t *testing.T) {
 		// Copy the index value since loop reuses pointers
 		idx := i
 
+		wg.Add(1)
+
 		go func() {
-			wg.Add(1)
 			defer wg.Done()
 
 			testCheck := newTestCheck(fmt.Sprintf("testcheck %d", idx))
@@ -193,8 +194,9 @@ func TestRunningChecksTrackerWithCheck(t *testing.T) {
 		// Copy the index value since loop reuses pointers
 		idx := i
 
+		wg.Add(1)
+
 		go func() {
-			wg.Add(1)
 			defer wg.Done()
 
 			runCount := 0

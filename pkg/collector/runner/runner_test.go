@@ -49,8 +49,9 @@ func (c *TestCheck) GetStats() (check.SenderStats, error) { return check.NewSend
 
 type testCheck struct {
 	check.StubCheck
-	RunLock  sync.Mutex
-	StopLock sync.Mutex
+	RunLock   sync.Mutex
+	StartLock sync.Mutex
+	StopLock  sync.Mutex
 
 	doErr       bool
 	doWarn      bool
@@ -59,20 +60,23 @@ type testCheck struct {
 	runFunc     func(id check.ID)
 	runCount    uint64
 	startedChan chan struct{}
-	stopped     bool
+	stopped     uint32
 }
 
 func (c *testCheck) ID() check.ID   { return check.ID(c.id) }
 func (c *testCheck) String() string { return check.IDToCheckName(c.ID()) }
-func (c *testCheck) RunCount() int  { return int(c.runCount) }
+func (c *testCheck) RunCount() int  { return int(atomic.LoadUint64(&c.runCount)) }
 func (c *testCheck) Stop() {
 	c.StopLock.Lock()
 	defer c.StopLock.Unlock()
 
-	c.stopped = true
+	atomic.StoreUint32(&c.stopped, 1)
 }
-func (c *testCheck) IsStopped() bool { return c.stopped }
+func (c *testCheck) IsStopped() bool { return atomic.LoadUint32(&c.stopped) != 0 }
 func (c *testCheck) StartedChan() chan struct{} {
+	c.StartLock.Lock()
+	defer c.StartLock.Unlock()
+
 	if c.startedChan == nil {
 		c.startedChan = make(chan struct{}, 1)
 	}
