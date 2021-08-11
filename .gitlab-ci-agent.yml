@@ -746,8 +746,8 @@ molecule_compose_cleanup:
   variables:
     MOLECULE_SCENARIO: compose
   dependencies:
-    - molecule_integrations_test
-    - molecule_integrations_create
+    - molecule_compose_test
+    - molecule_compose_create
   needs:
     - molecule_compose_test
     - molecule_compose_create

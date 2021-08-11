@@ -1,4 +1,4 @@
 ---
 - name: Wait for boot process to finish
   pause:
-    minutes: 1
+    minutes: 2
