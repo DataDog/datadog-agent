@@ -59,13 +59,3 @@ func parseMaps(r *bufio.Reader, filter *regexp.Regexp) (libs []string) {
 
 	return libs
 }
-
-func occurrence(n int, want rune) func(r rune) bool {
-	return func(r rune) bool {
-		if r == want {
-			n--
-		}
-
-		return n <= 0
-	}
-}
