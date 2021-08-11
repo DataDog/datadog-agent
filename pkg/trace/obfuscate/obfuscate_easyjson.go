@@ -36,8 +36,8 @@ func easyjson4ef41860DecodeGithubComDataDogDatadogAgentPkgTraceObfuscate(in *jle
 			continue
 		}
 		switch key {
-		case "quantize_sql_tables":
-			out.QuantizeSQLTables = bool(in.Bool())
+		case "quantize_sql":
+			out.QuantizeSQL = bool(in.Bool())
 		default:
 			in.SkipRecursive()
 		}
@@ -53,9 +53,9 @@ func easyjson4ef41860EncodeGithubComDataDogDatadogAgentPkgTraceObfuscate(out *jw
 	first := true
 	_ = first
 	{
-		const prefix string = ",\"quantize_sql_tables\":"
+		const prefix string = ",\"quantize_sql\":"
 		out.RawString(prefix[1:])
-		out.Bool(bool(in.QuantizeSQLTables))
+		out.Bool(bool(in.QuantizeSQL))
 	}
 	out.RawByte('}')
 }

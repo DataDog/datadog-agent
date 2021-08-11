@@ -275,7 +275,7 @@ func TestSQLQuantizeTableNames(t *testing.T) {
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
-				oq, err := NewObfuscator(nil).ObfuscateSQLStringWithOptions(tt.query, SQLOptions{QuantizeSQLTables: true})
+				oq, err := NewObfuscator(nil).ObfuscateSQLStringWithOptions(tt.query, SQLOptions{QuantizeSQL: true})
 				assert.NoError(err)
 				assert.Empty(oq.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
@@ -394,7 +394,7 @@ func TestSQLTableFinderAndQuantizeTableNames(t *testing.T) {
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
-				oq, err := NewObfuscator(nil).ObfuscateSQLStringWithOptions(tt.query, SQLOptions{QuantizeSQLTables: true})
+				oq, err := NewObfuscator(nil).ObfuscateSQLStringWithOptions(tt.query, SQLOptions{QuantizeSQL: true})
 				assert.NoError(err)
 				assert.Equal(tt.tables, oq.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
@@ -1391,7 +1391,7 @@ func BenchmarkObfuscateSQLString(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				_, err := obf.ObfuscateSQLStringWithOptions(bm.query, SQLOptions{QuantizeSQLTables: true})
+				_, err := obf.ObfuscateSQLStringWithOptions(bm.query, SQLOptions{QuantizeSQL: true})
 				if err != nil {
 					b.Fatal(err)
 				}

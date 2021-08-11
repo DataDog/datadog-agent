@@ -96,7 +96,7 @@ func (f *discardFilter) Reset() {}
 // replaceFilter is a token filter which obfuscates strings and numbers in queries by replacing them
 // with the "?" character.
 type replaceFilter struct {
-	quantizeTableNames bool
+	quantizeSql bool
 }
 
 // Filter the given token so that it will be replaced if in the token replacement list
@@ -118,7 +118,7 @@ func (f *replaceFilter) Filter(token, lastToken TokenKind, buffer []byte) (token
 		// Cases like 'ARRAY [ ?, ? ]' should be collapsed into 'ARRAY [ ? ]'
 		return markFilteredGroupable(token), questionMark, nil
 	case TableName, ID:
-		if f.quantizeTableNames {
+		if f.quantizeSql {
 			return token, replaceDigits(buffer), nil
 		}
 		fallthrough
@@ -209,7 +209,7 @@ func (f *groupingFilter) Reset() {
 // some elements such as comments and aliases and obfuscation attempts to hide sensitive information
 // in strings and numbers by redacting them.
 func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
-	return o.ObfuscateSQLStringWithOptions(in, SQLOptions{QuantizeSQLTables: features.Has("quantize_sql_tables")})
+	return o.ObfuscateSQLStringWithOptions(in, SQLOptions{QuantizeSQL: features.Has("quantize_sql_tables") || features.Has("quantize_sql")})
 }
 
 // ObfuscateSQLStringWithOptions accepts an optional SQLOptions to change the behavior of the obfuscator
@@ -319,22 +319,22 @@ func (oq *ObfuscatedQuery) Cost() int64 {
 
 // attemptObfuscation attempts to obfuscate the SQL query loaded into the tokenizer, using the given set of filters.
 func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
-	return attemptObfuscationWithOptions(tokenizer, SQLOptions{QuantizeSQLTables: features.Has("quantize_sql_tables")})
+	return attemptObfuscationWithOptions(tokenizer, SQLOptions{QuantizeSQL: features.Has("quantize_sql_tables") || features.Has("quantize_sql")})
 }
 
 // attemptObfuscationWithOptions attempts to obfuscate the SQL query loaded into the tokenizer, using the given
 // set of filters. An optional SQLOptions may be given to change the behavior.
 func attemptObfuscationWithOptions(tokenizer *SQLTokenizer, opts SQLOptions) (*ObfuscatedQuery, error) {
 	var (
-		storeTableNames    = features.Has("table_names")
-		quantizeTableNames = opts.QuantizeSQLTables
-		out                = bytes.NewBuffer(make([]byte, 0, len(tokenizer.buf)))
-		err                error
-		lastToken          TokenKind
-		discard            discardFilter
-		replace            = replaceFilter{quantizeTableNames: quantizeTableNames}
-		grouping           groupingFilter
-		tableFinder        = tableFinderFilter{storeTableNames: storeTableNames}
+		storeTableNames = features.Has("table_names")
+		quantizeSql     = opts.QuantizeSQL
+		out             = bytes.NewBuffer(make([]byte, 0, len(tokenizer.buf)))
+		err             error
+		lastToken       TokenKind
+		discard         discardFilter
+		replace         = replaceFilter{quantizeSql: quantizeSql}
+		grouping        groupingFilter
+		tableFinder     = tableFinderFilter{storeTableNames: storeTableNames}
 	)
 	// call Scan() function until tokens are available or if a LEX_ERROR is raised. After
 	// retrieving a token, send it to the tokenFilter chains so that the token is discarded
@@ -351,7 +351,7 @@ func attemptObfuscationWithOptions(tokenizer *SQLTokenizer, opts SQLOptions) (*O
 		if token, buff, err = discard.Filter(token, lastToken, buff); err != nil {
 			return nil, err
 		}
-		if storeTableNames || quantizeTableNames {
+		if storeTableNames || quantizeSql {
 			if token, buff, err = tableFinder.Filter(token, lastToken, buff); err != nil {
 				return nil, err
 			}
