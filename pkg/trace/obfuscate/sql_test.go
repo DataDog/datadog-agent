@@ -265,12 +265,12 @@ func TestSQLQuantizeTableNames(t *testing.T) {
 				"REPLACE INTO sales_?_?_? ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item? WHERE sku = [ sku ] ), CURDATE ( ), [ qty ], ? )",
 			},
 			{
-				"SELECT ddh.name, ddt.tags FROM dd91219.host ddh, dd21916.host_tags ddt WHERE ddh.id = ddt.host_id AND ddh.org_id = 2 AND ddh.name = 'datadog'",
-				"SELECT ddh.name, ddt.tags FROM dd?.host ddh, dd?.host_tags ddt WHERE ddh.id = ddt.host_id AND ddh.org_id = ? AND ddh.name = ?",
+				"SELECT ddh19.name, ddt.tags FROM dd91219.host ddh19, dd21916.host_tags ddt WHERE ddh19.id = ddt.host_id AND ddh19.org_id = 2 AND ddh19.name = 'datadog'",
+				"SELECT ddh?.name, ddt.tags FROM dd?.host ddh?, dd?.host_tags ddt WHERE ddh?.id = ddt.host_id AND ddh?.org_id = ? AND ddh?.name = ?",
 			},
 			{
-				"SELECT ddu.name, ddo.id, ddk.app_key FROM dd3120.user ddu, dd1931.orgs ddo, dd53819.keys ddk",
-				"SELECT ddu.name, ddo.id, ddk.app_key FROM dd?.user ddu, dd?.orgs ddo, dd?.keys ddk",
+				"SELECT ddu2.name, ddo.id, ddk.app_key FROM dd3120.user ddu2, dd1931.orgs ddo, dd53819.keys ddk",
+				"SELECT ddu?.name, ddo.id, ddk.app_key FROM dd?.user ddu?, dd?.orgs ddo, dd?.keys ddk",
 			},
 		} {
 			t.Run("", func(t *testing.T) {
@@ -293,12 +293,12 @@ func TestSQLQuantizeTableNames(t *testing.T) {
 				"REPLACE INTO sales_2019_07_01 ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item1001 WHERE sku = [ sku ] ), CURDATE ( ), [ qty ], ? )",
 			},
 			{
-				"SELECT ddh.name, ddt.tags FROM dd91219.host ddh, dd21916.host_tags ddt WHERE ddh.id = ddt.host_id AND ddh.org_id = 2 AND ddh.name = 'datadog'",
-				"SELECT ddh.name, ddt.tags FROM dd91219.host ddh, dd21916.host_tags ddt WHERE ddh.id = ddt.host_id AND ddh.org_id = ? AND ddh.name = ?",
+				"SELECT ddh19.name, ddt.tags FROM dd91219.host ddh19, dd21916.host_tags ddt WHERE ddh19.id = ddt.host_id AND ddh19.org_id = 2 AND ddh19.name = 'datadog'",
+				"SELECT ddh19.name, ddt.tags FROM dd91219.host ddh19, dd21916.host_tags ddt WHERE ddh19.id = ddt.host_id AND ddh19.org_id = ? AND ddh19.name = ?",
 			},
 			{
-				"SELECT ddu.name, ddo.id, ddk.app_key FROM dd3120.user ddu, dd1931.orgs ddo, dd53819.keys ddk",
-				"SELECT ddu.name, ddo.id, ddk.app_key FROM dd3120.user ddu, dd1931.orgs ddo, dd53819.keys ddk",
+				"SELECT ddu2.name, ddo.id, ddk.app_key FROM dd3120.user ddu2, dd1931.orgs ddo, dd53819.keys ddk",
+				"SELECT ddu2.name, ddo.id, ddk.app_key FROM dd3120.user ddu2, dd1931.orgs ddo, dd53819.keys ddk",
 			},
 		} {
 			t.Run("", func(t *testing.T) {
