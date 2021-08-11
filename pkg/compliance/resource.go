@@ -93,6 +93,7 @@ const (
 	FileFieldPermissions = "file.permissions"
 	FileFieldUser        = "file.user"
 	FileFieldGroup       = "file.group"
+	FileFieldContent     = "file.content"
 
 	FileFuncJQ     = "file.jq"
 	FileFuncYAML   = "file.yaml"
@@ -109,6 +110,7 @@ const (
 	ProcessFieldName    = "process.name"
 	ProcessFieldExe     = "process.exe"
 	ProcessFieldCmdLine = "process.cmdLine"
+	ProcessFieldFlags   = "process.flags"
 
 	ProcessFuncFlag    = "process.flag"
 	ProcessFuncHasFlag = "process.hasFlag"
@@ -237,13 +239,16 @@ func (a *Audit) Validate() error {
 const (
 	DockerImageFieldID   = "image.id"
 	DockerImageFieldTags = "image.tags"
+	DockerImageInspect   = "image.inspect"
 
 	DockerContainerFieldID    = "container.id"
 	DockerContainerFieldName  = "container.name"
 	DockerContainerFieldImage = "container.image"
+	DockerContainerInspect    = "container.inspect"
 
-	DockerNetworkFieldID   = "network.id"
-	DockerNetworkFieldName = "network.name"
+	DockerNetworkFieldID      = "network.id"
+	DockerNetworkFieldName    = "network.name"
+	DockerNetworkFieldInspect = "network.inspect"
 
 	DockerVersionFieldVersion       = "docker.version"
 	DockerVersionFieldAPIVersion    = "docker.apiVersion"

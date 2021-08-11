@@ -60,6 +60,11 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Bas
 			compliance.FileFieldPermissions: uint64(fi.Mode() & os.ModePerm),
 		}
 
+		content, err := readContent(path)
+		if err == nil {
+			vars[compliance.FileFieldContent] = content
+		}
+
 		user, err := getFileUser(fi)
 		if err == nil {
 			vars[compliance.FileFieldUser] = user

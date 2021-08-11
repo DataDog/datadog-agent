@@ -53,6 +53,7 @@ func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Base
 				compliance.ProcessFieldName:    mp.Name,
 				compliance.ProcessFieldExe:     mp.Exe,
 				compliance.ProcessFieldCmdLine: mp.Cmdline,
+				compliance.ProcessFieldFlags:   flagValues,
 			},
 			eval.FunctionMap{
 				compliance.ProcessFuncFlag:    processFlag(flagValues),
@@ -76,7 +77,7 @@ func processFlag(flagValues map[string]string) eval.Function {
 		if err != nil {
 			return nil, err
 		}
-		value, _ := flagValues[flag]
+		value := flagValues[flag]
 		return value, nil
 	}
 }

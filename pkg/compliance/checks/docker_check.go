@@ -208,6 +208,7 @@ func (it *dockerImageIterator) Next() (eval.Instance, error) {
 			eval.VarMap{
 				compliance.DockerImageFieldID:   image.ID,
 				compliance.DockerImageFieldTags: imageInspect.RepoTags,
+				compliance.DockerImageInspect:   imageInspect,
 			},
 			eval.FunctionMap{
 				compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, imageInspect),
@@ -261,6 +262,7 @@ func (it *dockerContainerIterator) Next() (eval.Instance, error) {
 				compliance.DockerContainerFieldID:    container.ID,
 				compliance.DockerContainerFieldName:  containerInspect.Name,
 				compliance.DockerContainerFieldImage: containerInspect.Image,
+				compliance.DockerContainerInspect:    containerInspect,
 			},
 			eval.FunctionMap{
 				compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, containerInspect),
@@ -306,8 +308,9 @@ func (it *dockerNetworkIterator) Next() (eval.Instance, error) {
 	return &dockerNetwork{
 		Instance: eval.NewInstance(
 			eval.VarMap{
-				compliance.DockerNetworkFieldID:   network.ID,
-				compliance.DockerNetworkFieldName: network.Name,
+				compliance.DockerNetworkFieldID:      network.ID,
+				compliance.DockerNetworkFieldName:    network.Name,
+				compliance.DockerNetworkFieldInspect: network,
 			},
 			eval.FunctionMap{
 				compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, network),
