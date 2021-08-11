@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	utilo "github.com/DataDog/datadog-agent/pkg/util/orchestrator"
+	orchutil "github.com/DataDog/datadog-agent/pkg/util/orchestrator"
 )
 
 // Pod is a singleton PodCheck.
@@ -60,5 +60,5 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 		return nil, err
 	}
 
-	return utilo.ProcessPodList(podList, groupID, cfg.HostName, clusterID, cfg.Orchestrator)
+	return orchutil.ProcessPodList(podList, groupID, cfg.HostName, clusterID, cfg.Orchestrator)
 }

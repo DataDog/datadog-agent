@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	utilo "github.com/DataDog/datadog-agent/pkg/util/orchestrator"
+	orchutil "github.com/DataDog/datadog-agent/pkg/util/orchestrator"
 
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
@@ -547,7 +547,7 @@ func (o *OrchestratorCheck) processPods(sender aggregator.Sender) {
 	}
 
 	// we send an empty hostname for unassigned pods
-	messages, err := utilo.ProcessPodList(podList, atomic.AddInt32(&o.groupID, 1), "", o.clusterID, o.orchestratorConfig)
+	messages, err := orchutil.ProcessPodList(podList, atomic.AddInt32(&o.groupID, 1), "", o.clusterID, o.orchestratorConfig)
 	if err != nil {
 		_ = o.Warnf("Unable to process pod list: %v", err)
 		return
