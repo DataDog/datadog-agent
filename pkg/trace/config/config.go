@@ -48,8 +48,8 @@ type Endpoint struct {
 // It is exposed with expvar, so make sure to exclude any sensible field
 // from JSON encoding. Use New() to create an instance.
 type AgentConfig struct {
-	Enabled   bool
-	IsFargate bool // specifies whether we are in a Fargate instance
+	Enabled             bool
+	FargateOrchestrator fargate.OrchestratorName
 
 	// Global
 	Hostname   string
@@ -141,16 +141,16 @@ type Tag struct {
 // New returns a configuration with the default values.
 func New() *AgentConfig {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	isFargate := fargate.IsFargateInstance(ctx)
+	orch := fargate.GetOrchestrator(ctx)
 	cancel()
 	if err := ctx.Err(); err != nil && err != context.Canceled {
-		log.Errorf("Error detecting Fargate instance: %v. Assuming not. If you are in a Fargate instance, this will cause problems.", err)
+		log.Errorf("Failed to get Fargate orchestrator. This may cause issues if you are in a Fargate instance: %v", err)
 	}
 	return &AgentConfig{
-		Enabled:    true,
-		IsFargate:  isFargate,
-		DefaultEnv: "none",
-		Endpoints:  []*Endpoint{{Host: "https://trace.agent.datadoghq.com"}},
+		Enabled:             true,
+		FargateOrchestrator: orch,
+		DefaultEnv:          "none",
+		Endpoints:           []*Endpoint{{Host: "https://trace.agent.datadoghq.com"}},
 
 		BucketInterval: time.Duration(10) * time.Second,
 
