@@ -47,7 +47,7 @@ def check_deploy_pipeline(gitlab, project_name, git_ref, release_version_6, rele
     if not is_allowed_repo_branch(repo_branch):
         print(
             "--repo-branch argument '{}' is not in the list of allowed repository branches: {}".format(
-                repo_branch, get_all_allowed_repo_branches
+                repo_branch, get_all_allowed_repo_branches()
             )
         )
         raise Exit(code=1)
