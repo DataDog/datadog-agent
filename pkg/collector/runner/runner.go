@@ -182,8 +182,6 @@ func (r *Runner) Stop() {
 	log.Infof("Runner %d is shutting down...", r.id)
 	close(r.pendingChecksChan)
 
-	// Stop checks that are still running
-	globalDone := make(chan struct{})
 	wg := sync.WaitGroup{}
 
 	// Stop running checks
@@ -192,27 +190,22 @@ func (r *Runner) Stop() {
 		terminateChecksRunningProcesses()
 
 		for _, c := range runningChecks {
-			wg.Add(1)
-			go func(c check.Check) {
-				log.Infof("Stopping check %v that is still running...", c)
-				done := make(chan struct{})
-				go func() {
-					c.Stop()
-					close(done)
-					wg.Done()
-				}()
+			// Save the check since the goroutine will reuse the pointer otherwise
+			ch := c
 
-				select {
-				case <-done:
-					// all good
-				case <-time.After(stopCheckTimeout):
-					// check is not responding
-					log.Warnf("Check %v not responding after %v", c, stopCheckTimeout)
+			wg.Add(1)
+			go func() {
+				err := r.StopCheck(ch.ID())
+				if err != nil {
+					log.Warnf("Check %v not responding after %v: %s", ch, stopCheckTimeout, err)
 				}
-			}(c)
+
+				wg.Done()
+			}()
 		}
 	})
 
+	globalDone := make(chan struct{})
 	go func() {
 		log.Debugf("Runner %d waiting for all the workers to exit...", r.id)
 		wg.Wait()
@@ -272,7 +265,7 @@ func (r *Runner) StopCheck(id check.ID) error {
 	done := make(chan bool)
 
 	stopFunc := func(c check.Check) {
-		log.Debugf("Stopping check %s", c.ID())
+		log.Debugf("Stopping running check %s...", c.ID())
 		go func() {
 			// Remember that the check was stopped so that even if it runs we can discard its stats
 			c.Stop()
