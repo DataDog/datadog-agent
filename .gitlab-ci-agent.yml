@@ -738,7 +738,7 @@ molecule_compose_failure_cleanup:
     - molecule_compose_test
     - molecule_compose_create
 
-molecule_compose_cleanup:
+molecule_compose_success_cleanup:
   <<: *molecule_destroy
   rules:
     - *compose_ignore_rule
@@ -795,14 +795,15 @@ molecule_integrations_failure_cleanup:
   variables:
     MOLECULE_SCENARIO: integrations
   needs:
+    - molecule_integrations_test
     - molecule_integrations_create
 
-molecule_integrations_cleanup:
+molecule_integrations_success_cleanup:
   <<: *molecule
   <<: *molecule_destroy
   rules:
     - *integrations_ignore_rule
-    - when: always
+    - when: on_success
   variables:
     MOLECULE_SCENARIO: integrations
   dependencies:
@@ -906,9 +907,10 @@ molecule_localinstall_failure_cleanup:
       when: on_failure
     - when: never
   needs:
+    - molecule_localinstall_test
     - molecule_localinstall_create
 
-molecule_localinstall_cleanup:
+molecule_localinstall_success_cleanup:
   variables:
     MOLECULE_SCENARIO: localinstall
   <<: *molecule
@@ -916,7 +918,7 @@ molecule_localinstall_cleanup:
   rules:
     - *localinstall_ignore_rule
     - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master")
-      when: always
+      when: on_success
     - when: never
   dependencies:
     - molecule_localinstall_test
@@ -973,9 +975,10 @@ molecule_secrets_failure_cleanup:
       when: on_failure
     - when: never
   needs:
+    - molecule_secrets_test
     - molecule_secrets_create
 
-molecule_secrets_cleanup:
+molecule_secrets_success_cleanup:
   variables:
     MOLECULE_SCENARIO: vms
   <<: *molecule
@@ -983,7 +986,7 @@ molecule_secrets_cleanup:
   rules:
     - *secrets_ignore_rule
     - if: ($CI_COMMIT_TAG || $CI_COMMIT_REF_NAME == "master")
-      when: always
+      when: on_success
     - when: never
   dependencies:
     - molecule_secrets_test
@@ -1036,15 +1039,16 @@ molecule_swarm_failure_cleanup:
     - *only_agent_3_on_failure
   needs:
     - molecule_swarm_create
+    - molecule_swarm_test
 
-molecule_swarm_cleanup:
+molecule_swarm_success_cleanup:
   variables:
     MOLECULE_SCENARIO: swarm
   <<: *molecule
   <<: *molecule_destroy
   rules:
     - *swarm_ignore_rule
-    - *only_agent_3_always
+    - *only_agent_3_on_success
   dependencies:
     - molecule_swarm_create
     - molecule_swarm_test
@@ -1097,15 +1101,16 @@ molecule_vms_failure_cleanup:
     - when: on_failure
   needs:
     - molecule_vms_create
+    - molecule_vms_test
 
-molecule_vms_cleanup:
+molecule_vms_success_cleanup:
   variables:
     MOLECULE_SCENARIO: vms
   <<: *molecule
   <<: *molecule_destroy
   rules:
     - *vms_ignore_rule
-    - when: always
+    - when: on_success
   dependencies:
     - molecule_vms_create
     - molecule_vms_test
