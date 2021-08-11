@@ -55,7 +55,7 @@ func TestOpenBasenameApproverFilterERPCDentryResolution(t *testing.T) {
 		Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/%s"`, basename),
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true, disableMapDentryResolution: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{disableMapDentryResolution: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestOpenBasenameApproverFilterMapDentryResolution(t *testing.T) {
 		Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/%s"`, basename),
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true, disableERPCDentryResolution: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{disableERPCDentryResolution: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +160,7 @@ func TestOpenLeafDiscarderFilter(t *testing.T) {
 		Expression: `open.filename =~ "{{.Root}}/test-obc-1" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +208,7 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 		Expression: `open.file.path =~ "/usr/local/test-obd-2" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +262,7 @@ func TestDiscarderFilterMask(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{wantProbeEvents: true})
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -336,7 +336,7 @@ func TestOpenFlagsApproverFilter(t *testing.T) {
 		Expression: `open.flags & (O_SYNC | O_NOCTTY) > 0`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -389,7 +389,7 @@ func TestOpenProcessPidDiscarder(t *testing.T) {
 		Expression: `open.file.path =="{{.Root}}/test-oba-1" && process.file.path == "/bin/cat"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -442,7 +442,7 @@ func TestDiscarderRetentionFilter(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{testDir: testDrive.Root(), wantProbeEvents: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{testDir: testDrive.Root()})
 	if err != nil {
 		t.Fatal(err)
 	}
