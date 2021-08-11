@@ -70,7 +70,7 @@ func FormatStatus(data []byte) (string, error) {
 		renderStatusTemplate(b, "/snmp-traps.tmpl", snmpTrapsStats)
 	}
 	if config.IsContainerized() {
-		renderAutodiscoveryStats(b, stats["adConfigErrors"], stats["filterErrors"])
+		renderAutodiscoveryStats(b, stats["adEnabledFeatures"], stats["adConfigErrors"], stats["filterErrors"])
 	}
 
 	return b.String(), nil
@@ -186,8 +186,9 @@ func renderRuntimeSecurityStats(w io.Writer, runtimeSecurityStatus interface{}) 
 	renderStatusTemplate(w, "/runtimesecurity.tmpl", status)
 }
 
-func renderAutodiscoveryStats(w io.Writer, adConfigErrors interface{}, filterErrors interface{}) {
+func renderAutodiscoveryStats(w io.Writer, adEnabledFeatures interface{}, adConfigErrors interface{}, filterErrors interface{}) {
 	autodiscoveryStats := make(map[string]interface{})
+	autodiscoveryStats["adEnabledFeatures"] = adEnabledFeatures
 	autodiscoveryStats["adConfigErrors"] = adConfigErrors
 	autodiscoveryStats["filterErrors"] = filterErrors
 	renderStatusTemplate(w, "/autodiscovery.tmpl", autodiscoveryStats)
