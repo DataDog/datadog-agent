@@ -120,7 +120,7 @@ func TestWorker(t *testing.T) {
 	testCheck1 := newCheck(t, "testing:123", false, nil)
 	testCheck2 := newCheck(t, "testing2:234", false, nil)
 
-	upperTimeStatLimit := time.Now()
+	upperTimeStatLimit := time.Now().Add(-1 * time.Second)
 
 	// This closure ensures that the mid-run worker state is correct too
 	observerAssertFunc := func(id check.ID) {
@@ -137,7 +137,7 @@ func TestWorker(t *testing.T) {
 
 		assert.False(t, expvars.GetRunningStats(id).IsZero())
 		assert.True(t, expvars.GetRunningStats(id).After(upperTimeStatLimit))
-		assert.True(t, expvars.GetRunningStats(id).Before(time.Now()))
+		assert.True(t, expvars.GetRunningStats(id).Before(time.Now().Add(1*time.Second)))
 	}
 	observerTestCheck := newCheck(t, "observer:123", false, observerAssertFunc)
 
