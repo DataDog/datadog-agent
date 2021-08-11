@@ -624,7 +624,6 @@ func (b *builder) nodeLabelKeys() []string {
 
 func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.Rule, handler resourceReporter) (compliance.Check, error) {
 	checkable, err := newResourceCheckList(b, rule.ID, rule.Resources)
-
 	if err != nil {
 		return nil, err
 	}
@@ -653,12 +652,22 @@ func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.Rule
 }
 
 func (b *builder) newRegoCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.RegoRule, handler resourceReporter) (compliance.Check, error) {
+	regoCheck := &regoCheck{
+		ruleID:    rule.ID,
+		resources: rule.Resources,
+	}
+
+	if err := regoCheck.compileRule(rule); err != nil {
+		return nil, err
+	}
+
 	var notify eventNotify
 	if b.status != nil {
 		notify = b.status.updateCheck
 	}
 
-	check := &regoCheck{
+	// We capture err as configuration error but do not prevent check creation
+	return &complianceCheck{
 		Env: b,
 
 		ruleID:      rule.ID,
@@ -669,17 +678,10 @@ func (b *builder) newRegoCheck(meta *compliance.SuiteMeta, ruleScope compliance.
 
 		resourceHandler: handler,
 		scope:           ruleScope,
-
-		resources: rule.Resources,
+		checkable:       regoCheck,
 
 		eventNotify: notify,
-	}
-
-	if err := check.compileQuery(rule.Module, rule.Query); err != nil {
-		return nil, err
-	}
-
-	return check, nil
+	}, nil
 }
 
 func (b *builder) Reporter() event.Reporter {

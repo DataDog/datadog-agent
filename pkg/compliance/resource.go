@@ -43,12 +43,12 @@ type BaseResource struct {
 	Docker        *DockerResource     `yaml:"docker,omitempty"`
 	KubeApiserver *KubernetesResource `yaml:"kubeApiserver,omitempty"`
 	Custom        *Custom             `yaml:"custom,omitempty"`
-	Condition     string              `yaml:"condition"`
 }
 
 // Resource describes supported resource types observed by a Rule
 type Resource struct {
 	BaseResource `yaml:",inline"`
+	Condition    string    `yaml:"condition"`
 	Fallback     *Fallback `yaml:"fallback,omitempty"`
 }
 
