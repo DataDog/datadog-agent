@@ -103,10 +103,7 @@ func TestRunningChecksTrackerWithRunningChecks(t *testing.T) {
 
 	checks := make(map[check.ID]check.Check)
 
-	for i := 0; i < 50; i++ {
-		// Copy the index value since loop reuses pointers
-		idx := i
-
+	for idx := 0; idx < 50; idx++ {
 		testCheck := newTestCheck(fmt.Sprintf("testcheck %d", idx))
 		tracker.AddCheck(testCheck)
 		checks[testCheck.ID()] = testCheck
@@ -136,10 +133,7 @@ func TestRunningChecksTrackerRunningChecks(t *testing.T) {
 	tracker := NewRunningChecksTracker()
 	checks := make([]check.Check, 0)
 
-	for i := 0; i < 50; i++ {
-		// Copy the index value since loop reuses pointers
-		idx := i
-
+	for idx := 0; idx < 50; idx++ {
 		testCheck := newTestCheck(fmt.Sprintf("testcheck %d", idx))
 		tracker.AddCheck(testCheck)
 
@@ -160,10 +154,7 @@ func TestRunningChecksTrackerRunningChecksValueClone(t *testing.T) {
 	tracker := NewRunningChecksTracker()
 	checks := make([]check.Check, 0)
 
-	for i := 0; i < 50; i++ {
-		// Copy the index value since loop reuses pointers
-		idx := i
-
+	for idx := 0; idx < 50; idx++ {
 		testCheck := newTestCheck(fmt.Sprintf("testcheck %d", idx))
 		tracker.AddCheck(testCheck)
 
