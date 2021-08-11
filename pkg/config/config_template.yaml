@@ -219,13 +219,13 @@ api_key:
 #
 # forwarder_storage_max_size_in_bytes: 50000000
 
-## @param forwarder_storage_max_disk_ratio - float - optional - default: 0.95
+## @param forwarder_storage_max_disk_ratio - float - optional - default: 0.8
 ## `forwarder_storage_max_disk_ratio` defines the disk capacity limit for storing transactions.
-## `0.95` means the Agent can store transactions on disk until `forwarder_storage_max_size_in_bytes`
-## is reached or when the disk mount for `forwarder_storage_path` exceeds 95% of the disk capacity,
+## `0.8` means the Agent can store transactions on disk until `forwarder_storage_max_size_in_bytes`
+## is reached or when the disk mount for `forwarder_storage_path` exceeds 80% of the disk capacity,
 ## whichever is lower.
 #
-# forwarder_storage_max_disk_ratio: 0.95
+# forwarder_storage_max_disk_ratio: 0.8
 
 ## @param forwarder_outdated_file_in_days - int - optional - default: 10
 ## This value specifies how many days the overflow transactions will remain valid before
