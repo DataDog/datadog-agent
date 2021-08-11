@@ -20,7 +20,7 @@ import (
 const mockEncryptedAPIKeyBase64 = "MjIyMjIyMjIyMjIyMjIyMg=="
 
 // mockEncryptedAPIKey represents the encrypted API key after it has been decoded from base64
-const mockEncryptedAPIKey = "2222222222222222"
+const mockDecodedEncryptedAPIKey = "2222222222222222"
 
 // expectedDecryptedAPIKey represents the true value of the API key after decryption by KMS
 const expectedDecryptedAPIKey = "1111111111111111"
@@ -33,10 +33,14 @@ type mockKMSClientWithEncryptionContext struct {
 }
 
 func (mockKMSClientWithEncryptionContext) Decrypt(params *kms.DecryptInput) (*kms.DecryptOutput, error) {
-	if *params.EncryptionContext[encryptionContextKey] != mockFunctionName {
-		return nil, errors.New("InvalidCiphertextExeption")
+	encryptionContextPointer, exists := params.EncryptionContext[encryptionContextKey]
+	if !exists {
+		return nil, errors.New("InvalidCiphertextException")
 	}
-	if bytes.Equal(params.CiphertextBlob, []byte(mockEncryptedAPIKey)) {
+	if *encryptionContextPointer != mockFunctionName {
+		return nil, errors.New("InvalidCiphertextException")
+	}
+	if bytes.Equal(params.CiphertextBlob, []byte(mockDecodedEncryptedAPIKey)) {
 		return &kms.DecryptOutput{
 			Plaintext: []byte(expectedDecryptedAPIKey),
 		}, nil
@@ -50,9 +54,9 @@ type mockKMSClientNoEncryptionContext struct {
 
 func (mockKMSClientNoEncryptionContext) Decrypt(params *kms.DecryptInput) (*kms.DecryptOutput, error) {
 	if params.EncryptionContext[encryptionContextKey] != nil {
-		return nil, errors.New("InvalidCiphertextExeption")
+		return nil, errors.New("InvalidCiphertextException")
 	}
-	if bytes.Equal(params.CiphertextBlob, []byte(mockEncryptedAPIKey)) {
+	if bytes.Equal(params.CiphertextBlob, []byte(mockDecodedEncryptedAPIKey)) {
 		return &kms.DecryptOutput{
 			Plaintext: []byte(expectedDecryptedAPIKey),
 		}, nil

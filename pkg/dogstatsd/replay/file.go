@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/h2non/filetype"
+	"github.com/h2non/filetype/matchers"
 )
 
 var (
@@ -31,6 +32,7 @@ const (
 func init() {
 	// Register the new matcher and its type
 	filetype.AddMatcher(datadogType, datadogMatcher)
+	filetype.AddMatcher(matchers.TypeZstd, matchers.Zst)
 }
 
 func datadogMatcher(buf []byte) bool {

@@ -107,7 +107,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.connStatsActive.Reset()
 	t.connStatsClosed.Reset()
 
-	_, _, err := t.driverInterface.GetConnectionStats(t.connStatsActive, t.connStatsClosed)
+	_, _, err := t.driverInterface.GetConnectionStats(t.connStatsActive, t.connStatsClosed, func(c *network.ConnectionStats) bool {
+		return !t.shouldSkipConnection(c)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections from driver: %w", err)
 	}
@@ -115,16 +117,8 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	activeConnStats := t.connStatsActive.Connections()
 	closedConnStats := t.connStatsClosed.Connections()
 
-	// TODO filter connections using shouldSkipConnection
-	//for _, connStat := range activeConnStats {
-	//	if !t.shouldSkipConnection(&connStat) {
-	//		// TODO figure out way to filter active without allocating
-	//	}
-	//}
 	for _, connStat := range closedConnStats {
-		//if !t.shouldSkipConnection(&connStat) {
 		t.state.StoreClosedConnection(&connStat)
-		//}
 	}
 
 	// check for expired clients in the state

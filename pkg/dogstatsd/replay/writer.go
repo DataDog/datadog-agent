@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/zstd"
 	"github.com/spf13/afero"
 
 	"github.com/golang/protobuf/proto"
@@ -55,6 +57,7 @@ var inMemoryFs int64
 type TrafficCaptureWriter struct {
 	File     *os.File
 	testFile afero.File
+	zWriter  *zstd.Writer
 	writer   *bufio.Writer
 	Traffic  chan *CaptureBuffer
 	Location string
@@ -120,7 +123,7 @@ func (tc *TrafficCaptureWriter) ProcessMessage(msg *CaptureBuffer) error {
 }
 
 // Capture start the traffic capture and writes the packets to file for the specified duration.
-func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
+func (tc *TrafficCaptureWriter) Capture(d time.Duration, compressed bool) {
 
 	log.Debug("Starting capture...")
 
@@ -133,6 +136,8 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
 		tc.Unlock()
 		return
 	}
+
+	var target io.Writer
 
 	// inMemoryFS is used for testing purposes
 	if atomic.LoadInt64(&inMemoryFs) > 0 {
@@ -154,7 +159,7 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
 		}
 
 		tc.testFile = fp
-		tc.writer = bufio.NewWriter(tc.testFile)
+		target = tc.testFile
 	} else {
 		fp, err := os.Create(p)
 		if err != nil {
@@ -164,7 +169,14 @@ func (tc *TrafficCaptureWriter) Capture(d time.Duration) {
 			return
 		}
 		tc.File = fp
-		tc.writer = bufio.NewWriter(tc.File)
+		target = tc.File
+	}
+
+	if compressed {
+		tc.zWriter = zstd.NewWriter(target)
+		tc.writer = bufio.NewWriter(tc.zWriter)
+	} else {
+		tc.writer = bufio.NewWriter(target)
 	}
 
 	tc.shutdown = make(chan struct{})
@@ -240,6 +252,13 @@ cleanup:
 	err = tc.writer.Flush()
 	if err != nil {
 		log.Errorf("There was an error flushing the underlying writer while stopping the capture: %v", err)
+	}
+
+	if tc.zWriter != nil {
+		err = tc.zWriter.Close()
+		if err != nil {
+			log.Errorf("There was an error closing the underlying zstd writer while stopping the capture: %v", err)
+		}
 	}
 
 	tc.File.Close()

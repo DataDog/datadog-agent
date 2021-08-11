@@ -166,6 +166,9 @@
 `kubernetes_state.pod.uptime`
 : The time in seconds since the pod has been scheduled and acknowledged by the Kubelet. Tags:`kube_namespace` `pod_name` `phase` (`env` `service` `version` from standard labels).
 
+`kubernetes_state.pod.count`
+: Number of Pods. Tags:`kube_namespace` `kube_<owner kind>`.
+
 `kubernetes_state.persistentvolumeclaim.status`
 : The phase the persistent volume claim is currently in. Tags:`kube_namespace` `persistentvolumeclaim` `phase` `storageclass`.
 
@@ -197,7 +200,7 @@
 : Type about secret. Tags:`kube_namespace` `secret` `type`.
 
 `kubernetes_state.replicaset.count`
-: Number of ReplicaSets Tags:`kube_namespace` `owner_name` `owner_kind`.
+: Number of ReplicaSets Tags:`kube_namespace` `kube_deployment`.
 
 `kubernetes_state.replicaset.replicas_desired`
 : Number of desired pods for a ReplicaSet. Tags:`kube_namespace` `kube_replica_set` (`env` `service` `version` from standard labels).
@@ -299,7 +302,7 @@
 : The duration since the last time the cronjob was scheduled. Tags:`kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.job.count`
-: Number of jobs. Tags:`kube_namespace` `owner_name` `owner_kind`.
+: Number of jobs. Tags:`kube_namespace` `owner_cronjob`.
 
 `kubernetes_state.job.failed`
 : The number of pods which reached Phase Failed. Tags:`kube_job` or `kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).

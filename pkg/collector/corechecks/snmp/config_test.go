@@ -216,6 +216,62 @@ bulk_max_repetitions: 20
 	assert.Equal(t, false, check.config.autodetectProfile)
 }
 
+func TestInlineProfileConfiguration(t *testing.T) {
+	setConfdPathAndCleanProfiles()
+	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+
+	check := Check{session: &snmpSession{}}
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+snmp_version: 2c
+profile: inline-profile
+community_string: '123'
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+profiles:
+  f5-big-ip:
+    definition_file: f5-big-ip.yaml
+  inline-profile:
+    definition:
+      device:
+        vendor: "f5"
+      sysobjectid: 1.2.3
+      metric_tags:
+        - OID: 1.3.6.1.2.1.1.5.0
+          symbol: sysName
+          tag: snmp_host
+      metrics:
+        - MIB: MY-PROFILE-MIB
+          forced_type: gauge
+          symbol:
+            OID: 1.4.5
+            name: myMetric
+`)
+	err := check.Configure(rawInstanceConfig, rawInitConfig, "test")
+
+	assert.Nil(t, err)
+	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, check.config.getStaticTags())
+	metrics := []metricsConfig{
+		{Symbol: symbolConfig{OID: "1.4.5", Name: "myMetric"}, ForcedType: "gauge"},
+	}
+	//metrics = append(metrics, mockProfilesDefinitions()["f5-big-ip"].Metrics...)
+	metrics = append(metrics, metricsConfig{Symbol: symbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}})
+
+	metricsTags := []metricTagConfig{
+		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+	}
+
+	assert.Equal(t, "123", check.config.communityString)
+	assert.Equal(t, metrics, check.config.metrics)
+	assert.Equal(t, metricsTags, check.config.metricTags)
+	assert.Equal(t, 2, len(check.config.profiles))
+	assert.Equal(t, "74f22f3320d2d692", check.config.deviceID)
+	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, check.config.deviceIDTags)
+	assert.Equal(t, false, check.config.autodetectProfile)
+}
+
 func TestDefaultConfigurations(t *testing.T) {
 	setConfdPathAndCleanProfiles()
 

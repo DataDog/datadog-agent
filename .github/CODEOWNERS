@@ -95,6 +95,7 @@
 /cmd/cluster-agent-cloudfoundry/        @DataDog/integrations-tools-and-libraries
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/integrations-tools-and-libraries
 /cmd/process-agent/                     @DataDog/processes
+/cmd/serverless/                        @DataDog/serverless
 /cmd/system-probe/                      @DataDog/agent-network
 /cmd/security-agent/                    @DataDog/agent-security
 

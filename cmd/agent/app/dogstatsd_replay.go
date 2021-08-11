@@ -30,13 +30,13 @@ import (
 
 var (
 	dsdReplayFilePath string
-	dsdTaggerFilePath string
+	dsdVerboseReplay  bool
 )
 
 func init() {
 	AgentCmd.AddCommand(dogstatsdReplayCmd)
 	dogstatsdReplayCmd.Flags().StringVarP(&dsdReplayFilePath, "file", "f", "", "Input file with TCP traffic to replay.")
-	dogstatsdReplayCmd.Flags().StringVarP(&dsdTaggerFilePath, "tagger", "t", "", "Input file with TCP traffic to replay.")
+	dogstatsdReplayCmd.Flags().BoolVarP(&dsdVerboseReplay, "verbose", "v", false, "Verbose replay.")
 }
 
 var dogstatsdReplayCmd = &cobra.Command{
@@ -179,7 +179,10 @@ replay:
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Sent Payload: %d bytes, and OOB: %d bytes\n", n, oobn)
+
+			if dsdVerboseReplay {
+				fmt.Printf("Sent Payload: %d bytes, and OOB: %d bytes\n", n, oobn)
+			}
 		case <-reader.Done:
 			break replay
 		case <-done:

@@ -86,7 +86,9 @@ func GetStatus() (map[string]interface{}, error) {
 
 	if config.IsContainerized() {
 		stats["adEnabledFeatures"] = config.GetDetectedFeatures()
-		stats["adConfigErrors"] = common.AC.GetAutodiscoveryErrors()
+		if common.AC != nil {
+			stats["adConfigErrors"] = common.AC.GetAutodiscoveryErrors()
+		}
 		stats["filterErrors"] = containers.GetFilterErrors()
 	}
 

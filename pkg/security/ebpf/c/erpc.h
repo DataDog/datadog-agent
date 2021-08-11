@@ -10,7 +10,8 @@ enum erpc_op {
     DISCARD_INODE_OP,
     DISCARD_PID_OP,
     RESOLVE_SEGMENT_OP,
-    RESOLVE_PATH_OP
+    RESOLVE_PATH_OP,
+    RESOLVE_PARENT_OP
 };
 
 int __attribute__((always_inline)) handle_discard(void *data, u64 *event_type, u64 *timeout) {
@@ -88,6 +89,17 @@ int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
     u8 op = 0;
     int ret = bpf_probe_read(&op, sizeof(op), req);
     if (ret < 0) {
+        ret = DR_ERPC_READ_PAGE_FAULT;
+        struct bpf_map_def *erpc_stats = select_buffer(&dr_erpc_stats_fb, &dr_erpc_stats_bb, ERPC_MONITOR_KEY);
+        if (erpc_stats == NULL) {
+            return 0;
+        }
+
+        struct dr_erpc_stats_t *stats = bpf_map_lookup_elem(erpc_stats, &ret);
+        if (stats == NULL) {
+            return 0;
+        }
+        __sync_fetch_and_add(&stats->count, 1);
         return 0;
     }
 
@@ -107,6 +119,8 @@ int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
             return handle_resolve_segment(data);
         case RESOLVE_PATH_OP:
             return handle_resolve_path(ctx, data);
+        case RESOLVE_PARENT_OP:
+            return handle_resolve_parent(data);
     }
 
     return 0;

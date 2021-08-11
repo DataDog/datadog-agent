@@ -215,6 +215,6 @@ func getResponse(ctx context.Context, url string) (string, error) {
 }
 
 // HostnameProvider GCE implementation of the HostnameProvider
-func HostnameProvider(ctx context.Context) (string, error) {
+func HostnameProvider(ctx context.Context, options map[string]interface{}) (string, error) {
 	return GetHostname(ctx)
 }

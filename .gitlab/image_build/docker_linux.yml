@@ -23,7 +23,7 @@
 .docker_build_job_definition_amd64:
   extends: .docker_build_job_definition
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:v2718644-9ce6565-18.09.6-py3
-  tags: ["runner:docker", "size:large"]
+  tags: ["runner:docker"]
   variables:
     ARCH: amd64
 

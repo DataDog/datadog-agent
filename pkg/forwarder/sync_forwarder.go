@@ -143,6 +143,6 @@ func (f *SyncForwarder) SubmitConnectionChecks(payload Payloads, extra http.Head
 }
 
 // SubmitOrchestratorChecks sends orchestrator checks
-func (f *SyncForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
+func (f *SyncForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
 	return f.defaultForwarder.SubmitOrchestratorChecks(payload, extra, payloadType)
 }

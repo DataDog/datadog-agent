@@ -7,6 +7,7 @@ import "syscall"
 var supportedSyscalls = map[string]uintptr{
 	"SYS_CHMOD":  syscall.SYS_CHMOD,
 	"SYS_CHOWN":  syscall.SYS_CHOWN,
+	"SYS_LCHOWN": syscall.SYS_LCHOWN,
 	"SYS_LINK":   syscall.SYS_LINK,
 	"SYS_MKDIR":  syscall.SYS_MKDIR,
 	"SYS_OPEN":   syscall.SYS_OPEN,

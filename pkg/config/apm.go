@@ -58,33 +58,33 @@ func setupAPM(config Config) {
 	config.BindEnvAndSetDefault("apm_config.windows_pipe_security_descriptor", "D:AI(A;;GA;;;WD)", "DD_APM_WINDOWS_PIPE_SECURITY_DESCRIPTOR") //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.remote_tagger", false, "DD_APM_REMOTE_TAGGER")                                                    //nolint:errcheck
 
-	config.BindEnv("apm_config.max_catalog_services", "DD_APM_MAX_CATALOG_SERVICES")                     //nolint:errcheck
-	config.BindEnv("apm_config.receiver_timeout", "DD_APM_RECEIVER_TIMEOUT")                             //nolint:errcheck
-	config.BindEnv("apm_config.max_payload_size", "DD_APM_MAX_PAYLOAD_SIZE")                             //nolint:errcheck
-	config.BindEnv("apm_config.log_file", "DD_APM_LOG_FILE")                                             //nolint:errcheck
-	config.BindEnv("apm_config.max_events_per_second", "DD_APM_MAX_EPS", "DD_MAX_EPS")                   //nolint:errcheck
-	config.BindEnv("apm_config.max_traces_per_second", "DD_APM_MAX_TPS", "DD_MAX_TPS")                   //nolint:errcheck
-	config.BindEnv("apm_config.max_memory", "DD_APM_MAX_MEMORY")                                         //nolint:errcheck
-	config.BindEnv("apm_config.max_cpu_percent", "DD_APM_MAX_CPU_PERCENT")                               //nolint:errcheck
-	config.BindEnv("apm_config.env", "DD_APM_ENV")                                                       //nolint:errcheck
-	config.BindEnv("apm_config.apm_non_local_traffic", "DD_APM_NON_LOCAL_TRAFFIC")                       //nolint:errcheck
-	config.BindEnv("apm_config.apm_dd_url", "DD_APM_DD_URL")                                             //nolint:errcheck
-	config.BindEnv("apm_config.connection_limit", "DD_APM_CONNECTION_LIMIT", "DD_CONNECTION_LIMIT")      //nolint:errcheck
-	config.BindEnv("apm_config.connection_reset_interval", "DD_APM_CONNECTION_RESET_INTERVAL")           //nolint:errcheck
-	config.BindEnv("apm_config.profiling_dd_url", "DD_APM_PROFILING_DD_URL")                             //nolint:errcheck
-	config.BindEnv("apm_config.profiling_additional_endpoints", "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS") //nolint:errcheck
-	config.BindEnv("apm_config.additional_endpoints", "DD_APM_ADDITIONAL_ENDPOINTS")                     //nolint:errcheck
-	config.BindEnv("apm_config.replace_tags", "DD_APM_REPLACE_TAGS")                                     //nolint:errcheck
-	config.BindEnv("apm_config.analyzed_spans", "DD_APM_ANALYZED_SPANS")                                 //nolint:errcheck
-	config.BindEnv("apm_config.ignore_resources", "DD_APM_IGNORE_RESOURCES", "DD_IGNORE_RESOURCE")       //nolint:errcheck
-	config.BindEnv("apm_config.receiver_socket", "DD_APM_RECEIVER_SOCKET")                               //nolint:errcheck
-	config.BindEnv("apm_config.windows_pipe_name", "DD_APM_WINDOWS_PIPE_NAME")                           //nolint:errcheck
-	config.BindEnv("apm_config.sync_flushing", "DD_APM_SYNC_FLUSHING")                                   //nolint:errcheck
-	config.BindEnv("apm_config.filter_tags.require", "DD_APM_FILTER_TAGS_REQUIRE")                       //nolint:errcheck
-	config.BindEnv("apm_config.filter_tags.reject", "DD_APM_FILTER_TAGS_REJECT")                         //nolint:errcheck
-	config.BindEnv("apm_config.internal_profiling.enabled", "DD_APM_INTERNAL_PROFILING_ENABLED")         //nolint:errcheck
-	config.BindEnv("experimental.otlp.http_port", "DD_OTLP_HTTP_PORT")                                   //nolint:errcheck
-	config.BindEnv("experimental.otlp.grpc_port", "DD_OTLP_GRPC_PORT")                                   //nolint:errcheck
+	config.BindEnv("apm_config.max_catalog_services", "DD_APM_MAX_CATALOG_SERVICES")
+	config.BindEnv("apm_config.receiver_timeout", "DD_APM_RECEIVER_TIMEOUT")
+	config.BindEnv("apm_config.max_payload_size", "DD_APM_MAX_PAYLOAD_SIZE")
+	config.BindEnv("apm_config.log_file", "DD_APM_LOG_FILE")
+	config.BindEnv("apm_config.max_events_per_second", "DD_APM_MAX_EPS", "DD_MAX_EPS")
+	config.BindEnv("apm_config.max_traces_per_second", "DD_APM_MAX_TPS", "DD_MAX_TPS")
+	config.BindEnv("apm_config.max_memory", "DD_APM_MAX_MEMORY")
+	config.BindEnv("apm_config.max_cpu_percent", "DD_APM_MAX_CPU_PERCENT")
+	config.BindEnv("apm_config.env", "DD_APM_ENV")
+	config.BindEnv("apm_config.apm_non_local_traffic", "DD_APM_NON_LOCAL_TRAFFIC")
+	config.BindEnv("apm_config.apm_dd_url", "DD_APM_DD_URL")
+	config.BindEnv("apm_config.connection_limit", "DD_APM_CONNECTION_LIMIT", "DD_CONNECTION_LIMIT")
+	config.BindEnv("apm_config.connection_reset_interval", "DD_APM_CONNECTION_RESET_INTERVAL")
+	config.BindEnv("apm_config.profiling_dd_url", "DD_APM_PROFILING_DD_URL")
+	config.BindEnv("apm_config.profiling_additional_endpoints", "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS")
+	config.BindEnv("apm_config.additional_endpoints", "DD_APM_ADDITIONAL_ENDPOINTS")
+	config.BindEnv("apm_config.replace_tags", "DD_APM_REPLACE_TAGS")
+	config.BindEnv("apm_config.analyzed_spans", "DD_APM_ANALYZED_SPANS")
+	config.BindEnv("apm_config.ignore_resources", "DD_APM_IGNORE_RESOURCES", "DD_IGNORE_RESOURCE")
+	config.BindEnv("apm_config.receiver_socket", "DD_APM_RECEIVER_SOCKET")
+	config.BindEnv("apm_config.windows_pipe_name", "DD_APM_WINDOWS_PIPE_NAME")
+	config.BindEnv("apm_config.sync_flushing", "DD_APM_SYNC_FLUSHING")
+	config.BindEnv("apm_config.filter_tags.require", "DD_APM_FILTER_TAGS_REQUIRE")
+	config.BindEnv("apm_config.filter_tags.reject", "DD_APM_FILTER_TAGS_REJECT")
+	config.BindEnv("apm_config.internal_profiling.enabled", "DD_APM_INTERNAL_PROFILING_ENABLED")
+	config.BindEnv("experimental.otlp.http_port", "DD_OTLP_HTTP_PORT")
+	config.BindEnv("experimental.otlp.grpc_port", "DD_OTLP_GRPC_PORT")
 
 	config.SetEnvKeyTransformer("apm_config.ignore_resources", func(in string) interface{} {
 		r, err := splitCSVString(in, ',')

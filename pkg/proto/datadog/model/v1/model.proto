@@ -19,6 +19,7 @@ message HostnameReply {
 
 message CaptureTriggerRequest {
     string duration = 1;
+    bool compressed = 2;
 }
 
 message CaptureTriggerResponse {

@@ -137,23 +137,23 @@ func createDNSFilters() ([]driver.FilterDefinition, error) {
 
 	for _, iface := range ifaces {
 		filters = append(filters, driver.FilterDefinition{
-			FilterVersion:    driver.Signature,
-			Size:             driver.FilterDefinitionSize,
-			FilterLayer:      driver.LayerTransport,
-			Af:               windows.AF_INET,
-			RemotePort:       53,
-			V4InterfaceIndex: uint64(iface.Index),
-			Direction:        driver.DirectionOutbound,
+			FilterVersion:  driver.Signature,
+			Size:           driver.FilterDefinitionSize,
+			FilterLayer:    driver.LayerTransport,
+			Af:             windows.AF_INET,
+			RemotePort:     53,
+			InterfaceIndex: uint64(iface.Index),
+			Direction:      driver.DirectionOutbound,
 		})
 
 		filters = append(filters, driver.FilterDefinition{
-			FilterVersion:    driver.Signature,
-			Size:             driver.FilterDefinitionSize,
-			FilterLayer:      driver.LayerTransport,
-			Af:               windows.AF_INET,
-			RemotePort:       53,
-			V4InterfaceIndex: uint64(iface.Index),
-			Direction:        driver.DirectionInbound,
+			FilterVersion:  driver.Signature,
+			Size:           driver.FilterDefinitionSize,
+			FilterLayer:    driver.LayerTransport,
+			Af:             windows.AF_INET,
+			RemotePort:     53,
+			InterfaceIndex: uint64(iface.Index),
+			Direction:      driver.DirectionInbound,
 		})
 	}
 

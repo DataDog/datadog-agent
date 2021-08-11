@@ -293,7 +293,7 @@ func NewNoisyProcessEvent(count uint64,
 
 func resolutionErrorToEventType(err error) model.EventType {
 	switch err.(type) {
-	case ErrTruncatedParents:
+	case ErrTruncatedParents, ErrTruncatedParentsERPC:
 		return model.CustomTruncatedParentsEventType
 	default:
 		return model.UnknownEventType
@@ -314,7 +314,7 @@ func NewAbnormalPathEvent(event *Event, pathResolutionError error) (*rules.Rule,
 			ID: AbnormalPathRuleID,
 		}), newCustomEvent(resolutionErrorToEventType(event.GetPathResolutionError()), AbnormalPathEvent{
 			Timestamp:           event.ResolveEventTimestamp(),
-			Event:               newEventSerializer(event),
+			Event:               NewEventSerializer(event),
 			PathResolutionError: pathResolutionError.Error(),
 		}.MarshalJSON)
 }

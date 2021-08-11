@@ -38,10 +38,14 @@ const (
 	kubeStateMetricsCheckName = "kubernetes_state_core"
 	maximumWaitForAPIServer   = 10 * time.Second
 
-	// createdByKind represents the KSM label key created_by_kind
-	createdByKind = "created_by_kind"
-	// createdByName represents the KSM label key created_by_name
-	createdByName = "created_by_name"
+	// createdByKindKey represents the KSM label key created_by_kind
+	createdByKindKey = "created_by_kind"
+	// createdByNameKey represents the KSM label key created_by_name
+	createdByNameKey = "created_by_name"
+	// ownerKindKey represents the KSM label key owner_kind
+	ownerKindKey = "owner_kind"
+	// ownerNameKey represents the KSM label key owner_name
+	ownerNameKey = "owner_name"
 )
 
 // KSMConfig contains the check config parameters
@@ -365,25 +369,32 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 	labelsToAdd := labelJoiner.getLabelsToAdd(labels)
 	tags := make([]string, 0, len(labels)+len(labelsToAdd))
 
+	ownerKind, ownerName := "", ""
 	for key, value := range labels {
-		tag, hostTag := k.buildTag(key, value)
-		tags = append(tags, tag)
-		if hostTag != "" {
-			if k.clusterName != "" {
-				hostname = hostTag + "-" + k.clusterName
-			} else {
-				hostname = hostTag
+		switch key {
+		case createdByKindKey, ownerKindKey:
+			ownerKind = value
+		case createdByNameKey, ownerNameKey:
+			ownerName = value
+		default:
+			tag, hostTag := k.buildTag(key, value)
+			tags = append(tags, tag)
+			if hostTag != "" {
+				if k.clusterName != "" {
+					hostname = hostTag + "-" + k.clusterName
+				} else {
+					hostname = hostTag
+				}
 			}
 		}
 	}
 
 	// apply label joins
-	ownerKind, ownerName := "", ""
 	for _, label := range labelsToAdd {
 		switch label.key {
-		case createdByKind:
+		case createdByKindKey, ownerKindKey:
 			ownerKind = label.value
-		case createdByName:
+		case createdByNameKey, ownerNameKey:
 			ownerName = label.value
 		default:
 			tag, hostTag := k.buildTag(label.key, label.value)

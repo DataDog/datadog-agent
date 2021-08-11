@@ -100,7 +100,7 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 		},
 		{
 			ProgArrayName: "sys_exit_progs",
-			Key:           uint32(model.FileUtimeEventType),
+			Key:           uint32(model.FileUtimesEventType),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				Section: "tracepoint/handle_sys_utimes_exit",
 			},

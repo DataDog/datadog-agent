@@ -115,7 +115,7 @@ func TestChown(t *testing.T) {
 		}
 	})
 
-	t.Run("lchown", func(t *testing.T) {
+	t.Run("lchown", ifSyscallSupported("SYS_LCHOWN", func(t *testing.T, syscallNB uintptr) {
 		testSymlink, testSymlinkPtr, err := test.Path("test-symlink")
 		if err != nil {
 			t.Fatal(err)
@@ -128,7 +128,7 @@ func TestChown(t *testing.T) {
 		defer os.Remove(testSymlink)
 
 		err = test.GetSignal(t, func() error {
-			if _, _, errno := syscall.Syscall(syscall.SYS_LCHOWN, uintptr(testSymlinkPtr), uintptr(102), uintptr(202)); errno != 0 {
+			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testSymlinkPtr), uintptr(102), uintptr(202)); errno != 0 {
 				if errno == unix.ENOSYS {
 					t.Skip("lchown is not supported")
 				}
@@ -155,7 +155,7 @@ func TestChown(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-	})
+	}))
 
 	t.Run("chown", ifSyscallSupported("SYS_CHOWN", func(t *testing.T, syscallNB uintptr) {
 		defer func() {

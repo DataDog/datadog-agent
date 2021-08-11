@@ -125,8 +125,23 @@ func saveHostnameData(cacheHostnameKey string, hostname string, provider string)
 	return hostnameData
 }
 
+func saveAndValidateHostnameData(ctx context.Context, cacheHostnameKey string, hostname string, provider string) HostnameData {
+	hostnameData := saveHostnameData(cacheHostnameKey, hostname, HostnameProviderConfiguration)
+	if !isHostnameCanonicalForIntake(ctx, hostname) && !config.Datadog.GetBool("hostname_force_config_as_canonical") {
+		log.Warnf(
+			"Hostname '%s' defined in configuration will not be used as the in-app hostname. "+
+				"For more information: https://dtdg.co/agent-hostname-force-config-as-canonical",
+			hostname,
+		)
+	}
+
+	return hostnameData
+}
+
 // GetHostnameData retrieves the host name for the Agent and hostname provider, trying to query these
 // environments/api, in order:
+// * Config (`hostname')
+// * Config (`hostname_file')
 // * GCE
 // * Docker
 // * kubernetes
@@ -142,15 +157,16 @@ func GetHostnameData(ctx context.Context) (HostnameData, error) {
 	var err error
 	var provider string
 
-	// try the name provided in the configuration file
+	// Try the name provided in the configuration file
 	configName := config.Datadog.GetString("hostname")
 	err = validate.ValidHostname(configName)
 	if err == nil {
-		hostnameData := saveHostnameData(cacheHostnameKey, configName, HostnameProviderConfiguration)
-		if !isHostnameCanonicalForIntake(ctx, configName) && !config.Datadog.GetBool("hostname_force_config_as_canonical") {
-			_ = log.Warnf("Hostname '%s' defined in configuration will not be used as the in-app hostname. For more information: https://dtdg.co/agent-hostname-force-config-as-canonical", configName)
-		}
-		return hostnameData, err
+		return saveAndValidateHostnameData(
+			ctx,
+			cacheHostnameKey,
+			configName,
+			HostnameProviderConfiguration,
+		), nil
 	}
 
 	expErr := new(expvar.String)
@@ -158,9 +174,31 @@ func GetHostnameData(ctx context.Context) (HostnameData, error) {
 	hostnameErrors.Set("configuration/environment", expErr)
 
 	log.Debugf("Unable to get the hostname from the config file: %s", err)
+
+	// Try `hostname_file` config option next
+	configHostnameFilepath := config.Datadog.GetString("hostname_file")
+	if configHostnameFilepath != "" {
+		log.Debug("GetHostname trying `hostname_file` config option...")
+		if fileHostnameProvider, found := hostname.ProviderCatalog["file"]; found {
+			if hostname, err := fileHostnameProvider(
+				ctx,
+				map[string]interface{}{
+					"filename": configHostnameFilepath,
+				},
+			); err == nil {
+				return saveAndValidateHostnameData(ctx, cacheHostnameKey, hostname, "file"), nil
+			}
+
+			expErr := new(expvar.String)
+			expErr.Set(err.Error())
+			hostnameErrors.Set("configuration/environment", expErr)
+			log.Debugf("Unable to get hostname from file '%s': %s", configHostnameFilepath, err)
+		}
+	}
+
 	log.Debug("Trying to determine a reliable host name automatically...")
 
-	// if fargate we strip the hostname
+	// If fargate we strip the hostname
 	if fargate.IsFargateInstance(ctx) {
 		hostnameData := saveHostnameData(cacheHostnameKey, "", "")
 		return hostnameData, nil
@@ -169,7 +207,7 @@ func GetHostnameData(ctx context.Context) (HostnameData, error) {
 	// GCE metadata
 	log.Debug("GetHostname trying GCE metadata...")
 	if getGCEHostname, found := hostname.ProviderCatalog["gce"]; found {
-		gceName, err := getGCEHostname(ctx)
+		gceName, err := getGCEHostname(ctx, nil)
 		if err == nil {
 			hostnameData := saveHostnameData(cacheHostnameKey, gceName, "gce")
 			return hostnameData, err
@@ -272,7 +310,7 @@ func GetHostnameData(ctx context.Context) (HostnameData, error) {
 	if getAzureHostname, found := hostname.ProviderCatalog["azure"]; found {
 		log.Debug("GetHostname trying Azure metadata...")
 
-		azureHostname, err := getAzureHostname(ctx)
+		azureHostname, err := getAzureHostname(ctx, nil)
 		if err == nil {
 			hostName = azureHostname
 			provider = "azure"
@@ -327,7 +365,7 @@ func isHostnameCanonicalForIntake(ctx context.Context, hostname string) bool {
 // getValidEC2Hostname gets a valid EC2 hostname
 // Returns (hostname, error)
 func getValidEC2Hostname(ctx context.Context, ec2Provider hostname.Provider) (string, error) {
-	instanceID, err := ec2Provider(ctx)
+	instanceID, err := ec2Provider(ctx, nil)
 	if err == nil {
 		err = validate.ValidHostname(instanceID)
 		if err == nil {

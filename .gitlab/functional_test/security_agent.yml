@@ -9,16 +9,34 @@
   extends:
     - .kitchen_common
     - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_north_central_us
   rules:
     !reference [.manual]
   stage: functional_test
-  needs: ["tests_ebpf_x64"]
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+    # we need chef >= 15 for arm64
+    CHEF_VERSION: 15.16.4
   script:
     - bash -l tasks/run-test-kitchen.sh security-agent-test $AGENT_MAJOR_VERSION
+
+.kitchen_test_security_agent_x64:
+  extends:
+    - .kitchen_test_security_agent
+    - .kitchen_azure_location_north_central_us
+  needs: ["tests_ebpf_x64"]
+  variables:
+    KITCHEN_ARCH: x86_64
+
+.kitchen_test_security_agent_arm64:
+  extends:
+    - .kitchen_test_security_agent
+    - .kitchen_ec2_location_us_east_1
+    - .kitchen_ec2_spot_instances
+  needs: [ "tests_ebpf_arm64" ]
+  variables:
+    KITCHEN_ARCH: arm64
+    KITCHEN_EC2_INSTANCE_TYPE: "t4g.large"
 
 .kitchen_stress_security_agent:
   extends:
@@ -35,8 +53,8 @@
   script:
     - bash -l tasks/run-test-kitchen.sh security-agent-stress $AGENT_MAJOR_VERSION
 
-kitchen_centos_security_agent:
-  extends: .kitchen_test_security_agent
+kitchen_centos_security_agent_x64:
+  extends: .kitchen_test_security_agent_x64
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export KITCHEN_PLATFORM="centos"
@@ -44,12 +62,21 @@ kitchen_centos_security_agent:
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
-kitchen_ubuntu_security_agent:
-  extends: .kitchen_test_security_agent
+kitchen_ubuntu_security_agent_x64:
+  extends: .kitchen_test_security_agent_x64
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export KITCHEN_PLATFORM=ubuntu
     - export KITCHEN_OSVERS="ubuntu-18-04,ubuntu-20-04,ubuntu-21-04"
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+
+kitchen_ubuntu_security_agent_arm64:
+  extends: .kitchen_test_security_agent_arm64
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - export KITCHEN_PLATFORM=ubuntu
+    - export KITCHEN_OSVERS="ubuntu-20-04-hwe,ubuntu-21-04"
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
@@ -62,8 +89,8 @@ kitchen_ubuntu_security_agent_stress:
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
-kitchen_suse_security_agent:
-  extends: .kitchen_test_security_agent
+kitchen_suse_security_agent_x64:
+  extends: .kitchen_test_security_agent_x64
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export KITCHEN_PLATFORM="suse"
@@ -71,8 +98,8 @@ kitchen_suse_security_agent:
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
-kitchen_debian_security_agent:
-  extends: .kitchen_test_security_agent
+kitchen_debian_security_agent_x64:
+  extends: .kitchen_test_security_agent_x64
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export KITCHEN_PLATFORM="debian"
@@ -80,8 +107,8 @@ kitchen_debian_security_agent:
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
 
-kitchen_oracle_security_agent:
-  extends: .kitchen_test_security_agent
+kitchen_oracle_security_agent_x64:
+  extends: .kitchen_test_security_agent_x64
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - export KITCHEN_PLATFORM="oracle"

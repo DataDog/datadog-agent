@@ -1,9 +1,11 @@
 import io
 import os
+import pprint
 import re
 import traceback
 from collections import defaultdict
 
+import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
@@ -19,6 +21,7 @@ from .libs.pipeline_notifications import (
     send_slack_message,
 )
 from .libs.pipeline_tools import (
+    FilteredOutException,
     cancel_pipelines_with_confirmation,
     get_running_pipelines_on_same_ref,
     trigger_agent_pipeline,
@@ -148,6 +151,12 @@ def trigger(
     )
 
 
+def workflow_rules(gitlab_file=".gitlab-ci.yml"):
+    """Get Gitlab workflow rules list in a YAML-formatted string."""
+    with open(gitlab_file, 'r') as f:
+        return yaml.dump(yaml.safe_load(f.read())["workflow"]["rules"])
+
+
 @task
 def run(
     ctx,
@@ -230,17 +239,26 @@ def run(
         )
         cancel_pipelines_with_confirmation(gitlab, project_name, pipelines)
 
-    pipeline_id = trigger_agent_pipeline(
-        gitlab,
-        project_name,
-        git_ref,
-        release_version_6,
-        release_version_7,
-        repo_branch,
-        deploy=deploy,
-        all_builds=all_builds,
-        kitchen_tests=kitchen_tests,
-    )
+    try:
+        pipeline_id = trigger_agent_pipeline(
+            gitlab,
+            project_name,
+            git_ref,
+            release_version_6,
+            release_version_7,
+            repo_branch,
+            deploy=deploy,
+            all_builds=all_builds,
+            kitchen_tests=kitchen_tests,
+        )
+    except FilteredOutException:
+        print(
+            color_message(
+                "ERROR: pipeline does not match any workflow rule. Rules:\n{}".format(workflow_rules()), "red"
+            )
+        )
+        return
+
     wait_for_pipeline(gitlab, project_name, pipeline_id)
 
 
@@ -418,3 +436,126 @@ def notify_failure(_, notification_type="merge", print_to_stdout=False):
             print("Would send to {channel}:\n{message}".format(channel=channel, message=str(message)))
         else:
             send_slack_message(channel, str(message))  # TODO: use channel variable
+
+
+def _init_pipeline_schedule_task():
+    project_name = "DataDog/datadog-agent"
+    try:
+        project_access_token = os.environ['GITLAB_PROJECT_ACCESS_TOKEN']
+    except KeyError:
+        raise Exit(message="You must specify GITLAB_PROJECT_ACCESS_TOKEN environment variable", code=1)
+    gitlab = Gitlab(api_token=project_access_token)
+    gitlab.test_project_found(project_name)
+    return project_name, gitlab
+
+
+@task
+def get_schedules(_):
+    """
+    Pretty-print all pipeline schedules on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    for ps in gitlab.all_pipeline_schedules(project_name):
+        pprint.pprint(ps)
+
+
+@task
+def get_schedule(_, schedule_id):
+    """
+    Pretty-print a single pipeline schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.pipeline_schedule(project_name, schedule_id)
+    pprint.pprint(result)
+
+
+@task
+def create_schedule(_, description, ref, cron, cron_timezone=None, active=False):
+    """
+    Create a new pipeline schedule on the repository.
+
+    Note that unless you explicitly specify the --active flag, the schedule will be created as inactive.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.create_pipeline_schedule(project_name, description, ref, cron, cron_timezone, active)
+    pprint.pprint(result)
+
+
+@task
+def edit_schedule(_, schedule_id, description=None, ref=None, cron=None, cron_timezone=None):
+    """
+    Edit an existing pipeline schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.edit_pipeline_schedule(project_name, schedule_id, description, ref, cron, cron_timezone)
+    pprint.pprint(result)
+
+
+@task
+def activate_schedule(_, schedule_id):
+    """
+    Activate an existing pipeline schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.edit_pipeline_schedule(project_name, schedule_id, active=True)
+    pprint.pprint(result)
+
+
+@task
+def deactivate_schedule(_, schedule_id):
+    """
+    Deactivate an existing pipeline schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.edit_pipeline_schedule(project_name, schedule_id, active=False)
+    pprint.pprint(result)
+
+
+@task
+def delete_schedule(_, schedule_id):
+    """
+    Delete an existing pipeline schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.delete_pipeline_schedule(project_name, schedule_id)
+    pprint.pprint(result)
+
+
+@task
+def create_schedule_variable(_, schedule_id, key, value):
+    """
+    Create a variable for an existing schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.create_pipeline_schedule_variable(project_name, schedule_id, key, value)
+    pprint.pprint(result)
+
+
+@task
+def edit_schedule_variable(_, schedule_id, key, value):
+    """
+    Edit an existing variable for a schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.edit_pipeline_schedule_variable(project_name, schedule_id, key, value)
+    pprint.pprint(result)
+
+
+@task
+def delete_schedule_variable(_, schedule_id, key):
+    """
+    Delete an existing variable for a schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.delete_pipeline_schedule_variable(project_name, schedule_id, key)
+    pprint.pprint(result)

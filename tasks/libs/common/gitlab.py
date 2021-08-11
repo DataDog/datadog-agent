@@ -152,6 +152,103 @@ class Gitlab(object):
         )
         return self.make_request(path, json_output=True)
 
+    def all_pipeline_schedules(self, project_name):
+        """
+        Gets all pipelines schedules for the given project.
+        """
+        page = 1
+
+        # Go through all pages
+        results = self.pipeline_schedules(project_name, page)
+        while results:
+            yield from results
+            page += 1
+            results = self.pipeline_schedules(project_name, page)
+
+    def pipeline_schedules(self, project_name, page=1, per_page=100):
+        """
+        Gets one page of the pipeline schedules for the given project.
+        per_page cannot exceed 100
+        """
+        path = "/projects/{}/pipeline_schedules?per_page={}&page={}".format(
+            quote(project_name, safe=""), per_page, page
+        )
+        return self.make_request(path, json_output=True)
+
+    def pipeline_schedule(self, project_name, schedule_id):
+        """
+        Gets a single pipeline schedule.
+        """
+        path = "/projects/{}/pipeline_schedules/{}".format(quote(project_name, safe=""), schedule_id)
+        return self.make_request(path, json_output=True)
+
+    def create_pipeline_schedule(self, project_name, description, ref, cron, cron_timezone=None, active=None):
+        """
+        Create a new pipeline schedule with given attributes.
+        """
+        path = "/projects/{}/pipeline_schedules".format(quote(project_name, safe=""))
+        data = {
+            "description": description,
+            "ref": ref,
+            "cron": cron,
+            "cron_timezone": cron_timezone,
+            "active": active,
+        }
+        no_none_data = {k: v for k, v in data.items() if v is not None}
+        return self.make_request(path, data=no_none_data, json_output=True, json_input=True)
+
+    def edit_pipeline_schedule(
+        self, project_name, schedule_id, description=None, ref=None, cron=None, cron_timezone=None, active=None
+    ):
+        """
+        Edit an existing pipeline schedule with given attributes.
+        """
+        path = "/projects/{}/pipeline_schedules/{}".format(quote(project_name, safe=""), schedule_id)
+        data = {
+            "description": description,
+            "ref": ref,
+            "cron": cron,
+            "cron_timezone": cron_timezone,
+            "active": active,
+        }
+        no_none_data = {k: v for k, v in data.items() if v is not None}
+        return self.make_request(path, json_output=True, data=no_none_data, method="PUT")
+
+    def delete_pipeline_schedule(self, project_name, schedule_id):
+        """
+        Delete an existing pipeline schedule.
+        """
+        path = "/projects/{}/pipeline_schedules/{}".format(quote(project_name, safe=""), schedule_id)
+        # Gitlab API docs claim that this returns the JSON representation of the deleted schedule,
+        # but it actually returns an empty string
+        result = self.make_request(path, json_output=False, method="DELETE")
+        return "Pipeline schedule deleted; result: {}".format(result if result else "(empty)")
+
+    def create_pipeline_schedule_variable(self, project_name, schedule_id, key, value):
+        """
+        Create a variable for an existing pipeline schedule.
+        """
+        path = "/projects/{}/pipeline_schedules/{}/variables".format(quote(project_name, safe=""), schedule_id)
+        data = {
+            "key": key,
+            "value": value,
+        }
+        return self.make_request(path, data=data, json_output=True, json_input=True)
+
+    def edit_pipeline_schedule_variable(self, project_name, schedule_id, key, value):
+        """
+        Edit an existing variable for a pipeline schedule.
+        """
+        path = "/projects/{}/pipeline_schedules/{}/variables/{}".format(quote(project_name, safe=""), schedule_id, key)
+        return self.make_request(path, data={"value": value}, json_output=True, method="PUT")
+
+    def delete_pipeline_schedule_variable(self, project_name, schedule_id, key):
+        """
+        Delete an existing variable for a pipeline schedule.
+        """
+        path = "/projects/{}/pipeline_schedules/{}/variables/{}".format(quote(project_name, safe=""), schedule_id, key)
+        return self.make_request(path, json_output=True, method="DELETE")
+
     def find_tag(self, project_name, tag_name):
         """
         Look up a tag by its name.
@@ -190,6 +287,10 @@ class Gitlab(object):
             # parameter of requests.post
             if data and json_input:
                 r = requests.post(url, headers=headers, json=data, stream=stream_output)
+            elif method == "PUT":
+                r = requests.put(url, headers=headers, json=data, stream=stream_output)
+            elif method == "DELETE":
+                r = requests.delete(url, headers=headers, stream=stream_output)
             elif data or method == "POST":
                 r = requests.post(url, headers=headers, data=data, stream=stream_output)
             else:

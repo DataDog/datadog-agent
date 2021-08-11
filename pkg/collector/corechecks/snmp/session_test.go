@@ -233,8 +233,7 @@ func Test_snmpSession_traceLog_disabled(t *testing.T) {
 	s := &snmpSession{}
 	err = s.Configure(config)
 	assert.Nil(t, err)
-	assert.Equal(t, false, s.loggerEnabled)
-	assert.Nil(t, s.gosnmpInst.Logger)
+	assert.Equal(t, gosnmp.Logger{}, s.gosnmpInst.Logger)
 
 }
 func Test_snmpSession_traceLog_enabled(t *testing.T) {
@@ -251,7 +250,6 @@ func Test_snmpSession_traceLog_enabled(t *testing.T) {
 	s := &snmpSession{}
 	err = s.Configure(config)
 	assert.Nil(t, err)
-	assert.Equal(t, true, s.loggerEnabled)
 	assert.NotNil(t, s.gosnmpInst.Logger)
 
 	s.gosnmpInst.Logger.Print("log line 1")
@@ -274,14 +272,17 @@ func Test_snmpSession_Connect_Logger(t *testing.T) {
 	err := s.Configure(config)
 	require.NoError(t, err)
 
-	logger := stdlog.New(ioutil.Discard, "abc", 0)
-	s.loggerEnabled = false
+	logger := gosnmp.NewLogger(stdlog.New(ioutil.Discard, "abc", 0))
 	s.gosnmpInst.Logger = logger
 	s.Connect()
-	assert.NotSame(t, logger, s.gosnmpInst.Logger)
+	assert.Equal(t, logger, s.gosnmpInst.Logger)
 
-	s.loggerEnabled = true
-	s.gosnmpInst.Logger = logger
 	s.Connect()
-	assert.Same(t, logger, s.gosnmpInst.Logger)
+	assert.Equal(t, logger, s.gosnmpInst.Logger)
+
+	logger2 := gosnmp.NewLogger(stdlog.New(ioutil.Discard, "123", 0))
+	s.gosnmpInst.Logger = logger2
+	s.Connect()
+	assert.NotEqual(t, logger, s.gosnmpInst.Logger)
+	assert.Equal(t, logger2, s.gosnmpInst.Logger)
 }
