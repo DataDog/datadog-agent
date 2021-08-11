@@ -1,8 +1,9 @@
 package runtime_config
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"net/rpc"
+
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )
 
 // ProcessAgentRuntimeConfigClient is a client designed to consume the RPC endpoints opened by RuntimeSettingRPCService.
