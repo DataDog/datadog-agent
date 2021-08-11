@@ -41,7 +41,6 @@ const (
 	K8sPersistentVolumeClaim
 )
 
-
 // NodeTypes returns the current existing NodesTypes as a slice to iterate over.
 func NodeTypes() []NodeType {
 	return []NodeType{
@@ -56,7 +55,7 @@ func NodeTypes() []NodeType {
 		K8sService,
 		K8sStatefulSet,
 		K8sPersistentVolumeClaim,
-		K8sPersistentVolume
+		K8sPersistentVolume,
 	}
 }
 

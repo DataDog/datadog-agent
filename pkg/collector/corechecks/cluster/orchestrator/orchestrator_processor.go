@@ -681,7 +681,7 @@ func addAdditionalPVTags(pvModel *model.PersistentVolume) {
 	pvModel.Tags = append(pvModel.Tags, pvTypeTag)
 }
 
-// chunkServices chunks the given list of services, honoring the given chunk count and size.
+// chunkPersistentVolumes chunks the given list of pv, honoring the given chunk count and size.
 // The last chunk may be smaller than the others.
 func chunkPersistentVolumes(persistentVolumes []*model.PersistentVolume, chunkCount, chunkSize int) [][]*model.PersistentVolume {
 	chunks := make([][]*model.PersistentVolume, 0, chunkCount)
@@ -700,16 +700,16 @@ func ProcessPersistentVolumeClaimList(pvcList []*corev1.PersistentVolumeClaim, g
 	pvcMsgs := make([]*model.PersistentVolumeClaim, 0, len(pvcList))
 
 	for s := 0; s < len(pvcList); s++ {
-		pv := pvcList[s]
-		if orchestrator.SkipKubernetesResource(pv.UID, pv.ResourceVersion, orchestrator.K8sPersistentVolumeClaim) {
+		pvc := pvcList[s]
+		if orchestrator.SkipKubernetesResource(pvc.UID, pvc.ResourceVersion, orchestrator.K8sPersistentVolumeClaim) {
 			continue
 		}
 
-		pvModel := extractPersistentVolumeClaim(pv)
+		pvModel := extractPersistentVolumeClaim(pvc)
 
 		// k8s objects only have json "omitempty" annotations
 		// + marshalling is more performant than YAML
-		jsonSvc, err := jsoniter.Marshal(pv)
+		jsonSvc, err := jsoniter.Marshal(pvc)
 		if err != nil {
 			log.Warnf("Could not marshal Service to JSON: %s", err)
 			continue
@@ -739,7 +739,7 @@ func ProcessPersistentVolumeClaimList(pvcList []*corev1.PersistentVolumeClaim, g
 	return messages, nil
 }
 
-// chunkServices chunks the given list of services, honoring the given chunk count and size.
+// chunkPersistentVolumeClaims chunks the given list of pvc, honoring the given chunk count and size.
 // The last chunk may be smaller than the others.
 func chunkPersistentVolumeClaims(pvcs []*model.PersistentVolumeClaim, chunkCount, chunkSize int) [][]*model.PersistentVolumeClaim {
 	chunks := make([][]*model.PersistentVolumeClaim, 0, chunkCount)

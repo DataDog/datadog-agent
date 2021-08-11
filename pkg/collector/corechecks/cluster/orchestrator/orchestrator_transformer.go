@@ -505,9 +505,13 @@ func extractSpec(pvc *corev1.PersistentVolumeClaim, message *model.PersistentVol
 		message.Spec.AccessModes = strModes
 	}
 
-	st := pvc.Spec.Resources.Requests.Storage()
-	if st != nil && !st.IsZero() {
-		message.Spec.Resources.Requests = map[string]int64{string(corev1.ResourceStorage): st.Value()}
+	reSt := pvc.Spec.Resources.Requests.Storage()
+	if reSt != nil && !reSt.IsZero() {
+		message.Spec.Resources.Requests = map[string]int64{string(corev1.ResourceStorage): reSt.Value()}
+	}
+	reLt := pvc.Spec.Resources.Limits.Storage()
+	if reLt != nil && !reLt.IsZero() {
+		message.Spec.Resources.Limits = map[string]int64{string(corev1.ResourceStorage): reLt.Value()}
 	}
 
 	if pvc.Spec.Selector != nil {
