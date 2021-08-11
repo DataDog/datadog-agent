@@ -207,10 +207,9 @@ func runAgent(exit chan struct{}) {
 		return
 	}
 
-	// Start runtime config server asynchronously because why not
 	err, _ = runtime_config.StartRuntimeSettingRPCService(cfg)
 	if err != nil {
-		log.Error(err)
+		_ = log.Error("Failed to start runtime setting service:", err)
 	}
 
 	// Run a profile & telemetry server.
