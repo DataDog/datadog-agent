@@ -24,6 +24,10 @@ import (
 // Fixtures
 
 type testCheck struct {
+	// We have to align the atomics to 64-bit boundaries so these are put down first
+	runCount uint64
+	stopped  uint64
+
 	check.StubCheck
 	RunLock   sync.Mutex
 	StartLock sync.Mutex
@@ -34,9 +38,7 @@ type testCheck struct {
 	id          string
 	t           *testing.T
 	runFunc     func(id check.ID)
-	runCount    uint64
 	startedChan chan struct{}
-	stopped     uint32
 }
 
 func (c *testCheck) ID() check.ID   { return check.ID(c.id) }
@@ -46,9 +48,9 @@ func (c *testCheck) Stop() {
 	c.StopLock.Lock()
 	defer c.StopLock.Unlock()
 
-	atomic.StoreUint32(&c.stopped, 1)
+	atomic.StoreUint64(&c.stopped, 1)
 }
-func (c *testCheck) IsStopped() bool { return atomic.LoadUint32(&c.stopped) != 0 }
+func (c *testCheck) IsStopped() bool { return atomic.LoadUint64(&c.stopped) != 0 }
 func (c *testCheck) StartedChan() chan struct{} {
 	c.StartLock.Lock()
 	defer c.StartLock.Unlock()
