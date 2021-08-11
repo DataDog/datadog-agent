@@ -191,7 +191,7 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 		collectors = defaultResources
 	}
 
-	informersToSync := map[apiserver.InformerName]cache.SharedInformer{}
+	informersToSync := map[orchestrator.NodeType]cache.SharedInformer{}
 
 	for _, v := range collectors {
 		switch v {
@@ -199,47 +199,47 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 			podInformer := apiCl.UnassignedPodInformerFactory.Core().V1().Pods()
 			o.unassignedPodLister = podInformer.Lister()
 			o.unassignedPodListerSync = podInformer.Informer().HasSynced
-			informersToSync[apiserver.PodsInformer] = podInformer.Informer()
+			informersToSync[orchestrator.K8sPod] = podInformer.Informer()
 		case "deployments":
 			deployInformer := apiCl.InformerFactory.Apps().V1().Deployments()
 			o.deployLister = deployInformer.Lister()
 			o.deployListerSync = deployInformer.Informer().HasSynced
-			informersToSync[apiserver.DeploysInformer] = deployInformer.Informer()
+			informersToSync[orchestrator.K8sDeployment] = deployInformer.Informer()
 		case "replicasets":
 			rsInformer := apiCl.InformerFactory.Apps().V1().ReplicaSets()
 			o.rsLister = rsInformer.Lister()
 			o.rsListerSync = rsInformer.Informer().HasSynced
-			informersToSync[apiserver.ReplicaSetsInformer] = rsInformer.Informer()
+			informersToSync[orchestrator.K8sReplicaSet] = rsInformer.Informer()
 		case "services":
 			serviceInformer := apiCl.InformerFactory.Core().V1().Services()
 			o.serviceLister = serviceInformer.Lister()
 			o.serviceListerSync = serviceInformer.Informer().HasSynced
-			informersToSync[apiserver.ServicesInformer] = serviceInformer.Informer()
+			informersToSync[orchestrator.K8sService] = serviceInformer.Informer()
 		case "nodes":
 			nodesInformer := apiCl.InformerFactory.Core().V1().Nodes()
 			o.nodesLister = nodesInformer.Lister()
 			o.nodesListerSync = nodesInformer.Informer().HasSynced
-			informersToSync[apiserver.NodesInformer] = nodesInformer.Informer()
+			informersToSync[orchestrator.K8sNode] = nodesInformer.Informer()
 		case "jobs":
 			jobsInformer := apiCl.InformerFactory.Batch().V1().Jobs()
 			o.jobsLister = jobsInformer.Lister()
 			o.jobsListerSync = jobsInformer.Informer().HasSynced
-			informersToSync[apiserver.JobsInformer] = jobsInformer.Informer()
+			informersToSync[orchestrator.K8sJob] = jobsInformer.Informer()
 		case "cronjobs":
 			cronJobsInformer := apiCl.InformerFactory.Batch().V1beta1().CronJobs()
 			o.cronJobsLister = cronJobsInformer.Lister()
 			o.cronJobsListerSync = cronJobsInformer.Informer().HasSynced
-			informersToSync[apiserver.CronJobsInformer] = cronJobsInformer.Informer()
+			informersToSync[orchestrator.K8sCronJob] = cronJobsInformer.Informer()
 		case "daemonsets":
 			daemonSetsInformer := apiCl.InformerFactory.Apps().V1().DaemonSets()
 			o.daemonSetsLister = daemonSetsInformer.Lister()
 			o.daemonSetsListerSync = daemonSetsInformer.Informer().HasSynced
-			informersToSync[apiserver.DaemonSetsInformer] = daemonSetsInformer.Informer()
+			informersToSync[orchestrator.K8sDaemonSet] = daemonSetsInformer.Informer()
 		case "statefulsets":
 			statefulSetsInformer := apiCl.InformerFactory.Apps().V1().StatefulSets()
 			o.statefulSetsLister = statefulSetsInformer.Lister()
 			o.statefulSetsListerSync = statefulSetsInformer.Informer().HasSynced
-			informersToSync[apiserver.StatefulSetsInformer] = statefulSetsInformer.Informer()
+			informersToSync[orchestrator.K8sStatefulSet] = statefulSetsInformer.Informer()
 		default:
 			_ = o.Warnf("Unsupported collector: %s", v)
 		}
@@ -248,7 +248,7 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 	apiCl.UnassignedPodInformerFactory.Start(o.stopCh)
 	apiCl.InformerFactory.Start(o.stopCh)
 
-	return apiserver.SyncInformers(informersToSync)
+	return apiserver.SyncInformersOrchestrator(informersToSync)
 }
 
 // Run runs the orchestrator check
