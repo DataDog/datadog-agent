@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -17,9 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
-
-// defaultTimeout represents the time after which a connection is closed when no data is read
-const defaultTimeout = time.Minute
 
 // A TCPListener listens and accepts TCP connections and delegates the read operations to a tailer.
 type TCPListener struct {
@@ -115,7 +111,6 @@ func (l *TCPListener) startListener() error {
 
 // read reads data from connection, returns an error if it failed and stop the tailer.
 func (l *TCPListener) read(tailer *Tailer) ([]byte, error) {
-	tailer.conn.SetReadDeadline(time.Now().Add(defaultTimeout)) //nolint:errcheck
 	frame := make([]byte, l.frameSize)
 	n, err := tailer.conn.Read(frame)
 	if err != nil {
