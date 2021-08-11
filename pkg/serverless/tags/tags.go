@@ -25,7 +25,13 @@ const (
 	awsAccountKey            = "aws_account"
 	resourceKey              = "resource"
 	executedVersionKey       = "executedversion"
+	extensionVersionKey      = "dd_extension_version"
 )
+
+// currentExtensionVersion represents the current version of the Datadog Lambda Extension.
+// It is applied to all telemetry as a tag.
+// It is replaced at build time with an actual version number.
+var currentExtensionVersion = "xxx"
 
 // BuildTagMap builds a map of tag based on the arn and user defined tags
 func BuildTagMap(arn string, configTags []string) map[string]string {
@@ -41,6 +47,7 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags = setIfNotEmpty(tags, traceOriginMetadataKey, traceOriginMetadataValue)
 	tags = setIfNotEmpty(tags, computeStatsKey, computeStatsValue)
 	tags = setIfNotEmpty(tags, functionARNKey, arn)
+	tags = setIfNotEmpty(tags, extensionVersionKey, currentExtensionVersion)
 
 	parts := strings.Split(arn, ":")
 	if len(parts) < 6 {

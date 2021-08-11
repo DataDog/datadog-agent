@@ -44,6 +44,11 @@ func (tb *TagsBuilder) Reset() {
 	tb.data = tb.data[0:0]
 }
 
+// Truncate retains first n tags in the buffer without discarding the internal buffer
+func (tb *TagsBuilder) Truncate(len int) {
+	tb.data = tb.data[0:len]
+}
+
 // Get returns the internal slice
 func (tb *TagsBuilder) Get() []string {
 	return tb.data

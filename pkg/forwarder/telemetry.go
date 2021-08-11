@@ -9,20 +9,13 @@ import (
 	"expvar"
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	transactionsIntakePod         = expvar.Int{}
-	transactionsIntakeDeployment  = expvar.Int{}
-	transactionsIntakeReplicaSet  = expvar.Int{}
-	transactionsIntakeService     = expvar.Int{}
-	transactionsIntakeNode        = expvar.Int{}
-	transactionsIntakeJob         = expvar.Int{}
-	transactionsIntakeCronJob     = expvar.Int{}
-	transactionsIntakeCluster     = expvar.Int{}
-	transactionsIntakeDaemonSet   = expvar.Int{}
-	transactionsIntakeStatefulSet = expvar.Int{}
+	transactionsIntakeOrchestrator = map[orchestrator.NodeType]*expvar.Int{}
 
 	v1SeriesEndpoint       = transaction.Endpoint{Route: "/api/v1/series", Name: "series_v1"}
 	v1CheckRunsEndpoint    = transaction.Endpoint{Route: "/api/v1/check_run", Name: "check_run_v1"}
@@ -101,16 +94,19 @@ func initEndpointExpvars() {
 }
 
 func initOrchestratorExpVars() {
-	transaction.TransactionsExpvars.Set("Pods", &transactionsIntakePod)
-	transaction.TransactionsExpvars.Set("Deployments", &transactionsIntakeDeployment)
-	transaction.TransactionsExpvars.Set("ReplicaSets", &transactionsIntakeReplicaSet)
-	transaction.TransactionsExpvars.Set("Services", &transactionsIntakeService)
-	transaction.TransactionsExpvars.Set("Nodes", &transactionsIntakeNode)
-	transaction.TransactionsExpvars.Set("Jobs", &transactionsIntakeJob)
-	transaction.TransactionsExpvars.Set("CronJobs", &transactionsIntakeCronJob)
-	transaction.TransactionsExpvars.Set("Clusters", &transactionsIntakeCluster)
-	transaction.TransactionsExpvars.Set("DaemonSets", &transactionsIntakeDaemonSet)
-	transaction.TransactionsExpvars.Set("StatefulSets", &transactionsIntakeStatefulSet)
+	for _, nodeType := range orchestrator.NodeTypes() {
+		transactionsIntakeOrchestrator[nodeType] = &expvar.Int{}
+		transaction.TransactionsExpvars.Set(nodeType.String(), transactionsIntakeOrchestrator[nodeType])
+	}
+}
+
+func bumpOrchestratorPayload(nodeType int) {
+	e, ok := transactionsIntakeOrchestrator[orchestrator.NodeType(nodeType)]
+	if !ok {
+		log.Errorf("Unknown NodeType %v, cannot bump expvar", nodeType)
+		return
+	}
+	e.Add(1)
 }
 
 func initTransactionsExpvars() {

@@ -39,25 +39,25 @@ const (
 	K8sPersistentVolume
 	// K8sPersistentVolumeClaim represents a Kubernetes PersistentVolumeClaim
 	K8sPersistentVolumeClaim
-	// lastElement represents the lastElement of the enums iota
-	lastElement
 )
 
-var telemetryTags = map[NodeType][]string{}
-
-func init() {
-	for _, nodeType := range NodeTypes() {
-		telemetryTags[nodeType] = getTelemetryTags(nodeType)
-	}
-}
 
 // NodeTypes returns the current existing NodesTypes as a slice to iterate over.
 func NodeTypes() []NodeType {
-	var types []NodeType
-	for t := NodeType(0); t < lastElement; t++ {
-		types = append(types, t)
+	return []NodeType{
+		K8sCluster,
+		K8sCronJob,
+		K8sDeployment,
+		K8sDaemonSet,
+		K8sJob,
+		K8sNode,
+		K8sPod,
+		K8sReplicaSet,
+		K8sService,
+		K8sStatefulSet,
+		K8sPersistentVolumeClaim,
+		K8sPersistentVolume
 	}
-	return types
 }
 
 func (n NodeType) String() string {
@@ -106,11 +106,11 @@ func (n NodeType) Orchestrator() string {
 
 // TelemetryTags return tags used for telemetry.
 func (n NodeType) TelemetryTags() []string {
-	tags, ok := telemetryTags[n]
-	if !ok {
+	if n.String() == "" {
 		log.Errorf("Unknown NodeType %v", n)
 		return []string{"unknown", "unknown"}
 	}
+	tags := getTelemetryTags(n)
 	return tags
 }
 

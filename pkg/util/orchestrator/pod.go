@@ -16,17 +16,18 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/twmb/murmur3"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/kubernetes/pkg/kubelet/pod"
 )
@@ -77,7 +78,7 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 			continue
 		}
 
-		if SkipKubernetesResource(p.UID, podModel.Metadata.ResourceVersion, K8sPod) {
+		if orchestrator.SkipKubernetesResource(p.UID, podModel.Metadata.ResourceVersion, orchestrator.K8sPod) {
 			continue
 		}
 
@@ -130,7 +131,7 @@ func chunkPods(pods []*model.Pod, chunkCount, chunkSize int) [][]*model.Pod {
 	chunks := make([][]*model.Pod, 0, chunkCount)
 
 	for counter := 1; counter <= chunkCount; counter++ {
-		chunkStart, chunkEnd := ChunkRange(len(pods), chunkCount, chunkSize, counter)
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(pods), chunkCount, chunkSize, counter)
 		chunks = append(chunks, pods[chunkStart:chunkEnd])
 	}
 

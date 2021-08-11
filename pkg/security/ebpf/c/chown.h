@@ -9,8 +9,8 @@ struct chown_event_t {
     struct container_context_t container;
     struct syscall_t syscall;
     struct file_t file;
-    uid_t user;
-    gid_t group;
+    uid_t uid;
+    gid_t gid;
 };
 
 int __attribute__((always_inline)) chown_approvers(struct syscall_cache_t *syscall) {
@@ -76,8 +76,8 @@ int __attribute__((always_inline)) sys_chown_ret(void *ctx, int retval) {
     struct chown_event_t event = {
         .syscall.retval = retval,
         .file = syscall->setattr.file,
-        .user = syscall->setattr.user,
-        .group = syscall->setattr.group,
+        .uid = syscall->setattr.user,
+        .gid = syscall->setattr.group,
     };
 
     struct proc_cache_t *entry = fill_process_context(&event.process);

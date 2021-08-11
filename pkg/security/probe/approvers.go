@@ -138,5 +138,5 @@ func init() {
 	allApproversHandlers["rename"] = onNewTwoBasenamesApproversWrapper(model.FileRenameEventType, "file", "file.destination")
 	allApproversHandlers["rmdir"] = onNewBasenameApproversWrapper(model.FileRmdirEventType)
 	allApproversHandlers["unlink"] = onNewBasenameApproversWrapper(model.FileUnlinkEventType)
-	allApproversHandlers["utimes"] = onNewBasenameApproversWrapper(model.FileUtimeEventType)
+	allApproversHandlers["utimes"] = onNewBasenameApproversWrapper(model.FileUtimesEventType)
 }

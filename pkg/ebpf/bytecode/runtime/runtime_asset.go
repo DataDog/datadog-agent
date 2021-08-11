@@ -48,6 +48,7 @@ const (
 	compilationErr
 	resultReadErr
 	headerFetchErr
+	compiledOutputFound
 )
 
 type CompiledOutput interface {
@@ -137,7 +138,7 @@ func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOu
 			a.compilationResult = outputFileErr
 			return nil, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
 		}
-		dirs, res, err := kernel.GetKernelHeaders(config.KernelHeadersDirs, config.KernelHeadersDownloadDir)
+		dirs, res, err := kernel.GetKernelHeaders(config.KernelHeadersDirs, config.KernelHeadersDownloadDir, config.AptConfigDir, config.YumReposDir, config.ZypperReposDir)
 		a.headerFetchResult = res
 		if err != nil {
 			a.compilationResult = headerFetchErr
@@ -154,12 +155,13 @@ func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOu
 			a.compilationResult = compilationErr
 			return nil, fmt.Errorf("failed to compile runtime version of %s: %s", a.filename, err)
 		}
+		a.compilationResult = compilationSuccess
+	} else {
+		a.compilationResult = compiledOutputFound
 	}
 
 	out, err := os.Open(outputFile)
-	if err == nil {
-		a.compilationResult = compilationSuccess
-	} else {
+	if err != nil {
 		a.compilationResult = resultReadErr
 	}
 	return out, err
