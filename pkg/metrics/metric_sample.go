@@ -123,6 +123,9 @@ func addOrchestratorTags(cardinality collectors.TagCardinality, tb *util.TagsBui
 }
 
 // EnrichTags expend a tag list with origin detection tags
+// NOTE(remy): it is not needed to sort/dedup the tags anymore since after the
+// enrichment, the metric and its tags is sent to the context key generator, which
+// is taking care of deduping the tags while generating the context key.
 func EnrichTags(tb *util.TagsBuilder, originID string, k8sOriginID string, cardinality string) {
 	taggerCard := taggerCardinality(cardinality)
 
@@ -135,8 +138,6 @@ func EnrichTags(tb *util.TagsBuilder, originID string, k8sOriginID string, cardi
 			log.Tracef("Cannot get tags for entity %s: %s", k8sOriginID, err)
 		}
 	}
-
-	tb.SortUniq()
 }
 
 // GetTags returns the metric sample tags

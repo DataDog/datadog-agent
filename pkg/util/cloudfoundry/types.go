@@ -94,7 +94,7 @@ func (id ADIdentifier) GetDesiredLRP() *DesiredLRP {
 func (id ADIdentifier) String() string {
 	if id.actualLRP != nil {
 		// For container checks, use processGUID to have 1 check per container, even during rolling redeployments
-		return fmt.Sprintf("%s/%s/%d", id.desiredLRP.ProcessGUID, id.svcName, id.actualLRP.Index)
+		return fmt.Sprintf("%s/%s/%s", id.desiredLRP.ProcessGUID, id.svcName, id.actualLRP.InstanceGUID)
 	}
 	// For non container checks, use appGUID to have one check per service, even during rolling redeployments
 	return fmt.Sprintf("%s/%s", id.desiredLRP.AppGUID, id.svcName)

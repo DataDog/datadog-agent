@@ -39,6 +39,8 @@ const (
 	ResolveSegmentOp
 	// ResolvePathOp resolves the requested path
 	ResolvePathOp
+	// ResolveParentOp resolves the parent of the provide path key
+	ResolveParentOp
 )
 
 const (
@@ -84,7 +86,7 @@ var (
 )
 
 var (
-	dentryInvalidDiscarder = []interface{}{dentryPathKeyNotFound}
+	dentryInvalidDiscarder = []interface{}{""}
 )
 
 // InvalidDiscarders exposes list of values that are not discarders
