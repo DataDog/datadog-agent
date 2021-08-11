@@ -48,7 +48,7 @@ type Runner struct {
 	pendingChecksChan   chan check.Check              // The channel where checks come from
 	checksTracker       *tracker.RunningChecksTracker // Tracker in charge of maintaining the running check list
 	scheduler           *scheduler.Scheduler          // Scheduler runner operates on
-	schedulerLock       sync.Mutex                    // Lock around operations on the scheduler
+	schedulerLock       sync.RWMutex                  // Lock around operations on the scheduler
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.

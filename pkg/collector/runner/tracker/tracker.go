@@ -22,7 +22,7 @@ type withRunningChecksFunc func(map[check.ID]check.Check)
 // all the running checks
 type RunningChecksTracker struct {
 	runningChecks map[check.ID]check.Check // The list of checks running
-	accessLock    sync.Mutex               // To control races on runningChecks
+	accessLock    sync.RWMutex             // To control races on runningChecks
 }
 
 // NewRunningChecksTracker is a contructor for a RunningChecksTracker
@@ -34,8 +34,8 @@ func NewRunningChecksTracker() *RunningChecksTracker {
 
 // Check returns a check in the running check list, if it can be found
 func (t *RunningChecksTracker) Check(id check.ID) (check.Check, bool) {
-	t.accessLock.Lock()
-	defer t.accessLock.Unlock()
+	t.accessLock.RLock()
+	defer t.accessLock.RUnlock()
 
 	check, found := t.runningChecks[id]
 	return check, found
@@ -72,8 +72,8 @@ func (t *RunningChecksTracker) WithRunningChecks(closureFunc withRunningChecksFu
 
 // RunningChecks returns a list of all the running checks
 func (t *RunningChecksTracker) RunningChecks() map[check.ID]check.Check {
-	t.accessLock.Lock()
-	defer t.accessLock.Unlock()
+	t.accessLock.RLock()
+	defer t.accessLock.RUnlock()
 
 	clone := make(map[check.ID]check.Check)
 	for key, val := range t.runningChecks {
@@ -86,8 +86,8 @@ func (t *RunningChecksTracker) RunningChecks() map[check.ID]check.Check {
 // WithCheck takes in a function to execute in the context of a locked
 // state of the checks tracker on a single check
 func (t *RunningChecksTracker) WithCheck(id check.ID, closureFunc withCheckFunc) bool {
-	t.accessLock.Lock()
-	defer t.accessLock.Unlock()
+	t.accessLock.RLock()
+	defer t.accessLock.RUnlock()
 
 	check, found := t.runningChecks[id]
 
