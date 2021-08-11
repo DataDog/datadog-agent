@@ -18,7 +18,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 )
@@ -26,29 +25,6 @@ import (
 // SyncInformers should be called after the instantiation of new informers.
 // It's blocking until the informers are synced or the timeout exceeded.
 func SyncInformers(informers map[InformerName]cache.SharedInformer) error {
-	var g errgroup.Group
-	// syncTimeout can be used to wait for the kubernetes client-go cache to sync.
-	// It cannot be retrieved at the package-level due to the package being imported before configs are loaded.
-	syncTimeout := config.Datadog.GetDuration("kube_cache_sync_timeout_seconds") * time.Second
-	for name := range informers {
-		name := name // https://golang.org/doc/faq#closures_and_goroutines
-		g.Go(func() error {
-			ctx, cancel := context.WithTimeout(context.Background(), syncTimeout)
-			defer cancel()
-			start := time.Now()
-			if !cache.WaitForCacheSync(ctx.Done(), informers[name].HasSynced) {
-				return fmt.Errorf("couldn't sync informer %s in %v", name, time.Now().Sub(start))
-			}
-			log.Debugf("Sync done for informer %s in %v", name, time.Now().Sub(start))
-			return nil
-		})
-	}
-	return g.Wait()
-}
-
-// SyncInformersOrchestrator should be called after the instantiation of new informers.
-// It's blocking until the informers are synced or the timeout exceeded.
-func SyncInformersOrchestrator(informers map[orchestrator.NodeType]cache.SharedInformer) error {
 	var g errgroup.Group
 	// syncTimeout can be used to wait for the kubernetes client-go cache to sync.
 	// It cannot be retrieved at the package-level due to the package being imported before configs are loaded.
