@@ -49,6 +49,10 @@ func (i *instance) Vars() VarMap {
 	return i.vars
 }
 
+func (v VarMap) GoMap() map[string]interface{} {
+	return map[string]interface{}(v)
+}
+
 func (i *instance) Functions() FunctionMap {
 	if i == nil || i.functions == nil {
 		return FunctionMap{}

@@ -653,6 +653,11 @@ func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.Rule
 }
 
 func (b *builder) newRegoCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.RegoRule, handler resourceReporter) (compliance.Check, error) {
+	var notify eventNotify
+	if b.status != nil {
+		notify = b.status.updateCheck
+	}
+
 	check := &regoCheck{
 		Env: b,
 
@@ -666,6 +671,8 @@ func (b *builder) newRegoCheck(meta *compliance.SuiteMeta, ruleScope compliance.
 		scope:           ruleScope,
 
 		resources: rule.Resources,
+
+		eventNotify: notify,
 	}
 
 	if err := check.compileQuery(rule.Module, rule.Query); err != nil {
