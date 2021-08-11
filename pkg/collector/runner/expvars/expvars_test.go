@@ -49,8 +49,8 @@ func getCheckStatsExpvarMap(t require.TestingT) map[string]map[check.ID]*check.S
 	// This is messy but there's no easy way to get the value of a function
 	// other than chain conversion unless we wanted to do a plain string
 	// comparisons. We do `expvar.Var` -> `expvar.Func` -> `expvarRunnerCheckStats`
-	// via `Func.Value()` and then we invoke it.
-	return checkStatsExpvar.(expvar.Func).Value().(func() map[string]map[check.ID]*check.Stats)()
+	// via `Func.Value()`.
+	return checkStatsExpvar.(expvar.Func).Value().(map[string]map[check.ID]*check.Stats)
 }
 
 func getExpvarMapKeys(m *expvar.Map) []string {
@@ -138,7 +138,7 @@ func TestExpvarsInitialState(t *testing.T) {
 
 	checks := runnerMap.Get("Checks")
 	require.NotNil(t, checks)
-	assert.Equal(t, "", checks.String())
+	assert.Equal(t, "{}", checks.String())
 }
 
 func TestExpvarsInitialInternalState(t *testing.T) {

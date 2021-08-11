@@ -53,7 +53,7 @@ func init() {
 // Functions relating to check run stats (`checkStats`)
 
 func expCheckStatsFunc() interface{} {
-	return GetCheckStats
+	return GetCheckStats()
 }
 
 // Reset clears all stats collected so far (useful in testing)
