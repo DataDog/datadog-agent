@@ -96,7 +96,7 @@ func (f *discardFilter) Reset() {}
 // replaceFilter is a token filter which obfuscates strings and numbers in queries by replacing them
 // with the "?" character.
 type replaceFilter struct {
-	quantizeSql bool
+	quantizeSQL bool
 }
 
 // Filter the given token so that it will be replaced if in the token replacement list
@@ -118,7 +118,7 @@ func (f *replaceFilter) Filter(token, lastToken TokenKind, buffer []byte) (token
 		// Cases like 'ARRAY [ ?, ? ]' should be collapsed into 'ARRAY [ ? ]'
 		return markFilteredGroupable(token), questionMark, nil
 	case TableName, ID:
-		if f.quantizeSql {
+		if f.quantizeSQL {
 			return token, replaceDigits(buffer), nil
 		}
 		fallthrough
@@ -327,12 +327,12 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 func attemptObfuscationWithOptions(tokenizer *SQLTokenizer, opts SQLOptions) (*ObfuscatedQuery, error) {
 	var (
 		storeTableNames = features.Has("table_names")
-		quantizeSql     = opts.QuantizeSQL
+		quantizeSQL     = opts.QuantizeSQL
 		out             = bytes.NewBuffer(make([]byte, 0, len(tokenizer.buf)))
 		err             error
 		lastToken       TokenKind
 		discard         discardFilter
-		replace         = replaceFilter{quantizeSql: quantizeSql}
+		replace         = replaceFilter{quantizeSQL: quantizeSQL}
 		grouping        groupingFilter
 		tableFinder     = tableFinderFilter{storeTableNames: storeTableNames}
 	)
@@ -351,7 +351,7 @@ func attemptObfuscationWithOptions(tokenizer *SQLTokenizer, opts SQLOptions) (*O
 		if token, buff, err = discard.Filter(token, lastToken, buff); err != nil {
 			return nil, err
 		}
-		if storeTableNames || quantizeSql {
+		if storeTableNames || quantizeSQL {
 			if token, buff, err = tableFinder.Filter(token, lastToken, buff); err != nil {
 				return nil, err
 			}
