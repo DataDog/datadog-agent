@@ -78,11 +78,6 @@ func finishOutputDir(inputDir, outputDir string, pkgName string, testNames []str
 		return err
 	}
 
-	gitignoreContent := "testsuite\n"
-	if err := ioutil.WriteFile(path.Join(outputDir, ".gitignore"), []byte(gitignoreContent), 0644); err != nil {
-		return err
-	}
-
 	info := &driverInfo{
 		PkgName:   pkgName,
 		TestNames: testNames,
