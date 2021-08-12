@@ -6,19 +6,19 @@ import (
 )
 
 const (
-	// QueryEmptyEntityID refers to a query made with an empty entity id
-	QueryEmptyEntityID = "empty_entity_id"
-	// QueryEmptyTags refers to a query that returned no tags
-	QueryEmptyTags = "empty_tags"
-	// QuerySuccess refers to a successful query
-	QuerySuccess = "success"
+	// queryEmptyEntityID refers to a query made with an empty entity id
+	queryEmptyEntityID = "empty_entity_id"
+	// queryEmptyTags refers to a query that returned no tags
+	queryEmptyTags = "empty_tags"
+	// querySuccess refers to a successful query
+	querySuccess = "success"
 
-	// FetchNotFound refers to a tagger fetch that did not find an entity
-	FetchNotFound = "not_found"
-	// FetchError refers to a tagger fetch that returned an error
-	FetchError = "error"
-	// FetchSuccess refers to a tagger fetch that was successful
-	FetchSuccess = "success"
+	// fetchNotFound refers to a tagger fetch that did not find an entity
+	fetchNotFound = "not_found"
+	// fetchError refers to a tagger fetch that returned an error
+	fetchError = "error"
+	// fetchSuccess refers to a tagger fetch that was successful
+	fetchSuccess = "success"
 )
 
 var (
@@ -92,9 +92,9 @@ type FetcherTelemetry struct {
 // NewFetcherTelemetry returns new instance of counters for the given fetcher name.
 func NewFetcherTelemetry(name string) FetcherTelemetry {
 	return FetcherTelemetry{
-		Success:  fetches.WithValues(name, FetchSuccess),
-		NotFound: fetches.WithValues(name, FetchNotFound),
-		Error:    fetches.WithValues(name, FetchError),
+		Success:  fetches.WithValues(name, fetchSuccess),
+		NotFound: fetches.WithValues(name, fetchNotFound),
+		Error:    fetches.WithValues(name, fetchError),
 	}
 }
 
@@ -108,9 +108,9 @@ type CardinalityTelemetry struct {
 // NewCardinalityTelemetry creates new set of counters for a cardinality level.
 func NewCardinalityTelemetry(name string) CardinalityTelemetry {
 	return CardinalityTelemetry{
-		EmptyEntityID: queries.WithValues(name, QueryEmptyEntityID),
-		EmptyTags:     queries.WithValues(name, QueryEmptyTags),
-		Success:       queries.WithValues(name, QuerySuccess),
+		EmptyEntityID: queries.WithValues(name, queryEmptyEntityID),
+		EmptyTags:     queries.WithValues(name, queryEmptyTags),
+		Success:       queries.WithValues(name, querySuccess),
 	}
 }
 
