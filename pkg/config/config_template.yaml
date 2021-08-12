@@ -432,10 +432,10 @@ api_key:
 #
 # enable_gohai: true
 
-## @param server_timeout - integer - optional - default: 15
+## @param server_timeout - integer - optional - default: 30
 ## IPC api server timeout in seconds.
 #
-# server_timeout: 15
+# server_timeout: 30
 
 ## @param procfs_path - string - optional
 ## Some environments may have the procfs file system mounted in a miscellaneous

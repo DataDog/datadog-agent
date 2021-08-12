@@ -282,7 +282,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("log_format_json", false)
 
 	// IPC API server timeout
-	config.BindEnvAndSetDefault("server_timeout", 15)
+	config.BindEnvAndSetDefault("server_timeout", 30)
 
 	// Use to force client side TLS version to 1.2
 	config.BindEnvAndSetDefault("force_tls_12", false)
