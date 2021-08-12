@@ -245,12 +245,12 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 			o.statefulSetsLister = statefulSetsInformer.Lister()
 			o.statefulSetsListerSync = statefulSetsInformer.Informer().HasSynced
 			informersToSync[apiserver.StatefulSetsInformer] = statefulSetsInformer.Informer()
-		case "persistentvolume":
+		case "persistentvolumes":
 			persistentVolumeInformer := apiCl.InformerFactory.Core().V1().PersistentVolumes()
 			o.persistentVolumeLister = persistentVolumeInformer.Lister()
 			o.persistentVolumeListerSync = persistentVolumeInformer.Informer().HasSynced
 			informersToSync[apiserver.PersistentVolumeInformer] = persistentVolumeInformer.Informer()
-		case "persistentvolumeclaim":
+		case "persistentvolumeclaims":
 			persistentVolumeClaimInformer := apiCl.InformerFactory.Core().V1().PersistentVolumeClaims()
 			o.persistentVolumeClaimLister = persistentVolumeClaimInformer.Lister()
 			o.persistentVolumeClaimListerSync = persistentVolumeClaimInformer.Informer().HasSynced
