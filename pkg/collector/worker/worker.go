@@ -161,7 +161,7 @@ func (w *Worker) Run() {
 			}
 		}
 
-		checkLogger.CheckFinshed()
+		checkLogger.CheckFinished()
 	}
 
 	log.Debugf("Runner %d, worker %d: Finished processing checks.", w.runnerID, w.ID)

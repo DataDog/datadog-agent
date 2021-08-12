@@ -41,8 +41,8 @@ func (cl *CheckLogger) CheckStarted() {
 	log.Debugc("Running check...", "check", cl.Check)
 }
 
-// CheckFinshed is used to log that the check has completed
-func (cl *CheckLogger) CheckFinshed() {
+// CheckFinished is used to log that the check has completed
+func (cl *CheckLogger) CheckFinished() {
 	message := checkEndPrefix
 
 	if shouldLog, lastVerboseLog := shouldLogCheck(cl.Check.ID()); shouldLog {

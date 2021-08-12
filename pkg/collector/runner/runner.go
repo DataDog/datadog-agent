@@ -190,18 +190,15 @@ func (r *Runner) Stop() {
 		terminateChecksRunningProcesses()
 
 		for _, c := range runningChecks {
-			// Save the check since the goroutine will reuse the pointer otherwise
-			ch := c
-
 			wg.Add(1)
-			go func() {
+			go func(ch check.Check) {
 				err := r.StopCheck(ch.ID())
 				if err != nil {
 					log.Warnf("Check %v not responding after %v: %s", ch, stopCheckTimeout, err)
 				}
 
 				wg.Done()
-			}()
+			}(c)
 		}
 	})
 

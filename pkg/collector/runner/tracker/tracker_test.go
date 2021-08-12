@@ -72,19 +72,16 @@ func TestRunningChecksTrackerAddAndDeleteLocking(t *testing.T) {
 	start := make(chan struct{})
 
 	for i := 0; i < 500; i++ {
-		// Copy the index value since loop reuses pointers
-		idx := i
-
 		wg.Add(1)
 
-		go func() {
+		go func(idx int) {
 			defer wg.Done()
 
 			testCheck := newTestCheck(fmt.Sprintf("testcheck %d", idx))
 			<-start
 			tracker.AddCheck(testCheck)
 			tracker.DeleteCheck(testCheck.ID())
-		}()
+		}(i)
 	}
 
 	close(start)
@@ -182,12 +179,9 @@ func TestRunningChecksTrackerWithCheck(t *testing.T) {
 	start := make(chan struct{})
 
 	for i := 0; i < 500; i++ {
-		// Copy the index value since loop reuses pointers
-		idx := i
-
 		wg.Add(1)
 
-		go func() {
+		go func(idx int) {
 			defer wg.Done()
 
 			runCount := 0
@@ -213,7 +207,7 @@ func TestRunningChecksTrackerWithCheck(t *testing.T) {
 			found = tracker.WithCheck(testCheck.ID(), closureFunc)
 			assert.False(t, found)
 			assert.Equal(t, 1, runCount)
-		}()
+		}(i)
 	}
 
 	close(start)
