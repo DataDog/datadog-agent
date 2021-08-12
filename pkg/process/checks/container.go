@@ -215,7 +215,7 @@ func convertAddressList(ctr *containers.Container) []*model.ContainerAddr {
 	addrs := make([]*model.ContainerAddr, 0, len(ctr.AddressList))
 	for _, a := range ctr.AddressList {
 		protocol := model.ConnectionType_tcp
-		if a.Protocol == "UDP" {
+		if a.Protocol == "udp" {
 			protocol = model.ConnectionType_udp
 		}
 		addrs = append(addrs, &model.ContainerAddr{
