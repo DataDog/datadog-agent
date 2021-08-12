@@ -134,7 +134,7 @@ func PrintConfig(w io.Writer, c integration.Config) {
 		fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Log Config")))
 		fmt.Fprintln(w, string(c.LogsConfig))
 	}
-	if len(c.ADIdentifiers) > 0 {
+	if c.IsTemplate() {
 		fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Auto-discovery IDs")))
 		for _, id := range c.ADIdentifiers {
 			fmt.Fprintln(w, fmt.Sprintf("* %s", color.CyanString(id)))
