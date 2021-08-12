@@ -439,9 +439,9 @@ def notify_failure(_, notification_type="merge", print_to_stdout=False):
 def _init_pipeline_schedule_task():
     project_name = "DataDog/datadog-agent"
     try:
-        project_access_token = os.environ['GITLAB_PROJECT_ACCESS_TOKEN']
+        project_access_token = os.environ['GITLAB_BOT_TOKEN']
     except KeyError:
-        raise Exit(message="You must specify GITLAB_PROJECT_ACCESS_TOKEN environment variable", code=1)
+        raise Exit(message="You must specify GITLAB_BOT_TOKEN environment variable", code=1)
     gitlab = Gitlab(api_token=project_access_token)
     gitlab.test_project_found(project_name)
     return project_name, gitlab
