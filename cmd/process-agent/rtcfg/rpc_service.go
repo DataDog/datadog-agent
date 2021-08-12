@@ -1,4 +1,4 @@
-package RuntimeConfig
+package rtcfg
 
 import (
 	"gopkg.in/yaml.v2"

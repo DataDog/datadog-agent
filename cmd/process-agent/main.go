@@ -5,8 +5,8 @@ package main
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/commands"
-	"github.com/DataDog/datadog-agent/cmd/process-agent/RuntimeConfig"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/rtcfg"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/spf13/cobra"
@@ -54,7 +54,7 @@ func setupConfigClient() (settings.Client, error) {
 	if err := cfg.LoadProcessYamlConfig(""); err != nil {
 		return nil, err
 	}
-	return RuntimeConfig.NewProcessAgentRuntimeConfigClient(cfg.RuntimeConfigPort())
+	return rtcfg.NewProcessAgentRuntimeConfigClient(cfg.RuntimeConfigPort())
 }
 
 func init() {
