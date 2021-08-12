@@ -1,4 +1,4 @@
-package runtime_config
+package RuntimeConfig
 
 import (
 	"gopkg.in/yaml.v2"
