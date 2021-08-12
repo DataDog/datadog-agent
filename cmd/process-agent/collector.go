@@ -23,6 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// rtProcessQueueSize is hard-coded to limit the rt process message queue to have only small number of messages
+const rtProcessQueueSize = 5
+
 type checkResult struct {
 	name        string
 	payloads    []checkPayload
@@ -179,6 +182,7 @@ func (l *Collector) run(exit chan struct{}) error {
 	go util.HandleSignals(exit)
 
 	processResults := api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.ProcessQueueBytes))
+	rtProcessResults := api.NewWeightedQueue(rtProcessQueueSize, int64(l.cfg.ProcessQueueBytes))
 	podResults := api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.Orchestrator.PodQueueBytes))
 
 	var wg sync.WaitGroup
@@ -206,13 +210,14 @@ func (l *Collector) run(exit chan struct{}) error {
 				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
 			case <-queueSizeTicker.C:
 				updateQueueBytes(processResults.Weight(), podResults.Weight())
+				updateQueueSize(rtProcessResults.Len(), podResults.Len())
 				updateQueueSize(processResults.Len(), podResults.Len())
 			case <-queueLogTicker.C:
-				processSize, podSize := processResults.Len(), podResults.Len()
-				if processSize > 0 || podSize > 0 {
+				processSize, rtProcessSize, podSize := processResults.Len(), rtProcessResults.Len(), podResults.Len()
+				if processSize > 0 || rtProcessSize > 0 || podSize > 0 {
 					log.Infof(
-						"Delivery queues: process[size=%d, weight=%d], pod[size=%d, weight=%d]",
-						processSize, processResults.Weight(), podSize, podResults.Weight(),
+						"Delivery queues: process[size=%d, weight=%d], rtprocess [size=%d, weight=%d], pod[size=%d, weight=%d]",
+						processSize, processResults.Weight(), rtProcessSize, rtProcessResults.Weight(), podSize, podResults.Weight(),
 					)
 				}
 			case <-exit:
@@ -226,6 +231,9 @@ func (l *Collector) run(exit chan struct{}) error {
 	processForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.cfg.ProcessQueueBytes // Allow more in-flight requests than the default
 	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
 
+	// rt forwarder can reuse processForwarder's config
+	rtProcessForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
+
 	podForwarderOpts := forwarder.NewOptions(apicfg.KeysPerDomains(l.cfg.Orchestrator.OrchestratorEndpoints))
 	podForwarderOpts.DisableAPIKeyChecking = true
 	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.cfg.ProcessQueueBytes // Allow more in-flight requests than the default
@@ -233,6 +241,10 @@ func (l *Collector) run(exit chan struct{}) error {
 
 	if err := processForwarder.Start(); err != nil {
 		return fmt.Errorf("error starting forwarder: %s", err)
+	}
+
+	if err := rtProcessForwarder.Start(); err != nil {
+		return fmt.Errorf("error starting RT forwarder: %s", err)
 	}
 
 	if err := podForwarder.Start(); err != nil {
@@ -248,6 +260,12 @@ func (l *Collector) run(exit chan struct{}) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		l.consumePayloads(rtProcessResults, rtProcessForwarder, exit)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 		l.consumePayloads(podResults, podForwarder, exit)
 	}()
 
@@ -255,6 +273,8 @@ func (l *Collector) run(exit chan struct{}) error {
 		results := processResults
 		if c.Name() == checks.Pod.Name() {
 			results = podResults
+		} else if c.RealTime() {
+			results = rtProcessResults
 		}
 
 		wg.Add(1)
@@ -293,6 +313,7 @@ func (l *Collector) run(exit chan struct{}) error {
 	wg.Wait()
 
 	processForwarder.Stop()
+	rtProcessForwarder.Stop()
 	podForwarder.Stop()
 	return nil
 }
