@@ -8,4 +8,5 @@
 ---
 enhancements:
   - |
-    Updated the obfuscator to quantize the entire SQL statement rather than just the table name.
+    APM: Updated the obfuscator to quantize digits in IDs of SQL statement in addition to table names,
+    when this option is enabled.
