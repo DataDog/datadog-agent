@@ -30,6 +30,14 @@
   # in the prod repo).
   - apt-get -o "Dir::Cache::archives=$OMNIBUS_PACKAGE_DIR" install --download-only datadog-signing-keys
 
+  # HACK: When apt download packages, they're named with the full version name (including the epoch '1:'). Given that URLs
+  # cannot contain :, this results in weird filenames like datadog-signing-keys_1%3a1.0.1-1_all.deb
+  # This is a problem because the package then gets uploaded to the testing repo with that name, which does not seem to work
+  # with Debian 8. To prevent that, we remove the problematic part of the filename.
+  - pushd $OMNIBUS_PACKAGE_DIR
+  - filename=$(ls datadog-signing-keys*.deb); mv $filename $(echo $filename | sed 's/[0-9]*%3a//g')
+  - popd
+
 deploy_deb_testing-a6:
   rules:
     !reference [.on_kitchen_tests_a6]
