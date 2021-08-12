@@ -108,7 +108,7 @@ variables:
   WIN_S3_BUCKET: dd-agent-mstesting
   PROCESS_S3_BUCKET: datad0g-process-agent
   ANDROID_S3_BUCKET: dd-agent-androidtesting
-  DEB_RPM_BUCKET_BRANCH: nightly  # branch of the DEB_S3_BUCKET and RPM_S3_BUCKET repos to release to, 'nightly' or 'beta'
+  DEB_RPM_BUCKET_BRANCH: nightly  # branch of the DEB_S3_BUCKET and RPM_S3_BUCKET repos to release to: 'nightly', 'oldnightly' or 'beta'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
   WINDOWS_TESTING_S3_BUCKET_A6: pipelines/A6/$CI_PIPELINE_ID
@@ -182,7 +182,7 @@ variables:
   if: $CI_COMMIT_TAG != null
 
 .if_not_nightly_repo_branch: &if_not_nightly_repo_branch
-  if: $DEB_RPM_BUCKET_BRANCH != "nightly"
+  if: $DEB_RPM_BUCKET_BRANCH != "nightly" && $DEB_RPM_BUCKET_BRANCH != "oldnightly"
 
 .if_not_stable_or_beta_repo_branch: &if_not_stable_or_beta_repo_branch
   if: $DEB_RPM_BUCKET_BRANCH != "beta" && $DEB_RPM_BUCKET_BRANCH != "stable"

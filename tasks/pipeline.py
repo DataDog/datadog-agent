@@ -9,7 +9,7 @@ import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.utils import DEFAULT_BRANCH
+from tasks.utils import DEFAULT_BRANCH, get_all_allowed_repo_branches, is_allowed_repo_branch
 
 from .libs.common.color import color_message
 from .libs.common.gitlab import Gitlab
@@ -31,8 +31,6 @@ from .libs.types import SlackMessage, TeamMessage
 
 # Tasks to trigger pipelines
 
-ALLOWED_REPO_BRANCHES = {"stable", "beta", "nightly", "none"}
-
 
 def check_deploy_pipeline(gitlab, project_name, git_ref, release_version_6, release_version_7, repo_branch):
     """
@@ -42,10 +40,10 @@ def check_deploy_pipeline(gitlab, project_name, git_ref, release_version_6, rele
     """
 
     # Check that the target repo branch is valid
-    if repo_branch not in ALLOWED_REPO_BRANCHES:
+    if not is_allowed_repo_branch(repo_branch):
         print(
             "--repo-branch argument '{}' is not in the list of allowed repository branches: {}".format(
-                repo_branch, ALLOWED_REPO_BRANCHES
+                repo_branch, get_all_allowed_repo_branches()
             )
         )
         raise Exit(code=1)
