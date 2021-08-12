@@ -198,7 +198,7 @@ func (a *Agent) Process(p *api.Payload) {
 		atomic.AddInt64(&ts.SpansReceived, tracen)
 		err := normalizeTrace(p.Source, t)
 		if err != nil {
-			log.Debug("Dropping invalid trace: %s", err)
+			log.Debugf("Dropping invalid trace: %s", err)
 			atomic.AddInt64(&ts.SpansDropped, tracen)
 			continue
 		}

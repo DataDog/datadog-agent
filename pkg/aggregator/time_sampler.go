@@ -75,7 +75,7 @@ func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp fl
 
 		// Add sample to bucket
 		if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval); err != nil {
-			log.Debug("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Host, metricSample.Tags, err)
+			log.Debugf("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Host, metricSample.Tags, err)
 		}
 	}
 }
