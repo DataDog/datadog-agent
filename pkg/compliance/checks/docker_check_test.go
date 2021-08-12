@@ -40,8 +40,10 @@ func TestDockerImageCheck(t *testing.T) {
 	assert := assert.New(t)
 
 	resource := compliance.Resource{
-		Docker: &compliance.DockerResource{
-			Kind: "image",
+		BaseResource: compliance.BaseResource{
+			Docker: &compliance.DockerResource{
+				Kind: "image",
+			},
 		},
 		Condition: `docker.template("{{- $.Config.Healthcheck.Test -}}") != ""`,
 	}
@@ -105,8 +107,10 @@ func TestDockerNetworkCheck(t *testing.T) {
 	assert := assert.New(t)
 
 	resource := compliance.Resource{
-		Docker: &compliance.DockerResource{
-			Kind: "network",
+		BaseResource: compliance.BaseResource{
+			Docker: &compliance.DockerResource{
+				Kind: "network",
+			},
 		},
 		Condition: `docker.template("{{- index $.Options \"com.docker.network.bridge.default_bridge\" -}}") != "true" || docker.template("{{- index $.Options \"com.docker.network.bridge.enable_icc\" -}}") == "true"`,
 	}
@@ -215,8 +219,10 @@ func TestDockerContainerCheck(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			resource := compliance.Resource{
-				Docker: &compliance.DockerResource{
-					Kind: "container",
+				BaseResource: compliance.BaseResource{
+					Docker: &compliance.DockerResource{
+						Kind: "container",
+					},
 				},
 				Condition: test.condition,
 			}
@@ -254,8 +260,10 @@ func TestDockerInfoCheck(t *testing.T) {
 	assert := assert.New(t)
 
 	resource := compliance.Resource{
-		Docker: &compliance.DockerResource{
-			Kind: "info",
+		BaseResource: compliance.BaseResource{
+			Docker: &compliance.DockerResource{
+				Kind: "info",
+			},
 		},
 		Condition: `docker.template("{{- $.RegistryConfig.InsecureRegistryCIDRs | join \",\" -}}") == ""`,
 	}
@@ -284,8 +292,10 @@ func TestDockerVersionCheck(t *testing.T) {
 	assert := assert.New(t)
 
 	resource := compliance.Resource{
-		Docker: &compliance.DockerResource{
-			Kind: "version",
+		BaseResource: compliance.BaseResource{
+			Docker: &compliance.DockerResource{
+				Kind: "version",
+			},
 		},
 		Condition: `docker.template("{{ range $.Components }}{{ if eq .Name \"Engine\" }}{{- .Details.Experimental -}}{{ end }}{{ end }}") == ""`,
 	}

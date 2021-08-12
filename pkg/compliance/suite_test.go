@@ -33,13 +33,17 @@ func TestParseSuite(t *testing.T) {
 				},
 				Rules: []Rule{
 					{
-						ID:           "cis-docker-1",
-						Scope:        RuleScopeList{DockerScope},
-						HostSelector: `"foo" in node.labels`,
+						RuleBase: RuleBase{
+							ID:           "cis-docker-1",
+							Scope:        RuleScopeList{DockerScope},
+							HostSelector: `"foo" in node.labels`,
+						},
 						Resources: []Resource{
 							{
-								File: &File{
-									Path: "/etc/docker/daemon.json",
+								BaseResource: BaseResource{
+									File: &File{
+										Path: "/etc/docker/daemon.json",
+									},
 								},
 								Condition: `file.permissions == 0644`,
 							},

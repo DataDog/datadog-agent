@@ -38,8 +38,10 @@ func (f *kubeApiserverFixture) run(t *testing.T) {
 
 	resource := compliance.Resource{
 		Condition: "_",
-		Custom: &compliance.Custom{
-			Name: "customFunc",
+		BaseResource: compliance.BaseResource{
+			Custom: &compliance.Custom{
+				Name: "customFunc",
+			},
 		},
 	}
 	expr, err := eval.ParseIterable(resource.Condition)

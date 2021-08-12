@@ -34,8 +34,10 @@ func TestAuditCheck(t *testing.T) {
 			name:  "no file rules",
 			rules: []*rule.FileWatchRule{},
 			resource: compliance.Resource{
-				Audit: &compliance.Audit{
-					Path: "/etc/docker/daemon.json",
+				BaseResource: compliance.BaseResource{
+					Audit: &compliance.Audit{
+						Path: "/etc/docker/daemon.json",
+					},
 				},
 				Condition: "audit.enabled",
 			},
@@ -58,8 +60,10 @@ func TestAuditCheck(t *testing.T) {
 				},
 			},
 			resource: compliance.Resource{
-				Audit: &compliance.Audit{
-					Path: "/etc/docker/daemon.json",
+				BaseResource: compliance.BaseResource{
+					Audit: &compliance.Audit{
+						Path: "/etc/docker/daemon.json",
+					},
 				},
 				Condition: `audit.enabled && audit.permissions =~ "w"`,
 			},
@@ -76,8 +80,10 @@ func TestAuditCheck(t *testing.T) {
 		{
 			name: "file missing on the host",
 			resource: compliance.Resource{
-				Audit: &compliance.Audit{
-					Path: "/etc/docker/daemon.json",
+				BaseResource: compliance.BaseResource{
+					Audit: &compliance.Audit{
+						Path: "/etc/docker/daemon.json",
+					},
 				},
 				Condition: `audit.enabled && audit.permissions =~ "w"`,
 			},
@@ -101,8 +107,10 @@ func TestAuditCheck(t *testing.T) {
 				},
 			},
 			resource: compliance.Resource{
-				Audit: &compliance.Audit{
-					Path: `process.flag("docker", "--config-file")`,
+				BaseResource: compliance.BaseResource{
+					Audit: &compliance.Audit{
+						Path: `process.flag("docker", "--config-file")`,
+					},
 				},
 				Condition: `audit.enabled && audit.permissions =~ "r"`,
 			},

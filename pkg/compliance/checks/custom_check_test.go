@@ -42,8 +42,10 @@ func TestNewCustomCheck(t *testing.T) {
 		{
 			name: "wrong resource kind",
 			resource: compliance.Resource{
-				File: &compliance.File{
-					Path: "/etc/bitsy/spider",
+				BaseResource: compliance.BaseResource{
+					File: &compliance.File{
+						Path: "/etc/bitsy/spider",
+					},
 				},
 			},
 			expectError: errors.New("expecting custom resource in custom check"),
@@ -51,15 +53,19 @@ func TestNewCustomCheck(t *testing.T) {
 		{
 			name: "missing check name",
 			resource: compliance.Resource{
-				Custom: &compliance.Custom{},
+				BaseResource: compliance.BaseResource{
+					Custom: &compliance.Custom{},
+				},
 			},
 			expectError: errors.New("missing check name in custom check"),
 		},
 		{
 			name: "allowed empty condition",
 			resource: compliance.Resource{
-				Custom: &compliance.Custom{
-					Name: "check-name",
+				BaseResource: compliance.BaseResource{
+					Custom: &compliance.Custom{
+						Name: "check-name",
+					},
 				},
 			},
 			checkFactory: func(_ string) custom.CheckFunc {
@@ -70,8 +76,10 @@ func TestNewCustomCheck(t *testing.T) {
 		{
 			name: "custom check error",
 			resource: compliance.Resource{
-				Custom: &compliance.Custom{
-					Name: "check-name",
+				BaseResource: compliance.BaseResource{
+					Custom: &compliance.Custom{
+						Name: "check-name",
+					},
 				},
 			},
 			checkFactory: func(_ string) custom.CheckFunc {
@@ -85,8 +93,10 @@ func TestNewCustomCheck(t *testing.T) {
 		{
 			name: "condition expression failure",
 			resource: compliance.Resource{
-				Custom: &compliance.Custom{
-					Name: "check-name",
+				BaseResource: compliance.BaseResource{
+					Custom: &compliance.Custom{
+						Name: "check-name",
+					},
 				},
 				Condition: "~",
 			},
@@ -95,8 +105,10 @@ func TestNewCustomCheck(t *testing.T) {
 		{
 			name: "cannot find check by name",
 			resource: compliance.Resource{
-				Custom: &compliance.Custom{
-					Name: "check-name",
+				BaseResource: compliance.BaseResource{
+					Custom: &compliance.Custom{
+						Name: "check-name",
+					},
 				},
 			},
 			checkFactory: func(_ string) custom.CheckFunc {

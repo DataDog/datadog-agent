@@ -49,6 +49,7 @@ func (i *instance) Vars() VarMap {
 	return i.vars
 }
 
+// GoMap returns a Go map based on the variables of this VarMap
 func (v VarMap) GoMap() map[string]interface{} {
 	return map[string]interface{}(v)
 }

@@ -8,6 +8,7 @@ package compliance
 
 import "fmt"
 
+// RuleBase defines the base fields of a rule in a compliance config
 type RuleBase struct {
 	ID           string        `yaml:"id"`
 	Description  string        `yaml:"description,omitempty"`

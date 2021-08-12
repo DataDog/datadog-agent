@@ -72,8 +72,10 @@ func TestResources(t *testing.T) {
 			name:  "file",
 			input: testResourceFile,
 			expected: Resource{
-				File: &File{
-					Path: `/etc/docker/daemon.json`,
+				BaseResource: BaseResource{
+					File: &File{
+						Path: `/etc/docker/daemon.json`,
+					},
 				},
 				Condition: `file.owner == "root"`,
 			},
@@ -82,8 +84,10 @@ func TestResources(t *testing.T) {
 			name:  "process",
 			input: testResourceProcess,
 			expected: Resource{
-				Process: &Process{
-					Name: "dockerd",
+				BaseResource: BaseResource{
+					Process: &Process{
+						Name: "dockerd",
+					},
 				},
 				Condition: `process.flag("--tlsverify") != ""`,
 			},
@@ -92,15 +96,19 @@ func TestResources(t *testing.T) {
 			name:  "process with fallback",
 			input: testResourceProcessWithFallback,
 			expected: Resource{
-				Process: &Process{
-					Name: "dockerd",
+				BaseResource: BaseResource{
+					Process: &Process{
+						Name: "dockerd",
+					},
 				},
 				Condition: `process.flag("--tlsverify") != ""`,
 				Fallback: &Fallback{
 					Condition: `!process.hasFlag("--tlsverify")`,
 					Resource: Resource{
-						File: &File{
-							Path: `/etc/docker/daemon.json`,
+						BaseResource: BaseResource{
+							File: &File{
+								Path: `/etc/docker/daemon.json`,
+							},
 						},
 						Condition: `file.jq(".tlsverify") == "true"`,
 					},
@@ -111,9 +119,11 @@ func TestResources(t *testing.T) {
 			name:  "command",
 			input: testResourceCommand,
 			expected: Resource{
-				Command: &Command{
-					ShellCmd: &ShellCmd{
-						Run: `mountpoint -- "$(docker info -f '{{ .DockerRootDir }}')"`,
+				BaseResource: BaseResource{
+					Command: &Command{
+						ShellCmd: &ShellCmd{
+							Run: `mountpoint -- "$(docker info -f '{{ .DockerRootDir }}')"`,
+						},
 					},
 				},
 				Condition: `command.exitCode == 0`,
@@ -123,8 +133,10 @@ func TestResources(t *testing.T) {
 			name:  "audit",
 			input: testResourceAudit,
 			expected: Resource{
-				Audit: &Audit{
-					Path: "/usr/bin/dockerd",
+				BaseResource: BaseResource{
+					Audit: &Audit{
+						Path: "/usr/bin/dockerd",
+					},
 				},
 				Condition: `audit.enabled`,
 			},
@@ -133,8 +145,10 @@ func TestResources(t *testing.T) {
 			name:  "group",
 			input: testResourceGroup,
 			expected: Resource{
-				Group: &Group{
-					Name: "docker",
+				BaseResource: BaseResource{
+					Group: &Group{
+						Name: "docker",
+					},
 				},
 				Condition: `"root" in group.users`,
 			},
@@ -144,8 +158,10 @@ func TestResources(t *testing.T) {
 			name:  "docker image",
 			input: testResourceDockerImage,
 			expected: Resource{
-				Docker: &DockerResource{
-					Kind: "image",
+				BaseResource: BaseResource{
+					Docker: &DockerResource{
+						Kind: "image",
+					},
 				},
 				Condition: `docker.template("{{ $.Config.Healthcheck }}") != ""`,
 			},
@@ -160,5 +176,4 @@ func TestResources(t *testing.T) {
 			assert.Equal(t, test.expected, r)
 		})
 	}
-
 }

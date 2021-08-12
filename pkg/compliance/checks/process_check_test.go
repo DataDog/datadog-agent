@@ -57,8 +57,10 @@ func TestProcessCheck(t *testing.T) {
 		{
 			name: "simple case",
 			resource: compliance.Resource{
-				Process: &compliance.Process{
-					Name: "proc1",
+				BaseResource: compliance.BaseResource{
+					Process: &compliance.Process{
+						Name: "proc1",
+					},
 				},
 				Condition: `process.flag("--path") == "foo"`,
 			},
@@ -84,15 +86,19 @@ func TestProcessCheck(t *testing.T) {
 		{
 			name: "fallback case",
 			resource: compliance.Resource{
-				Process: &compliance.Process{
-					Name: "proc1",
+				BaseResource: compliance.BaseResource{
+					Process: &compliance.Process{
+						Name: "proc1",
+					},
 				},
 				Condition: `process.flag("--tlsverify") != ""`,
 				Fallback: &compliance.Fallback{
 					Condition: `!process.hasFlag("--tlsverify")`,
 					Resource: compliance.Resource{
-						Process: &compliance.Process{
-							Name: "proc2",
+						BaseResource: compliance.BaseResource{
+							Process: &compliance.Process{
+								Name: "proc2",
+							},
 						},
 						Condition: `process.hasFlag("--tlsverify")`,
 					},
@@ -124,8 +130,10 @@ func TestProcessCheck(t *testing.T) {
 		{
 			name: "process not found",
 			resource: compliance.Resource{
-				Process: &compliance.Process{
-					Name: "proc1",
+				BaseResource: compliance.BaseResource{
+					Process: &compliance.Process{
+						Name: "proc1",
+					},
 				},
 				Condition: `process.flag("--path") == "foo"`,
 			},
@@ -146,8 +154,10 @@ func TestProcessCheck(t *testing.T) {
 		{
 			name: "argument not found",
 			resource: compliance.Resource{
-				Process: &compliance.Process{
-					Name: "proc1",
+				BaseResource: compliance.BaseResource{
+					Process: &compliance.Process{
+						Name: "proc1",
+					},
 				},
 				Condition: `process.flag("--path") == "foo"`,
 			},
@@ -183,8 +193,10 @@ func TestProcessCheckCache(t *testing.T) {
 	firstContent := processFixture{
 		name: "simple case",
 		resource: compliance.Resource{
-			Process: &compliance.Process{
-				Name: "proc1",
+			BaseResource: compliance.BaseResource{
+				Process: &compliance.Process{
+					Name: "proc1",
+				},
 			},
 			Condition: `process.flag("--path") == "foo"`,
 		},
@@ -213,8 +225,10 @@ func TestProcessCheckCache(t *testing.T) {
 	secondFixture := processFixture{
 		name: "simple case",
 		resource: compliance.Resource{
-			Process: &compliance.Process{
-				Name: "proc1",
+			BaseResource: compliance.BaseResource{
+				Process: &compliance.Process{
+					Name: "proc1",
+				},
 			},
 			Condition: `process.flag("--path") == "foo"`,
 		},

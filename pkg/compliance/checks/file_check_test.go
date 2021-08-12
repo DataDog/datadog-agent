@@ -66,8 +66,10 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "file permissions",
 			resource: compliance.Resource{
-				File: &compliance.File{
-					Path: "/etc/test-permissions.dat",
+				BaseResource: compliance.BaseResource{
+					File: &compliance.File{
+						Path: "/etc/test-permissions.dat",
+					},
 				},
 				Condition: "file.permissions == 0644",
 			},
@@ -87,8 +89,10 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "file permissions (glob)",
 			resource: compliance.Resource{
-				File: &compliance.File{
-					Path: "/etc/*.dat",
+				BaseResource: compliance.BaseResource{
+					File: &compliance.File{
+						Path: "/etc/*.dat",
+					},
 				},
 				Condition: "file.permissions == 0644",
 			},
@@ -111,8 +115,10 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "file user and group",
 			resource: compliance.Resource{
-				File: &compliance.File{
-					Path: "/tmp",
+				BaseResource: compliance.BaseResource{
+					File: &compliance.File{
+						Path: "/tmp",
+					},
 				},
 				Condition: `file.user == "root" && file.group in ["root", "wheel"]`,
 			},
@@ -127,8 +133,10 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "jq(log-driver) - passed",
 			resource: compliance.Resource{
-				File: &compliance.File{
-					Path: "/etc/docker/daemon.json",
+				BaseResource: compliance.BaseResource{
+					File: &compliance.File{
+						Path: "/etc/docker/daemon.json",
+					},
 				},
 				Condition: `file.jq(".\"log-driver\"") == "json-file"`,
 			},
@@ -147,8 +155,10 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "jq(experimental) - failed",
 			resource: compliance.Resource{
-				File: &compliance.File{
-					Path: "/etc/docker/daemon.json",
+				BaseResource: compliance.BaseResource{
+					File: &compliance.File{
+						Path: "/etc/docker/daemon.json",
+					},
 				},
 				Condition: `file.jq(".experimental") == "true"`,
 			},
@@ -167,8 +177,10 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "jq(experimental) and path expression",
 			resource: compliance.Resource{
-				File: &compliance.File{
-					Path: `process.flag("dockerd", "--config-file")`,
+				BaseResource: compliance.BaseResource{
+					File: &compliance.File{
+						Path: `process.flag("dockerd", "--config-file")`,
+					},
 				},
 				Condition: `file.jq(".experimental") == "false"`,
 			},
@@ -189,8 +201,10 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "jq(experimental) and path expression - empty path",
 			resource: compliance.Resource{
-				File: &compliance.File{
-					Path: `process.flag("dockerd", "--config-file")`,
+				BaseResource: compliance.BaseResource{
+					File: &compliance.File{
+						Path: `process.flag("dockerd", "--config-file")`,
+					},
 				},
 				Condition: `file.jq(".experimental") == "false"`,
 			},
@@ -203,8 +217,10 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "jq(experimental) and path expression - wrong type",
 			resource: compliance.Resource{
-				File: &compliance.File{
-					Path: `process.flag("dockerd", "--config-file")`,
+				BaseResource: compliance.BaseResource{
+					File: &compliance.File{
+						Path: `process.flag("dockerd", "--config-file")`,
+					},
 				},
 				Condition: `file.jq(".experimental") == "false"`,
 			},
@@ -217,8 +233,10 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "jq(experimental) and path expression - expression failed",
 			resource: compliance.Resource{
-				File: &compliance.File{
-					Path: `process.unknown()`,
+				BaseResource: compliance.BaseResource{
+					File: &compliance.File{
+						Path: `process.unknown()`,
+					},
 				},
 				Condition: `file.jq(".experimental") == "false"`,
 			},
@@ -231,8 +249,10 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "jq(ulimits)",
 			resource: compliance.Resource{
-				File: &compliance.File{
-					Path: "/etc/docker/daemon.json",
+				BaseResource: compliance.BaseResource{
+					File: &compliance.File{
+						Path: "/etc/docker/daemon.json",
+					},
 				},
 				Condition: `file.jq(".[\"default-ulimits\"].nofile.Hard") == "64000"`,
 			},
@@ -251,8 +271,10 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "yaml(apiVersion)",
 			resource: compliance.Resource{
-				File: &compliance.File{
-					Path: "/etc/pod.yaml",
+				BaseResource: compliance.BaseResource{
+					File: &compliance.File{
+						Path: "/etc/pod.yaml",
+					},
 				},
 				Condition: `file.yaml(".apiVersion") == "v1"`,
 			},
@@ -271,8 +293,10 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "regexp",
 			resource: compliance.Resource{
-				File: &compliance.File{
-					Path: "/proc/mounts",
+				BaseResource: compliance.BaseResource{
+					File: &compliance.File{
+						Path: "/proc/mounts",
+					},
 				},
 				Condition: `file.regexp("[a-zA-Z0-9-_/]+ /boot/efi [a-zA-Z0-9-_/]+") != ""`,
 			},

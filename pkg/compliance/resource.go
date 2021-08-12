@@ -34,6 +34,7 @@ const (
 	KindCustom = ResourceKind("custom")
 )
 
+// BaseResource describes the base fields of resource types
 type BaseResource struct {
 	File          *File               `yaml:"file,omitempty"`
 	Process       *Process            `yaml:"process,omitempty"`

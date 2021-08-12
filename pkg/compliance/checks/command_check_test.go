@@ -67,10 +67,12 @@ func TestCommandCheck(t *testing.T) {
 		{
 			name: "binary run",
 			resource: compliance.Resource{
-				Command: &compliance.Command{
-					BinaryCmd: &compliance.BinaryCmd{
-						Name: "myCommand",
-						Args: []string{"--foo=bar", "--baz"},
+				BaseResource: compliance.BaseResource{
+					Command: &compliance.Command{
+						BinaryCmd: &compliance.BinaryCmd{
+							Name: "myCommand",
+							Args: []string{"--foo=bar", "--baz"},
+						},
 					},
 				},
 				Condition: `command.stdout == "output"`,
@@ -90,9 +92,11 @@ func TestCommandCheck(t *testing.T) {
 		{
 			name: "shell run",
 			resource: compliance.Resource{
-				Command: &compliance.Command{
-					ShellCmd: &compliance.ShellCmd{
-						Run: "my command --foo=bar --baz",
+				BaseResource: compliance.BaseResource{
+					Command: &compliance.Command{
+						ShellCmd: &compliance.ShellCmd{
+							Run: "my command --foo=bar --baz",
+						},
 					},
 				},
 				Condition: `command.stdout == "output"`,
@@ -112,12 +116,14 @@ func TestCommandCheck(t *testing.T) {
 		{
 			name: "custom shell run",
 			resource: compliance.Resource{
-				Command: &compliance.Command{
-					ShellCmd: &compliance.ShellCmd{
-						Run: "my command --foo=bar --baz",
-						Shell: &compliance.BinaryCmd{
-							Name: "zsh",
-							Args: []string{"-someoption", "-c"},
+				BaseResource: compliance.BaseResource{
+					Command: &compliance.Command{
+						ShellCmd: &compliance.ShellCmd{
+							Run: "my command --foo=bar --baz",
+							Shell: &compliance.BinaryCmd{
+								Name: "zsh",
+								Args: []string{"-someoption", "-c"},
+							},
 						},
 					},
 				},
@@ -138,10 +144,12 @@ func TestCommandCheck(t *testing.T) {
 		{
 			name: "execution failure",
 			resource: compliance.Resource{
-				Command: &compliance.Command{
-					BinaryCmd: &compliance.BinaryCmd{
-						Name: "myCommand",
-						Args: []string{"--foo=bar", "--baz"},
+				BaseResource: compliance.BaseResource{
+					Command: &compliance.Command{
+						BinaryCmd: &compliance.BinaryCmd{
+							Name: "myCommand",
+							Args: []string{"--foo=bar", "--baz"},
+						},
 					},
 				},
 				Condition: `command.stdout == "output"`,
@@ -158,10 +166,12 @@ func TestCommandCheck(t *testing.T) {
 		{
 			name: "non-zero return code",
 			resource: compliance.Resource{
-				Command: &compliance.Command{
-					BinaryCmd: &compliance.BinaryCmd{
-						Name: "myCommand",
-						Args: []string{"--foo=bar", "--baz"},
+				BaseResource: compliance.BaseResource{
+					Command: &compliance.Command{
+						BinaryCmd: &compliance.BinaryCmd{
+							Name: "myCommand",
+							Args: []string{"--foo=bar", "--baz"},
+						},
 					},
 				},
 				Condition: `command.exitCode == 2`,
