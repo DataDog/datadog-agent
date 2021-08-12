@@ -3,13 +3,16 @@
 package util
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"path"
 	"runtime"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/vishvananda/netns"
+	"golang.org/x/sys/unix"
 )
 
 // WithRootNS executes a function within root network namespace and then switch back
@@ -59,7 +62,9 @@ func GetNetNamespaces(procRoot string) ([]netns.NsHandle, error) {
 	err := WithAllProcs(procRoot, func(pid int) error {
 		ns, err := netns.GetFromPath(path.Join(procRoot, fmt.Sprintf("%d/ns/net", pid)))
 		if err != nil {
-			log.Errorf("error while reading %s: %s", path.Join(procRoot, fmt.Sprintf("%d/ns/net", pid)), err)
+			if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, unix.ENOENT) {
+				log.Errorf("error while reading %s: %s", path.Join(procRoot, fmt.Sprintf("%d/ns/net", pid)), err)
+			}
 			return nil
 		}
 
