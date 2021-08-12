@@ -139,10 +139,24 @@ func PrintConfig(w io.Writer, c integration.Config) {
 		for _, id := range c.ADIdentifiers {
 			fmt.Fprintln(w, fmt.Sprintf("* %s", color.CyanString(id)))
 		}
+		printContainerExclusionRulesInfo(w, &c)
 	}
 	if c.NodeName != "" {
 		state := fmt.Sprintf("dispatched to %s", c.NodeName)
 		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("State"), color.CyanString(state)))
 	}
 	fmt.Fprintln(w, "===")
+}
+
+func printContainerExclusionRulesInfo(w io.Writer, c *integration.Config) {
+	var msg string
+	if c.IsCheckConfig() && c.MetricsExcluded {
+		msg = "This configuration matched a metrics container-exclusion rule, so it will not be run by the Agent"
+	} else if c.IsLogConfig() && c.LogsExcluded {
+		msg = "This configuration matched a logs container-exclusion rule, so it will not be run by the Agent"
+	}
+
+	if msg != "" {
+		fmt.Fprintln(w, fmt.Sprintf("%s", color.BlueString(msg)))
+	}
 }
