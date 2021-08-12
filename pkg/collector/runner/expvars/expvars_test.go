@@ -34,7 +34,7 @@ func getRunnerExpvarMap(t require.TestingT) *expvar.Map {
 func getRunningChecksExpvarMap(t require.TestingT) *expvar.Map {
 	runnerMap := getRunnerExpvarMap(t)
 
-	runningChecksExpvar := runnerMap.Get("running")
+	runningChecksExpvar := runnerMap.Get("Running")
 	require.NotNil(t, runningChecksExpvar)
 
 	return runningChecksExpvar.(*expvar.Map)

@@ -15,12 +15,14 @@ import (
 )
 
 const (
+	// Top-level expvar (the convention for them is that they are lowercase)
+	runnerExpvarKey = "runner"
+
 	checksExpvarKey        = "Checks"
 	errorsExpvarKey        = "Errors"
 	runningChecksExpvarKey = "RunningChecks"
-	runnerExpvarKey        = "runner"
 	runsExpvarKey          = "Runs"
-	runningExpvarKey       = "running"
+	runningExpvarKey       = "Running"
 	warningsExpvarKey      = "Warnings"
 	workersExpvarKey       = "Workers"
 )
