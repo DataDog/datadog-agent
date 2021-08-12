@@ -94,8 +94,7 @@ func initRuntimeSettings() {
 }
 
 // StartRuntimeSettingRPCService starts up a runtime setting rpc service meant to be consumed by a ProcessAgentRuntimeConfigClient.
-// It defaults to port 5053.
-func StartRuntimeSettingRPCService() error {
+func StartRuntimeSettingRPCService(port string) error {
 	initRuntimeSettings()
 
 	svc := &RuntimeSettingRPCService{}
@@ -105,7 +104,6 @@ func StartRuntimeSettingRPCService() error {
 	}
 	rpc.HandleHTTP()
 
-	port := ddconfig.Datadog.GetString("process_config.config_port")
 	l, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		return err

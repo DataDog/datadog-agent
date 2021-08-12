@@ -207,7 +207,8 @@ func runAgent(exit chan struct{}) {
 		return
 	}
 
-	if err = runtime_config.StartRuntimeSettingRPCService(); err != nil {
+	rpcPort := ddconfig.Datadog.GetString("process_config.config_port")
+	if err = runtime_config.StartRuntimeSettingRPCService(rpcPort); err != nil {
 		_ = log.Error("Failed to start runtime setting service:", err)
 
 	}
