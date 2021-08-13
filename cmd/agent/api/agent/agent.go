@@ -106,6 +106,12 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// remove the server_timeout for this connection, as generating a flare can
+	// take some time
+	conn := GetConnection(r)
+	_ = conn.SetDeadline(time.Time{})
+	_ = conn.SetWriteDeadline(time.Time{})
+
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
 		logFile = common.DefaultLogFile
