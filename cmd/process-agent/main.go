@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/commands"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
-	"github.com/DataDog/datadog-agent/cmd/process-agent/runtime_config"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/runtimecfg"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/spf13/cobra"
@@ -15,8 +15,10 @@ import (
 )
 
 var (
-	RootCmd = &cobra.Command{
+	rootCmd = &cobra.Command{
 		Run: func(_ *cobra.Command, _ []string) {
+			flag.Parse()
+
 			exit := make(chan struct{})
 
 			// Invoke the Agent
@@ -26,12 +28,13 @@ var (
 )
 
 func setupConfigClient() (settings.Client, error) {
+	flag.Parse()
 	cfg := config.NewDefaultAgentConfig(false)
 
-	if err := cfg.LoadProcessYamlConfig(""); err != nil {
+	if err := cfg.LoadProcessYamlConfig(opts.configPath); err != nil {
 		return nil, err
 	}
-	return runtime_config.NewProcessAgentRuntimeConfigClient(cfg.RuntimeConfigPort())
+	return runtimecfg.NewProcessAgentRuntimeConfigClient(cfg.RuntimeConfigPort())
 }
 
 func init() {
@@ -47,13 +50,13 @@ func init() {
 	flag.BoolVar(&opts.info, "info", false, "Show info about running process agent and exit")
 	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
 	flag.StringVar(&opts.check, "check", "", "Run a specific check and print the results. Choose from: process, connections, realtime")
-	flag.Parse()
 
-	RootCmd.AddCommand(commands.Config(setupConfigClient))
+	rootCmd.AddCommand(commands.Config(setupConfigClient))
+
 }
 
 func main() {
-	err := RootCmd.Execute()
+	err := rootCmd.Execute()
 	if err != nil {
 		fmt.Println(err)
 	}

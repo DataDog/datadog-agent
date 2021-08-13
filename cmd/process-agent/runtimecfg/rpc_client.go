@@ -1,4 +1,4 @@
-package runtime_config
+package runtimecfg
 
 import (
 	"net/rpc"
@@ -21,22 +21,32 @@ func NewProcessAgentRuntimeConfigClient(port string) (*ProcessAgentRuntimeConfig
 	return &ProcessAgentRuntimeConfigClient{rpcClient}, nil
 }
 
+// Get retrieves the current value of a runtime setting from a running config client
 func (p *ProcessAgentRuntimeConfigClient) Get(key string) (result interface{}, err error) {
 	err = p.rpcClient.Call("RuntimeSettingRPCService.Get", key, &result)
 	return
 }
 
+// Set assigns a runtime setting to a new value by calling a running config client
+// It also returns whether the value you tried to set is hidden since this is required by the
+// settings.Client interface.
 func (p *ProcessAgentRuntimeConfigClient) Set(key string, value string) (hidden bool, err error) {
 	err = p.rpcClient.Call("RuntimeSettingRPCService.Set", SetArg{key, value}, &hidden)
 	return
 }
 
+// List retrieves all the runtime settings that the RPC Server understands. It lists their keys as well as description,
+// and if they are hidden.
 func (p *ProcessAgentRuntimeConfigClient) List() (map[string]settings.RuntimeSettingResponse, error) {
 	result := make(map[string]settings.RuntimeSettingResponse)
 	err := p.rpcClient.Call("RuntimeSettingRPCService.List", struct{}{}, &result)
 	return result, err
 }
 
+// FullConfig lists the entire config in the process_config namespace.
+// These settings reflect the config file that has been loaded at the start of the agent,
+// and may not necessarily reflect runtime commands.
+// As an added bonus, FullConfig's output should be valid yaml that can be loaded as a config file.
 func (p *ProcessAgentRuntimeConfigClient) FullConfig() (string, error) {
 	var result string
 	err := p.rpcClient.Call("RuntimeSettingRPCService.FullConfig", struct{}{}, &result)

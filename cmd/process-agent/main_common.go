@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/process-agent/runtime_config"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/runtimecfg"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
@@ -208,7 +208,7 @@ func runAgent(exit chan struct{}) {
 	}
 
 	rpcPort := ddconfig.Datadog.GetString("process_config.config_port")
-	if err = runtime_config.StartRuntimeSettingRPCService(rpcPort); err != nil {
+	if err = runtimecfg.StartRuntimeSettingRPCService(rpcPort); err != nil {
 		_ = log.Error("Failed to start runtime setting service:", err)
 
 	}
