@@ -32,7 +32,7 @@ func init() {
 }
 
 // NewEnvironmentListener creates an EnvironmentListener
-func NewEnvironmentListener() (ServiceListener, error) {
+func NewEnvironmentListener(discoveryConfigs []integration.Data) (ServiceListener, error) {
 	return &EnvironmentListener{}, nil
 }
 

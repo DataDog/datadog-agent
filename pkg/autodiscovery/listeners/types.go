@@ -49,7 +49,7 @@ type ServiceListener interface {
 }
 
 // ServiceListenerFactory builds a service listener
-type ServiceListenerFactory func() (ServiceListener, error)
+type ServiceListenerFactory func([]integration.Data) (ServiceListener, error)
 
 // ServiceListenerFactories holds the registered factories
 var ServiceListenerFactories = make(map[string]ServiceListenerFactory)

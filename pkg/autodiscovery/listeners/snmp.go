@@ -71,7 +71,7 @@ type snmpJob struct {
 }
 
 // NewSNMPListener creates a SNMPListener
-func NewSNMPListener() (ServiceListener, error) {
+func NewSNMPListener(discoveryConfigs []integration.Data) (ServiceListener, error) {
 	snmpConfig, err := snmp.NewListenerConfig()
 	if err != nil {
 		return nil, err

@@ -282,9 +282,11 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 		log.Warnf("reading config file %v: %v\n", fpath, strictErr)
 	}
 
+	//log.Warnf("[DEV] cf: %v", cf)
+
 	// If no valid instances were found & this is neither a metrics file, nor a logs file
 	// this is not a valid configuration file
-	if cf.MetricConfig == nil && cf.LogsConfig == nil && len(cf.Instances) < 1 {
+	if cf.MetricConfig == nil && cf.LogsConfig == nil && cf.DiscoveryConfig == nil && len(cf.Instances) < 1 {
 		return config, errors.New("Configuration file contains no valid instances")
 	}
 

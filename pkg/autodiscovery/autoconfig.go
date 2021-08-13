@@ -359,8 +359,18 @@ func (ac *AutoConfig) initListenerCandidates() bool {
 	ac.m.Lock()
 	defer ac.m.Unlock()
 
+	configs := ac.GetAllConfigs()
+
 	for name, factory := range ac.listenerCandidates {
-		listener, err := factory()
+		var listenerConfigs []integration.Data
+		for _, intConfig := range configs {
+			if name != intConfig.Name && len(intConfig.DiscoveryConfig) == 0 {
+				continue
+			}
+			listenerConfigs = append(listenerConfigs, intConfig.DiscoveryConfig)
+			log.Warnf("[DEV] config: %v", intConfig)
+		}
+		listener, err := factory(listenerConfigs)
 		switch {
 		case err == nil:
 			// Init successful, let's start listening

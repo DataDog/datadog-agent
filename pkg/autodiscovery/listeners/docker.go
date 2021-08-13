@@ -67,7 +67,7 @@ func init() {
 }
 
 // NewDockerListener creates a client connection to Docker and instantiate a DockerListener with it
-func NewDockerListener() (ServiceListener, error) {
+func NewDockerListener(discoveryConfigs []integration.Data) (ServiceListener, error) {
 	d, err := docker.GetDockerUtil()
 	if err != nil {
 		return nil, err

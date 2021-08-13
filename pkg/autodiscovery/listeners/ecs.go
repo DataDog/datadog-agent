@@ -60,7 +60,7 @@ func init() {
 }
 
 // NewECSListener creates an ECSListener
-func NewECSListener() (ServiceListener, error) {
+func NewECSListener(discoveryConfigs []integration.Data) (ServiceListener, error) {
 	client, err := ecsmeta.V2()
 	if err != nil {
 		log.Debugf("error while initializing ECS metadata V2 client: %s", err)

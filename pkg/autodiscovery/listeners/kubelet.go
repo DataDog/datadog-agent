@@ -80,7 +80,7 @@ func init() {
 	Register("kubelet", NewKubeletListener)
 }
 
-func NewKubeletListener() (ServiceListener, error) {
+func NewKubeletListener(discoveryConfigs []integration.Data) (ServiceListener, error) {
 	watcher, err := kubelet.NewPodWatcher(15*time.Second, false)
 	if err != nil {
 		return nil, err

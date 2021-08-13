@@ -8,10 +8,8 @@ package snmp
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"hash/fnv"
 	"net"
-	"path/filepath"
 	"reflect"
 	"sort"
 	"strconv"
