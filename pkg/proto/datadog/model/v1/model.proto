@@ -16,10 +16,10 @@ message HostnameReply {
 
 
 // Dogstatsd capture types
-
 message CaptureTriggerRequest {
     string duration = 1;
-    bool compressed = 2;
+    string path = 2;
+    bool compressed = 3;
 }
 
 message CaptureTriggerResponse {

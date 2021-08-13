@@ -63,10 +63,6 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
         syscall->rename.target_file.flags |= UPPER_LAYER;
     }
 
-    if (filter_syscall(syscall, rename_approvers)) {
-        return mark_as_discarded(syscall);
-    }
-
     // use src_dentry as target inode is currently empty and the target file will
     // have the src inode anyway
     set_file_inode(src_dentry, &syscall->rename.target_file, 1);
@@ -78,6 +74,11 @@ int kprobe__vfs_rename(struct pt_regs *ctx) {
     u64 inode = get_dentry_ino(target_dentry);
     if (inode) {
         invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, inode, 1);
+    }
+
+    // always return after any invalidate_inode call
+    if (filter_syscall(syscall, rename_approvers)) {
+        return mark_as_discarded(syscall);
     }
 
     // If we are discarded, we still want to invalidate the inode

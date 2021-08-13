@@ -55,7 +55,7 @@ func TestOpenBasenameApproverFilterERPCDentryResolution(t *testing.T) {
 		Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/%s"`, basename),
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true, disableMapDentryResolution: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{disableMapDentryResolution: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestOpenBasenameApproverFilterMapDentryResolution(t *testing.T) {
 		Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/%s"`, basename),
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true, disableERPCDentryResolution: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{disableERPCDentryResolution: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +160,7 @@ func TestOpenLeafDiscarderFilter(t *testing.T) {
 		Expression: `open.filename =~ "{{.Root}}/test-obc-1" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +208,7 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 		Expression: `open.file.path =~ "/usr/local/test-obd-2" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,13 +250,93 @@ func TestOpenParentDiscarderFilter(t *testing.T) {
 	}
 }
 
+func TestDiscarderFilterMask(t *testing.T) {
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_mask_open_rule",
+			Expression: `open.file.path == "{{.Root}}/test-mask"`,
+		},
+		{
+			ID:         "test_mask_utimes_rule",
+			Expression: `utimes.file.path =~ "{{.Root}}/test-mask-aaa-*"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	// ensure that all the previous discarder are removed
+	test.probe.FlushDiscarders()
+
+	t.Run("mask", ifSyscallSupported("SYS_UTIME", func(t *testing.T, syscallNB uintptr) {
+		var testFile string
+		var testFilePtr unsafe.Pointer
+		var err error
+
+		defer os.Remove(testFile)
+
+		// not check that we still have the open allowed
+		if err := test.GetSignal(t, func() error {
+			testFile, testFilePtr, err = test.CreateWithOptions("test-mask", 98, 99, 0o447)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return nil
+		}, func(event *probe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_mask_open_rule")
+		}); err != nil {
+			t.Error(err)
+		}
+
+		utimbuf := &syscall.Utimbuf{
+			Actime:  123,
+			Modtime: 456,
+		}
+
+		if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
+			t.Fatal(errno)
+		}
+		if err := waitForProbeEvent(test, nil, "utimes.file.path", testFile, model.FileUtimesEventType); err != nil {
+			t.Error("shoud get a utimes event")
+		}
+
+		// wait a bit and ensure utimes event has been discarded
+		time.Sleep(2 * time.Second)
+
+		if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
+			t.Fatal(errno)
+		}
+		if err := waitForProbeEvent(test, nil, "utimes.file.path", testFile, model.FileUtimesEventType); err == nil {
+			t.Error("shoudn't get a utimes event")
+		}
+
+		// not check that we still have the open allowed
+		if err := test.GetSignal(t, func() error {
+			f, err := os.OpenFile(testFile, os.O_CREATE, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.Close()
+
+			return nil
+		}, func(event *probe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_mask_open_rule")
+		}); err != nil {
+			t.Error(err)
+		}
+	}))
+}
+
 func TestOpenFlagsApproverFilter(t *testing.T) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.flags & (O_SYNC | O_NOCTTY) > 0`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,7 +389,7 @@ func TestOpenProcessPidDiscarder(t *testing.T) {
 		Expression: `open.file.path =="{{.Root}}/test-oba-1" && process.file.path == "/bin/cat"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -362,7 +442,7 @@ func TestDiscarderRetentionFilter(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{testDir: testDrive.Root(), wantProbeEvents: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{testDir: testDrive.Root()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -386,11 +466,11 @@ func TestDiscarderRetentionFilter(t *testing.T) {
 	defer syscall.Close(fd)
 	defer os.Remove(testFile)
 
-	if err := waitForOpenDiscarder(test, testFile); err != nil {
+	if err = waitForOpenDiscarder(test, testFile); err != nil {
 		inode := getInode(t, testFile)
 		parentInode := getInode(t, path.Dir(testFile))
 
-		t.Fatalf("not able to get the expected event inode: %d, parent inode: %d", inode, parentInode)
+		t.Fatalf("event inode: %d, parent inode: %d, error: %v", inode, parentInode, err)
 	}
 
 	if err := waitForOpenProbeEvent(test, func() error {

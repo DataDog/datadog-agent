@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cloudfoundry-community/go-cfclient"
@@ -40,6 +41,8 @@ const (
 	OrganizationNameKey = "organization_name"
 	// OrganizationIDKey is the name of the key containing the organization GUID in the env var VCAP_APPLICATION
 	OrganizationIDKey = "organization_id"
+	// AutodiscoveryTagsMetaPrefix is the prefix of labels/annotations to look for to tag containers
+	AutodiscoveryTagsMetaPrefix = "tags.datadoghq.com/"
 )
 
 var (
@@ -91,7 +94,7 @@ func (id ADIdentifier) GetDesiredLRP() *DesiredLRP {
 func (id ADIdentifier) String() string {
 	if id.actualLRP != nil {
 		// For container checks, use processGUID to have 1 check per container, even during rolling redeployments
-		return fmt.Sprintf("%s/%s/%d", id.desiredLRP.ProcessGUID, id.svcName, id.actualLRP.Index)
+		return fmt.Sprintf("%s/%s/%s", id.desiredLRP.ProcessGUID, id.svcName, id.actualLRP.InstanceGUID)
 	}
 	// For non container checks, use appGUID to have one check per service, even during rolling redeployments
 	return fmt.Sprintf("%s/%s", id.desiredLRP.AppGUID, id.svcName)
@@ -120,17 +123,21 @@ type DesiredLRP struct {
 	ProcessGUID        string
 	SpaceGUID          string
 	SpaceName          string
-	TagsFromEnv        []string
+	CustomTags         []string
 }
 
 // CFApp carries the necessary data about a CF App obtained from the CC API
 type CFApp struct {
 	Name string
+	Tags []string
 }
 
 func CFAppFromV3App(app *cfclient.V3App) *CFApp {
+	tags := extractTagsFromAppMeta(app.Metadata.Labels)
+	tags = append(tags, extractTagsFromAppMeta(app.Metadata.Annotations)...)
 	return &CFApp{
 		Name: app.Name,
+		Tags: tags,
 	}
 }
 
@@ -183,7 +190,7 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 		}
 	}
 
-	var tagsFromEnv []string
+	var customTags []string
 	var err error
 	for _, envVars := range actionEnvs {
 		for _, ev := range envVars {
@@ -208,7 +215,7 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 			}
 
 			if isAllowedTag(ev.Name, includeList, excludeList) {
-				tagsFromEnv = append(tagsFromEnv, fmt.Sprintf("%s:%s", ev.Name, ev.Value))
+				customTags = append(customTags, fmt.Sprintf("%s:%s", ev.Name, ev.Value))
 			}
 		}
 		if len(envAD) > 0 {
@@ -234,13 +241,14 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 	appName := extractVA[ApplicationNameKey]
 	appGUID := extractVA[ApplicationIDKey]
 
-	// try to get updated app name from CC API in case of app renames
+	// try to get updated app name from CC API in case of app renames, as well as tags extracted from app metadata
 	ccCache, err := GetGlobalCCCache()
 	if err == nil {
 		if ccApp, err := ccCache.GetApp(appGUID); err != nil {
 			log.Debugf("Could not find app %s in cc cache", appGUID)
 		} else {
 			appName = ccApp.Name
+			customTags = append(customTags, ccApp.Tags...)
 		}
 	} else {
 		log.Debugf("Could not get Cloud Foundry CCAPI cache: %v", err)
@@ -257,7 +265,7 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 		ProcessGUID:        bbsLRP.ProcessGuid,
 		SpaceGUID:          extractVA[SpaceIDKey],
 		SpaceName:          extractVA[SpaceNameKey],
-		TagsFromEnv:        tagsFromEnv,
+		CustomTags:         customTags,
 	}
 	return d
 }
@@ -279,7 +287,7 @@ func (dlrp *DesiredLRP) GetTagsFromDLRP() []string {
 			tags = append(tags, fmt.Sprintf("%s:%s", k, v))
 		}
 	}
-	tags = append(tags, dlrp.TagsFromEnv...)
+	tags = append(tags, dlrp.CustomTags...)
 	sort.Strings(tags)
 	return tags
 }
@@ -378,4 +386,13 @@ func getVcapApplicationMap(vcap string) (map[string]string, error) {
 	}
 
 	return res, nil
+}
+
+func extractTagsFromAppMeta(meta map[string]string) (tags []string) {
+	for k, v := range meta {
+		if strings.HasPrefix(k, AutodiscoveryTagsMetaPrefix) {
+			tags = append(tags, fmt.Sprintf("%s:%s", strings.TrimPrefix(k, AutodiscoveryTagsMetaPrefix), v))
+		}
+	}
+	return
 }

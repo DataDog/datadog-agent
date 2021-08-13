@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	orchutil "github.com/DataDog/datadog-agent/pkg/util/orchestrator"
 
 	v1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -24,7 +24,7 @@ import (
 
 func extractDeployment(d *v1.Deployment) *model.Deployment {
 	deploy := model.Deployment{
-		Metadata: orchestrator.ExtractMetadata(&d.ObjectMeta),
+		Metadata: orchutil.ExtractMetadata(&d.ObjectMeta),
 	}
 	// spec
 	deploy.ReplicasDesired = 1 // default
@@ -58,7 +58,7 @@ func extractDeployment(d *v1.Deployment) *model.Deployment {
 
 func extractJob(j *batchv1.Job) *model.Job {
 	job := model.Job{
-		Metadata: orchestrator.ExtractMetadata(&j.ObjectMeta),
+		Metadata: orchutil.ExtractMetadata(&j.ObjectMeta),
 		Spec:     &model.JobSpec{},
 		Status: &model.JobStatus{
 			Active:           j.Status.Active,
@@ -99,7 +99,7 @@ func extractJob(j *batchv1.Job) *model.Job {
 
 func extractCronJob(cj *batchv1beta1.CronJob) *model.CronJob {
 	cronJob := model.CronJob{
-		Metadata: orchestrator.ExtractMetadata(&cj.ObjectMeta),
+		Metadata: orchutil.ExtractMetadata(&cj.ObjectMeta),
 		Spec: &model.CronJobSpec{
 			ConcurrencyPolicy: string(cj.Spec.ConcurrencyPolicy),
 			Schedule:          cj.Spec.Schedule,
@@ -140,7 +140,7 @@ func extractCronJob(cj *batchv1beta1.CronJob) *model.CronJob {
 
 func extractStatefulSet(sts *v1.StatefulSet) *model.StatefulSet {
 	statefulSet := model.StatefulSet{
-		Metadata: orchestrator.ExtractMetadata(&sts.ObjectMeta),
+		Metadata: orchutil.ExtractMetadata(&sts.ObjectMeta),
 		Spec: &model.StatefulSetSpec{
 			ServiceName:         sts.Spec.ServiceName,
 			PodManagementPolicy: string(sts.Spec.PodManagementPolicy),
@@ -173,7 +173,7 @@ func extractStatefulSet(sts *v1.StatefulSet) *model.StatefulSet {
 
 func extractDaemonSet(ds *v1.DaemonSet) *model.DaemonSet {
 	daemonSet := model.DaemonSet{
-		Metadata: orchestrator.ExtractMetadata(&ds.ObjectMeta),
+		Metadata: orchutil.ExtractMetadata(&ds.ObjectMeta),
 		Spec: &model.DaemonSetSpec{
 			MinReadySeconds: ds.Spec.MinReadySeconds,
 		},
@@ -208,7 +208,7 @@ func extractDaemonSet(ds *v1.DaemonSet) *model.DaemonSet {
 
 func extractReplicaSet(rs *v1.ReplicaSet) *model.ReplicaSet {
 	replicaSet := model.ReplicaSet{
-		Metadata: orchestrator.ExtractMetadata(&rs.ObjectMeta),
+		Metadata: orchutil.ExtractMetadata(&rs.ObjectMeta),
 	}
 	// spec
 	replicaSet.ReplicasDesired = 1 // default
@@ -232,7 +232,7 @@ func extractReplicaSet(rs *v1.ReplicaSet) *model.ReplicaSet {
 // a Kubernetes service object.
 func extractService(s *corev1.Service) *model.Service {
 	message := &model.Service{
-		Metadata: orchestrator.ExtractMetadata(&s.ObjectMeta),
+		Metadata: orchutil.ExtractMetadata(&s.ObjectMeta),
 		Spec: &model.ServiceSpec{
 			ExternalIPs:              s.Spec.ExternalIPs,
 			ExternalTrafficPolicy:    string(s.Spec.ExternalTrafficPolicy),
@@ -366,7 +366,7 @@ func extractJobConditionMessage(conditions []batchv1.JobCondition) string {
 
 func extractNode(n *corev1.Node) *model.Node {
 	msg := &model.Node{
-		Metadata:      orchestrator.ExtractMetadata(&n.ObjectMeta),
+		Metadata:      orchutil.ExtractMetadata(&n.ObjectMeta),
 		PodCIDR:       n.Spec.PodCIDR,
 		PodCIDRs:      n.Spec.PodCIDRs,
 		ProviderID:    n.Spec.ProviderID,

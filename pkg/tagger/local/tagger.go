@@ -35,18 +35,16 @@ const (
 // Tagger instead of instantiating one.
 type Tagger struct {
 	sync.RWMutex
-	store           *tagStore
-	candidates      map[string]collectors.CollectorFactory
-	pullers         map[string]collectors.Puller
-	streamers       map[string]collectors.Streamer
-	fetchers        map[string]collectors.Fetcher
-	infoIn          chan []*collectors.TagInfo
-	pullTicker      *time.Ticker
-	pruneTicker     *time.Ticker
-	retryTicker     *time.Ticker
-	telemetryTicker *time.Ticker
-	stop            chan bool
-	health          *health.Handle
+	candidates map[string]collectors.CollectorFactory
+	pullers    map[string]collectors.Puller
+	streamers  map[string]collectors.Streamer
+	fetchers   map[string]collectors.Fetcher
+
+	store       *tagStore
+	retryTicker *time.Ticker
+
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 type collectorReply struct {
@@ -60,18 +58,17 @@ type collectorReply struct {
 // You are probably looking for tagger.Tag() using the global instance
 // instead of creating your own.
 func NewTagger(catalog collectors.Catalog) *Tagger {
+	ctx, cancel := context.WithCancel(context.TODO())
 	t := &Tagger{
-		store:           newTagStore(),
-		candidates:      make(map[string]collectors.CollectorFactory),
-		pullers:         make(map[string]collectors.Puller),
-		streamers:       make(map[string]collectors.Streamer),
-		fetchers:        make(map[string]collectors.Fetcher),
-		infoIn:          make(chan []*collectors.TagInfo, 5),
-		pullTicker:      time.NewTicker(5 * time.Second),
-		pruneTicker:     time.NewTicker(1 * time.Minute),
-		retryTicker:     time.NewTicker(30 * time.Second),
-		telemetryTicker: time.NewTicker(1 * time.Minute),
-		stop:            make(chan bool),
+		candidates: make(map[string]collectors.CollectorFactory),
+		pullers:    make(map[string]collectors.Puller),
+		streamers:  make(map[string]collectors.Streamer),
+		fetchers:   make(map[string]collectors.Fetcher),
+
+		store: newTagStore(),
+
+		ctx:    ctx,
+		cancel: cancel,
 	}
 
 	// Populate collector candidate list from catalog
@@ -87,22 +84,27 @@ func NewTagger(catalog collectors.Catalog) *Tagger {
 // for this host. It then starts the collection logic and is ready for
 // requests.
 func (t *Tagger) Init() error {
-	// Only register the health check when the tagger is started
-	t.health = health.RegisterLiveness("tagger")
+	t.retryTicker = time.NewTicker(30 * time.Second)
 
-	// TODO(deps injection): add a context in the tagger struct to how the restart if the tagger
-	t.startCollectors(context.TODO())
-	go t.run() //nolint:errcheck
-	go t.pull(context.TODO())
+	t.startCollectors(t.ctx)
+
+	go t.runPuller(t.ctx)
+	go t.store.run(t.ctx)
+
+	go t.run()
 
 	return nil
 }
 
-func (t *Tagger) run() error {
-	ctx, cancel := context.WithCancel(context.Background())
+func (t *Tagger) run() {
 	for {
 		select {
-		case <-t.stop:
+		case <-t.retryTicker.C:
+			t.startCollectors(t.ctx)
+
+		case <-t.ctx.Done():
+			// NOTE: in the future, we could pass a context to
+			// streamers so they can stop themselves.
 			t.RLock()
 			for name, collector := range t.streamers {
 				err := collector.Stop()
@@ -111,26 +113,34 @@ func (t *Tagger) run() error {
 				}
 			}
 			t.RUnlock()
-			t.pullTicker.Stop()
-			t.pruneTicker.Stop()
+
 			t.retryTicker.Stop()
-			t.telemetryTicker.Stop()
-			t.health.Deregister() //nolint:errcheck
-			cancel()
-			return nil
-		case healthDeadline := <-t.health.C:
-			cancel()
-			ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
-		case msg := <-t.infoIn:
-			t.store.processTagInfo(msg)
-		case <-t.retryTicker.C:
-			go t.startCollectors(ctx)
-		case <-t.pullTicker.C:
-			go t.pull(ctx)
-		case <-t.pruneTicker.C:
-			t.store.prune()
-		case <-t.telemetryTicker.C:
-			t.store.collectTelemetry()
+
+			return
+		}
+	}
+}
+
+func (t *Tagger) runPuller(ctx context.Context) {
+	pullTicker := time.NewTicker(5 * time.Second)
+	health := health.RegisterLiveness("tagger-pull")
+
+	for {
+		select {
+		case <-pullTicker.C:
+			t.pull(ctx)
+
+		case <-health.C:
+
+		case <-ctx.Done():
+			pullTicker.Stop()
+
+			err := health.Deregister()
+			if err != nil {
+				log.Warnf("error de-registering health check: %s", err)
+			}
+
+			return
 		}
 	}
 }
@@ -161,7 +171,7 @@ func (t *Tagger) tryCollectors(ctx context.Context) []collectorReply {
 
 	for name, factory := range t.candidates {
 		collector := factory()
-		mode, err := collector.Detect(ctx, t.infoIn)
+		mode, err := collector.Detect(ctx, t.store.infoIn)
 		if mode == collectors.NoCollection && err == nil {
 			log.Infof("collector %s skipped as feature not activated", name)
 			delete(t.candidates, name)
@@ -227,7 +237,7 @@ func (t *Tagger) pull(ctx context.Context) {
 	for name, puller := range t.pullers {
 		err := puller.Pull(ctx)
 		if err != nil {
-			log.Debugf("Error pulling from %s: %s", name, err.Error())
+			log.Warnf("Error pulling from %s: %s", name, err.Error())
 		}
 	}
 	t.RUnlock()
@@ -235,7 +245,7 @@ func (t *Tagger) pull(ctx context.Context) {
 
 // Stop queues a shutdown of Tagger
 func (t *Tagger) Stop() error {
-	t.stop <- true
+	t.cancel()
 	return nil
 }
 
@@ -270,9 +280,7 @@ IterCollectors:
 
 		var cacheMiss bool
 		var expiryDate time.Time
-
-		low, orch, high, err := collector.Fetch(context.TODO(), entity)
-
+		low, orch, high, err := collector.Fetch(t.ctx, entity)
 		switch {
 		case errors.IsNotFound(err):
 			log.Debugf("entity %s not found in %s, skipping: %v", entity, name, err)

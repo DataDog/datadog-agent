@@ -34,3 +34,12 @@ $Env:Path="$Env:Path;C:/Program Files/Datadog/Datadog Agent/bin;C:/Program Files
 # Set variable indicating we are running in a container
 setx /m DOCKER_DD_AGENT "true"
 $Env:DOCKER_DD_AGENT="true"
+
+# Create install_info
+Write-Output @"
+---
+install_method:
+  tool: docker
+  tool_version: docker-win-$env:VARIANT
+  installer_version: docker
+"@ > C:/ProgramData/Datadog/install_info

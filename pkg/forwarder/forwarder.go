@@ -23,29 +23,6 @@ import (
 )
 
 const (
-	// PayloadTypePod is the name of the pod payload type
-	PayloadTypePod = "pod"
-	// PayloadTypeDeployment is the name of the deployment payload type
-	PayloadTypeDeployment = "deployment"
-	// PayloadTypeReplicaSet is the name of the replica set payload type
-	PayloadTypeReplicaSet = "replicaset"
-	// PayloadTypeService is the name of the service payload type
-	PayloadTypeService = "service"
-	// PayloadTypeNode is the name of the node payload type
-	PayloadTypeNode = "node"
-	// PayloadTypeCluster is the name of the cluster payload type
-	PayloadTypeCluster = "cluster"
-	// PayloadTypeJob is the name of the job payload type
-	PayloadTypeJob = "job"
-	// PayloadTypeCronJob is the name of the cronjob payload type
-	PayloadTypeCronJob = "cronjob"
-	// PayloadTypeDaemonSet is the name of the daemonset payload type
-	PayloadTypeDaemonSet = "daemonset"
-	// PayloadTypeStatefulSet is the name of the statefulset payload type
-	PayloadTypeStatefulSet = "statefulset"
-)
-
-const (
 	// Stopped represent the internal state of an unstarted Forwarder.
 	Stopped uint32 = iota
 	// Started represent the internal state of an started Forwarder.
@@ -94,7 +71,7 @@ type Forwarder interface {
 	SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error)
-	SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error)
+	SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error)
 }
 
 // Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
@@ -557,29 +534,8 @@ func (f *DefaultForwarder) SubmitConnectionChecks(payload Payloads, extra http.H
 }
 
 // SubmitOrchestratorChecks sends orchestrator checks
-func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
-	switch payloadType {
-	case PayloadTypePod:
-		transactionsIntakePod.Add(1)
-	case PayloadTypeDeployment:
-		transactionsIntakeDeployment.Add(1)
-	case PayloadTypeReplicaSet:
-		transactionsIntakeReplicaSet.Add(1)
-	case PayloadTypeService:
-		transactionsIntakeService.Add(1)
-	case PayloadTypeNode:
-		transactionsIntakeNode.Add(1)
-	case PayloadTypeJob:
-		transactionsIntakeJob.Add(1)
-	case PayloadTypeCronJob:
-		transactionsIntakeCronJob.Add(1)
-	case PayloadTypeCluster:
-		transactionsIntakeCluster.Add(1)
-	case PayloadTypeDaemonSet:
-		transactionsIntakeDaemonSet.Add(1)
-	case PayloadTypeStatefulSet:
-		transactionsIntakeStatefulSet.Add(1)
-	}
+func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
+	bumpOrchestratorPayload(payloadType)
 
 	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)
 }

@@ -57,6 +57,12 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 		// result and avoid repeated calls to the DCA.
 		if po.Spec.HostNetwork == true || !kubelet.IsPodReady(po) {
 			for _, container := range po.Status.Containers {
+				// Ignore containers that haven't been created
+				// yet and have no ID.
+				if container.ID == "" {
+					continue
+				}
+
 				entityID, err := kubelet.KubeContainerIDToTaggerEntityID(container.ID)
 				if err != nil {
 					log.Warnf("Unable to parse container: %s", err)

@@ -29,8 +29,8 @@ const (
 	FileChmodEventType
 	// FileChownEventType Chown event
 	FileChownEventType
-	// FileUtimeEventType Utime event
-	FileUtimeEventType
+	// FileUtimesEventType Utime event
+	FileUtimesEventType
 	// FileSetXAttrEventType Setxattr event
 	FileSetXAttrEventType
 	// FileRemoveXAttrEventType Removexattr event
@@ -100,7 +100,7 @@ func (t EventType) String() string {
 		return "chmod"
 	case FileChownEventType:
 		return "chown"
-	case FileUtimeEventType:
+	case FileUtimesEventType:
 		return "utimes"
 	case FileMountEventType:
 		return "mount"

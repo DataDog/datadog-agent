@@ -958,3 +958,114 @@ collect_device_metadata: true
 	assert.Nil(t, err)
 	assert.Equal(t, false, check.config.collectDeviceMetadata)
 }
+
+func Test_buildConfig_minCollectionInterval(t *testing.T) {
+	tests := []struct {
+		name              string
+		rawInstanceConfig []byte
+		rawInitConfig     []byte
+		expectedInterval  time.Duration
+		expectedErr       string
+	}{
+		{
+			name: "default min collection interval",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`),
+			// language=yaml
+			rawInitConfig:    []byte(``),
+			expectedInterval: 15 * time.Second,
+		},
+		{
+			name: "init min_collection_interval",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+`),
+			// language=yaml
+			rawInitConfig: []byte(`
+min_collection_interval: 20
+`),
+			expectedInterval: 20 * time.Second,
+		},
+		{
+			name: "instance min_collection_interval",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+min_collection_interval: 25
+`),
+			// language=yaml
+			rawInitConfig: []byte(`
+min_collection_interval: 20
+`),
+			expectedInterval: 25 * time.Second,
+		},
+		{
+			name: "instance extra_min_collection_interval",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+extra_min_collection_interval: 30
+`),
+			// language=yaml
+			rawInitConfig: []byte(`
+min_collection_interval: 20
+`),
+			expectedInterval: 30 * time.Second,
+		},
+		{
+			name: "instance extra_min_collection_interval precedence",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+extra_min_collection_interval: 30
+min_collection_interval: 40
+`),
+			// language=yaml
+			rawInitConfig: []byte(`
+min_collection_interval: 20
+`),
+			expectedInterval: 30 * time.Second,
+		},
+		{
+			name: "instance min_collection_interval with extra = 0",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+extra_min_collection_interval: 0
+min_collection_interval: 40
+`),
+			// language=yaml
+			rawInitConfig: []byte(`
+min_collection_interval: 20
+`),
+			expectedInterval: 40 * time.Second,
+		},
+		{
+			name: "negative min_collection_interval",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+`),
+			// language=yaml
+			rawInitConfig: []byte(`
+min_collection_interval: -10
+`),
+			expectedInterval: 0,
+			expectedErr:      "build config failed: min collection interval must be > 0, but got: -10",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			check := Check{session: &snmpSession{}}
+			err := check.Configure(tt.rawInstanceConfig, tt.rawInitConfig, "test")
+			if tt.expectedErr != "" {
+				assert.EqualError(t, err, tt.expectedErr)
+			}
+			assert.Equal(t, tt.expectedInterval, check.config.minCollectionInterval)
+		})
+	}
+}
