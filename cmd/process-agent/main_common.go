@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	"github.com/spf13/cobra"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -50,6 +52,26 @@ var (
 	BuildDate string
 	GoVersion string
 )
+
+var (
+	rootCmd = &cobra.Command{
+		Run: func(_ *cobra.Command, _ []string) {
+			exit := make(chan struct{})
+
+			// Invoke the Agent
+			runAgent(exit)
+		},
+	}
+)
+
+func setupConfigClient() (settings.Client, error) {
+	cfg := config.NewDefaultAgentConfig(false)
+
+	if err := cfg.LoadProcessYamlConfig(opts.configPath); err != nil {
+		return nil, err
+	}
+	return runtimecfg.NewProcessAgentRuntimeConfigClient(cfg.RuntimeConfigPort())
+}
 
 // versionString returns the version information filled in at build time
 func versionString(sep string) string {

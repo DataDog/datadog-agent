@@ -6,33 +6,8 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/commands"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
-	"github.com/DataDog/datadog-agent/cmd/process-agent/runtimecfg"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/spf13/cobra"
 	_ "net/http/pprof"
 )
-
-var (
-	rootCmd = &cobra.Command{
-		Run: func(_ *cobra.Command, _ []string) {
-
-			exit := make(chan struct{})
-
-			// Invoke the Agent
-			runAgent(exit)
-		},
-	}
-)
-
-func setupConfigClient() (settings.Client, error) {
-	cfg := config.NewDefaultAgentConfig(false)
-
-	if err := cfg.LoadProcessYamlConfig(opts.configPath); err != nil {
-		return nil, err
-	}
-	return runtimecfg.NewProcessAgentRuntimeConfigClient(cfg.RuntimeConfigPort())
-}
 
 func init() {
 	ignore := ""
@@ -54,7 +29,6 @@ func init() {
 }
 
 func main() {
-
 	err := rootCmd.Execute()
 	if err != nil {
 		fmt.Println(err)
