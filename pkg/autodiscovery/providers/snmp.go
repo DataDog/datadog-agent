@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/security/log"
 )
 
 // SnmpProvider implements the ConfigProvider interface
@@ -40,6 +41,7 @@ func (c *SnmpProvider) IsUpToDate(ctx context.Context) (bool, error) {
 
 // Collect retrieves configurations the cluster-agent dispatched to this agent
 func (c *SnmpProvider) Collect(ctx context.Context) ([]integration.Config, error) {
+	log.Warnf("[DEV] SNMP Config Provider Collect")
 	return []integration.Config{}, nil
 }
 
