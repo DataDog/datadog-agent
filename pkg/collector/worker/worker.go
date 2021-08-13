@@ -34,6 +34,11 @@ type Worker struct {
 	shouldAddCheckStatsFunc func(id check.ID) bool
 }
 
+// Name is the user-friendly represenation of the worker instance ID
+func (w *Worker) Name() string {
+	return fmt.Sprintf("worker_%d", w.ID)
+}
+
 // NewWorker returns an instance of a `Worker` after parameter sanity checks are passed
 func NewWorker(
 	runnerID int,

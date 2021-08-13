@@ -107,6 +107,21 @@ func TestWorkerInit(t *testing.T) {
 	assert.NotNil(t, worker)
 }
 
+func TestWorkerStructMethods(t *testing.T) {
+	checksTracker := &tracker.RunningChecksTracker{}
+	pendingChecksChan := make(chan check.Check, 1)
+	mockShouldAddStatsFunc := func(id check.ID) bool { return true }
+
+	for _, id := range []int{1, 100, 500} {
+		expectedName := fmt.Sprintf("worker_%d", id)
+		worker, err := NewWorker(1, id, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
+		assert.Nil(t, err)
+		assert.NotNil(t, worker)
+
+		require.Equal(t, worker.Name(), expectedName)
+	}
+}
+
 func TestWorker(t *testing.T) {
 	expvars.Reset()
 	config.Datadog.Set("hostname", "myhost")
