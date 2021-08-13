@@ -327,12 +327,11 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 func attemptObfuscationWithOptions(tokenizer *SQLTokenizer, opts SQLOptions) (*ObfuscatedQuery, error) {
 	var (
 		storeTableNames = features.Has("table_names")
-		replaceDigits   = opts.ReplaceDigits
 		out             = bytes.NewBuffer(make([]byte, 0, len(tokenizer.buf)))
 		err             error
 		lastToken       TokenKind
 		discard         discardFilter
-		replace         = replaceFilter{replaceDigits: replaceDigits}
+		replace         = replaceFilter{replaceDigits: opts.ReplaceDigits}
 		grouping        groupingFilter
 		tableFinder     = tableFinderFilter{storeTableNames: storeTableNames}
 	)
@@ -351,7 +350,7 @@ func attemptObfuscationWithOptions(tokenizer *SQLTokenizer, opts SQLOptions) (*O
 		if token, buff, err = discard.Filter(token, lastToken, buff); err != nil {
 			return nil, err
 		}
-		if storeTableNames || replaceDigits {
+		if storeTableNames {
 			if token, buff, err = tableFinder.Filter(token, lastToken, buff); err != nil {
 				return nil, err
 			}
