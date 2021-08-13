@@ -32,8 +32,7 @@ const (
 func (r *HTTPReceiver) debuggerProxyHandler() http.Handler {
 	tags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, info.Version)
 	if orch := r.conf.FargateOrchestrator; orch != fargate.Unknown {
-		tag := fmt.Sprintf("orchestrator:fargate_%s", strings.ToLower(string(orch)))
-		tags = tags + "," + tag
+		tags = tags + ",orchestrator:fargate_" + strings.ToLower(string(orch))
 	}
 	intake := fmt.Sprintf(logsIntakeURLTemplate, config.DefaultSite)
 	if v := config.Datadog.GetString("apm_config.debugger_dd_url"); v != "" {
@@ -43,9 +42,8 @@ func (r *HTTPReceiver) debuggerProxyHandler() http.Handler {
 	}
 	target, err := url.Parse(intake)
 	if err != nil {
-		msg := fmt.Errorf("error parsing snapshot intake URL %s: %v", intake, err)
-		log.Critical(msg)
-		return debuggerErrorHandler(msg)
+		log.Criticalf("Error parsing snapshot intake URL %q: %v", intake, err)
+		return debuggerErrorHandler(fmt.Errorf("error parsing snapshot intake URL %q: %v", intake, err))
 	}
 	return newDebuggerProxy(r.conf.NewHTTPTransport(), target, r.conf.APIKey(), tags)
 }
@@ -62,20 +60,21 @@ func debuggerErrorHandler(err error) http.Handler {
 func newDebuggerProxy(rt http.RoundTripper, target *url.URL, key string, tags string) *httputil.ReverseProxy {
 	logger := logutil.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	director := func(req *http.Request) {
-		newTags := tags
+		ddtags := tags
 		containerID := req.Header.Get(headerContainerID)
 		if ct := getContainerTags(containerID); ct != "" {
-			newTags = fmt.Sprintf("%s,%s", newTags, ct)
+			ddtags = fmt.Sprintf("%s,%s", ddtags, ct)
 		}
 		q := req.URL.Query()
-		if oldTags := q.Get("ddtags"); oldTags != "" {
-			newTags = fmt.Sprintf("%s,%s", newTags, oldTags)
+		if qtags := q.Get("ddtags"); qtags != "" {
+			ddtags = fmt.Sprintf("%s,%s", ddtags, qtags)
 		}
-		q.Set("ddtags", newTags)
-		newTarget := target
+		q.Set("ddtags", ddtags)
+		newTarget := *target
 		newTarget.RawQuery = q.Encode()
 		req.Header.Set("DD-API-KEY", key)
-		req.URL = newTarget
+		log.Infof("newTarget: %v", newTarget)
+		req.URL = &newTarget
 		req.Host = target.Host
 	}
 	return &httputil.ReverseProxy{
