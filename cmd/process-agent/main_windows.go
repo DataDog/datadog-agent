@@ -115,7 +115,8 @@ func runService(isDebug bool) {
 // main is the main application entry point
 func main() {
 	ignore := ""
-	rootCmd.PersistentFlags().StringVar(&opts.configPath, "config", defaultConfigPath, "Path to datadog.yaml config")
+	rootCmd.PersistentFlags().StringVar(&opts.configPath, "config", flags.DefaultConfPath, "[deprecated] Path to datadog.yaml config")
+	rootCmd.PersistentFlags().StringVar(&opts.configPath, "cfgPath", flags.DefaultConfPath, "Path to datadog.yaml config")
 	rootCmd.PersistentFlags().StringVar(&opts.sysProbeConfigPath, "sysprobe-config", defaultSysProbeConfigPath, "Path to system-probe.yaml config")
 	rootCmd.PersistentFlags().StringVar(&ignore, "ddconfig", "", "[deprecated] Path to dd-agent config")
 	rootCmd.PersistentFlags().BoolVar(&opts.info, "info", false, "Show info about running process agent and exit")
@@ -128,7 +129,7 @@ func main() {
 	rootCmd.PersistentFlags().BoolVar(&winopts.startService, "start-service", false, "Starts the process agent service")
 	rootCmd.PersistentFlags().BoolVar(&winopts.stopService, "stop-service", false, "Stops the process agent service")
 	rootCmd.PersistentFlags().BoolVar(&winopts.foreground, "foreground", false, "Always run foreground instead whether session is interactive or not")
-
+	rootCmd.AddCommand(commands.Config(setupConfigClient))
 	if !winopts.foreground {
 		isIntSess, err := svc.IsAnInteractiveSession()
 		if err != nil {
