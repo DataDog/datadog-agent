@@ -106,6 +106,10 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Reset the `server_timeout` deadline for this connection as creating a flare can take some time
+	conn := GetConnection(r)
+	_ = conn.SetDeadline(time.Time{})
+
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
 		logFile = common.DefaultLogFile
@@ -230,11 +234,9 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Reset the `server_timeout` deadline for this connection as streaming holds the connection open.
 	conn := GetConnection(r)
-
-	// Override the default server timeouts so the connection never times out
 	_ = conn.SetDeadline(time.Time{})
-	_ = conn.SetWriteDeadline(time.Time{})
 
 	done := make(chan struct{})
 	defer close(done)
