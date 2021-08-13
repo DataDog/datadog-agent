@@ -41,9 +41,9 @@ send_pkg_size-a6:
     - |
       curl --fail -X POST -H "Content-type: application/json" \
       -d "{\"series\":[
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:agent\", \"agent:6\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:agent\", \"agent:6\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_AGENT_SIZE]], \"tags\":[\"os:suse\", \"package:agent\", \"agent:6\"]}
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $DEB_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:agent\", \"agent:6\", \"bucket_branch:$DEB_RPM_BUCKET_BRANCH\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $RPM_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:agent\", \"agent:6\", \"bucket_branch:$DEB_RPM_BUCKET_BRANCH\"]},
+            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $SUSE_AGENT_SIZE]], \"tags\":[\"os:suse\", \"package:agent\", \"agent:6\", \"bucket_branch:$DEB_RPM_BUCKET_BRANCH\"]}
           ]}" \
       "https://api.datadoghq.com/api/v1/series?api_key=$DD_API_KEY"
 
@@ -98,18 +98,18 @@ send_pkg_size-a7:
             local os="${2}"
 
             # record a the total uncompressed size of each package
-            add_metric datadog.agent.package.size $(du -sB1 ${base}/agent | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:agent agent:7
-            add_metric datadog.agent.package.size $(du -sB1 ${base}/dogstatsd | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:dogstatsd agent:7
-            add_metric datadog.agent.package.size $(du -sB1 ${base}/iot-agent | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:iot-agent agent:7
+            add_metric datadog.agent.package.size $(du -sB1 ${base}/agent | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:agent agent:7 bucket_branch:$DEB_RPM_BUCKET_BRANCH
+            add_metric datadog.agent.package.size $(du -sB1 ${base}/dogstatsd | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:dogstatsd agent:7 bucket_branch:$DEB_RPM_BUCKET_BRANCH
+            add_metric datadog.agent.package.size $(du -sB1 ${base}/iot-agent | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:iot-agent agent:7 bucket_branch:$DEB_RPM_BUCKET_BRANCH
 
             # record the size of each of the important binaries in each package
-            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/bin/agent/agent | sed 's/\([0-9]\+\).\+/\1/') bin:agent os:${os} package:agent agent:7
-            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/trace-agent | sed 's/\([0-9]\+\).\+/\1/') bin:trace-agent os:${os} package:agent agent:7
-            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/security-agent | sed 's/\([0-9]\+\).\+/\1/') bin:security-agent os:${os} package:agent agent:7
-            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/process-agent | sed 's/\([0-9]\+\).\+/\1/') bin:process-agent os:${os} package:agent agent:7
-            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/system-probe | sed 's/\([0-9]\+\).\+/\1/') bin:system-probe os:${os} package:agent agent:7
-            add_metric datadog.agent.binary.size $(du -sB1 ${base}/dogstatsd/opt/datadog-dogstatsd/bin/dogstatsd | sed 's/\([0-9]\+\).\+/\1/') bin:dogstatsd os:${os} package:dogstatsd agent:7
-            add_metric datadog.agent.binary.size $(du -sB1 ${base}/iot-agent/opt/datadog-agent/bin/agent/agent | sed 's/\([0-9]\+\).\+/\1/') bin:agent os:${os} package:iot-agent agent:7
+            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/bin/agent/agent | sed 's/\([0-9]\+\).\+/\1/') bin:agent os:${os} package:agent agent:7 bucket_branch:$DEB_RPM_BUCKET_BRANCH
+            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/trace-agent | sed 's/\([0-9]\+\).\+/\1/') bin:trace-agent os:${os} package:agent agent:7 bucket_branch:$DEB_RPM_BUCKET_BRANCH
+            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/security-agent | sed 's/\([0-9]\+\).\+/\1/') bin:security-agent os:${os} package:agent agent:7 bucket_branch:$DEB_RPM_BUCKET_BRANCH
+            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/process-agent | sed 's/\([0-9]\+\).\+/\1/') bin:process-agent os:${os} package:agent agent:7 bucket_branch:$DEB_RPM_BUCKET_BRANCH
+            add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/system-probe | sed 's/\([0-9]\+\).\+/\1/') bin:system-probe os:${os} package:agent agent:7 bucket_branch:$DEB_RPM_BUCKET_BRANCH
+            add_metric datadog.agent.binary.size $(du -sB1 ${base}/dogstatsd/opt/datadog-dogstatsd/bin/dogstatsd | sed 's/\([0-9]\+\).\+/\1/') bin:dogstatsd os:${os} package:dogstatsd agent:7 bucket_branch:$DEB_RPM_BUCKET_BRANCH
+            add_metric datadog.agent.binary.size $(du -sB1 ${base}/iot-agent/opt/datadog-agent/bin/agent/agent | sed 's/\([0-9]\+\).\+/\1/') bin:agent os:${os} package:iot-agent agent:7 bucket_branch:$DEB_RPM_BUCKET_BRANCH
         }
     - currenttime=$(date +%s)
 

@@ -308,7 +308,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	// no need to dispatch events
 	switch eventType {
 	case model.MountReleasedEventType:
-		if _, err := event.MountReleased.UnmarshalBinary(data[offset:]); err != nil {
+		if _, err = event.MountReleased.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode mount released event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
@@ -321,12 +321,12 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		}
 
 		// Delete new mount point from cache
-		if err := p.resolvers.MountResolver.Delete(event.MountReleased.MountID); err != nil {
+		if err = p.resolvers.MountResolver.Delete(event.MountReleased.MountID); err != nil {
 			log.Warnf("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
 		}
 		return
 	case model.InvalidateDentryEventType:
-		if _, err := event.InvalidateDentry.UnmarshalBinary(data[offset:]); err != nil {
+		if _, err = event.InvalidateDentry.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode invalidate dentry event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
@@ -335,7 +335,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 
 		return
 	case model.ArgsEnvsEventType:
-		if _, err := event.ArgsEnvs.UnmarshalBinary(data[offset:]); err != nil {
+		if _, err = event.ArgsEnvs.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode args envs event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
@@ -354,7 +354,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 
 	switch eventType {
 	case model.FileMountEventType:
-		if _, err := event.Mount.UnmarshalBinary(data[offset:]); err != nil {
+		if _, err = event.Mount.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
@@ -364,7 +364,10 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		// Resolve root
 		event.SetMountRoot(&event.Mount)
 		// Insert new mount point in cache
-		p.resolvers.MountResolver.Insert(event.Mount)
+		err = p.resolvers.MountResolver.Insert(event.Mount)
+		if err != nil {
+			log.Errorf("failed to insert mount event: %v", err)
+		}
 
 		// There could be entries of a previous mount_id in the cache for instance,
 		// runc does the following : it bind mounts itself (using /proc/exe/self),
@@ -374,22 +377,22 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		// so we remove all dentry entries belonging to the mountID.
 		p.resolvers.DentryResolver.DelCacheEntries(event.Mount.MountID)
 	case model.FileUmountEventType:
-		if _, err := event.Umount.UnmarshalBinary(data[offset:]); err != nil {
+		if _, err = event.Umount.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode umount event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 	case model.FileOpenEventType:
-		if _, err := event.Open.UnmarshalBinary(data[offset:]); err != nil {
+		if _, err = event.Open.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode open event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 	case model.FileMkdirEventType:
-		if _, err := event.Mkdir.UnmarshalBinary(data[offset:]); err != nil {
+		if _, err = event.Mkdir.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode mkdir event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 	case model.FileRmdirEventType:
-		if _, err := event.Rmdir.UnmarshalBinary(data[offset:]); err != nil {
+		if _, err = event.Rmdir.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode rmdir event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
@@ -399,7 +402,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			defer p.invalidateDentry(event.Rmdir.File.MountID, event.Rmdir.File.Inode)
 		}
 	case model.FileUnlinkEventType:
-		if _, err := event.Unlink.UnmarshalBinary(data[offset:]); err != nil {
+		if _, err = event.Unlink.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode unlink event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
@@ -409,7 +412,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			defer p.invalidateDentry(event.Unlink.File.MountID, event.Unlink.File.Inode)
 		}
 	case model.FileRenameEventType:
-		if _, err := event.Rename.UnmarshalBinary(data[offset:]); err != nil {
+		if _, err = event.Rename.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
@@ -419,37 +422,37 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			defer p.invalidateDentry(event.Rename.New.MountID, event.Rename.New.Inode)
 		}
 	case model.FileChmodEventType:
-		if _, err := event.Chmod.UnmarshalBinary(data[offset:]); err != nil {
+		if _, err = event.Chmod.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode chmod event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 	case model.FileChownEventType:
-		if _, err := event.Chown.UnmarshalBinary(data[offset:]); err != nil {
+		if _, err = event.Chown.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode chown event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 	case model.FileUtimesEventType:
-		if _, err := event.Utimes.UnmarshalBinary(data[offset:]); err != nil {
+		if _, err = event.Utimes.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode utime event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 	case model.FileLinkEventType:
-		if _, err := event.Link.UnmarshalBinary(data[offset:]); err != nil {
+		if _, err = event.Link.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode link event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 	case model.FileSetXAttrEventType:
-		if _, err := event.SetXAttr.UnmarshalBinary(data[offset:]); err != nil {
+		if _, err = event.SetXAttr.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setxattr event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 	case model.FileRemoveXAttrEventType:
-		if _, err := event.RemoveXAttr.UnmarshalBinary(data[offset:]); err != nil {
+		if _, err = event.RemoveXAttr.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode removexattr event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
 	case model.ForkEventType:
-		if _, err := event.UnmarshalProcess(data[offset:]); err != nil {
+		if _, err = event.UnmarshalProcess(data[offset:]); err != nil {
 			log.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
@@ -459,14 +462,14 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessContext.Pid, event.processCacheEntry)
 	case model.ExecEventType:
 		// unmarshal and fill event.processCacheEntry
-		if _, err := event.UnmarshalProcess(data[offset:]); err != nil {
+		if _, err = event.UnmarshalProcess(data[offset:]); err != nil {
 			log.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 		p.resolvers.ProcessResolver.SetProcessArgs(event.processCacheEntry)
 		p.resolvers.ProcessResolver.SetProcessEnvs(event.processCacheEntry)
 
-		if _, err := p.resolvers.ProcessResolver.SetProcessPath(event.processCacheEntry); err != nil {
+		if _, err = p.resolvers.ProcessResolver.SetProcessPath(event.processCacheEntry); err != nil {
 			log.Debugf("failed to resolve exec path: %s", err)
 		}
 		p.resolvers.ProcessResolver.SetProcessFilesystem(event.processCacheEntry)
@@ -485,25 +488,25 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	case model.ExitEventType:
 		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTimestamp())
 	case model.SetuidEventType:
-		if _, err := event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
+		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setuid event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 		defer p.resolvers.ProcessResolver.UpdateUID(event.ProcessContext.Pid, event)
 	case model.SetgidEventType:
-		if _, err := event.SetGID.UnmarshalBinary(data[offset:]); err != nil {
+		if _, err = event.SetGID.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setgid event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 		defer p.resolvers.ProcessResolver.UpdateGID(event.ProcessContext.Pid, event)
 	case model.CapsetEventType:
-		if _, err := event.Capset.UnmarshalBinary(data[offset:]); err != nil {
+		if _, err = event.Capset.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode capset event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 		defer p.resolvers.ProcessResolver.UpdateCapset(event.ProcessContext.Pid, event)
 	case model.SELinuxEventType:
-		if _, err := event.SELinux.UnmarshalBinary(data[offset:]); err != nil {
+		if _, err = event.SELinux.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode selinux event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}

@@ -1288,8 +1288,6 @@ func TestConnectionClobber(t *testing.T) {
 }
 
 func TestTCPDirection(t *testing.T) {
-	// incoming flow is marked outgoing: this is a bug, but will be fixed in future PR
-	skipIfWindows(t)
 
 	cfg := testConfig()
 	tr, err := NewTracer(cfg)

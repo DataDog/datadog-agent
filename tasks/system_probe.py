@@ -16,9 +16,6 @@ from .utils import REPO_PATH, bin_name, bundle_files, get_build_flags, get_versi
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe", android=False))
 
-EBPF_BUILDER_IMAGE = 'datadog/tracer-bpf-builder'
-EBPF_BUILDER_FILE = os.path.join(".", "tools", "ebpf", "Dockerfiles", "Dockerfile-ebpf")
-
 BPF_TAG = "linux_bpf"
 BUNDLE_TAG = "ebpf_bindata"
 BCC_TAG = "bcc"
@@ -85,10 +82,9 @@ def build(
                 maj_ver=maj_ver, min_ver=min_ver, patch_ver=patch_ver, target_arch=windres_target
             )
         )
-    else:
-        if compile_ebpf:
-            # Only build ebpf files on unix
-            build_object_files(ctx, bundle_ebpf=bundle_ebpf)
+    elif compile_ebpf:
+        # Only build ebpf files on unix
+        build_object_files(ctx)
 
     generate_cgo_types(ctx, windows=windows)
     ldflags, gcflags, env = get_build_flags(
@@ -117,39 +113,6 @@ def build(
     }
 
     ctx.run(cmd.format(**args), env=env)
-
-
-@task
-def build_in_docker(
-    ctx, rebuild_ebpf_builder=False, race=False, incremental_build=False, major_version='7', bundle_ebpf=False
-):
-    """
-    Build the system_probe using a container
-    This can be used when the current OS don't have up to date linux headers
-    """
-
-    if rebuild_ebpf_builder:
-        build_ebpf_builder(ctx)
-
-    docker_cmd = "docker run --rm \
-            -v {cwd}:/go/src/github.com/DataDog/datadog-agent \
-            --workdir=/go/src/github.com/DataDog/datadog-agent \
-            {builder} \
-            {cmd}"
-
-    if should_docker_use_sudo(ctx):
-        docker_cmd = "sudo " + docker_cmd
-
-    cmd = "invoke -e system-probe.build --major-version {}".format(major_version)
-
-    if race:
-        cmd += " --race"
-    if incremental_build:
-        cmd += " --incremental-build"
-    if bundle_ebpf:
-        cmd += " --bundle-ebpf"
-
-    ctx.run(docker_cmd.format(cwd=os.getcwd(), builder=EBPF_BUILDER_IMAGE, cmd=cmd))
 
 
 @task
@@ -182,7 +145,7 @@ def test(
         clang_tidy(ctx)
 
     if not skip_object_files and not windows:
-        build_object_files(ctx, bundle_ebpf=bundle_ebpf)
+        build_object_files(ctx)
 
     build_tags = [NPM_TAG]
     if not windows:
@@ -301,7 +264,7 @@ def nettop(ctx, incremental_build=False, go_mod="mod"):
     """
     Build and run the `nettop` utility for testing
     """
-    build_object_files(ctx, bundle_ebpf=False)
+    build_object_files(ctx)
 
     cmd = 'go build -mod={go_mod} {build_type} -tags {tags} -o {bin_path} {path}'
     bin_path = os.path.join(BIN_DIR, "nettop")
@@ -405,28 +368,9 @@ def run_tidy(ctx, files, build_flags, fix=False, fail_on_issue=False):
 
 
 @task
-def build_dev_docker_image(ctx, image_name, push=False):
-    """
-    Build a system-probe-agent Docker image (development only)
-    if push is set to true the image will be pushed to the given registry
-    """
-
-    dev_file = os.path.join(".", "tools", "ebpf", "Dockerfiles", "Dockerfile-tracer-dev")
-    cmd = "docker build {directory} -t {image_name} -f {file}"
-    push_cmd = "docker push {image_name}"
-
-    # Build in a temporary directory to make the docker build context small
-    with tempdir() as d:
-        shutil.copy(BIN_PATH, d)
-        ctx.run(cmd.format(directory=d, image_name=image_name, file=dev_file))
-        if push:
-            ctx.run(push_cmd.format(image_name=image_name))
-
-
-@task
-def object_files(ctx, bundle_ebpf=True):
+def object_files(ctx):
     """object_files builds the eBPF object files"""
-    build_object_files(ctx, bundle_ebpf=bundle_ebpf)
+    build_object_files(ctx)
 
 
 def get_ebpf_c_files():
@@ -539,7 +483,6 @@ def build_network_ebpf_files(ctx, build_dir):
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
-    bindata_files = []
     compiled_programs = [
         "tracer",
         "offset-guess",
@@ -561,10 +504,6 @@ def build_network_ebpf_files(ctx, build_dir):
         debug_obj_file = os.path.join(build_dir, "{}-debug.o".format(p))
         ctx.run(CLANG_CMD.format(flags=" ".join(network_flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file))
         ctx.run(LLC_CMD.format(flags=" ".join(network_flags), bc_file=debug_bc_file, obj_file=debug_obj_file))
-
-        bindata_files.extend([obj_file, debug_obj_file])
-
-    return bindata_files
 
 
 def build_security_ebpf_files(ctx, build_dir):
@@ -618,12 +557,9 @@ def build_bcc_files(ctx, build_dir):
     for f in bcc_files:
         ctx.run("cp {file} {dest}".format(file=f, dest=build_dir))
 
-    return [os.path.join(build_dir, os.path.basename(f)) for f in bcc_files]
 
-
-def build_object_files(ctx, bundle_ebpf=False):
+def build_object_files(ctx):
     """build_object_files builds only the eBPF object
-    set bundle_ebpf to False to disable replacing the assets
     """
 
     # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
@@ -638,15 +574,14 @@ def build_object_files(ctx, bundle_ebpf=False):
     ctx.run("mkdir -p {build_runtime_dir}".format(build_runtime_dir=build_runtime_dir))
 
     bindata_files = []
-    bindata_files.extend(build_bcc_files(ctx, build_dir=build_dir))
-    bindata_files.extend(build_network_ebpf_files(ctx, build_dir=build_dir))
+    build_bcc_files(ctx, build_dir=build_dir)
+    build_network_ebpf_files(ctx, build_dir=build_dir)
     bindata_files.extend(build_security_ebpf_files(ctx, build_dir=build_dir))
 
     generate_runtime_files(ctx)
 
-    if bundle_ebpf:
-        go_dir = os.path.join(bpf_dir, "bytecode", "bindata")
-        bundle_files(ctx, bindata_files, "pkg/.*/", go_dir, "bindata", BUNDLE_TAG)
+    go_dir = os.path.join(bpf_dir, "bytecode", "bindata")
+    bundle_files(ctx, bindata_files, "pkg/.*/", go_dir, "bindata", BUNDLE_TAG)
 
 
 @task
@@ -678,19 +613,6 @@ def generate_cgo_types(ctx, windows=is_windows):
                 "go tool cgo -godefs -- {file} > {base}_{platform}.go".format(file=file, base=base, platform=platform)
             )
             ctx.run("gofmt -w -s {base}_{platform}.go".format(base=base, platform=platform))
-
-
-def build_ebpf_builder(ctx):
-    """
-    build_ebpf_builder builds the docker image for the ebpf builder
-    """
-
-    cmd = "docker build -t {image} -f {file} ."
-
-    if should_docker_use_sudo(ctx):
-        cmd = "sudo " + cmd
-
-    ctx.run(cmd.format(image=EBPF_BUILDER_IMAGE, file=EBPF_BUILDER_FILE))
 
 
 def is_root():

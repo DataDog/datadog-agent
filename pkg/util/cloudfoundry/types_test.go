@@ -235,9 +235,9 @@ func TestADIdentifier(t *testing.T) {
 			},
 			svcName: "flask-app",
 			aLRP: &ActualLRP{
-				Index: 2,
+				InstanceGUID: "instance-guid",
 			},
-			expected: "4321/flask-app/2",
+			expected: "4321/flask-app/instance-guid",
 		},
 	} {
 		t.Run(fmt.Sprintf(""), func(t *testing.T) {

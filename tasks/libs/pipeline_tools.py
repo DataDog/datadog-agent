@@ -11,6 +11,10 @@ from .common.user_interactions import yes_no_question
 PIPELINE_FINISH_TIMEOUT_SEC = 3600 * 5
 
 
+class FilteredOutException(Exception):
+    pass
+
+
 def get_running_pipelines_on_same_ref(
     gitlab, project, ref, sha=None,
 ):
@@ -107,6 +111,10 @@ def trigger_agent_pipeline(
 
     if result and "id" in result:
         return result["id"]
+
+    if result and "filtered out by workflow rules" in result.get("message", {}).get("base", [""])[0]:
+        raise FilteredOutException
+
     raise RuntimeError("Invalid response from Gitlab: {}".format(result))
 
 
