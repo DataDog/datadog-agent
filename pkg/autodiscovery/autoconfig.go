@@ -364,6 +364,7 @@ func (ac *AutoConfig) initListenerCandidates() bool {
 	for name, factory := range ac.listenerCandidates {
 		var listenerConfigs []integration.Data
 		for _, intConfig := range configs {
+			// TODO: Use mapping from integration name to snmp listener name ?
 			if name != intConfig.Name && len(intConfig.DiscoveryConfig) == 0 {
 				continue
 			}
