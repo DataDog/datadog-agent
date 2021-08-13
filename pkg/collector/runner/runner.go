@@ -127,8 +127,10 @@ func (r *Runner) newWorker() (*worker.Worker, error) {
 	}
 
 	go func() {
-		expvars.AddWorkerCount(1)
-		defer expvars.AddWorkerCount(-1)
+		// TODO: Use "name" or something similar
+		// TODO: Figure out what to use as the inital stats
+		expvars.SetWorkerStats(fmt.Sprint(worker.ID), &expvars.WorkerStats{})
+		defer expvars.DeleteWorkerStats(fmt.Sprint(worker.ID))
 
 		defer r.removeWorker(worker.ID)
 
