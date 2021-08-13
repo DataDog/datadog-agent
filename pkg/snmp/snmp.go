@@ -8,6 +8,9 @@ package snmp
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	log "github.com/cihub/seelog"
+	"gopkg.in/yaml.v2"
 	"hash/fnv"
 	"net"
 	"reflect"
@@ -77,7 +80,7 @@ type Config struct {
 }
 
 // NewListenerConfig parses configuration and returns a built ListenerConfig
-func NewListenerConfig() (ListenerConfig, error) {
+func NewListenerConfig(discoveryConfigs []integration.Data) (ListenerConfig, error) {
 	var snmpConfig ListenerConfig
 	opt := viper.DecodeHook(
 		func(rf reflect.Kind, rt reflect.Kind, data interface{}) (interface{}, error) {
@@ -95,16 +98,22 @@ func NewListenerConfig() (ListenerConfig, error) {
 			return newData, nil
 		},
 	)
-
-	//confd := config.Datadog.GetString("confd_path")
-	//
-	//integration.Config
-	//
-	//confPath := filepath.Join(confd, "snmp.d", "conf.yaml")  // TODO: support other .yaml or .yml files too
-
-	if err := config.Datadog.UnmarshalKey("snmp_listener", &snmpConfig, opt); err != nil {
-		return snmpConfig, err
+	if len(discoveryConfigs) > 1 {
+		return snmpConfig, fmt.Errorf("only 1 discovery config is currently supported")
 	}
+
+	if len(discoveryConfigs) == 1 {
+		log.Debugf("[DEV] discoveryConfigs[0]: %v", string(discoveryConfigs[0]))
+		if err := yaml.Unmarshal(discoveryConfigs[0], &snmpConfig); err != nil {
+			return snmpConfig, err
+		}
+		log.Debugf("[DEV] Using discovery config to stup SNMP Listener")
+	} else {
+		if err := config.Datadog.UnmarshalKey("snmp_listener", &snmpConfig, opt); err != nil {
+			return snmpConfig, err
+		}
+	}
+	log.Debugf("[DEV] snmpConfig: %v", snmpConfig)
 
 	if snmpConfig.AllowedFailures == 0 && snmpConfig.AllowedFailuresLegacy != 0 {
 		snmpConfig.AllowedFailures = snmpConfig.AllowedFailuresLegacy

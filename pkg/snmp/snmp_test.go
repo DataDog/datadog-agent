@@ -77,7 +77,7 @@ snmp_listener:
 `))
 	assert.NoError(t, err)
 
-	conf, err := NewListenerConfig()
+	conf, err := NewListenerConfig(nil)
 	assert.NoError(t, err)
 
 	assert.Equal(t, "127.0.0.1/30", conf.Configs[0].Network)
@@ -101,7 +101,7 @@ snmp_listener:
 `))
 	assert.NoError(t, err)
 
-	conf, err := NewListenerConfig()
+	conf, err := NewListenerConfig(nil)
 	assert.NoError(t, err)
 
 	assert.Equal(t, "", conf.Configs[0].Loader)
@@ -120,7 +120,7 @@ snmp_listener:
 `))
 	assert.NoError(t, err)
 
-	conf, err = NewListenerConfig()
+	conf, err = NewListenerConfig(nil)
 	assert.NoError(t, err)
 
 	assert.Equal(t, "core", conf.Configs[0].Loader)
@@ -141,7 +141,7 @@ snmp_listener:
 `))
 	assert.NoError(t, err)
 
-	conf, err := NewListenerConfig()
+	conf, err := NewListenerConfig(nil)
 	assert.NoError(t, err)
 
 	assert.Equal(t, uint(30), conf.Configs[0].MinCollectionInterval)
@@ -168,7 +168,7 @@ snmp_listener:
 `))
 	assert.NoError(t, err)
 
-	conf, err := NewListenerConfig()
+	conf, err := NewListenerConfig(nil)
 	assert.NoError(t, err)
 
 	networkConf := conf.Configs[0]
@@ -201,7 +201,7 @@ snmp_listener:
      network: 127.2.0.0/30
 `))
 	assert.NoError(t, err)
-	conf, err = NewListenerConfig()
+	conf, err = NewListenerConfig(nil)
 	assert.NoError(t, err)
 	legacyConfig := conf.Configs[0]
 

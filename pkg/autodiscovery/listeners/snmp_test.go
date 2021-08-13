@@ -90,7 +90,7 @@ func TestSNMPListenerSubnets(t *testing.T) {
 		}
 	}
 
-	snmpListenerConfig, err := snmp.NewListenerConfig()
+	snmpListenerConfig, err := snmp.NewListenerConfig(nil)
 	assert.Equal(t, nil, err)
 
 	services := map[string]Service{}
