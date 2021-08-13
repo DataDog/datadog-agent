@@ -462,7 +462,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("container_exclude_metrics", []string{})
 	config.BindEnvAndSetDefault("container_include_logs", []string{})
 	config.BindEnvAndSetDefault("container_exclude_logs", []string{})
-	config.BindEnvAndSetDefault("ad_config_poll_interval", int64(10)) // in seconds
+	config.BindEnvAndSetDefault("container_exclude_stopped_age", DefaultAuditorTTL-1) // in hours
+	config.BindEnvAndSetDefault("ad_config_poll_interval", int64(10))                 // in seconds
 	config.BindEnvAndSetDefault("extra_listeners", []string{})
 	config.BindEnvAndSetDefault("extra_config_providers", []string{})
 	config.BindEnvAndSetDefault("ignore_autoconf", []string{})
@@ -540,6 +541,8 @@ func InitConfig(config Config) {
 
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
+	config.BindEnvAndSetDefault("kubernetes_apiserver_ca_path", "")
+	config.BindEnvAndSetDefault("kubernetes_apiserver_tls_verify", true)
 	config.BindEnvAndSetDefault("leader_lease_duration", "60")
 	config.BindEnvAndSetDefault("leader_election", false)
 	config.BindEnvAndSetDefault("kube_resources_namespace", "")
@@ -877,6 +880,7 @@ func InitConfig(config Config) {
 	config.SetKnown("runtime_security_config.fim_enabled")
 	config.BindEnvAndSetDefault("runtime_security_config.erpc_dentry_resolution_enabled", true)
 	config.BindEnvAndSetDefault("runtime_security_config.map_dentry_resolution_enabled", true)
+	config.BindEnvAndSetDefault("runtime_security_config.dentry_cache_size", 1024)
 	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
 	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	config.BindEnvAndSetDefault("runtime_security_config.enable_approvers", true)
@@ -1039,6 +1043,15 @@ func findUnknownKeys(config Config) []string {
 func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 	warnings := Warnings{}
 
+	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
+	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
+	defer func() {
+		// Environment feature detection needs to run before applying override funcs
+		// as it may provide such overrides
+		DetectFeatures()
+		applyOverrideFuncs(config)
+	}()
+
 	if err := config.ReadInConfig(); err != nil {
 		if errors.Is(err, os.ErrPermission) {
 			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
@@ -1071,10 +1084,6 @@ func load(config Config, origin string, loadSecret bool) (*Warnings, error) {
 
 	loadProxyFromEnv(config)
 	SanitizeAPIKeyConfig(config, "api_key")
-	// Environment feature detection needs to run before applying override funcs
-	// as it may provide such overrides
-	DetectFeatures()
-	applyOverrideFuncs(config)
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
 	setNumWorkers(config)

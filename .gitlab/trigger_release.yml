@@ -5,7 +5,7 @@
 .agent_release_management_trigger:
   stage: trigger_release
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:2xlarge"]
+  tags: ["runner:main"]
   script:
     - python3 -m pip install -r requirements.txt
     - inv pipeline.trigger-child-pipeline --project-name "DataDog/agent-release-management" --git-ref "master" --variables "RELEASE_VERSION"

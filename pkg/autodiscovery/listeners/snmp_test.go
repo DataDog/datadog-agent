@@ -210,6 +210,15 @@ func TestExtraConfig(t *testing.T) {
 	info, err = svc.GetExtraConfig([]byte("collect_device_metadata"))
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "false", string(info))
+
+	info, err = svc.GetExtraConfig([]byte("min_collection_interval"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "0", string(info))
+
+	svc.config.MinCollectionInterval = 60
+	info, err = svc.GetExtraConfig([]byte("min_collection_interval"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "60", string(info))
 }
 
 func TestExtraConfigExtraTags(t *testing.T) {

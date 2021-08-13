@@ -7,7 +7,7 @@ deploy_staging_process_and_sysprobe:
     !reference [.manual]
   stage: internal_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   dependencies: ["agent_deb-x64-a7"]
   before_script:
     - cd $OMNIBUS_PACKAGE_DIR

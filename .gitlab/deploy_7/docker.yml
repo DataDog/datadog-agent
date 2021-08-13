@@ -12,7 +12,7 @@
 deploy-a7:
   extends: .docker_job_definition
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:2xlarge"]
+  tags: ["runner:main"]
   stage: deploy7
   rules:
     !reference [.on_deploy_a7_manual]
@@ -38,7 +38,7 @@ deploy-a7:
 deploy-dogstatsd:
   extends: .docker_job_definition
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:2xlarge"]
+  tags: ["runner:main"]
   stage: deploy7
   rules:
     !reference [.on_deploy_a7_manual]
@@ -58,7 +58,7 @@ deploy-dogstatsd:
 deploy_latest-a7:
   extends: .docker_job_definition
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:2xlarge"]
+  tags: ["runner:main"]
   stage: deploy7
   rules:
     !reference [.on_deploy_a7_manual]
@@ -80,7 +80,7 @@ deploy_latest-a7:
 deploy_latest-dogstatsd:
   extends: .docker_job_definition
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:2xlarge"]
+  tags: ["runner:main"]
   stage: deploy7
   rules:
     !reference [.on_deploy_a7_manual]

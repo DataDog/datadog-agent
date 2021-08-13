@@ -119,12 +119,21 @@ func catalogContains(t *testing.T, cat *serviceKeyCatalog, has map[ServiceSignat
 	assert.Equal(len(has), cat.ll.Len(), "too many elements in list")
 	for el := cat.ll.Back(); el != nil; el = el.Prev() {
 		key := el.Value.(catalogEntry).key
-		if _, ok := has[key]; !ok {
+		if le, ok := cat.items[key]; !ok {
+			t.Fatalf("Foreign item in map: %s", key)
+			return
+		} else if le != el {
+			t.Fatalf("List element in map incorrect for key %v", key)
+			return
+		}
+		val := el.Value.(catalogEntry).sig
+		want, ok := has[key]
+		if !ok {
 			t.Fatalf("Foreign item in list: %s", key)
 			return
 		}
-		if _, ok := cat.items[key]; !ok {
-			t.Fatalf("Foreign item in map: %s", key)
+		if val != want {
+			t.Fatalf("Invalid value %v (!=%v) in list at key %v", val, want, key)
 			return
 		}
 	}

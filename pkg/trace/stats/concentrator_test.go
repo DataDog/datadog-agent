@@ -461,9 +461,7 @@ func generateDistribution(t *testing.T, generator func(i int) int64) *ddsketch.D
 	var msg sketchpb.DDSketch
 	err := proto.Unmarshal(b, &msg)
 	assert.Nil(err)
-	// TODO(piochelepiotr): update library so that FromProto doesn't require to create a struct before.
-	sketch := ddsketch.DDSketch{}
-	summary, err := sketch.FromProto(&msg)
+	summary, err := ddsketch.FromProto(&msg)
 	assert.Nil(err)
 	return summary
 }

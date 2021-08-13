@@ -561,8 +561,7 @@ func unmarshalSketch(t *testing.T, bytes []byte) *ddsketch.DDSketch {
 	err := proto.Unmarshal(bytes, &sketchPb)
 	assert.Nil(t, err)
 
-	var sketch *ddsketch.DDSketch
-	ret, err := sketch.FromProto(&sketchPb)
+	ret, err := ddsketch.FromProto(&sketchPb)
 	assert.Nil(t, err)
 
 	return ret

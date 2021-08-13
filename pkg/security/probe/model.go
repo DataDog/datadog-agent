@@ -72,7 +72,10 @@ func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 	if len(f.PathnameStr) == 0 {
 		path, err := ev.resolvers.resolveFileFieldsPath(&f.FileFields)
 		if err != nil {
-			if _, ok := err.(ErrTruncatedParents); ok {
+			switch err.(type) {
+			case ErrDentryPathKeyNotFound:
+				// this error is the only one we don't care about
+			default:
 				f.PathResolutionError = err
 				ev.SetPathResolutionError(err)
 			}

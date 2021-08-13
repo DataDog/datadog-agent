@@ -15,7 +15,7 @@ dev_branch-a6:
     - docker_build_agent6_jmx
     - docker_build_agent6_py2py3_jmx
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:2xlarge"]
+  tags: ["runner:main"]
   script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
     - python3 -m pip install -r requirements.txt
     - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
@@ -38,7 +38,7 @@ dev_branch-dogstatsd:
   needs:
     - docker_build_dogstatsd_amd64
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:2xlarge"]
+  tags: ["runner:main"]
   script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
     - python3 -m pip install -r requirements.txt
     - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
@@ -56,7 +56,7 @@ dev_branch-a7:
     - docker_build_agent7
     - docker_build_agent7_jmx
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:2xlarge"]
+  tags: ["runner:main"]
   script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
     - python3 -m pip install -r requirements.txt
     - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
@@ -81,7 +81,7 @@ dev_branch_multiarch-a6:
     - docker_build_agent6_jmx_arm64
     - docker_build_agent6_py2py3_jmx
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:2xlarge"]
+  tags: ["runner:main"]
   script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
     - python3 -m pip install -r requirements.txt
     - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
@@ -107,7 +107,7 @@ dev_branch_multiarch-a7:
     - docker_build_agent7_jmx
     - docker_build_agent7_jmx_arm64
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:2xlarge"]
+  tags: ["runner:main"]
   script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
     - python3 -m pip install -r requirements.txt
     - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
@@ -128,7 +128,7 @@ dev_branch_multiarch-dogstatsd:
   needs:
     - docker_build_dogstatsd_amd64
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:2xlarge"]
+  tags: ["runner:main"]
   script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
     - python3 -m pip install -r requirements.txt
     - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
@@ -204,7 +204,7 @@ dca_dev_branch:
   needs:
     - docker_build_cluster_agent_amd64
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:2xlarge"]
+  tags: ["runner:main"]
   script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
     - python3 -m pip install -r requirements.txt
     - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
@@ -222,7 +222,7 @@ dca_dev_branch_multiarch:
     - docker_build_cluster_agent_amd64
     - docker_build_cluster_agent_arm64
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:2xlarge"]
+  tags: ["runner:main"]
   script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
     - python3 -m pip install -r requirements.txt
     - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
