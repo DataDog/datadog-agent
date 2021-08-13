@@ -89,7 +89,7 @@ type measuringDebuggerTransport struct {
 	rt http.RoundTripper
 }
 
-func (r *measuringDebuggerTransport) RoundTrip(req *http.Request) (res *http.Response, err error) {
+func (m *measuringDebuggerTransport) RoundTrip(req *http.Request) (res *http.Response, err error) {
 	defer func(start time.Time) {
 		var tags []string
 		metrics.Count("datadog.trace_agent.debugger.proxy_request", 1, tags, 1)
@@ -99,5 +99,5 @@ func (r *measuringDebuggerTransport) RoundTrip(req *http.Request) (res *http.Res
 			metrics.Count("datadog.trace_agent.debugger.proxy_request_error", 1, tags, 1)
 		}
 	}(time.Now())
-	return r.rt.RoundTrip(req)
+	return m.rt.RoundTrip(req)
 }
