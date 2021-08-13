@@ -39,7 +39,8 @@ func setupConfigClient() (settings.Client, error) {
 
 func init() {
 	ignore := ""
-	flag.StringVar(&opts.configPath, "config", flags.DefaultConfPath, "Path to datadog.yaml config")
+	flag.StringVar(&opts.configPath, "config", flags.DefaultConfPath, "[deprecated] Path to datadog.yaml config")
+	flag.StringVar(&opts.configPath, "cfgPath", flags.DefaultConfPath, "Path to datadog.yaml config")
 	flag.StringVar(&ignore, "ddconfig", "", "[deprecated] Path to dd-agent config")
 
 	if flags.DefaultSysProbeConfPath != "" {
