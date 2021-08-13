@@ -4,9 +4,10 @@ package main
 
 import (
 	"fmt"
+	_ "net/http/pprof"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common/commands"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
-	_ "net/http/pprof"
 )
 
 func init() {

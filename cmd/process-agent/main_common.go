@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/spf13/cobra"
 	"net/http"
 	_ "net/http/pprof"
