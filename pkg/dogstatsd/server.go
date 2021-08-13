@@ -407,9 +407,10 @@ func (s *Server) handleMessages() {
 	}
 }
 
-// Capture starts a traffic capture with the specified duration, returns an error if any
-func (s *Server) Capture(d time.Duration, compressed bool) error {
-	return s.TCapture.Start(d, compressed)
+// Capture starts a traffic capture at the specified path and with the specified duration,
+// an empty path will default to the default location. Returns an error if any.
+func (s *Server) Capture(p string, d time.Duration, compressed bool) error {
+	return s.TCapture.Start(p, d, compressed)
 }
 
 func (s *Server) forwarder(fcon net.Conn, packetsChannel chan packets.Packets) {

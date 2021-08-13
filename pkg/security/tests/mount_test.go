@@ -40,7 +40,7 @@ func TestMount(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{testDir: testDrive.Root(), wantProbeEvents: true})
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{testDir: testDrive.Root()})
 	if err != nil {
 		t.Fatal(err)
 	}
