@@ -45,13 +45,21 @@ func grpcHandlerFunc(grpcServer *grpc.Server, otherHandler http.Handler) http.Ha
 		if r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
 			grpcServer.ServeHTTP(w, r)
 		} else {
-			deadline := time.Now().Add(config.Datadog.GetDuration("server_timeout") * time.Second)
-
-			conn := agent.GetConnection(r)
-			_ = conn.SetWriteDeadline(deadline)
-
 			otherHandler.ServeHTTP(w, r)
 		}
+	})
+}
+
+// timeoutHandler limits requests to the enclosed handler to the value
+// configured in `server_timeout`.
+func timeoutHandlerFunc(otherHandler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		deadline := time.Now().Add(config.Datadog.GetDuration("server_timeout") * time.Second)
+
+		conn := agent.GetConnection(r)
+		_ = conn.SetWriteDeadline(deadline)
+
+		otherHandler.ServeHTTP(w, r)
 	})
 }
 
@@ -120,7 +128,7 @@ func StartServer() error {
 
 	srv := &http.Server{
 		Addr:    tlsAddr,
-		Handler: grpcHandlerFunc(s, mux),
+		Handler: grpcHandlerFunc(s, timeoutHandlerFunc(mux)),
 		// Handler: grpcHandlerFunc(s, r),
 		TLSConfig: &tls.Config{
 			Certificates: []tls.Certificate{*tlsKeyPair},
