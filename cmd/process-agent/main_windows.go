@@ -129,8 +129,6 @@ func main() {
 	rootCmd.PersistentFlags().BoolVar(&winopts.stopService, "stop-service", false, "Stops the process agent service")
 	rootCmd.PersistentFlags().BoolVar(&winopts.foreground, "foreground", false, "Always run foreground instead whether session is interactive or not")
 
-	rootCmd.PersistentFlags().Parse()
-
 	if !winopts.foreground {
 		isIntSess, err := svc.IsAnInteractiveSession()
 		if err != nil {
