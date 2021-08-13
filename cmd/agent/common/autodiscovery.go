@@ -28,6 +28,8 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 	ad := autodiscovery.NewAutoConfig(metaScheduler)
 	ad.AddConfigProvider(providers.NewFileConfigProvider(confSearchPaths), false, 0)
 
+	// TODO:
+
 	// Autodiscovery cannot easily use config.RegisterOverrideFunc() due to Unmarshalling
 	extraConfigProviders, extraConfigListeners := confad.DiscoverComponentsFromConfig()
 

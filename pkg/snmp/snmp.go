@@ -96,6 +96,8 @@ func NewListenerConfig() (ListenerConfig, error) {
 		},
 	)
 
+
+
 	if err := config.Datadog.UnmarshalKey("snmp_listener", &snmpConfig, opt); err != nil {
 		return snmpConfig, err
 	}
