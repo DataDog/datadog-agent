@@ -8,8 +8,10 @@ package snmp
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"hash/fnv"
 	"net"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strconv"
@@ -96,7 +98,11 @@ func NewListenerConfig() (ListenerConfig, error) {
 		},
 	)
 
-
+	//confd := config.Datadog.GetString("confd_path")
+	//
+	//integration.Config
+	//
+	//confPath := filepath.Join(confd, "snmp.d", "conf.yaml")  // TODO: support other .yaml or .yml files too
 
 	if err := config.Datadog.UnmarshalKey("snmp_listener", &snmpConfig, opt); err != nil {
 		return snmpConfig, err

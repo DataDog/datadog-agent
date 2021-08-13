@@ -29,6 +29,7 @@ type configFormat struct {
 	InitConfig              interface{} `yaml:"init_config"`
 	MetricConfig            interface{} `yaml:"jmx_metrics"`
 	LogsConfig              interface{} `yaml:"logs"`
+	DiscoveryConfig         interface{} `yaml:"discovery"`
 	Instances               []integration.RawMap
 	DockerImages            []string `yaml:"docker_images"`             // Only imported for deprecation warning
 	IgnoreAutodiscoveryTags bool     `yaml:"ignore_autodiscovery_tags"` // Use to ignore tags coming from autodiscovery
@@ -68,6 +69,7 @@ func NewFileConfigProvider(paths []string) *FileConfigProvider {
 // it parses the files and try to unmarshall Yaml contents into a CheckConfig
 // instance
 func (c *FileConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
+
 	configs := []integration.Config{}
 	configNames := make(map[string]struct{}) // use this map as a python set
 	defaultConfigs := []integration.Config{}
@@ -310,6 +312,12 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 		logsConfig := make(map[string]interface{})
 		logsConfig["logs"] = cf.LogsConfig
 		config.LogsConfig, _ = yaml.Marshal(logsConfig)
+	}
+	// If discovery config was found, add it to the config
+	if cf.DiscoveryConfig != nil {
+		discoveryConfig := make(map[string]interface{})
+		discoveryConfig["discovery"] = cf.DiscoveryConfig
+		config.DiscoveryConfig, _ = yaml.Marshal(discoveryConfig)
 	}
 
 	// Copy auto discovery identifiers

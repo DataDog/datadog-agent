@@ -322,6 +322,8 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) []integration.
 // try is done synchronously. If a listener fails with a ErrWillRetry, the initialization
 // will be re-triggered later until success or ErrPermaFail.
 func (ac *AutoConfig) AddListeners(listenerConfigs []config.Listeners) {
+	// TODO: Listeners are added here
+
 	ac.addListenerCandidates(listenerConfigs)
 	remaining := ac.initListenerCandidates()
 	if remaining == false {
@@ -419,6 +421,7 @@ func (ac *AutoConfig) AddScheduler(name string, s scheduler.Scheduler, replayCon
 	for _, c := range ac.store.getLoadedConfigs() {
 		configs = append(configs, c)
 	}
+
 	s.Schedule(configs)
 }
 

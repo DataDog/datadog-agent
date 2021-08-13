@@ -46,7 +46,7 @@ type Config struct {
 	InitConfig              Data         `json:"init_config"`               // the init_config in Yaml (include in digest: true)
 	MetricConfig            Data         `json:"metric_config"`             // the metric config in Yaml (jmx check only) (include in digest: false)
 	LogsConfig              Data         `json:"logs"`                      // the logs config in Yaml (logs-agent only) (include in digest: true)
-	ADConfig                Data         `json:"ad_config"`                 // Autodiscovery config
+	DiscoveryConfig         Data         `json:"discovery"`                 // Autodiscovery config
 	ADIdentifiers           []string     `json:"ad_identifiers"`            // the list of AutoDiscovery identifiers (optional) (include in digest: true)
 	Provider                string       `json:"provider"`                  // the provider that issued the config (include in digest: false)
 	Entity                  string       `json:"-"`                         // the entity ID (optional) (include in digest: true)
