@@ -41,7 +41,7 @@ type Sender interface {
 	SetCheckCustomTags(tags []string)
 	SetCheckService(service string)
 	FinalizeCheckServiceTag()
-	OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID, payloadType string)
+	OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType int)
 }
 
 // RawSender interface to submit samples to aggregator directly
@@ -89,7 +89,7 @@ type senderEventPlatformEvent struct {
 type senderOrchestratorMetadata struct {
 	msgs        []serializer.ProcessMessageBody
 	clusterID   string
-	payloadType string
+	payloadType int
 }
 
 type checkSenderPool struct {
@@ -393,11 +393,11 @@ func (s *checkSender) EventPlatformEvent(rawEvent string, eventType string) {
 }
 
 // OrchestratorMetadata submit orchestrator metadata messages
-func (s *checkSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID, payloadType string) {
+func (s *checkSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType int) {
 	om := senderOrchestratorMetadata{
 		msgs:        msgs,
 		clusterID:   clusterID,
-		payloadType: payloadType,
+		payloadType: nodeType,
 	}
 	s.orchestratorOut <- om
 }

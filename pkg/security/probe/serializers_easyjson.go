@@ -929,18 +929,10 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe8(in *jle
 			out.User = string(in.String())
 		case "group":
 			out.Group = string(in.String())
-		case "executable_path":
-			out.Path = string(in.String())
 		case "path_resolution_error":
 			out.PathResolutionError = string(in.String())
 		case "comm":
 			out.Comm = string(in.String())
-		case "executable_inode":
-			out.Inode = uint64(in.Uint64())
-		case "executable_mount_id":
-			out.MountID = uint32(in.Uint32())
-		case "executable_filesystem":
-			out.Filesystem = string(in.String())
 		case "tty":
 			out.TTY = string(in.String())
 		case "fork_time":
@@ -1157,11 +1149,6 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe8(out *jw
 		out.RawString(prefix)
 		out.String(string(in.Group))
 	}
-	if in.Path != "" {
-		const prefix string = ",\"executable_path\":"
-		out.RawString(prefix)
-		out.String(string(in.Path))
-	}
 	if in.PathResolutionError != "" {
 		const prefix string = ",\"path_resolution_error\":"
 		out.RawString(prefix)
@@ -1171,21 +1158,6 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe8(out *jw
 		const prefix string = ",\"comm\":"
 		out.RawString(prefix)
 		out.String(string(in.Comm))
-	}
-	if in.Inode != 0 {
-		const prefix string = ",\"executable_inode\":"
-		out.RawString(prefix)
-		out.Uint64(uint64(in.Inode))
-	}
-	if in.MountID != 0 {
-		const prefix string = ",\"executable_mount_id\":"
-		out.RawString(prefix)
-		out.Uint32(uint32(in.MountID))
-	}
-	if in.Filesystem != "" {
-		const prefix string = ",\"executable_filesystem\":"
-		out.RawString(prefix)
-		out.String(string(in.Filesystem))
 	}
 	if in.TTY != "" {
 		const prefix string = ",\"tty\":"
@@ -1319,18 +1291,10 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe9(in *jle
 			out.User = string(in.String())
 		case "group":
 			out.Group = string(in.String())
-		case "executable_path":
-			out.Path = string(in.String())
 		case "path_resolution_error":
 			out.PathResolutionError = string(in.String())
 		case "comm":
 			out.Comm = string(in.String())
-		case "executable_inode":
-			out.Inode = uint64(in.Uint64())
-		case "executable_mount_id":
-			out.MountID = uint32(in.Uint32())
-		case "executable_filesystem":
-			out.Filesystem = string(in.String())
 		case "tty":
 			out.TTY = string(in.String())
 		case "fork_time":
@@ -1514,11 +1478,6 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe9(out *jw
 		out.RawString(prefix)
 		out.String(string(in.Group))
 	}
-	if in.Path != "" {
-		const prefix string = ",\"executable_path\":"
-		out.RawString(prefix)
-		out.String(string(in.Path))
-	}
 	if in.PathResolutionError != "" {
 		const prefix string = ",\"path_resolution_error\":"
 		out.RawString(prefix)
@@ -1528,21 +1487,6 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe9(out *jw
 		const prefix string = ",\"comm\":"
 		out.RawString(prefix)
 		out.String(string(in.Comm))
-	}
-	if in.Inode != 0 {
-		const prefix string = ",\"executable_inode\":"
-		out.RawString(prefix)
-		out.Uint64(uint64(in.Inode))
-	}
-	if in.MountID != 0 {
-		const prefix string = ",\"executable_mount_id\":"
-		out.RawString(prefix)
-		out.Uint32(uint32(in.MountID))
-	}
-	if in.Filesystem != "" {
-		const prefix string = ",\"executable_filesystem\":"
-		out.RawString(prefix)
-		out.String(string(in.Filesystem))
 	}
 	if in.TTY != "" {
 		const prefix string = ",\"tty\":"

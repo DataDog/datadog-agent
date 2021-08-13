@@ -36,13 +36,13 @@ func TestRulesetLoaded(t *testing.T) {
 	}
 
 	t.Run("ruleset_loaded", func(t *testing.T) {
-		if err := test.GetProbeCustomEvent(func() error {
+		if err := test.GetProbeCustomEvent(t, func() error {
 			test.reloadConfiguration()
 			return nil
 		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
 			assert.Equal(t, probe.RulesetLoadedRuleID, rule.ID, "wrong rule")
 			return true
-		}, 3*time.Second, model.CustomRulesetLoadedEventType); err != nil {
+		}, model.CustomRulesetLoadedEventType); err != nil {
 			t.Error(err)
 		}
 	})
@@ -76,7 +76,7 @@ func truncatedParents(t *testing.T, opts testOpts) {
 
 		defer os.Remove(truncatedParentsFile)
 
-		err = test.GetProbeCustomEvent(func() error {
+		err = test.GetProbeCustomEvent(t, func() error {
 			f, err := os.OpenFile(truncatedParentsFile, os.O_CREATE, 0755)
 			if err != nil {
 				t.Fatal(err)
@@ -85,7 +85,7 @@ func truncatedParents(t *testing.T, opts testOpts) {
 		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
 			assert.Equal(t, probe.AbnormalPathRuleID, rule.ID, "wrong rule")
 			return true
-		}, 3*time.Second, model.CustomTruncatedParentsEventType)
+		}, model.CustomTruncatedParentsEventType)
 		if err != nil {
 			t.Error(err)
 		}
@@ -142,7 +142,7 @@ func TestNoisyProcess(t *testing.T) {
 	}
 
 	t.Run("noisy_process", func(t *testing.T) {
-		err = test.GetProbeCustomEvent(func() error {
+		err = test.GetProbeCustomEvent(t, func() error {
 			// generate load
 			for i := int64(0); i < testMod.config.LoadControllerEventsCountThreshold*2; i++ {
 				f, err := os.OpenFile(file, os.O_CREATE, 0755)
@@ -156,7 +156,7 @@ func TestNoisyProcess(t *testing.T) {
 		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
 			assert.Equal(t, probe.NoisyProcessRuleID, rule.ID, "wrong rule")
 			return true
-		}, 3*time.Second, model.CustomNoisyProcessEventType)
+		}, model.CustomNoisyProcessEventType)
 		if err != nil {
 			t.Error(err)
 		}

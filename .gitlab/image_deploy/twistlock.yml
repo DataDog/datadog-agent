@@ -5,7 +5,7 @@ twistlock_scan-6:
     !reference [.on_a6]
   stage: image_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/twistlock-cli:2.5.121
-  tags: ["runner:docker", "size:large"]
+  tags: ["runner:docker"]
   dependencies: []
   variables:
     SRC_AGENT: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -24,7 +24,7 @@ twistlock_scan-7:
     !reference [.on_a7]
   stage: image_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/twistlock-cli:2.5.121
-  tags: ["runner:docker", "size:large"]
+  tags: ["runner:docker"]
   dependencies: []
   variables:
     SRC_AGENT: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent

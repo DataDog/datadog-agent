@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	corecfg "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -30,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	orchutil "github.com/DataDog/datadog-agent/pkg/util/orchestrator"
 
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
@@ -199,47 +199,47 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 			podInformer := apiCl.UnassignedPodInformerFactory.Core().V1().Pods()
 			o.unassignedPodLister = podInformer.Lister()
 			o.unassignedPodListerSync = podInformer.Informer().HasSynced
-			informersToSync[apiserver.PodsInformer] = podInformer.Informer()
+			informersToSync[apiserver.InformerName(orchestrator.K8sPod.String())] = podInformer.Informer()
 		case "deployments":
 			deployInformer := apiCl.InformerFactory.Apps().V1().Deployments()
 			o.deployLister = deployInformer.Lister()
 			o.deployListerSync = deployInformer.Informer().HasSynced
-			informersToSync[apiserver.DeploysInformer] = deployInformer.Informer()
+			informersToSync[apiserver.InformerName(orchestrator.K8sDeployment.String())] = deployInformer.Informer()
 		case "replicasets":
 			rsInformer := apiCl.InformerFactory.Apps().V1().ReplicaSets()
 			o.rsLister = rsInformer.Lister()
 			o.rsListerSync = rsInformer.Informer().HasSynced
-			informersToSync[apiserver.ReplicaSetsInformer] = rsInformer.Informer()
+			informersToSync[apiserver.InformerName(orchestrator.K8sReplicaSet.String())] = rsInformer.Informer()
 		case "services":
 			serviceInformer := apiCl.InformerFactory.Core().V1().Services()
 			o.serviceLister = serviceInformer.Lister()
 			o.serviceListerSync = serviceInformer.Informer().HasSynced
-			informersToSync[apiserver.ServicesInformer] = serviceInformer.Informer()
+			informersToSync[apiserver.InformerName(orchestrator.K8sService.String())] = serviceInformer.Informer()
 		case "nodes":
 			nodesInformer := apiCl.InformerFactory.Core().V1().Nodes()
 			o.nodesLister = nodesInformer.Lister()
 			o.nodesListerSync = nodesInformer.Informer().HasSynced
-			informersToSync[apiserver.NodesInformer] = nodesInformer.Informer()
+			informersToSync[apiserver.InformerName(orchestrator.K8sNode.String())] = nodesInformer.Informer()
 		case "jobs":
 			jobsInformer := apiCl.InformerFactory.Batch().V1().Jobs()
 			o.jobsLister = jobsInformer.Lister()
 			o.jobsListerSync = jobsInformer.Informer().HasSynced
-			informersToSync[apiserver.JobsInformer] = jobsInformer.Informer()
+			informersToSync[apiserver.InformerName(orchestrator.K8sJob.String())] = jobsInformer.Informer()
 		case "cronjobs":
 			cronJobsInformer := apiCl.InformerFactory.Batch().V1beta1().CronJobs()
 			o.cronJobsLister = cronJobsInformer.Lister()
 			o.cronJobsListerSync = cronJobsInformer.Informer().HasSynced
-			informersToSync[apiserver.CronJobsInformer] = cronJobsInformer.Informer()
+			informersToSync[apiserver.InformerName(orchestrator.K8sCronJob.String())] = cronJobsInformer.Informer()
 		case "daemonsets":
 			daemonSetsInformer := apiCl.InformerFactory.Apps().V1().DaemonSets()
 			o.daemonSetsLister = daemonSetsInformer.Lister()
 			o.daemonSetsListerSync = daemonSetsInformer.Informer().HasSynced
-			informersToSync[apiserver.DaemonSetsInformer] = daemonSetsInformer.Informer()
+			informersToSync[apiserver.InformerName(orchestrator.K8sDaemonSet.String())] = daemonSetsInformer.Informer()
 		case "statefulsets":
 			statefulSetsInformer := apiCl.InformerFactory.Apps().V1().StatefulSets()
 			o.statefulSetsLister = statefulSetsInformer.Lister()
 			o.statefulSetsListerSync = statefulSetsInformer.Informer().HasSynced
-			informersToSync[apiserver.StatefulSetsInformer] = statefulSetsInformer.Informer()
+			informersToSync[apiserver.InformerName(orchestrator.K8sStatefulSet.String())] = statefulSetsInformer.Informer()
 		default:
 			_ = o.Warnf("Unsupported collector: %s", v)
 		}
@@ -320,7 +320,7 @@ func (o *OrchestratorCheck) processDeploys(sender aggregator.Sender) {
 
 	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sDeployment), stats, orchestrator.NoExpiration)
 
-	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeDeployment)
+	sender.OrchestratorMetadata(messages, o.clusterID, int(orchestrator.K8sDeployment))
 }
 
 func (o *OrchestratorCheck) processReplicaSets(sender aggregator.Sender) {
@@ -347,7 +347,7 @@ func (o *OrchestratorCheck) processReplicaSets(sender aggregator.Sender) {
 
 	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sReplicaSet), stats, orchestrator.NoExpiration)
 
-	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeReplicaSet)
+	sender.OrchestratorMetadata(messages, o.clusterID, int(orchestrator.K8sReplicaSet))
 }
 
 func (o *OrchestratorCheck) processServices(sender aggregator.Sender) {
@@ -375,7 +375,7 @@ func (o *OrchestratorCheck) processServices(sender aggregator.Sender) {
 
 	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sService), stats, orchestrator.NoExpiration)
 
-	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeService)
+	sender.OrchestratorMetadata(messages, o.clusterID, int(orchestrator.K8sService))
 }
 
 func (o *OrchestratorCheck) processNodes(sender aggregator.Sender) {
@@ -430,7 +430,7 @@ func (o *OrchestratorCheck) processJobs(sender aggregator.Sender) {
 
 	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sJob), stats, orchestrator.NoExpiration)
 
-	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeJob)
+	sender.OrchestratorMetadata(messages, o.clusterID, int(orchestrator.K8sJob))
 }
 
 func (o *OrchestratorCheck) processCronJobs(sender aggregator.Sender) {
@@ -457,7 +457,7 @@ func (o *OrchestratorCheck) processCronJobs(sender aggregator.Sender) {
 
 	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sCronJob), stats, orchestrator.NoExpiration)
 
-	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeCronJob)
+	sender.OrchestratorMetadata(messages, o.clusterID, int(orchestrator.K8sCronJob))
 }
 
 func (o *OrchestratorCheck) processDaemonSets(sender aggregator.Sender) {
@@ -484,7 +484,7 @@ func (o *OrchestratorCheck) processDaemonSets(sender aggregator.Sender) {
 
 	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sDaemonSet), stats, orchestrator.NoExpiration)
 
-	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeDaemonSet)
+	sender.OrchestratorMetadata(messages, o.clusterID, int(orchestrator.K8sDaemonSet))
 }
 
 func (o *OrchestratorCheck) processStatefulSets(sender aggregator.Sender) {
@@ -511,7 +511,7 @@ func (o *OrchestratorCheck) processStatefulSets(sender aggregator.Sender) {
 
 	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sStatefulSet), stats, orchestrator.NoExpiration)
 
-	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypeStatefulSet)
+	sender.OrchestratorMetadata(messages, o.clusterID, int(orchestrator.K8sStatefulSet))
 }
 
 func sendNodesMetadata(sender aggregator.Sender, nodesList []*v1.Node, nodesMessages []model.MessageBody, clusterID string) {
@@ -523,7 +523,7 @@ func sendNodesMetadata(sender aggregator.Sender, nodesList []*v1.Node, nodesMess
 
 	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sNode), stats, orchestrator.NoExpiration)
 
-	sender.OrchestratorMetadata(nodesMessages, clusterID, forwarder.PayloadTypeNode)
+	sender.OrchestratorMetadata(nodesMessages, clusterID, int(orchestrator.K8sNode))
 }
 
 func sendClusterMetadata(sender aggregator.Sender, clusterMessage model.MessageBody, clusterID string) {
@@ -532,7 +532,7 @@ func sendClusterMetadata(sender aggregator.Sender, clusterMessage model.MessageB
 		CacheMiss: 1,
 		NodeType:  orchestrator.K8sCluster,
 	}
-	sender.OrchestratorMetadata([]serializer.ProcessMessageBody{clusterMessage}, clusterID, forwarder.PayloadTypeCluster)
+	sender.OrchestratorMetadata([]serializer.ProcessMessageBody{clusterMessage}, clusterID, int(orchestrator.K8sCluster))
 	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sCluster), stats, orchestrator.NoExpiration)
 }
 
@@ -547,7 +547,7 @@ func (o *OrchestratorCheck) processPods(sender aggregator.Sender) {
 	}
 
 	// we send an empty hostname for unassigned pods
-	messages, err := orchestrator.ProcessPodList(podList, atomic.AddInt32(&o.groupID, 1), "", o.clusterID, o.orchestratorConfig)
+	messages, err := orchutil.ProcessPodList(podList, atomic.AddInt32(&o.groupID, 1), "", o.clusterID, o.orchestratorConfig)
 	if err != nil {
 		_ = o.Warnf("Unable to process pod list: %v", err)
 		return
@@ -561,7 +561,7 @@ func (o *OrchestratorCheck) processPods(sender aggregator.Sender) {
 
 	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sPod), stats, orchestrator.NoExpiration)
 
-	sender.OrchestratorMetadata(messages, o.clusterID, forwarder.PayloadTypePod)
+	sender.OrchestratorMetadata(messages, o.clusterID, int(orchestrator.K8sPod))
 }
 
 // Cancel cancels the orchestrator check

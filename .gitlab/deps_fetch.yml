@@ -21,7 +21,7 @@
 linux_x64_go_deps:
   extends: .go_deps
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:2xlarge"]
+  tags: ["runner:main"]
 
 linux_arm64_go_deps:
   extends: .go_deps

@@ -50,6 +50,18 @@ func (rsa *RuleSetApplier) applyApprovers(eventType eval.EventType, approvers ru
 	return nil
 }
 
+// applyDefaultPolicy this will apply the deny policy if kernel filters are enabled
+func (rsa *RuleSetApplier) applyDefaultFilterPolicies() {
+	var model Model
+	for _, eventType := range model.GetEventTypes() {
+		if !rsa.config.EnableKernelFilters {
+			_ = rsa.applyFilterPolicy(eventType, PolicyModeNoFilter, math.MaxUint8)
+		} else {
+			_ = rsa.applyFilterPolicy(eventType, PolicyModeDeny, math.MaxUint8)
+		}
+	}
+}
+
 func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventType, approvers rules.Approvers) error {
 	if !rsa.config.EnableKernelFilters {
 		return rsa.applyFilterPolicy(eventType, PolicyModeNoFilter, math.MaxUint8)
@@ -89,6 +101,9 @@ func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, approvers map[eval.EventType
 			return nil, errors.Wrap(err, "failed to flush discarders")
 		}
 	}
+
+	// apply deny filter by default
+	rsa.applyDefaultFilterPolicies()
 
 	for _, eventType := range rs.GetEventTypes() {
 		if err := rsa.setupFilters(rs, eventType, approvers[eventType]); err != nil {

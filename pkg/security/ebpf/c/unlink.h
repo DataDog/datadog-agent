@@ -98,10 +98,6 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
         return 0;
     }
 
-    // ensure that we invalidate all the layers
-    u64 inode = syscall->unlink.file.path_key.ino;
-    invalidate_inode(ctx, syscall->unlink.file.path_key.mount_id, inode, 1);
-
     u64 enabled_events = get_enabled_events();
     int pass_to_userspace = !syscall->discarded &&
                             (mask_has_event(enabled_events, EVENT_UNLINK) ||
@@ -131,7 +127,9 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
         }
     }
 
-    invalidate_inode(ctx, syscall->unlink.file.path_key.mount_id, syscall->unlink.file.path_key.ino, !pass_to_userspace);
+    if (retval >= 0) {
+        invalidate_inode(ctx, syscall->unlink.file.path_key.mount_id, syscall->unlink.file.path_key.ino, !pass_to_userspace);
+    }
 
     return 0;
 }

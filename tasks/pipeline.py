@@ -5,10 +5,11 @@ import re
 import traceback
 from collections import defaultdict
 
+import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.utils import DEFAULT_BRANCH
+from tasks.utils import DEFAULT_BRANCH, get_all_allowed_repo_branches, is_allowed_repo_branch
 
 from .libs.common.color import color_message
 from .libs.common.gitlab import Gitlab
@@ -20,6 +21,7 @@ from .libs.pipeline_notifications import (
     send_slack_message,
 )
 from .libs.pipeline_tools import (
+    FilteredOutException,
     cancel_pipelines_with_confirmation,
     get_running_pipelines_on_same_ref,
     trigger_agent_pipeline,
@@ -28,8 +30,6 @@ from .libs.pipeline_tools import (
 from .libs.types import SlackMessage, TeamMessage
 
 # Tasks to trigger pipelines
-
-ALLOWED_REPO_BRANCHES = {"stable", "beta", "nightly", "none"}
 
 
 def check_deploy_pipeline(gitlab, project_name, git_ref, release_version_6, release_version_7, repo_branch):
@@ -40,10 +40,10 @@ def check_deploy_pipeline(gitlab, project_name, git_ref, release_version_6, rele
     """
 
     # Check that the target repo branch is valid
-    if repo_branch not in ALLOWED_REPO_BRANCHES:
+    if not is_allowed_repo_branch(repo_branch):
         print(
             "--repo-branch argument '{}' is not in the list of allowed repository branches: {}".format(
-                repo_branch, ALLOWED_REPO_BRANCHES
+                repo_branch, get_all_allowed_repo_branches()
             )
         )
         raise Exit(code=1)
@@ -149,6 +149,12 @@ def trigger(
     )
 
 
+def workflow_rules(gitlab_file=".gitlab-ci.yml"):
+    """Get Gitlab workflow rules list in a YAML-formatted string."""
+    with open(gitlab_file, 'r') as f:
+        return yaml.dump(yaml.safe_load(f.read())["workflow"]["rules"])
+
+
 @task
 def run(
     ctx,
@@ -231,17 +237,26 @@ def run(
         )
         cancel_pipelines_with_confirmation(gitlab, project_name, pipelines)
 
-    pipeline_id = trigger_agent_pipeline(
-        gitlab,
-        project_name,
-        git_ref,
-        release_version_6,
-        release_version_7,
-        repo_branch,
-        deploy=deploy,
-        all_builds=all_builds,
-        kitchen_tests=kitchen_tests,
-    )
+    try:
+        pipeline_id = trigger_agent_pipeline(
+            gitlab,
+            project_name,
+            git_ref,
+            release_version_6,
+            release_version_7,
+            repo_branch,
+            deploy=deploy,
+            all_builds=all_builds,
+            kitchen_tests=kitchen_tests,
+        )
+    except FilteredOutException:
+        print(
+            color_message(
+                "ERROR: pipeline does not match any workflow rule. Rules:\n{}".format(workflow_rules()), "red"
+            )
+        )
+        return
+
     wait_for_pipeline(gitlab, project_name, pipeline_id)
 
 
@@ -424,10 +439,10 @@ def notify_failure(_, notification_type="merge", print_to_stdout=False):
 def _init_pipeline_schedule_task():
     project_name = "DataDog/datadog-agent"
     try:
-        project_access_token = os.environ['GITLAB_PROJECT_ACCESS_TOKEN']
+        bot_token = os.environ['GITLAB_BOT_TOKEN']
     except KeyError:
-        raise Exit(message="You must specify GITLAB_PROJECT_ACCESS_TOKEN environment variable", code=1)
-    gitlab = Gitlab(api_token=project_access_token)
+        raise Exit(message="You must specify GITLAB_BOT_TOKEN environment variable", code=1)
+    gitlab = Gitlab(api_token=bot_token)
     gitlab.test_project_found(project_name)
     return project_name, gitlab
 

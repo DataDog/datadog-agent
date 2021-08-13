@@ -69,14 +69,14 @@ func (t *Tagger) Stop() error {
 // Tag returns tags for a given entity at the desired cardinality.
 func (t *Tagger) Tag(entityID string, cardinality collectors.TagCardinality) ([]string, error) {
 	entity, ok := t.store.getEntity(entityID)
-	if ok {
-		telemetry.Queries.Inc(collectors.TagCardinalityToString(cardinality), telemetry.QuerySuccess)
-		return entity.GetTags(cardinality), nil
+
+	if !ok {
+		telemetry.Queries.Inc(collectors.TagCardinalityToString(cardinality), telemetry.QueryEmptyTags)
+		return []string{}, fmt.Errorf("Entity not found")
 	}
 
-	telemetry.Queries.Inc(collectors.TagCardinalityToString(cardinality), telemetry.QueryEmptyTags)
-
-	return []string{}, nil
+	telemetry.Queries.Inc(collectors.TagCardinalityToString(cardinality), telemetry.QuerySuccess)
+	return entity.GetTags(cardinality), nil
 }
 
 // TagBuilder returns tags for a given entity at the desired cardinality.
@@ -93,7 +93,7 @@ func (t *Tagger) TagBuilder(entityID string, cardinality collectors.TagCardinali
 func (t *Tagger) Standard(entityID string) ([]string, error) {
 	entity, ok := t.store.getEntity(entityID)
 	if !ok {
-		return []string{}, nil
+		return []string{}, fmt.Errorf("Entity not found")
 	}
 
 	return entity.StandardTags, nil

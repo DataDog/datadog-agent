@@ -11,15 +11,15 @@ import (
 	"context"
 	"sync"
 
+	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/ebpf/manager"
 	"github.com/hashicorp/go-multierror"
+	"github.com/pkg/errors"
 
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-go/statsd"
-	"github.com/DataDog/ebpf/manager"
-	"github.com/pkg/errors"
 )
 
 // Monitor regroups all the work we want to do to monitor the probes we pushed in the kernel
@@ -101,6 +101,10 @@ func (m *Monitor) SendStats() error {
 
 	if err := m.perfBufferMonitor.SendStats(); err != nil {
 		return errors.Wrap(err, "failed to send events stats")
+	}
+
+	if err := m.loadController.SendStats(); err != nil {
+		return errors.Wrap(err, "failed to send load controller stats")
 	}
 
 	return nil

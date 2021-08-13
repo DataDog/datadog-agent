@@ -1,28 +1,30 @@
 #ifndef _COMMIT_CREDS_H_
 #define _COMMIT_CREDS_H_
 
-struct credentials_event_t {
+struct setuid_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct container_context_t container;
-    union {
-        struct {
-            u32 uid;
-            u32 euid;
-            u32 fsuid;
-        } setuid;
+    u32 uid;
+    u32 euid;
+    u32 fsuid;
+};
 
-        struct {
-            u32 gid;
-            u32 egid;
-            u32 fsgid;
-        } setgid;
+struct setgid_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct container_context_t container;
+    u32 gid;
+    u32 egid;
+    u32 fsgid;
+};
 
-        struct {
-            u64 cap_effective;
-            u64 cap_permitted;
-        } capset;
-    };
+struct capset_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct container_context_t container;
+    u64 cap_effective;
+    u64 cap_permitted;
 };
 
 int __attribute__((always_inline)) credentials_update(u64 type) {
@@ -47,37 +49,46 @@ int __attribute__((always_inline)) credentials_update_ret(void *ctx, int retval)
         return 0;
 
     u32 pid = bpf_get_current_pid_tgid() >> 32;
-    struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &pid);
+    struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
     if (!pid_entry) {
         return 0;
     }
 
-    u64 event_type = 0;
-    struct credentials_event_t event = {};
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_container_context(entry, &event.container);
-
     switch (syscall->type) {
-        case EVENT_SETUID:
-            event_type = EVENT_SETUID;
-            event.setuid.uid = pid_entry->credentials.uid;
-            event.setuid.euid = pid_entry->credentials.euid;
-            event.setuid.fsuid = pid_entry->credentials.fsuid;
-            break;
-        case EVENT_SETGID:
-            event_type = EVENT_SETGID;
-            event.setgid.gid = pid_entry->credentials.gid;
-            event.setgid.egid = pid_entry->credentials.egid;
-            event.setgid.fsgid = pid_entry->credentials.fsgid;
-            break;
-        case EVENT_CAPSET:
-            event_type = EVENT_CAPSET;
-            event.capset.cap_effective = pid_entry->credentials.cap_effective;
-            event.capset.cap_permitted = pid_entry->credentials.cap_permitted;
-            break;
+    case EVENT_SETUID: {
+        struct setuid_event_t event = {};
+        struct proc_cache_t *entry = fill_process_context(&event.process);
+        fill_container_context(entry, &event.container);
+
+        event.uid = pid_entry->credentials.uid;
+        event.euid = pid_entry->credentials.euid;
+        event.fsuid = pid_entry->credentials.fsuid;
+        send_event(ctx, EVENT_SETUID, event);
+        break;
+    }
+    case EVENT_SETGID: {
+        struct setgid_event_t event = {};
+        struct proc_cache_t *entry = fill_process_context(&event.process);
+        fill_container_context(entry, &event.container);
+
+        event.gid = pid_entry->credentials.gid;
+        event.egid = pid_entry->credentials.egid;
+        event.fsgid = pid_entry->credentials.fsgid;
+        send_event(ctx, EVENT_SETGID, event);
+        break;
+    }
+    case EVENT_CAPSET: {
+        struct capset_event_t event = {};
+        struct proc_cache_t *entry = fill_process_context(&event.process);
+        fill_container_context(entry, &event.container);
+
+        event.cap_effective = pid_entry->credentials.cap_effective;
+        event.cap_permitted = pid_entry->credentials.cap_permitted;
+        send_event(ctx, EVENT_CAPSET, event);
+        break;
+    }
     }
 
-    send_event(ctx, event_type, event);
     return 0;
 }
 
@@ -216,8 +227,6 @@ int tracepoint_syscalls_sys_exit_setresuid16(struct tracepoint_syscalls_sys_exit
     return credentials_update_ret(args, args->ret);
 }
 
-
-
 SYSCALL_KPROBE0(setgid) {
     return credentials_update(EVENT_SETGID);
 }
@@ -348,8 +357,6 @@ int tracepoint_syscalls_sys_exit_setresgid16(struct tracepoint_syscalls_sys_exit
     return credentials_update_ret(args, args->ret);
 }
 
-
-
 SYSCALL_KPROBE0(capset) {
     return credentials_update(EVENT_CAPSET);
 }
@@ -376,7 +383,7 @@ int kprobe__commit_creds(struct pt_regs *ctx) {
     // update pid_cache entry for the current process
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     u8 new_entry = 0;
-    struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &pid);
+    struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
     if (!pid_entry) {
         new_entry = 1;
         pid_entry = &new_pid_entry;

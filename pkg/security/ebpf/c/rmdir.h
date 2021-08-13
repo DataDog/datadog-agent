@@ -136,7 +136,9 @@ int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
         send_event(ctx, EVENT_RMDIR, event);
     }
 
-    invalidate_inode(ctx, syscall->rmdir.file.path_key.mount_id, syscall->rmdir.file.path_key.ino, !pass_to_userspace);
+    if (retval >= 0) {
+        invalidate_inode(ctx, syscall->rmdir.file.path_key.mount_id, syscall->rmdir.file.path_key.ino, !pass_to_userspace);
+    }
 
     return 0;
 }
