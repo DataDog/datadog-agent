@@ -100,6 +100,9 @@ func newWorkerWithOptions(
 func (w *Worker) Run() {
 	log.Debugf("Runner %d, worker %d: Ready to process checks...", w.runnerID, w.ID)
 
+	expvars.SetWorkerStats(w.Name(), &expvars.WorkerStats{})
+	defer expvars.DeleteWorkerStats(w.Name())
+
 	for check := range w.pendingChecksChan {
 		checkLogger := CheckLogger{Check: check}
 

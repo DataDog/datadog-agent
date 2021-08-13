@@ -86,6 +86,22 @@ func assertErrorCount(t *testing.T, c check.Check, count int) {
 	assert.Equal(t, count, int(stats.TotalErrors))
 }
 
+func assertAsyncWorkerCount(t *testing.T, count int) {
+	for idx := 0; idx < 75; idx++ {
+		workers := int(expvars.GetWorkerCount())
+		if workers == count {
+			// This may seem superfluous but we want to ensure that at least one
+			// assertion runs in all cases
+			require.Equal(t, count, workers)
+			return
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	require.Equal(t, count, int(expvars.GetWorkerCount()))
+}
+
 // Tests
 
 func TestWorkerInit(t *testing.T) {
@@ -105,6 +121,35 @@ func TestWorkerInit(t *testing.T) {
 	worker, err := NewWorker(1, 2, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
 	assert.Nil(t, err)
 	assert.NotNil(t, worker)
+}
+
+func TestWorkerInitExpvarStats(t *testing.T) {
+	checksTracker := &tracker.RunningChecksTracker{}
+	pendingChecksChan := make(chan check.Check, 1)
+	mockShouldAddStatsFunc := func(id check.ID) bool { return true }
+
+	var wg sync.WaitGroup
+
+	assert.Equal(t, 0, expvars.GetWorkerCount())
+
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+
+			worker, err := NewWorker(1, idx, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
+			assert.Nil(t, err)
+
+			worker.Run()
+		}(i)
+	}
+
+	assertAsyncWorkerCount(t, 20)
+
+	close(pendingChecksChan)
+	wg.Wait()
+
+	assertAsyncWorkerCount(t, 0)
 }
 
 func TestWorkerStructMethods(t *testing.T) {
@@ -145,6 +190,8 @@ func TestWorker(t *testing.T) {
 		assert.Equal(t, 2, len(expvars.GetCheckStats()))
 		_, found := expvars.CheckStats(id)
 		assert.False(t, found)
+
+		assert.Equal(t, 1, expvars.GetWorkerCount())
 
 		assert.Equal(t, 1, int(expvars.GetRunningCheckCount()))
 		assert.Equal(t, 1, len(checksTracker.RunningChecks()))
@@ -193,6 +240,7 @@ func TestWorker(t *testing.T) {
 
 	assert.Equal(t, 0, int(expvars.GetRunningCheckCount()))
 	assert.Equal(t, 0, len(checksTracker.RunningChecks()))
+	assertAsyncWorkerCount(t, 0)
 }
 
 func TestWorkerErrorAndWarningHandling(t *testing.T) {
@@ -245,6 +293,7 @@ func TestWorkerErrorAndWarningHandling(t *testing.T) {
 	assert.Equal(t, 6, int(expvars.GetRunsCount()))
 	assert.Equal(t, 4, int(expvars.GetErrorsCount()))
 	assert.Equal(t, 0, int(expvars.GetWarningsCount()))
+	assertAsyncWorkerCount(t, 0)
 }
 
 func TestWorkerConcurrentCheckScheduling(t *testing.T) {
