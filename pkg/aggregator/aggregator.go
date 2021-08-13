@@ -45,7 +45,7 @@ const tagsetSizeThresholdsCount = 2
 // timeseries and sketches.
 var tagsetSizeThresholds = [tagsetSizeThresholdsCount]uint64{90, 100}
 
-// hugeSeriesCounts contais the total count of huge metric series, by
+// hugeSeriesCounts contains the total count of huge metric series, by
 // threshold. Access must be atomic.
 var hugeSeriesCount [tagsetSizeThresholdsCount]uint64
 
