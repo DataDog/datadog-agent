@@ -1,4 +1,4 @@
-package rtcfg
+package runtime_config
 
 import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"

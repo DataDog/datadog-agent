@@ -1,4 +1,4 @@
-package rtcfg
+package runtime_config
 
 import (
 	"net/rpc"
