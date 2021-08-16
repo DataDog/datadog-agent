@@ -53,15 +53,14 @@ func newTagsetTelemetry(thresholds []uint64) *tagsetTelemetry {
 	return t
 }
 
-// updateHugeSketches huge and almost-huge series in the given value
-func (t *tagsetTelemetry) updateHugeSketchesTelemetry(sketches *metrics.SketchSeriesList) {
+// updateTelemetry implements common behavior fof the update*Telemetry methods.
+func (t *tagsetTelemetry) updateTelemetry(tagsetSizes []uint64, atomicCounts []uint64, tlms []telemetry.Counter) {
 	counts := make([]uint64, t.size)
 	var found bool
 
-	for _, s := range *sketches {
-		tags := uint64(len(s.Tags))
+	for _, tagsetSize := range tagsetSizes {
 		for i, thresh := range t.sizeThresholds {
-			if tags > thresh {
+			if tagsetSize > thresh {
 				counts[i]++
 				found = true
 			}
@@ -71,36 +70,29 @@ func (t *tagsetTelemetry) updateHugeSketchesTelemetry(sketches *metrics.SketchSe
 	if found {
 		for i, count := range counts {
 			if count > 0 {
-				atomic.AddUint64(&t.hugeSketchesCount[i], count)
-				t.tlmHugeSketches[i].Add(float64(count))
+				atomic.AddUint64(&atomicCounts[i], count)
+				tlms[i].Add(float64(count))
 			}
 		}
 	}
 }
 
+// updateHugeSketches huge and almost-huge series in the given value
+func (t *tagsetTelemetry) updateHugeSketchesTelemetry(sketches *metrics.SketchSeriesList) {
+	tagsetSizes := make([]uint64, len(*sketches))
+	for i, s := range *sketches {
+		tagsetSizes[i] = uint64(len(s.Tags))
+	}
+	t.updateTelemetry(tagsetSizes, t.hugeSketchesCount, t.tlmHugeSketches)
+}
+
 // updateHugeSeriesTelemetry counts huge and almost-huge series in the given value
 func (t *tagsetTelemetry) updateHugeSeriesTelemetry(series *metrics.Series) {
-	counts := make([]uint64, t.size)
-	var found bool
-
-	for _, s := range *series {
-		tags := uint64(len(s.Tags))
-		for i, thresh := range t.sizeThresholds {
-			if tags > thresh {
-				counts[i]++
-				found = true
-			}
-		}
+	tagsetSizes := make([]uint64, len(*series))
+	for i, s := range *series {
+		tagsetSizes[i] = uint64(len(s.Tags))
 	}
-
-	if found {
-		for i, count := range counts {
-			if count > 0 {
-				atomic.AddUint64(&t.hugeSeriesCount[i], count)
-				t.tlmHugeSeries[i].Add(float64(count))
-			}
-		}
-	}
+	t.updateTelemetry(tagsetSizes, t.hugeSeriesCount, t.tlmHugeSeries)
 }
 
 func (t *tagsetTelemetry) exp() interface{} {
