@@ -505,7 +505,7 @@ def build_network_ebpf_files(ctx, build_dir):
 
         debug_bc_file = os.path.join(build_dir, "{}-debug.bc".format(p))
         debug_obj_file = os.path.join(build_dir, "{}-debug.o".format(p))
-        ctx.run(CLANG_CMD.format(flags=" ".join(network_flags + ["-DDEBUG=1"]), bc=debug_bc_file, c_file=src_file))
+        ctx.run(CLANG_CMD.format(flags=" ".join(network_flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file))
         ctx.run(LLC_CMD.format(flags=" ".join(network_flags), bc_file=debug_bc_file, obj_file=debug_obj_file))
 
 
