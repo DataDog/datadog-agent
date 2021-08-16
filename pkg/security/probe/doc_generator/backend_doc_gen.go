@@ -12,9 +12,10 @@ import (
 	"encoding/json"
 	"flag"
 	"io/ioutil"
+	"reflect"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors/doc"
 	"github.com/alecthomas/jsonschema"
 )
 
@@ -22,7 +23,7 @@ func generateBackendJSON(output string) error {
 	reflector := jsonschema.Reflector{
 		ExpandedStruct: true,
 		DoNotReference: false,
-		TypeNamer:      doc.JSONTypeMapper,
+		TypeNamer:      jsonTypeMapper,
 	}
 	schema := reflector.Reflect(&probe.EventSerializer{})
 	schemaJSON, err := schema.MarshalJSON()
@@ -36,6 +37,17 @@ func generateBackendJSON(output string) error {
 	}
 
 	return ioutil.WriteFile(output, out.Bytes(), 0664)
+}
+
+func jsonTypeMapper(ty reflect.Type) string {
+	const selinuxPrefix = "selinux"
+
+	base := strings.TrimSuffix(ty.Name(), "Serializer")
+	if strings.HasPrefix(base, selinuxPrefix) {
+		return "SELinux" + strings.TrimPrefix(base, selinuxPrefix)
+	}
+
+	return base
 }
 
 func main() {
