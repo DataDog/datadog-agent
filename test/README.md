@@ -36,7 +36,6 @@ The molecule script executions has a few requirements:
 
 Test are organized by scenarios, they are directories located under `molecule-role/molecule` and all molecule commands need to target a scenario, like:
 
-    # Example
 
     # We target the setup script and run create to initiate the structure
     # The create step will automatically run the prepare step in the create composition
@@ -48,13 +47,29 @@ Test are organized by scenarios, they are directories located under `molecule-ro
 
     -  ./molecule3.sh --base-config ./molecule/<scenario>/provisioner.run.yml prepare --force --scenario-name <scenario>
 
-    # A test can be ran on the molecule that does not destroy itself when and if it fails
+    # A test can be ran on the molecule that does not destroy itself when and if it fails (Will skip the prepare and create phase cause those already ran)
 
     -  ./molecule3.sh --base-config ./molecule/<scenario>/provisioner.run.yml test --scenario-name <scenario> --destroy=never
 
     # This is the funally step where we destroy everything. You can use the run or setup script here
 
-    -  ./molecule3.sh --base-config ./molecule/<scenario>/provisioner.run.yml destroy --scenario-name <scenario>
+    -  ./molecule3.sh --base-config ./molecule/<scenario>/provisioner.setup.yml destroy --scenario-name <scenario>
+
+
+    ----- Example -----
+
+    # (Compose) - Setup machine and Requirements
+    -  ./molecule3.sh --base-config ./molecule/compose/provisioner.setup.yml create --scenario-name compose
+    -  ./molecule3.sh --base-config ./molecule/compose/provisioner.run.yml prepare --force --scenario-name compose
+
+    # (Compose) - Run Unit Tests
+    -  ./molecule3.sh --base-config ./molecule/compose/provisioner.run.yml test --scenario-name compose --destroy=never
+
+    # (Compose) - SSH Into the Machine
+    -  ./molecule3.sh --base-config ./molecule/compose/provisioner.run.yml login --scenario-name compose
+
+    # (Compose) - Destroy your dev instance (!!! Remember dev instances do not get cleaned up as they do not identify as zombie instances, please destroy your instance at the end)
+    -  ./molecule3.sh --base-config ./molecule/compose/provisioner.setup.yml destroy --scenario-name compose
 
 ### Troubleshooting
 

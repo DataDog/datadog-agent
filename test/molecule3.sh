@@ -2,9 +2,19 @@
 
 # Determine if you are running locally or on CI
 export DEV_MODE="false"
+export DEV_PATH=""
 if [ -z "$CI_COMMIT_SHA" ]; then
+    echo "=================== ================ ==================="
+    echo "=================== DEV MODE ENABLED ==================="
+    echo "=================== ================ ==================="
+
     export DEV_MODE="true"
+    export DEV_PATH="${PWD}/.."
+
+    echo "DEV_MODE: ${DEV_MODE}"
+    echo "DEV_PATH: ${DEV_PATH}"
 fi
+
 
 export CONDA_BASE="${HOME}/miniconda3"
 
