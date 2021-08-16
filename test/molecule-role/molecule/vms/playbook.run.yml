@@ -14,6 +14,8 @@
     - name: Gather facts (we need the docker network interface ip)
       setup:
 
+    - include_tasks: ../common/create/wait-for-boot-process-to-finish.yml
+
     - name: Stop and Remove Existing Docker Compose
       command: docker-compose rm --stop -v --force
       ignore_errors: true
