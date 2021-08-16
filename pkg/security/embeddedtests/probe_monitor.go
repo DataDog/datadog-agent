@@ -14,7 +14,6 @@ import (
 	"path"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -38,13 +37,13 @@ func TestRulesetLoaded(t *testing.T) {
 	}
 
 	t.Run("ruleset_loaded", func(t *testing.T) {
-		if err := test.GetProbeCustomEvent(func() error {
+		if err := test.GetProbeCustomEvent(t, func() error {
 			test.reloadConfiguration()
 			return nil
 		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
 			assert.Equal(t, probe.RulesetLoadedRuleID, rule.ID, "wrong rule")
 			return true
-		}, 3*time.Second, model.CustomRulesetLoadedEventType); err != nil {
+		}, model.CustomRulesetLoadedEventType); err != nil {
 			t.Error(err)
 		}
 	})
@@ -78,7 +77,7 @@ func truncatedParents(t *testing.T, opts testOpts) {
 
 		defer os.Remove(truncatedParentsFile)
 
-		err = test.GetProbeCustomEvent(func() error {
+		err = test.GetProbeCustomEvent(t, func() error {
 			f, err := os.OpenFile(truncatedParentsFile, os.O_CREATE, 0755)
 			if err != nil {
 				t.Fatal(err)
@@ -87,7 +86,7 @@ func truncatedParents(t *testing.T, opts testOpts) {
 		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
 			assert.Equal(t, probe.AbnormalPathRuleID, rule.ID, "wrong rule")
 			return true
-		}, 3*time.Second, model.CustomTruncatedParentsEventType)
+		}, model.CustomTruncatedParentsEventType)
 		if err != nil {
 			t.Error(err)
 		}

@@ -720,7 +720,7 @@ func TestProcessExecExit(t *testing.T) {
 		Expression: fmt.Sprintf(`exec.file.path == "%s" && exec.args in [~"*01010101*"]`, executable),
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
