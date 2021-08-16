@@ -6,4 +6,4 @@ version          "0.2.0"
 
 depends 'apt', '>= 2.1.0'
 depends 'datadog'
-depends 'yum'
+depends 'yum', '< 7.0.0'
