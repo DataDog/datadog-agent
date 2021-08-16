@@ -34,7 +34,7 @@ const (
 const DefaultIntakeProtocol IntakeProtocol = ""
 
 // DefaultIntakeOrigin indicates that no special DD_SOURCE header is in use for the endpoint intake track type.
-const DefaultIntakeOrigin IntakeOrigin = ""
+const DefaultIntakeOrigin IntakeOrigin = "agent"
 
 // logs-intake endpoints depending on the site and environment.
 var logsEndpoints = map[string]int{
