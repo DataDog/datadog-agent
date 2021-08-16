@@ -266,7 +266,7 @@ func Test_validateEnrichMetrics(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"transform rule end should be greater than start. Invalid rule",
+				"transform rule end should be greater than Start. Invalid rule",
 			},
 		},
 		{

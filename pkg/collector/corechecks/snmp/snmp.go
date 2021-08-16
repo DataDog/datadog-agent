@@ -27,9 +27,10 @@ var timeNow = time.Now
 // Check aggregates metrics from one Check instance
 type Check struct {
 	core.CheckBase
-	config  snmpConfig
-	session sessionAPI
-	sender  metricSender
+	config    snmpConfig
+	session   sessionAPI
+	sender    metricSender
+	discovery snmpDiscovery
 }
 
 // Run executes the check
@@ -174,12 +175,24 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 		return fmt.Errorf("session configure failed: %s", err)
 	}
 
+	if c.config.Network != "" {
+		log.Warnf("[DEV] Network: %s", c.config)
+		c.discovery = newSnmpDiscovery(c.config)
+		c.discovery.Start()
+	}
+
 	return nil
 }
 
 // Interval returns the scheduling time for the check
 func (c *Check) Interval() time.Duration {
 	return c.config.minCollectionInterval
+}
+
+// Cancel is called when check is unscheduled
+func (c *Check) Cancel() {
+	log.Warnf("[DEV] Cancel called for check %s", c.ID())
+	c.discovery.stop <- true
 }
 
 func snmpFactory() check.Check {

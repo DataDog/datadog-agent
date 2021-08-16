@@ -64,9 +64,9 @@ metrics:
       OID: 1.3.6.1.2.1.2.2.1.2
       name: ifDescr
     index_transform:
-      - start: 1
+      - Start: 1
         end: 3
-      - start: 4
+      - Start: 4
         end: 6
   - index: 1
     tag: ipversion

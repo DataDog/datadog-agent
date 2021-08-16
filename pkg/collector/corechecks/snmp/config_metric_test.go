@@ -52,7 +52,7 @@ func Test_transformIndex(t *testing.T) {
 			nil,
 		},
 		{
-			"out of index start and end",
+			"out of index Start and end",
 			[]string{"10", "11", "12", "13"},
 			[]metricIndexTransform{
 				{1000, 2000},
@@ -97,9 +97,9 @@ metric_tags:
       name: cpiPduName
     table: cpiPduTable
     index_transform:
-      - start: 1
+      - Start: 1
         end: 2
-      - start: 6
+      - Start: 6
         end: 7
     tag: pdu_name
 `),

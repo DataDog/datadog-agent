@@ -41,7 +41,7 @@ type metricTagConfig struct {
 type metricTagConfigList []metricTagConfig
 
 type metricIndexTransform struct {
-	Start uint `yaml:"start"`
+	Start uint `yaml:"Start"`
 	End   uint `yaml:"end"`
 }
 
@@ -180,7 +180,7 @@ func normalizeRegexReplaceValue(val string) string {
 }
 
 // transformIndex change a source index into a new index using a list of transform rules.
-// A transform rule has start/end fields, it is used to extract a subset of the source index.
+// A transform rule has Start/end fields, it is used to extract a subset of the source index.
 func transformIndex(indexes []string, transformRules []metricIndexTransform) []string {
 	var newIndex []string
 

@@ -2,8 +2,11 @@ package snmp
 
 import (
 	"fmt"
+	"hash/fnv"
+	"net"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -102,6 +105,11 @@ type snmpConfig struct {
 	subnet                string
 	autodetectProfile     bool
 	minCollectionInterval time.Duration
+	Network               string
+	Workers               int
+	DiscoveryInterval     int
+	IgnoredIPAddresses    map[string]bool `mapstructure:"ignored_ip_addresses"`
+	AllowedFailures       int
 }
 
 func (c *snmpConfig) refreshWithProfile(profile string) error {
@@ -148,6 +156,43 @@ func (c *snmpConfig) getDeviceIDTags() []string {
 	tags = append(tags, c.instanceTags...)
 	sort.Strings(tags)
 	return tags
+}
+
+// Digest returns an hash value representing the data stored in this configuration, minus the network address
+func (c *snmpConfig) Digest(address string) string {
+	h := fnv.New64()
+	// Hash write never returns an error
+	h.Write([]byte(address))                   //nolint:errcheck
+	h.Write([]byte(fmt.Sprintf("%d", c.port))) //nolint:errcheck
+	h.Write([]byte(c.snmpVersion))             //nolint:errcheck
+	h.Write([]byte(c.communityString))         //nolint:errcheck
+	h.Write([]byte(c.user))                    //nolint:errcheck
+	h.Write([]byte(c.authKey))                 //nolint:errcheck
+	h.Write([]byte(c.authProtocol))            //nolint:errcheck
+	h.Write([]byte(c.privKey))                 //nolint:errcheck
+	h.Write([]byte(c.privProtocol))            //nolint:errcheck
+	//h.Write([]byte(c.ContextEngineID))         //nolint:errcheck
+	h.Write([]byte(c.contextName)) //nolint:errcheck
+	//h.Write([]byte(c.loader))                  //nolint:errcheck
+
+	// Sort the addresses to get a stable digest
+	addresses := make([]string, 0, len(c.IgnoredIPAddresses))
+	for ip := range c.IgnoredIPAddresses {
+		addresses = append(addresses, ip)
+	}
+	sort.Strings(addresses)
+	for _, ip := range addresses {
+		h.Write([]byte(ip)) //nolint:errcheck
+	}
+
+	return strconv.FormatUint(h.Sum64(), 16)
+}
+
+// IsIPIgnored checks the given IP against IgnoredIPAddresses
+func (c *snmpConfig) IsIPIgnored(ip net.IP) bool {
+	ipString := ip.String()
+	_, present := c.IgnoredIPAddresses[ipString]
+	return present
 }
 
 // toString used for logging snmpConfig without sensitive information
@@ -203,9 +248,14 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		c.extraTags = strings.Split(instance.ExtraTags, ",")
 	}
 
-	if instance.Network != "" {
-		log.Warnf("`network_address` config is not available for corecheck SNMP integration to use autodiscovery. Agent `snmp_listener` config can be used instead: https://docs.datadoghq.com/network_monitoring/devices/setup?tab=snmpv2#autodiscovery")
-	}
+	//if instance.Network != "" {
+	//	log.Warnf("`network_address` config is not available for corecheck SNMP integration to use autodiscovery. Agent `snmp_listener` config can be used instead: https://docs.datadoghq.com/network_monitoring/devices/setup?tab=snmpv2#autodiscovery")
+	//
+	//}
+	c.Network = instance.Network
+	c.Workers = 10
+	c.AllowedFailures = 3
+	c.DiscoveryInterval = 60
 
 	if c.ipAddress == "" {
 		return snmpConfig{}, fmt.Errorf("ip_address config must be provided")

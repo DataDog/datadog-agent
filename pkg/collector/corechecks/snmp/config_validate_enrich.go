@@ -84,7 +84,7 @@ func validateEnrichMetricTag(metricTag *metricTagConfig, metricConfig *metricsCo
 	}
 	for _, transform := range metricTag.IndexTransform {
 		if transform.Start > transform.End {
-			errors = append(errors, fmt.Sprintf("transform rule end should be greater than start. Invalid rule: %#v", transform))
+			errors = append(errors, fmt.Sprintf("transform rule end should be greater than Start. Invalid rule: %#v", transform))
 		}
 	}
 	return errors
