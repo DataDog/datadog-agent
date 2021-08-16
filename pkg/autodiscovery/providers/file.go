@@ -317,8 +317,9 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 	}
 	// If discovery config was found, add it to the config
 	if cf.DiscoveryConfig != nil {
-		discoveryConfig, _ := yaml.Marshal(cf.DiscoveryConfig)
-		config.DiscoveryConfig = discoveryConfig
+		discoveryConfig := make(map[string]interface{})
+		discoveryConfig["discovery"] = cf.DiscoveryConfig
+		config.DiscoveryConfig, _ = yaml.Marshal(discoveryConfig)
 	}
 
 	// Copy auto discovery identifiers

@@ -6,11 +6,10 @@
 package snmp
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	log "github.com/cihub/seelog"
-	"gopkg.in/yaml.v2"
 	"hash/fnv"
 	"net"
 	"reflect"
@@ -19,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/DataDog/viper"
@@ -103,8 +103,15 @@ func NewListenerConfig(discoveryConfigs []integration.Data) (ListenerConfig, err
 	}
 
 	if len(discoveryConfigs) == 1 {
-		log.Debugf("[DEV] discoveryConfigs[0]: %v", string(discoveryConfigs[0]))
-		if err := yaml.Unmarshal(discoveryConfigs[0], &snmpConfig); err != nil {
+		var err error
+		v := viper.New()
+		v.SetConfigType("yaml")
+		err = v.ReadConfig(bytes.NewBuffer(discoveryConfigs[0]))
+		if err != nil {
+			return snmpConfig, err
+		}
+		err = v.UnmarshalKey("discovery", &snmpConfig, opt)
+		if err != nil {
 			return snmpConfig, err
 		}
 		log.Debugf("[DEV] Using discovery config to stup SNMP Listener")
@@ -113,7 +120,7 @@ func NewListenerConfig(discoveryConfigs []integration.Data) (ListenerConfig, err
 			return snmpConfig, err
 		}
 	}
-	log.Debugf("[DEV] snmpConfig: %v", snmpConfig)
+	log.Debugf("[DEV] snmpConfig: %+v", snmpConfig)
 
 	if snmpConfig.AllowedFailures == 0 && snmpConfig.AllowedFailuresLegacy != 0 {
 		snmpConfig.AllowedFailures = snmpConfig.AllowedFailuresLegacy
