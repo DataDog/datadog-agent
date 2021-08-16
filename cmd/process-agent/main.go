@@ -3,29 +3,27 @@
 package main
 
 import (
-	"flag"
-	_ "net/http/pprof"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
 )
 
 func main() {
 	ignore := ""
-	flag.StringVar(&opts.configPath, "config", flags.DefaultConfPath, "Path to datadog.yaml config")
-	flag.StringVar(&ignore, "ddconfig", "", "[deprecated] Path to dd-agent config")
+	rootCmd.PersistentFlags().StringVar(&opts.configPath, "config", flags.DefaultConfPath, "Path to datadog.yaml config")
+	rootCmd.PersistentFlags().StringVar(&ignore, "ddconfig", "", "[deprecated] Path to dd-agent config")
 
 	if flags.DefaultSysProbeConfPath != "" {
-		flag.StringVar(&opts.sysProbeConfigPath, "sysprobe-config", flags.DefaultSysProbeConfPath, "Path to system-probe.yaml config")
+		rootCmd.PersistentFlags().StringVar(&opts.sysProbeConfigPath, "sysprobe-config", flags.DefaultSysProbeConfPath, "Path to system-probe.yaml config")
 	}
 
-	flag.StringVar(&opts.pidfilePath, "pid", "", "Path to set pidfile for process")
-	flag.BoolVar(&opts.info, "info", false, "Show info about running process agent and exit")
-	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
-	flag.StringVar(&opts.check, "check", "", "Run a specific check and print the results. Choose from: process, connections, realtime")
-	flag.Parse()
+	rootCmd.PersistentFlags().StringVarP(&opts.pidfilePath, "pid", "p", "", "Path to set pidfile for process")
+	rootCmd.PersistentFlags().BoolVarP(&opts.info, "info", "i", false, "Show info about running process agent and exit")
+	rootCmd.PersistentFlags().BoolVarP(&opts.version, "version", "v", false, "Print the version and exit")
+	rootCmd.PersistentFlags().StringVar(&opts.check, "check", "", "Run a specific check and print the results. Choose from: process, connections, realtime")
 
-	exit := make(chan struct{})
-
-	// Invoke the Agent
-	runAgent(exit)
+	fixDeprecatedFlags()
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+	}
 }

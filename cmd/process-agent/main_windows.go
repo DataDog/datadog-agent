@@ -3,7 +3,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	_ "net/http/pprof"
 	"os"
@@ -116,21 +115,19 @@ func runService(isDebug bool) {
 // main is the main application entry point
 func main() {
 	ignore := ""
-	flag.StringVar(&opts.configPath, "config", defaultConfigPath, "Path to datadog.yaml config")
-	flag.StringVar(&opts.sysProbeConfigPath, "sysprobe-config", defaultSysProbeConfigPath, "Path to system-probe.yaml config")
-	flag.StringVar(&ignore, "ddconfig", "", "[deprecated] Path to dd-agent config")
-	flag.BoolVar(&opts.info, "info", false, "Show info about running process agent and exit")
-	flag.BoolVar(&opts.version, "version", false, "Print the version and exit")
-	flag.StringVar(&opts.check, "check", "", "Run a specific check and print the results. Choose from: process, connections, realtime")
+	rootCmd.PersistentFlags().StringVar(&opts.configPath, "config", defaultConfigPath, "Path to datadog.yaml config")
+	rootCmd.PersistentFlags().StringVar(&opts.sysProbeConfigPath, "sysprobe-config", defaultSysProbeConfigPath, "Path to system-probe.yaml config")
+	rootCmd.PersistentFlags().StringVar(&ignore, "ddconfig", "", "[deprecated] Path to dd-agent config")
+	rootCmd.PersistentFlags().BoolVarP(&opts.info, "info", "i", false, "Show info about running process agent and exit")
+	rootCmd.PersistentFlags().BoolVarP(&opts.version, "version", "v", false, "Print the version and exit")
+	rootCmd.PersistentFlags().StringVar(&opts.check, "check", "", "Run a specific check and print the results. Choose from: process, connections, realtime")
 
 	// windows-specific options for installing the service, uninstalling the service, etc.
-	flag.BoolVar(&winopts.installService, "install-service", false, "Install the process agent to the Service Control Manager")
-	flag.BoolVar(&winopts.uninstallService, "uninstall-service", false, "Remove the process agent from the Service Control Manager")
-	flag.BoolVar(&winopts.startService, "start-service", false, "Starts the process agent service")
-	flag.BoolVar(&winopts.stopService, "stop-service", false, "Stops the process agent service")
-	flag.BoolVar(&winopts.foreground, "foreground", false, "Always run foreground instead whether session is interactive or not")
-
-	flag.Parse()
+	rootCmd.PersistentFlags().BoolVar(&winopts.installService, "install-service", false, "Install the process agent to the Service Control Manager")
+	rootCmd.PersistentFlags().BoolVar(&winopts.uninstallService, "uninstall-service", false, "Remove the process agent from the Service Control Manager")
+	rootCmd.PersistentFlags().BoolVar(&winopts.startService, "start-service", false, "Starts the process agent service")
+	rootCmd.PersistentFlags().BoolVar(&winopts.stopService, "stop-service", false, "Stops the process agent service")
+	rootCmd.PersistentFlags().BoolVar(&winopts.foreground, "foreground", false, "Always run foreground instead whether session is interactive or not")
 
 	if !winopts.foreground {
 		isIntSess, err := svc.IsAnInteractiveSession()
@@ -191,8 +188,10 @@ func main() {
 	}
 
 	// Invoke the Agent
-	exit := make(chan struct{})
-	runAgent(exit)
+	fixDeprecatedFlags()
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+	}
 }
 
 func startService() error {

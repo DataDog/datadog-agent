@@ -27,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	"github.com/spf13/cobra"
 )
 
 const loggerName ddconfig.LoggerName = "PROCESS"
@@ -49,6 +51,33 @@ var (
 	BuildDate string
 	GoVersion string
 )
+
+var rootCmd = &cobra.Command{
+	Run: func(cmd *cobra.Command, args []string) {
+		exit := make(chan struct{})
+
+		// Invoke the Agent
+		runAgent(exit)
+	},
+}
+
+// fixDeprecatedFlags modifies os.Args so that non-posix flags are converted to posix flags
+// it also displays a warning when a non-posix flag is found
+func fixDeprecatedFlags() {
+	deprecatedFlags := map[string]struct{}{
+		// Global flags
+		"-config": {}, "-ddconfig": {}, "-sysprobe-config": {}, "-pid": {}, "-info": {}, "-version": {}, "-check": {},
+		// Windows flags
+		"-install-service": {}, "-uninstall-service": {}, "-start-service": {}, "-stop-service": {}, "-foreground": {},
+	}
+
+	for i, a := range os.Args {
+		if _, ok := deprecatedFlags[a]; ok {
+			fmt.Printf("WARNING: `%s` argument is deprecated and will be removed in a future version. Please use `-%[1]s` instead.\n", a)
+			os.Args[i] = "-" + os.Args[i]
+		}
+	}
+}
 
 // versionString returns the version information filled in at build time
 func versionString(sep string) string {
