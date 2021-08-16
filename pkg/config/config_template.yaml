@@ -552,7 +552,7 @@ api_key:
 
   ## @param min_collection_interval - number - optional - default: 15
   ## This changes the collection interval for the check instances created
-  ## from discovered snmp devices.
+  ## from discovered SNMP devices.
   ## For more information, see:
   ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
   #
@@ -672,7 +672,7 @@ api_key:
 
     ## @param min_collection_interval - number - optional - default: 15
     ## This changes the collection interval for the check instances created from
-    ## discovered snmp devices. It applies to each specific config from `snmp_listener.configs`
+    ## discovered SNMP devices. It applies to each specific config from `snmp_listener.configs`
     ## and has precedence over `snmp_listener.min_collection_interval`.
     ## For more information, see:
     ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
