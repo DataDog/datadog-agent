@@ -130,7 +130,7 @@ func TestDebuggerProxyHandler(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(slurp), "error parsing snapshot intake URL") {
+		if !strings.Contains(string(slurp), "error parsing debugger intake URL") {
 			t.Fatalf("invalid message: %q", slurp)
 		}
 	})
