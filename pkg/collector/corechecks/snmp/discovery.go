@@ -66,11 +66,7 @@ var worker = func(d *snmpDiscovery, jobs <-chan snmpJob) {
 }
 
 func (d *snmpDiscovery) Start() {
-	jobs := make(chan snmpJob)
-	for w := 0; w < d.config.Workers; w++ {
-		go worker(d, jobs)
-	}
-
+	go d.checkDevices()
 }
 
 func (d *snmpDiscovery) checkDevice(job snmpJob) {
@@ -136,7 +132,10 @@ func (d *snmpDiscovery) checkDevices() {
 		go worker(d, jobs)
 	}
 
+	log.Warnf("[DEV] jobs %v", jobs)
 	discoveryTicker := time.NewTicker(time.Duration(d.config.DiscoveryInterval) * time.Second)
+
+	log.Warnf("[DEV] subnets len: %d", len(subnets))
 
 	for {
 		var subnet *snmpSubnet
@@ -191,6 +190,8 @@ func (d *snmpDiscovery) createService(entityID string, subnet *snmpSubnet, devic
 	d.services[entityID] = svc
 	subnet.devices[entityID] = deviceIP
 	subnet.deviceFailures[entityID] = 0
+	log.Warnf("[DEV] Create service : %d, services: %+v", deviceIP, d.services)
+
 	//if writeCache {
 	//	d.writeCache(subnet)
 	//}
@@ -220,5 +221,9 @@ func (d *snmpDiscovery) deleteService(entityID string, subnet *snmpSubnet) {
 }
 
 func newSnmpDiscovery(config snmpConfig) snmpDiscovery {
-	return snmpDiscovery{config: config}
+	return snmpDiscovery{
+		services: map[string]Device{},
+		stop:     make(chan bool),
+		config:   config,
+	}
 }
