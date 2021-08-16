@@ -7,6 +7,7 @@ package settings
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -19,7 +20,7 @@ type ProfilingRuntimeSetting string
 
 // Description returns the runtime setting's description
 func (l ProfilingRuntimeSetting) Description() string {
-	return "Enable/disable profiling on the agent, valid values are: true, false"
+	return "Enable/disable profiling on the agent, valid values are: true, false, restart"
 }
 
 // Hidden returns whether or not this setting is hidden from the list of runtime settings
@@ -41,6 +42,13 @@ func (l ProfilingRuntimeSetting) Get() (interface{}, error) {
 func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 	var profile bool
 	var err error
+
+	if v, ok := v.(string); ok && strings.ToLower(v) == "restart" {
+		if err := l.Set(false); err != nil {
+			return err
+		}
+		return l.Set(true)
+	}
 
 	profile, err = GetBool(v)
 
