@@ -38,7 +38,7 @@ func FormatStatus(data []byte) (string, error) {
 	aggregatorStats := stats["aggregatorStats"]
 	s, err := check.TranslateEventPlatformEventTypes(aggregatorStats)
 	if err != nil {
-		log.Debug("failed to translate event platform event types in aggregatorStats: %s", err.Error())
+		log.Debugf("failed to translate event platform event types in aggregatorStats: %s", err.Error())
 	} else {
 		aggregatorStats = s
 	}
