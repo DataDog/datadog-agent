@@ -281,7 +281,7 @@ func TestObfuscateConfig(t *testing.T) {
 // TestSQLObfuscationOptionsDeserializationMethod checks if the use of easyjson results in the same deserialization
 // output as encoding/json.
 func TestSQLObfuscationOptionsDeserializationMethod(t *testing.T) {
-	opts, err := json.Marshal(SQLOptions{QuantizeSQLTables: true})
+	opts, err := json.Marshal(SQLOptions{ReplaceDigits: true})
 	require.NoError(t, err)
 
 	var in, out SQLOptions
@@ -306,7 +306,7 @@ func BenchmarkSQLObfuscationOptionsEasyJSONDeserialization(b *testing.B) {
 
 func benchmarkSQLObfuscationOptionsEasyJSONDeserialization(b *testing.B) {
 	b.ReportAllocs()
-	opts, err := json.Marshal(SQLOptions{QuantizeSQLTables: true})
+	opts, err := json.Marshal(SQLOptions{ReplaceDigits: true})
 	require.NoError(b, err)
 	for i := 0; i < b.N; i++ {
 		var sqlCfg SQLOptions
@@ -325,7 +325,7 @@ func BenchmarkSQLObfuscationOptionsRegularJSONDeserialization(b *testing.B) {
 
 func benchmarkSQLObfuscationOptionsRegularJSONDeserialization(b *testing.B) {
 	b.ReportAllocs()
-	opts, err := json.Marshal(SQLOptions{QuantizeSQLTables: true})
+	opts, err := json.Marshal(SQLOptions{ReplaceDigits: true})
 	require.NoError(b, err)
 	for i := 0; i < b.N; i++ {
 		var sqlCfg SQLOptions
