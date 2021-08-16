@@ -75,6 +75,7 @@ func (d *snmpDiscovery) Start() {
 
 func (d *snmpDiscovery) checkDevice(job snmpJob) {
 	deviceIP := job.currentIP.String()
+	log.Warnf("[DEV] check Device %s", deviceIP)
 	sess := snmpSession{}
 	err := sess.Configure(job.subnet.config)
 	if err != nil {
