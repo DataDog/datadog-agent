@@ -190,7 +190,7 @@ func (d *snmpDiscovery) createService(entityID string, subnet *snmpSubnet, devic
 	d.services[entityID] = svc
 	subnet.devices[entityID] = deviceIP
 	subnet.deviceFailures[entityID] = 0
-	log.Warnf("[DEV] Create service : %d, services: %+v", deviceIP, d.services)
+	log.Warnf("[DEV] Create service : %d, services: %+v", deviceIP, len(d.services))
 
 	//if writeCache {
 	//	d.writeCache(subnet)
