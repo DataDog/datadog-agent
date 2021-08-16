@@ -23,9 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// rtProcessQueueSize is hard-coded to limit the rt process message queue to have only small number of messages
-const rtProcessQueueSize = 5
-
 type checkResult struct {
 	name        string
 	payloads    []checkPayload
@@ -182,7 +179,8 @@ func (l *Collector) run(exit chan struct{}) error {
 	go util.HandleSignals(exit)
 
 	processResults := api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.ProcessQueueBytes))
-	rtProcessResults := api.NewWeightedQueue(rtProcessQueueSize, int64(l.cfg.ProcessQueueBytes))
+	// reuse main queue's ProcessQueueBytes because it's unlikely that it'll reach to that size in bytes, so we don't need a separate config for it
+	rtProcessResults := api.NewWeightedQueue(l.cfg.RTQueueSize, int64(l.cfg.ProcessQueueBytes))
 	podResults := api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.Orchestrator.PodQueueBytes))
 
 	var wg sync.WaitGroup
