@@ -4,6 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
+	"time"
+
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
@@ -22,11 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
 	"github.com/spf13/cobra"
-	"net/http"
-	_ "net/http/pprof"
-	"os"
-	"time"
 )
 
 const loggerName ddconfig.LoggerName = "PROCESS"
@@ -65,18 +67,15 @@ func fixDeprecatedFlags() {
 	deprecatedFlags := map[string]struct{}{
 		// Global flags
 		"-config": {}, "-ddconfig": {}, "-sysprobe-config": {}, "-pid": {}, "-info": {}, "-version": {}, "-check": {},
-
 		// Windows flags
 		"-install-service": {}, "-uninstall-service": {}, "-start-service": {}, "-stop-service": {}, "-foreground": {},
 	}
 
 	for i, a := range os.Args {
-		if _, ok := deprecatedFlags[a]; !ok {
-			continue
+		if _, ok := deprecatedFlags[a]; ok {
+			fmt.Printf("WARNING: `%s` argument is deprecated and will be removed in a future version. Please use `-%[1]s` instead.\n", a)
+			os.Args[i] = "-" + os.Args[i]
 		}
-		fmt.Printf("WARNING: `%s` argument is deprecated and will be removed in a future version. "+
-			"Please use `-%[1]s` instead.\n", a)
-		os.Args[i] = "-" + os.Args[i]
 	}
 }
 
