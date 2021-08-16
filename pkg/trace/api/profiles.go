@@ -22,9 +22,9 @@ import (
 
 const (
 	// profilingURLTemplate specifies the template for obtaining the profiling URL along with the site.
-	profilingURLTemplate = "https://intake.profile.%s/v1/input"
+	profilingURLTemplate = "https://intake.profile.%s/api/v2/profile"
 	// profilingURLDefault specifies the default intake API URL.
-	profilingURLDefault = "https://intake.profile.datadoghq.com/v1/input"
+	profilingURLDefault = "https://intake.profile.datadoghq.com/api/v2/profile"
 )
 
 // profilingEndpoints returns the profiling intake urls and their corresponding
@@ -34,6 +34,13 @@ func profilingEndpoints(apiKey string) (urls []*url.URL, apiKeys []string, err e
 	main := profilingURLDefault
 	if v := config.Datadog.GetString("apm_config.profiling_dd_url"); v != "" {
 		main = v
+		if strings.HasSuffix(main, "/v1/input") {
+			// backwards compatibility with v1 intake
+			main = strings.Replace(main, "/v1/input", "/api/v2/profile", 1)
+		} else if !strings.HasSuffix(main, "/api/v2/profile") {
+			// handle user only specifying base intake url
+			main += "/api/v2/profile"
+		}
 	} else if site := config.Datadog.GetString("site"); site != "" {
 		main = fmt.Sprintf(profilingURLTemplate, site)
 	}
