@@ -257,8 +257,9 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	c.AllowedFailures = 3
 	c.DiscoveryInterval = 60
 
-	if c.ipAddress == "" {
-		return snmpConfig{}, fmt.Errorf("ip_address config must be provided")
+	if c.ipAddress == "" && c.Network == "" {
+		// TODO: TEST ME
+		return snmpConfig{}, fmt.Errorf("ip_address or network config must be provided")
 	}
 
 	if c.port == 0 {

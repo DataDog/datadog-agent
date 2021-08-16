@@ -176,7 +176,7 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 	}
 
 	if c.config.Network != "" {
-		log.Warnf("[DEV] Network: %s", c.config)
+		log.Warnf("[DEV] Network: %s", c.config.Network)
 		c.discovery = newSnmpDiscovery(c.config)
 		c.discovery.Start()
 	}
