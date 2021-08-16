@@ -42,8 +42,8 @@ func (r *HTTPReceiver) debuggerProxyHandler() http.Handler {
 	}
 	target, err := url.Parse(intake)
 	if err != nil {
-		log.Criticalf("Error parsing snapshot intake URL %q: %v", intake, err)
-		return debuggerErrorHandler(fmt.Errorf("error parsing snapshot intake URL %q: %v", intake, err))
+		log.Criticalf("Error parsing debugger intake URL %q: %v", intake, err)
+		return debuggerErrorHandler(fmt.Errorf("error parsing debugger intake URL %q: %v", intake, err))
 	}
 	return newDebuggerProxy(r.conf.NewHTTPTransport(), target, r.conf.APIKey(), tags)
 }
@@ -73,7 +73,6 @@ func newDebuggerProxy(rt http.RoundTripper, target *url.URL, key string, tags st
 		newTarget := *target
 		newTarget.RawQuery = q.Encode()
 		req.Header.Set("DD-API-KEY", key)
-		log.Infof("newTarget: %v", newTarget)
 		req.URL = &newTarget
 		req.Host = target.Host
 	}

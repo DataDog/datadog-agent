@@ -6,6 +6,7 @@
 package api
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/process/config"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
@@ -55,6 +57,25 @@ func TestDebuggerProxy(t *testing.T) {
 	if string(slurp) != "OK" {
 		t.Fatal("did not proxy")
 	}
+}
+
+func testHandler(conf *traceconfig.AgentConfig, assertions []func(req *http.Request) error) (string, error) {
+	receiver := newTestReceiverFromConfig(conf)
+	receiver.debuggerProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
+	var called bool
+	var errors []error
+	srv := httptest.NewServer(http.HandlerFunc(func(e http.ResponseWriter, req *http.Request) {
+		for _, a := range assertions {
+			if err := a(req); err != nil {
+				errors = append(errors, err)
+			}
+		}
+		called = true
+	}))
+	if called {
+		return srv.URL, nil
+	}
+	return "", fmt.Errorf("proxy not called")
 }
 
 func TestDebuggerProxyHandler(t *testing.T) {
