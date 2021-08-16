@@ -23,7 +23,7 @@ func generateBackendJSON(output string) error {
 	reflector := jsonschema.Reflector{
 		ExpandedStruct: true,
 		DoNotReference: false,
-		TypeNamer:      jsonTypeMapper,
+		TypeNamer:      jsonTypeNamer,
 	}
 	schema := reflector.Reflect(&probe.EventSerializer{})
 	schemaJSON, err := schema.MarshalJSON()
@@ -39,7 +39,7 @@ func generateBackendJSON(output string) error {
 	return ioutil.WriteFile(output, out.Bytes(), 0664)
 }
 
-func jsonTypeMapper(ty reflect.Type) string {
+func jsonTypeNamer(ty reflect.Type) string {
 	const selinuxPrefix = "selinux"
 
 	base := strings.TrimSuffix(ty.Name(), "Serializer")
