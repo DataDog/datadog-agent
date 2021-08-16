@@ -24,15 +24,27 @@ func GetSidFromUser() (*windows.SID, error) {
 	defer tok.Close()
 	user, e := tok.GetTokenUser()
 	if e != nil {
-		log.Warnf("Couldn't get  token user %v", e)
+		log.Warnf("Couldn't get token user %v", e)
 		return nil, e
 	}
 
 	sidString, e := user.User.Sid.String()
 	if e != nil {
-		log.Warnf("Couldn't get  user sid string %v", e)
+		log.Warnf("Couldn't get user sid string %v", e)
 		return nil, e
 	}
 
 	return windows.StringToSid(sidString)
+}
+
+// GetUserFromSid returns the user and domain for a given windows SID, or an
+// error if any.
+func GetUserFromSid(sid *windows.SID) (string, string, error) {
+	username, domain, _, err := sid.LookupAccount("")
+	if err != nil {
+		log.Warnf("Couldn't get username and/or domain from sid: %v", err)
+		return "", "", err
+	}
+
+	return username, domain, nil
 }
