@@ -193,14 +193,14 @@ func TestDefaultData(t *testing.T) {
 	s.AssertNotCalled(t, "SendSketch")
 
 	// not counted as huge for (just checking the first threshold..)
-	assert.Equal(t, uint64(0), atomic.LoadUint64(&hugeSeriesCount[0]))
+	assert.Equal(t, uint64(0), atomic.LoadUint64(&tagsetTlm.hugeSeriesCount[0]))
 }
 
 func TestSeriesTooManyTags(t *testing.T) {
 	test := func(tagCount int) func(t *testing.T) {
-		var expHugeCounts [tagsetSizeThresholdsCount]uint64
+		expHugeCounts := make([]uint64, tagsetTlm.size)
 
-		for i, thresh := range tagsetSizeThresholds {
+		for i, thresh := range tagsetTlm.sizeThresholds {
 			if uint64(tagCount) > thresh {
 				expHugeCounts[i]++
 			}
@@ -235,8 +235,8 @@ func TestSeriesTooManyTags(t *testing.T) {
 			s.AssertNotCalled(t, "SendSketch")
 
 			expMap := map[string]uint64{}
-			for i, thresh := range tagsetSizeThresholds {
-				assert.Equal(t, expHugeCounts[i], atomic.LoadUint64(&hugeSeriesCount[i]))
+			for i, thresh := range tagsetTlm.sizeThresholds {
+				assert.Equal(t, expHugeCounts[i], atomic.LoadUint64(&tagsetTlm.hugeSeriesCount[i]))
 				expMap[fmt.Sprintf("Above%d", thresh)] = expHugeCounts[i]
 			}
 			gotMap := aggregatorExpvars.Get("MetricTags").(expvar.Func).Value().(map[string]map[string]uint64)["Series"]
@@ -250,9 +250,9 @@ func TestSeriesTooManyTags(t *testing.T) {
 
 func TestDistributionsTooManyTags(t *testing.T) {
 	test := func(tagCount int) func(t *testing.T) {
-		var expHugeCounts [tagsetSizeThresholdsCount]uint64
+		expHugeCounts := make([]uint64, tagsetTlm.size)
 
-		for i, thresh := range tagsetSizeThresholds {
+		for i, thresh := range tagsetTlm.sizeThresholds {
 			if uint64(tagCount) > thresh {
 				expHugeCounts[i]++
 			}
@@ -286,8 +286,8 @@ func TestDistributionsTooManyTags(t *testing.T) {
 			s.AssertNotCalled(t, "SendEvents")
 
 			expMap := map[string]uint64{}
-			for i, thresh := range tagsetSizeThresholds {
-				assert.Equal(t, expHugeCounts[i], atomic.LoadUint64(&hugeSketchesCount[i]))
+			for i, thresh := range tagsetTlm.sizeThresholds {
+				assert.Equal(t, expHugeCounts[i], atomic.LoadUint64(&tagsetTlm.hugeSketchesCount[i]))
 				expMap[fmt.Sprintf("Above%d", thresh)] = expHugeCounts[i]
 			}
 			gotMap := aggregatorExpvars.Get("MetricTags").(expvar.Func).Value().(map[string]map[string]uint64)["Sketches"]
