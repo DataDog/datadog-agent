@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // ContentType options,
@@ -150,6 +151,7 @@ func (d *Destination) unconditionalSend(payload []byte) (err error) {
 	}
 	if d.origin != "" {
 		req.Header.Set("DD-EVP-ORIGIN", string(d.origin))
+		req.Header.Set("DD-EVP-ORIGIN-VERSION", version.AgentVersion)
 	}
 	req = req.WithContext(ctx)
 
