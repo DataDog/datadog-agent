@@ -73,6 +73,9 @@ var (
 func getSettingsClient() (settings.Client, error) {
 	// Set up the config in case the cmd_port was specified
 	_, err := config.NewAgentConfig(loggerName, opts.configPath, opts.sysProbeConfigPath)
+	if err != nil {
+		return nil, err
+	}
 
 	httpClient := apiutil.GetClient(false)
 	ipcAddress, err := ddconfig.GetIPCAddress()
