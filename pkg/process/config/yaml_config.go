@@ -202,6 +202,9 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 			}
 		}
 	}
+	if !config.Datadog.IsSet(key(ns, "cmd_port")) {
+		config.Datadog.Set(key(ns, "cmd_port"), 60621)
+	}
 
 	// use `internal_profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,
 	// but use the configuration from main agent to fill the settings
