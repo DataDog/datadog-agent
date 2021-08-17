@@ -9,22 +9,15 @@ import (
 )
 
 type libraryKey struct {
-	Pathname       string
-	MountNameSpace ns
+	Pathname       string // path of the library see by the process
+	MountNameSpace ns     // namespace defined by the dev and inode
 }
 
-/*
- Library define a dynamic library, defined by his
-    o Process point of view :
-      o Pathname
-      o MountNameSpace
-    o PidsPath : list all /proc/pid for a tuple {Pathname, MountNameSpace}
-    o HostPath : the library path from the Host point of view
-*/
+// Library define a dynamic library
 type Library struct {
 	libraryKey
-	PidsPath []string
-	HostPath string
+	PidsPath []string // list of host pid path like /proc/<pid> per libraryKey
+	HostPath string   // path of the library seen by the host
 }
 
 // AllLibraries represents a filter that matches all shared libraries
