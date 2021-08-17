@@ -67,9 +67,6 @@ blacklist_folders = [
 # package names of dependencies that won't be added to the Agent Python environment
 blacklist_packages = Array.new
 
-# We build these manually
-blacklist_packages.push(/^snowflake-connector-python==/)
-
 if suse?
   # Temporarily blacklist Aerospike until builder supports new dependency
   blacklist_packages.push(/^aerospike==/)
