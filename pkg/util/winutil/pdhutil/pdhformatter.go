@@ -65,6 +65,8 @@ func (f *PdhFormatter) Enum(hCounter PDH_HCOUNTER, format uint32, fn ValueEnumFu
 	}
 
 	var items []PDH_FMT_COUNTERVALUE_ITEM
+	// Accessing the `SliceHeader` to manipulate the `items` slice
+	// In the future we can use unsafe.Slice instead https://pkg.go.dev/unsafe@master#Slice
 	hdrItems := (*reflect.SliceHeader)(unsafe.Pointer(&items))
 	hdrItems.Data = uintptr(unsafe.Pointer(&buf[0]))
 	hdrItems.Len = int(itemCount)
@@ -79,6 +81,8 @@ func (f *PdhFormatter) Enum(hCounter PDH_HCOUNTER, format uint32, fn ValueEnumFu
 	strBufLen := int(bufLen - uint32(unsafe.Sizeof(PDH_FMT_COUNTERVALUE_ITEM{}))*itemCount)
 	for _, item := range items {
 		var u []uint16
+
+		// Accessing the `SliceHeader` to manipulate the `u` slice
 		hdrU := (*reflect.SliceHeader)(unsafe.Pointer(&u))
 		hdrU.Data = uintptr(unsafe.Pointer(item.szName))
 		hdrU.Len = strBufLen / 2
