@@ -110,10 +110,3 @@ func (t *tagsetTelemetry) exp() interface{} {
 
 	return rv
 }
-
-func (t *tagsetTelemetry) reset() {
-	for i := range t.sizeThresholds {
-		atomic.StoreUint64(&t.hugeSeriesCount[i], uint64(0))
-		atomic.StoreUint64(&t.hugeSketchesCount[i], uint64(0))
-	}
-}
