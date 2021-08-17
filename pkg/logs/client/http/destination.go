@@ -153,7 +153,13 @@ func (d *Destination) unconditionalSend(payload []byte) (err error) {
 	}
 	req = req.WithContext(ctx)
 
+	then := time.Now()
 	resp, err := d.client.Do(req)
+
+	latency := time.Since(then).Milliseconds()
+	metrics.TlmSenderLatency.Observe(float64(latency))
+	metrics.SenderLatency.Set(latency)
+
 	if err != nil {
 		if ctx.Err() == context.Canceled {
 			return ctx.Err()
@@ -163,6 +169,7 @@ func (d *Destination) unconditionalSend(payload []byte) (err error) {
 	}
 
 	defer resp.Body.Close()
+
 	response, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		// the read failed because the server closed or terminated the connection
