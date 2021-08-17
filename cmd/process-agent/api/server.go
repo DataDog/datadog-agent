@@ -13,7 +13,7 @@ import (
 )
 
 func setupHandlers(r *mux.Router) {
-	r.HandleFunc("/config", settingshttp.Server.GetFull("")).Methods("GET")
+	r.HandleFunc("/config", settingshttp.Server.GetFull("process_config")).Methods("GET")
 	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
