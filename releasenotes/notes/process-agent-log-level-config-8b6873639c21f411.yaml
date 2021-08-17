@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Initial support for changing running settings in the process agent is now included. For now the only configurable setting
+    is log_level. The port that is used for this server can be changed using either the DD_PROCESS_AGENT_CMD_PORT environment variable,
+    or the process_config.cmd_port setting in your config.yaml file.
