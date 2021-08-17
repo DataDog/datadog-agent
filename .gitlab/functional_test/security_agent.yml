@@ -40,7 +40,7 @@ kitchen_test_security_agent_x64:
       - KITCHEN_PLATFORM: "suse"
         KITCHEN_OSVERS: "sles-12,sles-15"
       - KITCHEN_PLATFORM: "debian"
-        KITCHEN_OSVERS: "debian-10"
+        KITCHEN_OSVERS: "debian-10,debian-11"
       - KITCHEN_PLATFORM: "oracle"
         KITCHEN_OSVERS: "oracle-7-9"
 
