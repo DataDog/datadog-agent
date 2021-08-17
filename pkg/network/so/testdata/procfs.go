@@ -1,6 +1,6 @@
 // +build linux
 
-package testutils
+package testdata
 
 /*
    Here the process included in procfs directory with the help of update-procfs.sh

@@ -6,15 +6,15 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/network/so/testutils"
+	"github.com/DataDog/datadog-agent/pkg/network/so/testdata"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestForeachPIDNoFilter(t *testing.T) {
-	for _, p := range testutils.ProcFS {
+	for _, p := range testdata.ProcFS {
 		t.Log("testing PID :", p.Pid)
 
-		libs := Find("testutils/procfs/"+strconv.Itoa(p.Pid), nil)
+		libs := Find("testdata/procfs/"+strconv.Itoa(p.Pid), nil)
 		libPathname := []string{}
 		for _, lib := range libs {
 			libPathname = append(libPathname, lib.Pathname)
@@ -26,10 +26,10 @@ func TestForeachPIDNoFilter(t *testing.T) {
 }
 
 func TestForeachPIDAllLibrariesFilter(t *testing.T) {
-	for _, p := range testutils.ProcFS {
+	for _, p := range testdata.ProcFS {
 		t.Log("testing PID :", p.Pid)
 
-		libs := Find("testutils/procfs/"+strconv.Itoa(p.Pid), AllLibraries)
+		libs := Find("testdata/procfs/"+strconv.Itoa(p.Pid), AllLibraries)
 		libPathname := []string{}
 		for _, lib := range libs {
 			libPathname = append(libPathname, lib.Pathname)
