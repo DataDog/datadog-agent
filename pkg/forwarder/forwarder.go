@@ -59,7 +59,6 @@ type Forwarder interface {
 	SubmitV1Series(payload Payloads, extra http.Header) error
 	SubmitV1Intake(payload Payloads, extra http.Header) error
 	SubmitV1CheckRuns(payload Payloads, extra http.Header) error
-	SubmitSeries(payload Payloads, extra http.Header) error
 	SubmitEvents(payload Payloads, extra http.Header) error
 	SubmitServiceChecks(payload Payloads, extra http.Header) error
 	SubmitSketchSeries(payload Payloads, extra http.Header) error
@@ -424,12 +423,6 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 		}
 	}
 	return nil
-}
-
-// SubmitSeries will send a series type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(seriesEndpoint, payload, false, extra)
-	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitEvents will send an event type payload to Datadog backend.

@@ -78,12 +78,6 @@ func (f *SyncForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header) e
 	return f.sendHTTPTransactions(transactions)
 }
 
-// SubmitSeries will send a series type payload to Datadog backend.
-func (f *SyncForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(seriesEndpoint, payload, false, extra)
-	return f.sendHTTPTransactions(transactions)
-}
-
 // SubmitEvents will send an event type payload to Datadog backend.
 func (f *SyncForwarder) SubmitEvents(payload Payloads, extra http.Header) error {
 	transactions := f.defaultForwarder.createHTTPTransactions(eventsEndpoint, payload, false, extra)

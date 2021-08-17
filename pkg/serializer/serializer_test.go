@@ -331,26 +331,6 @@ func TestSendV1Series(t *testing.T) {
 	require.NotNil(t, err)
 }
 
-func TestSendSeries(t *testing.T) {
-	mockConfig := config.Mock()
-
-	f := &forwarder.MockedForwarder{}
-	f.On("SubmitSeries", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
-	mockConfig.Set("use_v2_api.series", true)
-	defer mockConfig.Set("use_v2_api.series", nil)
-
-	s := NewSerializer(f, nil)
-
-	payload := &testPayload{}
-	err := s.SendSeries(payload)
-	require.Nil(t, err)
-	f.AssertExpectations(t)
-
-	errPayload := &testErrorPayload{}
-	err = s.SendSeries(errPayload)
-	require.NotNil(t, err)
-}
-
 func TestSendSketch(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	payloads, _ := mkPayloads(protobufString, true)
@@ -446,7 +426,6 @@ func TestSendWithDisabledKind(t *testing.T) {
 	f.AssertNotCalled(t, "SubmitV1CheckRuns")
 	f.AssertNotCalled(t, "SubmitServiceChecks")
 	f.AssertNotCalled(t, "SubmitV1Series")
-	f.AssertNotCalled(t, "SubmitSeries")
 	f.AssertNotCalled(t, "SubmitSketchSeries")
 
 	// We never disable metadata
