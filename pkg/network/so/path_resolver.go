@@ -29,7 +29,10 @@ func (p *pathResolver) Resolve(path string, nsMounts *mountInfo) string {
 	if nsMount == nil {
 		return ""
 	}
-	nsRelPath := strings.TrimPrefix(path, nsMount.mountPoint)
+	nsRelPath, err := filepath.Rel(nsMount.mountPoint, path)
+	if err != nil {
+		return ""
+	}
 
 	var parentMount *mount
 	for _, rootMount := range p.root.mounts {
@@ -43,6 +46,9 @@ func (p *pathResolver) Resolve(path string, nsMounts *mountInfo) string {
 		return ""
 	}
 
-	rootRelPath := strings.TrimPrefix(parentMount.root, nsMount.root)
+	rootRelPath, err := filepath.Rel(nsMount.root, parentMount.root)
+	if err != nil {
+		return ""
+	}
 	return filepath.Join(parentMount.mountPoint, rootRelPath, nsRelPath)
 }
