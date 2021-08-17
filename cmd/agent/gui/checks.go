@@ -2,12 +2,14 @@ package gui
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -153,10 +155,37 @@ func reloadCheck(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(fmt.Sprintf("Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name)))
 }
 
+// pathComponentPattern matches one file or folder name.
+var pathComponentPattern = regexp.MustCompile("^[a-zA-Z0-9_-][a-zA-Z0-9_.-]*$")
+
+func getPathComponentFromRequest(vars map[string]string, name string, allowEmpty bool) (string, error) {
+	val := vars[name]
+
+	if (val == "" && allowEmpty) || pathComponentPattern.MatchString(val) {
+		return val, nil
+	}
+
+	return "", errors.New("invalid path component")
+}
+
+func getFileNameAndFolder(vars map[string]string) (fileName, checkFolder string, err error) {
+	if fileName, err = getPathComponentFromRequest(vars, "fileName", false); err != nil {
+		return "", "", err
+	}
+	if checkFolder, err = getPathComponentFromRequest(vars, "checkFolder", true); err != nil {
+		return "", "", err
+	}
+	return fileName, checkFolder, nil
+}
+
 // Sends the specified config (.yaml) file
 func getCheckConfigFile(w http.ResponseWriter, r *http.Request) {
-	fileName := mux.Vars(r)["fileName"]
-	checkFolder := mux.Vars(r)["checkFolder"]
+	fileName, checkFolder, err := getFileNameAndFolder(mux.Vars(r))
+	if err != nil {
+		w.WriteHeader(404)
+		return
+	}
+
 	if checkFolder != "" {
 		fileName = filepath.Join(checkFolder, fileName)
 	}
@@ -189,8 +218,11 @@ type configFormat struct {
 // Overwrites a specific check's configuration (yaml) file with new data
 // or makes a new config file for that check, if there isn't one yet
 func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
-	fileName := mux.Vars(r)["fileName"]
-	checkFolder := mux.Vars(r)["checkFolder"]
+	fileName, checkFolder, err := getFileNameAndFolder(mux.Vars(r))
+	if err != nil {
+		w.WriteHeader(404)
+		return
+	}
 
 	var checkConfFolderPath, defaultCheckConfFolderPath string
 
