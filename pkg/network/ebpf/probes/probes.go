@@ -83,8 +83,8 @@ const (
 	// SocketDnsFilter is the socket probe for dns
 	SocketDnsFilter ProbeName = "socket/dns_filter"
 
-	// SocketHTTPFilter is the socket probe for HTTP
-	SocketHTTPFilter ProbeName = "socket/http_filter"
+	// SockMapFdReturn maps a file descriptor to a kernel sock
+	SockMapFdReturn ProbeName = "kretprobe/sockfd_lookup_light"
 
 	// IPRouteOutputFlow is the kprobe of a ip_route_output_flow call
 	IPRouteOutputFlow ProbeName = "kprobe/ip_route_output_flow"
@@ -119,10 +119,6 @@ const (
 	UdpPortBindingsMap    BPFMapName = "udp_port_bindings"
 	TelemetryMap          BPFMapName = "telemetry"
 	ConnCloseBatchMap     BPFMapName = "conn_close_batch"
-	HttpInFlightMap       BPFMapName = "http_in_flight"
-	HttpBatchesMap        BPFMapName = "http_batches"
-	HttpBatchStateMap     BPFMapName = "http_batch_state"
-	HttpNotificationsMap  BPFMapName = "http_notifications"
 	GatewayMap            BPFMapName = "ip_route_dest_gateways"
 	ConntrackMap          BPFMapName = "conntrack"
 	ConntrackTelemetryMap BPFMapName = "conntrack_telemetry"

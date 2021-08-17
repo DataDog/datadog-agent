@@ -10,8 +10,8 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
+	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
 )
 
@@ -38,8 +38,8 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(c *config.Config) (*Monitor, error) {
-	mgr, err := newEBPFProgram(c)
+func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*Monitor, error) {
+	mgr, err := newEBPFProgram(c, offsets, sockFD)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up http ebpf program: %s", err)
 	}
@@ -48,7 +48,7 @@ func NewMonitor(c *config.Config) (*Monitor, error) {
 		return nil, fmt.Errorf("error initializing http ebpf program: %s", err)
 	}
 
-	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketHTTPFilter)})
+	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: httpSocketFilter})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
@@ -58,17 +58,17 @@ func NewMonitor(c *config.Config) (*Monitor, error) {
 		return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
 	}
 
-	batchMap, _, err := mgr.GetMap(string(probes.HttpBatchesMap))
+	batchMap, _, err := mgr.GetMap(httpBatchesMap)
 	if err != nil {
 		return nil, err
 	}
 
-	batchStateMap, _, err := mgr.GetMap(string(probes.HttpBatchStateMap))
+	batchStateMap, _, err := mgr.GetMap(httpBatchStateMap)
 	if err != nil {
 		return nil, err
 	}
 
-	notificationMap, _, _ := mgr.GetMap(string(probes.HttpNotificationsMap))
+	notificationMap, _, _ := mgr.GetMap(httpNotificationsMap)
 	numCPUs := int(notificationMap.ABI().MaxEntries)
 
 	telemetry := newTelemetry()
@@ -177,7 +177,7 @@ func (m *Monitor) Stop() {
 		return
 	}
 
-	m.ebpfProgram.Stop(manager.CleanAll)
+	m.ebpfProgram.Close()
 	m.closeFilterFn()
 	m.perfHandler.Stop()
 	close(m.pollRequests)
