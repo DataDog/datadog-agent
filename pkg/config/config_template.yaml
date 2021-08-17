@@ -974,10 +974,10 @@ api_key:
   #
   # expvar_port: 6062
 
-  ## @param config_port - string - optional - default: 60621
-  ## Port for configuring runtime settings for the process Agent. 60621 is chosen because 6063 is used by the X Window System.
+  ## @param config_port - string - optional - default: 6162
+  ## Port for configuring runtime settings for the process Agent.
   #
-  # cmd_port: 60621
+  # cmd_port: 6162
 
   ## @param log_file - string - optional
   ## The full path to the file where process Agent logs are written.
