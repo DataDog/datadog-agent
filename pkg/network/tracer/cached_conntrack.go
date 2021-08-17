@@ -132,7 +132,7 @@ func (cache *cachedConntrack) ensureConntrack(ino uint64, pid int) (netlink.Conn
 
 	ns, err := util.GetNetNamespaceFromPid(cache.procRoot, pid)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, unix.ENOENT) {
 			return nil, nil
 		}
 

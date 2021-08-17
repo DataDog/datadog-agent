@@ -1,21 +1,24 @@
 package telemetry
 
-import "github.com/DataDog/datadog-agent/pkg/telemetry"
+import (
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+)
 
 const (
-	// QueryEmptyEntityID refers to a query made with an empty entity id
-	QueryEmptyEntityID = "empty_entity_id"
-	// QueryEmptyTags refers to a query that returned no tags
-	QueryEmptyTags = "empty_tags"
-	// QuerySuccess refers to a successful query
-	QuerySuccess = "success"
+	// queryEmptyEntityID refers to a query made with an empty entity id
+	queryEmptyEntityID = "empty_entity_id"
+	// queryEmptyTags refers to a query that returned no tags
+	queryEmptyTags = "empty_tags"
+	// querySuccess refers to a successful query
+	querySuccess = "success"
 
-	// FetchNotFound refers to a tagger fetch that did not find an entity
-	FetchNotFound = "not_found"
-	// FetchError refers to a tagger fetch that returned an error
-	FetchError = "error"
-	// FetchSuccess refers to a tagger fetch that was successful
-	FetchSuccess = "success"
+	// fetchNotFound refers to a tagger fetch that did not find an entity
+	fetchNotFound = "not_found"
+	// fetchError refers to a tagger fetch that returned an error
+	fetchError = "error"
+	// fetchSuccess refers to a tagger fetch that was successful
+	fetchSuccess = "success"
 )
 
 var (
@@ -34,13 +37,13 @@ var (
 		[]string{}, "Number of pruned tagger entities.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 
-	// Queries tracks the number of queries made against the tagger.
-	Queries = telemetry.NewCounterWithOpts("tagger", "queries",
+	// queries tracks the number of queries made against the tagger.
+	queries = telemetry.NewCounterWithOpts("tagger", "queries",
 		[]string{"cardinality", "status"}, "Queries made against the tagger.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 
-	// Fetches tracks the number of fetches from the underlying collectors.
-	Fetches = telemetry.NewCounterWithOpts("tagger", "fetches",
+	// fetches tracks the number of fetches from the underlying collectors.
+	fetches = telemetry.NewCounterWithOpts("tagger", "fetches",
 		[]string{"collector", "status"}, "Fetches from collectors.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 
@@ -78,3 +81,54 @@ var (
 		[]string{}, "Number of of times the tagger has received a notification with a group of events",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
+
+// FetcherTelemetry stores telemetry counters for a single fetcher.
+type FetcherTelemetry struct {
+	Success  telemetry.SimpleCounter
+	NotFound telemetry.SimpleCounter
+	Error    telemetry.SimpleCounter
+}
+
+// NewFetcherTelemetry returns new instance of counters for the given fetcher name.
+func NewFetcherTelemetry(name string) FetcherTelemetry {
+	return FetcherTelemetry{
+		Success:  fetches.WithValues(name, fetchSuccess),
+		NotFound: fetches.WithValues(name, fetchNotFound),
+		Error:    fetches.WithValues(name, fetchError),
+	}
+}
+
+// CardinalityTelemetry contains queries counters for a single cardinality level.
+type CardinalityTelemetry struct {
+	EmptyEntityID telemetry.SimpleCounter
+	EmptyTags     telemetry.SimpleCounter
+	Success       telemetry.SimpleCounter
+}
+
+// NewCardinalityTelemetry creates new set of counters for a cardinality level.
+func NewCardinalityTelemetry(name string) CardinalityTelemetry {
+	return CardinalityTelemetry{
+		EmptyEntityID: queries.WithValues(name, queryEmptyEntityID),
+		EmptyTags:     queries.WithValues(name, queryEmptyTags),
+		Success:       queries.WithValues(name, querySuccess),
+	}
+}
+
+var lowCardinalityQueries = NewCardinalityTelemetry(collectors.LowCardinalityString)
+var orchestratorCardinalityQueries = NewCardinalityTelemetry(collectors.OrchestratorCardinalityString)
+var highCardinalityQueries = NewCardinalityTelemetry(collectors.HighCardinalityString)
+var unknownCardinalityQueries = NewCardinalityTelemetry(collectors.UnknownCardinalityString)
+
+// QueriesByCardinality returns a set of counters for a given cardinality level.
+func QueriesByCardinality(card collectors.TagCardinality) *CardinalityTelemetry {
+	switch card {
+	case collectors.LowCardinality:
+		return &lowCardinalityQueries
+	case collectors.OrchestratorCardinality:
+		return &orchestratorCardinalityQueries
+	case collectors.HighCardinality:
+		return &highCardinalityQueries
+	default:
+		return &unknownCardinalityQueries
+	}
+}
