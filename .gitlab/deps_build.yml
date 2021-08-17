@@ -71,7 +71,7 @@ build_clang_arm64:
 build_omnibus-nikos_x64:
   extends: .build_omnibus-nikos_common
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/omnibus-nikos_x64:$DATADOG_AGENT_NIKOS_BUILDIMAGES
-  tags: ["runner:main", "size:2xlarge"]
+  tags: ["runner:main"]
   variables:
     ARCH: amd64
   
