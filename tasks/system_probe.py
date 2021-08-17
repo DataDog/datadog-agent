@@ -92,7 +92,7 @@ def build(
         major_version=major_version,
         python_runtimes=python_runtimes,
         embedded_path=embedded_path,
-        nikos_embedded_path=nikos_embedded_path
+        nikos_embedded_path=nikos_embedded_path,
     )
 
     build_tags = get_default_build_tags(build="system-probe", arch=arch)
