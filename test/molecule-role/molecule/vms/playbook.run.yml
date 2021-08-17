@@ -5,6 +5,7 @@
   gather_facts: true
   tasks:
     - include_tasks: ../common/prepare/keypair.yml
+    - include_tasks: ../common/create/wait-for-boot-process-to-finish.yml
 
 - name: Prepare Receiver
   hosts: receiver_vm
@@ -12,6 +13,8 @@
   tasks:
     - name: Gather facts (we need the docker network interface ip)
       setup:
+
+    - include_tasks: ../common/create/wait-for-boot-process-to-finish.yml
 
     - name: Stop and Remove Existing Docker Compose
       command: docker-compose rm --stop -v --force
