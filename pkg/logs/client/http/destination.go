@@ -169,7 +169,6 @@ func (d *Destination) unconditionalSend(payload []byte) (err error) {
 	}
 
 	defer resp.Body.Close()
-
 	response, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		// the read failed because the server closed or terminated the connection
