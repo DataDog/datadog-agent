@@ -1,3 +1,5 @@
+// +build test
+
 package aggregator
 
 import "sync/atomic"
