@@ -1,8 +1,9 @@
 package api
 
 import (
-	"fmt"
+	"net"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 
@@ -12,7 +13,6 @@ import (
 )
 
 func setupHandlers(r *mux.Router) {
-	r.HandleFunc("/config", settingshttp.Server.GetValue)
 	r.HandleFunc("/config", settingshttp.Server.GetFull("")).Methods("GET")
 	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
@@ -51,5 +51,6 @@ func getIPCAddressPort() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%v:%d", address, ddconfig.Datadog.GetInt("process_config.cmd_port")), nil
+	addrPort := net.JoinHostPort(address, strconv.Itoa(ddconfig.Datadog.GetInt("process_config.cmd_port")))
+	return addrPort, nil
 }
