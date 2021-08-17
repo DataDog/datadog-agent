@@ -47,8 +47,8 @@ var (
 
 	tlmProcessed = telemetry.NewCounter("dogstatsd", "processed",
 		[]string{"message_type", "state", "origin"}, "Count of service checks/events/metrics processed by dogstatsd")
-	tlmProcessedErrorTags = map[string]string{"message_type": "metrics", "state": "error", "origin": ""}
-	tlmProcessedOkTags    = map[string]string{"message_type": "metrics", "state": "ok", "origin": ""}
+	tlmProcessedOk    = tlmProcessed.WithValues("metrics", "ok", "")
+	tlmProcessedError = tlmProcessed.WithValues("metrics", "error", "")
 
 	// while we try to add the origin tag in the tlmProcessed metric, we want to
 	// avoid having it growing indefinitely, hence this safeguard to limit the
@@ -76,6 +76,8 @@ type cachedTagsOriginMap struct {
 	origin string
 	ok     map[string]string
 	err    map[string]string
+	okCnt  telemetry.SimpleCounter
+	errCnt telemetry.SimpleCounter
 }
 
 func initLatencyTelemetry() {
@@ -582,6 +584,8 @@ func (s *Server) createOriginTagMaps(origin string) cachedTagsOriginMap {
 		origin: origin,
 		ok:     okMap,
 		err:    errorMap,
+		okCnt:  tlmProcessed.WithTags(okMap),
+		errCnt: tlmProcessed.WithTags(errorMap),
 	}
 
 	s.cachedTlmOriginIds[origin] = maps
@@ -601,22 +605,22 @@ func (s *Server) createOriginTagMaps(origin string) cachedTagsOriginMap {
 }
 
 func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, telemetry bool) ([]metrics.MetricSample, error) {
-	okTags := tlmProcessedOkTags
-	errorTags := tlmProcessedErrorTags
+	okCnt := tlmProcessedOk
+	errorCnt := tlmProcessedError
 	if origin != "" && telemetry {
 		var maps cachedTagsOriginMap // errorMap and okMap for this origin
 		var exists bool
 		if maps, exists = s.cachedTlmOriginIds[origin]; !exists {
 			maps = s.createOriginTagMaps(origin)
 		}
-		okTags = maps.ok
-		errorTags = maps.err
+		okCnt = maps.okCnt
+		errorCnt = maps.errCnt
 	}
 
 	sample, err := parser.parseMetricSample(message)
 	if err != nil {
 		dogstatsdMetricParseErrors.Add(1)
-		tlmProcessed.IncWithTags(errorTags)
+		errorCnt.Inc()
 		return metricSamples, err
 	}
 
@@ -643,7 +647,7 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 			metricSamples[idx].Tags = metricSamples[0].Tags
 		}
 		dogstatsdMetricPackets.Add(1)
-		tlmProcessed.IncWithTags(okTags)
+		okCnt.Inc()
 	}
 	return metricSamples, nil
 }
