@@ -26,6 +26,7 @@ import (
 
 type testCheck struct {
 	check.StubCheck
+	sync.Mutex
 	doErr       bool
 	doWarn      bool
 	id          string
@@ -62,6 +63,9 @@ func (c *testCheck) Run() error {
 
 	atomic.AddUint64(&c.runCount, 1)
 
+	c.Lock()
+	defer c.Unlock()
+
 	if c.doErr {
 		return fmt.Errorf("myerror")
 	}
@@ -70,6 +74,25 @@ func (c *testCheck) Run() error {
 }
 
 // Helpers
+
+// AssertAsyncWorkerCount returns the expvar count of the currently-running
+// workers. The function is exported since other tests in this directory use
+// it as well.
+func AssertAsyncWorkerCount(t *testing.T, count int) {
+	for idx := 0; idx < 75; idx++ {
+		workers := int(expvars.GetWorkerCount())
+		if workers == count {
+			// This may seem superfluous but we want to ensure that at least one
+			// assertion runs in all cases
+			require.Equal(t, count, workers)
+			return
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	require.Equal(t, count, int(expvars.GetWorkerCount()))
+}
 
 func newCheck(t *testing.T, id string, doErr bool, runFunc func(check.ID)) *testCheck {
 	return &testCheck{
@@ -84,22 +107,6 @@ func assertErrorCount(t *testing.T, c check.Check, count int) {
 	stats, found := expvars.CheckStats(c.ID())
 	require.True(t, found)
 	assert.Equal(t, count, int(stats.TotalErrors))
-}
-
-func assertAsyncWorkerCount(t *testing.T, count int) {
-	for idx := 0; idx < 75; idx++ {
-		workers := int(expvars.GetWorkerCount())
-		if workers == count {
-			// This may seem superfluous but we want to ensure that at least one
-			// assertion runs in all cases
-			require.Equal(t, count, workers)
-			return
-		}
-
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	require.Equal(t, count, int(expvars.GetWorkerCount()))
 }
 
 // Tests
@@ -144,15 +151,15 @@ func TestWorkerInitExpvarStats(t *testing.T) {
 		}(i)
 	}
 
-	assertAsyncWorkerCount(t, 20)
+	AssertAsyncWorkerCount(t, 20)
 
 	close(pendingChecksChan)
 	wg.Wait()
 
-	assertAsyncWorkerCount(t, 0)
+	AssertAsyncWorkerCount(t, 0)
 }
 
-func TestWorkerStructMethods(t *testing.T) {
+func TestWorkerName(t *testing.T) {
 	checksTracker := &tracker.RunningChecksTracker{}
 	pendingChecksChan := make(chan check.Check, 1)
 	mockShouldAddStatsFunc := func(id check.ID) bool { return true }
@@ -163,7 +170,7 @@ func TestWorkerStructMethods(t *testing.T) {
 		assert.Nil(t, err)
 		assert.NotNil(t, worker)
 
-		require.Equal(t, worker.Name(), expectedName)
+		require.Equal(t, worker.Name, expectedName)
 	}
 }
 
@@ -240,7 +247,71 @@ func TestWorker(t *testing.T) {
 
 	assert.Equal(t, 0, int(expvars.GetRunningCheckCount()))
 	assert.Equal(t, 0, len(checksTracker.RunningChecks()))
-	assertAsyncWorkerCount(t, 0)
+	AssertAsyncWorkerCount(t, 0)
+}
+
+func TestWorkerUtilizationExpvars(t *testing.T) {
+	expvars.Reset()
+	config.Datadog.Set("hostname", "myhost")
+
+	var wg sync.WaitGroup
+
+	checksTracker := tracker.NewRunningChecksTracker()
+	pendingChecksChan := make(chan check.Check, 10)
+	mockShouldAddStatsFunc := func(id check.ID) bool { return true }
+
+	blockingCheck := newCheck(t, "testing:123", false, nil)
+	longRunningCheck := &testCheck{t: t, id: "mycheck", longRunning: true}
+
+	blockingCheck.Lock()
+	longRunningCheck.Lock()
+
+	worker, err := newWorkerWithOptions(
+		1,
+		2,
+		pendingChecksChan,
+		checksTracker,
+		mockShouldAddStatsFunc,
+		func() (aggregator.Sender, error) { return nil, nil },
+		100*time.Millisecond,
+		10*time.Millisecond,
+	)
+	require.Nil(t, err)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		worker.Run()
+	}()
+
+	// Clean things up
+	defer func() {
+		close(pendingChecksChan)
+		wg.Wait()
+
+		AssertAsyncWorkerCount(t, 0)
+	}()
+
+	// No tasks should equal no utilization
+
+	time.Sleep(50 * time.Millisecond)
+	require.InDelta(t, getWorkerUtilizationExpvar(t, "worker_2"), 0, 0)
+
+	// Long running checks should not be counted
+
+	pendingChecksChan <- longRunningCheck
+	time.Sleep(50 * time.Millisecond)
+
+	require.InDelta(t, getWorkerUtilizationExpvar(t, "worker_2"), 0, 0.05)
+	longRunningCheck.Unlock()
+
+	// High util checks should be reflected in expvars
+
+	pendingChecksChan <- blockingCheck
+
+	time.Sleep(200 * time.Millisecond)
+	require.InDelta(t, getWorkerUtilizationExpvar(t, "worker_2"), 1, 0.05)
+	blockingCheck.Unlock()
 }
 
 func TestWorkerErrorAndWarningHandling(t *testing.T) {
@@ -273,6 +344,7 @@ func TestWorkerErrorAndWarningHandling(t *testing.T) {
 
 	worker, err := NewWorker(100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc)
 	require.Nil(t, err)
+	AssertAsyncWorkerCount(t, 0)
 
 	wg.Add(1)
 	go func() {
@@ -293,7 +365,8 @@ func TestWorkerErrorAndWarningHandling(t *testing.T) {
 	assert.Equal(t, 6, int(expvars.GetRunsCount()))
 	assert.Equal(t, 4, int(expvars.GetErrorsCount()))
 	assert.Equal(t, 0, int(expvars.GetWarningsCount()))
-	assertAsyncWorkerCount(t, 0)
+
+	AssertAsyncWorkerCount(t, 0)
 }
 
 func TestWorkerConcurrentCheckScheduling(t *testing.T) {
@@ -418,6 +491,8 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 		func() (aggregator.Sender, error) {
 			return mockSender, nil
 		},
+		windowSize,
+		pollingInterval,
 	)
 	require.Nil(t, err)
 
@@ -487,6 +562,8 @@ func TestWorkerSenderNil(t *testing.T) {
 		func() (aggregator.Sender, error) {
 			return nil, fmt.Errorf("testerr")
 		},
+		windowSize,
+		pollingInterval,
 	)
 	require.Nil(t, err)
 
@@ -525,6 +602,8 @@ func TestWorkerServiceCheckSendingLongRunningTasks(t *testing.T) {
 		func() (aggregator.Sender, error) {
 			return mockSender, nil
 		},
+		windowSize,
+		pollingInterval,
 	)
 	require.Nil(t, err)
 
