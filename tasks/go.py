@@ -114,7 +114,7 @@ def lint(ctx, targets):
                 print("Allowed errors in whitelisted file {}".format(skipped))
 
         # add whitespace for readability
-        print("")
+        print()
 
         if files:
             print("Linting issues found in {} files.".format(len(files)))
