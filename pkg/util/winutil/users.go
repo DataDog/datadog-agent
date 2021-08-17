@@ -13,7 +13,8 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// GetSidFromUser grabs and returns the windows SID for the current user or an error
+// GetSidFromUser grabs and returns the windows SID for the current user or an error.
+// The *SID returned does not need to be freed by the caller.
 func GetSidFromUser() (*windows.SID, error) {
 	log.Infof("Getting sidstring from user")
 	tok, e := syscall.OpenCurrentProcessToken()

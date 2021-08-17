@@ -80,7 +80,9 @@ func checkRights(filename string, allowGroupExec bool) error {
 	defer windows.FreeSid(administrators)
 
 	secretuser, err := winutil.GetSidFromUser()
-	defer windows.FreeSid(secretuser)
+	if err != nil {
+		return fmt.Errorf("could not get SID for current user: %s", err)
+	}
 
 	bSecretUserExplicitlyAllowed := false
 	for i := uint32(0); i < aclSizeInfo.AceCount; i++ {
@@ -98,22 +100,23 @@ func checkRights(filename string, allowGroupExec bool) error {
 			// if we're denying access to local system or administrators,
 			// it's wrong. Otherwise, any explicit access denied is OK
 			if compareIsLocalSystem || compareIsAdministrators || compareIsSecretUser {
-				return fmt.Errorf("Invalid executable '%s': Can't deny access LOCAL_SYSTEM, Administrators or %s", filename, username)
+				return fmt.Errorf("Invalid executable '%s': Can't deny access LOCAL_SYSTEM, Administrators or %s", filename, secretuser)
 			}
 			// otherwise, it's fine; deny access to whomever
 		}
 		if pAce.AceType == winutil.ACCESS_ALLOWED_ACE_TYPE {
 			if !(compareIsLocalSystem || compareIsAdministrators || compareIsSecretUser) {
-				return fmt.Errorf("Invalid executable '%s': other users/groups than LOCAL_SYSTEM, Administrators or %s have rights on it", filename, username)
+				return fmt.Errorf("Invalid executable '%s': other users/groups than LOCAL_SYSTEM, Administrators or %s have rights on it", filename, secretuser)
 			}
 			if compareIsSecretUser {
 				bSecretUserExplicitlyAllowed = true
 			}
 		}
 	}
+
 	if !bSecretUserExplicitlyAllowed {
 		// there was never an ACE explicitly allowing the secret user, so we can't use it
-		return fmt.Errorf("'%s' user is not allowed to execute secretBackendCommand '%s'", username, filename)
+		return fmt.Errorf("'%s' user is not allowed to execute secretBackendCommand '%s'", secretuser, filename)
 	}
 	return nil
 }
