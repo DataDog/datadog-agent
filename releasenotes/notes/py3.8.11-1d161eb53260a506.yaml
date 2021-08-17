@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    The agent now uses Python-3.8.11 to run custom checks, an upgrade from
+    The Agent now embeds Python-3.8.11, an upgrade from
     Python-3.8.10.
