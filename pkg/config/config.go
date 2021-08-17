@@ -833,6 +833,7 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.enabled")
 	config.SetKnown("process_config.intervals.process_realtime")
 	config.SetKnown("process_config.queue_size")
+	config.SetKnown("process_config.rt_queue_size")
 	config.SetKnown("process_config.max_per_message")
 	config.SetKnown("process_config.max_ctr_procs_per_message")
 	config.SetKnown("process_config.cmd_port")

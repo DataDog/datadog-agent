@@ -686,7 +686,9 @@ func (t *Tracer) removeEntries(mp, tcpMp *ebpf.Map, entries []*ConnTuple) {
 			// and we can't delete the corresponding client state or we'll likely over-report the metric values.
 			// By skipping to the next iteration and not calling state.RemoveConnections() we'll let
 			// this connection expire "naturally" when either next connection check runs or the client itself expires.
-			_ = log.Warnf("failed to remove entry from connections map: %s", err)
+			if !errors.Is(err, ebpf.ErrKeyNotExist) {
+				log.Warnf("failed to remove entry from connections map: %s", err)
+			}
 			continue
 		}
 
@@ -899,12 +901,12 @@ func (t *Tracer) connectionExpired(conn *ConnTuple, latestTime uint64, stats *Co
 
 	exists, err := ctr.Exists(conn)
 	if err != nil {
-		log.Warnf("error checking conntrack for connection %s: %s", conn, err)
+		log.Warnf("error checking conntrack for connection %s: %s", conn.String(), err)
 	}
 	if !exists {
 		exists, err = ctr.ExistsInRootNS(conn)
 		if err != nil {
-			log.Warnf("error checking conntrack for connection in root ns %s: %s", conn, err)
+			log.Warnf("error checking conntrack for connection in root ns %s: %s", conn.String(), err)
 		}
 	}
 
