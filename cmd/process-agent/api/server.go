@@ -29,7 +29,7 @@ func StartServer() error {
 	if err != nil {
 		return err
 	}
-	log.Infof("Config server listening on %s", addr)
+	log.Infof("API server listening on %s", addr)
 
 	srv := &http.Server{
 		Handler: r,
