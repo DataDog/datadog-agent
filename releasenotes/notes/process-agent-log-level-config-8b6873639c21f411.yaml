@@ -8,6 +8,4 @@
 ---
 features:
   - |
-    Initial support for changing running settings in the process agent is now included. For now the only configurable setting
-    is log_level. The port that is used for this server can be changed using either the DD_PROCESS_AGENT_CMD_PORT environment variable,
-    or the process_config.cmd_port setting in your config.yaml file.
+    Adds the ability to change `log_level` in the process agent at runtime using ``process-agent config set log_level <log-level>``
