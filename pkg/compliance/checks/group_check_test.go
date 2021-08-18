@@ -28,7 +28,7 @@ func TestGroupCheck(t *testing.T) {
 			name:         "docker group user found",
 			etcGroupFile: "./testdata/group/etc-group",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					Group: &compliance.Group{
 						Name: "docker",
 					},
@@ -53,7 +53,7 @@ func TestGroupCheck(t *testing.T) {
 			name:         "docker group user not found",
 			etcGroupFile: "./testdata/group/etc-group",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					Group: &compliance.Group{
 						Name: "docker",
 					},

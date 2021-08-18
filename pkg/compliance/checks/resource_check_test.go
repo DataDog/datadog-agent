@@ -250,7 +250,7 @@ func TestResourceCheck(t *testing.T) {
 				}
 			}
 
-			resolve := func(_ context.Context, _ env.Env, _ string, _ compliance.BaseResource) (resolved, error) {
+			resolve := func(_ context.Context, _ env.Env, _ string, _ compliance.ResourceCommon) (resolved, error) {
 				return test.resourceResolved, nil
 			}
 

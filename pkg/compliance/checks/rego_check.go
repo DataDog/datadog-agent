@@ -59,7 +59,7 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 
 	instances := make(map[resolvedInstance][]string)
 
-	name := func(resource compliance.BaseResource) string {
+	name := func(resource compliance.ResourceCommon) string {
 		str := string(resource.Kind())
 
 		if strings.HasSuffix(str, "s") {
@@ -76,14 +76,14 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 
-		resolved, err := resolve(ctx, env, r.ruleID, resource.BaseResource)
+		resolved, err := resolve(ctx, env, r.ruleID, resource.ResourceCommon)
 		if err != nil {
 			cancel()
 			continue
 		}
 		cancel()
 
-		key := name(resource.BaseResource)
+		key := name(resource.ResourceCommon)
 
 		switch res := resolved.(type) {
 		case resolvedInstance:

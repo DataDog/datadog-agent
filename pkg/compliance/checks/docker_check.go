@@ -72,7 +72,7 @@ func dockerKindNotSupported(kind string) error {
 	return fmt.Errorf("unsupported docker object kind '%s'", kind)
 }
 
-func resolveDocker(ctx context.Context, e env.Env, ruleID string, res compliance.BaseResource) (resolved, error) {
+func resolveDocker(ctx context.Context, e env.Env, ruleID string, res compliance.ResourceCommon) (resolved, error) {
 	if res.Docker == nil {
 		return nil, fmt.Errorf("expecting docker resource in docker check")
 	}

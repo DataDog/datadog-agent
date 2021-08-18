@@ -161,7 +161,7 @@ func TestKubeApiserverCheck(t *testing.T) {
 		{
 			name: "List case no ns",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					KubeApiserver: &compliance.KubernetesResource{
 						Group:     "mygroup.com",
 						Version:   "v1",
@@ -195,7 +195,7 @@ func TestKubeApiserverCheck(t *testing.T) {
 		{
 			name: "List case with ns",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					KubeApiserver: &compliance.KubernetesResource{
 						Group:     "mygroup.com",
 						Version:   "v1",
@@ -230,7 +230,7 @@ func TestKubeApiserverCheck(t *testing.T) {
 		{
 			name: "List case multiple matches",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					KubeApiserver: &compliance.KubernetesResource{
 						Group:     "mygroup.com",
 						Version:   "v1",
@@ -266,7 +266,7 @@ func TestKubeApiserverCheck(t *testing.T) {
 		{
 			name: "Get case",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					KubeApiserver: &compliance.KubernetesResource{
 						Group:     "mygroup.com",
 						Version:   "v1",
@@ -302,7 +302,7 @@ func TestKubeApiserverCheck(t *testing.T) {
 		{
 			name: "Get case all type of args",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					KubeApiserver: &compliance.KubernetesResource{
 						Group:     "mygroup.com",
 						Version:   "v1",
@@ -338,7 +338,7 @@ func TestKubeApiserverCheck(t *testing.T) {
 		{
 			name: "Error case object not found",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					KubeApiserver: &compliance.KubernetesResource{
 						Group:     "mygroup.com",
 						Version:   "v1",
@@ -363,7 +363,7 @@ func TestKubeApiserverCheck(t *testing.T) {
 		{
 			name: "Error case property does not exist",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					KubeApiserver: &compliance.KubernetesResource{
 						Group:     "mygroup.com",
 						Version:   "v1",
@@ -398,7 +398,7 @@ func TestKubeApiserverCheck(t *testing.T) {
 		{
 			name: "Error case attribute syntax is wrong",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					KubeApiserver: &compliance.KubernetesResource{
 						Group:     "mygroup.com",
 						Version:   "v1",
@@ -423,7 +423,7 @@ func TestKubeApiserverCheck(t *testing.T) {
 		{
 			name: "List with json query selectors",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					KubeApiserver: &compliance.KubernetesResource{
 						Group:     "mygroup.com",
 						Version:   "v1",

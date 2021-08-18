@@ -72,7 +72,7 @@ func TestResources(t *testing.T) {
 			name:  "file",
 			input: testResourceFile,
 			expected: Resource{
-				BaseResource: BaseResource{
+				ResourceCommon: ResourceCommon{
 					File: &File{
 						Path: `/etc/docker/daemon.json`,
 					},
@@ -84,7 +84,7 @@ func TestResources(t *testing.T) {
 			name:  "process",
 			input: testResourceProcess,
 			expected: Resource{
-				BaseResource: BaseResource{
+				ResourceCommon: ResourceCommon{
 					Process: &Process{
 						Name: "dockerd",
 					},
@@ -96,7 +96,7 @@ func TestResources(t *testing.T) {
 			name:  "process with fallback",
 			input: testResourceProcessWithFallback,
 			expected: Resource{
-				BaseResource: BaseResource{
+				ResourceCommon: ResourceCommon{
 					Process: &Process{
 						Name: "dockerd",
 					},
@@ -105,7 +105,7 @@ func TestResources(t *testing.T) {
 				Fallback: &Fallback{
 					Condition: `!process.hasFlag("--tlsverify")`,
 					Resource: Resource{
-						BaseResource: BaseResource{
+						ResourceCommon: ResourceCommon{
 							File: &File{
 								Path: `/etc/docker/daemon.json`,
 							},
@@ -119,7 +119,7 @@ func TestResources(t *testing.T) {
 			name:  "command",
 			input: testResourceCommand,
 			expected: Resource{
-				BaseResource: BaseResource{
+				ResourceCommon: ResourceCommon{
 					Command: &Command{
 						ShellCmd: &ShellCmd{
 							Run: `mountpoint -- "$(docker info -f '{{ .DockerRootDir }}')"`,
@@ -133,7 +133,7 @@ func TestResources(t *testing.T) {
 			name:  "audit",
 			input: testResourceAudit,
 			expected: Resource{
-				BaseResource: BaseResource{
+				ResourceCommon: ResourceCommon{
 					Audit: &Audit{
 						Path: "/usr/bin/dockerd",
 					},
@@ -145,7 +145,7 @@ func TestResources(t *testing.T) {
 			name:  "group",
 			input: testResourceGroup,
 			expected: Resource{
-				BaseResource: BaseResource{
+				ResourceCommon: ResourceCommon{
 					Group: &Group{
 						Name: "docker",
 					},
@@ -158,7 +158,7 @@ func TestResources(t *testing.T) {
 			name:  "docker image",
 			input: testResourceDockerImage,
 			expected: Resource{
-				BaseResource: BaseResource{
+				ResourceCommon: ResourceCommon{
 					Docker: &DockerResource{
 						Kind: "image",
 					},

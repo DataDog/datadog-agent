@@ -182,7 +182,7 @@ func WithMatchSuite(matcher SuiteMatcher) BuilderOption {
 }
 
 // RuleMatcher checks if a compliance rule is included
-type RuleMatcher func(*compliance.RuleBase) bool
+type RuleMatcher func(*compliance.RuleCommon) bool
 
 // WithMatchRule configures builder to use a suite matcher
 func WithMatchRule(matcher RuleMatcher) BuilderOption {
@@ -223,7 +223,7 @@ func IsFramework(framework string) SuiteMatcher {
 
 // IsRuleID matches a compliance rule by ID
 func IsRuleID(ruleID string) RuleMatcher {
-	return func(r *compliance.RuleBase) bool {
+	return func(r *compliance.RuleCommon) bool {
 		return r.ID == ruleID
 	}
 }
@@ -312,7 +312,7 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 		fmt.Printf("Rule: %+v\n", r)
 
 		if b.ruleMatcher != nil {
-			if b.ruleMatcher(&r.RuleBase) {
+			if b.ruleMatcher(&r.RuleCommon) {
 				log.Infof("%s/%s: matched rule %s in %s", suite.Meta.Name, suite.Meta.Version, r.ID, file)
 			} else {
 				log.Tracef("%s/%s: skipped rule %s in %s", suite.Meta.Name, suite.Meta.Version, r.ID, file)
@@ -347,7 +347,7 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 				InitError:   err,
 			})
 		}
-		ok := onCheck(&r.RuleBase, check, err)
+		ok := onCheck(&r.RuleCommon, check, err)
 		if !ok {
 			log.Infof("%s/%s: stopping rule enumeration", suite.Meta.Name, suite.Meta.Version)
 			return err
@@ -356,7 +356,7 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 
 	for _, r := range suite.RegoRules {
 		if b.ruleMatcher != nil {
-			if b.ruleMatcher(&r.RuleBase) {
+			if b.ruleMatcher(&r.RuleCommon) {
 				log.Infof("%s/%s: matched rule %s in %s", suite.Meta.Name, suite.Meta.Version, r.ID, file)
 			} else {
 				log.Tracef("%s/%s: skipped rule %s in %s", suite.Meta.Name, suite.Meta.Version, r.ID, file)
@@ -391,7 +391,7 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 				InitError:   err,
 			})
 		}
-		ok := onCheck(&r.RuleBase, check, err)
+		ok := onCheck(&r.RuleCommon, check, err)
 		if !ok {
 			log.Infof("%s/%s: stopping rule enumeration", suite.Meta.Name, suite.Meta.Version)
 			return err

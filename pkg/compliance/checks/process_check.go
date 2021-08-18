@@ -28,7 +28,7 @@ var processReportedFields = []string{
 	compliance.ProcessFieldCmdLine,
 }
 
-func resolveProcess(_ context.Context, e env.Env, id string, res compliance.BaseResource) (resolved, error) {
+func resolveProcess(_ context.Context, e env.Env, id string, res compliance.ResourceCommon) (resolved, error) {
 	if res.Process == nil {
 		return nil, fmt.Errorf("%s: expecting process resource in process check", id)
 	}

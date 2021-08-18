@@ -31,7 +31,7 @@ var groupReportedFields = []string{
 // ErrGroupNotFound is returned when a group cannot be found
 var ErrGroupNotFound = errors.New("group not found")
 
-func resolveGroup(_ context.Context, e env.Env, id string, res compliance.BaseResource) (resolved, error) {
+func resolveGroup(_ context.Context, e env.Env, id string, res compliance.ResourceCommon) (resolved, error) {
 	if res.Group == nil {
 		return nil, fmt.Errorf("%s: expecting group resource in group check", id)
 	}

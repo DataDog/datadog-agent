@@ -8,8 +8,8 @@ package compliance
 
 import "fmt"
 
-// RuleBase defines the base fields of a rule in a compliance config
-type RuleBase struct {
+// RuleCommon defines the base fields of a rule in a compliance config
+type RuleCommon struct {
 	ID           string        `yaml:"id"`
 	Description  string        `yaml:"description,omitempty"`
 	Scope        RuleScopeList `yaml:"scope,omitempty"`
@@ -19,16 +19,16 @@ type RuleBase struct {
 
 // Rule defines a rule in a compliance config
 type Rule struct {
-	RuleBase  `yaml:",inline"`
-	Resources []Resource `yaml:"resources,omitempty"`
+	RuleCommon `yaml:",inline"`
+	Resources  []Resource `yaml:"resources,omitempty"`
 }
 
 // RegoRule defines a rule in a compliance config
 type RegoRule struct {
-	RuleBase  `yaml:",inline"`
-	Resources []RegoResource `yaml:"resources,omitempty"`
-	Module    string         `yaml:"module,omitempty"`
-	Query     string         `yaml:"query,omitempty"`
+	RuleCommon `yaml:",inline"`
+	Resources  []RegoResource `yaml:"resources,omitempty"`
+	Module     string         `yaml:"module,omitempty"`
+	Query      string         `yaml:"query,omitempty"`
 }
 
 // RuleScope defines scope for applicability of a rule

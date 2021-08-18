@@ -33,14 +33,14 @@ func TestParseSuite(t *testing.T) {
 				},
 				Rules: []Rule{
 					{
-						RuleBase: RuleBase{
+						RuleCommon: RuleCommon{
 							ID:           "cis-docker-1",
 							Scope:        RuleScopeList{DockerScope},
 							HostSelector: `"foo" in node.labels`,
 						},
 						Resources: []Resource{
 							{
-								BaseResource: BaseResource{
+								ResourceCommon: ResourceCommon{
 									File: &File{
 										Path: "/etc/docker/daemon.json",
 									},

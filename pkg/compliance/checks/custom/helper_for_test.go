@@ -38,7 +38,7 @@ func (f *kubeApiserverFixture) run(t *testing.T) {
 
 	resource := compliance.Resource{
 		Condition: "_",
-		BaseResource: compliance.BaseResource{
+		ResourceCommon: compliance.ResourceCommon{
 			Custom: &compliance.Custom{
 				Name: "customFunc",
 			},

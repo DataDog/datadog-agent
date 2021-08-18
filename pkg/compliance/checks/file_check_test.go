@@ -66,7 +66,7 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "file permissions",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
 						Path: "/etc/test-permissions.dat",
 					},
@@ -89,7 +89,7 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "file permissions (glob)",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
 						Path: "/etc/*.dat",
 					},
@@ -115,7 +115,7 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "file user and group",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
 						Path: "/tmp",
 					},
@@ -133,7 +133,7 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "jq(log-driver) - passed",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
 						Path: "/etc/docker/daemon.json",
 					},
@@ -155,7 +155,7 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "jq(experimental) - failed",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
 						Path: "/etc/docker/daemon.json",
 					},
@@ -177,7 +177,7 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "jq(experimental) and path expression",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
 						Path: `process.flag("dockerd", "--config-file")`,
 					},
@@ -201,7 +201,7 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "jq(experimental) and path expression - empty path",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
 						Path: `process.flag("dockerd", "--config-file")`,
 					},
@@ -217,7 +217,7 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "jq(experimental) and path expression - wrong type",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
 						Path: `process.flag("dockerd", "--config-file")`,
 					},
@@ -233,7 +233,7 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "jq(experimental) and path expression - expression failed",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
 						Path: `process.unknown()`,
 					},
@@ -249,7 +249,7 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "jq(ulimits)",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
 						Path: "/etc/docker/daemon.json",
 					},
@@ -271,7 +271,7 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "yaml(apiVersion)",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
 						Path: "/etc/pod.yaml",
 					},
@@ -293,7 +293,7 @@ func TestFileCheck(t *testing.T) {
 		{
 			name: "regexp",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
 						Path: "/proc/mounts",
 					},

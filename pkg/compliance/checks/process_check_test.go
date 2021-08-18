@@ -57,7 +57,7 @@ func TestProcessCheck(t *testing.T) {
 		{
 			name: "simple case",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					Process: &compliance.Process{
 						Name: "proc1",
 					},
@@ -86,7 +86,7 @@ func TestProcessCheck(t *testing.T) {
 		{
 			name: "fallback case",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					Process: &compliance.Process{
 						Name: "proc1",
 					},
@@ -95,7 +95,7 @@ func TestProcessCheck(t *testing.T) {
 				Fallback: &compliance.Fallback{
 					Condition: `!process.hasFlag("--tlsverify")`,
 					Resource: compliance.Resource{
-						BaseResource: compliance.BaseResource{
+						ResourceCommon: compliance.ResourceCommon{
 							Process: &compliance.Process{
 								Name: "proc2",
 							},
@@ -130,7 +130,7 @@ func TestProcessCheck(t *testing.T) {
 		{
 			name: "process not found",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					Process: &compliance.Process{
 						Name: "proc1",
 					},
@@ -154,7 +154,7 @@ func TestProcessCheck(t *testing.T) {
 		{
 			name: "argument not found",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					Process: &compliance.Process{
 						Name: "proc1",
 					},
@@ -193,7 +193,7 @@ func TestProcessCheckCache(t *testing.T) {
 	firstContent := processFixture{
 		name: "simple case",
 		resource: compliance.Resource{
-			BaseResource: compliance.BaseResource{
+			ResourceCommon: compliance.ResourceCommon{
 				Process: &compliance.Process{
 					Name: "proc1",
 				},
@@ -225,7 +225,7 @@ func TestProcessCheckCache(t *testing.T) {
 	secondFixture := processFixture{
 		name: "simple case",
 		resource: compliance.Resource{
-			BaseResource: compliance.BaseResource{
+			ResourceCommon: compliance.ResourceCommon{
 				Process: &compliance.Process{
 					Name: "proc1",
 				},

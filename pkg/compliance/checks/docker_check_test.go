@@ -40,7 +40,7 @@ func TestDockerImageCheck(t *testing.T) {
 	assert := assert.New(t)
 
 	resource := compliance.Resource{
-		BaseResource: compliance.BaseResource{
+		ResourceCommon: compliance.ResourceCommon{
 			Docker: &compliance.DockerResource{
 				Kind: "image",
 			},
@@ -107,7 +107,7 @@ func TestDockerNetworkCheck(t *testing.T) {
 	assert := assert.New(t)
 
 	resource := compliance.Resource{
-		BaseResource: compliance.BaseResource{
+		ResourceCommon: compliance.ResourceCommon{
 			Docker: &compliance.DockerResource{
 				Kind: "network",
 			},
@@ -219,7 +219,7 @@ func TestDockerContainerCheck(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			resource := compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					Docker: &compliance.DockerResource{
 						Kind: "container",
 					},
@@ -260,7 +260,7 @@ func TestDockerInfoCheck(t *testing.T) {
 	assert := assert.New(t)
 
 	resource := compliance.Resource{
-		BaseResource: compliance.BaseResource{
+		ResourceCommon: compliance.ResourceCommon{
 			Docker: &compliance.DockerResource{
 				Kind: "info",
 			},
@@ -292,7 +292,7 @@ func TestDockerVersionCheck(t *testing.T) {
 	assert := assert.New(t)
 
 	resource := compliance.Resource{
-		BaseResource: compliance.BaseResource{
+		ResourceCommon: compliance.ResourceCommon{
 			Docker: &compliance.DockerResource{
 				Kind: "version",
 			},

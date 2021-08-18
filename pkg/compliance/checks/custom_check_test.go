@@ -42,7 +42,7 @@ func TestNewCustomCheck(t *testing.T) {
 		{
 			name: "wrong resource kind",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					File: &compliance.File{
 						Path: "/etc/bitsy/spider",
 					},
@@ -53,7 +53,7 @@ func TestNewCustomCheck(t *testing.T) {
 		{
 			name: "missing check name",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					Custom: &compliance.Custom{},
 				},
 			},
@@ -62,7 +62,7 @@ func TestNewCustomCheck(t *testing.T) {
 		{
 			name: "allowed empty condition",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					Custom: &compliance.Custom{
 						Name: "check-name",
 					},
@@ -76,7 +76,7 @@ func TestNewCustomCheck(t *testing.T) {
 		{
 			name: "custom check error",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					Custom: &compliance.Custom{
 						Name: "check-name",
 					},
@@ -93,7 +93,7 @@ func TestNewCustomCheck(t *testing.T) {
 		{
 			name: "condition expression failure",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					Custom: &compliance.Custom{
 						Name: "check-name",
 					},
@@ -105,7 +105,7 @@ func TestNewCustomCheck(t *testing.T) {
 		{
 			name: "cannot find check by name",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					Custom: &compliance.Custom{
 						Name: "check-name",
 					},

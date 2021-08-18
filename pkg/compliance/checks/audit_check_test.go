@@ -34,7 +34,7 @@ func TestAuditCheck(t *testing.T) {
 			name:  "no file rules",
 			rules: []*rule.FileWatchRule{},
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					Audit: &compliance.Audit{
 						Path: "/etc/docker/daemon.json",
 					},
@@ -60,7 +60,7 @@ func TestAuditCheck(t *testing.T) {
 				},
 			},
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					Audit: &compliance.Audit{
 						Path: "/etc/docker/daemon.json",
 					},
@@ -80,7 +80,7 @@ func TestAuditCheck(t *testing.T) {
 		{
 			name: "file missing on the host",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					Audit: &compliance.Audit{
 						Path: "/etc/docker/daemon.json",
 					},
@@ -107,7 +107,7 @@ func TestAuditCheck(t *testing.T) {
 				},
 			},
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					Audit: &compliance.Audit{
 						Path: `process.flag("docker", "--config-file")`,
 					},

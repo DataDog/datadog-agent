@@ -34,8 +34,8 @@ const (
 	KindCustom = ResourceKind("custom")
 )
 
-// BaseResource describes the base fields of resource types
-type BaseResource struct {
+// ResourceCommon describes the base fields of resource types
+type ResourceCommon struct {
 	File          *File               `yaml:"file,omitempty"`
 	Process       *Process            `yaml:"process,omitempty"`
 	Group         *Group              `yaml:"group,omitempty"`
@@ -48,18 +48,18 @@ type BaseResource struct {
 
 // Resource describes supported resource types observed by a Rule
 type Resource struct {
-	BaseResource `yaml:",inline"`
-	Condition    string    `yaml:"condition"`
-	Fallback     *Fallback `yaml:"fallback,omitempty"`
+	ResourceCommon `yaml:",inline"`
+	Condition      string    `yaml:"condition"`
+	Fallback       *Fallback `yaml:"fallback,omitempty"`
 }
 
 // RegoResource describes supported resource types observed by a Rego Rule
 type RegoResource struct {
-	BaseResource `yaml:",inline"`
+	ResourceCommon `yaml:",inline"`
 }
 
 // Kind returns ResourceKind of the resource
-func (r *BaseResource) Kind() ResourceKind {
+func (r *ResourceCommon) Kind() ResourceKind {
 	switch {
 	case r.File != nil:
 		return KindFile

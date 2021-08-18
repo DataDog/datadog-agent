@@ -29,4 +29,4 @@ type CheckStatus struct {
 type CheckStatusList []*CheckStatus
 
 // CheckVisitor defines a visitor func for compliance checks
-type CheckVisitor func(rule *RuleBase, check Check, err error) bool
+type CheckVisitor func(rule *RuleCommon, check Check, err error) bool

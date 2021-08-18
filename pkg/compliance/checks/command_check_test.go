@@ -67,7 +67,7 @@ func TestCommandCheck(t *testing.T) {
 		{
 			name: "binary run",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					Command: &compliance.Command{
 						BinaryCmd: &compliance.BinaryCmd{
 							Name: "myCommand",
@@ -92,7 +92,7 @@ func TestCommandCheck(t *testing.T) {
 		{
 			name: "shell run",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					Command: &compliance.Command{
 						ShellCmd: &compliance.ShellCmd{
 							Run: "my command --foo=bar --baz",
@@ -116,7 +116,7 @@ func TestCommandCheck(t *testing.T) {
 		{
 			name: "custom shell run",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					Command: &compliance.Command{
 						ShellCmd: &compliance.ShellCmd{
 							Run: "my command --foo=bar --baz",
@@ -144,7 +144,7 @@ func TestCommandCheck(t *testing.T) {
 		{
 			name: "execution failure",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					Command: &compliance.Command{
 						BinaryCmd: &compliance.BinaryCmd{
 							Name: "myCommand",
@@ -166,7 +166,7 @@ func TestCommandCheck(t *testing.T) {
 		{
 			name: "non-zero return code",
 			resource: compliance.Resource{
-				BaseResource: compliance.BaseResource{
+				ResourceCommon: compliance.ResourceCommon{
 					Command: &compliance.Command{
 						BinaryCmd: &compliance.BinaryCmd{
 							Name: "myCommand",
