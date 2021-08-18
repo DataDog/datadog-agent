@@ -16,6 +16,8 @@ import (
 )
 
 const (
+	// UtilizationWarningThreshold is the utilization level at which we will
+	// show a warning in the agent log
 	UtilizationWarningThreshold = 0.99
 )
 
