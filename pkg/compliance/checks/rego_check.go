@@ -29,7 +29,7 @@ func (r *regoCheck) compileRule(rule *compliance.RegoRule) error {
 	ctx := context.TODO()
 
 	preparedEvalQuery, err := rego.New(
-		rego.Query("result = data."+rule.Query),
+		rego.Query(rule.Query),
 		rego.Module(fmt.Sprintf("rule_%s.rego", rule.ID), rule.Module),
 	).PrepareForEval(ctx)
 
@@ -123,7 +123,7 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 
 	log.Debugf("%s: rego evaluation done => %+v\n", r.ruleID, results)
 
-	passed, ok := results[0].Bindings["result"].(bool)
+	passed, ok := results[0].Expressions[0].Value.(bool)
 	if !ok {
 		return []*compliance.Report{compliance.BuildReportForError(errors.New("wrong result type"))}
 	}
