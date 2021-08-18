@@ -176,7 +176,7 @@ def get_build_flags(
     )
 
     # adding nikos libs to the env
-    if nikos_embedded_path is not None:
+    if nikos_embedded_path:
         env['PKG_CONFIG_PATH'] = env.get('PKG_CONFIG_PATH', '') + ':' + nikos_embedded_path + '/lib/pkgconfig'
         env["CGO_LDFLAGS"] = env.get('CGO_LDFLAGS', '') + get_nikos_linker_flags(nikos_embedded_path + '/lib')
 
