@@ -273,7 +273,10 @@ func runAgent(exit chan struct{}) {
 			log.Errorf("Error creating expvar server on port %v: %v", cfg.ProcessExpVarPort, err)
 		}
 
-		api.StartServer()
+		err = api.StartServer()
+		if err != nil {
+			_ = log.Error(err)
+		}
 	}()
 
 	cl, err := NewCollector(cfg)
