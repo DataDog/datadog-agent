@@ -15,6 +15,21 @@ from invoke import task
 ORG_PATH = "github.com/DataDog"
 DEFAULT_BRANCH = "main"
 REPO_PATH = "{}/datadog-agent".format(ORG_PATH)
+ALLOWED_REPO_NON_NIGHTLY_BRANCHES = {"stable", "beta", "none"}
+ALLOWED_REPO_NIGHTLY_BRANCHES = {"nightly", "oldnightly"}
+ALLOWED_REPO_ALL_BRANCHES = ALLOWED_REPO_NON_NIGHTLY_BRANCHES.union(ALLOWED_REPO_NIGHTLY_BRANCHES)
+
+
+def get_all_allowed_repo_branches():
+    return ALLOWED_REPO_ALL_BRANCHES
+
+
+def is_allowed_repo_branch(branch):
+    return branch in ALLOWED_REPO_ALL_BRANCHES
+
+
+def is_allowed_repo_nightly_branch(branch):
+    return branch in ALLOWED_REPO_NIGHTLY_BRANCHES
 
 
 def bin_name(name, android=False):
@@ -284,7 +299,7 @@ def get_version(
         ctx, git_sha_length, prefix, major_version_hint=major_version
     )
 
-    is_nightly = os.getenv("DEB_RPM_BUCKET_BRANCH") == "nightly"
+    is_nightly = is_allowed_repo_nightly_branch(os.getenv("DEB_RPM_BUCKET_BRANCH"))
     if pre:
         version = "{0}-{1}".format(version, pre)
 

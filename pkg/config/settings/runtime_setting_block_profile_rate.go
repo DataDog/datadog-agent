@@ -38,8 +38,10 @@ func (r RuntimeBlockProfileRate) Set(value interface{}) error {
 		return err
 	}
 
+	err = checkProfilingNeedsRestart(profiling.GetBlockProfileRate(), rate)
+
 	profiling.SetBlockProfileRate(rate)
 	config.Datadog.Set("internal_profiling.block_profile_rate", rate)
 
-	return nil
+	return err
 }

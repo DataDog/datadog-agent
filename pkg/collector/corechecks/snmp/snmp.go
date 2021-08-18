@@ -177,6 +177,11 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 	return nil
 }
 
+// Interval returns the scheduling time for the check
+func (c *Check) Interval() time.Duration {
+	return c.config.minCollectionInterval
+}
+
 func snmpFactory() check.Check {
 	return &Check{
 		session:   &snmpSession{},

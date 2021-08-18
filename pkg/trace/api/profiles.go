@@ -2,7 +2,6 @@ package api
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -72,13 +71,7 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 		return errorHandler(err)
 	}
 	tags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, info.Version)
-	if r.conf.IsFargate {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		orch := fargate.GetOrchestrator(ctx)
-		cancel()
-		if err := ctx.Err(); err != nil && err != context.Canceled {
-			log.Warnf("Failed to get Fargate orchestrator. This may cause issues with your profiles: %v", err)
-		}
+	if orch := r.conf.FargateOrchestrator; orch != fargate.Unknown {
 		tag := fmt.Sprintf("orchestrator:fargate_%s", strings.ToLower(string(orch)))
 		tags = tags + "," + tag
 	}

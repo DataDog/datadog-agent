@@ -29,6 +29,7 @@ import (
 
 var (
 	dsdCaptureDuration   time.Duration
+	dsdCaptureFilePath   string
 	dsdCaptureCompressed bool
 )
 
@@ -39,6 +40,7 @@ const (
 func init() {
 	AgentCmd.AddCommand(dogstatsdCaptureCmd)
 	dogstatsdCaptureCmd.Flags().DurationVarP(&dsdCaptureDuration, "duration", "d", defaultCaptureDuration, "Duration traffic capture should span.")
+	dogstatsdCaptureCmd.Flags().StringVarP(&dsdCaptureFilePath, "path", "p", "", "Directory path to write the capture to.")
 	dogstatsdCaptureCmd.Flags().BoolVarP(&dsdCaptureCompressed, "compressed", "z", true, "Should capture be zstd compressed.")
 
 	// shut up grpc client!
@@ -108,6 +110,7 @@ func dogstatsdCapture() error {
 
 	resp, err := cli.DogstatsdCaptureTrigger(ctx, &pb.CaptureTriggerRequest{
 		Duration:   dsdCaptureDuration.String(),
+		Path:       dsdCaptureFilePath,
 		Compressed: dsdCaptureCompressed,
 	})
 	if err != nil {
