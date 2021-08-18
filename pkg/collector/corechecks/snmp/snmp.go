@@ -55,8 +55,10 @@ func (c *Check) Run() error {
 
 	if c.config.Network != "" {
 		discoveredDevices := c.discovery.getDiscoveredDeviceConfigs()
-		for _, config := range discoveredDevices {
-			log.Warnf("[DEV] discoveredDevices: %v", config.deviceID)
+		for i := range discoveredDevices {
+			config := &discoveredDevices[i]
+			log.Warnf("[DEV] discoveredDevices: %s", config.ipAddress)
+			checkErr = c.runCheckDevice(config)
 		}
 	} else {
 		checkErr = c.runCheckDevice(&c.config)
@@ -68,6 +70,7 @@ func (c *Check) Run() error {
 }
 
 func (c *Check) runCheckDevice(config *snmpConfig) error {
+	log.Warnf("[DEV] collect for device: %s", config.ipAddress)
 	startTime := time.Now()
 	staticTags := config.getStaticTags()
 

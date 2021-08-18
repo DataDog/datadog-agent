@@ -72,8 +72,10 @@ func (d *snmpDiscovery) Start() {
 func (d *snmpDiscovery) checkDevice(job snmpJob) {
 	deviceIP := job.currentIP.String()
 	log.Warnf("[DEV] check Device %s", deviceIP)
+	config := job.subnet.config // TODO: avoid full copy ?
+	config.ipAddress = deviceIP
 	sess := snmpSession{}
-	err := sess.Configure(job.subnet.config)
+	err := sess.Configure(config)
 	if err != nil {
 		log.Errorf("Error configure session %s: %v", deviceIP, err)
 		return
@@ -97,6 +99,7 @@ func (d *snmpDiscovery) checkDevice(job snmpJob) {
 			d.deleteService(entityID, job.subnet)
 		} else {
 			log.Debugf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
+			log.Warnf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
 			d.createService(entityID, job.subnet, deviceIP, true)
 		}
 	}
@@ -226,7 +229,19 @@ func (d *snmpDiscovery) getDiscoveredDeviceConfigs() []snmpConfig {
 	defer d.Unlock()
 	var discoveredDevices []snmpConfig
 	for _, device := range d.services {
-		discoveredDevices = append(discoveredDevices, device.config)
+		config := device.config
+		config.Network = ""
+		config.ipAddress = device.deviceIP
+
+		// TODO: Refactor to avoid duplication of logic with https://github.com/DataDog/datadog-agent/blob/0e88b93d1902eddc1542aa15c41b91fcbeecc588/pkg/collector/corechecks/snmp/config.go#L388
+		config.deviceID, config.deviceIDTags = buildDeviceID(config.getDeviceIDTags())
+
+		err := config.session.Configure(config)
+		if err != nil {
+			log.Warnf("failed to configure device `%s`: %s", device.deviceIP, err)
+			continue
+		}
+		discoveredDevices = append(discoveredDevices, config)
 	}
 	return discoveredDevices
 }

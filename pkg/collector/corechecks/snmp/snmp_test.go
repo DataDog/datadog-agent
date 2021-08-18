@@ -1320,7 +1320,6 @@ func TestReportDeviceMetadataWithFetchError(t *testing.T) {
 	session := createMockSession()
 	check := Check{}
 
-
 	// TODO: Why it worked before without auth method (community_string) ?
 
 	// language=yaml
