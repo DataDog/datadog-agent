@@ -212,6 +212,8 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 								cTags.AddStandard(tagKeyVersion, runtimeVal)
 							case envVarService:
 								cTags.AddStandard(tagKeyService, runtimeVal)
+							default:
+								utils.AddMetadataAsTags(env.Name, runtimeVal, c.envAsTags, c.globEnv, cTags)
 							}
 						} else if env.Name == envVarEnv || env.Name == envVarVersion || env.Name == envVarService {
 							log.Warnf("Reading %s from a ConfigMap, Secret or anything but a literal value is not implemented yet.", env.Name)

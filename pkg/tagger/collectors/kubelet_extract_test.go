@@ -234,6 +234,20 @@ func TestParsePods(t *testing.T) {
 		},
 	}
 
+	dockerContainerSpecWithCustomEnv := kubelet.Spec{
+		Containers: []kubelet.ContainerSpec{
+			{
+				Name: "dd-agent",
+				Env: []kubelet.EnvVar{
+					{
+						Name:  "MY_CUSTOM_ENV_VAR",
+						Value: "foo-custom-value",
+					},
+				},
+			},
+		},
+	}
+
 	containerStatusEmptyID := kubelet.Status{
 		Containers: []kubelet.ContainerStatus{
 			{
@@ -258,6 +272,7 @@ func TestParsePods(t *testing.T) {
 		pod               *kubelet.Pod
 		labelsAsTags      map[string]string
 		annotationsAsTags map[string]string
+		envAsTags         map[string]string
 		expectedInfo      []*TagInfo
 	}{
 		{
@@ -1281,13 +1296,41 @@ func TestParsePods(t *testing.T) {
 				StandardTags: []string{},
 			}},
 		},
+		{
+			desc: "Pod env as tags",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name: "foo-pod",
+				},
+				Status: dockerContainerStatus,
+				Spec:   dockerContainerSpecWithCustomEnv,
+			},
+			envAsTags: map[string]string{
+				"MY_CUSTOM_ENV_VAR": "my_custom_tag_key",
+			},
+			expectedInfo: []*TagInfo{{
+				Source: "kubelet",
+				Entity: dockerEntityID,
+				LowCardTags: []string{
+					"kube_container_name:dd-agent",
+					"pod_phase:running",
+					"my_custom_tag_key:foo-custom-value",
+				},
+				OrchestratorCardTags: []string{"pod_name:foo-pod"},
+				HighCardTags: []string{
+					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
+					"display_container_name:dd-agent_foo-pod",
+				},
+				StandardTags: []string{},
+			}},
+		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.desc), func(t *testing.T) {
 			if tc.skip {
 				t.SkipNow()
 			}
 			collector := &KubeletCollector{}
-			collector.init(nil, nil, tc.labelsAsTags, tc.annotationsAsTags)
+			collector.init(nil, nil, tc.labelsAsTags, tc.annotationsAsTags, tc.envAsTags)
 			infos, err := collector.parsePods([]*kubelet.Pod{tc.pod})
 			assert.Nil(t, err)
 

@@ -36,8 +36,10 @@ type KubeletCollector struct {
 	expireFreq        time.Duration
 	labelsAsTags      map[string]string
 	annotationsAsTags map[string]string
+	envAsTags         map[string]string
 	globLabels        map[string]glob.Glob
 	globAnnotations   map[string]glob.Glob
+	globEnv           map[string]glob.Glob
 }
 
 // Detect tries to connect to the kubelet
@@ -55,12 +57,13 @@ func (c *KubeletCollector) Detect(ctx context.Context, out chan<- []*TagInfo) (C
 		out,
 		config.Datadog.GetStringMapString("kubernetes_pod_labels_as_tags"),
 		config.Datadog.GetStringMapString("kubernetes_pod_annotations_as_tags"),
+		config.Datadog.GetStringMapString("kubernetes_container_env_as_tags"),
 	)
 
 	return PullCollection, nil
 }
 
-func (c *KubeletCollector) init(watcher *kubelet.PodWatcher, out chan<- []*TagInfo, labelsAsTags, annotationsAsTags map[string]string) {
+func (c *KubeletCollector) init(watcher *kubelet.PodWatcher, out chan<- []*TagInfo, labelsAsTags, annotationsAsTags, envAsTags map[string]string) {
 	c.watcher = watcher
 	c.infoOut = out
 	c.lastExpire = time.Now()
@@ -68,6 +71,7 @@ func (c *KubeletCollector) init(watcher *kubelet.PodWatcher, out chan<- []*TagIn
 
 	c.labelsAsTags, c.globLabels = utils.InitMetadataAsTags(labelsAsTags)
 	c.annotationsAsTags, c.globAnnotations = utils.InitMetadataAsTags(annotationsAsTags)
+	c.envAsTags, c.globEnv = utils.InitMetadataAsTags(envAsTags)
 }
 
 // Pull triggers a podlist refresh and sends new info. It also triggers

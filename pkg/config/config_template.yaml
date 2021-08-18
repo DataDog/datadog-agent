@@ -1864,6 +1864,15 @@ api_key:
 #   <ANNOTATION>: <TAG_KEY>
 #   <HIGH_CARDINALITY_ANNOTATION>: +<TAG_KEY>
 
+## @param kubernetes_container_env_as_tags - map - optional
+## @env DD_KUBERNETES_CONTAINER_ENV_AS_TAGS - JSON object - optional
+## The Agent can extract container environment variable values and set them as metric tag values associated to a <TAG_KEY>.
+## Prefix your tag name with `+`, to only add the values to high cardinality metrics.
+#
+# kubernetes_container_env_as_tags:
+#   <ENV_VAR>: <TAG_KEY>
+#   <HIGH_CARDINALITY_ENV_VAR>: +<TAG_KEY>
+
 ## @param kubernetes_namespace_labels_as_tags - map - optional
 ## The Agent can extract namespace label values and set them as metric tags values associated to a <TAG_KEY>.
 ## If you prefix your tag name with +, it will only be added to high cardinality metrics.
