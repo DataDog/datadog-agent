@@ -255,7 +255,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	c.Network = instance.Network
 	c.Workers = 10
 	c.AllowedFailures = 3
-	c.DiscoveryInterval = 60
+	c.DiscoveryInterval = 20
 
 	if c.ipAddress == "" && c.Network == "" {
 		// TODO: TEST ME

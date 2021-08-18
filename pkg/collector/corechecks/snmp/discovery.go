@@ -138,6 +138,7 @@ func (d *snmpDiscovery) checkDevices() {
 	log.Warnf("[DEV] subnets len: %d", len(subnets))
 
 	for {
+		log.Warnf("[DEV] start discovery")
 		var subnet *snmpSubnet
 		for i := range subnets {
 			// Use `&subnets[i]` to pass the correct pointer address to snmpJob{}
@@ -190,7 +191,7 @@ func (d *snmpDiscovery) createService(entityID string, subnet *snmpSubnet, devic
 	d.services[entityID] = svc
 	subnet.devices[entityID] = deviceIP
 	subnet.deviceFailures[entityID] = 0
-	log.Warnf("[DEV] Create service : %d, services: %+v", deviceIP, len(d.services))
+	log.Warnf("[DEV] Create service : %s, services: %v", deviceIP, len(d.services))
 
 	//if writeCache {
 	//	d.writeCache(subnet)
