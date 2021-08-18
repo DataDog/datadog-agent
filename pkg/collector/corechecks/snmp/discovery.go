@@ -221,12 +221,12 @@ func (d *snmpDiscovery) deleteService(entityID string, subnet *snmpSubnet) {
 	}
 }
 
-func (d *snmpDiscovery) getDiscoveredDevices() []string {
+func (d *snmpDiscovery) getDiscoveredDeviceConfigs() []snmpConfig {
 	d.Lock()
 	defer d.Unlock()
-	var discoveredDevices []string
+	var discoveredDevices []snmpConfig
 	for _, device := range d.services {
-		discoveredDevices = append(discoveredDevices, device.deviceIP)
+		discoveredDevices = append(discoveredDevices, device.config)
 	}
 	return discoveredDevices
 }

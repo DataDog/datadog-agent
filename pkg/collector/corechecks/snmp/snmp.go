@@ -35,21 +35,31 @@ type Check struct {
 
 // Run executes the check
 func (c *Check) Run() error {
-	if c.config.Network != "" {
-		discoveredDevices := c.discovery.getDiscoveredDevices()
-		log.Warnf("[DEV] discoveredDevices: %v", discoveredDevices)
-		return nil
-	}
-
-	startTime := time.Now()
-
+	var checkErr error
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
 	}
 	c.sender = metricSender{sender: sender}
 
-	staticTags := c.config.getStaticTags()
+	if c.config.Network != "" {
+		discoveredDevices := c.discovery.getDiscoveredDeviceConfigs()
+		for _, config := range discoveredDevices {
+			log.Warnf("[DEV] discoveredDevices: %v", config.deviceID)
+		}
+		return nil
+	} else {
+		checkErr = c.runCheckDevice(&c.config)
+	}
+
+	// Commit
+	sender.Commit()
+	return checkErr
+}
+
+func (c *Check) runCheckDevice(config *snmpConfig) error {
+	startTime := time.Now()
+	staticTags := config.getStaticTags()
 
 	// Fetch and report metrics
 	var checkErr error
@@ -62,10 +72,10 @@ func (c *Check) Run() error {
 		c.sender.serviceCheck(serviceCheckName, metrics.ServiceCheckOK, "", tags, "")
 	}
 	if values != nil {
-		c.sender.reportMetrics(c.config.metrics, values, tags)
+		c.sender.reportMetrics(config.metrics, values, tags)
 	}
 
-	if c.config.collectDeviceMetadata {
+	if config.collectDeviceMetadata {
 		if values != nil {
 			deviceStatus = metadata.DeviceStatusReachable
 		} else {
@@ -75,14 +85,11 @@ func (c *Check) Run() error {
 		// We include instance tags to `deviceMetadataTags` since device metadata tags are not enriched with `checkSender.checkTags`.
 		// `checkSender.checkTags` are added for metrics, service checks, events only.
 		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
-		deviceMetadataTags := append(copyStrings(tags), c.config.instanceTags...)
-		c.sender.reportNetworkDeviceMetadata(c.config, values, deviceMetadataTags, collectionTime, deviceStatus)
+		deviceMetadataTags := append(copyStrings(tags), config.instanceTags...)
+		c.sender.reportNetworkDeviceMetadata(*config, values, deviceMetadataTags, collectionTime, deviceStatus)
 	}
 
 	c.submitTelemetryMetrics(startTime, tags)
-
-	// Commit
-	sender.Commit()
 	return checkErr
 }
 
