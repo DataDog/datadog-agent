@@ -221,6 +221,16 @@ func (d *snmpDiscovery) deleteService(entityID string, subnet *snmpSubnet) {
 	}
 }
 
+func (d *snmpDiscovery) getDiscoveredDevices() []string {
+	d.Lock()
+	defer d.Unlock()
+	var discoveredDevices []string
+	for _, device := range d.services {
+		discoveredDevices = append(discoveredDevices, device.deviceIP)
+	}
+	return discoveredDevices
+}
+
 func newSnmpDiscovery(config snmpConfig) snmpDiscovery {
 	return snmpDiscovery{
 		services: map[string]Device{},

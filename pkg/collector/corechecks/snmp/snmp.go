@@ -36,10 +36,7 @@ type Check struct {
 // Run executes the check
 func (c *Check) Run() error {
 	if c.config.Network != "" {
-		var discoveredDevices []string
-		for _, device := range c.discovery.services {
-			discoveredDevices = append(discoveredDevices, device.deviceIP)
-		}
+		discoveredDevices := c.discovery.getDiscoveredDevices()
 		log.Warnf("[DEV] discoveredDevices: %v", discoveredDevices)
 		return nil
 	}
