@@ -139,11 +139,6 @@ func (ccc *CCCache) start() {
 	}
 }
 
-func (ccc *CCCache) GetOrgSpaceTags(app *CFApp) (tags []string) {
-
-	return
-}
-
 func (ccc *CCCache) readData() {
 	log.Debug("Reading data from CC API")
 	atomic.AddInt64(&ccc.pollAttempts, 1)
