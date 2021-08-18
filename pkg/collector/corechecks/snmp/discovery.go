@@ -5,6 +5,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -224,7 +225,7 @@ func (d *snmpDiscovery) deleteService(entityID string, subnet *snmpSubnet) {
 	}
 }
 
-func (d *snmpDiscovery) getDiscoveredDeviceConfigs() []snmpConfig {
+func (d *snmpDiscovery) getDiscoveredDeviceConfigsBak() []snmpConfig {
 	d.Lock()
 	defer d.Unlock()
 	var discoveredDevices []snmpConfig
@@ -242,6 +243,32 @@ func (d *snmpDiscovery) getDiscoveredDeviceConfigs() []snmpConfig {
 			continue
 		}
 		discoveredDevices = append(discoveredDevices, config)
+	}
+	return discoveredDevices
+}
+
+
+func (d *snmpDiscovery) getDiscoveredDeviceConfigs() []snmpConfig {
+	d.Lock()
+	defer d.Unlock()
+	var discoveredDevices []snmpConfig
+	for _, device := range d.services {
+		for i := 0; i < 10; i++ {
+			config := device.config // TODO: this is only a shallow copy
+			config.Network = ""
+			config.ipAddress = device.deviceIP
+			config.extraTags = append(copyStrings(config.extraTags), "test_instance:" + strconv.Itoa(i)) // TODO: for testing only
+
+			// TODO: Refactor to avoid duplication of logic with https://github.com/DataDog/datadog-agent/blob/0e88b93d1902eddc1542aa15c41b91fcbeecc588/pkg/collector/corechecks/snmp/config.go#L388
+			config.deviceID, config.deviceIDTags = buildDeviceID(config.getDeviceIDTags())
+
+			err := config.session.Configure(config)
+			if err != nil {
+				log.Warnf("failed to configure device `%s`: %s", device.deviceIP, err)
+				continue
+			}
+			discoveredDevices = append(discoveredDevices, config)
+		}
 	}
 	return discoveredDevices
 }

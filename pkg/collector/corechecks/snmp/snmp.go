@@ -70,7 +70,7 @@ func (c *Check) Run() error {
 }
 
 func (c *Check) runCheckDevice(config *snmpConfig) error {
-	log.Warnf("[DEV] collect for device: %s", config.ipAddress)
+	log.Warnf("[DEV] collect for device: %s (tags: %v)", config.ipAddress, config.getDeviceIDTags())
 	startTime := time.Now()
 	staticTags := config.getStaticTags()
 
