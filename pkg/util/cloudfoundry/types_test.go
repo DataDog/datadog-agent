@@ -75,11 +75,6 @@ var v3Space2 = cfclient.V3Space{
 	Relationships: map[string]cfclient.V3ToOneRelationship{"organization": {Data: cfclient.V3Relationship{GUID: "org_guid_2"}}},
 }
 
-var cfSpace2 = CFSpace{
-	Name:    "space_name_2",
-	OrgGUID: "org_guid_2",
-}
-
 var v3Org1 = cfclient.V3Organization{
 	Name: "org_name_1",
 	GUID: "org_guid_1",
@@ -92,10 +87,6 @@ var cfOrg1 = CFOrg{
 var v3Org2 = cfclient.V3Organization{
 	Name: "org_name_2",
 	GUID: "org_guid_2",
-}
-
-var cfOrg2 = CFOrg{
-	Name: "org_name_2",
 }
 
 var BBSModelA1 = models.ActualLRP{
