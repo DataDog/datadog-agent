@@ -135,7 +135,8 @@ type passthroughPipeline struct {
 }
 
 type passthroughPipelineDesc struct {
-	eventType                     string
+	eventType string
+	// intakeTrackType is the track type to use for the v2 intake api. When blank, v1 is used instead.
 	intakeTrackType               config.IntakeTrackType
 	endpointsConfigPrefix         string
 	hostnameEndpointPrefix        string
