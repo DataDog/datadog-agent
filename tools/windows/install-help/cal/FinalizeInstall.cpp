@@ -64,6 +64,19 @@ bool updateYamlConfig(CustomActionData &customActionData)
     return true;
 }
 
+bool writeInstallInfo(const CustomActionData &customActionData)
+{
+    std::wstring customInstallMethod = L"windows_msi_gui";
+    customActionData.value(L"OVERRIDE_INSTALLATION_METHOD", customInstallMethod);
+    WcaLog(LOGMSG_STANDARD, "Install method: %S", customInstallMethod.c_str());
+    std::wofstream installInfoOutputStream(installInfoFile);
+    installInfoOutputStream << L"---" << std::endl
+                            << L"install_method:" << std::endl
+                            << L"  tool: " << customInstallMethod << std::endl
+                            << L"  tool_version: " << customInstallMethod << std::endl
+                            << L"  installer_version: " << customInstallMethod << std::endl;
+    return true;
+}
 
 UINT doFinalizeInstall(CustomActionData &data)
 {
@@ -260,6 +273,13 @@ UINT doFinalizeInstall(CustomActionData &data)
     if (!updateYamlConfig(data))
     {
         WcaLog(LOGMSG_STANDARD, "Failed to update datadog.yaml");
+        er = ERROR_INSTALL_FAILURE;
+        goto LExit;
+    }
+
+    if (!writeInstallInfo(data))
+    {
+        WcaLog(LOGMSG_STANDARD, "Failed to update install_info");
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
     }
