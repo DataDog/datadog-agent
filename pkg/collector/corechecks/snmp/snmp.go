@@ -24,11 +24,22 @@ const (
 
 var timeNow = time.Now
 
+//var sessionFactory = createSession
+//
+//func createSession(config snmpConfig) (sessionAPI, error) {
+//	var s sessionAPI
+//	s = &snmpSession{}
+//	err := s.Configure(snmpConfig{})
+//	if err != nil {
+//		return nil, err
+//	}
+//	return s, nil
+//}
+
 // Check aggregates metrics from one Check instance
 type Check struct {
 	core.CheckBase
 	config    snmpConfig
-	session   sessionAPI
 	sender    metricSender
 	discovery snmpDiscovery
 }
@@ -47,7 +58,6 @@ func (c *Check) Run() error {
 		for _, config := range discoveredDevices {
 			log.Warnf("[DEV] discoveredDevices: %v", config.deviceID)
 		}
-		return nil
 	} else {
 		checkErr = c.runCheckDevice(&c.config)
 	}
@@ -98,25 +108,25 @@ func (c *Check) getValuesAndTags(staticTags []string) ([]string, *resultValueSto
 	tags := copyStrings(staticTags)
 
 	// Create connection
-	connErr := c.session.Connect()
+	connErr := c.config.session.Connect()
 	if connErr != nil {
 		return tags, nil, fmt.Errorf("snmp connection error: %s", connErr)
 	}
 	defer func() {
-		err := c.session.Close()
+		err := c.config.session.Close()
 		if err != nil {
 			log.Warnf("failed to close session: %v", err)
 		}
 	}()
 
-	err := c.autodetectProfile(c.session)
+	err := c.autodetectProfile(c.config.session)
 	if err != nil {
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to autodetect profile: %s", err))
 	}
 
 	tags = append(tags, c.config.profileTags...)
 
-	valuesStore, err := fetchValues(c.session, c.config)
+	valuesStore, err := fetchValues(c.config.session, c.config)
 	log.Debugf("fetched values: %v", valuesStore)
 
 	if err != nil {
@@ -183,7 +193,7 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 	log.Debugf("SNMP configuration: %s", config.toString())
 
 	c.config = config
-	err = c.session.Configure(c.config)
+	err = c.config.session.Configure(c.config)
 	if err != nil {
 		return fmt.Errorf("session configure failed: %s", err)
 	}
@@ -210,7 +220,6 @@ func (c *Check) Cancel() {
 
 func snmpFactory() check.Check {
 	return &Check{
-		session:   &snmpSession{},
 		CheckBase: core.NewCheckBase(snmpCheckName),
 	}
 }

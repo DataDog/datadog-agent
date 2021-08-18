@@ -76,6 +76,7 @@ type snmpInstanceConfig struct {
 }
 
 type snmpConfig struct {
+	session               sessionAPI
 	ipAddress             string
 	port                  uint16
 	communityString       string
@@ -393,6 +394,9 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	c.subnet = subnet
 
 	c.addUptimeMetric()
+
+	c.session = &snmpSession{}
+	// TODO: also configure session ?
 	return c, nil
 }
 

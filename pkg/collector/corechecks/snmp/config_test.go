@@ -18,7 +18,7 @@ func TestConfigurations(t *testing.T) {
 	setConfdPathAndCleanProfiles()
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 
-	check := Check{session: &snmpSession{}}
+	check := Check{}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -220,7 +220,7 @@ func TestInlineProfileConfiguration(t *testing.T) {
 	setConfdPathAndCleanProfiles()
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 
-	check := Check{session: &snmpSession{}}
+	check := Check{}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -275,7 +275,7 @@ profiles:
 func TestDefaultConfigurations(t *testing.T) {
 	setConfdPathAndCleanProfiles()
 
-	check := Check{session: &snmpSession{}}
+	check := Check{}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -303,7 +303,7 @@ community_string: abc
 func TestIPAddressConfiguration(t *testing.T) {
 	setConfdPathAndCleanProfiles()
 	// TEST Default port
-	check := Check{session: &snmpSession{}}
+	check := Check{}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address:
@@ -315,7 +315,7 @@ ip_address:
 func TestPortConfiguration(t *testing.T) {
 	setConfdPathAndCleanProfiles()
 	// TEST Default port
-	check := Check{session: &snmpSession{}}
+	check := Check{}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -326,7 +326,7 @@ community_string: abc
 	assert.Equal(t, uint16(161), check.config.port)
 
 	// TEST Custom port
-	check = Check{session: &snmpSession{}}
+	check = Check{}
 	// language=yaml
 	rawInstanceConfig = []byte(`
 ip_address: 1.2.3.4
@@ -341,7 +341,7 @@ community_string: abc
 func TestBatchSizeConfiguration(t *testing.T) {
 	setConfdPathAndCleanProfiles()
 	// TEST Default batch size
-	check := Check{session: &snmpSession{}}
+	check := Check{}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -352,7 +352,7 @@ community_string: abc
 	assert.Equal(t, 5, check.config.oidBatchSize)
 
 	// TEST Instance config batch size
-	check = Check{session: &snmpSession{}}
+	check = Check{}
 	// language=yaml
 	rawInstanceConfig = []byte(`
 ip_address: 1.2.3.4
@@ -364,7 +364,7 @@ oid_batch_size: 10
 	assert.Equal(t, 10, check.config.oidBatchSize)
 
 	// TEST Init config batch size
-	check = Check{session: &snmpSession{}}
+	check = Check{}
 	// language=yaml
 	rawInstanceConfig = []byte(`
 ip_address: 1.2.3.4
@@ -379,7 +379,7 @@ oid_batch_size: 15
 	assert.Equal(t, 15, check.config.oidBatchSize)
 
 	// TEST Instance & Init config batch size
-	check = Check{session: &snmpSession{}}
+	check = Check{}
 	// language=yaml
 	rawInstanceConfig = []byte(`
 ip_address: 1.2.3.4
@@ -398,7 +398,7 @@ oid_batch_size: 15
 func TestBulkMaxRepetitionConfiguration(t *testing.T) {
 	setConfdPathAndCleanProfiles()
 	// TEST Default batch size
-	check := Check{session: &snmpSession{}}
+	check := Check{}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -409,7 +409,7 @@ community_string: abc
 	assert.Equal(t, uint32(10), check.config.bulkMaxRepetitions)
 
 	// TEST Instance config batch size
-	check = Check{session: &snmpSession{}}
+	check = Check{}
 	// language=yaml
 	rawInstanceConfig = []byte(`
 ip_address: 1.2.3.4
@@ -421,7 +421,7 @@ bulk_max_repetitions: 10
 	assert.Equal(t, uint32(10), check.config.bulkMaxRepetitions)
 
 	// TEST Init config batch size
-	check = Check{session: &snmpSession{}}
+	check = Check{}
 	// language=yaml
 	rawInstanceConfig = []byte(`
 ip_address: 1.2.3.4
@@ -436,7 +436,7 @@ bulk_max_repetitions: 15
 	assert.Equal(t, uint32(15), check.config.bulkMaxRepetitions)
 
 	// TEST Instance & Init config batch size
-	check = Check{session: &snmpSession{}}
+	check = Check{}
 	// language=yaml
 	rawInstanceConfig = []byte(`
 ip_address: 1.2.3.4
@@ -452,7 +452,7 @@ bulk_max_repetitions: 15
 	assert.Equal(t, uint32(20), check.config.bulkMaxRepetitions)
 
 	// TEST invalid value
-	check = Check{session: &snmpSession{}}
+	check = Check{}
 	// language=yaml
 	rawInstanceConfig = []byte(`
 ip_address: 1.2.3.4
@@ -468,7 +468,7 @@ bulk_max_repetitions: -5
 func TestGlobalMetricsConfigurations(t *testing.T) {
 	setConfdPathAndCleanProfiles()
 
-	check := Check{session: &snmpSession{}}
+	check := Check{}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -499,7 +499,7 @@ global_metrics:
 func TestUseGlobalMetricsFalse(t *testing.T) {
 	setConfdPathAndCleanProfiles()
 
-	check := Check{session: &snmpSession{}}
+	check := Check{}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -726,7 +726,7 @@ func Test_snmpConfig_toString(t *testing.T) {
 }
 
 func Test_Configure_invalidYaml(t *testing.T) {
-	check := Check{session: &snmpSession{}}
+	check := Check{}
 
 	tests := []struct {
 		name              string
@@ -761,7 +761,7 @@ func Test_Configure_invalidYaml(t *testing.T) {
 
 func TestNumberConfigsUsingStrings(t *testing.T) {
 	setConfdPathAndCleanProfiles()
-	check := Check{session: &snmpSession{}}
+	check := Check{}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -780,7 +780,7 @@ retries: "5"
 
 func TestExtraTags(t *testing.T) {
 	setConfdPathAndCleanProfiles()
-	check := Check{session: &snmpSession{}}
+	check := Check{}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -901,7 +901,7 @@ func Test_getSubnetFromTags(t *testing.T) {
 }
 
 func Test_buildConfig_collectDeviceMetadata(t *testing.T) {
-	check := Check{session: &snmpSession{}}
+	check := Check{}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -1060,7 +1060,7 @@ min_collection_interval: -10
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			check := Check{session: &snmpSession{}}
+			check := Check{}
 			err := check.Configure(tt.rawInstanceConfig, tt.rawInitConfig, "test")
 			if tt.expectedErr != "" {
 				assert.EqualError(t, err, tt.expectedErr)
