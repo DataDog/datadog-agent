@@ -225,7 +225,7 @@ func (d *snmpDiscovery) deleteService(entityID string, subnet *snmpSubnet) {
 	}
 }
 
-func (d *snmpDiscovery) getDiscoveredDeviceConfigsBak() []snmpConfig {
+func (d *snmpDiscovery) getDiscoveredDeviceConfigs() []snmpConfig {
 	d.Lock()
 	defer d.Unlock()
 	var discoveredDevices []snmpConfig
@@ -248,12 +248,12 @@ func (d *snmpDiscovery) getDiscoveredDeviceConfigsBak() []snmpConfig {
 }
 
 
-func (d *snmpDiscovery) getDiscoveredDeviceConfigs() []snmpConfig {
+func (d *snmpDiscovery) getDiscoveredDeviceConfigsTestInstances(testInstances int) []snmpConfig {
 	d.Lock()
 	defer d.Unlock()
 	var discoveredDevices []snmpConfig
 	for _, device := range d.services {
-		for i := 0; i < 10; i++ {
+		for i := 0; i < testInstances; i++ {
 			config := device.config // TODO: this is only a shallow copy
 			config.Network = ""
 			config.ipAddress = device.deviceIP

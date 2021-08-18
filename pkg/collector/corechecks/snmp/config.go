@@ -73,6 +73,8 @@ type snmpInstanceConfig struct {
 	// `network` config is only available in Python SNMP integration
 	// it's added here to raise warning if used with corecheck SNMP integration
 	Network string `yaml:"network_address"`
+
+	TestInstances int `yaml:"test_instances"`
 }
 
 type snmpConfig struct {
@@ -111,6 +113,7 @@ type snmpConfig struct {
 	DiscoveryInterval     int
 	IgnoredIPAddresses    map[string]bool `mapstructure:"ignored_ip_addresses"`
 	AllowedFailures       int
+	TestInstances         int
 }
 
 func (c *snmpConfig) refreshWithProfile(profile string) error {
@@ -257,6 +260,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	c.Workers = 10
 	c.AllowedFailures = 3
 	c.DiscoveryInterval = 20
+	c.TestInstances = instance.TestInstances
 
 	if c.ipAddress == "" && c.Network == "" {
 		// TODO: TEST ME

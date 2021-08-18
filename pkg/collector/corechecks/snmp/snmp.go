@@ -54,7 +54,12 @@ func (c *Check) Run() error {
 	c.sender = metricSender{sender: sender}
 
 	if c.config.Network != "" {
-		discoveredDevices := c.discovery.getDiscoveredDeviceConfigs()
+		var discoveredDevices []snmpConfig
+		if c.config.TestInstances == 0 {
+			discoveredDevices = c.discovery.getDiscoveredDeviceConfigs()
+		} else {
+			discoveredDevices = c.discovery.getDiscoveredDeviceConfigsTestInstances(c.config.TestInstances)
+		}
 		for i := range discoveredDevices {
 			config := &discoveredDevices[i]
 			log.Warnf("[DEV] discoveredDevices: %s", config.ipAddress)
