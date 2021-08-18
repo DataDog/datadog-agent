@@ -138,11 +138,11 @@ func (t *Tagger) Stop() error {
 func (t *Tagger) Tag(entityID string, cardinality collectors.TagCardinality) ([]string, error) {
 	entity := t.store.getEntity(entityID)
 	if entity != nil {
-		telemetry.Queries.Inc(collectors.TagCardinalityToString(cardinality), telemetry.QuerySuccess)
+		telemetry.QueriesByCardinality(cardinality).Success.Inc()
 		return entity.GetTags(cardinality), nil
 	}
 
-	telemetry.Queries.Inc(collectors.TagCardinalityToString(cardinality), telemetry.QueryEmptyTags)
+	telemetry.QueriesByCardinality(cardinality).EmptyTags.Inc()
 
 	return []string{}, nil
 }

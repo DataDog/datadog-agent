@@ -228,7 +228,7 @@ func extractReplicaSet(rs *v1.ReplicaSet) *model.ReplicaSet {
 	return &replicaSet
 }
 
-// extractServiceMessage returns the protobuf Service message corresponding to
+// extractService returns the protobuf Service message corresponding to
 // a Kubernetes service object.
 func extractService(s *corev1.Service) *model.Service {
 	message := &model.Service{
@@ -304,6 +304,219 @@ func extractServiceSelector(ls map[string]string) []*model.LabelSelectorRequirem
 		})
 	}
 	return labelSelectors
+}
+
+// extractPersistentVolume returns the protobuf Persistent Volume message corresponding to
+// a Kubernetes persistent volume object.
+func extractPersistentVolume(pv *corev1.PersistentVolume) *model.PersistentVolume {
+	message := &model.PersistentVolume{
+		Metadata: orchutil.ExtractMetadata(&pv.ObjectMeta),
+		Spec: &model.PersistentVolumeSpec{
+			Capacity:                      map[string]int64{},
+			PersistentVolumeReclaimPolicy: string(pv.Spec.PersistentVolumeReclaimPolicy),
+			StorageClassName:              pv.Spec.StorageClassName,
+			MountOptions:                  pv.Spec.MountOptions,
+		},
+		Status: &model.PersistentVolumeStatus{
+			Phase:   string(pv.Status.Phase),
+			Message: pv.Status.Message,
+			Reason:  pv.Status.Reason,
+		},
+	}
+
+	if pv.Spec.VolumeMode != nil {
+		message.Spec.VolumeMode = string(*pv.Spec.VolumeMode)
+	}
+
+	modes := pv.Spec.AccessModes
+	if len(modes) > 0 {
+		ams := make([]string, len(modes))
+		for i, mode := range modes {
+			ams[i] = string(mode)
+		}
+		message.Spec.AccessModes = ams
+	}
+
+	claimRef := pv.Spec.ClaimRef
+	if claimRef != nil {
+		message.Spec.ClaimRef = &model.ObjectReference{
+			Kind:            claimRef.Kind,
+			Namespace:       claimRef.Namespace,
+			Name:            claimRef.Name,
+			Uid:             string(claimRef.UID),
+			ApiVersion:      claimRef.APIVersion,
+			ResourceVersion: claimRef.ResourceVersion,
+			FieldPath:       claimRef.FieldPath,
+		}
+	}
+
+	nodeAffinity := pv.Spec.NodeAffinity
+	if nodeAffinity != nil {
+		selectorTerms := make([]*model.NodeSelectorTerm, len(nodeAffinity.Required.NodeSelectorTerms))
+		terms := nodeAffinity.Required.NodeSelectorTerms
+		for i, term := range terms {
+			selectorTerms[i] = &model.NodeSelectorTerm{
+				MatchExpressions: extractPVSelector(term.MatchExpressions),
+				MatchFields:      extractPVSelector(term.MatchFields),
+			}
+		}
+		message.Spec.NodeAffinity = selectorTerms
+	}
+
+	message.Spec.PersistentVolumeType = extractVolumeSource(pv.Spec.PersistentVolumeSource)
+
+	st := pv.Spec.Capacity.Storage()
+	if !st.IsZero() {
+		message.Spec.Capacity[corev1.ResourceStorage.String()] = st.Value()
+	}
+	return message
+}
+
+func extractVolumeSource(volume corev1.PersistentVolumeSource) string {
+	switch {
+	case volume.HostPath != nil:
+		return "HostPath"
+	case volume.GCEPersistentDisk != nil:
+		return "GCEPersistentDisk"
+	case volume.AWSElasticBlockStore != nil:
+		return "AWSElasticBlockStore"
+	case volume.Quobyte != nil:
+		return "Quobyte"
+	case volume.Cinder != nil:
+		return "Cinder"
+	case volume.PhotonPersistentDisk != nil:
+		return "PhotonPersistentDisk"
+	case volume.PortworxVolume != nil:
+		return "PortworxVolume"
+	case volume.ScaleIO != nil:
+		return "ScaleIO"
+	case volume.CephFS != nil:
+		return "CephFS"
+	case volume.StorageOS != nil:
+		return "StorageOS"
+	case volume.FC != nil:
+		return "FC"
+	case volume.AzureFile != nil:
+		return "AzureFile"
+	case volume.FlexVolume != nil:
+		return "FlexVolume"
+	case volume.Flocker != nil:
+		return "Flocker"
+	case volume.CSI != nil:
+		return "CSI"
+	}
+	return "<unknown>"
+}
+
+func extractPVSelector(ls []corev1.NodeSelectorRequirement) []*model.LabelSelectorRequirement {
+	if len(ls) == 0 {
+		return nil
+	}
+
+	labelSelectors := make([]*model.LabelSelectorRequirement, len(ls))
+	for i, v := range ls {
+		labelSelectors[i] = &model.LabelSelectorRequirement{
+			Key:      v.Key,
+			Operator: string(v.Operator),
+			Values:   v.Values,
+		}
+	}
+	return labelSelectors
+}
+
+// extractPersistentVolumeClaim returns the protobuf Persistent Volume Claim message corresponding to
+// a Kubernetes persistent volume claim object.
+func extractPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) *model.PersistentVolumeClaim {
+	message := &model.PersistentVolumeClaim{
+		Metadata: orchutil.ExtractMetadata(&pvc.ObjectMeta),
+		Spec: &model.PersistentVolumeClaimSpec{
+			VolumeName: pvc.Spec.VolumeName,
+			Resources:  &model.ResourceRequirements{},
+		},
+		Status: &model.PersistentVolumeClaimStatus{
+			Phase:    string(pvc.Status.Phase),
+			Capacity: map[string]int64{},
+		},
+	}
+	extractSpec(pvc, message)
+	extractStatus(pvc, message)
+
+	return message
+}
+
+func extractStatus(pvc *corev1.PersistentVolumeClaim, message *model.PersistentVolumeClaim) {
+	pvcCons := pvc.Status.Conditions
+	if len(pvcCons) > 0 {
+		cons := make([]*model.PersistentVolumeClaimCondition, len(pvcCons))
+		for i, condition := range pvcCons {
+			cons[i] = &model.PersistentVolumeClaimCondition{
+				Type:    string(condition.Type),
+				Status:  string(condition.Status),
+				Reason:  condition.Reason,
+				Message: condition.Message,
+			}
+			if !condition.LastProbeTime.IsZero() {
+				cons[i].LastProbeTime = condition.LastProbeTime.Unix()
+			}
+			if !condition.LastTransitionTime.IsZero() {
+				cons[i].LastTransitionTime = condition.LastProbeTime.Unix()
+			}
+		}
+		message.Status.Conditions = cons
+	}
+
+	if pvc.Status.AccessModes != nil {
+		strModes := make([]string, len(pvc.Status.AccessModes))
+		for i, am := range pvc.Status.AccessModes {
+			strModes[i] = string(am)
+		}
+		message.Status.AccessModes = strModes
+	}
+
+	st := pvc.Status.Capacity.Storage()
+	if st != nil && !st.IsZero() {
+		message.Status.Capacity[corev1.ResourceStorage.String()] = st.Value()
+	}
+}
+
+func extractSpec(pvc *corev1.PersistentVolumeClaim, message *model.PersistentVolumeClaim) {
+	ds := pvc.Spec.DataSource
+	if ds != nil {
+		t := &model.TypedLocalObjectReference{Kind: ds.Kind, Name: ds.Name}
+		if ds.APIGroup != nil {
+			t.ApiGroup = *ds.APIGroup
+		}
+		message.Spec.DataSource = t
+	}
+
+	if pvc.Spec.VolumeMode != nil {
+		message.Spec.VolumeMode = string(*pvc.Spec.VolumeMode)
+	}
+
+	if pvc.Spec.StorageClassName != nil {
+		message.Spec.StorageClassName = *pvc.Spec.StorageClassName
+	}
+
+	if pvc.Spec.AccessModes != nil {
+		strModes := make([]string, len(pvc.Spec.AccessModes))
+		for i, am := range pvc.Spec.AccessModes {
+			strModes[i] = string(am)
+		}
+		message.Spec.AccessModes = strModes
+	}
+
+	reSt := pvc.Spec.Resources.Requests.Storage()
+	if reSt != nil && !reSt.IsZero() {
+		message.Spec.Resources.Requests = map[string]int64{string(corev1.ResourceStorage): reSt.Value()}
+	}
+	reLt := pvc.Spec.Resources.Limits.Storage()
+	if reLt != nil && !reLt.IsZero() {
+		message.Spec.Resources.Limits = map[string]int64{string(corev1.ResourceStorage): reLt.Value()}
+	}
+
+	if pvc.Spec.Selector != nil {
+		message.Spec.Selector = extractLabelSelector(pvc.Spec.Selector)
+	}
 }
 
 func extractLabelSelector(ls *metav1.LabelSelector) []*model.LabelSelectorRequirement {

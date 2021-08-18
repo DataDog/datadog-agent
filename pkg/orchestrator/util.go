@@ -35,6 +35,10 @@ const (
 	K8sDaemonSet
 	// K8sStatefulSet represents a Kubernetes StatefulSet
 	K8sStatefulSet
+	// K8sPersistentVolume represents a Kubernetes PersistentVolume
+	K8sPersistentVolume
+	// K8sPersistentVolumeClaim represents a Kubernetes PersistentVolumeClaim
+	K8sPersistentVolumeClaim
 )
 
 // NodeTypes returns the current existing NodesTypes as a slice to iterate over.
@@ -50,6 +54,8 @@ func NodeTypes() []NodeType {
 		K8sReplicaSet,
 		K8sService,
 		K8sStatefulSet,
+		K8sPersistentVolumeClaim,
+		K8sPersistentVolume,
 	}
 }
 
@@ -75,6 +81,10 @@ func (n NodeType) String() string {
 		return "Service"
 	case K8sStatefulSet:
 		return "StatefulSet"
+	case K8sPersistentVolume:
+		return "PersistentVolume"
+	case K8sPersistentVolumeClaim:
+		return "PersistentVolumeClaim"
 	default:
 		log.Errorf("Trying to convert unknown NodeType iota: %d", n)
 		return "Unknown"
@@ -85,7 +95,7 @@ func (n NodeType) String() string {
 func (n NodeType) Orchestrator() string {
 	switch n {
 	case K8sCluster, K8sCronJob, K8sDeployment, K8sDaemonSet, K8sJob,
-		K8sNode, K8sPod, K8sReplicaSet, K8sService, K8sStatefulSet:
+		K8sNode, K8sPod, K8sReplicaSet, K8sService, K8sStatefulSet, K8sPersistentVolume, K8sPersistentVolumeClaim:
 		return "k8s"
 	default:
 		log.Errorf("Unknown NodeType %v", n)
