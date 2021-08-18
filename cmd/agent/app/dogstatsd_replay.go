@@ -13,7 +13,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -29,29 +28,20 @@ import (
 )
 
 var (
-<<<<<<< HEAD
-	dsdReplayFilePath string
-	dsdVerboseReplay  bool
-=======
 	dsdReplayFilePath   string
-	dsdTaggerFilePath   string
+	dsdVerboseReplay    bool
 	dsdReplayIterations int
 )
 
 const (
 	defaultIterations = 1
->>>>>>> 1a935f015 ([dogstatsd] replay: allow for multiple iteration replay)
 )
 
 func init() {
 	AgentCmd.AddCommand(dogstatsdReplayCmd)
 	dogstatsdReplayCmd.Flags().StringVarP(&dsdReplayFilePath, "file", "f", "", "Input file with TCP traffic to replay.")
-<<<<<<< HEAD
 	dogstatsdReplayCmd.Flags().BoolVarP(&dsdVerboseReplay, "verbose", "v", false, "Verbose replay.")
-=======
 	dogstatsdReplayCmd.Flags().IntVarP(&dsdReplayIterations, "loops", "l", defaultIterations, "Number of iterationsi to replay.")
-	dogstatsdReplayCmd.Flags().StringVarP(&dsdTaggerFilePath, "tagger", "t", "", "Input file with TCP traffic to replay.")
->>>>>>> 1a935f015 ([dogstatsd] replay: allow for multiple iteration replay)
 }
 
 var dogstatsdReplayCmd = &cobra.Command{
@@ -179,14 +169,15 @@ func dogstatsdReplay() error {
 		fmt.Printf("API refused to set the tagger state, tag enrichment will be unavailable for this capture.\n")
 	}
 
-	// enable reading at natural rate
-	go reader.Read()
+	breaker := false
+	for i := 0; (i < dsdReplayIterations || dsdReplayIterations == 0) && !breaker; i++ {
 
-	// wait for go routine to start processing...
-	time.Sleep(time.Second)
+		// enable reading at natural rate
+		ready := make(chan struct{})
+		go reader.Read(ready)
 
-iterate:
-	for i := 0; i < dsdReplayIterations || dsdReplayIterations == 0; i++ {
+		// wait for go routine to start processing...
+		<-ready
 
 	replay:
 		for {
@@ -204,10 +195,10 @@ iterate:
 					fmt.Printf("Sent Payload: %d bytes, and OOB: %d bytes\n", n, oobn)
 				}
 			case <-reader.Done:
-				reader.Seek(0)
 				break replay
 			case <-done:
-				break iterate
+				breaker = true
+				break replay
 			}
 		}
 	}
