@@ -129,6 +129,8 @@ var (
 		nil, "Count of hostname update")
 	tlmDogstatsdContexts = telemetry.NewGauge("aggregator", "dogstatsd_contexts",
 		nil, "Count the number of dogstatsd contexts in the aggregator")
+	tlmContextsTagsCount = telemetry.NewCounter("aggregator", "contexts_tags_count",
+		nil, "Count the number of tags in the aggregator contextes")
 
 	// Hold series to be added to aggregated series on each flush
 	recurrentSeries     metrics.Series
@@ -168,6 +170,8 @@ func init() {
 	aggregatorExpvars.Set("OrchestratorMetadataErrors", &aggregatorOrchestratorMetadataErrors)
 	aggregatorExpvars.Set("DogstatsdContexts", &aggregatorDogstatsdContexts)
 	aggregatorExpvars.Set("EventPlatformEvents", &aggregatorEventPlatformEvents)
+	aggregatorExpvars.Set("EventPlatformEventsErrors", &aggregatorEventPlatformEventsErrors)
+
 	aggregatorExpvars.Set("EventPlatformEventsErrors", &aggregatorEventPlatformEventsErrors)
 
 	tagsetTlm = newTagsetTelemetry([]uint64{90, 100})

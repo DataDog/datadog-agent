@@ -51,11 +51,13 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 		// making a copy of tags for the context since tagsBuffer
 		// will be reused later. This allow us to allocate one slice
 		// per context instead of one per sample.
+		tags := cr.tagsBuffer.Copy()
 		cr.contextsByKey[contextKey] = &Context{
 			Name: metricSampleContext.GetName(),
-			Tags: cr.tagsBuffer.Copy(),
+			Tags: tags,
 			Host: metricSampleContext.GetHost(),
 		}
+		tlmContextsTagsCount.Add(float64(len(tags)))
 	}
 
 	cr.tagsBuffer.Reset()
