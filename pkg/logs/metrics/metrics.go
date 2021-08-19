@@ -55,7 +55,7 @@ var (
 	SenderLatency = expvar.Int{}
 	// TlmSenderLatency a histogram of http sender latency (ms)
 	TlmSenderLatency = telemetry.NewHistogram("logs", "sender_latency",
-		nil, "Histogram of http sender latency", []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000})
+		nil, "Histogram of http sender latency in ms", []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000})
 	// TODO: Add LogsCollected for the total number of collected logs.
 
 )
