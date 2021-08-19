@@ -24,7 +24,7 @@ const (
 // utilizationTracker is the object that polls and evaluates utilization
 // statistics which then get published to expvars.
 type utilizationTracker struct {
-	sync.Mutex
+	sync.RWMutex
 
 	workerName string
 	started    bool
@@ -34,9 +34,10 @@ type utilizationTracker struct {
 	pollingFunc      util.PollingFunc
 	statsUpdateFunc  util.CallbackFunc
 
-	busyDuration time.Duration
-	checkStart   time.Time
-	windowStart  time.Time
+	busyDuration       time.Duration
+	checkStart         time.Time
+	windowStart        time.Time
+	isRunningLongCheck bool
 }
 
 // UtilizationTracker is the interface that encapsulates the API around the
@@ -45,8 +46,9 @@ type UtilizationTracker interface {
 	Start() error
 	Stop() error
 
-	CheckStarted()
+	CheckStarted(bool)
 	CheckFinished()
+	IsRunningLongCheck() bool
 }
 
 // NewUtilizationTracker instantiates and configures a utilization tracker that
@@ -56,6 +58,7 @@ func NewUtilizationTracker(
 	windowSize time.Duration,
 	pollingInterval time.Duration,
 ) (UtilizationTracker, error) {
+
 	sw, err := util.NewSlidingWindow(windowSize, pollingInterval)
 	if err != nil {
 		return nil, err
@@ -94,7 +97,7 @@ func NewUtilizationTracker(
 	ut.statsUpdateFunc = func(sw util.SlidingWindow) {
 		utilization := sw.Average()
 
-		if utilization > UtilizationWarningThreshold {
+		if !ut.IsRunningLongCheck() && utilization > UtilizationWarningThreshold {
 			log.Warnf(
 				"Worker '%s' utilization level (%.2f) is above the predefined threshold (%.2f)",
 				workerName,
@@ -166,10 +169,13 @@ func (ut *utilizationTracker) Stop() error {
 }
 
 // CheckStarted should be invoked when a worker's check is about to
-// run so that we can track the start time and the utilization
-func (ut *utilizationTracker) CheckStarted() {
+// run so that we can track the start time and the utilization. Long-running
+// flag is to indicate if we should be worried about showing warnings
+// when utilization raises above the threshold.
+func (ut *utilizationTracker) CheckStarted(longRunning bool) {
 	ut.Lock()
 
+	ut.isRunningLongCheck = longRunning
 	ut.checkStart = time.Now()
 
 	ut.Unlock()
@@ -183,7 +189,17 @@ func (ut *utilizationTracker) CheckFinished() {
 	duration := time.Now().Sub(ut.checkStart)
 	ut.busyDuration += duration
 
+	ut.isRunningLongCheck = false
 	ut.checkStart = time.Time{}
 
 	ut.Unlock()
+}
+
+// IsRunningLongCheck returns true if we are currently running a check
+// that is meant to be of indefinite duration (e.g. jmxfetch checks).
+func (ut *utilizationTracker) IsRunningLongCheck() bool {
+	ut.RLock()
+	defer ut.RUnlock()
+
+	return ut.isRunningLongCheck
 }

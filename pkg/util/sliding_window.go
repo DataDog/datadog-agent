@@ -118,7 +118,6 @@ func (sw *slidingWindow) newTicker() {
 
 	go func() {
 		for {
-
 			select {
 			case <-sw.stopChan:
 				return

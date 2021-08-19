@@ -297,21 +297,21 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	require.InDelta(t, getWorkerUtilizationExpvar(t, "worker_2"), 0, 0)
 
-	// Long running checks should not be counted
-
-	pendingChecksChan <- longRunningCheck
-	time.Sleep(50 * time.Millisecond)
-
-	require.InDelta(t, getWorkerUtilizationExpvar(t, "worker_2"), 0, 0.05)
-	longRunningCheck.Unlock()
-
 	// High util checks should be reflected in expvars
 
 	pendingChecksChan <- blockingCheck
+	defer blockingCheck.Unlock()
 
 	time.Sleep(200 * time.Millisecond)
 	require.InDelta(t, getWorkerUtilizationExpvar(t, "worker_2"), 1, 0.05)
-	blockingCheck.Unlock()
+
+	// Long running checks should also be counted as high utilization
+
+	pendingChecksChan <- longRunningCheck
+	defer longRunningCheck.Unlock()
+
+	time.Sleep(50 * time.Millisecond)
+	require.InDelta(t, getWorkerUtilizationExpvar(t, "worker_2"), 1, 0.05)
 }
 
 func TestWorkerErrorAndWarningHandling(t *testing.T) {

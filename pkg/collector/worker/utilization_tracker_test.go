@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
@@ -19,8 +20,7 @@ import (
 // Helpers
 
 // getWorkerUtilizationExpvar returns the utilization as presented by expvars
-// for a particular named worker. Since we use this in `worker_test` too, the
-// method is public
+// for a named worker.
 func getWorkerUtilizationExpvar(t *testing.T, name string) float64 {
 	runnerMapExpvar := expvar.Get("runner")
 	require.NotNil(t, runnerMapExpvar)
@@ -69,7 +69,7 @@ func TestUtilizationTracker(t *testing.T) {
 	require.Equal(t, 0.0, getWorkerUtilizationExpvar(t, "worker"))
 
 	// Ramp up the expected utilization
-	ut.CheckStarted()
+	ut.CheckStarted(false)
 
 	time.Sleep(25 * time.Millisecond)
 	require.True(t, getWorkerUtilizationExpvar(t, "worker") > 0)
@@ -87,6 +87,28 @@ func TestUtilizationTracker(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 	require.Equal(t, 0.0, getWorkerUtilizationExpvar(t, "worker"))
+}
+
+func TestUtilizationTrackerIsRunningLongCheck(t *testing.T) {
+	ut := newTracker(t)
+
+	require.NoError(t, ut.Start())
+	defer func() {
+		ut.Stop()
+		AssertAsyncWorkerCount(t, 0)
+	}()
+
+	require.False(t, ut.IsRunningLongCheck())
+
+	for idx := 0; idx < 3; idx++ {
+		ut.CheckStarted(false)
+		assert.False(t, ut.IsRunningLongCheck())
+		ut.CheckFinished()
+
+		ut.CheckStarted(true)
+		assert.True(t, ut.IsRunningLongCheck())
+		ut.CheckFinished()
+	}
 }
 
 func TestUtilizationTrackerStart(t *testing.T) {
@@ -156,7 +178,7 @@ func TestUtilizationTrackerCheckLifecycle(t *testing.T) {
 
 	for idx := 0; idx < 3; idx++ {
 		// Ramp up utilization
-		ut.CheckStarted()
+		ut.CheckStarted(false)
 
 		time.Sleep(windowSize / 2)
 		AssertAsyncWorkerCount(t, 1)
@@ -203,7 +225,7 @@ func TestUtilizationTrackerAccuracy(t *testing.T) {
 			totalMs := rand.Int31n(100)
 			runtimeMs := (totalMs * 30) / 100
 
-			ut.CheckStarted()
+			ut.CheckStarted(false)
 			runtimeDuration := time.Duration(runtimeMs) * time.Millisecond
 			time.Sleep(runtimeDuration)
 
@@ -242,7 +264,7 @@ func TestUtilizationTrackerLongTaskAccuracy(t *testing.T) {
 
 	require.InDelta(t, getWorkerUtilizationExpvar(t, "worker"), 0, 0)
 
-	go ut.CheckStarted()
+	go ut.CheckStarted(false)
 
 	for checkIdx := 0; checkIdx < 10; checkIdx++ {
 		time.Sleep(100 * time.Millisecond)

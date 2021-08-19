@@ -140,17 +140,13 @@ func (w *Worker) Run() {
 		expvars.AddRunningCheckCount(1)
 		expvars.SetRunningStats(check.ID(), checkStartTime)
 
-		if !longRunning {
-			w.utilizationTracker.CheckStarted()
-		}
+		w.utilizationTracker.CheckStarted(longRunning)
 
 		// Run the check
 		var checkErr error
 		checkErr = check.Run()
 
-		if !longRunning {
-			w.utilizationTracker.CheckFinished()
-		}
+		w.utilizationTracker.CheckFinished()
 
 		expvars.DeleteRunningStats(check.ID())
 
