@@ -198,11 +198,11 @@ func TestUtilizationTrackerAccuracy(t *testing.T) {
 			runtimeMs := (totalMs * 30) / 100
 
 			ut.CheckStarted()
-			runtimeDuration := time.Duration(time.Duration(runtimeMs) * time.Millisecond)
+			runtimeDuration := time.Duration(runtimeMs) * time.Millisecond
 			time.Sleep(runtimeDuration)
 
 			ut.CheckFinished()
-			idleDuration := time.Duration(time.Duration(totalMs-runtimeMs) * time.Millisecond)
+			idleDuration := time.Duration(totalMs-runtimeMs) * time.Millisecond
 			time.Sleep(idleDuration)
 		}
 	}()

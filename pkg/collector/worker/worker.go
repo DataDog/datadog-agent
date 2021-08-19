@@ -24,7 +24,7 @@ const (
 
 	// Variables for the utilization expvars
 	windowSize      = 5 * time.Minute
-	pollingInterval = time.Duration(15 * time.Second)
+	pollingInterval = 15 * time.Second
 )
 
 // Worker is an object that encapsulates the logic to manage a loop of processing

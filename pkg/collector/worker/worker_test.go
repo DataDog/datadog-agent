@@ -80,7 +80,7 @@ func (c *testCheck) Run() error {
 // it as well.
 func AssertAsyncWorkerCount(t *testing.T, count int) {
 	for idx := 0; idx < 75; idx++ {
-		workers := int(expvars.GetWorkerCount())
+		workers := expvars.GetWorkerCount()
 		if workers == count {
 			// This may seem superfluous but we want to ensure that at least one
 			// assertion runs in all cases
@@ -91,7 +91,7 @@ func AssertAsyncWorkerCount(t *testing.T, count int) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	require.Equal(t, count, int(expvars.GetWorkerCount()))
+	require.Equal(t, count, expvars.GetWorkerCount())
 }
 
 func newCheck(t *testing.T, id string, doErr bool, runFunc func(check.ID)) *testCheck {
