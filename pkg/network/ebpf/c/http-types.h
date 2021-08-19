@@ -92,8 +92,8 @@ typedef struct {
 } ssl_read_args_t;
 
 typedef struct {
-    __u32 fd;
     conn_tuple_t tup;
+    __u32 fd;
 } ssl_sock_t;
 
 #endif

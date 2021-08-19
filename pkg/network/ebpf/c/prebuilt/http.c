@@ -88,9 +88,11 @@ static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgi
         return NULL;
     }
 
-    if (!read_conn_tuple(&ssl_sock->tup, *sock, pid_tgid, CONN_TYPE_TCP)) {
+    conn_tuple_t t;
+    if (!read_conn_tuple(&t, *sock, pid_tgid, CONN_TYPE_TCP)) {
         return NULL;
     }
+    __builtin_memcpy(&ssl_sock->tup, &t, sizeof(conn_tuple_t));
 
     if (!is_ephemeral_port(ssl_sock->tup.sport)) {
         flip_tuple(&ssl_sock->tup);
