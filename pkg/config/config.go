@@ -380,7 +380,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("forwarder_outdated_file_in_days", 10)
 	config.BindEnvAndSetDefault("forwarder_flush_to_disk_mem_ratio", 0.5)
 	config.BindEnvAndSetDefault("forwarder_storage_max_size_in_bytes", 0) // 0 means disabled. This is a BETA feature.
-	config.BindEnvAndSetDefault("forwarder_storage_max_disk_ratio", 0.95) // Do not store transactions on disk when the disk usage exceeds 95% of the disk capacity.
+	config.BindEnvAndSetDefault("forwarder_storage_max_disk_ratio", 0.80) // Do not store transactions on disk when the disk usage exceeds 80% of the disk capacity. Use 80% as some applications do not behave well when the disk space is very small.
 
 	// Forwarder channels buffer size
 	config.BindEnvAndSetDefault("forwarder_high_prio_buffer_size", 100)
@@ -529,9 +529,12 @@ func InitConfig(config Config) {
 	// SNMP
 	config.SetKnown("snmp_listener.discovery_interval")
 	config.SetKnown("snmp_listener.allowed_failures")
+	config.SetKnown("snmp_listener.discovery_allowed_failures")
 	config.SetKnown("snmp_listener.collect_device_metadata")
 	config.SetKnown("snmp_listener.workers")
 	config.SetKnown("snmp_listener.configs")
+	config.SetKnown("snmp_listener.loader")
+	config.SetKnown("snmp_listener.min_collection_interval")
 
 	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
 	config.BindEnvAndSetDefault("snmp_traps_config.port", 162)
@@ -833,6 +836,7 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.enabled")
 	config.SetKnown("process_config.intervals.process_realtime")
 	config.SetKnown("process_config.queue_size")
+	config.SetKnown("process_config.rt_queue_size")
 	config.SetKnown("process_config.max_per_message")
 	config.SetKnown("process_config.max_ctr_procs_per_message")
 	config.SetKnown("process_config.intervals.process")
