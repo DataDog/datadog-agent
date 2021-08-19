@@ -362,7 +362,7 @@ api_key:
     # excluded_processes: []
 
   ## @param validation_period - int - optional - default: 60
-  ## Time (in seconds) during which the auto shutdown validates that the selected shutdown mechanism returns true.
+  ## Time (in seconds) delay during which the auto exit validates that the selected method continuously detects an exit condition, before exiting.
   ## The value is verified every 30s. By default, three consecutive checks need to return true to trigger an automatic exit.
   #
   # validation_period: 60

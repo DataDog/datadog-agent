@@ -57,7 +57,7 @@ func DefaultNoProcessExit() (ExitDetector, error) {
 func (s *noProcessExit) check() bool {
 	processes, err := processFetcher()
 	if err != nil {
-		log.Debugf("Unable to get processes list to trigger autoshutdown, err: %w", err)
+		log.Debugf("Unable to get processes list to trigger autoexit, err: %w", err)
 		return false
 	}
 
@@ -70,7 +70,7 @@ func (s *noProcessExit) check() bool {
 		}
 
 		if !isExcluded {
-			log.Debugf("Processe preventing shutdown: p: %d - %s", p.Pid, p.Name)
+			log.Debugf("Processes preventing autoexit: p: %d - %s", p.Pid, p.Name)
 			return false
 		}
 	}
