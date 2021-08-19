@@ -29,7 +29,6 @@ type Device struct {
 	config       snmpConfig
 }
 type snmpSubnet struct {
-	adIdentifier   string
 	config         snmpConfig
 	startingIP     net.IP
 	network        net.IPNet
