@@ -31,7 +31,7 @@ type WorkerStats struct {
 	Utilization float64
 }
 
-// String is used by expvar pacakge to print the variables
+// String is used by expvar package to print the variables
 func (ws *WorkerStats) String() string {
 	return fmt.Sprintf("{\"Utilization\": %.2f}", ws.Utilization)
 }
