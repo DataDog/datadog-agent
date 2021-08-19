@@ -40,7 +40,6 @@ var timeNow = time.Now
 type Check struct {
 	core.CheckBase
 	config    snmpConfig
-	sender    metricSender
 	discovery snmpDiscovery
 }
 
@@ -51,27 +50,51 @@ func (c *Check) Run() error {
 	if err != nil {
 		return err
 	}
-	c.sender = metricSender{sender: sender}
+
 
 	if c.config.Network != "" {
 		var discoveredDevices []snmpConfig
 		if c.config.TestInstances == 0 {
-			discoveredDevices = c.discovery.getDiscoveredDeviceConfigs()
+			discoveredDevices = c.discovery.getDiscoveredDeviceConfigs(sender)
 		} else {
-			discoveredDevices = c.discovery.getDiscoveredDeviceConfigsTestInstances(c.config.TestInstances)
+			discoveredDevices = c.discovery.getDiscoveredDeviceConfigsTestInstances(c.config.TestInstances, sender)
 		}
+
+		jobs := make(chan *snmpConfig, len(discoveredDevices))
+
+		for w := 1; w <= c.config.Workers; w++ {
+			go c.runCheckDeviceWorker(w, jobs)
+		}
+
 		for i := range discoveredDevices {
 			config := &discoveredDevices[i]
-			log.Warnf("[DEV] discoveredDevices: %s", config.ipAddress)
-			checkErr = c.runCheckDevice(config)
+			log.Warnf("[DEV] schedule device collection: %s, tags: %v", config.ipAddress, config.getDeviceIDTags())
+			//checkErr = c.runCheckDevice(config)
+			jobs <- config
 		}
+		close(jobs)
+
 	} else {
+		// TODO: sender submittedMetrics state, so need to be per config/device level
+		c.config.sender = metricSender{sender: sender}
 		checkErr = c.runCheckDevice(&c.config)
 	}
 
 	// Commit
 	sender.Commit()
 	return checkErr
+}
+
+func (c *Check) runCheckDeviceWorker(workerId int, jobs <-chan *snmpConfig) {
+	for job := range jobs {
+		log.Warnf("[DEV] worker %d starting collect device %s, tags %s, session %p", workerId, job.ipAddress, job.getDeviceIDTags(), job.session)
+		err := c.runCheckDevice(job)
+		if err != nil {
+			log.Warnf("[DEV] worker %d error collect device %s: %s", workerId, job.ipAddress, err)
+			continue
+		}
+		log.Warnf("[DEV] worker %d done collect device %s ", workerId, job.ipAddress)
+	}
 }
 
 func (c *Check) runCheckDevice(config *snmpConfig) error {
@@ -83,14 +106,14 @@ func (c *Check) runCheckDevice(config *snmpConfig) error {
 	var checkErr error
 	var deviceStatus metadata.DeviceStatus
 	collectionTime := timeNow()
-	tags, values, checkErr := c.getValuesAndTags(staticTags)
+	tags, values, checkErr := c.getValuesAndTags(config, staticTags)
 	if checkErr != nil {
-		c.sender.serviceCheck(serviceCheckName, metrics.ServiceCheckCritical, "", tags, checkErr.Error())
+		c.config.sender.serviceCheck(serviceCheckName, metrics.ServiceCheckCritical, "", tags, checkErr.Error())
 	} else {
-		c.sender.serviceCheck(serviceCheckName, metrics.ServiceCheckOK, "", tags, "")
+		c.config.sender.serviceCheck(serviceCheckName, metrics.ServiceCheckOK, "", tags, "")
 	}
 	if values != nil {
-		c.sender.reportMetrics(config.metrics, values, tags)
+		c.config.sender.reportMetrics(config.metrics, values, tags)
 	}
 
 	if config.collectDeviceMetadata {
@@ -104,43 +127,43 @@ func (c *Check) runCheckDevice(config *snmpConfig) error {
 		// `checkSender.checkTags` are added for metrics, service checks, events only.
 		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
 		deviceMetadataTags := append(copyStrings(tags), config.instanceTags...)
-		c.sender.reportNetworkDeviceMetadata(*config, values, deviceMetadataTags, collectionTime, deviceStatus)
+		c.config.sender.reportNetworkDeviceMetadata(*config, values, deviceMetadataTags, collectionTime, deviceStatus)
 	}
 
 	c.submitTelemetryMetrics(startTime, tags)
 	return checkErr
 }
 
-func (c *Check) getValuesAndTags(staticTags []string) ([]string, *resultValueStore, error) {
+func (c *Check) getValuesAndTags(config *snmpConfig, staticTags []string) ([]string, *resultValueStore, error) {
 	var checkErrors []string
 	tags := copyStrings(staticTags)
 
 	// Create connection
-	connErr := c.config.session.Connect()
+	connErr := config.session.Connect()
 	if connErr != nil {
 		return tags, nil, fmt.Errorf("snmp connection error: %s", connErr)
 	}
 	defer func() {
-		err := c.config.session.Close()
+		err := config.session.Close()
 		if err != nil {
 			log.Warnf("failed to close session: %v", err)
 		}
 	}()
 
-	err := c.autodetectProfile(c.config.session)
+	err := c.autodetectProfile(config)
 	if err != nil {
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to autodetect profile: %s", err))
 	}
 
-	tags = append(tags, c.config.profileTags...)
+	tags = append(tags, config.profileTags...)
 
-	valuesStore, err := fetchValues(c.config.session, c.config)
+	valuesStore, err := fetchValues(config.session, config)
 	log.Debugf("fetched values: %v", valuesStore)
 
 	if err != nil {
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to fetch values: %s", err))
 	} else {
-		tags = append(tags, c.sender.getCheckInstanceMetricTags(c.config.metricTags, valuesStore)...)
+		tags = append(tags, c.sender.getCheckInstanceMetricTags(config.metricTags, valuesStore)...)
 	}
 
 	var joinedError error
@@ -150,20 +173,21 @@ func (c *Check) getValuesAndTags(staticTags []string) ([]string, *resultValueSto
 	return tags, valuesStore, joinedError
 }
 
-func (c *Check) autodetectProfile(session sessionAPI) error {
+func (c *Check) autodetectProfile(config *snmpConfig) error {
 	// Try to detect profile using device sysobjectid
-	if c.config.autodetectProfile {
-		sysObjectID, err := fetchSysObjectID(session)
+	// TODO: use per device config?
+	if config.autodetectProfile {
+		sysObjectID, err := fetchSysObjectID(config.session)
 		if err != nil {
 			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
 		}
-		c.config.autodetectProfile = false // do not try to auto detect profile next time
+		config.autodetectProfile = false // do not try to auto detect profile next time
 
-		profile, err := getProfileForSysObjectID(c.config.profiles, sysObjectID)
+		profile, err := getProfileForSysObjectID(config.profiles, sysObjectID)
 		if err != nil {
 			return fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
 		}
-		err = c.config.refreshWithProfile(profile)
+		err = config.refreshWithProfile(profile)
 		if err != nil {
 			// Should not happen since the profile is one of those we matched in getProfileForSysObjectID
 			return fmt.Errorf("failed to refresh with profile `%s` detected using sysObjectID `%s`: %s", profile, sysObjectID, err)
@@ -175,12 +199,12 @@ func (c *Check) autodetectProfile(session sessionAPI) error {
 func (c *Check) submitTelemetryMetrics(startTime time.Time, tags []string) {
 	newTags := append(copyStrings(tags), snmpLoaderTag)
 
-	c.sender.gauge("snmp.devices_monitored", float64(1), "", newTags)
+	c.config.sender.gauge("snmp.devices_monitored", float64(1), "", newTags)
 
 	// SNMP Performance metrics
-	c.sender.monotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), "", newTags)
-	c.sender.gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), "", newTags)
-	c.sender.gauge("datadog.snmp.submitted_metrics", float64(c.sender.submittedMetrics), "", newTags)
+	c.config.sender.monotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), "", newTags)
+	c.config.sender.gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), "", newTags)
+	c.config.sender.gauge("datadog.snmp.submitted_metrics", float64(c.config.sender.submittedMetrics), "", newTags)
 }
 
 // Configure configures the snmp checks

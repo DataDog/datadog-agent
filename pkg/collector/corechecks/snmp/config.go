@@ -27,6 +27,7 @@ var defaultPort = uint16(161)
 var defaultRetries = 3
 var defaultTimeout = 2
 var defaultWorkers = 10
+var defaultDiscoveryWorkers = 10
 var defaultDiscoveryAllowedFailures = 3
 var defaultDiscoveryInterval = 3600
 var subnetTagPrefix = "autodiscovery_subnet"
@@ -80,6 +81,7 @@ type snmpInstanceConfig struct {
 	IgnoredIPAddresses       []string `yaml:"ignored_ip_addresses"`
 	DiscoveryInterval        int      `yaml:"discovery_interval"`
 	DiscoveryAllowedFailures int      `yaml:"discovery_allowed_failures"`
+	DiscoveryWorkers         int      `yaml:"discovery_workers"`
 	Workers                  int      `yaml:"workers"`
 }
 
@@ -115,11 +117,13 @@ type snmpConfig struct {
 	autodetectProfile        bool
 	minCollectionInterval    time.Duration
 	Network                  string
+	DiscoveryWorkers         int
 	Workers                  int
 	DiscoveryInterval        int
 	IgnoredIPAddresses       map[string]bool
 	DiscoveryAllowedFailures int
 	TestInstances            int
+	sender                   metricSender
 }
 
 func (c *snmpConfig) refreshWithProfile(profile string) error {
@@ -264,6 +268,12 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	//}
 
 	c.Network = instance.Network
+	if instance.DiscoveryWorkers == 0 {
+		c.DiscoveryWorkers = defaultDiscoveryWorkers
+	} else {
+		c.DiscoveryWorkers = instance.DiscoveryWorkers
+	}
+
 	if instance.Workers == 0 {
 		c.Workers = defaultWorkers
 	} else {

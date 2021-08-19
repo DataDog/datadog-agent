@@ -42,7 +42,7 @@ type Runner struct {
 	isRunning uint32 // Flag to see if the Runner is, well, running
 
 	id                  int                           // Globally unique identifier for the Runner
-	workers             map[int]*worker.Worker        // Workers currrently under this Runner's management
+	workers             map[int]*worker.Worker        // DiscoveryWorkers currrently under this Runner's management
 	workersLock         sync.Mutex                    // Lock to prevent concurrent worker changes
 	isStaticWorkerCount bool                          // Flag indicating if numWorkers is dynamically updated
 	pendingChecksChan   chan check.Check              // The channel where checks come from

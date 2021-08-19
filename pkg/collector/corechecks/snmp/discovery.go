@@ -2,6 +2,7 @@ package snmp
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"net"
@@ -132,7 +133,7 @@ func (d *snmpDiscovery) checkDevices() {
 	//l.loadCache(&subnet)
 
 	jobs := make(chan snmpJob)
-	for w := 0; w < d.config.Workers; w++ {
+	for w := 0; w < d.config.DiscoveryWorkers; w++ {
 		go worker(d, jobs)
 	}
 
@@ -225,10 +226,11 @@ func (d *snmpDiscovery) deleteService(entityID string, subnet *snmpSubnet) {
 	}
 }
 
-func (d *snmpDiscovery) getDiscoveredDeviceConfigs() []snmpConfig {
+func (d *snmpDiscovery) getDiscoveredDeviceConfigs(sender aggregator.Sender) []snmpConfig {
 	d.Lock()
 	defer d.Unlock()
 	var discoveredDevices []snmpConfig
+	// TODO: store config instead of services ?
 	for _, device := range d.services {
 		config := device.config
 		config.Network = ""
@@ -236,6 +238,10 @@ func (d *snmpDiscovery) getDiscoveredDeviceConfigs() []snmpConfig {
 
 		// TODO: Refactor to avoid duplication of logic with https://github.com/DataDog/datadog-agent/blob/0e88b93d1902eddc1542aa15c41b91fcbeecc588/pkg/collector/corechecks/snmp/config.go#L388
 		config.deviceID, config.deviceIDTags = buildDeviceID(config.getDeviceIDTags())
+
+		// TODO: Make it testable
+		config.session = &snmpSession{}
+		config.sender = metricSender{sender: sender}
 
 		err := config.session.Configure(config)
 		if err != nil {
@@ -247,7 +253,7 @@ func (d *snmpDiscovery) getDiscoveredDeviceConfigs() []snmpConfig {
 	return discoveredDevices
 }
 
-func (d *snmpDiscovery) getDiscoveredDeviceConfigsTestInstances(testInstances int) []snmpConfig {
+func (d *snmpDiscovery) getDiscoveredDeviceConfigsTestInstances(testInstances int, sender aggregator.Sender) []snmpConfig {
 	d.Lock()
 	defer d.Unlock()
 	var discoveredDevices []snmpConfig
@@ -260,6 +266,10 @@ func (d *snmpDiscovery) getDiscoveredDeviceConfigsTestInstances(testInstances in
 
 			// TODO: Refactor to avoid duplication of logic with https://github.com/DataDog/datadog-agent/blob/0e88b93d1902eddc1542aa15c41b91fcbeecc588/pkg/collector/corechecks/snmp/config.go#L388
 			config.deviceID, config.deviceIDTags = buildDeviceID(config.getDeviceIDTags())
+
+			// TODO: Make it testable
+			config.session = &snmpSession{}
+			config.sender = metricSender{sender: sender}
 
 			err := config.session.Configure(config)
 			if err != nil {

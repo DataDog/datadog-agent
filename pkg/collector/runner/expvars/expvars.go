@@ -22,7 +22,7 @@ const (
 	runsExpvarKey          = "Runs"
 	runningExpvarKey       = "running"
 	warningsExpvarKey      = "Warnings"
-	workersExpvarKey       = "Workers"
+	workersExpvarKey       = "DiscoveryWorkers"
 )
 
 var (

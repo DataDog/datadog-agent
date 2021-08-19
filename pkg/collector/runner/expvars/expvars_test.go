@@ -374,7 +374,7 @@ func TestExpvarsToplevelKeys(t *testing.T) {
 		"Runs":          GetRunsCount,
 		"RunningChecks": GetRunningCheckCount,
 		"Warnings":      GetWarningsCount,
-		"Workers":       GetWorkerCount,
+		"DiscoveryWorkers":       GetWorkerCount,
 	}
 
 	for keyName, setter := range map[string]func(int){
@@ -382,7 +382,7 @@ func TestExpvarsToplevelKeys(t *testing.T) {
 		"Runs":          AddRunsCount,
 		"RunningChecks": AddRunningCheckCount,
 		"Warnings":      AddWarningsCount,
-		"Workers":       AddWorkerCount,
+		"DiscoveryWorkers":       AddWorkerCount,
 	} {
 
 		assertKeyNotSet(t, keyName)

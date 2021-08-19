@@ -407,9 +407,9 @@ var defaultSQLPlanNormalizeSettings = traceconfig.JSONObfuscationConfig{
 		"WAL Records",
 		"Worker",
 		"Worker Number",
-		"Workers",
-		"Workers Launched",
-		"Workers Planned",
+		"DiscoveryWorkers",
+		"DiscoveryWorkers Launched",
+		"DiscoveryWorkers Planned",
 	},
 }
 
