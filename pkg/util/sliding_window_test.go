@@ -150,7 +150,7 @@ func TestSlidingWindowFuncInvocationCounts(t *testing.T) {
 	atomic.StoreInt64(&callbackFuncInvocationCount, 0)
 	atomic.StoreInt64(&pollingFuncInvocationCount, 0)
 
-	sw, err := NewSlidingWindow(900*time.Millisecond, 10*time.Millisecond)
+	sw, err := NewSlidingWindow(900*time.Millisecond, 50*time.Millisecond)
 	require.Nil(t, err)
 
 	err = sw.Start(dummyFractionalPollingFunc, dummyCallbackFunc)
@@ -160,12 +160,12 @@ func TestSlidingWindowFuncInvocationCounts(t *testing.T) {
 	assert.Equal(t, 900*time.Millisecond, sw.WindowSize())
 
 	time.Sleep(900 * time.Millisecond)
-	assert.InDelta(t, atomic.LoadInt64(&pollingFuncInvocationCount), 90, 3)
-	assert.InDelta(t, atomic.LoadInt64(&callbackFuncInvocationCount), 90, 3)
+	assert.InDelta(t, atomic.LoadInt64(&pollingFuncInvocationCount), 18, 1)
+	assert.InDelta(t, atomic.LoadInt64(&callbackFuncInvocationCount), 18, 1)
 
 	time.Sleep(100 * time.Millisecond)
-	assert.InDelta(t, atomic.LoadInt64(&pollingFuncInvocationCount), 100, 3)
-	assert.InDelta(t, atomic.LoadInt64(&callbackFuncInvocationCount), 100, 3)
+	assert.InDelta(t, atomic.LoadInt64(&pollingFuncInvocationCount), 20, 1)
+	assert.InDelta(t, atomic.LoadInt64(&callbackFuncInvocationCount), 20, 1)
 }
 
 func TestNewSlidingWindowStop(t *testing.T) {
