@@ -39,6 +39,8 @@ type CircuitBreaker struct {
 
 	// The timestamp in nanoseconds of when we last updated eventRate
 	lastUpdate int64
+
+	done chan struct{}
 }
 
 // NewCircuitBreaker instantiates a new CircuitBreaker that only allows
@@ -49,13 +51,21 @@ func NewCircuitBreaker(maxEventsPerSec int64) *CircuitBreaker {
 		maxEventsPerSec = math.MaxInt64
 	}
 
-	c := &CircuitBreaker{maxEventsPerSec: maxEventsPerSec}
+	c := &CircuitBreaker{
+		maxEventsPerSec: maxEventsPerSec,
+		done:            make(chan struct{}),
+	}
 	c.Reset()
 
 	go func() {
 		ticker := time.NewTicker(tickInterval)
-		for t := range ticker.C {
-			c.update(t)
+		for {
+			select {
+			case t := <-ticker.C:
+				c.update(t)
+			case <-c.done:
+				return
+			}
 		}
 	}()
 
@@ -84,6 +94,11 @@ func (c *CircuitBreaker) Reset() {
 	atomic.StoreInt64(&c.eventRate, 0)
 	atomic.StoreInt64(&c.lastUpdate, time.Now().UnixNano())
 	atomic.StoreInt64(&c.status, breakerClosed)
+}
+
+// Stop stops the circuit breaker.
+func (c *CircuitBreaker) Stop() {
+	close(c.done)
 }
 
 func (c *CircuitBreaker) update(now time.Time) {
