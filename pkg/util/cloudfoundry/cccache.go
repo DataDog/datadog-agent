@@ -125,6 +125,26 @@ func (ccc *CCCache) GetApp(guid string) (*CFApp, error) {
 	return app, nil
 }
 
+func (ccc *CCCache) GetSpace(guid string) (*CFSpace, error) {
+	ccc.RLock()
+	defer ccc.RUnlock()
+	space, ok := ccc.spacesByGUID[guid]
+	if !ok {
+		return nil, fmt.Errorf("could not find space %s in cloud controller cache", guid)
+	}
+	return space, nil
+}
+
+func (ccc *CCCache) GetOrg(guid string) (*CFOrg, error) {
+	ccc.RLock()
+	defer ccc.RUnlock()
+	org, ok := ccc.orgsByGUID[guid]
+	if !ok {
+		return nil, fmt.Errorf("could not find org %s in cloud controller cache", guid)
+	}
+	return org, nil
+}
+
 func (ccc *CCCache) start() {
 	ccc.readData()
 	dataRefreshTicker := time.NewTicker(ccc.pollInterval)

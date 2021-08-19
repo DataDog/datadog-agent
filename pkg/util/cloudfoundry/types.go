@@ -291,12 +291,16 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 			appName = ccApp.Name
 			customTags = append(customTags, ccApp.Tags...)
 			spaceGUID = ccApp.SpaceGUID
-			if space, ok := ccCache.spacesByGUID[spaceGUID]; ok {
+			if space, err := ccCache.GetSpace(spaceGUID); err == nil {
 				spaceName = space.Name
 				orgGUID = space.OrgGUID
+			} else {
+				log.Debugf("Could not find space %s in cc cache", spaceGUID)
 			}
-			if org, ok := ccCache.orgsByGUID[orgGUID]; ok {
+			if org, err := ccCache.GetOrg(orgGUID); err == nil {
 				orgName = org.Name
+			} else {
+				log.Debugf("Could not find org %s in cc cache", orgGUID)
 			}
 		}
 	} else {
