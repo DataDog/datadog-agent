@@ -245,25 +245,25 @@ var ExpectedD2 = DesiredLRP{
 	},
 }
 
-var ExpectedD3NoCCCache = DesiredLRP{
-	AppGUID:         "random_app_guid",
-	AppName:         "name_of_the_app",
-	EnvAD:           ADConfig{"xxx": {}},
-	EnvVcapServices: map[string][]byte{"xxx": []byte("{\"name\":\"xxx\"}")},
-	EnvVcapApplication: map[string]string{
-		"application_name":  "name_of_the_app",
-		"application_id":    "random_app_guid",
-		"organization_name": "name_of_the_org",
-		"organization_id":   "random_org_guid",
-		"space_name":        "name_of_the_space",
-		"space_id":          "random_space_guid",
-	},
-	OrganizationGUID: "random_org_guid",
-	OrganizationName: "name_of_the_org",
-	ProcessGUID:      "0123456789012345678901234567890123456789",
-	SpaceGUID:        "random_space_guid",
-	SpaceName:        "name_of_the_space",
-}
+//var ExpectedD3NoCCCache = DesiredLRP{
+//	AppGUID:         "random_app_guid",
+//	AppName:         "name_of_the_app",
+//	EnvAD:           ADConfig{"xxx": {}},
+//	EnvVcapServices: map[string][]byte{"xxx": []byte("{\"name\":\"xxx\"}")},
+//	EnvVcapApplication: map[string]string{
+//		"application_name":  "name_of_the_app",
+//		"application_id":    "random_app_guid",
+//		"organization_name": "name_of_the_org",
+//		"organization_id":   "random_org_guid",
+//		"space_name":        "name_of_the_space",
+//		"space_id":          "random_space_guid",
+//	},
+//	OrganizationGUID: "random_org_guid",
+//	OrganizationName: "name_of_the_org",
+//	ProcessGUID:      "0123456789012345678901234567890123456789",
+//	SpaceGUID:        "random_space_guid",
+//	SpaceName:        "name_of_the_space",
+//}
 
 func TestADIdentifier(t *testing.T) {
 	for _, tc := range []struct {
@@ -337,12 +337,12 @@ func TestDesiredLRPFromBBSModel(t *testing.T) {
 	assert.EqualValues(t, ExpectedD1, result)
 
 	// Temporarily disable global CC cache and acquire locks to prevent any refreshes of the caches in the background
-	globalBBSCache.Lock()
-	defer globalBBSCache.Unlock()
-	globalCCCache.configured = false
-	result = DesiredLRPFromBBSModel(&BBSModelD1, includeList, excludeList)
-	globalCCCache.configured = true
-	assert.EqualValues(t, ExpectedD3NoCCCache, result)
+	//globalBBSCache.Lock()
+	//defer globalBBSCache.Unlock()
+	//globalCCCache.configured = false
+	//result = DesiredLRPFromBBSModel(&BBSModelD1, includeList, excludeList)
+	//globalCCCache.configured = true
+	//assert.EqualValues(t, ExpectedD3NoCCCache, result)
 }
 
 func TestGetVcapServicesMap(t *testing.T) {
