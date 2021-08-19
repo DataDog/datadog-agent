@@ -40,19 +40,6 @@ var (
 	}
 )
 
-func init() {
-	var families = [...]ConnectionFamily{AFINET, AFINET6}
-	var protos = [...]ConnectionType{UDP, TCP}
-	for _, f := range families {
-		for _, p := range protos {
-			l, h, err := getEphemeralRange(f, p)
-			if err == nil {
-				ephemeralRanges[f][p]["lo"] = l
-				ephemeralRanges[f][p]["hi"] = h
-			}
-		}
-	}
-}
 func getEphemeralRange(f ConnectionFamily, t ConnectionType) (low, hi uint16, err error) {
 	var protoarg string
 	var familyarg string
@@ -119,15 +106,7 @@ func getEphemeralRange(f ConnectionFamily, t ConnectionType) (low, hi uint16, er
 }
 
 func isPortInEphemeralRange(f ConnectionFamily, t ConnectionType, p uint16) EphemeralPortType {
-	rangeLow := ephemeralRanges[f][t]["lo"]
-	rangeHi := ephemeralRanges[f][t]["hi"]
-	if rangeLow == 0 || rangeHi == 0 {
-		return EphemeralUnknown
-	}
-	if p >= rangeLow && p <= rangeHi {
-		return EphemeralTrue
-	}
-	return EphemeralFalse
+	return EphemeralUnknown
 }
 func connFamily(addressFamily uint16) ConnectionFamily {
 	if addressFamily == syscall.AF_INET {
