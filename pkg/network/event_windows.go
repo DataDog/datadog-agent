@@ -82,17 +82,18 @@ func getEphemeralRange(f ConnectionFamily, t ConnectionType) (low, hi uint16, er
 		return
 	}
 	output := cmdOutput.Bytes()
-	var startPortLine = regexp.MustCompile(`Start.*: (\d+)`)
-	var numberLine = regexp.MustCompile(`Number.*: (\d+)`)
+	var r = regexp.MustCompile(`.*: (\d+)`)
 
-	startPort := startPortLine.FindStringSubmatch(string(output))
-	rangeLen := numberLine.FindStringSubmatch(string(output))
+	matches := r.FindAllStringSubmatch(string(output), -1)
+	if len(matches) != 2 {
+		return
+	}
 
-	portstart, err := strconv.Atoi(startPort[1])
+	portstart, err := strconv.Atoi(matches[0][1])
 	if err != nil {
 		return
 	}
-	plen, err := strconv.Atoi(rangeLen[1])
+	plen, err := strconv.Atoi(matches[1][1])
 	if err != nil {
 		return
 	}
