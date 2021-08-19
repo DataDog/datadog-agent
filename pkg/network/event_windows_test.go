@@ -1,4 +1,3 @@
-//nolint:misspell
 package network
 
 import (
