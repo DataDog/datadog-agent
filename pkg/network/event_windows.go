@@ -130,7 +130,7 @@ func getEphemeralRange(f ConnectionFamily, t ConnectionType) (low, hi uint16, er
 	if err != nil {
 		return
 	}
-	plen, err := strconv.Atoi(matches[1][1])
+	len, err := strconv.Atoi(matches[1][1])
 	if err != nil {
 		return
 	}
