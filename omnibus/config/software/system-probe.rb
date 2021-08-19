@@ -27,14 +27,7 @@ build do
     copy "#{ENV['SYSTEM_PROBE_BIN']}/tracer.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/runtime-security.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/conntrack.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
+    copy "#{ENV['SYSTEM_PROBE_BIN']}/oom-kill.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
+    copy "#{ENV['SYSTEM_PROBE_BIN']}/tcp-queue-length.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
   end
-
-  copy 'pkg/ebpf/c/COPYING', "#{install_dir}/embedded/share/system-probe/ebpf/"
-  copy 'pkg/collector/corechecks/ebpf/c/runtime/bpf-common.h', "#{install_dir}/embedded/share/system-probe/ebpf/"
-
-  copy 'pkg/collector/corechecks/ebpf/c/runtime/oom-kill-kern.c', "#{install_dir}/embedded/share/system-probe/ebpf/"
-  copy 'pkg/collector/corechecks/ebpf/c/runtime/oom-kill-kern-user.h', "#{install_dir}/embedded/share/system-probe/ebpf/"
-
-  copy 'pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern.c', "#{install_dir}/embedded/share/system-probe/ebpf/"
-  copy 'pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern-user.h', "#{install_dir}/embedded/share/system-probe/ebpf/"
 end

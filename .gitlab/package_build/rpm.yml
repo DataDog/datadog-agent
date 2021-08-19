@@ -28,6 +28,8 @@
     - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer.c.${PACKAGE_ARCH} /tmp/system-probe/tracer.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security.c.${PACKAGE_ARCH} /tmp/system-probe/runtime-security.c
     - $S3_CP_CMD $S3_ARTIFACTS_URI/conntrack.c.${PACKAGE_ARCH} /tmp/system-probe/conntrack.c
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/oom-kill.c.${PACKAGE_ARCH} /tmp/system-probe/oom-kill.c
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/tcp-queue-length.c.${PACKAGE_ARCH} /tmp/system-probe/tcp-queue-length.c
     - chmod 755 /tmp/system-probe/system-probe
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe
     - ls -la $OMNIBUS_PACKAGE_DIR

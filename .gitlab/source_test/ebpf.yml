@@ -18,6 +18,8 @@
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/tracer.c $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.c
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/runtime-security.c $CI_PROJECT_DIR/.tmp/binary-ebpf/runtime-security.c
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/conntrack.c $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack.c
+  - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/oom-kill.c $CI_PROJECT_DIR/.tmp/binary-ebpf/oom-kill.c
+  - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/tcp-queue-length.c $CI_PROJECT_DIR/.tmp/binary-ebpf/tcp-queue-length.c
 
 # Run tests for eBPF code
 .tests_linux_ebpf:
