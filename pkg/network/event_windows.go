@@ -4,6 +4,7 @@ package network
 
 import (
 	"bytes"
+	"fmt"
 	"net"
 	"os/exec"
 	"regexp"
@@ -86,6 +87,7 @@ func getEphemeralRange(f ConnectionFamily, t ConnectionType) (low, hi uint16, er
 
 	matches := r.FindAllStringSubmatch(string(output), -1)
 	if len(matches) != 2 {
+		err = fmt.Errorf("could not parse output of netsh")
 		return
 	}
 
