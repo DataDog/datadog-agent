@@ -34,7 +34,7 @@ var (
 		},
 	}
 	rangeGetOnce = sync.Once{}
-	netshRegexp  = regexp.MustCompile(`^.*:\s+(\d+)$`)
+	netshRegexp  = regexp.MustCompile(`.*: (\d+)`)
 )
 
 func getEphemeralRanges() {
