@@ -25,6 +25,18 @@ func findOpenSSLLibraries(procRoot string) []so.Library {
 	// libraries will include all host-resolved openSSL library paths mapped into memory
 	libraries := so.Find(procRoot, openSSLLibs)
 
+	// TODO: should we ensure all entries are unique in the `so` package instead?
+	seen := make(map[string]struct{}, len(libraries))
+	i := 0
+	for j, lib := range libraries {
+		if _, ok := seen[lib.HostPath]; !ok {
+			libraries[i] = libraries[j]
+			seen[lib.HostPath] = struct{}{}
+			i++
+		}
+	}
+	libraries = libraries[0:i]
+
 	// we merge it with the library locations provided via the SSL_LIB_PATHS env variable
 	if libsFromEnv := fromEnv(); len(libsFromEnv) > 0 {
 		libraries = append(libraries, libsFromEnv...)
