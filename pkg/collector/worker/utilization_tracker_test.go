@@ -252,7 +252,7 @@ func TestUtilizationTrackerAccuracy(t *testing.T) {
 func TestUtilizationTrackerLongTaskAccuracy(t *testing.T) {
 	var previousUtilization, currentUtilization float64
 
-	ut, err := NewUtilizationTracker("worker", 1*time.Second, 50*time.Millisecond)
+	ut, err := NewUtilizationTracker("worker", 1*time.Second, 25*time.Millisecond)
 	require.Nil(t, err)
 	AssertAsyncWorkerCount(t, 0)
 
@@ -270,7 +270,11 @@ func TestUtilizationTrackerLongTaskAccuracy(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 
 		currentUtilization = getWorkerUtilizationExpvar(t, "worker")
-		require.True(t, getWorkerUtilizationExpvar(t, "worker") > previousUtilization)
+
+		if currentUtilization < 1 {
+			require.True(t, currentUtilization > previousUtilization)
+		}
+
 		previousUtilization = currentUtilization
 	}
 

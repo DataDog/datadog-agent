@@ -69,7 +69,7 @@ func TestSlidingWindow(t *testing.T) {
 
 func TestSlidingWindowAccuracy(t *testing.T) {
 	// Floats don't really have good atomic primitives
-	var cbLock sync.Mutex
+	var cbLock sync.RWMutex
 	lastAverage := 0.0
 
 	callbackFunc := func(sw SlidingWindow) {
@@ -92,9 +92,9 @@ func TestSlidingWindowAccuracy(t *testing.T) {
 	assert.Equal(t, 1*time.Second, sw.WindowSize())
 	assert.InDelta(t, utilPct, 0.3, DefaultDelta)
 
-	cbLock.Lock()
-	defer cbLock.Unlock()
+	cbLock.RLock()
 	assert.InDelta(t, utilPct, 0.3, lastAverage)
+	cbLock.RUnlock()
 }
 
 func TestSlidingWindowAverage(t *testing.T) {
