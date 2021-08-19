@@ -203,7 +203,7 @@ func (c *Check) submitTelemetryMetrics(config *snmpConfig, startTime time.Time, 
 	// SNMP Performance metrics
 	config.sender.monotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), "", newTags)
 	config.sender.gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), "", newTags)
-	config.sender.gauge("datadog.snmp.submitted_metrics", float64(c.config.sender.submittedMetrics), "", newTags)
+	config.sender.gauge("datadog.snmp.submitted_metrics", float64(config.sender.submittedMetrics), "", newTags)
 }
 
 // Configure configures the snmp checks
