@@ -5,6 +5,7 @@ package http
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/network/so"
@@ -31,18 +32,19 @@ type cryptoProgram struct {
 	mainProgram *ebpfProgram
 	mgr         *manager.Manager
 	libPath     string
+	uid         string
 }
 
 var _ subprogram = &cryptoProgram{}
 
 func createCryptoPrograms(mainProgram *ebpfProgram, libraries []so.Library) []subprogram {
 	var subprograms []subprogram
-	for _, lib := range libraries {
+	for i, lib := range libraries {
 		if !strings.Contains(lib.HostPath, "crypto") {
 			continue
 		}
 
-		p, err := newCryptoProgram(mainProgram, lib.HostPath)
+		p, err := newCryptoProgram(mainProgram, lib.HostPath, i)
 		if err != nil {
 			log.Errorf("error creating crypto program to trace %s: %s", lib.HostPath, err)
 			continue
@@ -54,16 +56,18 @@ func createCryptoPrograms(mainProgram *ebpfProgram, libraries []so.Library) []su
 	return subprograms
 }
 
-func newCryptoProgram(mainProgram *ebpfProgram, libPath string) (*cryptoProgram, error) {
+func newCryptoProgram(mainProgram *ebpfProgram, libPath string, i int) (*cryptoProgram, error) {
 	if libPath == "" {
 		return nil, fmt.Errorf("path to libcrypto not provided")
 	}
 
+	uid := strconv.Itoa(i)
 	var probes []*manager.Probe
 	for _, sec := range cryptoProbes {
 		probes = append(probes, &manager.Probe{
 			Section:    sec,
 			BinaryPath: libPath,
+			UID:        uid,
 		})
 	}
 
@@ -71,6 +75,7 @@ func newCryptoProgram(mainProgram *ebpfProgram, libPath string) (*cryptoProgram,
 		mainProgram: mainProgram,
 		mgr:         &manager.Manager{Probes: probes},
 		libPath:     libPath,
+		uid:         uid,
 	}, nil
 }
 
@@ -80,6 +85,7 @@ func (p *cryptoProgram) Init() error {
 		selectors = append(selectors, &manager.ProbeSelector{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				Section: sec,
+				UID:     p.uid,
 			},
 		})
 	}

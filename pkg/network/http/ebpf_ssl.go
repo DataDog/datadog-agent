@@ -5,6 +5,7 @@ package http
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -47,18 +48,19 @@ type sslProgram struct {
 	mgr         *manager.Manager
 	offsets     []manager.ConstantEditor
 	libPath     string
+	uid         string
 }
 
 var _ subprogram = &sslProgram{}
 
 func createSSLPrograms(mainProgram *ebpfProgram, offsets []manager.ConstantEditor, libraries []so.Library) []subprogram {
 	var subprograms []subprogram
-	for _, lib := range libraries {
+	for i, lib := range libraries {
 		if !strings.Contains(lib.HostPath, "ssl") {
 			continue
 		}
 
-		sslProg, err := newSSLProgram(mainProgram, offsets, lib.HostPath)
+		sslProg, err := newSSLProgram(mainProgram, offsets, lib.HostPath, i)
 		if err != nil {
 			log.Errorf("error creating SSL program for %s: %s", lib.HostPath, err)
 			continue
@@ -70,16 +72,18 @@ func createSSLPrograms(mainProgram *ebpfProgram, offsets []manager.ConstantEdito
 	return subprograms
 }
 
-func newSSLProgram(mainProgram *ebpfProgram, offsets []manager.ConstantEditor, libPath string) (*sslProgram, error) {
+func newSSLProgram(mainProgram *ebpfProgram, offsets []manager.ConstantEditor, libPath string, i int) (*sslProgram, error) {
 	if libPath == "" {
 		return nil, fmt.Errorf("path to libssl not provided")
 	}
 
+	uid := strconv.Itoa(i)
 	var probes []*manager.Probe
 	for _, sec := range sslProbes {
 		probes = append(probes, &manager.Probe{
 			Section:    sec,
 			BinaryPath: libPath,
+			UID:        uid,
 		})
 	}
 
@@ -88,6 +92,7 @@ func newSSLProgram(mainProgram *ebpfProgram, offsets []manager.ConstantEditor, l
 		mgr:         &manager.Manager{Probes: probes},
 		offsets:     offsets,
 		libPath:     libPath,
+		uid:         uid,
 	}, nil
 }
 
@@ -97,6 +102,7 @@ func (p *sslProgram) Init() error {
 		selectors = append(selectors, &manager.ProbeSelector{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				Section: sec,
+				UID:     p.uid,
 			},
 		})
 	}
