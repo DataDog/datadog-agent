@@ -336,7 +336,9 @@ func TestDesiredLRPFromBBSModel(t *testing.T) {
 	result = DesiredLRPFromBBSModel(&BBSModelD1, includeList, excludeList)
 	assert.EqualValues(t, ExpectedD1, result)
 
-	// Temporarily disable global CC cache
+	// Temporarily disable global CC cache and acquire locks to prevent any refreshes of the caches in the background
+	globalBBSCache.Lock()
+	defer globalBBSCache.Unlock()
 	globalCCCache.configured = false
 	result = DesiredLRPFromBBSModel(&BBSModelD1, includeList, excludeList)
 	globalCCCache.configured = true
