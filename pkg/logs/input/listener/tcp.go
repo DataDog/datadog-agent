@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -21,6 +22,7 @@ import (
 type TCPListener struct {
 	pipelineProvider pipeline.Provider
 	source           *config.LogSource
+	idleTimeout      time.Duration
 	frameSize        int
 	listener         net.Listener
 	tailers          []*Tailer
@@ -30,9 +32,20 @@ type TCPListener struct {
 
 // NewTCPListener returns an initialized TCPListener
 func NewTCPListener(pipelineProvider pipeline.Provider, source *config.LogSource, frameSize int) *TCPListener {
+	var idleTimeout time.Duration
+	if source.Config.IdleTimeout != "" {
+		var err error
+		idleTimeout, err = time.ParseDuration(source.Config.IdleTimeout)
+		if err != nil {
+			log.Errorf("Error parsing log's idle_timeout as a duration: %s", err)
+			idleTimeout = 0
+		}
+	}
+
 	return &TCPListener{
 		pipelineProvider: pipelineProvider,
 		source:           source,
+		idleTimeout:      idleTimeout,
 		frameSize:        frameSize,
 		tailers:          []*Tailer{},
 		stop:             make(chan struct{}, 1),
@@ -111,6 +124,9 @@ func (l *TCPListener) startListener() error {
 
 // read reads data from connection, returns an error if it failed and stop the tailer.
 func (l *TCPListener) read(tailer *Tailer) ([]byte, error) {
+	if l.idleTimeout > 0 {
+		tailer.conn.SetReadDeadline(time.Now().Add(l.idleTimeout)) //nolint:errcheck
+	}
 	frame := make([]byte, l.frameSize)
 	n, err := tailer.conn.Read(frame)
 	if err != nil {

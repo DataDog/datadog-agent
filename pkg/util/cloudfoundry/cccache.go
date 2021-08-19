@@ -39,11 +39,15 @@ type CCCache struct {
 	pollInterval  time.Duration
 	lastUpdated   time.Time
 	appsByGUID    map[string]*CFApp
+	orgsByGUID    map[string]*CFOrg
+	spacesByGUID  map[string]*CFSpace
 	appsBatchSize int
 }
 
 type CCClientI interface {
 	ListV3AppsByQuery(url.Values) ([]cfclient.V3App, error)
+	ListV3OrganizationsByQuery(url.Values) ([]cfclient.V3Organization, error)
+	ListV3SpacesByQuery(url.Values) ([]cfclient.V3Space, error)
 }
 
 var globalCCCache = &CCCache{}
@@ -121,6 +125,26 @@ func (ccc *CCCache) GetApp(guid string) (*CFApp, error) {
 	return app, nil
 }
 
+func (ccc *CCCache) GetSpace(guid string) (*CFSpace, error) {
+	ccc.RLock()
+	defer ccc.RUnlock()
+	space, ok := ccc.spacesByGUID[guid]
+	if !ok {
+		return nil, fmt.Errorf("could not find space %s in cloud controller cache", guid)
+	}
+	return space, nil
+}
+
+func (ccc *CCCache) GetOrg(guid string) (*CFOrg, error) {
+	ccc.RLock()
+	defer ccc.RUnlock()
+	org, ok := ccc.orgsByGUID[guid]
+	if !ok {
+		return nil, fmt.Errorf("could not find org %s in cloud controller cache", guid)
+	}
+	return org, nil
+}
+
 func (ccc *CCCache) start() {
 	ccc.readData()
 	dataRefreshTicker := time.NewTicker(ccc.pollInterval)
@@ -138,23 +162,69 @@ func (ccc *CCCache) start() {
 func (ccc *CCCache) readData() {
 	log.Debug("Reading data from CC API")
 	atomic.AddInt64(&ccc.pollAttempts, 1)
+	var wg sync.WaitGroup
 
-	query := url.Values{}
-	query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
-	apps, err := ccc.ccAPIClient.ListV3AppsByQuery(query)
-	if err != nil {
-		log.Errorf("Failed listing apps from cloud controller: %v", err)
-		return
-	}
-	appsByGUID := make(map[string]*CFApp, len(apps))
-	for _, app := range apps {
-		appsByGUID[app.GUID] = CFAppFromV3App(&app)
-	}
+	// List applications
+	wg.Add(1)
+	var appsByGUID map[string]*CFApp
+	go func() {
+		defer wg.Done()
+		query := url.Values{}
+		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
+		apps, err := ccc.ccAPIClient.ListV3AppsByQuery(query)
+		if err != nil {
+			log.Errorf("Failed listing apps from cloud controller: %v", err)
+			return
+		}
+		appsByGUID = make(map[string]*CFApp, len(apps))
+		for _, app := range apps {
+			appsByGUID[app.GUID] = CFAppFromV3App(&app)
+		}
+	}()
 
-	// put new apps in cache
+	// List spaces
+	wg.Add(1)
+	var spacesByGUID map[string]*CFSpace
+	go func() {
+		defer wg.Done()
+		query := url.Values{}
+		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
+		spaces, err := ccc.ccAPIClient.ListV3SpacesByQuery(query)
+		if err != nil {
+			log.Errorf("Failed listing spaces from cloud controller: %v", err)
+			return
+		}
+		spacesByGUID = make(map[string]*CFSpace, len(spaces))
+		for _, space := range spaces {
+			spacesByGUID[space.GUID] = CFSpaceFromV3Space(&space)
+		}
+	}()
+
+	// List orgs
+	wg.Add(1)
+	var orgsByGUID map[string]*CFOrg
+	go func() {
+		defer wg.Done()
+		query := url.Values{}
+		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
+		orgs, err := ccc.ccAPIClient.ListV3OrganizationsByQuery(query)
+		if err != nil {
+			log.Errorf("Failed listing orgs from cloud controller: %v", err)
+			return
+		}
+		orgsByGUID = make(map[string]*CFOrg, len(orgs))
+		for _, org := range orgs {
+			orgsByGUID[org.GUID] = CFOrgFromV3Organization(&org)
+		}
+	}()
+
+	// put new data in cache
+	wg.Wait()
 	ccc.Lock()
 	defer ccc.Unlock()
 	ccc.appsByGUID = appsByGUID
+	ccc.spacesByGUID = spacesByGUID
+	ccc.orgsByGUID = orgsByGUID
 	atomic.AddInt64(&ccc.pollSuccesses, 1)
 	ccc.lastUpdated = time.Now()
 }

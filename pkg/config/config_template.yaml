@@ -71,7 +71,7 @@ api_key:
 # hostname_file: /var/lib/cloud/data/instance-id
 
 ## @param hostname_fqdn - boolean - optional - default: false
-## @param DD_HOSTNAME_FQDN - boolean - optional - default: false
+## @env DD_HOSTNAME_FQDN - boolean - optional - default: false
 ## When the Agent relies on the OS to determine the hostname, make it use the
 ## FQDN instead of the short hostname. Recommended value: true
 ## More information at https://dtdg.co/flag-hostname-fqdn
@@ -101,7 +101,7 @@ api_key:
 #   - <TAG_KEY>:<TAG_VALUE>
 
 ## @param env - string - optional
-## @param DD_ENV - string - optional
+## @env DD_ENV - string - optional
 ## The environment name where the agent is running. Attached in-app to every
 ## metric, event, log, trace, and service check emitted by this Agent.
 #
@@ -126,6 +126,7 @@ api_key:
 #   <TAG_KEY>: <SEPARATOR>
 
 ## @param checks_tag_cardinality - string - optional - default: low
+## @env DD_CHECKS_TAG_CARDINALITY - string - optional - default: low
 ## Configure the level of granularity of tags to send for checks metrics and events. Choices are:
 ##   * low: add tags about low-cardinality objects (clusters, hosts, deployments, container images, ...)
 ##   * orchestrator: add tags about pod, (in Kubernetes), or task (in ECS or Mesos) -level of cardinality
@@ -136,6 +137,7 @@ api_key:
 # checks_tag_cardinality: low
 
 ## @param dogstatsd_tag_cardinality - string - optional - default: low
+## @env DD_DOGSTATSD_TAG_CARDINALITY - string - optional - default: low
 ## Configure the level of granularity of tags to send for DogStatsD metrics and events. Choices are:
 ##   * low: add tags about low-cardinality objects (clusters, hosts, deployments, container images, ...)
 ##   * orchestrator: add tags about pod, (in Kubernetes), or task (in ECS or Mesos) -level of cardinality
@@ -147,6 +149,7 @@ api_key:
 # dogstatsd_tag_cardinality: low
 
 ## @param histogram_aggregates - list of strings - optional - default: ["max", "median", "avg", "count"]
+## @env DD_HISTOGRAM_AGGREGATES - space separated list of strings - optional - default: max median avg count
 ## Configure which aggregated value to compute.
 ## Possible values are: min, max, median, avg, sum and count.
 #
@@ -157,6 +160,7 @@ api_key:
 #   - count
 
 ## @param histogram_percentiles - list of strings - optional - default: ["0.95"]
+## @env DD_HISTOGRAM_PERCENTILES - space separated list of strings - optional - default: 0.95
 ## Configure which percentiles are computed by the Agent. It must be a list of float between 0 and 1.
 ## Warning: percentiles must be specified as yaml strings
 #
@@ -164,17 +168,20 @@ api_key:
 #   - "0.95"
 
 ## @param histogram_copy_to_distribution - boolean - optional - default: false
+## env DD_HISTOGRAM_COPY_TO_DISTRIBUTION - boolean - optional - default: false
 ## Copy histogram values to distributions for true global distributions (in beta)
 ## Note: This increases the number of custom metrics created.
 #
 # histogram_copy_to_distribution: false
 
 ## @param histogram_copy_to_distribution_prefix - string - optional
+## @env DD_HISTOGRAM_COPY_TO_DISTRIBUTION_PREFIX - string - optional
 ## A prefix to add to distribution metrics created when histogram_copy_to_distributions is true
 #
 # histogram_copy_to_distribution_prefix: "<PREFIX>"
 
 ## @param aggregator_stop_timeout - integer - optional - default: 2
+## env DD_AGGREGATOR_STOP_TIMEOUT - integer - optional - default: 2
 ## When stopping the agent, the Aggregator will try to flush out data ready for
 ## aggregation (metrics, events, ...). Data are flushed to the Forwarder in order
 ## to be sent to Datadog, therefore the Agent might take at most
@@ -185,15 +192,17 @@ api_key:
 ## 'aggregator_stop_timeout' to 0.
 #
 # aggregator_stop_timeout: 2
-#
-# @param aggregator_buffer_size - integer - optional - default: 100
-# The default buffer size for the aggregator use a sane value for most of the
-# use cases, however, it could be useful to manually set it in order to trade
-# RSS usage with better performances.
+
+## @param aggregator_buffer_size - integer - optional - default: 100
+## @env DD_AGGREGATOR_BUFFER_SIZE - integer - optional - default: 100
+## The default buffer size for the aggregator use a sane value for most of the
+## use cases, however, it could be useful to manually set it in order to trade
+## RSS usage with better performances.
 #
 # aggregator_buffer_size: 100
 
 ## @param forwarder_timeout - integer - optional - default: 20
+## @env DD_FORWARDER_TIMEOUT - integer - optional - default: 20
 ## Forwarder timeout in seconds
 #
 # forwarder_timeout: 20
@@ -206,11 +215,13 @@ api_key:
 # forwarder_retry_queue_payloads_max_size: 15728640
 
 ## @param forwarder_num_workers - integer - optional - default: 1
+## @env DD_FORWARDER_NUM_WORKERS - integer - optional - default: 1
 ## The number of workers used by the forwarder.
 #
 # forwarder_num_workers: 1
 
 ## @param forwarder_stop_timeout - integer - optional - default: 2
+## @env DD_FORWARDER_STOP_TIMEOUT - integer - optional - default: 2
 ## When stopping the agent, the Forwarder will try to flush all new
 ## transactions (not the ones in retry state).  New transactions will be created
 ## as the Aggregator flush it's internal data too, therefore the Agent might take
@@ -229,13 +240,13 @@ api_key:
 #
 # forwarder_storage_max_size_in_bytes: 50000000
 
-## @param forwarder_storage_max_disk_ratio - float - optional - default: 0.95
+## @param forwarder_storage_max_disk_ratio - float - optional - default: 0.8
 ## `forwarder_storage_max_disk_ratio` defines the disk capacity limit for storing transactions.
-## `0.95` means the Agent can store transactions on disk until `forwarder_storage_max_size_in_bytes`
-## is reached or when the disk mount for `forwarder_storage_path` exceeds 95% of the disk capacity,
+## `0.8` means the Agent can store transactions on disk until `forwarder_storage_max_size_in_bytes`
+## is reached or when the disk mount for `forwarder_storage_path` exceeds 80% of the disk capacity,
 ## whichever is lower.
 #
-# forwarder_storage_max_disk_ratio: 0.95
+# forwarder_storage_max_disk_ratio: 0.8
 
 ## @param forwarder_outdated_file_in_days - int - optional - default: 10
 ## This value specifies how many days the overflow transactions will remain valid before
@@ -553,6 +564,21 @@ api_key:
   #
   # discovery_allowed_failures: 3
 
+  ## @param loader - string - optional - default: python
+  ## Check loader to use. Available loaders:
+  ## - core: (recommended) Uses new corecheck SNMP integration
+  ## - python: Uses legacy python SNMP integration
+  #
+  # loader: core
+
+  ## @param min_collection_interval - number - optional - default: 15
+  ## This changes the collection interval for the check instances created
+  ## from discovered SNMP devices.
+  ## For more information, see:
+  ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+  #
+  # min_collection_interval: 15
+
   ## @param configs - list - required
   ## The actual list of configurations used to discover SNMP devices in various subnets.
   ## Example:
@@ -664,6 +690,15 @@ api_key:
     ## - python: will use python SNMP integration
     #
     # loader: core
+
+    ## @param min_collection_interval - number - optional - default: 15
+    ## This changes the collection interval for the check instances created from
+    ## discovered SNMP devices. It applies to each specific config from `snmp_listener.configs`
+    ## and has precedence over `snmp_listener.min_collection_interval`.
+    ## For more information, see:
+    ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+    #
+    # min_collection_interval: 15
 
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional

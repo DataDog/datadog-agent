@@ -3,6 +3,24 @@
 #include "TargetMachine.h"
 #include <fstream>
 
+bool ShouldUpdateConfig(std::wstring const &inputConfig)
+{
+    // If we find an API key entry in the yaml file, don't do anything
+    std::wregex re(L"^api_key:(.*)");
+    std::match_results<std::wstring::const_iterator> results;
+    if (std::regex_search(inputConfig, results, re))
+    {
+        auto api_key = results[1].str();
+        api_key.erase(api_key.begin(),
+                      std::find_if(api_key.begin(), api_key.end(), [](int ch) { return !std::isspace(ch); }));
+        if (api_key.length() > 0)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool updateYamlConfig(CustomActionData &customActionData)
 {
     std::wstring inputConfig;
@@ -25,19 +43,10 @@ bool updateYamlConfig(CustomActionData &customActionData)
         inputConfig.assign(std::istreambuf_iterator<wchar_t>(inputConfigStream), std::istreambuf_iterator<wchar_t>());
     }
 
-    // If we find an API key entry in the yaml file, don't do anything
-    std::wregex re(L"^api_key:(.*)");
-    std::match_results<std::wstring::const_iterator> results;
-    if (std::regex_search(inputConfig, results, re))
+    if (!ShouldUpdateConfig(inputConfig))
     {
-        auto api_key = results[1].str();
-        api_key.erase(api_key.begin(),
-                      std::find_if(api_key.begin(), api_key.end(), [](int ch) { return !std::isspace(ch); }));
-        if (api_key.length() > 0)
-        {
-            WcaLog(LOGMSG_STANDARD, "API key already present in configuration - not modifying it");
-            return true;
-        }
+        WcaLog(LOGMSG_STANDARD, "API key already present in configuration - not modifying it");
+        return true;
     }
 
     std::vector<std::wstring> failedToReplace;
