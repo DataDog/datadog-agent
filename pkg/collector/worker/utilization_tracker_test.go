@@ -41,7 +41,7 @@ func getWorkerUtilizationExpvar(t *testing.T, name string) float64 {
 }
 
 func newTracker(t *testing.T) UtilizationTracker {
-	ut, err := NewUtilizationTracker("worker", 50*time.Millisecond, 10*time.Millisecond)
+	ut, err := NewUtilizationTracker("worker", 500*time.Millisecond, 100*time.Millisecond)
 	require.Nil(t, err)
 	AssertAsyncWorkerCount(t, 0)
 
@@ -65,27 +65,27 @@ func TestUtilizationTracker(t *testing.T) {
 	// should be a constant zero value
 	require.Equal(t, 0.0, getWorkerUtilizationExpvar(t, "worker"))
 
-	time.Sleep(60 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 	require.Equal(t, 0.0, getWorkerUtilizationExpvar(t, "worker"))
 
 	// Ramp up the expected utilization
 	ut.CheckStarted(false)
 
-	time.Sleep(25 * time.Millisecond)
+	time.Sleep(250 * time.Millisecond)
 	require.True(t, getWorkerUtilizationExpvar(t, "worker") > 0)
 	require.True(t, getWorkerUtilizationExpvar(t, "worker") < 1)
 
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(550 * time.Millisecond)
 	require.Equal(t, 1.0, getWorkerUtilizationExpvar(t, "worker"))
 
 	// Ramp down the expected utilization
 	ut.CheckFinished()
 
-	time.Sleep(25 * time.Millisecond)
+	time.Sleep(250 * time.Millisecond)
 	require.True(t, getWorkerUtilizationExpvar(t, "worker") > 0)
 	require.True(t, getWorkerUtilizationExpvar(t, "worker") < 1)
 
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(550 * time.Millisecond)
 	require.Equal(t, 0.0, getWorkerUtilizationExpvar(t, "worker"))
 }
 
@@ -239,7 +239,7 @@ func TestUtilizationTrackerAccuracy(t *testing.T) {
 		// Every cycle, we should be getting closer and closer to 0.3. The
 		// function below goes from 0.5 initially to ~0.1 at the end of the
 		// iterator.
-		delta := 0.5 - (0.45 * float64(checkIdx) / 10.0)
+		delta := 0.5 - (0.40 * float64(checkIdx) / 10.0)
 
 		time.Sleep(windowSize / 5)
 		require.InDelta(t, getWorkerUtilizationExpvar(t, "worker"), 0.3, delta)
