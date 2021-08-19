@@ -374,7 +374,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	return cfg, nil
 }
 
-// RegisterRuntimeSettings registers settings to be added to the runtime config.
+// initRuntimeSettings registers settings to be added to the runtime config.
 func initRuntimeSettings() {
 	// NOTE: Any settings you want to register should simply be added here
 	var processRuntimeSettings = []settings.RuntimeSetting{
