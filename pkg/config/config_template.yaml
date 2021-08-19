@@ -240,13 +240,13 @@ api_key:
 #
 # forwarder_storage_max_size_in_bytes: 50000000
 
-## @param forwarder_storage_max_disk_ratio - float - optional - default: 0.95
+## @param forwarder_storage_max_disk_ratio - float - optional - default: 0.8
 ## `forwarder_storage_max_disk_ratio` defines the disk capacity limit for storing transactions.
-## `0.95` means the Agent can store transactions on disk until `forwarder_storage_max_size_in_bytes`
-## is reached or when the disk mount for `forwarder_storage_path` exceeds 95% of the disk capacity,
+## `0.8` means the Agent can store transactions on disk until `forwarder_storage_max_size_in_bytes`
+## is reached or when the disk mount for `forwarder_storage_path` exceeds 80% of the disk capacity,
 ## whichever is lower.
 #
-# forwarder_storage_max_disk_ratio: 0.95
+# forwarder_storage_max_disk_ratio: 0.8
 
 ## @param forwarder_outdated_file_in_days - int - optional - default: 10
 ## This value specifies how many days the overflow transactions will remain valid before
@@ -564,6 +564,21 @@ api_key:
   #
   # discovery_allowed_failures: 3
 
+  ## @param loader - string - optional - default: python
+  ## Check loader to use. Available loaders:
+  ## - core: (recommended) Uses new corecheck SNMP integration
+  ## - python: Uses legacy python SNMP integration
+  #
+  # loader: core
+
+  ## @param min_collection_interval - number - optional - default: 15
+  ## This changes the collection interval for the check instances created
+  ## from discovered SNMP devices.
+  ## For more information, see:
+  ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+  #
+  # min_collection_interval: 15
+
   ## @param configs - list - required
   ## The actual list of configurations used to discover SNMP devices in various subnets.
   ## Example:
@@ -675,6 +690,15 @@ api_key:
     ## - python: will use python SNMP integration
     #
     # loader: core
+
+    ## @param min_collection_interval - number - optional - default: 15
+    ## This changes the collection interval for the check instances created from
+    ## discovered SNMP devices. It applies to each specific config from `snmp_listener.configs`
+    ## and has precedence over `snmp_listener.min_collection_interval`.
+    ## For more information, see:
+    ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+    #
+    # min_collection_interval: 15
 
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
