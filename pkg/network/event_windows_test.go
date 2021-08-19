@@ -13,6 +13,7 @@ Protocol tcp Dynamic Port Range
 Start Port      : 49152
 Number of Ports : 16384`
 
+//nolint:misspell
 var frenchOut = `
 Plage de ports dynamique du protocole tcp
 ---------------------------------
