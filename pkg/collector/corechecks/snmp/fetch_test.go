@@ -635,7 +635,7 @@ func Test_fetchValues_errors(t *testing.T) {
 			session.On("Get", []string{"1.1", "2.2"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("get error"))
 			session.On("GetBulk", []string{"1.1", "2.2"}, defaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
 
-			_, err := fetchValues(session, tt.config)
+			_, err := fetchValues(session, &tt.config)
 
 			assert.Equal(t, tt.expectedError, err)
 		})

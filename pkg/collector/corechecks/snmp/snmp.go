@@ -51,7 +51,6 @@ func (c *Check) Run() error {
 		return err
 	}
 
-
 	if c.config.Network != "" {
 		var discoveredDevices []snmpConfig
 		if c.config.TestInstances == 0 {
@@ -85,15 +84,15 @@ func (c *Check) Run() error {
 	return checkErr
 }
 
-func (c *Check) runCheckDeviceWorker(workerId int, jobs <-chan *snmpConfig) {
+func (c *Check) runCheckDeviceWorker(workerID int, jobs <-chan *snmpConfig) {
 	for job := range jobs {
-		log.Warnf("[DEV] worker %d starting collect device %s, tags %s, session %p", workerId, job.ipAddress, job.getDeviceIDTags(), job.session)
+		log.Warnf("[DEV] worker %d starting collect device %s, tags %s, session %p", workerID, job.ipAddress, job.getDeviceIDTags(), job.session)
 		err := c.runCheckDevice(job)
 		if err != nil {
-			log.Warnf("[DEV] worker %d error collect device %s: %s", workerId, job.ipAddress, err)
+			log.Warnf("[DEV] worker %d error collect device %s: %s", workerID, job.ipAddress, err)
 			continue
 		}
-		log.Warnf("[DEV] worker %d done collect device %s ", workerId, job.ipAddress)
+		log.Warnf("[DEV] worker %d done collect device %s ", workerID, job.ipAddress)
 	}
 }
 
@@ -108,12 +107,12 @@ func (c *Check) runCheckDevice(config *snmpConfig) error {
 	collectionTime := timeNow()
 	tags, values, checkErr := c.getValuesAndTags(config, staticTags)
 	if checkErr != nil {
-		c.config.sender.serviceCheck(serviceCheckName, metrics.ServiceCheckCritical, "", tags, checkErr.Error())
+		config.sender.serviceCheck(serviceCheckName, metrics.ServiceCheckCritical, "", tags, checkErr.Error())
 	} else {
-		c.config.sender.serviceCheck(serviceCheckName, metrics.ServiceCheckOK, "", tags, "")
+		config.sender.serviceCheck(serviceCheckName, metrics.ServiceCheckOK, "", tags, "")
 	}
 	if values != nil {
-		c.config.sender.reportMetrics(config.metrics, values, tags)
+		config.sender.reportMetrics(config.metrics, values, tags)
 	}
 
 	if config.collectDeviceMetadata {
@@ -127,10 +126,10 @@ func (c *Check) runCheckDevice(config *snmpConfig) error {
 		// `checkSender.checkTags` are added for metrics, service checks, events only.
 		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
 		deviceMetadataTags := append(copyStrings(tags), config.instanceTags...)
-		c.config.sender.reportNetworkDeviceMetadata(*config, values, deviceMetadataTags, collectionTime, deviceStatus)
+		config.sender.reportNetworkDeviceMetadata(*config, values, deviceMetadataTags, collectionTime, deviceStatus)
 	}
 
-	c.submitTelemetryMetrics(startTime, tags)
+	c.submitTelemetryMetrics(config, startTime, tags)
 	return checkErr
 }
 
@@ -163,7 +162,7 @@ func (c *Check) getValuesAndTags(config *snmpConfig, staticTags []string) ([]str
 	if err != nil {
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to fetch values: %s", err))
 	} else {
-		tags = append(tags, c.sender.getCheckInstanceMetricTags(config.metricTags, valuesStore)...)
+		tags = append(tags, c.config.sender.getCheckInstanceMetricTags(config.metricTags, valuesStore)...)
 	}
 
 	var joinedError error
@@ -196,15 +195,15 @@ func (c *Check) autodetectProfile(config *snmpConfig) error {
 	return nil
 }
 
-func (c *Check) submitTelemetryMetrics(startTime time.Time, tags []string) {
+func (c *Check) submitTelemetryMetrics(config *snmpConfig, startTime time.Time, tags []string) {
 	newTags := append(copyStrings(tags), snmpLoaderTag)
 
-	c.config.sender.gauge("snmp.devices_monitored", float64(1), "", newTags)
+	config.sender.gauge("snmp.devices_monitored", float64(1), "", newTags)
 
 	// SNMP Performance metrics
-	c.config.sender.monotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), "", newTags)
-	c.config.sender.gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), "", newTags)
-	c.config.sender.gauge("datadog.snmp.submitted_metrics", float64(c.config.sender.submittedMetrics), "", newTags)
+	config.sender.monotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), "", newTags)
+	config.sender.gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), "", newTags)
+	config.sender.gauge("datadog.snmp.submitted_metrics", float64(c.config.sender.submittedMetrics), "", newTags)
 }
 
 // Configure configures the snmp checks
