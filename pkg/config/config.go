@@ -529,9 +529,12 @@ func InitConfig(config Config) {
 	// SNMP
 	config.SetKnown("snmp_listener.discovery_interval")
 	config.SetKnown("snmp_listener.allowed_failures")
+	config.SetKnown("snmp_listener.discovery_allowed_failures")
 	config.SetKnown("snmp_listener.collect_device_metadata")
 	config.SetKnown("snmp_listener.workers")
 	config.SetKnown("snmp_listener.configs")
+	config.SetKnown("snmp_listener.loader")
+	config.SetKnown("snmp_listener.min_collection_interval")
 
 	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
 	config.BindEnvAndSetDefault("snmp_traps_config.port", 162)
