@@ -80,7 +80,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/clbanning/mxj v1.8.4
-	github.com/cloudfoundry-community/go-cfclient v0.0.0-20201123235753-4f46d6348a05
+	github.com/cloudfoundry-community/go-cfclient v0.0.0-20210621174645-7773f7e22665
 	github.com/cobaugh/osrelease v0.0.0-20181218015638-a93a0a55a249
 	github.com/containerd/cgroups v0.0.0-20210114181951-8a68de567b68
 	github.com/containerd/containerd v1.5.0-beta.4
