@@ -24,13 +24,13 @@ func TestNetshParse(t *testing.T) {
 	t.Run("english", func(t *testing.T) {
 		low, hi, err := parseNetshOutput(englishOut)
 		require.NoError(t, err)
-		assert.Equal(t, 49152, low)
-		assert.Equal(t, 65535, hi)
+		assert.Equal(t, uint16(49152), low)
+		assert.Equal(t, uint16(65535), hi)
 	})
 	t.Run("french", func(t *testing.T) {
 		low, hi, err := parseNetshOutput(frenchOut)
 		require.NoError(t, err)
-		assert.Equal(t, 49152, low)
-		assert.Equal(t, 65535, hi)
+		assert.Equal(t, uint16(49152), low)
+		assert.Equal(t, uint16(65535), hi)
 	})
 }
