@@ -216,7 +216,7 @@ func (d *snmpDiscovery) deleteService(entityID string, subnet *snmpSubnet) {
 			failure++
 		}
 
-		if d.config.AllowedFailures != -1 && failure >= d.config.AllowedFailures {
+		if d.config.DiscoveryAllowedFailures != -1 && failure >= d.config.DiscoveryAllowedFailures {
 			//d.delService <- svc
 			delete(d.services, entityID)
 			delete(subnet.devices, entityID)
@@ -247,7 +247,6 @@ func (d *snmpDiscovery) getDiscoveredDeviceConfigs() []snmpConfig {
 	return discoveredDevices
 }
 
-
 func (d *snmpDiscovery) getDiscoveredDeviceConfigsTestInstances(testInstances int) []snmpConfig {
 	d.Lock()
 	defer d.Unlock()
@@ -257,7 +256,7 @@ func (d *snmpDiscovery) getDiscoveredDeviceConfigsTestInstances(testInstances in
 			config := device.config // TODO: this is only a shallow copy
 			config.Network = ""
 			config.ipAddress = device.deviceIP
-			config.extraTags = append(copyStrings(config.extraTags), "test_instance:" + strconv.Itoa(i)) // TODO: for testing only
+			config.extraTags = append(copyStrings(config.extraTags), "test_instance:"+strconv.Itoa(i)) // TODO: for testing only
 
 			// TODO: Refactor to avoid duplication of logic with https://github.com/DataDog/datadog-agent/blob/0e88b93d1902eddc1542aa15c41b91fcbeecc588/pkg/collector/corechecks/snmp/config.go#L388
 			config.deviceID, config.deviceIDTags = buildDeviceID(config.getDeviceIDTags())

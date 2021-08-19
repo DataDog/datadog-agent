@@ -26,6 +26,9 @@ var defaultOidBatchSize = 5
 var defaultPort = uint16(161)
 var defaultRetries = 3
 var defaultTimeout = 2
+var defaultWorkers = 10
+var defaultDiscoveryAllowedFailures = 3
+var defaultDiscoveryInterval = 3600
 var subnetTagPrefix = "autodiscovery_subnet"
 
 // Using too high max repetitions might lead to tooBig SNMP error messages.
@@ -72,48 +75,51 @@ type snmpInstanceConfig struct {
 
 	// `network` config is only available in Python SNMP integration
 	// it's added here to raise warning if used with corecheck SNMP integration
-	Network string `yaml:"network_address"`
-
-	TestInstances int `yaml:"test_instances"`
+	TestInstances            int      `yaml:"test_instances"`
+	Network                  string   `yaml:"network_address"`
+	IgnoredIPAddresses       []string `yaml:"ignored_ip_addresses"`
+	DiscoveryInterval        int      `yaml:"discovery_interval"`
+	DiscoveryAllowedFailures int      `yaml:"discovery_allowed_failures"`
+	Workers                  int      `yaml:"workers"`
 }
 
 type snmpConfig struct {
-	session               sessionAPI
-	ipAddress             string
-	port                  uint16
-	communityString       string
-	snmpVersion           string
-	timeout               int
-	retries               int
-	user                  string
-	authProtocol          string
-	authKey               string
-	privProtocol          string
-	privKey               string
-	contextName           string
-	oidConfig             oidConfig
-	metrics               []metricsConfig
-	metricTags            []metricTagConfig
-	oidBatchSize          int
-	bulkMaxRepetitions    uint32
-	profiles              profileDefinitionMap
-	profileTags           []string
-	profile               string
-	profileDef            *profileDefinition
-	extraTags             []string
-	instanceTags          []string
-	collectDeviceMetadata bool
-	deviceID              string
-	deviceIDTags          []string
-	subnet                string
-	autodetectProfile     bool
-	minCollectionInterval time.Duration
-	Network               string
-	Workers               int
-	DiscoveryInterval     int
-	IgnoredIPAddresses    map[string]bool `mapstructure:"ignored_ip_addresses"`
-	AllowedFailures       int
-	TestInstances         int
+	session                  sessionAPI
+	ipAddress                string
+	port                     uint16
+	communityString          string
+	snmpVersion              string
+	timeout                  int
+	retries                  int
+	user                     string
+	authProtocol             string
+	authKey                  string
+	privProtocol             string
+	privKey                  string
+	contextName              string
+	oidConfig                oidConfig
+	metrics                  []metricsConfig
+	metricTags               []metricTagConfig
+	oidBatchSize             int
+	bulkMaxRepetitions       uint32
+	profiles                 profileDefinitionMap
+	profileTags              []string
+	profile                  string
+	profileDef               *profileDefinition
+	extraTags                []string
+	instanceTags             []string
+	collectDeviceMetadata    bool
+	deviceID                 string
+	deviceIDTags             []string
+	subnet                   string
+	autodetectProfile        bool
+	minCollectionInterval    time.Duration
+	Network                  string
+	Workers                  int
+	DiscoveryInterval        int
+	IgnoredIPAddresses       map[string]bool
+	DiscoveryAllowedFailures int
+	TestInstances            int
 }
 
 func (c *snmpConfig) refreshWithProfile(profile string) error {
@@ -256,10 +262,25 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	//	log.Warnf("`network_address` config is not available for corecheck SNMP integration to use autodiscovery. Agent `snmp_listener` config can be used instead: https://docs.datadoghq.com/network_monitoring/devices/setup?tab=snmpv2#autodiscovery")
 	//
 	//}
+
 	c.Network = instance.Network
-	c.Workers = 10
-	c.AllowedFailures = 3
-	c.DiscoveryInterval = 20
+	if instance.Workers == 0 {
+		c.Workers = defaultWorkers
+	} else {
+		c.Workers = instance.Workers
+	}
+
+	if instance.DiscoveryAllowedFailures == 0 {
+		c.DiscoveryAllowedFailures = defaultDiscoveryAllowedFailures
+	} else {
+		c.DiscoveryAllowedFailures = instance.DiscoveryAllowedFailures
+	}
+
+	if instance.DiscoveryInterval == 0 {
+		c.DiscoveryInterval = defaultDiscoveryInterval
+	} else {
+		c.DiscoveryInterval = instance.DiscoveryInterval
+	}
 	c.TestInstances = instance.TestInstances
 
 	if c.ipAddress == "" && c.Network == "" {
