@@ -136,6 +136,8 @@ func (c *Check) runCheckDevice(config *snmpConfig) error {
 		config.sender.reportNetworkDeviceMetadata(config, values, deviceMetadataTags, collectionTime, deviceStatus)
 	}
 
+	time.Sleep(1 * time.Second)  // TODO: Remove me, for testing
+
 	c.submitTelemetryMetrics(config, startTime, tags)
 	return checkErr
 }
