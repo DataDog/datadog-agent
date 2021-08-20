@@ -51,7 +51,7 @@ func (c *Check) Run() error {
 		return err
 	}
 
-	if c.config.Network != "" {
+	if c.config.network != "" {
 		var discoveredDevices []*snmpConfig
 		if c.config.testInstances == 0 {
 			discoveredDevices = c.discovery.getDiscoveredDeviceConfigs(sender)
@@ -61,7 +61,7 @@ func (c *Check) Run() error {
 
 		jobs := make(chan *snmpConfig, len(discoveredDevices))
 
-		for w := 1; w <= c.config.Workers; w++ {
+		for w := 1; w <= c.config.workers; w++ {
 			go c.runCheckDeviceWorker(w, jobs)
 		}
 
@@ -229,8 +229,8 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 		return fmt.Errorf("session configure failed: %s", err)
 	}
 
-	if c.config.Network != "" {
-		log.Warnf("[DEV] Network: %s", c.config.Network)
+	if c.config.network != "" {
+		log.Warnf("[DEV] Network: %s", c.config.network)
 		c.discovery = newSnmpDiscovery(c.config)
 		c.discovery.Start()
 	}

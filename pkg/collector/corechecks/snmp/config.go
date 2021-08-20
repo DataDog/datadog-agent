@@ -119,7 +119,7 @@ type snmpConfig struct {
 	discoveryWorkers         int
 	workers                  int
 	discoveryInterval        int
-	ignoredIPAddresses       []string
+	ignoredIPAddresses       map[string]bool
 	discoveryAllowedFailures int
 	testInstances            int
 	sender                   metricSender
@@ -290,7 +290,13 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	} else {
 		c.discoveryInterval = instance.DiscoveryInterval
 	}
-	c.ignoredIPAddresses = instance.IgnoredIPAddresses
+
+	// TODO: test me
+	c.ignoredIPAddresses = make(map[string]bool, len(instance.IgnoredIPAddresses))
+	for _, ipAddress := range instance.IgnoredIPAddresses {
+		c.ignoredIPAddresses[ipAddress] = true
+	}
+
 	c.testInstances = instance.TestInstances
 
 	if c.ipAddress == "" && c.network == "" {

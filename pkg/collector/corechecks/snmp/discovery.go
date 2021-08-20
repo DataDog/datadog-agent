@@ -108,7 +108,7 @@ func (d *snmpDiscovery) checkDevice(job snmpJob) {
 
 func (d *snmpDiscovery) checkDevices() {
 	subnets := []snmpSubnet{}
-	ipAddr, ipNet, err := net.ParseCIDR(d.config.Network)
+	ipAddr, ipNet, err := net.ParseCIDR(d.config.network)
 	if err != nil {
 		log.Errorf("Couldn't parse SNMP network: %s", err)
 		return
@@ -116,7 +116,7 @@ func (d *snmpDiscovery) checkDevices() {
 
 	startingIP := ipAddr.Mask(ipNet.Mask)
 
-	configHash := d.config.Digest(d.config.Network)
+	configHash := d.config.Digest(d.config.network)
 	cacheKey := fmt.Sprintf("snmp:%s", configHash)
 
 	subnet := snmpSubnet{
@@ -131,12 +131,12 @@ func (d *snmpDiscovery) checkDevices() {
 	//l.loadCache(&subnet)
 
 	jobs := make(chan snmpJob)
-	for w := 0; w < d.config.DiscoveryWorkers; w++ {
+	for w := 0; w < d.config.discoveryWorkers; w++ {
 		go worker(d, jobs)
 	}
 
 	log.Warnf("[DEV] jobs %v", jobs)
-	discoveryTicker := time.NewTicker(time.Duration(d.config.DiscoveryInterval) * time.Second)
+	discoveryTicker := time.NewTicker(time.Duration(d.config.discoveryInterval) * time.Second)
 
 	log.Warnf("[DEV] subnets len: %d", len(subnets))
 
@@ -211,7 +211,7 @@ func (d *snmpDiscovery) deleteService(entityID string, subnet *snmpSubnet) {
 			failure++
 		}
 
-		if d.config.DiscoveryAllowedFailures != -1 && failure >= d.config.DiscoveryAllowedFailures {
+		if d.config.discoveryAllowedFailures != -1 && failure >= d.config.discoveryAllowedFailures {
 			//d.delService <- svc
 			delete(d.services, entityID)
 			delete(subnet.devices, entityID)
@@ -227,7 +227,7 @@ func (d *snmpDiscovery) getDiscoveredDeviceConfigs(sender aggregator.Sender) []*
 	// TODO: store subnetConfig instead of services ?
 	for _, device := range d.services {
 		config := device.config
-		config.Network = ""
+		config.network = ""
 		config.ipAddress = device.deviceIP
 
 		// TODO: Refactor to avoid duplication of logic with https://github.com/DataDog/datadog-agent/blob/0e88b93d1902eddc1542aa15c41b91fcbeecc588/pkg/collector/corechecks/snmp/config.go#L388
@@ -254,7 +254,7 @@ func (d *snmpDiscovery) getDiscoveredDeviceConfigsTestInstances(testInstances in
 	for _, device := range d.services {
 		for i := 0; i < testInstances; i++ {
 			config := device.config // TODO: this is only a shallow copy
-			config.Network = ""
+			config.network = ""
 			config.ipAddress = device.deviceIP
 			config.extraTags = append(copyStrings(config.extraTags), "test_instance:"+strconv.Itoa(i)) // TODO: for testing only
 
