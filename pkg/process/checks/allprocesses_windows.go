@@ -258,45 +258,6 @@ func parseCmdLineArgs(cmdline string) (res []string) {
 		res[i] = syscall.UTF16ToString((*v)[:])
 	}
 	return res
-	//blocks := strings.Split(cmdline, " ")
-	//findCloseQuote := false
-	//donestring := false
-	//var stringInProgress bytes.Buffer
-	//for _, b := range blocks {
-	//	numquotes := strings.Count(b, "\"")
-	//	if numquotes == 0 {
-	//		stringInProgress.WriteString(b)
-	//		if !findCloseQuote {
-	//			donestring = true
-	//		} else {
-	//			stringInProgress.WriteString(" ")
-	//		}
-	//
-	//	} else if numquotes == 1 {
-	//		stringInProgress.WriteString(b)
-	//		if findCloseQuote {
-	//			donestring = true
-	//		} else {
-	//			findCloseQuote = true
-	//			stringInProgress.WriteString(" ")
-	//		}
-	//
-	//	} else if numquotes == 2 {
-	//		stringInProgress.WriteString(b)
-	//		donestring = true
-	//	} else {
-	//		log.Warnf("unexpected quotes in string, giving up (%v)", cmdline)
-	//		return res
-	//	}
-	//
-	//	if donestring {
-	//		res = append(res, stringInProgress.String())
-	//		stringInProgress.Reset()
-	//		findCloseQuote = false
-	//		donestring = false
-	//	}
-	//}
-	//return res
 }
 
 type cachedProcess struct {
