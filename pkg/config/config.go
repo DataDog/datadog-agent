@@ -221,6 +221,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 
+	// Auto exit configuration
+	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
+	config.BindEnvAndSetDefault("auto_exit.noprocess.enabled", false)
+	config.BindEnvAndSetDefault("auto_exit.noprocess.excluded_processes", []string{})
+
 	// The number of commits before expiring a context. The value is 2 to handle
 	// the case where a check miss to send a metric.
 	config.BindEnvAndSetDefault("check_sampler_bucket_commits_count_expiry", 2)
@@ -705,10 +710,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("logs_config.use_http", false)
 	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
 
-	bindEnvAndSetLogsConfigKeys(config, "logs_config.", false)
-	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.", false)
-	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.", false)
-	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.", false)
+	bindEnvAndSetLogsConfigKeys(config, "logs_config.")
+	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
+	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
+	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
@@ -878,7 +883,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 100)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
 	config.BindEnvAndSetDefault("compliance_config.run_path", defaultRunPath)
-	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.", false)
+	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.")
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
@@ -907,7 +912,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.custom_sensitive_words", []string{})
 	config.BindEnvAndSetDefault("runtime_security_config.remote_tagger", true)
 	config.BindEnvAndSetDefault("runtime_security_config.log_patterns", []string{})
-	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.", true)
+	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	config.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
 
 	// Serverless Agent
@@ -1156,7 +1161,7 @@ func GetMultipleEndpoints() (map[string][]string, error) {
 	return getMultipleEndpointsWithConfig(Datadog)
 }
 
-func bindEnvAndSetLogsConfigKeys(config Config, prefix string, v2Api bool) {
+func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
 	config.BindEnv(prefix + "logs_dd_url") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
 	config.BindEnv(prefix + "dd_url")
 	config.BindEnv(prefix + "additional_endpoints")
@@ -1173,7 +1178,7 @@ func bindEnvAndSetLogsConfigKeys(config Config, prefix string, v2Api bool) {
 	config.BindEnvAndSetDefault(prefix+"sender_backoff_max", DefaultLogsSenderBackoffMax)
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_interval", DefaultForwarderRecoveryInterval)
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
-	config.BindEnvAndSetDefault(prefix+"use_v2_api", v2Api)
+	config.BindEnvAndSetDefault(prefix+"use_v2_api", true)
 }
 
 // getDomainPrefix provides the right prefix for agent X.Y.Z

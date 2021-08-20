@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/commands"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/cmd/manager"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
@@ -171,6 +173,14 @@ func runAgent(exit chan struct{}) {
 		cleanupAndExit(1)
 	}
 
+	mainCtx, mainCancel := context.WithCancel(context.Background())
+	defer mainCancel()
+	err = manager.ConfigureAutoExit(mainCtx)
+	if err != nil {
+		log.Criticalf("Unable to configure auto-exit, err: %w", err)
+		cleanupAndExit(1)
+	}
+
 	// Now that the logger is configured log host info
 	hostInfo := host.GetStatusInformation()
 	log.Infof("running on platform: %s", hostInfo.Platform)
@@ -199,7 +209,7 @@ func runAgent(exit chan struct{}) {
 
 	// Initialize system-probe heartbeats
 	sysprobeMonitor, err := heartbeat.NewModuleMonitor(heartbeat.Options{
-		KeysPerDomain:      apicfg.KeysPerDomains(cfg.APIEndpoints),
+		KeysPerDomain:   cfg.KeysPerDomains(cfg.APIEndpoints),
 		SysprobeSocketPath: cfg.SystemProbeAddress,
 		HostName:           cfg.HostName,
 		TagVersion:         Version,
@@ -292,7 +302,6 @@ func runAgent(exit chan struct{}) {
 	}
 
 	for range exit {
-
 	}
 }
 
