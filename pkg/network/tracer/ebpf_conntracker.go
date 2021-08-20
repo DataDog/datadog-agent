@@ -2,7 +2,6 @@
 
 package tracer
 
-import "C"
 import (
 	"context"
 	"errors"

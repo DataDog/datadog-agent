@@ -141,25 +141,4 @@ typedef struct {
     __u16 port;
 } port_binding_t;
 
-typedef struct {
-    __u32 netns;
-    struct flowi4 *fl;
-} ip_route_flow_t;
-
-typedef struct {
-    __u64 saddr_h;
-    __u64 saddr_l;
-    __u64 daddr_h;
-    __u64 daddr_l;
-    __u32 netns;
-    __u16 family;
-} ip_route_dest_t;
-
-typedef struct {
-    __u64 gw_h;
-    __u64 gw_l;
-    __u16 family;
-    __u32 ifindex;
-} ip_route_gateway_t;
-
 #endif

@@ -8,7 +8,6 @@
 
 #include "bpf_helpers.h"
 #include "bpf_endian.h"
-#include "syscalls.h"
 #include "ip.h"
 #include "ipv6.h"
 
