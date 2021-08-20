@@ -643,6 +643,9 @@ int kprobe__sockfd_lookup_light(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // Check if have already a map entry for this pid_fd_t
+    // TODO: This lookup eliminates *4* map operations for existing entries
+    // but can reduce the accuracy of programs relying on socket FDs for
+    // processes with a lot of FD churn
     pid_fd_t key = {
         .pid = pid_tgid >> 32,
         .fd = sockfd,
