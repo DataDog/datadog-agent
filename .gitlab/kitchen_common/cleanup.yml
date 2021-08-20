@@ -11,7 +11,10 @@
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - aws s3 rm s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET --recursive
     - cd $OMNIBUS_PACKAGE_DIR
+    # Remove all deb packages for the pipeline in the pool
     - for deb in $(ls *amd64.deb); do aws s3 rm s3://$DEB_TESTING_S3_BUCKET/pool/d/da/$deb --recursive; done
+    # Remove the datadog-signing-keys package for the pipeline in the pool
+    - aws s3 rm s3://$DEB_TESTING_S3_BUCKET/pool/d/da/datadog-signing-keys_${DD_PIPELINE_ID}.deb
 
 .kitchen_cleanup_azure_common:
   allow_failure: true

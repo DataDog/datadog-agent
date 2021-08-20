@@ -29,7 +29,7 @@ func TestGetTagInfo(t *testing.T) {
 	}
 
 	c := &StaticCollector{}
-	c.ddTagsEnvVar = config.Datadog.GetStringSlice("tags")
+	c.tags = config.Datadog.GetStringSlice("tags")
 
 	result := c.getTagInfo("some_entity_name")
 	assertTagInfoListEqual(t, result, expected)

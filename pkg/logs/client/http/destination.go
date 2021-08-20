@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // ContentType options,
@@ -52,7 +53,7 @@ type Destination struct {
 	nbErrors            int
 	blockedUntil        time.Time
 	protocol            config.IntakeProtocol
-	source              config.IntakeSource
+	origin              config.IntakeOrigin
 }
 
 // NewDestination returns a new Destination.
@@ -87,7 +88,7 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 		climit:              make(chan struct{}, maxConcurrentBackgroundSends),
 		backoff:             policy,
 		protocol:            endpoint.Protocol,
-		source:              endpoint.Source,
+		origin:              endpoint.Origin,
 	}
 }
 
@@ -148,8 +149,9 @@ func (d *Destination) unconditionalSend(payload []byte) (err error) {
 	if d.protocol != "" {
 		req.Header.Set("DD-PROTOCOL", string(d.protocol))
 	}
-	if d.source != "" {
-		req.Header.Set("DD-SOURCE", string(d.source))
+	if d.origin != "" {
+		req.Header.Set("DD-EVP-ORIGIN", string(d.origin))
+		req.Header.Set("DD-EVP-ORIGIN-VERSION", version.AgentVersion)
 	}
 	req = req.WithContext(ctx)
 

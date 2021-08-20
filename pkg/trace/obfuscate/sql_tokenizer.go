@@ -254,11 +254,17 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				return TokenKind(ch), tkn.bytes()
 			}
 		case '-':
-			if tkn.lastChar == '-' {
+			switch {
+			case tkn.lastChar == '-':
 				tkn.advance()
 				return tkn.scanCommentType1("--")
+			case isDigit(tkn.lastChar):
+				tkn.advance()
+				kind, tokenBytes := tkn.scanNumber(false)
+				return kind, append([]byte{'-'}, tokenBytes...)
+			default:
+				return TokenKind(ch), tkn.bytes()
 			}
-			return TokenKind(ch), tkn.bytes()
 		case '#':
 			tkn.advance()
 			return tkn.scanCommentType1("#")
