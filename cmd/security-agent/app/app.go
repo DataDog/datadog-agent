@@ -120,13 +120,13 @@ func init() {
 	SecurityAgentCmd.AddCommand(startCmd)
 }
 
-func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string, intakeTrackType config.IntakeTrackType, intakeSource config.IntakeSource) (*config.Endpoints, *client.DestinationsContext, error) {
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, config.DefaultIntakeProtocol, intakeSource)
+func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string, intakeTrackType config.IntakeTrackType, intakeOrigin config.IntakeOrigin) (*config.Endpoints, *client.DestinationsContext, error) {
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, config.DefaultIntakeProtocol, intakeOrigin)
 	if err != nil {
-		endpoints, err = config.BuildHTTPEndpoints(intakeTrackType, config.DefaultIntakeProtocol, intakeSource)
+		endpoints, err = config.BuildHTTPEndpoints(intakeTrackType, config.DefaultIntakeProtocol, intakeOrigin)
 		if err == nil {
 			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
-			endpoints, err = config.BuildEndpoints(httpConnectivity, intakeTrackType, config.DefaultIntakeProtocol, intakeSource)
+			endpoints, err = config.BuildEndpoints(httpConnectivity, intakeTrackType, config.DefaultIntakeProtocol, intakeOrigin)
 		}
 	}
 
