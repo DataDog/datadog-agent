@@ -9,7 +9,7 @@
 # Image tagging & manifest publication
 #
 
-deploy-a7:
+.deploy-a7-base:
   extends: .docker_job_definition
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
@@ -23,7 +23,7 @@ deploy-a7:
     - export IMG_LINUX_SOURCES="${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7${JMX}-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7${JMX}-arm64"
     - export IMG_WINDOWS_SOURCES="${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7${JMX}-win1809${SERVERCORE}-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7${JMX}-win1909${SERVERCORE}-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7${JMX}-win2004${SERVERCORE}-amd64"
     - if [[ "$SERVERCORE" == "-servercore" ]]; then export IMG_SOURCES="${IMG_WINDOWS_SOURCES}"; else export IMG_SOURCES="${IMG_LINUX_SOURCES},${IMG_WINDOWS_SOURCES}"; fi
-    - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${SERVERCORE}${JMX}"
+    - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}{$IMG_TAG_SUFFIX}${SERVERCORE}${JMX}"
     - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
   parallel:
     matrix:
@@ -33,6 +33,16 @@ deploy-a7:
         SERVERCORE:
           - ""
           - "-servercore"
+
+
+deploy-a7:
+  extends: .deploy-a7-base
+
+
+deploy-a7-rc:
+  extends: .deploy-a7-base
+  variables:
+    IMG_TAG_SUFFIX: -rc
 
 
 deploy-dogstatsd:
