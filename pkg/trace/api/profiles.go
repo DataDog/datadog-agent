@@ -143,7 +143,7 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 		r.Header.Set("DD-API-KEY", apiKey)
 	}
 	defer func() {
-		// Hack for backwards-compatability
+		// Hack for backwards-compatibility
 		// The old v1/input endpoint responded with 200 and as this handler
 		// is just a proxy to existing clients, some clients break on
 		// encountering a 202 response when proxying for the new api/v2/profile endpoints.
