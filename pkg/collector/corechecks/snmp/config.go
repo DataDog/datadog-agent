@@ -228,6 +228,60 @@ func (c *snmpConfig) toString() string {
 	)
 }
 
+func (c *snmpConfig) Copy() *snmpConfig {
+	// TODO: use a separate config for things that do not change e.g. profiles
+	// TODO: convert to deviceConfig instead
+	newConfig := snmpConfig{}
+	newConfig.ipAddress = c.ipAddress
+	newConfig.port = c.port
+	newConfig.communityString = c.communityString
+	newConfig.snmpVersion = c.snmpVersion
+	newConfig.timeout = c.timeout
+	newConfig.retries = c.retries
+	newConfig.user = c.user
+	newConfig.authProtocol = c.authProtocol
+	newConfig.authKey = c.authKey
+	newConfig.privProtocol = c.privProtocol
+	newConfig.privKey = c.privKey
+	newConfig.contextName = c.contextName
+	newConfig.contextName = c.contextName
+	newConfig.oidConfig = c.oidConfig
+	newConfig.metrics = make([]metricsConfig, len(c.metrics))
+	for _, metric := range c.metrics {
+		newConfig.metrics = append(newConfig.metrics, metric)
+	}
+	newConfig.metricTags = make([]metricTagConfig, len(c.metricTags))
+	for _, metricTag := range c.metricTags {
+		newConfig.metricTags = append(newConfig.metricTags, metricTag)
+	}
+	newConfig.oidBatchSize = c.oidBatchSize
+	newConfig.bulkMaxRepetitions = c.bulkMaxRepetitions
+	newConfig.profiles = c.profiles
+	newConfig.profileTags = copyStrings(c.profileTags)
+	newConfig.profile = c.profile  // TODO: does not change
+	newConfig.profileDef = c.profileDef  // copy by ref, content is never changed
+	newConfig.extraTags = copyStrings(c.extraTags)
+	newConfig.instanceTags = copyStrings(c.instanceTags)
+	newConfig.collectDeviceMetadata = c.collectDeviceMetadata
+	newConfig.deviceID = c.deviceID
+
+	newConfig.deviceIDTags             = copyStrings(c.deviceIDTags)
+	newConfig.subnet                   = c.subnet
+	newConfig.autodetectProfile        = c.autodetectProfile
+	newConfig.minCollectionInterval    = c.minCollectionInterval
+
+	// TODO: no need to copy network config for device config
+	newConfig.network                  = c.network
+	newConfig.discoveryWorkers         = c.discoveryWorkers
+	newConfig.workers                  = c.workers
+	newConfig.discoveryInterval        = c.discoveryInterval
+	newConfig.ignoredIPAddresses       = c.ignoredIPAddresses
+	newConfig.discoveryAllowedFailures = c.discoveryAllowedFailures
+	newConfig.testInstances            = c.testInstances
+	newConfig.sender                   = c.sender
+	return &newConfig
+}
+
 func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (*snmpConfig, error) {
 	instance := snmpInstanceConfig{}
 	initConfig := snmpInitConfig{}

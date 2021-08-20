@@ -15,14 +15,13 @@ import (
 
 type snmpDiscovery struct {
 	sync.RWMutex
-	config   *snmpConfig
-	stop     chan bool
-	services map[string]Device
+	config            *snmpConfig
+	stop              chan bool
+	discoveredDevices map[string]Device
 }
 
 // Device implements and store results from the Service interface for the SNMP listener
 type Device struct {
-	//adIdentifier string
 	entityID     string
 	deviceIP     string
 	creationTime integration.CreationTime
@@ -73,10 +72,10 @@ func (d *snmpDiscovery) Start() {
 func (d *snmpDiscovery) checkDevice(job snmpJob) {
 	deviceIP := job.currentIP.String()
 	log.Warnf("[DEV] check Device %s", deviceIP)
-	config := job.subnet.config // TODO: avoid full copy ?
+	config := *job.subnet.config // shallow copy
 	config.ipAddress = deviceIP
 	sess := snmpSession{}
-	err := sess.Configure(config)
+	err := sess.Configure(&config)
 	if err != nil {
 		log.Errorf("Error configure session %s: %v", deviceIP, err)
 		return
@@ -107,7 +106,6 @@ func (d *snmpDiscovery) checkDevice(job snmpJob) {
 }
 
 func (d *snmpDiscovery) checkDevices() {
-	subnets := []snmpSubnet{}
 	ipAddr, ipNet, err := net.ParseCIDR(d.config.network)
 	if err != nil {
 		log.Errorf("Couldn't parse SNMP network: %s", err)
@@ -137,8 +135,6 @@ func (d *snmpDiscovery) checkDevices() {
 
 	log.Warnf("[DEV] jobs %v", jobs)
 	discoveryTicker := time.NewTicker(time.Duration(d.config.discoveryInterval) * time.Second)
-
-	log.Warnf("[DEV] subnets len: %d", len(subnets))
 
 	for {
 		log.Warnf("[DEV] start discovery")
@@ -177,20 +173,19 @@ func (d *snmpDiscovery) checkDevices() {
 func (d *snmpDiscovery) createService(entityID string, subnet *snmpSubnet, deviceIP string, writeCache bool) {
 	d.Lock()
 	defer d.Unlock()
-	if _, present := d.services[entityID]; present {
+	if _, present := d.discoveredDevices[entityID]; present {
 		return
 	}
 	svc := Device{
-		//adIdentifier: subnet.adIdentifier,
 		entityID:     entityID,
 		deviceIP:     deviceIP,
 		creationTime: integration.Before,
-		config:       subnet.config,
+		config:       subnet.config.Copy(),
 	}
-	d.services[entityID] = svc
+	d.discoveredDevices[entityID] = svc
 	subnet.devices[entityID] = deviceIP
 	subnet.deviceFailures[entityID] = 0
-	log.Warnf("[DEV] Create service : %s, services: %v", deviceIP, len(d.services))
+	log.Warnf("[DEV] Create service : %s, discoveredDevices: %v", deviceIP, len(d.discoveredDevices))
 
 	//if writeCache {
 	//	d.writeCache(subnet)
@@ -201,7 +196,7 @@ func (d *snmpDiscovery) createService(entityID string, subnet *snmpSubnet, devic
 func (d *snmpDiscovery) deleteService(entityID string, subnet *snmpSubnet) {
 	d.Lock()
 	defer d.Unlock()
-	if _, present := d.services[entityID]; present {
+	if _, present := d.discoveredDevices[entityID]; present {
 		failure, present := subnet.deviceFailures[entityID]
 		if !present {
 			subnet.deviceFailures[entityID] = 1
@@ -213,7 +208,7 @@ func (d *snmpDiscovery) deleteService(entityID string, subnet *snmpSubnet) {
 
 		if d.config.discoveryAllowedFailures != -1 && failure >= d.config.discoveryAllowedFailures {
 			//d.delService <- svc
-			delete(d.services, entityID)
+			delete(d.discoveredDevices, entityID)
 			delete(subnet.devices, entityID)
 			//d.writeCache(subnet)
 		}
@@ -224,8 +219,8 @@ func (d *snmpDiscovery) getDiscoveredDeviceConfigs(sender aggregator.Sender) []*
 	d.Lock()
 	defer d.Unlock()
 	var discoveredDevices []*snmpConfig
-	// TODO: store config instead of services ?
-	for _, device := range d.services {
+	// TODO: store config instead of discoveredDevices ?
+	for _, device := range d.discoveredDevices {
 		config := device.config
 		config.network = ""
 		config.ipAddress = device.deviceIP
@@ -251,9 +246,9 @@ func (d *snmpDiscovery) getDiscoveredDeviceConfigsTestInstances(testInstances in
 	d.Lock()
 	defer d.Unlock()
 	var discoveredDevices []*snmpConfig
-	for _, device := range d.services {
+	for _, device := range d.discoveredDevices {
 		for i := 0; i < testInstances; i++ {
-			config := device.config // TODO: this is only a shallow copy
+			config := device.config.Copy() // TODO: this is only a shallow copy
 			config.network = ""
 			config.ipAddress = device.deviceIP
 			config.extraTags = append(copyStrings(config.extraTags), "test_instance:"+strconv.Itoa(i)) // TODO: for testing only
@@ -278,8 +273,8 @@ func (d *snmpDiscovery) getDiscoveredDeviceConfigsTestInstances(testInstances in
 
 func newSnmpDiscovery(config *snmpConfig) snmpDiscovery {
 	return snmpDiscovery{
-		services: map[string]Device{},
-		stop:     make(chan bool),
-		config:   config,
+		discoveredDevices: map[string]Device{},
+		stop:              make(chan bool),
+		config:            config,
 	}
 }
