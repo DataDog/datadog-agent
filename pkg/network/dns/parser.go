@@ -190,6 +190,8 @@ func (p *dnsParser) parseAnswerInto(
 		pktInfo.queryType = QueryType(question.Type)
 		if p.collectDNSDomains {
 			pktInfo.question = intern.GetByString(string(question.Name))
+		} else {
+			pktInfo.question = intern.GetByString("")
 		}
 		return nil
 	}
