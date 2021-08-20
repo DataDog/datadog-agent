@@ -94,8 +94,8 @@ type snmpConfig struct {
 
 	// [device] dynamic configs (for autodiscovery)
 	ipAddress    string
-	deviceID     string
-	deviceIDTags []string
+	deviceID     string   // TODO: move to deviceCheck
+	deviceIDTags []string // TODO: move to deviceCheck
 
 	// [device] static configs
 	port            uint16
@@ -111,13 +111,13 @@ type snmpConfig struct {
 	contextName     string
 
 	// [device] dynamic profile configs (can be changed with profile refresh)
-	autodetectProfile bool
-	oidConfig         oidConfig
-	metrics           []metricsConfig
-	metricTags        []metricTagConfig
-	profileTags       []string // tags created from current profile
-	profile           string
-	profileDef        *profileDefinition
+	autodetectProfile bool               // TODO: move to deviceCheck
+	oidConfig         oidConfig          // TODO: move to deviceCheck
+	metrics           []metricsConfig    // TODO: move to deviceCheck
+	metricTags        []metricTagConfig  // TODO: move to deviceCheck
+	profileTags       []string           // tags created from current profile // TODO: move to deviceCheck
+	profile           string             // TODO: move to deviceCheck
+	profileDef        *profileDefinition // TODO: move to deviceCheck
 
 	// [integration instance] performance settings
 	oidBatchSize       int
