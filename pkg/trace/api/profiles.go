@@ -136,12 +136,21 @@ type multiTransport struct {
 	keys    []string
 }
 
-func (m *multiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
 	setTarget := func(r *http.Request, u *url.URL, apiKey string) {
 		r.Host = u.Host
 		r.URL = u
 		r.Header.Set("DD-API-KEY", apiKey)
 	}
+	defer func() {
+		// Hack for backwards-compatability
+		// The old v1/input endpoint responded with 200 and as this handler
+		// is just a proxy to existing clients, some clients break on
+		// encountering a 202 response when proxying for the new api/v2/profile endpoints.
+		if rresp != nil && rresp.StatusCode == http.StatusAccepted {
+			rresp.StatusCode = http.StatusOK
+		}
+	}()
 	if len(m.targets) == 1 {
 		setTarget(req, m.targets[0], m.keys[0])
 		return m.rt.RoundTrip(req)
@@ -150,10 +159,6 @@ func (m *multiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	var (
-		rresp *http.Response
-		rerr  error
-	)
 	for i, u := range m.targets {
 		newreq := req.Clone(req.Context())
 		newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))

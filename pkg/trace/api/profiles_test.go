@@ -187,6 +187,19 @@ func TestProfileProxyHandler(t *testing.T) {
 		}
 	})
 
+	t.Run("proxy_code", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			w.WriteHeader(http.StatusAccepted)
+		}))
+		defer mockConfig("apm_config.profiling_dd_url", srv.URL)()
+		req, _ := http.NewRequest("POST", "/some/path", nil)
+		receiver := newTestReceiverFromConfig(newTestReceiverConfig())
+		rec := httptest.NewRecorder()
+		receiver.profileProxyHandler().ServeHTTP(rec, req)
+		resp := rec.Result()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
 	t.Run("ok_fargate", func(t *testing.T) {
 		var called bool
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
