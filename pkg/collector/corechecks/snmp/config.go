@@ -73,7 +73,7 @@ type snmpInstanceConfig struct {
 	MinCollectionInterval      int    `yaml:"min_collection_interval"`
 	ExtraMinCollectionInterval Number `yaml:"extra_min_collection_interval"`
 
-	// `network` subnetConfig is only available in Python SNMP integration
+	// `network` config is only available in Python SNMP integration
 	// it's added here to raise warning if used with corecheck SNMP integration
 	TestInstances            int      `yaml:"test_instances"`
 	Network                  string   `yaml:"network_address"`
@@ -155,7 +155,7 @@ func (c *snmpConfig) addUptimeMetric() {
 
 // getStaticTags return static tags built from configuration
 // warning: changing getStaticTags logic might lead to different deviceID
-// getStaticTags does not contain tags from instance[].tags subnetConfig
+// getStaticTags does not contain tags from instance[].tags config
 func (c *snmpConfig) getStaticTags() []string {
 	tags := []string{"snmp_device:" + c.ipAddress}
 	tags = append(tags, c.extraTags...)
@@ -262,7 +262,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	}
 
 	//if instance.network != "" {
-	//	log.Warnf("`network_address` subnetConfig is not available for corecheck SNMP integration to use autodiscovery. Agent `snmp_listener` subnetConfig can be used instead: https://docs.datadoghq.com/network_monitoring/devices/setup?tab=snmpv2#autodiscovery")
+	//	log.Warnf("`network_address` config is not available for corecheck SNMP integration to use autodiscovery. Agent `snmp_listener` config can be used instead: https://docs.datadoghq.com/network_monitoring/devices/setup?tab=snmpv2#autodiscovery")
 	//
 	//}
 
@@ -301,7 +301,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 
 	if c.ipAddress == "" && c.network == "" {
 		// TODO: TEST ME
-		return nil, fmt.Errorf("ip_address or network subnetConfig must be provided")
+		return nil, fmt.Errorf("ip_address or network config must be provided")
 	}
 
 	if c.port == 0 {
@@ -385,7 +385,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	// Profile Configs
 	var profiles profileDefinitionMap
 	if len(initConfig.Profiles) > 0 {
-		// TODO: [PERFORMANCE] Load init subnetConfig custom profiles once for all integrations
+		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations
 		//   There are possibly multiple init configs
 		customProfiles, err := loadProfiles(initConfig.Profiles)
 		if err != nil {

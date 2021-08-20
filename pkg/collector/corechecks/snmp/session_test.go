@@ -38,7 +38,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			expectedError: fmt.Errorf("an authentication method needs to be provided"),
 		},
 		{
-			name: "valid v1 subnetConfig",
+			name: "valid v1 config",
 			config: &snmpConfig{
 				ipAddress:       "1.2.3.4",
 				port:            uint16(1234),
@@ -55,7 +55,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			expectedMsgFlags:  gosnmp.NoAuthNoPriv,
 		},
 		{
-			name: "valid default v2 subnetConfig",
+			name: "valid default v2 config",
 			config: &snmpConfig{
 				ipAddress:       "1.2.3.4",
 				port:            uint16(1234),
@@ -71,7 +71,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			expectedMsgFlags:  gosnmp.NoAuthNoPriv,
 		},
 		{
-			name: "valid v2 subnetConfig",
+			name: "valid v2 config",
 			config: &snmpConfig{
 				ipAddress:       "1.2.3.4",
 				port:            uint16(1234),
@@ -87,7 +87,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			expectedMsgFlags:  gosnmp.NoAuthNoPriv,
 		},
 		{
-			name: "valid v2c subnetConfig",
+			name: "valid v2c config",
 			config: &snmpConfig{
 				ipAddress:       "1.2.3.4",
 				port:            uint16(1234),
@@ -103,7 +103,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			expectedMsgFlags:  gosnmp.NoAuthNoPriv,
 		},
 		{
-			name: "valid v3 AuthPriv subnetConfig",
+			name: "valid v3 AuthPriv config",
 			config: &snmpConfig{
 				ipAddress:    "1.2.3.4",
 				port:         uint16(1234),
@@ -132,7 +132,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			},
 		},
 		{
-			name: "valid v3 AuthNoPriv subnetConfig",
+			name: "valid v3 AuthNoPriv config",
 			config: &snmpConfig{
 				ipAddress:    "1.2.3.4",
 				port:         uint16(1234),
@@ -199,7 +199,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 				oidBatchSize:    100,
 			},
 			expectedVersion: gosnmp.Version1,
-			expectedError:   fmt.Errorf("subnetConfig oidBatchSize (100) cannot be higher than gosnmp.MaxOids: 60"),
+			expectedError:   fmt.Errorf("config oidBatchSize (100) cannot be higher than gosnmp.MaxOids: 60"),
 		},
 	}
 	for _, tt := range tests {

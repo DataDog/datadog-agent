@@ -18,11 +18,11 @@ type symbolConfig struct {
 type metricTagConfig struct {
 	Tag string `yaml:"tag"`
 
-	// Table subnetConfig
+	// Table config
 	Index  uint         `yaml:"index"`
 	Column symbolConfig `yaml:"column"`
 
-	// Symbol subnetConfig
+	// Symbol config
 	OID  string `yaml:"OID"`
 	Name string `yaml:"symbol"`
 
@@ -67,14 +67,14 @@ type metricsConfig struct {
 	Options    metricsConfigOption `yaml:"options"`
 }
 
-// getTags retrieve tags using the metric subnetConfig and values
+// getTags retrieve tags using the metric config and values
 func (m *metricsConfig) getTags(fullIndex string, values *resultValueStore) []string {
 	var rowTags []string
 	indexes := strings.Split(fullIndex, ".")
 	for _, metricTag := range m.MetricTags {
 		// get tag using `index` field
 		if metricTag.Index > 0 {
-			index := metricTag.Index - 1 // `index` metric subnetConfig is 1-based
+			index := metricTag.Index - 1 // `index` metric config is 1-based
 			if index >= uint(len(indexes)) {
 				log.Debugf("error getting tags. index `%d` not found in indexes `%v`", metricTag.Index, indexes)
 				continue

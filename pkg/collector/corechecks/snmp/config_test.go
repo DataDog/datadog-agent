@@ -309,7 +309,7 @@ func TestIPAddressConfiguration(t *testing.T) {
 ip_address:
 `)
 	err := check.Configure(rawInstanceConfig, []byte(``), "test")
-	assert.EqualError(t, err, "build subnetConfig failed: ip_address or network subnetConfig must be provided")
+	assert.EqualError(t, err, "build config failed: ip_address or network config must be provided")
 }
 
 func TestPortConfiguration(t *testing.T) {
@@ -351,7 +351,7 @@ community_string: abc
 	assert.Nil(t, err)
 	assert.Equal(t, 5, check.config.oidBatchSize)
 
-	// TEST Instance subnetConfig batch size
+	// TEST Instance config batch size
 	check = Check{}
 	// language=yaml
 	rawInstanceConfig = []byte(`
@@ -363,7 +363,7 @@ oid_batch_size: 10
 	assert.Nil(t, err)
 	assert.Equal(t, 10, check.config.oidBatchSize)
 
-	// TEST Init subnetConfig batch size
+	// TEST Init config batch size
 	check = Check{}
 	// language=yaml
 	rawInstanceConfig = []byte(`
@@ -378,7 +378,7 @@ oid_batch_size: 15
 	assert.Nil(t, err)
 	assert.Equal(t, 15, check.config.oidBatchSize)
 
-	// TEST Instance & Init subnetConfig batch size
+	// TEST Instance & Init config batch size
 	check = Check{}
 	// language=yaml
 	rawInstanceConfig = []byte(`
@@ -408,7 +408,7 @@ community_string: abc
 	assert.Nil(t, err)
 	assert.Equal(t, uint32(10), check.config.bulkMaxRepetitions)
 
-	// TEST Instance subnetConfig batch size
+	// TEST Instance config batch size
 	check = Check{}
 	// language=yaml
 	rawInstanceConfig = []byte(`
@@ -420,7 +420,7 @@ bulk_max_repetitions: 10
 	assert.Nil(t, err)
 	assert.Equal(t, uint32(10), check.config.bulkMaxRepetitions)
 
-	// TEST Init subnetConfig batch size
+	// TEST Init config batch size
 	check = Check{}
 	// language=yaml
 	rawInstanceConfig = []byte(`
@@ -435,7 +435,7 @@ bulk_max_repetitions: 15
 	assert.Nil(t, err)
 	assert.Equal(t, uint32(15), check.config.bulkMaxRepetitions)
 
-	// TEST Instance & Init subnetConfig batch size
+	// TEST Instance & Init config batch size
 	check = Check{}
 	// language=yaml
 	rawInstanceConfig = []byte(`
@@ -462,7 +462,7 @@ bulk_max_repetitions: -5
 	// language=yaml
 	rawInitConfig = []byte(``)
 	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
-	assert.EqualError(t, err, "build subnetConfig failed: bulk max repetition must be a positive integer. Invalid value: -5")
+	assert.EqualError(t, err, "build config failed: bulk max repetition must be a positive integer. Invalid value: -5")
 }
 
 func TestGlobalMetricsConfigurations(t *testing.T) {
@@ -740,7 +740,7 @@ func Test_Configure_invalidYaml(t *testing.T) {
 			rawInstanceConfig: []byte(``),
 			// language=yaml
 			rawInitConfig: []byte(`::x`),
-			expectedErr:   "build subnetConfig failed: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!str `::x` into snmp.snmpInitConfig",
+			expectedErr:   "build config failed: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!str `::x` into snmp.snmpInitConfig",
 		},
 		{
 			name: "invalid rawInstanceConfig",
@@ -1055,7 +1055,7 @@ ip_address: 1.2.3.4
 min_collection_interval: -10
 `),
 			expectedInterval: 0,
-			expectedErr:      "build subnetConfig failed: min collection interval must be > 0, but got: -10",
+			expectedErr:      "build config failed: min collection interval must be > 0, but got: -10",
 		},
 	}
 	for _, tt := range tests {

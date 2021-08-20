@@ -30,7 +30,7 @@ func getValueFromPDU(pduVariable gosnmp.SnmpPDU) (string, snmpValueType, error) 
 			// https://github.com/etingof/pyasn1/blob/db8f1a7930c6b5826357646746337dafc983f953/pyasn1/type/univ.py#L950-L953
 			// hexifying like pysnmp prettyPrint might lead to unpredictable results since `[]byte` might or might not have
 			// elements outside of 32-126 range
-			// An alternative solution is to explicitly force the conversion to specific type using profile subnetConfig.
+			// An alternative solution is to explicitly force the conversion to specific type using profile config.
 			value = fmt.Sprintf("%#x", bytesValue)
 		} else {
 			value = string(bytesValue)

@@ -29,7 +29,7 @@ type Device struct {
 	config       *snmpConfig
 }
 type snmpSubnet struct {
-	subnetConfig   *snmpConfig
+	config         *snmpConfig
 	startingIP     net.IP
 	network        net.IPNet
 	cacheKey       string
@@ -73,7 +73,7 @@ func (d *snmpDiscovery) Start() {
 func (d *snmpDiscovery) checkDevice(job snmpJob) {
 	deviceIP := job.currentIP.String()
 	log.Warnf("[DEV] check Device %s", deviceIP)
-	config := job.subnet.subnetConfig // TODO: avoid full copy ?
+	config := job.subnet.config // TODO: avoid full copy ?
 	config.ipAddress = deviceIP
 	sess := snmpSession{}
 	err := sess.Configure(config)
@@ -81,7 +81,7 @@ func (d *snmpDiscovery) checkDevice(job snmpJob) {
 		log.Errorf("Error configure session %s: %v", deviceIP, err)
 		return
 	}
-	entityID := job.subnet.subnetConfig.Digest(deviceIP)
+	entityID := job.subnet.config.Digest(deviceIP)
 	if err := sess.Connect(); err != nil {
 		log.Debugf("SNMP connect to %s error: %v", deviceIP, err)
 		d.deleteService(entityID, job.subnet)
@@ -120,7 +120,7 @@ func (d *snmpDiscovery) checkDevices() {
 	cacheKey := fmt.Sprintf("snmp:%s", configHash)
 
 	subnet := snmpSubnet{
-		subnetConfig:   d.config,
+		config:         d.config,
 		startingIP:     startingIP,
 		network:        *ipNet,
 		cacheKey:       cacheKey,
@@ -147,7 +147,7 @@ func (d *snmpDiscovery) checkDevices() {
 		copy(startingIP, subnet.startingIP)
 		for currentIP := startingIP; subnet.network.Contains(currentIP); incrementIP(currentIP) {
 
-			if ignored := subnet.subnetConfig.IsIPIgnored(currentIP); ignored {
+			if ignored := subnet.config.IsIPIgnored(currentIP); ignored {
 				continue
 			}
 
@@ -185,7 +185,7 @@ func (d *snmpDiscovery) createService(entityID string, subnet *snmpSubnet, devic
 		entityID:     entityID,
 		deviceIP:     deviceIP,
 		creationTime: integration.Before,
-		config:       subnet.subnetConfig,
+		config:       subnet.config,
 	}
 	d.services[entityID] = svc
 	subnet.devices[entityID] = deviceIP
@@ -224,7 +224,7 @@ func (d *snmpDiscovery) getDiscoveredDeviceConfigs(sender aggregator.Sender) []*
 	d.Lock()
 	defer d.Unlock()
 	var discoveredDevices []*snmpConfig
-	// TODO: store subnetConfig instead of services ?
+	// TODO: store config instead of services ?
 	for _, device := range d.services {
 		config := device.config
 		config.network = ""

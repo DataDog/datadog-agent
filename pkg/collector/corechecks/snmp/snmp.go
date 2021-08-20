@@ -26,7 +26,7 @@ var timeNow = time.Now
 
 //var sessionFactory = createSession
 //
-//func createSession(subnetConfig snmpConfig) (sessionAPI, error) {
+//func createSession(config snmpConfig) (sessionAPI, error) {
 //	var s sessionAPI
 //	s = &snmpSession{}
 //	err := s.Configure(snmpConfig{})
@@ -68,13 +68,13 @@ func (c *Check) Run() error {
 		for i := range discoveredDevices {
 			config := discoveredDevices[i]
 			log.Warnf("[DEV] schedule device collection: %s, tags: %v", config.ipAddress, config.getDeviceIDTags())
-			//checkErr = c.runCheckDevice(subnetConfig)
+			//checkErr = c.runCheckDevice(config)
 			jobs <- config
 		}
 		close(jobs)
 
 	} else {
-		// TODO: sender submittedMetrics state, so need to be per subnetConfig/device level
+		// TODO: sender submittedMetrics state, so need to be per config/device level
 		c.config.sender = metricSender{sender: sender}
 		checkErr = c.runCheckDevice(c.config)
 	}
@@ -174,7 +174,7 @@ func (c *Check) getValuesAndTags(config *snmpConfig, staticTags []string) ([]str
 
 func (c *Check) autodetectProfile(config *snmpConfig) error {
 	// Try to detect profile using device sysobjectid
-	// TODO: use per device subnetConfig?
+	// TODO: use per device config?
 	if config.autodetectProfile {
 		sysObjectID, err := fetchSysObjectID(config.session)
 		if err != nil {
@@ -218,7 +218,7 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 
 	config, err := buildConfig(rawInstance, rawInitConfig)
 	if err != nil {
-		return fmt.Errorf("build subnetConfig failed: %s", err)
+		return fmt.Errorf("build config failed: %s", err)
 	}
 
 	log.Debugf("SNMP configuration: %s", config.toString())
