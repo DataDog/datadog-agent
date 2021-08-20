@@ -38,7 +38,7 @@ func profilingEndpoints(apiKey string) (urls []*url.URL, apiKeys []string, err e
 		main = v
 		if strings.HasSuffix(main, profilingV1EndpointSuffix) {
 			log.Warnf("The configured url %s for apm_config.profiling_dd_url is deprecated. "+
-				" The update endpoint path is /api/v2/profile.", v)
+				"The updated endpoint path is /api/v2/profile.", v)
 		}
 	} else if site := config.Datadog.GetString("site"); site != "" {
 		main = fmt.Sprintf(profilingURLTemplate, site)
