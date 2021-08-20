@@ -115,13 +115,13 @@ type snmpConfig struct {
 	subnet                   string
 	autodetectProfile        bool
 	minCollectionInterval    time.Duration
-	Network                  string
-	DiscoveryWorkers         int
-	Workers                  int
-	DiscoveryInterval        int
-	IgnoredIPAddresses       map[string]bool
-	DiscoveryAllowedFailures int
-	TestInstances            int
+	network                  string
+	discoveryWorkers         int
+	workers                  int
+	discoveryInterval        int
+	ignoredIPAddresses       []string
+	discoveryAllowedFailures int
+	testInstances            int
 	sender                   metricSender
 }
 
@@ -189,8 +189,8 @@ func (c *snmpConfig) Digest(address string) string {
 	//h.Write([]byte(c.loader))                  //nolint:errcheck
 
 	// Sort the addresses to get a stable digest
-	addresses := make([]string, 0, len(c.IgnoredIPAddresses))
-	for ip := range c.IgnoredIPAddresses {
+	addresses := make([]string, 0, len(c.ignoredIPAddresses))
+	for ip := range c.ignoredIPAddresses {
 		addresses = append(addresses, ip)
 	}
 	sort.Strings(addresses)
@@ -201,10 +201,10 @@ func (c *snmpConfig) Digest(address string) string {
 	return strconv.FormatUint(h.Sum64(), 16)
 }
 
-// IsIPIgnored checks the given IP against IgnoredIPAddresses
+// IsIPIgnored checks the given IP against ignoredIPAddresses
 func (c *snmpConfig) IsIPIgnored(ip net.IP) bool {
 	ipString := ip.String()
-	_, present := c.IgnoredIPAddresses[ipString]
+	_, present := c.ignoredIPAddresses[ipString]
 	return present
 }
 
@@ -261,38 +261,39 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		c.extraTags = strings.Split(instance.ExtraTags, ",")
 	}
 
-	//if instance.Network != "" {
+	//if instance.network != "" {
 	//	log.Warnf("`network_address` subnetConfig is not available for corecheck SNMP integration to use autodiscovery. Agent `snmp_listener` subnetConfig can be used instead: https://docs.datadoghq.com/network_monitoring/devices/setup?tab=snmpv2#autodiscovery")
 	//
 	//}
 
-	c.Network = instance.Network
+	c.network = instance.Network
 	if instance.DiscoveryWorkers == 0 {
-		c.DiscoveryWorkers = defaultDiscoveryWorkers
+		c.discoveryWorkers = defaultDiscoveryWorkers
 	} else {
-		c.DiscoveryWorkers = instance.DiscoveryWorkers
+		c.discoveryWorkers = instance.DiscoveryWorkers
 	}
 
 	if instance.Workers == 0 {
-		c.Workers = defaultWorkers
+		c.workers = defaultWorkers
 	} else {
-		c.Workers = instance.Workers
+		c.workers = instance.Workers
 	}
 
 	if instance.DiscoveryAllowedFailures == 0 {
-		c.DiscoveryAllowedFailures = defaultDiscoveryAllowedFailures
+		c.discoveryAllowedFailures = defaultDiscoveryAllowedFailures
 	} else {
-		c.DiscoveryAllowedFailures = instance.DiscoveryAllowedFailures
+		c.discoveryAllowedFailures = instance.DiscoveryAllowedFailures
 	}
 
 	if instance.DiscoveryInterval == 0 {
-		c.DiscoveryInterval = defaultDiscoveryInterval
+		c.discoveryInterval = defaultDiscoveryInterval
 	} else {
-		c.DiscoveryInterval = instance.DiscoveryInterval
+		c.discoveryInterval = instance.DiscoveryInterval
 	}
-	c.TestInstances = instance.TestInstances
+	c.ignoredIPAddresses = instance.IgnoredIPAddresses
+	c.testInstances = instance.TestInstances
 
-	if c.ipAddress == "" && c.Network == "" {
+	if c.ipAddress == "" && c.network == "" {
 		// TODO: TEST ME
 		return nil, fmt.Errorf("ip_address or network subnetConfig must be provided")
 	}

@@ -53,10 +53,10 @@ func (c *Check) Run() error {
 
 	if c.config.Network != "" {
 		var discoveredDevices []*snmpConfig
-		if c.config.TestInstances == 0 {
+		if c.config.testInstances == 0 {
 			discoveredDevices = c.discovery.getDiscoveredDeviceConfigs(sender)
 		} else {
-			discoveredDevices = c.discovery.getDiscoveredDeviceConfigsTestInstances(c.config.TestInstances, sender)
+			discoveredDevices = c.discovery.getDiscoveredDeviceConfigsTestInstances(c.config.testInstances, sender)
 		}
 
 		jobs := make(chan *snmpConfig, len(discoveredDevices))
