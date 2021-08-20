@@ -1048,6 +1048,11 @@ api_key:
   #
   # expvar_port: 6062
 
+  ## @param config_port - string - optional - default: 6162
+  ## Port for configuring runtime settings for the process Agent.
+  #
+  # cmd_port: 6162
+
   ## @param log_file - string - optional
   ## The full path to the file where process Agent logs are written.
   #

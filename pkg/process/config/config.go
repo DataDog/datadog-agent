@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"net"
 	"net/http"
 	"net/url"
@@ -275,6 +276,8 @@ func loadConfigIfExists(path string) error {
 // NewAgentConfig returns an AgentConfig using a configuration file. It can be nil
 // if there is no file available. In this case we'll configure only via environment.
 func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) (*AgentConfig, error) {
+	initRuntimeSettings()
+
 	var err error
 
 	// For Agent 6 we will have a YAML config file to use.
@@ -371,6 +374,19 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	return cfg, nil
 }
 
+// initRuntimeSettings registers settings to be added to the runtime config.
+func initRuntimeSettings() {
+	// NOTE: Any settings you want to register should simply be added here
+	var processRuntimeSettings = []settings.RuntimeSetting{
+		settings.LogLevelRuntimeSetting{},
+	}
+
+	// Before we begin listening, register runtime settings
+	for _, setting := range processRuntimeSettings {
+		_ = log.Warn(settings.RegisterRuntimeSetting(setting))
+	}
+}
+
 // getContainerHostType uses the fargate library to detect container environment and returns the protobuf version of it
 func getContainerHostType() model.ContainerHostType {
 	switch fargate.GetOrchestrator(context.TODO()) {
@@ -394,6 +410,7 @@ func loadEnvVariables() {
 		{"DD_PROCESS_AGENT_REMOTE_TAGGER", "process_config.remote_tagger"},
 		{"DD_PROCESS_AGENT_MAX_PER_MESSAGE", "process_config.max_per_message"},
 		{"DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "process_config.max_ctr_procs_per_message"},
+		{"DD_PROCESS_AGENT_CMD_PORT", "process_config.cmd_port"},
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},

@@ -10,8 +10,13 @@ import (
 	"os"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common/commands"
 	"github.com/DataDog/datadog-agent/cmd/manager"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -54,13 +59,38 @@ var (
 	GoVersion string
 )
 
-var rootCmd = &cobra.Command{
-	Run: func(cmd *cobra.Command, args []string) {
-		exit := make(chan struct{})
+var (
+	rootCmd = &cobra.Command{
+		Run: func(cmd *cobra.Command, args []string) {
+			exit := make(chan struct{})
 
-		// Invoke the Agent
-		runAgent(exit)
-	},
+			// Invoke the Agent
+			runAgent(exit)
+		},
+	}
+
+	configCommand = commands.Config(getSettingsClient)
+)
+
+func getSettingsClient() (settings.Client, error) {
+	// Set up the config in case the cmd_port was specified
+	_, err := config.NewAgentConfig(loggerName, opts.configPath, opts.sysProbeConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
+	httpClient := apiutil.GetClient(false)
+	ipcAddress, err := ddconfig.GetIPCAddress()
+	ipcAddressWithPort := fmt.Sprintf("http://%s:%d/config", ipcAddress, ddconfig.Datadog.GetInt("process_config.cmd_port"))
+	if err != nil {
+		return nil, err
+	}
+	settingsClient := settingshttp.NewClient(httpClient, ipcAddressWithPort, "process-agent")
+	return settingsClient, nil
+}
+
+func init() {
+	rootCmd.AddCommand(configCommand)
 }
 
 // fixDeprecatedFlags modifies os.Args so that non-posix flags are converted to posix flags
@@ -251,6 +281,11 @@ func runAgent(exit chan struct{}) {
 		err := http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.ProcessExpVarPort), nil)
 		if err != nil && err != http.ErrServerClosed {
 			log.Errorf("Error creating expvar server on port %v: %v", cfg.ProcessExpVarPort, err)
+		}
+
+		err = api.StartServer()
+		if err != nil {
+			_ = log.Error(err)
 		}
 	}()
 
