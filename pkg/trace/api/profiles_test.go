@@ -93,18 +93,10 @@ func printEndpoints(endpoints []*traceconfig.Endpoint) []string {
 
 func TestProfilingEndpoints(t *testing.T) {
 	t.Run("single", func(t *testing.T) {
-		defer mockConfig("apm_config.profiling_dd_url", "https://intake.profile.datadoghq.fr")()
+		defer mockConfig("apm_config.profiling_dd_url", "https://intake.profile.datadoghq.fr/api/v2/profile")()
 		urls, keys, err := profilingEndpoints("test_api_key")
 		assert.NoError(t, err)
 		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.fr/api/v2/profile"))
-		assert.Equal(t, keys, []string{"test_api_key"})
-	})
-
-	t.Run("single-old-fmt", func(t *testing.T) {
-		defer mockConfig("apm_config.profiling_dd_url", "https://intake.profile.datadoghq.com/v1/input")()
-		urls, keys, err := profilingEndpoints("test_api_key")
-		assert.NoError(t, err)
-		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.com/api/v2/profile"))
 		assert.Equal(t, keys, []string{"test_api_key"})
 	})
 
@@ -125,7 +117,7 @@ func TestProfilingEndpoints(t *testing.T) {
 
 	t.Run("multiple", func(t *testing.T) {
 		defer mockConfigMap(map[string]interface{}{
-			"apm_config.profiling_dd_url": "https://intake.profile.datadoghq.jp",
+			"apm_config.profiling_dd_url": "https://intake.profile.datadoghq.jp/api/v2/profile",
 			"apm_config.profiling_additional_endpoints": map[string][]string{
 				"https://ddstaging.datadoghq.com": {"api_key_1", "api_key_2"},
 				"https://dd.datad0g.com":          {"api_key_3"},

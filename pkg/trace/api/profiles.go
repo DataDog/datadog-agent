@@ -25,6 +25,8 @@ const (
 	profilingURLTemplate = "https://intake.profile.%s/api/v2/profile"
 	// profilingURLDefault specifies the default intake API URL.
 	profilingURLDefault = "https://intake.profile.datadoghq.com/api/v2/profile"
+	// profilingV1EndpointSuffix suffix identifying a user-configured V1 endpoint
+	profilingV1EndpointSuffix = "v1/input"
 )
 
 // profilingEndpoints returns the profiling intake urls and their corresponding
@@ -34,12 +36,9 @@ func profilingEndpoints(apiKey string) (urls []*url.URL, apiKeys []string, err e
 	main := profilingURLDefault
 	if v := config.Datadog.GetString("apm_config.profiling_dd_url"); v != "" {
 		main = v
-		if strings.HasSuffix(main, "/v1/input") {
-			// backwards compatibility with v1 intake
-			main = strings.Replace(main, "/v1/input", "/api/v2/profile", 1)
-		} else if !strings.HasSuffix(main, "/api/v2/profile") {
-			// handle user only specifying base intake url
-			main += "/api/v2/profile"
+		if strings.HasSuffix(main, profilingV1EndpointSuffix) {
+			log.Warnf("The configured url %s for apm_config.profiling_dd_url is deprecated. "+
+				" The update endpoint path is /api/v2/profile.", v)
 		}
 	} else if site := config.Datadog.GetString("site"); site != "" {
 		main = fmt.Sprintf(profilingURLTemplate, site)

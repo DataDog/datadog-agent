@@ -8,6 +8,4 @@
 ---
 upgrade:
   - |
-    upgrade profiling intake to v2 format, users can continue specifying
-    `apm_config.profiling_dd_url` with the full path as before or they can
-    simply provide a base url (e.g. `https://intake.profile.datadoghq.com`).
+    APM: Change default profiling intake to use v2 endpoint.
