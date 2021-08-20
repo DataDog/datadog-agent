@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/nat"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/gogo/protobuf/proto"
+	"go4.org/intern"
 )
 
 const maxRoutes = math.MaxInt32
@@ -287,7 +288,7 @@ func formatEphemeralType(e network.EphemeralPortType) model.EphemeralPortState {
 	}
 }
 
-func formatDNSStatsByDomainByQueryType(stats map[string]map[dns.QueryType]dns.Stats, domainSet map[string]int) map[int32]*model.DNSStatsByQueryType {
+func formatDNSStatsByDomainByQueryType(stats map[*intern.Value]map[dns.QueryType]dns.Stats, domainSet map[string]int) map[int32]*model.DNSStatsByQueryType {
 	m := make(map[int32]*model.DNSStatsByQueryType)
 	for d, bytype := range stats {
 
@@ -301,23 +302,23 @@ func formatDNSStatsByDomainByQueryType(stats map[string]map[dns.QueryType]dns.St
 			ms.DnsTimeouts = stat.Timeouts
 			byqtype.DnsStatsByQueryType[int32(t)] = &ms
 		}
-		pos, ok := domainSet[d]
+		pos, ok := domainSet[d.Get().(string)]
 		if !ok {
 			pos = len(domainSet)
-			domainSet[d] = pos
+			domainSet[d.Get().(string)] = pos
 		}
 		m[int32(pos)] = byqtype
 	}
 	return m
 }
 
-func formatDNSStatsByDomain(stats map[string]map[dns.QueryType]dns.Stats, domainSet map[string]int) map[int32]*model.DNSStats {
+func formatDNSStatsByDomain(stats map[*intern.Value]map[dns.QueryType]dns.Stats, domainSet map[string]int) map[int32]*model.DNSStats {
 	m := make(map[int32]*model.DNSStats)
 	for d, bytype := range stats {
-		pos, ok := domainSet[d]
+		pos, ok := domainSet[d.Get().(string)]
 		if !ok {
 			pos = len(domainSet)
-			domainSet[d] = pos
+			domainSet[d.Get().(string)] = pos
 		}
 
 		for _, stat := range bytype {
