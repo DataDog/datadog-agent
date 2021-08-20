@@ -51,7 +51,7 @@ func dummyFractionalPollingFunc() float64 {
 }
 
 func TestSlidingWindow(t *testing.T) {
-	sw, err := NewSlidingWindow(1*time.Second, 50*time.Millisecond)
+	sw, err := NewSlidingWindow(2*time.Second, 100*time.Millisecond)
 	require.Nil(t, err)
 	require.NotNil(t, sw)
 
@@ -61,7 +61,7 @@ func TestSlidingWindow(t *testing.T) {
 		sw.Stop()
 	}()
 
-	time.Sleep(1200 * time.Millisecond)
+	time.Sleep(2250 * time.Millisecond)
 	utilPct := sw.Average()
 
 	assert.InDelta(t, utilPct, 0.5, DefaultDelta)

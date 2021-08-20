@@ -204,7 +204,7 @@ func TestUtilizationTrackerCheckLifecycle(t *testing.T) {
 }
 
 func TestUtilizationTrackerAccuracy(t *testing.T) {
-	windowSize := 1000 * time.Millisecond
+	windowSize := 3000 * time.Millisecond
 	pollingInterval := 20 * time.Millisecond
 
 	ut, err := NewUtilizationTracker("worker", windowSize, pollingInterval)
@@ -222,7 +222,8 @@ func TestUtilizationTrackerAccuracy(t *testing.T) {
 	go func() {
 		// This should provide about 30% utilization
 		for {
-			totalMs := rand.Int31n(100)
+			// Range for the full loop would be between 100-200ms
+			totalMs := rand.Int31n(100) + 100
 			runtimeMs := (totalMs * 30) / 100
 
 			ut.CheckStarted(false)
