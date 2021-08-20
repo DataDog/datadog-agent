@@ -23,6 +23,7 @@ func GetSidFromUser() (*windows.SID, error) {
 		return nil, e
 	}
 	defer tok.Close()
+
 	user, e := tok.GetTokenUser()
 	if e != nil {
 		log.Warnf("Couldn't get token user %v", e)
