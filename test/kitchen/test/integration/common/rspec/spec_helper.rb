@@ -493,9 +493,10 @@ end
 
 shared_examples_for "an installed Datadog Signing Keys" do
   it 'is installed (on Debian-based systems)' do
-    if has_dpkg # Only check on Debian-based systems, which have dpkg installed
-      expect(is_dpkg_package_installed('datadog-signing-keys')).to be_truthy
-    end
+    skip if os == :windows
+    skip unless has_dpkg
+    # Only check on Debian-based systems, which have dpkg installed
+    expect(is_dpkg_package_installed('datadog-signing-keys')).to be_truthy
   end
 end
 
