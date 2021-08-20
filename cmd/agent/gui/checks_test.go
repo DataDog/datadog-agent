@@ -53,11 +53,14 @@ func TestGetFileNameAndFolder(t *testing.T) {
 		{"empty path", vars{"fileName": "foo"}, "foo", "", false},
 		{"empty name", vars{"checkFolder": "foo"}, "", "", true},
 		{"empty none", vars{"fileName": "foo", "checkFolder": "bar"}, "foo", "bar", false},
-		{"invalid name", vars{"fileName": "..", "checkFolder": "bar"}, "", "", true},
-		{"invalid path", vars{"fileName": "foo", "checkFolder": ".."}, "", "", true},
+		{"invalid name 1", vars{"fileName": "..", "checkFolder": "bar"}, "", "", true},
+		{"invalid name 2", vars{"fileName": "/foo", "checkFolder": "bar"}, "", "", true},
+		{"invalid path 1", vars{"fileName": "foo", "checkFolder": ".."}, "", "", true},
 		{"invalid path 2", vars{"fileName": "foo", "checkFolder": "..\\.."}, "", "", true},
 		{"invalid path 3", vars{"fileName": "foo", "checkFolder": "foo\\.."}, "", "", true},
-		{"invalid both", vars{"fileName": "\\foo", "checkFolder": ".."}, "", "", true},
+		{"invalid path 4", vars{"fileName": "foo", "checkFolder": "../.."}, "", "", true},
+		{"invalid path 5", vars{"fileName": "foo", "checkFolder": "foo/.."}, "", "", true},
+		{"invalid both", vars{"fileName": "/foo", "checkFolder": ".."}, "", "", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

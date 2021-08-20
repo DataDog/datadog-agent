@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -155,13 +154,10 @@ func reloadCheck(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(fmt.Sprintf("Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name)))
 }
 
-// pathComponentPattern matches one file or folder name.
-var pathComponentPattern = regexp.MustCompile("^[a-zA-Z0-9_-][a-zA-Z0-9_.-]*$")
-
 func getPathComponentFromRequest(vars map[string]string, name string, allowEmpty bool) (string, error) {
 	val := vars[name]
 
-	if (val == "" && allowEmpty) || pathComponentPattern.MatchString(val) {
+	if (val == "" && allowEmpty) || (val != "" && !strings.Contains(val, "\\") && !strings.Contains(val, "/") && !strings.HasPrefix(val, ".")) {
 		return val, nil
 	}
 
