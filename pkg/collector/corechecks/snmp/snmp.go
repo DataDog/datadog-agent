@@ -64,7 +64,6 @@ func (c *Check) Run() error {
 
 		var wg sync.WaitGroup
 
-
 		for w := 1; w <= c.config.workers; w++ {
 			wg.Add(1)
 			go c.runCheckDeviceWorker(w, &wg, jobs)
@@ -136,7 +135,7 @@ func (c *Check) runCheckDevice(config *snmpConfig) error {
 		config.sender.reportNetworkDeviceMetadata(config, values, deviceMetadataTags, collectionTime, deviceStatus)
 	}
 
-	time.Sleep(1 * time.Second)  // TODO: Remove me, for testing
+	time.Sleep(1 * time.Second) // TODO: Remove me, for testing
 
 	c.submitTelemetryMetrics(config, startTime, tags)
 	return checkErr

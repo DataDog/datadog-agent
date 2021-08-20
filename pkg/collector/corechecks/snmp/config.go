@@ -85,44 +85,62 @@ type snmpInstanceConfig struct {
 }
 
 type snmpConfig struct {
-	session                  sessionAPI
-	ipAddress                string
-	port                     uint16
-	communityString          string
-	snmpVersion              string
-	timeout                  int
-	retries                  int
-	user                     string
-	authProtocol             string
-	authKey                  string
-	privProtocol             string
-	privKey                  string
-	contextName              string
-	oidConfig                oidConfig
-	metrics                  []metricsConfig
-	metricTags               []metricTagConfig
-	oidBatchSize             int
-	bulkMaxRepetitions       uint32
-	profiles                 profileDefinitionMap
-	profileTags              []string
-	profile                  string
-	profileDef               *profileDefinition
-	extraTags                []string
-	instanceTags             []string
-	collectDeviceMetadata    bool
-	deviceID                 string
-	deviceIDTags             []string
+
+	// static profile configs
+	profiles profileDefinitionMap
+
+	// [device] settings
+	session sessionAPI
+
+	// [device] dynamic configs (for autodiscovery)
+	ipAddress    string
+	deviceID     string
+	deviceIDTags []string
+
+	// [device] static configs
+	port            uint16
+	communityString string
+	snmpVersion     string
+	timeout         int
+	retries         int
+	user            string
+	authProtocol    string
+	authKey         string
+	privProtocol    string
+	privKey         string
+	contextName     string
+
+	// [device] dynamic profile configs (can be changed with profile refresh)
+	autodetectProfile bool
+	oidConfig         oidConfig
+	metrics           []metricsConfig
+	metricTags        []metricTagConfig
+	profileTags       []string // tags created from current profile
+	profile           string
+	profileDef        *profileDefinition
+
+	// [integration instance] performance settings
+	oidBatchSize       int
+	bulkMaxRepetitions uint32
+
+	// [integration instance] static settings
+	extraTags             []string
+	instanceTags          []string
+	collectDeviceMetadata bool
+	minCollectionInterval time.Duration
+
+	// [integration instance] discovery settings
 	subnet                   string
-	autodetectProfile        bool
-	minCollectionInterval    time.Duration
 	network                  string
 	discoveryWorkers         int
 	workers                  int
 	discoveryInterval        int
 	ignoredIPAddresses       map[string]bool
 	discoveryAllowedFailures int
-	testInstances            int
-	sender                   metricSender
+	testInstances            int // TODO: remove me
+
+	// [integration instance] dynamic settings
+	sender metricSender // is recreated at each checkrun
 }
 
 func (c *snmpConfig) refreshWithProfile(profile string) error {
@@ -258,27 +276,27 @@ func (c *snmpConfig) Copy() *snmpConfig {
 	newConfig.bulkMaxRepetitions = c.bulkMaxRepetitions
 	newConfig.profiles = c.profiles
 	newConfig.profileTags = copyStrings(c.profileTags)
-	newConfig.profile = c.profile  // TODO: does not change
-	newConfig.profileDef = c.profileDef  // copy by ref, content is never changed
+	newConfig.profile = c.profile       // TODO: does not change
+	newConfig.profileDef = c.profileDef // copy by ref, content is never changed
 	newConfig.extraTags = copyStrings(c.extraTags)
 	newConfig.instanceTags = copyStrings(c.instanceTags)
 	newConfig.collectDeviceMetadata = c.collectDeviceMetadata
 	newConfig.deviceID = c.deviceID
 
-	newConfig.deviceIDTags             = copyStrings(c.deviceIDTags)
-	newConfig.subnet                   = c.subnet
-	newConfig.autodetectProfile        = c.autodetectProfile
-	newConfig.minCollectionInterval    = c.minCollectionInterval
+	newConfig.deviceIDTags = copyStrings(c.deviceIDTags)
+	newConfig.subnet = c.subnet
+	newConfig.autodetectProfile = c.autodetectProfile
+	newConfig.minCollectionInterval = c.minCollectionInterval
 
 	// TODO: no need to copy network config for device config
-	newConfig.network                  = c.network
-	newConfig.discoveryWorkers         = c.discoveryWorkers
-	newConfig.workers                  = c.workers
-	newConfig.discoveryInterval        = c.discoveryInterval
-	newConfig.ignoredIPAddresses       = c.ignoredIPAddresses
+	newConfig.network = c.network
+	newConfig.discoveryWorkers = c.discoveryWorkers
+	newConfig.workers = c.workers
+	newConfig.discoveryInterval = c.discoveryInterval
+	newConfig.ignoredIPAddresses = c.ignoredIPAddresses
 	newConfig.discoveryAllowedFailures = c.discoveryAllowedFailures
-	newConfig.testInstances            = c.testInstances
-	newConfig.sender                   = c.sender
+	newConfig.testInstances = c.testInstances
+	newConfig.sender = c.sender
 	return &newConfig
 }
 
