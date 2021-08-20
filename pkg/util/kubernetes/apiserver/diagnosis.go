@@ -22,7 +22,6 @@ func diagnose() error {
 	c, err := GetAPIClient()
 	isConnectVerbose = false
 	if err != nil {
-		log.Error(err)
 		return err
 	}
 	log.Infof("Detecting OpenShift APIs: %s available", c.DetectOpenShiftAPILevel())
