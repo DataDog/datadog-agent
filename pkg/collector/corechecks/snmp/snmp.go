@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -61,8 +62,12 @@ func (c *Check) Run() error {
 
 		jobs := make(chan *snmpConfig, len(discoveredDevices))
 
+		var wg sync.WaitGroup
+
+
 		for w := 1; w <= c.config.workers; w++ {
-			go c.runCheckDeviceWorker(w, jobs)
+			wg.Add(1)
+			go c.runCheckDeviceWorker(w, &wg, jobs)
 		}
 
 		for i := range discoveredDevices {
@@ -72,6 +77,7 @@ func (c *Check) Run() error {
 			jobs <- config
 		}
 		close(jobs)
+		wg.Wait() // wait for all workers to finish
 
 	} else {
 		// TODO: sender submittedMetrics state, so need to be per config/device level
@@ -84,7 +90,8 @@ func (c *Check) Run() error {
 	return checkErr
 }
 
-func (c *Check) runCheckDeviceWorker(workerID int, jobs <-chan *snmpConfig) {
+func (c *Check) runCheckDeviceWorker(workerID int, wg *sync.WaitGroup, jobs <-chan *snmpConfig) {
+	defer wg.Done()
 	for job := range jobs {
 		log.Warnf("[DEV] worker %d starting collect device %s, tags %s, session %p", workerID, job.ipAddress, job.getDeviceIDTags(), job.session)
 		err := c.runCheckDevice(job)
