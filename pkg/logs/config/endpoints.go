@@ -20,8 +20,8 @@ type IntakeTrackType string
 // IntakeProtocol indicates the protocol to use for an endpoint intake.
 type IntakeProtocol string
 
-// IntakeSource indicates the log source to use for an endpoint intake.
-type IntakeSource string
+// IntakeOrigin indicates the log source to use for an endpoint intake.
+type IntakeOrigin string
 
 const (
 	_ EPIntakeVersion = iota
@@ -51,7 +51,7 @@ type Endpoint struct {
 	Version   EPIntakeVersion
 	TrackType IntakeTrackType
 	Protocol  IntakeProtocol
-	Source    IntakeSource
+	Origin    IntakeOrigin
 }
 
 // Endpoints holds the main endpoint and additional ones to dualship logs.

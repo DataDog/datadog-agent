@@ -21,7 +21,7 @@ from .modules import DEFAULT_MODULES, generate_dummy_package
 from .utils import get_build_flags
 
 # List of modules to ignore when running lint
-MODULE_WHITELIST = [
+MODULE_ALLOWLIST = [
     # Windows
     "doflare.go",
     "iostats_pdh_windows.go",
@@ -48,6 +48,7 @@ MISSPELL_IGNORED_TARGETS = [
     os.path.join("cmd", "agent", "gui", "views", "private"),
     os.path.join("pkg", "collector", "corechecks", "system", "testfiles"),
     os.path.join("pkg", "ebpf", "testdata"),
+    os.path.join("pkg", "network", "event_windows_test.go"),
 ]
 
 # Packages that need go:generate
@@ -93,24 +94,34 @@ def lint(ctx, targets):
 
     # add the /... suffix to the targets
     targets_list = ["{}/...".format(t) for t in targets]
-    result = ctx.run("revive {}".format(' '.join(targets_list)))
+    result = ctx.run("revive {}".format(' '.join(targets_list)), hide=True)
     if result.stdout:
-        files = []
+        files = set()
         skipped_files = set()
         for line in (out for out in result.stdout.split('\n') if out):
-            fname = os.path.basename(line.split(":")[0])
-            if fname in MODULE_WHITELIST:
-                skipped_files.add(fname)
+            fullname = line.split(":")[0]
+            fname = os.path.basename(fullname)
+            if fname in MODULE_ALLOWLIST:
+                skipped_files.add(fullname)
                 continue
-            files.append(fname)
+            print(line)
+            files.add(fullname)
 
-        if files:
-            print("Linting issues found in {} files.".format(len(files)))
-            raise Exit(code=1)
+        # add whitespace for readability
+        print()
 
         if skipped_files:
             for skipped in skipped_files:
                 print("Allowed errors in whitelisted file {}".format(skipped))
+
+        # add whitespace for readability
+        print()
+
+        if files:
+            print("Linting issues found in {} files.".format(len(files)))
+            for f in files:
+                print("Error in {}".format(f))
+            raise Exit(code=1)
 
     print("revive found no issues")
 

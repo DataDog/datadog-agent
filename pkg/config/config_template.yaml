@@ -71,7 +71,7 @@ api_key:
 # hostname_file: /var/lib/cloud/data/instance-id
 
 ## @param hostname_fqdn - boolean - optional - default: false
-## @param DD_HOSTNAME_FQDN - boolean - optional - default: false
+## @env DD_HOSTNAME_FQDN - boolean - optional - default: false
 ## When the Agent relies on the OS to determine the hostname, make it use the
 ## FQDN instead of the short hostname. Recommended value: true
 ## More information at https://dtdg.co/flag-hostname-fqdn
@@ -101,7 +101,7 @@ api_key:
 #   - <TAG_KEY>:<TAG_VALUE>
 
 ## @param env - string - optional
-## @param DD_ENV - string - optional
+## @env DD_ENV - string - optional
 ## The environment name where the agent is running. Attached in-app to every
 ## metric, event, log, trace, and service check emitted by this Agent.
 #
@@ -126,6 +126,7 @@ api_key:
 #   <TAG_KEY>: <SEPARATOR>
 
 ## @param checks_tag_cardinality - string - optional - default: low
+## @env DD_CHECKS_TAG_CARDINALITY - string - optional - default: low
 ## Configure the level of granularity of tags to send for checks metrics and events. Choices are:
 ##   * low: add tags about low-cardinality objects (clusters, hosts, deployments, container images, ...)
 ##   * orchestrator: add tags about pod, (in Kubernetes), or task (in ECS or Mesos) -level of cardinality
@@ -136,6 +137,7 @@ api_key:
 # checks_tag_cardinality: low
 
 ## @param dogstatsd_tag_cardinality - string - optional - default: low
+## @env DD_DOGSTATSD_TAG_CARDINALITY - string - optional - default: low
 ## Configure the level of granularity of tags to send for DogStatsD metrics and events. Choices are:
 ##   * low: add tags about low-cardinality objects (clusters, hosts, deployments, container images, ...)
 ##   * orchestrator: add tags about pod, (in Kubernetes), or task (in ECS or Mesos) -level of cardinality
@@ -147,6 +149,7 @@ api_key:
 # dogstatsd_tag_cardinality: low
 
 ## @param histogram_aggregates - list of strings - optional - default: ["max", "median", "avg", "count"]
+## @env DD_HISTOGRAM_AGGREGATES - space separated list of strings - optional - default: max median avg count
 ## Configure which aggregated value to compute.
 ## Possible values are: min, max, median, avg, sum and count.
 #
@@ -157,6 +160,7 @@ api_key:
 #   - count
 
 ## @param histogram_percentiles - list of strings - optional - default: ["0.95"]
+## @env DD_HISTOGRAM_PERCENTILES - space separated list of strings - optional - default: 0.95
 ## Configure which percentiles are computed by the Agent. It must be a list of float between 0 and 1.
 ## Warning: percentiles must be specified as yaml strings
 #
@@ -164,17 +168,20 @@ api_key:
 #   - "0.95"
 
 ## @param histogram_copy_to_distribution - boolean - optional - default: false
+## env DD_HISTOGRAM_COPY_TO_DISTRIBUTION - boolean - optional - default: false
 ## Copy histogram values to distributions for true global distributions (in beta)
 ## Note: This increases the number of custom metrics created.
 #
 # histogram_copy_to_distribution: false
 
 ## @param histogram_copy_to_distribution_prefix - string - optional
+## @env DD_HISTOGRAM_COPY_TO_DISTRIBUTION_PREFIX - string - optional
 ## A prefix to add to distribution metrics created when histogram_copy_to_distributions is true
 #
 # histogram_copy_to_distribution_prefix: "<PREFIX>"
 
 ## @param aggregator_stop_timeout - integer - optional - default: 2
+## @env DD_AGGREGATOR_STOP_TIMEOUT - integer - optional - default: 2
 ## When stopping the agent, the Aggregator will try to flush out data ready for
 ## aggregation (metrics, events, ...). Data are flushed to the Forwarder in order
 ## to be sent to Datadog, therefore the Agent might take at most
@@ -185,15 +192,17 @@ api_key:
 ## 'aggregator_stop_timeout' to 0.
 #
 # aggregator_stop_timeout: 2
-#
-# @param aggregator_buffer_size - integer - optional - default: 100
-# The default buffer size for the aggregator use a sane value for most of the
-# use cases, however, it could be useful to manually set it in order to trade
-# RSS usage with better performances.
+
+## @param aggregator_buffer_size - integer - optional - default: 100
+## @env DD_AGGREGATOR_BUFFER_SIZE - integer - optional - default: 100
+## The default buffer size for the aggregator use a sane value for most of the
+## use cases, however, it could be useful to manually set it in order to trade
+## RSS usage with better performances.
 #
 # aggregator_buffer_size: 100
 
 ## @param forwarder_timeout - integer - optional - default: 20
+## @env DD_FORWARDER_TIMEOUT - integer - optional - default: 20
 ## Forwarder timeout in seconds
 #
 # forwarder_timeout: 20
@@ -206,11 +215,13 @@ api_key:
 # forwarder_retry_queue_payloads_max_size: 15728640
 
 ## @param forwarder_num_workers - integer - optional - default: 1
+## @env DD_FORWARDER_NUM_WORKERS - integer - optional - default: 1
 ## The number of workers used by the forwarder.
 #
 # forwarder_num_workers: 1
 
 ## @param forwarder_stop_timeout - integer - optional - default: 2
+## @env DD_FORWARDER_STOP_TIMEOUT - integer - optional - default: 2
 ## When stopping the agent, the Forwarder will try to flush all new
 ## transactions (not the ones in retry state).  New transactions will be created
 ## as the Aggregator flush it's internal data too, therefore the Agent might take
@@ -229,13 +240,13 @@ api_key:
 #
 # forwarder_storage_max_size_in_bytes: 50000000
 
-## @param forwarder_storage_max_disk_ratio - float - optional - default: 0.95
+## @param forwarder_storage_max_disk_ratio - float - optional - default: 0.8
 ## `forwarder_storage_max_disk_ratio` defines the disk capacity limit for storing transactions.
-## `0.95` means the Agent can store transactions on disk until `forwarder_storage_max_size_in_bytes`
-## is reached or when the disk mount for `forwarder_storage_path` exceeds 95% of the disk capacity,
+## `0.8` means the Agent can store transactions on disk until `forwarder_storage_max_size_in_bytes`
+## is reached or when the disk mount for `forwarder_storage_path` exceeds 80% of the disk capacity,
 ## whichever is lower.
 #
-# forwarder_storage_max_disk_ratio: 0.95
+# forwarder_storage_max_disk_ratio: 0.8
 
 ## @param forwarder_outdated_file_in_days - int - optional - default: 10
 ## This value specifies how many days the overflow transactions will remain valid before
@@ -243,7 +254,6 @@ api_key:
 ## created more than `forwarder_outdated_file_in_days` days ago, they are removed.
 #
 # forwarder_outdated_file_in_days: 10
-
 
 ## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba"]
 ## This option restricts which cloud provider endpoint will be used by the
@@ -269,6 +279,7 @@ api_key:
 #   - "alibaba"
 
 ## @param collect_ec2_tags - boolean - optional - default: false
+## @env DD_COLLECT_EC2_TAGS - boolean - optional - default: false
 ## Collect AWS EC2 custom tags as host tags.
 ## Requires the EC2 instance to have an IAM role with the `EC2:DescribeTags`
 ## permission. See docs for further details:
@@ -292,11 +303,13 @@ api_key:
 # ec2_prefer_imdsv2: false
 
 ## @param collect_gce_tags - boolean - optional - default: true
+## @env DD_COLLECT_GCE_TAGS - boolean - optional - default: true
 ## Collect Google Cloud Engine metadata as host tags
 #
 # collect_gce_tags: true
 
 ## @param exclude_gce_tags - list of strings - optional - default: ["kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"]
+## @env DD_EXCLUDE_GCE_TAGS - space separated list of strings - optional - default: kube-env kubelet-config containerd-configure-sh startup-script shutdown-script configure-sh sshKeys ssh-keys user-data cli-cert ipsec-cert ssl-cert google-container-manifest bosh_settings
 ## Google Cloud Engine metadata attribute to exclude from being converted into
 ## host tags -- only applicable when collect_gce_tags is true.
 #
@@ -340,6 +353,7 @@ api_key:
 # azure_hostname_style: "os"
 
 ## @param flare_stripped_keys - list of strings - optional
+## @env DD_FLARE_STRIPPED_KEYS - space separated list of strings - optional
 ## By default, the Agent removes known sensitive keys from Agent and Integrations yaml configs before
 ## including them in the flare.
 ## Use this parameter to define additional sensitive keys that the Agent should scrub from
@@ -361,11 +375,39 @@ api_key:
 #
 # use_proxy_for_cloud_metadata: false
 
+## @param auto_exit - custom object - optional
+## Configuration for the automatic exit mechanism: the Agent stops when some conditions are met.
+#
+# auto_exit:
+
+  ## @param noprocess - custom object - optional
+  ## Configure the `noprocess` automatic exit method.
+  ## Detect when no other processes (non-agent) are running to trigger automatic exit. `HOST_PROC` is taken into account when gathering processes.
+  ## Feature is only supported on POSIX systems.
+  #
+  # noprocess:
+    ## @param enabled - boolean - optional - default: false
+    ## Enable the `noprocess` method
+    #
+    # enabled: false
+
+    ## @param enabled - list of strings - optional
+    ## List of regular expressions to exclude extra processes (on top of built-in list).
+    #
+    # excluded_processes: []
+
+  ## @param validation_period - int - optional - default: 60
+  ## Time (in seconds) delay during which the auto exit validates that the selected method continuously detects an exit condition, before exiting.
+  ## The value is verified every 30s. By default, three consecutive checks need to return true to trigger an automatic exit.
+  #
+  # validation_period: 60
+
 {{ end }}
 {{- if .Agent }}
 {{- if .Python }}
 {{- if .BothPythonPresent -}}
 ## @param python_version - integer - optional - default: 2
+## @env DD_PYTHON_VERSION - integer - optional - default: 2
 ## The major version of Python used to run integrations and custom checks.
 ## The only supported values are 2 (to use Python 2) or 3 (to use Python 3).
 ## Do not change this option when using the official Docker Agent images.
@@ -380,28 +422,33 @@ api_key:
 ############################
 
 ## @param confd_path - string - optional
+## @env DD_CONFD_PATH - string - optional
 ## The path containing check configuration files. By default, uses the conf.d folder
 ## located in the Agent configuration folder.
 #
 # confd_path: ""
 
 ## @param additional_checksd - string - optional
+## @env DD_ADDITIONAL_CHECKSD - string - optional
 ## Additional path indicating where to search for Python checks. By default, uses the checks.d folder
 ## located in the Agent configuration folder.
 #
 # additional_checksd: <CHECKD_FOLDER_PATH>
 
 ## @param expvar_port - integer - optional - default: 5000
+## @env DD_EXPVAR_PORT - integer - optional - default: 5000
 ## The port for the go_expvar server.
 #
 # expvar_port: 5000
 
 ## @param cmd_port - integer - optional - default: 5001
+## @env DD_CMD_PORT - integer - optional - default: 5001
 ## The port on which the IPC api listens.
 #
 # cmd_port: 5001
 
 ## @param GUI_port - integer - optional
+## @env DD_GUI_PORT - integer - optional
 ## The port for the browser GUI to be served.
 ## Setting 'GUI_port: -1' turns off the GUI completely
 ## Default is:
@@ -412,6 +459,7 @@ api_key:
 # GUI_port: <GUI_PORT>
 
 ## @param health_port - integer - optional - default: 0
+## @env DD_HEALTH_PORT - integer - optional - default: 0
 ## The Agent can expose its health check on a dedicated http port.
 ## This is useful for orchestrators that support http probes.
 ## Default is 0 (disabled), set a valid port number (eg. 5555) to enable.
@@ -419,6 +467,7 @@ api_key:
 # health_port: 0
 
 ## @param check_runners - integer - optional - default: 4
+## @env DD_CHECK_RUNNERS - integer - optional - default: 4
 ## The `check_runners` refers to the number of concurrent check runners available for check instance execution.
 ## The scheduler attempts to spread the instances over the collection interval and will _at most_ be
 ## running the number of check runners instances concurrently.
@@ -431,6 +480,7 @@ api_key:
 # check_runners: 4
 
 ## @param enable_metadata_collection - boolean - optional - default: true
+## @env DD_ENABLE_METADATA_COLLECTION - boolean - optional - default: true
 ## Metadata collection should always be enabled, except if you are running several
 ## agents/dsd instances per host. In that case, only one Agent should have it on.
 ## WARNING: disabling it on every Agent leads to display and billing issues.
@@ -553,6 +603,21 @@ api_key:
   #
   # discovery_allowed_failures: 3
 
+  ## @param loader - string - optional - default: python
+  ## Check loader to use. Available loaders:
+  ## - core: (recommended) Uses new corecheck SNMP integration
+  ## - python: Uses legacy python SNMP integration
+  #
+  # loader: core
+
+  ## @param min_collection_interval - number - optional - default: 15
+  ## This changes the collection interval for the check instances created
+  ## from discovered SNMP devices.
+  ## For more information, see:
+  ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+  #
+  # min_collection_interval: 15
+
   ## @param configs - list - required
   ## The actual list of configurations used to discover SNMP devices in various subnets.
   ## Example:
@@ -664,6 +729,15 @@ api_key:
     ## - python: will use python SNMP integration
     #
     # loader: core
+
+    ## @param min_collection_interval - number - optional - default: 15
+    ## This changes the collection interval for the check instances created from
+    ## discovered SNMP devices. It applies to each specific config from `snmp_listener.configs`
+    ## and has precedence over `snmp_listener.min_collection_interval`.
+    ## For more information, see:
+    ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+    #
+    # min_collection_interval: 15
 
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
@@ -973,6 +1047,11 @@ api_key:
   ## Port for the debug endpoints for the process Agent.
   #
   # expvar_port: 6062
+
+  ## @param config_port - string - optional - default: 6162
+  ## Port for configuring runtime settings for the process Agent.
+  #
+  # cmd_port: 6162
 
   ## @param log_file - string - optional
   ## The full path to the file where process Agent logs are written.

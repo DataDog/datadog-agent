@@ -323,6 +323,7 @@ func (c *Consumer) Stop() {
 	if c.conn != nil {
 		c.conn.Close()
 	}
+	c.breaker.Stop()
 }
 
 func (c *Consumer) initNetlinkSocket(samplingRate float64) error {

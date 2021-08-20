@@ -16,8 +16,9 @@ import (
 
 /*
 #include <datadog_agent_rtloader.h>
-#cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
-#cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
+#cgo !windows LDFLAGS: -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -lstdc++ -static
+#cgo CFLAGS: -I "${SRCDIR}/../../../rtloader/include"  -I "${SRCDIR}/../../../rtloader/common"
 */
 import "C"
 

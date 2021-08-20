@@ -14,4 +14,4 @@ if ($rawAgentVersion -match $releasePattern) {
     exit 1
 }
 Write-Host ("Updating Winget manifest for Agent version {0}" -f $rawAgentVersion)
-wingetcreate.exe update --id "Datadog.Agent" --url "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-$($agentVersion).msi" --version $($agentVersion) --token $env:WINGET_GITHUB_ACCESS_TOKEN
+.\wingetcreate.exe update --id "Datadog.Agent" --url "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-$($agentVersion).msi" --version $($agentVersion) --token $env:WINGET_GITHUB_ACCESS_TOKEN

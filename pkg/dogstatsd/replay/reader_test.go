@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestReader(t *testing.T) {
+func readerTest(t *testing.T, path string) {
 	// well-formed input file
-	tc, err := NewTrafficCaptureReader("resources/test/datadog-capture.dog", 1)
+	tc, err := NewTrafficCaptureReader(path, 1)
 	assert.Nil(t, err)
 	assert.NotNil(t, tc)
 
@@ -42,5 +42,44 @@ func TestReader(t *testing.T) {
 
 	// 22 metrics in the capture
 	assert.Equal(t, 22, cnt)
+
+}
+
+func TestReader(t *testing.T) {
+	readerTest(t, "resources/test/datadog-capture.dog")
+}
+
+func TestReaderZstd(t *testing.T) {
+	readerTest(t, "resources/test/datadog-capture.dog.zstd")
+}
+
+func TestSeek(t *testing.T) {
+	// well-formed input file
+	tc, err := NewTrafficCaptureReader("resources/test/datadog-capture.dog.zstd", 1)
+	assert.Nil(t, err)
+	assert.NotNil(t, tc)
+
+	total := 0
+	cnt := 0
+	i := 0
+	for ; i < 3; i++ {
+		tc.Seek(0)
+		assert.Equal(t, uint32(len(datadogHeader)), tc.offset)
+
+		for msg, err := tc.ReadNext(); err != io.EOF; msg, err = tc.ReadNext() {
+			if err == io.EOF {
+				assert.Nil(t, msg)
+			} else {
+				assert.Nil(t, err)
+				assert.NotNil(t, msg)
+			}
+			if i == 0 {
+				cnt++
+			}
+			total++
+		}
+	}
+
+	assert.Equal(t, cnt*i, total)
 
 }

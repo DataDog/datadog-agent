@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
+// +build clusterchecks,!windows
 
 package cloudfoundry
 
@@ -24,7 +24,7 @@ var v3App1 = cfclient.V3App{
 	GUID:          "random_app_guid",
 	CreatedAt:     "",
 	UpdatedAt:     "",
-	Relationships: nil,
+	Relationships: map[string]cfclient.V3ToOneRelationship{"space": {Data: cfclient.V3Relationship{GUID: "space_guid_1"}}},
 	Links:         nil,
 	Metadata: cfclient.V3Metadata{
 		Labels:      map[string]string{"tags.datadoghq.com/env": "test-env", "toto": "tata"},
@@ -33,8 +33,9 @@ var v3App1 = cfclient.V3App{
 }
 
 var cfApp1 = CFApp{
-	Name: "name_of_app_cc",
-	Tags: []string{"env:test-env", "service:test-service"},
+	Name:      "name_of_app_cc",
+	Tags:      []string{"env:test-env", "service:test-service"},
+	SpaceGUID: "space_guid_1",
 }
 
 var v3App2 = cfclient.V3App{
@@ -44,7 +45,7 @@ var v3App2 = cfclient.V3App{
 	GUID:          "guid2",
 	CreatedAt:     "",
 	UpdatedAt:     "",
-	Relationships: nil,
+	Relationships: map[string]cfclient.V3ToOneRelationship{"space": {Data: cfclient.V3Relationship{GUID: "space_guid_2"}}},
 	Links:         nil,
 	Metadata: cfclient.V3Metadata{
 		Labels:      map[string]string{},
@@ -53,7 +54,39 @@ var v3App2 = cfclient.V3App{
 }
 
 var cfApp2 = CFApp{
-	Name: "app2",
+	Name:      "app2",
+	SpaceGUID: "space_guid_2",
+}
+
+var v3Space1 = cfclient.V3Space{
+	Name:          "space_name_1",
+	GUID:          "space_guid_1",
+	Relationships: map[string]cfclient.V3ToOneRelationship{"organization": {Data: cfclient.V3Relationship{GUID: "org_guid_1"}}},
+}
+
+var cfSpace1 = CFSpace{
+	Name:    "space_name_1",
+	OrgGUID: "org_guid_1",
+}
+
+var v3Space2 = cfclient.V3Space{
+	Name:          "space_name_2",
+	GUID:          "space_guid_2",
+	Relationships: map[string]cfclient.V3ToOneRelationship{"organization": {Data: cfclient.V3Relationship{GUID: "org_guid_2"}}},
+}
+
+var v3Org1 = cfclient.V3Organization{
+	Name: "org_name_1",
+	GUID: "org_guid_1",
+}
+
+var cfOrg1 = CFOrg{
+	Name: "org_name_1",
+}
+
+var v3Org2 = cfclient.V3Organization{
+	Name: "org_name_2",
+	GUID: "org_guid_2",
 }
 
 var BBSModelA1 = models.ActualLRP{
@@ -178,11 +211,11 @@ var ExpectedD1 = DesiredLRP{
 		"space_name":        "name_of_the_space",
 		"space_id":          "random_space_guid",
 	},
-	OrganizationGUID: "random_org_guid",
-	OrganizationName: "name_of_the_org",
+	OrganizationGUID: "org_guid_1",
+	OrganizationName: "org_name_1",
 	ProcessGUID:      "0123456789012345678901234567890123456789",
-	SpaceGUID:        "random_space_guid",
-	SpaceName:        "name_of_the_space",
+	SpaceGUID:        "space_guid_1",
+	SpaceName:        "space_name_1",
 	CustomTags:       []string{"env:test-env", "service:test-service"},
 }
 
@@ -199,17 +232,37 @@ var ExpectedD2 = DesiredLRP{
 		"space_name":        "name_of_the_space",
 		"space_id":          "random_space_guid",
 	},
-	OrganizationGUID: "random_org_guid",
-	OrganizationName: "name_of_the_org",
+	OrganizationGUID: "org_guid_1",
+	OrganizationName: "org_name_1",
 	ProcessGUID:      "0123456789012345678901234567890123456789",
-	SpaceGUID:        "random_space_guid",
-	SpaceName:        "name_of_the_space",
+	SpaceGUID:        "space_guid_1",
+	SpaceName:        "space_name_1",
 	CustomTags: []string{
 		"CUSTOM_TAG_1:TEST1",
 		"CUSTOM_TAG_2:TEST2",
 		"env:test-env",
 		"service:test-service",
 	},
+}
+
+var ExpectedD3NoCCCache = DesiredLRP{
+	AppGUID:         "random_app_guid",
+	AppName:         "name_of_the_app",
+	EnvAD:           ADConfig{"xxx": {}},
+	EnvVcapServices: map[string][]byte{"xxx": []byte("{\"name\":\"xxx\"}")},
+	EnvVcapApplication: map[string]string{
+		"application_name":  "name_of_the_app",
+		"application_id":    "random_app_guid",
+		"organization_name": "name_of_the_org",
+		"organization_id":   "random_org_guid",
+		"space_name":        "name_of_the_space",
+		"space_id":          "random_space_guid",
+	},
+	OrganizationGUID: "random_org_guid",
+	OrganizationName: "name_of_the_org",
+	ProcessGUID:      "0123456789012345678901234567890123456789",
+	SpaceGUID:        "random_space_guid",
+	SpaceName:        "name_of_the_space",
 }
 
 func TestADIdentifier(t *testing.T) {
@@ -257,6 +310,16 @@ func TestCFAppFromV3App(t *testing.T) {
 	assert.EqualValues(t, cfApp1, *result)
 }
 
+func TestCFSpaceFromV3Space(t *testing.T) {
+	result := CFSpaceFromV3Space(&v3Space1)
+	assert.EqualValues(t, cfSpace1, *result)
+}
+
+func TestCFOrgFromV3Organization(t *testing.T) {
+	result := CFOrgFromV3Organization(&v3Org1)
+	assert.EqualValues(t, cfOrg1, *result)
+}
+
 func TestActualLRPFromBBSModel(t *testing.T) {
 	result := ActualLRPFromBBSModel(&BBSModelA1)
 	assert.EqualValues(t, ExpectedA1, result)
@@ -272,6 +335,14 @@ func TestDesiredLRPFromBBSModel(t *testing.T) {
 	excludeList = []*regexp.Regexp{}
 	result = DesiredLRPFromBBSModel(&BBSModelD1, includeList, excludeList)
 	assert.EqualValues(t, ExpectedD1, result)
+
+	// Temporarily disable global CC cache and acquire lock to prevent any refresh of the BBS cache in the background
+	globalBBSCache.Lock()
+	defer globalBBSCache.Unlock()
+	globalCCCache.configured = false
+	result = DesiredLRPFromBBSModel(&BBSModelD1, includeList, excludeList)
+	globalCCCache.configured = true
+	assert.EqualValues(t, ExpectedD3NoCCCache, result)
 }
 
 func TestGetVcapServicesMap(t *testing.T) {

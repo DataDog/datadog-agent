@@ -62,8 +62,9 @@ func resolveProcess(_ context.Context, e env.Env, id string, res compliance.Reso
 		instances = append(instances, newResolvedInstance(instance, strconv.Itoa(int(mp.Pid)), "process"))
 	}
 
+	// NOTE(safchain) workaround to allow fallback on all this resource if there is only one file
 	if len(instances) == 1 {
-		return newResolvedInstance(instances[0], instances[0].ID(), instances[0].Type()), nil
+		return instances[0].(*_resolvedInstance), nil
 	}
 
 	return newResolvedInstances(instances), nil
