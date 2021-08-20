@@ -15,7 +15,7 @@ import (
 
 type snmpDiscovery struct {
 	sync.RWMutex
-	config   snmpConfig
+	config   *snmpConfig
 	stop     chan bool
 	services map[string]Device
 }
@@ -26,10 +26,10 @@ type Device struct {
 	entityID     string
 	deviceIP     string
 	creationTime integration.CreationTime
-	config       snmpConfig
+	config       *snmpConfig
 }
 type snmpSubnet struct {
-	config         snmpConfig
+	subnetConfig   *snmpConfig
 	startingIP     net.IP
 	network        net.IPNet
 	cacheKey       string
@@ -73,7 +73,7 @@ func (d *snmpDiscovery) Start() {
 func (d *snmpDiscovery) checkDevice(job snmpJob) {
 	deviceIP := job.currentIP.String()
 	log.Warnf("[DEV] check Device %s", deviceIP)
-	config := job.subnet.config // TODO: avoid full copy ?
+	config := job.subnet.subnetConfig // TODO: avoid full copy ?
 	config.ipAddress = deviceIP
 	sess := snmpSession{}
 	err := sess.Configure(config)
@@ -81,7 +81,7 @@ func (d *snmpDiscovery) checkDevice(job snmpJob) {
 		log.Errorf("Error configure session %s: %v", deviceIP, err)
 		return
 	}
-	entityID := job.subnet.config.Digest(deviceIP)
+	entityID := job.subnet.subnetConfig.Digest(deviceIP)
 	if err := sess.Connect(); err != nil {
 		log.Debugf("SNMP connect to %s error: %v", deviceIP, err)
 		d.deleteService(entityID, job.subnet)
@@ -120,14 +120,13 @@ func (d *snmpDiscovery) checkDevices() {
 	cacheKey := fmt.Sprintf("snmp:%s", configHash)
 
 	subnet := snmpSubnet{
-		config:         d.config,
+		subnetConfig:   d.config,
 		startingIP:     startingIP,
 		network:        *ipNet,
 		cacheKey:       cacheKey,
 		devices:        map[string]string{},
 		deviceFailures: map[string]int{},
 	}
-	subnets = append(subnets, subnet)
 
 	//l.loadCache(&subnet)
 
@@ -143,31 +142,27 @@ func (d *snmpDiscovery) checkDevices() {
 
 	for {
 		log.Warnf("[DEV] start discovery")
-		var subnet *snmpSubnet
-		for i := range subnets {
-			// Use `&subnets[i]` to pass the correct pointer address to snmpJob{}
-			subnet = &subnets[i]
-			startingIP := make(net.IP, len(subnet.startingIP))
-			copy(startingIP, subnet.startingIP)
-			for currentIP := startingIP; subnet.network.Contains(currentIP); incrementIP(currentIP) {
 
-				if ignored := subnet.config.IsIPIgnored(currentIP); ignored {
-					continue
-				}
+		startingIP := make(net.IP, len(subnet.startingIP))
+		copy(startingIP, subnet.startingIP)
+		for currentIP := startingIP; subnet.network.Contains(currentIP); incrementIP(currentIP) {
 
-				jobIP := make(net.IP, len(currentIP))
-				copy(jobIP, currentIP)
-				job := snmpJob{
-					subnet:    subnet,
-					currentIP: jobIP,
-				}
-				jobs <- job
+			if ignored := subnet.subnetConfig.IsIPIgnored(currentIP); ignored {
+				continue
+			}
 
-				select {
-				case <-d.stop:
-					return
-				default:
-				}
+			jobIP := make(net.IP, len(currentIP))
+			copy(jobIP, currentIP)
+			job := snmpJob{
+				subnet:    &subnet,
+				currentIP: jobIP,
+			}
+			jobs <- job
+
+			select {
+			case <-d.stop:
+				return
+			default:
 			}
 		}
 
@@ -190,7 +185,7 @@ func (d *snmpDiscovery) createService(entityID string, subnet *snmpSubnet, devic
 		entityID:     entityID,
 		deviceIP:     deviceIP,
 		creationTime: integration.Before,
-		config:       subnet.config,
+		config:       subnet.subnetConfig,
 	}
 	d.services[entityID] = svc
 	subnet.devices[entityID] = deviceIP
@@ -225,11 +220,11 @@ func (d *snmpDiscovery) deleteService(entityID string, subnet *snmpSubnet) {
 	}
 }
 
-func (d *snmpDiscovery) getDiscoveredDeviceConfigs(sender aggregator.Sender) []snmpConfig {
+func (d *snmpDiscovery) getDiscoveredDeviceConfigs(sender aggregator.Sender) []*snmpConfig {
 	d.Lock()
 	defer d.Unlock()
-	var discoveredDevices []snmpConfig
-	// TODO: store config instead of services ?
+	var discoveredDevices []*snmpConfig
+	// TODO: store subnetConfig instead of services ?
 	for _, device := range d.services {
 		config := device.config
 		config.Network = ""
@@ -252,10 +247,10 @@ func (d *snmpDiscovery) getDiscoveredDeviceConfigs(sender aggregator.Sender) []s
 	return discoveredDevices
 }
 
-func (d *snmpDiscovery) getDiscoveredDeviceConfigsTestInstances(testInstances int, sender aggregator.Sender) []snmpConfig {
+func (d *snmpDiscovery) getDiscoveredDeviceConfigsTestInstances(testInstances int, sender aggregator.Sender) []*snmpConfig {
 	d.Lock()
 	defer d.Unlock()
-	var discoveredDevices []snmpConfig
+	var discoveredDevices []*snmpConfig
 	for _, device := range d.services {
 		for i := 0; i < testInstances; i++ {
 			config := device.config // TODO: this is only a shallow copy
@@ -281,7 +276,7 @@ func (d *snmpDiscovery) getDiscoveredDeviceConfigsTestInstances(testInstances in
 	return discoveredDevices
 }
 
-func newSnmpDiscovery(config snmpConfig) snmpDiscovery {
+func newSnmpDiscovery(config *snmpConfig) snmpDiscovery {
 	return snmpDiscovery{
 		services: map[string]Device{},
 		stop:     make(chan bool),

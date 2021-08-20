@@ -13,7 +13,7 @@ import (
 const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
 
 type sessionAPI interface {
-	Configure(config snmpConfig) error
+	Configure(config *snmpConfig) error
 	Connect() error
 	Close() error
 	Get(oids []string) (result *gosnmp.SnmpPacket, err error)
@@ -26,9 +26,9 @@ type snmpSession struct {
 	gosnmpInst gosnmp.GoSNMP
 }
 
-func (s *snmpSession) Configure(config snmpConfig) error {
+func (s *snmpSession) Configure(config *snmpConfig) error {
 	if config.oidBatchSize > gosnmp.MaxOids {
-		return fmt.Errorf("config oidBatchSize (%d) cannot be higher than gosnmp.MaxOids: %d", config.oidBatchSize, gosnmp.MaxOids)
+		return fmt.Errorf("subnetConfig oidBatchSize (%d) cannot be higher than gosnmp.MaxOids: %d", config.oidBatchSize, gosnmp.MaxOids)
 	}
 
 	if config.communityString != "" {

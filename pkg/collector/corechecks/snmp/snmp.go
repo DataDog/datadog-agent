@@ -26,7 +26,7 @@ var timeNow = time.Now
 
 //var sessionFactory = createSession
 //
-//func createSession(config snmpConfig) (sessionAPI, error) {
+//func createSession(subnetConfig snmpConfig) (sessionAPI, error) {
 //	var s sessionAPI
 //	s = &snmpSession{}
 //	err := s.Configure(snmpConfig{})
@@ -39,7 +39,7 @@ var timeNow = time.Now
 // Check aggregates metrics from one Check instance
 type Check struct {
 	core.CheckBase
-	config    snmpConfig
+	config    *snmpConfig
 	discovery snmpDiscovery
 }
 
@@ -52,7 +52,7 @@ func (c *Check) Run() error {
 	}
 
 	if c.config.Network != "" {
-		var discoveredDevices []snmpConfig
+		var discoveredDevices []*snmpConfig
 		if c.config.TestInstances == 0 {
 			discoveredDevices = c.discovery.getDiscoveredDeviceConfigs(sender)
 		} else {
@@ -66,17 +66,17 @@ func (c *Check) Run() error {
 		}
 
 		for i := range discoveredDevices {
-			config := &discoveredDevices[i]
+			config := discoveredDevices[i]
 			log.Warnf("[DEV] schedule device collection: %s, tags: %v", config.ipAddress, config.getDeviceIDTags())
-			//checkErr = c.runCheckDevice(config)
+			//checkErr = c.runCheckDevice(subnetConfig)
 			jobs <- config
 		}
 		close(jobs)
 
 	} else {
-		// TODO: sender submittedMetrics state, so need to be per config/device level
+		// TODO: sender submittedMetrics state, so need to be per subnetConfig/device level
 		c.config.sender = metricSender{sender: sender}
-		checkErr = c.runCheckDevice(&c.config)
+		checkErr = c.runCheckDevice(c.config)
 	}
 
 	// Commit
@@ -126,7 +126,7 @@ func (c *Check) runCheckDevice(config *snmpConfig) error {
 		// `checkSender.checkTags` are added for metrics, service checks, events only.
 		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
 		deviceMetadataTags := append(copyStrings(tags), config.instanceTags...)
-		config.sender.reportNetworkDeviceMetadata(*config, values, deviceMetadataTags, collectionTime, deviceStatus)
+		config.sender.reportNetworkDeviceMetadata(config, values, deviceMetadataTags, collectionTime, deviceStatus)
 	}
 
 	c.submitTelemetryMetrics(config, startTime, tags)
@@ -174,7 +174,7 @@ func (c *Check) getValuesAndTags(config *snmpConfig, staticTags []string) ([]str
 
 func (c *Check) autodetectProfile(config *snmpConfig) error {
 	// Try to detect profile using device sysobjectid
-	// TODO: use per device config?
+	// TODO: use per device subnetConfig?
 	if config.autodetectProfile {
 		sysObjectID, err := fetchSysObjectID(config.session)
 		if err != nil {
@@ -218,7 +218,7 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 
 	config, err := buildConfig(rawInstance, rawInitConfig)
 	if err != nil {
-		return fmt.Errorf("build config failed: %s", err)
+		return fmt.Errorf("build subnetConfig failed: %s", err)
 	}
 
 	log.Debugf("SNMP configuration: %s", config.toString())

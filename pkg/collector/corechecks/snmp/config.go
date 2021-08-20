@@ -2,6 +2,7 @@ package snmp
 
 import (
 	"fmt"
+	"gopkg.in/yaml.v2"
 	"hash/fnv"
 	"net"
 	"path/filepath"
@@ -9,8 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
@@ -74,7 +73,7 @@ type snmpInstanceConfig struct {
 	MinCollectionInterval      int    `yaml:"min_collection_interval"`
 	ExtraMinCollectionInterval Number `yaml:"extra_min_collection_interval"`
 
-	// `network` config is only available in Python SNMP integration
+	// `network` subnetConfig is only available in Python SNMP integration
 	// it's added here to raise warning if used with corecheck SNMP integration
 	TestInstances            int      `yaml:"test_instances"`
 	Network                  string   `yaml:"network_address"`
@@ -156,7 +155,7 @@ func (c *snmpConfig) addUptimeMetric() {
 
 // getStaticTags return static tags built from configuration
 // warning: changing getStaticTags logic might lead to different deviceID
-// getStaticTags does not contain tags from instance[].tags config
+// getStaticTags does not contain tags from instance[].tags subnetConfig
 func (c *snmpConfig) getStaticTags() []string {
 	tags := []string{"snmp_device:" + c.ipAddress}
 	tags = append(tags, c.extraTags...)
@@ -229,7 +228,7 @@ func (c *snmpConfig) toString() string {
 	)
 }
 
-func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (snmpConfig, error) {
+func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (*snmpConfig, error) {
 	instance := snmpInstanceConfig{}
 	initConfig := snmpInitConfig{}
 
@@ -238,12 +237,12 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 
 	err := yaml.Unmarshal(rawInitConfig, &initConfig)
 	if err != nil {
-		return snmpConfig{}, err
+		return nil, err
 	}
 
 	err = yaml.Unmarshal(rawInstance, &instance)
 	if err != nil {
-		return snmpConfig{}, err
+		return nil, err
 	}
 
 	c := snmpConfig{}
@@ -263,7 +262,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	}
 
 	//if instance.Network != "" {
-	//	log.Warnf("`network_address` config is not available for corecheck SNMP integration to use autodiscovery. Agent `snmp_listener` config can be used instead: https://docs.datadoghq.com/network_monitoring/devices/setup?tab=snmpv2#autodiscovery")
+	//	log.Warnf("`network_address` subnetConfig is not available for corecheck SNMP integration to use autodiscovery. Agent `snmp_listener` subnetConfig can be used instead: https://docs.datadoghq.com/network_monitoring/devices/setup?tab=snmpv2#autodiscovery")
 	//
 	//}
 
@@ -295,7 +294,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 
 	if c.ipAddress == "" && c.Network == "" {
 		// TODO: TEST ME
-		return snmpConfig{}, fmt.Errorf("ip_address or network config must be provided")
+		return nil, fmt.Errorf("ip_address or network subnetConfig must be provided")
 	}
 
 	if c.port == 0 {
@@ -324,7 +323,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		c.minCollectionInterval = defaults.DefaultCheckInterval
 	}
 	if c.minCollectionInterval < 0 {
-		return snmpConfig{}, fmt.Errorf("min collection interval must be > 0, but got: %v", c.minCollectionInterval.Seconds())
+		return nil, fmt.Errorf("min collection interval must be > 0, but got: %v", c.minCollectionInterval.Seconds())
 	}
 
 	// SNMP connection configs
@@ -355,7 +354,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		bulkMaxRepetitions = int(defaultBulkMaxRepetitions)
 	}
 	if bulkMaxRepetitions <= 0 {
-		return snmpConfig{}, fmt.Errorf("bulk max repetition must be a positive integer. Invalid value: %d", bulkMaxRepetitions)
+		return nil, fmt.Errorf("bulk max repetition must be a positive integer. Invalid value: %d", bulkMaxRepetitions)
 	}
 	c.bulkMaxRepetitions = uint32(bulkMaxRepetitions)
 
@@ -379,17 +378,17 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	// Profile Configs
 	var profiles profileDefinitionMap
 	if len(initConfig.Profiles) > 0 {
-		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations
+		// TODO: [PERFORMANCE] Load init subnetConfig custom profiles once for all integrations
 		//   There are possibly multiple init configs
 		customProfiles, err := loadProfiles(initConfig.Profiles)
 		if err != nil {
-			return snmpConfig{}, fmt.Errorf("failed to load custom profiles: %s", err)
+			return nil, fmt.Errorf("failed to load custom profiles: %s", err)
 		}
 		profiles = customProfiles
 	} else {
 		defaultProfiles, err := loadDefaultProfiles()
 		if err != nil {
-			return snmpConfig{}, fmt.Errorf("failed to load default profiles: %s", err)
+			return nil, fmt.Errorf("failed to load default profiles: %s", err)
 		}
 		profiles = defaultProfiles
 	}
@@ -404,7 +403,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	errors := validateEnrichMetrics(c.metrics)
 	errors = append(errors, validateEnrichMetricTags(c.metricTags)...)
 	if len(errors) > 0 {
-		return snmpConfig{}, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
+		return nil, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
 	}
 
 	if profile != "" || len(c.metrics) > 0 {
@@ -416,7 +415,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	if profile != "" {
 		err = c.refreshWithProfile(profile)
 		if err != nil {
-			return snmpConfig{}, fmt.Errorf("failed to refresh with profile `%s`: %s", profile, err)
+			return nil, fmt.Errorf("failed to refresh with profile `%s`: %s", profile, err)
 		}
 	}
 
@@ -432,7 +431,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 
 	c.session = &snmpSession{}
 	// TODO: also configure session ?
-	return c, nil
+	return &c, nil
 }
 
 func getUptimeMetricConfig() metricsConfig {

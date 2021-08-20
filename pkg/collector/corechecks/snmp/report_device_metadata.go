@@ -15,7 +15,7 @@ import (
 // interfaceNameTagKey matches the `interface` tag used in `_generic-if.yaml` for ifName
 var interfaceNameTagKey = "interface"
 
-func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *resultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
+func (ms *metricSender) reportNetworkDeviceMetadata(config *snmpConfig, store *resultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
 	tags := copyStrings(origTags)
 	tags = util.SortUniqInPlace(tags)
 
@@ -38,7 +38,7 @@ func (ms *metricSender) reportNetworkDeviceMetadata(config snmpConfig, store *re
 	}
 }
 
-func buildNetworkDeviceMetadata(deviceID string, idTags []string, config snmpConfig, store *resultValueStore, tags []string, deviceStatus metadata.DeviceStatus) metadata.DeviceMetadata {
+func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *snmpConfig, store *resultValueStore, tags []string, deviceStatus metadata.DeviceStatus) metadata.DeviceMetadata {
 	var vendor, sysName, sysDescr, sysObjectID string
 	if store != nil {
 		sysName = store.getScalarValueAsString(metadata.SysNameOID)

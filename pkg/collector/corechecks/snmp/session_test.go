@@ -19,7 +19,7 @@ import (
 func Test_snmpSession_Configure(t *testing.T) {
 	tests := []struct {
 		name                       string
-		config                     snmpConfig
+		config                     *snmpConfig
 		expectedError              error
 		expectedVersion            gosnmp.SnmpVersion
 		expectedTimeout            time.Duration
@@ -31,15 +31,15 @@ func Test_snmpSession_Configure(t *testing.T) {
 	}{
 		{
 			name: "no auth method",
-			config: snmpConfig{
+			config: &snmpConfig{
 				ipAddress: "1.2.3.4",
 				port:      uint16(1234),
 			},
 			expectedError: fmt.Errorf("an authentication method needs to be provided"),
 		},
 		{
-			name: "valid v1 config",
-			config: snmpConfig{
+			name: "valid v1 subnetConfig",
+			config: &snmpConfig{
 				ipAddress:       "1.2.3.4",
 				port:            uint16(1234),
 				snmpVersion:     "1",
@@ -55,8 +55,8 @@ func Test_snmpSession_Configure(t *testing.T) {
 			expectedMsgFlags:  gosnmp.NoAuthNoPriv,
 		},
 		{
-			name: "valid default v2 config",
-			config: snmpConfig{
+			name: "valid default v2 subnetConfig",
+			config: &snmpConfig{
 				ipAddress:       "1.2.3.4",
 				port:            uint16(1234),
 				timeout:         4,
@@ -71,8 +71,8 @@ func Test_snmpSession_Configure(t *testing.T) {
 			expectedMsgFlags:  gosnmp.NoAuthNoPriv,
 		},
 		{
-			name: "valid v2 config",
-			config: snmpConfig{
+			name: "valid v2 subnetConfig",
+			config: &snmpConfig{
 				ipAddress:       "1.2.3.4",
 				port:            uint16(1234),
 				timeout:         4,
@@ -87,8 +87,8 @@ func Test_snmpSession_Configure(t *testing.T) {
 			expectedMsgFlags:  gosnmp.NoAuthNoPriv,
 		},
 		{
-			name: "valid v2c config",
-			config: snmpConfig{
+			name: "valid v2c subnetConfig",
+			config: &snmpConfig{
 				ipAddress:       "1.2.3.4",
 				port:            uint16(1234),
 				timeout:         4,
@@ -103,8 +103,8 @@ func Test_snmpSession_Configure(t *testing.T) {
 			expectedMsgFlags:  gosnmp.NoAuthNoPriv,
 		},
 		{
-			name: "valid v3 AuthPriv config",
-			config: snmpConfig{
+			name: "valid v3 AuthPriv subnetConfig",
+			config: &snmpConfig{
 				ipAddress:    "1.2.3.4",
 				port:         uint16(1234),
 				timeout:      4,
@@ -132,8 +132,8 @@ func Test_snmpSession_Configure(t *testing.T) {
 			},
 		},
 		{
-			name: "valid v3 AuthNoPriv config",
-			config: snmpConfig{
+			name: "valid v3 AuthNoPriv subnetConfig",
+			config: &snmpConfig{
 				ipAddress:    "1.2.3.4",
 				port:         uint16(1234),
 				timeout:      4,
@@ -158,7 +158,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 		},
 		{
 			name: "invalid v3 authProtocol",
-			config: snmpConfig{
+			config: &snmpConfig{
 				ipAddress:    "1.2.3.4",
 				port:         uint16(1234),
 				timeout:      4,
@@ -173,7 +173,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 		},
 		{
 			name: "invalid v3 privProtocol",
-			config: snmpConfig{
+			config: &snmpConfig{
 				ipAddress:    "1.2.3.4",
 				port:         uint16(1234),
 				timeout:      4,
@@ -190,7 +190,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 		},
 		{
 			name: "batch size too big",
-			config: snmpConfig{
+			config: &snmpConfig{
 				ipAddress:       "1.2.3.4",
 				port:            uint16(1234),
 				timeout:         4,
@@ -199,7 +199,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 				oidBatchSize:    100,
 			},
 			expectedVersion: gosnmp.Version1,
-			expectedError:   fmt.Errorf("config oidBatchSize (100) cannot be higher than gosnmp.MaxOids: 60"),
+			expectedError:   fmt.Errorf("subnetConfig oidBatchSize (100) cannot be higher than gosnmp.MaxOids: 60"),
 		},
 	}
 	for _, tt := range tests {
@@ -220,7 +220,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 
 func Test_snmpSession_traceLog_disabled(t *testing.T) {
 
-	config := snmpConfig{
+	config := &snmpConfig{
 		ipAddress:       "1.2.3.4",
 		communityString: "abc",
 	}
@@ -237,7 +237,7 @@ func Test_snmpSession_traceLog_disabled(t *testing.T) {
 
 }
 func Test_snmpSession_traceLog_enabled(t *testing.T) {
-	config := snmpConfig{
+	config := &snmpConfig{
 		ipAddress:       "1.2.3.4",
 		communityString: "abc",
 	}
@@ -264,7 +264,7 @@ func Test_snmpSession_traceLog_enabled(t *testing.T) {
 }
 
 func Test_snmpSession_Connect_Logger(t *testing.T) {
-	config := snmpConfig{
+	config := &snmpConfig{
 		ipAddress:       "1.2.3.4",
 		communityString: "abc",
 	}
