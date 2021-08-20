@@ -204,7 +204,7 @@ func TestUtilizationTrackerCheckLifecycle(t *testing.T) {
 }
 
 func TestUtilizationTrackerAccuracy(t *testing.T) {
-	windowSize := 500 * time.Millisecond
+	windowSize := 1000 * time.Millisecond
 	pollingInterval := 20 * time.Millisecond
 
 	ut, err := NewUtilizationTracker("worker", windowSize, pollingInterval)
