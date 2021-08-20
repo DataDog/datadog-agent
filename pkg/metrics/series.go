@@ -61,7 +61,7 @@ type Series []*Serie
 
 // Marshal serialize timeseries using protobuf
 func (series Series) Marshal() ([]byte, error) {
-	return nil, fmt.Errorf("V5 Payload serialization is not implemented")
+	return nil, fmt.Errorf("Series payload serialization is not implemented")
 }
 
 // MarshalStrings converts the timeseries to a sorted slice of string slices
