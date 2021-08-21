@@ -10,7 +10,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common/commands"
+	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
@@ -69,7 +69,7 @@ var (
 		},
 	}
 
-	configCommand = commands.Config(getSettingsClient)
+	configCommand = cmdconfig.Config(getSettingsClient)
 )
 
 func getSettingsClient() (settings.Client, error) {
