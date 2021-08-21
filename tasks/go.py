@@ -48,6 +48,7 @@ MISSPELL_IGNORED_TARGETS = [
     os.path.join("cmd", "agent", "gui", "views", "private"),
     os.path.join("pkg", "collector", "corechecks", "system", "testfiles"),
     os.path.join("pkg", "ebpf", "testdata"),
+    os.path.join("pkg", "network", "event_windows_test.go"),
 ]
 
 # Packages that need go:generate

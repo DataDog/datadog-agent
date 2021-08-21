@@ -39,3 +39,42 @@ func TestConfigsInPath(t *testing.T) {
 
 	assert.Equal(t, expected, files)
 }
+
+func TestGetFileNameAndFolder(t *testing.T) {
+	type vars map[string]string
+	tests := []struct {
+		name            string
+		vars            vars
+		wantFileName    string
+		wantCheckFolder string
+		wantErr         bool
+	}{
+		{"empty both", vars{}, "", "", true},
+		{"empty path", vars{"fileName": "foo"}, "foo", "", false},
+		{"empty name", vars{"checkFolder": "foo"}, "", "", true},
+		{"empty none", vars{"fileName": "foo", "checkFolder": "bar"}, "foo", "bar", false},
+		{"invalid name 1", vars{"fileName": "..", "checkFolder": "bar"}, "", "", true},
+		{"invalid name 2", vars{"fileName": "/foo", "checkFolder": "bar"}, "", "", true},
+		{"invalid path 1", vars{"fileName": "foo", "checkFolder": ".."}, "", "", true},
+		{"invalid path 2", vars{"fileName": "foo", "checkFolder": "..\\.."}, "", "", true},
+		{"invalid path 3", vars{"fileName": "foo", "checkFolder": "foo\\.."}, "", "", true},
+		{"invalid path 4", vars{"fileName": "foo", "checkFolder": "../.."}, "", "", true},
+		{"invalid path 5", vars{"fileName": "foo", "checkFolder": "foo/.."}, "", "", true},
+		{"invalid both", vars{"fileName": "/foo", "checkFolder": ".."}, "", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotFileName, gotCheckFolder, err := getFileNameAndFolder(tt.vars)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("getFileNameAndFolder() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if gotFileName != tt.wantFileName {
+				t.Errorf("getFileNameAndFolder() gotFileName = %v, want %v", gotFileName, tt.wantFileName)
+			}
+			if gotCheckFolder != tt.wantCheckFolder {
+				t.Errorf("getFileNameAndFolder() gotCheckFolder = %v, want %v", gotCheckFolder, tt.wantCheckFolder)
+			}
+		})
+	}
+}

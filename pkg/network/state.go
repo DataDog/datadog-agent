@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go4.org/intern"
 )
 
 var (
@@ -37,7 +38,7 @@ type State interface {
 		clientID string,
 		latestTime uint64,
 		latestConns []ConnectionStats,
-		dns map[dns.Key]map[string]map[dns.QueryType]dns.Stats,
+		dns dns.StatsByKeyByNameByType,
 		http map[http.Key]http.RequestStats,
 	) Delta
 
@@ -92,7 +93,7 @@ type client struct {
 	closedConnections map[string]ConnectionStats
 	stats             map[string]*stats
 	// maps by dns key the domain (string) to stats structure
-	dnsStats       map[dns.Key]map[string]map[dns.QueryType]dns.Stats
+	dnsStats       dns.StatsByKeyByNameByType
 	httpStatsDelta map[http.Key]http.RequestStats
 }
 
@@ -149,7 +150,7 @@ func (ns *networkState) GetDelta(
 	id string,
 	latestTime uint64,
 	latestConns []ConnectionStats,
-	dnsStats map[dns.Key]map[string]map[dns.QueryType]dns.Stats,
+	dnsStats dns.StatsByKeyByNameByType,
 	httpStats map[http.Key]http.RequestStats,
 ) Delta {
 	ns.Lock()
@@ -250,7 +251,7 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 
 		if dnsStatsByDomain, ok := ns.clients[id].dnsStats[key]; ok {
 			if ns.collectDNSDomains {
-				conn.DNSStatsByDomainByQueryType = make(map[string]map[dns.QueryType]dns.Stats)
+				conn.DNSStatsByDomainByQueryType = make(map[*intern.Value]map[dns.QueryType]dns.Stats)
 			} else {
 				conn.DNSCountByRcode = make(map[uint32]uint32)
 			}
@@ -291,7 +292,7 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 	}
 
 	// flush the DNS stats
-	ns.clients[id].dnsStats = make(map[dns.Key]map[string]map[dns.QueryType]dns.Stats)
+	ns.clients[id].dnsStats = make(dns.StatsByKeyByNameByType)
 }
 
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation
@@ -340,7 +341,7 @@ func (ns *networkState) StoreClosedConnection(conn *ConnectionStats) {
 	}
 }
 
-func getDeepDNSStatsCount(stats map[dns.Key]map[string]map[dns.QueryType]dns.Stats) int {
+func getDeepDNSStatsCount(stats dns.StatsByKeyByNameByType) int {
 	var count int
 	for _, bykey := range stats {
 		for _, bydomain := range bykey {
@@ -351,7 +352,7 @@ func getDeepDNSStatsCount(stats map[dns.Key]map[string]map[dns.QueryType]dns.Sta
 }
 
 // storeDNSStats stores latest DNS stats for all clients
-func (ns *networkState) storeDNSStats(stats map[dns.Key]map[string]map[dns.QueryType]dns.Stats) {
+func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 	for _, client := range ns.clients {
 		dnsStatsThisClient := getDeepDNSStatsCount(client.dnsStats)
 		for key, statsByDomain := range stats {
@@ -363,7 +364,7 @@ func (ns *networkState) storeDNSStats(stats map[dns.Key]map[string]map[dns.Query
 							ns.telemetry.dnsStatsDropped++
 							continue
 						}
-						client.dnsStats[key] = make(map[string]map[dns.QueryType]dns.Stats)
+						client.dnsStats[key] = make(map[*intern.Value]map[dns.QueryType]dns.Stats)
 					}
 					if _, ok := client.dnsStats[key][domain]; !ok {
 						if dnsStatsThisClient >= ns.maxDNSStats {
@@ -428,7 +429,7 @@ func (ns *networkState) newClient(clientID string) (*client, bool) {
 		lastFetch:         time.Now(),
 		stats:             map[string]*stats{},
 		closedConnections: map[string]ConnectionStats{},
-		dnsStats:          map[dns.Key]map[string]map[dns.QueryType]dns.Stats{},
+		dnsStats:          dns.StatsByKeyByNameByType{},
 		httpStatsDelta:    map[http.Key]http.RequestStats{},
 	}
 	ns.clients[clientID] = c

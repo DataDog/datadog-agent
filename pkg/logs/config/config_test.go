@@ -42,6 +42,7 @@ func (suite *ConfigTestSuite) TestDefaultDatadogConfig() {
 	suite.Equal("", suite.config.GetString("logs_config.processing_rules"))
 	suite.Equal(false, suite.config.GetBool("logs_config.use_http"))
 	suite.Equal(false, suite.config.GetBool("logs_config.k8s_container_use_file"))
+	suite.Equal(true, suite.config.GetBool("logs_config.use_v2_api"))
 }
 
 func (suite *ConfigTestSuite) TestDefaultSources() {
@@ -154,6 +155,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 	suite.config.Set("logs_config.sender_backoff_max", 2.0)
 	suite.config.Set("logs_config.sender_recovery_interval", 10)
 	suite.config.Set("logs_config.sender_recovery_reset", true)
+	suite.config.Set("logs_config.use_v2_api", false)
 
 	os.Setenv("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS", `[
 	{"api_key": "456", "host": "additional.endpoint.1", "port": 1234, "use_compression": true, "compression_level": 2},
@@ -242,6 +244,8 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 	suite.config.Set("logs_config.use_compression", true)
 	suite.config.Set("logs_config.compression_level", 6)
 	suite.config.Set("logs_config.logs_no_ssl", false)
+	suite.config.Set("logs_config.use_v2_api", false)
+
 	endpointsInConfig := []map[string]interface{}{
 		{
 			"api_key":           "456     \n\n",
@@ -305,7 +309,6 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 	suite.config.Set("logs_config.use_compression", true)
 	suite.config.Set("logs_config.compression_level", 6)
 	suite.config.Set("logs_config.logs_no_ssl", false)
-	suite.config.Set("logs_config.use_v2_api", true)
 	endpointsInConfig := []map[string]interface{}{
 		{
 			"api_key":           "456     \n\n",
@@ -338,7 +341,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		Version:          EPIntakeVersion2,
 		TrackType:        "test-track",
 		Protocol:         "test-proto",
-		Source:           "test-source",
+		Origin:           "test-source",
 	}
 	expectedAdditionalEndpoint1 := Endpoint{
 		APIKey:           "456",
@@ -359,7 +362,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		Version:          EPIntakeVersion2,
 		TrackType:        "test-track",
 		Protocol:         "test-proto",
-		Source:           "test-source",
+		Origin:           "test-source",
 	}
 
 	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true,
@@ -432,7 +435,10 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
 			BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
 			BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
 			RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
-			Version:          EPIntakeVersion1,
+			Version:          EPIntakeVersion2,
+			TrackType:        "test-track",
+			Protocol:         "test-proto",
+			Origin:           "test-source",
 		},
 		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
 		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
@@ -471,7 +477,10 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 			BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
 			BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
 			RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
-			Version:          EPIntakeVersion1,
+			Version:          EPIntakeVersion2,
+			TrackType:        "test-track",
+			Origin:           "test-source",
+			Protocol:         "test-proto",
 		},
 		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
 		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
@@ -500,7 +509,10 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 			BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
 			BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
 			RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
-			Version:          EPIntakeVersion1,
+			Version:          EPIntakeVersion2,
+			TrackType:        "test-track",
+			Origin:           "test-source",
+			Protocol:         "test-proto",
 		},
 		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
 		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,

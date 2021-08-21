@@ -9,7 +9,7 @@
 # Image tagging & manifest publication
 #
 
-deploy-a6:
+.deploy-a6-base:
   extends: .docker_job_definition
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
@@ -21,13 +21,23 @@ deploy-a6:
     - python3 -m pip install -r requirements.txt
     - export VERSION="$(inv -e agent.version --major-version 6 --url-safe)"
     - export IMG_SOURCES="${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6${JMX}-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6${JMX}-arm64"
-    - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${JMX}"
+    - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${IMG_TAG_SUFFIX}${JMX}"
     - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
   parallel:
     matrix:
       - JMX:
           - ""
           - "-jmx"
+
+
+deploy-a6:
+  extends: .deploy-a6-base
+
+
+deploy-a6-rc:
+  extends: .deploy-a6-base
+  variables:
+    IMG_TAG_SUFFIX: -rc
 
 
 #

@@ -3,6 +3,7 @@ package dns
 import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/google/gopacket/layers"
+	"go4.org/intern"
 )
 
 // QueryType is the DNS record type
@@ -32,10 +33,14 @@ const (
 	TypeURI   QueryType = 256 // URI RR [RFC7553]
 )
 
+// StatsByKeyByNameByType provides a type name for the map of
+// DNS stats based on the host key->the lookup name->querytype
+type StatsByKeyByNameByType map[Key]map[*intern.Value]map[QueryType]Stats
+
 // ReverseDNS translates IPs to names
 type ReverseDNS interface {
 	Resolve([]util.Address) map[util.Address][]string
-	GetDNSStats() map[Key]map[string]map[QueryType]Stats
+	GetDNSStats() StatsByKeyByNameByType
 	GetStats() map[string]int64
 	Close()
 }

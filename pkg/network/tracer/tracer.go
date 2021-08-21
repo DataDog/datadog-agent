@@ -244,7 +244,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config:                     config,
 		state:                      state,
 		reverseDNS:                 reverseDNS,
-		httpMonitor:                newHTTPMonitor(!pre410Kernel, config),
+		httpMonitor:                newHTTPMonitor(!pre410Kernel, config, m, mgrOptions.ConstantEditors),
 		buffer:                     make([]network.ConnectionStats, 0, 512),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
@@ -921,7 +921,7 @@ func (t *Tracer) connVia(cs *network.ConnectionStats) {
 	cs.Via = t.gwLookup.Lookup(cs)
 }
 
-func newHTTPMonitor(supported bool, c *config.Config) *http.Monitor {
+func newHTTPMonitor(supported bool, c *config.Config, tracer *manager.Manager, offsets []manager.ConstantEditor) *http.Monitor {
 	if !c.EnableHTTPMonitoring {
 		return nil
 	}
@@ -930,15 +930,15 @@ func newHTTPMonitor(supported bool, c *config.Config) *http.Monitor {
 		log.Warnf("http monitoring is not supported by this kernel version. please refer to system-probe's documentation")
 		return nil
 	}
-
-	monitor, err := http.NewMonitor(c)
+	// Shared with the HTTP program
+	sockFDMap, _, _ := tracer.GetMap(string(probes.SockByPidFDMap))
+	monitor, err := http.NewMonitor(c, offsets, sockFDMap)
 	if err != nil {
 		log.Errorf("could not instantiate http monitor: %s", err)
 		return nil
 	}
 
 	err = monitor.Start()
-
 	if errors.Is(err, syscall.ENOMEM) {
 		log.Error("could not enable http monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
 		return nil
