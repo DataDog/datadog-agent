@@ -12,4 +12,4 @@ Several examples are provided:
 * [`cluster-agent-datadogMetrics`](cluster-agent) Contains the agent DaemonSet as well as the cluster agent with DatadogMetric CRD support;
 * [`cluster-checks-runners`](cluster-checks-runners) Contains the agent DaemonSet as well as the cluster agent and the cluster check runners.
 
-**NOTE:** Manifests are generated in the `default` namespace. You will need to modify `namespace: default` occurences if you are installing in another namespace.
+**NOTE:** Manifests are generated in the `default` namespace. You will need to modify `namespace: default` occurrences if you are installing in another namespace.

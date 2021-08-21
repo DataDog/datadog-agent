@@ -7,7 +7,7 @@ task, we can use this helper script to generate our best-guess at the resulting
 dependency tree.
 
 _Note that this program only calculates the output based on the content of the main
-`go.mod` and its dependencies and it does not handle depndencies declared in a
+`go.mod` and its dependencies and it does not handle dependencies declared in a
 other isolated modules (e.g.
 [`tools.go`](https://github.com/DataDog/datadog-agent/blob/main/internal/tools/tools.go)._
 
