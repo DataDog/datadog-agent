@@ -104,7 +104,7 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("The flush strategy", f.daemon.LogFlushStategy(), " has decided to flush in moment:", flush.Stopping)
 
 	// if the DogStatsD daemon isn't ready, wait for it.
-	if f.daemon.MetricAgent.IsReady() {
+	if !f.daemon.MetricAgent.IsReady() {
 		w.WriteHeader(503)
 		w.Write([]byte("DogStatsD server not ready"))
 		f.daemon.FinishInvocation()
