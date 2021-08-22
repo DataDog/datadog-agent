@@ -8,6 +8,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"strings"
 	"time"
 
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
@@ -96,16 +97,19 @@ func init() {
 // fixDeprecatedFlags modifies os.Args so that non-posix flags are converted to posix flags
 // it also displays a warning when a non-posix flag is found
 func fixDeprecatedFlags() {
-	deprecatedFlags := map[string]struct{}{
+	deprecatedFlags := []string{
 		// Global flags
-		"-config": {}, "-ddconfig": {}, "-sysprobe-config": {}, "-pid": {}, "-info": {}, "-version": {}, "-check": {},
+		"-config", "-ddconfig", "-sysprobe-config", "-pid", "-info", "-version", "-check",
 		// Windows flags
-		"-install-service": {}, "-uninstall-service": {}, "-start-service": {}, "-stop-service": {}, "-foreground": {},
+		"-install-service", "-uninstall-service", "-start-service", "-stop-service", "-foreground",
 	}
 
-	for i, a := range os.Args {
-		if _, ok := deprecatedFlags[a]; ok {
-			fmt.Printf("WARNING: `%s` argument is deprecated and will be removed in a future version. Please use `-%[1]s` instead.\n", a)
+	for i, arg := range os.Args {
+		for _, f := range deprecatedFlags {
+			if !strings.HasPrefix(arg, f) {
+				continue
+			}
+			fmt.Printf("WARNING: `%s` argument is deprecated and will be removed in a future version. Please use `-%[1]s` instead.\n", f)
 			os.Args[i] = "-" + os.Args[i]
 		}
 	}
