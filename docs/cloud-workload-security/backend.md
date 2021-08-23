@@ -44,7 +44,8 @@ BACKEND_EVENT_SCHEMA = {
 
 ## `ContainerContext`
 
-```
+
+{{< code-block lang="json" collapsible="true" >}}
 {
     "properties": {
         "id": {
@@ -55,7 +56,8 @@ BACKEND_EVENT_SCHEMA = {
     "additionalProperties": false,
     "type": "object"
 }
-```
+
+{{< /code-block >}}
 
 | Field | Description |
 | ----- | ----------- |
@@ -64,7 +66,8 @@ BACKEND_EVENT_SCHEMA = {
 
 ## `EventContext`
 
-```
+
+{{< code-block lang="json" collapsible="true" >}}
 {
     "properties": {
         "name": {
@@ -83,7 +86,8 @@ BACKEND_EVENT_SCHEMA = {
     "additionalProperties": false,
     "type": "object"
 }
-```
+
+{{< /code-block >}}
 
 | Field | Description |
 | ----- | ----------- |
@@ -94,7 +98,8 @@ BACKEND_EVENT_SCHEMA = {
 
 ## `File`
 
-```
+
+{{< code-block lang="json" collapsible="true" >}}
 {
     "required": [
         "uid",
@@ -182,7 +187,8 @@ BACKEND_EVENT_SCHEMA = {
     "additionalProperties": false,
     "type": "object"
 }
-```
+
+{{< /code-block >}}
 
 | Field | Description |
 | ----- | ----------- |
@@ -207,7 +213,8 @@ BACKEND_EVENT_SCHEMA = {
 
 ## `FileEvent`
 
-```
+
+{{< code-block lang="json" collapsible="true" >}}
 {
     "required": [
         "uid",
@@ -315,7 +322,8 @@ BACKEND_EVENT_SCHEMA = {
     "additionalProperties": false,
     "type": "object"
 }
-```
+
+{{< /code-block >}}
 
 | Field | Description |
 | ----- | ----------- |
@@ -348,7 +356,8 @@ BACKEND_EVENT_SCHEMA = {
 
 ## `ProcessCacheEntry`
 
-```
+
+{{< code-block lang="json" collapsible="true" >}}
 {
     "required": [
         "uid",
@@ -448,7 +457,8 @@ BACKEND_EVENT_SCHEMA = {
     "additionalProperties": false,
     "type": "object"
 }
-```
+
+{{< /code-block >}}
 
 | Field | Description |
 | ----- | ----------- |
@@ -481,7 +491,8 @@ BACKEND_EVENT_SCHEMA = {
 
 ## `ProcessContext`
 
-```
+
+{{< code-block lang="json" collapsible="true" >}}
 {
     "required": [
         "uid",
@@ -592,7 +603,8 @@ BACKEND_EVENT_SCHEMA = {
     "additionalProperties": false,
     "type": "object"
 }
-```
+
+{{< /code-block >}}
 
 | Field | Description |
 | ----- | ----------- |
@@ -628,7 +640,8 @@ BACKEND_EVENT_SCHEMA = {
 
 ## `ProcessCredentials`
 
-```
+
+{{< code-block lang="json" collapsible="true" >}}
 {
     "required": [
         "uid",
@@ -711,7 +724,8 @@ BACKEND_EVENT_SCHEMA = {
     "additionalProperties": false,
     "type": "object"
 }
-```
+
+{{< /code-block >}}
 
 | Field | Description |
 | ----- | ----------- |
@@ -734,7 +748,8 @@ BACKEND_EVENT_SCHEMA = {
 
 ## `SELinuxBoolChange`
 
-```
+
+{{< code-block lang="json" collapsible="true" >}}
 {
     "properties": {
         "name": {
@@ -749,7 +764,8 @@ BACKEND_EVENT_SCHEMA = {
     "additionalProperties": false,
     "type": "object"
 }
-```
+
+{{< /code-block >}}
 
 | Field | Description |
 | ----- | ----------- |
@@ -759,7 +775,8 @@ BACKEND_EVENT_SCHEMA = {
 
 ## `SELinuxBoolCommit`
 
-```
+
+{{< code-block lang="json" collapsible="true" >}}
 {
     "properties": {
         "state": {
@@ -770,7 +787,8 @@ BACKEND_EVENT_SCHEMA = {
     "additionalProperties": false,
     "type": "object"
 }
-```
+
+{{< /code-block >}}
 
 | Field | Description |
 | ----- | ----------- |
@@ -779,7 +797,8 @@ BACKEND_EVENT_SCHEMA = {
 
 ## `SELinuxEnforceStatus`
 
-```
+
+{{< code-block lang="json" collapsible="true" >}}
 {
     "properties": {
         "status": {
@@ -790,7 +809,8 @@ BACKEND_EVENT_SCHEMA = {
     "additionalProperties": false,
     "type": "object"
 }
-```
+
+{{< /code-block >}}
 
 | Field | Description |
 | ----- | ----------- |
@@ -799,7 +819,8 @@ BACKEND_EVENT_SCHEMA = {
 
 ## `SELinuxEvent`
 
-```
+
+{{< code-block lang="json" collapsible="true" >}}
 {
     "properties": {
         "bool": {
@@ -818,7 +839,8 @@ BACKEND_EVENT_SCHEMA = {
     "additionalProperties": false,
     "type": "object"
 }
-```
+
+{{< /code-block >}}
 
 | Field | Description |
 | ----- | ----------- |
@@ -834,7 +856,8 @@ BACKEND_EVENT_SCHEMA = {
 
 ## `UserContext`
 
-```
+
+{{< code-block lang="json" collapsible="true" >}}
 {
     "properties": {
         "id": {
@@ -849,7 +872,8 @@ BACKEND_EVENT_SCHEMA = {
     "additionalProperties": false,
     "type": "object"
 }
-```
+
+{{< /code-block >}}
 
 | Field | Description |
 | ----- | ----------- |

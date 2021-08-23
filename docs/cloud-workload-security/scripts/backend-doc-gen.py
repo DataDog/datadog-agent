@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 from dataclasses import dataclass
+from typing import List
 
 import jinja2
 
@@ -29,8 +30,8 @@ class DefinitionFieldDescription:
 class SchemaDefinition:
     name: str
     schema: str
-    references: list[DefinitionReference]
-    descriptions: list[DefinitionFieldDescription]
+    references: List[DefinitionReference]
+    descriptions: List[DefinitionFieldDescription]
 
 
 def remove_schema_props(node):
