@@ -43,8 +43,8 @@ my_field: aaa
 }
 
 func Test_metricTagConfig_UnmarshalYAML(t *testing.T) {
-	myStruct := metricsConfig{}
-	expected := metricsConfig{MetricTags: []metricTagConfig{{Index: 3}}}
+	myStruct := MetricsConfig{}
+	expected := MetricsConfig{MetricTags: []MetricTagConfig{{Index: 3}}}
 
 	yaml.Unmarshal([]byte(`
 metric_tags:
@@ -55,8 +55,8 @@ metric_tags:
 }
 
 func Test_metricTagConfig_onlyTags(t *testing.T) {
-	myStruct := metricsConfig{}
-	expected := metricsConfig{MetricTags: []metricTagConfig{{symbolTag: "aaa"}}}
+	myStruct := MetricsConfig{}
+	expected := MetricsConfig{MetricTags: []MetricTagConfig{{symbolTag: "aaa"}}}
 
 	yaml.Unmarshal([]byte(`
 metric_tags:

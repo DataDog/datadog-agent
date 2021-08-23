@@ -11,38 +11,38 @@ import (
 func Test_validateEnrichMetrics(t *testing.T) {
 	tests := []struct {
 		name            string
-		metrics         []metricsConfig
+		metrics         []MetricsConfig
 		expectedErrors  []string
-		expectedMetrics []metricsConfig
+		expectedMetrics []MetricsConfig
 	}{
 		{
 			name: "either table symbol or scalar symbol must be provided",
-			metrics: []metricsConfig{
+			metrics: []MetricsConfig{
 				{},
 			},
 			expectedErrors: []string{
 				"either a table symbol or a scalar symbol must be provided",
 			},
-			expectedMetrics: []metricsConfig{
+			expectedMetrics: []MetricsConfig{
 				{},
 			},
 		},
 		{
 			name: "table column symbols and scalar symbol cannot be both provided",
-			metrics: []metricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbol: symbolConfig{
+					Symbol: SymbolConfig{
 						OID:  "1.2",
 						Name: "abc",
 					},
-					Symbols: []symbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: metricTagConfigList{
-						metricTagConfig{},
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{},
 					},
 				},
 			},
@@ -52,21 +52,21 @@ func Test_validateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "multiple errors",
-			metrics: []metricsConfig{
+			metrics: []MetricsConfig{
 				{},
 				{
-					Symbol: symbolConfig{
+					Symbol: SymbolConfig{
 						OID:  "1.2",
 						Name: "abc",
 					},
-					Symbols: []symbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: metricTagConfigList{
-						metricTagConfig{},
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{},
 					},
 				},
 			},
@@ -77,9 +77,9 @@ func Test_validateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "missing symbol name",
-			metrics: []metricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbol: symbolConfig{
+					Symbol: SymbolConfig{
 						OID: "1.2.3",
 					},
 				},
@@ -90,9 +90,9 @@ func Test_validateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "table column symbol name missing",
-			metrics: []metricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbols: []symbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID: "1.2",
 						},
@@ -100,8 +100,8 @@ func Test_validateEnrichMetrics(t *testing.T) {
 							Name: "abc",
 						},
 					},
-					MetricTags: metricTagConfigList{
-						metricTagConfig{},
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{},
 					},
 				},
 			},
@@ -112,22 +112,22 @@ func Test_validateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "table external metric column tag symbol error",
-			metrics: []metricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbols: []symbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: metricTagConfigList{
-						metricTagConfig{
-							Column: symbolConfig{
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Column: SymbolConfig{
 								OID: "1.2.3",
 							},
 						},
-						metricTagConfig{
-							Column: symbolConfig{
+						MetricTagConfig{
+							Column: SymbolConfig{
 								Name: "abc",
 							},
 						},
@@ -141,15 +141,15 @@ func Test_validateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "missing MetricTags",
-			metrics: []metricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbols: []symbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: metricTagConfigList{},
+					MetricTags: MetricTagConfigList{},
 				},
 			},
 			expectedErrors: []string{
@@ -158,22 +158,22 @@ func Test_validateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "table external metric column tag MIB error",
-			metrics: []metricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbols: []symbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: metricTagConfigList{
-						metricTagConfig{
-							Column: symbolConfig{
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Column: SymbolConfig{
 								OID: "1.2.3",
 							},
 						},
-						metricTagConfig{
-							Column: symbolConfig{
+						MetricTagConfig{
+							Column: SymbolConfig{
 								Name: "abc",
 							},
 						},
@@ -187,17 +187,17 @@ func Test_validateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "missing match tags",
-			metrics: []metricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbols: []symbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: metricTagConfigList{
-						metricTagConfig{
-							Column: symbolConfig{
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Column: SymbolConfig{
 								OID:  "1.2.3",
 								Name: "abc",
 							},
@@ -212,17 +212,17 @@ func Test_validateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "match cannot compile regex",
-			metrics: []metricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbols: []symbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: metricTagConfigList{
-						metricTagConfig{
-							Column: symbolConfig{
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Column: SymbolConfig{
 								OID:  "1.2.3",
 								Name: "abc",
 							},
@@ -240,22 +240,22 @@ func Test_validateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "match cannot compile regex",
-			metrics: []metricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbols: []symbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID:  "1.2",
 							Name: "abc",
 						},
 					},
-					MetricTags: metricTagConfigList{
-						metricTagConfig{
-							Column: symbolConfig{
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Column: SymbolConfig{
 								OID:  "1.2.3",
 								Name: "abc",
 							},
 							Tag: "hello",
-							IndexTransform: []metricIndexTransform{
+							IndexTransform: []MetricIndexTransform{
 								{
 									Start: 2,
 									End:   1,
@@ -271,25 +271,25 @@ func Test_validateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "compiling extract_value",
-			metrics: []metricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbol: symbolConfig{
+					Symbol: SymbolConfig{
 						OID:          "1.2.3",
 						Name:         "myMetric",
 						ExtractValue: `(\d+)C`,
 					},
 				},
 				{
-					Symbols: []symbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID:          "1.2",
 							Name:         "hey",
 							ExtractValue: `(\d+)C`,
 						},
 					},
-					MetricTags: metricTagConfigList{
-						metricTagConfig{
-							Column: symbolConfig{
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Column: SymbolConfig{
 								OID:          "1.2.3",
 								Name:         "abc",
 								ExtractValue: `(\d+)C`,
@@ -299,9 +299,9 @@ func Test_validateEnrichMetrics(t *testing.T) {
 					},
 				},
 			},
-			expectedMetrics: []metricsConfig{
+			expectedMetrics: []MetricsConfig{
 				{
-					Symbol: symbolConfig{
+					Symbol: SymbolConfig{
 						OID:                 "1.2.3",
 						Name:                "myMetric",
 						ExtractValue:        `(\d+)C`,
@@ -309,7 +309,7 @@ func Test_validateEnrichMetrics(t *testing.T) {
 					},
 				},
 				{
-					Symbols: []symbolConfig{
+					Symbols: []SymbolConfig{
 						{
 							OID:                 "1.2",
 							Name:                "hey",
@@ -317,9 +317,9 @@ func Test_validateEnrichMetrics(t *testing.T) {
 							extractValuePattern: regexp.MustCompile(`(\d+)C`),
 						},
 					},
-					MetricTags: metricTagConfigList{
-						metricTagConfig{
-							Column: symbolConfig{
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Column: SymbolConfig{
 								OID:                 "1.2.3",
 								Name:                "abc",
 								ExtractValue:        `(\d+)C`,
@@ -334,9 +334,9 @@ func Test_validateEnrichMetrics(t *testing.T) {
 		},
 		{
 			name: "error compiling extract_value",
-			metrics: []metricsConfig{
+			metrics: []MetricsConfig{
 				{
-					Symbol: symbolConfig{
+					Symbol: SymbolConfig{
 						OID:          "1.2.3",
 						Name:         "myMetric",
 						ExtractValue: "[{",

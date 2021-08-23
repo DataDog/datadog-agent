@@ -35,7 +35,7 @@ const defaultBulkMaxRepetitions = uint32(10)
 // InitConfig maps to a check init config
 type InitConfig struct {
 	Profiles              profileConfigMap `yaml:"profiles"`
-	GlobalMetrics         []metricsConfig  `yaml:"global_metrics"`
+	GlobalMetrics         []MetricsConfig  `yaml:"global_metrics"`
 	OidBatchSize          Number           `yaml:"oid_batch_size"`
 	BulkMaxRepetitions    Number           `yaml:"bulk_max_repetitions"`
 	CollectDeviceMetadata Boolean          `yaml:"collect_device_metadata"`
@@ -58,8 +58,8 @@ type InstanceConfig struct {
 	PrivProtocol          string            `yaml:"privProtocol"`
 	PrivKey               string            `yaml:"privKey"`
 	ContextName           string            `yaml:"context_name"`
-	Metrics               []metricsConfig   `yaml:"metrics"`
-	MetricTags            []metricTagConfig `yaml:"metric_tags"`
+	Metrics               []MetricsConfig   `yaml:"metrics"`
+	MetricTags            []MetricTagConfig `yaml:"metric_tags"`
 	Profile               string            `yaml:"profile"`
 	UseGlobalMetrics      bool              `yaml:"use_global_metrics"`
 	ExtraTags             string            `yaml:"extra_tags"` // comma separated tags
@@ -91,8 +91,8 @@ type CheckConfig struct {
 	privKey               string
 	contextName           string
 	oidConfig             oidConfig
-	metrics               []metricsConfig
-	metricTags            []metricTagConfig
+	metrics               []MetricsConfig
+	metricTags            []MetricTagConfig
 	oidBatchSize          int
 	bulkMaxRepetitions    uint32
 	profiles              profileDefinitionMap
@@ -350,12 +350,12 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	return c, nil
 }
 
-func getUptimeMetricConfig() metricsConfig {
+func getUptimeMetricConfig() MetricsConfig {
 	// Reference sysUpTimeInstance directly, see http://oidref.com/1.3.6.1.2.1.1.3.0
-	return metricsConfig{Symbol: symbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}}
+	return MetricsConfig{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}}
 }
 
-func parseScalarOids(metrics []metricsConfig, metricTags []metricTagConfig) []string {
+func parseScalarOids(metrics []MetricsConfig, metricTags []MetricTagConfig) []string {
 	var oids []string
 	for _, metric := range metrics {
 		if metric.Symbol.OID != "" {
@@ -370,7 +370,7 @@ func parseScalarOids(metrics []metricsConfig, metricTags []metricTagConfig) []st
 	return oids
 }
 
-func parseColumnOids(metrics []metricsConfig) []string {
+func parseColumnOids(metrics []MetricsConfig) []string {
 	var oids []string
 	for _, metric := range metrics {
 		for _, symbol := range metric.Symbols {

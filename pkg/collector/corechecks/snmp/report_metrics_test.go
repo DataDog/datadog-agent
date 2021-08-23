@@ -26,7 +26,7 @@ func TestSendMetric(t *testing.T) {
 		value               snmpValueType
 		tags                []string
 		forcedType          string
-		options             metricsConfigOption
+		options             MetricsConfigOption
 		extractValuePattern *regexp.Regexp
 		expectedMethod      string
 		expectedMetricName  string
@@ -75,7 +75,7 @@ func TestSendMetric(t *testing.T) {
 			value:              snmpValueType{submissionType: "counter", value: float64(10)},
 			tags:               []string{},
 			forcedType:         "counter",
-			options:            metricsConfigOption{},
+			options:            MetricsConfigOption{},
 			expectedMethod:     "Rate",
 			expectedMetricName: "snmp.my.metric",
 			expectedValue:      float64(10),
@@ -88,7 +88,7 @@ func TestSendMetric(t *testing.T) {
 			value:              snmpValueType{submissionType: "counter", value: float64(10)},
 			tags:               []string{},
 			forcedType:         "monotonic_count",
-			options:            metricsConfigOption{},
+			options:            MetricsConfigOption{},
 			expectedMethod:     "MonotonicCount",
 			expectedMetricName: "snmp.my.metric",
 			expectedValue:      float64(10),
@@ -101,7 +101,7 @@ func TestSendMetric(t *testing.T) {
 			value:              snmpValueType{submissionType: "counter", value: float64(10)},
 			tags:               []string{},
 			forcedType:         "monotonic_count_and_rate",
-			options:            metricsConfigOption{},
+			options:            MetricsConfigOption{},
 			expectedMethod:     "MonotonicCount",
 			expectedMetricName: "snmp.my.metric",
 			expectedValue:      float64(10),
@@ -114,7 +114,7 @@ func TestSendMetric(t *testing.T) {
 			value:              snmpValueType{submissionType: "counter", value: float64(10)},
 			tags:               []string{},
 			forcedType:         "monotonic_count_and_rate",
-			options:            metricsConfigOption{},
+			options:            MetricsConfigOption{},
 			expectedMethod:     "Rate",
 			expectedMetricName: "snmp.my.metric.rate",
 			expectedValue:      float64(10),
@@ -127,7 +127,7 @@ func TestSendMetric(t *testing.T) {
 			value:              snmpValueType{value: 0.5},
 			tags:               []string{},
 			forcedType:         "percent",
-			options:            metricsConfigOption{},
+			options:            MetricsConfigOption{},
 			expectedMethod:     "Rate",
 			expectedMetricName: "snmp.rate.metric",
 			expectedValue:      50.0,
@@ -140,7 +140,7 @@ func TestSendMetric(t *testing.T) {
 			value:              snmpValueType{value: "1010"},
 			tags:               []string{},
 			forcedType:         "flag_stream",
-			options:            metricsConfigOption{Placement: 1, MetricSuffix: "foo"},
+			options:            MetricsConfigOption{Placement: 1, MetricSuffix: "foo"},
 			expectedMethod:     "Gauge",
 			expectedMetricName: "snmp.metric.foo",
 			expectedValue:      1.0,
@@ -153,7 +153,7 @@ func TestSendMetric(t *testing.T) {
 			value:              snmpValueType{value: "1010"},
 			tags:               []string{},
 			forcedType:         "flag_stream",
-			options:            metricsConfigOption{Placement: 2, MetricSuffix: "foo"},
+			options:            MetricsConfigOption{Placement: 2, MetricSuffix: "foo"},
 			expectedMethod:     "Gauge",
 			expectedMetricName: "snmp.metric.foo",
 			expectedValue:      0.0,
@@ -166,7 +166,7 @@ func TestSendMetric(t *testing.T) {
 			value:              snmpValueType{value: "1010"},
 			tags:               []string{},
 			forcedType:         "flag_stream",
-			options:            metricsConfigOption{Placement: 10, MetricSuffix: "foo"},
+			options:            MetricsConfigOption{Placement: 10, MetricSuffix: "foo"},
 			expectedMethod:     "",
 			expectedMetricName: "",
 			expectedValue:      0.0,
@@ -182,7 +182,7 @@ func TestSendMetric(t *testing.T) {
 			value:              snmpValueType{value: snmpValueType{}},
 			tags:               []string{},
 			forcedType:         "flag_stream",
-			options:            metricsConfigOption{Placement: 10, MetricSuffix: "foo"},
+			options:            MetricsConfigOption{Placement: 10, MetricSuffix: "foo"},
 			expectedMethod:     "",
 			expectedMetricName: "",
 			expectedValue:      0.0,
@@ -287,15 +287,15 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 	}
 	tests := []struct {
 		name         string
-		metrics      []metricsConfig
+		metrics      []MetricsConfig
 		values       *resultValueStore
 		tags         []string
 		expectedLogs []logCount
 	}{
 		{
 			name: "report scalar error",
-			metrics: []metricsConfig{
-				{Symbol: symbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
+			metrics: []MetricsConfig{
+				{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 			},
 			values: &resultValueStore{},
 			expectedLogs: []logCount{
@@ -304,16 +304,16 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 		},
 		{
 			name: "report column error",
-			metrics: []metricsConfig{
+			metrics: []MetricsConfig{
 				{
 					ForcedType: "monotonic_count",
-					Symbols: []symbolConfig{
+					Symbols: []SymbolConfig{
 						{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors"},
 						{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
 					},
-					MetricTags: []metricTagConfig{
-						{Tag: "interface", Column: symbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
-						{Tag: "interface_alias", Column: symbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
+					MetricTags: []MetricTagConfig{
+						{Tag: "interface", Column: SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+						{Tag: "interface_alias", Column: SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
 					},
 				},
 			},
@@ -325,15 +325,15 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 		},
 		{
 			name: "report column cache",
-			metrics: []metricsConfig{
+			metrics: []MetricsConfig{
 				{
 					ForcedType: "monotonic_count",
-					Symbols: []symbolConfig{
+					Symbols: []SymbolConfig{
 						{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors"},
 						{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
 					},
-					MetricTags: []metricTagConfig{
-						{Tag: "interface", Column: symbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+					MetricTags: []MetricTagConfig{
+						{Tag: "interface", Column: SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
 					},
 				},
 			},
@@ -396,14 +396,14 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 	}
 	tests := []struct {
 		name         string
-		metricsTags  []metricTagConfig
+		metricsTags  []MetricTagConfig
 		values       *resultValueStore
 		expectedTags []string
 		expectedLogs []logCount
 	}{
 		{
 			name: "report scalar error",
-			metricsTags: []metricTagConfig{
+			metricsTags: []MetricTagConfig{
 				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
 				{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 			},
@@ -415,7 +415,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 		},
 		{
 			name: "report scalar tags with regex",
-			metricsTags: []metricTagConfig{
+			metricsTags: []MetricTagConfig{
 				{OID: "1.2.3", Name: "mySymbol", Match: "^([a-zA-Z]+)([0-9]+)$", Tags: map[string]string{
 					"word":   "\\1",
 					"number": "\\2",
@@ -433,7 +433,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 		},
 		{
 			name: "error converting tag value",
-			metricsTags: []metricTagConfig{
+			metricsTags: []MetricTagConfig{
 				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
 			},
 			values: &resultValueStore{

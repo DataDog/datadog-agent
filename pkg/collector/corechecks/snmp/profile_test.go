@@ -17,28 +17,28 @@ import (
 )
 
 func mockProfilesDefinitions() profileDefinitionMap {
-	metrics := []metricsConfig{
-		{Symbol: symbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal"}, ForcedType: "gauge"},
-		{Symbol: symbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", Name: "oldSyntax"}},
+	metrics := []MetricsConfig{
+		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal"}, ForcedType: "gauge"},
+		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", Name: "oldSyntax"}},
 		{
 			ForcedType: "monotonic_count",
-			Symbols: []symbolConfig{
+			Symbols: []SymbolConfig{
 				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors"},
 				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
 			},
-			MetricTags: []metricTagConfig{
-				{Tag: "interface", Column: symbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
-				{Tag: "interface_alias", Column: symbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
+			MetricTags: []MetricTagConfig{
+				{Tag: "interface", Column: SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+				{Tag: "interface_alias", Column: SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
 			},
 		},
-		{Symbol: symbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
+		{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 	}
 	return profileDefinitionMap{"f5-big-ip": profileDefinition{
 		Metrics:      metrics,
 		Extends:      []string{"_base.yaml", "_generic-if.yaml"},
 		Device:       deviceMeta{Vendor: "f5"},
 		SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
-		MetricTags: []metricTagConfig{
+		MetricTags: []MetricTagConfig{
 			{
 				OID:     "1.3.6.1.2.1.1.5.0",
 				Name:    "sysName",
@@ -50,7 +50,7 @@ func mockProfilesDefinitions() profileDefinitionMap {
 					"suffix":   "\\2",
 				},
 			},
-			{Tag: "snmp_host", Index: 0x0, Column: symbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+			{Tag: "snmp_host", Index: 0x0, Column: SymbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 		},
 	}}
 }

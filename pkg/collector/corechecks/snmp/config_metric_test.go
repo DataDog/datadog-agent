@@ -17,19 +17,19 @@ func Test_transformIndex(t *testing.T) {
 	tests := []struct {
 		name               string
 		indexes            []string
-		transformRules     []metricIndexTransform
+		transformRules     []MetricIndexTransform
 		expectedNewIndexes []string
 	}{
 		{
 			"no rule",
 			[]string{"10", "11", "12", "13"},
-			[]metricIndexTransform{},
+			[]MetricIndexTransform{},
 			nil,
 		},
 		{
 			"one",
 			[]string{"10", "11", "12", "13"},
-			[]metricIndexTransform{
+			[]MetricIndexTransform{
 				{2, 3},
 			},
 			[]string{"12", "13"},
@@ -37,7 +37,7 @@ func Test_transformIndex(t *testing.T) {
 		{
 			"multi",
 			[]string{"10", "11", "12", "13"},
-			[]metricIndexTransform{
+			[]MetricIndexTransform{
 				{2, 2},
 				{0, 1},
 			},
@@ -46,7 +46,7 @@ func Test_transformIndex(t *testing.T) {
 		{
 			"out of index end",
 			[]string{"10", "11", "12", "13"},
-			[]metricIndexTransform{
+			[]MetricIndexTransform{
 				{2, 1000},
 			},
 			nil,
@@ -54,7 +54,7 @@ func Test_transformIndex(t *testing.T) {
 		{
 			"out of index start and end",
 			[]string{"10", "11", "12", "13"},
-			[]metricIndexTransform{
+			[]MetricIndexTransform{
 				{1000, 2000},
 			},
 			nil,
@@ -439,10 +439,10 @@ metric_tags:
 			assert.Nil(t, err)
 			log.SetupLogger(l, "debug")
 
-			m := metricsConfig{}
+			m := MetricsConfig{}
 			yaml.Unmarshal(tt.rawMetricConfig, &m)
 
-			validateEnrichMetrics([]metricsConfig{m})
+			validateEnrichMetrics([]MetricsConfig{m})
 			tags := m.getTags(tt.fullIndex, tt.values)
 
 			assert.ElementsMatch(t, tt.expectedTags, tags)

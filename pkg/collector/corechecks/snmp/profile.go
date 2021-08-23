@@ -21,8 +21,8 @@ type deviceMeta struct {
 }
 
 type profileDefinition struct {
-	Metrics      []metricsConfig   `yaml:"metrics"`
-	MetricTags   []metricTagConfig `yaml:"metric_tags"`
+	Metrics      []MetricsConfig   `yaml:"metrics"`
+	MetricTags   []MetricTagConfig `yaml:"metric_tags"`
 	Extends      []string          `yaml:"extends"`
 	Device       deviceMeta        `yaml:"device"`
 	SysObjectIds StringArray       `yaml:"sysobjectid"`

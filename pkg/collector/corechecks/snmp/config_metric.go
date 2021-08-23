@@ -7,7 +7,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type symbolConfig struct {
+// SymbolConfig holds info for a single symbol/oid
+type SymbolConfig struct {
 	OID          string `yaml:"OID"`
 	Name         string `yaml:"name"`
 	ExtractValue string `yaml:"extract_value"`
@@ -15,18 +16,19 @@ type symbolConfig struct {
 	extractValuePattern *regexp.Regexp
 }
 
-type metricTagConfig struct {
+// MetricTagConfig holds metric tag info
+type MetricTagConfig struct {
 	Tag string `yaml:"tag"`
 
 	// Table config
 	Index  uint         `yaml:"index"`
-	Column symbolConfig `yaml:"column"`
+	Column SymbolConfig `yaml:"column"`
 
 	// Symbol config
 	OID  string `yaml:"OID"`
 	Name string `yaml:"symbol"`
 
-	IndexTransform []metricIndexTransform `yaml:"index_transform"`
+	IndexTransform []MetricIndexTransform `yaml:"index_transform"`
 
 	Mapping map[string]string `yaml:"mapping"`
 
@@ -38,37 +40,41 @@ type metricTagConfig struct {
 	pattern   *regexp.Regexp
 }
 
-type metricTagConfigList []metricTagConfig
+// MetricTagConfigList holds configs for a list os metric tags
+type MetricTagConfigList []MetricTagConfig
 
-type metricIndexTransform struct {
+// MetricIndexTransform holds configs for metric index transform
+type MetricIndexTransform struct {
 	Start uint `yaml:"start"`
 	End   uint `yaml:"end"`
 }
 
-type metricsConfigOption struct {
+// MetricsConfigOption holds config for metrics options
+type MetricsConfigOption struct {
 	Placement    uint   `yaml:"placement"`
 	MetricSuffix string `yaml:"metric_suffix"`
 }
 
-type metricsConfig struct {
+// MetricsConfig holds configs for a metric
+type MetricsConfig struct {
 	// Symbol configs
-	Symbol symbolConfig `yaml:"symbol"`
+	Symbol SymbolConfig `yaml:"symbol"`
 
 	// Legacy Symbol configs syntax
 	OID  string `yaml:"OID"`
 	Name string `yaml:"name"`
 
 	// Table configs
-	Symbols []symbolConfig `yaml:"symbols"`
+	Symbols []SymbolConfig `yaml:"symbols"`
 
-	MetricTags metricTagConfigList `yaml:"metric_tags"`
+	MetricTags MetricTagConfigList `yaml:"metric_tags"`
 
 	ForcedType string              `yaml:"forced_type"`
-	Options    metricsConfigOption `yaml:"options"`
+	Options    MetricsConfigOption `yaml:"options"`
 }
 
 // getTags retrieve tags using the metric config and values
-func (m *metricsConfig) getTags(fullIndex string, values *resultValueStore) []string {
+func (m *MetricsConfig) getTags(fullIndex string, values *resultValueStore) []string {
 	var rowTags []string
 	indexes := strings.Split(fullIndex, ".")
 	for _, metricTag := range m.MetricTags {
@@ -124,7 +130,7 @@ func (m *metricsConfig) getTags(fullIndex string, values *resultValueStore) []st
 	return rowTags
 }
 
-func (m *metricsConfig) getSymbolTags() []string {
+func (m *MetricsConfig) getSymbolTags() []string {
 	var symbolTags []string
 	for _, metricTag := range m.MetricTags {
 		symbolTags = append(symbolTags, metricTag.symbolTag)
@@ -132,15 +138,15 @@ func (m *metricsConfig) getSymbolTags() []string {
 	return symbolTags
 }
 
-func (m *metricsConfig) isColumn() bool {
+func (m *MetricsConfig) isColumn() bool {
 	return len(m.Symbols) > 0
 }
 
-func (m *metricsConfig) isScalar() bool {
+func (m *MetricsConfig) isScalar() bool {
 	return m.Symbol.OID != "" && m.Symbol.Name != ""
 }
 
-func (mtc *metricTagConfig) getTags(value string) []string {
+func (mtc *MetricTagConfig) getTags(value string) []string {
 	var tags []string
 	if mtc.Tag != "" {
 		tags = append(tags, mtc.Tag+":"+value)
@@ -181,7 +187,7 @@ func normalizeRegexReplaceValue(val string) string {
 
 // transformIndex change a source index into a new index using a list of transform rules.
 // A transform rule has start/end fields, it is used to extract a subset of the source index.
-func transformIndex(indexes []string, transformRules []metricIndexTransform) []string {
+func transformIndex(indexes []string, transformRules []MetricIndexTransform) []string {
 	var newIndex []string
 
 	for _, rule := range transformRules {
@@ -198,7 +204,7 @@ func transformIndex(indexes []string, transformRules []metricIndexTransform) []s
 // normalizeMetrics converts legacy syntax to new syntax
 // 1/ converts old symbol syntax to new symbol syntax
 //    metric.Name and metric.OID info are moved to metric.Symbol.Name and metric.Symbol.OID
-func normalizeMetrics(metrics []metricsConfig) {
+func normalizeMetrics(metrics []MetricsConfig) {
 	for i := range metrics {
 		metric := &metrics[i]
 

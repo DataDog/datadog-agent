@@ -80,9 +80,9 @@ func (b *Boolean) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-//UnmarshalYAML unmarshalls metricTagConfigList
-func (a *metricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var multi []metricTagConfig
+//UnmarshalYAML unmarshalls MetricTagConfigList
+func (a *MetricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var multi []MetricTagConfig
 	err := unmarshal(&multi)
 	if err != nil {
 		var tags []string
@@ -90,9 +90,9 @@ func (a *metricTagConfigList) UnmarshalYAML(unmarshal func(interface{}) error) e
 		if err != nil {
 			return err
 		}
-		multi = []metricTagConfig{}
+		multi = []MetricTagConfig{}
 		for _, tag := range tags {
-			multi = append(multi, metricTagConfig{symbolTag: tag})
+			multi = append(multi, MetricTagConfig{symbolTag: tag})
 		}
 	}
 	*a = multi

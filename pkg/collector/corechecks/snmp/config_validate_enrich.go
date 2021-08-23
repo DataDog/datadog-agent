@@ -5,7 +5,7 @@ import (
 	"regexp"
 )
 
-func validateEnrichMetricTags(metricTags []metricTagConfig) []string {
+func validateEnrichMetricTags(metricTags []MetricTagConfig) []string {
 	var errors []string
 	for i := range metricTags {
 		errors = append(errors, validateEnrichMetricTag(&metricTags[i], nil)...)
@@ -13,10 +13,10 @@ func validateEnrichMetricTags(metricTags []metricTagConfig) []string {
 	return errors
 }
 
-// validateEnrichMetrics will validate metricsConfig and enrich it.
+// validateEnrichMetrics will validate MetricsConfig and enrich it.
 // Example of enrichment:
 // - storage of compiled regex pattern
-func validateEnrichMetrics(metrics []metricsConfig) []string {
+func validateEnrichMetrics(metrics []MetricsConfig) []string {
 	var errors []string
 	for i := range metrics {
 		metricConfig := &metrics[i]
@@ -48,7 +48,7 @@ func validateEnrichMetrics(metrics []metricsConfig) []string {
 	return errors
 }
 
-func validateEnrichSymbol(symbol *symbolConfig, metricConfig *metricsConfig) []string {
+func validateEnrichSymbol(symbol *SymbolConfig, metricConfig *MetricsConfig) []string {
 	var errors []string
 	if symbol.Name == "" {
 		errors = append(errors, fmt.Sprintf("symbol name missing: name=`%s` oid=`%s`: %#v", symbol.Name, symbol.OID, metricConfig))
@@ -66,7 +66,7 @@ func validateEnrichSymbol(symbol *symbolConfig, metricConfig *metricsConfig) []s
 	}
 	return errors
 }
-func validateEnrichMetricTag(metricTag *metricTagConfig, metricConfig *metricsConfig) []string {
+func validateEnrichMetricTag(metricTag *MetricTagConfig, metricConfig *MetricsConfig) []string {
 	var errors []string
 	if metricTag.Column.OID != "" || metricTag.Column.Name != "" {
 		errors = append(errors, validateEnrichSymbol(&metricTag.Column, metricConfig)...)

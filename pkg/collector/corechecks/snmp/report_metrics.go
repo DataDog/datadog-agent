@@ -14,7 +14,7 @@ type metricSender struct {
 	submittedMetrics int
 }
 
-func (ms *metricSender) reportMetrics(metrics []metricsConfig, values *resultValueStore, tags []string) {
+func (ms *metricSender) reportMetrics(metrics []MetricsConfig, values *resultValueStore, tags []string) {
 	for _, metric := range metrics {
 		if metric.isScalar() {
 			ms.reportScalarMetrics(metric, values, tags)
@@ -24,7 +24,7 @@ func (ms *metricSender) reportMetrics(metrics []metricsConfig, values *resultVal
 	}
 }
 
-func (ms *metricSender) getCheckInstanceMetricTags(metricTags []metricTagConfig, values *resultValueStore) []string {
+func (ms *metricSender) getCheckInstanceMetricTags(metricTags []MetricTagConfig, values *resultValueStore) []string {
 	var globalTags []string
 
 	for _, metricTag := range metricTags {
@@ -43,7 +43,7 @@ func (ms *metricSender) getCheckInstanceMetricTags(metricTags []metricTagConfig,
 	return globalTags
 }
 
-func (ms *metricSender) reportScalarMetrics(metric metricsConfig, values *resultValueStore, tags []string) {
+func (ms *metricSender) reportScalarMetrics(metric MetricsConfig, values *resultValueStore, tags []string) {
 	value, err := values.getScalarValue(metric.Symbol.OID)
 	if err != nil {
 		log.Debugf("report scalar: error getting scalar value: %v", err)
@@ -55,7 +55,7 @@ func (ms *metricSender) reportScalarMetrics(metric metricsConfig, values *result
 	ms.sendMetric(metric.Symbol.Name, value, scalarTags, metric.ForcedType, metric.Options, metric.Symbol.extractValuePattern)
 }
 
-func (ms *metricSender) reportColumnMetrics(metricConfig metricsConfig, values *resultValueStore, tags []string) {
+func (ms *metricSender) reportColumnMetrics(metricConfig MetricsConfig, values *resultValueStore, tags []string) {
 	rowTagsCache := make(map[string][]string)
 	for _, symbol := range metricConfig.Symbols {
 		metricValues, err := values.getColumnValues(symbol.OID)
@@ -76,7 +76,7 @@ func (ms *metricSender) reportColumnMetrics(metricConfig metricsConfig, values *
 	}
 }
 
-func (ms *metricSender) sendMetric(metricName string, value snmpValueType, tags []string, forcedType string, options metricsConfigOption, extractValuePattern *regexp.Regexp) {
+func (ms *metricSender) sendMetric(metricName string, value snmpValueType, tags []string, forcedType string, options MetricsConfigOption, extractValuePattern *regexp.Regexp) {
 	if extractValuePattern != nil {
 		extractedValue, err := value.extractStringValue(extractValuePattern)
 		if err != nil {
