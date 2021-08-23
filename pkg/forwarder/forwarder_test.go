@@ -128,6 +128,7 @@ func TestSubmitIfStopped(t *testing.T) {
 	assert.NotNil(t, forwarder.SubmitHostMetadata(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitMetadata(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitV1Series(nil, make(http.Header)))
+	assert.NotNil(t, forwarder.SubmitSeries(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitV1Intake(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitV1CheckRuns(nil, make(http.Header)))
 }
@@ -366,6 +367,7 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	headers.Set("key", "value")
 
 	assert.Nil(t, f.SubmitV1Series(payload, headers))
+	assert.Nil(t, f.SubmitSeries(payload, headers))
 	assert.Nil(t, f.SubmitV1Intake(payload, headers))
 	assert.Nil(t, f.SubmitV1CheckRuns(payload, headers))
 	assert.Nil(t, f.SubmitEvents(payload, headers))
