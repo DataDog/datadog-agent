@@ -31,7 +31,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 		sender: sender,
 	}
 
-	config := snmpConfig{
+	config := CheckConfig{
 		ipAddress:    "1.2.3.4",
 		deviceID:     "1234",
 		deviceIDTags: []string{"device_name:127.0.0.1"},
@@ -98,7 +98,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 		sender: sender,
 	}
 
-	config := snmpConfig{
+	config := CheckConfig{
 		ipAddress:    "1.2.3.4",
 		deviceID:     "1234",
 		deviceIDTags: []string{"device_name:127.0.0.1"},

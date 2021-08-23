@@ -35,7 +35,7 @@ type mockSession struct {
 	version    gosnmp.SnmpVersion
 }
 
-func (s *mockSession) Configure(config snmpConfig) error {
+func (s *mockSession) Configure(config CheckConfig) error {
 	return nil
 }
 

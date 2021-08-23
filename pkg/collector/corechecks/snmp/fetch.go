@@ -15,7 +15,7 @@ type columnResultValuesType map[string]map[string]snmpValueType
 // - the instance oid value (suffixed with `.0`)
 type scalarResultValuesType map[string]snmpValueType
 
-func fetchValues(session sessionAPI, config snmpConfig) (*resultValueStore, error) {
+func fetchValues(session sessionAPI, config CheckConfig) (*resultValueStore, error) {
 	// fetch scalar values
 	scalarResults, err := fetchScalarOidsWithBatching(session, config.oidConfig.scalarOids, config.oidBatchSize)
 	if err != nil {

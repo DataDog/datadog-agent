@@ -591,13 +591,13 @@ func Test_fetchScalarOids_v1NoSuchName_errorIndexTooLow(t *testing.T) {
 func Test_fetchValues_errors(t *testing.T) {
 	tests := []struct {
 		name          string
-		config        snmpConfig
+		config        CheckConfig
 		bulkPacket    gosnmp.SnmpPacket
 		expectedError error
 	}{
 		{
 			name: "invalid batch size",
-			config: snmpConfig{
+			config: CheckConfig{
 				bulkMaxRepetitions: defaultBulkMaxRepetitions,
 				oidConfig: oidConfig{
 					scalarOids: []string{"1.1", "1.2"},
@@ -607,7 +607,7 @@ func Test_fetchValues_errors(t *testing.T) {
 		},
 		{
 			name: "get fetch error",
-			config: snmpConfig{
+			config: CheckConfig{
 				bulkMaxRepetitions: defaultBulkMaxRepetitions,
 				oidBatchSize:       10,
 				oidConfig: oidConfig{
@@ -618,7 +618,7 @@ func Test_fetchValues_errors(t *testing.T) {
 		},
 		{
 			name: "bulk fetch error",
-			config: snmpConfig{
+			config: CheckConfig{
 				bulkMaxRepetitions: defaultBulkMaxRepetitions,
 				oidBatchSize:       10,
 				oidConfig: oidConfig{

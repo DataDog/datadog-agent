@@ -32,7 +32,8 @@ var subnetTagPrefix = "autodiscovery_subnet"
 // - snmp-net uses 10
 const defaultBulkMaxRepetitions = uint32(10)
 
-type snmpInitConfig struct {
+// InitConfig maps to a check init config
+type InitConfig struct {
 	Profiles              profileConfigMap `yaml:"profiles"`
 	GlobalMetrics         []metricsConfig  `yaml:"global_metrics"`
 	OidBatchSize          Number           `yaml:"oid_batch_size"`
@@ -41,7 +42,8 @@ type snmpInitConfig struct {
 	MinCollectionInterval int              `yaml:"min_collection_interval"`
 }
 
-type snmpInstanceConfig struct {
+// InstanceConfig maps to a check instance config
+type InstanceConfig struct {
 	IPAddress             string            `yaml:"ip_address"`
 	Port                  Number            `yaml:"port"`
 	CommunityString       string            `yaml:"community_string"`
@@ -74,7 +76,8 @@ type snmpInstanceConfig struct {
 	Network string `yaml:"network_address"`
 }
 
-type snmpConfig struct {
+// CheckConfig holds config for a check instance
+type CheckConfig struct {
 	ipAddress             string
 	port                  uint16
 	communityString       string
@@ -106,7 +109,7 @@ type snmpConfig struct {
 	minCollectionInterval time.Duration
 }
 
-func (c *snmpConfig) refreshWithProfile(profile string) error {
+func (c *CheckConfig) refreshWithProfile(profile string) error {
 	if _, ok := c.profiles[profile]; !ok {
 		return fmt.Errorf("unknown profile `%s`", profile)
 	}
@@ -128,7 +131,7 @@ func (c *snmpConfig) refreshWithProfile(profile string) error {
 	return nil
 }
 
-func (c *snmpConfig) addUptimeMetric() {
+func (c *CheckConfig) addUptimeMetric() {
 	metricConfig := getUptimeMetricConfig()
 	c.metrics = append(c.metrics, metricConfig)
 	c.oidConfig.addScalarOids([]string{metricConfig.Symbol.OID})
@@ -137,7 +140,7 @@ func (c *snmpConfig) addUptimeMetric() {
 // getStaticTags return static tags built from configuration
 // warning: changing getStaticTags logic might lead to different deviceID
 // getStaticTags does not contain tags from instance[].tags config
-func (c *snmpConfig) getStaticTags() []string {
+func (c *CheckConfig) getStaticTags() []string {
 	tags := []string{"snmp_device:" + c.ipAddress}
 	tags = append(tags, c.extraTags...)
 	return tags
@@ -145,16 +148,16 @@ func (c *snmpConfig) getStaticTags() []string {
 
 // getDeviceIDTags return sorted tags used for generating device id
 // warning: changing getDeviceIDTags logic might lead to different deviceID
-func (c *snmpConfig) getDeviceIDTags() []string {
+func (c *CheckConfig) getDeviceIDTags() []string {
 	tags := c.getStaticTags()
 	tags = append(tags, c.instanceTags...)
 	sort.Strings(tags)
 	return tags
 }
 
-// toString used for logging snmpConfig without sensitive information
-func (c *snmpConfig) toString() string {
-	return fmt.Sprintf("snmpConfig: ipAddress=`%s`, port=`%d`, snmpVersion=`%s`, timeout=`%d`, retries=`%d`, "+
+// toString used for logging CheckConfig without sensitive information
+func (c *CheckConfig) toString() string {
+	return fmt.Sprintf("CheckConfig: ipAddress=`%s`, port=`%d`, snmpVersion=`%s`, timeout=`%d`, retries=`%d`, "+
 		"user=`%s`, authProtocol=`%s`, privProtocol=`%s`, contextName=`%s`, oidConfig=`%#v`, "+
 		"oidBatchSize=`%d`, profileTags=`%#v`",
 		c.ipAddress,
@@ -172,24 +175,24 @@ func (c *snmpConfig) toString() string {
 	)
 }
 
-func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (snmpConfig, error) {
-	instance := snmpInstanceConfig{}
-	initConfig := snmpInitConfig{}
+func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (CheckConfig, error) {
+	instance := InstanceConfig{}
+	initConfig := InitConfig{}
 
 	// Set defaults before unmarshalling
 	instance.UseGlobalMetrics = true
 
 	err := yaml.Unmarshal(rawInitConfig, &initConfig)
 	if err != nil {
-		return snmpConfig{}, err
+		return CheckConfig{}, err
 	}
 
 	err = yaml.Unmarshal(rawInstance, &instance)
 	if err != nil {
-		return snmpConfig{}, err
+		return CheckConfig{}, err
 	}
 
-	c := snmpConfig{}
+	c := CheckConfig{}
 
 	c.snmpVersion = instance.SnmpVersion
 	c.ipAddress = instance.IPAddress
@@ -210,7 +213,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	}
 
 	if c.ipAddress == "" {
-		return snmpConfig{}, fmt.Errorf("ip_address config must be provided")
+		return CheckConfig{}, fmt.Errorf("ip_address config must be provided")
 	}
 
 	if c.port == 0 {
@@ -239,7 +242,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		c.minCollectionInterval = defaults.DefaultCheckInterval
 	}
 	if c.minCollectionInterval < 0 {
-		return snmpConfig{}, fmt.Errorf("min collection interval must be > 0, but got: %v", c.minCollectionInterval.Seconds())
+		return CheckConfig{}, fmt.Errorf("min collection interval must be > 0, but got: %v", c.minCollectionInterval.Seconds())
 	}
 
 	// SNMP connection configs
@@ -270,7 +273,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		bulkMaxRepetitions = int(defaultBulkMaxRepetitions)
 	}
 	if bulkMaxRepetitions <= 0 {
-		return snmpConfig{}, fmt.Errorf("bulk max repetition must be a positive integer. Invalid value: %d", bulkMaxRepetitions)
+		return CheckConfig{}, fmt.Errorf("bulk max repetition must be a positive integer. Invalid value: %d", bulkMaxRepetitions)
 	}
 	c.bulkMaxRepetitions = uint32(bulkMaxRepetitions)
 
@@ -298,13 +301,13 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		//   There are possibly multiple init configs
 		customProfiles, err := loadProfiles(initConfig.Profiles)
 		if err != nil {
-			return snmpConfig{}, fmt.Errorf("failed to load custom profiles: %s", err)
+			return CheckConfig{}, fmt.Errorf("failed to load custom profiles: %s", err)
 		}
 		profiles = customProfiles
 	} else {
 		defaultProfiles, err := loadDefaultProfiles()
 		if err != nil {
-			return snmpConfig{}, fmt.Errorf("failed to load default profiles: %s", err)
+			return CheckConfig{}, fmt.Errorf("failed to load default profiles: %s", err)
 		}
 		profiles = defaultProfiles
 	}
@@ -319,7 +322,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	errors := validateEnrichMetrics(c.metrics)
 	errors = append(errors, validateEnrichMetricTags(c.metricTags)...)
 	if len(errors) > 0 {
-		return snmpConfig{}, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
+		return CheckConfig{}, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
 	}
 
 	if profile != "" || len(c.metrics) > 0 {
@@ -331,7 +334,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	if profile != "" {
 		err = c.refreshWithProfile(profile)
 		if err != nil {
-			return snmpConfig{}, fmt.Errorf("failed to refresh with profile `%s`: %s", profile, err)
+			return CheckConfig{}, fmt.Errorf("failed to refresh with profile `%s`: %s", profile, err)
 		}
 	}
 

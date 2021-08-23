@@ -710,7 +710,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 }
 
 func Test_snmpConfig_toString(t *testing.T) {
-	c := snmpConfig{
+	c := CheckConfig{
 		communityString: "my_communityString",
 		authProtocol:    "my_authProtocol",
 		authKey:         "my_authKey",
@@ -740,7 +740,7 @@ func Test_Configure_invalidYaml(t *testing.T) {
 			rawInstanceConfig: []byte(``),
 			// language=yaml
 			rawInitConfig: []byte(`::x`),
-			expectedErr:   "build config failed: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!str `::x` into snmp.snmpInitConfig",
+			expectedErr:   "build config failed: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!str `::x` into snmp.InitConfig",
 		},
 		{
 			name: "invalid rawInstanceConfig",
@@ -802,7 +802,7 @@ extra_tags: "extratag1:val1,extratag2:val2"
 }
 
 func Test_snmpConfig_getDeviceIDTags(t *testing.T) {
-	c := &snmpConfig{
+	c := &CheckConfig{
 		ipAddress:    "1.2.3.4",
 		extraTags:    []string{"extratag1:val1", "extratag2"},
 		instanceTags: []string{"instancetag1:val1", "instancetag2"},
@@ -845,7 +845,7 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 	mockProfiles := profileDefinitionMap{
 		"profile1": profile1,
 	}
-	c := &snmpConfig{
+	c := &CheckConfig{
 		ipAddress: "1.2.3.4",
 		profiles:  mockProfiles,
 	}
@@ -867,7 +867,7 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 	}, c.oidConfig)
 	assert.Equal(t, []string{"snmp_profile:profile1", "device_vendor:a-vendor"}, c.profileTags)
 
-	c = &snmpConfig{
+	c = &CheckConfig{
 		ipAddress:             "1.2.3.4",
 		profiles:              mockProfiles,
 		collectDeviceMetadata: true,

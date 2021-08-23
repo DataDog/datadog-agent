@@ -27,7 +27,7 @@ var timeNow = time.Now
 // Check aggregates metrics from one Check instance
 type Check struct {
 	core.CheckBase
-	config  snmpConfig
+	config  CheckConfig
 	session sessionAPI
 	sender  metricSender
 }
