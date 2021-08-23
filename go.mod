@@ -162,7 +162,7 @@ require (
 	github.com/tedsuo/ifrit v0.0.0-20191009134036-9a97d0632f00 // indirect
 	github.com/tinylib/msgp v1.1.6
 	github.com/tklauser/go-sysconf v0.3.4 // indirect
-	github.com/twmb/murmur3 v1.1.5
+	github.com/twmb/murmur3 v1.1.6
 	github.com/ulikunitz/xz v0.5.10 // indirect
 	github.com/urfave/negroni v1.0.0
 	github.com/vishvananda/netlink v1.1.1-0.20210508154835-66ddd91f7ddd
