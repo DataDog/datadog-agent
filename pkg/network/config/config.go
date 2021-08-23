@@ -59,6 +59,10 @@ type Config struct {
 	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTP traffic
 	EnableHTTPMonitoring bool
 
+	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTPS traffic
+	// Supported libraries: OpenSSL
+	EnableHTTPSMonitoring bool
+
 	// UDPConnTimeout determines the length of traffic inactivity between two
 	// (IP, port)-pairs before declaring a UDP connection as inactive. This is
 	// set to /proc/sys/net/netfilter/nf_conntrack_udp_timeout on Linux by
@@ -186,8 +190,9 @@ func New() *Config {
 		MaxDNSStatsBuffered: 75000,
 		DNSTimeout:          time.Duration(cfg.GetInt(join(spNS, "dns_timeout_in_s"))) * time.Second,
 
-		EnableHTTPMonitoring: cfg.GetBool(join(netNS, "enable_http_monitoring")),
-		MaxHTTPStatsBuffered: 100000,
+		EnableHTTPMonitoring:  cfg.GetBool(join(netNS, "enable_http_monitoring")),
+		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
+		MaxHTTPStatsBuffered:  100000,
 
 		EnableConntrack:              cfg.GetBool(join(spNS, "enable_conntrack")),
 		ConntrackMaxStateSize:        cfg.GetInt(join(spNS, "conntrack_max_state_size")),
