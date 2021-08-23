@@ -88,7 +88,7 @@ Examples:
 The *file.rights* attribute can now be used in addition to *file.mode*. *file.mode* can hold values set by the kernel, while the *file.rights* only holds the values set by the user. These rights may be more familiar because they are in the `chmod` commands.
 
 ## Event types
-
+Event Types correspond to types of activity seen by the system. The currently supported set of event types are:
 ### Common to all event types
 
 | Property | Type | Definition |
