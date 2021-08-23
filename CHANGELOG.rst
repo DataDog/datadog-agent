@@ -14,7 +14,7 @@ Prelude
 
 Release on: 2021-08-20
 
-This is Windows + Docker-only release.
+This is a Windows-only release.
 
 .. _Release Notes_7.30.2_Bug Fixes:
 
