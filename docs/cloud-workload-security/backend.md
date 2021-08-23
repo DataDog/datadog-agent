@@ -1,7 +1,9 @@
 # CWS Event Documentation
 
 The CWS event sent to the backend by the security agent respects the following schema:
-```
+
+
+{{< code-block lang="javascript" collapsible="true" >}}
 BACKEND_EVENT_SCHEMA = {
     "properties": {
         "evt": {
@@ -30,7 +32,8 @@ BACKEND_EVENT_SCHEMA = {
     "additionalProperties": false,
     "type": "object"
 }
-```
+
+{{< /code-block >}}
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
