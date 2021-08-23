@@ -19,9 +19,9 @@
   dependencies: []
   script:
     - python3 -m pip install -r requirements.txt
-    - export VERSION="$(inv -e agent.version --major-version 6 --url-safe)"
+    - if [[ "$VERSION" == "" ]]; then export VERSION="$(inv -e agent.version --major-version 6 --url-safe); fi"
     - export IMG_SOURCES="${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6${JMX}-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6${JMX}-arm64"
-    - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${IMG_TAG_SUFFIX}${JMX}"
+    - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${JMX}"
     - inv pipeline.trigger-child-pipeline --project-name "DataDog/public-images" --git-ref "main" --variables "IMG_REGISTRIES,IMG_SOURCES,IMG_DESTINATIONS"
   parallel:
     matrix:
@@ -37,7 +37,7 @@ deploy-a6:
 deploy-a6-rc:
   extends: .deploy-a6-base
   variables:
-    IMG_TAG_SUFFIX: -rc
+    VERSION: 6-rc
 
 
 #
