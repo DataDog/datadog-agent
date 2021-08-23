@@ -89,7 +89,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 
 ## Event types
 
-## Common to all event types
+### Common to all event types
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
@@ -168,7 +168,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `*.process.uid` | int | UID of the process |
 | `*.process.user` | string | User of the process |
 
-## Event `capset`
+### Event `capset`
 
 A process changed its capacity set
 
@@ -177,7 +177,7 @@ A process changed its capacity set
 | `capset.cap_effective` | int | Effective capability set of the process |
 | `capset.cap_permitted` | int | Permitted capability set of the process |
 
-## Event `chmod`
+### Event `chmod`
 
 A file’s permissions were changed
 
@@ -201,7 +201,7 @@ A file’s permissions were changed
 | `chmod.file.user` | string | User of the file's owner |
 | `chmod.retval` | int | Return value of the syscall |
 
-## Event `chown`
+### Event `chown`
 
 A file’s owner was changed
 
@@ -227,7 +227,7 @@ A file’s owner was changed
 | `chown.file.user` | string | User of the file's owner |
 | `chown.retval` | int | Return value of the syscall |
 
-## Event `exec`
+### Event `exec`
 
 A process was executed or forked
 
@@ -277,7 +277,7 @@ A process was executed or forked
 | `exec.uid` | int | UID of the process |
 | `exec.user` | string | User of the process |
 
-## Event `link`
+### Event `link`
 
 Create a new name/alias for a file
 
@@ -313,7 +313,7 @@ Create a new name/alias for a file
 | `link.file.user` | string | User of the file's owner |
 | `link.retval` | int | Return value of the syscall |
 
-## Event `mkdir`
+### Event `mkdir`
 
 A directory was created
 
@@ -337,7 +337,7 @@ A directory was created
 | `mkdir.file.user` | string | User of the file's owner |
 | `mkdir.retval` | int | Return value of the syscall |
 
-## Event `open`
+### Event `open`
 
 A file was opened
 
@@ -361,7 +361,7 @@ A file was opened
 | `open.flags` | int | Flags used when opening the file |
 | `open.retval` | int | Return value of the syscall |
 
-## Event `removexattr`
+### Event `removexattr`
 
 Remove extended attributes
 
@@ -385,7 +385,7 @@ Remove extended attributes
 | `removexattr.file.user` | string | User of the file's owner |
 | `removexattr.retval` | int | Return value of the syscall |
 
-## Event `rename`
+### Event `rename`
 
 A file/directory was renamed
 
@@ -421,7 +421,7 @@ A file/directory was renamed
 | `rename.file.user` | string | User of the file's owner |
 | `rename.retval` | int | Return value of the syscall |
 
-## Event `rmdir`
+### Event `rmdir`
 
 A directory was removed
 
@@ -443,7 +443,7 @@ A directory was removed
 | `rmdir.file.user` | string | User of the file's owner |
 | `rmdir.retval` | int | Return value of the syscall |
 
-## Event `selinux`
+### Event `selinux`
 
 An SELinux operation was run
 
@@ -454,7 +454,7 @@ An SELinux operation was run
 | `selinux.bool_commit.state` | bool | Indicator of a SELinux boolean commit operation |
 | `selinux.enforce.status` | string | SELinux enforcement status (one of "enforcing", "permissive", "disabled"") |
 
-## Event `setgid`
+### Event `setgid`
 
 A process changed its effective gid
 
@@ -467,7 +467,7 @@ A process changed its effective gid
 | `setgid.gid` | int | New GID of the process |
 | `setgid.group` | string | New group of the process |
 
-## Event `setuid`
+### Event `setuid`
 
 A process changed its effective uid
 
@@ -480,7 +480,7 @@ A process changed its effective uid
 | `setuid.uid` | int | New UID of the process |
 | `setuid.user` | string | New user of the process |
 
-## Event `setxattr`
+### Event `setxattr`
 
 Set exteneded attributes
 
@@ -504,7 +504,7 @@ Set exteneded attributes
 | `setxattr.file.user` | string | User of the file's owner |
 | `setxattr.retval` | int | Return value of the syscall |
 
-## Event `unlink`
+### Event `unlink`
 
 A file was deleted
 
@@ -526,7 +526,7 @@ A file was deleted
 | `unlink.file.user` | string | User of the file's owner |
 | `unlink.retval` | int | Return value of the syscall |
 
-## Event `utimes`
+### Event `utimes`
 
 Change file access/modification times
 
