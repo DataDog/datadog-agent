@@ -12,7 +12,7 @@ Release Notes
 Prelude
 -------
 
-Release on: 2021-08-20
+Release on: 2021-08-23
 
 This is a Windows-only release.
 
