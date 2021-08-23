@@ -14,9 +14,9 @@ BACKEND_EVENT_SCHEMA = {{ event_schema }}
 {% for def in definitions %}
 ## `{{ def.name }}`
 
-```
+{{< code-block lang="json" collapsible="true" >}}
 {{ def.schema }}
-```
+{{< /code-block >}}
 
 {% if def.descriptions %}
 | Field | Description |
