@@ -599,8 +599,8 @@ func Test_fetchValues_errors(t *testing.T) {
 			name: "invalid batch size",
 			config: CheckConfig{
 				bulkMaxRepetitions: defaultBulkMaxRepetitions,
-				oidConfig: oidConfig{
-					scalarOids: []string{"1.1", "1.2"},
+				oidConfig: OidConfig{
+					ScalarOids: []string{"1.1", "1.2"},
 				},
 			},
 			expectedError: fmt.Errorf("failed to fetch scalar oids with batching: failed to create oid batches: batch size must be positive. invalid size: 0"),
@@ -610,8 +610,8 @@ func Test_fetchValues_errors(t *testing.T) {
 			config: CheckConfig{
 				bulkMaxRepetitions: defaultBulkMaxRepetitions,
 				oidBatchSize:       10,
-				oidConfig: oidConfig{
-					scalarOids: []string{"1.1", "2.2"},
+				oidConfig: OidConfig{
+					ScalarOids: []string{"1.1", "2.2"},
 				},
 			},
 			expectedError: fmt.Errorf("failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.1 2.2]`: get error"),
@@ -621,9 +621,9 @@ func Test_fetchValues_errors(t *testing.T) {
 			config: CheckConfig{
 				bulkMaxRepetitions: defaultBulkMaxRepetitions,
 				oidBatchSize:       10,
-				oidConfig: oidConfig{
-					scalarOids: []string{},
-					columnOids: []string{"1.1", "2.2"},
+				oidConfig: OidConfig{
+					ScalarOids: []string{},
+					ColumnOids: []string{"1.1", "2.2"},
 				},
 			},
 			expectedError: fmt.Errorf("failed to fetch oids with batching: failed to fetch column oids: fetch column: failed getting oids `[1.1 2.2]` using GetBulk: bulk error"),

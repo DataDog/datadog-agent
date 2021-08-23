@@ -90,7 +90,7 @@ type CheckConfig struct {
 	privProtocol          string
 	privKey               string
 	contextName           string
-	oidConfig             oidConfig
+	oidConfig             OidConfig
 	metrics               []MetricsConfig
 	metricTags            []MetricTagConfig
 	oidBatchSize          int
@@ -158,7 +158,7 @@ func (c *CheckConfig) getDeviceIDTags() []string {
 // toString used for logging CheckConfig without sensitive information
 func (c *CheckConfig) toString() string {
 	return fmt.Sprintf("CheckConfig: ipAddress=`%s`, port=`%d`, snmpVersion=`%s`, timeout=`%d`, retries=`%d`, "+
-		"user=`%s`, authProtocol=`%s`, privProtocol=`%s`, contextName=`%s`, oidConfig=`%#v`, "+
+		"user=`%s`, authProtocol=`%s`, privProtocol=`%s`, contextName=`%s`, OidConfig=`%#v`, "+
 		"oidBatchSize=`%d`, profileTags=`%#v`",
 		c.ipAddress,
 		c.port,

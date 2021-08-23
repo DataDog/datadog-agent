@@ -1,19 +1,22 @@
 package snmp
 
-type oidConfig struct {
-	scalarOids []string
-	columnOids []string
+// OidConfig holds configs for OIDs to fetch
+type OidConfig struct {
+	// ScalarOids are all scalar oids to fetch
+	ScalarOids []string
+	// ColumnOids are all column oids to fetch
+	ColumnOids []string
 }
 
-func (oc *oidConfig) addScalarOids(oidsToAdd []string) {
-	oc.scalarOids = oc.addOidsIfNotPresent(oc.scalarOids, oidsToAdd)
+func (oc *OidConfig) addScalarOids(oidsToAdd []string) {
+	oc.ScalarOids = oc.addOidsIfNotPresent(oc.ScalarOids, oidsToAdd)
 }
 
-func (oc *oidConfig) addColumnOids(oidsToAdd []string) {
-	oc.columnOids = oc.addOidsIfNotPresent(oc.columnOids, oidsToAdd)
+func (oc *OidConfig) addColumnOids(oidsToAdd []string) {
+	oc.ColumnOids = oc.addOidsIfNotPresent(oc.ColumnOids, oidsToAdd)
 }
 
-func (oc *oidConfig) addOidsIfNotPresent(configOids []string, oidsToAdd []string) []string {
+func (oc *OidConfig) addOidsIfNotPresent(configOids []string, oidsToAdd []string) []string {
 	for _, oidToAdd := range oidsToAdd {
 		isAlreadyPresent := false
 		for _, oid := range configOids {

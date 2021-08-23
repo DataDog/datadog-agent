@@ -84,7 +84,7 @@ func doFetchScalarOids(session sessionAPI, oids []string) (*gosnmp.SnmpPacket, e
 				return nil, err
 			}
 			if scalarOids.Error == gosnmp.NoSuchName {
-				zeroBaseIndex := int(scalarOids.ErrorIndex) - 1 // scalarOids.ErrorIndex is 1-based
+				zeroBaseIndex := int(scalarOids.ErrorIndex) - 1 // ScalarOids.ErrorIndex is 1-based
 				if (zeroBaseIndex < 0) || (zeroBaseIndex > len(oids)-1) {
 					return nil, fmt.Errorf("invalid ErrorIndex `%d` when fetching oids `%v`", scalarOids.ErrorIndex, oids)
 				}

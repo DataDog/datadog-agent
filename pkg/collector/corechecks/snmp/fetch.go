@@ -17,14 +17,14 @@ type scalarResultValuesType map[string]snmpValueType
 
 func fetchValues(session sessionAPI, config CheckConfig) (*resultValueStore, error) {
 	// fetch scalar values
-	scalarResults, err := fetchScalarOidsWithBatching(session, config.oidConfig.scalarOids, config.oidBatchSize)
+	scalarResults, err := fetchScalarOidsWithBatching(session, config.oidConfig.ScalarOids, config.oidBatchSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch scalar oids with batching: %v", err)
 	}
 
 	// fetch column values
-	oids := make(map[string]string, len(config.oidConfig.columnOids))
-	for _, value := range config.oidConfig.columnOids {
+	oids := make(map[string]string, len(config.oidConfig.ColumnOids))
+	for _, value := range config.oidConfig.ColumnOids {
 		oids[value] = value
 	}
 	columnResults, err := fetchColumnOidsWithBatching(session, oids, config.oidBatchSize, config.bulkMaxRepetitions)

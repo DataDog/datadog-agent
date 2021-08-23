@@ -861,9 +861,9 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 	assert.Equal(t, []MetricTagConfig{
 		{Tag: "interface", Column: SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
 	}, c.metricTags)
-	assert.Equal(t, oidConfig{
-		scalarOids: []string{"1.2.3.4.5"},
-		columnOids: []string{"1.2.3.4.6", "1.2.3.4.7"},
+	assert.Equal(t, OidConfig{
+		ScalarOids: []string{"1.2.3.4.5"},
+		ColumnOids: []string{"1.2.3.4.6", "1.2.3.4.7"},
 	}, c.oidConfig)
 	assert.Equal(t, []string{"snmp_profile:profile1", "device_vendor:a-vendor"}, c.profileTags)
 
@@ -874,11 +874,11 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 	}
 	err = c.refreshWithProfile("profile1")
 	assert.NoError(t, err)
-	assert.Equal(t, oidConfig{
-		scalarOids: []string{
+	assert.Equal(t, OidConfig{
+		ScalarOids: []string{
 			"1.2.3.4.5",
 		},
-		columnOids: []string{
+		ColumnOids: []string{
 			"1.2.3.4.6",
 			"1.2.3.4.7",
 		},

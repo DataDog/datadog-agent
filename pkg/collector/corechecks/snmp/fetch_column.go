@@ -13,7 +13,7 @@ func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oid
 	retValues := make(columnResultValuesType, len(oids))
 
 	columnOids := getOidsMapKeys(oids)
-	sort.Strings(columnOids) // sorting columnOids to make them deterministic for testing purpose
+	sort.Strings(columnOids) // sorting ColumnOids to make them deterministic for testing purpose
 	batches, err := createStringBatches(columnOids, oidBatchSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create column oid batches: %s", err)
@@ -59,7 +59,7 @@ func fetchColumnOids(session sessionAPI, oids map[string]string, bulkMaxRepetiti
 			columnOids = append(columnOids, k)
 			requestOids = append(requestOids, v)
 		}
-		// sorting columnOids and requestOids to make them deterministic for testing purpose
+		// sorting ColumnOids and requestOids to make them deterministic for testing purpose
 		sort.Strings(columnOids)
 		sort.Strings(requestOids)
 
