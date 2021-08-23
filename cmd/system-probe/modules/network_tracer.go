@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -117,6 +118,24 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 
 		utils.WriteAsJSON(w, debugging.HTTP(cs.HTTP, cs.DNS))
+	})
+
+	// /debug/ebpf_maps as default will dump all registered maps/perfmaps
+	// an optional ?maps= argument could be pass with a list of map name : ?maps=map1,map2,map3
+	httpMux.HandleFunc("/debug/ebpf_maps", func(w http.ResponseWriter, req *http.Request) {
+		maps := []string{}
+		if listMaps := req.URL.Query().Get("maps"); listMaps != "" {
+			maps = strings.Split(listMaps, ",")
+		}
+
+		ebpfMaps, err := nt.tracer.DebugEBPFMaps(maps...)
+		if err != nil {
+			log.Errorf("unable to retrieve eBPF maps: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, ebpfMaps)
 	})
 
 	// Convenience logging if nothing has made any requests to the system-probe in some time, let's log something.

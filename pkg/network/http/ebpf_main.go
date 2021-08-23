@@ -97,6 +97,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 	for _, m := range mainHTTPMaps {
 		mgr.Maps = append(mgr.Maps, &manager.Map{Name: m})
 	}
+	setupDumpHandler(mgr)
 
 	program := &ebpfProgram{
 		Manager:     mgr,

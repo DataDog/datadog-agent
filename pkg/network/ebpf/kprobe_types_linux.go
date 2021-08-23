@@ -56,6 +56,20 @@ type PortBinding struct {
 	Port      uint16
 	Pad_cgo_0 [2]byte
 }
+type PIDFD struct {
+	Pid uint32
+	Fd  uint32
+}
+type UDPRecvSock struct {
+	Sk  *_Ctype_struct_sock
+	Msg *_Ctype_struct_msghdr
+}
+type BindSyscallArgs struct {
+	Port uint16
+}
+
+type _Ctype_struct_sock uint64
+type _Ctype_struct_msghdr uint64
 
 type TCPState uint8
 

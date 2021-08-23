@@ -554,6 +554,23 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 	return &network.Connections{Conns: activeBuffer.Connections()}, nil
 }
 
+// DebugEBPFMaps returns all maps registred in the eBPF manager
+func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
+	tracerMaps, err := t.ebpfTracer.DumpMaps(maps...)
+	if err != nil {
+		return "", err
+	}
+	if t.httpMonitor == nil {
+		return "tracer:\n" + tracerMaps, nil
+	}
+
+	httpMaps, err := t.httpMonitor.DumpMaps(maps...)
+	if err != nil {
+		return "", err
+	}
+	return "tracer:\n" + tracerMaps + "\nhttp_monitor:\n" + httpMaps, nil
+}
+
 // connectionExpired returns true if the passed in connection has expired
 //
 // expiry is handled differently for UDP and TCP. For TCP where conntrack TTL is very long, we use a short expiry for userspace tracking
