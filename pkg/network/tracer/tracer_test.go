@@ -1519,6 +1519,7 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 	// Start tracer with HTTPS support
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTPSMonitoring = true
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()
