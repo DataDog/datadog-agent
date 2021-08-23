@@ -18,10 +18,12 @@ class DefinitionReference:
     name: str
     anchor: str
 
+
 @dataclass
 class DefinitionFieldDescription:
     field_name: str
     description: str
+
 
 @dataclass
 class SchemaDefinition:
