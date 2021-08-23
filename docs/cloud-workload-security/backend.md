@@ -3,8 +3,8 @@
 The CWS event sent to the backend by the security agent respects the following schema:
 
 
-{{< code-block lang="javascript" collapsible="true" >}}
-BACKEND_EVENT_SCHEMA = {
+{{< code-block lang="json" collapsible="true" filename="BACKEND_EVENT_SCHEMA" >}}
+{
     "properties": {
         "evt": {
             "$ref": "#/definitions/EventContext"

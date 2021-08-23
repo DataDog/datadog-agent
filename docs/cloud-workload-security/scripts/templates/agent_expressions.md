@@ -11,14 +11,22 @@ further_reading:
 ## Agent expression syntax
 Rules for Cloud Workload Security (CWS) are first evaluated in the Datadog Agent to decide what system activity to collect. This portion of a CWS rule is called the Agent expression. Agent expressions use Datadog's Security Language (SECL). The standard format of a SECL expression is as follows:
 
-```
-<trigger>.<event-attribute> <operator> <value> <event-attribute> ...
-```
+{% raw %}
+{{< code-block lang="javascript" >}}
+{% endraw %}
+<event-type>.<event-attribute> <operator> <value> <event-attribute> ...
+{% raw %}
+{{< /code-block >}}
+{% endraw %}
 
 Using this format, an example rule looks like this:
-```
+{% raw %}
+{{< code-block lang="javascript" >}}
+{% endraw %}
 open.file.path == "/etc/shadow" && file.path not in ["/usr/sbin/vipw"]
-```
+{% raw %}
+{{< /code-block >}}
+{% endraw %}
 
 ## Triggers
 Triggers are events that correspond to types of activity seen by the system. The currently supported set of triggers is:

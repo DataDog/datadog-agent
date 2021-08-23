@@ -3,9 +3,9 @@
 The CWS event sent to the backend by the security agent respects the following schema:
 
 {% raw %}
-{{< code-block lang="javascript" collapsible="true" >}}
+{{< code-block lang="json" collapsible="true" filename="BACKEND_EVENT_SCHEMA" >}}
 {% endraw %}
-BACKEND_EVENT_SCHEMA = {{ event_schema }}
+{{ event_schema }}
 {% raw %}
 {{< /code-block >}}
 {% endraw %}
