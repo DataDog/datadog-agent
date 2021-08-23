@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// TODO: Refactor all config (and config parsing) related elements to a separate package
+
 // Using high oid batch size might lead to snmp calls timing out.
 // For some devices, the default oid_batch_size of 5 might be high (leads to timeouts),
 // and require manual setting oid_batch_size to a lower value.
