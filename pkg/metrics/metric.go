@@ -5,7 +5,9 @@
 
 package metrics
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // APIMetricType represents an API metric type
 type APIMetricType int

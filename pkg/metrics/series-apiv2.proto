@@ -1,0 +1,51 @@
+// copied and hacked up from
+// https://github.com/DataDog/dd-go/blob/prod/pb/proto/intake/apiv2/apiv2.proto
+// and things it references.  This is not used to generate any code, but is here
+// as a reference for Series_MarshalSplitCompress.
+
+syntax = "proto3";
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+package datadoghq.api.series.v2;
+
+option go_package="github.com/DataDog/datadog-agent/pkg/proto/newagentproto";
+
+enum MetricType {
+    GAUGE = 0;
+    COUNT = 1;
+    RATE = 2;
+}
+
+message MetricPoint {
+    double value = 1;
+    int64 timestamp = 2;
+}
+
+message Resource {
+    string type = 1;
+    string name = 2;
+}
+
+message Metadata {
+    // unused at the moment
+    // Origin is omitted from upstream .proto
+}
+
+message MetricSeries {
+    // notably, resource with type="host" is the hostname
+    repeated Resource resources = 1 [(gogoproto.nullable) = false];
+    string metric = 2;
+    repeated string tags = 3;
+    repeated MetricPoint points = 4 [(gogoproto.nullable) = false];
+
+    MetricType type = 5;
+    string unit = 6;
+    string source_type_name = 7;
+    int64 interval = 8;
+    Metadata metadata = 9;
+}
+
+message MetricPayload {
+    repeated MetricSeries series = 1 [(gogoproto.nullable) = false];
+}
