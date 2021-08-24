@@ -96,7 +96,7 @@ type CheckConfig struct {
 	OidBatchSize          int
 	BulkMaxRepetitions    uint32
 	Profiles              profileDefinitionMap
-	profileTags           []string
+	ProfileTags           []string
 	profile               string
 	profileDef            *profileDefinition
 	extraTags             []string
@@ -127,7 +127,7 @@ func (c *CheckConfig) refreshWithProfile(profile string) error {
 	if definition.Device.Vendor != "" {
 		tags = append(tags, "device_vendor:"+definition.Device.Vendor)
 	}
-	c.profileTags = tags
+	c.ProfileTags = tags
 	return nil
 }
 
@@ -159,7 +159,7 @@ func (c *CheckConfig) getDeviceIDTags() []string {
 func (c *CheckConfig) toString() string {
 	return fmt.Sprintf("CheckConfig: IpAddress=`%s`, Port=`%d`, SnmpVersion=`%s`, Timeout=`%d`, Retries=`%d`, "+
 		"User=`%s`, AuthProtocol=`%s`, PrivProtocol=`%s`, ContextName=`%s`, OidConfig=`%#v`, "+
-		"OidBatchSize=`%d`, profileTags=`%#v`",
+		"OidBatchSize=`%d`, ProfileTags=`%#v`",
 		c.IpAddress,
 		c.Port,
 		c.SnmpVersion,
@@ -171,7 +171,7 @@ func (c *CheckConfig) toString() string {
 		c.ContextName,
 		c.OidConfig,
 		c.OidBatchSize,
-		c.profileTags,
+		c.ProfileTags,
 	)
 }
 

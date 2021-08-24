@@ -865,7 +865,7 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 		ScalarOids: []string{"1.2.3.4.5"},
 		ColumnOids: []string{"1.2.3.4.6", "1.2.3.4.7"},
 	}, c.OidConfig)
-	assert.Equal(t, []string{"snmp_profile:profile1", "device_vendor:a-vendor"}, c.profileTags)
+	assert.Equal(t, []string{"snmp_profile:profile1", "device_vendor:a-vendor"}, c.ProfileTags)
 
 	c = &CheckConfig{
 		IpAddress:             "1.2.3.4",

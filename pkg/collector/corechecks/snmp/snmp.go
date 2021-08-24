@@ -102,7 +102,7 @@ func (c *Check) getValuesAndTags(staticTags []string) ([]string, *valuestore.Res
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to autodetect profile: %s", err))
 	}
 
-	tags = append(tags, c.config.profileTags...)
+	tags = append(tags, c.config.ProfileTags...)
 
 	valuesStore, err := fetchValues(c.session, c.config)
 	log.Debugf("fetched values: %v", valuesStore)
