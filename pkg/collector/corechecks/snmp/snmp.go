@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/fetch"
 	session "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"strings"
@@ -106,7 +107,7 @@ func (c *Check) getValuesAndTags(staticTags []string) ([]string, *valuestore.Res
 
 	tags = append(tags, c.config.ProfileTags...)
 
-	valuesStore, err := FetchValues(c.session, c.config)
+	valuesStore, err := fetch.FetchValues(c.session, c.config)
 	log.Debugf("fetched values: %v", valuesStore)
 
 	if err != nil {
