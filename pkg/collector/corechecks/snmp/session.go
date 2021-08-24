@@ -44,7 +44,7 @@ func (s *snmpSession) Configure(config CheckConfig) error {
 			return err
 		}
 
-		privProtocol, err := getPrivProtocol(config.privProtocol)
+		privProtocol, err := getPrivProtocol(config.PrivProtocol)
 		if err != nil {
 			return err
 		}
@@ -61,14 +61,14 @@ func (s *snmpSession) Configure(config CheckConfig) error {
 
 		s.gosnmpInst.Version = gosnmp.Version3
 		s.gosnmpInst.MsgFlags = msgFlags
-		s.gosnmpInst.ContextName = config.contextName
+		s.gosnmpInst.ContextName = config.ContextName
 		s.gosnmpInst.SecurityModel = gosnmp.UserSecurityModel
 		s.gosnmpInst.SecurityParameters = &gosnmp.UsmSecurityParameters{
 			UserName:                 config.User,
 			AuthenticationProtocol:   authProtocol,
 			AuthenticationPassphrase: config.AuthKey,
 			PrivacyProtocol:          privProtocol,
-			PrivacyPassphrase:        config.privKey,
+			PrivacyPassphrase:        config.PrivKey,
 		}
 	} else {
 		return fmt.Errorf("an authentication method needs to be provided")

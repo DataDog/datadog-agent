@@ -125,9 +125,9 @@ bulk_max_repetitions: 20
 	assert.Equal(t, "my-user", check.config.User)
 	assert.Equal(t, "sha", check.config.AuthProtocol)
 	assert.Equal(t, "my-authKey", check.config.AuthKey)
-	assert.Equal(t, "aes", check.config.privProtocol)
-	assert.Equal(t, "my-privKey", check.config.privKey)
-	assert.Equal(t, "my-contextName", check.config.contextName)
+	assert.Equal(t, "aes", check.config.PrivProtocol)
+	assert.Equal(t, "my-privKey", check.config.PrivKey)
+	assert.Equal(t, "my-contextName", check.config.ContextName)
 	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, check.config.getStaticTags())
 	metrics := []MetricsConfig{
 		{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.2.1", Name: "ifNumber"}},
@@ -714,8 +714,8 @@ func Test_snmpConfig_toString(t *testing.T) {
 		CommunityString: "my_communityString",
 		AuthProtocol:    "my_authProtocol",
 		AuthKey:         "my_authKey",
-		privProtocol:    "my_privProtocol",
-		privKey:         "my_privKey",
+		PrivProtocol:    "my_privProtocol",
+		PrivKey:         "my_privKey",
 	}
 	assert.NotContains(t, c.toString(), "my_communityString")
 	assert.NotContains(t, c.toString(), "my_authKey")

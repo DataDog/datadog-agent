@@ -87,9 +87,9 @@ type CheckConfig struct {
 	User                  string
 	AuthProtocol          string
 	AuthKey               string
-	privProtocol          string
-	privKey               string
-	contextName           string
+	PrivProtocol          string
+	PrivKey               string
+	ContextName           string
 	oidConfig             OidConfig
 	metrics               []MetricsConfig
 	metricTags            []MetricTagConfig
@@ -158,7 +158,7 @@ func (c *CheckConfig) getDeviceIDTags() []string {
 // toString used for logging CheckConfig without sensitive information
 func (c *CheckConfig) toString() string {
 	return fmt.Sprintf("CheckConfig: IpAddress=`%s`, Port=`%d`, SnmpVersion=`%s`, Timeout=`%d`, Retries=`%d`, "+
-		"User=`%s`, AuthProtocol=`%s`, privProtocol=`%s`, contextName=`%s`, OidConfig=`%#v`, "+
+		"User=`%s`, AuthProtocol=`%s`, PrivProtocol=`%s`, ContextName=`%s`, OidConfig=`%#v`, "+
 		"oidBatchSize=`%d`, profileTags=`%#v`",
 		c.IpAddress,
 		c.Port,
@@ -167,8 +167,8 @@ func (c *CheckConfig) toString() string {
 		c.Retries,
 		c.User,
 		c.AuthProtocol,
-		c.privProtocol,
-		c.contextName,
+		c.PrivProtocol,
+		c.ContextName,
 		c.oidConfig,
 		c.oidBatchSize,
 		c.profileTags,
@@ -250,9 +250,9 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	c.User = instance.User
 	c.AuthProtocol = instance.AuthProtocol
 	c.AuthKey = instance.AuthKey
-	c.privProtocol = instance.PrivProtocol
-	c.privKey = instance.PrivKey
-	c.contextName = instance.ContextName
+	c.PrivProtocol = instance.PrivProtocol
+	c.PrivKey = instance.PrivKey
+	c.ContextName = instance.ContextName
 
 	c.metrics = instance.Metrics
 
