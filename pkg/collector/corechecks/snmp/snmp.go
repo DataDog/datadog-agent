@@ -168,7 +168,7 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 		return fmt.Errorf("build config failed: %s", err)
 	}
 
-	log.Debugf("SNMP configuration: %s", config.toString())
+	log.Debugf("SNMP configuration: %s", config.ToString())
 
 	c.config = config
 	err = c.session.Configure(c.config)

@@ -156,8 +156,8 @@ func (c *CheckConfig) getDeviceIDTags() []string {
 	return tags
 }
 
-// toString used for logging CheckConfig without sensitive information
-func (c *CheckConfig) toString() string {
+// ToString used for logging CheckConfig without sensitive information
+func (c *CheckConfig) ToString() string {
 	return fmt.Sprintf("CheckConfig: IpAddress=`%s`, Port=`%d`, SnmpVersion=`%s`, Timeout=`%d`, Retries=`%d`, "+
 		"User=`%s`, AuthProtocol=`%s`, PrivProtocol=`%s`, ContextName=`%s`, OidConfig=`%#v`, "+
 		"OidBatchSize=`%d`, ProfileTags=`%#v`",

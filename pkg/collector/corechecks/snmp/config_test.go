@@ -717,12 +717,12 @@ func Test_snmpConfig_toString(t *testing.T) {
 		PrivProtocol:    "my_privProtocol",
 		PrivKey:         "my_privKey",
 	}
-	assert.NotContains(t, c.toString(), "my_communityString")
-	assert.NotContains(t, c.toString(), "my_authKey")
-	assert.NotContains(t, c.toString(), "my_privKey")
+	assert.NotContains(t, c.ToString(), "my_communityString")
+	assert.NotContains(t, c.ToString(), "my_authKey")
+	assert.NotContains(t, c.ToString(), "my_privKey")
 
-	assert.Contains(t, c.toString(), "my_authProtocol")
-	assert.Contains(t, c.toString(), "my_privProtocol")
+	assert.Contains(t, c.ToString(), "my_authProtocol")
+	assert.Contains(t, c.ToString(), "my_privProtocol")
 }
 
 func Test_Configure_invalidYaml(t *testing.T) {
