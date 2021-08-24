@@ -38,7 +38,7 @@ func (s *snmpSession) Configure(config CheckConfig) error {
 			s.gosnmpInst.Version = gosnmp.Version2c
 		}
 		s.gosnmpInst.Community = config.CommunityString
-	} else if config.user != "" {
+	} else if config.User != "" {
 		authProtocol, err := getAuthProtocol(config.authProtocol)
 		if err != nil {
 			return err
@@ -64,7 +64,7 @@ func (s *snmpSession) Configure(config CheckConfig) error {
 		s.gosnmpInst.ContextName = config.contextName
 		s.gosnmpInst.SecurityModel = gosnmp.UserSecurityModel
 		s.gosnmpInst.SecurityParameters = &gosnmp.UsmSecurityParameters{
-			UserName:                 config.user,
+			UserName:                 config.User,
 			AuthenticationProtocol:   authProtocol,
 			AuthenticationPassphrase: config.authKey,
 			PrivacyProtocol:          privProtocol,

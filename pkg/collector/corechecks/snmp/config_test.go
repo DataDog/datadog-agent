@@ -122,7 +122,7 @@ bulk_max_repetitions: 20
 	assert.Equal(t, 7, check.config.Timeout)
 	assert.Equal(t, 5, check.config.Retries)
 	assert.Equal(t, "2c", check.config.SnmpVersion)
-	assert.Equal(t, "my-user", check.config.user)
+	assert.Equal(t, "my-user", check.config.User)
 	assert.Equal(t, "sha", check.config.authProtocol)
 	assert.Equal(t, "my-authKey", check.config.authKey)
 	assert.Equal(t, "aes", check.config.privProtocol)
