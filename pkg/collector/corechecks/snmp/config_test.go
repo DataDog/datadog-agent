@@ -698,7 +698,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			profile, err := getProfileForSysObjectID(tt.profiles, tt.sysObjectID)
+			profile, err := GetProfileForSysObjectID(tt.profiles, tt.sysObjectID)
 			if tt.expectedError == "" {
 				assert.Nil(t, err)
 			} else {

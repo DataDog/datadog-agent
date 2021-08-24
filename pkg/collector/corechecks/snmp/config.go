@@ -387,7 +387,8 @@ func parseColumnOids(metrics []MetricsConfig) []string {
 	return oids
 }
 
-func getProfileForSysObjectID(profiles profileDefinitionMap, sysObjectID string) (string, error) {
+// GetProfileForSysObjectID return a profile for a sys object id
+func GetProfileForSysObjectID(profiles profileDefinitionMap, sysObjectID string) (string, error) {
 	tmpSysOidToProfile := map[string]string{}
 	var matchedOids []string
 

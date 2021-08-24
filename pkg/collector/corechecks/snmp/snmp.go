@@ -129,13 +129,13 @@ func (c *Check) autodetectProfile(session sessionAPI) error {
 		}
 		c.config.AutodetectProfile = false // do not try to auto detect profile next time
 
-		profile, err := getProfileForSysObjectID(c.config.Profiles, sysObjectID)
+		profile, err := GetProfileForSysObjectID(c.config.Profiles, sysObjectID)
 		if err != nil {
 			return fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
 		}
 		err = c.config.RefreshWithProfile(profile)
 		if err != nil {
-			// Should not happen since the profile is one of those we matched in getProfileForSysObjectID
+			// Should not happen since the profile is one of those we matched in GetProfileForSysObjectID
 			return fmt.Errorf("failed to refresh with profile `%s` detected using sysObjectID `%s`: %s", profile, sysObjectID, err)
 		}
 	}
