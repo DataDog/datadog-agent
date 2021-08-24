@@ -128,7 +128,7 @@ bulk_max_repetitions: 20
 	assert.Equal(t, "aes", check.config.PrivProtocol)
 	assert.Equal(t, "my-privKey", check.config.PrivKey)
 	assert.Equal(t, "my-contextName", check.config.ContextName)
-	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, check.config.getStaticTags())
+	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, check.config.GetStaticTags())
 	metrics := []MetricsConfig{
 		{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.2.1", Name: "ifNumber"}},
 		{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.2.2", Name: "ifNumber2"}, MetricTags: MetricTagConfigList{
@@ -252,7 +252,7 @@ profiles:
 	err := check.Configure(rawInstanceConfig, rawInitConfig, "test")
 
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, check.config.getStaticTags())
+	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, check.config.GetStaticTags())
 	metrics := []MetricsConfig{
 		{Symbol: SymbolConfig{OID: "1.4.5", Name: "myMetric"}, ForcedType: "gauge"},
 	}
@@ -788,7 +788,7 @@ community_string: abc
 `)
 	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, check.config.getStaticTags())
+	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, check.config.GetStaticTags())
 
 	// language=yaml
 	rawInstanceConfigWithExtraTags := []byte(`
@@ -798,7 +798,7 @@ extra_tags: "extratag1:val1,extratag2:val2"
 `)
 	err = check.Configure(rawInstanceConfigWithExtraTags, []byte(``), "test")
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"snmp_device:1.2.3.4", "extratag1:val1", "extratag2:val2"}, check.config.getStaticTags())
+	assert.Equal(t, []string{"snmp_device:1.2.3.4", "extratag1:val1", "extratag2:val2"}, check.config.GetStaticTags())
 }
 
 func Test_snmpConfig_getDeviceIDTags(t *testing.T) {
@@ -849,10 +849,10 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 		IpAddress: "1.2.3.4",
 		Profiles:  mockProfiles,
 	}
-	err := c.refreshWithProfile("f5")
+	err := c.RefreshWithProfile("f5")
 	assert.EqualError(t, err, "unknown profile `f5`")
 
-	err = c.refreshWithProfile("profile1")
+	err = c.RefreshWithProfile("profile1")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "profile1", c.Profile)
@@ -872,7 +872,7 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 		Profiles:              mockProfiles,
 		CollectDeviceMetadata: true,
 	}
-	err = c.refreshWithProfile("profile1")
+	err = c.RefreshWithProfile("profile1")
 	assert.NoError(t, err)
 	assert.Equal(t, OidConfig{
 		ScalarOids: []string{

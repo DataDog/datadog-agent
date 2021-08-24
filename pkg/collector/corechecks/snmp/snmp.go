@@ -44,7 +44,7 @@ func (c *Check) Run() error {
 	}
 	c.sender = metricSender{sender: sender}
 
-	staticTags := c.config.getStaticTags()
+	staticTags := c.config.GetStaticTags()
 
 	// Fetch and report metrics
 	var checkErr error
@@ -133,7 +133,7 @@ func (c *Check) autodetectProfile(session sessionAPI) error {
 		if err != nil {
 			return fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
 		}
-		err = c.config.refreshWithProfile(profile)
+		err = c.config.RefreshWithProfile(profile)
 		if err != nil {
 			// Should not happen since the profile is one of those we matched in getProfileForSysObjectID
 			return fmt.Errorf("failed to refresh with profile `%s` detected using sysObjectID `%s`: %s", profile, sysObjectID, err)

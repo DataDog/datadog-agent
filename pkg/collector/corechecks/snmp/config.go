@@ -109,7 +109,8 @@ type CheckConfig struct {
 	MinCollectionInterval time.Duration
 }
 
-func (c *CheckConfig) refreshWithProfile(profile string) error {
+// RefreshWithProfile refreshes config based on profile
+func (c *CheckConfig) RefreshWithProfile(profile string) error {
 	if _, ok := c.Profiles[profile]; !ok {
 		return fmt.Errorf("unknown profile `%s`", profile)
 	}
@@ -137,10 +138,10 @@ func (c *CheckConfig) addUptimeMetric() {
 	c.OidConfig.addScalarOids([]string{metricConfig.Symbol.OID})
 }
 
-// getStaticTags return static tags built from configuration
-// warning: changing getStaticTags logic might lead to different deviceID
-// getStaticTags does not contain tags from instance[].tags config
-func (c *CheckConfig) getStaticTags() []string {
+// GetStaticTags return static tags built from configuration
+// warning: changing GetStaticTags logic might lead to different deviceID
+// GetStaticTags does not contain tags from instance[].tags config
+func (c *CheckConfig) GetStaticTags() []string {
 	tags := []string{"snmp_device:" + c.IpAddress}
 	tags = append(tags, c.ExtraTags...)
 	return tags
@@ -149,7 +150,7 @@ func (c *CheckConfig) getStaticTags() []string {
 // getDeviceIDTags return sorted tags used for generating device id
 // warning: changing getDeviceIDTags logic might lead to different deviceID
 func (c *CheckConfig) getDeviceIDTags() []string {
-	tags := c.getStaticTags()
+	tags := c.GetStaticTags()
 	tags = append(tags, c.InstanceTags...)
 	sort.Strings(tags)
 	return tags
@@ -332,7 +333,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	}
 
 	if profile != "" {
-		err = c.refreshWithProfile(profile)
+		err = c.RefreshWithProfile(profile)
 		if err != nil {
 			return CheckConfig{}, fmt.Errorf("failed to refresh with profile `%s`: %s", profile, err)
 		}
