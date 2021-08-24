@@ -106,11 +106,13 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		sockFDMap:   sockFD,
 	}
 
-	sharedLibraries := findOpenSSLLibraries(c.ProcRoot)
-	var subprograms []subprogram
-	subprograms = append(subprograms, createSSLPrograms(program, offsets, sharedLibraries)...)
-	subprograms = append(subprograms, createCryptoPrograms(program, sharedLibraries)...)
-	program.subprograms = subprograms
+	if c.EnableHTTPSMonitoring {
+		sharedLibraries := findOpenSSLLibraries(c.ProcRoot)
+		var subprograms []subprogram
+		subprograms = append(subprograms, createSSLPrograms(program, offsets, sharedLibraries)...)
+		subprograms = append(subprograms, createCryptoPrograms(program, sharedLibraries)...)
+		program.subprograms = subprograms
+	}
 
 	return program, nil
 }
