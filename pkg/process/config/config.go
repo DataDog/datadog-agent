@@ -278,8 +278,6 @@ func LoadConfigIfExists(path string) error {
 // NewAgentConfig returns an AgentConfig using a configuration file. It can be nil
 // if there is no file available. In this case we'll configure only via environment.
 func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) (*AgentConfig, error) {
-	initRuntimeSettings()
-
 	var err error
 
 	// For Agent 6 we will have a YAML config file to use.
@@ -373,6 +371,8 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 		}
 	}
 
+	initRuntimeSettings()
+
 	return cfg, nil
 }
 
@@ -387,7 +387,7 @@ func initRuntimeSettings() {
 	for _, setting := range processRuntimeSettings {
 		err := settings.RegisterRuntimeSetting(setting)
 		if err != nil {
-			_ = log.Warnf("cannot initialize the runtime settings: %v", err)
+			_ = log.Warnf("cannot initialize the runtime setting %s: %v", setting.Name(), err)
 		}
 	}
 }
