@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
@@ -79,12 +78,16 @@ func getSettingsClient() (settings.Client, error) {
 	// We set this up differently from the main process-agent because this way is quieter
 	cfg := config.NewDefaultAgentConfig(false)
 	if opts.configPath != "" {
-		err := common.SetupConfigWithoutSecrets(opts.configPath, "")
+		ddconfig.Datadog.SetConfigFile(opts.configPath)
+		err := ddconfig.Datadog.ReadInConfig()
 		if err != nil {
-			return nil, fmt.Errorf("unable to set up global agent configuration: %v", err)
+			return nil, err
 		}
 	}
-	_ = cfg.LoadProcessYamlConfig(opts.configPath)
+	err := cfg.LoadProcessYamlConfig(opts.configPath)
+	if err != nil {
+		return nil, err
+	}
 
 	httpClient := apiutil.GetClient(false)
 	ipcAddress, err := ddconfig.GetIPCAddress()
