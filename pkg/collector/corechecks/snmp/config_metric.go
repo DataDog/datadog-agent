@@ -74,8 +74,8 @@ type MetricsConfig struct {
 	Options    MetricsConfigOption `yaml:"options"`
 }
 
-// getTags retrieve tags using the metric config and values
-func (m *MetricsConfig) getTags(fullIndex string, values *valuestore.ResultValueStore) []string {
+// GetTags retrieve tags using the metric config and values
+func (m *MetricsConfig) GetTags(fullIndex string, values *valuestore.ResultValueStore) []string {
 	var rowTags []string
 	indexes := strings.Split(fullIndex, ".")
 	for _, metricTag := range m.MetricTags {
@@ -125,13 +125,14 @@ func (m *MetricsConfig) getTags(fullIndex string, values *valuestore.ResultValue
 				log.Debugf("error converting tagValue (%#v) to string : %v", tagValue, err)
 				continue
 			}
-			rowTags = append(rowTags, metricTag.getTags(strValue)...)
+			rowTags = append(rowTags, metricTag.GetTags(strValue)...)
 		}
 	}
 	return rowTags
 }
 
-func (m *MetricsConfig) getSymbolTags() []string {
+// GetSymbolTags returns symbol tags
+func (m *MetricsConfig) GetSymbolTags() []string {
 	var symbolTags []string
 	for _, metricTag := range m.MetricTags {
 		symbolTags = append(symbolTags, metricTag.symbolTag)
@@ -139,15 +140,18 @@ func (m *MetricsConfig) getSymbolTags() []string {
 	return symbolTags
 }
 
-func (m *MetricsConfig) isColumn() bool {
+// IsColumn returns true is the metrics config define columns metrics
+func (m *MetricsConfig) IsColumn() bool {
 	return len(m.Symbols) > 0
 }
 
-func (m *MetricsConfig) isScalar() bool {
+// IsScalar returns true is the metrics config define scalar metrics
+func (m *MetricsConfig) IsScalar() bool {
 	return m.Symbol.OID != "" && m.Symbol.Name != ""
 }
 
-func (mtc *MetricTagConfig) getTags(value string) []string {
+// GetTags returns tags based on MetricTagConfig and a value
+func (mtc *MetricTagConfig) GetTags(value string) []string {
 	var tags []string
 	if mtc.Tag != "" {
 		tags = append(tags, mtc.Tag+":"+value)

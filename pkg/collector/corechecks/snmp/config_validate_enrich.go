@@ -20,16 +20,16 @@ func validateEnrichMetrics(metrics []MetricsConfig) []string {
 	var errors []string
 	for i := range metrics {
 		metricConfig := &metrics[i]
-		if !metricConfig.isScalar() && !metricConfig.isColumn() {
+		if !metricConfig.IsScalar() && !metricConfig.IsColumn() {
 			errors = append(errors, fmt.Sprintf("either a table symbol or a scalar symbol must be provided: %#v", metricConfig))
 		}
-		if metricConfig.isScalar() && metricConfig.isColumn() {
+		if metricConfig.IsScalar() && metricConfig.IsColumn() {
 			errors = append(errors, fmt.Sprintf("table symbol and scalar symbol cannot be both provided: %#v", metricConfig))
 		}
-		if metricConfig.isScalar() {
+		if metricConfig.IsScalar() {
 			errors = append(errors, validateEnrichSymbol(&metricConfig.Symbol, metricConfig)...)
 		}
-		if metricConfig.isColumn() {
+		if metricConfig.IsColumn() {
 			for j := range metricConfig.Symbols {
 				errors = append(errors, validateEnrichSymbol(&metricConfig.Symbols[j], metricConfig)...)
 			}

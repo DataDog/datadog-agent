@@ -19,9 +19,9 @@ type metricSender struct {
 
 func (ms *metricSender) reportMetrics(metrics []MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
 	for _, metric := range metrics {
-		if metric.isScalar() {
+		if metric.IsScalar() {
 			ms.reportScalarMetrics(metric, values, tags)
-		} else if metric.isColumn() {
+		} else if metric.IsColumn() {
 			ms.reportColumnMetrics(metric, values, tags)
 		}
 	}
@@ -41,7 +41,7 @@ func (ms *metricSender) getCheckInstanceMetricTags(metricTags []MetricTagConfig,
 			log.Debugf("error converting value (%#v) to string : %v", value, err)
 			continue
 		}
-		globalTags = append(globalTags, metricTag.getTags(strValue)...)
+		globalTags = append(globalTags, metricTag.GetTags(strValue)...)
 	}
 	return globalTags
 }
@@ -54,7 +54,7 @@ func (ms *metricSender) reportScalarMetrics(metric MetricsConfig, values *values
 	}
 
 	scalarTags := common.CopyStrings(tags)
-	scalarTags = append(scalarTags, metric.getSymbolTags()...)
+	scalarTags = append(scalarTags, metric.GetSymbolTags()...)
 	ms.sendMetric(metric.Symbol.Name, value, scalarTags, metric.ForcedType, metric.Options, metric.Symbol.extractValuePattern)
 }
 
@@ -69,7 +69,7 @@ func (ms *metricSender) reportColumnMetrics(metricConfig MetricsConfig, values *
 		for fullIndex, value := range metricValues {
 			// cache row tags by fullIndex to avoid rebuilding it for every column rows
 			if _, ok := rowTagsCache[fullIndex]; !ok {
-				rowTagsCache[fullIndex] = append(common.CopyStrings(tags), metricConfig.getTags(fullIndex, values)...)
+				rowTagsCache[fullIndex] = append(common.CopyStrings(tags), metricConfig.GetTags(fullIndex, values)...)
 				log.Debugf("report column: caching tags `%v` for fullIndex `%s`", rowTagsCache[fullIndex], fullIndex)
 			}
 			rowTags := rowTagsCache[fullIndex]
