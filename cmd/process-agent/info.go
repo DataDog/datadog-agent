@@ -52,8 +52,10 @@ const (
   Number of processes: {{.Status.ProcessCount}}
   Number of containers: {{.Status.ContainerCount}}
   Process Queue length: {{.Status.ProcessQueueSize}}
+  RTProcess Queue length: {{.Status.RTProcessQueueSize}}
   Pod Queue length: {{.Status.PodQueueSize}}
   Process Bytes enqueued: {{.Status.ProcessQueueBytes}}
+  RTProcess Bytes enqueued: {{.Status.RTProcessQueueBytes}}
   Pod Bytes enqueued: {{.Status.PodQueueBytes}}
 
   Logs: {{.Status.Config.LogFile}}{{if .Status.ProxyURL}}
@@ -244,21 +246,23 @@ type infoVersion struct {
 
 // StatusInfo is a structure to get information from expvar and feed to template
 type StatusInfo struct {
-	Pid               int                    `json:"pid"`
-	Uptime            int                    `json:"uptime"`
-	MemStats          struct{ Alloc uint64 } `json:"memstats"`
-	Version           infoVersion            `json:"version"`
-	Config            config.AgentConfig     `json:"config"`
-	DockerSocket      string                 `json:"docker_socket"`
-	LastCollectTime   string                 `json:"last_collect_time"`
-	ProcessCount      int                    `json:"process_count"`
-	ContainerCount    int                    `json:"container_count"`
-	ProcessQueueSize  int                    `json:"process_queue_size"`
-	PodQueueSize      int                    `json:"pod_queue_size"`
-	ProcessQueueBytes int                    `json:"process_queue_bytes"`
-	PodQueueBytes     int                    `json:"pod_queue_bytes"`
-	ContainerID       string                 `json:"container_id"`
-	ProxyURL          string                 `json:"proxy_url"`
+	Pid                 int                    `json:"pid"`
+	Uptime              int                    `json:"uptime"`
+	MemStats            struct{ Alloc uint64 } `json:"memstats"`
+	Version             infoVersion            `json:"version"`
+	Config              config.AgentConfig     `json:"config"`
+	DockerSocket        string                 `json:"docker_socket"`
+	LastCollectTime     string                 `json:"last_collect_time"`
+	ProcessCount        int                    `json:"process_count"`
+	ContainerCount      int                    `json:"container_count"`
+	ProcessQueueSize    int                    `json:"process_queue_size"`
+	RTProcessQueueSize  int                    `json:"rtprocess_queue_size"`
+	PodQueueSize        int                    `json:"pod_queue_size"`
+	ProcessQueueBytes   int                    `json:"process_queue_bytes"`
+	RTProcessQueueBytes int                    `json:"rtprocess_queue_bytes"`
+	PodQueueBytes       int                    `json:"pod_queue_bytes"`
+	ContainerID         string                 `json:"container_id"`
+	ProxyURL            string                 `json:"proxy_url"`
 }
 
 func initInfo(_ *config.AgentConfig) error {
