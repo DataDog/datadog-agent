@@ -5,21 +5,21 @@ import (
 	"testing"
 )
 
-var storeMock = &resultValueStore{
-	scalarValues: scalarResultValuesType{
+var storeMock = &ResultValueStore{
+	ScalarValues: scalarResultValuesType{
 		"1.1.1.1.0": {value: float64(10)},   // a float value
 		"1.1.1.2.0": {value: "a_str_value"}, // a string value
 		"1.1.1.3.0": {value: nil},           // invalid type value
 	},
-	columnValues: columnResultValuesType{
+	ColumnValues: columnResultValuesType{
 		"1.1.1": {
-			"1": snmpValueType{value: float64(10)},   // a float value
-			"2": snmpValueType{value: "a_str_value"}, // a string value
-			"3": snmpValueType{value: nil},           // invalid type value
+			"1": ResultValue{value: float64(10)},   // a float value
+			"2": ResultValue{value: "a_str_value"}, // a string value
+			"3": ResultValue{value: nil},           // invalid type value
 		},
 		"1.1.2": {
-			"1": snmpValueType{value: float64(21)},
-			"2": snmpValueType{value: float64(22)},
+			"1": ResultValue{value: float64(21)},
+			"2": ResultValue{value: float64(22)},
 		},
 	},
 }

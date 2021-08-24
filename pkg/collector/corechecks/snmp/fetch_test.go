@@ -80,15 +80,15 @@ func Test_fetchColumnOids(t *testing.T) {
 
 	expectedColumnValues := columnResultValuesType{
 		"1.1.1": {
-			"1": snmpValueType{value: float64(11)},
-			"2": snmpValueType{value: float64(12)},
-			"3": snmpValueType{value: float64(13)},
-			"4": snmpValueType{value: float64(14)},
-			"5": snmpValueType{value: float64(15)},
+			"1": ResultValue{value: float64(11)},
+			"2": ResultValue{value: float64(12)},
+			"3": ResultValue{value: float64(13)},
+			"4": ResultValue{value: float64(14)},
+			"5": ResultValue{value: float64(15)},
 		},
 		"1.1.2": {
-			"1": snmpValueType{value: float64(21)},
-			"2": snmpValueType{value: float64(22)},
+			"1": ResultValue{value: float64(21)},
+			"2": ResultValue{value: float64(22)},
 		},
 	}
 	assert.Equal(t, expectedColumnValues, columnValues)
@@ -171,15 +171,15 @@ func Test_fetchColumnOidsBatch_usingGetBulk(t *testing.T) {
 
 	expectedColumnValues := columnResultValuesType{
 		"1.1.1": {
-			"1": snmpValueType{value: float64(11)},
-			"2": snmpValueType{value: float64(12)},
-			"3": snmpValueType{value: float64(13)},
-			"4": snmpValueType{value: float64(14)},
-			"5": snmpValueType{value: float64(15)},
+			"1": ResultValue{value: float64(11)},
+			"2": ResultValue{value: float64(12)},
+			"3": ResultValue{value: float64(13)},
+			"4": ResultValue{value: float64(14)},
+			"5": ResultValue{value: float64(15)},
 		},
 		"1.1.2": {
-			"1": snmpValueType{value: float64(21)},
-			"2": snmpValueType{value: float64(22)},
+			"1": ResultValue{value: float64(21)},
+			"2": ResultValue{value: float64(22)},
 		},
 	}
 	assert.Equal(t, expectedColumnValues, columnValues)
@@ -268,14 +268,14 @@ func Test_fetchColumnOidsBatch_usingGetNext(t *testing.T) {
 
 	expectedColumnValues := columnResultValuesType{
 		"1.1.1": {
-			"1": snmpValueType{value: float64(11)},
-			"2": snmpValueType{value: float64(12)},
+			"1": ResultValue{value: float64(11)},
+			"2": ResultValue{value: float64(12)},
 		},
 		"1.1.2": {
-			"1": snmpValueType{value: float64(21)},
+			"1": ResultValue{value: float64(21)},
 		},
 		"1.1.3": {
-			"1": snmpValueType{value: float64(31)},
+			"1": ResultValue{value: float64(31)},
 		},
 	}
 	assert.Equal(t, expectedColumnValues, columnValues)

@@ -16,7 +16,7 @@ import (
 // interfaceNameTagKey matches the `interface` tag used in `_generic-if.yaml` for ifName
 var interfaceNameTagKey = "interface"
 
-func (ms *metricSender) reportNetworkDeviceMetadata(config CheckConfig, store *resultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
+func (ms *metricSender) reportNetworkDeviceMetadata(config CheckConfig, store *ResultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
 	tags := common.CopyStrings(origTags)
 	tags = util.SortUniqInPlace(tags)
 
@@ -39,7 +39,7 @@ func (ms *metricSender) reportNetworkDeviceMetadata(config CheckConfig, store *r
 	}
 }
 
-func buildNetworkDeviceMetadata(deviceID string, idTags []string, config CheckConfig, store *resultValueStore, tags []string, deviceStatus metadata.DeviceStatus) metadata.DeviceMetadata {
+func buildNetworkDeviceMetadata(deviceID string, idTags []string, config CheckConfig, store *ResultValueStore, tags []string, deviceStatus metadata.DeviceStatus) metadata.DeviceMetadata {
 	var vendor, sysName, sysDescr, sysObjectID string
 	if store != nil {
 		sysName = store.getScalarValueAsString(metadata.SysNameOID)
@@ -66,7 +66,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config CheckCo
 	}
 }
 
-func buildNetworkInterfacesMetadata(deviceID string, store *resultValueStore) ([]metadata.InterfaceMetadata, error) {
+func buildNetworkInterfacesMetadata(deviceID string, store *ResultValueStore) ([]metadata.InterfaceMetadata, error) {
 	if store == nil {
 		// it's expected that the value store is nil if we can't reach the device
 		// in that case, we just return an nil slice.

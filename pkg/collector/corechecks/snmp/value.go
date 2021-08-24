@@ -6,12 +6,13 @@ import (
 	"strconv"
 )
 
-type snmpValueType struct {
-	submissionType string      // used when sending the metric
+// ResultValue represent a snmp value
+type ResultValue struct {
+	SubmissionType string      // used when sending the metric
 	value          interface{} // might be a `string` or `float64` type
 }
 
-func (sv *snmpValueType) toFloat64() (float64, error) {
+func (sv *ResultValue) toFloat64() (float64, error) {
 	switch sv.value.(type) {
 	case float64:
 		return sv.value.(float64), nil
@@ -25,7 +26,7 @@ func (sv *snmpValueType) toFloat64() (float64, error) {
 	return 0, fmt.Errorf("invalid type %T for value %#v", sv.value, sv.value)
 }
 
-func (sv snmpValueType) toString() (string, error) {
+func (sv ResultValue) toString() (string, error) {
 	switch sv.value.(type) {
 	case float64:
 		return strconv.Itoa(int(sv.value.(float64))), nil
@@ -35,16 +36,16 @@ func (sv snmpValueType) toString() (string, error) {
 	return "", fmt.Errorf("invalid type %T for value %#v", sv.value, sv.value)
 }
 
-func (sv snmpValueType) extractStringValue(extractValuePattern *regexp.Regexp) (snmpValueType, error) {
+func (sv ResultValue) extractStringValue(extractValuePattern *regexp.Regexp) (ResultValue, error) {
 	switch sv.value.(type) {
 	case string:
 		srcValue := sv.value.(string)
 		matches := extractValuePattern.FindStringSubmatch(srcValue)
 		if matches == nil {
-			return snmpValueType{}, fmt.Errorf("extract value extractValuePattern does not match (extractValuePattern=%v, srcValue=%v)", extractValuePattern, srcValue)
+			return ResultValue{}, fmt.Errorf("extract value extractValuePattern does not match (extractValuePattern=%v, srcValue=%v)", extractValuePattern, srcValue)
 		}
 		matchedValue := matches[1] // use first matching group
-		return snmpValueType{submissionType: sv.submissionType, value: matchedValue}, nil
+		return ResultValue{SubmissionType: sv.SubmissionType, value: matchedValue}, nil
 	default:
 		return sv, nil
 	}

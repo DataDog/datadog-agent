@@ -7,8 +7,8 @@ import (
 )
 
 func TestToFloat64FromString(t *testing.T) {
-	snmpValue := &snmpValueType{
-		submissionType: "gauge",
+	snmpValue := &ResultValue{
+		SubmissionType: "gauge",
 		value:          "255.745",
 	}
 	value, err := snmpValue.toFloat64()
@@ -17,8 +17,8 @@ func TestToFloat64FromString(t *testing.T) {
 }
 
 func TestToFloat64FromFloat(t *testing.T) {
-	snmpValue := &snmpValueType{
-		submissionType: "gauge",
+	snmpValue := &ResultValue{
+		SubmissionType: "gauge",
 		value:          float64(255.745),
 	}
 	value, err := snmpValue.toFloat64()
@@ -27,8 +27,8 @@ func TestToFloat64FromFloat(t *testing.T) {
 }
 
 func TestToFloat64FromInvalidType(t *testing.T) {
-	snmpValue := &snmpValueType{
-		submissionType: "gauge",
+	snmpValue := &ResultValue{
+		SubmissionType: "gauge",
 		value:          int64(255),
 	}
 	_, err := snmpValue.toFloat64()

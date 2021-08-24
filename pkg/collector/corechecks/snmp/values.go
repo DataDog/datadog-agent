@@ -7,31 +7,33 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type resultValueStore struct {
-	scalarValues scalarResultValuesType
-	columnValues columnResultValuesType
+// ResultValueStore store OID values
+type ResultValueStore struct {
+	// TODO: make fields private?
+	ScalarValues scalarResultValuesType
+	ColumnValues columnResultValuesType
 }
 
-// getScalarValue look for oid in resultValueStore and returns the value and boolean
+// getScalarValue look for oid in ResultValueStore and returns the value and boolean
 // weather valid value has been found
-func (v *resultValueStore) getScalarValue(oid string) (snmpValueType, error) {
-	value, ok := v.scalarValues[oid]
+func (v *ResultValueStore) getScalarValue(oid string) (ResultValue, error) {
+	value, ok := v.ScalarValues[oid]
 	if !ok {
-		return snmpValueType{}, fmt.Errorf("value for Scalar OID `%s` not found in results", oid)
+		return ResultValue{}, fmt.Errorf("value for Scalar OID `%s` not found in results", oid)
 	}
 	return value, nil
 }
 
-// getColumnValues look for oid in resultValueStore and returns a map[<fullIndex>]snmpValueType
+// getColumnValues look for oid in ResultValueStore and returns a map[<fullIndex>]ResultValue
 // where `fullIndex` refer to the entire index part of the instance OID.
 // For example if the row oid (instance oid) is `1.3.6.1.4.1.1.2.3.10.11.12`,
 // the column oid is `1.3.6.1.4.1.1.2.3`, the fullIndex is `10.11.12`.
-func (v *resultValueStore) getColumnValues(oid string) (map[string]snmpValueType, error) {
-	values, ok := v.columnValues[oid]
+func (v *ResultValueStore) getColumnValues(oid string) (map[string]ResultValue, error) {
+	values, ok := v.ColumnValues[oid]
 	if !ok {
 		return nil, fmt.Errorf("value for Column OID `%s` not found in results", oid)
 	}
-	retValues := make(map[string]snmpValueType, len(values))
+	retValues := make(map[string]ResultValue, len(values))
 	for index, value := range values {
 		retValues[index] = value
 	}
@@ -39,20 +41,20 @@ func (v *resultValueStore) getColumnValues(oid string) (map[string]snmpValueType
 	return retValues, nil
 }
 
-// getColumnValue look for oid in resultValueStore and returns a snmpValueType
-func (v *resultValueStore) getColumnValue(oid string, index string) (snmpValueType, error) {
-	values, ok := v.columnValues[oid]
+// getColumnValue look for oid in ResultValueStore and returns a ResultValue
+func (v *ResultValueStore) getColumnValue(oid string, index string) (ResultValue, error) {
+	values, ok := v.ColumnValues[oid]
 	if !ok {
-		return snmpValueType{}, fmt.Errorf("value for Column OID `%s` not found in results", oid)
+		return ResultValue{}, fmt.Errorf("value for Column OID `%s` not found in results", oid)
 	}
 	value, ok := values[index]
 	if !ok {
-		return snmpValueType{}, fmt.Errorf("value for Column OID `%s` and index `%s` not found in results", oid, index)
+		return ResultValue{}, fmt.Errorf("value for Column OID `%s` and index `%s` not found in results", oid, index)
 	}
 	return value, nil
 }
 
-func (v *resultValueStore) getScalarValueAsString(oid string) string {
+func (v *ResultValueStore) getScalarValueAsString(oid string) string {
 	value, err := v.getScalarValue(oid)
 	if err != nil {
 		log.Tracef("failed to get value for OID %s: %s", oid, err)
@@ -66,8 +68,8 @@ func (v *resultValueStore) getScalarValueAsString(oid string) string {
 	return str
 }
 
-// getColumnValueAsString look for oid/index in resultValueStore and returns a string
-func (v *resultValueStore) getColumnValueAsString(oid string, index string) string {
+// getColumnValueAsString look for oid/index in ResultValueStore and returns a string
+func (v *ResultValueStore) getColumnValueAsString(oid string, index string) string {
 	value, err := v.getColumnValue(oid, index)
 	if err != nil {
 		log.Tracef("failed to get value for OID %s with index %s: %s", oid, index, err)
@@ -81,8 +83,8 @@ func (v *resultValueStore) getColumnValueAsString(oid string, index string) stri
 	return str
 }
 
-// getColumnValueAsFloat look for oid/index in resultValueStore and returns a float64
-func (v *resultValueStore) getColumnValueAsFloat(oid string, index string) float64 {
+// getColumnValueAsFloat look for oid/index in ResultValueStore and returns a float64
+func (v *ResultValueStore) getColumnValueAsFloat(oid string, index string) float64 {
 	value, err := v.getColumnValue(oid, index)
 	if err != nil {
 		log.Tracef("failed to get value for OID %s with index %s: %s", oid, index, err)
@@ -96,7 +98,7 @@ func (v *resultValueStore) getColumnValueAsFloat(oid string, index string) float
 	return floatValue
 }
 
-func (v *resultValueStore) getColumnIndexes(columnOid string) ([]string, error) {
+func (v *ResultValueStore) getColumnIndexes(columnOid string) ([]string, error) {
 	indexesMap := make(map[string]struct{})
 	metricValues, err := v.getColumnValues(columnOid)
 	if err != nil {

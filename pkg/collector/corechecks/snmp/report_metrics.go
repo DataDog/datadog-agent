@@ -16,7 +16,7 @@ type metricSender struct {
 	submittedMetrics int
 }
 
-func (ms *metricSender) reportMetrics(metrics []MetricsConfig, values *resultValueStore, tags []string) {
+func (ms *metricSender) reportMetrics(metrics []MetricsConfig, values *ResultValueStore, tags []string) {
 	for _, metric := range metrics {
 		if metric.isScalar() {
 			ms.reportScalarMetrics(metric, values, tags)
@@ -26,7 +26,7 @@ func (ms *metricSender) reportMetrics(metrics []MetricsConfig, values *resultVal
 	}
 }
 
-func (ms *metricSender) getCheckInstanceMetricTags(metricTags []MetricTagConfig, values *resultValueStore) []string {
+func (ms *metricSender) getCheckInstanceMetricTags(metricTags []MetricTagConfig, values *ResultValueStore) []string {
 	var globalTags []string
 
 	for _, metricTag := range metricTags {
@@ -45,7 +45,7 @@ func (ms *metricSender) getCheckInstanceMetricTags(metricTags []MetricTagConfig,
 	return globalTags
 }
 
-func (ms *metricSender) reportScalarMetrics(metric MetricsConfig, values *resultValueStore, tags []string) {
+func (ms *metricSender) reportScalarMetrics(metric MetricsConfig, values *ResultValueStore, tags []string) {
 	value, err := values.getScalarValue(metric.Symbol.OID)
 	if err != nil {
 		log.Debugf("report scalar: error getting scalar value: %v", err)
@@ -57,7 +57,7 @@ func (ms *metricSender) reportScalarMetrics(metric MetricsConfig, values *result
 	ms.sendMetric(metric.Symbol.Name, value, scalarTags, metric.ForcedType, metric.Options, metric.Symbol.extractValuePattern)
 }
 
-func (ms *metricSender) reportColumnMetrics(metricConfig MetricsConfig, values *resultValueStore, tags []string) {
+func (ms *metricSender) reportColumnMetrics(metricConfig MetricsConfig, values *ResultValueStore, tags []string) {
 	rowTagsCache := make(map[string][]string)
 	for _, symbol := range metricConfig.Symbols {
 		metricValues, err := values.getColumnValues(symbol.OID)
@@ -78,7 +78,7 @@ func (ms *metricSender) reportColumnMetrics(metricConfig MetricsConfig, values *
 	}
 }
 
-func (ms *metricSender) sendMetric(metricName string, value snmpValueType, tags []string, forcedType string, options MetricsConfigOption, extractValuePattern *regexp.Regexp) {
+func (ms *metricSender) sendMetric(metricName string, value ResultValue, tags []string, forcedType string, options MetricsConfigOption, extractValuePattern *regexp.Regexp) {
 	if extractValuePattern != nil {
 		extractedValue, err := value.extractStringValue(extractValuePattern)
 		if err != nil {
@@ -90,8 +90,8 @@ func (ms *metricSender) sendMetric(metricName string, value snmpValueType, tags 
 
 	metricFullName := "snmp." + metricName
 	if forcedType == "" {
-		if value.submissionType != "" {
-			forcedType = value.submissionType
+		if value.SubmissionType != "" {
+			forcedType = value.SubmissionType
 		} else {
 			forcedType = "gauge"
 		}
@@ -107,7 +107,7 @@ func (ms *metricSender) sendMetric(metricName string, value snmpValueType, tags 
 			return
 		}
 		metricFullName = metricFullName + "." + options.MetricSuffix
-		value = snmpValueType{value: floatValue}
+		value = ResultValue{value: floatValue}
 		forcedType = "gauge"
 	}
 

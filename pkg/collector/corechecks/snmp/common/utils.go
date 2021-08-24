@@ -4,6 +4,7 @@ import (
 	"fmt"
 )
 
+// CreateStringBatches batches strings into chunks with specific size
 func CreateStringBatches(elements []string, size int) ([][]string, error) {
 	var batches [][]string
 
@@ -23,6 +24,7 @@ func CreateStringBatches(elements []string, size int) ([][]string, error) {
 	return batches, nil
 }
 
+// CopyStrings makes a copy of a list of strings
 func CopyStrings(tags []string) []string {
 	newTags := make([]string, len(tags))
 	copy(newTags, tags)

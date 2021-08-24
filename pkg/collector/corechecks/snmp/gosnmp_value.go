@@ -10,20 +10,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// getValueFromPDU converts gosnmp.SnmpPDU to snmpValueType
+// getValueFromPDU converts gosnmp.SnmpPDU to ResultValue
 // See possible types here: https://github.com/gosnmp/gosnmp/blob/master/helper.go#L59-L271
 //
 // - gosnmp.Opaque: No support for gosnmp.Opaque since the type is processed recursively and never returned:
 //   is never returned https://github.com/gosnmp/gosnmp/blob/dc320dac5b53d95a366733fd95fb5851f2099387/helper.go#L195-L205
 // - gosnmp.Boolean: seems not exist anymore and not handled by gosnmp
-func getValueFromPDU(pduVariable gosnmp.SnmpPDU) (string, snmpValueType, error) {
+func getValueFromPDU(pduVariable gosnmp.SnmpPDU) (string, ResultValue, error) {
 	var value interface{}
 	name := strings.TrimLeft(pduVariable.Name, ".") // remove leading dot
 	switch pduVariable.Type {
 	case gosnmp.OctetString, gosnmp.BitString:
 		bytesValue, ok := pduVariable.Value.([]byte)
 		if !ok {
-			return name, snmpValueType{}, fmt.Errorf("oid %s: OctetString/BitString should be []byte type but got %T type: %#v", pduVariable.Name, pduVariable.Value, pduVariable)
+			return name, ResultValue{}, fmt.Errorf("oid %s: OctetString/BitString should be []byte type but got %T type: %#v", pduVariable.Name, pduVariable.Value, pduVariable)
 		}
 		if hasNonPrintableByte(bytesValue) {
 			// We hexify like Python/pysnmp impl (keep compatibility) if the value contains non ascii letters:
@@ -40,32 +40,32 @@ func getValueFromPDU(pduVariable gosnmp.SnmpPDU) (string, snmpValueType, error) 
 	case gosnmp.OpaqueFloat:
 		floatValue, ok := pduVariable.Value.(float32)
 		if !ok {
-			return name, snmpValueType{}, fmt.Errorf("oid %s: OpaqueFloat should be float32 type but got %T type: %#v", pduVariable.Name, pduVariable.Value, pduVariable)
+			return name, ResultValue{}, fmt.Errorf("oid %s: OpaqueFloat should be float32 type but got %T type: %#v", pduVariable.Name, pduVariable.Value, pduVariable)
 		}
 		value = float64(floatValue)
 	case gosnmp.OpaqueDouble:
 		floatValue, ok := pduVariable.Value.(float64)
 		if !ok {
-			return name, snmpValueType{}, fmt.Errorf("oid %s: OpaqueDouble should be float64 type but got %T type: %#v", pduVariable.Name, pduVariable.Value, pduVariable)
+			return name, ResultValue{}, fmt.Errorf("oid %s: OpaqueDouble should be float64 type but got %T type: %#v", pduVariable.Name, pduVariable.Value, pduVariable)
 		}
 		value = floatValue
 	case gosnmp.IPAddress:
 		strValue, ok := pduVariable.Value.(string)
 		if !ok {
-			return name, snmpValueType{}, fmt.Errorf("oid %s: IPAddress should be string type but got %T type: %#v", pduVariable.Name, pduVariable.Value, pduVariable)
+			return name, ResultValue{}, fmt.Errorf("oid %s: IPAddress should be string type but got %T type: %#v", pduVariable.Name, pduVariable.Value, pduVariable)
 		}
 		value = strValue
 	case gosnmp.ObjectIdentifier:
 		strValue, ok := pduVariable.Value.(string)
 		if !ok {
-			return name, snmpValueType{}, fmt.Errorf("oid %s: ObjectIdentifier should be string type but got %T type: %#v", pduVariable.Name, pduVariable.Value, pduVariable)
+			return name, ResultValue{}, fmt.Errorf("oid %s: ObjectIdentifier should be string type but got %T type: %#v", pduVariable.Name, pduVariable.Value, pduVariable)
 		}
 		value = strings.TrimLeft(strValue, ".")
 	default:
-		return name, snmpValueType{}, fmt.Errorf("oid %s: invalid type: %s", pduVariable.Name, pduVariable.Type.String())
+		return name, ResultValue{}, fmt.Errorf("oid %s: invalid type: %s", pduVariable.Name, pduVariable.Type.String())
 	}
 	submissionType := getSubmissionType(pduVariable.Type)
-	return name, snmpValueType{submissionType: submissionType, value: value}, nil
+	return name, ResultValue{SubmissionType: submissionType, value: value}, nil
 }
 
 func hasNonPrintableByte(bytesValue []byte) bool {
@@ -79,7 +79,7 @@ func hasNonPrintableByte(bytesValue []byte) bool {
 }
 
 func resultToScalarValues(result *gosnmp.SnmpPacket) scalarResultValuesType {
-	returnValues := make(map[string]snmpValueType, len(result.Variables))
+	returnValues := make(map[string]ResultValue, len(result.Variables))
 	for _, pduVariable := range result.Variables {
 		if shouldSkip(pduVariable.Type) {
 			continue
@@ -115,7 +115,7 @@ func resultToColumnValues(columnOids []string, snmpPacket *gosnmp.SnmpPacket) (c
 		// and the columnOid can be derived from the index of the PDU variable.
 		columnOid := columnOids[i%len(columnOids)]
 		if _, ok := returnValues[columnOid]; !ok {
-			returnValues[columnOid] = make(map[string]snmpValueType, maxRowsPerCol)
+			returnValues[columnOid] = make(map[string]ResultValue, maxRowsPerCol)
 		}
 
 		prefix := columnOid + "."

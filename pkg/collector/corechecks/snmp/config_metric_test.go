@@ -77,7 +77,7 @@ func Test_metricsConfig_getTags(t *testing.T) {
 		name            string
 		rawMetricConfig []byte
 		fullIndex       string
-		values          *resultValueStore
+		values          *ResultValueStore
 		expectedTags    []string
 		expectedLogs    []logCount
 	}{
@@ -104,10 +104,10 @@ metric_tags:
     tag: pdu_name
 `),
 			fullIndex: "1.2.3.4.5.6.7.8",
-			values: &resultValueStore{
-				columnValues: map[string]map[string]snmpValueType{
+			values: &ResultValueStore{
+				ColumnValues: map[string]map[string]ResultValue{
 					"1.2.3.4.8.1.2": {
-						"2.3.7.8": snmpValueType{
+						"2.3.7.8": ResultValue{
 							value: "myval",
 						},
 					},
@@ -137,7 +137,7 @@ metric_tags:
       16: dns
 `),
 			fullIndex:    "3",
-			values:       &resultValueStore{},
+			values:       &ResultValueStore{},
 			expectedTags: []string{"ipversion:ipv4z"},
 		},
 		{
@@ -161,10 +161,10 @@ metric_tags:
       suffix: '$2'
 `),
 			fullIndex: "1.2.3.4.5.6.7.8",
-			values: &resultValueStore{
-				columnValues: map[string]map[string]snmpValueType{
+			values: &ResultValueStore{
+				ColumnValues: map[string]map[string]ResultValue{
 					"1.2.3.4.8.1.2": {
-						"1.2.3.4.5.6.7.8": snmpValueType{
+						"1.2.3.4.5.6.7.8": ResultValue{
 							value: "eth0",
 						},
 					},
@@ -193,10 +193,10 @@ metric_tags:
       tag2: '\1'
 `),
 			fullIndex: "1.2.3.4.5.6.7.8",
-			values: &resultValueStore{
-				columnValues: map[string]map[string]snmpValueType{
+			values: &ResultValueStore{
+				ColumnValues: map[string]map[string]ResultValue{
 					"1.2.3.4.8.1.2": {
-						"1.2.3.4.5.6.7.8": snmpValueType{
+						"1.2.3.4.5.6.7.8": ResultValue{
 							value: "f5-vm-aa.c.datadog-integrations-lab.internal",
 						},
 					},
@@ -225,10 +225,10 @@ metric_tags:
       suffix: '$2'
 `),
 			fullIndex: "1.2.3.4.5.6.7.8",
-			values: &resultValueStore{
-				columnValues: map[string]map[string]snmpValueType{
+			values: &ResultValueStore{
+				ColumnValues: map[string]map[string]ResultValue{
 					"1.2.3.4.8.1.2": {
-						"1.2.3.4.5.6.7.8": snmpValueType{
+						"1.2.3.4.5.6.7.8": ResultValue{
 							value: "....",
 						},
 					},
@@ -257,10 +257,10 @@ metric_tags:
       suffix: '$2'
 `),
 			fullIndex: "1.2.3.4.5.6.7.8",
-			values: &resultValueStore{
-				columnValues: map[string]map[string]snmpValueType{
+			values: &ResultValueStore{
+				ColumnValues: map[string]map[string]ResultValue{
 					"1.2.3.4.8.1.2": {
-						"1.2.3.4.5.6.7.8": snmpValueType{
+						"1.2.3.4.5.6.7.8": ResultValue{
 							value: "abc.",
 						},
 					},
@@ -286,10 +286,10 @@ metric_tags:
     tag: abc
 `),
 			fullIndex: "1.2.3.4.5.6.7.8",
-			values: &resultValueStore{
-				columnValues: map[string]map[string]snmpValueType{
+			values: &ResultValueStore{
+				ColumnValues: map[string]map[string]ResultValue{
 					"1.2.3.4.8.1.2": {
-						"999": snmpValueType{
+						"999": ResultValue{
 							value: "abc.",
 						},
 					},
@@ -318,11 +318,11 @@ metric_tags:
     tag: abc
 `),
 			fullIndex: "1.2.3.4.5.6.7.8",
-			values: &resultValueStore{
-				columnValues: map[string]map[string]snmpValueType{
+			values: &ResultValueStore{
+				ColumnValues: map[string]map[string]ResultValue{
 					"1.2.3.4.8.1.2": {
-						"1.2.3.4.5.6.7.8": snmpValueType{
-							value: snmpValueType{},
+						"1.2.3.4.5.6.7.8": ResultValue{
+							value: ResultValue{},
 						},
 					},
 				},
@@ -350,10 +350,10 @@ metric_tags:
     tag: abc
 `),
 			fullIndex: "1.2.3.4.5.6.7.8",
-			values: &resultValueStore{
-				columnValues: map[string]map[string]snmpValueType{
+			values: &ResultValueStore{
+				ColumnValues: map[string]map[string]ResultValue{
 					"999": {
-						"1.2.3.4.5.6.7.8": snmpValueType{
+						"1.2.3.4.5.6.7.8": ResultValue{
 							value: "abc.",
 						},
 					},
@@ -386,10 +386,10 @@ metric_tags:
       16: dns
 `),
 			fullIndex: "20",
-			values: &resultValueStore{
-				columnValues: map[string]map[string]snmpValueType{
+			values: &ResultValueStore{
+				ColumnValues: map[string]map[string]ResultValue{
 					"1.2.3.4.8.1.2": {
-						"20": snmpValueType{
+						"20": ResultValue{
 							value: "abc.",
 						},
 					},
@@ -415,10 +415,10 @@ metric_tags:
     tag: abc
 `),
 			fullIndex: "1",
-			values: &resultValueStore{
-				columnValues: map[string]map[string]snmpValueType{
+			values: &ResultValueStore{
+				ColumnValues: map[string]map[string]ResultValue{
 					"1.2.3.4.8.1.2": {
-						"1": snmpValueType{
+						"1": ResultValue{
 							value: "abc.",
 						},
 					},

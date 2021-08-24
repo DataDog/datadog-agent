@@ -103,7 +103,7 @@ func updateColumnResultValues(valuesToUpdate columnResultValuesType, extraValues
 	for columnOid, columnValues := range extraValues {
 		for oid, value := range columnValues {
 			if _, ok := valuesToUpdate[columnOid]; !ok {
-				valuesToUpdate[columnOid] = make(map[string]snmpValueType)
+				valuesToUpdate[columnOid] = make(map[string]ResultValue)
 			}
 			valuesToUpdate[columnOid][oid] = value
 		}

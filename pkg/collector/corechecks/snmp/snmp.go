@@ -80,7 +80,7 @@ func (c *Check) Run() error {
 	return checkErr
 }
 
-func (c *Check) getValuesAndTags(staticTags []string) ([]string, *resultValueStore, error) {
+func (c *Check) getValuesAndTags(staticTags []string) ([]string, *ResultValueStore, error) {
 	var checkErrors []string
 	tags := common.CopyStrings(staticTags)
 
