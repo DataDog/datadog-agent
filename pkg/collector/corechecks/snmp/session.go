@@ -74,7 +74,7 @@ func (s *snmpSession) Configure(config CheckConfig) error {
 		return fmt.Errorf("an authentication method needs to be provided")
 	}
 
-	s.gosnmpInst.Target = config.ipAddress
+	s.gosnmpInst.Target = config.IpAddress
 	s.gosnmpInst.Port = config.port
 	s.gosnmpInst.Timeout = time.Duration(config.timeout) * time.Second
 	s.gosnmpInst.Retries = config.retries

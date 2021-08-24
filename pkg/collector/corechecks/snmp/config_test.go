@@ -117,7 +117,7 @@ bulk_max_repetitions: 20
 	assert.Nil(t, err)
 	assert.Equal(t, 10, check.config.oidBatchSize)
 	assert.Equal(t, uint32(20), check.config.bulkMaxRepetitions)
-	assert.Equal(t, "1.2.3.4", check.config.ipAddress)
+	assert.Equal(t, "1.2.3.4", check.config.IpAddress)
 	assert.Equal(t, uint16(1161), check.config.port)
 	assert.Equal(t, 7, check.config.timeout)
 	assert.Equal(t, 5, check.config.retries)
@@ -286,7 +286,7 @@ community_string: abc
 	err := check.Configure(rawInstanceConfig, rawInitConfig, "test")
 
 	assert.Nil(t, err)
-	assert.Equal(t, "1.2.3.4", check.config.ipAddress)
+	assert.Equal(t, "1.2.3.4", check.config.IpAddress)
 	assert.Equal(t, uint16(161), check.config.port)
 	assert.Equal(t, 2, check.config.timeout)
 	assert.Equal(t, 3, check.config.retries)
@@ -803,7 +803,7 @@ extra_tags: "extratag1:val1,extratag2:val2"
 
 func Test_snmpConfig_getDeviceIDTags(t *testing.T) {
 	c := &CheckConfig{
-		ipAddress:    "1.2.3.4",
+		IpAddress:    "1.2.3.4",
 		extraTags:    []string{"extratag1:val1", "extratag2"},
 		instanceTags: []string{"instancetag1:val1", "instancetag2"},
 	}
@@ -846,7 +846,7 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 		"profile1": profile1,
 	}
 	c := &CheckConfig{
-		ipAddress: "1.2.3.4",
+		IpAddress: "1.2.3.4",
 		profiles:  mockProfiles,
 	}
 	err := c.refreshWithProfile("f5")
@@ -868,7 +868,7 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 	assert.Equal(t, []string{"snmp_profile:profile1", "device_vendor:a-vendor"}, c.profileTags)
 
 	c = &CheckConfig{
-		ipAddress:             "1.2.3.4",
+		IpAddress:             "1.2.3.4",
 		profiles:              mockProfiles,
 		collectDeviceMetadata: true,
 	}
