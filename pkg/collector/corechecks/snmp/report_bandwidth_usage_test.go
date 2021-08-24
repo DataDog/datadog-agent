@@ -290,7 +290,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 			sender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-			ms := &metricSender{
+			ms := &MetricSender{
 				sender: sender,
 			}
 			tags := []string{"foo:bar"}
@@ -380,7 +380,7 @@ func Test_metricSender_trySendBandwidthUsageMetric(t *testing.T) {
 			sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 			sender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-			ms := &metricSender{
+			ms := &MetricSender{
 				sender: sender,
 			}
 			tags := []string{"foo:bar"}

@@ -13,13 +13,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 )
 
-type metricSender struct {
+// MetricSender is a wrapper around aggregator.Sender
+type MetricSender struct {
 	sender           aggregator.Sender
 	submittedMetrics int
 }
 
 // ReportMetrics reports metrics using sender
-func (ms *metricSender) ReportMetrics(metrics []checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
+func (ms *MetricSender) ReportMetrics(metrics []checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
 	for _, metric := range metrics {
 		if metric.IsScalar() {
 			ms.reportScalarMetrics(metric, values, tags)
@@ -29,7 +30,7 @@ func (ms *metricSender) ReportMetrics(metrics []checkconfig.MetricsConfig, value
 	}
 }
 
-func (ms *metricSender) getCheckInstanceMetricTags(metricTags []checkconfig.MetricTagConfig, values *valuestore.ResultValueStore) []string {
+func (ms *MetricSender) getCheckInstanceMetricTags(metricTags []checkconfig.MetricTagConfig, values *valuestore.ResultValueStore) []string {
 	var globalTags []string
 
 	for _, metricTag := range metricTags {
@@ -48,7 +49,7 @@ func (ms *metricSender) getCheckInstanceMetricTags(metricTags []checkconfig.Metr
 	return globalTags
 }
 
-func (ms *metricSender) reportScalarMetrics(metric checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
+func (ms *MetricSender) reportScalarMetrics(metric checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
 	value, err := values.GetScalarValue(metric.Symbol.OID)
 	if err != nil {
 		log.Debugf("report scalar: error getting scalar value: %v", err)
@@ -60,7 +61,7 @@ func (ms *metricSender) reportScalarMetrics(metric checkconfig.MetricsConfig, va
 	ms.sendMetric(metric.Symbol.Name, value, scalarTags, metric.ForcedType, metric.Options, metric.Symbol.ExtractValuePattern)
 }
 
-func (ms *metricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
+func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
 	rowTagsCache := make(map[string][]string)
 	for _, symbol := range metricConfig.Symbols {
 		metricValues, err := values.GetColumnValues(symbol.OID)
@@ -81,7 +82,7 @@ func (ms *metricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 	}
 }
 
-func (ms *metricSender) sendMetric(metricName string, value valuestore.ResultValue, tags []string, forcedType string, options checkconfig.MetricsConfigOption, extractValuePattern *regexp.Regexp) {
+func (ms *MetricSender) sendMetric(metricName string, value valuestore.ResultValue, tags []string, forcedType string, options checkconfig.MetricsConfigOption, extractValuePattern *regexp.Regexp) {
 	if extractValuePattern != nil {
 		extractedValue, err := value.ExtractStringValue(extractValuePattern)
 		if err != nil {
@@ -144,25 +145,25 @@ func (ms *metricSender) sendMetric(metricName string, value valuestore.ResultVal
 }
 
 // Gauge wraps sender.Gauge
-func (ms *metricSender) Gauge(metric string, value float64, hostname string, tags []string) {
+func (ms *MetricSender) Gauge(metric string, value float64, hostname string, tags []string) {
 	// we need copy tags before using sender due to https://github.com/DataDog/datadog-agent/issues/7159
 	ms.sender.Gauge(metric, value, hostname, common.CopyStrings(tags))
 }
 
 // Rate wraps sender.Rate
-func (ms *metricSender) Rate(metric string, value float64, hostname string, tags []string) {
+func (ms *MetricSender) Rate(metric string, value float64, hostname string, tags []string) {
 	// we need copy tags before using sender due to https://github.com/DataDog/datadog-agent/issues/7159
 	ms.sender.Rate(metric, value, hostname, common.CopyStrings(tags))
 }
 
 // MonotonicCount wraps sender.MonotonicCount
-func (ms *metricSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
+func (ms *MetricSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
 	// we need copy tags before using sender due to https://github.com/DataDog/datadog-agent/issues/7159
 	ms.sender.MonotonicCount(metric, value, hostname, common.CopyStrings(tags))
 }
 
 // ServiceCheck wraps sender.ServiceCheck
-func (ms *metricSender) ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string) {
+func (ms *MetricSender) ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string) {
 	// we need copy tags before using sender due to https://github.com/DataDog/datadog-agent/issues/7159
 	ms.sender.ServiceCheck(checkName, status, hostname, common.CopyStrings(tags), message)
 }
