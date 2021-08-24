@@ -75,7 +75,7 @@ func createMockSession() *mockSession {
 }
 
 func setConfdPathAndCleanProfiles() {
-	globalProfileConfigMap = nil // make sure from the new confd path will be reloaded
+	GlobalProfileConfigMap = nil // make sure from the new confd path will be reloaded
 	file, _ := filepath.Abs(filepath.Join(".", "test", "conf.d"))
 	config.Datadog.Set("confd_path", file)
 }
