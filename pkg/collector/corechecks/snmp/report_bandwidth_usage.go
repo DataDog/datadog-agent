@@ -37,7 +37,7 @@ func (ms *metricSender) trySendBandwidthUsageMetric(symbol checkconfig.SymbolCon
    * ifHighSpeed: An estimate of the interface's current bandwidth in Mb/s (10^6 bits
                   per second). It is constant in time, can be overwritten by the system admin.
                   It is the total available bandwidth.
-   Bandwidth usage is evaluated as: ifHC[In|Out]Octets/ifHighSpeed and reported as *rate*
+   Bandwidth usage is evaluated as: ifHC[In|Out]Octets/ifHighSpeed and reported as *Rate*
 */
 func (ms *metricSender) sendBandwidthUsageMetric(symbol checkconfig.SymbolConfig, fullIndex string, values *valuestore.ResultValueStore, tags []string) error {
 	usageName, ok := bandwidthMetricNameToUsage[symbol.Name]
@@ -78,6 +78,6 @@ func (ms *metricSender) sendBandwidthUsageMetric(symbol checkconfig.SymbolConfig
 	}
 	usageValue := ((octetsFloatValue * 8) / (ifHighSpeedFloatValue * (1e6))) * 100.0
 
-	ms.sendMetric(usageName+".rate", valuestore.ResultValue{SubmissionType: "counter", Value: usageValue}, tags, "counter", checkconfig.MetricsConfigOption{}, nil)
+	ms.sendMetric(usageName+".Rate", valuestore.ResultValue{SubmissionType: "counter", Value: usageValue}, tags, "counter", checkconfig.MetricsConfigOption{}, nil)
 	return nil
 }

@@ -26,7 +26,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		expectedError  error
 	}{
 		{
-			"snmp.ifBandwidthInUsage.rate submitted",
+			"snmp.ifBandwidthInUsage.Rate submitted",
 			checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
 			&valuestore.ResultValueStore{
@@ -53,12 +53,12 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			},
 			[]Metric{
 				// ((5000000 * 8) / (80 * 1000000)) * 100 = 50.0
-				{"snmp.ifBandwidthInUsage.rate", 50.0},
+				{"snmp.ifBandwidthInUsage.Rate", 50.0},
 			},
 			nil,
 		},
 		{
-			"snmp.ifBandwidthOutUsage.rate submitted",
+			"snmp.ifBandwidthOutUsage.Rate submitted",
 			checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.10", Name: "ifHCOutOctets"},
 			"9",
 			&valuestore.ResultValueStore{
@@ -85,7 +85,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			},
 			[]Metric{
 				// ((1000000 * 8) / (80 * 1000000)) * 100 = 10.0
-				{"snmp.ifBandwidthOutUsage.rate", 10.0},
+				{"snmp.ifBandwidthOutUsage.Rate", 10.0},
 			},
 			nil,
 		},
@@ -316,7 +316,7 @@ func Test_metricSender_trySendBandwidthUsageMetric(t *testing.T) {
 		expectedMetric []Metric
 	}{
 		{
-			"snmp.ifBandwidthInUsage.rate submitted",
+			"snmp.ifBandwidthInUsage.Rate submitted",
 			checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
 			&valuestore.ResultValueStore{
@@ -343,7 +343,7 @@ func Test_metricSender_trySendBandwidthUsageMetric(t *testing.T) {
 			},
 			[]Metric{
 				// ((5000000 * 8) / (80 * 1000000)) * 100 = 50.0
-				{"snmp.ifBandwidthInUsage.rate", 50.0},
+				{"snmp.ifBandwidthInUsage.Rate", 50.0},
 			},
 		},
 		{

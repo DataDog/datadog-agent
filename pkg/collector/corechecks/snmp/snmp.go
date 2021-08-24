@@ -55,9 +55,9 @@ func (c *Check) Run() error {
 	collectionTime := timeNow()
 	tags, values, checkErr := c.getValuesAndTags(staticTags)
 	if checkErr != nil {
-		c.sender.serviceCheck(serviceCheckName, metrics.ServiceCheckCritical, "", tags, checkErr.Error())
+		c.sender.ServiceCheck(serviceCheckName, metrics.ServiceCheckCritical, "", tags, checkErr.Error())
 	} else {
-		c.sender.serviceCheck(serviceCheckName, metrics.ServiceCheckOK, "", tags, "")
+		c.sender.ServiceCheck(serviceCheckName, metrics.ServiceCheckOK, "", tags, "")
 	}
 	if values != nil {
 		c.sender.ReportMetrics(c.config.Metrics, values, tags)
@@ -107,7 +107,7 @@ func (c *Check) getValuesAndTags(staticTags []string) ([]string, *valuestore.Res
 
 	tags = append(tags, c.config.ProfileTags...)
 
-	valuesStore, err := fetch.FetchValues(c.session, c.config)
+	valuesStore, err := fetch.Fetch(c.session, c.config)
 	log.Debugf("fetched values: %v", valuesStore)
 
 	if err != nil {
@@ -148,12 +148,12 @@ func (c *Check) autodetectProfile(sess session.Session) error {
 func (c *Check) submitTelemetryMetrics(startTime time.Time, tags []string) {
 	newTags := append(common.CopyStrings(tags), snmpLoaderTag)
 
-	c.sender.gauge("snmp.devices_monitored", float64(1), "", newTags)
+	c.sender.Gauge("snmp.devices_monitored", float64(1), "", newTags)
 
 	// SNMP Performance metrics
-	c.sender.monotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), "", newTags)
-	c.sender.gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), "", newTags)
-	c.sender.gauge("datadog.snmp.submitted_metrics", float64(c.sender.submittedMetrics), "", newTags)
+	c.sender.MonotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), "", newTags)
+	c.sender.Gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), "", newTags)
+	c.sender.Gauge("datadog.snmp.submitted_metrics", float64(c.sender.submittedMetrics), "", newTags)
 }
 
 // Configure configures the snmp checks
