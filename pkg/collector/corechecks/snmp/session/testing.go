@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+// MockSession mocks a connection session
 type MockSession struct {
 	mock.Mock
 	ConnectErr error

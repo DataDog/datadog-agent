@@ -45,7 +45,7 @@ func (c *Check) Run() error {
 	if err != nil {
 		return err
 	}
-	c.sender = MetricSender{sender: sender}
+	c.sender = MetricSender{Sender: sender}
 
 	staticTags := c.config.GetStaticTags()
 
@@ -153,7 +153,7 @@ func (c *Check) submitTelemetryMetrics(startTime time.Time, tags []string) {
 	// SNMP Performance metrics
 	c.sender.MonotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), "", newTags)
 	c.sender.Gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), "", newTags)
-	c.sender.Gauge("datadog.snmp.submitted_metrics", float64(c.sender.submittedMetrics), "", newTags)
+	c.sender.Gauge("datadog.snmp.submitted_metrics", float64(c.sender.SubmittedMetrics), "", newTags)
 }
 
 // Configure configures the snmp checks

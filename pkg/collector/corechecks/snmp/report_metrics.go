@@ -15,11 +15,11 @@ import (
 
 // MetricSender is a wrapper around aggregator.Sender
 type MetricSender struct {
-	sender           aggregator.Sender
-	submittedMetrics int
+	Sender           aggregator.Sender // TODO: make it private
+	SubmittedMetrics int               // TODO: make it private
 }
 
-// ReportMetrics reports metrics using sender
+// ReportMetrics reports metrics using Sender
 func (ms *MetricSender) ReportMetrics(metrics []checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
 	for _, metric := range metrics {
 		if metric.IsScalar() {
@@ -124,48 +124,48 @@ func (ms *MetricSender) sendMetric(metricName string, value valuestore.ResultVal
 	switch forcedType {
 	case "gauge":
 		ms.Gauge(metricFullName, floatValue, "", tags)
-		ms.submittedMetrics++
+		ms.SubmittedMetrics++
 	case "counter":
 		ms.Rate(metricFullName, floatValue, "", tags)
-		ms.submittedMetrics++
+		ms.SubmittedMetrics++
 	case "percent":
 		ms.Rate(metricFullName, floatValue*100, "", tags)
-		ms.submittedMetrics++
+		ms.SubmittedMetrics++
 	case "monotonic_count":
 		ms.MonotonicCount(metricFullName, floatValue, "", tags)
-		ms.submittedMetrics++
+		ms.SubmittedMetrics++
 	case "monotonic_count_and_rate":
 		ms.MonotonicCount(metricFullName, floatValue, "", tags)
 		ms.Rate(metricFullName+".Rate", floatValue, "", tags)
-		ms.submittedMetrics += 2
+		ms.SubmittedMetrics += 2
 	default:
 		log.Debugf("metric `%s`: unsupported forcedType: %s", metricFullName, forcedType)
 		return
 	}
 }
 
-// Gauge wraps sender.Gauge
+// Gauge wraps Sender.Gauge
 func (ms *MetricSender) Gauge(metric string, value float64, hostname string, tags []string) {
-	// we need copy tags before using sender due to https://github.com/DataDog/datadog-agent/issues/7159
-	ms.sender.Gauge(metric, value, hostname, common.CopyStrings(tags))
+	// we need copy tags before using Sender due to https://github.com/DataDog/datadog-agent/issues/7159
+	ms.Sender.Gauge(metric, value, hostname, common.CopyStrings(tags))
 }
 
-// Rate wraps sender.Rate
+// Rate wraps Sender.Rate
 func (ms *MetricSender) Rate(metric string, value float64, hostname string, tags []string) {
-	// we need copy tags before using sender due to https://github.com/DataDog/datadog-agent/issues/7159
-	ms.sender.Rate(metric, value, hostname, common.CopyStrings(tags))
+	// we need copy tags before using Sender due to https://github.com/DataDog/datadog-agent/issues/7159
+	ms.Sender.Rate(metric, value, hostname, common.CopyStrings(tags))
 }
 
-// MonotonicCount wraps sender.MonotonicCount
+// MonotonicCount wraps Sender.MonotonicCount
 func (ms *MetricSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
-	// we need copy tags before using sender due to https://github.com/DataDog/datadog-agent/issues/7159
-	ms.sender.MonotonicCount(metric, value, hostname, common.CopyStrings(tags))
+	// we need copy tags before using Sender due to https://github.com/DataDog/datadog-agent/issues/7159
+	ms.Sender.MonotonicCount(metric, value, hostname, common.CopyStrings(tags))
 }
 
-// ServiceCheck wraps sender.ServiceCheck
+// ServiceCheck wraps Sender.ServiceCheck
 func (ms *MetricSender) ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string) {
-	// we need copy tags before using sender due to https://github.com/DataDog/datadog-agent/issues/7159
-	ms.sender.ServiceCheck(checkName, status, hostname, common.CopyStrings(tags), message)
+	// we need copy tags before using Sender due to https://github.com/DataDog/datadog-agent/issues/7159
+	ms.Sender.ServiceCheck(checkName, status, hostname, common.CopyStrings(tags), message)
 }
 
 func getFlagStreamValue(placement uint, strValue string) (float64, error) {

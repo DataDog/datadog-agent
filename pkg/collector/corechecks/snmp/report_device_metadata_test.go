@@ -30,7 +30,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
-		sender: sender,
+		Sender: sender,
 	}
 
 	config := checkconfig.CheckConfig{
@@ -97,7 +97,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
-		sender: sender,
+		Sender: sender,
 	}
 
 	config := checkconfig.CheckConfig{
