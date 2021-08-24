@@ -86,7 +86,7 @@ type CheckConfig struct {
 	Retries               int
 	User                  string
 	AuthProtocol          string
-	authKey               string
+	AuthKey               string
 	privProtocol          string
 	privKey               string
 	contextName           string
@@ -249,7 +249,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	c.CommunityString = instance.CommunityString
 	c.User = instance.User
 	c.AuthProtocol = instance.AuthProtocol
-	c.authKey = instance.AuthKey
+	c.AuthKey = instance.AuthKey
 	c.privProtocol = instance.PrivProtocol
 	c.privKey = instance.PrivKey
 	c.contextName = instance.ContextName

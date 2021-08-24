@@ -66,7 +66,7 @@ func (s *snmpSession) Configure(config CheckConfig) error {
 		s.gosnmpInst.SecurityParameters = &gosnmp.UsmSecurityParameters{
 			UserName:                 config.User,
 			AuthenticationProtocol:   authProtocol,
-			AuthenticationPassphrase: config.authKey,
+			AuthenticationPassphrase: config.AuthKey,
 			PrivacyProtocol:          privProtocol,
 			PrivacyPassphrase:        config.privKey,
 		}

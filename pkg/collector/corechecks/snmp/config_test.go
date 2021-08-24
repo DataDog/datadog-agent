@@ -124,7 +124,7 @@ bulk_max_repetitions: 20
 	assert.Equal(t, "2c", check.config.SnmpVersion)
 	assert.Equal(t, "my-user", check.config.User)
 	assert.Equal(t, "sha", check.config.AuthProtocol)
-	assert.Equal(t, "my-authKey", check.config.authKey)
+	assert.Equal(t, "my-authKey", check.config.AuthKey)
 	assert.Equal(t, "aes", check.config.privProtocol)
 	assert.Equal(t, "my-privKey", check.config.privKey)
 	assert.Equal(t, "my-contextName", check.config.contextName)
@@ -713,7 +713,7 @@ func Test_snmpConfig_toString(t *testing.T) {
 	c := CheckConfig{
 		CommunityString: "my_communityString",
 		AuthProtocol:    "my_authProtocol",
-		authKey:         "my_authKey",
+		AuthKey:         "my_authKey",
 		privProtocol:    "my_privProtocol",
 		privKey:         "my_privKey",
 	}
