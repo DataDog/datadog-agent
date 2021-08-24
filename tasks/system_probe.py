@@ -411,6 +411,13 @@ def get_linux_header_dirs():
                 os.path.join(debian_headers_dir, d) for d in os.listdir(debian_headers_dir) if d.startswith("linux-")
             ]
 
+    # fallback to the running kernel/build headers via /lib/modules/$(uname -r)/build/
+    if len(linux_headers) == 0:
+        uname_r = check_output('''uname -r''', shell=True).decode('utf-8').strip()
+        build_dir = "/lib/modules/{}/build".format(uname_r)
+        if os.path.isdir(build_dir):
+            linux_headers = [build_dir]
+
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
     arch = (
         check_output(
