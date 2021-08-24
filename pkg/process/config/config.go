@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"net"
 	"net/http"
 	"net/url"
@@ -19,6 +18,7 @@ import (
 	model "github.com/DataDog/agent-payload/process"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -171,6 +171,8 @@ func NewDefaultTransport() *http.Transport {
 
 // NewDefaultAgentConfig returns an AgentConfig with defaults initialized
 func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
+	initRuntimeSettings()
+
 	processEndpoint, err := url.Parse(defaultProcessEndpoint)
 	if err != nil {
 		// This is a hardcoded URL so parsing it should not fail
@@ -383,7 +385,7 @@ func initRuntimeSettings() {
 
 	// Before we begin listening, register runtime settings
 	for _, setting := range processRuntimeSettings {
-		_ = log.Warn(settings.RegisterRuntimeSetting(setting))
+		settings.RegisterRuntimeSetting(setting)
 	}
 }
 
