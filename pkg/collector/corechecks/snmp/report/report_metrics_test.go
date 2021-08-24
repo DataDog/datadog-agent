@@ -1,4 +1,4 @@
-package snmp
+package report
 
 import (
 	"bufio"
@@ -411,8 +411,8 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 			},
 			values: &valuestore.ResultValueStore{},
 			expectedLogs: []logCount{
-				{"[DEBUG] getCheckInstanceMetricTags: metric tags: error getting scalar value: value for Scalar OID `1.2.3` not found in results", 1},
-				{"[DEBUG] getCheckInstanceMetricTags: metric tags: error getting scalar value: value for Scalar OID `1.3.6.1.2.1.1.5.0` not found in results", 1},
+				{"[DEBUG] GetCheckInstanceMetricTags: metric tags: error getting scalar value: value for Scalar OID `1.2.3` not found in results", 1},
+				{"[DEBUG] GetCheckInstanceMetricTags: metric tags: error getting scalar value: value for Scalar OID `1.3.6.1.2.1.1.5.0` not found in results", 1},
 			},
 		},
 		{
@@ -463,7 +463,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 			metricSender := MetricSender{Sender: mockSender}
 
 			checkconfig.ValidateEnrichMetricTags(tt.metricsTags)
-			tags := metricSender.getCheckInstanceMetricTags(tt.metricsTags, tt.values)
+			tags := metricSender.GetCheckInstanceMetricTags(tt.metricsTags, tt.values)
 
 			assert.ElementsMatch(t, tt.expectedTags, tags)
 

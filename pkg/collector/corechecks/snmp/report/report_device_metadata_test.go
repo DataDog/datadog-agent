@@ -1,4 +1,4 @@
-package snmp
+package report
 
 import (
 	"bufio"
@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/metadata"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -44,7 +45,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.reportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
+	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
 
 	// language=json
 	event := []byte(`
@@ -111,7 +112,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 	str := "2014-11-12 11:45:26"
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
-	ms.reportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
+	ms.ReportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
 
 	// language=json
 	event := []byte(`
@@ -176,7 +177,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 }
 
 func Test_batchPayloads(t *testing.T) {
-	collectTime := mockTimeNow()
+	collectTime := common.MockTimeNow()
 	deviceID := "123"
 	device := metadata.DeviceMetadata{ID: deviceID}
 

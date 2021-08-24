@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/fetch"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/report"
 	session "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"strings"
@@ -34,7 +35,7 @@ type Check struct {
 	core.CheckBase
 	config  checkconfig.CheckConfig
 	session session.Session
-	sender  MetricSender
+	sender  report.MetricSender
 }
 
 // Run executes the check
@@ -45,7 +46,7 @@ func (c *Check) Run() error {
 	if err != nil {
 		return err
 	}
-	c.sender = MetricSender{Sender: sender}
+	c.sender = report.MetricSender{Sender: sender}
 
 	staticTags := c.config.GetStaticTags()
 
@@ -74,7 +75,7 @@ func (c *Check) Run() error {
 		// `checkSender.checkTags` are added for metrics, service checks, events only.
 		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
 		deviceMetadataTags := append(common.CopyStrings(tags), c.config.InstanceTags...)
-		c.sender.reportNetworkDeviceMetadata(c.config, values, deviceMetadataTags, collectionTime, deviceStatus)
+		c.sender.ReportNetworkDeviceMetadata(c.config, values, deviceMetadataTags, collectionTime, deviceStatus)
 	}
 
 	c.submitTelemetryMetrics(startTime, tags)
@@ -113,7 +114,7 @@ func (c *Check) getValuesAndTags(staticTags []string) ([]string, *valuestore.Res
 	if err != nil {
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to fetch values: %s", err))
 	} else {
-		tags = append(tags, c.sender.getCheckInstanceMetricTags(c.config.MetricTags, valuesStore)...)
+		tags = append(tags, c.sender.GetCheckInstanceMetricTags(c.config.MetricTags, valuesStore)...)
 	}
 
 	var joinedError error

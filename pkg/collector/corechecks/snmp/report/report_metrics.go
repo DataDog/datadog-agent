@@ -1,4 +1,4 @@
-package snmp
+package report
 
 import (
 	"fmt"
@@ -30,7 +30,8 @@ func (ms *MetricSender) ReportMetrics(metrics []checkconfig.MetricsConfig, value
 	}
 }
 
-func (ms *MetricSender) getCheckInstanceMetricTags(metricTags []checkconfig.MetricTagConfig, values *valuestore.ResultValueStore) []string {
+// GetCheckInstanceMetricTags returns check instance metric tags
+func (ms *MetricSender) GetCheckInstanceMetricTags(metricTags []checkconfig.MetricTagConfig, values *valuestore.ResultValueStore) []string {
 	var globalTags []string
 
 	for _, metricTag := range metricTags {

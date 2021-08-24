@@ -267,7 +267,7 @@ metrics:
 }
 
 func TestProfile(t *testing.T) {
-	timeNow = mockTimeNow
+	timeNow = common.MockTimeNow
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 	setConfdPathAndCleanProfiles()
 
@@ -1015,7 +1015,7 @@ metrics:
 }
 
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
-	timeNow = mockTimeNow
+	timeNow = common.MockTimeNow
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 	setConfdPathAndCleanProfiles()
 
@@ -1253,7 +1253,7 @@ tags:
 }
 
 func TestReportDeviceMetadataWithFetchError(t *testing.T) {
-	timeNow = mockTimeNow
+	timeNow = common.MockTimeNow
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 	setConfdPathAndCleanProfiles()
 

@@ -1,4 +1,4 @@
-package snmp
+package report
 
 import (
 	json "encoding/json"
@@ -18,7 +18,8 @@ import (
 // interfaceNameTagKey matches the `interface` tag used in `_generic-if.yaml` for ifName
 var interfaceNameTagKey = "interface"
 
-func (ms *MetricSender) reportNetworkDeviceMetadata(config checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
+// ReportNetworkDeviceMetadata reports device metadata
+func (ms *MetricSender) ReportNetworkDeviceMetadata(config checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
 	tags := common.CopyStrings(origTags)
 	tags = util.SortUniqInPlace(tags)
 
