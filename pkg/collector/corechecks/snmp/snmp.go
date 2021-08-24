@@ -57,7 +57,7 @@ func (c *Check) Run() error {
 		c.sender.serviceCheck(serviceCheckName, metrics.ServiceCheckOK, "", tags, "")
 	}
 	if values != nil {
-		c.sender.reportMetrics(c.config.metrics, values, tags)
+		c.sender.reportMetrics(c.config.Metrics, values, tags)
 	}
 
 	if c.config.collectDeviceMetadata {

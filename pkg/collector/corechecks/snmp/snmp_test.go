@@ -743,12 +743,12 @@ profiles:
 	assert.Equal(t, false, check.config.autodetectProfile)
 
 	// Make sure we don't auto detect and add metrics twice if we already did that previously
-	firstRunMetrics := check.config.metrics
+	firstRunMetrics := check.config.Metrics
 	firstRunMetricsTags := check.config.metricTags
 	err = check.Run()
 	assert.Nil(t, err)
 
-	assert.Len(t, check.config.metrics, len(firstRunMetrics))
+	assert.Len(t, check.config.Metrics, len(firstRunMetrics))
 	assert.Len(t, check.config.metricTags, len(firstRunMetricsTags))
 }
 

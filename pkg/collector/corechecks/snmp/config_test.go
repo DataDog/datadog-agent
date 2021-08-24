@@ -207,7 +207,7 @@ bulk_max_repetitions: 20
 		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 	}
 
-	assert.Equal(t, metrics, check.config.metrics)
+	assert.Equal(t, metrics, check.config.Metrics)
 	assert.Equal(t, metricsTags, check.config.metricTags)
 	assert.Equal(t, 1, len(check.config.profiles))
 	assert.Equal(t, "780a58c96c908df8", check.config.deviceID)
@@ -264,7 +264,7 @@ profiles:
 	}
 
 	assert.Equal(t, "123", check.config.CommunityString)
-	assert.Equal(t, metrics, check.config.metrics)
+	assert.Equal(t, metrics, check.config.Metrics)
 	assert.Equal(t, metricsTags, check.config.metricTags)
 	assert.Equal(t, 2, len(check.config.profiles))
 	assert.Equal(t, "74f22f3320d2d692", check.config.deviceID)
@@ -294,7 +294,7 @@ community_string: abc
 
 	var metricsTags []MetricTagConfig
 
-	assert.Equal(t, metrics, check.config.metrics)
+	assert.Equal(t, metrics, check.config.Metrics)
 	assert.Equal(t, metricsTags, check.config.metricTags)
 	assert.Equal(t, 1, len(check.config.profiles))
 	assert.Equal(t, mockProfilesDefinitions()["f5-big-ip"].Metrics, check.config.profiles["f5-big-ip"].Metrics)
@@ -493,7 +493,7 @@ global_metrics:
 		{Symbol: SymbolConfig{OID: "1.2.3.4", Name: "aGlobalMetric"}},
 		{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
 	}
-	assert.Equal(t, metrics, check.config.metrics)
+	assert.Equal(t, metrics, check.config.Metrics)
 }
 
 func TestUseGlobalMetricsFalse(t *testing.T) {
@@ -524,7 +524,7 @@ global_metrics:
 		{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.2.1", Name: "aInstanceMetric"}},
 		{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
 	}
-	assert.Equal(t, metrics, check.config.metrics)
+	assert.Equal(t, metrics, check.config.Metrics)
 }
 
 func Test_buildConfig(t *testing.T) {
@@ -857,14 +857,14 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 
 	assert.Equal(t, "profile1", c.profile)
 	assert.Equal(t, profile1, *c.profileDef)
-	assert.Equal(t, metrics, c.metrics)
+	assert.Equal(t, metrics, c.Metrics)
 	assert.Equal(t, []MetricTagConfig{
 		{Tag: "interface", Column: SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
 	}, c.metricTags)
 	assert.Equal(t, OidConfig{
 		ScalarOids: []string{"1.2.3.4.5"},
 		ColumnOids: []string{"1.2.3.4.6", "1.2.3.4.7"},
-	}, c.oidConfig)
+	}, c.OidConfig)
 	assert.Equal(t, []string{"snmp_profile:profile1", "device_vendor:a-vendor"}, c.profileTags)
 
 	c = &CheckConfig{
@@ -882,7 +882,7 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 			"1.2.3.4.6",
 			"1.2.3.4.7",
 		},
-	}, c.oidConfig)
+	}, c.OidConfig)
 }
 
 func Test_getSubnetFromTags(t *testing.T) {

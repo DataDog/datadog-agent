@@ -90,8 +90,8 @@ type CheckConfig struct {
 	PrivProtocol          string
 	PrivKey               string
 	ContextName           string
-	oidConfig             OidConfig
-	metrics               []MetricsConfig
+	OidConfig             OidConfig
+	Metrics               []MetricsConfig
 	metricTags            []MetricTagConfig
 	oidBatchSize          int
 	bulkMaxRepetitions    uint32
@@ -119,10 +119,10 @@ func (c *CheckConfig) refreshWithProfile(profile string) error {
 	c.profileDef = &definition
 	c.profile = profile
 
-	c.metrics = append(c.metrics, definition.Metrics...)
+	c.Metrics = append(c.Metrics, definition.Metrics...)
 	c.metricTags = append(c.metricTags, definition.MetricTags...)
-	c.oidConfig.addScalarOids(parseScalarOids(definition.Metrics, definition.MetricTags))
-	c.oidConfig.addColumnOids(parseColumnOids(definition.Metrics))
+	c.OidConfig.addScalarOids(parseScalarOids(definition.Metrics, definition.MetricTags))
+	c.OidConfig.addColumnOids(parseColumnOids(definition.Metrics))
 
 	if definition.Device.Vendor != "" {
 		tags = append(tags, "device_vendor:"+definition.Device.Vendor)
@@ -133,8 +133,8 @@ func (c *CheckConfig) refreshWithProfile(profile string) error {
 
 func (c *CheckConfig) addUptimeMetric() {
 	metricConfig := getUptimeMetricConfig()
-	c.metrics = append(c.metrics, metricConfig)
-	c.oidConfig.addScalarOids([]string{metricConfig.Symbol.OID})
+	c.Metrics = append(c.Metrics, metricConfig)
+	c.OidConfig.addScalarOids([]string{metricConfig.Symbol.OID})
 }
 
 // getStaticTags return static tags built from configuration
@@ -169,7 +169,7 @@ func (c *CheckConfig) toString() string {
 		c.AuthProtocol,
 		c.PrivProtocol,
 		c.ContextName,
-		c.oidConfig,
+		c.OidConfig,
 		c.oidBatchSize,
 		c.profileTags,
 	)
@@ -254,7 +254,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	c.PrivKey = instance.PrivKey
 	c.ContextName = instance.ContextName
 
-	c.metrics = instance.Metrics
+	c.Metrics = instance.Metrics
 
 	if instance.OidBatchSize != 0 {
 		c.oidBatchSize = int(instance.OidBatchSize)
@@ -279,19 +279,19 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 
 	// metrics Configs
 	if instance.UseGlobalMetrics {
-		c.metrics = append(c.metrics, initConfig.GlobalMetrics...)
+		c.Metrics = append(c.Metrics, initConfig.GlobalMetrics...)
 	}
-	normalizeMetrics(c.metrics)
+	normalizeMetrics(c.Metrics)
 
 	c.instanceTags = instance.Tags
 	c.metricTags = instance.MetricTags
 
-	c.oidConfig.addScalarOids(parseScalarOids(c.metrics, c.metricTags))
-	c.oidConfig.addColumnOids(parseColumnOids(c.metrics))
+	c.OidConfig.addScalarOids(parseScalarOids(c.Metrics, c.metricTags))
+	c.OidConfig.addColumnOids(parseColumnOids(c.Metrics))
 
 	if c.collectDeviceMetadata {
-		c.oidConfig.addScalarOids(metadata.ScalarOIDs)
-		c.oidConfig.addColumnOids(metadata.ColumnOIDs)
+		c.OidConfig.addScalarOids(metadata.ScalarOIDs)
+		c.OidConfig.addColumnOids(metadata.ColumnOIDs)
 	}
 
 	// Profile Configs
@@ -319,13 +319,13 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	c.profiles = profiles
 	profile := instance.Profile
 
-	errors := validateEnrichMetrics(c.metrics)
+	errors := validateEnrichMetrics(c.Metrics)
 	errors = append(errors, validateEnrichMetricTags(c.metricTags)...)
 	if len(errors) > 0 {
 		return CheckConfig{}, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
 	}
 
-	if profile != "" || len(c.metrics) > 0 {
+	if profile != "" || len(c.Metrics) > 0 {
 		c.autodetectProfile = false
 	} else {
 		c.autodetectProfile = true
