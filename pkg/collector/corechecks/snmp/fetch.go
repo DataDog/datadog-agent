@@ -6,7 +6,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 )
 
-func fetchValues(session SessionAPI, config checkconfig.CheckConfig) (*valuestore.ResultValueStore, error) {
+// FetchValues fetch values from device
+func FetchValues(session SessionAPI, config checkconfig.CheckConfig) (*valuestore.ResultValueStore, error) {
 	// fetch scalar values
 	scalarResults, err := fetchScalarOidsWithBatching(session, config.OidConfig.ScalarOids, config.OidBatchSize)
 	if err != nil {

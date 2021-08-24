@@ -105,7 +105,7 @@ func (c *Check) getValuesAndTags(staticTags []string) ([]string, *valuestore.Res
 
 	tags = append(tags, c.config.ProfileTags...)
 
-	valuesStore, err := fetchValues(c.session, c.config)
+	valuesStore, err := FetchValues(c.session, c.config)
 	log.Debugf("fetched values: %v", valuesStore)
 
 	if err != nil {
