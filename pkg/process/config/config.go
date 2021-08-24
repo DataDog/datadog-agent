@@ -171,8 +171,6 @@ func NewDefaultTransport() *http.Transport {
 
 // NewDefaultAgentConfig returns an AgentConfig with defaults initialized
 func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
-	initRuntimeSettings()
-
 	processEndpoint, err := url.Parse(defaultProcessEndpoint)
 	if err != nil {
 		// This is a hardcoded URL so parsing it should not fail
@@ -385,7 +383,10 @@ func initRuntimeSettings() {
 
 	// Before we begin listening, register runtime settings
 	for _, setting := range processRuntimeSettings {
-		_ = settings.RegisterRuntimeSetting(setting)
+		err := settings.RegisterRuntimeSetting(setting)
+		if err != nil {
+			_ = log.Warnf("cannot initialize the runtime settings: %v", err)
+		}
 	}
 }
 
