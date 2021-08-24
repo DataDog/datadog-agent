@@ -12,6 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 )
 
 type profileDefinitionMap map[string]profileDefinition
@@ -152,7 +154,7 @@ func recursivelyExpandBaseProfiles(definition *profileDefinition, extends []stri
 		definition.Metrics = append(definition.Metrics, baseDefinition.Metrics...)
 		definition.MetricTags = append(definition.MetricTags, baseDefinition.MetricTags...)
 
-		newExtendsHistory := append(copyStrings(extendsHistory), basePath)
+		newExtendsHistory := append(common.CopyStrings(extendsHistory), basePath)
 		err = recursivelyExpandBaseProfiles(definition, baseDefinition.Extends, newExtendsHistory)
 		if err != nil {
 			return err

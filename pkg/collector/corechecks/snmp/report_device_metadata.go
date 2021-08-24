@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/metadata"
 )
 
@@ -16,7 +17,7 @@ import (
 var interfaceNameTagKey = "interface"
 
 func (ms *metricSender) reportNetworkDeviceMetadata(config CheckConfig, store *resultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
-	tags := copyStrings(origTags)
+	tags := common.CopyStrings(origTags)
 	tags = util.SortUniqInPlace(tags)
 
 	device := buildNetworkDeviceMetadata(config.deviceID, config.deviceIDTags, config, store, tags, deviceStatus)

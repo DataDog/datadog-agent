@@ -8,12 +8,14 @@ import (
 	"github.com/gosnmp/gosnmp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 )
 
 func fetchScalarOidsWithBatching(session sessionAPI, oids []string, oidBatchSize int) (scalarResultValuesType, error) {
 	retValues := make(scalarResultValuesType, len(oids))
 
-	batches, err := createStringBatches(oids, oidBatchSize)
+	batches, err := common.CreateStringBatches(oids, oidBatchSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create oid batches: %s", err)
 	}

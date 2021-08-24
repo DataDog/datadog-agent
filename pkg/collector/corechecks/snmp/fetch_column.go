@@ -7,6 +7,8 @@ import (
 	"github.com/gosnmp/gosnmp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 )
 
 func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oidBatchSize int, bulkMaxRepetitions uint32) (columnResultValuesType, error) {
@@ -14,7 +16,7 @@ func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oid
 
 	columnOids := getOidsMapKeys(oids)
 	sort.Strings(columnOids) // sorting ColumnOids to make them deterministic for testing purpose
-	batches, err := createStringBatches(columnOids, oidBatchSize)
+	batches, err := common.CreateStringBatches(columnOids, oidBatchSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create column oid batches: %s", err)
 	}

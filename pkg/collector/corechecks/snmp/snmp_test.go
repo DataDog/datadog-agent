@@ -26,6 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 )
 
 type mockSession struct {
@@ -219,11 +221,11 @@ tags:
 	assert.Nil(t, err)
 
 	snmpTags := []string{"snmp_device:1.2.3.4"}
-	snmpGlobalTags := append(copyStrings(snmpTags), "snmp_host:foo_sys_name")
-	snmpGlobalTagsWithLoader := append(copyStrings(snmpGlobalTags), "loader:core")
-	row1Tags := append(copyStrings(snmpGlobalTags), "if_index:1", "if_desc:desc1")
-	row2Tags := append(copyStrings(snmpGlobalTags), "if_index:2", "if_desc:desc2")
-	scalarTags := append(copyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
+	snmpGlobalTags := append(common.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
+	snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
+	row1Tags := append(common.CopyStrings(snmpGlobalTags), "if_index:1", "if_desc:desc1")
+	row2Tags := append(common.CopyStrings(snmpGlobalTags), "if_index:2", "if_desc:desc2")
+	scalarTags := append(common.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpGlobalTags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpGlobalTags)
@@ -520,8 +522,8 @@ profiles:
 	assert.Nil(t, err)
 
 	snmpTags := []string{"snmp_device:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name"}
-	row1Tags := append(copyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1")
-	row2Tags := append(copyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2")
+	row1Tags := append(common.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1")
+	row2Tags := append(common.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2")
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpTags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
@@ -727,8 +729,8 @@ profiles:
 
 	snmpTags := []string{"snmp_device:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name",
 		"some_tag:some_tag_value", "prefix:f", "suffix:oo_sys_name"}
-	row1Tags := append(copyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1")
-	row2Tags := append(copyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2")
+	row1Tags := append(common.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1")
+	row2Tags := append(common.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2")
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpTags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)

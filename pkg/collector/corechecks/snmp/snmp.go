@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/metadata"
 )
 
@@ -68,7 +69,7 @@ func (c *Check) Run() error {
 		// We include instance tags to `deviceMetadataTags` since device metadata tags are not enriched with `checkSender.checkTags`.
 		// `checkSender.checkTags` are added for metrics, service checks, events only.
 		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
-		deviceMetadataTags := append(copyStrings(tags), c.config.instanceTags...)
+		deviceMetadataTags := append(common.CopyStrings(tags), c.config.instanceTags...)
 		c.sender.reportNetworkDeviceMetadata(c.config, values, deviceMetadataTags, collectionTime, deviceStatus)
 	}
 
@@ -81,7 +82,7 @@ func (c *Check) Run() error {
 
 func (c *Check) getValuesAndTags(staticTags []string) ([]string, *resultValueStore, error) {
 	var checkErrors []string
-	tags := copyStrings(staticTags)
+	tags := common.CopyStrings(staticTags)
 
 	// Create connection
 	connErr := c.session.Connect()
@@ -141,7 +142,7 @@ func (c *Check) autodetectProfile(session sessionAPI) error {
 }
 
 func (c *Check) submitTelemetryMetrics(startTime time.Time, tags []string) {
-	newTags := append(copyStrings(tags), snmpLoaderTag)
+	newTags := append(common.CopyStrings(tags), snmpLoaderTag)
 
 	c.sender.gauge("snmp.devices_monitored", float64(1), "", newTags)
 
