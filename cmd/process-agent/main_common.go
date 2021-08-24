@@ -78,9 +78,7 @@ func getSettingsClient() (settings.Client, error) {
 	// We set this up differently from the main process-agent because this way is quieter
 	cfg := config.NewDefaultAgentConfig(false)
 	if opts.configPath != "" {
-		ddconfig.Datadog.SetConfigFile(opts.configPath)
-		err := ddconfig.Datadog.ReadInConfig()
-		if err != nil {
+		if err := config.LoadConfigIfExists(opts.configPath); err != nil {
 			return nil, err
 		}
 	}
