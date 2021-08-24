@@ -599,7 +599,7 @@ func Test_fetchValues_errors(t *testing.T) {
 		{
 			name: "invalid batch size",
 			config: CheckConfig{
-				bulkMaxRepetitions: defaultBulkMaxRepetitions,
+				BulkMaxRepetitions: defaultBulkMaxRepetitions,
 				OidConfig: OidConfig{
 					ScalarOids: []string{"1.1", "1.2"},
 				},
@@ -609,7 +609,7 @@ func Test_fetchValues_errors(t *testing.T) {
 		{
 			name: "get fetch error",
 			config: CheckConfig{
-				bulkMaxRepetitions: defaultBulkMaxRepetitions,
+				BulkMaxRepetitions: defaultBulkMaxRepetitions,
 				OidBatchSize:       10,
 				OidConfig: OidConfig{
 					ScalarOids: []string{"1.1", "2.2"},
@@ -620,7 +620,7 @@ func Test_fetchValues_errors(t *testing.T) {
 		{
 			name: "bulk fetch error",
 			config: CheckConfig{
-				bulkMaxRepetitions: defaultBulkMaxRepetitions,
+				BulkMaxRepetitions: defaultBulkMaxRepetitions,
 				OidBatchSize:       10,
 				OidConfig: OidConfig{
 					ScalarOids: []string{},

@@ -17,7 +17,7 @@ func fetchValues(session sessionAPI, config CheckConfig) (*valuestore.ResultValu
 	for _, value := range config.OidConfig.ColumnOids {
 		oids[value] = value
 	}
-	columnResults, err := fetchColumnOidsWithBatching(session, oids, config.OidBatchSize, config.bulkMaxRepetitions)
+	columnResults, err := fetchColumnOidsWithBatching(session, oids, config.OidBatchSize, config.BulkMaxRepetitions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch oids with batching: %v", err)
 	}

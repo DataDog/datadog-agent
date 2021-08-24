@@ -92,9 +92,9 @@ type CheckConfig struct {
 	ContextName           string
 	OidConfig             OidConfig
 	Metrics               []MetricsConfig
-	MetricTags         []MetricTagConfig
-	OidBatchSize       int
-	bulkMaxRepetitions uint32
+	MetricTags            []MetricTagConfig
+	OidBatchSize          int
+	BulkMaxRepetitions    uint32
 	profiles              profileDefinitionMap
 	profileTags           []string
 	profile               string
@@ -275,7 +275,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	if bulkMaxRepetitions <= 0 {
 		return CheckConfig{}, fmt.Errorf("bulk max repetition must be a positive integer. Invalid value: %d", bulkMaxRepetitions)
 	}
-	c.bulkMaxRepetitions = uint32(bulkMaxRepetitions)
+	c.BulkMaxRepetitions = uint32(bulkMaxRepetitions)
 
 	// metrics Configs
 	if instance.UseGlobalMetrics {
