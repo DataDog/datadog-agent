@@ -84,7 +84,7 @@ func getSettingsClient() (settings.Client, error) {
 			return nil, fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
 	}
-	cfg.LoadProcessYamlConfig(opts.configPath)
+	_ = cfg.LoadProcessYamlConfig(opts.configPath)
 
 	httpClient := apiutil.GetClient(false)
 	ipcAddress, err := ddconfig.GetIPCAddress()
