@@ -342,14 +342,14 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 				ColumnValues: valuestore.ColumnResultValuesType{
 					"1.3.6.1.2.1.2.2.1.14": map[string]valuestore.ResultValue{
 						"10": {
-							"gauge",
-							10,
+							SubmissionType: "gauge",
+							Value:          10,
 						},
 					},
 					"1.3.6.1.2.1.2.2.1.13": map[string]valuestore.ResultValue{
 						"10": {
-							"gauge",
-							10,
+							SubmissionType: "gauge",
+							Value:          10,
 						},
 					},
 					"1.3.6.1.2.1.31.1.1.1.1": map[string]valuestore.ResultValue{
