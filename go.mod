@@ -27,6 +27,7 @@ replace (
 )
 
 replace (
+	github.com/DataDog/datadog-agent/pkg/quantile => ./pkg/quantile
 	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ./pkg/util/winutil
 )
@@ -47,8 +48,9 @@ require (
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/DataDog/agent-payload v4.80.0+incompatible
-	github.com/DataDog/datadog-agent/pkg/util/log v0.30.0-rc.7
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.30.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/quantile v0.31.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.31.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.31.0-rc.3
 	github.com/DataDog/datadog-go v4.8.1+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf v0.0.0-20210419131141-ea64821c9793
@@ -78,7 +80,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/clbanning/mxj v1.8.4
-	github.com/cloudfoundry-community/go-cfclient v0.0.0-20201123235753-4f46d6348a05
+	github.com/cloudfoundry-community/go-cfclient v0.0.0-20210621174645-7773f7e22665
 	github.com/cobaugh/osrelease v0.0.0-20181218015638-a93a0a55a249
 	github.com/containerd/cgroups v0.0.0-20210114181951-8a68de567b68
 	github.com/containerd/containerd v1.5.0-beta.4
@@ -171,6 +173,7 @@ require (
 	go.etcd.io/etcd/client/v2 v2.305.0
 	go.opentelemetry.io/otel v0.20.0
 	go.uber.org/automaxprocs v1.4.0
+	go4.org/intern v0.0.0-20210108033219-3eb7198706b2
 	golang.org/x/crypto v0.0.0-20210317152858-513c2a44f670 // indirect
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/net v0.0.0-20210614182718-04defd469f4e

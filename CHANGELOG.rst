@@ -2,6 +2,46 @@
 Release Notes
 =============
 
+.. _Release Notes_7.30.2:
+
+7.30.2
+======
+
+.. _Release Notes_7.30.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2021-08-23
+
+This is a Windows-only release.
+
+- Please refer to the `7.30.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7302>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.30.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- On Windows, disables ephemeral port range detection.  Fixes crash on non
+  EN-US windows
+
+.. _Release Notes_7.30.1:
+
+7.30.1
+======
+
+.. _Release Notes_7.30.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2021-08-20
+
+- Please refer to the `7.30.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7301>`_ for the list of changes on the Core Checks
+
+
 .. _Release Notes_7.30.0:
 
 7.30.0 / 6.30.0

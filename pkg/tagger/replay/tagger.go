@@ -71,11 +71,11 @@ func (t *Tagger) Tag(entityID string, cardinality collectors.TagCardinality) ([]
 	entity, ok := t.store.getEntity(entityID)
 
 	if !ok {
-		telemetry.Queries.Inc(collectors.TagCardinalityToString(cardinality), telemetry.QueryEmptyTags)
+		telemetry.QueriesByCardinality(cardinality).EmptyTags.Inc()
 		return []string{}, fmt.Errorf("Entity not found")
 	}
 
-	telemetry.Queries.Inc(collectors.TagCardinalityToString(cardinality), telemetry.QuerySuccess)
+	telemetry.QueriesByCardinality(cardinality).Success.Inc()
 	return entity.GetTags(cardinality), nil
 }
 

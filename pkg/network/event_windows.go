@@ -3,55 +3,54 @@
 package network
 
 import (
-	"bytes"
+	"fmt"
 	"net"
 	"os/exec"
 	"regexp"
 	"strconv"
+	"sync"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
-var (
-	ephemeralRanges = map[ConnectionFamily]map[ConnectionType]map[string]uint16{
-		AFINET: {
-			UDP: {
-				"lo": 0,
-				"hi": 0,
-			},
-			TCP: {
-				"lo": 0,
-				"hi": 0,
-			},
-		},
-		AFINET6: {
-			UDP: {
-				"lo": 0,
-				"hi": 0,
-			},
-			TCP: {
-				"lo": 0,
-				"hi": 0,
-			},
-		},
-	}
+type portRangeEndpoint int
+
+const (
+	low  portRangeEndpoint = 1
+	high portRangeEndpoint = 2
 )
 
-func init() {
+var (
+	ephemeralRanges = map[ConnectionFamily]map[ConnectionType]map[portRangeEndpoint]uint16{
+		AFINET: {
+			UDP: {low: 0, high: 0},
+			TCP: {low: 0, high: 0},
+		},
+		AFINET6: {
+			UDP: {low: 0, high: 0},
+			TCP: {low: 0, high: 0},
+		},
+	}
+	rangeGetOnce = sync.Once{}
+	netshRegexp  = regexp.MustCompile(`.*: (\d+)`)
+)
+
+func getEphemeralRanges() {
 	var families = [...]ConnectionFamily{AFINET, AFINET6}
 	var protos = [...]ConnectionType{UDP, TCP}
 	for _, f := range families {
 		for _, p := range protos {
 			l, h, err := getEphemeralRange(f, p)
 			if err == nil {
-				ephemeralRanges[f][p]["lo"] = l
-				ephemeralRanges[f][p]["hi"] = h
+				ephemeralRanges[f][p][low] = l
+				ephemeralRanges[f][p][high] = h
 			}
 		}
 	}
 }
+
 func getEphemeralRange(f ConnectionFamily, t ConnectionType) (low, hi uint16, err error) {
 	var protoarg string
 	var familyarg string
@@ -67,8 +66,14 @@ func getEphemeralRange(f ConnectionFamily, t ConnectionType) (low, hi uint16, er
 	default:
 		protoarg = "udp"
 	}
-	cmd := exec.Command("netsh", "int", familyarg, "show", "dynamicport", protoarg)
-	cmdOutput := &bytes.Buffer{}
+	output, err := exec.Command("netsh", "int", familyarg, "show", "dynamicport", protoarg).Output()
+	if err != nil {
+		return 0, 0, err
+	}
+	return parseNetshOutput(string(output))
+}
+
+func parseNetshOutput(output string) (low, hi uint16, err error) {
 	// output should be of the format
 	/*
 		Protocol tcp Dynamic Port Range
@@ -76,48 +81,28 @@ func getEphemeralRange(f ConnectionFamily, t ConnectionType) (low, hi uint16, er
 		Start Port      : 49000
 		Number of Ports : 16000
 	*/
-	cmd.Stdout = cmdOutput
-	err = cmd.Run()
-	if err != nil {
-		return
+	matches := netshRegexp.FindAllStringSubmatch(output, -1)
+	if len(matches) != 2 {
+		return 0, 0, fmt.Errorf("could not parse output of netsh")
 	}
-	output := cmdOutput.Bytes()
-	var startPortLine = regexp.MustCompile(`Start.*: (\d+)`)
-	var numberLine = regexp.MustCompile(`Number.*: (\d+)`)
-
-	startPort := startPortLine.FindStringSubmatch(string(output))
-	rangeLen := numberLine.FindStringSubmatch(string(output))
-
-	portstart, err := strconv.Atoi(startPort[1])
+	portstart, err := strconv.Atoi(matches[0][1])
 	if err != nil {
-		return
+		return 0, 0, err
 	}
-	plen, err := strconv.Atoi(rangeLen[1])
+	plen, err := strconv.Atoi(matches[1][1])
 	if err != nil {
-		return
+		return 0, 0, err
 	}
-	// argh.  Windows defaults to
-	/*
-	 Protocol tcp Dynamic Port Range
-	 ---------------------------------
-	 Start Port      : 49152
-	 Number of Ports : 16384
-
-	 A quick bit of arithmetic says that adds up to 65536, which overflows the "hi" field.
-	 A bit of hackery to compensate
-	*/
 	low = uint16(portstart)
-	if portstart+plen > 0xFFFF {
-		hi = uint16(0xFFFF)
-	} else {
-		hi = uint16(portstart + plen)
-	}
-	return
+	hi = uint16(portstart + plen - 1)
+	return low, hi, nil
 }
 
 func isPortInEphemeralRange(f ConnectionFamily, t ConnectionType, p uint16) EphemeralPortType {
-	rangeLow := ephemeralRanges[f][t]["lo"]
-	rangeHi := ephemeralRanges[f][t]["hi"]
+	rangeGetOnce.Do(getEphemeralRanges)
+
+	rangeLow := ephemeralRanges[f][t][low]
+	rangeHi := ephemeralRanges[f][t][high]
 	if rangeLow == 0 || rangeHi == 0 {
 		return EphemeralUnknown
 	}
@@ -126,6 +111,7 @@ func isPortInEphemeralRange(f ConnectionFamily, t ConnectionType, p uint16) Ephe
 	}
 	return EphemeralFalse
 }
+
 func connFamily(addressFamily uint16) ConnectionFamily {
 	if addressFamily == syscall.AF_INET {
 		return AFINET

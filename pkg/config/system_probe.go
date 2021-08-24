@@ -118,6 +118,7 @@ func InitSystemProbeConfig(cfg Config) {
 
 	// network_config namespace only
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_http_monitoring"), false, "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_https_monitoring"), false, "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), false, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
 
 	// list of DNS query types to be recorded

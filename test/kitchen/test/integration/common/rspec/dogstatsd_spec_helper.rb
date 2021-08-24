@@ -2,6 +2,7 @@ require 'spec_helper'
 
 shared_examples_for 'Dogstatsd install' do
   it_behaves_like 'an installed Dogstatsd'
+  it_behaves_like 'an installed Datadog Signing Keys'
 end
 
 shared_examples_for 'Dogstatsd behavior' do

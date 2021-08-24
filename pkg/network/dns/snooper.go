@@ -108,7 +108,7 @@ func (s *socketFilterSnooper) Resolve(ips []util.Address) map[util.Address][]str
 }
 
 // GetDNSStats gets the latest Stats keyed by unique Key, and domain
-func (s *socketFilterSnooper) GetDNSStats() map[Key]map[string]map[QueryType]Stats {
+func (s *socketFilterSnooper) GetDNSStats() StatsByKeyByNameByType {
 	if s.statKeeper == nil {
 		return nil
 	}

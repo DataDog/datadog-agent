@@ -2,14 +2,22 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"strings"
 	"time"
 
+	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
+	"github.com/DataDog/datadog-agent/cmd/manager"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -52,28 +60,56 @@ var (
 	GoVersion string
 )
 
-var rootCmd = &cobra.Command{
-	Run: func(cmd *cobra.Command, args []string) {
-		exit := make(chan struct{})
+var (
+	rootCmd = &cobra.Command{
+		Run: func(cmd *cobra.Command, args []string) {
+			exit := make(chan struct{})
 
-		// Invoke the Agent
-		runAgent(exit)
-	},
+			// Invoke the Agent
+			runAgent(exit)
+		},
+	}
+
+	configCommand = cmdconfig.Config(getSettingsClient)
+)
+
+func getSettingsClient() (settings.Client, error) {
+	// Set up the config in case the cmd_port was specified
+	_, err := config.NewAgentConfig(loggerName, opts.configPath, opts.sysProbeConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
+	httpClient := apiutil.GetClient(false)
+	ipcAddress, err := ddconfig.GetIPCAddress()
+	ipcAddressWithPort := fmt.Sprintf("http://%s:%d/config", ipcAddress, ddconfig.Datadog.GetInt("process_config.cmd_port"))
+	if err != nil {
+		return nil, err
+	}
+	settingsClient := settingshttp.NewClient(httpClient, ipcAddressWithPort, "process-agent")
+	return settingsClient, nil
+}
+
+func init() {
+	rootCmd.AddCommand(configCommand)
 }
 
 // fixDeprecatedFlags modifies os.Args so that non-posix flags are converted to posix flags
 // it also displays a warning when a non-posix flag is found
 func fixDeprecatedFlags() {
-	deprecatedFlags := map[string]struct{}{
+	deprecatedFlags := []string{
 		// Global flags
-		"-config": {}, "-ddconfig": {}, "-sysprobe-config": {}, "-pid": {}, "-info": {}, "-version": {}, "-check": {},
+		"-config", "-ddconfig", "-sysprobe-config", "-pid", "-info", "-version", "-check",
 		// Windows flags
-		"-install-service": {}, "-uninstall-service": {}, "-start-service": {}, "-stop-service": {}, "-foreground": {},
+		"-install-service", "-uninstall-service", "-start-service", "-stop-service", "-foreground",
 	}
 
-	for i, a := range os.Args {
-		if _, ok := deprecatedFlags[a]; ok {
-			fmt.Printf("WARNING: `%s` argument is deprecated and will be removed in a future version. Please use `-%[1]s` instead.\n", a)
+	for i, arg := range os.Args {
+		for _, f := range deprecatedFlags {
+			if !strings.HasPrefix(arg, f) {
+				continue
+			}
+			fmt.Printf("WARNING: `%s` argument is deprecated and will be removed in a future version. Please use `-%[1]s` instead.\n", f)
 			os.Args[i] = "-" + os.Args[i]
 		}
 	}
@@ -138,6 +174,14 @@ func runAgent(exit chan struct{}) {
 	cfg, err := config.NewAgentConfig(loggerName, opts.configPath, opts.sysProbeConfigPath)
 	if err != nil {
 		log.Criticalf("Error parsing config: %s", err)
+		cleanupAndExit(1)
+	}
+
+	mainCtx, mainCancel := context.WithCancel(context.Background())
+	defer mainCancel()
+	err = manager.ConfigureAutoExit(mainCtx)
+	if err != nil {
+		log.Criticalf("Unable to configure auto-exit, err: %w", err)
 		cleanupAndExit(1)
 	}
 
@@ -244,6 +288,12 @@ func runAgent(exit chan struct{}) {
 		}
 	}()
 
+	// Run API server
+	err = api.StartServer()
+	if err != nil {
+		_ = log.Error(err)
+	}
+
 	cl, err := NewCollector(cfg)
 	if err != nil {
 		log.Criticalf("Error creating collector: %s", err)
@@ -257,7 +307,6 @@ func runAgent(exit chan struct{}) {
 	}
 
 	for range exit {
-
 	}
 }
 
