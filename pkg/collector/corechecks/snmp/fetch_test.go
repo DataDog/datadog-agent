@@ -2,6 +2,7 @@ package snmp
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"testing"
 
@@ -70,13 +71,13 @@ func Test_fetchColumnOids(t *testing.T) {
 			},
 		},
 	}
-	session.On("GetBulk", []string{"1.1.1", "1.1.2"}, DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
-	session.On("GetBulk", []string{"1.1.1.3"}, DefaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
-	session.On("GetBulk", []string{"1.1.1.5"}, DefaultBulkMaxRepetitions).Return(&bulkPacket3, nil)
+	session.On("GetBulk", []string{"1.1.1", "1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
+	session.On("GetBulk", []string{"1.1.1.3"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
+	session.On("GetBulk", []string{"1.1.1.5"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket3, nil)
 
 	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2"}
 
-	columnValues, err := fetchColumnOidsWithBatching(session, oids, 100, DefaultBulkMaxRepetitions)
+	columnValues, err := fetchColumnOidsWithBatching(session, oids, 100, checkconfig.DefaultBulkMaxRepetitions)
 	assert.Nil(t, err)
 
 	expectedColumnValues := valuestore.ColumnResultValuesType{
@@ -157,13 +158,13 @@ func Test_fetchColumnOidsBatch_usingGetBulk(t *testing.T) {
 		},
 	}
 	// First bulk iteration with two batches with batch size 2
-	session.On("GetBulk", []string{"1.1.1", "1.1.2"}, DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
+	session.On("GetBulk", []string{"1.1.1", "1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
 
 	// Second bulk iteration
-	session.On("GetBulk", []string{"1.1.1.3"}, DefaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
+	session.On("GetBulk", []string{"1.1.1.3"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
 
 	// Third bulk iteration
-	session.On("GetBulk", []string{"1.1.1.5"}, DefaultBulkMaxRepetitions).Return(&bulkPacket3, nil)
+	session.On("GetBulk", []string{"1.1.1.5"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket3, nil)
 
 	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2"}
 
@@ -592,15 +593,15 @@ func Test_fetchScalarOids_v1NoSuchName_errorIndexTooLow(t *testing.T) {
 func Test_fetchValues_errors(t *testing.T) {
 	tests := []struct {
 		name          string
-		config        CheckConfig
+		config        checkconfig.CheckConfig
 		bulkPacket    gosnmp.SnmpPacket
 		expectedError error
 	}{
 		{
 			name: "invalid batch size",
-			config: CheckConfig{
-				BulkMaxRepetitions: DefaultBulkMaxRepetitions,
-				OidConfig: OidConfig{
+			config: checkconfig.CheckConfig{
+				BulkMaxRepetitions: checkconfig.DefaultBulkMaxRepetitions,
+				OidConfig: checkconfig.OidConfig{
 					ScalarOids: []string{"1.1", "1.2"},
 				},
 			},
@@ -608,10 +609,10 @@ func Test_fetchValues_errors(t *testing.T) {
 		},
 		{
 			name: "get fetch error",
-			config: CheckConfig{
-				BulkMaxRepetitions: DefaultBulkMaxRepetitions,
+			config: checkconfig.CheckConfig{
+				BulkMaxRepetitions: checkconfig.DefaultBulkMaxRepetitions,
 				OidBatchSize:       10,
-				OidConfig: OidConfig{
+				OidConfig: checkconfig.OidConfig{
 					ScalarOids: []string{"1.1", "2.2"},
 				},
 			},
@@ -619,10 +620,10 @@ func Test_fetchValues_errors(t *testing.T) {
 		},
 		{
 			name: "bulk fetch error",
-			config: CheckConfig{
-				BulkMaxRepetitions: DefaultBulkMaxRepetitions,
+			config: checkconfig.CheckConfig{
+				BulkMaxRepetitions: checkconfig.DefaultBulkMaxRepetitions,
 				OidBatchSize:       10,
-				OidConfig: OidConfig{
+				OidConfig: checkconfig.OidConfig{
 					ScalarOids: []string{},
 					ColumnOids: []string{"1.1", "2.2"},
 				},
@@ -634,7 +635,7 @@ func Test_fetchValues_errors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			session := createMockSession()
 			session.On("Get", []string{"1.1", "2.2"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("get error"))
-			session.On("GetBulk", []string{"1.1", "2.2"}, DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
+			session.On("GetBulk", []string{"1.1", "2.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
 
 			_, err := fetchValues(session, tt.config)
 

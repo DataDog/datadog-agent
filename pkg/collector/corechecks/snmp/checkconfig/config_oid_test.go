@@ -1,4 +1,4 @@
-package snmp
+package checkconfig
 
 import (
 	"github.com/stretchr/testify/assert"

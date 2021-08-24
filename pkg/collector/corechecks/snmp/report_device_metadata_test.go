@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/metadata"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,7 +33,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 		sender: sender,
 	}
 
-	config := CheckConfig{
+	config := checkconfig.CheckConfig{
 		IPAddress:    "1.2.3.4",
 		DeviceID:     "1234",
 		DeviceIDTags: []string{"device_name:127.0.0.1"},
@@ -99,7 +100,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 		sender: sender,
 	}
 
-	config := CheckConfig{
+	config := checkconfig.CheckConfig{
 		IPAddress:    "1.2.3.4",
 		DeviceID:     "1234",
 		DeviceIDTags: []string{"device_name:127.0.0.1"},

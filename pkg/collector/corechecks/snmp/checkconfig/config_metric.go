@@ -1,4 +1,4 @@
-package snmp
+package checkconfig
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"

@@ -1,4 +1,4 @@
-package snmp
+package checkconfig
 
 import (
 	"bufio"
@@ -71,17 +71,17 @@ func Test_getDefaultProfilesDefinitionFiles(t *testing.T) {
 }
 
 func Test_loadProfiles(t *testing.T) {
-	defaultTestConfdPath, _ := filepath.Abs(filepath.Join(".", "test", "conf.d"))
+	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "conf.d"))
 	config.Datadog.Set("confd_path", defaultTestConfdPath)
 	defaultProfilesDef, err := getDefaultProfilesDefinitionFiles()
 	assert.Nil(t, err)
 
-	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join(".", "test", "invalid_ext_conf.d"))
-	invalidCyclicConfdPath, _ := filepath.Abs(filepath.Join(".", "test", "invalid_cyclic_conf.d"))
+	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext_conf.d"))
+	invalidCyclicConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_cyclic_conf.d"))
 
-	profileWithInvalidExtends, _ := filepath.Abs(filepath.Join(".", "test", "test_profiles", "profile_with_invalid_extends.yaml"))
-	invalidYamlProfile, _ := filepath.Abs(filepath.Join(".", "test", "test_profiles", "invalid_yaml_file.yaml"))
-	validationErrorProfile, _ := filepath.Abs(filepath.Join(".", "test", "test_profiles", "validation_error.yaml"))
+	profileWithInvalidExtends, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "profile_with_invalid_extends.yaml"))
+	invalidYamlProfile, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "invalid_yaml_file.yaml"))
+	validationErrorProfile, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "validation_error.yaml"))
 	type logCount struct {
 		log   string
 		count int
@@ -324,7 +324,7 @@ func Test_loadDefaultProfiles_invalidExtendProfile(t *testing.T) {
 	assert.Nil(t, err)
 	log.SetupLogger(l, "debug")
 
-	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join(".", "test", "invalid_ext_conf.d"))
+	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext_conf.d"))
 	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
 	GlobalProfileConfigMap = nil
 
@@ -346,7 +346,7 @@ func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
 	assert.Nil(t, err)
 	log.SetupLogger(l, "debug")
 
-	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join(".", "test", "valid_invalid_conf.d"))
+	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "valid_invalid_conf.d"))
 	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
 	GlobalProfileConfigMap = nil
 

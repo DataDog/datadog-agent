@@ -3,6 +3,7 @@ package snmp
 import (
 	json "encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -17,7 +18,7 @@ import (
 // interfaceNameTagKey matches the `interface` tag used in `_generic-if.yaml` for ifName
 var interfaceNameTagKey = "interface"
 
-func (ms *metricSender) reportNetworkDeviceMetadata(config CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
+func (ms *metricSender) reportNetworkDeviceMetadata(config checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
 	tags := common.CopyStrings(origTags)
 	tags = util.SortUniqInPlace(tags)
 
@@ -40,7 +41,7 @@ func (ms *metricSender) reportNetworkDeviceMetadata(config CheckConfig, store *v
 	}
 }
 
-func buildNetworkDeviceMetadata(deviceID string, idTags []string, config CheckConfig, store *valuestore.ResultValueStore, tags []string, deviceStatus metadata.DeviceStatus) metadata.DeviceMetadata {
+func buildNetworkDeviceMetadata(deviceID string, idTags []string, config checkconfig.CheckConfig, store *valuestore.ResultValueStore, tags []string, deviceStatus metadata.DeviceStatus) metadata.DeviceMetadata {
 	var vendor, sysName, sysDescr, sysObjectID string
 	if store != nil {
 		sysName = store.GetScalarValueAsString(metadata.SysNameOID)

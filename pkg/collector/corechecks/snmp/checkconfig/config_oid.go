@@ -1,4 +1,4 @@
-package snmp
+package checkconfig
 
 // OidConfig holds configs for OIDs to fetch
 type OidConfig struct {

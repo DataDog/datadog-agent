@@ -2,6 +2,7 @@ package snmp
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	stdlog "log"
 	"time"
@@ -13,7 +14,7 @@ import (
 const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
 
 type sessionAPI interface {
-	Configure(config CheckConfig) error
+	Configure(config checkconfig.CheckConfig) error
 	Connect() error
 	Close() error
 	Get(oids []string) (result *gosnmp.SnmpPacket, err error)
@@ -26,7 +27,7 @@ type snmpSession struct {
 	gosnmpInst gosnmp.GoSNMP
 }
 
-func (s *snmpSession) Configure(config CheckConfig) error {
+func (s *snmpSession) Configure(config checkconfig.CheckConfig) error {
 	if config.OidBatchSize > gosnmp.MaxOids {
 		return fmt.Errorf("config oidBatchSize (%d) cannot be higher than gosnmp.MaxOids: %d", config.OidBatchSize, gosnmp.MaxOids)
 	}

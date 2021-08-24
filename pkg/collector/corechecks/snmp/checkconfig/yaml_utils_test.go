@@ -1,4 +1,4 @@
-package snmp
+package checkconfig
 
 import (
 	"gopkg.in/yaml.v2"

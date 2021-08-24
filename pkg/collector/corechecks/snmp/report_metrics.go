@@ -2,6 +2,7 @@ package snmp
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"regexp"
 
@@ -17,7 +18,7 @@ type metricSender struct {
 	submittedMetrics int
 }
 
-func (ms *metricSender) reportMetrics(metrics []MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
+func (ms *metricSender) reportMetrics(metrics []checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
 	for _, metric := range metrics {
 		if metric.IsScalar() {
 			ms.reportScalarMetrics(metric, values, tags)
@@ -27,7 +28,7 @@ func (ms *metricSender) reportMetrics(metrics []MetricsConfig, values *valuestor
 	}
 }
 
-func (ms *metricSender) getCheckInstanceMetricTags(metricTags []MetricTagConfig, values *valuestore.ResultValueStore) []string {
+func (ms *metricSender) getCheckInstanceMetricTags(metricTags []checkconfig.MetricTagConfig, values *valuestore.ResultValueStore) []string {
 	var globalTags []string
 
 	for _, metricTag := range metricTags {
@@ -46,7 +47,7 @@ func (ms *metricSender) getCheckInstanceMetricTags(metricTags []MetricTagConfig,
 	return globalTags
 }
 
-func (ms *metricSender) reportScalarMetrics(metric MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
+func (ms *metricSender) reportScalarMetrics(metric checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
 	value, err := values.GetScalarValue(metric.Symbol.OID)
 	if err != nil {
 		log.Debugf("report scalar: error getting scalar value: %v", err)
@@ -58,7 +59,7 @@ func (ms *metricSender) reportScalarMetrics(metric MetricsConfig, values *values
 	ms.sendMetric(metric.Symbol.Name, value, scalarTags, metric.ForcedType, metric.Options, metric.Symbol.ExtractValuePattern)
 }
 
-func (ms *metricSender) reportColumnMetrics(metricConfig MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
+func (ms *metricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
 	rowTagsCache := make(map[string][]string)
 	for _, symbol := range metricConfig.Symbols {
 		metricValues, err := values.GetColumnValues(symbol.OID)
@@ -79,7 +80,7 @@ func (ms *metricSender) reportColumnMetrics(metricConfig MetricsConfig, values *
 	}
 }
 
-func (ms *metricSender) sendMetric(metricName string, value valuestore.ResultValue, tags []string, forcedType string, options MetricsConfigOption, extractValuePattern *regexp.Regexp) {
+func (ms *metricSender) sendMetric(metricName string, value valuestore.ResultValue, tags []string, forcedType string, options checkconfig.MetricsConfigOption, extractValuePattern *regexp.Regexp) {
 	if extractValuePattern != nil {
 		extractedValue, err := value.ExtractStringValue(extractValuePattern)
 		if err != nil {

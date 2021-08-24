@@ -1,4 +1,4 @@
-package snmp
+package checkconfig
 
 type profileConfigMap map[string]profileConfig
 

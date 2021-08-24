@@ -2,10 +2,11 @@ package snmp
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 )
 
-func fetchValues(session sessionAPI, config CheckConfig) (*valuestore.ResultValueStore, error) {
+func fetchValues(session sessionAPI, config checkconfig.CheckConfig) (*valuestore.ResultValueStore, error) {
 	// fetch scalar values
 	scalarResults, err := fetchScalarOidsWithBatching(session, config.OidConfig.ScalarOids, config.OidBatchSize)
 	if err != nil {

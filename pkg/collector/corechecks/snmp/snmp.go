@@ -3,6 +3,7 @@ package snmp
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"strings"
 	"time"
@@ -29,7 +30,7 @@ var timeNow = time.Now
 // Check aggregates metrics from one Check instance
 type Check struct {
 	core.CheckBase
-	config  CheckConfig
+	config  checkconfig.CheckConfig
 	session sessionAPI
 	sender  metricSender
 }
@@ -129,7 +130,7 @@ func (c *Check) autodetectProfile(session sessionAPI) error {
 		}
 		c.config.AutodetectProfile = false // do not try to auto detect profile next time
 
-		profile, err := GetProfileForSysObjectID(c.config.Profiles, sysObjectID)
+		profile, err := checkconfig.GetProfileForSysObjectID(c.config.Profiles, sysObjectID)
 		if err != nil {
 			return fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
 		}
@@ -163,7 +164,7 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 		return fmt.Errorf("common configure failed: %s", err)
 	}
 
-	config, err := BuildConfig(rawInstance, rawInitConfig)
+	config, err := checkconfig.BuildConfig(rawInstance, rawInitConfig)
 	if err != nil {
 		return fmt.Errorf("build config failed: %s", err)
 	}

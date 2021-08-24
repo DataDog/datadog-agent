@@ -10,6 +10,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -23,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -37,7 +38,7 @@ type mockSession struct {
 	version    gosnmp.SnmpVersion
 }
 
-func (s *mockSession) Configure(config CheckConfig) error {
+func (s *mockSession) Configure(config checkconfig.CheckConfig) error {
 	return nil
 }
 
@@ -75,7 +76,7 @@ func createMockSession() *mockSession {
 }
 
 func setConfdPathAndCleanProfiles() {
-	GlobalProfileConfigMap = nil // make sure from the new confd path will be reloaded
+	checkconfig.GlobalProfileConfigMap = nil // make sure from the new confd path will be reloaded
 	file, _ := filepath.Abs(filepath.Join(".", "test", "conf.d"))
 	config.Datadog.Set("confd_path", file)
 }
@@ -214,8 +215,8 @@ tags:
 	}
 
 	session.On("Get", mock.Anything).Return(&packet, nil)
-	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.20"}, DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
-	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14.2", "1.3.6.1.2.1.2.2.1.2.2", "1.3.6.1.2.1.2.2.1.20.2"}, DefaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
+	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.20"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
+	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14.2", "1.3.6.1.2.1.2.2.1.2.2", "1.3.6.1.2.1.2.2.1.20.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
 
 	err = check.Run()
 	assert.Nil(t, err)
@@ -516,7 +517,7 @@ profiles:
 		"1.3.6.1.2.1.2.2.1.8",
 		"1.3.6.1.2.1.31.1.1.1.1",
 		"1.3.6.1.2.1.31.1.1.1.18",
-	}, DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
+	}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
 
 	err = check.Run()
 	assert.Nil(t, err)
@@ -722,7 +723,7 @@ profiles:
 
 	session.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&sysObjectIDPacket, nil)
 	session.On("Get", []string{"1.3.6.1.2.1.1.3.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0"}).Return(&packet, nil)
-	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}, DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
+	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
 
 	err = check.Run()
 	assert.Nil(t, err)
@@ -1222,7 +1223,7 @@ tags:
 		"1.3.6.1.2.1.2.2.1.8",
 		"1.3.6.1.2.1.31.1.1.1.1",
 		"1.3.6.1.2.1.31.1.1.1.18",
-	}, DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
+	}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
 
 	err = check.Run()
 	assert.EqualError(t, err, "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value")
