@@ -3,6 +3,7 @@ package snmp
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"testing"
 
@@ -12,7 +13,7 @@ import (
 )
 
 func Test_fetchColumnOids(t *testing.T) {
-	session := createMockSession()
+	sess := session.CreateMockSession()
 
 	bulkPacket := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
@@ -71,13 +72,13 @@ func Test_fetchColumnOids(t *testing.T) {
 			},
 		},
 	}
-	session.On("GetBulk", []string{"1.1.1", "1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
-	session.On("GetBulk", []string{"1.1.1.3"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
-	session.On("GetBulk", []string{"1.1.1.5"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket3, nil)
+	sess.On("GetBulk", []string{"1.1.1", "1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
+	sess.On("GetBulk", []string{"1.1.1.3"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
+	sess.On("GetBulk", []string{"1.1.1.5"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket3, nil)
 
 	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2"}
 
-	columnValues, err := fetchColumnOidsWithBatching(session, oids, 100, checkconfig.DefaultBulkMaxRepetitions)
+	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 100, checkconfig.DefaultBulkMaxRepetitions)
 	assert.Nil(t, err)
 
 	expectedColumnValues := valuestore.ColumnResultValuesType{
@@ -97,7 +98,7 @@ func Test_fetchColumnOids(t *testing.T) {
 }
 
 func Test_fetchColumnOidsBatch_usingGetBulk(t *testing.T) {
-	session := createMockSession()
+	sess := session.CreateMockSession()
 
 	bulkPacket := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
@@ -158,17 +159,17 @@ func Test_fetchColumnOidsBatch_usingGetBulk(t *testing.T) {
 		},
 	}
 	// First bulk iteration with two batches with batch size 2
-	session.On("GetBulk", []string{"1.1.1", "1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
+	sess.On("GetBulk", []string{"1.1.1", "1.1.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
 
 	// Second bulk iteration
-	session.On("GetBulk", []string{"1.1.1.3"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
+	sess.On("GetBulk", []string{"1.1.1.3"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
 
 	// Third bulk iteration
-	session.On("GetBulk", []string{"1.1.1.5"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket3, nil)
+	sess.On("GetBulk", []string{"1.1.1.5"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket3, nil)
 
 	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2"}
 
-	columnValues, err := fetchColumnOidsWithBatching(session, oids, 2, 10)
+	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 2, 10)
 	assert.Nil(t, err)
 
 	expectedColumnValues := valuestore.ColumnResultValuesType{
@@ -188,8 +189,8 @@ func Test_fetchColumnOidsBatch_usingGetBulk(t *testing.T) {
 }
 
 func Test_fetchColumnOidsBatch_usingGetNext(t *testing.T) {
-	session := createMockSession()
-	session.version = gosnmp.Version1
+	sess := session.CreateMockSession()
+	sess.Version = gosnmp.Version1
 
 	bulkPacket := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
@@ -251,21 +252,21 @@ func Test_fetchColumnOidsBatch_usingGetNext(t *testing.T) {
 	}
 
 	// First bulk iteration with two batches with batch size 2
-	session.On("GetNext", []string{"1.1.1", "1.1.2"}).Return(&bulkPacket, nil)
+	sess.On("GetNext", []string{"1.1.1", "1.1.2"}).Return(&bulkPacket, nil)
 
 	// Second bulk iteration
-	session.On("GetNext", []string{"1.1.1.1", "1.1.2.1"}).Return(&bulkPacket2, nil)
+	sess.On("GetNext", []string{"1.1.1.1", "1.1.2.1"}).Return(&bulkPacket2, nil)
 
 	// Third bulk iteration
-	session.On("GetNext", []string{"1.1.1.2"}).Return(&bulkPacket3, nil)
+	sess.On("GetNext", []string{"1.1.1.2"}).Return(&bulkPacket3, nil)
 
 	// Second batch
-	session.On("GetNext", []string{"1.1.3"}).Return(&secondBatchPacket1, nil)
-	session.On("GetNext", []string{"1.1.3.1"}).Return(&secondBatchPacket2, nil)
+	sess.On("GetNext", []string{"1.1.3"}).Return(&secondBatchPacket1, nil)
+	sess.On("GetNext", []string{"1.1.3.1"}).Return(&secondBatchPacket2, nil)
 
 	oids := map[string]string{"1.1.1": "1.1.1", "1.1.2": "1.1.2", "1.1.3": "1.1.3"}
 
-	columnValues, err := fetchColumnOidsWithBatching(session, oids, 2, 10)
+	columnValues, err := fetchColumnOidsWithBatching(sess, oids, 2, 10)
 	assert.Nil(t, err)
 
 	expectedColumnValues := valuestore.ColumnResultValuesType{
@@ -284,7 +285,7 @@ func Test_fetchColumnOidsBatch_usingGetNext(t *testing.T) {
 }
 
 func Test_fetchOidBatchSize(t *testing.T) {
-	session := createMockSession()
+	session := session.CreateMockSession()
 
 	getPacket1 := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
@@ -352,29 +353,29 @@ func Test_fetchOidBatchSize(t *testing.T) {
 }
 
 func Test_fetchOidBatchSize_zeroSizeError(t *testing.T) {
-	session := createMockSession()
+	sess := session.CreateMockSession()
 
 	oids := []string{"1.1.1.1.0", "1.1.1.2.0", "1.1.1.3.0", "1.1.1.4.0", "1.1.1.5.0", "1.1.1.6.0"}
-	columnValues, err := fetchScalarOidsWithBatching(session, oids, 0)
+	columnValues, err := fetchScalarOidsWithBatching(sess, oids, 0)
 
 	assert.EqualError(t, err, "failed to create oid batches: batch size must be positive. invalid size: 0")
 	assert.Nil(t, columnValues)
 }
 
 func Test_fetchOidBatchSize_fetchError(t *testing.T) {
-	session := createMockSession()
+	sess := session.CreateMockSession()
 
-	session.On("Get", []string{"1.1.1.1.0", "1.1.1.2.0"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("my error"))
+	sess.On("Get", []string{"1.1.1.1.0", "1.1.1.2.0"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("my error"))
 
 	oids := []string{"1.1.1.1.0", "1.1.1.2.0", "1.1.1.3.0", "1.1.1.4.0", "1.1.1.5.0", "1.1.1.6.0"}
-	columnValues, err := fetchScalarOidsWithBatching(session, oids, 2)
+	columnValues, err := fetchScalarOidsWithBatching(sess, oids, 2)
 
 	assert.EqualError(t, err, "failed to fetch scalar oids: fetch scalar: error getting oids `[1.1.1.1.0 1.1.1.2.0]`: my error")
 	assert.Nil(t, columnValues)
 }
 
 func Test_fetchScalarOids_retry(t *testing.T) {
-	session := createMockSession()
+	sess := session.CreateMockSession()
 
 	getPacket := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
@@ -415,12 +416,12 @@ func Test_fetchScalarOids_retry(t *testing.T) {
 		},
 	}
 
-	session.On("Get", []string{"1.1.1.1.0", "1.1.1.2", "1.1.1.3", "1.1.1.4.0"}).Return(&getPacket, nil)
-	session.On("Get", []string{"1.1.1.2.0", "1.1.1.3.0"}).Return(&retryGetPacket, nil)
+	sess.On("Get", []string{"1.1.1.1.0", "1.1.1.2", "1.1.1.3", "1.1.1.4.0"}).Return(&getPacket, nil)
+	sess.On("Get", []string{"1.1.1.2.0", "1.1.1.3.0"}).Return(&retryGetPacket, nil)
 
 	oids := []string{"1.1.1.1.0", "1.1.1.2", "1.1.1.3", "1.1.1.4.0"}
 
-	columnValues, err := fetchScalarOids(session, oids)
+	columnValues, err := fetchScalarOids(sess, oids)
 	assert.Nil(t, err)
 
 	expectedColumnValues := valuestore.ScalarResultValuesType{
@@ -432,8 +433,8 @@ func Test_fetchScalarOids_retry(t *testing.T) {
 }
 
 func Test_fetchScalarOids_v1NoSuchName(t *testing.T) {
-	session := createMockSession()
-	session.version = gosnmp.Version1
+	sess := session.CreateMockSession()
+	sess.Version = gosnmp.Version1
 
 	getPacket := gosnmp.SnmpPacket{
 		Error:      gosnmp.NoSuchName,
@@ -492,13 +493,13 @@ func Test_fetchScalarOids_v1NoSuchName(t *testing.T) {
 		},
 	}
 
-	session.On("Get", []string{"1.1.1.1.0", "1.1.1.2", "1.1.1.3", "1.1.1.4.0"}).Return(&getPacket, nil)
-	session.On("Get", []string{"1.1.1.1.0", "1.1.1.3", "1.1.1.4.0"}).Return(&getPacket2, nil)
-	session.On("Get", []string{"1.1.1.1.0", "1.1.1.3"}).Return(&getPacket3, nil)
+	sess.On("Get", []string{"1.1.1.1.0", "1.1.1.2", "1.1.1.3", "1.1.1.4.0"}).Return(&getPacket, nil)
+	sess.On("Get", []string{"1.1.1.1.0", "1.1.1.3", "1.1.1.4.0"}).Return(&getPacket2, nil)
+	sess.On("Get", []string{"1.1.1.1.0", "1.1.1.3"}).Return(&getPacket3, nil)
 
 	oids := []string{"1.1.1.1.0", "1.1.1.2", "1.1.1.3", "1.1.1.4.0"}
 
-	columnValues, err := fetchScalarOids(session, oids)
+	columnValues, err := fetchScalarOids(sess, oids)
 	assert.Nil(t, err)
 
 	expectedColumnValues := valuestore.ScalarResultValuesType{
@@ -509,8 +510,8 @@ func Test_fetchScalarOids_v1NoSuchName(t *testing.T) {
 }
 
 func Test_fetchScalarOids_v1NoSuchName_noValidOidsLeft(t *testing.T) {
-	session := createMockSession()
-	session.version = gosnmp.Version1
+	sess := session.CreateMockSession()
+	sess.Version = gosnmp.Version1
 
 	getPacket := gosnmp.SnmpPacket{
 		Error:      gosnmp.NoSuchName,
@@ -523,11 +524,11 @@ func Test_fetchScalarOids_v1NoSuchName_noValidOidsLeft(t *testing.T) {
 		},
 	}
 
-	session.On("Get", []string{"1.1.1.1.0"}).Return(&getPacket, nil)
+	sess.On("Get", []string{"1.1.1.1.0"}).Return(&getPacket, nil)
 
 	oids := []string{"1.1.1.1.0"}
 
-	columnValues, err := fetchScalarOids(session, oids)
+	columnValues, err := fetchScalarOids(sess, oids)
 	assert.Nil(t, err)
 
 	expectedColumnValues := valuestore.ScalarResultValuesType{}
@@ -535,8 +536,8 @@ func Test_fetchScalarOids_v1NoSuchName_noValidOidsLeft(t *testing.T) {
 }
 
 func Test_fetchScalarOids_v1NoSuchName_errorIndexTooHigh(t *testing.T) {
-	session := createMockSession()
-	session.version = gosnmp.Version1
+	sess := session.CreateMockSession()
+	sess.Version = gosnmp.Version1
 
 	getPacket := gosnmp.SnmpPacket{
 		Error:      gosnmp.NoSuchName,
@@ -553,18 +554,18 @@ func Test_fetchScalarOids_v1NoSuchName_errorIndexTooHigh(t *testing.T) {
 		},
 	}
 
-	session.On("Get", []string{"1.1.1.1.0", "1.1.1.2"}).Return(&getPacket, nil)
+	sess.On("Get", []string{"1.1.1.1.0", "1.1.1.2"}).Return(&getPacket, nil)
 
 	oids := []string{"1.1.1.1.0", "1.1.1.2"}
 
-	columnValues, err := fetchScalarOids(session, oids)
+	columnValues, err := fetchScalarOids(sess, oids)
 	assert.EqualError(t, err, "invalid ErrorIndex `3` when fetching oids `[1.1.1.1.0 1.1.1.2]`")
 	assert.Nil(t, columnValues)
 }
 
 func Test_fetchScalarOids_v1NoSuchName_errorIndexTooLow(t *testing.T) {
-	session := createMockSession()
-	session.version = gosnmp.Version1
+	sess := session.CreateMockSession()
+	sess.Version = gosnmp.Version1
 
 	getPacket := gosnmp.SnmpPacket{
 		Error:      gosnmp.NoSuchName,
@@ -581,11 +582,11 @@ func Test_fetchScalarOids_v1NoSuchName_errorIndexTooLow(t *testing.T) {
 		},
 	}
 
-	session.On("Get", []string{"1.1.1.1.0", "1.1.1.2"}).Return(&getPacket, nil)
+	sess.On("Get", []string{"1.1.1.1.0", "1.1.1.2"}).Return(&getPacket, nil)
 
 	oids := []string{"1.1.1.1.0", "1.1.1.2"}
 
-	columnValues, err := fetchScalarOids(session, oids)
+	columnValues, err := fetchScalarOids(sess, oids)
 	assert.EqualError(t, err, "invalid ErrorIndex `0` when fetching oids `[1.1.1.1.0 1.1.1.2]`")
 	assert.Nil(t, columnValues)
 }
@@ -633,11 +634,11 @@ func Test_fetchValues_errors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			session := createMockSession()
-			session.On("Get", []string{"1.1", "2.2"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("get error"))
-			session.On("GetBulk", []string{"1.1", "2.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
+			sess := session.CreateMockSession()
+			sess.On("Get", []string{"1.1", "2.2"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("get error"))
+			sess.On("GetBulk", []string{"1.1", "2.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
 
-			_, err := FetchValues(session, tt.config)
+			_, err := FetchValues(sess, tt.config)
 
 			assert.Equal(t, tt.expectedError, err)
 		})
