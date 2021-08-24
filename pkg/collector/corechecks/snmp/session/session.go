@@ -1,4 +1,4 @@
-package snmp
+package session
 
 import (
 	"fmt"

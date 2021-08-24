@@ -3,6 +3,7 @@ package snmp
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"sort"
 
@@ -13,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 )
 
-func fetchColumnOidsWithBatching(session SessionAPI, oids map[string]string, oidBatchSize int, bulkMaxRepetitions uint32) (valuestore.ColumnResultValuesType, error) {
+func fetchColumnOidsWithBatching(sess session.SessionAPI, oids map[string]string, oidBatchSize int, bulkMaxRepetitions uint32) (valuestore.ColumnResultValuesType, error) {
 	retValues := make(valuestore.ColumnResultValuesType, len(oids))
 
 	columnOids := getOidsMapKeys(oids)
@@ -29,7 +30,7 @@ func fetchColumnOidsWithBatching(session SessionAPI, oids map[string]string, oid
 			oidsToFetch[oid] = oids[oid]
 		}
 
-		results, err := fetchColumnOids(session, oidsToFetch, bulkMaxRepetitions)
+		results, err := fetchColumnOids(sess, oidsToFetch, bulkMaxRepetitions)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch column oids: %s", err)
 		}
@@ -50,7 +51,7 @@ func fetchColumnOidsWithBatching(session SessionAPI, oids map[string]string, oid
 // fetchColumnOids has an `oids` argument representing a `map[string]string`,
 // the key of the map is the column oid, and the value is the oid used to fetch the next value for the column.
 // The value oid might be equal to column oid or a row oid of the same column.
-func fetchColumnOids(session SessionAPI, oids map[string]string, bulkMaxRepetitions uint32) (valuestore.ColumnResultValuesType, error) {
+func fetchColumnOids(sess session.SessionAPI, oids map[string]string, bulkMaxRepetitions uint32) (valuestore.ColumnResultValuesType, error) {
 	returnValues := make(valuestore.ColumnResultValuesType, len(oids))
 	curOids := oids
 	for {
@@ -67,7 +68,7 @@ func fetchColumnOids(session SessionAPI, oids map[string]string, bulkMaxRepetiti
 		sort.Strings(columnOids)
 		sort.Strings(requestOids)
 
-		results, err := getResults(session, requestOids, bulkMaxRepetitions)
+		results, err := getResults(sess, requestOids, bulkMaxRepetitions)
 		if err != nil {
 			return nil, err
 		}
@@ -78,11 +79,11 @@ func fetchColumnOids(session SessionAPI, oids map[string]string, bulkMaxRepetiti
 	return returnValues, nil
 }
 
-func getResults(session SessionAPI, requestOids []string, bulkMaxRepetitions uint32) (*gosnmp.SnmpPacket, error) {
+func getResults(sess session.SessionAPI, requestOids []string, bulkMaxRepetitions uint32) (*gosnmp.SnmpPacket, error) {
 	var results *gosnmp.SnmpPacket
-	if session.GetVersion() == gosnmp.Version1 {
+	if sess.GetVersion() == gosnmp.Version1 {
 		// snmp v1 doesn't support GetBulk
-		getNextResults, err := session.GetNext(requestOids)
+		getNextResults, err := sess.GetNext(requestOids)
 		if err != nil {
 			log.Debugf("fetch column: failed getting oids `%v` using GetNext: %s", requestOids, err)
 			return nil, fmt.Errorf("fetch column: failed getting oids `%v` using GetNext: %s", requestOids, err)
@@ -90,7 +91,7 @@ func getResults(session SessionAPI, requestOids []string, bulkMaxRepetitions uin
 		results = getNextResults
 		log.Debugf("fetch column: GetNext results Variables: %v", results.Variables)
 	} else {
-		getBulkResults, err := session.GetBulk(requestOids, bulkMaxRepetitions)
+		getBulkResults, err := sess.GetBulk(requestOids, bulkMaxRepetitions)
 		if err != nil {
 			log.Debugf("fetch column: failed getting oids `%v` using GetBulk: %s", requestOids, err)
 			return nil, fmt.Errorf("fetch column: failed getting oids `%v` using GetBulk: %s", requestOids, err)

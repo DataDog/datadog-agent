@@ -3,13 +3,14 @@ package snmp
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 )
 
 // FetchValues fetch values from device
-func FetchValues(session SessionAPI, config checkconfig.CheckConfig) (*valuestore.ResultValueStore, error) {
+func FetchValues(sess session.SessionAPI, config checkconfig.CheckConfig) (*valuestore.ResultValueStore, error) {
 	// fetch scalar values
-	scalarResults, err := fetchScalarOidsWithBatching(session, config.OidConfig.ScalarOids, config.OidBatchSize)
+	scalarResults, err := fetchScalarOidsWithBatching(sess, config.OidConfig.ScalarOids, config.OidBatchSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch scalar oids with batching: %v", err)
 	}
@@ -19,7 +20,7 @@ func FetchValues(session SessionAPI, config checkconfig.CheckConfig) (*valuestor
 	for _, value := range config.OidConfig.ColumnOids {
 		oids[value] = value
 	}
-	columnResults, err := fetchColumnOidsWithBatching(session, oids, config.OidBatchSize, config.BulkMaxRepetitions)
+	columnResults, err := fetchColumnOidsWithBatching(sess, oids, config.OidBatchSize, config.BulkMaxRepetitions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch oids with batching: %v", err)
 	}

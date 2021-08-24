@@ -3,6 +3,7 @@ package snmp
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"sort"
 	"strings"
@@ -14,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 )
 
-func fetchScalarOidsWithBatching(session SessionAPI, oids []string, oidBatchSize int) (valuestore.ScalarResultValuesType, error) {
+func fetchScalarOidsWithBatching(sess session.SessionAPI, oids []string, oidBatchSize int) (valuestore.ScalarResultValuesType, error) {
 	retValues := make(valuestore.ScalarResultValuesType, len(oids))
 
 	batches, err := common.CreateStringBatches(oids, oidBatchSize)
@@ -23,7 +24,7 @@ func fetchScalarOidsWithBatching(session SessionAPI, oids []string, oidBatchSize
 	}
 
 	for _, batchOids := range batches {
-		results, err := fetchScalarOids(session, batchOids)
+		results, err := fetchScalarOids(sess, batchOids)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch scalar oids: %s", err.Error())
 		}
@@ -34,13 +35,13 @@ func fetchScalarOidsWithBatching(session SessionAPI, oids []string, oidBatchSize
 	return retValues, nil
 }
 
-func fetchScalarOids(session SessionAPI, oids []string) (valuestore.ScalarResultValuesType, error) {
-	packet, err := doFetchScalarOids(session, oids)
+func fetchScalarOids(sess session.SessionAPI, oids []string) (valuestore.ScalarResultValuesType, error) {
+	packet, err := doFetchScalarOids(sess, oids)
 	if err != nil {
 		return nil, err
 	}
 	values := gosnmplib.ResultToScalarValues(packet)
-	retryFailedScalarOids(session, packet, values)
+	retryFailedScalarOids(sess, packet, values)
 	return values, nil
 }
 
@@ -48,7 +49,7 @@ func fetchScalarOids(session SessionAPI, oids []string) (valuestore.ScalarResult
 // This helps keeping compatibility with python implementation.
 // This is not need in normal circumstances where scalar OIDs end with `.0`.
 // If the oid does not end with `.0`, we will retry by appending `.0` to it.
-func retryFailedScalarOids(session SessionAPI, results *gosnmp.SnmpPacket, valuesToUpdate valuestore.ScalarResultValuesType) {
+func retryFailedScalarOids(sess session.SessionAPI, results *gosnmp.SnmpPacket, valuesToUpdate valuestore.ScalarResultValuesType) {
 	retryOids := make(map[string]string)
 	for _, variable := range results.Variables {
 		oid := strings.TrimLeft(variable.Name, ".")
@@ -62,7 +63,7 @@ func retryFailedScalarOids(session SessionAPI, results *gosnmp.SnmpPacket, value
 			fetchOids = append(fetchOids, oid)
 		}
 		sort.Strings(fetchOids) // needed for stable tests since fetchOids order (from a map values) is undefined
-		retryResults, err := doFetchScalarOids(session, fetchOids)
+		retryResults, err := doFetchScalarOids(sess, fetchOids)
 		if err != nil {
 			log.Debugf("failed to oids `%v` on retry: %v", retryOids, err)
 		} else {
@@ -76,7 +77,7 @@ func retryFailedScalarOids(session SessionAPI, results *gosnmp.SnmpPacket, value
 	}
 }
 
-func doFetchScalarOids(session SessionAPI, oids []string) (*gosnmp.SnmpPacket, error) {
+func doFetchScalarOids(session session.SessionAPI, oids []string) (*gosnmp.SnmpPacket, error) {
 	var results *gosnmp.SnmpPacket
 	if session.GetVersion() == gosnmp.Version1 {
 		// When using snmp v1, if one of the oids return a NoSuchName, all oids will have value of Null.
@@ -112,7 +113,7 @@ func doFetchScalarOids(session SessionAPI, oids []string) (*gosnmp.SnmpPacket, e
 	return results, nil
 }
 
-func doDoFetchScalarOids(session SessionAPI, oids []string) (*gosnmp.SnmpPacket, error) {
+func doDoFetchScalarOids(session session.SessionAPI, oids []string) (*gosnmp.SnmpPacket, error) {
 	log.Debugf("fetch scalar: request oids: %v", oids)
 	results, err := session.Get(oids)
 	if err != nil {
