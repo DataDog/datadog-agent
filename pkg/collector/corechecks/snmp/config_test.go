@@ -121,7 +121,7 @@ bulk_max_repetitions: 20
 	assert.Equal(t, uint16(1161), check.config.Port)
 	assert.Equal(t, 7, check.config.timeout)
 	assert.Equal(t, 5, check.config.retries)
-	assert.Equal(t, "2c", check.config.snmpVersion)
+	assert.Equal(t, "2c", check.config.SnmpVersion)
 	assert.Equal(t, "my-user", check.config.user)
 	assert.Equal(t, "sha", check.config.authProtocol)
 	assert.Equal(t, "my-authKey", check.config.authKey)
@@ -263,7 +263,7 @@ profiles:
 		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 	}
 
-	assert.Equal(t, "123", check.config.communityString)
+	assert.Equal(t, "123", check.config.CommunityString)
 	assert.Equal(t, metrics, check.config.metrics)
 	assert.Equal(t, metricsTags, check.config.metricTags)
 	assert.Equal(t, 2, len(check.config.profiles))
@@ -711,7 +711,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 
 func Test_snmpConfig_toString(t *testing.T) {
 	c := CheckConfig{
-		communityString: "my_communityString",
+		CommunityString: "my_communityString",
 		authProtocol:    "my_authProtocol",
 		authKey:         "my_authKey",
 		privProtocol:    "my_privProtocol",

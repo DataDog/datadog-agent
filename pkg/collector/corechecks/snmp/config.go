@@ -80,8 +80,8 @@ type InstanceConfig struct {
 type CheckConfig struct {
 	IpAddress             string
 	Port                  uint16
-	communityString       string
-	snmpVersion           string
+	CommunityString       string
+	SnmpVersion           string
 	timeout               int
 	retries               int
 	user                  string
@@ -157,12 +157,12 @@ func (c *CheckConfig) getDeviceIDTags() []string {
 
 // toString used for logging CheckConfig without sensitive information
 func (c *CheckConfig) toString() string {
-	return fmt.Sprintf("CheckConfig: IpAddress=`%s`, Port=`%d`, snmpVersion=`%s`, timeout=`%d`, retries=`%d`, "+
+	return fmt.Sprintf("CheckConfig: IpAddress=`%s`, Port=`%d`, SnmpVersion=`%s`, timeout=`%d`, retries=`%d`, "+
 		"user=`%s`, authProtocol=`%s`, privProtocol=`%s`, contextName=`%s`, OidConfig=`%#v`, "+
 		"oidBatchSize=`%d`, profileTags=`%#v`",
 		c.IpAddress,
 		c.Port,
-		c.snmpVersion,
+		c.SnmpVersion,
 		c.timeout,
 		c.retries,
 		c.user,
@@ -194,7 +194,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 
 	c := CheckConfig{}
 
-	c.snmpVersion = instance.SnmpVersion
+	c.SnmpVersion = instance.SnmpVersion
 	c.IpAddress = instance.IPAddress
 	c.Port = uint16(instance.Port)
 
@@ -246,7 +246,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	}
 
 	// SNMP connection configs
-	c.communityString = instance.CommunityString
+	c.CommunityString = instance.CommunityString
 	c.user = instance.User
 	c.authProtocol = instance.AuthProtocol
 	c.authKey = instance.AuthKey

@@ -42,10 +42,10 @@ func Test_snmpSession_Configure(t *testing.T) {
 			config: CheckConfig{
 				IpAddress:       "1.2.3.4",
 				Port:            uint16(1234),
-				snmpVersion:     "1",
+				SnmpVersion:     "1",
 				timeout:         4,
 				retries:         3,
-				communityString: "abc",
+				CommunityString: "abc",
 			},
 			expectedVersion:   gosnmp.Version1,
 			expectedError:     nil,
@@ -61,7 +61,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 				Port:            uint16(1234),
 				timeout:         4,
 				retries:         3,
-				communityString: "abc",
+				CommunityString: "abc",
 			},
 			expectedVersion:   gosnmp.Version2c,
 			expectedError:     nil,
@@ -77,7 +77,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 				Port:            uint16(1234),
 				timeout:         4,
 				retries:         3,
-				communityString: "abc",
+				CommunityString: "abc",
 			},
 			expectedVersion:   gosnmp.Version2c,
 			expectedError:     nil,
@@ -93,7 +93,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 				Port:            uint16(1234),
 				timeout:         4,
 				retries:         3,
-				communityString: "abc",
+				CommunityString: "abc",
 			},
 			expectedVersion:   gosnmp.Version2c,
 			expectedError:     nil,
@@ -195,7 +195,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 				Port:            uint16(1234),
 				timeout:         4,
 				retries:         3,
-				communityString: "abc",
+				CommunityString: "abc",
 				oidBatchSize:    100,
 			},
 			expectedVersion: gosnmp.Version1,
@@ -222,7 +222,7 @@ func Test_snmpSession_traceLog_disabled(t *testing.T) {
 
 	config := CheckConfig{
 		IpAddress:       "1.2.3.4",
-		communityString: "abc",
+		CommunityString: "abc",
 	}
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
@@ -239,7 +239,7 @@ func Test_snmpSession_traceLog_disabled(t *testing.T) {
 func Test_snmpSession_traceLog_enabled(t *testing.T) {
 	config := CheckConfig{
 		IpAddress:       "1.2.3.4",
-		communityString: "abc",
+		CommunityString: "abc",
 	}
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
@@ -266,7 +266,7 @@ func Test_snmpSession_traceLog_enabled(t *testing.T) {
 func Test_snmpSession_Connect_Logger(t *testing.T) {
 	config := CheckConfig{
 		IpAddress:       "1.2.3.4",
-		communityString: "abc",
+		CommunityString: "abc",
 	}
 	s := &snmpSession{}
 	err := s.Configure(config)

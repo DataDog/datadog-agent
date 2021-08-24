@@ -31,13 +31,13 @@ func (s *snmpSession) Configure(config CheckConfig) error {
 		return fmt.Errorf("config oidBatchSize (%d) cannot be higher than gosnmp.MaxOids: %d", config.oidBatchSize, gosnmp.MaxOids)
 	}
 
-	if config.communityString != "" {
-		if config.snmpVersion == "1" {
+	if config.CommunityString != "" {
+		if config.SnmpVersion == "1" {
 			s.gosnmpInst.Version = gosnmp.Version1
 		} else {
 			s.gosnmpInst.Version = gosnmp.Version2c
 		}
-		s.gosnmpInst.Community = config.communityString
+		s.gosnmpInst.Community = config.CommunityString
 	} else if config.user != "" {
 		authProtocol, err := getAuthProtocol(config.authProtocol)
 		if err != nil {
