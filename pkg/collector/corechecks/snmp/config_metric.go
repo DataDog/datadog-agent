@@ -14,7 +14,7 @@ type SymbolConfig struct {
 	Name         string `yaml:"name"`
 	ExtractValue string `yaml:"extract_value"`
 
-	extractValuePattern *regexp.Regexp
+	ExtractValuePattern *regexp.Regexp
 }
 
 // MetricTagConfig holds metric tag info

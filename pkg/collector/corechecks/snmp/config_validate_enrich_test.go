@@ -305,7 +305,7 @@ func Test_validateEnrichMetrics(t *testing.T) {
 						OID:                 "1.2.3",
 						Name:                "myMetric",
 						ExtractValue:        `(\d+)C`,
-						extractValuePattern: regexp.MustCompile(`(\d+)C`),
+						ExtractValuePattern: regexp.MustCompile(`(\d+)C`),
 					},
 				},
 				{
@@ -314,7 +314,7 @@ func Test_validateEnrichMetrics(t *testing.T) {
 							OID:                 "1.2",
 							Name:                "hey",
 							ExtractValue:        `(\d+)C`,
-							extractValuePattern: regexp.MustCompile(`(\d+)C`),
+							ExtractValuePattern: regexp.MustCompile(`(\d+)C`),
 						},
 					},
 					MetricTags: MetricTagConfigList{
@@ -323,7 +323,7 @@ func Test_validateEnrichMetrics(t *testing.T) {
 								OID:                 "1.2.3",
 								Name:                "abc",
 								ExtractValue:        `(\d+)C`,
-								extractValuePattern: regexp.MustCompile(`(\d+)C`),
+								ExtractValuePattern: regexp.MustCompile(`(\d+)C`),
 							},
 							Tag: "hello",
 						},

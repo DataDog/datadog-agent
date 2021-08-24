@@ -62,7 +62,7 @@ func validateEnrichSymbol(symbol *SymbolConfig, metricConfig *MetricsConfig) []s
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("cannot compile `extract_value` (%s): %s : %#v", symbol.ExtractValue, err.Error(), metricConfig))
 		} else {
-			symbol.extractValuePattern = pattern
+			symbol.ExtractValuePattern = pattern
 		}
 	}
 	return errors

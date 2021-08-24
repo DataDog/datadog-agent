@@ -55,7 +55,7 @@ func (ms *metricSender) reportScalarMetrics(metric MetricsConfig, values *values
 
 	scalarTags := common.CopyStrings(tags)
 	scalarTags = append(scalarTags, metric.GetSymbolTags()...)
-	ms.sendMetric(metric.Symbol.Name, value, scalarTags, metric.ForcedType, metric.Options, metric.Symbol.extractValuePattern)
+	ms.sendMetric(metric.Symbol.Name, value, scalarTags, metric.ForcedType, metric.Options, metric.Symbol.ExtractValuePattern)
 }
 
 func (ms *metricSender) reportColumnMetrics(metricConfig MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
@@ -73,7 +73,7 @@ func (ms *metricSender) reportColumnMetrics(metricConfig MetricsConfig, values *
 				log.Debugf("report column: caching tags `%v` for fullIndex `%s`", rowTagsCache[fullIndex], fullIndex)
 			}
 			rowTags := rowTagsCache[fullIndex]
-			ms.sendMetric(symbol.Name, value, rowTags, metricConfig.ForcedType, metricConfig.Options, symbol.extractValuePattern)
+			ms.sendMetric(symbol.Name, value, rowTags, metricConfig.ForcedType, metricConfig.Options, symbol.ExtractValuePattern)
 			ms.trySendBandwidthUsageMetric(symbol, fullIndex, values, rowTags)
 		}
 	}
