@@ -98,7 +98,7 @@ type CheckConfig struct {
 	Profiles              profileDefinitionMap
 	ProfileTags           []string
 	Profile               string
-	profileDef            *profileDefinition
+	ProfileDef            *profileDefinition
 	extraTags             []string
 	instanceTags          []string
 	collectDeviceMetadata bool
@@ -116,7 +116,7 @@ func (c *CheckConfig) refreshWithProfile(profile string) error {
 	log.Debugf("Refreshing with profile `%s`", profile)
 	tags := []string{"snmp_profile:" + profile}
 	definition := c.Profiles[profile]
-	c.profileDef = &definition
+	c.ProfileDef = &definition
 	c.Profile = profile
 
 	c.Metrics = append(c.Metrics, definition.Metrics...)

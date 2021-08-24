@@ -48,8 +48,8 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config CheckCo
 		sysObjectID = store.GetScalarValueAsString(metadata.SysObjectIDOID)
 	}
 
-	if config.profileDef != nil {
-		vendor = config.profileDef.Device.Vendor
+	if config.ProfileDef != nil {
+		vendor = config.ProfileDef.Device.Vendor
 	}
 
 	return metadata.DeviceMetadata{

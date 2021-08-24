@@ -856,7 +856,7 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, "profile1", c.Profile)
-	assert.Equal(t, profile1, *c.profileDef)
+	assert.Equal(t, profile1, *c.ProfileDef)
 	assert.Equal(t, metrics, c.Metrics)
 	assert.Equal(t, []MetricTagConfig{
 		{Tag: "interface", Column: SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
