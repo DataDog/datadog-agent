@@ -43,7 +43,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 				IpAddress:       "1.2.3.4",
 				Port:            uint16(1234),
 				SnmpVersion:     "1",
-				timeout:         4,
+				Timeout:         4,
 				retries:         3,
 				CommunityString: "abc",
 			},
@@ -59,7 +59,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			config: CheckConfig{
 				IpAddress:       "1.2.3.4",
 				Port:            uint16(1234),
-				timeout:         4,
+				Timeout:         4,
 				retries:         3,
 				CommunityString: "abc",
 			},
@@ -75,7 +75,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			config: CheckConfig{
 				IpAddress:       "1.2.3.4",
 				Port:            uint16(1234),
-				timeout:         4,
+				Timeout:         4,
 				retries:         3,
 				CommunityString: "abc",
 			},
@@ -91,7 +91,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			config: CheckConfig{
 				IpAddress:       "1.2.3.4",
 				Port:            uint16(1234),
-				timeout:         4,
+				Timeout:         4,
 				retries:         3,
 				CommunityString: "abc",
 			},
@@ -107,7 +107,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			config: CheckConfig{
 				IpAddress:    "1.2.3.4",
 				Port:         uint16(1234),
-				timeout:      4,
+				Timeout:      4,
 				retries:      3,
 				contextName:  "myContext",
 				user:         "myUser",
@@ -136,7 +136,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			config: CheckConfig{
 				IpAddress:    "1.2.3.4",
 				Port:         uint16(1234),
-				timeout:      4,
+				Timeout:      4,
 				retries:      3,
 				user:         "myUser",
 				authKey:      "myAuthKey",
@@ -161,7 +161,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			config: CheckConfig{
 				IpAddress:    "1.2.3.4",
 				Port:         uint16(1234),
-				timeout:      4,
+				Timeout:      4,
 				retries:      3,
 				user:         "myUser",
 				authKey:      "myAuthKey",
@@ -176,7 +176,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			config: CheckConfig{
 				IpAddress:    "1.2.3.4",
 				Port:         uint16(1234),
-				timeout:      4,
+				Timeout:      4,
 				retries:      3,
 				user:         "myUser",
 				authKey:      "myAuthKey",
@@ -193,7 +193,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			config: CheckConfig{
 				IpAddress:       "1.2.3.4",
 				Port:            uint16(1234),
-				timeout:         4,
+				Timeout:         4,
 				retries:         3,
 				CommunityString: "abc",
 				oidBatchSize:    100,
