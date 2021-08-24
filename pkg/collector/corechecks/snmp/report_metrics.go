@@ -107,7 +107,7 @@ func (ms *metricSender) sendMetric(metricName string, value ResultValue, tags []
 			return
 		}
 		metricFullName = metricFullName + "." + options.MetricSuffix
-		value = ResultValue{value: floatValue}
+		value = ResultValue{ResultValue: floatValue}
 		forcedType = "gauge"
 	}
 

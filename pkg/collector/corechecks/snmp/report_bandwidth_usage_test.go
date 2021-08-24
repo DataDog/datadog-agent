@@ -32,19 +32,19 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
 						"9": {
-							value: 5000000.0,
+							ResultValue: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
 						"9": {
-							value: 1000000.0,
+							ResultValue: 1000000.0,
 						},
 					},
 					// ifHighSpeed
 					"1.3.6.1.2.1.31.1.1.1.15": map[string]ResultValue{
 						"9": {
-							value: 80.0,
+							ResultValue: 80.0,
 						},
 					},
 				},
@@ -64,19 +64,19 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
 						"9": {
-							value: 5000000.0,
+							ResultValue: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
 						"9": {
-							value: 1000000.0,
+							ResultValue: 1000000.0,
 						},
 					},
 					// ifHighSpeed
 					"1.3.6.1.2.1.31.1.1.1.15": map[string]ResultValue{
 						"9": {
-							value: 80.0,
+							ResultValue: 80.0,
 						},
 					},
 				},
@@ -106,13 +106,13 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
 						"9": {
-							value: 5000000.0,
+							ResultValue: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
 						"9": {
-							value: 1000000.0,
+							ResultValue: 1000000.0,
 						},
 					},
 				},
@@ -129,13 +129,13 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
 						"9": {
-							value: 1000000.0,
+							ResultValue: 1000000.0,
 						},
 					},
 					// ifHighSpeed
 					"1.3.6.1.2.1.31.1.1.1.15": map[string]ResultValue{
 						"9": {
-							value: 80.0,
+							ResultValue: 80.0,
 						},
 					},
 				},
@@ -152,13 +152,13 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
 						"9": {
-							value: 1000000.0,
+							ResultValue: 1000000.0,
 						},
 					},
 					// ifHighSpeed
 					"1.3.6.1.2.1.31.1.1.1.15": map[string]ResultValue{
 						"9": {
-							value: 80.0,
+							ResultValue: 80.0,
 						},
 					},
 				},
@@ -175,19 +175,19 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
 						"9999": {
-							value: 5000000.0,
+							ResultValue: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
 						"9": {
-							value: 1000000.0,
+							ResultValue: 1000000.0,
 						},
 					},
 					// ifHighSpeed
 					"1.3.6.1.2.1.31.1.1.1.15": map[string]ResultValue{
 						"9": {
-							value: 80.0,
+							ResultValue: 80.0,
 						},
 					},
 				},
@@ -204,19 +204,19 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
 						"9": {
-							value: 5000000.0,
+							ResultValue: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
 						"9": {
-							value: 1000000.0,
+							ResultValue: 1000000.0,
 						},
 					},
 					// ifHighSpeed
 					"1.3.6.1.2.1.31.1.1.1.15": map[string]ResultValue{
 						"999": {
-							value: 80.0,
+							ResultValue: 80.0,
 						},
 					},
 				},
@@ -233,19 +233,19 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
 						"9": {
-							value: 5000000.0,
+							ResultValue: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
 						"9": {
-							value: 1000000.0,
+							ResultValue: 1000000.0,
 						},
 					},
 					// ifHighSpeed
 					"1.3.6.1.2.1.31.1.1.1.15": map[string]ResultValue{
 						"9": {
-							value: "abc",
+							ResultValue: "abc",
 						},
 					},
 				},
@@ -262,19 +262,19 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
 						"9": {
-							value: "abc",
+							ResultValue: "abc",
 						},
 					},
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
 						"9": {
-							value: 1000000.0,
+							ResultValue: 1000000.0,
 						},
 					},
 					// ifHighSpeed
 					"1.3.6.1.2.1.31.1.1.1.15": map[string]ResultValue{
 						"9": {
-							value: 80.0,
+							ResultValue: 80.0,
 						},
 					},
 				},
@@ -322,19 +322,19 @@ func Test_metricSender_trySendBandwidthUsageMetric(t *testing.T) {
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
 						"9": {
-							value: 5000000.0,
+							ResultValue: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
 						"9": {
-							value: 1000000.0,
+							ResultValue: 1000000.0,
 						},
 					},
 					// ifHighSpeed
 					"1.3.6.1.2.1.31.1.1.1.15": map[string]ResultValue{
 						"9": {
-							value: 80.0,
+							ResultValue: 80.0,
 						},
 					},
 				},
@@ -353,19 +353,19 @@ func Test_metricSender_trySendBandwidthUsageMetric(t *testing.T) {
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
 						"9": {
-							value: 5000000.0,
+							ResultValue: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
 						"9": {
-							value: 1000000.0,
+							ResultValue: 1000000.0,
 						},
 					},
 					// ifHighSpeed
 					"1.3.6.1.2.1.31.1.1.1.15": map[string]ResultValue{
 						"999": {
-							value: 80.0,
+							ResultValue: 80.0,
 						},
 					},
 				},

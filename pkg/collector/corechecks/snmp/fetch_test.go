@@ -80,15 +80,15 @@ func Test_fetchColumnOids(t *testing.T) {
 
 	expectedColumnValues := columnResultValuesType{
 		"1.1.1": {
-			"1": ResultValue{value: float64(11)},
-			"2": ResultValue{value: float64(12)},
-			"3": ResultValue{value: float64(13)},
-			"4": ResultValue{value: float64(14)},
-			"5": ResultValue{value: float64(15)},
+			"1": ResultValue{ResultValue: float64(11)},
+			"2": ResultValue{ResultValue: float64(12)},
+			"3": ResultValue{ResultValue: float64(13)},
+			"4": ResultValue{ResultValue: float64(14)},
+			"5": ResultValue{ResultValue: float64(15)},
 		},
 		"1.1.2": {
-			"1": ResultValue{value: float64(21)},
-			"2": ResultValue{value: float64(22)},
+			"1": ResultValue{ResultValue: float64(21)},
+			"2": ResultValue{ResultValue: float64(22)},
 		},
 	}
 	assert.Equal(t, expectedColumnValues, columnValues)
@@ -171,15 +171,15 @@ func Test_fetchColumnOidsBatch_usingGetBulk(t *testing.T) {
 
 	expectedColumnValues := columnResultValuesType{
 		"1.1.1": {
-			"1": ResultValue{value: float64(11)},
-			"2": ResultValue{value: float64(12)},
-			"3": ResultValue{value: float64(13)},
-			"4": ResultValue{value: float64(14)},
-			"5": ResultValue{value: float64(15)},
+			"1": ResultValue{ResultValue: float64(11)},
+			"2": ResultValue{ResultValue: float64(12)},
+			"3": ResultValue{ResultValue: float64(13)},
+			"4": ResultValue{ResultValue: float64(14)},
+			"5": ResultValue{ResultValue: float64(15)},
 		},
 		"1.1.2": {
-			"1": ResultValue{value: float64(21)},
-			"2": ResultValue{value: float64(22)},
+			"1": ResultValue{ResultValue: float64(21)},
+			"2": ResultValue{ResultValue: float64(22)},
 		},
 	}
 	assert.Equal(t, expectedColumnValues, columnValues)
@@ -268,14 +268,14 @@ func Test_fetchColumnOidsBatch_usingGetNext(t *testing.T) {
 
 	expectedColumnValues := columnResultValuesType{
 		"1.1.1": {
-			"1": ResultValue{value: float64(11)},
-			"2": ResultValue{value: float64(12)},
+			"1": ResultValue{ResultValue: float64(11)},
+			"2": ResultValue{ResultValue: float64(12)},
 		},
 		"1.1.2": {
-			"1": ResultValue{value: float64(21)},
+			"1": ResultValue{ResultValue: float64(21)},
 		},
 		"1.1.3": {
-			"1": ResultValue{value: float64(31)},
+			"1": ResultValue{ResultValue: float64(31)},
 		},
 	}
 	assert.Equal(t, expectedColumnValues, columnValues)
@@ -339,12 +339,12 @@ func Test_fetchOidBatchSize(t *testing.T) {
 	assert.Nil(t, err)
 
 	expectedColumnValues := scalarResultValuesType{
-		"1.1.1.1.0": {value: float64(10)},
-		"1.1.1.2.0": {value: float64(20)},
-		"1.1.1.3.0": {value: float64(30)},
-		"1.1.1.4.0": {value: float64(40)},
-		"1.1.1.5.0": {value: float64(50)},
-		"1.1.1.6.0": {value: float64(60)},
+		"1.1.1.1.0": {ResultValue: float64(10)},
+		"1.1.1.2.0": {ResultValue: float64(20)},
+		"1.1.1.3.0": {ResultValue: float64(30)},
+		"1.1.1.4.0": {ResultValue: float64(40)},
+		"1.1.1.5.0": {ResultValue: float64(50)},
+		"1.1.1.6.0": {ResultValue: float64(60)},
 	}
 	assert.Equal(t, expectedColumnValues, columnValues)
 }
@@ -422,9 +422,9 @@ func Test_fetchScalarOids_retry(t *testing.T) {
 	assert.Nil(t, err)
 
 	expectedColumnValues := scalarResultValuesType{
-		"1.1.1.1.0": {value: float64(10)},
-		"1.1.1.2":   {value: float64(20)},
-		"1.1.1.3":   {value: float64(30)},
+		"1.1.1.1.0": {ResultValue: float64(10)},
+		"1.1.1.2":   {ResultValue: float64(20)},
+		"1.1.1.3":   {ResultValue: float64(30)},
 	}
 	assert.Equal(t, expectedColumnValues, columnValues)
 }
@@ -500,8 +500,8 @@ func Test_fetchScalarOids_v1NoSuchName(t *testing.T) {
 	assert.Nil(t, err)
 
 	expectedColumnValues := scalarResultValuesType{
-		"1.1.1.1.0": {value: float64(10)},
-		"1.1.1.3.0": {value: float64(30)},
+		"1.1.1.1.0": {ResultValue: float64(10)},
+		"1.1.1.3.0": {ResultValue: float64(30)},
 	}
 	assert.Equal(t, expectedColumnValues, columnValues)
 }

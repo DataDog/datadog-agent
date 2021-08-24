@@ -9,43 +9,43 @@ import (
 // ResultValue represent a snmp value
 type ResultValue struct {
 	SubmissionType string      // used when sending the metric
-	value          interface{} // might be a `string` or `float64` type
+	ResultValue    interface{} // might be a `string` or `float64` type
 }
 
 func (sv *ResultValue) toFloat64() (float64, error) {
-	switch sv.value.(type) {
+	switch sv.ResultValue.(type) {
 	case float64:
-		return sv.value.(float64), nil
+		return sv.ResultValue.(float64), nil
 	case string:
-		val, err := strconv.ParseFloat(sv.value.(string), 64)
+		val, err := strconv.ParseFloat(sv.ResultValue.(string), 64)
 		if err != nil {
-			return 0, fmt.Errorf("failed to parse `%s`: %s", sv.value, err.Error())
+			return 0, fmt.Errorf("failed to parse `%s`: %s", sv.ResultValue, err.Error())
 		}
 		return val, nil
 	}
-	return 0, fmt.Errorf("invalid type %T for value %#v", sv.value, sv.value)
+	return 0, fmt.Errorf("invalid type %T for value %#v", sv.ResultValue, sv.ResultValue)
 }
 
 func (sv ResultValue) toString() (string, error) {
-	switch sv.value.(type) {
+	switch sv.ResultValue.(type) {
 	case float64:
-		return strconv.Itoa(int(sv.value.(float64))), nil
+		return strconv.Itoa(int(sv.ResultValue.(float64))), nil
 	case string:
-		return sv.value.(string), nil
+		return sv.ResultValue.(string), nil
 	}
-	return "", fmt.Errorf("invalid type %T for value %#v", sv.value, sv.value)
+	return "", fmt.Errorf("invalid type %T for value %#v", sv.ResultValue, sv.ResultValue)
 }
 
 func (sv ResultValue) extractStringValue(extractValuePattern *regexp.Regexp) (ResultValue, error) {
-	switch sv.value.(type) {
+	switch sv.ResultValue.(type) {
 	case string:
-		srcValue := sv.value.(string)
+		srcValue := sv.ResultValue.(string)
 		matches := extractValuePattern.FindStringSubmatch(srcValue)
 		if matches == nil {
 			return ResultValue{}, fmt.Errorf("extract value extractValuePattern does not match (extractValuePattern=%v, srcValue=%v)", extractValuePattern, srcValue)
 		}
 		matchedValue := matches[1] // use first matching group
-		return ResultValue{SubmissionType: sv.SubmissionType, value: matchedValue}, nil
+		return ResultValue{SubmissionType: sv.SubmissionType, ResultValue: matchedValue}, nil
 	default:
 		return sv, nil
 	}
