@@ -126,6 +126,7 @@ func (s *Session) GetVersion() gosnmp.SnmpVersion {
 	return s.gosnmpInst.Version
 }
 
+// FetchSysObjectID fetches the sys object id from the device
 func FetchSysObjectID(session SessionAPI) (string, error) {
 	result, err := session.Get([]string{sysObjectIDOid})
 	if err != nil {
