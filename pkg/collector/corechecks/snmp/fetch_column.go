@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 )
 
-func fetchColumnOidsWithBatching(sess session.SessionAPI, oids map[string]string, oidBatchSize int, bulkMaxRepetitions uint32) (valuestore.ColumnResultValuesType, error) {
+func fetchColumnOidsWithBatching(sess session.Session, oids map[string]string, oidBatchSize int, bulkMaxRepetitions uint32) (valuestore.ColumnResultValuesType, error) {
 	retValues := make(valuestore.ColumnResultValuesType, len(oids))
 
 	columnOids := getOidsMapKeys(oids)
@@ -51,7 +51,7 @@ func fetchColumnOidsWithBatching(sess session.SessionAPI, oids map[string]string
 // fetchColumnOids has an `oids` argument representing a `map[string]string`,
 // the key of the map is the column oid, and the value is the oid used to fetch the next value for the column.
 // The value oid might be equal to column oid or a row oid of the same column.
-func fetchColumnOids(sess session.SessionAPI, oids map[string]string, bulkMaxRepetitions uint32) (valuestore.ColumnResultValuesType, error) {
+func fetchColumnOids(sess session.Session, oids map[string]string, bulkMaxRepetitions uint32) (valuestore.ColumnResultValuesType, error) {
 	returnValues := make(valuestore.ColumnResultValuesType, len(oids))
 	curOids := oids
 	for {
@@ -79,7 +79,7 @@ func fetchColumnOids(sess session.SessionAPI, oids map[string]string, bulkMaxRep
 	return returnValues, nil
 }
 
-func getResults(sess session.SessionAPI, requestOids []string, bulkMaxRepetitions uint32) (*gosnmp.SnmpPacket, error) {
+func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions uint32) (*gosnmp.SnmpPacket, error) {
 	var results *gosnmp.SnmpPacket
 	if sess.GetVersion() == gosnmp.Version1 {
 		// snmp v1 doesn't support GetBulk

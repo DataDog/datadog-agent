@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
-	session2 "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
+	session "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"strings"
 	"time"
@@ -32,7 +32,7 @@ var timeNow = time.Now
 type Check struct {
 	core.CheckBase
 	config  checkconfig.CheckConfig
-	session session2.SessionAPI
+	session session.Session
 	sender  metricSender
 }
 
@@ -122,10 +122,10 @@ func (c *Check) getValuesAndTags(staticTags []string) ([]string, *valuestore.Res
 	return tags, valuesStore, joinedError
 }
 
-func (c *Check) autodetectProfile(session session2.SessionAPI) error {
+func (c *Check) autodetectProfile(sess session.Session) error {
 	// Try to detect profile using device sysobjectid
 	if c.config.AutodetectProfile {
-		sysObjectID, err := session2.FetchSysObjectID(session)
+		sysObjectID, err := session.FetchSysObjectID(sess)
 		if err != nil {
 			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
 		}
@@ -188,7 +188,7 @@ func (c *Check) Interval() time.Duration {
 
 func snmpFactory() check.Check {
 	return &Check{
-		session:   &session2.Session{},
+		session:   &session.GosnmpSession{},
 		CheckBase: core.NewCheckBase(snmpCheckName),
 	}
 }

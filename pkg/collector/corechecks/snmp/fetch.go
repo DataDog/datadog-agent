@@ -8,7 +8,7 @@ import (
 )
 
 // FetchValues fetch values from device
-func FetchValues(sess session.SessionAPI, config checkconfig.CheckConfig) (*valuestore.ResultValueStore, error) {
+func FetchValues(sess session.Session, config checkconfig.CheckConfig) (*valuestore.ResultValueStore, error) {
 	// fetch scalar values
 	scalarResults, err := fetchScalarOidsWithBatching(sess, config.OidConfig.ScalarOids, config.OidBatchSize)
 	if err != nil {
