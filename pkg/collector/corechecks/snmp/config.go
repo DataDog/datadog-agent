@@ -97,7 +97,7 @@ type CheckConfig struct {
 	BulkMaxRepetitions    uint32
 	Profiles              profileDefinitionMap
 	ProfileTags           []string
-	profile               string
+	Profile               string
 	profileDef            *profileDefinition
 	extraTags             []string
 	instanceTags          []string
@@ -117,7 +117,7 @@ func (c *CheckConfig) refreshWithProfile(profile string) error {
 	tags := []string{"snmp_profile:" + profile}
 	definition := c.Profiles[profile]
 	c.profileDef = &definition
-	c.profile = profile
+	c.Profile = profile
 
 	c.Metrics = append(c.Metrics, definition.Metrics...)
 	c.MetricTags = append(c.MetricTags, definition.MetricTags...)

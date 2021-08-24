@@ -855,7 +855,7 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 	err = c.refreshWithProfile("profile1")
 	assert.NoError(t, err)
 
-	assert.Equal(t, "profile1", c.profile)
+	assert.Equal(t, "profile1", c.Profile)
 	assert.Equal(t, profile1, *c.profileDef)
 	assert.Equal(t, metrics, c.Metrics)
 	assert.Equal(t, []MetricTagConfig{
