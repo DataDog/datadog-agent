@@ -196,7 +196,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 				Timeout:         4,
 				Retries:         3,
 				CommunityString: "abc",
-				oidBatchSize:    100,
+				OidBatchSize:    100,
 			},
 			expectedVersion: gosnmp.Version1,
 			expectedError:   fmt.Errorf("config oidBatchSize (100) cannot be higher than gosnmp.MaxOids: 60"),

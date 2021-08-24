@@ -115,7 +115,7 @@ bulk_max_repetitions: 20
 	err := check.Configure(rawInstanceConfig, rawInitConfig, "test")
 
 	assert.Nil(t, err)
-	assert.Equal(t, 10, check.config.oidBatchSize)
+	assert.Equal(t, 10, check.config.OidBatchSize)
 	assert.Equal(t, uint32(20), check.config.bulkMaxRepetitions)
 	assert.Equal(t, "1.2.3.4", check.config.IpAddress)
 	assert.Equal(t, uint16(1161), check.config.Port)
@@ -349,7 +349,7 @@ community_string: abc
 `)
 	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
-	assert.Equal(t, 5, check.config.oidBatchSize)
+	assert.Equal(t, 5, check.config.OidBatchSize)
 
 	// TEST Instance config batch size
 	check = Check{session: &snmpSession{}}
@@ -361,7 +361,7 @@ oid_batch_size: 10
 `)
 	err = check.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
-	assert.Equal(t, 10, check.config.oidBatchSize)
+	assert.Equal(t, 10, check.config.OidBatchSize)
 
 	// TEST Init config batch size
 	check = Check{session: &snmpSession{}}
@@ -376,7 +376,7 @@ oid_batch_size: 15
 `)
 	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
-	assert.Equal(t, 15, check.config.oidBatchSize)
+	assert.Equal(t, 15, check.config.OidBatchSize)
 
 	// TEST Instance & Init config batch size
 	check = Check{session: &snmpSession{}}
@@ -392,7 +392,7 @@ oid_batch_size: 15
 `)
 	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
-	assert.Equal(t, 20, check.config.oidBatchSize)
+	assert.Equal(t, 20, check.config.OidBatchSize)
 }
 
 func TestBulkMaxRepetitionConfiguration(t *testing.T) {

@@ -92,9 +92,9 @@ type CheckConfig struct {
 	ContextName           string
 	OidConfig             OidConfig
 	Metrics               []MetricsConfig
-	MetricTags            []MetricTagConfig
-	oidBatchSize          int
-	bulkMaxRepetitions    uint32
+	MetricTags         []MetricTagConfig
+	OidBatchSize       int
+	bulkMaxRepetitions uint32
 	profiles              profileDefinitionMap
 	profileTags           []string
 	profile               string
@@ -159,7 +159,7 @@ func (c *CheckConfig) getDeviceIDTags() []string {
 func (c *CheckConfig) toString() string {
 	return fmt.Sprintf("CheckConfig: IpAddress=`%s`, Port=`%d`, SnmpVersion=`%s`, Timeout=`%d`, Retries=`%d`, "+
 		"User=`%s`, AuthProtocol=`%s`, PrivProtocol=`%s`, ContextName=`%s`, OidConfig=`%#v`, "+
-		"oidBatchSize=`%d`, profileTags=`%#v`",
+		"OidBatchSize=`%d`, profileTags=`%#v`",
 		c.IpAddress,
 		c.Port,
 		c.SnmpVersion,
@@ -170,7 +170,7 @@ func (c *CheckConfig) toString() string {
 		c.PrivProtocol,
 		c.ContextName,
 		c.OidConfig,
-		c.oidBatchSize,
+		c.OidBatchSize,
 		c.profileTags,
 	)
 }
@@ -257,11 +257,11 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	c.Metrics = instance.Metrics
 
 	if instance.OidBatchSize != 0 {
-		c.oidBatchSize = int(instance.OidBatchSize)
+		c.OidBatchSize = int(instance.OidBatchSize)
 	} else if initConfig.OidBatchSize != 0 {
-		c.oidBatchSize = int(initConfig.OidBatchSize)
+		c.OidBatchSize = int(initConfig.OidBatchSize)
 	} else {
-		c.oidBatchSize = defaultOidBatchSize
+		c.OidBatchSize = defaultOidBatchSize
 	}
 
 	var bulkMaxRepetitions int
