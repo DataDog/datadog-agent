@@ -163,7 +163,7 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 		return fmt.Errorf("common configure failed: %s", err)
 	}
 
-	config, err := buildConfig(rawInstance, rawInitConfig)
+	config, err := BuildConfig(rawInstance, rawInitConfig)
 	if err != nil {
 		return fmt.Errorf("build config failed: %s", err)
 	}

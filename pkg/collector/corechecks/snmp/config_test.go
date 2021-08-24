@@ -574,7 +574,7 @@ metrics:
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := buildConfig(tt.rawInstanceConfig, tt.rawInitConfig)
+			_, err := BuildConfig(tt.rawInstanceConfig, tt.rawInitConfig)
 			for _, errStr := range tt.expectedErrors {
 				assert.Contains(t, err.Error(), errStr)
 			}

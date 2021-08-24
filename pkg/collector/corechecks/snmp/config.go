@@ -176,7 +176,8 @@ func (c *CheckConfig) ToString() string {
 	)
 }
 
-func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (CheckConfig, error) {
+// BuildConfig builds a new check config
+func BuildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (CheckConfig, error) {
 	instance := InstanceConfig{}
 	initConfig := InitConfig{}
 
