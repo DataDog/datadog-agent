@@ -2,6 +2,7 @@ package snmp
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"sort"
 
@@ -70,7 +71,7 @@ func fetchColumnOids(session sessionAPI, oids map[string]string, bulkMaxRepetiti
 		if err != nil {
 			return nil, err
 		}
-		newValues, nextOids := resultToColumnValues(columnOids, results)
+		newValues, nextOids := gosnmplib.ResultToColumnValues(columnOids, results)
 		updateColumnResultValues(returnValues, newValues)
 		curOids = nextOids
 	}

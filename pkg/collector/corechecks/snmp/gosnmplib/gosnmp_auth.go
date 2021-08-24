@@ -1,4 +1,4 @@
-package snmp
+package gosnmplib
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
-func getAuthProtocol(authProtocolStr string) (gosnmp.SnmpV3AuthProtocol, error) {
+func GetAuthProtocol(authProtocolStr string) (gosnmp.SnmpV3AuthProtocol, error) {
 	var authProtocol gosnmp.SnmpV3AuthProtocol
 	lowerAuthProtocol := strings.ToLower(authProtocolStr)
 	if lowerAuthProtocol == "" {
@@ -30,7 +30,7 @@ func getAuthProtocol(authProtocolStr string) (gosnmp.SnmpV3AuthProtocol, error) 
 	return authProtocol, nil
 }
 
-func getPrivProtocol(privProtocolStr string) (gosnmp.SnmpV3PrivProtocol, error) {
+func GetPrivProtocol(privProtocolStr string) (gosnmp.SnmpV3PrivProtocol, error) {
 	var privProtocol gosnmp.SnmpV3PrivProtocol
 	lowerPrivProtocol := strings.ToLower(privProtocolStr)
 	if lowerPrivProtocol == "" {

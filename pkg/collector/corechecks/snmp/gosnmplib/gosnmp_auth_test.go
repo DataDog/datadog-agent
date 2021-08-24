@@ -1,4 +1,4 @@
-package snmp
+package gosnmplib
 
 import (
 	"fmt"
@@ -62,7 +62,7 @@ func Test_getAuthProtocol(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.authProtocolStr, func(t *testing.T) {
-			authProtocol, err := getAuthProtocol(tt.authProtocolStr)
+			authProtocol, err := GetAuthProtocol(tt.authProtocolStr)
 			assert.Equal(t, tt.expectedError, err)
 			assert.Equal(t, tt.expectedAuthProtocol, authProtocol)
 		})
@@ -123,7 +123,7 @@ func Test_getPrivProtocol(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.privProtocolStr, func(t *testing.T) {
-			privProtocol, err := getPrivProtocol(tt.privProtocolStr)
+			privProtocol, err := GetPrivProtocol(tt.privProtocolStr)
 			assert.Equal(t, tt.expectedError, err)
 			assert.Equal(t, tt.expectedProtocol, privProtocol)
 		})

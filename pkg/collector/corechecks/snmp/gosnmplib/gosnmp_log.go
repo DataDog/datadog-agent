@@ -1,8 +1,9 @@
-package snmp
+package gosnmplib
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"regexp"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Replacer structure to store regex matching logs parts to replace
@@ -11,7 +12,7 @@ type Replacer struct {
 	Repl  []byte
 }
 
-// TODO: Test traceLevelLogWriter replacements against real GoSNMP library output
+// TODO: Test TraceLevelLogWriter replacements against real GoSNMP library output
 //       (need more complex setup e.g. simulate gosnmp request/response)
 
 var replacers = []Replacer{
@@ -37,9 +38,9 @@ var replacers = []Replacer{
 	},
 }
 
-type traceLevelLogWriter struct{}
+type TraceLevelLogWriter struct{}
 
-func (sw *traceLevelLogWriter) Write(logInput []byte) (n int, err error) {
+func (sw *TraceLevelLogWriter) Write(logInput []byte) (n int, err error) {
 	for _, replacer := range replacers {
 		if replacer.Regex.Match(logInput) {
 			logInput = replacer.Regex.ReplaceAll(logInput, replacer.Repl)

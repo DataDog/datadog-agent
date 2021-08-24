@@ -2,6 +2,7 @@ package snmp
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"sort"
 	"strings"
@@ -38,7 +39,7 @@ func fetchScalarOids(session sessionAPI, oids []string) (valuestore.ScalarResult
 	if err != nil {
 		return nil, err
 	}
-	values := resultToScalarValues(packet)
+	values := gosnmplib.ResultToScalarValues(packet)
 	retryFailedScalarOids(session, packet, values)
 	return values, nil
 }
@@ -65,7 +66,7 @@ func retryFailedScalarOids(session sessionAPI, results *gosnmp.SnmpPacket, value
 		if err != nil {
 			log.Debugf("failed to oids `%v` on retry: %v", retryOids, err)
 		} else {
-			retryValues := resultToScalarValues(retryResults)
+			retryValues := gosnmplib.ResultToScalarValues(retryResults)
 			for initialOid, actualOid := range retryOids {
 				if value, ok := retryValues[actualOid]; ok {
 					valuesToUpdate[initialOid] = value

@@ -3,6 +3,7 @@ package snmp
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	stdlog "log"
 	"time"
@@ -40,12 +41,12 @@ func (s *snmpSession) Configure(config checkconfig.CheckConfig) error {
 		}
 		s.gosnmpInst.Community = config.CommunityString
 	} else if config.User != "" {
-		authProtocol, err := getAuthProtocol(config.AuthProtocol)
+		authProtocol, err := gosnmplib.GetAuthProtocol(config.AuthProtocol)
 		if err != nil {
 			return err
 		}
 
-		privProtocol, err := getPrivProtocol(config.PrivProtocol)
+		privProtocol, err := gosnmplib.GetPrivProtocol(config.PrivProtocol)
 		if err != nil {
 			return err
 		}
@@ -85,8 +86,8 @@ func (s *snmpSession) Configure(config checkconfig.CheckConfig) error {
 		log.Warnf("failed to get logger: %s", err)
 	} else {
 		if lvl == seelog.TraceLvl {
-			traceLevelLogWriter := traceLevelLogWriter{}
-			s.gosnmpInst.Logger = gosnmp.NewLogger(stdlog.New(&traceLevelLogWriter, "", stdlog.Lshortfile))
+			TraceLevelLogWriter := gosnmplib.TraceLevelLogWriter{}
+			s.gosnmpInst.Logger = gosnmp.NewLogger(stdlog.New(&TraceLevelLogWriter, "", stdlog.Lshortfile))
 		}
 	}
 	return nil
@@ -125,7 +126,7 @@ func fetchSysObjectID(session sessionAPI) (string, error) {
 		return "", fmt.Errorf("expected 1 value, but got %d: variables=%v", len(result.Variables), result.Variables)
 	}
 	pduVar := result.Variables[0]
-	oid, value, err := getValueFromPDU(pduVar)
+	oid, value, err := gosnmplib.GetValueFromPDU(pduVar)
 	if err != nil {
 		return "", fmt.Errorf("error getting value from pdu: %s", err)
 	}

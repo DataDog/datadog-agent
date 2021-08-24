@@ -1,4 +1,4 @@
-package snmp
+package gosnmplib
 
 import (
 	"fmt"
@@ -273,7 +273,7 @@ func Test_getValueFromPDU(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.caseName, func(t *testing.T) {
-			name, value, err := getValueFromPDU(tt.pduVariable)
+			name, value, err := GetValueFromPDU(tt.pduVariable)
 			assert.Equal(t, tt.expectedName, name)
 			assert.Equal(t, tt.expectedSnmpValue, value)
 			assert.Equal(t, tt.expectedErr, err)
@@ -408,7 +408,7 @@ func Test_resultToColumnValues(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			values, nextOidsMap := resultToColumnValues(tt.columnOids, tt.snmpPacket)
+			values, nextOidsMap := ResultToColumnValues(tt.columnOids, tt.snmpPacket)
 			assert.Equal(t, tt.expectedValues, values)
 			assert.Equal(t, tt.expectedNextOidsMap, nextOidsMap)
 		})
@@ -470,7 +470,7 @@ func Test_resultToScalarValues(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			values := resultToScalarValues(tt.snmpPacket)
+			values := ResultToScalarValues(tt.snmpPacket)
 			assert.Equal(t, tt.expectedValues, values)
 		})
 	}

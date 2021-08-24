@@ -1,4 +1,4 @@
-package snmp
+package gosnmplib
 
 import (
 	"fmt"
@@ -11,13 +11,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// getValueFromPDU converts gosnmp.SnmpPDU to ResultValue
+// GetValueFromPDU converts gosnmp.SnmpPDU to ResultValue
 // See possible types here: https://github.com/gosnmp/gosnmp/blob/master/helper.go#L59-L271
 //
 // - gosnmp.Opaque: No support for gosnmp.Opaque since the type is processed recursively and never returned:
 //   is never returned https://github.com/gosnmp/gosnmp/blob/dc320dac5b53d95a366733fd95fb5851f2099387/helper.go#L195-L205
 // - gosnmp.Boolean: seems not exist anymore and not handled by gosnmp
-func getValueFromPDU(pduVariable gosnmp.SnmpPDU) (string, valuestore.ResultValue, error) {
+func GetValueFromPDU(pduVariable gosnmp.SnmpPDU) (string, valuestore.ResultValue, error) {
 	var value interface{}
 	name := strings.TrimLeft(pduVariable.Name, ".") // remove leading dot
 	switch pduVariable.Type {
@@ -79,13 +79,13 @@ func hasNonPrintableByte(bytesValue []byte) bool {
 	return hasNonPrintable
 }
 
-func resultToScalarValues(result *gosnmp.SnmpPacket) valuestore.ScalarResultValuesType {
+func ResultToScalarValues(result *gosnmp.SnmpPacket) valuestore.ScalarResultValuesType {
 	returnValues := make(map[string]valuestore.ResultValue, len(result.Variables))
 	for _, pduVariable := range result.Variables {
 		if shouldSkip(pduVariable.Type) {
 			continue
 		}
-		name, value, err := getValueFromPDU(pduVariable)
+		name, value, err := GetValueFromPDU(pduVariable)
 		if err != nil {
 			log.Debugf("cannot get value for variable `%v` with type `%v` and value `%v`", pduVariable.Name, pduVariable.Type, pduVariable.Value)
 			continue
@@ -95,10 +95,10 @@ func resultToScalarValues(result *gosnmp.SnmpPacket) valuestore.ScalarResultValu
 	return returnValues
 }
 
-// resultToColumnValues builds column values
+// ResultToColumnValues builds column values
 // - ColumnResultValuesType: column values
 // - nextOidsMap: represent the oids that can be used to retrieve following rows/values
-func resultToColumnValues(columnOids []string, snmpPacket *gosnmp.SnmpPacket) (valuestore.ColumnResultValuesType, map[string]string) {
+func ResultToColumnValues(columnOids []string, snmpPacket *gosnmp.SnmpPacket) (valuestore.ColumnResultValuesType, map[string]string) {
 	returnValues := make(valuestore.ColumnResultValuesType, len(columnOids))
 	nextOidsMap := make(map[string]string, len(columnOids))
 	maxRowsPerCol := int(math.Ceil(float64(len(snmpPacket.Variables)) / float64(len(columnOids))))
@@ -107,7 +107,7 @@ func resultToColumnValues(columnOids []string, snmpPacket *gosnmp.SnmpPacket) (v
 			continue
 		}
 
-		oid, value, err := getValueFromPDU(pduVariable)
+		oid, value, err := GetValueFromPDU(pduVariable)
 		if err != nil {
 			log.Debugf("Cannot get value for variable `%v` with type `%v` and value `%v`", pduVariable.Name, pduVariable.Type, pduVariable.Value)
 			continue

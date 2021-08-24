@@ -1,4 +1,4 @@
-package snmp
+package gosnmplib
 
 import (
 	"bufio"
@@ -89,7 +89,7 @@ func TestTraceLevelLogWriter_Write(t *testing.T) {
 			require.NoError(t, err)
 			log.SetupLogger(l, "trace")
 
-			sw := &traceLevelLogWriter{}
+			sw := &TraceLevelLogWriter{}
 			lineLen, err := sw.Write(tt.logLine)
 			assert.NoError(t, err)
 
