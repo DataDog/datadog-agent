@@ -77,7 +77,7 @@ func (s *snmpSession) Configure(config CheckConfig) error {
 	s.gosnmpInst.Target = config.IpAddress
 	s.gosnmpInst.Port = config.Port
 	s.gosnmpInst.Timeout = time.Duration(config.Timeout) * time.Second
-	s.gosnmpInst.Retries = config.retries
+	s.gosnmpInst.Retries = config.Retries
 
 	lvl, err := log.GetLogLevel()
 	if err != nil {

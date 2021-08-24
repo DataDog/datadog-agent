@@ -120,7 +120,7 @@ bulk_max_repetitions: 20
 	assert.Equal(t, "1.2.3.4", check.config.IpAddress)
 	assert.Equal(t, uint16(1161), check.config.Port)
 	assert.Equal(t, 7, check.config.Timeout)
-	assert.Equal(t, 5, check.config.retries)
+	assert.Equal(t, 5, check.config.Retries)
 	assert.Equal(t, "2c", check.config.SnmpVersion)
 	assert.Equal(t, "my-user", check.config.user)
 	assert.Equal(t, "sha", check.config.authProtocol)
@@ -289,7 +289,7 @@ community_string: abc
 	assert.Equal(t, "1.2.3.4", check.config.IpAddress)
 	assert.Equal(t, uint16(161), check.config.Port)
 	assert.Equal(t, 2, check.config.Timeout)
-	assert.Equal(t, 3, check.config.retries)
+	assert.Equal(t, 3, check.config.Retries)
 	metrics := []MetricsConfig{{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}}}
 
 	var metricsTags []MetricTagConfig
@@ -774,7 +774,7 @@ retries: "5"
 	assert.Nil(t, err)
 	assert.Equal(t, uint16(123), check.config.Port)
 	assert.Equal(t, 15, check.config.Timeout)
-	assert.Equal(t, 5, check.config.retries)
+	assert.Equal(t, 5, check.config.Retries)
 
 }
 
