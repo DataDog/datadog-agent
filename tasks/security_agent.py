@@ -431,7 +431,7 @@ RUN apt-get update -y \
 
 
 @task
-def gen_docs(ctx):
+def generate_documentation(ctx):
     # secl docs
     ctx.run(
         "python3 ./docs/cloud-workload-security/scripts/secl-doc-gen.py --input ./docs/cloud-workload-security/secl.json --output ./docs/cloud-workload-security/agent_expressions.md"

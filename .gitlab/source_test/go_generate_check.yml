@@ -9,5 +9,6 @@ security_go_generate_check:
     - !reference [.retrieve_linux_go_deps]
   script:
     - go generate ./pkg/security/...
+    - inv -e security-agent.generate-documentation
     - git status --porcelain
     - test -z "$(git status --porcelain)"
