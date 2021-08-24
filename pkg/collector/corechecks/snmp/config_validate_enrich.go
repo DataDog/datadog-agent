@@ -5,7 +5,8 @@ import (
 	"regexp"
 )
 
-func validateEnrichMetricTags(metricTags []MetricTagConfig) []string {
+// ValidateEnrichMetricTags validates and enrich metric tags
+func ValidateEnrichMetricTags(metricTags []MetricTagConfig) []string {
 	var errors []string
 	for i := range metricTags {
 		errors = append(errors, validateEnrichMetricTag(&metricTags[i], nil)...)

@@ -461,7 +461,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 			mockSender := mocksender.NewMockSender("foo")
 			metricSender := metricSender{sender: mockSender}
 
-			validateEnrichMetricTags(tt.metricsTags)
+			ValidateEnrichMetricTags(tt.metricsTags)
 			tags := metricSender.getCheckInstanceMetricTags(tt.metricsTags, tt.values)
 
 			assert.ElementsMatch(t, tt.expectedTags, tags)

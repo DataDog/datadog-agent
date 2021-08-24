@@ -322,7 +322,7 @@ func BuildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	profile := instance.Profile
 
 	errors := validateEnrichMetrics(c.Metrics)
-	errors = append(errors, validateEnrichMetricTags(c.MetricTags)...)
+	errors = append(errors, ValidateEnrichMetricTags(c.MetricTags)...)
 	if len(errors) > 0 {
 		return CheckConfig{}, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
 	}
