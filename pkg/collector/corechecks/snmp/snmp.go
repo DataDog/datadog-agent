@@ -31,7 +31,7 @@ var timeNow = time.Now
 type Check struct {
 	core.CheckBase
 	config  checkconfig.CheckConfig
-	session sessionAPI
+	session SessionAPI
 	sender  metricSender
 }
 
@@ -121,10 +121,10 @@ func (c *Check) getValuesAndTags(staticTags []string) ([]string, *valuestore.Res
 	return tags, valuesStore, joinedError
 }
 
-func (c *Check) autodetectProfile(session sessionAPI) error {
+func (c *Check) autodetectProfile(session SessionAPI) error {
 	// Try to detect profile using device sysobjectid
 	if c.config.AutodetectProfile {
-		sysObjectID, err := fetchSysObjectID(session)
+		sysObjectID, err := FetchSysObjectID(session)
 		if err != nil {
 			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
 		}
@@ -187,7 +187,7 @@ func (c *Check) Interval() time.Duration {
 
 func snmpFactory() check.Check {
 	return &Check{
-		session:   &snmpSession{},
+		session:   &Session{},
 		CheckBase: core.NewCheckBase(snmpCheckName),
 	}
 }

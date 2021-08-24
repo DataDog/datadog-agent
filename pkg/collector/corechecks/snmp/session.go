@@ -14,7 +14,8 @@ import (
 
 const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
 
-type sessionAPI interface {
+// SessionAPI interface for connecting to a snmp device
+type SessionAPI interface {
 	Configure(config checkconfig.CheckConfig) error
 	Connect() error
 	Close() error
@@ -24,11 +25,13 @@ type sessionAPI interface {
 	GetVersion() gosnmp.SnmpVersion
 }
 
-type snmpSession struct {
+// Session is used to connect to a snmp device
+type Session struct {
 	gosnmpInst gosnmp.GoSNMP
 }
 
-func (s *snmpSession) Configure(config checkconfig.CheckConfig) error {
+// Configure configures the session
+func (s *Session) Configure(config checkconfig.CheckConfig) error {
 	if config.OidBatchSize > gosnmp.MaxOids {
 		return fmt.Errorf("config oidBatchSize (%d) cannot be higher than gosnmp.MaxOids: %d", config.OidBatchSize, gosnmp.MaxOids)
 	}
@@ -93,31 +96,37 @@ func (s *snmpSession) Configure(config checkconfig.CheckConfig) error {
 	return nil
 }
 
-func (s *snmpSession) Connect() error {
+// Connect is used to create a new connection
+func (s *Session) Connect() error {
 	return s.gosnmpInst.Connect()
 }
 
-func (s *snmpSession) Close() error {
+// Close is used to close the connection
+func (s *Session) Close() error {
 	return s.gosnmpInst.Conn.Close()
 }
 
-func (s *snmpSession) Get(oids []string) (result *gosnmp.SnmpPacket, err error) {
+// Get will send a SNMPGET command
+func (s *Session) Get(oids []string) (result *gosnmp.SnmpPacket, err error) {
 	return s.gosnmpInst.Get(oids)
 }
 
-func (s *snmpSession) GetBulk(oids []string, bulkMaxRepetitions uint32) (result *gosnmp.SnmpPacket, err error) {
+// GetBulk will send a SNMP BULKGET command
+func (s *Session) GetBulk(oids []string, bulkMaxRepetitions uint32) (result *gosnmp.SnmpPacket, err error) {
 	return s.gosnmpInst.GetBulk(oids, 0, bulkMaxRepetitions)
 }
 
-func (s *snmpSession) GetNext(oids []string) (result *gosnmp.SnmpPacket, err error) {
+// GetNext will send a SNMP GETNEXT command
+func (s *Session) GetNext(oids []string) (result *gosnmp.SnmpPacket, err error) {
 	return s.gosnmpInst.GetNext(oids)
 }
 
-func (s *snmpSession) GetVersion() gosnmp.SnmpVersion {
+// GetVersion returns the snmp version used
+func (s *Session) GetVersion() gosnmp.SnmpVersion {
 	return s.gosnmpInst.Version
 }
 
-func fetchSysObjectID(session sessionAPI) (string, error) {
+func FetchSysObjectID(session SessionAPI) (string, error) {
 	result, err := session.Get([]string{sysObjectIDOid})
 	if err != nil {
 		return "", fmt.Errorf("cannot get sysobjectid: %s", err)

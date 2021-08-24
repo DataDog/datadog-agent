@@ -205,7 +205,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &snmpSession{}
+			s := &Session{}
 			err := s.Configure(tt.config)
 			assert.Equal(t, tt.expectedError, err)
 			assert.Equal(t, tt.expectedVersion, s.gosnmpInst.Version)
@@ -231,7 +231,7 @@ func Test_snmpSession_traceLog_disabled(t *testing.T) {
 	assert.Nil(t, err)
 	log.SetupLogger(l, "info")
 
-	s := &snmpSession{}
+	s := &Session{}
 	err = s.Configure(config)
 	assert.Nil(t, err)
 	assert.Equal(t, gosnmp.Logger{}, s.gosnmpInst.Logger)
@@ -248,7 +248,7 @@ func Test_snmpSession_traceLog_enabled(t *testing.T) {
 	assert.Nil(t, err)
 	log.SetupLogger(l, "trace")
 
-	s := &snmpSession{}
+	s := &Session{}
 	err = s.Configure(config)
 	assert.Nil(t, err)
 	assert.NotNil(t, s.gosnmpInst.Logger)
@@ -269,7 +269,7 @@ func Test_snmpSession_Connect_Logger(t *testing.T) {
 		IPAddress:       "1.2.3.4",
 		CommunityString: "abc",
 	}
-	s := &snmpSession{}
+	s := &Session{}
 	err := s.Configure(config)
 	require.NoError(t, err)
 
