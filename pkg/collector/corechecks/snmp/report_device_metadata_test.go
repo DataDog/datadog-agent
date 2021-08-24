@@ -87,8 +87,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 	var storeWithIfName = &ResultValueStore{
 		ColumnValues: columnResultValuesType{
 			"1.3.6.1.2.1.31.1.1.1.1": {
-				"1": ResultValue{ResultValue: float64(21)},
-				"2": ResultValue{ResultValue: float64(22)},
+				"1": ResultValue{Value: float64(21)},
+				"2": ResultValue{Value: float64(22)},
 			},
 		},
 	}

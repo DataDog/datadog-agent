@@ -24,7 +24,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: 141,
 			},
 			"1.2.3",
-			ResultValue{ResultValue: float64(141)},
+			ResultValue{Value: float64(141)},
 			nil,
 		},
 		{
@@ -35,7 +35,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: 141,
 			},
 			"1.2.3",
-			ResultValue{ResultValue: float64(141)},
+			ResultValue{Value: float64(141)},
 			nil,
 		},
 		{
@@ -46,7 +46,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: []byte(`myVal`),
 			},
 			"1.2.3",
-			ResultValue{ResultValue: "myVal"},
+			ResultValue{Value: "myVal"},
 			nil,
 		},
 		{
@@ -57,7 +57,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: []uint8{0x0, 0x24, 0x9b, 0x35, 0x3, 0xf6},
 			},
 			"1.2.3",
-			ResultValue{ResultValue: "0x00249b3503f6"},
+			ResultValue{Value: "0x00249b3503f6"},
 			nil,
 		},
 		{
@@ -68,7 +68,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: []byte(`myVal`),
 			},
 			"1.2.3",
-			ResultValue{ResultValue: "myVal"},
+			ResultValue{Value: "myVal"},
 			nil,
 		},
 		{
@@ -79,7 +79,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: "1.2.2",
 			},
 			"1.2.3",
-			ResultValue{ResultValue: "1.2.2"},
+			ResultValue{Value: "1.2.2"},
 			nil,
 		},
 		{
@@ -90,7 +90,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: ".1.2.2",
 			},
 			"1.2.3",
-			ResultValue{ResultValue: "1.2.2"},
+			ResultValue{Value: "1.2.2"},
 			nil,
 		},
 		{
@@ -101,7 +101,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: "1.2.3.4",
 			},
 			"1.2.3",
-			ResultValue{ResultValue: "1.2.3.4"},
+			ResultValue{Value: "1.2.3.4"},
 			nil,
 		},
 		{
@@ -134,7 +134,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: uint(10),
 			},
 			"1.2.3",
-			ResultValue{SubmissionType: "counter", ResultValue: float64(10)},
+			ResultValue{SubmissionType: "counter", Value: float64(10)},
 			nil,
 		},
 		{
@@ -145,7 +145,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: uint(10),
 			},
 			"1.2.3",
-			ResultValue{ResultValue: float64(10)},
+			ResultValue{Value: float64(10)},
 			nil,
 		},
 		{
@@ -156,7 +156,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: uint32(10),
 			},
 			"1.2.3",
-			ResultValue{ResultValue: float64(10)},
+			ResultValue{Value: float64(10)},
 			nil,
 		},
 		{
@@ -167,7 +167,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: uint64(10),
 			},
 			"1.2.3",
-			ResultValue{SubmissionType: "counter", ResultValue: float64(10)},
+			ResultValue{SubmissionType: "counter", Value: float64(10)},
 			nil,
 		},
 		{
@@ -178,7 +178,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: uint32(10),
 			},
 			"1.2.3",
-			ResultValue{ResultValue: float64(10)},
+			ResultValue{Value: float64(10)},
 			nil,
 		},
 		{
@@ -189,7 +189,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: float32(10),
 			},
 			"1.2.3",
-			ResultValue{ResultValue: float64(10)},
+			ResultValue{Value: float64(10)},
 			nil,
 		},
 		{
@@ -200,7 +200,7 @@ func Test_getValueFromPDU(t *testing.T) {
 				Value: float64(10),
 			},
 			"1.2.3",
-			ResultValue{ResultValue: float64(10)},
+			ResultValue{Value: float64(10)},
 			nil,
 		},
 		{
@@ -328,26 +328,26 @@ func Test_resultToColumnValues(t *testing.T) {
 			columnResultValuesType{
 				"1.3.6.1.2.1.2.2.1.14": {
 					"1": ResultValue{
-						ResultValue: float64(141),
+						Value: float64(141),
 					},
 					"2": ResultValue{
-						ResultValue: float64(142),
+						Value: float64(142),
 					},
 				},
 				"1.3.6.1.2.1.2.2.1.2": {
 					"1": ResultValue{
-						ResultValue: "desc1",
+						Value: "desc1",
 					},
 					"2": ResultValue{
-						ResultValue: "desc2",
+						Value: "desc2",
 					},
 				},
 				"1.3.6.1.2.1.2.2.1.20": {
 					"1": ResultValue{
-						ResultValue: float64(201),
+						Value: float64(201),
 					},
 					"2": ResultValue{
-						ResultValue: float64(202),
+						Value: float64(202),
 					},
 				},
 			},
@@ -387,15 +387,15 @@ func Test_resultToColumnValues(t *testing.T) {
 				"1.3.6.1.2.1.2.2.1.14": {
 					// index 1 not fetched because of gosnmp.NoSuchObject error
 					"2": ResultValue{
-						ResultValue: float64(142),
+						Value: float64(142),
 					},
 				},
 				"1.3.6.1.2.1.2.2.1.2": {
 					"1": ResultValue{
-						ResultValue: "desc1",
+						Value: "desc1",
 					},
 					"2": ResultValue{
-						ResultValue: "desc2",
+						Value: "desc2",
 					},
 				},
 			},
@@ -458,11 +458,11 @@ func Test_resultToScalarValues(t *testing.T) {
 			},
 			scalarResultValuesType{
 				"1.3.6.1.2.1.2.2.1.14.1": {
-					ResultValue: float64(142),
+					Value: float64(142),
 				},
 				"1.3.6.1.2.1.2.2.1.14.2": {
 					SubmissionType: "counter",
-					ResultValue:    float64(142),
+					Value:          float64(142),
 				},
 			},
 		},

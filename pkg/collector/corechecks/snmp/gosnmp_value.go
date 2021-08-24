@@ -65,7 +65,7 @@ func getValueFromPDU(pduVariable gosnmp.SnmpPDU) (string, ResultValue, error) {
 		return name, ResultValue{}, fmt.Errorf("oid %s: invalid type: %s", pduVariable.Name, pduVariable.Type.String())
 	}
 	submissionType := getSubmissionType(pduVariable.Type)
-	return name, ResultValue{SubmissionType: submissionType, ResultValue: value}, nil
+	return name, ResultValue{SubmissionType: submissionType, Value: value}, nil
 }
 
 func hasNonPrintableByte(bytesValue []byte) bool {

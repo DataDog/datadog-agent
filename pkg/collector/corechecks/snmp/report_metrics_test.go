@@ -38,7 +38,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Gauge metric case",
 			metricName:         "gauge.metric",
-			value:              ResultValue{SubmissionType: "gauge", ResultValue: float64(10)},
+			value:              ResultValue{SubmissionType: "gauge", Value: float64(10)},
 			tags:               []string{},
 			expectedMethod:     "Gauge",
 			expectedMetricName: "snmp.gauge.metric",
@@ -49,7 +49,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Counter32 metric case",
 			metricName:         "counter.metric",
-			value:              ResultValue{SubmissionType: "counter", ResultValue: float64(10)},
+			value:              ResultValue{SubmissionType: "counter", Value: float64(10)},
 			tags:               []string{},
 			expectedMethod:     "Rate",
 			expectedMetricName: "snmp.counter.metric",
@@ -60,7 +60,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced gauge metric case",
 			metricName:         "my.metric",
-			value:              ResultValue{SubmissionType: "counter", ResultValue: float64(10)},
+			value:              ResultValue{SubmissionType: "counter", Value: float64(10)},
 			tags:               []string{},
 			forcedType:         "gauge",
 			expectedMethod:     "Gauge",
@@ -72,7 +72,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced counter metric case",
 			metricName:         "my.metric",
-			value:              ResultValue{SubmissionType: "counter", ResultValue: float64(10)},
+			value:              ResultValue{SubmissionType: "counter", Value: float64(10)},
 			tags:               []string{},
 			forcedType:         "counter",
 			options:            MetricsConfigOption{},
@@ -85,7 +85,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced monotonic_count metric case",
 			metricName:         "my.metric",
-			value:              ResultValue{SubmissionType: "counter", ResultValue: float64(10)},
+			value:              ResultValue{SubmissionType: "counter", Value: float64(10)},
 			tags:               []string{},
 			forcedType:         "monotonic_count",
 			options:            MetricsConfigOption{},
@@ -98,7 +98,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced monotonic_count_and_rate metric case: MonotonicCount called",
 			metricName:         "my.metric",
-			value:              ResultValue{SubmissionType: "counter", ResultValue: float64(10)},
+			value:              ResultValue{SubmissionType: "counter", Value: float64(10)},
 			tags:               []string{},
 			forcedType:         "monotonic_count_and_rate",
 			options:            MetricsConfigOption{},
@@ -111,7 +111,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced monotonic_count_and_rate metric case: Rate called",
 			metricName:         "my.metric",
-			value:              ResultValue{SubmissionType: "counter", ResultValue: float64(10)},
+			value:              ResultValue{SubmissionType: "counter", Value: float64(10)},
 			tags:               []string{},
 			forcedType:         "monotonic_count_and_rate",
 			options:            MetricsConfigOption{},
@@ -124,7 +124,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced percent metric case: Rate called",
 			metricName:         "rate.metric",
-			value:              ResultValue{ResultValue: 0.5},
+			value:              ResultValue{Value: 0.5},
 			tags:               []string{},
 			forcedType:         "percent",
 			options:            MetricsConfigOption{},
@@ -137,7 +137,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced flag_stream case 1",
 			metricName:         "metric",
-			value:              ResultValue{ResultValue: "1010"},
+			value:              ResultValue{Value: "1010"},
 			tags:               []string{},
 			forcedType:         "flag_stream",
 			options:            MetricsConfigOption{Placement: 1, MetricSuffix: "foo"},
@@ -150,7 +150,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced flag_stream case 2",
 			metricName:         "metric",
-			value:              ResultValue{ResultValue: "1010"},
+			value:              ResultValue{Value: "1010"},
 			tags:               []string{},
 			forcedType:         "flag_stream",
 			options:            MetricsConfigOption{Placement: 2, MetricSuffix: "foo"},
@@ -163,7 +163,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced flag_stream invalid index",
 			metricName:         "metric",
-			value:              ResultValue{ResultValue: "1010"},
+			value:              ResultValue{Value: "1010"},
 			tags:               []string{},
 			forcedType:         "flag_stream",
 			options:            MetricsConfigOption{Placement: 10, MetricSuffix: "foo"},
@@ -179,7 +179,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Error converting value",
 			metricName:         "metric",
-			value:              ResultValue{ResultValue: ResultValue{}},
+			value:              ResultValue{Value: ResultValue{}},
 			tags:               []string{},
 			forcedType:         "flag_stream",
 			options:            MetricsConfigOption{Placement: 10, MetricSuffix: "foo"},
@@ -195,7 +195,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Cannot convert value to float",
 			metricName:         "gauge.metric",
-			value:              ResultValue{ResultValue: "abc"},
+			value:              ResultValue{Value: "abc"},
 			tags:               []string{},
 			expectedMethod:     "",
 			expectedMetricName: "",
@@ -209,7 +209,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Unsupported type",
 			metricName:         "gauge.metric",
-			value:              ResultValue{ResultValue: "1"},
+			value:              ResultValue{Value: "1"},
 			tags:               []string{},
 			forcedType:         "invalidForceType",
 			expectedMethod:     "",
@@ -224,7 +224,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:            "Extract Value OK case",
 			metricName:          "gauge.metric",
-			value:               ResultValue{SubmissionType: "gauge", ResultValue: string("22C")},
+			value:               ResultValue{SubmissionType: "gauge", Value: string("22C")},
 			tags:                []string{},
 			extractValuePattern: regexp.MustCompile(`(\d+)C`),
 			expectedMethod:      "Gauge",
@@ -236,7 +236,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:            "Extract Value not matched",
 			metricName:          "gauge.metric",
-			value:               ResultValue{SubmissionType: "gauge", ResultValue: string("NOMATCH")},
+			value:               ResultValue{SubmissionType: "gauge", Value: string("NOMATCH")},
 			tags:                []string{},
 			extractValuePattern: regexp.MustCompile(`(\d+)C`),
 			expectedMethod:      "",
@@ -353,7 +353,7 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 					},
 					"1.3.6.1.2.1.31.1.1.1.1": map[string]ResultValue{
 						"10": {
-							ResultValue: "myIfName",
+							Value: "myIfName",
 						},
 					},
 				},
@@ -424,7 +424,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 			values: &ResultValueStore{
 				ScalarValues: scalarResultValuesType{
 					"1.2.3": ResultValue{
-						ResultValue: "hello123",
+						Value: "hello123",
 					},
 				},
 			},
@@ -439,7 +439,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 			values: &ResultValueStore{
 				ScalarValues: scalarResultValuesType{
 					"1.2.3": ResultValue{
-						ResultValue: ResultValue{},
+						Value: ResultValue{},
 					},
 				},
 			},

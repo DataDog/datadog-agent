@@ -7,19 +7,19 @@ import (
 
 var storeMock = &ResultValueStore{
 	ScalarValues: scalarResultValuesType{
-		"1.1.1.1.0": {ResultValue: float64(10)},   // a float value
-		"1.1.1.2.0": {ResultValue: "a_str_value"}, // a string value
-		"1.1.1.3.0": {ResultValue: nil},           // invalid type value
+		"1.1.1.1.0": {Value: float64(10)},   // a float value
+		"1.1.1.2.0": {Value: "a_str_value"}, // a string value
+		"1.1.1.3.0": {Value: nil},           // invalid type value
 	},
 	ColumnValues: columnResultValuesType{
 		"1.1.1": {
-			"1": ResultValue{ResultValue: float64(10)},   // a float value
-			"2": ResultValue{ResultValue: "a_str_value"}, // a string value
-			"3": ResultValue{ResultValue: nil},           // invalid type value
+			"1": ResultValue{Value: float64(10)},   // a float value
+			"2": ResultValue{Value: "a_str_value"}, // a string value
+			"3": ResultValue{Value: nil},           // invalid type value
 		},
 		"1.1.2": {
-			"1": ResultValue{ResultValue: float64(21)},
-			"2": ResultValue{ResultValue: float64(22)},
+			"1": ResultValue{Value: float64(21)},
+			"2": ResultValue{Value: float64(22)},
 		},
 	},
 }

@@ -108,7 +108,7 @@ metric_tags:
 				ColumnValues: map[string]map[string]ResultValue{
 					"1.2.3.4.8.1.2": {
 						"2.3.7.8": ResultValue{
-							ResultValue: "myval",
+							Value: "myval",
 						},
 					},
 				},
@@ -165,7 +165,7 @@ metric_tags:
 				ColumnValues: map[string]map[string]ResultValue{
 					"1.2.3.4.8.1.2": {
 						"1.2.3.4.5.6.7.8": ResultValue{
-							ResultValue: "eth0",
+							Value: "eth0",
 						},
 					},
 				},
@@ -197,7 +197,7 @@ metric_tags:
 				ColumnValues: map[string]map[string]ResultValue{
 					"1.2.3.4.8.1.2": {
 						"1.2.3.4.5.6.7.8": ResultValue{
-							ResultValue: "f5-vm-aa.c.datadog-integrations-lab.internal",
+							Value: "f5-vm-aa.c.datadog-integrations-lab.internal",
 						},
 					},
 				},
@@ -229,7 +229,7 @@ metric_tags:
 				ColumnValues: map[string]map[string]ResultValue{
 					"1.2.3.4.8.1.2": {
 						"1.2.3.4.5.6.7.8": ResultValue{
-							ResultValue: "....",
+							Value: "....",
 						},
 					},
 				},
@@ -261,7 +261,7 @@ metric_tags:
 				ColumnValues: map[string]map[string]ResultValue{
 					"1.2.3.4.8.1.2": {
 						"1.2.3.4.5.6.7.8": ResultValue{
-							ResultValue: "abc.",
+							Value: "abc.",
 						},
 					},
 				},
@@ -290,7 +290,7 @@ metric_tags:
 				ColumnValues: map[string]map[string]ResultValue{
 					"1.2.3.4.8.1.2": {
 						"999": ResultValue{
-							ResultValue: "abc.",
+							Value: "abc.",
 						},
 					},
 				},
@@ -322,7 +322,7 @@ metric_tags:
 				ColumnValues: map[string]map[string]ResultValue{
 					"1.2.3.4.8.1.2": {
 						"1.2.3.4.5.6.7.8": ResultValue{
-							ResultValue: ResultValue{},
+							Value: ResultValue{},
 						},
 					},
 				},
@@ -354,7 +354,7 @@ metric_tags:
 				ColumnValues: map[string]map[string]ResultValue{
 					"999": {
 						"1.2.3.4.5.6.7.8": ResultValue{
-							ResultValue: "abc.",
+							Value: "abc.",
 						},
 					},
 				},
@@ -390,7 +390,7 @@ metric_tags:
 				ColumnValues: map[string]map[string]ResultValue{
 					"1.2.3.4.8.1.2": {
 						"20": ResultValue{
-							ResultValue: "abc.",
+							Value: "abc.",
 						},
 					},
 				},
@@ -419,7 +419,7 @@ metric_tags:
 				ColumnValues: map[string]map[string]ResultValue{
 					"1.2.3.4.8.1.2": {
 						"1": ResultValue{
-							ResultValue: "abc.",
+							Value: "abc.",
 						},
 					},
 				},
