@@ -55,14 +55,20 @@ func (c *core) Check(entry zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore.Che
 }
 
 func (c *core) Write(entry zapcore.Entry, fields []zapcore.Field) error {
-	enc := c.baseEncoder.Clone()
-	for _, f := range fields {
-		f.AddTo(enc)
+	var context []interface{}
+	if len(fields) == 0 {
+		// avoid copy when there are no fields
+		context = c.baseEncoder.ctx
+	} else {
+		enc := c.baseEncoder.Clone()
+		for _, f := range fields {
+			f.AddTo(enc)
+		}
+		context = enc.ctx
 	}
 
 	// use similar format to Python checks: (file:no) | message
 	message := fmt.Sprintf("(%s) | %s", entry.Caller.TrimmedPath(), entry.Message)
-	context := enc.ctx
 
 	switch entry.Level {
 	case zapcore.DebugLevel:

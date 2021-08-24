@@ -68,7 +68,7 @@ func TestArrayEncoder(t *testing.T) {
 					return nil
 				}))
 			},
-			expected: []interface{}{"k", []interface{}{true, false}},
+			expected: []interface{}{true, false},
 		},
 	}
 
@@ -77,7 +77,7 @@ func TestArrayEncoder(t *testing.T) {
 			enc := &sliceArrayEncoder{}
 			tt.f(enc)
 			tt.f(enc)
-			assert.Equal(t, []interface{}{tt.expected, tt.expected}, enc.elems, "Unexpected output.", tt.desc)
+			assert.Equal(t, []interface{}{tt.expected, tt.expected}, enc.elems, "Unexpected output.")
 		})
 	}
 }
