@@ -385,7 +385,7 @@ func initRuntimeSettings() {
 
 	// Before we begin listening, register runtime settings
 	for _, setting := range processRuntimeSettings {
-		settings.RegisterRuntimeSetting(setting)
+		_ = settings.RegisterRuntimeSetting(setting)
 	}
 }
 
