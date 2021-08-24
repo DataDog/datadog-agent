@@ -33,7 +33,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			name: "no auth method",
 			config: CheckConfig{
 				IpAddress: "1.2.3.4",
-				port:      uint16(1234),
+				Port:      uint16(1234),
 			},
 			expectedError: fmt.Errorf("an authentication method needs to be provided"),
 		},
@@ -41,7 +41,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			name: "valid v1 config",
 			config: CheckConfig{
 				IpAddress:       "1.2.3.4",
-				port:            uint16(1234),
+				Port:            uint16(1234),
 				snmpVersion:     "1",
 				timeout:         4,
 				retries:         3,
@@ -58,7 +58,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			name: "valid default v2 config",
 			config: CheckConfig{
 				IpAddress:       "1.2.3.4",
-				port:            uint16(1234),
+				Port:            uint16(1234),
 				timeout:         4,
 				retries:         3,
 				communityString: "abc",
@@ -74,7 +74,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			name: "valid v2 config",
 			config: CheckConfig{
 				IpAddress:       "1.2.3.4",
-				port:            uint16(1234),
+				Port:            uint16(1234),
 				timeout:         4,
 				retries:         3,
 				communityString: "abc",
@@ -90,7 +90,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			name: "valid v2c config",
 			config: CheckConfig{
 				IpAddress:       "1.2.3.4",
-				port:            uint16(1234),
+				Port:            uint16(1234),
 				timeout:         4,
 				retries:         3,
 				communityString: "abc",
@@ -106,7 +106,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			name: "valid v3 AuthPriv config",
 			config: CheckConfig{
 				IpAddress:    "1.2.3.4",
-				port:         uint16(1234),
+				Port:         uint16(1234),
 				timeout:      4,
 				retries:      3,
 				contextName:  "myContext",
@@ -135,7 +135,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			name: "valid v3 AuthNoPriv config",
 			config: CheckConfig{
 				IpAddress:    "1.2.3.4",
-				port:         uint16(1234),
+				Port:         uint16(1234),
 				timeout:      4,
 				retries:      3,
 				user:         "myUser",
@@ -160,7 +160,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			name: "invalid v3 authProtocol",
 			config: CheckConfig{
 				IpAddress:    "1.2.3.4",
-				port:         uint16(1234),
+				Port:         uint16(1234),
 				timeout:      4,
 				retries:      3,
 				user:         "myUser",
@@ -175,7 +175,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			name: "invalid v3 privProtocol",
 			config: CheckConfig{
 				IpAddress:    "1.2.3.4",
-				port:         uint16(1234),
+				Port:         uint16(1234),
 				timeout:      4,
 				retries:      3,
 				user:         "myUser",
@@ -192,7 +192,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 			name: "batch size too big",
 			config: CheckConfig{
 				IpAddress:       "1.2.3.4",
-				port:            uint16(1234),
+				Port:            uint16(1234),
 				timeout:         4,
 				retries:         3,
 				communityString: "abc",

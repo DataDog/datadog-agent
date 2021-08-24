@@ -79,7 +79,7 @@ type InstanceConfig struct {
 // CheckConfig holds config for a check instance
 type CheckConfig struct {
 	IpAddress             string
-	port                  uint16
+	Port                  uint16
 	communityString       string
 	snmpVersion           string
 	timeout               int
@@ -157,11 +157,11 @@ func (c *CheckConfig) getDeviceIDTags() []string {
 
 // toString used for logging CheckConfig without sensitive information
 func (c *CheckConfig) toString() string {
-	return fmt.Sprintf("CheckConfig: IpAddress=`%s`, port=`%d`, snmpVersion=`%s`, timeout=`%d`, retries=`%d`, "+
+	return fmt.Sprintf("CheckConfig: IpAddress=`%s`, Port=`%d`, snmpVersion=`%s`, timeout=`%d`, retries=`%d`, "+
 		"user=`%s`, authProtocol=`%s`, privProtocol=`%s`, contextName=`%s`, OidConfig=`%#v`, "+
 		"oidBatchSize=`%d`, profileTags=`%#v`",
 		c.IpAddress,
-		c.port,
+		c.Port,
 		c.snmpVersion,
 		c.timeout,
 		c.retries,
@@ -196,7 +196,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 
 	c.snmpVersion = instance.SnmpVersion
 	c.IpAddress = instance.IPAddress
-	c.port = uint16(instance.Port)
+	c.Port = uint16(instance.Port)
 
 	if instance.CollectDeviceMetadata != nil {
 		c.collectDeviceMetadata = bool(*instance.CollectDeviceMetadata)
@@ -216,8 +216,8 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		return CheckConfig{}, fmt.Errorf("ip_address config must be provided")
 	}
 
-	if c.port == 0 {
-		c.port = defaultPort
+	if c.Port == 0 {
+		c.Port = defaultPort
 	}
 
 	if instance.Retries == 0 {

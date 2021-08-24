@@ -118,7 +118,7 @@ bulk_max_repetitions: 20
 	assert.Equal(t, 10, check.config.oidBatchSize)
 	assert.Equal(t, uint32(20), check.config.bulkMaxRepetitions)
 	assert.Equal(t, "1.2.3.4", check.config.IpAddress)
-	assert.Equal(t, uint16(1161), check.config.port)
+	assert.Equal(t, uint16(1161), check.config.Port)
 	assert.Equal(t, 7, check.config.timeout)
 	assert.Equal(t, 5, check.config.retries)
 	assert.Equal(t, "2c", check.config.snmpVersion)
@@ -287,7 +287,7 @@ community_string: abc
 
 	assert.Nil(t, err)
 	assert.Equal(t, "1.2.3.4", check.config.IpAddress)
-	assert.Equal(t, uint16(161), check.config.port)
+	assert.Equal(t, uint16(161), check.config.Port)
 	assert.Equal(t, 2, check.config.timeout)
 	assert.Equal(t, 3, check.config.retries)
 	metrics := []MetricsConfig{{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}}}
@@ -323,7 +323,7 @@ community_string: abc
 `)
 	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
-	assert.Equal(t, uint16(161), check.config.port)
+	assert.Equal(t, uint16(161), check.config.Port)
 
 	// TEST Custom port
 	check = Check{session: &snmpSession{}}
@@ -335,7 +335,7 @@ community_string: abc
 `)
 	err = check.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
-	assert.Equal(t, uint16(1234), check.config.port)
+	assert.Equal(t, uint16(1234), check.config.Port)
 }
 
 func TestBatchSizeConfiguration(t *testing.T) {
@@ -772,7 +772,7 @@ retries: "5"
 `)
 	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
-	assert.Equal(t, uint16(123), check.config.port)
+	assert.Equal(t, uint16(123), check.config.Port)
 	assert.Equal(t, 15, check.config.timeout)
 	assert.Equal(t, 5, check.config.retries)
 
