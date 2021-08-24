@@ -208,7 +208,7 @@ bulk_max_repetitions: 20
 	}
 
 	assert.Equal(t, metrics, check.config.Metrics)
-	assert.Equal(t, metricsTags, check.config.metricTags)
+	assert.Equal(t, metricsTags, check.config.MetricTags)
 	assert.Equal(t, 1, len(check.config.profiles))
 	assert.Equal(t, "780a58c96c908df8", check.config.deviceID)
 	assert.Equal(t, []string{"snmp_device:1.2.3.4", "tag1", "tag2:val2"}, check.config.deviceIDTags)
@@ -265,7 +265,7 @@ profiles:
 
 	assert.Equal(t, "123", check.config.CommunityString)
 	assert.Equal(t, metrics, check.config.Metrics)
-	assert.Equal(t, metricsTags, check.config.metricTags)
+	assert.Equal(t, metricsTags, check.config.MetricTags)
 	assert.Equal(t, 2, len(check.config.profiles))
 	assert.Equal(t, "74f22f3320d2d692", check.config.deviceID)
 	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, check.config.deviceIDTags)
@@ -295,7 +295,7 @@ community_string: abc
 	var metricsTags []MetricTagConfig
 
 	assert.Equal(t, metrics, check.config.Metrics)
-	assert.Equal(t, metricsTags, check.config.metricTags)
+	assert.Equal(t, metricsTags, check.config.MetricTags)
 	assert.Equal(t, 1, len(check.config.profiles))
 	assert.Equal(t, mockProfilesDefinitions()["f5-big-ip"].Metrics, check.config.profiles["f5-big-ip"].Metrics)
 }
@@ -860,7 +860,7 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 	assert.Equal(t, metrics, c.Metrics)
 	assert.Equal(t, []MetricTagConfig{
 		{Tag: "interface", Column: SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
-	}, c.metricTags)
+	}, c.MetricTags)
 	assert.Equal(t, OidConfig{
 		ScalarOids: []string{"1.2.3.4.5"},
 		ColumnOids: []string{"1.2.3.4.6", "1.2.3.4.7"},

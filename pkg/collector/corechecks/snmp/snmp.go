@@ -110,7 +110,7 @@ func (c *Check) getValuesAndTags(staticTags []string) ([]string, *valuestore.Res
 	if err != nil {
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to fetch values: %s", err))
 	} else {
-		tags = append(tags, c.sender.getCheckInstanceMetricTags(c.config.metricTags, valuesStore)...)
+		tags = append(tags, c.sender.getCheckInstanceMetricTags(c.config.MetricTags, valuesStore)...)
 	}
 
 	var joinedError error

@@ -92,7 +92,7 @@ type CheckConfig struct {
 	ContextName           string
 	OidConfig             OidConfig
 	Metrics               []MetricsConfig
-	metricTags            []MetricTagConfig
+	MetricTags            []MetricTagConfig
 	oidBatchSize          int
 	bulkMaxRepetitions    uint32
 	profiles              profileDefinitionMap
@@ -120,7 +120,7 @@ func (c *CheckConfig) refreshWithProfile(profile string) error {
 	c.profile = profile
 
 	c.Metrics = append(c.Metrics, definition.Metrics...)
-	c.metricTags = append(c.metricTags, definition.MetricTags...)
+	c.MetricTags = append(c.MetricTags, definition.MetricTags...)
 	c.OidConfig.addScalarOids(parseScalarOids(definition.Metrics, definition.MetricTags))
 	c.OidConfig.addColumnOids(parseColumnOids(definition.Metrics))
 
@@ -284,9 +284,9 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	normalizeMetrics(c.Metrics)
 
 	c.instanceTags = instance.Tags
-	c.metricTags = instance.MetricTags
+	c.MetricTags = instance.MetricTags
 
-	c.OidConfig.addScalarOids(parseScalarOids(c.Metrics, c.metricTags))
+	c.OidConfig.addScalarOids(parseScalarOids(c.Metrics, c.MetricTags))
 	c.OidConfig.addColumnOids(parseColumnOids(c.Metrics))
 
 	if c.collectDeviceMetadata {
@@ -320,7 +320,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	profile := instance.Profile
 
 	errors := validateEnrichMetrics(c.Metrics)
-	errors = append(errors, validateEnrichMetricTags(c.metricTags)...)
+	errors = append(errors, validateEnrichMetricTags(c.MetricTags)...)
 	if len(errors) > 0 {
 		return CheckConfig{}, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
 	}
