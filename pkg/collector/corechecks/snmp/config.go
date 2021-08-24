@@ -27,10 +27,11 @@ var defaultRetries = 3
 var defaultTimeout = 2
 var subnetTagPrefix = "autodiscovery_subnet"
 
+// DefaultBulkMaxRepetitions is the default max rep
 // Using too high max repetitions might lead to tooBig SNMP error messages.
 // - Java SNMP and gosnmp (gosnmp.defaultMaxRepetitions) uses 50
 // - snmp-net uses 10
-const defaultBulkMaxRepetitions = uint32(10)
+const DefaultBulkMaxRepetitions = uint32(10)
 
 // InitConfig maps to a check init config
 type InitConfig struct {
@@ -272,7 +273,7 @@ func BuildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	} else if initConfig.BulkMaxRepetitions != 0 {
 		bulkMaxRepetitions = int(initConfig.BulkMaxRepetitions)
 	} else {
-		bulkMaxRepetitions = int(defaultBulkMaxRepetitions)
+		bulkMaxRepetitions = int(DefaultBulkMaxRepetitions)
 	}
 	if bulkMaxRepetitions <= 0 {
 		return CheckConfig{}, fmt.Errorf("bulk max repetition must be a positive integer. Invalid value: %d", bulkMaxRepetitions)
