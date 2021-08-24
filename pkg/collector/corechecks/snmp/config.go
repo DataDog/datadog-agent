@@ -78,7 +78,7 @@ type InstanceConfig struct {
 
 // CheckConfig holds config for a check instance
 type CheckConfig struct {
-	IpAddress             string
+	IPAddress             string
 	Port                  uint16
 	CommunityString       string
 	SnmpVersion           string
@@ -142,7 +142,7 @@ func (c *CheckConfig) addUptimeMetric() {
 // warning: changing GetStaticTags logic might lead to different deviceID
 // GetStaticTags does not contain tags from instance[].tags config
 func (c *CheckConfig) GetStaticTags() []string {
-	tags := []string{"snmp_device:" + c.IpAddress}
+	tags := []string{"snmp_device:" + c.IPAddress}
 	tags = append(tags, c.ExtraTags...)
 	return tags
 }
@@ -158,10 +158,10 @@ func (c *CheckConfig) getDeviceIDTags() []string {
 
 // ToString used for logging CheckConfig without sensitive information
 func (c *CheckConfig) ToString() string {
-	return fmt.Sprintf("CheckConfig: IpAddress=`%s`, Port=`%d`, SnmpVersion=`%s`, Timeout=`%d`, Retries=`%d`, "+
+	return fmt.Sprintf("CheckConfig: IPAddress=`%s`, Port=`%d`, SnmpVersion=`%s`, Timeout=`%d`, Retries=`%d`, "+
 		"User=`%s`, AuthProtocol=`%s`, PrivProtocol=`%s`, ContextName=`%s`, OidConfig=`%#v`, "+
 		"OidBatchSize=`%d`, ProfileTags=`%#v`",
-		c.IpAddress,
+		c.IPAddress,
 		c.Port,
 		c.SnmpVersion,
 		c.Timeout,
@@ -197,7 +197,7 @@ func BuildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	c := CheckConfig{}
 
 	c.SnmpVersion = instance.SnmpVersion
-	c.IpAddress = instance.IPAddress
+	c.IPAddress = instance.IPAddress
 	c.Port = uint16(instance.Port)
 
 	if instance.CollectDeviceMetadata != nil {
@@ -214,7 +214,7 @@ func BuildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		log.Warnf("`network_address` config is not available for corecheck SNMP integration to use autodiscovery. Agent `snmp_listener` config can be used instead: https://docs.datadoghq.com/network_monitoring/devices/setup?tab=snmpv2#autodiscovery")
 	}
 
-	if c.IpAddress == "" {
+	if c.IPAddress == "" {
 		return CheckConfig{}, fmt.Errorf("ip_address config must be provided")
 	}
 

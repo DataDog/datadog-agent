@@ -33,7 +33,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 	}
 
 	config := CheckConfig{
-		IpAddress:    "1.2.3.4",
+		IPAddress:    "1.2.3.4",
 		DeviceID:     "1234",
 		DeviceIDTags: []string{"device_name:127.0.0.1"},
 		Subnet:       "127.0.0.0/29",
@@ -100,7 +100,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 	}
 
 	config := CheckConfig{
-		IpAddress:    "1.2.3.4",
+		IPAddress:    "1.2.3.4",
 		DeviceID:     "1234",
 		DeviceIDTags: []string{"device_name:127.0.0.1"},
 		Subnet:       "127.0.0.0/29",

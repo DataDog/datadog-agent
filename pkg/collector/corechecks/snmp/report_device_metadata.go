@@ -57,7 +57,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config CheckCo
 		IDTags:      idTags,
 		Name:        sysName,
 		Description: sysDescr,
-		IPAddress:   config.IpAddress,
+		IPAddress:   config.IPAddress,
 		SysObjectID: sysObjectID,
 		Profile:     config.Profile,
 		Vendor:      vendor,

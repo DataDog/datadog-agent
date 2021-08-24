@@ -95,7 +95,7 @@ func Test_getValueFromPDU(t *testing.T) {
 			nil,
 		},
 		{
-			"IpAddress",
+			"IPAddress",
 			gosnmp.SnmpPDU{
 				Name:  ".1.2.3",
 				Type:  gosnmp.IPAddress,
@@ -106,7 +106,7 @@ func Test_getValueFromPDU(t *testing.T) {
 			nil,
 		},
 		{
-			"IpAddress invalid value",
+			"IPAddress invalid value",
 			gosnmp.SnmpPDU{
 				Name:  ".1.2.3",
 				Type:  gosnmp.IPAddress,
