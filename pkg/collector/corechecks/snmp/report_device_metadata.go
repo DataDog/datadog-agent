@@ -21,14 +21,14 @@ func (ms *metricSender) reportNetworkDeviceMetadata(config CheckConfig, store *v
 	tags := common.CopyStrings(origTags)
 	tags = util.SortUniqInPlace(tags)
 
-	device := buildNetworkDeviceMetadata(config.deviceID, config.deviceIDTags, config, store, tags, deviceStatus)
+	device := buildNetworkDeviceMetadata(config.DeviceID, config.DeviceIDTags, config, store, tags, deviceStatus)
 
-	interfaces, err := buildNetworkInterfacesMetadata(config.deviceID, store)
+	interfaces, err := buildNetworkInterfacesMetadata(config.DeviceID, store)
 	if err != nil {
 		log.Debugf("Unable to build interfaces metadata: %s", err)
 	}
 
-	metadataPayloads := batchPayloads(config.subnet, collectTime, metadata.PayloadMetadataBatchSize, device, interfaces)
+	metadataPayloads := batchPayloads(config.Subnet, collectTime, metadata.PayloadMetadataBatchSize, device, interfaces)
 
 	for _, payload := range metadataPayloads {
 		payloadBytes, err := json.Marshal(payload)
@@ -62,7 +62,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config CheckCo
 		Profile:     config.Profile,
 		Vendor:      vendor,
 		Tags:        tags,
-		Subnet:      config.subnet,
+		Subnet:      config.Subnet,
 		Status:      deviceStatus,
 	}
 }

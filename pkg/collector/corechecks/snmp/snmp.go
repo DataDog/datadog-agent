@@ -60,7 +60,7 @@ func (c *Check) Run() error {
 		c.sender.reportMetrics(c.config.Metrics, values, tags)
 	}
 
-	if c.config.collectDeviceMetadata {
+	if c.config.CollectDeviceMetadata {
 		if values != nil {
 			deviceStatus = metadata.DeviceStatusReachable
 		} else {
@@ -70,7 +70,7 @@ func (c *Check) Run() error {
 		// We include instance tags to `deviceMetadataTags` since device metadata tags are not enriched with `checkSender.checkTags`.
 		// `checkSender.checkTags` are added for metrics, service checks, events only.
 		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
-		deviceMetadataTags := append(common.CopyStrings(tags), c.config.instanceTags...)
+		deviceMetadataTags := append(common.CopyStrings(tags), c.config.InstanceTags...)
 		c.sender.reportNetworkDeviceMetadata(c.config, values, deviceMetadataTags, collectionTime, deviceStatus)
 	}
 
@@ -122,12 +122,12 @@ func (c *Check) getValuesAndTags(staticTags []string) ([]string, *valuestore.Res
 
 func (c *Check) autodetectProfile(session sessionAPI) error {
 	// Try to detect profile using device sysobjectid
-	if c.config.autodetectProfile {
+	if c.config.AutodetectProfile {
 		sysObjectID, err := fetchSysObjectID(session)
 		if err != nil {
 			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
 		}
-		c.config.autodetectProfile = false // do not try to auto detect profile next time
+		c.config.AutodetectProfile = false // do not try to auto detect profile next time
 
 		profile, err := getProfileForSysObjectID(c.config.Profiles, sysObjectID)
 		if err != nil {
@@ -181,7 +181,7 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 
 // Interval returns the scheduling time for the check
 func (c *Check) Interval() time.Duration {
-	return c.config.minCollectionInterval
+	return c.config.MinCollectionInterval
 }
 
 func snmpFactory() check.Check {

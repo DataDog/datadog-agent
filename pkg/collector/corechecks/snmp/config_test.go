@@ -210,10 +210,10 @@ bulk_max_repetitions: 20
 	assert.Equal(t, metrics, check.config.Metrics)
 	assert.Equal(t, metricsTags, check.config.MetricTags)
 	assert.Equal(t, 1, len(check.config.Profiles))
-	assert.Equal(t, "780a58c96c908df8", check.config.deviceID)
-	assert.Equal(t, []string{"snmp_device:1.2.3.4", "tag1", "tag2:val2"}, check.config.deviceIDTags)
-	assert.Equal(t, "127.0.0.0/30", check.config.subnet)
-	assert.Equal(t, false, check.config.autodetectProfile)
+	assert.Equal(t, "780a58c96c908df8", check.config.DeviceID)
+	assert.Equal(t, []string{"snmp_device:1.2.3.4", "tag1", "tag2:val2"}, check.config.DeviceIDTags)
+	assert.Equal(t, "127.0.0.0/30", check.config.Subnet)
+	assert.Equal(t, false, check.config.AutodetectProfile)
 }
 
 func TestInlineProfileConfiguration(t *testing.T) {
@@ -267,9 +267,9 @@ profiles:
 	assert.Equal(t, metrics, check.config.Metrics)
 	assert.Equal(t, metricsTags, check.config.MetricTags)
 	assert.Equal(t, 2, len(check.config.Profiles))
-	assert.Equal(t, "74f22f3320d2d692", check.config.deviceID)
-	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, check.config.deviceIDTags)
-	assert.Equal(t, false, check.config.autodetectProfile)
+	assert.Equal(t, "74f22f3320d2d692", check.config.DeviceID)
+	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, check.config.DeviceIDTags)
+	assert.Equal(t, false, check.config.AutodetectProfile)
 }
 
 func TestDefaultConfigurations(t *testing.T) {
@@ -804,8 +804,8 @@ extra_tags: "extratag1:val1,extratag2:val2"
 func Test_snmpConfig_getDeviceIDTags(t *testing.T) {
 	c := &CheckConfig{
 		IpAddress:    "1.2.3.4",
-		extraTags:    []string{"extratag1:val1", "extratag2"},
-		instanceTags: []string{"instancetag1:val1", "instancetag2"},
+		ExtraTags:    []string{"extratag1:val1", "extratag2"},
+		InstanceTags: []string{"instancetag1:val1", "instancetag2"},
 	}
 	actualTags := c.getDeviceIDTags()
 
@@ -870,7 +870,7 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 	c = &CheckConfig{
 		IpAddress:             "1.2.3.4",
 		Profiles:              mockProfiles,
-		collectDeviceMetadata: true,
+		CollectDeviceMetadata: true,
 	}
 	err = c.refreshWithProfile("profile1")
 	assert.NoError(t, err)
@@ -913,7 +913,7 @@ oid_batch_size: 10
 `)
 	err := check.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
-	assert.Equal(t, false, check.config.collectDeviceMetadata)
+	assert.Equal(t, false, check.config.CollectDeviceMetadata)
 
 	// language=yaml
 	rawInstanceConfig = []byte(`
@@ -927,7 +927,7 @@ collect_device_metadata: true
 `)
 	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
-	assert.Equal(t, true, check.config.collectDeviceMetadata)
+	assert.Equal(t, true, check.config.CollectDeviceMetadata)
 
 	// language=yaml
 	rawInstanceConfig = []byte(`
@@ -941,7 +941,7 @@ oid_batch_size: 10
 `)
 	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
-	assert.Equal(t, true, check.config.collectDeviceMetadata)
+	assert.Equal(t, true, check.config.CollectDeviceMetadata)
 
 	// language=yaml
 	rawInstanceConfig = []byte(`
@@ -956,7 +956,7 @@ collect_device_metadata: true
 `)
 	err = check.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
-	assert.Equal(t, false, check.config.collectDeviceMetadata)
+	assert.Equal(t, false, check.config.CollectDeviceMetadata)
 }
 
 func Test_buildConfig_minCollectionInterval(t *testing.T) {
@@ -1065,7 +1065,7 @@ min_collection_interval: -10
 			if tt.expectedErr != "" {
 				assert.EqualError(t, err, tt.expectedErr)
 			}
-			assert.Equal(t, tt.expectedInterval, check.config.minCollectionInterval)
+			assert.Equal(t, tt.expectedInterval, check.config.MinCollectionInterval)
 		})
 	}
 }

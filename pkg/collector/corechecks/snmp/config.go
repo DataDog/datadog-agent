@@ -99,14 +99,14 @@ type CheckConfig struct {
 	ProfileTags           []string
 	Profile               string
 	ProfileDef            *profileDefinition
-	extraTags             []string
-	instanceTags          []string
-	collectDeviceMetadata bool
-	deviceID              string
-	deviceIDTags          []string
-	subnet                string
-	autodetectProfile     bool
-	minCollectionInterval time.Duration
+	ExtraTags             []string
+	InstanceTags          []string
+	CollectDeviceMetadata bool
+	DeviceID              string
+	DeviceIDTags          []string
+	Subnet                string
+	AutodetectProfile     bool
+	MinCollectionInterval time.Duration
 }
 
 func (c *CheckConfig) refreshWithProfile(profile string) error {
@@ -142,7 +142,7 @@ func (c *CheckConfig) addUptimeMetric() {
 // getStaticTags does not contain tags from instance[].tags config
 func (c *CheckConfig) getStaticTags() []string {
 	tags := []string{"snmp_device:" + c.IpAddress}
-	tags = append(tags, c.extraTags...)
+	tags = append(tags, c.ExtraTags...)
 	return tags
 }
 
@@ -150,7 +150,7 @@ func (c *CheckConfig) getStaticTags() []string {
 // warning: changing getDeviceIDTags logic might lead to different deviceID
 func (c *CheckConfig) getDeviceIDTags() []string {
 	tags := c.getStaticTags()
-	tags = append(tags, c.instanceTags...)
+	tags = append(tags, c.InstanceTags...)
 	sort.Strings(tags)
 	return tags
 }
@@ -199,13 +199,13 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	c.Port = uint16(instance.Port)
 
 	if instance.CollectDeviceMetadata != nil {
-		c.collectDeviceMetadata = bool(*instance.CollectDeviceMetadata)
+		c.CollectDeviceMetadata = bool(*instance.CollectDeviceMetadata)
 	} else {
-		c.collectDeviceMetadata = bool(initConfig.CollectDeviceMetadata)
+		c.CollectDeviceMetadata = bool(initConfig.CollectDeviceMetadata)
 	}
 
 	if instance.ExtraTags != "" {
-		c.extraTags = strings.Split(instance.ExtraTags, ",")
+		c.ExtraTags = strings.Split(instance.ExtraTags, ",")
 	}
 
 	if instance.Network != "" {
@@ -233,16 +233,16 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	}
 
 	if instance.ExtraMinCollectionInterval != 0 {
-		c.minCollectionInterval = time.Duration(instance.ExtraMinCollectionInterval) * time.Second
+		c.MinCollectionInterval = time.Duration(instance.ExtraMinCollectionInterval) * time.Second
 	} else if instance.MinCollectionInterval != 0 {
-		c.minCollectionInterval = time.Duration(instance.MinCollectionInterval) * time.Second
+		c.MinCollectionInterval = time.Duration(instance.MinCollectionInterval) * time.Second
 	} else if initConfig.MinCollectionInterval != 0 {
-		c.minCollectionInterval = time.Duration(initConfig.MinCollectionInterval) * time.Second
+		c.MinCollectionInterval = time.Duration(initConfig.MinCollectionInterval) * time.Second
 	} else {
-		c.minCollectionInterval = defaults.DefaultCheckInterval
+		c.MinCollectionInterval = defaults.DefaultCheckInterval
 	}
-	if c.minCollectionInterval < 0 {
-		return CheckConfig{}, fmt.Errorf("min collection interval must be > 0, but got: %v", c.minCollectionInterval.Seconds())
+	if c.MinCollectionInterval < 0 {
+		return CheckConfig{}, fmt.Errorf("min collection interval must be > 0, but got: %v", c.MinCollectionInterval.Seconds())
 	}
 
 	// SNMP connection configs
@@ -283,13 +283,13 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	}
 	normalizeMetrics(c.Metrics)
 
-	c.instanceTags = instance.Tags
+	c.InstanceTags = instance.Tags
 	c.MetricTags = instance.MetricTags
 
 	c.OidConfig.addScalarOids(parseScalarOids(c.Metrics, c.MetricTags))
 	c.OidConfig.addColumnOids(parseColumnOids(c.Metrics))
 
-	if c.collectDeviceMetadata {
+	if c.CollectDeviceMetadata {
 		c.OidConfig.addScalarOids(metadata.ScalarOIDs)
 		c.OidConfig.addColumnOids(metadata.ColumnOIDs)
 	}
@@ -326,9 +326,9 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	}
 
 	if profile != "" || len(c.Metrics) > 0 {
-		c.autodetectProfile = false
+		c.AutodetectProfile = false
 	} else {
-		c.autodetectProfile = true
+		c.AutodetectProfile = true
 	}
 
 	if profile != "" {
@@ -338,13 +338,13 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		}
 	}
 
-	c.deviceID, c.deviceIDTags = buildDeviceID(c.getDeviceIDTags())
+	c.DeviceID, c.DeviceIDTags = buildDeviceID(c.getDeviceIDTags())
 
-	subnet, err := getSubnetFromTags(c.instanceTags)
+	subnet, err := getSubnetFromTags(c.InstanceTags)
 	if err != nil {
 		log.Debugf("subnet not found: %s", err)
 	}
-	c.subnet = subnet
+	c.Subnet = subnet
 
 	c.addUptimeMetric()
 	return c, nil

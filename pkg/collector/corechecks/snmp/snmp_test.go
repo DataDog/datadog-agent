@@ -740,7 +740,7 @@ profiles:
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(132), "", row2Tags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(30), "", snmpTags)
 
-	assert.Equal(t, false, check.config.autodetectProfile)
+	assert.Equal(t, false, check.config.AutodetectProfile)
 
 	// Make sure we don't auto detect and add metrics twice if we already did that previously
 	firstRunMetrics := check.config.Metrics
