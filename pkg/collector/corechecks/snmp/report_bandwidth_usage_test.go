@@ -28,7 +28,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
 			&ResultValueStore{
-				ColumnValues: columnResultValuesType{
+				ColumnValues: ColumnResultValuesType{
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
 						"9": {
@@ -60,7 +60,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.10", Name: "ifHCOutOctets"},
 			"9",
 			&ResultValueStore{
-				ColumnValues: columnResultValuesType{
+				ColumnValues: ColumnResultValuesType{
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
 						"9": {
@@ -92,7 +92,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.99", Name: "notABandwidthMetric"},
 			"9",
 			&ResultValueStore{
-				ColumnValues: columnResultValuesType{},
+				ColumnValues: ColumnResultValuesType{},
 			},
 			[]Metric{},
 			nil,
@@ -102,7 +102,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
 			&ResultValueStore{
-				ColumnValues: columnResultValuesType{
+				ColumnValues: ColumnResultValuesType{
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
 						"9": {
@@ -125,7 +125,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
 			&ResultValueStore{
-				ColumnValues: columnResultValuesType{
+				ColumnValues: ColumnResultValuesType{
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
 						"9": {
@@ -148,7 +148,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCOutOctets"},
 			"9",
 			&ResultValueStore{
-				ColumnValues: columnResultValuesType{
+				ColumnValues: ColumnResultValuesType{
 					// ifHCOutOctets
 					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
 						"9": {
@@ -171,7 +171,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
 			&ResultValueStore{
-				ColumnValues: columnResultValuesType{
+				ColumnValues: ColumnResultValuesType{
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
 						"9999": {
@@ -200,7 +200,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
 			&ResultValueStore{
-				ColumnValues: columnResultValuesType{
+				ColumnValues: ColumnResultValuesType{
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
 						"9": {
@@ -229,7 +229,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
 			&ResultValueStore{
-				ColumnValues: columnResultValuesType{
+				ColumnValues: ColumnResultValuesType{
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
 						"9": {
@@ -258,7 +258,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
 			&ResultValueStore{
-				ColumnValues: columnResultValuesType{
+				ColumnValues: ColumnResultValuesType{
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
 						"9": {
@@ -318,7 +318,7 @@ func Test_metricSender_trySendBandwidthUsageMetric(t *testing.T) {
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
 			&ResultValueStore{
-				ColumnValues: columnResultValuesType{
+				ColumnValues: ColumnResultValuesType{
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
 						"9": {
@@ -349,7 +349,7 @@ func Test_metricSender_trySendBandwidthUsageMetric(t *testing.T) {
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
 			&ResultValueStore{
-				ColumnValues: columnResultValuesType{
+				ColumnValues: ColumnResultValuesType{
 					// ifHCInOctets
 					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
 						"9": {

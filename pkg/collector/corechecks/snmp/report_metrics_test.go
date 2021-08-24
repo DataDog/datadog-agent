@@ -338,7 +338,7 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 				},
 			},
 			values: &ResultValueStore{
-				ColumnValues: columnResultValuesType{
+				ColumnValues: ColumnResultValuesType{
 					"1.3.6.1.2.1.2.2.1.14": map[string]ResultValue{
 						"10": {
 							"gauge",
@@ -422,7 +422,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 				}},
 			},
 			values: &ResultValueStore{
-				ScalarValues: scalarResultValuesType{
+				ScalarValues: ScalarResultValuesType{
 					"1.2.3": ResultValue{
 						Value: "hello123",
 					},
@@ -437,7 +437,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
 			},
 			values: &ResultValueStore{
-				ScalarValues: scalarResultValuesType{
+				ScalarValues: ScalarResultValuesType{
 					"1.2.3": ResultValue{
 						Value: ResultValue{},
 					},

@@ -7,11 +7,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// ColumnResultValuesType is used to store results fetched for column oids
+// Structure: map[<COLUMN OIDS AS STRING>]map[<ROW INDEX>]ResultValue
+// - the first map key is the table column oid
+// - the second map key is the index part of oid (not prefixed with column oid)
+type ColumnResultValuesType map[string]map[string]ResultValue
+
+// ScalarResultValuesType is used to store results fetched for scalar oids
+// Structure: map[<INSTANCE OID VALUE>]ResultValue
+// - the instance oid value (suffixed with `.0`)
+type ScalarResultValuesType map[string]ResultValue
+
 // ResultValueStore store OID values
 type ResultValueStore struct {
 	// TODO: make fields private?
-	ScalarValues scalarResultValuesType
-	ColumnValues columnResultValuesType
+	ScalarValues ScalarResultValuesType
+	ColumnValues ColumnResultValuesType
 }
 
 // getScalarValue look for oid in ResultValueStore and returns the value and boolean

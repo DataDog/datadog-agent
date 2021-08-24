@@ -78,7 +78,7 @@ func hasNonPrintableByte(bytesValue []byte) bool {
 	return hasNonPrintable
 }
 
-func resultToScalarValues(result *gosnmp.SnmpPacket) scalarResultValuesType {
+func resultToScalarValues(result *gosnmp.SnmpPacket) ScalarResultValuesType {
 	returnValues := make(map[string]ResultValue, len(result.Variables))
 	for _, pduVariable := range result.Variables {
 		if shouldSkip(pduVariable.Type) {
@@ -95,10 +95,10 @@ func resultToScalarValues(result *gosnmp.SnmpPacket) scalarResultValuesType {
 }
 
 // resultToColumnValues builds column values
-// - columnResultValuesType: column values
+// - ColumnResultValuesType: column values
 // - nextOidsMap: represent the oids that can be used to retrieve following rows/values
-func resultToColumnValues(columnOids []string, snmpPacket *gosnmp.SnmpPacket) (columnResultValuesType, map[string]string) {
-	returnValues := make(columnResultValuesType, len(columnOids))
+func resultToColumnValues(columnOids []string, snmpPacket *gosnmp.SnmpPacket) (ColumnResultValuesType, map[string]string) {
+	returnValues := make(ColumnResultValuesType, len(columnOids))
 	nextOidsMap := make(map[string]string, len(columnOids))
 	maxRowsPerCol := int(math.Ceil(float64(len(snmpPacket.Variables)) / float64(len(columnOids))))
 	for i, pduVariable := range snmpPacket.Variables {

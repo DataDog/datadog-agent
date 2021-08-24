@@ -22,7 +22,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 	log.SetupLogger(l, "debug")
 
 	var storeWithoutIfName = &ResultValueStore{
-		ColumnValues: columnResultValuesType{},
+		ColumnValues: ColumnResultValuesType{},
 	}
 
 	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
@@ -85,7 +85,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 
 func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) {
 	var storeWithIfName = &ResultValueStore{
-		ColumnValues: columnResultValuesType{
+		ColumnValues: ColumnResultValuesType{
 			"1.3.6.1.2.1.31.1.1.1.1": {
 				"1": ResultValue{Value: float64(21)},
 				"2": ResultValue{Value: float64(22)},

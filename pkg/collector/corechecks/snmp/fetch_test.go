@@ -78,7 +78,7 @@ func Test_fetchColumnOids(t *testing.T) {
 	columnValues, err := fetchColumnOidsWithBatching(session, oids, 100, defaultBulkMaxRepetitions)
 	assert.Nil(t, err)
 
-	expectedColumnValues := columnResultValuesType{
+	expectedColumnValues := ColumnResultValuesType{
 		"1.1.1": {
 			"1": ResultValue{Value: float64(11)},
 			"2": ResultValue{Value: float64(12)},
@@ -169,7 +169,7 @@ func Test_fetchColumnOidsBatch_usingGetBulk(t *testing.T) {
 	columnValues, err := fetchColumnOidsWithBatching(session, oids, 2, 10)
 	assert.Nil(t, err)
 
-	expectedColumnValues := columnResultValuesType{
+	expectedColumnValues := ColumnResultValuesType{
 		"1.1.1": {
 			"1": ResultValue{Value: float64(11)},
 			"2": ResultValue{Value: float64(12)},
@@ -266,7 +266,7 @@ func Test_fetchColumnOidsBatch_usingGetNext(t *testing.T) {
 	columnValues, err := fetchColumnOidsWithBatching(session, oids, 2, 10)
 	assert.Nil(t, err)
 
-	expectedColumnValues := columnResultValuesType{
+	expectedColumnValues := ColumnResultValuesType{
 		"1.1.1": {
 			"1": ResultValue{Value: float64(11)},
 			"2": ResultValue{Value: float64(12)},
@@ -338,7 +338,7 @@ func Test_fetchOidBatchSize(t *testing.T) {
 	columnValues, err := fetchScalarOidsWithBatching(session, oids, 2)
 	assert.Nil(t, err)
 
-	expectedColumnValues := scalarResultValuesType{
+	expectedColumnValues := ScalarResultValuesType{
 		"1.1.1.1.0": {Value: float64(10)},
 		"1.1.1.2.0": {Value: float64(20)},
 		"1.1.1.3.0": {Value: float64(30)},
@@ -421,7 +421,7 @@ func Test_fetchScalarOids_retry(t *testing.T) {
 	columnValues, err := fetchScalarOids(session, oids)
 	assert.Nil(t, err)
 
-	expectedColumnValues := scalarResultValuesType{
+	expectedColumnValues := ScalarResultValuesType{
 		"1.1.1.1.0": {Value: float64(10)},
 		"1.1.1.2":   {Value: float64(20)},
 		"1.1.1.3":   {Value: float64(30)},
@@ -499,7 +499,7 @@ func Test_fetchScalarOids_v1NoSuchName(t *testing.T) {
 	columnValues, err := fetchScalarOids(session, oids)
 	assert.Nil(t, err)
 
-	expectedColumnValues := scalarResultValuesType{
+	expectedColumnValues := ScalarResultValuesType{
 		"1.1.1.1.0": {Value: float64(10)},
 		"1.1.1.3.0": {Value: float64(30)},
 	}
@@ -528,7 +528,7 @@ func Test_fetchScalarOids_v1NoSuchName_noValidOidsLeft(t *testing.T) {
 	columnValues, err := fetchScalarOids(session, oids)
 	assert.Nil(t, err)
 
-	expectedColumnValues := scalarResultValuesType{}
+	expectedColumnValues := ScalarResultValuesType{}
 	assert.Equal(t, expectedColumnValues, columnValues)
 }
 

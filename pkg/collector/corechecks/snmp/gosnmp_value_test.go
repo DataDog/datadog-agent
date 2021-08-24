@@ -285,7 +285,7 @@ func Test_resultToColumnValues(t *testing.T) {
 		name                string
 		columnOids          []string
 		snmpPacket          *gosnmp.SnmpPacket
-		expectedValues      columnResultValuesType
+		expectedValues      ColumnResultValuesType
 		expectedNextOidsMap map[string]string
 	}{
 		{
@@ -325,7 +325,7 @@ func Test_resultToColumnValues(t *testing.T) {
 					},
 				},
 			},
-			columnResultValuesType{
+			ColumnResultValuesType{
 				"1.3.6.1.2.1.2.2.1.14": {
 					"1": ResultValue{
 						Value: float64(141),
@@ -383,7 +383,7 @@ func Test_resultToColumnValues(t *testing.T) {
 					},
 				},
 			},
-			columnResultValuesType{
+			ColumnResultValuesType{
 				"1.3.6.1.2.1.2.2.1.14": {
 					// index 1 not fetched because of gosnmp.NoSuchObject error
 					"2": ResultValue{
@@ -418,7 +418,7 @@ func Test_resultToScalarValues(t *testing.T) {
 	tests := []struct {
 		name           string
 		snmpPacket     *gosnmp.SnmpPacket
-		expectedValues scalarResultValuesType
+		expectedValues ScalarResultValuesType
 	}{
 		{
 			"simple case",
@@ -456,7 +456,7 @@ func Test_resultToScalarValues(t *testing.T) {
 					},
 				},
 			},
-			scalarResultValuesType{
+			ScalarResultValuesType{
 				"1.3.6.1.2.1.2.2.1.14.1": {
 					Value: float64(142),
 				},

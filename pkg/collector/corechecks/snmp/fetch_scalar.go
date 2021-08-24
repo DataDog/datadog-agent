@@ -12,8 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 )
 
-func fetchScalarOidsWithBatching(session sessionAPI, oids []string, oidBatchSize int) (scalarResultValuesType, error) {
-	retValues := make(scalarResultValuesType, len(oids))
+func fetchScalarOidsWithBatching(session sessionAPI, oids []string, oidBatchSize int) (ScalarResultValuesType, error) {
+	retValues := make(ScalarResultValuesType, len(oids))
 
 	batches, err := common.CreateStringBatches(oids, oidBatchSize)
 	if err != nil {
@@ -32,7 +32,7 @@ func fetchScalarOidsWithBatching(session sessionAPI, oids []string, oidBatchSize
 	return retValues, nil
 }
 
-func fetchScalarOids(session sessionAPI, oids []string) (scalarResultValuesType, error) {
+func fetchScalarOids(session sessionAPI, oids []string) (ScalarResultValuesType, error) {
 	packet, err := doFetchScalarOids(session, oids)
 	if err != nil {
 		return nil, err
@@ -46,7 +46,7 @@ func fetchScalarOids(session sessionAPI, oids []string) (scalarResultValuesType,
 // This helps keeping compatibility with python implementation.
 // This is not need in normal circumstances where scalar OIDs end with `.0`.
 // If the oid does not end with `.0`, we will retry by appending `.0` to it.
-func retryFailedScalarOids(session sessionAPI, results *gosnmp.SnmpPacket, valuesToUpdate scalarResultValuesType) {
+func retryFailedScalarOids(session sessionAPI, results *gosnmp.SnmpPacket, valuesToUpdate ScalarResultValuesType) {
 	retryOids := make(map[string]string)
 	for _, variable := range results.Variables {
 		oid := strings.TrimLeft(variable.Name, ".")
