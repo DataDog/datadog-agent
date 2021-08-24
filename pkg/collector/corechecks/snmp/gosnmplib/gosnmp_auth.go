@@ -7,6 +7,7 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
+// GetAuthProtocol converts auth protocol from string to type
 func GetAuthProtocol(authProtocolStr string) (gosnmp.SnmpV3AuthProtocol, error) {
 	var authProtocol gosnmp.SnmpV3AuthProtocol
 	lowerAuthProtocol := strings.ToLower(authProtocolStr)
@@ -30,6 +31,7 @@ func GetAuthProtocol(authProtocolStr string) (gosnmp.SnmpV3AuthProtocol, error) 
 	return authProtocol, nil
 }
 
+// GetPrivProtocol converts priv protocol from string to type
 func GetPrivProtocol(privProtocolStr string) (gosnmp.SnmpV3PrivProtocol, error) {
 	var privProtocol gosnmp.SnmpV3PrivProtocol
 	lowerPrivProtocol := strings.ToLower(privProtocolStr)

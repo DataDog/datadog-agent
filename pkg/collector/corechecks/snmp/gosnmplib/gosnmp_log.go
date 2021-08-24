@@ -38,6 +38,7 @@ var replacers = []Replacer{
 	},
 }
 
+// TraceLevelLogWriter is a log writer for gosnmp logs, it removes sensitive info
 type TraceLevelLogWriter struct{}
 
 func (sw *TraceLevelLogWriter) Write(logInput []byte) (n int, err error) {

@@ -79,6 +79,7 @@ func hasNonPrintableByte(bytesValue []byte) bool {
 	return hasNonPrintable
 }
 
+// ResultToScalarValues converts result to scalar values
 func ResultToScalarValues(result *gosnmp.SnmpPacket) valuestore.ScalarResultValuesType {
 	returnValues := make(map[string]valuestore.ResultValue, len(result.Variables))
 	for _, pduVariable := range result.Variables {
