@@ -85,7 +85,7 @@ type CheckConfig struct {
 	Timeout               int
 	Retries               int
 	User                  string
-	authProtocol          string
+	AuthProtocol          string
 	authKey               string
 	privProtocol          string
 	privKey               string
@@ -158,7 +158,7 @@ func (c *CheckConfig) getDeviceIDTags() []string {
 // toString used for logging CheckConfig without sensitive information
 func (c *CheckConfig) toString() string {
 	return fmt.Sprintf("CheckConfig: IpAddress=`%s`, Port=`%d`, SnmpVersion=`%s`, Timeout=`%d`, Retries=`%d`, "+
-		"User=`%s`, authProtocol=`%s`, privProtocol=`%s`, contextName=`%s`, OidConfig=`%#v`, "+
+		"User=`%s`, AuthProtocol=`%s`, privProtocol=`%s`, contextName=`%s`, OidConfig=`%#v`, "+
 		"oidBatchSize=`%d`, profileTags=`%#v`",
 		c.IpAddress,
 		c.Port,
@@ -166,7 +166,7 @@ func (c *CheckConfig) toString() string {
 		c.Timeout,
 		c.Retries,
 		c.User,
-		c.authProtocol,
+		c.AuthProtocol,
 		c.privProtocol,
 		c.contextName,
 		c.oidConfig,
@@ -248,7 +248,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	// SNMP connection configs
 	c.CommunityString = instance.CommunityString
 	c.User = instance.User
-	c.authProtocol = instance.AuthProtocol
+	c.AuthProtocol = instance.AuthProtocol
 	c.authKey = instance.AuthKey
 	c.privProtocol = instance.PrivProtocol
 	c.privKey = instance.PrivKey

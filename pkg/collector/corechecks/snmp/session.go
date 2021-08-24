@@ -39,7 +39,7 @@ func (s *snmpSession) Configure(config CheckConfig) error {
 		}
 		s.gosnmpInst.Community = config.CommunityString
 	} else if config.User != "" {
-		authProtocol, err := getAuthProtocol(config.authProtocol)
+		authProtocol, err := getAuthProtocol(config.AuthProtocol)
 		if err != nil {
 			return err
 		}
