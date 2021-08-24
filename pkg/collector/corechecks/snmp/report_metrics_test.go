@@ -379,7 +379,7 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 
 			metricSender := metricSender{sender: mockSender}
 
-			metricSender.reportMetrics(tt.metrics, tt.values, tt.tags)
+			metricSender.ReportMetrics(tt.metrics, tt.values, tt.tags)
 
 			w.Flush()
 			logs := b.String()

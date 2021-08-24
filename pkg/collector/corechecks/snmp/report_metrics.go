@@ -18,7 +18,8 @@ type metricSender struct {
 	submittedMetrics int
 }
 
-func (ms *metricSender) reportMetrics(metrics []checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
+// ReportMetrics reports metrics using sender
+func (ms *metricSender) ReportMetrics(metrics []checkconfig.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
 	for _, metric := range metrics {
 		if metric.IsScalar() {
 			ms.reportScalarMetrics(metric, values, tags)
