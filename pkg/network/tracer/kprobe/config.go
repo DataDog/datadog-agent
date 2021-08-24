@@ -1,18 +1,19 @@
-// +build linux_bpf
+//+build linux_bpf
 
-package config
+package kprobe
 
 import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-// EnabledProbes returns a map of probes that are enabled per config settings.
+// enabledProbes returns a map of probes that are enabled per config settings.
 // This map does not include the probes used exclusively in the offset guessing process.
-func (c *Config) EnabledProbes(runtimeTracer bool) (map[probes.ProbeName]struct{}, error) {
+func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]struct{}, error) {
 	enabled := make(map[probes.ProbeName]struct{}, 0)
 
 	kv, err := kernel.HostVersion()

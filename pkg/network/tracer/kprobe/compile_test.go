@@ -1,6 +1,6 @@
 // +build linux_bpf
 
-package tracer
+package kprobe
 
 import (
 	"testing"
@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConntrackCompile(t *testing.T) {
+func TestTracerCompile(t *testing.T) {
 	cfg := config.New()
 	cfg.BPFDebug = true
 	cflags := getCFlags(cfg)
-	_, err := runtime.Conntrack.Compile(&cfg.Config, cflags)
+	_, err := runtime.Tracer.Compile(&cfg.Config, cflags)
 	require.NoError(t, err)
 }

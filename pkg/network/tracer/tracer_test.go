@@ -34,6 +34,7 @@ import (
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -82,15 +83,15 @@ func TestGetStats(t *testing.T) {
 			"dns_pid_collisions",
 		},
 		"tracer": {
-			"closed_conn_polling_lost",
-			"closed_conn_polling_received",
 			"conn_valid_skipped",
 			"expired_tcp_conns",
-			"pid_collisions",
 		},
 		"ebpf": {
 			"tcp_sent_miscounts",
 			"missed_tcp_close",
+			"closed_conn_polling_lost",
+			"closed_conn_polling_received",
+			"pid_collisions",
 		},
 		"dns": {
 			"added",
@@ -171,23 +172,22 @@ func TestTCPSendAndReceive(t *testing.T) {
 	defer c.Close()
 
 	// Connect to server 10 times
-	wg := sync.WaitGroup{}
+	wg := new(errgroup.Group)
 	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() error {
 			// Write clientMessageSize to server, and read response
 			if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
-				t.Fatal(err)
+				return err
 			}
 
 			r := bufio.NewReader(c)
 			r.ReadBytes(byte('\n'))
-		}()
+			return nil
+		})
 	}
 
-	wg.Wait()
+	err = wg.Wait()
+	require.NoError(t, err)
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
@@ -1565,6 +1565,9 @@ func TestRuntimeCompilerEnvironmentVar(t *testing.T) {
 
 func testConfig() *config.Config {
 	cfg := config.New()
+	if os.Getenv("BPF_DEBUG") != "" {
+		cfg.BPFDebug = true
+	}
 	if os.Getenv(runtimeCompilationEnvVar) != "" {
 		cfg.EnableRuntimeCompiler = true
 		cfg.AllowPrecompiledFallback = false
