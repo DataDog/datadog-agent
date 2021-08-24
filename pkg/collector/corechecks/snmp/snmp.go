@@ -3,6 +3,7 @@ package snmp
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"strings"
 	"time"
 
@@ -80,7 +81,7 @@ func (c *Check) Run() error {
 	return checkErr
 }
 
-func (c *Check) getValuesAndTags(staticTags []string) ([]string, *ResultValueStore, error) {
+func (c *Check) getValuesAndTags(staticTags []string) ([]string, *valuestore.ResultValueStore, error) {
 	var checkErrors []string
 	tags := common.CopyStrings(staticTags)
 

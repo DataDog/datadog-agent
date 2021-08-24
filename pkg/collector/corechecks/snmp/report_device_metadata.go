@@ -3,6 +3,7 @@ package snmp
 import (
 	json "encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -16,7 +17,7 @@ import (
 // interfaceNameTagKey matches the `interface` tag used in `_generic-if.yaml` for ifName
 var interfaceNameTagKey = "interface"
 
-func (ms *metricSender) reportNetworkDeviceMetadata(config CheckConfig, store *ResultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
+func (ms *metricSender) reportNetworkDeviceMetadata(config CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
 	tags := common.CopyStrings(origTags)
 	tags = util.SortUniqInPlace(tags)
 
@@ -39,12 +40,12 @@ func (ms *metricSender) reportNetworkDeviceMetadata(config CheckConfig, store *R
 	}
 }
 
-func buildNetworkDeviceMetadata(deviceID string, idTags []string, config CheckConfig, store *ResultValueStore, tags []string, deviceStatus metadata.DeviceStatus) metadata.DeviceMetadata {
+func buildNetworkDeviceMetadata(deviceID string, idTags []string, config CheckConfig, store *valuestore.ResultValueStore, tags []string, deviceStatus metadata.DeviceStatus) metadata.DeviceMetadata {
 	var vendor, sysName, sysDescr, sysObjectID string
 	if store != nil {
-		sysName = store.getScalarValueAsString(metadata.SysNameOID)
-		sysDescr = store.getScalarValueAsString(metadata.SysDescrOID)
-		sysObjectID = store.getScalarValueAsString(metadata.SysObjectIDOID)
+		sysName = store.GetScalarValueAsString(metadata.SysNameOID)
+		sysDescr = store.GetScalarValueAsString(metadata.SysDescrOID)
+		sysObjectID = store.GetScalarValueAsString(metadata.SysObjectIDOID)
 	}
 
 	if config.profileDef != nil {
@@ -66,13 +67,13 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config CheckCo
 	}
 }
 
-func buildNetworkInterfacesMetadata(deviceID string, store *ResultValueStore) ([]metadata.InterfaceMetadata, error) {
+func buildNetworkInterfacesMetadata(deviceID string, store *valuestore.ResultValueStore) ([]metadata.InterfaceMetadata, error) {
 	if store == nil {
 		// it's expected that the value store is nil if we can't reach the device
 		// in that case, we just return an nil slice.
 		return nil, nil
 	}
-	indexes, err := store.getColumnIndexes(metadata.IfNameOID)
+	indexes, err := store.GetColumnIndexes(metadata.IfNameOID)
 	if err != nil {
 		return nil, fmt.Errorf("no interface indexes found: %s", err)
 	}
@@ -85,16 +86,16 @@ func buildNetworkInterfacesMetadata(deviceID string, store *ResultValueStore) ([
 			continue
 		}
 
-		name := store.getColumnValueAsString(metadata.IfNameOID, strIndex)
+		name := store.GetColumnValueAsString(metadata.IfNameOID, strIndex)
 		networkInterface := metadata.InterfaceMetadata{
 			DeviceID:    deviceID,
 			Index:       int32(index),
 			Name:        name,
-			Alias:       store.getColumnValueAsString(metadata.IfAliasOID, strIndex),
-			Description: store.getColumnValueAsString(metadata.IfDescrOID, strIndex),
-			MacAddress:  store.getColumnValueAsString(metadata.IfPhysAddressOID, strIndex),
-			AdminStatus: int32(store.getColumnValueAsFloat(metadata.IfAdminStatusOID, strIndex)),
-			OperStatus:  int32(store.getColumnValueAsFloat(metadata.IfOperStatusOID, strIndex)),
+			Alias:       store.GetColumnValueAsString(metadata.IfAliasOID, strIndex),
+			Description: store.GetColumnValueAsString(metadata.IfDescrOID, strIndex),
+			MacAddress:  store.GetColumnValueAsString(metadata.IfPhysAddressOID, strIndex),
+			AdminStatus: int32(store.GetColumnValueAsFloat(metadata.IfAdminStatusOID, strIndex)),
+			OperStatus:  int32(store.GetColumnValueAsFloat(metadata.IfOperStatusOID, strIndex)),
 			IDTags:      []string{interfaceNameTagKey + ":" + name},
 		}
 		interfaces = append(interfaces, networkInterface)

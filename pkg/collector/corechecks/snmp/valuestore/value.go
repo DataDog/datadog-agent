@@ -1,4 +1,4 @@
-package snmp
+package valuestore
 
 import (
 	"fmt"
@@ -12,7 +12,8 @@ type ResultValue struct {
 	Value          interface{} // might be a `string` or `float64` type
 }
 
-func (sv *ResultValue) toFloat64() (float64, error) {
+// ToFloat64 converts value to float64
+func (sv *ResultValue) ToFloat64() (float64, error) {
 	switch sv.Value.(type) {
 	case float64:
 		return sv.Value.(float64), nil
@@ -26,7 +27,8 @@ func (sv *ResultValue) toFloat64() (float64, error) {
 	return 0, fmt.Errorf("invalid type %T for value %#v", sv.Value, sv.Value)
 }
 
-func (sv ResultValue) toString() (string, error) {
+// ToString converts value to string
+func (sv ResultValue) ToString() (string, error) {
 	switch sv.Value.(type) {
 	case float64:
 		return strconv.Itoa(int(sv.Value.(float64))), nil
@@ -36,7 +38,8 @@ func (sv ResultValue) toString() (string, error) {
 	return "", fmt.Errorf("invalid type %T for value %#v", sv.Value, sv.Value)
 }
 
-func (sv ResultValue) extractStringValue(extractValuePattern *regexp.Regexp) (ResultValue, error) {
+// ExtractStringValue extract value using a regex
+func (sv ResultValue) ExtractStringValue(extractValuePattern *regexp.Regexp) (ResultValue, error) {
 	switch sv.Value.(type) {
 	case string:
 		srcValue := sv.Value.(string)

@@ -3,6 +3,7 @@ package snmp
 import (
 	"bufio"
 	"bytes"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"regexp"
 	"strings"
 	"testing"
@@ -23,7 +24,7 @@ func TestSendMetric(t *testing.T) {
 	tests := []struct {
 		caseName            string
 		metricName          string
-		value               ResultValue
+		value               valuestore.ResultValue
 		tags                []string
 		forcedType          string
 		options             MetricsConfigOption
@@ -38,7 +39,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Gauge metric case",
 			metricName:         "gauge.metric",
-			value:              ResultValue{SubmissionType: "gauge", Value: float64(10)},
+			value:              valuestore.ResultValue{SubmissionType: "gauge", Value: float64(10)},
 			tags:               []string{},
 			expectedMethod:     "Gauge",
 			expectedMetricName: "snmp.gauge.metric",
@@ -49,7 +50,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Counter32 metric case",
 			metricName:         "counter.metric",
-			value:              ResultValue{SubmissionType: "counter", Value: float64(10)},
+			value:              valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
 			tags:               []string{},
 			expectedMethod:     "Rate",
 			expectedMetricName: "snmp.counter.metric",
@@ -60,7 +61,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced gauge metric case",
 			metricName:         "my.metric",
-			value:              ResultValue{SubmissionType: "counter", Value: float64(10)},
+			value:              valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
 			tags:               []string{},
 			forcedType:         "gauge",
 			expectedMethod:     "Gauge",
@@ -72,7 +73,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced counter metric case",
 			metricName:         "my.metric",
-			value:              ResultValue{SubmissionType: "counter", Value: float64(10)},
+			value:              valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
 			tags:               []string{},
 			forcedType:         "counter",
 			options:            MetricsConfigOption{},
@@ -85,7 +86,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced monotonic_count metric case",
 			metricName:         "my.metric",
-			value:              ResultValue{SubmissionType: "counter", Value: float64(10)},
+			value:              valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
 			tags:               []string{},
 			forcedType:         "monotonic_count",
 			options:            MetricsConfigOption{},
@@ -98,7 +99,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced monotonic_count_and_rate metric case: MonotonicCount called",
 			metricName:         "my.metric",
-			value:              ResultValue{SubmissionType: "counter", Value: float64(10)},
+			value:              valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
 			tags:               []string{},
 			forcedType:         "monotonic_count_and_rate",
 			options:            MetricsConfigOption{},
@@ -111,7 +112,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced monotonic_count_and_rate metric case: Rate called",
 			metricName:         "my.metric",
-			value:              ResultValue{SubmissionType: "counter", Value: float64(10)},
+			value:              valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
 			tags:               []string{},
 			forcedType:         "monotonic_count_and_rate",
 			options:            MetricsConfigOption{},
@@ -124,7 +125,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced percent metric case: Rate called",
 			metricName:         "rate.metric",
-			value:              ResultValue{Value: 0.5},
+			value:              valuestore.ResultValue{Value: 0.5},
 			tags:               []string{},
 			forcedType:         "percent",
 			options:            MetricsConfigOption{},
@@ -137,7 +138,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced flag_stream case 1",
 			metricName:         "metric",
-			value:              ResultValue{Value: "1010"},
+			value:              valuestore.ResultValue{Value: "1010"},
 			tags:               []string{},
 			forcedType:         "flag_stream",
 			options:            MetricsConfigOption{Placement: 1, MetricSuffix: "foo"},
@@ -150,7 +151,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced flag_stream case 2",
 			metricName:         "metric",
-			value:              ResultValue{Value: "1010"},
+			value:              valuestore.ResultValue{Value: "1010"},
 			tags:               []string{},
 			forcedType:         "flag_stream",
 			options:            MetricsConfigOption{Placement: 2, MetricSuffix: "foo"},
@@ -163,7 +164,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Forced flag_stream invalid index",
 			metricName:         "metric",
-			value:              ResultValue{Value: "1010"},
+			value:              valuestore.ResultValue{Value: "1010"},
 			tags:               []string{},
 			forcedType:         "flag_stream",
 			options:            MetricsConfigOption{Placement: 10, MetricSuffix: "foo"},
@@ -179,7 +180,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Error converting value",
 			metricName:         "metric",
-			value:              ResultValue{Value: ResultValue{}},
+			value:              valuestore.ResultValue{Value: valuestore.ResultValue{}},
 			tags:               []string{},
 			forcedType:         "flag_stream",
 			options:            MetricsConfigOption{Placement: 10, MetricSuffix: "foo"},
@@ -195,7 +196,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Cannot convert value to float",
 			metricName:         "gauge.metric",
-			value:              ResultValue{Value: "abc"},
+			value:              valuestore.ResultValue{Value: "abc"},
 			tags:               []string{},
 			expectedMethod:     "",
 			expectedMetricName: "",
@@ -209,7 +210,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Unsupported type",
 			metricName:         "gauge.metric",
-			value:              ResultValue{Value: "1"},
+			value:              valuestore.ResultValue{Value: "1"},
 			tags:               []string{},
 			forcedType:         "invalidForceType",
 			expectedMethod:     "",
@@ -224,7 +225,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:            "Extract Value OK case",
 			metricName:          "gauge.metric",
-			value:               ResultValue{SubmissionType: "gauge", Value: string("22C")},
+			value:               valuestore.ResultValue{SubmissionType: "gauge", Value: string("22C")},
 			tags:                []string{},
 			extractValuePattern: regexp.MustCompile(`(\d+)C`),
 			expectedMethod:      "Gauge",
@@ -236,7 +237,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:            "Extract Value not matched",
 			metricName:          "gauge.metric",
-			value:               ResultValue{SubmissionType: "gauge", Value: string("NOMATCH")},
+			value:               valuestore.ResultValue{SubmissionType: "gauge", Value: string("NOMATCH")},
 			tags:                []string{},
 			extractValuePattern: regexp.MustCompile(`(\d+)C`),
 			expectedMethod:      "",
@@ -288,7 +289,7 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 	tests := []struct {
 		name         string
 		metrics      []MetricsConfig
-		values       *ResultValueStore
+		values       *valuestore.ResultValueStore
 		tags         []string
 		expectedLogs []logCount
 	}{
@@ -297,7 +298,7 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			metrics: []MetricsConfig{
 				{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 			},
-			values: &ResultValueStore{},
+			values: &valuestore.ResultValueStore{},
 			expectedLogs: []logCount{
 				{"[DEBUG] reportScalarMetrics: report scalar: error getting scalar value: value for Scalar OID `1.2.3.4.5` not found in results", 1},
 			},
@@ -317,7 +318,7 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 					},
 				},
 			},
-			values: &ResultValueStore{},
+			values: &valuestore.ResultValueStore{},
 			expectedLogs: []logCount{
 				{"[DEBUG] reportColumnMetrics: report column: error getting column value: value for Column OID `1.3.6.1.2.1.2.2.1.13` not found in results", 1},
 				{"[DEBUG] reportColumnMetrics: report column: error getting column value: value for Column OID `1.3.6.1.2.1.2.2.1.14` not found in results", 1},
@@ -337,21 +338,21 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 					},
 				},
 			},
-			values: &ResultValueStore{
-				ColumnValues: ColumnResultValuesType{
-					"1.3.6.1.2.1.2.2.1.14": map[string]ResultValue{
+			values: &valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
+					"1.3.6.1.2.1.2.2.1.14": map[string]valuestore.ResultValue{
 						"10": {
 							"gauge",
 							10,
 						},
 					},
-					"1.3.6.1.2.1.2.2.1.13": map[string]ResultValue{
+					"1.3.6.1.2.1.2.2.1.13": map[string]valuestore.ResultValue{
 						"10": {
 							"gauge",
 							10,
 						},
 					},
-					"1.3.6.1.2.1.31.1.1.1.1": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.1": map[string]valuestore.ResultValue{
 						"10": {
 							Value: "myIfName",
 						},
@@ -397,7 +398,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 	tests := []struct {
 		name         string
 		metricsTags  []MetricTagConfig
-		values       *ResultValueStore
+		values       *valuestore.ResultValueStore
 		expectedTags []string
 		expectedLogs []logCount
 	}{
@@ -407,7 +408,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
 				{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 			},
-			values: &ResultValueStore{},
+			values: &valuestore.ResultValueStore{},
 			expectedLogs: []logCount{
 				{"[DEBUG] getCheckInstanceMetricTags: metric tags: error getting scalar value: value for Scalar OID `1.2.3` not found in results", 1},
 				{"[DEBUG] getCheckInstanceMetricTags: metric tags: error getting scalar value: value for Scalar OID `1.3.6.1.2.1.1.5.0` not found in results", 1},
@@ -421,9 +422,9 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 					"number": "\\2",
 				}},
 			},
-			values: &ResultValueStore{
-				ScalarValues: ScalarResultValuesType{
-					"1.2.3": ResultValue{
+			values: &valuestore.ResultValueStore{
+				ScalarValues: valuestore.ScalarResultValuesType{
+					"1.2.3": valuestore.ResultValue{
 						Value: "hello123",
 					},
 				},
@@ -436,10 +437,10 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 			metricsTags: []MetricTagConfig{
 				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
 			},
-			values: &ResultValueStore{
-				ScalarValues: ScalarResultValuesType{
-					"1.2.3": ResultValue{
-						Value: ResultValue{},
+			values: &valuestore.ResultValueStore{
+				ScalarValues: valuestore.ScalarResultValuesType{
+					"1.2.3": valuestore.ResultValue{
+						Value: valuestore.ResultValue{},
 					},
 				},
 			},

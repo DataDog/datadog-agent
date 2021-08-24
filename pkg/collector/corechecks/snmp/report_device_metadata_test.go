@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/metadata"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
@@ -21,8 +22,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 	assert.Nil(t, err)
 	log.SetupLogger(l, "debug")
 
-	var storeWithoutIfName = &ResultValueStore{
-		ColumnValues: ColumnResultValuesType{},
+	var storeWithoutIfName = &valuestore.ResultValueStore{
+		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
 	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
@@ -84,11 +85,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) {
-	var storeWithIfName = &ResultValueStore{
-		ColumnValues: ColumnResultValuesType{
+	var storeWithIfName = &valuestore.ResultValueStore{
+		ColumnValues: valuestore.ColumnResultValuesType{
 			"1.3.6.1.2.1.31.1.1.1.1": {
-				"1": ResultValue{Value: float64(21)},
-				"2": ResultValue{Value: float64(22)},
+				"1": valuestore.ResultValue{Value: float64(21)},
+				"2": valuestore.ResultValue{Value: float64(22)},
 			},
 		},
 	}

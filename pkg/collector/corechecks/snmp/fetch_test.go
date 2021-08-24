@@ -2,6 +2,7 @@ package snmp
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"testing"
 
 	"github.com/gosnmp/gosnmp"
@@ -78,17 +79,17 @@ func Test_fetchColumnOids(t *testing.T) {
 	columnValues, err := fetchColumnOidsWithBatching(session, oids, 100, defaultBulkMaxRepetitions)
 	assert.Nil(t, err)
 
-	expectedColumnValues := ColumnResultValuesType{
+	expectedColumnValues := valuestore.ColumnResultValuesType{
 		"1.1.1": {
-			"1": ResultValue{Value: float64(11)},
-			"2": ResultValue{Value: float64(12)},
-			"3": ResultValue{Value: float64(13)},
-			"4": ResultValue{Value: float64(14)},
-			"5": ResultValue{Value: float64(15)},
+			"1": valuestore.ResultValue{Value: float64(11)},
+			"2": valuestore.ResultValue{Value: float64(12)},
+			"3": valuestore.ResultValue{Value: float64(13)},
+			"4": valuestore.ResultValue{Value: float64(14)},
+			"5": valuestore.ResultValue{Value: float64(15)},
 		},
 		"1.1.2": {
-			"1": ResultValue{Value: float64(21)},
-			"2": ResultValue{Value: float64(22)},
+			"1": valuestore.ResultValue{Value: float64(21)},
+			"2": valuestore.ResultValue{Value: float64(22)},
 		},
 	}
 	assert.Equal(t, expectedColumnValues, columnValues)
@@ -169,17 +170,17 @@ func Test_fetchColumnOidsBatch_usingGetBulk(t *testing.T) {
 	columnValues, err := fetchColumnOidsWithBatching(session, oids, 2, 10)
 	assert.Nil(t, err)
 
-	expectedColumnValues := ColumnResultValuesType{
+	expectedColumnValues := valuestore.ColumnResultValuesType{
 		"1.1.1": {
-			"1": ResultValue{Value: float64(11)},
-			"2": ResultValue{Value: float64(12)},
-			"3": ResultValue{Value: float64(13)},
-			"4": ResultValue{Value: float64(14)},
-			"5": ResultValue{Value: float64(15)},
+			"1": valuestore.ResultValue{Value: float64(11)},
+			"2": valuestore.ResultValue{Value: float64(12)},
+			"3": valuestore.ResultValue{Value: float64(13)},
+			"4": valuestore.ResultValue{Value: float64(14)},
+			"5": valuestore.ResultValue{Value: float64(15)},
 		},
 		"1.1.2": {
-			"1": ResultValue{Value: float64(21)},
-			"2": ResultValue{Value: float64(22)},
+			"1": valuestore.ResultValue{Value: float64(21)},
+			"2": valuestore.ResultValue{Value: float64(22)},
 		},
 	}
 	assert.Equal(t, expectedColumnValues, columnValues)
@@ -266,16 +267,16 @@ func Test_fetchColumnOidsBatch_usingGetNext(t *testing.T) {
 	columnValues, err := fetchColumnOidsWithBatching(session, oids, 2, 10)
 	assert.Nil(t, err)
 
-	expectedColumnValues := ColumnResultValuesType{
+	expectedColumnValues := valuestore.ColumnResultValuesType{
 		"1.1.1": {
-			"1": ResultValue{Value: float64(11)},
-			"2": ResultValue{Value: float64(12)},
+			"1": valuestore.ResultValue{Value: float64(11)},
+			"2": valuestore.ResultValue{Value: float64(12)},
 		},
 		"1.1.2": {
-			"1": ResultValue{Value: float64(21)},
+			"1": valuestore.ResultValue{Value: float64(21)},
 		},
 		"1.1.3": {
-			"1": ResultValue{Value: float64(31)},
+			"1": valuestore.ResultValue{Value: float64(31)},
 		},
 	}
 	assert.Equal(t, expectedColumnValues, columnValues)
@@ -338,7 +339,7 @@ func Test_fetchOidBatchSize(t *testing.T) {
 	columnValues, err := fetchScalarOidsWithBatching(session, oids, 2)
 	assert.Nil(t, err)
 
-	expectedColumnValues := ScalarResultValuesType{
+	expectedColumnValues := valuestore.ScalarResultValuesType{
 		"1.1.1.1.0": {Value: float64(10)},
 		"1.1.1.2.0": {Value: float64(20)},
 		"1.1.1.3.0": {Value: float64(30)},
@@ -421,7 +422,7 @@ func Test_fetchScalarOids_retry(t *testing.T) {
 	columnValues, err := fetchScalarOids(session, oids)
 	assert.Nil(t, err)
 
-	expectedColumnValues := ScalarResultValuesType{
+	expectedColumnValues := valuestore.ScalarResultValuesType{
 		"1.1.1.1.0": {Value: float64(10)},
 		"1.1.1.2":   {Value: float64(20)},
 		"1.1.1.3":   {Value: float64(30)},
@@ -499,7 +500,7 @@ func Test_fetchScalarOids_v1NoSuchName(t *testing.T) {
 	columnValues, err := fetchScalarOids(session, oids)
 	assert.Nil(t, err)
 
-	expectedColumnValues := ScalarResultValuesType{
+	expectedColumnValues := valuestore.ScalarResultValuesType{
 		"1.1.1.1.0": {Value: float64(10)},
 		"1.1.1.3.0": {Value: float64(30)},
 	}
@@ -528,7 +529,7 @@ func Test_fetchScalarOids_v1NoSuchName_noValidOidsLeft(t *testing.T) {
 	columnValues, err := fetchScalarOids(session, oids)
 	assert.Nil(t, err)
 
-	expectedColumnValues := ScalarResultValuesType{}
+	expectedColumnValues := valuestore.ScalarResultValuesType{}
 	assert.Equal(t, expectedColumnValues, columnValues)
 }
 

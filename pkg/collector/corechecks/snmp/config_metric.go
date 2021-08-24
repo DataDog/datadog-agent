@@ -1,6 +1,7 @@
 package snmp
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"regexp"
 	"strings"
 
@@ -74,7 +75,7 @@ type MetricsConfig struct {
 }
 
 // getTags retrieve tags using the metric config and values
-func (m *MetricsConfig) getTags(fullIndex string, values *ResultValueStore) []string {
+func (m *MetricsConfig) getTags(fullIndex string, values *valuestore.ResultValueStore) []string {
 	var rowTags []string
 	indexes := strings.Split(fullIndex, ".")
 	for _, metricTag := range m.MetricTags {
@@ -100,7 +101,7 @@ func (m *MetricsConfig) getTags(fullIndex string, values *ResultValueStore) []st
 		}
 		// get tag using another column value
 		if metricTag.Column.OID != "" {
-			columnValues, err := values.getColumnValues(metricTag.Column.OID)
+			columnValues, err := values.GetColumnValues(metricTag.Column.OID)
 			if err != nil {
 				log.Debugf("error getting column value: %v", err)
 				continue
@@ -119,7 +120,7 @@ func (m *MetricsConfig) getTags(fullIndex string, values *ResultValueStore) []st
 				log.Debugf("index not found for column value: tag=%v, index=%v", metricTag.Tag, newFullIndex)
 				continue
 			}
-			strValue, err := tagValue.toString()
+			strValue, err := tagValue.ToString()
 			if err != nil {
 				log.Debugf("error converting tagValue (%#v) to string : %v", tagValue, err)
 				continue

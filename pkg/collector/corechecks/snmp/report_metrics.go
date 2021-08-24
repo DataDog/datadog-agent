@@ -2,6 +2,7 @@ package snmp
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -16,7 +17,7 @@ type metricSender struct {
 	submittedMetrics int
 }
 
-func (ms *metricSender) reportMetrics(metrics []MetricsConfig, values *ResultValueStore, tags []string) {
+func (ms *metricSender) reportMetrics(metrics []MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
 	for _, metric := range metrics {
 		if metric.isScalar() {
 			ms.reportScalarMetrics(metric, values, tags)
@@ -26,16 +27,16 @@ func (ms *metricSender) reportMetrics(metrics []MetricsConfig, values *ResultVal
 	}
 }
 
-func (ms *metricSender) getCheckInstanceMetricTags(metricTags []MetricTagConfig, values *ResultValueStore) []string {
+func (ms *metricSender) getCheckInstanceMetricTags(metricTags []MetricTagConfig, values *valuestore.ResultValueStore) []string {
 	var globalTags []string
 
 	for _, metricTag := range metricTags {
-		value, err := values.getScalarValue(metricTag.OID)
+		value, err := values.GetScalarValue(metricTag.OID)
 		if err != nil {
 			log.Debugf("metric tags: error getting scalar value: %v", err)
 			continue
 		}
-		strValue, err := value.toString()
+		strValue, err := value.ToString()
 		if err != nil {
 			log.Debugf("error converting value (%#v) to string : %v", value, err)
 			continue
@@ -45,8 +46,8 @@ func (ms *metricSender) getCheckInstanceMetricTags(metricTags []MetricTagConfig,
 	return globalTags
 }
 
-func (ms *metricSender) reportScalarMetrics(metric MetricsConfig, values *ResultValueStore, tags []string) {
-	value, err := values.getScalarValue(metric.Symbol.OID)
+func (ms *metricSender) reportScalarMetrics(metric MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
+	value, err := values.GetScalarValue(metric.Symbol.OID)
 	if err != nil {
 		log.Debugf("report scalar: error getting scalar value: %v", err)
 		return
@@ -57,10 +58,10 @@ func (ms *metricSender) reportScalarMetrics(metric MetricsConfig, values *Result
 	ms.sendMetric(metric.Symbol.Name, value, scalarTags, metric.ForcedType, metric.Options, metric.Symbol.extractValuePattern)
 }
 
-func (ms *metricSender) reportColumnMetrics(metricConfig MetricsConfig, values *ResultValueStore, tags []string) {
+func (ms *metricSender) reportColumnMetrics(metricConfig MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
 	rowTagsCache := make(map[string][]string)
 	for _, symbol := range metricConfig.Symbols {
-		metricValues, err := values.getColumnValues(symbol.OID)
+		metricValues, err := values.GetColumnValues(symbol.OID)
 		if err != nil {
 			log.Debugf("report column: error getting column value: %v", err)
 			continue
@@ -78,9 +79,9 @@ func (ms *metricSender) reportColumnMetrics(metricConfig MetricsConfig, values *
 	}
 }
 
-func (ms *metricSender) sendMetric(metricName string, value ResultValue, tags []string, forcedType string, options MetricsConfigOption, extractValuePattern *regexp.Regexp) {
+func (ms *metricSender) sendMetric(metricName string, value valuestore.ResultValue, tags []string, forcedType string, options MetricsConfigOption, extractValuePattern *regexp.Regexp) {
 	if extractValuePattern != nil {
-		extractedValue, err := value.extractStringValue(extractValuePattern)
+		extractedValue, err := value.ExtractStringValue(extractValuePattern)
 		if err != nil {
 			log.Debugf("error extracting value from `%v` with pattern `%v`: %v", value, extractValuePattern, err)
 			return
@@ -96,7 +97,7 @@ func (ms *metricSender) sendMetric(metricName string, value ResultValue, tags []
 			forcedType = "gauge"
 		}
 	} else if forcedType == "flag_stream" {
-		strValue, err := value.toString()
+		strValue, err := value.ToString()
 		if err != nil {
 			log.Debugf("error converting value (%#v) to string : %v", value, err)
 			return
@@ -107,11 +108,11 @@ func (ms *metricSender) sendMetric(metricName string, value ResultValue, tags []
 			return
 		}
 		metricFullName = metricFullName + "." + options.MetricSuffix
-		value = ResultValue{Value: floatValue}
+		value = valuestore.ResultValue{Value: floatValue}
 		forcedType = "gauge"
 	}
 
-	floatValue, err := value.toFloat64()
+	floatValue, err := value.ToFloat64()
 	if err != nil {
 		log.Debugf("metric `%s`: failed to convert to float64: %s", metricFullName, err)
 		return

@@ -2,9 +2,10 @@ package snmp
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 )
 
-func fetchValues(session sessionAPI, config CheckConfig) (*ResultValueStore, error) {
+func fetchValues(session sessionAPI, config CheckConfig) (*valuestore.ResultValueStore, error) {
 	// fetch scalar values
 	scalarResults, err := fetchScalarOidsWithBatching(session, config.oidConfig.ScalarOids, config.oidBatchSize)
 	if err != nil {
@@ -21,5 +22,5 @@ func fetchValues(session sessionAPI, config CheckConfig) (*ResultValueStore, err
 		return nil, fmt.Errorf("failed to fetch oids with batching: %v", err)
 	}
 
-	return &ResultValueStore{scalarResults, columnResults}, nil
+	return &valuestore.ResultValueStore{ScalarValues: scalarResults, ColumnValues: columnResults}, nil
 }

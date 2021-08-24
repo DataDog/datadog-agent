@@ -2,6 +2,7 @@ package snmp
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"sort"
 
 	"github.com/gosnmp/gosnmp"
@@ -11,8 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 )
 
-func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oidBatchSize int, bulkMaxRepetitions uint32) (ColumnResultValuesType, error) {
-	retValues := make(ColumnResultValuesType, len(oids))
+func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oidBatchSize int, bulkMaxRepetitions uint32) (valuestore.ColumnResultValuesType, error) {
+	retValues := make(valuestore.ColumnResultValuesType, len(oids))
 
 	columnOids := getOidsMapKeys(oids)
 	sort.Strings(columnOids) // sorting ColumnOids to make them deterministic for testing purpose
@@ -48,8 +49,8 @@ func fetchColumnOidsWithBatching(session sessionAPI, oids map[string]string, oid
 // fetchColumnOids has an `oids` argument representing a `map[string]string`,
 // the key of the map is the column oid, and the value is the oid used to fetch the next value for the column.
 // The value oid might be equal to column oid or a row oid of the same column.
-func fetchColumnOids(session sessionAPI, oids map[string]string, bulkMaxRepetitions uint32) (ColumnResultValuesType, error) {
-	returnValues := make(ColumnResultValuesType, len(oids))
+func fetchColumnOids(session sessionAPI, oids map[string]string, bulkMaxRepetitions uint32) (valuestore.ColumnResultValuesType, error) {
+	returnValues := make(valuestore.ColumnResultValuesType, len(oids))
 	curOids := oids
 	for {
 		if len(curOids) == 0 {
@@ -99,11 +100,11 @@ func getResults(session sessionAPI, requestOids []string, bulkMaxRepetitions uin
 	return results, nil
 }
 
-func updateColumnResultValues(valuesToUpdate ColumnResultValuesType, extraValues ColumnResultValuesType) {
+func updateColumnResultValues(valuesToUpdate valuestore.ColumnResultValuesType, extraValues valuestore.ColumnResultValuesType) {
 	for columnOid, columnValues := range extraValues {
 		for oid, value := range columnValues {
 			if _, ok := valuesToUpdate[columnOid]; !ok {
-				valuesToUpdate[columnOid] = make(map[string]ResultValue)
+				valuesToUpdate[columnOid] = make(map[string]valuestore.ResultValue)
 			}
 			valuesToUpdate[columnOid][oid] = value
 		}

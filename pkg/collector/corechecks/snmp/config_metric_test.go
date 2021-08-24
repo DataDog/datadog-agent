@@ -3,6 +3,7 @@ package snmp
 import (
 	"bufio"
 	"bytes"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"strings"
 	"testing"
 
@@ -77,7 +78,7 @@ func Test_metricsConfig_getTags(t *testing.T) {
 		name            string
 		rawMetricConfig []byte
 		fullIndex       string
-		values          *ResultValueStore
+		values          *valuestore.ResultValueStore
 		expectedTags    []string
 		expectedLogs    []logCount
 	}{
@@ -104,10 +105,10 @@ metric_tags:
     tag: pdu_name
 `),
 			fullIndex: "1.2.3.4.5.6.7.8",
-			values: &ResultValueStore{
-				ColumnValues: map[string]map[string]ResultValue{
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
 					"1.2.3.4.8.1.2": {
-						"2.3.7.8": ResultValue{
+						"2.3.7.8": valuestore.ResultValue{
 							Value: "myval",
 						},
 					},
@@ -137,7 +138,7 @@ metric_tags:
       16: dns
 `),
 			fullIndex:    "3",
-			values:       &ResultValueStore{},
+			values:       &valuestore.ResultValueStore{},
 			expectedTags: []string{"ipversion:ipv4z"},
 		},
 		{
@@ -161,10 +162,10 @@ metric_tags:
       suffix: '$2'
 `),
 			fullIndex: "1.2.3.4.5.6.7.8",
-			values: &ResultValueStore{
-				ColumnValues: map[string]map[string]ResultValue{
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
 					"1.2.3.4.8.1.2": {
-						"1.2.3.4.5.6.7.8": ResultValue{
+						"1.2.3.4.5.6.7.8": valuestore.ResultValue{
 							Value: "eth0",
 						},
 					},
@@ -193,10 +194,10 @@ metric_tags:
       tag2: '\1'
 `),
 			fullIndex: "1.2.3.4.5.6.7.8",
-			values: &ResultValueStore{
-				ColumnValues: map[string]map[string]ResultValue{
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
 					"1.2.3.4.8.1.2": {
-						"1.2.3.4.5.6.7.8": ResultValue{
+						"1.2.3.4.5.6.7.8": valuestore.ResultValue{
 							Value: "f5-vm-aa.c.datadog-integrations-lab.internal",
 						},
 					},
@@ -225,10 +226,10 @@ metric_tags:
       suffix: '$2'
 `),
 			fullIndex: "1.2.3.4.5.6.7.8",
-			values: &ResultValueStore{
-				ColumnValues: map[string]map[string]ResultValue{
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
 					"1.2.3.4.8.1.2": {
-						"1.2.3.4.5.6.7.8": ResultValue{
+						"1.2.3.4.5.6.7.8": valuestore.ResultValue{
 							Value: "....",
 						},
 					},
@@ -257,10 +258,10 @@ metric_tags:
       suffix: '$2'
 `),
 			fullIndex: "1.2.3.4.5.6.7.8",
-			values: &ResultValueStore{
-				ColumnValues: map[string]map[string]ResultValue{
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
 					"1.2.3.4.8.1.2": {
-						"1.2.3.4.5.6.7.8": ResultValue{
+						"1.2.3.4.5.6.7.8": valuestore.ResultValue{
 							Value: "abc.",
 						},
 					},
@@ -286,10 +287,10 @@ metric_tags:
     tag: abc
 `),
 			fullIndex: "1.2.3.4.5.6.7.8",
-			values: &ResultValueStore{
-				ColumnValues: map[string]map[string]ResultValue{
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
 					"1.2.3.4.8.1.2": {
-						"999": ResultValue{
+						"999": valuestore.ResultValue{
 							Value: "abc.",
 						},
 					},
@@ -318,11 +319,11 @@ metric_tags:
     tag: abc
 `),
 			fullIndex: "1.2.3.4.5.6.7.8",
-			values: &ResultValueStore{
-				ColumnValues: map[string]map[string]ResultValue{
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
 					"1.2.3.4.8.1.2": {
-						"1.2.3.4.5.6.7.8": ResultValue{
-							Value: ResultValue{},
+						"1.2.3.4.5.6.7.8": valuestore.ResultValue{
+							Value: valuestore.ResultValue{},
 						},
 					},
 				},
@@ -350,10 +351,10 @@ metric_tags:
     tag: abc
 `),
 			fullIndex: "1.2.3.4.5.6.7.8",
-			values: &ResultValueStore{
-				ColumnValues: map[string]map[string]ResultValue{
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
 					"999": {
-						"1.2.3.4.5.6.7.8": ResultValue{
+						"1.2.3.4.5.6.7.8": valuestore.ResultValue{
 							Value: "abc.",
 						},
 					},
@@ -386,10 +387,10 @@ metric_tags:
       16: dns
 `),
 			fullIndex: "20",
-			values: &ResultValueStore{
-				ColumnValues: map[string]map[string]ResultValue{
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
 					"1.2.3.4.8.1.2": {
-						"20": ResultValue{
+						"20": valuestore.ResultValue{
 							Value: "abc.",
 						},
 					},
@@ -415,10 +416,10 @@ metric_tags:
     tag: abc
 `),
 			fullIndex: "1",
-			values: &ResultValueStore{
-				ColumnValues: map[string]map[string]ResultValue{
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
 					"1.2.3.4.8.1.2": {
-						"1": ResultValue{
+						"1": valuestore.ResultValue{
 							Value: "abc.",
 						},
 					},

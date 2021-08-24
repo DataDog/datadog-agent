@@ -1,4 +1,4 @@
-package snmp
+package valuestore
 
 import (
 	"testing"
@@ -11,7 +11,7 @@ func TestToFloat64FromString(t *testing.T) {
 		SubmissionType: "gauge",
 		Value:          "255.745",
 	}
-	value, err := snmpValue.toFloat64()
+	value, err := snmpValue.ToFloat64()
 	assert.NoError(t, err)
 	assert.Equal(t, float64(255.745), value)
 }
@@ -21,7 +21,7 @@ func TestToFloat64FromFloat(t *testing.T) {
 		SubmissionType: "gauge",
 		Value:          float64(255.745),
 	}
-	value, err := snmpValue.toFloat64()
+	value, err := snmpValue.ToFloat64()
 	assert.NoError(t, err)
 	assert.Equal(t, float64(255.745), value)
 }
@@ -31,6 +31,6 @@ func TestToFloat64FromInvalidType(t *testing.T) {
 		SubmissionType: "gauge",
 		Value:          int64(255),
 	}
-	_, err := snmpValue.toFloat64()
+	_, err := snmpValue.ToFloat64()
 	assert.NotNil(t, err)
 }

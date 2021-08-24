@@ -2,6 +2,7 @@ package snmp
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,7 +20,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		name           string
 		symbol         SymbolConfig
 		fullIndex      string
-		values         *ResultValueStore
+		values         *valuestore.ResultValueStore
 		expectedMetric []Metric
 		expectedError  error
 	}{
@@ -27,22 +28,22 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			"snmp.ifBandwidthInUsage.rate submitted",
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
-			&ResultValueStore{
-				ColumnValues: ColumnResultValuesType{
+			&valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
 					// ifHCInOctets
-					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
-					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 1000000.0,
 						},
 					},
 					// ifHighSpeed
-					"1.3.6.1.2.1.31.1.1.1.15": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 80.0,
 						},
@@ -59,22 +60,22 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			"snmp.ifBandwidthOutUsage.rate submitted",
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.10", Name: "ifHCOutOctets"},
 			"9",
-			&ResultValueStore{
-				ColumnValues: ColumnResultValuesType{
+			&valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
 					// ifHCInOctets
-					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
-					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 1000000.0,
 						},
 					},
 					// ifHighSpeed
-					"1.3.6.1.2.1.31.1.1.1.15": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 80.0,
 						},
@@ -91,8 +92,8 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			"not a bandwidth metric",
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.99", Name: "notABandwidthMetric"},
 			"9",
-			&ResultValueStore{
-				ColumnValues: ColumnResultValuesType{},
+			&valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{},
 			},
 			[]Metric{},
 			nil,
@@ -101,16 +102,16 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			"missing ifHighSpeed",
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
-			&ResultValueStore{
-				ColumnValues: ColumnResultValuesType{
+			&valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
 					// ifHCInOctets
-					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
-					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 1000000.0,
 						},
@@ -124,16 +125,16 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			"missing ifHCInOctets",
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
-			&ResultValueStore{
-				ColumnValues: ColumnResultValuesType{
+			&valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
 					// ifHCOutOctets
-					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 1000000.0,
 						},
 					},
 					// ifHighSpeed
-					"1.3.6.1.2.1.31.1.1.1.15": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 80.0,
 						},
@@ -147,16 +148,16 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			"missing ifHCOutOctets",
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCOutOctets"},
 			"9",
-			&ResultValueStore{
-				ColumnValues: ColumnResultValuesType{
+			&valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
 					// ifHCOutOctets
-					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 1000000.0,
 						},
 					},
 					// ifHighSpeed
-					"1.3.6.1.2.1.31.1.1.1.15": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 80.0,
 						},
@@ -170,22 +171,22 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			"missing ifHCInOctets value",
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
-			&ResultValueStore{
-				ColumnValues: ColumnResultValuesType{
+			&valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
 					// ifHCInOctets
-					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
 						"9999": {
 							Value: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
-					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 1000000.0,
 						},
 					},
 					// ifHighSpeed
-					"1.3.6.1.2.1.31.1.1.1.15": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 80.0,
 						},
@@ -199,22 +200,22 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			"missing ifHighSpeed value",
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
-			&ResultValueStore{
-				ColumnValues: ColumnResultValuesType{
+			&valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
 					// ifHCInOctets
-					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
-					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 1000000.0,
 						},
 					},
 					// ifHighSpeed
-					"1.3.6.1.2.1.31.1.1.1.15": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]valuestore.ResultValue{
 						"999": {
 							Value: 80.0,
 						},
@@ -228,22 +229,22 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			"cannot convert ifHighSpeed to float",
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
-			&ResultValueStore{
-				ColumnValues: ColumnResultValuesType{
+			&valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
 					// ifHCInOctets
-					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
-					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 1000000.0,
 						},
 					},
 					// ifHighSpeed
-					"1.3.6.1.2.1.31.1.1.1.15": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]valuestore.ResultValue{
 						"9": {
 							Value: "abc",
 						},
@@ -257,22 +258,22 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			"cannot convert ifHCInOctets to float",
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
-			&ResultValueStore{
-				ColumnValues: ColumnResultValuesType{
+			&valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
 					// ifHCInOctets
-					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
 						"9": {
 							Value: "abc",
 						},
 					},
 					// ifHCOutOctets
-					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 1000000.0,
 						},
 					},
 					// ifHighSpeed
-					"1.3.6.1.2.1.31.1.1.1.15": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 80.0,
 						},
@@ -310,29 +311,29 @@ func Test_metricSender_trySendBandwidthUsageMetric(t *testing.T) {
 		name           string
 		symbol         SymbolConfig
 		fullIndex      string
-		values         *ResultValueStore
+		values         *valuestore.ResultValueStore
 		expectedMetric []Metric
 	}{
 		{
 			"snmp.ifBandwidthInUsage.rate submitted",
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
-			&ResultValueStore{
-				ColumnValues: ColumnResultValuesType{
+			&valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
 					// ifHCInOctets
-					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
-					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 1000000.0,
 						},
 					},
 					// ifHighSpeed
-					"1.3.6.1.2.1.31.1.1.1.15": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 80.0,
 						},
@@ -348,22 +349,22 @@ func Test_metricSender_trySendBandwidthUsageMetric(t *testing.T) {
 			"should complete even on error",
 			SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
-			&ResultValueStore{
-				ColumnValues: ColumnResultValuesType{
+			&valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
 					// ifHCInOctets
-					"1.3.6.1.2.1.31.1.1.1.6": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 5000000.0,
 						},
 					},
 					// ifHCOutOctets
-					"1.3.6.1.2.1.31.1.1.1.10": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
 						"9": {
 							Value: 1000000.0,
 						},
 					},
 					// ifHighSpeed
-					"1.3.6.1.2.1.31.1.1.1.15": map[string]ResultValue{
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]valuestore.ResultValue{
 						"999": {
 							Value: 80.0,
 						},
