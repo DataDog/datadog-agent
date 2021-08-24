@@ -209,7 +209,7 @@ bulk_max_repetitions: 20
 
 	assert.Equal(t, metrics, check.config.Metrics)
 	assert.Equal(t, metricsTags, check.config.MetricTags)
-	assert.Equal(t, 1, len(check.config.profiles))
+	assert.Equal(t, 1, len(check.config.Profiles))
 	assert.Equal(t, "780a58c96c908df8", check.config.deviceID)
 	assert.Equal(t, []string{"snmp_device:1.2.3.4", "tag1", "tag2:val2"}, check.config.deviceIDTags)
 	assert.Equal(t, "127.0.0.0/30", check.config.subnet)
@@ -266,7 +266,7 @@ profiles:
 	assert.Equal(t, "123", check.config.CommunityString)
 	assert.Equal(t, metrics, check.config.Metrics)
 	assert.Equal(t, metricsTags, check.config.MetricTags)
-	assert.Equal(t, 2, len(check.config.profiles))
+	assert.Equal(t, 2, len(check.config.Profiles))
 	assert.Equal(t, "74f22f3320d2d692", check.config.deviceID)
 	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, check.config.deviceIDTags)
 	assert.Equal(t, false, check.config.autodetectProfile)
@@ -296,8 +296,8 @@ community_string: abc
 
 	assert.Equal(t, metrics, check.config.Metrics)
 	assert.Equal(t, metricsTags, check.config.MetricTags)
-	assert.Equal(t, 1, len(check.config.profiles))
-	assert.Equal(t, mockProfilesDefinitions()["f5-big-ip"].Metrics, check.config.profiles["f5-big-ip"].Metrics)
+	assert.Equal(t, 1, len(check.config.Profiles))
+	assert.Equal(t, mockProfilesDefinitions()["f5-big-ip"].Metrics, check.config.Profiles["f5-big-ip"].Metrics)
 }
 
 func TestIPAddressConfiguration(t *testing.T) {
@@ -847,7 +847,7 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 	}
 	c := &CheckConfig{
 		IpAddress: "1.2.3.4",
-		profiles:  mockProfiles,
+		Profiles:  mockProfiles,
 	}
 	err := c.refreshWithProfile("f5")
 	assert.EqualError(t, err, "unknown profile `f5`")
@@ -869,7 +869,7 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 
 	c = &CheckConfig{
 		IpAddress:             "1.2.3.4",
-		profiles:              mockProfiles,
+		Profiles:              mockProfiles,
 		collectDeviceMetadata: true,
 	}
 	err = c.refreshWithProfile("profile1")

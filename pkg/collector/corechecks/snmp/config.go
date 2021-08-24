@@ -95,7 +95,7 @@ type CheckConfig struct {
 	MetricTags            []MetricTagConfig
 	OidBatchSize          int
 	BulkMaxRepetitions    uint32
-	profiles              profileDefinitionMap
+	Profiles              profileDefinitionMap
 	profileTags           []string
 	profile               string
 	profileDef            *profileDefinition
@@ -110,12 +110,12 @@ type CheckConfig struct {
 }
 
 func (c *CheckConfig) refreshWithProfile(profile string) error {
-	if _, ok := c.profiles[profile]; !ok {
+	if _, ok := c.Profiles[profile]; !ok {
 		return fmt.Errorf("unknown profile `%s`", profile)
 	}
 	log.Debugf("Refreshing with profile `%s`", profile)
 	tags := []string{"snmp_profile:" + profile}
-	definition := c.profiles[profile]
+	definition := c.Profiles[profile]
 	c.profileDef = &definition
 	c.profile = profile
 
@@ -316,7 +316,7 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		normalizeMetrics(profileDef.Metrics)
 	}
 
-	c.profiles = profiles
+	c.Profiles = profiles
 	profile := instance.Profile
 
 	errors := validateEnrichMetrics(c.Metrics)

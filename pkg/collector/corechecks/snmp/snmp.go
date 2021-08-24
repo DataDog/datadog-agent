@@ -129,7 +129,7 @@ func (c *Check) autodetectProfile(session sessionAPI) error {
 		}
 		c.config.autodetectProfile = false // do not try to auto detect profile next time
 
-		profile, err := getProfileForSysObjectID(c.config.profiles, sysObjectID)
+		profile, err := getProfileForSysObjectID(c.config.Profiles, sysObjectID)
 		if err != nil {
 			return fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
 		}
