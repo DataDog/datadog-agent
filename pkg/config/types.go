@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/viper"
 	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 )
 
 // Config represents an object that can load and store configuration parameters
@@ -47,7 +47,7 @@ type Config interface {
 	GetSizeInBytes(key string) uint
 
 	SetEnvPrefix(in string)
-	BindEnv(input ...string) error
+	BindEnv(input ...string)
 	SetEnvKeyReplacer(r *strings.Replacer)
 	SetEnvKeyTransformer(key string, fn func(string) interface{})
 

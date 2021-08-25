@@ -6,6 +6,7 @@
 package flare
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -30,7 +31,7 @@ func CreateSecurityAgentArchive(local bool, logFilePath string, runtimeStatus ma
 
 	// Get hostname, if there's an error in getting the hostname,
 	// set the hostname to unknown
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		hostname = "unknown"
 	}
@@ -81,6 +82,31 @@ func CreateSecurityAgentArchive(local bool, logFilePath string, runtimeStatus ma
 	err = zipEnvvars(tempDir, hostname)
 	if err != nil {
 		return "", err
+	}
+
+	err = zipLinuxKernelSymbols(tempDir, hostname)
+	if err != nil {
+		return "", err
+	}
+
+	err = zipLinuxPid1MountInfo(tempDir, hostname)
+	if err != nil {
+		return "", err
+	}
+
+	err = zipLinuxKrobeEvents(tempDir, hostname)
+	if err != nil {
+		log.Infof("Error while getting kprobe_events: %s", err)
+	}
+
+	err = zipLinuxTracingAvailableEvents(tempDir, hostname)
+	if err != nil {
+		log.Infof("Error while getting kprobe_events: %s", err)
+	}
+
+	err = zipLinuxTracingAvailableFilterFunctions(tempDir, hostname)
+	if err != nil {
+		log.Infof("Error while getting kprobe_events: %s", err)
 	}
 
 	err = permsInfos.commit(tempDir, hostname, os.ModePerm)

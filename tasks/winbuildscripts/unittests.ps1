@@ -22,6 +22,9 @@ if ($Env:TARGET_ARCH -eq "x86") {
 mkdir  .\bin\agent
 & inv -e customaction.build --arch=$archflag
 
+# Generate the datadog.yaml config file to be used in integration tests
+& inv -e generate-config --build-type="agent-py2py3" --output-file="./datadog.yaml"
+
 & $Env:BUILD_ROOT\bin\agent\customaction-tests.exe
 $err = $LASTEXITCODE
 Write-Host Test result is $err
@@ -30,7 +33,7 @@ if($err -ne 0){
     [Environment]::Exit($err)
 }
 
-& inv -e deps --verbose
+& inv -e deps
 
 & inv -e rtloader.make --python-runtimes="$Env:PY_RUNTIMES" --install-prefix=$Env:BUILD_ROOT\dev --cmake-options='-G \"Unix Makefiles\"' --arch $archflag
 $err = $LASTEXITCODE
@@ -66,7 +69,7 @@ if($err -ne 0){
 }
 
 & inv -e install-tools
-& inv -e test --race --profile --rerun-fails=2 --cpus 4 --arch $archflag --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --rtloader-root=$Env:BUILD_ROOT\rtloader --save-result-json C:\mnt\test_output.json
+& inv -e test --race --profile --rerun-fails=2 --cpus 4 --arch $archflag --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --save-result-json C:\mnt\test_output.json
 
 $err = $LASTEXITCODE
 Write-Host Test result is $err

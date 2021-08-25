@@ -1,9 +1,9 @@
 ---
-blacklist:
+denylist:
   - GPL-2.0
   - GPL-3.0
 
-whitelist:
+allowlist:
   - 0BSD
   - Apache-2.0
   - BSD-2-Clause

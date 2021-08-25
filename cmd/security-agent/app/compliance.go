@@ -58,8 +58,8 @@ func init() {
 }
 
 func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, error) {
-	logsConfigComplianceKeys := config.NewLogsConfigKeys("compliance_config.endpoints.")
-	return newLogContext(logsConfigComplianceKeys, "compliance-http-intake.logs.")
+	logsConfigComplianceKeys := config.NewLogsConfigKeys("compliance_config.endpoints.", coreconfig.Datadog)
+	return newLogContext(logsConfigComplianceKeys, "compliance-http-intake.logs.", "compliance", config.DefaultIntakeOrigin)
 }
 
 func eventRun(cmd *cobra.Command, args []string) error {
@@ -122,10 +122,12 @@ func startCompliance(hostname string, stopper restart.Stopper, statsdClient *ddg
 	runner.SetScheduler(scheduler)
 
 	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
+	checkMaxEvents := coreconfig.Datadog.GetInt("compliance_config.check_max_events_per_run")
 	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
 
 	options := []checks.BuilderOption{
 		checks.WithInterval(checkInterval),
+		checks.WithMaxEvents(checkMaxEvents),
 		checks.WithHostname(hostname),
 		checks.WithHostRootMount(os.Getenv("HOST_ROOT")),
 		checks.MayFail(checks.WithDocker()),

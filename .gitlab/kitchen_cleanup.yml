@@ -8,23 +8,10 @@
 # include:
 #   - /.gitlab/kitchen_common/cleanup.yml
 
-.if_not_kitchen_deploy: &if_not_kitchen_deploy
-  if: $CI_COMMIT_BRANCH != "master" && $CI_COMMIT_TAG == null && $DEPLOY_AGENT != "true" && $CI_PIPELINE_SOURCE != "web" && $CI_PIPELINE_SOURCE != "api"
-
-.if_not_version_6: &if_not_version_6
-  if: $RELEASE_VERSION_6 == ""
-
-.if_not_version_7: &if_not_version_7
-  if: $RELEASE_VERSION_7 == ""
-
 kitchen_cleanup_s3-a6:
   extends: .kitchen_cleanup_s3_common
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_not_kitchen_deploy
-      when: never
-    - when: on_success
+    !reference [.on_kitchen_tests_a6]
   dependencies: ["agent_deb-x64-a6"]
   variables:
     AGENT_MAJOR_VERSION: 6
@@ -33,11 +20,7 @@ kitchen_cleanup_s3-a6:
 kitchen_cleanup_s3-a7:
   extends: .kitchen_cleanup_s3_common
   rules:
-    - <<: *if_not_version_7
-      when: never
-    - <<: *if_not_kitchen_deploy
-      when: never
-    - when: on_success
+    !reference [.on_default_kitchen_tests_a7]
   dependencies: ["agent_deb-x64-a7"]
   variables:
     AGENT_MAJOR_VERSION: 7
@@ -45,10 +28,14 @@ kitchen_cleanup_s3-a7:
 
 kitchen_cleanup_azure-a6:
   extends: .kitchen_cleanup_azure_common
+  rules:
+    !reference [.on_kitchen_tests_a6_always]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
 
 kitchen_cleanup_azure-a7:
   extends: .kitchen_cleanup_azure_common
+  rules:
+    !reference [.on_default_kitchen_tests_a7_always]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7

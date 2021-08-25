@@ -12,24 +12,18 @@ import (
 
 const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
 
-// Using too high max repetitions might lead to tooBig SNMP error messages.
-// - Java SNMP and gosnmp (gosnmp.defaultMaxRepetitions) uses 50
-// - snmp-net uses 10
-const bulkMaxRepetition = 10
-
 type sessionAPI interface {
 	Configure(config snmpConfig) error
 	Connect() error
 	Close() error
 	Get(oids []string) (result *gosnmp.SnmpPacket, err error)
-	GetBulk(oids []string) (result *gosnmp.SnmpPacket, err error)
+	GetBulk(oids []string, bulkMaxRepetitions uint32) (result *gosnmp.SnmpPacket, err error)
 	GetNext(oids []string) (result *gosnmp.SnmpPacket, err error)
 	GetVersion() gosnmp.SnmpVersion
 }
 
 type snmpSession struct {
-	gosnmpInst    gosnmp.GoSNMP
-	loggerEnabled bool
+	gosnmpInst gosnmp.GoSNMP
 }
 
 func (s *snmpSession) Configure(config snmpConfig) error {
@@ -91,19 +85,13 @@ func (s *snmpSession) Configure(config snmpConfig) error {
 	} else {
 		if lvl == seelog.TraceLvl {
 			traceLevelLogWriter := traceLevelLogWriter{}
-			s.gosnmpInst.Logger = stdlog.New(&traceLevelLogWriter, "", stdlog.Lshortfile)
-			s.loggerEnabled = true
+			s.gosnmpInst.Logger = gosnmp.NewLogger(stdlog.New(&traceLevelLogWriter, "", stdlog.Lshortfile))
 		}
 	}
 	return nil
 }
 
 func (s *snmpSession) Connect() error {
-	if s.loggerEnabled == false {
-		// Setting Logger everytime GoSNMP.Connect is called is need to avoid gosnmp
-		// logging to be enabled. Related upstream issue https://github.com/gosnmp/gosnmp/issues/313
-		s.gosnmpInst.Logger = nil
-	}
 	return s.gosnmpInst.Connect()
 }
 
@@ -115,8 +103,8 @@ func (s *snmpSession) Get(oids []string) (result *gosnmp.SnmpPacket, err error) 
 	return s.gosnmpInst.Get(oids)
 }
 
-func (s *snmpSession) GetBulk(oids []string) (result *gosnmp.SnmpPacket, err error) {
-	return s.gosnmpInst.GetBulk(oids, 0, bulkMaxRepetition)
+func (s *snmpSession) GetBulk(oids []string, bulkMaxRepetitions uint32) (result *gosnmp.SnmpPacket, err error) {
+	return s.gosnmpInst.GetBulk(oids, 0, bulkMaxRepetitions)
 }
 
 func (s *snmpSession) GetNext(oids []string) (result *gosnmp.SnmpPacket, err error) {
@@ -136,9 +124,12 @@ func fetchSysObjectID(session sessionAPI) (string, error) {
 		return "", fmt.Errorf("expected 1 value, but got %d: variables=%v", len(result.Variables), result.Variables)
 	}
 	pduVar := result.Variables[0]
-	_, value, err := getValueFromPDU(pduVar)
+	oid, value, err := getValueFromPDU(pduVar)
 	if err != nil {
 		return "", fmt.Errorf("error getting value from pdu: %s", err)
+	}
+	if oid != sysObjectIDOid {
+		return "", fmt.Errorf("expect `%s` OID but got `%s` OID with value `%v`", sysObjectIDOid, oid, value)
 	}
 	strValue, err := value.toString()
 	if err != nil {

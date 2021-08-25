@@ -317,6 +317,12 @@
                     KeyPath="yes"
                     DiskId="1"
                     Source="$(var.BinFiles)/system-probe.exe" />
+                <!-- The "Name" field must match the argument to eventlog.Open() -->
+                <util:EventSource Log="Application" Name="datadog-system-probe"
+                      EventMessageFile="[AGENT]system-probe.exe"
+                      SupportsErrors="yes"
+                      SupportsInformationals="yes"
+                      SupportsWarnings="yes"/>
                 </Component>
             <?endif ?> <!-- include sysprobe -->
           <?endif ?>

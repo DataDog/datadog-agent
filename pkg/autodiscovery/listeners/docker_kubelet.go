@@ -12,6 +12,7 @@ package listeners
 // sources instead of adding yet another special case.
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"sync"
@@ -34,7 +35,7 @@ type DockerKubeletService struct {
 var _ Service = &DockerKubeletService{}
 
 // getPod wraps KubeUtil init and pod lookup for both public methods.
-func (s *DockerKubeletService) getPod() (*kubelet.Pod, error) {
+func (s *DockerKubeletService) getPod(ctx context.Context) (*kubelet.Pod, error) {
 	if s.kubeUtil == nil {
 		var err error
 		s.kubeUtil, err = kubelet.GetKubeUtil()
@@ -43,11 +44,11 @@ func (s *DockerKubeletService) getPod() (*kubelet.Pod, error) {
 		}
 	}
 	searchedID := s.GetEntity()
-	return s.kubeUtil.GetPodForContainerID(searchedID)
+	return s.kubeUtil.GetPodForContainerID(ctx, searchedID)
 }
 
 // GetHosts returns the container's hosts
-func (s *DockerKubeletService) GetHosts() (map[string]string, error) {
+func (s *DockerKubeletService) GetHosts(ctx context.Context) (map[string]string, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -55,7 +56,7 @@ func (s *DockerKubeletService) GetHosts() (map[string]string, error) {
 		return s.Hosts, nil
 	}
 
-	pod, err := s.getPod()
+	pod, err := s.getPod(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -65,12 +66,12 @@ func (s *DockerKubeletService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns the container's ports
-func (s *DockerKubeletService) GetPorts() ([]ContainerPort, error) {
+func (s *DockerKubeletService) GetPorts(ctx context.Context) ([]ContainerPort, error) {
 	if s.Ports != nil {
 		return s.Ports, nil
 	}
 
-	pod, err := s.getPod()
+	pod, err := s.getPod(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -101,8 +102,8 @@ func (s *DockerKubeletService) GetPorts() ([]ContainerPort, error) {
 }
 
 // IsReady returns if the service is ready
-func (s *DockerKubeletService) IsReady() bool {
-	pod, err := s.getPod()
+func (s *DockerKubeletService) IsReady(ctx context.Context) bool {
+	pod, err := s.getPod(ctx)
 	if err != nil {
 		return false
 	}
@@ -112,7 +113,7 @@ func (s *DockerKubeletService) IsReady() bool {
 
 // GetCheckNames returns slice of check names defined in kubernetes annotations or docker labels
 // DockerKubeletService doesn't implement this method
-func (s *DockerKubeletService) GetCheckNames() []string {
+func (s *DockerKubeletService) GetCheckNames(context.Context) []string {
 	return nil
 }
 

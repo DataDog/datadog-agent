@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -85,15 +86,15 @@ func (f *FakeDCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string)
 	return f.KubernetesMetadataNames, f.KubernetesMetadataNamesErr
 }
 
-func (f *FakeDCAClient) PostClusterCheckStatus(identifier string, status types.NodeStatus) (types.StatusResponse, error) {
+func (f *FakeDCAClient) PostClusterCheckStatus(ctx context.Context, identifier string, status types.NodeStatus) (types.StatusResponse, error) {
 	return f.ClusterCheckStatus, f.ClusterCheckStatusErr
 }
 
-func (f *FakeDCAClient) GetClusterCheckConfigs(identifier string) (types.ConfigResponse, error) {
+func (f *FakeDCAClient) GetClusterCheckConfigs(ctx context.Context, identifier string) (types.ConfigResponse, error) {
 	return f.ClusterCheckConfigs, f.ClusterCheckConfigsErr
 }
 
-func (f *FakeDCAClient) GetEndpointsCheckConfigs(nodeName string) (types.ConfigResponse, error) {
+func (f *FakeDCAClient) GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error) {
 	return f.EndpointsCheckConfigs, f.EndpointsCheckConfigsErr
 }
 

@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -15,14 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	v3 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3"
 )
 
 func TestECSParseTasks(t *testing.T) {
 	ecsExpireFreq := 5 * time.Minute
-	expiretest, _ := taggerutil.NewExpire(ecsExpireFreq)
+	expiretest, err := newExpire(ecsCollectorName, ecsExpireFreq)
+	require.NoError(t, err)
 	ecsCollector := &ECSCollector{
 		expire:      expiretest,
 		clusterName: "test-cluster",
@@ -31,7 +32,7 @@ func TestECSParseTasks(t *testing.T) {
 	for nb, tc := range []struct {
 		input    []v1.Task
 		expected []*TagInfo
-		handler  func(containerID string, tags *utils.TagList)
+		handler  func(ctx context.Context, containerID string, tags *utils.TagList) error
 		err      error
 	}{
 		{
@@ -101,7 +102,7 @@ func TestECSParseTasks(t *testing.T) {
 					},
 				},
 			},
-			handler: func(containerID string, tags *utils.TagList) {
+			handler: func(_ context.Context, containerID string, tags *utils.TagList) error {
 				task := v3.Task{
 					ContainerInstanceTags: map[string]string{
 						"instance_type": "type1",
@@ -113,6 +114,7 @@ func TestECSParseTasks(t *testing.T) {
 				}
 				addResourceTags(tags, task.ContainerInstanceTags)
 				addResourceTags(tags, task.TaskTags)
+				return nil
 			},
 			expected: []*TagInfo{
 				{
@@ -132,8 +134,9 @@ func TestECSParseTasks(t *testing.T) {
 			},
 		},
 	} {
+		ctx := context.Background()
 		t.Logf("test case %d", nb)
-		infos, err := ecsCollector.parseTasks(tc.input, "", tc.handler)
+		infos, err := ecsCollector.parseTasks(ctx, tc.input, "", tc.handler)
 		if len(infos) > 0 {
 			require.Len(t, infos, 2)
 		}
@@ -151,8 +154,11 @@ func TestECSParseTasks(t *testing.T) {
 }
 
 func TestECSParseTasksTargetting(t *testing.T) {
+	ctx := context.Background()
+
 	ecsExpireFreq := 5 * time.Minute
-	expiretest, _ := taggerutil.NewExpire(ecsExpireFreq)
+	expiretest, err := newExpire(ecsCollectorName, ecsExpireFreq)
+	require.NoError(t, err)
 	ecsCollector := &ECSCollector{
 		expire: expiretest,
 	}
@@ -180,17 +186,17 @@ func TestECSParseTasksTargetting(t *testing.T) {
 	}
 
 	// First run, collect all
-	infos, err := ecsCollector.parseTasks(input, "")
+	infos, err := ecsCollector.parseTasks(ctx, input, "")
 	assert.NoError(t, err)
 	assert.Len(t, infos, 2)
 
 	// Second run, collect none (all already seen)
-	infos, err = ecsCollector.parseTasks(input, "")
+	infos, err = ecsCollector.parseTasks(ctx, input, "")
 	assert.NoError(t, err)
 	assert.Len(t, infos, 0)
 
 	// Force a target container ID
-	infos, err = ecsCollector.parseTasks(input, "bf25c5c5b2d4dba68846c7236e75b6915e1e778d31611e3c6a06831e39814a15")
+	infos, err = ecsCollector.parseTasks(ctx, input, "bf25c5c5b2d4dba68846c7236e75b6915e1e778d31611e3c6a06831e39814a15")
 	assert.NoError(t, err)
 	require.Len(t, infos, 1)
 	assert.Equal(t, "container_id://bf25c5c5b2d4dba68846c7236e75b6915e1e778d31611e3c6a06831e39814a15", infos[0].Entity)

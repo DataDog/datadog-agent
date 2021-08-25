@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix label joins in the Kube State Metrics Core check.

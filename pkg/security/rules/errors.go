@@ -12,11 +12,22 @@ import (
 	"github.com/pkg/errors"
 )
 
-// ErrRuleWithoutEvent is returned when no event type was inferred from the rule
-var ErrRuleWithoutEvent = errors.New("rule without event")
+var (
+	// ErrRuleWithoutEvent is returned when no event type was inferred from the rule
+	ErrRuleWithoutEvent = errors.New("no event in the rule definition")
 
-// ErrRuleWithMultipleEvents is returned when multiple event type were inferred from the rule
-var ErrRuleWithMultipleEvents = errors.New("rule with multiple events")
+	// ErrRuleWithMultipleEvents is returned when multiple event type were inferred from the rule
+	ErrRuleWithMultipleEvents = errors.New("rule with multiple events is not supported")
+
+	// ErrDefinitionIDConflict is returned when mlultiple rule use the same ID
+	ErrDefinitionIDConflict = errors.New("multiple definition with the same ID")
+
+	// ErrInternalIDConflict is returned when a user defined rule use an internal ID
+	ErrInternalIDConflict = errors.New("internal rule ID conflict")
+
+	// ErrEventTypeNotEnabled is returned when an event is not enabled
+	ErrEventTypeNotEnabled = errors.New("event type not enabled")
+)
 
 // ErrFieldTypeUnknown is returned when a field has an unknown type
 type ErrFieldTypeUnknown struct {

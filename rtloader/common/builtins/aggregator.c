@@ -393,16 +393,17 @@ static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args)
     int monotonic;
     char *hostname = NULL;
     char **tags = NULL;
+    bool flush_first_value = false;
 
-    // Python call: aggregator.submit_histogram_bucket(self, metric string, value, lowerBound, upperBound, monotonic, hostname, tags)
-    if (!PyArg_ParseTuple(args, "OssLffisO", &check, &check_id, &name, &value, &lower_bound, &upper_bound, &monotonic, &hostname, &py_tags)) {
+    // Python call: aggregator.submit_histogram_bucket(self, metric string, value, lowerBound, upperBound, monotonic, hostname, tags, flush_first_value)
+    if (!PyArg_ParseTuple(args, "OssLffisO|b", &check, &check_id, &name, &value, &lower_bound, &upper_bound, &monotonic, &hostname, &py_tags, &flush_first_value)) {
         goto error;
     }
 
     if ((tags = py_tag_to_c(py_tags)) == NULL)
         goto error;
 
-    cb_submit_histogram_bucket(check_id, name, value, lower_bound, upper_bound, monotonic, hostname, tags);
+    cb_submit_histogram_bucket(check_id, name, value, lower_bound, upper_bound, monotonic, hostname, tags, flush_first_value);
 
     free_tags(tags);
 

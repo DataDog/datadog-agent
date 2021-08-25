@@ -11,12 +11,17 @@ import (
 
 var (
 	// packet buffer
+	tlmChannelSize = telemetry.NewGauge("dogstatsd", "packets_channel_size",
+		nil, "Number of packets in the packets channel")
+
+	tlmListenerChannel    = telemetry.NewHistogramNoOp()
+	defaultChannelBuckets = []float64{250, 500, 750, 1000, 10000}
+
+	// buffer flush
 	tlmBufferFlushedTimer = telemetry.NewCounter("dogstatsd", "packets_buffer_flush_timer",
 		nil, "Count of packets buffer flush triggered by the timer")
 	tlmBufferFlushedFull = telemetry.NewCounter("dogstatsd", "packets_buffer_flush_full",
 		nil, "Count of packets buffer flush triggered because the buffer is full")
-	tlmChannelSize = telemetry.NewGauge("dogstatsd", "packets_channel_size",
-		nil, "Number of packets in the packets channel")
 
 	// packet pool
 	tlmPoolGet = telemetry.NewCounter("dogstatsd", "packet_pool_get",
@@ -25,9 +30,6 @@ var (
 		nil, "Count of put done in the packet pool")
 	tlmPool = telemetry.NewGauge("dogstatsd", "packet_pool",
 		nil, "Usage of the packet pool in dogstatsd")
-
-	tlmListenerChannel    = telemetry.NewHistogramNoOp()
-	defaultChannelBuckets = []float64{250, 500, 750, 1000, 10000}
 )
 
 // InitTelemetry initialize the telemetry.Histogram buckets for the internal

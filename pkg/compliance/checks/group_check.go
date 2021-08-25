@@ -31,7 +31,7 @@ var groupReportedFields = []string{
 // ErrGroupNotFound is returned when a group cannot be found
 var ErrGroupNotFound = errors.New("group not found")
 
-func resolveGroup(_ context.Context, e env.Env, id string, res compliance.Resource) (interface{}, error) {
+func resolveGroup(_ context.Context, e env.Env, id string, res compliance.Resource) (resolved, error) {
 	if res.Group == nil {
 		return nil, fmt.Errorf("%s: expecting group resource in group check", id)
 	}
@@ -59,12 +59,12 @@ func resolveGroup(_ context.Context, e env.Env, id string, res compliance.Resour
 		return nil, ErrGroupNotFound
 	}
 
-	return finder.instance, nil
+	return newResolvedInstance(finder.instance, group.Name, "group"), nil
 }
 
 type groupFinder struct {
 	groupName string
-	instance  *eval.Instance
+	instance  eval.Instance
 }
 
 func (f *groupFinder) findGroup(line []byte) (bool, error) {
@@ -86,13 +86,14 @@ func (f *groupFinder) findGroup(line []byte) (bool, error) {
 		log.Errorf("failed to parse group ID for %s: %v", f.groupName, err)
 	}
 
-	f.instance = &eval.Instance{
-		Vars: eval.VarMap{
+	f.instance = eval.NewInstance(
+		eval.VarMap{
 			compliance.GroupFieldName:  f.groupName,
 			compliance.GroupFieldUsers: strings.Split(parts[3], ","),
 			compliance.GroupFieldID:    gid,
 		},
-	}
+		nil,
+	)
 
 	return true, nil
 }

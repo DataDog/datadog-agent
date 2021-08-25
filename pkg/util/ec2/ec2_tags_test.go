@@ -8,6 +8,7 @@
 package ec2
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -22,6 +23,7 @@ import (
 )
 
 func TestGetIAMRole(t *testing.T) {
+	ctx := context.Background()
 	const expected = "test-role"
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -37,12 +39,13 @@ func TestGetIAMRole(t *testing.T) {
 	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
-	val, err := getIAMRole()
+	val, err := getIAMRole(ctx)
 	require.Nil(t, err)
 	assert.Equal(t, expected, val)
 }
 
 func TestGetSecurityCreds(t *testing.T) {
+	ctx := context.Background()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/iam/security-credentials/" {
 			w.Header().Set("Content-Type", "text/plain")
@@ -61,7 +64,7 @@ func TestGetSecurityCreds(t *testing.T) {
 	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
-	cred, err := getSecurityCreds()
+	cred, err := getSecurityCreds(ctx)
 	require.Nil(t, err)
 	assert.Equal(t, "123456", cred.AccessKeyID)
 	assert.Equal(t, "secret access key", cred.SecretAccessKey)
@@ -69,6 +72,7 @@ func TestGetSecurityCreds(t *testing.T) {
 }
 
 func TestGetInstanceIdentity(t *testing.T) {
+	ctx := context.Background()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		content, err := ioutil.ReadFile("payloads/instance_indentity.json")
@@ -80,44 +84,47 @@ func TestGetInstanceIdentity(t *testing.T) {
 	config.Datadog.Set("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
-	val, err := getInstanceIdentity()
+	val, err := getInstanceIdentity(ctx)
 	require.Nil(t, err)
 	assert.Equal(t, "us-east-1", val.Region)
 	assert.Equal(t, "i-aaaaaaaaaaaaaaaaa", val.InstanceID)
 }
 
-func mockFetchTagsSuccess() ([]string, error) {
+func mockFetchTagsSuccess(ctx context.Context) ([]string, error) {
 	fmt.Printf("mockFetchTagsSuccess !!!!!!!!\n")
 	return []string{"tag1", "tag2"}, nil
 }
 
-func mockFetchTagsFailure() ([]string, error) {
+func mockFetchTagsFailure(ctx context.Context) ([]string, error) {
 	fmt.Printf("mockFetchTagsFailure !!!!!!!!\n")
 	return nil, fmt.Errorf("could not fetch tags")
 }
 
 func TestGetTags(t *testing.T) {
+	ctx := context.Background()
 	defer func() {
 		fetchTags = fetchEc2Tags
 		cache.Cache.Delete(tagsCacheKey)
 	}()
 	fetchTags = mockFetchTagsSuccess
 
-	tags, err := GetTags()
+	tags, err := GetTags(ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, []string{"tag1", "tag2"}, tags)
 }
 
 func TestGetTagsErrorEmptyCache(t *testing.T) {
+	ctx := context.Background()
 	defer func() { fetchTags = fetchEc2Tags }()
 	fetchTags = mockFetchTagsFailure
 
-	tags, err := GetTags()
+	tags, err := GetTags(ctx)
 	assert.Nil(t, tags)
 	assert.Equal(t, fmt.Errorf("unable to get tags from aws and cache is empty: could not fetch tags"), err)
 }
 
 func TestGetTagsErrorFullCache(t *testing.T) {
+	ctx := context.Background()
 	defer func() {
 		fetchTags = fetchEc2Tags
 		cache.Cache.Delete(tagsCacheKey)
@@ -125,12 +132,13 @@ func TestGetTagsErrorFullCache(t *testing.T) {
 	cache.Cache.Set(tagsCacheKey, []string{"cachedTag"}, cache.NoExpiration)
 	fetchTags = mockFetchTagsFailure
 
-	tags, err := GetTags()
+	tags, err := GetTags(ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, []string{"cachedTag"}, tags)
 }
 
 func TestGetTagsFullWorkflow(t *testing.T) {
+	ctx := context.Background()
 	defer func() {
 		fetchTags = fetchEc2Tags
 		cache.Cache.Delete(tagsCacheKey)
@@ -138,17 +146,17 @@ func TestGetTagsFullWorkflow(t *testing.T) {
 	cache.Cache.Set(tagsCacheKey, []string{"oldTag"}, cache.NoExpiration)
 	fetchTags = mockFetchTagsFailure
 
-	tags, err := GetTags()
+	tags, err := GetTags(ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, []string{"oldTag"}, tags)
 
 	fetchTags = mockFetchTagsSuccess
-	tags, err = GetTags()
+	tags, err = GetTags(ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, []string{"tag1", "tag2"}, tags)
 
 	fetchTags = mockFetchTagsFailure
-	tags, err = GetTags()
+	tags, err = GetTags(ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, []string{"tag1", "tag2"}, tags)
 }

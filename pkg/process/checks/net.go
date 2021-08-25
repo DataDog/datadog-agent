@@ -1,6 +1,7 @@
 package checks
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -53,7 +54,7 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 	net.SetSystemProbePath(cfg.SystemProbeAddress)
 	_, _ = net.GetRemoteSystemProbeUtil()
 
-	networkID, err := util.GetNetworkID()
+	networkID, err := util.GetNetworkID(context.TODO())
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}
@@ -96,7 +97,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	c.lastConnsByPID.Store(getConnectionsByPID(conns))
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, connTel, conns.CompilationTelemetryByAsset, conns.Domains), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, connTel, conns.CompilationTelemetryByAsset, conns.Domains, conns.Routes), nil
 }
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
@@ -145,6 +146,7 @@ func (c *ConnectionsCheck) diffTelemetry(tel *model.ConnectionsTelemetry) *model
 		UdpSendsProcessed:         tel.MonotonicUdpSendsProcessed - c.lastTelemetry.UdpSendsProcessed,
 		UdpSendsMissed:            tel.MonotonicUdpSendsMissed - c.lastTelemetry.UdpSendsMissed,
 		ConntrackSamplingPercent:  tel.ConntrackSamplingPercent,
+		DnsStatsDropped:           tel.DnsStatsDropped,
 	}
 	c.saveTelemetry(tel)
 	return cct
@@ -163,6 +165,7 @@ func (c *ConnectionsCheck) saveTelemetry(tel *model.ConnectionsTelemetry) {
 	c.lastTelemetry.ConnsClosed = tel.MonotonicConnsClosed
 	c.lastTelemetry.UdpSendsProcessed = tel.MonotonicUdpSendsProcessed
 	c.lastTelemetry.UdpSendsMissed = tel.MonotonicUdpSendsMissed
+	c.lastTelemetry.DnsStatsDropped = tel.DnsStatsDropped
 }
 
 func (c *ConnectionsCheck) getLastConnectionsByPID() map[int32][]*model.Connection {
@@ -191,6 +194,7 @@ func batchConnections(
 	connTelemetry *model.CollectorConnectionsTelemetry,
 	compilationTelemetry map[string]*model.RuntimeCompilationTelemetry,
 	domains []string,
+	routes []*model.Route,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
@@ -225,6 +229,9 @@ func batchConnections(
 			for d := range c.DnsStatsByDomain {
 				domainIndices[d] = struct{}{}
 			}
+			for d := range c.DnsStatsByDomainByQueryType {
+				domainIndices[d] = struct{}{}
+			}
 		}
 
 		// We want to keep the length of the domains array same so that the pointers in DnsStatsByDomain remain valid
@@ -235,6 +242,26 @@ func batchConnections(
 				batchDomains[i] = domain
 			}
 		}
+
+		// remap route indices
+		// map of old index to new index
+		newRouteIndices := make(map[int32]int32)
+		var batchRoutes []*model.Route
+		for _, c := range batchConns {
+			if c.RouteIdx < 0 {
+				continue
+			}
+			if i, ok := newRouteIndices[c.RouteIdx]; ok {
+				c.RouteIdx = i
+				continue
+			}
+
+			new := int32(len(newRouteIndices))
+			newRouteIndices[c.RouteIdx] = new
+			batchRoutes = append(batchRoutes, routes[c.RouteIdx])
+			c.RouteIdx = new
+		}
+
 		cc := &model.CollectorConnections{
 			HostName:          cfg.HostName,
 			NetworkId:         networkID,
@@ -245,6 +272,7 @@ func batchConnections(
 			EncodedDNS:        dnsEncoder.Encode(batchDNS),
 			ContainerHostType: cfg.ContainerHostType,
 			Domains:           batchDomains,
+			Routes:            batchRoutes,
 		}
 
 		// Add OS telemetry

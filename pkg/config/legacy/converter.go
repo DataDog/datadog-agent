@@ -147,6 +147,7 @@ func FromAgentConfig(agentConfig Config, converter *config.LegacyConfigConverter
 
 	if agentConfig["non_local_traffic"] != "" {
 		if enabled, err := isAffirmative(agentConfig["non_local_traffic"]); err == nil {
+			converter.Set("dogstatsd_non_local_traffic", enabled)
 			// trace-agent listen locally by default, convert the config only if configured to listen to more
 			converter.Set("apm_config.apm_non_local_traffic", enabled)
 		}

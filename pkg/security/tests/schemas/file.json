@@ -12,9 +12,6 @@
                 "name": {
                     "type": "string"
                 },
-                "container_path": {
-                    "$ref": "file:///container_path.json"
-                },
                 "inode": {
                     "type": "integer"
                 },
@@ -34,10 +31,36 @@
                     "type": "string"
                 },
                 "modification_time": {
-                    "type": "string"
+                    "$ref": "file:///datetime.json"
                 },
                 "change_time": {
-                    "type": "string"
+                    "$ref": "file:///datetime.json"
+                },
+                "destination": {
+                    "type": "object",
+                    "properties": {
+                        "mode": {
+                            "type": "integer"
+                        },
+                        "uid": {
+                            "type": "integer"
+                        },
+                        "gid": {
+                            "type": "integer"
+                        }
+                    },
+                    "required": [
+                        "uid",
+                        "gid"
+                    ]
+                },
+                "flags": {
+                    "type": "array",
+                    "items": [
+                        {
+                            "type": "string"
+                        }
+                    ]
                 }
             },
             "required": [
@@ -47,8 +70,6 @@
                 "mode",
                 "mount_id",
                 "filesystem",
-                "user",
-                "group",
                 "modification_time",
                 "change_time"
             ]

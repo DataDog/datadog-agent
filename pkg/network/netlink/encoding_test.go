@@ -43,7 +43,8 @@ func TestEncodeConn(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, data)
 
-	connections := DecodeAndReleaseEvent(Event{
+	decoder := NewDecoder()
+	connections := decoder.DecodeAndReleaseEvent(Event{
 		msgs: []netlink.Message{
 			{
 				Data: data,

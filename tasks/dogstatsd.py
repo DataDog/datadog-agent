@@ -26,7 +26,7 @@ from .utils import (
 # constants
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
 STATIC_BIN_PATH = os.path.join(".", "bin", "static")
-MAX_BINARY_SIZE = 21 * 1024
+MAX_BINARY_SIZE = 23 * 1024
 DOGSTATSD_TAG = "datadog/dogstatsd:master"
 
 
@@ -235,9 +235,19 @@ def omnibus_build(
             args['populate_s3_cache'] = " --populate-s3-cache "
 
         env['PACKAGE_VERSION'] = get_version(
-            ctx, include_git=True, url_safe=True, git_sha_length=7, major_version=major_version
+            ctx,
+            include_git=True,
+            url_safe=True,
+            git_sha_length=7,
+            major_version=major_version,
+            include_pipeline_id=True,
         )
         env['MAJOR_VERSION'] = major_version
+
+        integrations_core_version = os.environ.get('INTEGRATIONS_CORE_VERSION')
+        # Only overrides the env var if the value is a non-empty string.
+        if integrations_core_version:
+            env['INTEGRATIONS_CORE_VERSION'] = integrations_core_version
 
         # If the host has a GOMODCACHE set, try to reuse it
         if not go_mod_cache and os.environ.get('GOMODCACHE'):

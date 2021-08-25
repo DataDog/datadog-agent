@@ -17,11 +17,11 @@ import (
 	"time"
 
 	"github.com/DataDog/gopsutil/process"
-
 	"github.com/moby/sys/mountinfo"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -191,14 +191,20 @@ func (mr *MountResolver) IsOverlayFS(mountID uint32) bool {
 }
 
 // Insert a new mount point in the cache
-func (mr *MountResolver) Insert(e model.MountEvent) {
+func (mr *MountResolver) Insert(e model.MountEvent) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
+
+	if e.MountPointPathResolutionError != nil || e.RootPathResolutionError != nil {
+		// do not insert an invalid value
+		return errors.Errorf("couldn't insert mount_id %d: mount_point_error:%v root_error:%v", e.MountID, e.MountPointPathResolutionError, e.RootPathResolutionError)
+	}
 
 	mr.insert(e)
 
 	// init discarder revisions
 	mr.probe.inodeDiscarders.initRevision(&e)
+	return nil
 }
 
 func (mr *MountResolver) insert(e model.MountEvent) {
@@ -226,7 +232,7 @@ func (mr *MountResolver) insert(e model.MountEvent) {
 	mr.mounts[e.MountID] = &e
 }
 
-func (mr *MountResolver) getParentPath(mountID uint32) string {
+func (mr *MountResolver) _getParentPath(mountID uint32, cache map[uint32]bool) string {
 	mount, exists := mr.mounts[mountID]
 	if !exists {
 		return ""
@@ -234,8 +240,13 @@ func (mr *MountResolver) getParentPath(mountID uint32) string {
 
 	mountPointStr := mount.MountPointStr
 
+	if _, exists := cache[mountID]; exists {
+		return ""
+	}
+	cache[mountID] = true
+
 	if mount.ParentMountID != 0 {
-		p := mr.getParentPath(mount.ParentMountID)
+		p := mr._getParentPath(mount.ParentMountID, cache)
 		if p == "" {
 			return mountPointStr
 		}
@@ -248,21 +259,30 @@ func (mr *MountResolver) getParentPath(mountID uint32) string {
 	return mountPointStr
 }
 
-func (mr *MountResolver) getAncestor(mount *model.MountEvent, maxDepth int) *model.MountEvent {
-	if maxDepth <= 0 {
+func (mr *MountResolver) getParentPath(mountID uint32) string {
+	return mr._getParentPath(mountID, map[uint32]bool{})
+}
+
+func (mr *MountResolver) _getAncestor(mount *model.MountEvent, cache map[uint32]bool) *model.MountEvent {
+	if _, exists := cache[mount.MountID]; exists {
 		return nil
 	}
+	cache[mount.MountID] = true
 
 	parent, ok := mr.mounts[mount.ParentMountID]
 	if !ok {
 		return nil
 	}
 
-	if grandParent := mr.getAncestor(parent, maxDepth-1); grandParent != nil {
+	if grandParent := mr._getAncestor(parent, cache); grandParent != nil {
 		return grandParent
 	}
 
 	return parent
+}
+
+func (mr *MountResolver) getAncestor(mount *model.MountEvent) *model.MountEvent {
+	return mr._getAncestor(mount, map[uint32]bool{})
 }
 
 // getOverlayPath uses deviceID to find overlay path
@@ -280,9 +300,13 @@ func (mr *MountResolver) getOverlayPath(mount *model.MountEvent) string {
 
 func (mr *MountResolver) dequeue(now time.Time) {
 	mr.lock.Lock()
-	for i, req := range mr.deleteQueue {
+
+	var i int
+	var req deleteRequest
+
+	for i != len(mr.deleteQueue) {
+		req = mr.deleteQueue[i]
 		if req.timeoutAt.After(now) {
-			mr.deleteQueue = mr.deleteQueue[i:]
 			break
 		}
 
@@ -290,7 +314,16 @@ func (mr *MountResolver) dequeue(now time.Time) {
 		if prev := mr.mounts[req.mount.MountID]; prev == req.mount {
 			mr.delete(req.mount)
 		}
+
+		i++
 	}
+
+	if i >= len(mr.deleteQueue) {
+		mr.deleteQueue = mr.deleteQueue[0:0]
+	} else if i > 0 {
+		mr.deleteQueue = mr.deleteQueue[i:]
+	}
+
 	mr.lock.Unlock()
 }
 
@@ -312,7 +345,7 @@ func (mr *MountResolver) Start(ctx context.Context) {
 }
 
 // GetMountPath returns the path of a mount identified by its mount ID. The first path is the container mount path if
-// it exists
+// it exists, the second parameter is the mount point path, and the third parameter is the root path.
 func (mr *MountResolver) GetMountPath(mountID uint32) (string, string, string, error) {
 	if mountID == 0 {
 		return "", "", "", nil
@@ -326,7 +359,7 @@ func (mr *MountResolver) GetMountPath(mountID uint32) (string, string, string, e
 	}
 
 	ref := mount
-	if ancestor := mr.getAncestor(mount, 5); ancestor != nil {
+	if ancestor := mr.getAncestor(mount); ancestor != nil {
 		ref = ancestor
 	}
 
@@ -336,14 +369,11 @@ func (mr *MountResolver) GetMountPath(mountID uint32) (string, string, string, e
 func getMountIDOffset(probe *Probe) uint64 {
 	offset := uint64(284)
 
-	kv, err := NewKernelVersion()
-	if err == nil {
-		switch {
-		case kv.IsSuseKernel():
-			offset = 292
-		case probe.kernelVersion != 0 && probe.kernelVersion < kernel4_13:
-			offset = 268
-		}
+	switch {
+	case probe.kernelVersion.IsSuseKernel():
+		offset = 292
+	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < kernel.Kernel4_13:
+		offset = 268
 	}
 
 	return offset
@@ -352,20 +382,19 @@ func getMountIDOffset(probe *Probe) uint64 {
 func getSizeOfStructInode(probe *Probe) uint64 {
 	sizeOf := uint64(600)
 
-	kv, err := NewKernelVersion()
-	if err == nil {
-		switch {
-		case kv.IsRH7Kernel():
-			sizeOf = 584
-		case kv.IsRH8Kernel():
-			sizeOf = 648
-		case kv.IsSLES12Kernel():
-			sizeOf = 560
-		case kv.IsSLES15Kernel():
-			sizeOf = 592
-		case probe.kernelVersion != 0 && probe.kernelVersion < kernel4_16:
-			sizeOf = 608
-		}
+	switch {
+	case probe.kernelVersion.IsRH7Kernel():
+		sizeOf = 584
+	case probe.kernelVersion.IsRH8Kernel():
+		sizeOf = 648
+	case probe.kernelVersion.IsSLES12Kernel():
+		sizeOf = 560
+	case probe.kernelVersion.IsSLES15Kernel():
+		sizeOf = 592
+	case probe.kernelVersion.IsOracleUEKKernel():
+		sizeOf = 632
+	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < kernel.Kernel4_16:
+		sizeOf = 608
 	}
 
 	return sizeOf
@@ -374,8 +403,7 @@ func getSizeOfStructInode(probe *Probe) uint64 {
 func getSuperBlockMagicOffset(probe *Probe) uint64 {
 	sizeOf := uint64(96)
 
-	kv, err := NewKernelVersion()
-	if err == nil && kv.IsRH7Kernel() {
+	if probe.kernelVersion.IsRH7Kernel() {
 		sizeOf = 88
 	}
 

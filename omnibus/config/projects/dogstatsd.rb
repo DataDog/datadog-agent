@@ -24,6 +24,10 @@ else
   else
     maintainer 'Datadog Packages <package@datadoghq.com>'
   end
+
+  if debian?
+    runtime_recommended_dependency 'datadog-signing-keys'
+  end
 end
 
 # build_version is computed by an invoke command/function.

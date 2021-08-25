@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The Cluster Agent's external metrics provider now serves an OpenAPI endpoint.

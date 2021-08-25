@@ -122,7 +122,7 @@ func (c *CRIUtil) ListContainerStats() (map[string]*pb.ContainerStats, error) {
 	return stats, nil
 }
 
-// ListContainer sends a ListContainerRequest to the server, and parses the returned response
+// GetContainerStatus requests a container status by its ID
 func (c *CRIUtil) GetContainerStatus(containerID string) (*pb.ContainerStatus, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
 	defer cancel()

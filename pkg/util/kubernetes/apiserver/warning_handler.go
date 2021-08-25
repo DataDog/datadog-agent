@@ -13,6 +13,7 @@ var supressedWarning = "v1 ComponentStatus is deprecated in v1.19+"
 
 type CustomWarningLogger struct{}
 
+// HandleWarningHeader suppresses some warning logs
 // TODO: Remove custom warning logger when we remove usage of ComponentStatus
 func (CustomWarningLogger) HandleWarningHeader(code int, agent string, message string) {
 	if code != 299 || len(message) == 0 || message == supressedWarning {

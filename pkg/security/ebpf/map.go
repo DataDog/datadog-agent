@@ -10,6 +10,7 @@ package ebpf
 import (
 	"bytes"
 	"encoding/binary"
+
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 )
 
@@ -27,6 +28,16 @@ type Uint8MapItem uint8
 // MarshalBinary returns the binary representation of a Uint8MapItem
 func (i Uint8MapItem) MarshalBinary() ([]byte, error) {
 	return []byte{uint8(i)}, nil
+}
+
+// Uint16MapItem describes an uint16 table key or value
+type Uint16MapItem uint16
+
+// MarshalBinary returns the binary representation of a Uint16MapItem
+func (i Uint16MapItem) MarshalBinary() ([]byte, error) {
+	b := make([]byte, 2)
+	model.ByteOrder.PutUint16(b, uint16(i))
+	return b, nil
 }
 
 // Uint32MapItem describes an uint32 table key or value
@@ -86,4 +97,6 @@ var (
 var (
 	// BufferSelectorSyscallMonitorKey is the key used to select the active syscall monitor buffer key
 	BufferSelectorSyscallMonitorKey = ZeroUint32MapItem
+	// BufferSelectorERPCMonitorKey is the key used to select the active eRPC monitor buffer key
+	BufferSelectorERPCMonitorKey = Uint32MapItem(1)
 )

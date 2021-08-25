@@ -40,7 +40,7 @@ const (
 	containerdCheckName = "containerd"
 )
 
-// ContainerCheck grabs containerd metrics and events
+// ContainerdCheck grabs containerd metrics and events
 type ContainerdCheck struct {
 	core.CheckBase
 	instance *ContainerdConfig
@@ -69,10 +69,7 @@ func ContainerdFactory() check.Check {
 
 // Parse is used to get the configuration set by the user
 func (co *ContainerdConfig) Parse(data []byte) error {
-	if err := yaml.Unmarshal(data, co); err != nil {
-		return err
-	}
-	return nil
+	return yaml.Unmarshal(data, co)
 }
 
 // Configure parses the check configuration and init the check
@@ -190,18 +187,6 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 			continue
 		}
 
-		tags, err := collectTags(info)
-		if err != nil {
-			log.Errorf("Could not collect tags for container %s: %s", ctn.ID()[:12], err)
-		}
-		// Tagger tags
-		taggerTags, err := tagger.Tag(ddContainers.ContainerEntityPrefix+ctn.ID(), collectors.HighCardinality)
-		if err != nil {
-			log.Errorf(err.Error())
-			continue
-		}
-		tags = append(tags, taggerTags...)
-
 		metricTask, errTask := cu.TaskMetrics(ctn)
 		if errTask != nil {
 			log.Tracef("Could not retrieve metrics from task %s: %s", ctn.ID()[:12], errTask.Error())
@@ -213,6 +198,19 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 			log.Errorf("Could not process the metrics from %s: %v", ctn.ID(), err.Error())
 			continue
 		}
+
+		tags, err := collectTags(info)
+		if err != nil {
+			log.Errorf("Could not collect tags for container %s: %s", ctn.ID()[:12], err)
+		}
+
+		// Tagger tags
+		taggerTags, err := tagger.Tag(ddContainers.ContainerEntityPrefix+ctn.ID(), collectors.HighCardinality)
+		if err != nil {
+			log.Errorf(err.Error())
+			continue
+		}
+		tags = append(tags, taggerTags...)
 
 		currentTime := time.Now()
 		computeUptime(sender, info, currentTime, tags)

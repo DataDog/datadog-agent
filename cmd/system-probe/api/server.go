@@ -1,6 +1,7 @@
 package api
 
 import (
+	"expvar"
 	"fmt"
 	"net/http"
 
@@ -20,7 +21,7 @@ func StartServer(cfg *config.Config) error {
 		return fmt.Errorf("error creating IPC socket: %s", err)
 	}
 
-	mux := http.NewServeMux()
+	mux := gorilla.NewRouter()
 	err = module.Register(cfg, mux, modules.All)
 	if err != nil {
 		return fmt.Errorf("failed to create system probe: %s", err)
@@ -32,8 +33,12 @@ func StartServer(cfg *config.Config) error {
 		utils.WriteAsJSON(w, stats)
 	})
 
-	configMux := gorilla.NewRouter()
-	mux.Handle("/config/", http.StripPrefix("/config", setupConfigHandlers(configMux)))
+	setupConfigHandlers(mux)
+
+	// Module-restart handler
+	mux.HandleFunc("/module-restart/{module-name}", restartModuleHandler).Methods("POST")
+
+	mux.Handle("/debug/vars", http.DefaultServeMux)
 
 	go func() {
 		err = http.Serve(conn.GetListener(), mux)
@@ -43,4 +48,10 @@ func StartServer(cfg *config.Config) error {
 	}()
 
 	return nil
+}
+
+func init() {
+	expvar.Publish("modules", expvar.Func(func() interface{} {
+		return module.GetStats()
+	}))
 }

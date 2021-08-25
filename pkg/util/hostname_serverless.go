@@ -2,6 +2,8 @@
 
 package util
 
+import "context"
+
 // HostnameData contains hostname and the hostname provider
 // Copy of the original struct in hostname.go
 type HostnameData struct {
@@ -18,7 +20,7 @@ func Fqdn(hostname string) string {
 	return ""
 }
 
-func GetHostname() (string, error) {
+func GetHostname(ctx context.Context) (string, error) {
 	return "", nil
 }
 

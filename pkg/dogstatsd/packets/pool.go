@@ -56,10 +56,11 @@ func (p *Pool) Get() interface{} {
 
 // Put resets the Packet origin and puts it back in the pool.
 func (p *Pool) Put(x interface{}) {
-	if p == nil {
+	if x == nil {
 		return
 	}
 
+	// we don't really need the assertion of the user is sensible
 	packet, ok := x.(*Packet)
 	if ok && packet.Origin != NoOrigin {
 		packet.Origin = NoOrigin

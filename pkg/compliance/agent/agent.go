@@ -49,7 +49,7 @@ func New(reporter event.Reporter, scheduler Scheduler, configDir string, options
 		return nil, err
 	}
 
-	telemetry, err := newTelemtry()
+	telemetry, err := newTelemetry()
 	if err != nil {
 		return nil, err
 	}

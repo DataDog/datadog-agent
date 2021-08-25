@@ -47,7 +47,7 @@ func TestLocalProviderExpectedTags(t *testing.T) {
 
 	// Setting a test-friendly value for the deadline
 	mockConfig.Set("logs_config.expected_tags_duration", "5s")
-	defer mockConfig.Set("logs_config.expected_tags_duration", 0)
+	defer mockConfig.Set("logs_config.expected_tags_duration", "0")
 
 	p := NewLocalProvider([]string{})
 	pp := p.(*localProvider)
@@ -61,8 +61,20 @@ func TestLocalProviderExpectedTags(t *testing.T) {
 	sort.Strings(tt)
 	assert.Equal(t, tags, tt)
 
-	// let the deadline expire + a little grace period
-	<-time.After(time.Until(pp.expectedTagsDeadline.Add(2 * time.Second)))
+	// Wait until expected expiration time
+	<-time.After(time.Until(pp.expectedTagsDeadline))
 
-	assert.Equal(t, []string{}, pp.GetTags())
+	// Try for 10 seconds to get a valid tag result (on slow
+	// machines with low core counts this can be a signifficant
+	// duration).
+	for idx := 1; idx < 20; idx++ {
+		if len(pp.GetTags()) == 0 {
+			// Tags have been reset, so we have a passing test
+			return
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	assert.FailNowf(t, "pp.GetTags() was not empty", "pp.GetTags() = %v", pp.GetTags())
 }

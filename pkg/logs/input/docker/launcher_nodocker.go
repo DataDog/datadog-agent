@@ -14,14 +14,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 // Launcher is not supported on non docker environment
 type Launcher struct{}
 
 // NewLauncher returns a new Launcher
-func NewLauncher(readTimeout time.Duration, psources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, shouldRetry, tailFromFile, forceTailingFromFile bool) (*Launcher, error) {
-	return &Launcher{}, nil
+func NewLauncher(readTimeout time.Duration, psources *config.LogSources, services *service.Services, pipelineProvider pipeline.Provider, registry auditor.Registry, tailFromFile, forceTailingFromFile bool) *Launcher {
+	return &Launcher{}
+}
+
+// IsAvailable retrurns false - not available
+func IsAvailable() (bool, *retry.Retrier) {
+	return false, nil
 }
 
 // Start does nothing

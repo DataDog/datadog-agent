@@ -10,9 +10,3 @@ support both API. That is why the serializer is here to choose a serialization
 protocol depending on the content and use the correct Forwarder method.
 
 To be sent, a payload needs to implement the **Marshaler** interface.
-
-### Old V1 intake endpoint
-
-The **intake** endpoint from the V1 API could ingest a large variety of JSON
-structs. To send arbitrary payloads to this endpoint use `SendJSONToV1Intake`
-that do not require a **Marshaler** object.

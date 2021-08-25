@@ -15,14 +15,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	admiv1beta1 "k8s.io/api/admission/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -51,8 +50,8 @@ func (o *ownerInfo) buildID(ns string) string {
 
 // InjectTags adds the DD_ENV, DD_VERSION, DD_SERVICE env vars to
 // the pod template from pod and higher-level resource labels
-func InjectTags(req *admiv1beta1.AdmissionRequest, dc dynamic.Interface) (*admiv1beta1.AdmissionResponse, error) {
-	return mutate(req, injectTags, dc)
+func InjectTags(rawPod []byte, ns string, dc dynamic.Interface) ([]byte, error) {
+	return mutate(rawPod, ns, injectTags, dc)
 }
 
 // injectTags injects DD_ENV, DD_VERSION, DD_SERVICE
@@ -109,7 +108,7 @@ func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
 
 // shouldInjectConf returns whether we should try to inject standard tags
 func shouldInjectTags(pod *corev1.Pod) bool {
-	if val := pod.GetLabels()[admission.EnabledLabelKey]; val == "false" {
+	if val := pod.GetLabels()[common.EnabledLabelKey]; val == "false" {
 		return false
 	}
 	return true

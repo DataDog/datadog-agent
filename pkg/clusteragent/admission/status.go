@@ -100,10 +100,11 @@ func getSecretStatus(ns, name string, apiCl kubernetes.Interface) (map[string]in
 	secretStatus["Namespace"] = secret.GetNamespace()
 	secretStatus["CreatedAt"] = secret.GetCreationTimestamp()
 	secretStatus["CABundleDigest"] = getDigest(secret.Data["cert.pem"])
-	t, err := certificate.GetDurationBeforeExpiration(secret.Data)
+	cert, err := certificate.GetCertFromSecret(secret.Data)
 	if err != nil {
-		log.Errorf("Cannot get certificate validity duration: %v", err)
+		log.Errorf("Cannot get certificate from secret: %v", err)
 	}
+	t := certificate.GetDurationBeforeExpiration(cert)
 	secretStatus["CertValidDuration"] = t.String()
 	return secretStatus, nil
 }

@@ -1,0 +1,65 @@
+---
+# deps_build stage
+# Contains jobs which build the Python Zips needed for the Windows Agent.
+
+.build_windows_python_common:
+  rules:
+    !reference [.manual]
+  stage: deps_build
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  script:
+    - $ErrorActionPreference = "Stop"
+    - $pyzip_name = 'python-windows-{0}-x86.zip' -f $WINDOWS_PYTHON_VERSION
+    - if ($ARCH -eq "x64") { $pyzip_name = 'python-windows-{0}-amd64.zip' -f $WINDOWS_PYTHON_VERSION }
+    - Write-Host Building $pyzip_name
+    - if (Test-Path build-out) { remove-item -recurse -force build-out }
+    - mkdir build-out
+    - $cmd = "c:\mnt\tasks\winbuildscripts\generate-pyzip.ps1 -Version $WINDOWS_PYTHON_VERSION -OutDir c:\mnt\build-out"
+    - if ($ARCH -eq "x86") { $cmd += " -x86" }
+    - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C $cmd
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - get-childitem build-out
+    - Write-Host Saving artifact to s3://dd-agent-omnibus
+    - Invoke-Expression "$S3_CP_CMD --acl public-read build-out/$pyzip_name s3://dd-agent-omnibus/$pyzip_name"
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+  timeout: 0h 30m
+
+build_windows_python3_zip_x64:
+  extends: .build_windows_python_common
+  variables:
+    ARCH: "x64"
+    WINDOWS_PYTHON_VERSION: "3.8.10"
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - build-out/python-windows-$WINDOWS_PYTHON_VERSION-amd64.zip
+
+build_windows_python3_zip_x86:
+  extends: .build_windows_python_common
+  variables:
+    ARCH: "x86"
+    WINDOWS_PYTHON_VERSION: "3.8.10"
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - build-out/python-windows-$WINDOWS_PYTHON_VERSION-x86.zip
+
+build_windows_python2_zip_x64:
+  extends: .build_windows_python_common
+  variables:
+    ARCH: "x64"
+    WINDOWS_PYTHON_VERSION: "2.7.18"
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - build-out/python-windows-$WINDOWS_PYTHON_VERSION-amd64.zip
+
+build_windows_python2_zip_x86:
+  extends: .build_windows_python_common
+  variables:
+    ARCH: "x86"
+    WINDOWS_PYTHON_VERSION: "2.7.18"
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - build-out/python-windows-$WINDOWS_PYTHON_VERSION-x86.zip

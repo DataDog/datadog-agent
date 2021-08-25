@@ -8,6 +8,7 @@
 package fargate
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,34 +18,34 @@ func TestGetFargateHost(t *testing.T) {
 	assert := assert.New(t)
 	for _, tc := range []struct {
 		orch     OrchestratorName
-		ecsFunc  func() (string, error)
-		eksFunc  func() (string, error)
+		ecsFunc  func(context.Context) (string, error)
+		eksFunc  func(context.Context) (string, error)
 		expected string
 		wantErr  bool
 	}{
 		{
 			ECS,
-			func() (string, error) { return "fargate_task:arn-xxx", nil },
-			func() (string, error) { return "fargate-ip-xxx", nil },
+			func(ctx context.Context) (string, error) { return "fargate_task:arn-xxx", nil },
+			func(ctx context.Context) (string, error) { return "fargate-ip-xxx", nil },
 			"fargate_task:arn-xxx",
 			false,
 		},
 		{
 			EKS,
-			func() (string, error) { return "fargate_task:arn-xxx", nil },
-			func() (string, error) { return "fargate-ip-xxx", nil },
+			func(ctx context.Context) (string, error) { return "fargate_task:arn-xxx", nil },
+			func(ctx context.Context) (string, error) { return "fargate-ip-xxx", nil },
 			"fargate-ip-xxx",
 			false,
 		},
 		{
 			Unknown,
-			func() (string, error) { return "fargate_task:arn-xxx", nil },
-			func() (string, error) { return "fargate-ip-xxx", nil },
+			func(ctx context.Context) (string, error) { return "fargate_task:arn-xxx", nil },
+			func(ctx context.Context) (string, error) { return "fargate-ip-xxx", nil },
 			"",
 			true,
 		},
 	} {
-		got, err := getFargateHost(tc.orch, tc.ecsFunc, tc.eksFunc)
+		got, err := getFargateHost(context.TODO(), tc.orch, tc.ecsFunc, tc.eksFunc)
 		assert.Equal(err != nil, tc.wantErr)
 		assert.Equal(tc.expected, got)
 	}

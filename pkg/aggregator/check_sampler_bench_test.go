@@ -7,7 +7,6 @@ package aggregator
 
 import (
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -24,7 +23,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 		forwarder.NewOptions(map[string][]string{"hello": {"world"}})),
 		nil,
 	)
-	checkSampler := newCheckSampler(60 * time.Second)
+	checkSampler := newCheckSampler(1)
 
 	bucket := &metrics.HistogramBucket{
 		Name:       "my.histogram",
@@ -39,12 +38,11 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 		checkSampler.addBucket(bucket)
 		// reset bucket cache
 		checkSampler.lastBucketValue = make(map[ckey.ContextKey]int64)
-		checkSampler.lastSeenBucket = make(map[ckey.ContextKey]time.Time)
 	}
 }
 
 func benchmarkAddBucketWideBounds(bucketValue int64, b *testing.B) {
-	checkSampler := newCheckSampler(60 * time.Second)
+	checkSampler := newCheckSampler(1)
 
 	bounds := []float64{0, .0005, .001, .003, .005, .007, .01, .015, .02, .025, .03, .04, .05, .06, .07, .08, .09, .1, .5, 1, 5, 10}
 	bucket := &metrics.HistogramBucket{
@@ -65,7 +63,6 @@ func benchmarkAddBucketWideBounds(bucketValue int64, b *testing.B) {
 		}
 		// reset bucket cache
 		checkSampler.lastBucketValue = make(map[ckey.ContextKey]int64)
-		checkSampler.lastSeenBucket = make(map[ckey.ContextKey]time.Time)
 	}
 }
 

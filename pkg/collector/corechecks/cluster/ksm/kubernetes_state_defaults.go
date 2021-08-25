@@ -27,7 +27,7 @@ var (
 		"daemonset":                           "kube_daemon_set",
 		"replicationcontroller":               "kube_replication_controller",
 		"replicaset":                          "kube_replica_set",
-		"statefulset ":                        "kube_stateful_set",
+		"statefulset":                         "kube_stateful_set",
 		"deployment":                          "kube_deployment",
 		"service":                             "kube_service",
 		"endpoint":                            "kube_endpoint",
@@ -63,7 +63,6 @@ var (
 		"kube_daemonset_status_number_available":                                                   "daemonset.daemons_available",
 		"kube_endpoint_address_available":                                                          "endpoint.address_available",
 		"kube_endpoint_address_not_ready":                                                          "endpoint.address_not_ready",
-		"kube_node_info":                                                                           "node.count",
 		"kube_pod_container_status_terminated":                                                     "container.terminated",
 		"kube_pod_container_status_waiting":                                                        "container.waiting",
 		"kube_pod_container_resource_requests_cpu_cores":                                           "container.cpu_requested",
@@ -118,14 +117,13 @@ var (
 
 	// metadata metrics are useful for label joins
 	// but shouldn't be submitted to Datadog
-	metadataMetricsRegex = regexp.MustCompile(".*_(info|labels)")
+	metadataMetricsRegex = regexp.MustCompile(".*_(info|labels|status_reason)")
 
 	// defaultDeniedMetrics used to configure the KSM store to ignore these metrics by KSM engine
 	defaultDeniedMetrics = options.MetricSet{
 		".*_generation":                                    {},
 		".*_metadata_resource_version":                     {},
 		"kube_pod_owner":                                   {},
-		"kube_pod_status_reason":                           {},
 		"kube_pod_restart_policy":                          {},
 		"kube_pod_completion_time":                         {},
 		"kube_pod_status_scheduled_time":                   {},
@@ -160,7 +158,7 @@ var (
 		},
 		"kube_pod_info": {
 			LabelsToMatch: []string{"pod", "namespace"},
-			LabelsToGet:   []string{"node"},
+			LabelsToGet:   []string{"node", "created_by_kind", "created_by_name"},
 		},
 		"kube_persistentvolume_info": {
 			LabelsToMatch: []string{"persistentvolume"}, // persistent volumes are not namespaced
@@ -173,6 +171,10 @@ var (
 		"kube_pod_labels": {
 			LabelsToMatch: []string{"pod", "namespace"},
 			LabelsToGet:   defaultStandardLabels,
+		},
+		"kube_pod_status_reason": {
+			LabelsToMatch: []string{"pod", "namespace"},
+			LabelsToGet:   []string{"reason"},
 		},
 		"kube_deployment_labels": {
 			LabelsToMatch: []string{"deployment", "namespace"},

@@ -14,7 +14,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/DataDog/datadog-go/statsd"
 	"github.com/avast/retry-go"
 	"github.com/pkg/errors"
 
@@ -37,7 +36,7 @@ type Resolvers struct {
 }
 
 // NewResolvers creates a new instance of Resolvers
-func NewResolvers(config *config.Config, probe *Probe, client *statsd.Client) (*Resolvers, error) {
+func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 	dentryResolver, err := NewDentryResolver(probe)
 	if err != nil {
 		return nil, err
@@ -63,7 +62,7 @@ func NewResolvers(config *config.Config, probe *Probe, client *statsd.Client) (*
 		TagsResolver:      NewTagsResolver(config),
 	}
 
-	processResolver, err := NewProcessResolver(probe, resolvers, client, NewProcessResolverOpts(true, probe.config.CookieCacheSize))
+	processResolver, err := NewProcessResolver(probe, resolvers, probe.statsdClient, NewProcessResolverOpts(probe.config.CookieCacheSize))
 	if err != nil {
 		return nil, err
 	}
@@ -78,19 +77,10 @@ func (r *Resolvers) resolveBasename(e *model.FileFields) string {
 	return r.DentryResolver.GetName(e.MountID, e.Inode, e.PathID)
 }
 
-// resolveContainerPath resolves the inode to a path relative to the container
-func (r *Resolvers) resolveContainerPath(e *model.FileFields) string {
-	containerPath, _, _, err := r.MountResolver.GetMountPath(e.MountID)
-	if err != nil {
-		return ""
-	}
-	return containerPath
-}
-
-// resolveFileFieldsPath resolves the inode to a full path. Returns the path and true if it was entirely resolved
+// resolveFileFieldsPath resolves the inode to a full path
 func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields) (string, error) {
 	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID)
-	if pathStr == dentryPathKeyNotFound || (err != nil && err != errTruncatedSegment) {
+	if err != nil {
 		return pathStr, err
 	}
 
@@ -105,12 +95,6 @@ func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields) (string, error) {
 	pathStr = path.Join(mountPath, pathStr)
 
 	return pathStr, err
-}
-
-// ResolveFilePath resolves the inode to a full path. Returns the path and true if it was entirely resolved
-func (r *Resolvers) ResolveFilePath(e *model.FileEvent) string {
-	path, _ := r.resolveFileFieldsPath(&e.FileFields)
-	return path
 }
 
 // ResolveFileFieldsUser resolves the user id of the file to a username
@@ -188,7 +172,7 @@ func (r *Resolvers) Start(ctx context.Context) error {
 		return err
 	}
 
-	return r.DentryResolver.Start()
+	return r.DentryResolver.Start(r.probe)
 }
 
 // Snapshot collects data on the current state of the system to populate user space and kernel space caches.
@@ -199,7 +183,11 @@ func (r *Resolvers) Snapshot() error {
 
 	r.ProcessResolver.SetState(snapshotted)
 
-	return nil
+	selinuxStatusMap, err := r.probe.Map("selinux_enforce_status")
+	if err != nil {
+		return errors.Wrap(err, "unable to snapshot SELinux")
+	}
+	return snapshotSELinux(selinuxStatusMap)
 }
 
 // snapshot internal version of Snapshot. Calls the relevant resolvers to sync their caches.
@@ -254,4 +242,10 @@ func (r *Resolvers) snapshot() error {
 	}
 
 	return nil
+}
+
+// Close cleans up any underlying resolver that requires a cleanup
+func (r *Resolvers) Close() error {
+	// clean up the dentry resolver eRPC segment
+	return r.DentryResolver.Close()
 }

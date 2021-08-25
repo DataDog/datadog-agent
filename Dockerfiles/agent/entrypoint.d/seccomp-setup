@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cp /etc/config/system-probe-seccomp.json /host/var/lib/kubelet/seccomp/system-probe

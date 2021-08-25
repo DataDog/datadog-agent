@@ -132,7 +132,7 @@ func (bc *BBSCache) GetPollSuccesses() int {
 	return bc.pollSuccesses
 }
 
-// GetActualLRPsForApp returns slice of pointers to ActualLRP objects for given App GUID
+// GetActualLRPsForProcessGUID returns slice of pointers to ActualLRP objects for given App GUID
 func (bc *BBSCache) GetActualLRPsForProcessGUID(processGUID string) ([]*ActualLRP, error) {
 	bc.RLock()
 	defer bc.RUnlock()

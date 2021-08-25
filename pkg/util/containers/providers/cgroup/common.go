@@ -11,6 +11,8 @@ import (
 	"bufio"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -54,4 +56,31 @@ func pathExists(filename string) bool {
 		return true
 	}
 	return false
+}
+
+func parseCPUSetFile(lines []string) int {
+	numCPUs := 0
+	if len(lines) == 0 {
+		return numCPUs
+	}
+	// File contents should be only one line so assume this is the case.
+	line := lines[0]
+
+	// Examples of List Format:
+	//		0-5
+	//		0-4,9
+	//		0-2,7,12-14
+	lineSlice := strings.Split(line, ",")
+	for _, l := range lineSlice {
+		lineParts := strings.Split(l, "-")
+		if len(lineParts) == 2 {
+			p0, _ := strconv.Atoi(lineParts[0])
+			p1, _ := strconv.Atoi(lineParts[1])
+			numCPUs += p1 - p0 + 1
+		} else if len(lineParts) == 1 {
+			numCPUs++
+		}
+	}
+
+	return numCPUs
 }

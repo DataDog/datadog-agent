@@ -49,3 +49,34 @@ func TestPoolManager(t *testing.T) {
 	assert.Equal(t, 0, countPoolSize(manager))
 
 }
+
+func BenchmarkPoolManagerPassthru(b *testing.B) {
+	pool := NewPool(1024)
+	manager := NewPoolManager(pool)
+
+	for i := 0; i < b.N; i++ {
+		packet := pool.Get()
+		manager.Put(packet)
+	}
+}
+
+func BenchmarkPoolManagerNoPassthru(b *testing.B) {
+	pool := NewPool(1024)
+	manager := NewPoolManager(pool)
+
+	for i := 0; i < b.N; i++ {
+		packet := pool.Get()
+		manager.Put(packet)
+		manager.Put(packet)
+	}
+}
+
+func BenchmarkSyncPool(b *testing.B) {
+	pool := NewPool(1024)
+
+	for i := 0; i < b.N; i++ {
+		packet := pool.Get()
+		pool.Put(packet)
+	}
+
+}

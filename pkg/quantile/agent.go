@@ -85,12 +85,12 @@ func (a *Agent) InsertInterpolate(lower float64, upper float64, count uint) {
 	}
 	whatsLeft := int(count)
 	distance := upper - lower
-	kStartIdx := 0
-	lowerB := agentConfig.binLow(keys[kStartIdx])
-	kEndIdx := 1
+	startIdx := 0
+	lowerB := agentConfig.binLow(keys[startIdx])
+	endIdx := 1
 	var remainder float64
-	for kEndIdx < len(keys) && whatsLeft > 0 {
-		upperB := agentConfig.binLow(keys[kEndIdx])
+	for endIdx < len(keys) && whatsLeft > 0 {
+		upperB := agentConfig.binLow(keys[endIdx])
 		// ((upperB - lowerB) / distance) is the ratio of the distance between the current buckets to the total distance
 		// which tells us how much of the remaining value to put in this bucket
 		fkn := ((upperB - lowerB) / distance) * float64(count)
@@ -109,16 +109,16 @@ func (a *Agent) InsertInterpolate(lower float64, upper float64, count uint) {
 				kn = whatsLeft
 			}
 			a.Sketch.Basic.InsertN(lowerB, float64(kn))
-			a.CountBuf = append(a.CountBuf, KeyCount{k: keys[kStartIdx], n: uint(kn)})
+			a.CountBuf = append(a.CountBuf, KeyCount{k: keys[startIdx], n: uint(kn)})
 			whatsLeft -= kn
-			kStartIdx = kEndIdx
+			startIdx = endIdx
 			lowerB = upperB
 		}
-		kEndIdx++
+		endIdx++
 	}
 	if whatsLeft > 0 {
-		a.Sketch.Basic.InsertN(agentConfig.binLow(keys[kStartIdx]), float64(whatsLeft))
-		a.CountBuf = append(a.CountBuf, KeyCount{k: keys[kStartIdx], n: uint(whatsLeft)})
+		a.Sketch.Basic.InsertN(agentConfig.binLow(keys[startIdx]), float64(whatsLeft))
+		a.CountBuf = append(a.CountBuf, KeyCount{k: keys[startIdx], n: uint(whatsLeft)})
 	}
 	a.flush()
 }

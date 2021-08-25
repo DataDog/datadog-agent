@@ -1,6 +1,7 @@
 package checks
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -38,7 +39,7 @@ type ContainerCheck struct {
 func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 	c.sysInfo = info
 
-	networkID, err := agentutil.GetNetworkID()
+	networkID, err := agentutil.GetNetworkID(context.TODO())
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}
@@ -128,13 +129,10 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 			lastCtr = util.NullContainerRates
 		}
 
-		// Just in case the container is found, but refs are nil
+		// Just in case the container is found, but refs are nil.
+		// Note some CPU values are set to -1, to be skipped on the backend, because they are reported cumulatively
 		ctr = fillNilContainer(ctr)
 		lastCtr = fillNilRates(lastCtr)
-
-		ifStats := ctr.Network.SumInterfaces()
-		cpus := system.HostCPUCount()
-		sys2, sys1 := ctr.CPU.SystemUsage, lastCtr.CPU.SystemUsage
 
 		// Retrieves metadata tags
 		tags, err := tagger.Tag(ctr.EntityID, collectors.HighCardinality)
@@ -150,13 +148,26 @@ func fmtContainers(ctrList []*containers.Container, lastRates map[string]util.Co
 			continue
 		}
 
+		ifStats := ctr.Network.SumInterfaces()
+		cpus := system.HostCPUCount()
+		sys2, sys1 := ctr.CPU.SystemUsage, lastCtr.CPU.SystemUsage
+
+		userPct := calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, lastRun)
+		systemPct := calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, lastRun)
+		var totalPct float32
+		if userPct == -1 || systemPct == -1 {
+			totalPct = -1
+		} else {
+			totalPct = calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, lastRun)
+		}
+
 		containersList = append(containersList, &model.Container{
 			Id:          ctr.ID,
 			Type:        ctr.Type,
 			CpuLimit:    float32(ctr.Limits.CPULimit),
-			UserPct:     calculateCtrPct(ctr.CPU.User, lastCtr.CPU.User, sys2, sys1, cpus, lastRun),
-			SystemPct:   calculateCtrPct(ctr.CPU.System, lastCtr.CPU.System, sys2, sys1, cpus, lastRun),
-			TotalPct:    calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, lastRun),
+			UserPct:     userPct,
+			SystemPct:   systemPct,
+			TotalPct:    totalPct,
 			MemoryLimit: ctr.Limits.MemLimit,
 			MemRss:      ctr.Memory.RSS,
 			MemCache:    ctr.Memory.Cache,
@@ -204,7 +215,7 @@ func convertAddressList(ctr *containers.Container) []*model.ContainerAddr {
 	addrs := make([]*model.ContainerAddr, 0, len(ctr.AddressList))
 	for _, a := range ctr.AddressList {
 		protocol := model.ConnectionType_tcp
-		if a.Protocol == "UDP" {
+		if a.Protocol == "udp" {
 			protocol = model.ConnectionType_udp
 		}
 		addrs = append(addrs, &model.ContainerAddr{

@@ -31,19 +31,14 @@ const (
 	K8sJob
 	// K8sCronJob represents a Kubernetes CronJob
 	K8sCronJob
-)
-
-var (
-	telemetryTags = map[NodeType][]string{
-		K8sCluster:    getTelemetryTags(K8sCluster),
-		K8sCronJob:    getTelemetryTags(K8sCronJob),
-		K8sDeployment: getTelemetryTags(K8sDeployment),
-		K8sJob:        getTelemetryTags(K8sJob),
-		K8sNode:       getTelemetryTags(K8sNode),
-		K8sPod:        getTelemetryTags(K8sPod),
-		K8sReplicaSet: getTelemetryTags(K8sReplicaSet),
-		K8sService:    getTelemetryTags(K8sService),
-	}
+	// K8sDaemonSet represents a Kubernetes DaemonSet
+	K8sDaemonSet
+	// K8sStatefulSet represents a Kubernetes StatefulSet
+	K8sStatefulSet
+	// K8sPersistentVolume represents a Kubernetes PersistentVolume
+	K8sPersistentVolume
+	// K8sPersistentVolumeClaim represents a Kubernetes PersistentVolumeClaim
+	K8sPersistentVolumeClaim
 )
 
 // NodeTypes returns the current existing NodesTypes as a slice to iterate over.
@@ -52,11 +47,15 @@ func NodeTypes() []NodeType {
 		K8sCluster,
 		K8sCronJob,
 		K8sDeployment,
+		K8sDaemonSet,
 		K8sJob,
 		K8sNode,
 		K8sPod,
 		K8sReplicaSet,
 		K8sService,
+		K8sStatefulSet,
+		K8sPersistentVolumeClaim,
+		K8sPersistentVolume,
 	}
 }
 
@@ -68,6 +67,8 @@ func (n NodeType) String() string {
 		return "CronJob"
 	case K8sDeployment:
 		return "Deployment"
+	case K8sDaemonSet:
+		return "DaemonSet"
 	case K8sJob:
 		return "Job"
 	case K8sNode:
@@ -78,17 +79,23 @@ func (n NodeType) String() string {
 		return "ReplicaSet"
 	case K8sService:
 		return "Service"
+	case K8sStatefulSet:
+		return "StatefulSet"
+	case K8sPersistentVolume:
+		return "PersistentVolume"
+	case K8sPersistentVolumeClaim:
+		return "PersistentVolumeClaim"
 	default:
-		log.Errorf("Trying to convert unknown NodeType iota: %v", n)
-		return ""
+		log.Errorf("Trying to convert unknown NodeType iota: %d", n)
+		return "Unknown"
 	}
 }
 
 // Orchestrator returns the orchestrator name for a node type.
 func (n NodeType) Orchestrator() string {
 	switch n {
-	case K8sCluster, K8sCronJob, K8sDeployment, K8sJob,
-		K8sNode, K8sPod, K8sReplicaSet, K8sService:
+	case K8sCluster, K8sCronJob, K8sDeployment, K8sDaemonSet, K8sJob,
+		K8sNode, K8sPod, K8sReplicaSet, K8sService, K8sStatefulSet, K8sPersistentVolume, K8sPersistentVolumeClaim:
 		return "k8s"
 	default:
 		log.Errorf("Unknown NodeType %v", n)
@@ -98,11 +105,11 @@ func (n NodeType) Orchestrator() string {
 
 // TelemetryTags return tags used for telemetry.
 func (n NodeType) TelemetryTags() []string {
-	tags, ok := telemetryTags[n]
-	if !ok {
+	if n.String() == "" {
 		log.Errorf("Unknown NodeType %v", n)
 		return []string{"unknown", "unknown"}
 	}
+	tags := getTelemetryTags(n)
 	return tags
 }
 
@@ -111,4 +118,26 @@ func getTelemetryTags(n NodeType) []string {
 		n.Orchestrator(),
 		strings.ToLower(n.String()),
 	}
+}
+
+// ChunkRange returns the chunk start and end for an iteration.
+func ChunkRange(numberOfElements, chunkCount, chunkSize, counter int) (int, int) {
+	var (
+		chunkStart = chunkSize * (counter - 1)
+		chunkEnd   = chunkSize * (counter)
+	)
+	// last chunk may be smaller than the chunk size
+	if counter == chunkCount {
+		chunkEnd = numberOfElements
+	}
+	return chunkStart, chunkEnd
+}
+
+// GroupSize returns the GroupSize/number of chunks.
+func GroupSize(msgs, maxPerMessage int) int {
+	groupSize := msgs / maxPerMessage
+	if msgs%maxPerMessage > 0 {
+		groupSize++
+	}
+	return groupSize
 }

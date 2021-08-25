@@ -24,7 +24,7 @@ type telemetry struct {
 	detector collectors.DetectorInterface
 }
 
-func newTelemtry() (*telemetry, error) {
+func newTelemetry() (*telemetry, error) {
 	sender, err := aggregator.GetDefaultSender()
 	if err != nil {
 		return nil, err

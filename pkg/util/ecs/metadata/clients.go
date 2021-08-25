@@ -8,6 +8,7 @@
 package metadata
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -77,12 +78,12 @@ func V2() (*v2.Client, error) {
 // V3 returns a client for the ECS metadata API v3 by detecting the endpoint
 // address for the specified container. Returns an error if it was not possible
 // to detect the endpoint address.
-func V3(containerID string) (*v3.Client, error) {
+func V3(ctx context.Context, containerID string) (*v3.Client, error) {
 	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
 		return nil, fmt.Errorf("Cloud Provider %s is disabled by configuration", common.CloudProviderName)
 	}
 
-	return newClientV3ForContainer(containerID)
+	return newClientV3ForContainer(ctx, containerID)
 }
 
 // V3FromCurrentTask returns a client for the ECS metadata API v3 by detecting
@@ -121,8 +122,8 @@ func newAutodetectedClientV1() (*v1.Client, error) {
 
 // newClientV3ForContainer detects the metadata API v3 endpoint for the specified
 // container and creates a new client for it.
-func newClientV3ForContainer(id string) (*v3.Client, error) {
-	agentURL, err := getAgentV3URLFromDocker(id)
+func newClientV3ForContainer(ctx context.Context, id string) (*v3.Client, error) {
+	agentURL, err := getAgentV3URLFromDocker(ctx, id)
 	if err != nil {
 		return nil, err
 	}

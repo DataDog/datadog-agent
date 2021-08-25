@@ -69,7 +69,7 @@ func NewProcessor(datadogCl DatadogClient) *Processor {
 	}
 }
 
-// ProcessHPAs processes the HorizontalPodAutoscalers into a list of ExternalMetricValues.
+// ProcessEMList processes a list of ExternalMetricValue.
 func (p *Processor) ProcessEMList(emList []custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue {
 	externalMetrics := make(map[string]custommetrics.ExternalMetricValue)
 	for _, em := range emList {
@@ -162,7 +162,7 @@ func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.Extern
 	return updated
 }
 
-// queryExternalMetric queries Datadog to validate the availability and value of one or more external metrics
+// QueryExternalMetric queries Datadog to validate the availability and value of one or more external metrics
 // Also updates the rate limits statistics as a result of the query.
 func (p *Processor) QueryExternalMetric(queries []string) (processed map[string]Point, err error) {
 	processed = make(map[string]Point)

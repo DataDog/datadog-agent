@@ -13,10 +13,30 @@ struct str_array_ref_t {
     const char **array;
 };
 
+struct dentry_resolver_input_t {
+    struct path_key_t key;
+    struct dentry *dentry;
+    u64 discarder_type;
+    int callback;
+    int ret;
+    int iteration;
+};
+
+union selinux_write_payload_t {
+    // 1 for true, 0 for false, -1 (max) for error
+    u32 bool_value;
+    struct {
+        u16 disable_value;
+        u16 enforce_value;
+    } status;
+};
+
 struct syscall_cache_t {
     struct policy_t policy;
     u64 type;
     u32 discarded;
+
+    struct dentry_resolver_input_t resolver;
 
     union {
         struct {
@@ -74,6 +94,7 @@ struct syscall_cache_t {
             struct mount *dest_mnt;
             struct mountpoint *dest_mountpoint;
             struct path_key_t root_key;
+            struct path_key_t path_key;
             const char *fstype;
         } mount;
 
@@ -107,6 +128,13 @@ struct syscall_cache_t {
             u32 next_tail;
             u8 is_parsed;
         } exec;
+
+        struct {
+            struct dentry *dentry;
+            struct file_t file;
+            u32 event_kind;
+            union selinux_write_payload_t payload;
+        } selinux;
     };
 };
 

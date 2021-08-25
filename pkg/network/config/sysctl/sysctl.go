@@ -96,3 +96,40 @@ func (s *sctl) get(now time.Time) (string, bool, error) {
 	s.lastRead = now
 	return strings.TrimSpace(string(content)), true, nil
 }
+
+// IntPair represents a sysconfig with a single line with two integer values such as
+// 1234   5678
+type IntPair struct {
+	*sctl
+	v1 int
+	v2 int
+}
+
+// NewIntPair creates a new sysctl.IntPair
+// an IntPair is a sysctl that has two space-separated integer values
+//
+// `procRoot` points to the procfs root, e.g. /proc
+// `sysctl` is the path for the sysctl, e.g. /proc/sys/<sysctl>
+// `cacheFor` caches the sysctl's value for the given time duration;
+// `0` disables caching
+func NewIntPair(procRoot, sysctl string, cacheFor time.Duration) *IntPair {
+	return &IntPair{sctl: newSCtl(procRoot, sysctl, cacheFor)}
+}
+
+// Get gets the current value of the sysctl
+func (i *IntPair) Get() (int, int, error) {
+	return i.get(time.Now())
+}
+
+func (i *IntPair) get(now time.Time) (int, int, error) {
+	v, updated, err := i.sctl.get(now)
+	if err == nil && updated {
+		vals := strings.Fields(v)
+		i.v1, err = strconv.Atoi(vals[0])
+		if err == nil {
+			i.v2, err = strconv.Atoi(vals[1])
+		}
+	}
+
+	return i.v1, i.v2, err
+}

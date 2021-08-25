@@ -16,12 +16,10 @@ from .utils import REPO_PATH, bin_name, bundle_files, get_build_flags, get_versi
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe", android=False))
 
-EBPF_BUILDER_IMAGE = 'datadog/tracer-bpf-builder'
-EBPF_BUILDER_FILE = os.path.join(".", "tools", "ebpf", "Dockerfiles", "Dockerfile-ebpf")
-
 BPF_TAG = "linux_bpf"
 BUNDLE_TAG = "ebpf_bindata"
 BCC_TAG = "bcc"
+NPM_TAG = "npm"
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
 
 CLANG_CMD = "clang {flags} -c '{c_file}' -o '{bc_file}'"
@@ -49,6 +47,7 @@ def build(
     windows=is_windows,
     arch="x64",
     embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
+    compile_ebpf=True,
     bundle_ebpf=False,
 ):
     """
@@ -83,10 +82,11 @@ def build(
                 maj_ver=maj_ver, min_ver=min_ver, patch_ver=patch_ver, target_arch=windres_target
             )
         )
-    else:
+    elif compile_ebpf:
         # Only build ebpf files on unix
-        build_object_files(ctx, bundle_ebpf=bundle_ebpf)
+        build_object_files(ctx)
 
+    generate_cgo_types(ctx, windows=windows)
     ldflags, gcflags, env = get_build_flags(
         ctx, major_version=major_version, python_runtimes=python_runtimes, embedded_path=embedded_path
     )
@@ -116,39 +116,6 @@ def build(
 
 
 @task
-def build_in_docker(
-    ctx, rebuild_ebpf_builder=False, race=False, incremental_build=False, major_version='7', bundle_ebpf=False
-):
-    """
-    Build the system_probe using a container
-    This can be used when the current OS don't have up to date linux headers
-    """
-
-    if rebuild_ebpf_builder:
-        build_ebpf_builder(ctx)
-
-    docker_cmd = "docker run --rm \
-            -v {cwd}:/go/src/github.com/DataDog/datadog-agent \
-            --workdir=/go/src/github.com/DataDog/datadog-agent \
-            {builder} \
-            {cmd}"
-
-    if should_docker_use_sudo(ctx):
-        docker_cmd = "sudo " + docker_cmd
-
-    cmd = "invoke -e system-probe.build --major-version {}".format(major_version)
-
-    if race:
-        cmd += " --race"
-    if incremental_build:
-        cmd += " --incremental-build"
-    if bundle_ebpf:
-        cmd += " --bundle-ebpf"
-
-    ctx.run(docker_cmd.format(cwd=os.getcwd(), builder=EBPF_BUILDER_IMAGE, cmd=cmd))
-
-
-@task
 def test(
     ctx,
     packages=TEST_PACKAGES,
@@ -158,6 +125,7 @@ def test(
     runtime_compiled=False,
     skip_linters=False,
     run=None,
+    windows=is_windows,
 ):
     """
     Run tests on eBPF parts
@@ -172,16 +140,18 @@ def test(
             "preserve your environment",
         )
 
-    if not skip_linters:
+    if not skip_linters and not windows:
         clang_format(ctx)
         clang_tidy(ctx)
 
-    if not skip_object_files:
-        build_object_files(ctx, bundle_ebpf=bundle_ebpf)
+    if not skip_object_files and not windows:
+        build_object_files(ctx)
 
-    build_tags = [BPF_TAG]
-    if bundle_ebpf:
-        build_tags.append(BUNDLE_TAG)
+    build_tags = [NPM_TAG]
+    if not windows:
+        build_tags.append(BPF_TAG)
+        if bundle_ebpf:
+            build_tags.append(BUNDLE_TAG)
 
     args = {
         "build_tags": ",".join(build_tags),
@@ -195,15 +165,15 @@ def test(
     if runtime_compiled:
         env['DD_TESTS_RUNTIME_COMPILED'] = "1"
 
-    cmd = 'go test -mod=mod -v -tags {build_tags} {output_params} {pkgs} {run}'
-    if not is_root():
+    cmd = 'go test -mod=mod -v -tags "{build_tags}" {output_params} {pkgs} {run}'
+    if not windows and not is_root():
         cmd = 'sudo -E ' + cmd
 
     ctx.run(cmd.format(**args), env=env)
 
 
 @task
-def kitchen_prepare(ctx):
+def kitchen_prepare(ctx, windows=is_windows):
     """
     Compile test suite for kitchen
     """
@@ -212,12 +182,19 @@ def kitchen_prepare(ctx):
     if os.path.exists(KITCHEN_ARTIFACT_DIR):
         shutil.rmtree(KITCHEN_ARTIFACT_DIR)
 
+    build_tags = [NPM_TAG]
+    if not windows:
+        build_tags.append(BPF_TAG)
+
     # Retrieve a list of all packages we want to test
     # This handles the elipsis notation (eg. ./pkg/ebpf/...)
     target_packages = []
     for pkg in TEST_PACKAGES_LIST:
         target_packages += (
-            check_output("go list -f '{{{{ .Dir }}}}' -tags {tags} {pkg}".format(tags=BPF_TAG, pkg=pkg), shell=True)
+            check_output(
+                'go list -f "{{{{ .Dir }}}}" -mod=mod -tags "{tags}" {pkg}'.format(tags=",".join(build_tags), pkg=pkg),
+                shell=True,
+            )
             .decode('utf-8')
             .strip()
             .split("\n")
@@ -250,7 +227,7 @@ def kitchen_prepare(ctx):
 
 
 @task
-def kitchen_test(ctx, target=None):
+def kitchen_test(ctx, target=None, arch="x86_64"):
     """
     Run tests (locally) using chef kitchen against an array of different platforms.
     * Make sure to run `inv -e system-probe.kitchen-prepare` using the agent-development VM;
@@ -262,7 +239,7 @@ def kitchen_test(ctx, target=None):
     with open(os.path.join(KITCHEN_DIR, "platforms.json"), 'r') as f:
         for platform, by_provider in json.load(f).items():
             if "vagrant" in by_provider:
-                for image in by_provider["vagrant"]:
+                for image in by_provider["vagrant"][arch]:
                     images[image] = platform
 
     if not (target in images):
@@ -287,14 +264,14 @@ def nettop(ctx, incremental_build=False, go_mod="mod"):
     """
     Build and run the `nettop` utility for testing
     """
-    build_object_files(ctx, bundle_ebpf=False)
+    build_object_files(ctx)
 
     cmd = 'go build -mod={go_mod} {build_type} -tags {tags} -o {bin_path} {path}'
     bin_path = os.path.join(BIN_DIR, "nettop")
     # Build
     ctx.run(
         cmd.format(
-            path=os.path.join(REPO_PATH, "pkg", "ebpf", "nettop"),
+            path=os.path.join(REPO_PATH, "pkg", "network", "nettop"),
             bin_path=bin_path,
             go_mod=go_mod,
             build_type="" if incremental_build else "-a",
@@ -391,28 +368,9 @@ def run_tidy(ctx, files, build_flags, fix=False, fail_on_issue=False):
 
 
 @task
-def build_dev_docker_image(ctx, image_name, push=False):
-    """
-    Build a system-probe-agent Docker image (development only)
-    if push is set to true the image will be pushed to the given registry
-    """
-
-    dev_file = os.path.join(".", "tools", "ebpf", "Dockerfiles", "Dockerfile-tracer-dev")
-    cmd = "docker build {directory} -t {image_name} -f {file}"
-    push_cmd = "docker push {image_name}"
-
-    # Build in a temporary directory to make the docker build context small
-    with tempdir() as d:
-        shutil.copy(BIN_PATH, d)
-        ctx.run(cmd.format(directory=d, image_name=image_name, file=dev_file))
-        if push:
-            ctx.run(push_cmd.format(image_name=image_name))
-
-
-@task
-def object_files(ctx, bundle_ebpf=True):
+def object_files(ctx):
     """object_files builds the eBPF object files"""
-    build_object_files(ctx, bundle_ebpf=bundle_ebpf)
+    build_object_files(ctx)
 
 
 def get_ebpf_c_files():
@@ -525,11 +483,11 @@ def build_network_ebpf_files(ctx, build_dir):
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
-    bindata_files = []
     compiled_programs = [
         "tracer",
         "offset-guess",
         "http",
+        "dns",
     ]
 
     network_flags = get_ebpf_build_flags()
@@ -546,10 +504,6 @@ def build_network_ebpf_files(ctx, build_dir):
         debug_obj_file = os.path.join(build_dir, "{}-debug.o".format(p))
         ctx.run(CLANG_CMD.format(flags=" ".join(network_flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file))
         ctx.run(LLC_CMD.format(flags=" ".join(network_flags), bc_file=debug_bc_file, obj_file=debug_obj_file))
-
-        bindata_files.extend([obj_file, debug_obj_file])
-
-    return bindata_files
 
 
 def build_security_ebpf_files(ctx, build_dir):
@@ -603,12 +557,9 @@ def build_bcc_files(ctx, build_dir):
     for f in bcc_files:
         ctx.run("cp {file} {dest}".format(file=f, dest=build_dir))
 
-    return [os.path.join(build_dir, os.path.basename(f)) for f in bcc_files]
 
-
-def build_object_files(ctx, bundle_ebpf=False):
+def build_object_files(ctx):
     """build_object_files builds only the eBPF object
-    set bundle_ebpf to False to disable replacing the assets
     """
 
     # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
@@ -623,15 +574,14 @@ def build_object_files(ctx, bundle_ebpf=False):
     ctx.run("mkdir -p {build_runtime_dir}".format(build_runtime_dir=build_runtime_dir))
 
     bindata_files = []
-    bindata_files.extend(build_bcc_files(ctx, build_dir=build_dir))
-    bindata_files.extend(build_network_ebpf_files(ctx, build_dir=build_dir))
+    build_bcc_files(ctx, build_dir=build_dir)
+    build_network_ebpf_files(ctx, build_dir=build_dir)
     bindata_files.extend(build_security_ebpf_files(ctx, build_dir=build_dir))
 
     generate_runtime_files(ctx)
 
-    if bundle_ebpf:
-        go_dir = os.path.join(bpf_dir, "bytecode", "bindata")
-        bundle_files(ctx, bindata_files, "pkg/.*/", go_dir, "bindata", BUNDLE_TAG)
+    go_dir = os.path.join(bpf_dir, "bytecode", "bindata")
+    bundle_files(ctx, bindata_files, "pkg/.*/", go_dir, "bindata", BUNDLE_TAG)
 
 
 @task
@@ -644,17 +594,25 @@ def generate_runtime_files(ctx):
         ctx.run("go generate -mod=mod -tags {tags} {file}".format(file=f, tags=BPF_TAG))
 
 
-def build_ebpf_builder(ctx):
-    """
-    build_ebpf_builder builds the docker image for the ebpf builder
-    """
+@task
+def generate_cgo_types(ctx, windows=is_windows):
+    if windows:
+        platform = "windows"
+        def_files = [
+            "./pkg/network/driver/types.go",
+        ]
+    else:
+        platform = "linux"
+        def_files = []
 
-    cmd = "docker build -t {image} -f {file} ."
-
-    if should_docker_use_sudo(ctx):
-        cmd = "sudo " + cmd
-
-    ctx.run(cmd.format(image=EBPF_BUILDER_IMAGE, file=EBPF_BUILDER_FILE))
+    for f in def_files:
+        fdir, file = os.path.split(f)
+        base, _ = os.path.splitext(file)
+        with ctx.cd(fdir):
+            ctx.run(
+                "go tool cgo -godefs -- {file} > {base}_{platform}.go".format(file=file, base=base, platform=platform)
+            )
+            ctx.run("gofmt -w -s {base}_{platform}.go".format(base=base, platform=platform))
 
 
 def is_root():

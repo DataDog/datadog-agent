@@ -1,0 +1,12 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "container_event.json",
+    "allOf": [
+        {
+            "$ref": "file:///host_event.json"
+        },
+        {
+            "$ref": "file:///container_context.json"
+        }
+    ]
+}

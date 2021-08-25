@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 	"unicode"
@@ -25,7 +26,6 @@ const (
 	// DefaultClockTicks is the default number of clock ticks per second
 	// C.sysconf(C._SC_CLK_TCK)
 	DefaultClockTicks = float64(100)
-
 	// More than 5760 to work around https://golang.org/issue/24015.
 	blockSize = 8192
 )
@@ -72,6 +72,13 @@ func WithPermission(enabled bool) Option {
 	}
 }
 
+// WithBootTimeRefreshInterval configures the boot time refresh interval
+func WithBootTimeRefreshInterval(bootTimeRefreshInterval time.Duration) Option {
+	return func(p *Probe) {
+		p.bootTimeRefreshInterval = bootTimeRefreshInterval
+	}
+}
+
 // Probe is a service that fetches process related info on current host
 type Probe struct {
 	procRootLoc  string // ProcFS
@@ -80,37 +87,66 @@ type Probe struct {
 	euid         uint32 // Effective UID
 	clockTicks   float64
 	bootTime     uint64
+	exit         chan struct{}
 
 	// configurations
-	withPermission      bool
-	returnZeroPermStats bool
+	withPermission          bool
+	returnZeroPermStats     bool
+	bootTimeRefreshInterval time.Duration
 }
 
 // NewProcessProbe initializes a new Probe object
 func NewProcessProbe(options ...Option) *Probe {
 	hostProc := util.HostProc()
-	bootTime, _ := bootTime(hostProc)
+	bootTime, err := bootTime(hostProc)
+	if err != nil {
+		log.Errorf("could not parse boot time: %s", err)
+	}
 
 	p := &Probe{
-		procRootLoc: hostProc,
-		uid:         uint32(os.Getuid()),
-		euid:        uint32(os.Geteuid()),
-		bootTime:    bootTime,
-		clockTicks:  getClockTicks(),
+		procRootLoc:             hostProc,
+		uid:                     uint32(os.Getuid()),
+		euid:                    uint32(os.Geteuid()),
+		clockTicks:              getClockTicks(),
+		exit:                    make(chan struct{}),
+		bootTimeRefreshInterval: time.Minute,
 	}
+	atomic.StoreUint64(&p.bootTime, bootTime)
 
 	for _, o := range options {
 		o(p)
 	}
+
+	go p.syncBootTime()
 
 	return p
 }
 
 // Close cleans up everything related to Probe object
 func (p *Probe) Close() {
+	close(p.exit)
 	if p.procRootFile != nil {
 		p.procRootFile.Close()
 		p.procRootFile = nil
+	}
+}
+
+// syncBootTime checks bootTime every minute and stores it.
+// Make sure we get the correct boot time if the clock of the host is temporarily drifted but gets corrected later on
+func (p *Probe) syncBootTime() {
+	ticker := time.NewTicker(p.bootTimeRefreshInterval)
+	defer ticker.Stop()
+
+	select {
+	case <-ticker.C:
+		bootTime, err := bootTime(p.procRootLoc)
+		if err != nil {
+			log.Errorf("could not parse boot time: %s", err)
+		} else {
+			atomic.StoreUint64(&p.bootTime, bootTime)
+		}
+	case <-p.exit:
+		return
 	}
 }
 
@@ -202,8 +238,8 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 			},
 		}
 		if p.withPermission {
-			proc.Stats.OpenFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
-			proc.Stats.IOStat = p.parseIO(pathForPID)         // /proc/[pid]/io, requires permission checks
+			proc.Stats.OpenFdCount = p.getFDCountImproved(pathForPID) // /proc/[pid]/fd, requires permission checks
+			proc.Stats.IOStat = p.parseIO(pathForPID)                 // /proc/[pid]/io, requires permission checks
 		} else {
 			proc.Stats.IOStat = &IOCountersStat{
 				ReadCount:  -1,
@@ -219,12 +255,7 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 }
 
 // StatsWithPermByPID returns the stats that require elevated permission to collect for each process
-func (p *Probe) StatsWithPermByPID() (map[int32]*StatsWithPerm, error) {
-	pids, err := p.getActivePIDs()
-	if err != nil {
-		return nil, err
-	}
-
+func (p *Probe) StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, error) {
 	statsByPID := make(map[int32]*StatsWithPerm, len(pids))
 	for _, pid := range pids {
 		pathForPID := filepath.Join(p.procRootLoc, strconv.Itoa(int(pid)))
@@ -233,7 +264,7 @@ func (p *Probe) StatsWithPermByPID() (map[int32]*StatsWithPerm, error) {
 			continue
 		}
 
-		fds := p.getFDCount(pathForPID)
+		fds := p.getFDCountImproved(pathForPID)
 		io := p.parseIO(pathForPID)
 
 		// don't return entries with all zero values if returnZeroPermStats is disabled
@@ -572,7 +603,7 @@ func (p *Probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 
 	t, err := strconv.ParseUint(startTimeStr, 10, 64)
 	if err == nil {
-		ctime := (t / uint64(p.clockTicks)) + p.bootTime
+		ctime := (t / uint64(p.clockTicks)) + atomic.LoadUint64(&p.bootTime)
 		// convert create time into milliseconds
 		sInfo.createTime = int64(ctime * 1000)
 	}
@@ -773,8 +804,7 @@ func bootTime(hostProc string) (uint64, error) {
 	filePath := filepath.Join(hostProc, "stat")
 	content, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		log.Debugf("Unable to read stat file from %s: %s", filePath, err)
-		return 0, nil
+		return 0, fmt.Errorf("unable to read stat file from %s: %s", filePath, err)
 	}
 
 	lineStart := 0
@@ -785,7 +815,7 @@ func bootTime(hostProc string) (uint64, error) {
 			if bytes.HasPrefix(content[lineStart:i], btimePrefix) {
 				f := strings.Fields(string(content[lineStart:i]))
 				if len(f) != 2 {
-					return 0, fmt.Errorf("wrong btime format")
+					return 0, fmt.Errorf("wrong btime format: %s", content[lineStart:i])
 				}
 
 				b, err := strconv.ParseInt(f[1], 10, 64)
@@ -798,7 +828,7 @@ func bootTime(hostProc string) (uint64, error) {
 		}
 	}
 
-	return 0, fmt.Errorf("could not parse btime")
+	return 0, fmt.Errorf("btime data does not exist in %s", filePath)
 }
 
 // getClockTicks uses command "getconf CLK_TCK" to fetch the clock tick on current host,

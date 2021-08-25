@@ -8,20 +8,21 @@
 package probe
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
+	"gotest.tools/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/security/model"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestMountResolver(t *testing.T) {
 	// Prepare test cases
 	type testCase struct {
-		mountID               uint32
-		expectedMountPath     string
-		expectedContainerPath string
-		expectedError         error
+		mountID           uint32
+		expectedMountPath string
+		expectedError     error
 	}
 	type event struct {
 		mount  *model.MountEvent
@@ -60,18 +61,15 @@ func TestMountResolver(t *testing.T) {
 					{
 						127,
 						"/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
-						"",
 						nil,
 					},
 					{
 						0,
 						"",
-						"",
 						nil,
 					},
 					{
 						27,
-						"",
 						"",
 						ErrMountNotFound,
 					},
@@ -92,7 +90,6 @@ func TestMountResolver(t *testing.T) {
 				[]testCase{
 					{
 						127,
-						"",
 						"",
 						ErrMountNotFound,
 					},
@@ -156,19 +153,16 @@ func TestMountResolver(t *testing.T) {
 					{
 						27,
 						"/",
-						"",
 						nil,
 					},
 					{
 						22,
 						"/sys",
-						"",
 						nil,
 					},
 					{
 						31,
 						"/sys/fs/cgroup",
-						"",
 						nil,
 					},
 				},
@@ -189,18 +183,15 @@ func TestMountResolver(t *testing.T) {
 					{
 						27,
 						"",
-						"",
 						ErrMountNotFound,
 					},
 					{
 						22,
 						"",
-						"",
 						ErrMountNotFound,
 					},
 					{
 						31,
-						"",
 						"",
 						ErrMountNotFound,
 					},
@@ -280,7 +271,6 @@ func TestMountResolver(t *testing.T) {
 					{
 						639,
 						"proc",
-						"/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
 						nil,
 					},
 				},
@@ -301,18 +291,15 @@ func TestMountResolver(t *testing.T) {
 					{
 						176,
 						"",
-						"",
 						ErrMountNotFound,
 					},
 					{
 						638,
 						"",
-						"",
 						ErrMountNotFound,
 					},
 					{
 						639,
-						"",
 						"",
 						ErrMountNotFound,
 					},
@@ -339,7 +326,7 @@ func TestMountResolver(t *testing.T) {
 			mr.dequeue(time.Now().Add(1 * time.Minute))
 
 			for _, testC := range tt.args.cases {
-				cp, p, _, err := mr.GetMountPath(testC.mountID)
+				_, p, _, err := mr.GetMountPath(testC.mountID)
 				if err != nil {
 					if testC.expectedError != nil {
 						assert.Equal(t, testC.expectedError.Error(), err.Error())
@@ -349,8 +336,53 @@ func TestMountResolver(t *testing.T) {
 					continue
 				}
 				assert.Equal(t, testC.expectedMountPath, p)
-				assert.Equal(t, testC.expectedContainerPath, cp)
 			}
 		})
+	}
+}
+
+func TestGetParentPath(t *testing.T) {
+	mr := &MountResolver{
+		mounts: map[uint32]*model.MountEvent{
+			1: {
+				MountID:       1,
+				ParentMountID: 3,
+				MountPointStr: "/a",
+			},
+			2: {
+				MountID:       2,
+				ParentMountID: 1,
+				MountPointStr: "/b",
+			},
+			3: {
+				MountID:       3,
+				ParentMountID: 2,
+				MountPointStr: "/c",
+			},
+		},
+	}
+
+	parentPath := mr.getParentPath(3)
+	assert.Equal(t, "/a/b/c", parentPath)
+}
+
+func BenchmarkGetParentPath(b *testing.B) {
+	mr := &MountResolver{
+		mounts: make(map[uint32]*model.MountEvent),
+	}
+
+	var parentID uint32
+	for i := uint32(0); i != 100; i++ {
+		mr.mounts[i+1] = &model.MountEvent{
+			MountID:       i + 1,
+			ParentMountID: parentID,
+			MountPointStr: fmt.Sprintf("/%d", i+1),
+		}
+		parentID = i
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = mr.getParentPath(0)
 	}
 }

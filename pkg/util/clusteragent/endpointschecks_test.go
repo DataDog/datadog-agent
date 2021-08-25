@@ -6,6 +6,7 @@
 package clusteragent
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/stretchr/testify/assert"
@@ -25,6 +26,7 @@ var dummyEndpointsConfigs = `{
 }`
 
 func (suite *clusterAgentSuite) TestEndpointsChecksNominal() {
+	ctx := context.Background()
 	dca, err := newDummyClusterAgent()
 	require.NoError(suite.T(), err)
 
@@ -38,7 +40,7 @@ func (suite *clusterAgentSuite) TestEndpointsChecksNominal() {
 	ca, err := GetClusterAgentClient()
 	require.NoError(suite.T(), err)
 
-	configs, err := ca.GetEndpointsCheckConfigs("mynode")
+	configs, err := ca.GetEndpointsCheckConfigs(ctx, "mynode")
 	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), int64(42), configs.LastChange)
 	require.Len(suite.T(), configs.Configs, 2)

@@ -11,15 +11,12 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/sha256"
-	"fmt"
 	"io/ioutil"
-	"regexp"
 	"strconv"
 	"strings"
-)
 
-// containerIDPattern is the pattern of a container ID
-var containerIDPattern = regexp.MustCompile(fmt.Sprintf(`([[:xdigit:]]{%v})`, sha256.Size*2))
+	"github.com/DataDog/datadog-agent/pkg/security/model"
+)
 
 // ContainerID is the type holding the container ID
 type ContainerID string
@@ -36,11 +33,6 @@ func (c ContainerID) Bytes() []byte {
 // ContainerIDLen is the length of a container ID is the length of the hex representation of a sha256 hash
 const ContainerIDLen = sha256.Size * 2
 
-// FindContainerID extracts the first sub string that matches the pattern of a container ID
-func FindContainerID(s string) string {
-	return containerIDPattern.FindString(s)
-}
-
 // ControlGroup describes the cgroup membership of a process
 type ControlGroup struct {
 	// ID unique hierarchy ID
@@ -56,7 +48,7 @@ type ControlGroup struct {
 
 // GetContainerID returns the container id extracted from the path of the control group
 func (cg ControlGroup) GetContainerID() ContainerID {
-	return ContainerID(FindContainerID(cg.Path))
+	return ContainerID(model.FindContainerID(cg.Path))
 }
 
 // GetProcControlGroups returns the cgroup membership of the specified task.

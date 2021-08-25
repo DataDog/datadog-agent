@@ -60,10 +60,7 @@ func (t *TCPQueueLengthConfig) Parse(data []byte) error {
 	// default values
 	t.CollectTCPQueueLength = true
 
-	if err := yaml.Unmarshal(data, t); err != nil {
-		return err
-	}
-	return nil
+	return yaml.Unmarshal(data, t)
 }
 
 //Configure parses the check configuration and init the check

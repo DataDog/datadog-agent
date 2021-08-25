@@ -14,7 +14,7 @@ import (
 
 func (c *StaticCollector) getTagInfo(entity string) []*TagInfo {
 	tags := utils.NewTagList()
-	for _, tag := range c.ddTagsEnvVar {
+	for _, tag := range c.tags {
 		tagParts := strings.SplitN(tag, ":", 2)
 		if len(tagParts) != 2 {
 			log.Warnf("Cannot split tag %s", tag)

@@ -155,4 +155,18 @@ struct bpf_map_def SEC("maps/ip_route_dest_gateways") ip_route_dest_gateways = {
     .namespace = "",
 };
 
+// This map is used to to temporarily store function arguments (the struct sock*
+// mapped to the given fd_out) for do_sendfile function calls, so they can be
+// acessed by the corresponding kretprobe.
+// * Key is pid_tgid (u64)
+// * Value is (struct sock*)
+struct bpf_map_def SEC("maps/do_sendfile_args") do_sendfile_args = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u64),
+    .value_size = sizeof(struct sock*),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
 #endif

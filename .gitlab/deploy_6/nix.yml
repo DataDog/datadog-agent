@@ -1,10 +1,4 @@
 ---
-.if_not_version_6: &if_not_version_6
-  if: $RELEASE_VERSION_6 == ""
-
-.if_deploy: &if_deploy
-  if: $DEPLOY_AGENT == "true"
-
 .setup_rpm_signing_key: &setup_rpm_signing_key
   - set +x
   - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name $RPM_GPG_KEY_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
@@ -14,13 +8,11 @@
 # deploy debian packages to apt staging repo
 deploy_staging_deb-6:
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_deploy
+    !reference [.on_deploy_a6]
   stage: deploy6
   resource_group: deb_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   dependencies: ["agent_deb-x64-a6", "agent_deb-arm64-a6"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -29,7 +21,7 @@ deploy_staging_deb-6:
     # (same as the check_already_deployed_version). We do this twice to mitigate
     # races and issues with retries while failing early if there is an issue.
     - pushd $OMNIBUS_PACKAGE_DIR
-    - ~/deploy_scripts/fail_deb_is_pkg_already_exists.sh *_6.*amd64.deb
+    - /deploy_scripts/fail_deb_is_pkg_already_exists.sh *_6.*amd64.deb
     - popd
 
     - set +x  # make sure we don't output the creds to the build log
@@ -46,13 +38,11 @@ deploy_staging_deb-6:
 
 deploy_staging_rpm-6:
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_deploy
+    !reference [.on_deploy_a6]
   stage: deploy6
   resource_group: rpm_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   dependencies: ["agent_rpm-x64-a6", "agent_rpm-arm64-a6"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
@@ -65,13 +55,11 @@ deploy_staging_rpm-6:
 # NOTE: no SuSE ARM builds currently.
 deploy_staging_suse_rpm-6:
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_deploy
+    !reference [.on_deploy_a6]
   stage: deploy6
   resource_group: suse_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   dependencies: ["agent_suse-x64-a6"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
@@ -84,12 +72,10 @@ deploy_staging_suse_rpm-6:
 deploy_staging_dmg-a6:
   allow_failure: true
   rules:
-    - <<: *if_not_version_6
-      when: never
-    - <<: *if_deploy
+    !reference [.on_deploy_a6]
   stage: deploy6
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["runner:main", "size:large"]
+  tags: ["runner:main"]
   dependencies: ["agent_dmg-x64-a6"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR

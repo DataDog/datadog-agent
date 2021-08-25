@@ -8,6 +8,7 @@
 package model
 
 import (
+	"context"
 	"errors"
 	"os"
 	"testing"
@@ -15,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var templatedTagsStub = map[string]tagGetter{"kube_cluster_name": func() (string, error) { return "cluster-foo", nil }}
+var templatedTagsStub = map[string]tagGetter{"kube_cluster_name": func(context.Context) (string, error) { return "cluster-foo", nil }}
 
 func Test_resolveQuery(t *testing.T) {
 	tests := []struct {
@@ -76,8 +77,8 @@ func Test_resolveQuery(t *testing.T) {
 			name: "multiple tag values",
 			q:    "avg:nginx.net.request_per_s{kube_container_name:nginx,kube_cluster_name:%%tag_kube_cluster_name%%,datacenter:%%tag_datacenter%%}.rollup(60)",
 			templatedTags: map[string]tagGetter{
-				"kube_cluster_name": func() (string, error) { return "cluster-foo", nil },
-				"datacenter":        func() (string, error) { return "dc-foo", nil },
+				"kube_cluster_name": func(context.Context) (string, error) { return "cluster-foo", nil },
+				"datacenter":        func(context.Context) (string, error) { return "dc-foo", nil },
 			},
 			loadFunc:    func() {},
 			cleanupFunc: func() {},
@@ -106,7 +107,7 @@ func Test_resolveQuery(t *testing.T) {
 			name: "cannot get tag",
 			q:    "avg:nginx.net.request_per_s{kube_container_name:nginx,kube_cluster_name:%%tag_kube_cluster_name%%}.rollup(60)",
 			templatedTags: map[string]tagGetter{
-				"kube_cluster_name": func() (string, error) { return "", errors.New("cannot get tag") },
+				"kube_cluster_name": func(context.Context) (string, error) { return "", errors.New("cannot get tag") },
 			},
 			loadFunc:    func() {},
 			cleanupFunc: func() {},

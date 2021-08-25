@@ -13,10 +13,10 @@ import (
 	"log"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/pb"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -28,7 +28,9 @@ import (
 )
 
 var (
-	dsdCaptureDuration time.Duration
+	dsdCaptureDuration   time.Duration
+	dsdCaptureFilePath   string
+	dsdCaptureCompressed bool
 )
 
 const (
@@ -38,6 +40,8 @@ const (
 func init() {
 	AgentCmd.AddCommand(dogstatsdCaptureCmd)
 	dogstatsdCaptureCmd.Flags().DurationVarP(&dsdCaptureDuration, "duration", "d", defaultCaptureDuration, "Duration traffic capture should span.")
+	dogstatsdCaptureCmd.Flags().StringVarP(&dsdCaptureFilePath, "path", "p", "", "Directory path to write the capture to.")
+	dogstatsdCaptureCmd.Flags().BoolVarP(&dsdCaptureCompressed, "compressed", "z", true, "Should capture be zstd compressed.")
 
 	// shut up grpc client!
 	grpclog.SetLogger(log.New(ioutil.Discard, "", 0))
@@ -105,13 +109,15 @@ func dogstatsdCapture() error {
 	cli := pb.NewAgentSecureClient(conn)
 
 	resp, err := cli.DogstatsdCaptureTrigger(ctx, &pb.CaptureTriggerRequest{
-		Duration: dsdCaptureDuration.String(),
+		Duration:   dsdCaptureDuration.String(),
+		Path:       dsdCaptureFilePath,
+		Compressed: dsdCaptureCompressed,
 	})
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Capture started, capture file being written to: %s", resp.Path)
+	fmt.Printf("Capture started, capture file being written to: %s\n", resp.Path)
 
 	return nil
 }

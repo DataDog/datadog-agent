@@ -8,6 +8,7 @@
 package kubelet
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"time"
@@ -19,8 +20,8 @@ import (
 )
 
 // ListContainers lists all non-excluded running containers, and retrieves their performance metrics
-func (ku *KubeUtil) ListContainers() ([]*containers.Container, error) {
-	pods, err := ku.GetLocalPodList()
+func (ku *KubeUtil) ListContainers(ctx context.Context) ([]*containers.Container, error) {
+	pods, err := ku.GetLocalPodList(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("could not get pod list: %s", err)
 	}

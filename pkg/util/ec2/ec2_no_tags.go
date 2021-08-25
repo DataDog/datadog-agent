@@ -7,11 +7,13 @@
 
 package ec2
 
+import "context"
+
 // GetTags grabs the host tags from the EC2 api
-func GetTags() ([]string, error) {
+func GetTags(ctx context.Context) ([]string, error) {
 	return []string{}, nil
 }
 
-func fetchTagsFromCache() ([]string, error) {
+func fetchTagsFromCache(ctx context.Context) ([]string, error) {
 	return []string{}, nil
 }

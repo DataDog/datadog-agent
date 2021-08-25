@@ -1,5 +1,5 @@
 suites:
-- name: dd-system-probe-test
+- name: system-probe-test
   run_list:
     - recipe[dd-system-probe-check]
   attributes:

@@ -1,8 +1,7 @@
 name "python3"
 
-default_version "3.8.8"
-
 if ohai["platform"] != "windows"
+  default_version "3.8.11"
   dependency "libffi"
   dependency "ncurses"
   dependency "zlib"
@@ -14,7 +13,7 @@ if ohai["platform"] != "windows"
   dependency "libyaml"
 
   source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-         :sha256 => "76c0763f048e4f9b861d24da76b7dd5c7a3ba7ec086f40caedeea359263276f7"
+         :sha256 => "b77464ea80cec14581b86aeb7fb2ff02830e0abc7bcdc752b7b4bdfcd8f3e393"
 
   relative_path "Python-#{version}"
 
@@ -64,21 +63,19 @@ if ohai["platform"] != "windows"
   end
 
 else
+  default_version "3.8.11-v3.8.11"
   dependency "vc_redist_14"
-  #
-  # note for next version after 3.8.1, remove the `-withcrt` as the filename won't
-  # include that any more
-  #
+
   if windows_arch_i386?
     dependency "vc_ucrt_redist"
 
     source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x86.zip",
-            :sha256 => "a48b27d3d2eda3c265aaf4e06cbf26e58e669216fce48e5ec3d1c845309e5d50"
+            :sha256 => "5BAEB08EF35486219342D5A4861D1718E084E29EF506A2F0C9E528A9AD3F2BF3".downcase
   else
 
     # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
-    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-amd64.zip",
-         :sha256 => "6f7c318cd0171bb8c6849797ceba31573856a3991ae59d65126bf10499be464a"
+    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x64.zip",
+         :sha256 => "A437BB304F6B44FA516E44889506B2A0F2AC4EB8F01BA06A1BFBF5D87023CAE4".downcase
 
   end
   vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"

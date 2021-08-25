@@ -7,6 +7,7 @@ package decoder
 
 import (
 	"bytes"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -67,6 +68,10 @@ func NewMessage(content []byte, status string, rawDataLen int, timestamp string)
 // a lineHandler that emits outputs
 // Input->[decoder]->[parser]->[handler]->Message
 type Decoder struct {
+	// The number of raw lines decoded from the input before they are processed.
+	// Needs to be first to ensure 64 bit alignment
+	linesDecoded int64
+
 	InputChan       chan *Input
 	OutputChan      chan *Message
 	matcher         EndLineMatcher
@@ -143,6 +148,11 @@ func (d *Decoder) Stop() {
 	close(d.InputChan)
 }
 
+// GetLineCount returns the number of decoded lines
+func (d *Decoder) GetLineCount() int64 {
+	return atomic.LoadInt64(&d.linesDecoded)
+}
+
 // run lets the Decoder handle data coming from InputChan
 func (d *Decoder) run() {
 	for data := range d.InputChan {
@@ -187,4 +197,5 @@ func (d *Decoder) sendLine() {
 	d.lineBuffer.Reset()
 	d.lineParser.Handle(NewDecodedInput(content, d.rawDataLen))
 	d.rawDataLen = 0
+	atomic.AddInt64(&d.linesDecoded, 1)
 }

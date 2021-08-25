@@ -85,6 +85,7 @@ func SetupCrossNsDNAT(t *testing.T) {
 		"ip -n test address add 2.2.2.4/24 dev veth2",
 		"ip link set veth1 up",
 		"ip -n test link set veth2 up",
+		"ip netns exec test ip route add default dev veth2",
 
 		//this is required to enable conntrack in the root net namespace
 		//conntrack won't be enabled unless there is at least one iptables

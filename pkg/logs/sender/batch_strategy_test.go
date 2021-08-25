@@ -27,7 +27,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 
 	done := make(chan bool)
 	go func() {
-		newBatchStrategyWithSize(LineSerializer, 100*time.Millisecond, 0, 2, 2).Send(input, output, success)
+		NewBatchStrategy(LineSerializer, 100*time.Millisecond, 0, 2, 2, "test").Send(input, output, success)
 		close(done)
 	}()
 
@@ -56,7 +56,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 		return nil
 	}
 
-	strategy := newBatchStrategyWithSize(LineSerializer, timerInterval, 0, 100, 100)
+	strategy := NewBatchStrategy(LineSerializer, timerInterval, 0, 100, 100, "test")
 	done := make(chan bool)
 	go func() {
 		strategy.Send(input, output, send)
@@ -94,7 +94,7 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 
 	done := make(chan bool)
 	go func() {
-		newBatchStrategyWithSize(LineSerializer, 100*time.Millisecond, 0, 2, 2).Send(input, output, success)
+		NewBatchStrategy(LineSerializer, 100*time.Millisecond, 0, 2, 2, "test").Send(input, output, success)
 		close(done)
 	}()
 
@@ -129,7 +129,7 @@ func TestBatchStrategyShouldNotBlockWhenForceStopping(t *testing.T) {
 		close(input)
 	}()
 
-	newBatchStrategyWithSize(LineSerializer, 100*time.Millisecond, 0, 2, 2).Send(input, output, success)
+	NewBatchStrategy(LineSerializer, 100*time.Millisecond, 0, 2, 2, "test").Send(input, output, success)
 }
 
 func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
@@ -148,7 +148,7 @@ func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 		assert.Equal(t, message, <-output)
 	}()
 
-	newBatchStrategyWithSize(LineSerializer, 100*time.Millisecond, 0, 2, 2).Send(input, output, success)
+	NewBatchStrategy(LineSerializer, 100*time.Millisecond, 0, 2, 2, "test").Send(input, output, success)
 }
 
 func TestBatchStrategyConcurrentSends(t *testing.T) {
@@ -162,7 +162,7 @@ func TestBatchStrategyConcurrentSends(t *testing.T) {
 		return nil
 	}
 
-	strategy := newBatchStrategyWithSize(LineSerializer, 100*time.Millisecond, 2, 1, 100)
+	strategy := NewBatchStrategy(LineSerializer, 100*time.Millisecond, 2, 1, 100, "test")
 	done := make(chan bool)
 	go func() {
 		strategy.Send(input, output, stuckSend)
@@ -212,7 +212,7 @@ func TestBatchStrategySynchronousFlush(t *testing.T) {
 
 	// batch size is large so it will not flush until we trigger it manually
 	// flush time is large so it won't automatically trigger during this test
-	strategy := newBatchStrategyWithSize(LineSerializer, time.Hour, 0, 100, 100)
+	strategy := NewBatchStrategy(LineSerializer, time.Hour, 0, 100, 100, "test")
 	done := make(chan bool)
 	go func() {
 		strategy.Send(input, output, send)

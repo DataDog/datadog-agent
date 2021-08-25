@@ -18,12 +18,12 @@ import (
 
 // GetTags returns tags that are automatically added to metrics and events on a
 // host that is running docker.
-func GetTags() ([]string, error) {
+func GetTags(ctx context.Context) ([]string, error) {
 	du, err := GetDockerUtil()
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
 	return getTags(ctx, du.cli)
 }

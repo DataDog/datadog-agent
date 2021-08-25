@@ -64,10 +64,7 @@ func (c *OOMKillConfig) Parse(data []byte) error {
 	// default values
 	c.CollectOOMKill = true
 
-	if err := yaml.Unmarshal(data, c); err != nil {
-		return err
-	}
-	return nil
+	return yaml.Unmarshal(data, c)
 }
 
 // Configure parses the check configuration and init the check

@@ -239,7 +239,7 @@ func TestTailer_readForever(t *testing.T) {
 	}
 }
 
-func NewTestReader(data string, err, closeErr error) *testIOReadCloser {
+func NewTestReader(data string, err, closeErr error) *testIOReadCloser { //nolint:revive
 	entries := []testIOReaderEntry{
 		{
 			data: data,
@@ -287,7 +287,7 @@ func (tr *testIOReadCloser) Close() error {
 	return tr.closeErr
 }
 
-func NewTestDockerClient(reader io.ReadCloser, err error) *fakeDockerClient {
+func NewTestDockerClient(reader io.ReadCloser, err error) *fakeDockerClient { //nolint:revive
 	client := &fakeDockerClient{}
 	client.AddEntry(reader, err)
 	return client

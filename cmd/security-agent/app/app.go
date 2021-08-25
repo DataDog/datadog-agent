@@ -8,6 +8,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"path"
@@ -15,13 +16,14 @@ import (
 	"time"
 
 	_ "expvar" // Blank import used because this isn't directly used in this file
-	"net/http"
+
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	commonagent "github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -44,8 +46,10 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// loggerName is the name of the security agent logger
-const loggerName coreconfig.LoggerName = "SECURITY"
+const (
+	// loggerName is the name of the security agent logger
+	loggerName coreconfig.LoggerName = "SECURITY"
+)
 
 var (
 	// SecurityAgentCmd is the entry point for security agent CLI commands
@@ -98,8 +102,10 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 )
 
 func init() {
-	var defaultConfPathArray = []string{path.Join(commonagent.DefaultConfPath, "datadog.yaml"),
-		path.Join(commonagent.DefaultConfPath, "security-agent.yaml")}
+	defaultConfPathArray := []string{
+		path.Join(commonagent.DefaultConfPath, "datadog.yaml"),
+		path.Join(commonagent.DefaultConfPath, "security-agent.yaml"),
+	}
 	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&confPathArray, "cfgpath", "c", defaultConfPathArray, "path to a yaml configuration file")
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
 
@@ -114,13 +120,16 @@ func init() {
 	SecurityAgentCmd.AddCommand(startCmd)
 }
 
-func newLogContext(logsConfig config.LogsConfigKeys, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
-	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix); err == nil {
-		httpConnectivity = logshttp.CheckConnectivity(endpoints.Main)
+func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string, intakeTrackType config.IntakeTrackType, intakeOrigin config.IntakeOrigin) (*config.Endpoints, *client.DestinationsContext, error) {
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, config.DefaultIntakeProtocol, intakeOrigin)
+	if err != nil {
+		endpoints, err = config.BuildHTTPEndpoints(intakeTrackType, config.DefaultIntakeProtocol, intakeOrigin)
+		if err == nil {
+			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
+			endpoints, err = config.BuildEndpoints(httpConnectivity, intakeTrackType, config.DefaultIntakeProtocol, intakeOrigin)
+		}
 	}
 
-	endpoints, err := config.BuildEndpoints(httpConnectivity)
 	if err != nil {
 		return nil, nil, log.Errorf("Invalid endpoints: %v", err)
 	}
@@ -208,8 +217,14 @@ func RunAgent(ctx context.Context) (err error) {
 		return nil
 	}
 
+	err = manager.ConfigureAutoExit(ctx)
+	if err != nil {
+		log.Criticalf("Unable to configure auto-exit, err: %w", err)
+		return nil
+	}
+
 	// Setup expvar server
-	var port = coreconfig.Datadog.GetString("security_agent.expvar_port")
+	port := coreconfig.Datadog.GetString("security_agent.expvar_port")
 	coreconfig.Datadog.Set("expvar_port", port)
 	if coreconfig.Datadog.GetBool("telemetry.enabled") {
 		http.Handle("/telemetry", telemetry.Handler())
@@ -223,7 +238,7 @@ func RunAgent(ctx context.Context) (err error) {
 
 	// get hostname
 	// FIXME: use gRPC cross-agent communication API to retrieve hostname
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}

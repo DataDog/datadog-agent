@@ -17,29 +17,31 @@ func TestEnableDisable(t *testing.T) {
 	assert.True(t, b.SetEnabled(true))
 	assert.False(t, b.SetEnabled(true))
 
-	for i := 0; i < 10; i++ {
-		b.HandleMessage(newMessage("", "", ""), []byte("a"))
-	}
+	b.HandleMessage(newMessage("", "", ""), []byte("a"))
 
-	msg, ok := b.Next(nil)
-	assert.True(t, ok)
+	done := make(chan struct{})
+	defer close(done)
+	lineChan := b.Filter(nil, done)
+	msg := <-lineChan
 	assert.NotEqual(t, "", msg)
 
 	b.SetEnabled(false)
 
-	// buffered messages should be cleared
-	msg, ok = b.Next(nil)
-	assert.False(t, ok)
-	assert.Equal(t, "", msg)
-
-	for i := 0; i < 10; i++ {
-		b.HandleMessage(newMessage("", "", ""), []byte("a"))
+	select {
+	case <-lineChan:
+		// buffered messages should be cleared
+		t.Fail()
+	default:
 	}
 
-	// disabled, no messages should have been buffered
-	msg, ok = b.Next(nil)
-	assert.False(t, ok)
-	assert.Equal(t, "", msg)
+	b.HandleMessage(newMessage("", "", ""), []byte("a"))
+
+	select {
+	case <-lineChan:
+		// disabled, no messages should have been buffered
+		t.Fail()
+	default:
+	}
 }
 
 func TestFilterAll(t *testing.T) {
@@ -58,16 +60,7 @@ func TestFilterAll(t *testing.T) {
 		Type:   "a",
 		Source: "b",
 	}
-
-	for i := 0; i < 5; i++ {
-		msg, ok := b.Next(&filters)
-		assert.True(t, ok)
-		assert.NotEqual(t, "", msg)
-	}
-
-	// Should be out of messages - have found 5 matches out of 10
-	_, ok := b.Next(&filters)
-	assert.False(t, ok)
+	readFilteredLines(t, b, &filters, 5)
 }
 
 func TestFilterTypeAndSource(t *testing.T) {
@@ -85,15 +78,7 @@ func TestFilterTypeAndSource(t *testing.T) {
 		Source: "b",
 	}
 
-	for i := 0; i < 5; i++ {
-		msg, ok := b.Next(&filters)
-		assert.True(t, ok)
-		assert.NotEqual(t, "", msg)
-	}
-
-	// Should be out of messages - have found 5 matches out of 10
-	_, ok := b.Next(&filters)
-	assert.False(t, ok)
+	readFilteredLines(t, b, &filters, 5)
 }
 
 func TestFilterName(t *testing.T) {
@@ -111,15 +96,7 @@ func TestFilterName(t *testing.T) {
 		Name: "test2",
 	}
 
-	for i := 0; i < 10; i++ {
-		msg, ok := b.Next(&filters)
-		assert.True(t, ok)
-		assert.NotEqual(t, "", msg)
-	}
-
-	// Should be out of messages - have found 10 matches out of 15
-	_, ok := b.Next(&filters)
-	assert.False(t, ok)
+	readFilteredLines(t, b, &filters, 10)
 }
 
 func TestFilterSource(t *testing.T) {
@@ -137,15 +114,7 @@ func TestFilterSource(t *testing.T) {
 		Source: "2",
 	}
 
-	for i := 0; i < 10; i++ {
-		msg, ok := b.Next(&filters)
-		assert.True(t, ok)
-		assert.NotEqual(t, "", msg)
-	}
-
-	// Should be out of messages - have found 10 matches out of 15
-	_, ok := b.Next(&filters)
-	assert.False(t, ok)
+	readFilteredLines(t, b, &filters, 10)
 }
 
 func TestFilterType(t *testing.T) {
@@ -163,15 +132,7 @@ func TestFilterType(t *testing.T) {
 		Type: "a",
 	}
 
-	for i := 0; i < 10; i++ {
-		msg, ok := b.Next(&filters)
-		assert.True(t, ok)
-		assert.NotEqual(t, "", msg)
-	}
-
-	// Should be out of messages - have found 10 matches out of 15
-	_, ok := b.Next(&filters)
-	assert.False(t, ok)
+	readFilteredLines(t, b, &filters, 10)
 }
 
 func TestNoFilters(t *testing.T) {
@@ -190,15 +151,7 @@ func TestNoFilters(t *testing.T) {
 		Source: "",
 	}
 
-	for i := 0; i < 15; i++ {
-		msg, ok := b.Next(&filters)
-		assert.True(t, ok)
-		assert.NotEqual(t, "", msg)
-	}
-
-	// Should be out of messages - have found 15 matches out of 15
-	_, ok := b.Next(&filters)
-	assert.False(t, ok)
+	readFilteredLines(t, b, &filters, 15)
 }
 
 func newMessage(n string, t string, s string) message.Message {
@@ -209,4 +162,22 @@ func newMessage(n string, t string, s string) message.Message {
 	source := config.NewLogSource(n, cfg)
 	origin := message.NewOrigin(source)
 	return *message.NewMessage([]byte("a"), origin, "", 0)
+}
+
+func readFilteredLines(t *testing.T, b *BufferedMessageReceiver, filters *Filters, expectedLineCount int) {
+	done := make(chan struct{})
+	defer close(done)
+	lineChan := b.Filter(filters, done)
+
+	for i := 0; i < expectedLineCount; i++ {
+		msg := <-lineChan
+		assert.NotEqual(t, "", msg)
+	}
+
+	select {
+	case <-lineChan:
+		// Should be out of messages
+		t.Fail()
+	default:
+	}
 }

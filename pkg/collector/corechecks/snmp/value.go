@@ -16,11 +16,11 @@ func (sv *snmpValueType) toFloat64() (float64, error) {
 	case float64:
 		return sv.value.(float64), nil
 	case string:
-		val, err := strconv.ParseInt(sv.value.(string), 10, 64)
+		val, err := strconv.ParseFloat(sv.value.(string), 64)
 		if err != nil {
 			return 0, fmt.Errorf("failed to parse `%s`: %s", sv.value, err.Error())
 		}
-		return float64(val), nil
+		return val, nil
 	}
 	return 0, fmt.Errorf("invalid type %T for value %#v", sv.value, sv.value)
 }

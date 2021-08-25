@@ -7,6 +7,8 @@
 
 package util
 
-func getContainerHostname() (bool, string) {
+import "context"
+
+func getContainerHostname(ctx context.Context) (bool, string) {
 	return false, ""
 }

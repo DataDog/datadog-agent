@@ -100,6 +100,18 @@ func (f *FakeTagger) Standard(entity string) ([]string, error) {
 	return f.store.lookupStandard(entity)
 }
 
+// GetEntity returns faked entity corresponding to the specified id and an error
+func (f *FakeTagger) GetEntity(entityID string) (*types.Entity, error) {
+
+	tags, err := f.store.getEntityTags(entityID)
+	if err != nil {
+		return nil, err
+	}
+
+	entity := tags.toEntity()
+	return &entity, nil
+}
+
 // List fake implementation
 func (f *FakeTagger) List(cardinality collectors.TagCardinality) response.TaggerListResponse {
 	r := response.TaggerListResponse{

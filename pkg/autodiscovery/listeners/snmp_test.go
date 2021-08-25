@@ -54,7 +54,6 @@ func TestSNMPListener(t *testing.T) {
 	assert.Equal(t, "192.168.0.0", job.subnet.startingIP.String())
 	assert.Equal(t, "192.168.0.0/24", job.subnet.network.String())
 	assert.Equal(t, "public", job.subnet.config.Community)
-	assert.Equal(t, "public", job.subnet.defaultParams.Community)
 
 	job = <-testChan
 	assert.Equal(t, "192.168.0.1", job.currentIP.String())
@@ -197,6 +196,29 @@ func TestExtraConfig(t *testing.T) {
 	info, err = svc.GetExtraConfig([]byte("tags"))
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "", string(info))
+
+	info, err = svc.GetExtraConfig([]byte("collect_device_metadata"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "false", string(info))
+
+	svc.config.CollectDeviceMetadata = true
+	info, err = svc.GetExtraConfig([]byte("collect_device_metadata"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "true", string(info))
+
+	svc.config.CollectDeviceMetadata = false
+	info, err = svc.GetExtraConfig([]byte("collect_device_metadata"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "false", string(info))
+
+	info, err = svc.GetExtraConfig([]byte("min_collection_interval"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "0", string(info))
+
+	svc.config.MinCollectionInterval = 60
+	info, err = svc.GetExtraConfig([]byte("min_collection_interval"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "60", string(info))
 }
 
 func TestExtraConfigExtraTags(t *testing.T) {

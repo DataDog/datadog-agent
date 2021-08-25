@@ -35,10 +35,10 @@ spec:
                   resources:
                     requests:
                       memory: "64Mi"
-                      cpu: "400m"
+                      cpu: "1"
                     limits:
                       memory: "64Mi"
-                      cpu: "400m"
+                      cpu: "1"
 
     - name: delete
       inputs:
@@ -53,20 +53,20 @@ spec:
             name: cpu-stress
             namespace: {{inputs.parameters.namespace}}
 
-    - name: find-metrics-cpu-docker
+    - name: find-metrics-cpu-container-runtime
       inputs:
         parameters:
           - name: namespace
-      activeDeadlineSeconds: 200
+      activeDeadlineSeconds: 300
       script:
         image: mongo:4.4.1
         command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
         source: |
           while (1) {
             var nb = db.series.find({
-            metric: "docker.cpu.usage",
+            metric: "cri.cpu.usage",
             tags: { $all: ["kube_deployment:cpu-stress", "kube_container_name:cpu-stress"] },
-            "points.0.1": { $gt: 39, $lt: 41 } }).count();
+            "points.0.1": { $gt: 990000000, $lt: 1010000000 } }).count();
             print("find: " + nb)
             if (nb != 0) {
               print("cpu value in target range")
@@ -79,29 +79,21 @@ spec:
       inputs:
         parameters:
           - name: namespace
-      activeDeadlineSeconds: 200
+      activeDeadlineSeconds: 300
       script:
         image: mongo:4.4.1
         command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
         source: |
           while (1) {
-            var point = db.series.find({
-              metric: "kubernetes.cpu.usage.total",
-              tags: {$all: ["kube_deployment:cpu-stress", "kube_container_name:cpu-stress"]}
-            }).limit(1).sort({$natural:-1})[0];
-
-            if (point) {
-              value = point.points[0][1] / 10e6
-              print("cpu value: " + value)
-              // Sampling is less accurate than cgroups, widening the acceptable range
-              if (value > 35 && value < 45) {
-                print("cpu value in target range")
-                break;
-              }
-            } else {
-                print("no kubernetes.cpu.usage.total metric reported")
+            var nb = db.series.find({
+            metric: "kubernetes.cpu.usage.total",
+            tags: { $all: ["kube_deployment:cpu-stress", "kube_container_name:cpu-stress"] },
+            "points.0.1": { $gt: 800000000, $lt: 1200000000 } }).count();
+            print("find: " + nb)
+            if (nb != 0) {
+              print("cpu value in target range")
+              break;
             }
-
             sleep(2000);
           }
 
@@ -109,7 +101,7 @@ spec:
       inputs:
         parameters:
           - name: namespace
-      activeDeadlineSeconds: 200
+      activeDeadlineSeconds: 300
       script:
         image: mongo:4.4.1
         command: [mongo, "fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/datadog"]
@@ -128,21 +120,6 @@ spec:
             }
             hostname = point.host;
 
-            // kubernetes.cpu.capacity is not available on Kubernetes 1.18+
-            //
-            // // Get the number of CPUs on that host
-            // var point = db.series.find({
-            //   metric: "kubernetes.cpu.capacity",
-            //   host: hostname
-            // }).limit(1).sort({$natural:-1})[0];
-            // if (!point) {
-            //   print("cannot get cpu capacity for host " + hostname);
-            //   continue;
-            // }
-            // cpucount = point.points[0][1];
-
-            // So, let’s use kubernetes_state.node.cpu_capacity instead.
-
             // Get the number of CPUs on that host
             var point = db.series.find({
               metric: "kubernetes_state.node.cpu_capacity",
@@ -153,6 +130,7 @@ spec:
               continue;
             }
             cpucount = point.points[0][1];
+            print("cpu count: " + cpucount)
 
             // Get the user CPU usage, make sure it's above 39% non-normalized
             var point = db.series.find({
@@ -163,9 +141,10 @@ spec:
               print("no system.cpu.usage metric reported for host " + hostname)
               continue;
             }
+            print("raw value: " + point.points[0][1])
             value = point.points[0][1] * cpucount;
             print("cpu value: " + value)
-            if (value > 39) {
+            if (value > 95) {
               print("cpu value in target range");
               break;
             }
@@ -176,8 +155,8 @@ spec:
         parameters:
           - name: namespace
       steps:
-        - - name: find-metrics-cpu-docker
-            template: find-metrics-cpu-docker
+        - - name: find-metrics-cpu-container-runtime
+            template: find-metrics-cpu-container-runtime
             arguments:
               parameters:
                 - name: namespace

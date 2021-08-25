@@ -24,9 +24,11 @@ import (
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
-var retryDelay = flag.Int("retry-delay", 1, "time to wait between retries (default 1 second)")
-var retryTimeout = flag.Int("retry-timeout", 30, "maximum time before failure (default 30 seconds)")
-var skipCleanup = flag.Bool("skip-cleanup", false, "skip cleanup of the docker containers (for debugging)")
+var (
+	retryDelay   = flag.Int("retry-delay", 1, "time to wait between retries (default 1 second)")
+	retryTimeout = flag.Int("retry-timeout", 30, "maximum time before failure (default 30 seconds)")
+	skipCleanup  = flag.Bool("skip-cleanup", false, "skip cleanup of the docker containers (for debugging)")
+)
 
 var dockerCfgString = `
 collect_events: true
@@ -46,8 +48,10 @@ docker_env_as_tags:
     "low_card_env": lowcardenvtag
 `
 
-var sender *mocksender.MockSender
-var dockerCheck check.Check
+var (
+	sender      *mocksender.MockSender
+	dockerCheck check.Check
+)
 
 func TestMain(m *testing.M) {
 	flag.Parse()
@@ -97,6 +101,7 @@ func setup() error {
 	if err != nil {
 		return err
 	}
+	config.DetectFeatures()
 
 	// Setup tagger
 	tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
@@ -120,8 +125,8 @@ func setup() error {
 // Reset the state and trigger a new run
 func doRun(m *testing.M) int {
 	// Setup docker check
-	var dockerCfg = []byte(dockerCfgString)
-	var dockerInitCfg = []byte("")
+	dockerCfg := []byte(dockerCfgString)
+	dockerInitCfg := []byte("")
 	dockerCheck = docker.DockerFactory()
 	dockerCheck.Configure(dockerCfg, dockerInitCfg, "test")
 

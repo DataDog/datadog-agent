@@ -8,15 +8,17 @@
 package collectors
 
 import (
+	"context"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func (c *ECSCollector) parseTasks(tasks []v1.Task, targetDockerID string, containerHandlers ...func(containerID string, tags *utils.TagList)) ([]*TagInfo, error) {
+func (c *ECSCollector) parseTasks(ctx context.Context, tasks []v1.Task, targetDockerID string, containerHandlers ...func(ctx context.Context, containerID string, tags *utils.TagList) error) ([]*TagInfo, error) {
 	var output []*TagInfo
 	now := time.Now()
 	for _, task := range tasks {
@@ -25,8 +27,9 @@ func (c *ECSCollector) parseTasks(tasks []v1.Task, targetDockerID string, contai
 			continue
 		}
 		for _, container := range task.Containers {
+			entityID := containers.BuildTaggerEntityName(container.DockerID)
 			// Only collect new containers + the targeted container, to avoid empty tags on race conditions
-			if c.expire.Update(container.DockerID, now) || container.DockerID == targetDockerID {
+			if c.expire.Update(entityID, now) || container.DockerID == targetDockerID {
 				tags := utils.NewTagList()
 				tags.AddLow("task_version", task.Version)
 				tags.AddLow("task_name", task.Family)
@@ -40,9 +43,17 @@ func (c *ECSCollector) parseTasks(tasks []v1.Task, targetDockerID string, contai
 					tags.AddLow("ecs_cluster_name", c.clusterName)
 				}
 
+				var expiryDate time.Time
 				for _, fn := range containerHandlers {
 					if fn != nil {
-						fn(container.DockerID, tags)
+						err := fn(ctx, container.DockerID, tags)
+						if err != nil {
+							log.Warnf("container handler func failed: %s", err)
+
+							// cache result for 1 sencond
+							// it prevents tagger to aggresivelly retry fetch
+							expiryDate = time.Now().Add(1 * time.Second)
+						}
 					}
 				}
 
@@ -52,10 +63,11 @@ func (c *ECSCollector) parseTasks(tasks []v1.Task, targetDockerID string, contai
 
 				info := &TagInfo{
 					Source:               ecsCollectorName,
-					Entity:               containers.BuildTaggerEntityName(container.DockerID),
+					Entity:               entityID,
 					HighCardTags:         high,
 					OrchestratorCardTags: orch,
 					LowCardTags:          low,
+					ExpiryDate:           expiryDate,
 				}
 				output = append(output, info)
 			}

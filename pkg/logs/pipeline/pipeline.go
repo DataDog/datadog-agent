@@ -48,7 +48,7 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 
 	var strategy sender.Strategy
 	if endpoints.UseHTTP || serverless {
-		strategy = sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend)
+		strategy = sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs")
 	} else {
 		strategy = sender.StreamStrategy
 	}

@@ -12,7 +12,6 @@ import (
 
 // SyncForwarder is a very simple Forwarder synchronously sending
 // the data to the intake.
-// It doesn't ship any retry mechanism for now.
 type SyncForwarder struct {
 	defaultForwarder *DefaultForwarder
 	client           *http.Client
@@ -41,7 +40,14 @@ func (f *SyncForwarder) Stop() {
 func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTransaction) error {
 	for _, t := range transactions {
 		if err := t.Process(context.Background(), f.client); err != nil {
-			log.Errorf("SyncForwarder.sendHTTPTransactions: %s", err)
+			log.Debugf("SyncForwarder.sendHTTPTransactions first attempt: %s", err)
+			// Retry once after error
+			// The intake may have closed the connection between Lambda invocations.
+			// If so, the first attempt will fail because the closed connection will still be cached.
+			log.Debug("Retrying transaction")
+			if err := t.Process(context.Background(), f.client); err != nil {
+				log.Errorf("SyncForwarder.sendHTTPTransactions final attempt: %s", err)
+			}
 		}
 	}
 	log.Debugf("SyncForwarder has flushed %d transactions", len(transactions))
@@ -69,12 +75,6 @@ func (f *SyncForwarder) SubmitV1Intake(payload Payloads, extra http.Header) erro
 // the backend handles v2 endpoints).
 func (f *SyncForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header) error {
 	transactions := f.defaultForwarder.createHTTPTransactions(v1CheckRunsEndpoint, payload, true, extra)
-	return f.sendHTTPTransactions(transactions)
-}
-
-// SubmitSeries will send a series type payload to Datadog backend.
-func (f *SyncForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(seriesEndpoint, payload, false, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -137,6 +137,6 @@ func (f *SyncForwarder) SubmitConnectionChecks(payload Payloads, extra http.Head
 }
 
 // SubmitOrchestratorChecks sends orchestrator checks
-func (f *SyncForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
+func (f *SyncForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
 	return f.defaultForwarder.SubmitOrchestratorChecks(payload, extra, payloadType)
 }

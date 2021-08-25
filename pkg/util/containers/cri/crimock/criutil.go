@@ -12,7 +12,7 @@ import (
 	pb "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 )
 
-// Mock
+// MockCRIClient is used for tests
 type MockCRIClient struct {
 	mock.Mock
 }

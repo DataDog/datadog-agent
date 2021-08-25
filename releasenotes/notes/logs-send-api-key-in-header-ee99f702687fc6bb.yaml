@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Authenticate logs http input requests using the API key header rather than the URL path.

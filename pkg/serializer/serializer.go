@@ -97,8 +97,8 @@ type MetricSerializer interface {
 	SendSketch(sketches marshaler.Marshaler) error
 	SendMetadata(m marshaler.Marshaler) error
 	SendHostMetadata(m marshaler.Marshaler) error
-	SendJSONToV1Intake(data interface{}) error
-	SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID, payloadType string) error
+	SendProcessesMetadata(data interface{}) error
+	SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID string, payloadType int) error
 }
 
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder
@@ -293,7 +293,7 @@ func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 		return nil
 	}
 
-	useV1API := !config.Datadog.GetBool("use_v2_api.series")
+	const useV1API = true // v2 intake for series is not yet implemented
 
 	var seriesPayloads forwarder.Payloads
 	var extraHeaders http.Header
@@ -309,10 +309,7 @@ func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 		return fmt.Errorf("dropping series payload: %s", err)
 	}
 
-	if useV1API {
-		return s.Forwarder.SubmitV1Series(seriesPayloads, extraHeaders)
-	}
-	return s.Forwarder.SubmitSeries(seriesPayloads, extraHeaders)
+	return s.Forwarder.SubmitV1Series(seriesPayloads, extraHeaders)
 }
 
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder
@@ -375,9 +372,9 @@ func (s *Serializer) sendMetadata(m marshaler.Marshaler, submit func(payload for
 	return nil
 }
 
-// SendJSONToV1Intake serializes a payload and sends it to the forwarder. Some code sends
-// arbitrary payload the v1 API.
-func (s *Serializer) SendJSONToV1Intake(data interface{}) error {
+// SendProcessesMetadata serializes a payload and sends it to the forwarder.
+// Used only by the legacy processes metadata collector.
+func (s *Serializer) SendProcessesMetadata(data interface{}) error {
 	if !s.enableJSONToV1Intake {
 		log.Debug("JSON to V1 intake endpoint payloads are disabled: dropping it")
 		return nil
@@ -385,9 +382,13 @@ func (s *Serializer) SendJSONToV1Intake(data interface{}) error {
 
 	payload, err := json.Marshal(data)
 	if err != nil {
-		return fmt.Errorf("could not serialize v1 payload: %s", err)
+		return fmt.Errorf("could not serialize processes metadata payload: %s", err)
 	}
-	if err := s.Forwarder.SubmitV1Intake(forwarder.Payloads{&payload}, jsonExtraHeaders); err != nil {
+	compressedPayload, err := compression.Compress(nil, payload)
+	if err != nil {
+		return fmt.Errorf("could not compress processes metadata payload: %s", err)
+	}
+	if err := s.Forwarder.SubmitV1Intake(forwarder.Payloads{&compressedPayload}, jsonExtraHeadersWithCompression); err != nil {
 		return err
 	}
 
@@ -397,7 +398,7 @@ func (s *Serializer) SendJSONToV1Intake(data interface{}) error {
 }
 
 // SendOrchestratorMetadata serializes & send orchestrator metadata payloads
-func (s *Serializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID, payloadType string) error {
+func (s *Serializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID string, payloadType int) error {
 	if s.orchestratorForwarder == nil {
 		return errors.New("orchestrator forwarder is not setup")
 	}

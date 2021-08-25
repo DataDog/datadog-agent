@@ -8,9 +8,11 @@
 package kubelet
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
 )
 
@@ -20,11 +22,15 @@ func init() {
 
 func getMetadata() (map[string]string, error) {
 	metadata := make(map[string]string)
+	if !config.IsFeaturePresent(config.Kubernetes) {
+		return metadata, nil
+	}
+
 	ku, err := GetKubeUtil()
 	if err != nil {
 		return metadata, err
 	}
-	data, err := ku.GetRawMetrics()
+	data, err := ku.GetRawMetrics(context.TODO())
 	if err != nil {
 		return metadata, err
 	}
@@ -32,7 +38,7 @@ func getMetadata() (map[string]string, error) {
 	if err != nil {
 		return metadata, err
 	}
-	re := regexp.MustCompile("gitVersion=\"(.*?)\"")
+	re := regexp.MustCompile("(?:gitVersion|git_version)=\"(.*?)\"")
 	matches := re.FindStringSubmatch(metric)
 	if len(matches) < 1 {
 		return metadata, fmt.Errorf("couldn't find kubelet git version")

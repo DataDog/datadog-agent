@@ -8,6 +8,9 @@ package packets
 import (
 	"sync"
 	"sync/atomic"
+	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type genericPool interface {
@@ -48,19 +51,30 @@ func (p *PoolManager) Put(x interface{}) {
 		return
 	}
 
+	var ref unsafe.Pointer
+	switch t := x.(type) {
+	case *[]byte:
+		ref = unsafe.Pointer(t)
+	case *Packet:
+		ref = unsafe.Pointer(t)
+	default:
+		log.Debugf("Unsupported type by pool manager")
+		return
+	}
+
 	// This lock is not to guard the map, it's here to
 	// avoid adding items to the map while flushing.
 	p.RLock()
 
 	// TODO: use LoadAndDelete when go 1.15 is introduced
-	_, loaded := p.refs.Load(x)
+	_, loaded := p.refs.Load(ref)
 	if loaded {
 		// reference exists, put back.
-		p.refs.Delete(x)
+		p.refs.Delete(ref)
 		p.pool.Put(x)
 	} else {
 		// reference does not exist, account.
-		p.refs.Store(x, struct{}{})
+		p.refs.Store(ref, x)
 	}
 
 	// relatively hot path so not deferred
@@ -103,9 +117,8 @@ func (p *PoolManager) Flush() {
 	defer p.Unlock()
 
 	p.refs.Range(func(k, v interface{}) bool {
-		p.pool.Put(k)
+		p.pool.Put(v)
 		p.refs.Delete(k)
 		return true
 	})
-
 }

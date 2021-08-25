@@ -51,7 +51,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 					// Testing deadlock from https://code.google.com/p/winsvc/issues/detail?id=4
 					time.Sleep(100 * time.Millisecond)
 					changes <- c.CurrentStatus
-				case svc.Stop, svc.Shutdown:
+				case svc.Stop, svc.PreShutdown, svc.Shutdown:
 					elog.Info(0x40000006, ServiceName)
 					changes <- svc.Status{State: svc.StopPending}
 					cancelFunc()

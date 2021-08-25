@@ -29,8 +29,8 @@ const (
 	FileChmodEventType
 	// FileChownEventType Chown event
 	FileChownEventType
-	// FileUtimeEventType Utime event
-	FileUtimeEventType
+	// FileUtimesEventType Utime event
+	FileUtimesEventType
 	// FileSetXAttrEventType Setxattr event
 	FileSetXAttrEventType
 	// FileRemoveXAttrEventType Removexattr event
@@ -57,6 +57,8 @@ const (
 	ArgsEnvsEventType
 	// MountReleasedEventType sent when a mount point is released
 	MountReleasedEventType
+	// SELinuxEventType selinux event
+	SELinuxEventType
 	// MaxEventType is used internally to get the maximum number of kernel events.
 	MaxEventType
 
@@ -78,8 +80,6 @@ const (
 	CustomForkBombEventType
 	// CustomTruncatedParentsEventType is the custom event used to report that the parents of a path were truncated
 	CustomTruncatedParentsEventType
-	// CustomTruncatedSegmentEventType is the custom event used to report that a segment of a path was truncated
-	CustomTruncatedSegmentEventType
 )
 
 func (t EventType) String() string {
@@ -100,7 +100,7 @@ func (t EventType) String() string {
 		return "chmod"
 	case FileChownEventType:
 		return "chown"
-	case FileUtimeEventType:
+	case FileUtimesEventType:
 		return "utimes"
 	case FileMountEventType:
 		return "mount"
@@ -128,6 +128,8 @@ func (t EventType) String() string {
 		return "args_envs"
 	case MountReleasedEventType:
 		return "mount_released"
+	case SELinuxEventType:
+		return "selinux"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"
@@ -141,8 +143,6 @@ func (t EventType) String() string {
 		return "fork_bomb"
 	case CustomTruncatedParentsEventType:
 		return "truncated_parents"
-	case CustomTruncatedSegmentEventType:
-		return "truncated_segment"
 	default:
 		return "unknown"
 	}

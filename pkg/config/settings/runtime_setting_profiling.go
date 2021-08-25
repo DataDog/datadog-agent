@@ -7,6 +7,8 @@ package settings
 
 import (
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
@@ -18,7 +20,7 @@ type ProfilingRuntimeSetting string
 
 // Description returns the runtime setting's description
 func (l ProfilingRuntimeSetting) Description() string {
-	return "Enable/disable profiling on the agent, valid values are: true, false"
+	return "Enable/disable profiling on the agent, valid values are: true, false, restart"
 }
 
 // Hidden returns whether or not this setting is hidden from the list of runtime settings
@@ -41,6 +43,13 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 	var profile bool
 	var err error
 
+	if v, ok := v.(string); ok && strings.ToLower(v) == "restart" {
+		if err := l.Set(false); err != nil {
+			return err
+		}
+		return l.Set(true)
+	}
+
 	profile, err = GetBool(v)
 
 	if err != nil {
@@ -62,10 +71,14 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 
 		v, _ := version.Agent()
 		err := profiling.Start(
-			config.SanitizeAPIKey(config.Datadog.GetString("api_key")),
 			site,
 			config.Datadog.GetString("env"),
 			profiling.ProfileCoreService,
+			profiling.DefaultProfilingPeriod,
+			15*time.Second,
+			profiling.GetMutexProfileFraction(),
+			profiling.GetBlockProfileRate(),
+			config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
 			fmt.Sprintf("version:%v", v),
 		)
 		if err == nil {

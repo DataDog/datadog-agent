@@ -6,6 +6,7 @@
 package providers
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -18,15 +19,15 @@ import (
 
 func TestGetIntegrationConfig(t *testing.T) {
 	// file does not exist
-	config, err := GetIntegrationConfigFromFile("foo", "")
+	_, err := GetIntegrationConfigFromFile("foo", "")
 	assert.NotNil(t, err)
 
 	// file contains invalid Yaml
-	config, err = GetIntegrationConfigFromFile("foo", "tests/invalid.yaml")
+	_, err = GetIntegrationConfigFromFile("foo", "tests/invalid.yaml")
 	assert.NotNil(t, err)
 
 	// valid yaml, invalid configuration file
-	config, err = GetIntegrationConfigFromFile("foo", "tests/notaconfig.yaml")
+	config, err := GetIntegrationConfigFromFile("foo", "tests/notaconfig.yaml")
 	assert.NotNil(t, err)
 	assert.Equal(t, len(config.Instances), 0)
 
@@ -74,10 +75,11 @@ func TestNewYamlConfigProvider(t *testing.T) {
 }
 
 func TestCollect(t *testing.T) {
+	ctx := context.Background()
 	config.Datadog.Set("ignore_autoconf", []string{"ignored"})
 	paths := []string{"tests", "foo/bar"}
 	provider := NewFileConfigProvider(paths)
-	configs, err := provider.Collect()
+	configs, err := provider.Collect(ctx)
 
 	assert.Nil(t, err)
 
@@ -135,6 +137,7 @@ func TestCollect(t *testing.T) {
 }
 
 func TestEnvVarReplacement(t *testing.T) {
+	ctx := context.Background()
 	err := os.Setenv("test_envvar_key", "test_value")
 	require.NoError(t, err)
 	os.Unsetenv("test_envvar_not_set")
@@ -142,7 +145,7 @@ func TestEnvVarReplacement(t *testing.T) {
 
 	paths := []string{"tests"}
 	provider := NewFileConfigProvider(paths)
-	configs, err := provider.Collect()
+	configs, err := provider.Collect(ctx)
 
 	assert.Nil(t, err)
 

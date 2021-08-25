@@ -8,6 +8,7 @@
 package gce
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -49,13 +50,13 @@ func getCachedTags(err error) ([]string, error) {
 }
 
 // GetTags gets the tags from the GCE api
-func GetTags() ([]string, error) {
+func GetTags(ctx context.Context) ([]string, error) {
 
 	if !config.IsCloudProviderEnabled(CloudProviderName) {
 		return nil, fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
-	metadataResponse, err := getResponse(metadataURL + "/?recursive=true")
+	metadataResponse, err := getResponse(ctx, metadataURL+"/?recursive=true")
 	if err != nil {
 		return getCachedTags(err)
 	}

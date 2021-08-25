@@ -3,11 +3,12 @@ package grpc
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"net"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/pb"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
@@ -30,6 +31,9 @@ var defaultAgentDialOpts = []grpc.DialOption{
 // GetDDAgentClient creates a pb.AgentClient for IPC with the main agent via gRPC. This call is blocking by default, so
 // it is up to the caller to supply a context with appropriate timeout/cancel options
 func GetDDAgentClient(ctx context.Context, opts ...grpc.DialOption) (pb.AgentClient, error) {
+	if config.Datadog.GetString("cmd_port") == "-1" {
+		return nil, errors.New("grpc client disabled via cmd_port: -1")
+	}
 	// This is needed as the server hangs when using "grpc.WithInsecure()"
 	tlsConf := tls.Config{InsecureSkipVerify: true}
 

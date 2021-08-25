@@ -122,8 +122,8 @@ type RateLimiterStat struct {
 // GetStats returns a map indexed by ruleIDs that describes the amount of events
 // that were dropped because of the rate limiter
 func (rl *RateLimiter) GetStats() map[rules.RuleID]RateLimiterStat {
-	rl.RLock()
-	defer rl.RUnlock()
+	rl.Lock()
+	defer rl.Unlock()
 
 	stats := make(map[rules.RuleID]RateLimiterStat)
 	for ruleID, ruleLimiter := range rl.limiters {

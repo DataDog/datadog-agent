@@ -88,7 +88,7 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, bucketSize int64) (
 		}
 
 		// Perform matching between query and reply, using query order and `QueryIndex` from API reply (QueryIndex is 0-based)
-		var queryIndex int = 0
+		var queryIndex int
 		if ddQueriesLen > 1 {
 			if serie.QueryIndex != nil && *serie.QueryIndex < ddQueriesLen {
 				queryIndex = *serie.QueryIndex

@@ -73,9 +73,5 @@ func CheckEqual(a, e Summary) error {
 		return err
 	}
 
-	if err := checkFloat64Equal("Avg", a.Avg, e.Avg); err != nil {
-		return err
-	}
-
-	return nil
+	return checkFloat64Equal("Avg", a.Avg, e.Avg)
 }

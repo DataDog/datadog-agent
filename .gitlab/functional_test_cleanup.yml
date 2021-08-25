@@ -11,8 +11,7 @@
 cleanup_kitchen_functional_test:
   extends: .kitchen_cleanup_azure_common
   rules:
-    - when: manual
-      allow_failure: true
+    !reference [.manual]
   stage: functional_test_cleanup
   needs: ["tests_ebpf_x64"]
   variables:

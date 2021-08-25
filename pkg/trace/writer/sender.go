@@ -254,7 +254,10 @@ func (s *sender) sendPayload(p *payload) {
 		}
 		atomic.AddInt32(&s.attempt, 1)
 
-		if r := atomic.AddInt32(&p.retries, 1); shouldWarnRetry(r) {
+		if r := atomic.AddInt32(&p.retries, 1); (r&(r-1)) == 0 && r > 3 {
+			// Only log a warning if the retry attempt is a power of 2
+			// and larger than 3, to avoid alerting the user unnecessarily.
+			// e.g. attempts 4, 8, 16, etc.
 			log.Warnf("Retried payload %d times: %s", r, err.Error())
 		}
 		select {
@@ -293,15 +296,6 @@ func waitForSenders(senders []*sender) {
 		}(s)
 	}
 	wg.Wait()
-}
-
-// shouldWarnRetry determines whether a warning should be emitted
-// after it has been retried n times.
-func shouldWarnRetry(n int32) bool {
-	if (n != 0) && (n != 2) && ((n & (n - 1)) == 0) {
-		return true
-	}
-	return false
 }
 
 // releasePayload releases the payload p and records the specified event. The payload

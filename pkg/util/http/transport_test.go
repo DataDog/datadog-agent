@@ -172,3 +172,20 @@ func TestCreateHTTPTransport(t *testing.T) {
 	assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
 	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(tls.VersionTLS12))
 }
+
+func TestNoProxyWarningMap(t *testing.T) {
+	r1, _ := http.NewRequest("GET", "http://api.test_http.com/api/v1?arg=21", nil)
+
+	proxies := &config.Proxy{
+		HTTP:    "https://user:pass@proxy.com:3128",
+		HTTPS:   "https://user:pass@proxy_https.com:3128",
+		NoProxy: []string{"test_http.com"},
+	}
+	proxyFunc := GetProxyTransportFunc(proxies)
+
+	proxyURL, err := proxyFunc(r1)
+	assert.Nil(t, err)
+	assert.Equal(t, "https://user:pass@proxy.com:3128", proxyURL.String())
+
+	assert.Equal(t, NoProxyIgnoredWarningMap["http://api.test_http.com"], true)
+}

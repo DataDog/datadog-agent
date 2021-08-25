@@ -3,6 +3,9 @@
 package config
 
 import (
+	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -19,7 +22,7 @@ func (c *Config) EnabledProbes(runtimeTracer bool) (map[probes.ProbeName]struct{
 	pre410Kernel := kv < kernel.VersionCode(4, 1, 0)
 
 	if c.CollectTCPConns {
-		if pre410Kernel {
+		if !runtimeTracer && pre410Kernel {
 			enabled[probes.TCPSendMsgPre410] = struct{}{}
 		} else {
 			enabled[probes.TCPSendMsg] = struct{}{}
@@ -35,6 +38,14 @@ func (c *Config) EnabledProbes(runtimeTracer bool) (map[probes.ProbeName]struct{
 			enabled[probes.TCPRetransmitPre470] = struct{}{}
 		} else {
 			enabled[probes.TCPRetransmit] = struct{}{}
+		}
+
+		missing, err := ebpf.VerifyKernelFuncs(filepath.Join(c.ProcRoot, "kallsyms"), []string{"sockfd_lookup_light"})
+		if err == nil && len(missing) == 0 {
+			enabled[probes.SockFDLookup] = struct{}{}
+			enabled[probes.SockFDLookupRet] = struct{}{}
+			enabled[probes.DoSendfile] = struct{}{}
+			enabled[probes.DoSendfileRet] = struct{}{}
 		}
 	}
 
@@ -57,7 +68,7 @@ func (c *Config) EnabledProbes(runtimeTracer bool) (map[probes.ProbeName]struct{
 			enabled[probes.Inet6BindRet] = struct{}{}
 		}
 
-		if pre410Kernel {
+		if !runtimeTracer && pre410Kernel {
 			enabled[probes.UDPRecvMsgPre410] = struct{}{}
 		} else {
 			enabled[probes.UDPRecvMsg] = struct{}{}

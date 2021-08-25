@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    An error log was printed when the creation date or the started date 
+    of a fargate container was not found in the fargate API payload. 
+    This would happen even though it was expected to not have these dates
+    because of the container being in a given state. 
+    This is now fixed and the error is only printed when it should be.

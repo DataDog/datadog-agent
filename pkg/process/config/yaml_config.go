@@ -142,6 +142,13 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
+	// How many check results to buffer in memory when POST fails. The default is usually fine.
+	if k := key(ns, "rt_queue_size"); config.Datadog.IsSet(k) {
+		if rtqueueSize := config.Datadog.GetInt(k); rtqueueSize > 0 {
+			a.RTQueueSize = rtqueueSize
+		}
+	}
+
 	// The maximum number of processes, or containers per message. Note: Only change if the defaults are causing issues.
 	if k := key(ns, "max_per_message"); config.Datadog.IsSet(k) {
 		if maxPerMessage := config.Datadog.GetInt(k); maxPerMessage <= 0 {
@@ -150,6 +157,17 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 			a.MaxPerMessage = maxPerMessage
 		} else if maxPerMessage > 0 {
 			log.Warn("Overriding the configured item count per message limit because it exceeds maximum")
+		}
+	}
+
+	// The maximum number of processes belonging to a container per message. Note: Only change if the defaults are causing issues.
+	if k := key(ns, "max_ctr_procs_per_message"); config.Datadog.IsSet(k) {
+		if maxCtrProcessesPerMessage := config.Datadog.GetInt(k); maxCtrProcessesPerMessage <= 0 {
+			log.Warnf("Invalid max container processes count per message (<= 0), using default value of %d", defaultMaxCtrProcsMessageBatch)
+		} else if maxCtrProcessesPerMessage <= maxCtrProcsMessageBatch {
+			a.MaxCtrProcessesPerMessage = maxCtrProcessesPerMessage
+		} else {
+			log.Warnf("Overriding the configured max container processes count per message limit because it exceeds maximum limit of %d", maxCtrProcsMessageBatch)
 		}
 	}
 
@@ -191,6 +209,9 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 			}
 		}
 	}
+	if !config.Datadog.IsSet(key(ns, "cmd_port")) {
+		config.Datadog.Set(key(ns, "cmd_port"), 6162)
+	}
 
 	// use `internal_profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,
 	// but use the configuration from main agent to fill the settings
@@ -198,8 +219,12 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		a.ProfilingEnabled = config.Datadog.GetBool(key(ns, "internal_profiling.enabled"))
 		a.ProfilingSite = config.Datadog.GetString("site")
 		a.ProfilingURL = config.Datadog.GetString("internal_profiling.profile_dd_url")
-		a.ProfilingAPIKey = config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
 		a.ProfilingEnvironment = config.Datadog.GetString("env")
+		a.ProfilingPeriod = config.Datadog.GetDuration("internal_profiling.period")
+		a.ProfilingCPUDuration = config.Datadog.GetDuration("internal_profiling.cpu_duration")
+		a.ProfilingMutexFraction = config.Datadog.GetInt("internal_profiling.mutex_profile_fraction")
+		a.ProfilingBlockRate = config.Datadog.GetInt("internal_profiling.block_profile_rate")
+		a.ProfilingWithGoroutines = config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces")
 	}
 
 	// Used to override container source auto-detection

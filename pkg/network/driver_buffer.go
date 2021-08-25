@@ -32,6 +32,14 @@ func (d *DriverBuffer) Next() *ConnectionStats {
 	return c
 }
 
+// Reclaim captures the last n entries for usage again.
+func (d *DriverBuffer) Reclaim(n int) {
+	d.off -= n
+	if d.off < 0 {
+		d.off = 0
+	}
+}
+
 // Connections returns a slice of all the `ConnectionStats` objects returned via `Next`
 // since the last `Reset`.
 func (d *DriverBuffer) Connections() []ConnectionStats {
@@ -41,6 +49,11 @@ func (d *DriverBuffer) Connections() []ConnectionStats {
 // Len returns the count of the number of written `ConnectionStats` objects since last `Reset`.
 func (d *DriverBuffer) Len() int {
 	return d.off
+}
+
+// Capacity returns the current capacity of the buffer
+func (d *DriverBuffer) Capacity() int {
+	return len(d.buf)
 }
 
 // Reset returns the written object count back to zero. It may resize the internal buffer based on past usage.

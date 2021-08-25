@@ -6,6 +6,7 @@
 package cloudfoundry
 
 import (
+	"context"
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -18,7 +19,7 @@ import (
 var getFqdn = util.Fqdn
 
 // GetHostAliases returns the host aliases from Cloud Foundry
-func GetHostAliases() ([]string, error) {
+func GetHostAliases(ctx context.Context) ([]string, error) {
 	if !config.Datadog.GetBool("cloud_foundry") {
 		log.Debugf("cloud_foundry is not enabled in the conf: no cloudfoudry host alias")
 		return nil, nil

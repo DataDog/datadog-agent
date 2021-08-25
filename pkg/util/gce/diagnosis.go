@@ -6,8 +6,9 @@
 package gce
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func init() {
@@ -16,9 +17,6 @@ func init() {
 
 // diagnose the GCE metadata API availability
 func diagnose() error {
-	_, err := GetHostname()
-	if err != nil {
-		log.Error(err)
-	}
+	_, err := GetHostname(context.TODO())
 	return err
 }

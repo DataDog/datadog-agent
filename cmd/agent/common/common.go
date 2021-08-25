@@ -10,12 +10,16 @@ package common
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
@@ -67,4 +71,14 @@ func GetVersion(w http.ResponseWriter, r *http.Request) {
 	av, _ := version.Agent()
 	j, _ := json.Marshal(av)
 	w.Write(j)
+}
+
+// NewSettingsClient returns a configured runtime settings client.
+func NewSettingsClient() (settings.Client, error) {
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return nil, err
+	}
+	hc := util.GetClient(false)
+	return settingshttp.NewClient(hc, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, config.Datadog.GetInt("cmd_port")), "agent"), nil
 }

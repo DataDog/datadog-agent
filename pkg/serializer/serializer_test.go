@@ -331,26 +331,6 @@ func TestSendV1Series(t *testing.T) {
 	require.NotNil(t, err)
 }
 
-func TestSendSeries(t *testing.T) {
-	mockConfig := config.Mock()
-
-	f := &forwarder.MockedForwarder{}
-	f.On("SubmitSeries", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
-	mockConfig.Set("use_v2_api.series", true)
-	defer mockConfig.Set("use_v2_api.series", nil)
-
-	s := NewSerializer(f, nil)
-
-	payload := &testPayload{}
-	err := s.SendSeries(payload)
-	require.Nil(t, err)
-	f.AssertExpectations(t)
-
-	errPayload := &testErrorPayload{}
-	err = s.SendSeries(errPayload)
-	require.NotNil(t, err)
-}
-
 func TestSendSketch(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	payloads, _ := mkPayloads(protobufString, true)
@@ -389,25 +369,25 @@ func TestSendMetadata(t *testing.T) {
 	require.NotNil(t, err)
 }
 
-func TestSendJSONToV1Intake(t *testing.T) {
+func TestSendProcessesMetadata(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	payload := []byte("\"test\"")
-	payloads, _ := mkPayloads(payload, false)
-	f.On("SubmitV1Intake", payloads, jsonExtraHeaders).Return(nil).Times(1)
+	payloads, _ := mkPayloads(payload, true)
+	f.On("SubmitV1Intake", payloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
 	s := NewSerializer(f, nil)
 
-	err := s.SendJSONToV1Intake("test")
+	err := s.SendProcessesMetadata("test")
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 
-	f.On("SubmitV1Intake", payloads, jsonExtraHeaders).Return(fmt.Errorf("some error")).Times(1)
-	err = s.SendJSONToV1Intake("test")
+	f.On("SubmitV1Intake", payloads, jsonExtraHeadersWithCompression).Return(fmt.Errorf("some error")).Times(1)
+	err = s.SendProcessesMetadata("test")
 	require.NotNil(t, err)
 	f.AssertExpectations(t)
 
 	errPayload := &testErrorPayload{}
-	err = s.SendJSONToV1Intake(errPayload)
+	err = s.SendProcessesMetadata(errPayload)
 	require.NotNil(t, err)
 }
 
@@ -439,14 +419,13 @@ func TestSendWithDisabledKind(t *testing.T) {
 	s.SendSeries(payload)
 	s.SendSketch(payload)
 	s.SendServiceChecks(payload)
-	s.SendJSONToV1Intake("test")
+	s.SendProcessesMetadata("test")
 
 	f.AssertNotCalled(t, "SubmitMetadata")
 	f.AssertNotCalled(t, "SubmitEvents")
 	f.AssertNotCalled(t, "SubmitV1CheckRuns")
 	f.AssertNotCalled(t, "SubmitServiceChecks")
 	f.AssertNotCalled(t, "SubmitV1Series")
-	f.AssertNotCalled(t, "SubmitSeries")
 	f.AssertNotCalled(t, "SubmitSketchSeries")
 
 	// We never disable metadata

@@ -9,31 +9,7 @@
 #include "defs.h"
 #include "filters.h"
 
-#define DENTRY_MAX_DEPTH 16
 #define MNT_OFFSETOF_MNT 32 // offsetof(struct mount, mnt)
-
-#define DENTRY_INVALID -1
-#define DENTRY_DISCARDED -2
-
-#define FAKE_INODE_MSW 0xdeadc001UL
-
-#define MAX_SEGMENT_LENGTH 127
-
-struct path_leaf_t {
-  struct path_key_t parent;
-  // TODO: reduce the amount of allocated structs during the resolution so that we can take this buffer to its max
-  // theoretical value (256), without reaching the eBPF stack max size.
-  char name[MAX_SEGMENT_LENGTH + 1];
-};
-
-struct bpf_map_def SEC("maps/pathnames") pathnames = {
-    .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(struct path_key_t),
-    .value_size = sizeof(struct path_leaf_t),
-    .max_entries = 64000,
-    .pinning = 0,
-    .namespace = "",
-};
 
 unsigned long __attribute__((always_inline)) get_inode_ino(struct inode *inode) {
     unsigned long ino;
@@ -222,65 +198,6 @@ static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry,
     if (is_overlayfs(dentry)) {
         set_overlayfs_ino(dentry, &file->path_key.ino, &file->flags);
     }
-}
-
-static __attribute__((always_inline)) int resolve_dentry(struct dentry *dentry, struct path_key_t key, u64 event_type) {
-    struct path_leaf_t map_value = {};
-    struct path_key_t next_key = key;
-    struct qstr qstr;
-    struct dentry *d_parent;
-    struct inode *d_inode = NULL;
-
-    if (key.ino == 0 || key.mount_id == 0) {
-        return DENTRY_INVALID;
-    }
-
-#pragma unroll
-    for (int i = 0; i < DENTRY_MAX_DEPTH; i++)
-    {
-        d_parent = NULL;
-        bpf_probe_read(&d_parent, sizeof(d_parent), &dentry->d_parent);
-
-        key = next_key;
-        if (dentry != d_parent) {
-            write_dentry_inode(d_parent, &d_inode);
-            write_inode_ino(d_inode, &next_key.ino);
-        }
-
-        // discard filename and its parent only in order to limit the number of lookup
-        if (event_type && i < 2) {
-            if (is_discarded_by_inode(event_type, key.mount_id, key.ino, i == 0)) {
-                return DENTRY_DISCARDED;
-            }
-        }
-
-        bpf_probe_read(&qstr, sizeof(qstr), &dentry->d_name);
-        bpf_probe_read_str(&map_value.name, sizeof(map_value.name), (void *)qstr.name);
-
-        if (map_value.name[0] == '/' || map_value.name[0] == 0) {
-            map_value.name[0] = '/';
-            next_key.ino = 0;
-            next_key.mount_id = 0;
-        }
-
-        map_value.parent = next_key;
-
-        bpf_map_update_elem(&pathnames, &key, &map_value, BPF_ANY);
-
-        dentry = d_parent;
-        if (next_key.ino == 0)
-            return i + 1;
-    }
-
-    // If the last next_id isn't null, this means that there are still other parents to fetch.
-    // TODO: use BPF_PROG_ARRAY to recursively fetch 32 more times.
-
-    map_value.name[0] = 0;
-    map_value.parent.mount_id = 0;
-    map_value.parent.ino = 0;
-    bpf_map_update_elem(&pathnames, &next_key, &map_value, BPF_ANY);
-
-    return DENTRY_MAX_DEPTH;
 }
 
 #endif

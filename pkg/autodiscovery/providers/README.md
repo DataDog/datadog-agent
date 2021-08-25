@@ -9,7 +9,7 @@ Usage example:
 ```go
 var configs []loader.CheckConfig
 for _, provider := range configProviders {
-  c, _ := provider.Collect()
+  c, _ := provider.Collect(ctx)
   configs = append(configs, c...)
 }
 ```

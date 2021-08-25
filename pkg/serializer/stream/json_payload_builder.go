@@ -89,10 +89,10 @@ func NewJSONPayloadBuilder(shareAndLockBuffers bool) *JSONPayloadBuilder {
 type OnErrItemTooBigPolicy int
 
 const (
-	// DropItemOnErrItemTooBig:  when ErrItemTooBig is encountered, skips the error and continue
+	// DropItemOnErrItemTooBig skips the error and continues when ErrItemTooBig is encountered
 	DropItemOnErrItemTooBig OnErrItemTooBigPolicy = iota
 
-	// FailOnErrItemTooBig: when ErrItemTooBig is encountered, returns the error and stop
+	// FailOnErrItemTooBig returns the error and stop when ErrItemTooBig is encountered
 	FailOnErrItemTooBig
 )
 

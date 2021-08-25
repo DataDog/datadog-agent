@@ -8,12 +8,12 @@
 package collectors
 
 import (
+	"context"
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
-	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
@@ -29,17 +29,19 @@ const (
 type ECSFargateCollector struct {
 	client       *v2.Client
 	infoOut      chan<- []*TagInfo
-	expire       *taggerutil.Expire
-	lastExpire   time.Time
-	expireFreq   time.Duration
+	expire       *expire
 	labelsAsTags map[string]string
 }
 
 // Detect tries to connect to the ECS metadata API
-func (c *ECSFargateCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
+func (c *ECSFargateCollector) Detect(ctx context.Context, out chan<- []*TagInfo) (CollectionMode, error) {
 	var err error
 
-	if !ecsutil.IsFargateInstance() {
+	if !config.IsFeaturePresent(config.ECSFargate) {
+		return NoCollection, nil
+	}
+
+	if !ecsutil.IsFargateInstance(ctx) {
 		return NoCollection, fmt.Errorf("Failed to connect to task metadata API, ECS tagging will not work")
 	}
 
@@ -51,9 +53,7 @@ func (c *ECSFargateCollector) Detect(out chan<- []*TagInfo) (CollectionMode, err
 
 	c.client = client
 	c.infoOut = out
-	c.lastExpire = time.Now()
-	c.expireFreq = ecsFargateExpireFreq
-	c.expire, err = taggerutil.NewExpire(ecsFargateExpireFreq)
+	c.expire, err = newExpire(ecsFargateCollectorName, ecsFargateExpireFreq)
 	c.labelsAsTags = retrieveMappingFromConfig("docker_labels_as_tags")
 
 	if err != nil {
@@ -64,8 +64,8 @@ func (c *ECSFargateCollector) Detect(out chan<- []*TagInfo) (CollectionMode, err
 }
 
 // Pull looks for new containers and computes deletions
-func (c *ECSFargateCollector) Pull() error {
-	taskMeta, err := c.client.GetTask()
+func (c *ECSFargateCollector) Pull(ctx context.Context) error {
+	taskMeta, err := c.client.GetTask(ctx)
 	if err != nil {
 		return err
 	}
@@ -76,28 +76,18 @@ func (c *ECSFargateCollector) Pull() error {
 	}
 	c.infoOut <- updates
 
-	// Throttle deletions
-	if time.Now().Before(c.lastExpire.Add(c.expireFreq)) {
-		return nil
+	expires := c.expire.ComputeExpires()
+	if len(expires) > 0 {
+		c.infoOut <- expires
 	}
 
-	expireList, err := c.expire.ComputeExpires()
-	if err != nil {
-		return err
-	}
-	expiries, err := c.parseExpires(expireList)
-	if err != nil {
-		return err
-	}
-	c.infoOut <- expiries
-	c.lastExpire = time.Now()
 	return nil
 }
 
 // Fetch parses tags for a container on cache miss. We avoid races with Pull,
 // we re-parse the whole list, but don't send updates on other containers.
-func (c *ECSFargateCollector) Fetch(container string) ([]string, []string, []string, error) {
-	taskMeta, err := c.client.GetTask()
+func (c *ECSFargateCollector) Fetch(ctx context.Context, container string) ([]string, []string, []string, error) {
+	taskMeta, err := c.client.GetTask(ctx)
 	if err != nil {
 		return []string{}, []string{}, []string{}, err
 	}
@@ -114,20 +104,6 @@ func (c *ECSFargateCollector) Fetch(container string) ([]string, []string, []str
 	}
 	// container not found in updates
 	return []string{}, []string{}, []string{}, errors.NewNotFound(container)
-}
-
-// parseExpires transforms event from the PodWatcher to TagInfo objects
-func (c *ECSFargateCollector) parseExpires(idList []string) ([]*TagInfo, error) {
-	var output []*TagInfo
-	for _, id := range idList {
-		info := &TagInfo{
-			Source:       ecsFargateCollectorName,
-			Entity:       containers.BuildTaggerEntityName(id),
-			DeleteEntity: true,
-		}
-		output = append(output, info)
-	}
-	return output, nil
 }
 
 func ecsFargateFactory() Collector {

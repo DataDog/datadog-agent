@@ -4,9 +4,11 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package executable provides information on the executable that started the process
+// and utils to find other executables on the system
 package executable
 
 import (
+	"os/exec"
 	"path/filepath"
 
 	// TODO: Use the built-in "os" package as soon as it implements `Executable()`
@@ -52,4 +54,21 @@ func FolderAllowSymlinkFailure() (string, error) {
 	}
 
 	return filepath.Dir(p), nil
+}
+
+// ResolvePath resolves the absolute path to the executable program
+// with the given name in the argument. Returns error if the program's
+// path cannot be resolved.
+func ResolvePath(execName string) (string, error) {
+	execPath, err := exec.LookPath(execName)
+	if err != nil {
+		return "", err
+	}
+
+	execAbsPath, err := filepath.Abs(execPath)
+	if err != nil {
+		return "", err
+	}
+
+	return execAbsPath, nil
 }

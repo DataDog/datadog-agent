@@ -18,23 +18,29 @@
         "group": {
             "type": "string"
         },
-        "executable_container_path": {
-            "$ref": "file:///container_path.json"
-        },
-        "executable_path": {
-            "type": "string"
-        },
         "comm": {
             "type": "string"
         },
-        "executable_inode": {
-            "type": "integer"
-        },
-        "executable_mount_id": {
-            "type": "integer"
-        },
         "tty": {
-            "type": "string"
+            "allOf": [
+                {
+                    "type": "string"
+                },
+                {
+                    "not": {
+                        "type": "string",
+                        "enum": [
+                            "null"
+                        ]
+                    }
+                }
+            ]
+        },
+        "fork_time": {
+            "$ref": "file:///datetime.json"
+        },
+        "exec_time": {
+            "$ref": "file:///datetime.json"
         },
         "credentials": {
             "type": "object",
@@ -94,13 +100,9 @@
                 "uid",
                 "gid",
                 "euid",
-                "euser",
                 "egid",
-                "egroup",
                 "fsuid",
-                "fsuser",
                 "fsgid",
-                "fsgroup",
                 "cap_effective",
                 "cap_permitted"
             ]
@@ -113,9 +115,6 @@
                 },
                 "name": {
                     "type": "string"
-                },
-                "container_path": {
-                    "$ref": "file:///container_path.json"
                 },
                 "inode": {
                     "type": "integer"
@@ -136,10 +135,10 @@
                     "type": "integer"
                 },
                 "modification_time": {
-                    "type": "string"
+                    "$ref": "file:///datetime.json"
                 },
                 "change_time": {
-                    "type": "string"
+                    "$ref": "file:///datetime.json"
                 }
             },
             "required": [
@@ -164,10 +163,14 @@
             "properties": {
                 "pid": {
                     "type": "integer",
-                    "enum": [1]
+                    "enum": [
+                        1
+                    ]
                 }
             },
-            "required": ["pid"]
+            "required": [
+                "pid"
+            ]
         },
         {
             "properties": {
@@ -179,22 +182,18 @@
                     "type": "integer"
                 }
             },
-            "required": ["pid", "ppid"]
+            "required": [
+                "pid",
+                "ppid"
+            ]
         }
     ],
     "required": [
         "tid",
         "uid",
         "gid",
-        "executable_path",
         "comm",
-        "executable_inode",
-        "executable_mount_id",
         "credentials",
         "executable"
-    ],
-    "dependencies": {
-        "executable_container_path": ["container"],
-        "container": ["executable_container_path"]
-    }
+    ]
 }

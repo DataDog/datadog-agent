@@ -147,6 +147,30 @@ func TestTextStripApiKey(t *testing.T) {
 	assertClean(t,
 		`Error status code 500 : http://dog.tld/api?key=3290abeefc68e1bbe852a25252bad88c`,
 		`Error status code 500 : http://dog.tld/api?key=***************************ad88c`)
+	assertClean(t,
+		`hintedAPIKeyReplacer : http://dog.tld/api_key=InvalidLength12345abbbb`,
+		`hintedAPIKeyReplacer : http://dog.tld/api_key=***************************abbbb`)
+	assertClean(t,
+		`hintedAPIKeyReplacer : http://dog.tld/apikey=InvalidLength12345abbbb`,
+		`hintedAPIKeyReplacer : http://dog.tld/apikey=***************************abbbb`)
+	assertClean(t,
+		`apiKeyReplacer: https://agent-http-intake.logs.datadoghq.com/v1/input/aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
+		`apiKeyReplacer: https://agent-http-intake.logs.datadoghq.com/v1/input/***************************abbbb`)
+}
+
+func TestTextStripAppKey(t *testing.T) {
+	assertClean(t,
+		`hintedAPPKeyReplacer : http://dog.tld/app_key=InvalidLength12345abbbb`,
+		`hintedAPPKeyReplacer : http://dog.tld/app_key=***********************************abbbb`)
+	assertClean(t,
+		`hintedAPPKeyReplacer : http://dog.tld/appkey=InvalidLength12345abbbb`,
+		`hintedAPPKeyReplacer : http://dog.tld/appkey=***********************************abbbb`)
+	assertClean(t,
+		`hintedAPPKeyReplacer : http://dog.tld/application_key=InvalidLength12345abbbb`,
+		`hintedAPPKeyReplacer : http://dog.tld/application_key=***********************************abbbb`)
+	assertClean(t,
+		`appKeyReplacer: http://dog.tld/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
+		`appKeyReplacer: http://dog.tld/***********************************abbbb`)
 }
 
 func TestTextStripURLPassword(t *testing.T) {

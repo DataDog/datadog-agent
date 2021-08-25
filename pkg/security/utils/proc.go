@@ -8,6 +8,7 @@
 package utils
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -176,6 +177,11 @@ func GetFilledProcess(p *process.Process) *process.FilledProcess {
 		return nil
 	}
 
+	cmdLine, err := p.CmdlineSlice()
+	if err != nil {
+		return nil
+	}
+
 	return &process.FilledProcess{
 		Pid:        p.Pid,
 		Ppid:       ppid,
@@ -184,5 +190,46 @@ func GetFilledProcess(p *process.Process) *process.FilledProcess {
 		Uids:       uids,
 		Gids:       gids,
 		MemInfo:    memInfo,
+		Cmdline:    cmdLine,
 	}
+}
+
+// EnvVars returns a map with the environment variables of the given pid
+func EnvVars(pid int32) (map[string]string, error) {
+	filename := filepath.Join(util.HostProc(), fmt.Sprintf("/%d/environ", pid))
+
+	f, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	zero := func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+		for i := 0; i < len(data); i++ {
+			if data[i] == '\x00' {
+				return i + 1, data[:i], nil
+			}
+		}
+		if !atEOF {
+			return 0, nil, nil
+		}
+		return 0, data, bufio.ErrFinalToken
+	}
+
+	scanner := bufio.NewScanner(f)
+	scanner.Split(zero)
+
+	envs := make(map[string]string)
+	for scanner.Scan() {
+		if els := strings.SplitN(scanner.Text(), "=", 2); len(els) == 2 {
+			key := els[0]
+			value := els[1]
+
+			if len(key) > 0 {
+				envs[key] = value
+			}
+		}
+	}
+
+	return envs, nil
 }

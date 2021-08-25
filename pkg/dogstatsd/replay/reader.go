@@ -12,8 +12,10 @@ import (
 	"sync" // might be unnecessary
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay/pb"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/zstd"
 
 	proto "github.com/golang/protobuf/proto"
 	"github.com/h2non/filetype"
@@ -21,11 +23,13 @@ import (
 
 // TrafficCaptureReader allows reading back a traffic capture and its contents
 type TrafficCaptureReader struct {
-	Contents []byte
-	Traffic  chan *pb.UnixDogstatsdMsg
-	Shutdown chan struct{}
-	offset   uint32
-	last     int64
+	Contents     []byte
+	mmapContents []byte
+	Version      int
+	Traffic      chan *pb.UnixDogstatsdMsg
+	Done         chan struct{}
+	fuse         chan struct{}
+	offset       uint32
 
 	sync.Mutex
 }
@@ -43,27 +47,65 @@ func NewTrafficCaptureReader(path string, depth int) (*TrafficCaptureReader, err
 	// datadog capture file should be already registered with filetype via the init hooks
 	kind, _ := filetype.Match(c)
 	if kind == filetype.Unknown {
-		return nil, fmt.Errorf("unknown capture file provided")
+		return nil, fmt.Errorf("unknown capture file provided: %v", kind.MIME)
+	}
+
+	decompress := false
+	if kind.MIME.Subtype == "zstd" {
+		decompress = true
+		log.Debug("capture file compressed with zstd")
+	}
+
+	var contents []byte
+	if decompress {
+		if contents, err = zstd.Decompress(nil, c); err != nil {
+			return nil, err
+		}
+	} else {
+		contents = c
+	}
+
+	ver, err := fileVersion(contents)
+	if err != nil {
+		return nil, err
 	}
 
 	return &TrafficCaptureReader{
-		Contents: c,
-		Traffic:  make(chan *pb.UnixDogstatsdMsg, depth),
+		mmapContents: c,
+		Contents:     contents,
+		Version:      ver,
+		Traffic:      make(chan *pb.UnixDogstatsdMsg, depth),
 	}, nil
 }
 
 // Read reads the contents of the traffic capture and writes each packet to a channel
-func (tc *TrafficCaptureReader) Read() {
-	tc.Shutdown = make(chan struct{})
-	defer close(tc.Shutdown)
+func (tc *TrafficCaptureReader) Read(ready chan struct{}) {
+	tc.Lock()
+	tc.Done = make(chan struct{})
+	tc.fuse = make(chan struct{})
+	defer close(tc.Done)
 
-	log.Debugf("About to begin processing file of size: %d\n", len(tc.Contents))
+	log.Debugf("Processing capture file of size: %d", len(tc.Contents))
 
 	// skip header
-	tc.Lock()
-	tc.offset += uint32(len(datadogHeader))
+	tc.offset = uint32(len(datadogHeader))
+
+	var tsResolution time.Duration
+	if tc.Version < minNanoVersion {
+		tsResolution = time.Second
+	} else {
+		tsResolution = time.Nanosecond
+	}
 	tc.Unlock()
 
+	last := int64(0)
+
+	// we are all ready to go - let the caller know
+	ready <- struct{}{}
+
+	// The state must be read out of band, it makes zero sense in the context
+	// of the replaying process, it must be pushed to the agent. We just read
+	// and submit the packets here.
 	for {
 		msg, err := tc.ReadNext()
 		if err != nil && err == io.EOF {
@@ -74,21 +116,42 @@ func (tc *TrafficCaptureReader) Read() {
 			break
 		}
 
-		// TODO: ensure proper cadence
-		if tc.last != 0 {
-			if msg.Timestamp > tc.last {
-				time.Sleep(time.Second * time.Duration(msg.Timestamp-tc.last))
+		if last != 0 {
+			if msg.Timestamp > last {
+				util.Wait(tsResolution * time.Duration(msg.Timestamp-last))
 			}
 		}
 
-		tc.last = msg.Timestamp
+		last = msg.Timestamp
 		tc.Traffic <- msg
+
+		select {
+		case <-tc.fuse:
+			return
+		default:
+			continue
+		}
 	}
 }
 
-// Close cleans up any resources used by the TrafficCaptureReader
+// Close cleans up any resources used by the TrafficCaptureReader, should not normally
+// be called directly.
 func (tc *TrafficCaptureReader) Close() error {
-	return unmapFile(tc.Contents)
+	tc.Lock()
+	defer tc.Unlock()
+
+	// drop reference for GC
+	tc.Contents = nil
+
+	return unmapFile(tc.mmapContents)
+}
+
+// Shutdown triggers the fuse if there's an ongoing read routine, and closes the reader.
+func (tc *TrafficCaptureReader) Shutdown() error {
+	if tc.fuse != nil {
+		close(tc.fuse)
+	}
+	return tc.Close()
 }
 
 // ReadNext reads the next packet found in the file and returns the protobuf representation and an error if any.
@@ -103,7 +166,8 @@ func (tc *TrafficCaptureReader) ReadNext() (*pb.UnixDogstatsdMsg, error) {
 	sz := binary.LittleEndian.Uint32(tc.Contents[tc.offset : tc.offset+4])
 	tc.offset += 4
 
-	if int(tc.offset+sz) > len(tc.Contents) {
+	// we have reached the state separator or overflow
+	if sz == 0 || int(tc.offset+sz) > len(tc.Contents) {
 		tc.Unlock()
 		return nil, io.EOF
 	}
@@ -120,4 +184,67 @@ func (tc *TrafficCaptureReader) ReadNext() (*pb.UnixDogstatsdMsg, error) {
 	tc.Unlock()
 
 	return msg, nil
+}
+
+// Seek sets the reader to the specified offset. Please note,
+// the specified offset is relative to the first datagram, not the
+// absolute position in the file, that would include the header. Thus,
+// an offset of 0 would be the first datagram. Use with caution, a bad
+// offset will completely mess up a replay.
+func (tc *TrafficCaptureReader) Seek(offset uint32) {
+
+	tc.Lock()
+	defer tc.Unlock()
+
+	tc.offset = uint32(len(datadogHeader)) + offset
+
+}
+
+// ReadState reads the tagger state from the end of the capture file.
+// The internal offset of the reader is not modified by this operation.
+func (tc *TrafficCaptureReader) ReadState() (map[int32]string, map[string]*pb.Entity, error) {
+
+	tc.Lock()
+	defer tc.Unlock()
+
+	if tc.Version < minStateVersion {
+		return nil, nil, fmt.Errorf("The replay file is version: %v and does not contain a tagger state", tc.Version)
+	}
+
+	length := len(tc.Contents)
+	sz := binary.LittleEndian.Uint32(tc.Contents[length-4 : length])
+
+	log.Debugf("State bytes to be read: %v", sz)
+	if sz == 0 {
+		return nil, nil, nil
+	}
+
+	// pb state
+	pbState := &pb.TaggerState{}
+	err := proto.Unmarshal(tc.Contents[length-int(sz)-4:length-4], pbState)
+	if err != nil {
+		tc.Unlock()
+		return nil, nil, err
+	}
+
+	return pbState.PidMap, pbState.State, err
+}
+
+// Read reads the next protobuf packet available in the file and returns it in a byte slice, and an error if any.
+func Read(r io.Reader) ([]byte, error) {
+	buf := make([]byte, 4)
+	if _, err := io.ReadFull(r, buf); err != nil {
+		return nil, err
+	}
+
+	size := binary.LittleEndian.Uint32(buf)
+
+	msg := make([]byte, size)
+
+	_, err := io.ReadFull(r, msg)
+	if err != nil {
+		return nil, err
+	}
+
+	return msg, err
 }

@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 )
 
 var (
@@ -953,7 +955,7 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=42 cardinality=high present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
 			args: args{
-				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), cardinalityTagPrefix + "high"},
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.HighCardinalityString},
 				defaultHostname:            "foo",
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: false,
@@ -967,7 +969,7 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=42 cardinality=orchestrator present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
 			args: args{
-				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), cardinalityTagPrefix + "orchestrator"},
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.OrchestratorCardinalityString},
 				defaultHostname:            "foo",
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: false,
@@ -981,7 +983,7 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=42 cardinality=low present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
 			args: args{
-				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), cardinalityTagPrefix + "low"},
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.LowCardinalityString},
 				defaultHostname:            "foo",
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: false,
@@ -995,7 +997,7 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=42 cardinality=unknown present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
 			args: args{
-				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), cardinalityTagPrefix + "unknown"},
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.UnknownCardinalityString},
 				defaultHostname:            "foo",
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: false,
@@ -1009,7 +1011,7 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId=42 cardinality='' present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
 			args: args{
-				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), cardinalityTagPrefix},
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix},
 				defaultHostname:            "foo",
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: false,

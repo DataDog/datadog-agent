@@ -6,11 +6,14 @@ import (
 	"math/rand"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"go4.org/intern"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1145,16 +1148,17 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 		DPort:  53,
 	}
 
-	dKey := DNSKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
+	dKey := dns.Key{ClientIP: c.Source, ClientPort: c.SPort, ServerIP: c.Dest, Protocol: getIPProtocol(c.Type)}
 
-	getStats := func() map[DNSKey]map[string]DNSStats {
-		var d = "foo.com"
-		statsByDomain := make(map[DNSKey]map[string]DNSStats)
-		stats := make(map[string]DNSStats)
+	getStats := func() dns.StatsByKeyByNameByType {
+		var d = intern.GetByString("foo.com")
+		statsByDomain := make(dns.StatsByKeyByNameByType)
+		stats := make(map[dns.QueryType]dns.Stats)
 		countByRcode := make(map[uint32]uint32)
 		countByRcode[uint32(DNSResponseCodeNoError)] = 1
-		stats[d] = DNSStats{DNSCountByRcode: countByRcode}
-		statsByDomain[dKey] = stats
+		stats[dns.TypeA] = dns.Stats{CountByRcode: countByRcode}
+		statsByDomain[dKey] = make(map[*intern.Value]map[dns.QueryType]dns.Stats)
+		statsByDomain[dKey][d] = stats
 		return statsByDomain
 	}
 
@@ -1197,15 +1201,16 @@ func TestDNSStatsWithMultipleClientsWithDomainCollectionEnabled(t *testing.T) {
 		DPort:  53,
 	}
 
-	dKey := DNSKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
-	var d = "foo.com"
-	getStats := func() map[DNSKey]map[string]DNSStats {
-		statsByDomain := make(map[DNSKey]map[string]DNSStats)
-		stats := make(map[string]DNSStats)
+	dKey := dns.Key{ClientIP: c.Source, ClientPort: c.SPort, ServerIP: c.Dest, Protocol: getIPProtocol(c.Type)}
+	var d = intern.GetByString("foo.com")
+	getStats := func() dns.StatsByKeyByNameByType {
+		statsByDomain := make(dns.StatsByKeyByNameByType)
+		stats := make(map[dns.QueryType]dns.Stats)
 		countByRcode := make(map[uint32]uint32)
 		countByRcode[uint32(DNSResponseCodeNoError)] = 1
-		stats[d] = DNSStats{DNSCountByRcode: countByRcode}
-		statsByDomain[dKey] = stats
+		stats[dns.TypeA] = dns.Stats{CountByRcode: countByRcode}
+		statsByDomain[dKey] = make(map[*intern.Value]map[dns.QueryType]dns.Stats)
+		statsByDomain[dKey][d] = stats
 		return statsByDomain
 	}
 
@@ -1223,7 +1228,7 @@ func TestDNSStatsWithMultipleClientsWithDomainCollectionEnabled(t *testing.T) {
 
 	conns := state.GetDelta(client1, latestEpochTime(), nil, getStats(), nil).Connections
 	require.Len(t, conns, 1)
-	assert.EqualValues(t, 1, conns[0].DNSStatsByDomain[d].DNSCountByRcode[DNSResponseCodeNoError])
+	assert.EqualValues(t, 1, conns[0].DNSStatsByDomainByQueryType[d][dns.TypeA].CountByRcode[DNSResponseCodeNoError])
 	// domain agnostic stats should be 0
 	assert.EqualValues(t, 0, conns[0].DNSSuccessfulResponses)
 
@@ -1231,14 +1236,14 @@ func TestDNSStatsWithMultipleClientsWithDomainCollectionEnabled(t *testing.T) {
 	conns = state.GetDelta(client3, latestEpochTime(), []ConnectionStats{c}, getStats(), nil).Connections
 	require.Len(t, conns, 1)
 	// DNS stats should be available for the new client
-	assert.EqualValues(t, 1, conns[0].DNSStatsByDomain[d].DNSCountByRcode[DNSResponseCodeNoError])
+	assert.EqualValues(t, 1, conns[0].DNSStatsByDomainByQueryType[d][dns.TypeA].CountByRcode[DNSResponseCodeNoError])
 	// domain agnostic stats should be 0
 	assert.EqualValues(t, 0, conns[0].DNSSuccessfulResponses)
 
 	conns = state.GetDelta(client2, latestEpochTime(), []ConnectionStats{c}, getStats(), nil).Connections
 	require.Len(t, conns, 1)
 	// 2nd client should get accumulated stats
-	assert.EqualValues(t, 3, conns[0].DNSStatsByDomain[d].DNSCountByRcode[DNSResponseCodeNoError])
+	assert.EqualValues(t, 3, conns[0].DNSStatsByDomainByQueryType[d][dns.TypeA].CountByRcode[DNSResponseCodeNoError])
 	// domain agnostic stats should be 0
 	assert.EqualValues(t, 0, conns[0].DNSSuccessfulResponses)
 }
@@ -1254,14 +1259,15 @@ func TestDNSStatsPIDCollisions(t *testing.T) {
 		DPort:  53,
 	}
 
-	var d = "foo.com"
-	dKey := DNSKey{clientIP: c.Source, clientPort: c.SPort, serverIP: c.Dest, protocol: c.Type}
-	statsByDomain := make(map[DNSKey]map[string]DNSStats)
-	stats := make(map[string]DNSStats)
+	var d = intern.GetByString("foo.com")
+	dKey := dns.Key{ClientIP: c.Source, ClientPort: c.SPort, ServerIP: c.Dest, Protocol: syscall.IPPROTO_TCP}
+	statsByDomain := make(dns.StatsByKeyByNameByType)
+	stats := make(map[dns.QueryType]dns.Stats)
 	countByRcode := make(map[uint32]uint32)
-	countByRcode[DNSResponseCodeNoError] = 1
-	stats[d] = DNSStats{DNSCountByRcode: countByRcode}
-	statsByDomain[dKey] = stats
+	countByRcode[uint32(DNSResponseCodeNoError)] = 1
+	stats[dns.TypeA] = dns.Stats{CountByRcode: countByRcode}
+	statsByDomain[dKey] = make(map[*intern.Value]map[dns.QueryType]dns.Stats)
+	statsByDomain[dKey][d] = stats
 
 	client := "client"
 	state := newDefaultState()
@@ -1294,7 +1300,7 @@ func TestHTTPStats(t *testing.T) {
 		DPort:  80,
 	}
 
-	key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, "/testpath")
+	key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, "/testpath", http.MethodGet)
 
 	httpStats := make(map[http.Key]http.RequestStats)
 	var rs http.RequestStats
@@ -1322,7 +1328,7 @@ func TestHTTPStatsWithMultipleClients(t *testing.T) {
 
 	getStats := func(path string) map[http.Key]http.RequestStats {
 		httpStats := make(map[http.Key]http.RequestStats)
-		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, path)
+		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, path, http.MethodGet)
 		var rs http.RequestStats
 		httpStats[key] = rs
 		return httpStats
@@ -1368,6 +1374,187 @@ func TestHTTPStatsWithMultipleClients(t *testing.T) {
 	assert.Len(t, delta.HTTP, 2)
 }
 
+func TestDetermineConnectionIntraHost(t *testing.T) {
+	tests := []struct {
+		name      string
+		conn      ConnectionStats
+		intraHost bool
+	}{
+		{
+			name: "equal source/dest",
+			conn: ConnectionStats{
+				Source: util.AddressFromString("1.1.1.1"),
+				Dest:   util.AddressFromString("1.1.1.1"),
+				SPort:  123,
+				DPort:  456,
+			},
+			intraHost: true,
+		},
+		{
+			name: "source/dest loopback",
+			conn: ConnectionStats{
+				Source: util.AddressFromString("127.0.0.1"),
+				Dest:   util.AddressFromString("127.0.0.1"),
+				SPort:  123,
+				DPort:  456,
+			},
+			intraHost: true,
+		},
+		{
+			name: "dest nat'ed to loopback",
+			conn: ConnectionStats{
+				Source: util.AddressFromString("1.1.1.1"),
+				Dest:   util.AddressFromString("2.2.2.2"),
+				SPort:  123,
+				DPort:  456,
+				IPTranslation: &IPTranslation{
+					ReplSrcIP:   util.AddressFromString("127.0.0.1"),
+					ReplDstIP:   util.AddressFromString("1.1.1.1"),
+					ReplSrcPort: 456,
+					ReplDstPort: 123,
+				},
+			},
+			intraHost: true,
+		},
+		{
+			name: "local connection with nat on both sides",
+			conn: ConnectionStats{
+				Source:    util.AddressFromString("1.1.1.1"),
+				Dest:      util.AddressFromString("169.254.169.254"),
+				SPort:     12345,
+				DPort:     80,
+				Direction: OUTGOING,
+				NetNS:     1212,
+				IPTranslation: &IPTranslation{
+					ReplSrcIP:   util.AddressFromString("127.0.0.1"),
+					ReplDstIP:   util.AddressFromString("1.1.1.1"),
+					ReplSrcPort: 8181,
+					ReplDstPort: 12345,
+				},
+			},
+			intraHost: true,
+		},
+		{
+			name: "local connection with nat on both sides",
+			conn: ConnectionStats{
+				Source:    util.AddressFromString("127.0.0.1"),
+				Dest:      util.AddressFromString("1.1.1.1"),
+				SPort:     8181,
+				DPort:     12345,
+				Direction: INCOMING,
+				NetNS:     1233,
+				IPTranslation: &IPTranslation{
+					ReplSrcIP:   util.AddressFromString("1.1.1.1"),
+					ReplDstIP:   util.AddressFromString("169.254.169.254"),
+					ReplSrcPort: 12345,
+					ReplDstPort: 80,
+				},
+			},
+			intraHost: true,
+		},
+		{
+			name: "remote connection with source translation (redirect)",
+			conn: ConnectionStats{
+				Source:    util.AddressFromString("4.4.4.4"),
+				Dest:      util.AddressFromString("2.2.2.2"),
+				SPort:     12345,
+				DPort:     80,
+				Direction: INCOMING,
+				NetNS:     2,
+				IPTranslation: &IPTranslation{
+					ReplSrcIP:   util.AddressFromString("2.2.2.2"),
+					ReplDstIP:   util.AddressFromString("127.0.0.1"),
+					ReplSrcPort: 12345,
+					ReplDstPort: 15006,
+				},
+			},
+			intraHost: false,
+		},
+		{
+			name: "local connection, same network ns",
+			conn: ConnectionStats{
+				Source:    util.AddressFromString("1.1.1.1"),
+				Dest:      util.AddressFromString("2.2.2.2"),
+				SPort:     12345,
+				DPort:     80,
+				Direction: OUTGOING,
+				NetNS:     1,
+			},
+			intraHost: true,
+		},
+		{
+			name: "local connection, same network ns",
+			conn: ConnectionStats{
+				Source:    util.AddressFromString("2.2.2.2"),
+				Dest:      util.AddressFromString("1.1.1.1"),
+				SPort:     80,
+				DPort:     12345,
+				Direction: INCOMING,
+				NetNS:     1,
+			},
+			intraHost: true,
+		},
+		{
+			name: "local connection, different network ns",
+			conn: ConnectionStats{
+				Source:    util.AddressFromString("1.1.1.1"),
+				Dest:      util.AddressFromString("2.2.2.2"),
+				SPort:     12345,
+				DPort:     80,
+				Direction: OUTGOING,
+				NetNS:     1,
+			},
+			intraHost: true,
+		},
+		{
+			name: "local connection, different network ns",
+			conn: ConnectionStats{
+				Source:    util.AddressFromString("2.2.2.2"),
+				Dest:      util.AddressFromString("1.1.1.1"),
+				SPort:     80,
+				DPort:     12345,
+				Direction: INCOMING,
+				NetNS:     2,
+			},
+			intraHost: true,
+		},
+		{
+			name: "remote connection",
+			conn: ConnectionStats{
+				Source:    util.AddressFromString("1.1.1.1"),
+				Dest:      util.AddressFromString("3.3.3.3"),
+				SPort:     12345,
+				DPort:     80,
+				Direction: OUTGOING,
+				NetNS:     1,
+			},
+			intraHost: false,
+		},
+	}
+
+	conns := make([]ConnectionStats, 0, len(tests))
+	for _, te := range tests {
+		conns = append(conns, te.conn)
+	}
+	state := newDefaultState().(*networkState)
+	state.determineConnectionIntraHost(conns)
+	for i, te := range tests {
+		if i >= len(conns) {
+			assert.Failf(t, "missing connection for %s", te.name)
+			continue
+		}
+		c := conns[i]
+		assert.Equal(t, te.intraHost, c.IntraHost, "name: %s, conn: %+v", te.name, c)
+		if c.Direction == INCOMING {
+			if c.IntraHost {
+				assert.Nil(t, c.IPTranslation, "name: %s, conn: %+v", te.name, c)
+			} else {
+				assert.NotNil(t, c.IPTranslation, "name: %s, conn: %+v", te.name, c)
+			}
+		}
+	}
+}
+
 func generateRandConnections(n int) []ConnectionStats {
 	cs := make([]ConnectionStats, 0, n)
 	for i := 0; i < n; i++ {
@@ -1396,4 +1583,15 @@ func latestEpochTime() uint64 {
 func newDefaultState() State {
 	// Using values from ebpf.NewConfig()
 	return NewState(2*time.Minute, 50000, 75000, 75000, 7500, false)
+}
+
+func getIPProtocol(nt ConnectionType) uint8 {
+	switch nt {
+	case TCP:
+		return syscall.IPPROTO_TCP
+	case UDP:
+		return syscall.IPPROTO_UDP
+	default:
+		panic("unknown connection type")
+	}
 }

@@ -6,6 +6,8 @@
 package listeners
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -77,17 +79,17 @@ func (s *EnvironmentService) GetTaggerEntity() string {
 }
 
 // GetADIdentifiers return the single AD identifier for an environment service
-func (s *EnvironmentService) GetADIdentifiers() ([]string, error) {
+func (s *EnvironmentService) GetADIdentifiers(context.Context) ([]string, error) {
 	return []string{s.adIdentifier}, nil
 }
 
 // GetHosts is not supported
-func (s *EnvironmentService) GetHosts() (map[string]string, error) {
+func (s *EnvironmentService) GetHosts(context.Context) (map[string]string, error) {
 	return nil, ErrNotSupported
 }
 
 // GetPorts returns nil and an error because port is not supported in this listener
-func (s *EnvironmentService) GetPorts() ([]ContainerPort, error) {
+func (s *EnvironmentService) GetPorts(context.Context) ([]ContainerPort, error) {
 	return nil, ErrNotSupported
 }
 
@@ -98,12 +100,12 @@ func (s *EnvironmentService) GetTags() ([]string, string, error) {
 
 // GetPid inspect the container and return its pid
 // Not relevant in this listener
-func (s *EnvironmentService) GetPid() (int, error) {
+func (s *EnvironmentService) GetPid(context.Context) (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetHostname returns nil and an error because port is not supported in this listener
-func (s *EnvironmentService) GetHostname() (string, error) {
+func (s *EnvironmentService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
 }
 
@@ -113,12 +115,12 @@ func (s *EnvironmentService) GetCreationTime() integration.CreationTime {
 }
 
 // IsReady is always true
-func (s *EnvironmentService) IsReady() bool {
+func (s *EnvironmentService) IsReady(context.Context) bool {
 	return true
 }
 
 // GetCheckNames is not supported
-func (s *EnvironmentService) GetCheckNames() []string {
+func (s *EnvironmentService) GetCheckNames(context.Context) []string {
 	return nil
 }
 

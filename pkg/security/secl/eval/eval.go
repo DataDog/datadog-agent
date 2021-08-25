@@ -48,7 +48,7 @@ type FieldValue struct {
 	Value interface{}
 	Type  FieldValueType
 
-	Regex *regexp.Regexp
+	Regexp *regexp.Regexp
 }
 
 // Opts are the options to be passed to the evaluator
@@ -61,6 +61,9 @@ type Opts struct {
 // Evaluator is the interface of an evaluator
 type Evaluator interface {
 	Eval(ctx *Context) interface{}
+	IsPartial() bool
+	GetField() string
+	IsScalar() bool
 }
 
 // EvaluatorStringer implements the stringer in order to show the result of an evaluation. Should probably used only for logging
@@ -87,6 +90,21 @@ func (b *BoolEvaluator) Eval(ctx *Context) interface{} {
 	return b.EvalFnc(ctx)
 }
 
+// IsPartial returns whether the evaluator is partial
+func (b *BoolEvaluator) IsPartial() bool {
+	return b.isPartial
+}
+
+// GetField returns field name used by this evaluator
+func (b *BoolEvaluator) GetField() string {
+	return b.Field
+}
+
+// IsScalar returns whether the evaluator is a scalar
+func (b *BoolEvaluator) IsScalar() bool {
+	return b.EvalFnc == nil
+}
+
 // IntEvaluator returns an int as result of the evaluation
 type IntEvaluator struct {
 	EvalFnc func(ctx *Context) int
@@ -94,12 +112,28 @@ type IntEvaluator struct {
 	Value   int
 	Weight  int
 
-	isPartial bool
+	isPartial  bool
+	isDuration bool
 }
 
 // Eval returns the result of the evaluation
 func (i *IntEvaluator) Eval(ctx *Context) interface{} {
 	return i.EvalFnc(ctx)
+}
+
+// IsPartial returns whether the evaluator is partial
+func (i *IntEvaluator) IsPartial() bool {
+	return i.isPartial
+}
+
+// GetField returns field name used by this evaluator
+func (i *IntEvaluator) GetField() string {
+	return i.Field
+}
+
+// IsScalar returns whether the evaluator is a scalar
+func (i *IntEvaluator) IsScalar() bool {
+	return i.EvalFnc == nil
 }
 
 // StringEvaluator returns a string as result of the evaluation
@@ -109,7 +143,6 @@ type StringEvaluator struct {
 	Value   string
 	Weight  int
 
-	isRegexp  bool
 	isPartial bool
 
 	valueType FieldValueType
@@ -123,6 +156,21 @@ func (s *StringEvaluator) Eval(ctx *Context) interface{} {
 	return s.EvalFnc(ctx)
 }
 
+// IsPartial returns whether the evaluator is partial
+func (s *StringEvaluator) IsPartial() bool {
+	return s.isPartial
+}
+
+// GetField returns field name used by this evaluator
+func (s *StringEvaluator) GetField() string {
+	return s.Field
+}
+
+// IsScalar returns whether the evaluator is a scalar
+func (s *StringEvaluator) IsScalar() bool {
+	return s.EvalFnc == nil
+}
+
 // StringArrayEvaluator returns an array of strings
 type StringArrayEvaluator struct {
 	EvalFnc func(ctx *Context) []string
@@ -130,18 +178,33 @@ type StringArrayEvaluator struct {
 	Values  []string
 	Weight  int
 
-	isRegexp  bool
 	isPartial bool
 
-	valueTypes []FieldValueType
+	fieldValues []FieldValue
 
 	// cache
+	scalars map[string]bool
 	regexps []*regexp.Regexp
 }
 
 // Eval returns the result of the evaluation
 func (s *StringArrayEvaluator) Eval(ctx *Context) interface{} {
 	return s.EvalFnc(ctx)
+}
+
+// IsPartial returns whether the evaluator is partial
+func (s *StringArrayEvaluator) IsPartial() bool {
+	return s.isPartial
+}
+
+// GetField returns field name used by this evaluator
+func (s *StringArrayEvaluator) GetField() string {
+	return s.Field
+}
+
+// IsScalar returns whether the evaluator is a scalar
+func (s *StringArrayEvaluator) IsScalar() bool {
+	return s.EvalFnc == nil
 }
 
 // IntArrayEvaluator returns an array of int
@@ -155,8 +218,23 @@ type IntArrayEvaluator struct {
 }
 
 // Eval returns the result of the evaluation
-func (s *IntArrayEvaluator) Eval(ctx *Context) interface{} {
-	return s.EvalFnc(ctx)
+func (i *IntArrayEvaluator) Eval(ctx *Context) interface{} {
+	return i.EvalFnc(ctx)
+}
+
+// IsPartial returns whether the evaluator is partial
+func (i *IntArrayEvaluator) IsPartial() bool {
+	return i.isPartial
+}
+
+// GetField returns field name used by this evaluator
+func (i *IntArrayEvaluator) GetField() string {
+	return i.Field
+}
+
+// IsScalar returns whether the evaluator is a scalar
+func (i *IntArrayEvaluator) IsScalar() bool {
+	return i.EvalFnc == nil
 }
 
 // BoolArrayEvaluator returns an array of bool
@@ -172,6 +250,21 @@ type BoolArrayEvaluator struct {
 // Eval returns the result of the evaluation
 func (b *BoolArrayEvaluator) Eval(ctx *Context) interface{} {
 	return b.EvalFnc(ctx)
+}
+
+// IsPartial returns whether the evaluator is partial
+func (b *BoolArrayEvaluator) IsPartial() bool {
+	return b.isPartial
+}
+
+// GetField returns field name used by this evaluator
+func (b *BoolArrayEvaluator) GetField() string {
+	return b.Field
+}
+
+// IsScalar returns whether the evaluator is a scalar
+func (b *BoolArrayEvaluator) IsScalar() bool {
+	return b.EvalFnc == nil
 }
 
 func extractField(field string) (Field, Field, RegisterID, error) {
@@ -294,61 +387,47 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *state) (interface{}, 
 			Values: array.Numbers,
 		}, array.Pos, nil
 	} else if len(array.StringMembers) != 0 {
-		var strs []string
-		var valueTypes []FieldValueType
-
-		isPlainStringArray := true
-		for _, member := range array.StringMembers {
-			if member.String != nil {
-				strs = append(strs, *member.String)
-				valueTypes = append(valueTypes, ScalarValueType)
-			} else if member.Pattern != nil {
-				strs = append(strs, *member.Pattern)
-				valueTypes = append(valueTypes, PatternValueType)
-				isPlainStringArray = false
-			} else {
-				strs = append(strs, *member.Regexp)
-				valueTypes = append(valueTypes, RegexpValueType)
-				isPlainStringArray = false
-			}
-		}
-
-		if isPlainStringArray {
-			return &StringArrayEvaluator{
-				Values:     strs,
-				valueTypes: valueTypes,
-			}, array.Pos, nil
-		}
-
-		var reg *regexp.Regexp
-		var regs []*regexp.Regexp
-		var err error
+		var se StringArrayEvaluator
 
 		for _, member := range array.StringMembers {
-			if member.String != nil {
-				// escape wildcard
-				str := strings.ReplaceAll(*member.String, "*", "\\*")
+			if member.Pattern != nil {
+				reg, err := patternToRegexp(*member.Pattern)
+				if err != nil {
+					return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid pattern `%s`: %s", *member.Pattern, err))
+				}
+				se.Values = append(se.Values, *member.Pattern)
+				se.regexps = append(se.regexps, reg)
+				se.fieldValues = append(se.fieldValues, FieldValue{
+					Value:  *member.Pattern,
+					Type:   PatternValueType,
+					Regexp: reg,
+				})
+			} else if member.Regexp != nil {
+				reg, err := regexp.Compile(*member.Regexp)
+				if err != nil {
+					return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid regexp `%s`: %s", *member.Regexp, err))
+				}
+				se.Values = append(se.Values, *member.Regexp)
+				se.regexps = append(se.regexps, reg)
 
-				if reg, err = patternToRegexp(str); err != nil {
-					return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid pattern '%s': %s", *member.String, err))
-				}
-			} else if member.Pattern != nil {
-				if reg, err = patternToRegexp(*member.Pattern); err != nil {
-					return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid pattern '%s': %s", *member.Pattern, err))
-				}
+				se.fieldValues = append(se.fieldValues, FieldValue{
+					Value:  *member.Regexp,
+					Type:   RegexpValueType,
+					Regexp: reg,
+				})
 			} else {
-				if reg, err = regexp.Compile(*member.Regexp); err != nil {
-					return nil, array.Pos, NewError(array.Pos, fmt.Sprintf("invalid regexp '%s': %s", *member.Regexp, err))
+				if se.scalars == nil {
+					se.scalars = make(map[string]bool)
 				}
+				se.Values = append(se.Values, *member.String)
+				se.scalars[*member.String] = true
+				se.fieldValues = append(se.fieldValues, FieldValue{
+					Value: *member.String,
+					Type:  ScalarValueType,
+				})
 			}
-			regs = append(regs, reg)
 		}
-		return &StringArrayEvaluator{
-			Values:     strs,
-			regexps:    regs,
-			isRegexp:   true,
-			valueTypes: valueTypes,
-		}, array.Pos, nil
+		return &se, array.Pos, nil
 	} else if array.Ident != nil {
 		if state.macros != nil {
 			if macro, ok := state.macros[*array.Ident]; ok {
@@ -689,46 +768,75 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 				case *IntEvaluator:
 					nextInt := next.(*IntEvaluator)
 
-					switch *obj.ScalarComparison.Op {
-					case "<":
-						boolEvaluator, err := LesserThan(unary, nextInt, opts, state)
-						if err != nil {
-							return nil, obj.Pos, err
+					if nextInt.isDuration {
+						switch *obj.ScalarComparison.Op {
+						case "<":
+							boolEvaluator, err := DurationLesserThan(unary, nextInt, opts, state)
+							if err != nil {
+								return nil, obj.Pos, err
+							}
+							return boolEvaluator, obj.Pos, nil
+						case "<=":
+							boolEvaluator, err := DurationLesserOrEqualThan(unary, nextInt, opts, state)
+							if err != nil {
+								return nil, obj.Pos, err
+							}
+							return boolEvaluator, obj.Pos, nil
+						case ">":
+							boolEvaluator, err := DurationGreaterThan(unary, nextInt, opts, state)
+							if err != nil {
+								return nil, obj.Pos, err
+							}
+							return boolEvaluator, obj.Pos, nil
+						case ">=":
+							boolEvaluator, err := DurationGreaterOrEqualThan(unary, nextInt, opts, state)
+							if err != nil {
+								return nil, obj.Pos, err
+							}
+							return boolEvaluator, obj.Pos, nil
 						}
-						return boolEvaluator, obj.Pos, nil
-					case "<=":
-						boolEvaluator, err := LesserOrEqualThan(unary, nextInt, opts, state)
-						if err != nil {
-							return nil, obj.Pos, err
-						}
-						return boolEvaluator, obj.Pos, nil
-					case ">":
-						boolEvaluator, err := GreaterThan(unary, nextInt, opts, state)
-						if err != nil {
-							return nil, obj.Pos, err
-						}
-						return boolEvaluator, obj.Pos, nil
-					case ">=":
-						boolEvaluator, err := GreaterOrEqualThan(unary, nextInt, opts, state)
-						if err != nil {
-							return nil, obj.Pos, err
-						}
-						return boolEvaluator, obj.Pos, nil
-					case "!=":
-						boolEvaluator, err := IntEquals(unary, nextInt, opts, state)
-						if err != nil {
-							return nil, obj.Pos, err
-						}
+					} else {
+						switch *obj.ScalarComparison.Op {
+						case "<":
+							boolEvaluator, err := LesserThan(unary, nextInt, opts, state)
+							if err != nil {
+								return nil, obj.Pos, err
+							}
+							return boolEvaluator, obj.Pos, nil
+						case "<=":
+							boolEvaluator, err := LesserOrEqualThan(unary, nextInt, opts, state)
+							if err != nil {
+								return nil, obj.Pos, err
+							}
+							return boolEvaluator, obj.Pos, nil
+						case ">":
+							boolEvaluator, err := GreaterThan(unary, nextInt, opts, state)
+							if err != nil {
+								return nil, obj.Pos, err
+							}
+							return boolEvaluator, obj.Pos, nil
+						case ">=":
+							boolEvaluator, err := GreaterOrEqualThan(unary, nextInt, opts, state)
+							if err != nil {
+								return nil, obj.Pos, err
+							}
+							return boolEvaluator, obj.Pos, nil
+						case "!=":
+							boolEvaluator, err := IntEquals(unary, nextInt, opts, state)
+							if err != nil {
+								return nil, obj.Pos, err
+							}
 
-						return Not(boolEvaluator, opts, state), obj.Pos, nil
-					case "==":
-						boolEvaluator, err := IntEquals(unary, nextInt, opts, state)
-						if err != nil {
-							return nil, obj.Pos, err
+							return Not(boolEvaluator, opts, state), obj.Pos, nil
+						case "==":
+							boolEvaluator, err := IntEquals(unary, nextInt, opts, state)
+							if err != nil {
+								return nil, obj.Pos, err
+							}
+							return boolEvaluator, obj.Pos, nil
+						default:
+							return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
 						}
-						return boolEvaluator, obj.Pos, nil
-					default:
-						return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
 					}
 				case *IntArrayEvaluator:
 					nextIntArray := next.(*IntArrayEvaluator)
@@ -873,6 +981,11 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 			return &IntEvaluator{
 				Value: *obj.Number,
 			}, obj.Pos, nil
+		case obj.Duration != nil:
+			return &IntEvaluator{
+				Value:      *obj.Duration,
+				isDuration: true,
+			}, obj.Pos, nil
 		case obj.String != nil:
 			return &StringEvaluator{
 				Value:     *obj.String,
@@ -886,7 +999,6 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 
 			return &StringEvaluator{
 				Value:     *obj.Pattern,
-				isRegexp:  true,
 				regexp:    reg,
 				valueType: PatternValueType,
 			}, obj.Pos, nil
@@ -898,7 +1010,6 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 
 			return &StringEvaluator{
 				Value:     *obj.Regexp,
-				isRegexp:  true,
 				regexp:    reg,
 				valueType: RegexpValueType,
 			}, obj.Pos, nil

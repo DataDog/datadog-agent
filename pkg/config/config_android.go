@@ -120,6 +120,10 @@ func (AssetFs) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 	return fi, true, err
 }
 
+func (AssetFs) Chown(name string, uid, gid int) error {
+	return errors.New("Invalid Operation: Can't chown in asset")
+}
+
 func (f AssetFile) Name() string {
 	return f.FileName
 }

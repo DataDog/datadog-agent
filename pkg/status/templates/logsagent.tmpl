@@ -61,7 +61,10 @@ Logs Agent
         {{ $message }}
       {{- end }}
       {{- if .inputs }}
-      Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}
+      Inputs:
+      {{- range $input := .inputs }}
+        {{$input}}
+      {{- end }}
       {{- end }}
       BytesRead: {{ .bytes_read }}
       Average Latency (ms): {{ .all_time_avg_latency }}

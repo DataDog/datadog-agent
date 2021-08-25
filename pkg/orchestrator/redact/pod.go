@@ -9,11 +9,13 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	v1 "k8s.io/api/core/v1"
 )
 
 const (
 	redactedValue = "********"
+	replacedValue = "-"
 )
 
 // ScrubContainer scrubs sensitive information in the command line & env vars
@@ -51,5 +53,12 @@ func ScrubContainer(c *v1.Container, scrubber *DataScrubber) {
 	}
 	if len(c.Args) > 0 {
 		c.Args = scrubbedMergedCommand[words:]
+	}
+}
+
+// RemoveLastAppliedConfigurationAnnotation redacts the whole "kubectl.kubernetes.io/last-applied-configuration" annotation. As it may contain duplicate information and secrets.
+func RemoveLastAppliedConfigurationAnnotation(annotations map[string]string) {
+	if _, found := annotations["kubectl.kubernetes.io/last-applied-configuration"]; found {
+		annotations["kubectl.kubernetes.io/last-applied-configuration"] = replacedValue
 	}
 }

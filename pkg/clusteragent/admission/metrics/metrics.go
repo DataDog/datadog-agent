@@ -9,6 +9,7 @@ package metrics
 
 import "github.com/DataDog/datadog-agent/pkg/telemetry"
 
+// Metric names
 const (
 	SecretControllerName   = "secrets"
 	WebhooksControllerName = "webhooks"
@@ -16,6 +17,7 @@ const (
 	ConfigMutationType     = "agent_config"
 )
 
+// Telemetry metrics
 var (
 	ReconcileSuccess = telemetry.NewGaugeWithOpts("admission_webhooks", "reconcile_success",
 		[]string{"controller"}, "Number of reconcile success per controller.",

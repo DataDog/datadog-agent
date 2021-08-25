@@ -11,6 +11,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -62,6 +63,11 @@ func (t *TagsResolver) Start(ctx context.Context) error {
 func (t *TagsResolver) Resolve(id string) []string {
 	tags, _ := t.tagger.Tag("container_id://"+id, collectors.OrchestratorCardinality)
 	return tags
+}
+
+// GetValue return the tag value for the given id and tag name
+func (t *TagsResolver) GetValue(id string, tag string) string {
+	return utils.GetTagValue(tag, t.Resolve(id))
 }
 
 // Stop the resolver

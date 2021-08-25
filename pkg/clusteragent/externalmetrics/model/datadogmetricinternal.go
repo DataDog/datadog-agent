@@ -21,6 +21,7 @@ import (
 	"k8s.io/metrics/pkg/apis/external_metrics"
 )
 
+// exported for testing purposes
 const (
 	DatadogMetricErrorConditionReason string = "Unable to fetch data from Datadog"
 )
@@ -39,6 +40,7 @@ type DatadogMetricInternal struct {
 	AutoscalerReferences string
 	UpdateTime           time.Time
 	Error                error
+	MaxAge               time.Duration
 }
 
 // NewDatadogMetricInternal returns a `DatadogMetricInternal` object from a `DatadogMetric` CRD Object
@@ -52,6 +54,7 @@ func NewDatadogMetricInternal(id string, datadogMetric datadoghq.DatadogMetric) 
 		Deleted:              false,
 		Autogen:              false,
 		AutoscalerReferences: datadogMetric.Status.AutoscalerReferences,
+		MaxAge:               datadogMetric.Spec.MaxAge.Duration,
 	}
 
 	if len(datadogMetric.Spec.ExternalMetricName) > 0 {
@@ -149,7 +152,7 @@ func (d *DatadogMetricInternal) IsNewerThan(currentStatus datadoghq.DatadogMetri
 	return true
 }
 
-// HasBeenUpdated returns true if the current `DatadogMetricInternal` has been update between Now() and Now() - duration
+// HasBeenUpdatedFor returns true if the current `DatadogMetricInternal` has been update between Now() and Now() - duration
 func (d *DatadogMetricInternal) HasBeenUpdatedFor(duration time.Duration) bool {
 	return d.UpdateTime.After(time.Now().UTC().Add(-duration))
 }
@@ -242,6 +245,7 @@ func (d *DatadogMetricInternal) resolveQuery(query string) {
 		return
 	}
 	if resolvedQuery != "" {
+		log.Infof("DatadogMetric query %q was resolved successfully, new query: %q", query, resolvedQuery)
 		d.resolvedQuery = &resolvedQuery
 		return
 	}
@@ -254,7 +258,7 @@ func (d *DatadogMetricInternal) SetQueries(q string) {
 	d.resolvedQuery = &q
 }
 
-// SetQueries is only used for testing in other packages
+// SetQuery is only used for testing in other packages
 func (d *DatadogMetricInternal) SetQuery(q string) {
 	d.query = q
 }

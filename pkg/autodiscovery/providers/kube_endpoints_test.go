@@ -9,6 +9,7 @@
 package providers
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -369,10 +370,11 @@ func TestInvalidateIfChangedService(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf(""), func(t *testing.T) {
+			ctx := context.Background()
 			provider := &kubeEndpointsConfigProvider{upToDate: true}
 			provider.invalidateIfChangedService(tc.old, tc.obj)
 
-			upToDate, err := provider.IsUpToDate()
+			upToDate, err := provider.IsUpToDate(ctx)
 			assert.NoError(t, err)
 			assert.Equal(t, !tc.invalidate, upToDate)
 		})
@@ -689,6 +691,7 @@ func TestInvalidateIfChangedEndpoints(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
 			provider := &kubeEndpointsConfigProvider{
 				upToDate: true,
 				monitoredEndpoints: map[string]bool{
@@ -697,7 +700,7 @@ func TestInvalidateIfChangedEndpoints(t *testing.T) {
 			}
 			provider.invalidateIfChangedEndpoints(tc.first, tc.second)
 
-			upToDate, err := provider.IsUpToDate()
+			upToDate, err := provider.IsUpToDate(ctx)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.upToDate, upToDate)
 		})

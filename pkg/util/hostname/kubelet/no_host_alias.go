@@ -7,9 +7,12 @@
 
 package hostinfo
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
 // GetHostAlias uses the "kubelet" hostname provider to fetch the kubernetes alias
-func GetHostAlias() (string, error) {
+func GetHostAlias(ctx context.Context) (string, error) {
 	return "", fmt.Errorf("Kubernetes support not build: couldn't extract a host alias from the kubelet")
 }

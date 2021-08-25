@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Python interpreter ``sys.executable`` is now set to the appropriate interpreter's
+    executable path. This should allow ``multiprocessing`` to be able to spawn new
+    processes since it will try to invoke the Python interpreter instead of the Agent
+    itself. It should be noted though that the Pyton packages injected at runtime by
+    the Agent are only available from the main process, not from any sub-processes.

@@ -18,15 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func canConfigure() bool {
-	if _, err := security.FetchAuthToken(); err != nil {
-		return false
-	}
-	return true
-}
 func onConfigure() {
 	// seems like a waste.  However, the handler function doesn't expect an error code.
-	// this just eates the error code.
+	// this just eats the error code.
 	err := doConfigure()
 	if err != nil {
 		log.Warnf("Failed to launch gui %v", err)

@@ -33,7 +33,7 @@ type oomKillModule struct {
 	*probe.OOMKillProbe
 }
 
-func (o *oomKillModule) Register(httpMux *http.ServeMux) error {
+func (o *oomKillModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check/oom_kill", func(w http.ResponseWriter, req *http.Request) {
 		stats := o.OOMKillProbe.GetAndFlush()
 		utils.WriteAsJSON(w, stats)

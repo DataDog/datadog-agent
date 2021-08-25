@@ -104,3 +104,17 @@ Severity=Error
 Language=English
 The service failed to start. Error %1
 .
+
+MessageId=15
+SymbolicName=MSG_SYSPROBE_RESTART_INACTIVITY
+Severity=Warning
+Language=English
+System probe restarting after %1.  The process agent has not queried for data.  It may not be configured correctly and/or running.
+.
+
+MessageId=16
+SymbolicName=MSG_AGENT_PRE_SHUTDOWN_STARTING
+Severity=Informational
+Language=English
+The service %1 service is initiating pre-shutdown.
+.

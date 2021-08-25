@@ -23,25 +23,6 @@ import (
 )
 
 const (
-	// PayloadTypePod is the name of the pod payload type
-	PayloadTypePod = "pod"
-	// PayloadTypeDeployment is the name of the deployment payload type
-	PayloadTypeDeployment = "deployment"
-	// PayloadTypeReplicaSet is the name of the replica set payload type
-	PayloadTypeReplicaSet = "replicaset"
-	// PayloadTypeService is the name of the service payload type
-	PayloadTypeService = "service"
-	// PayloadTypeNode is the name of the node payload type
-	PayloadTypeNode = "node"
-	// PayloadTypeCluster is the name of the cluster payload type
-	PayloadTypeCluster = "cluster"
-	// PayloadTypeJob is the name of the cluster payload type
-	PayloadTypeJob = "job"
-	// PayloadTypeCronJob is the name of the cluster payload type
-	PayloadTypeCronJob = "cronjob"
-)
-
-const (
 	// Stopped represent the internal state of an unstarted Forwarder.
 	Stopped uint32 = iota
 	// Started represent the internal state of an started Forwarder.
@@ -78,7 +59,6 @@ type Forwarder interface {
 	SubmitV1Series(payload Payloads, extra http.Header) error
 	SubmitV1Intake(payload Payloads, extra http.Header) error
 	SubmitV1CheckRuns(payload Payloads, extra http.Header) error
-	SubmitSeries(payload Payloads, extra http.Header) error
 	SubmitEvents(payload Payloads, extra http.Header) error
 	SubmitServiceChecks(payload Payloads, extra http.Header) error
 	SubmitSketchSeries(payload Payloads, extra http.Header) error
@@ -90,7 +70,7 @@ type Forwarder interface {
 	SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error)
-	SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error)
+	SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error)
 }
 
 // Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
@@ -224,6 +204,9 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 		log.Infof("Retry queue storage on disk is disabled")
 	} else if agentFolder := getAgentFolder(options); agentFolder != "" {
 		storagePath := config.Datadog.GetString("forwarder_storage_path")
+		if storagePath == "" {
+			storagePath = path.Join(config.Datadog.GetString("run_path"), "transactions_to_retry")
+		}
 		outdatedFileInDays := config.Datadog.GetInt("forwarder_outdated_file_in_days")
 		var err error
 
@@ -442,12 +425,6 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 	return nil
 }
 
-// SubmitSeries will send a series type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(seriesEndpoint, payload, false, extra)
-	return f.sendHTTPTransactions(transactions)
-}
-
 // SubmitEvents will send an event type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitEvents(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(eventsEndpoint, payload, false, extra)
@@ -550,25 +527,8 @@ func (f *DefaultForwarder) SubmitConnectionChecks(payload Payloads, extra http.H
 }
 
 // SubmitOrchestratorChecks sends orchestrator checks
-func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
-	switch payloadType {
-	case PayloadTypePod:
-		transactionsIntakePod.Add(1)
-	case PayloadTypeDeployment:
-		transactionsIntakeDeployment.Add(1)
-	case PayloadTypeReplicaSet:
-		transactionsIntakeReplicaSet.Add(1)
-	case PayloadTypeService:
-		transactionsIntakeService.Add(1)
-	case PayloadTypeNode:
-		transactionsIntakeNode.Add(1)
-	case PayloadTypeJob:
-		transactionsIntakeJob.Add(1)
-	case PayloadTypeCronJob:
-		transactionsIntakeCronJob.Add(1)
-	case PayloadTypeCluster:
-		transactionsIntakeCluster.Add(1)
-	}
+func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
+	bumpOrchestratorPayload(payloadType)
 
 	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)
 }

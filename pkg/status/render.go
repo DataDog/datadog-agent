@@ -38,7 +38,7 @@ func FormatStatus(data []byte) (string, error) {
 	aggregatorStats := stats["aggregatorStats"]
 	s, err := check.TranslateEventPlatformEventTypes(aggregatorStats)
 	if err != nil {
-		log.Debug("failed to translate event platform event types in aggregatorStats: %s", err.Error())
+		log.Debugf("failed to translate event platform event types in aggregatorStats: %s", err.Error())
 	} else {
 		aggregatorStats = s
 	}
@@ -68,6 +68,9 @@ func FormatStatus(data []byte) (string, error) {
 	}
 	if traps.IsEnabled() {
 		renderStatusTemplate(b, "/snmp-traps.tmpl", snmpTrapsStats)
+	}
+	if config.IsContainerized() {
+		renderAutodiscoveryStats(b, stats["adConfigErrors"], stats["filterErrors"])
 	}
 
 	return b.String(), nil
@@ -181,6 +184,13 @@ func renderRuntimeSecurityStats(w io.Writer, runtimeSecurityStatus interface{}) 
 	status := make(map[string]interface{})
 	status["RuntimeSecurityStatus"] = runtimeSecurityStatus
 	renderStatusTemplate(w, "/runtimesecurity.tmpl", status)
+}
+
+func renderAutodiscoveryStats(w io.Writer, adConfigErrors interface{}, filterErrors interface{}) {
+	autodiscoveryStats := make(map[string]interface{})
+	autodiscoveryStats["adConfigErrors"] = adConfigErrors
+	autodiscoveryStats["filterErrors"] = filterErrors
+	renderStatusTemplate(w, "/autodiscovery.tmpl", autodiscoveryStats)
 }
 
 func renderStatusTemplate(w io.Writer, templateName string, stats interface{}) {

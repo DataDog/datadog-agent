@@ -40,7 +40,7 @@ type pluggableAutoConfig interface {
 	RemoveScheduler(string)
 }
 
-// The handler is the glue holding all components for cluster-checks management
+// Handler is the glue holding all components for cluster-checks management
 type Handler struct {
 	autoconfig           pluggableAutoConfig
 	dispatcher           *dispatcher

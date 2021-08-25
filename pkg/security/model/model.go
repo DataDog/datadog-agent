@@ -133,6 +133,8 @@ type Event struct {
 	SetGID SetgidEvent `field:"setgid" event:"setgid"`
 	Capset CapsetEvent `field:"capset" event:"capset"`
 
+	SELinux SELinuxEvent `field:"selinux" event:"selinux"`
+
 	Mount            MountEvent            `field:"-"`
 	Umount           UmountEvent           `field:"-"`
 	InvalidateDentry InvalidateDentryEvent `field:"-"`
@@ -230,25 +232,21 @@ type Process struct {
 	Tid uint32 `field:"tid"`
 
 	PathnameStr         string `field:"file.path"`
-	ContainerPath       string `field:"file.container_path"`
 	BasenameStr         string `field:"file.name"`
 	Filesystem          string `field:"file.filesystem"`
 	PathResolutionError error  `field:"-"`
 
 	ContainerID string `field:"container.id"`
 
-	ExecTimestamp uint64    `field:"-"`
-	ExecTime      time.Time `field:"-"`
-
 	TTYName string `field:"tty_name"`
 	Comm    string `field:"comm"`
 
 	// pid_cache_t
-	ForkTimestamp uint64    `field:"-"`
-	ForkTime      time.Time `field:"-"`
+	ForkTime time.Time `field:"-"`
+	ExitTime time.Time `field:"-"`
+	ExecTime time.Time `field:"-"`
 
-	ExitTimestamp uint64    `field:"-"`
-	ExitTime      time.Time `field:"-"`
+	CreatedAt uint64 `field:"created_at,ResolveProcessCreatedAt"`
 
 	Cookie uint32 `field:"cookie"`
 	PPid   uint32 `field:"ppid"`
@@ -256,40 +254,42 @@ type Process struct {
 	// credentials_t section of pid_cache_t
 	Credentials
 
-	ArgsArray     []string `field:"-"`
-	ArgsTruncated bool     `field:"-"`
-	EnvsArray     []string `field:"-"`
-	EnvsTruncated bool     `field:"-"`
-
 	ArgsID uint32 `field:"-"`
 	EnvsID uint32 `field:"-"`
+
+	ArgsEntry     *ArgsEntry `field:"-"`
+	EnvsEntry     *EnvsEntry `field:"-"`
+	EnvsTruncated bool       `field:"-"`
+	ArgsTruncated bool       `field:"-"`
 }
 
 // ExecEvent represents a exec event
 type ExecEvent struct {
 	Process
 
+	// defined to generate accessors
 	Args          string   `field:"args,ResolveExecArgs"`
 	Argv          []string `field:"argv,ResolveExecArgv" field:"args_flags,ResolveExecArgsFlags" field:"args_options,ResolveExecArgsOptions"`
-	ArgsTruncated bool     `field:"args_truncated"`
+	ArgsTruncated bool     `field:"args_truncated,ResolveExecArgsTruncated"`
 	Envs          []string `field:"envs,ResolveExecEnvs"`
-	EnvsTruncated bool     `field:"envs_truncated"`
+	EnvsTruncated bool     `field:"envs_truncated,ResolveExecEnvsTruncated"`
 }
 
 // FileFields holds the information required to identify a file
 type FileFields struct {
-	UID   uint32    `field:"uid"`
-	User  string    `field:"user,ResolveFileFieldsUser"`
-	GID   uint32    `field:"gid"`
-	Group string    `field:"group,ResolveFileFieldsGroup"`
-	Mode  uint16    `field:"mode" field:"rights,ResolveRights"`
-	CTime time.Time `field:"-"`
-	MTime time.Time `field:"-"`
+	UID   uint32 `field:"uid"`
+	User  string `field:"user,ResolveFileFieldsUser"`
+	GID   uint32 `field:"gid"`
+	Group string `field:"group,ResolveFileFieldsGroup"`
+	Mode  uint16 `field:"mode" field:"rights,ResolveRights"`
+	CTime uint64 `field:"change_time"`
+	MTime uint64 `field:"modification_time"`
 
-	MountID uint32 `field:"mount_id"`
-	Inode   uint64 `field:"inode"`
-	PathID  uint32 `field:"-"`
-	Flags   int32  `field:"-"`
+	MountID      uint32 `field:"mount_id"`
+	Inode        uint64 `field:"inode"`
+	PathID       uint32 `field:"-"`
+	Flags        int32  `field:"-"`
+	InUpperLayer bool   `field:"in_upper_layer,ResolveFileFieldsInUpperLayer"`
 }
 
 // GetInLowerLayer returns whether a file is in a lower layer
@@ -305,11 +305,9 @@ func (f *FileFields) GetInUpperLayer() bool {
 // FileEvent is the common file event type
 type FileEvent struct {
 	FileFields
-	PathnameStr   string `field:"path,ResolveFilePath"`
-	ContainerPath string `field:"container_path,ResolveFileContainerPath"`
-	BasenameStr   string `field:"name,ResolveFileBasename"`
-	Filesytem     string `field:"filesystem,ResolveFileFilesystem"`
-	InUpperLayer  bool   `field:"in_upper_layer,ResolveFileInUpperLayer"`
+	PathnameStr string `field:"path,ResolveFilePath"`
+	BasenameStr string `field:"name,ResolveFileBasename"`
+	Filesytem   string `field:"filesystem,ResolveFileFilesystem"`
 
 	PathResolutionError error `field:"-"`
 }
@@ -351,11 +349,7 @@ type MkdirEvent struct {
 
 // ArgsEnvsEvent defines a args/envs event
 type ArgsEnvsEvent struct {
-	ID          uint32
-	Size        uint32
-	Values      []string
-	ValuesRaw   [128]byte
-	IsTruncated bool
+	ArgsEnvs
 }
 
 // MountEvent represents a mount event
@@ -414,9 +408,66 @@ type OpenEvent struct {
 	Mode  uint32    `field:"file.destination.mode"`
 }
 
+// SELinuxEventKind represents the event kind for SELinux events
+type SELinuxEventKind uint32
+
+const (
+	// SELinuxBoolChangeEventKind represents SELinux boolean change events
+	SELinuxBoolChangeEventKind SELinuxEventKind = iota
+	// SELinuxStatusChangeEventKind represents SELinux status change events
+	SELinuxStatusChangeEventKind
+	// SELinuxBoolCommitEventKind represents SELinux boolean commit events
+	SELinuxBoolCommitEventKind
+)
+
+// SELinuxEvent represents a selinux event
+type SELinuxEvent struct {
+	File            FileEvent        `field:"-"`
+	EventKind       SELinuxEventKind `field:"-"`
+	BoolName        string           `field:"bool.name,ResolveSELinuxBoolName"`
+	BoolChangeValue string           `field:"bool.state"`
+	BoolCommitValue bool             `field:"bool_commit.state"`
+	EnforceStatus   string           `field:"enforce.status"`
+}
+
+var zeroProcessContext ProcessContext
+
 // ProcessCacheEntry this struct holds process context kept in the process tree
 type ProcessCacheEntry struct {
 	ProcessContext
+
+	refCount  uint64                     `field:"-"`
+	onRelease func(_ *ProcessCacheEntry) `field:"-"`
+}
+
+// Reset the entry
+func (e *ProcessCacheEntry) Reset() {
+	e.ProcessContext = zeroProcessContext
+	e.refCount = 0
+}
+
+// Retain increment ref counter
+func (e *ProcessCacheEntry) Retain() {
+	e.refCount++
+}
+
+// Release decrement and eventually release the entry
+func (e *ProcessCacheEntry) Release() {
+	e.refCount--
+	if e.refCount > 0 {
+		return
+	}
+
+	if e.onRelease != nil {
+		e.onRelease(e)
+	}
+}
+
+// NewProcessCacheEntry returns a new process cache entry
+func NewProcessCacheEntry(onRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
+	return &ProcessCacheEntry{
+		onRelease: onRelease,
+	}
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors

@@ -218,6 +218,10 @@ def has_upstart
   system('/sbin/init --version 2>&1 | grep -q upstart >/dev/null')
 end
 
+def has_dpkg
+  system('command -v dpkg 2>&1 > /dev/null')
+end
+
 def info
   `#{agent_command} status 2>&1`
 end
@@ -393,7 +397,7 @@ def is_file_signed(fullpath)
   puts "checking file #{fullpath}"
   expect(File).to exist(fullpath)
   output = `powershell -command get-authenticodesignature -FilePath '#{fullpath}'`
-  signature_hash = "21FE8679BDFB16B879A87DF228003758B62ABF5E"
+  signature_hash = "748A3B5C681AF45FAC149A76FE59E7CBBDFF058C"
   if not output.include? signature_hash
     return false
   end
@@ -406,8 +410,13 @@ def is_file_signed(fullpath)
   return true
 end
 
+def is_dpkg_package_installed(package)
+  system("dpkg -l #{package} | grep ii")
+end
+
 shared_examples_for 'Agent install' do
   it_behaves_like 'an installed Agent'
+  it_behaves_like 'an installed Datadog Signing Keys'
 end
 
 shared_examples_for 'Agent behavior' do
@@ -479,6 +488,15 @@ shared_examples_for "an installed Agent" do
         expect(is_signed).to be_truthy
       end
     end
+  end
+end
+
+shared_examples_for "an installed Datadog Signing Keys" do
+  it 'is installed (on Debian-based systems)' do
+    skip if os == :windows
+    skip unless has_dpkg
+    # Only check on Debian-based systems, which have dpkg installed
+    expect(is_dpkg_package_installed('datadog-signing-keys')).to be_truthy
   end
 end
 
@@ -700,14 +718,14 @@ shared_examples_for 'an Agent with integrations' do
 
   before do
     freeze_content = File.read(integrations_freeze_file)
-    freeze_content.gsub!(/datadog-cilium==.*/, 'datadog-cilium==1.0.1')
+    freeze_content.gsub!(/datadog-cilium==.*/, 'datadog-cilium==1.5.3')
     File.write(integrations_freeze_file, freeze_content)
 
     integration_remove('datadog-cilium')
   end
 
   it 'can uninstall an installed package' do
-    integration_install('datadog-cilium==1.0.1')
+    integration_install('datadog-cilium==1.5.3')
 
     expect do
       integration_remove('datadog-cilium')
@@ -718,32 +736,32 @@ shared_examples_for 'an Agent with integrations' do
     integration_remove('datadog-cilium')
 
     expect do
-      integration_install('datadog-cilium==1.0.1')
-    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.0\.1}) }.from(false).to(true)
+      integration_install('datadog-cilium==1.5.3')
+    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.5\.3}) }.from(false).to(true)
   end
 
   it 'can upgrade an installed package' do
     expect do
-      integration_install('datadog-cilium==1.0.2')
-    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.0\.2}) }.from(false).to(true)
+      integration_install('datadog-cilium==1.6.0')
+    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.6\.0}) }.from(false).to(true)
   end
 
   it 'can downgrade an installed package' do
     integration_remove('datadog-cilium')
-    integration_install('datadog-cilium==1.0.2')
+    integration_install('datadog-cilium==1.6.0')
 
     expect do
-      integration_install('datadog-cilium==1.0.1')
-    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.0\.1}) }.from(false).to(true)
+      integration_install('datadog-cilium==1.5.3')
+    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.5\.3}) }.from(false).to(true)
   end
 
   it 'cannot downgrade an installed package to a version older than the one shipped with the agent' do
     integration_remove('datadog-cilium')
-    integration_install('datadog-cilium==1.0.1')
+    integration_install('datadog-cilium==1.5.3')
 
     expect do
-      integration_install('datadog-cilium==1.0.0')
-    end.to raise_error(/Failed to install integrations package 'datadog-cilium==1\.0\.0'/)
+      integration_install('datadog-cilium==1.5.2')
+    end.to raise_error(/Failed to install integrations package 'datadog-cilium==1\.5\.2'/)
   end
 end
 
@@ -782,6 +800,7 @@ shared_examples_for 'an Agent that is removed' do
             'C:/Windows/WinSxS/',
             'C:/Windows/Logs/',
             'C:/Windows/servicing/',
+            'c:/Windows/System32/catroot2/',
             'c:/windows/System32/config/',
             'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Logs/',
             'C:/Windows/ServiceProfiles/NetworkService/AppData/Local/Microsoft/Windows/DeliveryOptimization/Cache/',

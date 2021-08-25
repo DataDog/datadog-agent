@@ -107,13 +107,6 @@ type RawBucket struct {
 	keyBuf strings.Builder
 }
 
-// PayloadKey uniquely identifies a ClientStatsPayload inside a StatsPayload
-type PayloadKey struct {
-	hostname string
-	version  string
-	env      string
-}
-
 // NewRawBucket opens a new calculation bucket for time ts and initializes it properly
 func NewRawBucket(ts, d uint64) *RawBucket {
 	// The only non-initialized value is the Duration which should be set by whoever closes that bucket
@@ -127,18 +120,19 @@ func NewRawBucket(ts, d uint64) *RawBucket {
 // Export transforms a RawBucket into a ClientStatsBucket, typically used
 // before communicating data to the API, as RawBucket is the internal
 // type while ClientStatsBucket is the public, shared one.
-func (sb *RawBucket) Export() map[PayloadKey]pb.ClientStatsBucket {
-	m := make(map[PayloadKey]pb.ClientStatsBucket)
+func (sb *RawBucket) Export() map[PayloadAggregationKey]pb.ClientStatsBucket {
+	m := make(map[PayloadAggregationKey]pb.ClientStatsBucket)
 	for k, v := range sb.data {
 		b, err := v.export(k)
 		if err != nil {
 			log.Errorf("Dropping stats bucket due to encoding error: %v.", err)
 			continue
 		}
-		key := PayloadKey{
-			hostname: k.Hostname,
-			version:  k.Version,
-			env:      k.Env,
+		key := PayloadAggregationKey{
+			Hostname:    k.Hostname,
+			Version:     k.Version,
+			Env:         k.Env,
+			ContainerID: k.ContainerID,
 		}
 		s, ok := m[key]
 		if !ok {
@@ -154,11 +148,11 @@ func (sb *RawBucket) Export() map[PayloadKey]pb.ClientStatsBucket {
 }
 
 // HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators
-func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, agentHostname string) {
+func (sb *RawBucket) HandleSpan(s *WeightedSpan, env string, agentHostname, containerID string) {
 	if env == "" {
 		panic("env should never be empty")
 	}
-	aggr := NewAggregationFromSpan(s.Span, env, agentHostname)
+	aggr := NewAggregationFromSpan(s.Span, env, agentHostname, containerID)
 	sb.add(s, aggr)
 }
 

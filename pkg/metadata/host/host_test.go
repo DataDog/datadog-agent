@@ -7,6 +7,7 @@
 package host
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"path"
@@ -26,7 +27,8 @@ import (
 )
 
 func TestGetPayload(t *testing.T) {
-	p := GetPayload(util.HostnameData{Hostname: "myhostname", Provider: ""})
+	ctx := context.Background()
+	p := GetPayload(ctx, util.HostnameData{Hostname: "myhostname", Provider: ""})
 	assert.NotEmpty(t, p.Os)
 	assert.NotEmpty(t, p.AgentFlavor)
 	assert.NotEmpty(t, p.PythonVersion)
@@ -72,7 +74,8 @@ func TestGetHostInfo(t *testing.T) {
 }
 
 func TestGetMeta(t *testing.T) {
-	meta := getMeta(util.HostnameData{})
+	ctx := context.Background()
+	meta := getMeta(ctx, util.HostnameData{})
 	assert.NotEmpty(t, meta.SocketHostname)
 	assert.NotEmpty(t, meta.Timezones)
 	assert.NotEmpty(t, meta.SocketFqdn)
@@ -179,7 +182,7 @@ func TestGetProxyMeta(t *testing.T) {
 	assert.Equal(t, meta.NoProxyNonexactMatch, true)
 	assert.Equal(t, meta.ProxyBehaviorChanged, false)
 
-	httputils.NoProxyWarningMap["http://someUrl.com"] = true
+	httputils.NoProxyIgnoredWarningMap["http://someUrl.com"] = true
 	meta = getProxyMeta()
 	assert.Equal(t, meta.ProxyBehaviorChanged, true)
 }

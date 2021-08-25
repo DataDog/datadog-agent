@@ -1,5 +1,28 @@
 suites:
-  - name: dd-agent-installopts
+  - name: win-repair
+    run_list:
+      - "recipe[dd-agent-install::_install_windows_base]"
+      - "recipe[dd-agent-install::_stop_windows_agent]"
+      - "recipe[dd-agent-install::_damage_windows_install]"
+      - "recipe[dd-agent-install::_repair_windows_install]"
+    attributes:
+      datadog:
+        <% dd_agent_config.each do |key, value| %>
+        <%= key %>: <%= value %>
+        <% end %>
+      dd-agent-install:
+        agent6: false
+        <% if ENV['AGENT_VERSION'] %>
+        windows_version: "<%= ENV['AGENT_VERSION'] %>"
+        <% end %>
+        windows_agent_url: <%= windows_agent_url %>
+        <% if ENV['WINDOWS_AGENT_FILE'] %>
+        windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
+        <% end %>
+      dd-agent-rspec:
+        skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
+
+  - name: win-installopts
     run_list:
       - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
@@ -22,7 +45,7 @@ suites:
         agent_install_options: >
           APIKEY=<%= api_key %>
           TAGS=k1:v1,k2:v2
-          HOSTNAME=dd-agent-installopts
+          HOSTNAME=win-installopts
           CMD_PORT=4999
           PROXY_HOST=proxy.foo.com
           PROXY_PORT=1234
@@ -36,7 +59,7 @@ suites:
       dd-agent-rspec:
         skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
-  - name: dd-agent-all-subservices
+  - name: win-all-subservices
     run_list:
       - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
@@ -65,7 +88,7 @@ suites:
       dd-agent-rspec:
         skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
-  - name: dd-agent-no-subservices
+  - name: win-no-subservices
     run_list:
       - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
@@ -94,7 +117,7 @@ suites:
       dd-agent-rspec:
         skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
-  - name: dd-agent-user-win
+  - name: win-user
     run_list:
       - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
@@ -122,7 +145,7 @@ suites:
       dd-agent-rspec:
         skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
-  - name: dd-agent-install-fail
+  - name: win-install-fail
     run_list:
         - "recipe[dd-agent-install::_install_windows_base]"
     attributes:
@@ -151,7 +174,7 @@ suites:
       dd-agent-rspec:
         skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
-  - name: dd-agent-alt-dir
+  - name: win-alt-dir
     run_list:
         - "recipe[dd-agent-install::_install_windows_base]"
     attributes:

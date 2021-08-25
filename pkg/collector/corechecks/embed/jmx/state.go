@@ -25,7 +25,7 @@ type jmxState struct {
 	lock        *sync.Mutex
 }
 
-var state jmxState = jmxState{
+var state = jmxState{
 	configs:     cache.NewBasicCache(),
 	runnerError: make(chan struct{}),
 	runner:      &runner{},

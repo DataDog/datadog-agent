@@ -8,15 +8,16 @@
 package checks
 
 import (
+	"context"
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	orchutil "github.com/DataDog/datadog-agent/pkg/util/orchestrator"
 )
 
 // Pod is a singleton PodCheck.
@@ -54,10 +55,10 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 		return nil, err
 	}
 
-	podList, err := kubeUtil.GetRawLocalPodList()
+	podList, err := kubeUtil.GetRawLocalPodList(context.TODO())
 	if err != nil {
 		return nil, err
 	}
 
-	return orchestrator.ProcessPodList(podList, groupID, cfg.HostName, clusterID, cfg.Orchestrator)
+	return orchutil.ProcessPodList(podList, groupID, cfg.HostName, clusterID, cfg.Orchestrator)
 }

@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/soniah/gosnmp"
+	"github.com/gosnmp/gosnmp"
 )
 
 func validateCredentials(p *gosnmp.SnmpPacket, c *Config) error {

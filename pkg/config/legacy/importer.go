@@ -53,8 +53,8 @@ var (
 		"syslog_port",
 		"collect_instance_metadata",
 		"listen_port",          // not for 6.0, ignore for now
-		"non_local_traffic",    // not for 6.0, converted for the trace-agent
 		"create_dd_check_tags", // not for 6.0, ignore for now
+		"non_local_traffic",    // converted for the trace-agent and dogstatsd
 		"bind_host",
 		"proxy_forbid_method_switch", // deprecated
 		"collect_orchestrator_tags",  // deprecated

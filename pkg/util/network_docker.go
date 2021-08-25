@@ -3,6 +3,7 @@
 package util
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -11,14 +12,14 @@ import (
 )
 
 // GetAgentNetworkMode retrieves from Docker the network mode of the Agent container
-func GetAgentNetworkMode() (string, error) {
+func GetAgentNetworkMode(ctx context.Context) (string, error) {
 	cacheNetworkModeKey := cache.BuildAgentKey("networkMode")
 	if cacheNetworkMode, found := cache.Cache.Get(cacheNetworkModeKey); found {
 		return cacheNetworkMode.(string), nil
 	}
 
 	log.Debugf("GetAgentNetworkMode trying Docker")
-	networkMode, err := docker.GetAgentContainerNetworkMode()
+	networkMode, err := docker.GetAgentContainerNetworkMode(ctx)
 	cache.Cache.Set(cacheNetworkModeKey, networkMode, cache.NoExpiration)
 	if err != nil {
 		return networkMode, fmt.Errorf("could not detect agent network mode: %v", err)

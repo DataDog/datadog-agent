@@ -79,13 +79,13 @@ func GetClusterChecks(w io.Writer) error {
 		fmt.Fprintln(w, "")
 	}
 
-	// Print summary of node-agents
+	// Print summary of agents
 	if len(cr.Nodes) == 0 {
-		fmt.Fprintln(w, fmt.Sprintf("=== %s node-agent reporting ===", color.RedString("Zero")))
-		fmt.Fprintln(w, "No check will be dispatched until node-agents report to the cluster-agent")
+		fmt.Fprintln(w, fmt.Sprintf("=== %s agent reporting ===", color.RedString("Zero")))
+		fmt.Fprintln(w, "No check will be dispatched until agents report to the cluster-agent")
 		return nil
 	}
-	fmt.Fprintln(w, fmt.Sprintf("=== %d node-agents reporting ===", len(cr.Nodes)))
+	fmt.Fprintln(w, fmt.Sprintf("=== %d agents reporting ===", len(cr.Nodes)))
 	sort.Slice(cr.Nodes, func(i, j int) bool { return cr.Nodes[i].Name < cr.Nodes[j].Name })
 	table := tabwriter.NewWriter(w, 0, 0, 3, ' ', 0)
 	fmt.Fprintln(table, "\nName\tRunning checks")

@@ -1,15 +1,22 @@
 package app
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -21,10 +28,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
-	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 )
+
+// ErrNotEnabled represents the case in which system-probe is not enabled
+var ErrNotEnabled = errors.New("system-probe not enabled")
 
 var (
 	// flags variables
@@ -48,7 +55,9 @@ func init() {
 
 // Start the main loop
 func run(_ *cobra.Command, _ []string) error {
+	mainCtx, mainCancel := context.WithCancel(context.Background())
 	defer func() {
+		mainCancel()
 		StopSystemProbe()
 	}()
 
@@ -89,14 +98,25 @@ func run(_ *cobra.Command, _ []string) error {
 	}()
 
 	if err := StartSystemProbe(); err != nil {
+		if err == ErrNotEnabled {
+			// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
+			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
+			// http://supervisord.org/subprocess.html#process-states
+			time.Sleep(5 * time.Second)
+			return nil
+		}
 		return err
 	}
+
+	err := manager.ConfigureAutoExit(mainCtx)
+	if err != nil {
+		return log.Criticalf("Unable to configure auto-exit, err: %w", err)
+	}
+
 	log.Infof("system probe successfully started")
 
-	select {
-	case err := <-stopCh:
-		return err
-	}
+	err = <-stopCh
+	return err
 }
 
 // StartSystemProbe Initializes the system-probe process
@@ -141,14 +161,13 @@ func StartSystemProbe() error {
 	// Exit if system probe is disabled
 	if cfg.ExternalSystemProbe || !cfg.Enabled {
 		log.Info("system probe not enabled. exiting.")
-		return nil
+		return ErrNotEnabled
 	}
 
 	if cfg.ProfilingEnabled {
 		if err := enableProfiling(cfg); err != nil {
 			log.Warnf("failed to enable profiling: %s", err)
 		}
-		defer profiling.Stop()
 	}
 
 	if err := statsd.Configure(cfg.StatsdHost, cfg.StatsdPort); err != nil {
@@ -174,7 +193,7 @@ func StartSystemProbe() error {
 // StopSystemProbe Tears down the system-probe process
 func StopSystemProbe() {
 	module.Close()
-	profiler.Stop()
+	profiling.Stop()
 	_ = os.Remove(pidfilePath)
 	log.Flush()
 }
@@ -194,10 +213,14 @@ func enableProfiling(cfg *config.Config) error {
 	}
 
 	return profiling.Start(
-		cfg.ProfilingAPIKey,
 		site,
 		cfg.ProfilingEnvironment,
 		"system-probe",
+		cfg.ProfilingPeriod,
+		cfg.ProfilingCPUDuration,
+		cfg.ProfilingMutexFraction,
+		cfg.ProfilingBlockRate,
+		cfg.ProfilingWithGoroutines,
 		fmt.Sprintf("version:%v", v),
 	)
 }

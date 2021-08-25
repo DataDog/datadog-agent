@@ -9,10 +9,12 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/docker/docker/api/types/swarm"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
 )
 
@@ -21,6 +23,10 @@ func init() {
 }
 
 func getMetadata() (map[string]string, error) {
+	if !config.IsFeaturePresent(config.Docker) {
+		return nil, errors.New("Docker feature deactivated")
+	}
+
 	metadata := make(map[string]string)
 	du, err := GetDockerUtil()
 	if err != nil {

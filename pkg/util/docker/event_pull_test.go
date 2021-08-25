@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -171,8 +172,10 @@ func TestProcessContainerEvent(t *testing.T) {
 			err: nil,
 		},
 	} {
+		ctx := context.Background()
+
 		t.Logf("test case %d", nb)
-		event, err := dockerUtil.processContainerEvent(tc.source)
+		event, err := dockerUtil.processContainerEvent(ctx, tc.source)
 		assert.Equal(tc.event, event)
 
 		if tc.err == nil {

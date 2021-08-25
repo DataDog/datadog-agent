@@ -1,6 +1,6 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "file.json",
+    "$id": "usr.json",
     "type": "object",
     "properties": {
         "usr": {
@@ -12,11 +12,7 @@
                 "group": {
                     "type": "string"
                 }
-            },
-            "required": [
-                "id",
-                "group"
-            ]
+            }
         }
     }
 }

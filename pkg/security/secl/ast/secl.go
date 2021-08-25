@@ -8,6 +8,7 @@ package ast
 import (
 	"bytes"
 	"strconv"
+	"time"
 
 	"github.com/alecthomas/participle"
 	"github.com/alecthomas/participle/lexer"
@@ -17,6 +18,7 @@ import (
 var (
 	seclLexer = lexer.Must(ebnf.New(`
 Comment = ("#" | "//") { "\u0000"…"\uffff"-"\n" } .
+Duration = digit { digit } ("ms" | "s" | "m" | "h" | "d") .
 Regexp = "r\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
 Ident = (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } .
 String = "\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
@@ -40,11 +42,23 @@ func unquotePattern(t lexer.Token) (lexer.Token, error) {
 	return t, nil
 }
 
+func parseDuration(t lexer.Token) (lexer.Token, error) {
+	duration, err := time.ParseDuration(t.Value)
+	if err != nil {
+		return t, participle.Errorf(t.Pos, "invalid duration string %q: %s", t.Value, err)
+	}
+
+	t.Value = strconv.Itoa(int(duration.Nanoseconds()))
+
+	return t, nil
+}
+
 func buildParser(obj interface{}) (*participle.Parser, error) {
 	return participle.Build(obj,
 		participle.Lexer(seclLexer),
 		participle.Elide("Whitespace", "Comment"),
 		participle.Unquote("String"),
+		participle.Map(parseDuration, "Duration"),
 		participle.Map(unquotePattern, "Pattern", "Regexp"),
 	)
 }
@@ -170,6 +184,7 @@ type Primary struct {
 	String        *string     `parser:"| @String"`
 	Pattern       *string     `parser:"| @Pattern"`
 	Regexp        *string     `parser:"| @Regexp"`
+	Duration      *int        `parser:"| @Duration"`
 	SubExpression *Expression `parser:"| \"(\" @@ \")\""`
 }
 

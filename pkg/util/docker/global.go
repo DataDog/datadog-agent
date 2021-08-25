@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -23,8 +24,8 @@ var (
 	invalidationInterval  = 5 * time.Minute
 )
 
-// GetDockerUtil returns a ready to use DockerUtil. It is backed by a shared singleton.
-func GetDockerUtil() (*DockerUtil, error) {
+// GetDockerUtilWithRetrier returns a ready to use DockerUtil or a retrier
+func GetDockerUtilWithRetrier() (*DockerUtil, *retry.Retrier) {
 	globalDockerUtilMutex.Lock()
 	defer globalDockerUtilMutex.Unlock()
 	if globalDockerUtil == nil {
@@ -39,9 +40,18 @@ func GetDockerUtil() (*DockerUtil, error) {
 	}
 	if err := globalDockerUtil.initRetry.TriggerRetry(); err != nil {
 		log.Debugf("Docker init error: %s", err)
-		return nil, err
+		return nil, &globalDockerUtil.initRetry
 	}
 	return globalDockerUtil, nil
+}
+
+// GetDockerUtil returns a ready to use DockerUtil. It is backed by a shared singleton.
+func GetDockerUtil() (*DockerUtil, error) {
+	util, retirer := GetDockerUtilWithRetrier()
+	if retirer != nil {
+		return nil, retirer.LastError()
+	}
+	return util, nil
 }
 
 // EnableTestingMode creates a "mocked" DockerUtil you can use for unit
@@ -58,12 +68,12 @@ func EnableTestingMode() {
 }
 
 // HostnameProvider docker implementation for the hostname provider
-func HostnameProvider() (string, error) {
+func HostnameProvider(ctx context.Context, options map[string]interface{}) (string, error) {
 	du, err := GetDockerUtil()
 	if err != nil {
 		return "", err
 	}
-	return du.GetHostname()
+	return du.GetHostname(ctx)
 }
 
 // Config is an exported configuration object that is used when

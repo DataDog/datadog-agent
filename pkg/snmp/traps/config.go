@@ -10,7 +10,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/soniah/gosnmp"
+	"github.com/gosnmp/gosnmp"
 )
 
 // IsEnabled returns whether SNMP trap collection is enabled in the Agent configuration.
@@ -66,6 +66,6 @@ func (c *Config) BuildV2Params() *gosnmp.GoSNMP {
 		Port:      c.Port,
 		Transport: "udp",
 		Version:   gosnmp.Version2c,
-		Logger:    &trapLogger{},
+		Logger:    gosnmp.NewLogger(&trapLogger{}),
 	}
 }

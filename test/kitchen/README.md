@@ -121,19 +121,19 @@ staging (datad0g.com) deb (unstable branch) and yum repositories.
 
 Agent packaging methods tested:
 
-- `dd-agent`: Installing the latest release candidate using the
+- `chef`: Installing the latest release candidate using the
   [chef-datadog](https://github.com/DataDog/chef-datadog). The recipe will
   determine if the base Agent should be installed instead of the regular one
   (based on the system version of Python).
-- `dd-agent-upgrade-agent6`: Installs the latest release Agent 6 (the latest publicly
+- `upgrade-agent6`: Installs the latest release Agent 6 (the latest publicly
   available Agent 6 version), then upgrades it to the latest release candidate
   using the platform's package manager.
-- `dd-agent-upgrade-agent5`: Installs the latest release Agent 5 (the latest publicly
+- `upgrade-agent5`: Installs the latest release Agent 5 (the latest publicly
   available Agent 5 version), then upgrades it to the latest Agent 6 release candidate
   using the platform's package manager.
-- `dd-agent-install-script`: Installs the latest release candidate using our [Agent
+- `install-script`: Installs the latest release candidate using our [Agent
   install script](https://raw.github.com/DataDog/dd-agent/master/packaging/datadog-agent/source/install_agent.sh).
-- `dd-agent-step-by-step`: Installs the latest release candidate using our
+- `step-by-step`: Installs the latest release candidate using our
   step-by-step installation instructions as listed on Dogweb.
 
 For each platform, for each packaging method, the following Agent tests are
@@ -158,7 +158,7 @@ run (in the order listed):
     - the Agent should not be running after it is removed
     - the Agent binary should not be present after removal
 
-For the `dd-agent-upgrade` method, the version of the agent after the upgrade is tested.
+For the `upgrade` method, the version of the agent after the upgrade is tested.
 Be sure to set the `DD_AGENT_EXPECTED_VERSION` environment variable to the version the agent
 should be upgraded to (for instance `export DD_AGENT_EXPECTED_VERSION='5.5.0+git.213.59ac9da'`).
 
@@ -170,7 +170,7 @@ platforms. The following, among other aspects, are *not* covered:
 * Updates from versions of the Agent prior to the latest publicly available
   version. This can easily be added by setting the ['datadog']['agent_version']
   attribute to the version that you wish to upgrade from in the
-  `dd-agent-upgrade` suite
+  `upgrade` suite
 * Not all supported operating systems are tested. Missing operating systems
   include:
     - Mac OS 10.x

@@ -6,6 +6,9 @@
 package containers
 
 import (
+	"errors"
+	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -401,6 +404,158 @@ func TestNewAutodiscoveryFilter(t *testing.T) {
 	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
 	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
 	resetConfig()
+
+	// Filter errors - non-duplicate error messages
+	config.Datadog.SetDefault("container_include", []string{"image:apache.*", "invalid"})
+	config.Datadog.SetDefault("container_exclude", []string{"name:dd-.*", "invalid"})
+
+	f, err = NewAutodiscoveryFilter(GlobalFilter)
+	require.NoError(t, err)
+
+	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest", ""))
+	assert.False(t, f.IsExcluded("dd-152462", "apache:latest", ""))
+	assert.False(t, f.IsExcluded("dummy", "dummy", ""))
+	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
+	assert.False(t, f.IsExcluded("dummy", "rancher/pause-amd64:3.1", ""))
+	fe := map[string]struct{}{
+		"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'": {},
+	}
+	assert.Equal(t, fe, GetFilterErrors())
+	ResetSharedFilter()
+	resetConfig()
+
+	// Filter errors - invalid regex
+	config.Datadog.SetDefault("container_include", []string{"image:apache.*", "kube_namespace:?"})
+	config.Datadog.SetDefault("container_exclude", []string{"name:dd-.*", "invalid"})
+
+	f, err = NewAutodiscoveryFilter(GlobalFilter)
+	assert.Error(t, err, errors.New("invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`"))
+	assert.NotNil(t, f)
+	fe = map[string]struct{}{
+		"invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`":                                {},
+		"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'": {},
+	}
+	assert.Equal(t, fe, GetFilterErrors())
+	ResetSharedFilter()
+	resetConfig()
+}
+
+func TestValidateFilter(t *testing.T) {
+	for filters, tc := range []struct {
+		desc           string
+		filter         string
+		prefix         string
+		expectedRegexp *regexp.Regexp
+		expectedErr    error
+	}{
+		{
+			desc:           "image filter",
+			filter:         "image:apache.*",
+			prefix:         imageFilterPrefix,
+			expectedRegexp: regexp.MustCompile("apache.*"),
+			expectedErr:    nil,
+		},
+		{
+			desc:           "name filter",
+			filter:         "name:dd-.*",
+			prefix:         nameFilterPrefix,
+			expectedRegexp: regexp.MustCompile("dd-.*"),
+			expectedErr:    nil,
+		},
+		{
+			desc:           "kube_namespace filter",
+			filter:         "kube_namespace:monitoring",
+			prefix:         kubeNamespaceFilterPrefix,
+			expectedRegexp: regexp.MustCompile("monitoring"),
+			expectedErr:    nil,
+		},
+		{
+			desc:           "empty filter regex",
+			filter:         "image:",
+			prefix:         imageFilterPrefix,
+			expectedRegexp: regexp.MustCompile(""),
+			expectedErr:    nil,
+		},
+		{
+			desc:           "invalid golang regex",
+			filter:         "image:?",
+			prefix:         imageFilterPrefix,
+			expectedRegexp: nil,
+			expectedErr:    errors.New("invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`"),
+		},
+	} {
+		t.Run(fmt.Sprintf("case %d: %s", filters, tc.desc), func(t *testing.T) {
+			r, err := filterToRegex(tc.filter, tc.prefix)
+			assert.Equal(t, tc.expectedRegexp, r)
+			assert.Equal(t, tc.expectedErr, err)
+		})
+	}
+}
+
+func TestParseFilters(t *testing.T) {
+	for filters, tc := range []struct {
+		desc             string
+		filters          []string
+		imageFilters     []*regexp.Regexp
+		nameFilters      []*regexp.Regexp
+		namespaceFilters []*regexp.Regexp
+		expectedErrMsg   error
+		filterErrors     []string
+	}{
+		{
+			desc:             "valid filters",
+			filters:          []string{"image:nginx.*", "name:xyz-.*", "kube_namespace:sandbox.*", "name:abc"},
+			imageFilters:     []*regexp.Regexp{regexp.MustCompile("nginx.*")},
+			nameFilters:      []*regexp.Regexp{regexp.MustCompile("xyz-.*"), regexp.MustCompile("abc")},
+			namespaceFilters: []*regexp.Regexp{regexp.MustCompile("sandbox.*")},
+			expectedErrMsg:   nil,
+			filterErrors:     nil,
+		},
+		{
+			desc:             "invalid regex",
+			filters:          []string{"image:apache.*", "name:a(?=b)", "kube_namespace:sandbox.*", "name:abc"},
+			imageFilters:     nil,
+			nameFilters:      nil,
+			namespaceFilters: nil,
+			expectedErrMsg:   errors.New("invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`"),
+			filterErrors:     []string{"invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`"},
+		},
+		{
+			desc:             "invalid filter prefix, valid regex",
+			filters:          []string{"image:redis.*", "invalid", "name:dd-.*", "kube_namespace:dev-.*", "name:abc", "also invalid"},
+			imageFilters:     []*regexp.Regexp{regexp.MustCompile("redis.*")},
+			nameFilters:      []*regexp.Regexp{regexp.MustCompile("dd-.*"), regexp.MustCompile("abc")},
+			namespaceFilters: []*regexp.Regexp{regexp.MustCompile("dev-.*")},
+			expectedErrMsg:   nil,
+			filterErrors: []string{
+				"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'",
+				"Container filter \"also invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'",
+			},
+		},
+		{
+			desc:             "invalid regex and invalid filter prefix",
+			filters:          []string{"invalid", "name:a(?=b)", "image:apache.*", "kube_namespace:?", "also invalid", "name:abc"},
+			imageFilters:     nil,
+			nameFilters:      nil,
+			namespaceFilters: nil,
+			expectedErrMsg:   errors.New("invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`"),
+			filterErrors: []string{
+				"invalid regex 'a(?=b)': error parsing regexp: invalid or unsupported Perl syntax: `(?=`",
+				"invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`",
+				"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'",
+				"Container filter \"also invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'",
+			},
+		},
+	} {
+		t.Run(fmt.Sprintf("case %d: %s", filters, tc.desc), func(t *testing.T) {
+			imageFilters, nameFilters, namespaceFilters, filterErrors, err := parseFilters(tc.filters)
+			assert.Equal(t, tc.imageFilters, imageFilters)
+			assert.Equal(t, tc.nameFilters, nameFilters)
+			assert.Equal(t, tc.namespaceFilters, namespaceFilters)
+			assert.Equal(t, tc.filterErrors, filterErrors)
+			assert.Equal(t, tc.expectedErrMsg, err)
+		})
+	}
 }
 
 func resetConfig() {

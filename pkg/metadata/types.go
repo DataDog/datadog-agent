@@ -5,13 +5,17 @@
 
 package metadata
 
-import "github.com/DataDog/datadog-agent/pkg/serializer"
+import (
+	"context"
+
+	"github.com/DataDog/datadog-agent/pkg/serializer"
+)
 
 // Collector is anything capable to collect and send metadata payloads
 // through the forwarder.
 // A Metadata Collector normally uses a Metadata Provider to fill the payload.
 type Collector interface {
-	Send(s *serializer.Serializer) error
+	Send(ctx context.Context, s *serializer.Serializer) error
 }
 
 // CollectorWithInit is an optional interface that collectors that need to be

@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"sort"
@@ -50,7 +51,12 @@ func updateContainerRunningCount(images map[string]*containerPerImage, c *contai
 	var containerTags []string
 	var err error
 
-	if c.Excluded {
+	// Containers that are not running (either pending or stopped) are not
+	// collected by the tagger, so they won't have any tags and will cause
+	// an expensive tagger fetch.  To have *some* tags for stopped
+	// containers, we treat them as excluded containers and make a
+	// synthetic list of tags from basic container information.
+	if c.Excluded || c.State != containers.ContainerRunningState {
 		// TODO we can do SplitImageName because we are in the docker corecheck and the image name is not a sha[...]
 		// We should resolve the image tags in the tagger as a real entity.
 		long, short, tag, err := containers.SplitImageName(c.Image)
@@ -90,11 +96,11 @@ func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender, imageTagsBy
 		return nil
 	}
 
-	availableImages, err := du.Images(false)
+	availableImages, err := du.Images(context.TODO(), false)
 	if err != nil {
 		return err
 	}
-	allImages, err := du.Images(true)
+	allImages, err := du.Images(context.TODO(), true)
 	if err != nil {
 		return err
 	}
@@ -127,7 +133,7 @@ func (d *DockerCheck) Run() error {
 		d.Warnf("Error initialising check: %s", err) //nolint:errcheck
 		return err
 	}
-	cList, err := du.ListContainers(&docker.ContainerListConfig{IncludeExited: true, FlagExcluded: true})
+	cList, err := du.ListContainers(context.TODO(), &docker.ContainerListConfig{IncludeExited: true, FlagExcluded: true})
 	if err != nil {
 		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
 		d.Warnf("Error collecting containers: %s", err) //nolint:errcheck
@@ -235,7 +241,7 @@ func (d *DockerCheck) Run() error {
 		}
 
 		if collectingContainerSizeDuringThisRun {
-			info, err := du.Inspect(c.ID, true)
+			info, err := du.Inspect(context.TODO(), c.ID, true)
 			if err != nil {
 				log.Errorf("Failed to inspect container %s - %s", c.ID[:12], err)
 			} else if info.SizeRw == nil || info.SizeRootFs == nil {
@@ -292,7 +298,7 @@ func (d *DockerCheck) Run() error {
 	}
 
 	if d.instance.CollectDiskStats {
-		stats, err := du.GetStorageStats()
+		stats, err := du.GetStorageStats(context.TODO())
 		if err != nil {
 			d.Warnf("Error collecting disk stats: %s", err) //nolint:errcheck
 		} else {
@@ -319,7 +325,7 @@ func (d *DockerCheck) Run() error {
 	}
 
 	if d.instance.CollectVolumeCount {
-		attached, dangling, err := du.CountVolumes()
+		attached, dangling, err := du.CountVolumes(context.TODO())
 		if err != nil {
 			d.Warnf("Error collecting volume stats: %s", err) //nolint:errcheck
 		} else {
@@ -343,10 +349,22 @@ func (d *DockerCheck) reportCPUMetrics(cpu *cmetrics.ContainerCPUStats, limits *
 		return
 	}
 
-	sender.Rate("docker.cpu.system", float64(cpu.System), "", tags)
-	sender.Rate("docker.cpu.user", float64(cpu.User), "", tags)
-	sender.Rate("docker.cpu.usage", cpu.UsageTotal, "", tags)
-	sender.Gauge("docker.cpu.shares", float64(cpu.Shares), "", tags)
+	if cpu.System != -1 {
+		sender.Rate("docker.cpu.system", cpu.System, "", tags)
+	}
+
+	if cpu.User != -1 {
+		sender.Rate("docker.cpu.user", cpu.User, "", tags)
+	}
+
+	if cpu.UsageTotal != -1 {
+		sender.Rate("docker.cpu.usage", cpu.UsageTotal, "", tags)
+	}
+
+	if cpu.Shares != 0 {
+		sender.Gauge("docker.cpu.shares", cpu.Shares, "", tags)
+	}
+
 	sender.Rate("docker.cpu.throttled", float64(cpu.NrThrottled), "", tags)
 	sender.Rate("docker.cpu.throttled.time", cpu.ThrottledTime, "", tags)
 	if cpu.ThreadCount != 0 {
@@ -404,7 +422,7 @@ func (d *DockerCheck) Configure(config, initConfig integration.Data, source stri
 	// Use the same hostname as the agent so that host tags (like `availability-zone:us-east-1b`)
 	// are attached to Docker events from this host. The hostname from the docker api may be
 	// different than the agent hostname depending on the environment (like EC2 or GCE).
-	d.dockerHostname, err = util.GetHostname()
+	d.dockerHostname, err = util.GetHostname(context.TODO())
 	if err != nil {
 		log.Warnf("Can't get hostname from docker, events will not have it: %s", err)
 	}

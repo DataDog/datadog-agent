@@ -120,3 +120,34 @@ func TestProfiling(t *testing.T) {
 	err = ll.Set("on")
 	assert.NotNil(t, err)
 }
+
+func TestGetInt(t *testing.T) {
+	cases := []struct {
+		v   interface{}
+		exp int
+		err bool
+	}{
+		{0, 0, false},
+		{1, 1, false},
+		{-1, -1, false},
+		{0x7fff_ffff, 0x7fff_ffff, false},
+		{-0x7fff_ffff, -0x7fff_ffff, false},
+		{"0", 0, false},
+		{"1", 1, false},
+		{"-1", -1, false},
+		{"2147483647", 2147483647, false},
+		{"-2147483648", -2147483648, false},
+		{"0x1", 0, true},
+		{"aaa", 0, true},
+	}
+
+	for _, c := range cases {
+		v, err := GetInt(c.v)
+		if c.err {
+			assert.NotNil(t, err)
+		} else {
+			assert.Nil(t, err)
+			assert.Equal(t, v, c.exp)
+		}
+	}
+}

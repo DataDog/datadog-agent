@@ -59,7 +59,7 @@ func (c *conntrack) Exists(conn *Con) (bool, error) {
 
 	replies, err := c.conn.Execute(msg)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, unix.ENOENT) {
 			return false, nil
 		}
 

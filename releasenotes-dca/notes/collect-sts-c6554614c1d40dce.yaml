@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Enable ``DaemonSet`` collection by default in the orchestrator check.
+    Add ``StatefulSet`` collection in the orchestrator check.

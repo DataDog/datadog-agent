@@ -23,9 +23,10 @@
 #include <cstdlib>
 #include <sstream>
 
-extern "C" DATADOG_AGENT_RTLOADER_API RtLoader *create(const char *pythonHome, cb_memory_tracker_t memtrack_cb)
+extern "C" DATADOG_AGENT_RTLOADER_API RtLoader *create(const char *python_home, const char *python_exe,
+                                                       cb_memory_tracker_t memtrack_cb)
 {
-    return new Two(pythonHome, memtrack_cb);
+    return new Two(python_home, python_exe, memtrack_cb);
 }
 
 extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
@@ -33,13 +34,19 @@ extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
     delete p;
 }
 
-Two::Two(const char *python_home, cb_memory_tracker_t memtrack_cb)
+Two::Two(const char *python_home, const char *python_exe, cb_memory_tracker_t memtrack_cb)
     : RtLoader(memtrack_cb)
     , _pythonHome(NULL)
+    , _pythonExe(NULL)
     , _baseClass(NULL)
     , _pythonPaths()
 {
     initPythonHome(python_home);
+
+    // If not empty, set our Python interpreter path
+    if (python_exe && strlen(python_exe) > 0) {
+        initPythonExe(python_exe);
+    }
 }
 
 Two::~Two()
@@ -52,16 +59,33 @@ Two::~Two()
 
 void Two::initPythonHome(const char *pythonHome)
 {
+    // Py_SetPythonHome stores a pointer to the string we pass to it, so we must keep it in memory
     char *oldPythonHome = _pythonHome;
+
     if (pythonHome == NULL || strlen(pythonHome) == 0) {
         _pythonHome = strdupe(_defaultPythonHome);
     } else {
         _pythonHome = strdupe(pythonHome);
     }
 
-    // Py_SetPythonHome stores a pointer to the string we pass to it, so we must keep it in memory
     Py_SetPythonHome(_pythonHome);
-    _free(oldPythonHome);
+    if (oldPythonHome) {
+        _free(oldPythonHome);
+    }
+}
+
+void Two::initPythonExe(const char *python_exe)
+{
+    // Py_SetProgramName stores a pointer to the string we pass to it, so we must keep it in memory
+    char *oldPythonExe = _pythonExe;
+
+    _pythonExe = strdupe(python_exe);
+
+    Py_SetProgramName(_pythonExe);
+
+    if (oldPythonExe) {
+        _free(oldPythonExe);
+    }
 }
 
 bool Two::init()

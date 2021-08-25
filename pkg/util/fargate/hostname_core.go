@@ -7,8 +7,10 @@
 
 package fargate
 
+import "context"
+
 // GetFargateHost returns the Fargate hostname used
 // by the core Agent for Fargate
-func GetFargateHost() (string, error) {
+func GetFargateHost(ctx context.Context) (string, error) {
 	return "", nil
 }

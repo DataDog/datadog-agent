@@ -26,6 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	intakeTrackType = "compliance"
+)
+
 func runCompliance(ctx context.Context, apiCl *apiserver.APIClient, isLeader func() bool) error {
 	stopper := restart.NewSerialStopper()
 	if err := startCompliance(stopper, apiCl, isLeader); err != nil {
@@ -38,13 +42,16 @@ func runCompliance(ctx context.Context, apiCl *apiserver.APIClient, isLeader fun
 	return nil
 }
 
-func newLogContext(logsConfig config.LogsConfigKeys, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
-	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix); err == nil {
-		httpConnectivity = logshttp.CheckConnectivity(endpoints.Main)
+func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
+	if err != nil {
+		endpoints, err = config.BuildHTTPEndpoints(intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
+		if err == nil {
+			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
+			endpoints, err = config.BuildEndpoints(httpConnectivity, intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
+		}
 	}
 
-	endpoints, err := config.BuildEndpoints(httpConnectivity)
 	if err != nil {
 		return nil, nil, log.Errorf("Invalid endpoints: %v", err)
 	}
@@ -56,19 +63,19 @@ func newLogContext(logsConfig config.LogsConfigKeys, endpointPrefix string) (*co
 }
 
 func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, error) {
-	logsConfigComplianceKeys := config.NewLogsConfigKeys("compliance_config.endpoints.")
+	logsConfigComplianceKeys := config.NewLogsConfigKeys("compliance_config.endpoints.", coreconfig.Datadog)
 	return newLogContext(logsConfigComplianceKeys, "compliance-http-intake.logs.")
 }
 
 func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLeader func() bool) error {
-	endpoints, context, err := newLogContextCompliance()
+	endpoints, ctx, err := newLogContextCompliance()
 	if err != nil {
 		log.Error(err)
 	}
-	stopper.Add(context)
+	stopper.Add(ctx)
 
 	runPath := coreconfig.Datadog.GetString("compliance_config.run_path")
-	reporter, err := event.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, context)
+	reporter, err := event.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, ctx)
 	if err != nil {
 		return err
 	}
@@ -80,9 +87,10 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLead
 	runner.SetScheduler(scheduler)
 
 	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
+	checkMaxEvents := coreconfig.Datadog.GetInt("compliance_config.check_max_events_per_run")
 	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
 
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		return err
 	}
@@ -91,11 +99,12 @@ func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLead
 		scheduler,
 		configDir,
 		checks.WithInterval(checkInterval),
+		checks.WithMaxEvents(checkMaxEvents),
 		checks.WithHostname(hostname),
 		checks.WithMatchRule(func(rule *compliance.Rule) bool {
 			return rule.Scope.Includes(compliance.KubernetesClusterScope)
 		}),
-		checks.WithKubernetesClient(apiCl.DynamicCl),
+		checks.WithKubernetesClient(apiCl.DynamicCl, ""),
 		checks.WithIsLeader(isLeader),
 	)
 	if err != nil {

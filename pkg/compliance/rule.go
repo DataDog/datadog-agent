@@ -14,6 +14,7 @@ type Rule struct {
 	Description  string        `yaml:"description,omitempty"`
 	Scope        RuleScopeList `yaml:"scope,omitempty"`
 	HostSelector string        `yaml:"hostSelector,omitempty"`
+	ResourceType string        `yaml:"resourceType,omitempty"`
 	Resources    []Resource    `yaml:"resources,omitempty"`
 }
 

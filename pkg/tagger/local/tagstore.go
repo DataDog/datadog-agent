@@ -6,17 +6,23 @@
 package local
 
 import (
+	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/subscriber"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	tagInfoBufferSize = 50
 )
 
 var errNotFound = errors.New("entity not found")
@@ -32,14 +38,13 @@ type entityTags struct {
 	cachedAll          []string // Low + orchestrator + high
 	cachedOrchestrator []string // Low + orchestrator (subslice of cachedAll)
 	cachedLow          []string // Sub-slice of cachedAll
-	toDelete           map[string]struct{}
 }
 
 func newEntityTags(entityID string) *entityTags {
 	return &entityTags{
 		entityID:   entityID,
 		sourceTags: make(map[string]sourceTags),
-		toDelete:   make(map[string]struct{}),
+		cacheValid: true,
 	}
 }
 
@@ -50,6 +55,7 @@ type sourceTags struct {
 	orchestratorCardTags []string
 	highCardTags         []string
 	standardTags         []string
+	expiryDate           time.Time
 }
 
 // tagStore stores entity tags in memory and handles search and collation.
@@ -58,18 +64,48 @@ type tagStore struct {
 	sync.RWMutex
 
 	store     map[string]*entityTags
-	toDelete  map[string]struct{} // set emulation
 	telemetry map[string]map[string]float64
+	infoIn    chan []*collectors.TagInfo
 
 	subscriber *subscriber.Subscriber
+
+	clock clock
 }
 
 func newTagStore() *tagStore {
 	return &tagStore{
 		telemetry:  make(map[string]map[string]float64),
 		store:      make(map[string]*entityTags),
-		toDelete:   make(map[string]struct{}),
+		infoIn:     make(chan []*collectors.TagInfo, tagInfoBufferSize),
 		subscriber: subscriber.NewSubscriber(),
+		clock:      realClock{},
+	}
+}
+
+func (s *tagStore) run(ctx context.Context) {
+	pruneTicker := time.NewTicker(1 * time.Minute)
+	telemetryTicker := time.NewTicker(1 * time.Minute)
+	health := health.RegisterLiveness("tagger-store")
+
+	for {
+		select {
+		case msg := <-s.infoIn:
+			s.processTagInfo(msg)
+
+		case <-telemetryTicker.C:
+			s.collectTelemetry()
+
+		case <-pruneTicker.C:
+			s.prune()
+
+		case <-health.C:
+
+		case <-ctx.Done():
+			pruneTicker.Stop()
+			telemetryTicker.Stop()
+
+			return
+		}
 	}
 }
 
@@ -97,8 +133,11 @@ func (s *tagStore) processTagInfo(tagInfos []*collectors.TagInfo) {
 
 		if info.DeleteEntity {
 			if exist {
-				s.toDelete[info.Entity] = struct{}{}
-				storedTags.toDelete[info.Source] = struct{}{}
+				st, ok := storedTags.sourceTags[info.Source]
+				if ok {
+					st.expiryDate = s.clock.Now().Add(deletedTTL)
+					storedTags.sourceTags[info.Source] = st
+				}
 			}
 
 			continue
@@ -113,13 +152,14 @@ func (s *tagStore) processTagInfo(tagInfos []*collectors.TagInfo) {
 
 		// TODO: check if real change
 
-		telemetry.UpdatedEntities.Inc()
-
-		err := updateStoredTags(storedTags, info)
-		if err != nil {
-			log.Tracef("processTagInfo err: %v", err)
+		_, found := storedTags.sourceTags[info.Source]
+		if found && info.CacheMiss {
+			log.Tracef("processTagInfo err: try to overwrite an existing entry with and empty cache-miss entry, info.Source: %s, info.Entity: %s", info.Source, info.Entity)
 			continue
 		}
+
+		telemetry.UpdatedEntities.Inc()
+		updateStoredTags(storedTags, info)
 
 		events = append(events, types.EntityEvent{
 			EventType: eventType,
@@ -132,22 +172,15 @@ func (s *tagStore) processTagInfo(tagInfos []*collectors.TagInfo) {
 	}
 }
 
-func updateStoredTags(storedTags *entityTags, info *collectors.TagInfo) error {
-	_, found := storedTags.sourceTags[info.Source]
-	if found && info.CacheMiss {
-		// check if the source tags is already present for this entry
-		return fmt.Errorf("try to overwrite an existing entry with and empty cache-miss entry, info.Source: %s, info.Entity: %s", info.Source, info.Entity)
-	}
-
+func updateStoredTags(storedTags *entityTags, info *collectors.TagInfo) {
 	storedTags.cacheValid = false
 	storedTags.sourceTags[info.Source] = sourceTags{
 		lowCardTags:          info.LowCardTags,
 		orchestratorCardTags: info.OrchestratorCardTags,
 		highCardTags:         info.HighCardTags,
 		standardTags:         info.StandardTags,
+		expiryDate:           info.ExpiryDate,
 	}
-
-	return nil
 }
 
 func (s *tagStore) collectTelemetry() {
@@ -205,37 +238,35 @@ func (s *tagStore) notifySubscribers(events []types.EntityEvent) {
 // prune deletes tags for entities that are deleted or with empty entries.
 // This is to be called regularly from the user class.
 func (s *tagStore) prune() {
-	s.pruneDeletedEntities()
-	s.pruneEmptyEntries()
-}
-
-// pruneDeletedEntities will lock the store and delete tags for the entity previously passed as deleted.
-func (s *tagStore) pruneDeletedEntities() {
 	s.Lock()
 	defer s.Unlock()
 
-	if len(s.toDelete) == 0 {
-		return
-	}
-
+	now := s.clock.Now()
 	events := []types.EntityEvent{}
 
-	for entity := range s.toDelete {
-		storedTags, ok := s.store[entity]
-		if !ok {
+	for entity, storedTags := range s.store {
+		changed := false
+
+		// remove any sourceTags that have expired
+		for source, st := range storedTags.sourceTags {
+			if st.isExpired(now) {
+				delete(storedTags.sourceTags, source)
+				changed = true
+			}
+		}
+
+		// remove all sourceTags only if they're all empty
+		if storedTags.isEmpty() {
+			storedTags.sourceTags = nil
+			changed = true
+		}
+
+		if !changed {
 			continue
 		}
 
-		for source := range storedTags.toDelete {
-			if _, ok := storedTags.sourceTags[source]; !ok {
-				continue
-			}
-
-			delete(storedTags.sourceTags, source)
-		}
-
 		if len(storedTags.sourceTags) == 0 {
-			telemetry.PrunedEntities.Inc(string(telemetry.DeletedEntity))
+			telemetry.PrunedEntities.Inc()
 			delete(s.store, entity)
 			events = append(events, types.EntityEvent{
 				EventType: types.EventTypeDeleted,
@@ -243,41 +274,8 @@ func (s *tagStore) pruneDeletedEntities() {
 			})
 		} else {
 			storedTags.cacheValid = false
-			storedTags.toDelete = make(map[string]struct{})
 			events = append(events, types.EntityEvent{
 				EventType: types.EventTypeModified,
-				Entity:    storedTags.toEntity(),
-			})
-		}
-	}
-
-	log.Debugf("Pruned %d entities marked as deleted, %d remaining", len(s.toDelete), len(s.store))
-
-	// Start fresh
-	s.toDelete = make(map[string]struct{})
-
-	if len(events) > 0 {
-		s.notifySubscribers(events)
-	}
-}
-
-// pruneEmptyEntries will lock the store and delete tags for entities with empty entries.
-// Empty entries are added by the `Tag()` method on partial cache miss when a source doesn't find the entity.
-// When the entity comes back empty to the store, we will avoid to fetch it again.
-// If some sources detect the deletion of the entity, this method will wipe the empty entries for the other sources.
-func (s *tagStore) pruneEmptyEntries() {
-	s.Lock()
-	defer s.Unlock()
-
-	events := []types.EntityEvent{}
-
-	for entity, storedTags := range s.store {
-		if storedTags.isEmpty() {
-			log.Debugf("Pruned empty entry for entity %s", entity)
-			telemetry.PrunedEntities.Inc(string(telemetry.EmptyEntry))
-			delete(s.store, entity)
-			events = append(events, types.EntityEvent{
-				EventType: types.EventTypeDeleted,
 				Entity:    storedTags.toEntity(),
 			})
 		}
@@ -303,16 +301,27 @@ func (s *tagStore) lookup(entity string, cardinality collectors.TagCardinality) 
 }
 
 // lookupStandard returns the standard tags recorded for a given entity
-func (s *tagStore) lookupStandard(entity string) ([]string, error) {
+func (s *tagStore) lookupStandard(entityID string) ([]string, error) {
+
+	storedTags, err := s.getEntityTags(entityID)
+	if err != nil {
+		return nil, err
+	}
+
+	return storedTags.getStandard(), nil
+}
+
+// getEntityTags returns the standard tags recorded for a given entity
+func (s *tagStore) getEntityTags(entityID string) (*entityTags, error) {
 	s.RLock()
 	defer s.RUnlock()
 
-	storedTags, present := s.store[entity]
+	storedTags, present := s.store[entityID]
 	if present == false {
 		return nil, errNotFound
 	}
 
-	return storedTags.getStandard(), nil
+	return storedTags, nil
 }
 
 func (e *entityTags) getStandard() []string {
@@ -417,6 +426,14 @@ func (e *entityTags) isEmpty() bool {
 
 func (st *sourceTags) isEmpty() bool {
 	return len(st.lowCardTags) == 0 && len(st.orchestratorCardTags) == 0 && len(st.highCardTags) == 0 && len(st.standardTags) == 0
+}
+
+func (st *sourceTags) isExpired(t time.Time) bool {
+	if st.expiryDate.IsZero() {
+		return false
+	}
+
+	return st.expiryDate.Before(t)
 }
 
 func insertWithPriority(tagPrioMapper map[string][]tagPriority, tags []string, source string, cardinality collectors.TagCardinality) {

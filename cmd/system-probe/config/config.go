@@ -7,10 +7,11 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/spf13/viper"
+	"github.com/DataDog/viper"
 )
 
 // ModuleName is a typed alias for string, used only for module names
@@ -58,11 +59,15 @@ type Config struct {
 	StatsdHost string
 	StatsdPort int
 
-	ProfilingEnabled     bool
-	ProfilingSite        string
-	ProfilingURL         string
-	ProfilingAPIKey      string
-	ProfilingEnvironment string
+	ProfilingEnabled        bool
+	ProfilingSite           string
+	ProfilingURL            string
+	ProfilingEnvironment    string
+	ProfilingPeriod         time.Duration
+	ProfilingCPUDuration    time.Duration
+	ProfilingMutexFraction  int
+	ProfilingBlockRate      int
+	ProfilingWithGoroutines bool
 }
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -139,11 +144,15 @@ func load(configPath string) (*Config, error) {
 		StatsdHost: aconfig.GetBindHost(),
 		StatsdPort: cfg.GetInt("dogstatsd_port"),
 
-		ProfilingEnabled:     cfg.GetBool(key(spNS, "internal_profiling.enabled")),
-		ProfilingSite:        cfg.GetString(key(spNS, "internal_profiling.site")),
-		ProfilingURL:         cfg.GetString(key(spNS, "profiling.profile_dd_url")),
-		ProfilingAPIKey:      aconfig.SanitizeAPIKey(cfg.GetString(key(spNS, "internal_profiling.api_key"))),
-		ProfilingEnvironment: cfg.GetString(key(spNS, "internal_profiling.env")),
+		ProfilingEnabled:        cfg.GetBool(key(spNS, "internal_profiling.enabled")),
+		ProfilingSite:           cfg.GetString(key(spNS, "internal_profiling.site")),
+		ProfilingURL:            cfg.GetString(key(spNS, "internal_profiling.profile_dd_url")),
+		ProfilingEnvironment:    cfg.GetString(key(spNS, "internal_profiling.env")),
+		ProfilingPeriod:         cfg.GetDuration(key(spNS, "internal_profiling.period")),
+		ProfilingCPUDuration:    cfg.GetDuration(key(spNS, "internal_profiling.cpu_duration")),
+		ProfilingMutexFraction:  cfg.GetInt(key(spNS, "internal_profiling.mutex_profile_fraction")),
+		ProfilingBlockRate:      cfg.GetInt(key(spNS, "internal_profiling.block_profile_rate")),
+		ProfilingWithGoroutines: cfg.GetBool(key(spNS, "internal_profiling.enable_goroutine_stacktraces")),
 	}
 
 	if err := ValidateSocketAddress(c.SocketAddress); err != nil {

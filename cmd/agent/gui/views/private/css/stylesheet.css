@@ -319,6 +319,11 @@ a {
   padding-left: 20px;
   padding-bottom: 20px;
 }
+#main #general_status .stat .stat_subdata ul, #main #collector_status .stat .stat_subdata ul {
+  display: block;
+  margin: 0;
+  padding: 0 0 0 20px;
+}
 #main #general_status .stat .error, #main #collector_status .stat .error {
   color: red;
   font-weight: bold;

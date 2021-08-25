@@ -8,6 +8,10 @@
 package collectors
 
 import (
+	"context"
+	"errors"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
@@ -24,6 +28,10 @@ type KubeletCollector struct {
 
 // Detect tries to connect to the kubelet
 func (c *KubeletCollector) Detect() error {
+	if !config.IsFeaturePresent(config.Kubernetes) {
+		return errors.New("Kubernetes feature is deactivated")
+	}
+
 	util, err := kubelet.GetKubeUtil()
 	if err != nil {
 		return err
@@ -34,7 +42,7 @@ func (c *KubeletCollector) Detect() error {
 
 // List gets all running containers
 func (c *KubeletCollector) List() ([]*containers.Container, error) {
-	return c.kubeUtil.ListContainers()
+	return c.kubeUtil.ListContainers(context.TODO())
 }
 
 // UpdateMetrics updates metrics on an existing list of containers

@@ -20,7 +20,7 @@ AMI="$(curl "https://builds.coreos.fedoraproject.org/streams/${UPDATE_STREAM}.js
 tee specification.json << EOF
 {
   "ImageId": "${AMI}",
-  "InstanceType": "c5.xlarge",
+  "InstanceType": "c5.2xlarge",
   "Monitoring": {
     "Enabled": false
   },
@@ -29,7 +29,7 @@ tee specification.json << EOF
       "DeviceName": "/dev/xvda",
       "Ebs": {
         "DeleteOnTermination": true,
-        "VolumeSize": 15,
+        "VolumeSize": 50,
         "VolumeType": "gp2"
       }
     }

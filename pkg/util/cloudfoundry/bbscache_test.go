@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
+// +build clusterchecks,!windows
 
 package cloudfoundry
 
@@ -51,10 +51,12 @@ func TestBBSCache_GetTagsForNode(t *testing.T) {
 			"app_guid:random_app_guid",
 			"app_id:random_app_guid",
 			"app_name:name_of_app_cc",
-			"org_id:random_org_guid",
-			"org_name:name_of_the_org",
-			"space_id:random_space_guid",
-			"space_name:name_of_the_space",
+			"env:test-env",
+			"org_id:org_guid_1",
+			"org_name:org_name_1",
+			"service:test-service",
+			"space_id:space_guid_1",
+			"space_name:space_name_1",
 		},
 	}
 	tags, err := bc.GetTagsForNode("cell123")
@@ -68,10 +70,12 @@ func TestBBSCache_GetTagsForNode(t *testing.T) {
 			"app_guid:random_app_guid",
 			"app_id:random_app_guid",
 			"app_name:name_of_app_cc",
-			"org_id:random_org_guid",
-			"org_name:name_of_the_org",
-			"space_id:random_space_guid",
-			"space_name:name_of_the_space",
+			"env:test-env",
+			"org_id:org_guid_1",
+			"org_name:org_name_1",
+			"service:test-service",
+			"space_id:space_guid_1",
+			"space_name:space_name_1",
 		},
 	}
 	tags, err = bc.GetTagsForNode("cell1234")

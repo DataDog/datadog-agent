@@ -82,16 +82,16 @@ if ohai["platform"] != "windows"
   end
 
 else
-  default_version "2.7.18"
+  default_version "2.7.18-8829519"
   dependency "vc_redist"
 
   if windows_arch_i386?
     source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x86.zip",
-           :sha256 => "c8309b3351610a7159e91e55f09f7341bc3bbdd67d2a5e3049a9d1157e5a9110",
+           :sha256 => "295F16FB166AC26624AE9CBA08666DB437E0B8DDBB8D8D987F0598B71E4B6B24".downcase,
            :extract => :seven_zip
   else
-    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-amd64.zip",
-         :sha256 => "7989b2efe6106a3df82c47d403dbb166db6d4040f3654871323df7e724a9fdd2",
+    source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x64.zip",
+         :sha256 => "58424EEB272E5678E732402CAF150124CD583B81F5DA442C911CE71A63ECD339".downcase,
          :extract => :seven_zip
   end
   build do

@@ -6,6 +6,7 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strings"
@@ -104,8 +105,8 @@ func (oc *OrchestratorConfig) Load() error {
 	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
 		oc.OrchestrationCollectionEnabled = true
 		// Set clustername
-		hostname, _ := coreutil.GetHostname()
-		if clusterName := clustername.GetClusterName(hostname); clusterName != "" {
+		hostname, _ := coreutil.GetHostname(context.TODO())
+		if clusterName := clustername.GetClusterName(context.TODO(), hostname); clusterName != "" {
 			oc.KubeClusterName = clusterName
 		}
 	}

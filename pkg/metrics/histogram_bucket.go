@@ -9,14 +9,15 @@ import "github.com/DataDog/datadog-agent/pkg/util"
 
 // HistogramBucket represents a prometheus/openmetrics histogram bucket
 type HistogramBucket struct {
-	Name       string
-	Value      int64
-	LowerBound float64
-	UpperBound float64
-	Monotonic  bool
-	Tags       []string
-	Host       string
-	Timestamp  float64
+	Name            string
+	Value           int64
+	LowerBound      float64
+	UpperBound      float64
+	Monotonic       bool
+	Tags            []string
+	Host            string
+	Timestamp       float64
+	FlushFirstValue bool
 }
 
 // Implement the MetricSampleContext interface

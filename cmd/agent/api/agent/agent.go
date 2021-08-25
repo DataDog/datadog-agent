@@ -81,7 +81,7 @@ func stopAgent(w http.ResponseWriter, r *http.Request) {
 
 func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	hname, err := util.GetHostname()
+	hname, err := util.GetHostname(r.Context())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s\n", err) // or something like this
 		hname = ""
@@ -106,6 +106,10 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Reset the `server_timeout` deadline for this connection as creating a flare can take some time
+	conn := GetConnection(r)
+	_ = conn.SetDeadline(time.Time{})
+
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
 		logFile = common.DefaultLogFile
@@ -115,7 +119,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		jmxLogFile = common.DefaultJmxLogFile
 	}
 	log.Infof("Making a flare")
-	filePath, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, profile)
+	filePath, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, profile, nil)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)
@@ -230,12 +234,14 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Reset the `server_timeout` deadline for this connection as streaming holds the connection open.
 	conn := GetConnection(r)
-
-	// Override the default server timeouts so the connection never times out
 	_ = conn.SetDeadline(time.Time{})
-	_ = conn.SetWriteDeadline(time.Time{})
 
+	done := make(chan struct{})
+	defer close(done)
+	logChan := logMessageReceiver.Filter(&filters, done)
+	flushTimer := time.NewTicker(time.Second)
 	for {
 		// Handlers for detecting a closed connection (from either the server or client)
 		select {
@@ -243,11 +249,9 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 			return
 		case <-r.Context().Done():
 			return
-		default:
-		}
-		if line, ok := logMessageReceiver.Next(&filters); ok {
+		case line := <-logChan:
 			fmt.Fprint(w, line)
-		} else {
+		case <-flushTimer.C:
 			// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.
 			flusher.Flush()
 		}

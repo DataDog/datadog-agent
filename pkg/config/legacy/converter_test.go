@@ -267,7 +267,8 @@ func TestConverter(t *testing.T) {
 	for k, v := range map[string]bool{
 		"hostname_fqdn":                    true,
 		"apm_config.enabled":               false,
-		"apm_config.apm_non_local_traffic": false,
+		"apm_config.apm_non_local_traffic": true,
+		"dogstatsd_non_local_traffic":      true,
 		"skip_ssl_validation":              false,
 		"apm_config.log_throttling":        true, // trace.config.log_throttling
 	} {

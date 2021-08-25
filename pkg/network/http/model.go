@@ -62,31 +62,15 @@ func (tx *httpTX) StatusClass() int {
 	return (int(tx.response_status_code) / 100) * 100
 }
 
-// Method returns a string representing the HTTP method of the request
-func (tx *httpTX) Method() string {
-	switch tx.request_method {
-	case C.HTTP_GET:
-		return "GET"
-	case C.HTTP_POST:
-		return "POST"
-	case C.HTTP_PUT:
-		return "PUT"
-	case C.HTTP_HEAD:
-		return "HEAD"
-	case C.HTTP_DELETE:
-		return "DELETE"
-	case C.HTTP_OPTIONS:
-		return "OPTIONS"
-	case C.HTTP_PATCH:
-		return "PATCH"
-	default:
-		return ""
-	}
+// RequestLatency returns the latency of the request in nanoseconds
+func (tx *httpTX) RequestLatency() float64 {
+	return nsTimestampToFloat(uint64(tx.response_last_seen - tx.request_started))
 }
 
-// RequestLatency returns the latency of the request in ms
-func (tx *httpTX) RequestLatency() float64 {
-	return float64((tx.response_last_seen - tx.request_started) / (1000000))
+// Incomplete returns true if the transaction contains only the request or response information
+// This happens in the context of localhost with NAT, in which case we join the two parts in userspace
+func (tx *httpTX) Incomplete() bool {
+	return tx.request_started == 0 || tx.response_status_code == 0
 }
 
 // IsDirty detects whether the batch page we're supposed to read from is still
@@ -100,4 +84,18 @@ func (batch *httpBatch) IsDirty(notification httpNotification) bool {
 // Transactions returns the slice of HTTP transactions embedded in the batch
 func (batch *httpBatch) Transactions() []httpTX {
 	return (*(*[HTTPBatchSize]httpTX)(unsafe.Pointer(&batch.txs)))[:]
+}
+
+// below is copied from pkg/trace/stats/statsraw.go
+// 10 bits precision (any value will be +/- 1/1024)
+const roundMask uint64 = 1 << 10
+
+// nsTimestampToFloat converts a nanosec timestamp into a float nanosecond timestamp truncated to a fixed precision
+func nsTimestampToFloat(ns uint64) float64 {
+	var shift uint
+	for ns > roundMask {
+		ns = ns >> 1
+		shift++
+	}
+	return float64(ns << shift)
 }

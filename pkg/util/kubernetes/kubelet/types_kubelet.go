@@ -59,7 +59,7 @@ type ContainerSpec struct {
 	Env            []EnvVar            `json:"env,omitempty"`
 }
 
-// ContainerSpec contains fields for unmarshalling a Pod.Spec.Containers.Ports
+// ContainerPortSpec contains fields for unmarshalling a Pod.Spec.Containers.Ports
 type ContainerPortSpec struct {
 	ContainerPort int    `json:"containerPort"`
 	HostPort      int    `json:"hostPort"`
@@ -127,6 +127,11 @@ type ContainerStatus struct {
 // IsPending returns if the container doesn't have an ID
 func (c *ContainerStatus) IsPending() bool {
 	return c.ID == ""
+}
+
+// IsTerminated returns if the container is in a terminated state
+func (c *ContainerStatus) IsTerminated() bool {
+	return c.State.Terminated != nil
 }
 
 // ContainerState holds a possible state of container.

@@ -14,7 +14,7 @@ if [[ -z "$DD_API_KEY" ]]; then
 fi
 
 ##### Copy the custom confs removing any ".." folder in the paths #####
-find /conf.d -name '*.yaml' | sed -E "s#/\.\.[^/]+##" | xargs -I{} cp --parents -fv {} /etc/datadog-agent/
+find /conf.d -name '*.yaml' -o -name '*.yaml.default' | sed -E "s#/\.\.[^/]+##" | xargs -I{} cp --parents -fv {} /etc/datadog-agent/
 
 ##### Starting up #####
 export PATH="/opt/datadog-agent/bin/datadog-cluster-agent/:/opt/datadog-agent/embedded/bin/":$PATH

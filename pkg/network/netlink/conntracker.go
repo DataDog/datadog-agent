@@ -20,8 +20,6 @@ import (
 )
 
 const (
-	initializationTimeout = time.Second * 10
-
 	compactInterval      = time.Minute
 	defaultOrphanTimeout = 2 * time.Minute
 )
@@ -59,6 +57,7 @@ type realConntracker struct {
 	sync.RWMutex
 	consumer *Consumer
 	cache    *conntrackCache
+	decoder  *Decoder
 
 	// The maximum size the state map will grow before we reject new entries
 	maxStateSize int
@@ -93,8 +92,8 @@ func NewConntracker(config *config.Config) (Conntracker, error) {
 	select {
 	case <-done:
 		return conntracker, err
-	case <-time.After(initializationTimeout):
-		return nil, fmt.Errorf("could not initialize conntrack after: %s", initializationTimeout)
+	case <-time.After(config.ConntrackInitTimeout):
+		return nil, fmt.Errorf("could not initialize conntrack after: %s", config.ConntrackInitTimeout)
 	}
 }
 
@@ -105,6 +104,7 @@ func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int, list
 		cache:         newConntrackCache(maxStateSize, defaultOrphanTimeout),
 		maxStateSize:  maxStateSize,
 		compactTicker: time.NewTicker(compactInterval),
+		decoder:       NewDecoder(),
 	}
 
 	for _, family := range []uint8{unix.AF_INET, unix.AF_INET6} {
@@ -221,7 +221,7 @@ func (ctr *realConntracker) Close() {
 
 func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 	for e := range events {
-		conns := DecodeAndReleaseEvent(e)
+		conns := ctr.decoder.DecodeAndReleaseEvent(e)
 		for _, c := range conns {
 			if !IsNAT(c) {
 				continue
@@ -264,20 +264,22 @@ func (ctr *realConntracker) run() error {
 	}
 
 	go func() {
-		for e := range events {
-			conns := DecodeAndReleaseEvent(e)
-			for _, c := range conns {
-				ctr.register(c)
+		for {
+			select {
+			case e, ok := <-events:
+				if !ok {
+					return
+				}
+				conns := ctr.decoder.DecodeAndReleaseEvent(e)
+				for _, c := range conns {
+					ctr.register(c)
+				}
+
+			case <-ctr.compactTicker.C:
+				ctr.compact()
 			}
 		}
 	}()
-
-	go func() {
-		for range ctr.compactTicker.C {
-			ctr.compact()
-		}
-	}()
-
 	return nil
 }
 

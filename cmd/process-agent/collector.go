@@ -9,11 +9,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -22,6 +20,7 @@ import (
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type checkResult struct {
@@ -128,8 +127,10 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 		extraHeaders.Set(headers.ProcessVersionHeader, Version)
 		extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
 
-		if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
-			extraHeaders.Set(headers.ClusterIDHeader, cid)
+		if l.cfg.Orchestrator.OrchestrationCollectionEnabled {
+			if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
+				extraHeaders.Set(headers.ClusterIDHeader, cid)
+			}
 		}
 
 		payloads = append(payloads, checkPayload{
@@ -178,6 +179,8 @@ func (l *Collector) run(exit chan struct{}) error {
 	go util.HandleSignals(exit)
 
 	processResults := api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.ProcessQueueBytes))
+	// reuse main queue's ProcessQueueBytes because it's unlikely that it'll reach to that size in bytes, so we don't need a separate config for it
+	rtProcessResults := api.NewWeightedQueue(l.cfg.RTQueueSize, int64(l.cfg.ProcessQueueBytes))
 	podResults := api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.Orchestrator.PodQueueBytes))
 
 	var wg sync.WaitGroup
@@ -204,14 +207,14 @@ func (l *Collector) run(exit chan struct{}) error {
 			case <-heartbeat.C:
 				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
 			case <-queueSizeTicker.C:
-				updateQueueBytes(processResults.Weight(), podResults.Weight())
-				updateQueueSize(processResults.Len(), podResults.Len())
+				updateQueueBytes(processResults.Weight(), rtProcessResults.Weight(), podResults.Weight())
+				updateQueueSize(processResults.Len(), rtProcessResults.Len(), podResults.Len())
 			case <-queueLogTicker.C:
-				processSize, podSize := processResults.Len(), podResults.Len()
-				if processSize > 0 || podSize > 0 {
+				processSize, rtProcessSize, podSize := processResults.Len(), rtProcessResults.Len(), podResults.Len()
+				if processSize > 0 || rtProcessSize > 0 || podSize > 0 {
 					log.Infof(
-						"Delivery queues: process[size=%d, weight=%d], pod[size=%d, weight=%d]",
-						processSize, processResults.Weight(), podSize, podResults.Weight(),
+						"Delivery queues: process[size=%d, weight=%d], rtprocess [size=%d, weight=%d], pod[size=%d, weight=%d]",
+						processSize, processResults.Weight(), rtProcessSize, rtProcessResults.Weight(), podSize, podResults.Weight(),
 					)
 				}
 			case <-exit:
@@ -225,6 +228,9 @@ func (l *Collector) run(exit chan struct{}) error {
 	processForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.cfg.ProcessQueueBytes // Allow more in-flight requests than the default
 	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
 
+	// rt forwarder can reuse processForwarder's config
+	rtProcessForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
+
 	podForwarderOpts := forwarder.NewOptions(apicfg.KeysPerDomains(l.cfg.Orchestrator.OrchestratorEndpoints))
 	podForwarderOpts.DisableAPIKeyChecking = true
 	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.cfg.ProcessQueueBytes // Allow more in-flight requests than the default
@@ -232,6 +238,10 @@ func (l *Collector) run(exit chan struct{}) error {
 
 	if err := processForwarder.Start(); err != nil {
 		return fmt.Errorf("error starting forwarder: %s", err)
+	}
+
+	if err := rtProcessForwarder.Start(); err != nil {
+		return fmt.Errorf("error starting RT forwarder: %s", err)
 	}
 
 	if err := podForwarder.Start(); err != nil {
@@ -247,6 +257,12 @@ func (l *Collector) run(exit chan struct{}) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		l.consumePayloads(rtProcessResults, rtProcessForwarder, exit)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 		l.consumePayloads(podResults, podForwarder, exit)
 	}()
 
@@ -254,6 +270,8 @@ func (l *Collector) run(exit chan struct{}) error {
 		results := processResults
 		if c.Name() == checks.Pod.Name() {
 			results = podResults
+		} else if c.RealTime() {
+			results = rtProcessResults
 		}
 
 		wg.Add(1)
@@ -292,6 +310,7 @@ func (l *Collector) run(exit chan struct{}) error {
 	wg.Wait()
 
 	processForwarder.Stop()
+	rtProcessForwarder.Stop()
 	podForwarder.Stop()
 	return nil
 }
@@ -305,9 +324,12 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 		}
 		result := item.(*checkResult)
 		for _, payload := range result.payloads {
-			forwarderPayload := forwarder.Payloads{&payload.body}
-			var responses chan forwarder.Response
-			var err error
+			var (
+				forwarderPayload = forwarder.Payloads{&payload.body}
+				responses        chan forwarder.Response
+				err              error
+				updateRTStatus   = true
+			)
 
 			switch result.name {
 			case checks.Process.Name():
@@ -321,7 +343,9 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 			case checks.Connections.Name():
 				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
 			case checks.Pod.Name():
-				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, checks.Pod.Name())
+				// Orchestrator intake response does not change RT checks enablement or interval
+				updateRTStatus = false
+				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
 			default:
 				err = fmt.Errorf("unsupported payload type: %s", result.name)
 			}
@@ -332,13 +356,15 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 			}
 
 			if statuses := readResponseStatuses(result.name, responses); len(statuses) > 0 {
-				l.updateStatus(statuses)
+				if updateRTStatus {
+					l.updateRTStatus(statuses)
+				}
 			}
 		}
 	}
 }
 
-func (l *Collector) updateStatus(statuses []*model.CollectorStatus) {
+func (l *Collector) updateRTStatus(statuses []*model.CollectorStatus) {
 	curEnabled := atomic.LoadInt32(&l.realTimeEnabled) == 1
 
 	// If any of the endpoints wants real-time we'll do that.

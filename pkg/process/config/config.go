@@ -16,12 +16,13 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/cmd/agent/api/pb"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
@@ -79,29 +80,35 @@ type WindowsConfig struct {
 // AgentConfig is the global config for the process-agent. This information
 // is sourced from config files and the environment variables.
 type AgentConfig struct {
-	Enabled              bool
-	HostName             string
-	APIEndpoints         []apicfg.Endpoint
-	LogFile              string
-	LogLevel             string
-	LogToConsole         bool
-	QueueSize            int // The number of items allowed in each delivery queue.
-	ProcessQueueBytes    int // The total number of bytes that can be enqueued for delivery to the process intake endpoint
-	Blacklist            []*regexp.Regexp
-	Scrubber             *DataScrubber
-	MaxPerMessage        int
-	MaxConnsPerMessage   int
-	AllowRealTime        bool
-	Transport            *http.Transport `json:"-"`
-	DDAgentBin           string
-	StatsdHost           string
-	StatsdPort           int
-	ProcessExpVarPort    int
-	ProfilingEnabled     bool
-	ProfilingSite        string
-	ProfilingURL         string
-	ProfilingAPIKey      string
-	ProfilingEnvironment string
+	Enabled                   bool
+	HostName                  string
+	APIEndpoints              []apicfg.Endpoint
+	LogFile                   string
+	LogLevel                  string
+	LogToConsole              bool
+	QueueSize                 int // The number of items allowed in each delivery queue.
+	RTQueueSize               int // the number of items allowed in real-time delivery queue
+	ProcessQueueBytes         int // The total number of bytes that can be enqueued for delivery to the process intake endpoint
+	Blacklist                 []*regexp.Regexp
+	Scrubber                  *DataScrubber
+	MaxPerMessage             int
+	MaxCtrProcessesPerMessage int // The maximum number of processes that belong to a container for a given message
+	MaxConnsPerMessage        int
+	AllowRealTime             bool
+	Transport                 *http.Transport `json:"-"`
+	DDAgentBin                string
+	StatsdHost                string
+	StatsdPort                int
+	ProcessExpVarPort         int
+	ProfilingEnabled          bool
+	ProfilingSite             string
+	ProfilingURL              string
+	ProfilingEnvironment      string
+	ProfilingPeriod           time.Duration
+	ProfilingCPUDuration      time.Duration
+	ProfilingMutexFraction    int
+	ProfilingBlockRate        int
+	ProfilingWithGoroutines   bool
 	// host type of the agent, used to populate container payload with additional host information
 	ContainerHostType model.ContainerHostType
 
@@ -141,8 +148,10 @@ func (a AgentConfig) CheckInterval(checkName string) time.Duration {
 }
 
 const (
-	defaultProcessEndpoint = "https://process.datadoghq.com"
-	maxMessageBatch        = 100
+	defaultProcessEndpoint         = "https://process.datadoghq.com"
+	maxMessageBatch                = 100
+	defaultMaxCtrProcsMessageBatch = 10000
+	maxCtrProcsMessageBatch        = 30000
 )
 
 // NewDefaultTransport provides a http transport configuration with sane default timeouts
@@ -184,15 +193,17 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		ProcessQueueBytes: 60 * 1000 * 1000,
 		// This can be fairly high as the input should get throttled by queue bytes first.
 		// Assuming we generate ~8 checks/minute (for process/network), this should allow buffering of ~30 minutes of data assuming it fits within the queue bytes memory budget
-		QueueSize: 256,
+		QueueSize:   256,
+		RTQueueSize: 5, // We set a small queue size for real-time message queue because they get staled very quickly, thus we only keep the latest several payloads
 
-		MaxPerMessage:      100,
-		MaxConnsPerMessage: 600,
-		AllowRealTime:      true,
-		HostName:           "",
-		Transport:          NewDefaultTransport(),
-		ProcessExpVarPort:  6062,
-		ContainerHostType:  model.ContainerHostType_notSpecified,
+		MaxPerMessage:             maxMessageBatch,
+		MaxCtrProcessesPerMessage: defaultMaxCtrProcsMessageBatch,
+		MaxConnsPerMessage:        600,
+		AllowRealTime:             true,
+		HostName:                  "",
+		Transport:                 NewDefaultTransport(),
+		ProcessExpVarPort:         6062,
+		ContainerHostType:         model.ContainerHostType_notSpecified,
 
 		// Statsd for internal instrumentation
 		StatsdHost: "127.0.0.1",
@@ -244,7 +255,9 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 	return ac
 }
 
-func loadConfigIfExists(path string) error {
+// LoadConfigIfExists takes a path to either a directory containing datadog.yaml or a direct path to a datadog.yaml file
+// and loads it into ddconfig.Datadog. It does this silently, and does not produce any logs.
+func LoadConfigIfExists(path string) error {
 	if path != "" {
 		if util.PathExists(path) {
 			config.Datadog.AddConfigPath(path)
@@ -267,16 +280,17 @@ func loadConfigIfExists(path string) error {
 func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) (*AgentConfig, error) {
 	var err error
 
+	// For Agent 6 we will have a YAML config file to use.
+	if err := LoadConfigIfExists(yamlPath); err != nil {
+		return nil, err
+	}
+
 	// Note: This only considers container sources that are already setup. It's possible that container sources may
 	//       need a few minutes to be ready on newly provisioned hosts.
 	_, err = util.GetContainers()
 	canAccessContainers := err == nil
 
 	cfg := NewDefaultAgentConfig(canAccessContainers)
-	// For Agent 6 we will have a YAML config file to use.
-	if err := loadConfigIfExists(yamlPath); err != nil {
-		return nil, err
-	}
 
 	if err := cfg.LoadProcessYamlConfig(yamlPath); err != nil {
 		return nil, err
@@ -328,7 +342,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 
 	if err := validate.ValidHostname(cfg.HostName); err != nil {
 		// lookup hostname if there is no config override or if the override is invalid
-		if hostname, err := getHostname(cfg.DDAgentBin, cfg.grpcConnectionTimeout); err == nil {
+		if hostname, err := getHostname(context.TODO(), cfg.DDAgentBin, cfg.grpcConnectionTimeout); err == nil {
 			cfg.HostName = hostname
 		} else {
 			log.Errorf("Cannot get hostname: %v", err)
@@ -357,12 +371,30 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 		}
 	}
 
+	initRuntimeSettings()
+
 	return cfg, nil
+}
+
+// initRuntimeSettings registers settings to be added to the runtime config.
+func initRuntimeSettings() {
+	// NOTE: Any settings you want to register should simply be added here
+	var processRuntimeSettings = []settings.RuntimeSetting{
+		settings.LogLevelRuntimeSetting{},
+	}
+
+	// Before we begin listening, register runtime settings
+	for _, setting := range processRuntimeSettings {
+		err := settings.RegisterRuntimeSetting(setting)
+		if err != nil {
+			_ = log.Warnf("cannot initialize the runtime setting %s: %v", setting.Name(), err)
+		}
+	}
 }
 
 // getContainerHostType uses the fargate library to detect container environment and returns the protobuf version of it
 func getContainerHostType() model.ContainerHostType {
-	switch fargate.GetOrchestrator() {
+	switch fargate.GetOrchestrator(context.TODO()) {
 	case fargate.ECS:
 		return model.ContainerHostType_fargateECS
 	case fargate.EKS:
@@ -381,6 +413,9 @@ func loadEnvVariables() {
 		{"DD_PROCESS_AGENT_URL", "process_config.process_dd_url"},
 		{"DD_PROCESS_AGENT_INTERNAL_PROFILING_ENABLED", "process_config.internal_profiling.enabled"},
 		{"DD_PROCESS_AGENT_REMOTE_TAGGER", "process_config.remote_tagger"},
+		{"DD_PROCESS_AGENT_MAX_PER_MESSAGE", "process_config.max_per_message"},
+		{"DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "process_config.max_ctr_procs_per_message"},
+		{"DD_PROCESS_AGENT_CMD_PORT", "process_config.cmd_port"},
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},
@@ -454,10 +489,10 @@ func isAffirmative(value string) (bool, error) {
 
 // getHostname attempts to resolve the hostname in the following order: the main datadog agent via grpc, the main agent
 // via cli and lastly falling back to os.Hostname() if it is unavailable
-func getHostname(ddAgentBin string, grpcConnectionTimeout time.Duration) (string, error) {
+func getHostname(ctx context.Context, ddAgentBin string, grpcConnectionTimeout time.Duration) (string, error) {
 	// Fargate is handled as an exceptional case (there is no concept of a host, so we use the ARN in-place).
-	if fargate.IsFargateInstance() {
-		hostname, err := fargate.GetFargateHost()
+	if fargate.IsFargateInstance(ctx) {
+		hostname, err := fargate.GetFargateHost(ctx)
 		if err == nil {
 			return hostname, nil
 		}
@@ -465,7 +500,7 @@ func getHostname(ddAgentBin string, grpcConnectionTimeout time.Duration) (string
 	}
 
 	// Get the hostname via gRPC from the main agent if a hostname has not been set either from config/fargate
-	hostname, err := getHostnameFromGRPC(ddgrpc.GetDDAgentClient, grpcConnectionTimeout)
+	hostname, err := getHostnameFromGRPC(ctx, ddgrpc.GetDDAgentClient, grpcConnectionTimeout)
 	if err == nil {
 		return hostname, nil
 	}
@@ -508,8 +543,8 @@ func getHostnameFromCmd(ddAgentBin string, cmdFn cmdFunc) (string, error) {
 }
 
 // getHostnameFromGRPC retrieves the hostname from the main datadog agent via GRPC
-func getHostnameFromGRPC(grpcClientFn func(ctx context.Context, opts ...grpc.DialOption) (pb.AgentClient, error), grpcConnectionTimeout time.Duration) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), grpcConnectionTimeout)
+func getHostnameFromGRPC(ctx context.Context, grpcClientFn func(ctx context.Context, opts ...grpc.DialOption) (pb.AgentClient, error), grpcConnectionTimeout time.Duration) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, grpcConnectionTimeout)
 	defer cancel()
 
 	ddAgentClient, err := grpcClientFn(ctx)
@@ -517,7 +552,6 @@ func getHostnameFromGRPC(grpcClientFn func(ctx context.Context, opts ...grpc.Dia
 		return "", fmt.Errorf("cannot connect to datadog agent via grpc: %w", err)
 	}
 	reply, err := ddAgentClient.GetHostname(ctx, &pb.HostnameRequest{})
-
 	if err != nil {
 		return "", fmt.Errorf("cannot get hostname from datadog agent via grpc: %w", err)
 	}

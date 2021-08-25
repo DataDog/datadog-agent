@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The logs-agent now retries on an HTTP 429 response, where this had been treated as a hard failure.
+    The v2 Event Intake will return 429 responses when it is overwhelmed.

@@ -17,11 +17,11 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
 	"text/template"
+	"unicode"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/structtag"
@@ -199,6 +199,10 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 				if isEmbedded := len(field.Names) == 0; !isEmbedded {
 					fieldName := field.Names[0].Name
 
+					if !unicode.IsUpper(rune(fieldName[0])) {
+						continue
+					}
+
 					if dejavu[fieldName] {
 						continue
 					}
@@ -288,7 +292,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 						dejavu[fieldName] = true
 
 						if fieldType != nil {
-							if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, filepath.Base(pkgname), fieldType, event, fieldIterator, dejavu, false); err != nil {
+							if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false); err != nil {
 								log.Print(err)
 							}
 
@@ -359,7 +363,7 @@ func parseFile(filename string, pkgName string) (*Module, error) {
 
 	packages = make(map[string]*types.Package, len(program.AllPackages))
 	for typePackage := range program.AllPackages {
-		packages[typePackage.Name()] = typePackage
+		packages[typePackage.Path()] = typePackage
 	}
 
 	var buildTags []string

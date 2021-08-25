@@ -29,7 +29,7 @@ func patternToRegexp(pattern string) (*regexp.Regexp, error) {
 }
 
 func toPattern(se *StringEvaluator) error {
-	if se.isRegexp {
+	if se.regexp != nil {
 		return nil
 	}
 
@@ -38,7 +38,6 @@ func toPattern(se *StringEvaluator) error {
 		return fmt.Errorf("invalid pattern '%s': %s", se.Value, err)
 	}
 	se.valueType = PatternValueType
-	se.isRegexp = true
 	se.regexp = reg
 
 	return nil

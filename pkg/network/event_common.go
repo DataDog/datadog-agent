@@ -6,9 +6,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/dustin/go-humanize"
+	"go4.org/intern"
 )
 
 // ConnectionType will be either TCP or UDP
@@ -77,6 +79,31 @@ func (d ConnectionDirection) String() string {
 	}
 }
 
+// EphemeralPortType will be either EphemeralUnknown, EphemeralTrue, EphemeralFalse
+type EphemeralPortType uint8
+
+const (
+	// EphemeralUnknown indicates inability to determine whether the port is in the ephemeral range or not
+	EphemeralUnknown EphemeralPortType = 0
+
+	// EphemeralTrue means the port has been detected to be in the configured ephemeral range
+	EphemeralTrue EphemeralPortType = 1
+
+	// EphemeralFalse means the port has been detected to not be in the configured ephemeral range
+	EphemeralFalse EphemeralPortType = 2
+)
+
+func (e EphemeralPortType) String() string {
+	switch e {
+	case EphemeralTrue:
+		return "ephemeral"
+	case EphemeralFalse:
+		return "not ephemeral"
+	default:
+		return "unspecified"
+	}
+}
+
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
 	DNS                         map[util.Address][]string
@@ -98,12 +125,14 @@ type ConnectionsTelemetry struct {
 	MonotonicUDPSendsProcessed         int64
 	MonotonicUDPSendsMissed            int64
 	ConntrackSamplingPercent           int64
+	DNSStatsDropped                    int64
 }
 
 // RuntimeCompilationTelemetry stores telemetry related to the runtime compilation of various assets
 type RuntimeCompilationTelemetry struct {
 	RuntimeCompilationEnabled  bool
 	RuntimeCompilationResult   int32
+	KernelHeaderFetchResult    int32
 	RuntimeCompilationDuration int64
 }
 
@@ -117,6 +146,12 @@ type ConnectionStats struct {
 
 	MonotonicRecvBytes uint64
 	LastRecvBytes      uint64
+
+	MonotonicSentPackets uint64
+	LastSentPackets      uint64
+
+	MonotonicRecvPackets uint64
+	LastRecvPackets      uint64
 
 	// Last time the stats for this connection were updated
 	LastUpdateEpoch uint64
@@ -142,20 +177,21 @@ type ConnectionStats struct {
 	Pid   uint32
 	NetNS uint32
 
-	SPort                  uint16
-	DPort                  uint16
-	Type                   ConnectionType
-	Family                 ConnectionFamily
-	Direction              ConnectionDirection
-	IPTranslation          *IPTranslation
-	IntraHost              bool
-	DNSSuccessfulResponses uint32
-	DNSFailedResponses     uint32
-	DNSTimeouts            uint32
-	DNSSuccessLatencySum   uint64
-	DNSFailureLatencySum   uint64
-	DNSCountByRcode        map[uint32]uint32
-	DNSStatsByDomain       map[string]DNSStats
+	SPort                       uint16
+	DPort                       uint16
+	Type                        ConnectionType
+	Family                      ConnectionFamily
+	Direction                   ConnectionDirection
+	SPortIsEphemeral            EphemeralPortType
+	IPTranslation               *IPTranslation
+	IntraHost                   bool
+	DNSSuccessfulResponses      uint32
+	DNSFailedResponses          uint32
+	DNSTimeouts                 uint32
+	DNSSuccessLatencySum        uint64
+	DNSFailureLatencySum        uint64
+	DNSCountByRcode             map[uint32]uint32
+	DNSStatsByDomainByQueryType map[*intern.Value]map[dns.QueryType]dns.Stats
 
 	Via *Via
 }
@@ -245,13 +281,26 @@ func BeautifyKey(key string) string {
 // ConnectionSummary returns a string summarizing a connection
 func ConnectionSummary(c *ConnectionStats, names map[util.Address][]string) string {
 	str := fmt.Sprintf(
-		"[%s] [PID: %d] [%v:%d ⇄ %v:%d] (%s) %s sent (+%s), %s received (+%s)",
+		"[%s%s] [PID: %d] [%v:%d ⇄ %v:%d] ",
 		c.Type,
+		c.Family,
 		c.Pid,
 		printAddress(c.Source, names[c.Source]),
 		c.SPort,
 		printAddress(c.Dest, names[c.Dest]),
 		c.DPort,
+	)
+	if c.IPTranslation != nil {
+		str += fmt.Sprintf(
+			"xlated [%v:%d ⇄ %v:%d] ",
+			c.IPTranslation.ReplSrcIP,
+			c.IPTranslation.ReplSrcPort,
+			c.IPTranslation.ReplDstIP,
+			c.IPTranslation.ReplDstPort,
+		)
+	}
+
+	str += fmt.Sprintf("(%s) %s sent (+%s), %s received (+%s)",
 		c.Direction,
 		humanize.Bytes(c.MonotonicSentBytes), humanize.Bytes(c.LastSentBytes),
 		humanize.Bytes(c.MonotonicRecvBytes), humanize.Bytes(c.LastRecvBytes),
@@ -275,21 +324,4 @@ func printAddress(address util.Address, names []string) string {
 	}
 
 	return strings.Join(names, ",")
-}
-
-// DNSKey is an identifier for a set of DNS connections
-type DNSKey struct {
-	serverIP   util.Address
-	clientIP   util.Address
-	clientPort uint16
-	// ConnectionType will be either TCP or UDP
-	protocol ConnectionType
-}
-
-// DNSStats holds statistics corresponding to a particular domain
-type DNSStats struct {
-	DNSTimeouts          uint32
-	DNSSuccessLatencySum uint64
-	DNSFailureLatencySum uint64
-	DNSCountByRcode      map[uint32]uint32
 }

@@ -18,11 +18,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 	l := ckey.NewKeyGenerator()
-	return l.Generate(serie.Name, serie.Host, serie.Tags)
+	return l.Generate(serie.Name, serie.Host, util.NewTagsBuilderFromSlice(serie.Tags))
 }
 
 // TimeSampler
@@ -251,13 +252,13 @@ func TestCounterExpirySeconds(t *testing.T) {
 	// Counter2 should still report
 	assert.Equal(t, 1, len(series))
 	assert.Equal(t, 1, len(sampler.counterLastSampledByContext))
-	assert.Equal(t, 2, len(sampler.contextResolver.contextsByKey))
+	assert.Equal(t, 2, len(sampler.contextResolver.resolver.contextsByKey))
 
 	series, _ = sampler.flush(1800.0)
 	// Everything stopped reporting and is expired
 	assert.Equal(t, 0, len(series))
 	assert.Equal(t, 0, len(sampler.counterLastSampledByContext))
-	assert.Equal(t, 0, len(sampler.contextResolver.contextsByKey))
+	assert.Equal(t, 0, len(sampler.contextResolver.resolver.contextsByKey))
 }
 
 func TestSketch(t *testing.T) {
@@ -319,7 +320,7 @@ func TestSketch(t *testing.T) {
 					Ts:     0,
 				},
 			},
-			ContextKey: keyGen.Generate(ctx.Name, ctx.Host, ctx.Tags),
+			ContextKey: keyGen.Generate(ctx.Name, ctx.Host, util.NewTagsBuilderFromSlice(ctx.Tags)),
 		}, flushed[0])
 
 		_, flushed = sampler.flush(now)

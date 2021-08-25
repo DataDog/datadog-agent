@@ -28,6 +28,6 @@ func enableUDSPassCred(conn *net.UnixConn) error {
 }
 
 // processUDSOrigin returns a "not implemented" error on non-linux hosts
-func processUDSOrigin(oob []byte) (string, error) {
-	return packets.NoOrigin, ErrLinuxOnly
+func processUDSOrigin(oob []byte) (int, string, error) {
+	return 0, packets.NoOrigin, ErrLinuxOnly
 }

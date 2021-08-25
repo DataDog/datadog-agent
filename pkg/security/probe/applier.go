@@ -50,12 +50,21 @@ func (rsa *RuleSetApplier) applyApprovers(eventType eval.EventType, approvers ru
 	return nil
 }
 
+// applyDefaultPolicy this will apply the deny policy if kernel filters are enabled
+func (rsa *RuleSetApplier) applyDefaultFilterPolicies() {
+	var model Model
+	for _, eventType := range model.GetEventTypes() {
+		if !rsa.config.EnableKernelFilters {
+			_ = rsa.applyFilterPolicy(eventType, PolicyModeNoFilter, math.MaxUint8)
+		} else {
+			_ = rsa.applyFilterPolicy(eventType, PolicyModeDeny, math.MaxUint8)
+		}
+	}
+}
+
 func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventType, approvers rules.Approvers) error {
 	if !rsa.config.EnableKernelFilters {
-		if err := rsa.applyFilterPolicy(eventType, PolicyModeNoFilter, math.MaxUint8); err != nil {
-			return err
-		}
-		return nil
+		return rsa.applyFilterPolicy(eventType, PolicyModeNoFilter, math.MaxUint8)
 	}
 
 	// if approvers disabled
@@ -69,25 +78,15 @@ func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventT
 	}
 
 	if len(approvers) == 0 {
-		if err := rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8); err != nil {
-			return err
-		}
-		return nil
+		return rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8)
 	}
 
 	if err := rsa.applyApprovers(eventType, approvers); err != nil {
 		log.Errorf("Failed to apply approvers, setting policy mode to 'accept' (error: %s)", err)
-		if err := rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8); err != nil {
-			return err
-		}
-		return nil
+		return rsa.applyFilterPolicy(eventType, PolicyModeAccept, math.MaxUint8)
 	}
 
-	if err := rsa.applyFilterPolicy(eventType, PolicyModeDeny, capabilities.GetFlags()); err != nil {
-		return err
-	}
-
-	return nil
+	return rsa.applyFilterPolicy(eventType, PolicyModeDeny, capabilities.GetFlags())
 }
 
 // Apply setup the filters for the provided set of rules and returns the policy report.
@@ -102,6 +101,9 @@ func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, approvers map[eval.EventType
 			return nil, errors.Wrap(err, "failed to flush discarders")
 		}
 	}
+
+	// apply deny filter by default
+	rsa.applyDefaultFilterPolicies()
 
 	for _, eventType := range rs.GetEventTypes() {
 		if err := rsa.setupFilters(rs, eventType, approvers[eventType]); err != nil {

@@ -28,11 +28,17 @@ var blankRegex = regexp.MustCompile(`^\s*$`)
 var singleLineReplacers, multiLineReplacers []Replacer
 
 func init() {
-	hintedKeyReplacer := Replacer{
-		// If hinted, mask the value regardless if it doesn't match 32/40-char hexadecimal string
-		Regex: regexp.MustCompile(`(ap[ip]_key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{5})\b`),
-		Hints: []string{"api_key", "app_key"},
+	hintedAPIKeyReplacer := Replacer{
+		// If hinted, mask the value regardless if it doesn't match 32-char hexadecimal string
+		Regex: regexp.MustCompile(`(api_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{5})\b`),
+		Hints: []string{"api_key", "apikey"},
 		Repl:  []byte(`$1***************************$2`),
+	}
+	hintedAPPKeyReplacer := Replacer{
+		// If hinted, mask the value regardless if it doesn't match 40-char hexadecimal string
+		Regex: regexp.MustCompile(`(ap(?:p|plication)_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{5})\b`),
+		Hints: []string{"app_key", "appkey", "application_key"},
+		Repl:  []byte(`$1***********************************$2`),
 	}
 	apiKeyReplacer := Replacer{
 		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
@@ -68,7 +74,7 @@ func init() {
 		Hints: []string{"BEGIN"},
 		Repl:  []byte(`********`),
 	}
-	singleLineReplacers = []Replacer{hintedKeyReplacer, apiKeyReplacer, appKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
+	singleLineReplacers = []Replacer{hintedAPIKeyReplacer, hintedAPPKeyReplacer, apiKeyReplacer, appKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
 	multiLineReplacers = []Replacer{certReplacer}
 }
 

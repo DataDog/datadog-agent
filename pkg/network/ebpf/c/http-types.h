@@ -58,6 +58,12 @@ typedef struct {
     __u16 response_status_code;
     __u64 response_last_seen;
     char request_fragment[HTTP_BUFFER_SIZE];
+
+    // this field is used exclusively in the kernel side to prevent a TCP segment
+    // to be processed twice in the context of localhost traffic. The field will
+    // be populated with the "original" (pre-normalization) source port number of
+    // the TCP segment containing the beginning of a given HTTP request
+    __u16 owned_by_src_port;
 } http_transaction_t;
 
 typedef struct {
@@ -78,5 +84,16 @@ typedef struct {
     __u32 cpu;
     __u64 batch_idx;
 } http_batch_notification_t;
+
+// OpenSSL types
+typedef struct {
+    void *ctx;
+    void *buf;
+} ssl_read_args_t;
+
+typedef struct {
+    conn_tuple_t tup;
+    __u32 fd;
+} ssl_sock_t;
 
 #endif

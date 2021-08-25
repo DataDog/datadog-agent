@@ -100,7 +100,7 @@ create_t *loadAndCreate(const char *dll, const char *python_home, char **error)
     return create;
 }
 
-rtloader_t *make2(const char *python_home, char **error)
+rtloader_t *make2(const char *python_home, const char *python_exe, char **error)
 {
 
     if (rtloader_backend != NULL) {
@@ -112,10 +112,10 @@ rtloader_t *make2(const char *python_home, char **error)
     if (!create) {
         return NULL;
     }
-    return AS_TYPE(rtloader_t, create(python_home, _get_memory_tracker_cb()));
+    return AS_TYPE(rtloader_t, create(python_home, python_exe, _get_memory_tracker_cb()));
 }
 
-rtloader_t *make3(const char *python_home, char **error)
+rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
 {
     if (rtloader_backend != NULL) {
         *error = strdupe("RtLoader already initialized!");
@@ -126,7 +126,7 @@ rtloader_t *make3(const char *python_home, char **error)
     if (!create_three) {
         return NULL;
     }
-    return AS_TYPE(rtloader_t, create_three(python_home, _get_memory_tracker_cb()));
+    return AS_TYPE(rtloader_t, create_three(python_home, python_exe, _get_memory_tracker_cb()));
 }
 
 /*! \fn void destroy(rtloader_t *rtloader)
@@ -150,7 +150,7 @@ void destroy(rtloader_t *rtloader)
 }
 
 #else
-rtloader_t *make2(const char *python_home, char **error)
+rtloader_t *make2(const char *python_home, const char *python_exe, char **error)
 {
     if (rtloader_backend != NULL) {
         std::string err_msg = "RtLoader already initialized!";
@@ -179,10 +179,10 @@ rtloader_t *make2(const char *python_home, char **error)
         return NULL;
     }
 
-    return AS_TYPE(rtloader_t, create(python_home, _get_memory_tracker_cb()));
+    return AS_TYPE(rtloader_t, create(python_home, python_exe, _get_memory_tracker_cb()));
 }
 
-rtloader_t *make3(const char *python_home, char **error)
+rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
 {
     if (rtloader_backend != NULL) {
         std::string err_msg = "RtLoader already initialized!";
@@ -212,7 +212,7 @@ rtloader_t *make3(const char *python_home, char **error)
         return NULL;
     }
 
-    return AS_TYPE(rtloader_t, create_three(python_home, _get_memory_tracker_cb()));
+    return AS_TYPE(rtloader_t, create_three(python_home, python_exe, _get_memory_tracker_cb()));
 }
 
 void destroy(rtloader_t *rtloader)

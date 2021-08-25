@@ -2,7 +2,9 @@ import glob
 import json
 import os.path
 import re
+import traceback
 
+import requests
 from invoke import task
 from invoke.exceptions import Exit
 
@@ -15,7 +17,7 @@ def genconfig(
     osversions="all",
     testfiles=None,
     uservars=None,
-    platformfile="platforms.json",
+    platformfile=None,
     platlist=None,
     fips=False,
     arch="x86_64",
@@ -37,7 +39,25 @@ def genconfig(
     if not platlist and not provider:
         provider = "azure"
 
-    platforms = load_platforms(ctx, platformfile=platformfile)
+    if platformfile:
+        with open(platformfile, "r") as f:
+            platforms = json.load(f)
+    else:
+        try:
+            print(
+                "Fetching the latest kitchen platforms.json from Github. Use --platformfile=platforms.json to override with a local file."
+            )
+            r = requests.get(
+                'https://raw.githubusercontent.com/DataDog/datadog-agent/main/test/kitchen/platforms.json',
+                allow_redirects=True,
+            )
+            r.raise_for_status()
+            platforms = r.json()
+        except Exception:
+            traceback.print_exc()
+            print("Warning: Could not fetch the latest kitchen platforms.json from Github, using local version.")
+            with open("platforms.json", "r") as f:
+                platforms = json.load(f)
 
     # create the TEST_PLATFORMS environment variable
     testplatformslist = []
@@ -142,10 +162,19 @@ def genconfig(
     ctx.run("erb tmpkitchen.yml > kitchen.yml", env=env)
 
 
-def load_platforms(_, platformfile):
-    with open(platformfile, "r") as f:
-        platforms = json.load(f)
-    return platforms
+@task
+def should_rerun_failed(_, runlog):
+    """
+    Parse a log from kitchen run and see if we should rerun it (e.g. because of a network issue).
+    """
+    test_result_re = re.compile(r'\d+\s+examples?,\s+(?P<failures>\d+)\s+failures?')
+    with open(runlog, 'r', encoding='utf-8') as f:
+        text = f.read()
+        result = set(test_result_re.findall(text))
+        if result == {'0'} or result == set():
+            print("Seeing no failed tests in log, advising to rerun")
+        else:
+            raise Exit("Seeing some failed tests in log, not advising to rerun", 1)
 
 
 def load_targets(_, targethash, selections):

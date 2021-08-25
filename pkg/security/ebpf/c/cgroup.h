@@ -39,7 +39,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(struct pt_regs *ct
     if (pid_entry) {
         cookie = pid_entry->cookie;
         // Select the old cache entry
-        old_entry = bpf_map_lookup_elem(&proc_cache, &cookie);
+        old_entry = get_proc_from_cookie(cookie);
         if (old_entry) {
             // copy cache data
             copy_proc_cache(old_entry, &new_entry);

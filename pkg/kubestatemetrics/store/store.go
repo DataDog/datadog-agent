@@ -72,9 +72,9 @@ func (d *DDMetricsFam) extract(f metric.Family) {
 	}
 }
 
-// Implementing k8s.io/client-go/tools/cache.Store interface
 // Add inserts adds to the MetricsStore by calling the metrics generator functions and
 // adding the generated metrics to the metrics map that underlies the MetricStore.
+// Implementing k8s.io/client-go/tools/cache.Store interface
 func (s *MetricsStore) Add(obj interface{}) error {
 	o, err := meta.Accessor(obj)
 	if err != nil {

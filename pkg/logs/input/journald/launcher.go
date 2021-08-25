@@ -24,7 +24,7 @@ type Launcher struct {
 	stop             chan struct{}
 }
 
-// New returns a new Launcher.
+// NewLauncher returns a new Launcher.
 func NewLauncher(sources *config.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry) *Launcher {
 	return &Launcher{
 		sources:          sources.GetAddedForType(config.JournaldType),

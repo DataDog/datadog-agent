@@ -8,6 +8,8 @@
 package ecs
 
 import (
+	"context"
+	"fmt"
 	"net"
 	"time"
 
@@ -38,7 +40,7 @@ func ListContainersInCurrentTask() ([]*containers.Container, error) {
 		return cList, err
 	}
 
-	task, err := client.GetTask()
+	task, err := client.GetTask(context.TODO())
 	if err != nil || len(task.Containers) == 0 {
 		log.Error("Unable to get the container list from ecs")
 		return cList, err
@@ -52,7 +54,11 @@ func ListContainersInCurrentTask() ([]*containers.Container, error) {
 	for _, c := range task.Containers {
 		// Not using c.DockerName as it's generated with ecs task name, thus probably not easy to match
 		if filter == nil || !filter.IsExcluded(c.Name, c.Image, "") {
-			cList = append(cList, convertMetaV2Container(c, task.Limits))
+			c, e := convertMetaV2Container(c, task.Limits)
+			cList = append(cList, c)
+			if e != nil {
+				log.Error(e)
+			}
 		}
 	}
 
@@ -70,7 +76,7 @@ func UpdateContainerMetrics(cList []*containers.Container) error {
 			return err
 		}
 
-		stats, err := client.GetContainerStats(ctr.ID)
+		stats, err := client.GetContainerStats(context.TODO(), ctr.ID)
 		if err != nil {
 			log.Debugf("Unable to get stats from ECS for container %s: %s", ctr.ID, err)
 			continue
@@ -87,13 +93,18 @@ func UpdateContainerMetrics(cList []*containers.Container) error {
 		if ctr.Limits.MemLimit == 0 {
 			ctr.Limits.MemLimit = memLimit
 		}
+
+		netStats := convertMetaV2NetStats(stats.Networks)
+		if netStats != nil {
+			ctr.Network = netStats
+		}
 	}
 	return nil
 }
 
 // convertMetaV2Container returns an internal container representation from an
 // ECS metadata v2 container object.
-func convertMetaV2Container(c v2.Container, taskLimits map[string]float64) *containers.Container {
+func convertMetaV2Container(c v2.Container, taskLimits map[string]float64) (*containers.Container, error) {
 	container := &containers.Container{
 		Type:        "ECS",
 		ID:          c.DockerID,
@@ -104,22 +115,31 @@ func convertMetaV2Container(c v2.Container, taskLimits map[string]float64) *cont
 		AddressList: parseContainerNetworkAddresses(c.Ports, c.Networks, c.DockerName),
 	}
 
-	createdAt, err := time.Parse(time.RFC3339, c.CreatedAt)
-	if err != nil {
-		log.Errorf("Unable to determine creation time for container %s - %s", c.DockerID, err)
-	} else {
-		container.Created = createdAt.Unix()
+	var dateError error
+	// enum of the status is here: https://github.com/awslabs/amazon-ecs-local-container-endpoints/blob/mainline/vendor/github.com/aws/amazon-ecs-agent/agent/api/container/status/containerstatus.go#L55-L65
+	// explanation of the status is here: https://github.com/awslabs/amazon-ecs-local-container-endpoints/blob/mainline/vendor/github.com/aws/amazon-ecs-agent/agent/api/container/status/containerstatus.go#L21-L41
+	// based on this code and comments and based on my testing, the PULLED state doesn't have any dates.
+	if c.KnownStatus != "PULLED" {
+		createdAt, err := time.Parse(time.RFC3339, c.CreatedAt)
+		if err != nil {
+			dateError = fmt.Errorf("Unable to determine creation time for container %s - %w", c.DockerID, err)
+		} else {
+			container.Created = createdAt.Unix()
+		}
 	}
-	startedAt, err := time.Parse(time.RFC3339, c.StartedAt)
-	if err != nil {
-		log.Errorf("Unable to determine creation time for container %s - %s", c.DockerID, err)
-	} else {
-		container.StartedAt = startedAt.Unix()
+	// the CREATED status have a created date but no started date
+	if c.KnownStatus != "PULLED" && c.KnownStatus != "CREATED" {
+		startedAt, err := time.Parse(time.RFC3339, c.StartedAt)
+		if err != nil {
+			dateError = fmt.Errorf("Unable to determine start time for container %s - %w", c.DockerID, err)
+		} else {
+			container.StartedAt = startedAt.Unix()
+		}
 	}
 
-	if l, found := c.Limits[cpuKey]; found && l > 0 {
-		container.Limits.CPULimit = formatContainerCPULimit(float64(l))
-	} else if l, found := taskLimits[cpuKey]; found && l > 0 {
+	// The task limit is required in Fargate (so this should always exist). Use this as the basis for the CPU limit
+	// because the container limits configured are treated as CPU shares, rather than a fixed limit to adhere to.
+	if l, found := taskLimits[cpuKey]; found && l > 0 {
 		container.Limits.CPULimit = formatTaskCPULimit(l)
 	} else {
 		container.Limits.CPULimit = 100
@@ -131,18 +151,11 @@ func convertMetaV2Container(c v2.Container, taskLimits map[string]float64) *cont
 		container.Limits.MemLimit = formatMemoryLimit(uint64(l))
 	}
 
-	return container
-}
-
-func formatContainerCPULimit(val float64) float64 {
-	// The ECS API exposes the container CPU limit in CPU units
-	// Value is reported in Hz
-	return val / 1024 * 100
+	return container, dateError
 }
 
 func formatTaskCPULimit(val float64) float64 {
 	// The ECS API exposes the task CPU limit with the format: 0.25, 0.5, 1, 2, 4
-	// Value is reported in Hz
 	return val * 100
 }
 
@@ -156,8 +169,8 @@ func formatMemoryLimit(val uint64) uint64 {
 func convertMetaV2ContainerStats(s *v2.ContainerStats) (metrics.ContainerMetrics, uint64) {
 	return metrics.ContainerMetrics{
 		CPU: &metrics.ContainerCPUStats{
-			User:        s.CPU.Usage.Usermode,
-			System:      s.CPU.Usage.Kernelmode,
+			User:        float64(s.CPU.Usage.Usermode),
+			System:      float64(s.CPU.Usage.Kernelmode),
 			SystemUsage: s.CPU.System,
 		},
 		Memory: &metrics.ContainerMemStats{
@@ -171,6 +184,26 @@ func convertMetaV2ContainerStats(s *v2.ContainerStats) (metrics.ContainerMetrics
 			WriteBytes: s.IO.WriteBytes,
 		},
 	}, s.Memory.Limit
+}
+
+// convertMetaV2NetStats returns interface network stats metrics representations from an ECS
+// metadata v2 container network stats object.
+func convertMetaV2NetStats(s v2.NetStatsMap) []*metrics.InterfaceNetStats {
+	if len(s) == 0 {
+		return nil
+	}
+
+	ifStats := make([]*metrics.InterfaceNetStats, 0, len(s))
+	for name, stats := range s {
+		ifStats = append(ifStats, &metrics.InterfaceNetStats{
+			NetworkName: name,
+			BytesRcvd:   stats.RxBytes,
+			PacketsRcvd: stats.RxPackets,
+			BytesSent:   stats.TxBytes,
+			PacketsSent: stats.TxPackets,
+		})
+	}
+	return ifStats
 }
 
 // parseContainerNetworkAddresses converts ECS container ports

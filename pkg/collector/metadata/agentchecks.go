@@ -6,6 +6,7 @@
 package metadata
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/metadata/agentchecks"
@@ -18,8 +19,8 @@ import (
 type AgentChecksCollector struct{}
 
 // Send collects the data needed and submits the payload
-func (hp *AgentChecksCollector) Send(s *serializer.Serializer) error {
-	payload := agentchecks.GetPayload()
+func (hp *AgentChecksCollector) Send(ctx context.Context, s *serializer.Serializer) error {
+	payload := agentchecks.GetPayload(ctx)
 	if err := s.SendAgentchecksMetadata(payload); err != nil {
 		return fmt.Errorf("unable to submit agentchecks metadata payload, %s", err)
 	}

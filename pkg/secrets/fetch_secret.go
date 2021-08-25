@@ -65,11 +65,19 @@ func execCommand(inputPayload string) ([]byte, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
+	// We add the actual time to the log message. This is needed in the case we have a secret in the datadog.yaml.
+	// When it's the case the log package is not yet initialized (since it needs the configuration) and it will
+	// buffer logs until it's initialized. This means the time of the log line will be the one after the package is
+	// initialized and not the creation time. This is an issue when troubleshooting a secret_backend_command in
+	// datadog.yaml.
+	log.Debugf("%s | calling secret_backend_command with payload: '%s'", time.Now().String(), inputPayload)
 	start := time.Now()
 	err := cmd.Run()
 	elapsed := time.Since(start)
-	log.Debugf("secret_backend_command '%s' completed in %s", secretBackendCommand, elapsed)
+	log.Debugf("%s | secret_backend_command '%s' completed in %s", time.Now().String(), secretBackendCommand, elapsed)
 
+	// We always log stderr to allow a secret_backend_command to logs info in the agent log file. This is useful to
+	// troubleshoot secret_backend_command in a containerized environment.
 	if err != nil {
 		log.Errorf("secret_backend_command stderr: %s", stderr.buf.String())
 
@@ -87,6 +95,9 @@ func execCommand(inputPayload string) ([]byte, error) {
 		}
 		return nil, fmt.Errorf("error while running '%s': %s", secretBackendCommand, err)
 	}
+
+	log.Debugf("secret_backend_command stderr: %s", stderr.buf.String())
+
 	tlmSecretBackendElapsed.Add(float64(elapsed.Milliseconds()), secretBackendCommand, "0")
 	return stdout.buf.Bytes(), nil
 }
@@ -112,7 +123,6 @@ func fetchSecret(secretsHandle []string, origin string) (map[string]string, erro
 	if err != nil {
 		return nil, fmt.Errorf("could not serialize secrets IDs to fetch password: %s", err)
 	}
-	log.Debugf("calling secret_backend_command with payload: '%s'", jsonPayload)
 	output, err := runCommand(string(jsonPayload))
 	if err != nil {
 		return nil, err

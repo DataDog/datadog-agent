@@ -39,4 +39,4 @@ Finally, `File 1` is read and removed, sending the `tr2` and `tr1` to the intake
 * There is a single retry queue for all the endpoints.
 * The files are read and written as a whole which is efficient as few reads and writes on disk are performed.
 * At agent startup, previous files are reloaded. Unknown domains and old files are removed.
-* Protobuf is used to serialize on disk. See [Retry file dump](https://github.com/DataDog/datadog-agent/blob/master/tools/retry_file_dump/README.md) to dump the content of a `.retry` file.
+* Protobuf is used to serialize on disk. See [Retry file dump](https://github.com/DataDog/datadog-agent/blob/main/tools/retry_file_dump/README.md) to dump the content of a `.retry` file.

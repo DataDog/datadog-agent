@@ -48,13 +48,12 @@ func (s *MockSerializer) SendHostMetadata(m marshaler.Marshaler) error {
 	return s.Called(m).Error(0)
 }
 
-// SendJSONToV1Intake serializes a payload and sends it to the forwarder. Some code sends
-// arbitrary payload the v1 API.
-func (s *MockSerializer) SendJSONToV1Intake(data interface{}) error {
+// SendProcessesMetadata serializes a legacy process metadata payload and sends it to the forwarder.
+func (s *MockSerializer) SendProcessesMetadata(data interface{}) error {
 	return s.Called(data).Error(0)
 }
 
 // SendOrchestratorMetadata serializes & send orchestrator metadata payloads
-func (s *MockSerializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID, payloadType string) error {
+func (s *MockSerializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID string, payloadType int) error {
 	return s.Called(msgs, hostName, clusterID, payloadType).Error(0)
 }

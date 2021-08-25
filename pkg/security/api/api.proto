@@ -10,6 +10,7 @@ message SecurityEventMessage {
     string RuleID = 1;
     bytes Data = 2;
     repeated string Tags = 3;
+    string Service = 4;
 }
 
 message DumpProcessCacheParams{}
@@ -18,7 +19,23 @@ message SecurityDumpProcessCacheMessage {
     string Filename = 1;
 }
 
+message GetConfigParams{}
+
+message SecurityConfigMessage {
+    bool RuntimeEnabled = 1;
+    bool FIMEnabled = 2;
+}
+
+message RunSelfTestParams{}
+
+message SecuritySelfTestResultMessage {
+    bool Ok = 1;
+    string Error = 2;
+}
+
 service SecurityModule {
     rpc GetEvents(GetEventParams) returns (stream SecurityEventMessage) {}
     rpc DumpProcessCache(DumpProcessCacheParams) returns (SecurityDumpProcessCacheMessage) {}
+    rpc GetConfig(GetConfigParams) returns (SecurityConfigMessage) {}
+    rpc RunSelfTest(RunSelfTestParams) returns (SecuritySelfTestResultMessage) {}
 }

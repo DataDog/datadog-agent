@@ -95,6 +95,9 @@ struct bpf_map_def SEC("maps/pid_cache") pid_cache = {
     .namespace = "",
 };
 
+// defined in exec.h
+struct proc_cache_t *get_proc_from_cookie(u32 cookie);
+
 struct proc_cache_t * __attribute__((always_inline)) get_proc_cache(u32 tgid) {
     struct proc_cache_t *entry = NULL;
 
@@ -102,7 +105,7 @@ struct proc_cache_t * __attribute__((always_inline)) get_proc_cache(u32 tgid) {
     if (pid_entry) {
         // Select the cache entry
         u32 cookie = pid_entry->cookie;
-        entry = bpf_map_lookup_elem(&proc_cache, &cookie);
+        entry = get_proc_from_cookie(cookie);
     }
     return entry;
 }

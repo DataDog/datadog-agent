@@ -47,6 +47,8 @@ const (
 	newCompilerErr
 	compilationErr
 	resultReadErr
+	headerFetchErr
+	compiledOutputFound
 )
 
 type CompiledOutput interface {
@@ -63,6 +65,7 @@ type RuntimeAsset struct {
 	// Telemetry
 	compilationResult   CompilationResult
 	compilationDuration time.Duration
+	headerFetchResult   kernel.HeaderFetchResult
 }
 
 func NewRuntimeAsset(filename, hash string) *RuntimeAsset {
@@ -70,6 +73,7 @@ func NewRuntimeAsset(filename, hash string) *RuntimeAsset {
 		filename:          filename,
 		hash:              hash,
 		compilationResult: notAttempted,
+		headerFetchResult: kernel.NotAttempted,
 	}
 }
 
@@ -134,7 +138,13 @@ func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOu
 			a.compilationResult = outputFileErr
 			return nil, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
 		}
-		comp, err := compiler.NewEBPFCompiler(config.KernelHeadersDirs, config.BPFDebug)
+		dirs, res, err := kernel.GetKernelHeaders(config.KernelHeadersDirs, config.KernelHeadersDownloadDir, config.AptConfigDir, config.YumReposDir, config.ZypperReposDir)
+		a.headerFetchResult = res
+		if err != nil {
+			a.compilationResult = headerFetchErr
+			return nil, fmt.Errorf("unable to find kernel headers: %w", err)
+		}
+		comp, err := compiler.NewEBPFCompiler(dirs, config.BPFDebug)
 		if err != nil {
 			a.compilationResult = newCompilerErr
 			return nil, fmt.Errorf("failed to create compiler: %w", err)
@@ -145,12 +155,13 @@ func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOu
 			a.compilationResult = compilationErr
 			return nil, fmt.Errorf("failed to compile runtime version of %s: %s", a.filename, err)
 		}
+		a.compilationResult = compilationSuccess
+	} else {
+		a.compilationResult = compiledOutputFound
 	}
 
 	out, err := os.Open(outputFile)
-	if err == nil {
-		a.compilationResult = compilationSuccess
-	} else {
+	if err != nil {
 		a.compilationResult = resultReadErr
 	}
 	return out, err
@@ -161,6 +172,7 @@ func (a *RuntimeAsset) GetTelemetry() map[string]int64 {
 	if RuntimeCompilationEnabled {
 		stats["runtime_compilation_enabled"] = 1
 		stats["runtime_compilation_result"] = int64(a.compilationResult)
+		stats["kernel_header_fetch_result"] = int64(a.headerFetchResult)
 		stats["runtime_compilation_duration"] = a.compilationDuration.Nanoseconds()
 	} else {
 		stats["runtime_compilation_enabled"] = 0

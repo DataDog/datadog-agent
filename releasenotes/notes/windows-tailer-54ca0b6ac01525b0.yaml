@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Reduce amount of log messages on windows when tailing log files.

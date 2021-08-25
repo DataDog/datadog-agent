@@ -14,6 +14,13 @@ typedef enum
     CONN_DIRECTION_OUTGOING = 0b10,
 } conn_direction_t;
 
+typedef enum 
+{
+    PACKET_COUNT_NONE = 0,
+    PACKET_COUNT_ABSOLUTE = 1,
+    PACKET_COUNT_INCREMENT = 2,
+} packet_count_increment_t;
+
 #define CONN_DIRECTION_MASK 0b11
 
 typedef struct {
@@ -22,6 +29,8 @@ typedef struct {
     __u64 timestamp;
     __u32 flags;
     __u8 direction;
+    __u64 sent_packets;
+    __u64 recv_packets;
 } conn_stats_ts_t;
 
 // Connection flags
@@ -95,7 +104,7 @@ typedef struct {
 
 // Must match the number of conn_t objects embedded in the batch_t struct
 #ifndef CONN_CLOSED_BATCH_SIZE
-#define CONN_CLOSED_BATCH_SIZE 5
+#define CONN_CLOSED_BATCH_SIZE 4
 #endif
 
 // This struct is meant to be used as a container for batching
@@ -106,7 +115,6 @@ typedef struct {
     conn_t c1;
     conn_t c2;
     conn_t c3;
-    conn_t c4;
     __u16 len;
     __u64 id;
 } batch_t;

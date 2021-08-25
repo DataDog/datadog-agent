@@ -17,11 +17,30 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // apiEndpointPrefix is the URL prefix prepended to the default site value from YamlAgentConfig.
 const apiEndpointPrefix = "https://trace.agent."
+
+// OTLP holds the configuration for the OpenTelemetry receiver.
+type OTLP struct {
+	// BindHost specifies the host to bind the receiver to.
+	BindHost string `mapstructure:"-"`
+
+	// HTTPPort specifies the port to use for the plain HTTP receiver.
+	// If unset (or 0), the receiver will be off.
+	HTTPPort int `mapstructure:"http_port"`
+
+	// GRPCPort specifies the port to use for the plain HTTP receiver.
+	// If unset (or 0), the receiver will be off.
+	GRPCPort int `mapstructure:"grpc_port"`
+
+	// MaxRequestBytes specifies the maximum number of bytes that will be read
+	// from an incoming HTTP request.
+	MaxRequestBytes int64 `mapstructure:"-"`
+}
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data
 // for various span types.
@@ -192,14 +211,19 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	} else if config.Datadog.IsSet("env") {
 		c.DefaultEnv = config.Datadog.GetString("env")
 		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", c.DefaultEnv)
-	} else if config.Datadog.IsSet("tags") {
-		for _, tag := range config.Datadog.GetStringSlice("tags") {
+	} else {
+		for _, tag := range config.GetConfiguredTags(false) {
 			if strings.HasPrefix(tag, "env:") {
 				c.DefaultEnv = strings.TrimPrefix(tag, "env:")
 				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", c.DefaultEnv, tag)
 				break
 			}
 		}
+	}
+	prevEnv := c.DefaultEnv
+	c.DefaultEnv = traceutil.NormalizeTag(c.DefaultEnv)
+	if c.DefaultEnv != prevEnv {
+		log.Debugf("Normalized DefaultEnv from %q to %q", prevEnv, c.DefaultEnv)
 	}
 	if config.Datadog.IsSet("apm_config.receiver_port") {
 		c.ReceiverPort = config.Datadog.GetInt("apm_config.receiver_port")
@@ -252,6 +276,13 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		// Automatically activate non local traffic in containerized environment if no explicit config set
 		log.Info("Activating non-local traffic automatically in containerized environment, trace-agent will listen on 0.0.0.0")
 		c.ReceiverHost = "0.0.0.0"
+	}
+
+	c.OTLPReceiver = &OTLP{
+		BindHost:        c.ReceiverHost,
+		HTTPPort:        config.Datadog.GetInt("experimental.otlp.http_port"),
+		GRPCPort:        config.Datadog.GetInt("experimental.otlp.grpc_port"),
+		MaxRequestBytes: c.MaxRequestBytes,
 	}
 
 	if config.Datadog.IsSet("apm_config.obfuscation") {

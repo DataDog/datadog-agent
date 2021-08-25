@@ -6,9 +6,11 @@
 package listeners
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,8 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/soniah/gosnmp"
 )
 
 const (
@@ -58,7 +58,6 @@ var _ Service = &SNMPService{}
 type snmpSubnet struct {
 	adIdentifier   string
 	config         snmp.Config
-	defaultParams  *gosnmp.GoSNMP
 	startingIP     net.IP
 	network        net.IPNet
 	cacheKey       string
@@ -146,9 +145,12 @@ var worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 }
 
 func (l *SNMPListener) checkDevice(job snmpJob) {
-	params := *job.subnet.defaultParams
 	deviceIP := job.currentIP.String()
-	params.Target = deviceIP
+	params, err := job.subnet.config.BuildSNMPParams(deviceIP)
+	if err != nil {
+		log.Errorf("Error building params for device %s: %v", deviceIP, err)
+		return
+	}
 	entityID := job.subnet.config.Digest(deviceIP)
 	if err := params.Connect(); err != nil {
 		log.Debugf("SNMP connect to %s error: %v", deviceIP, err)
@@ -157,6 +159,8 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 		defer params.Conn.Close()
 
 		oids := []string{"1.3.6.1.2.1.1.2.0"}
+		// Since `params<GoSNMP>.ContextEngineID` is empty
+		// `params.Get` might lead to multiple SNMP GET calls when using SNMP v3
 		value, err := params.Get(oids)
 		if err != nil {
 			log.Debugf("SNMP get to %s error: %v", deviceIP, err)
@@ -180,12 +184,6 @@ func (l *SNMPListener) checkDevices() {
 			continue
 		}
 
-		defaultParams, err := config.BuildSNMPParams()
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-
 		startingIP := ipAddr.Mask(ipNet.Mask)
 
 		configHash := config.Digest(config.Network)
@@ -198,7 +196,6 @@ func (l *SNMPListener) checkDevices() {
 		subnet := snmpSubnet{
 			adIdentifier:   adIdentifier,
 			config:         config,
-			defaultParams:  defaultParams,
 			startingIP:     startingIP,
 			network:        *ipNet,
 			cacheKey:       cacheKey,
@@ -335,12 +332,12 @@ func (s *SNMPService) GetTaggerEntity() string {
 }
 
 // GetADIdentifiers returns a set of AD identifiers
-func (s *SNMPService) GetADIdentifiers() ([]string, error) {
+func (s *SNMPService) GetADIdentifiers(context.Context) ([]string, error) {
 	return []string{s.adIdentifier}, nil
 }
 
 // GetHosts returns the device IP
-func (s *SNMPService) GetHosts() (map[string]string, error) {
+func (s *SNMPService) GetHosts(context.Context) (map[string]string, error) {
 	ips := map[string]string{
 		"": s.deviceIP,
 	}
@@ -348,7 +345,7 @@ func (s *SNMPService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns the device port
-func (s *SNMPService) GetPorts() ([]ContainerPort, error) {
+func (s *SNMPService) GetPorts(context.Context) ([]ContainerPort, error) {
 	port := int(s.config.Port)
 	return []ContainerPort{{port, fmt.Sprintf("p%d", port)}}, nil
 }
@@ -359,12 +356,12 @@ func (s *SNMPService) GetTags() ([]string, string, error) {
 }
 
 // GetPid returns nil and an error because pids are currently not supported
-func (s *SNMPService) GetPid() (int, error) {
+func (s *SNMPService) GetPid(context.Context) (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetHostname returns nothing - not supported
-func (s *SNMPService) GetHostname() (string, error) {
+func (s *SNMPService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
 }
 
@@ -374,12 +371,12 @@ func (s *SNMPService) GetCreationTime() integration.CreationTime {
 }
 
 // IsReady returns true
-func (s *SNMPService) IsReady() bool {
+func (s *SNMPService) IsReady(context.Context) bool {
 	return true
 }
 
 // GetCheckNames returns nil
-func (s *SNMPService) GetCheckNames() []string {
+func (s *SNMPService) GetCheckNames(context.Context) []string {
 	return nil
 }
 
@@ -419,8 +416,12 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 		return []byte(s.config.Network), nil
 	case "loader":
 		return []byte(s.config.Loader), nil
+	case "collect_device_metadata":
+		return []byte(strconv.FormatBool(s.config.CollectDeviceMetadata)), nil
 	case "tags":
 		return []byte(convertToCommaSepTags(s.config.Tags)), nil
+	case "min_collection_interval":
+		return []byte(fmt.Sprintf("%d", s.config.MinCollectionInterval)), nil
 	}
 	return []byte{}, ErrNotSupported
 }

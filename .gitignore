@@ -34,6 +34,7 @@ agentmsg.h
 # go-generated files
 datadog.yaml
 system-probe.yaml
+security-agent.yaml
 dogstatsd.yaml
 cloudfoundry.yaml
 Dockerfiles/cluster-agent/datadog-cluster.yaml
@@ -127,6 +128,7 @@ tools/windows/install-help/cal/packages/
 # ebpf object files
 pkg/ebpf/bytecode/build/
 pkg/ebpf/bytecode/bindata/
+*.bc
 
 # windows container build output
 build.out/
@@ -139,6 +141,8 @@ packer.json
 devenv/iso
 devenv/output-virtualbox-iso/
 devenv/packer_cache
+pkg/network/driver/_obj/
+test_output.json
 
 # doxygen doc & error log
 rtloader/doc

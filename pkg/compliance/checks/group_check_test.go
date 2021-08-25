@@ -41,6 +41,10 @@ func TestGroupCheck(t *testing.T) {
 					"group.id":    412,
 					"group.users": []string{"alice", "bob", "carlos", "dan", "eve"},
 				},
+				Resource: compliance.ReportResource{
+					ID:   "docker",
+					Type: "group",
+				},
 			},
 		},
 		{
@@ -60,6 +64,10 @@ func TestGroupCheck(t *testing.T) {
 					"group.id":    412,
 					"group.users": []string{"alice", "bob", "carlos", "dan", "eve"},
 				},
+				Resource: compliance.ReportResource{
+					ID:   "docker",
+					Type: "group",
+				},
 			},
 		},
 	}
@@ -74,9 +82,9 @@ func TestGroupCheck(t *testing.T) {
 			groupCheck, err := newResourceCheck(env, "rule-id", test.resource)
 			assert.NoError(err)
 
-			result, err := groupCheck.check(env)
-			assert.Equal(test.expectReport, result)
-			assert.Equal(test.expectError, err)
+			reports := groupCheck.check(env)
+			assert.Equal(test.expectReport, reports[0])
+			assert.Equal(test.expectError, reports[0].Error)
 		})
 	}
 }

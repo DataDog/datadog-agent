@@ -7,12 +7,14 @@
 
 package hostinfo
 
+import "context"
+
 // GetNodeLabels returns node labels for this host
-func GetNodeLabels() (map[string]string, error) {
+func GetNodeLabels(ctx context.Context) (map[string]string, error) {
 	return nil, nil
 }
 
 // GetNodeClusterNameLabel returns clustername by fetching a node label
-func GetNodeClusterNameLabel() (string, error) {
+func GetNodeClusterNameLabel(ctx context.Context) (string, error) {
 	return "", nil
 }

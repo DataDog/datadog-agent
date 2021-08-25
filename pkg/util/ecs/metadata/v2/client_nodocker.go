@@ -7,6 +7,8 @@
 
 package v2
 
+import "context"
+
 // Client represents a client for a metadata v2 API endpoint.
 type Client struct{}
 
@@ -16,11 +18,11 @@ func NewDefaultClient() *Client {
 }
 
 // GetTask returns the current task.
-func (c *Client) GetTask() (*Task, error) {
+func (c *Client) GetTask(ctx context.Context) (*Task, error) {
 	return new(Task), nil
 }
 
 // GetTaskWithTags returns the current task, including propagated resource tags.
-func (c *Client) GetTaskWithTags() (*Task, error) {
+func (c *Client) GetTaskWithTags(ctx context.Context) (*Task, error) {
 	return new(Task), nil
 }

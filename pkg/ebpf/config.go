@@ -34,8 +34,20 @@ type Config struct {
 	// KernelHeadersDir is the directories of the kernel headers to use for runtime compilation
 	KernelHeadersDirs []string
 
+	// KernelHeadersDownloadDir is the directory where the system-probe will attempt to download kernel headers, if necessary
+	KernelHeadersDownloadDir string
+
 	// RuntimeCompilerOutputDir is the directory where the runtime compiler will store compiled programs
 	RuntimeCompilerOutputDir string
+
+	// AptConfigDir is the path to the apt config directory
+	AptConfigDir string
+
+	// YumReposDir is the path to the yum repository directory
+	YumReposDir string
+
+	// ZypperReposDir is the path to the zypper repository directory
+	ZypperReposDir string
 
 	// AllowPrecompiledFallback indicates whether we are allowed to fallback to the prebuilt probes if runtime compilation fails.
 	AllowPrecompiledFallback bool
@@ -60,6 +72,10 @@ func NewConfig() *Config {
 		EnableRuntimeCompiler:    cfg.GetBool(key(spNS, "enable_runtime_compiler")),
 		RuntimeCompilerOutputDir: cfg.GetString(key(spNS, "runtime_compiler_output_dir")),
 		KernelHeadersDirs:        cfg.GetStringSlice(key(spNS, "kernel_header_dirs")),
+		KernelHeadersDownloadDir: cfg.GetString(key(spNS, "kernel_header_download_dir")),
+		AptConfigDir:             cfg.GetString(key(spNS, "apt_config_dir")),
+		YumReposDir:              cfg.GetString(key(spNS, "yum_repos_dir")),
+		ZypperReposDir:           cfg.GetString(key(spNS, "zypper_repos_dir")),
 		AllowPrecompiledFallback: true,
 	}
 }

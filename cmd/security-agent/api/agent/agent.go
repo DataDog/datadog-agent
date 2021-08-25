@@ -63,7 +63,7 @@ func (a *Agent) stopAgent(w http.ResponseWriter, r *http.Request) {
 
 func (a *Agent) getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	hname, err := util.GetHostname()
+	hname, err := util.GetHostname(r.Context())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s\n", err) // or something like this
 		hname = ""
