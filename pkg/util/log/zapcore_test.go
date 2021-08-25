@@ -123,9 +123,4 @@ func TestZapBasicLogging(t *testing.T) {
 			assert.Regexp(t, pattern, strings.TrimSuffix(b.String(), "\n"))
 		})
 	}
-	logger.Info("Simple message")
-	logger.Info("with fields", zap.Int("val", 1))
-
-	loggerWithCtx := logger.With(zap.String("context", "this"))
-	loggerWithCtx.Warn("A warning", zap.Bool("val", false))
 }
