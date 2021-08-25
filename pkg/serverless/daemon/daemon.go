@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"sync"
 	"time"
@@ -181,34 +182,37 @@ func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 	// Increment the invocation wait group which tracks whether work is in progress for the daemon
 	d.InvcWg.Add(1)
 	defer d.InvcWg.Done()
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	wg.Add(1)
-	wg.Add(1)
+
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	// metrics
 	go func() {
+		correlationId := r.Intn(10000)
+		log.Debugf("Beginning metrics flush #%d", correlationId)
 		if d.MetricAgent != nil {
 			d.MetricAgent.Flush()
 		}
-		wg.Done()
+		log.Debugf("Finished metrics flush #%d", correlationId)
 	}()
 
 	// traces
 	go func() {
+		correlationId := r.Intn(10000)
+		log.Debugf("Beginning traces flush #%d", correlationId)
 		if d.TraceAgent != nil {
 			d.TraceAgent.Get().FlushSync()
 		}
-		wg.Done()
+		log.Debugf("Finished traces flush #%d", correlationId)
 	}()
 
 	// logs
 	go func() {
+		correlationId := r.Intn(10000)
+		log.Debugf("Beginning logs flush #%d", correlationId)
 		logs.Flush(ctx)
-		wg.Done()
+		log.Debugf("Finished logs flush #%d", correlationId)
 	}()
 
-	wg.Wait()
 	log.Debug("Flush done")
 
 	// After flushing, re-evaluate flush strategy (if applicable)
