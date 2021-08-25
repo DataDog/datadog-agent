@@ -174,6 +174,10 @@ func (d *Daemon) UseAdaptiveFlush(enabled bool) {
 	d.useAdaptiveFlush = enabled
 }
 
+var metricsFlushMutex = sync.Mutex{}
+var tracesFlushMutex = sync.Mutex{}
+var logsFlushMutex = sync.Mutex{}
+
 // TriggerFlush triggers a flush of the aggregated metrics, traces and logs.
 // They are flushed concurrently.
 // In some circumstances, it may switch to another flush strategy after the flush.
@@ -187,30 +191,36 @@ func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 
 	// metrics
 	go func() {
+		metricsFlushMutex.Lock()
 		correlationId := r.Intn(10000)
 		log.Debugf("Beginning metrics flush #%d", correlationId)
 		if d.MetricAgent != nil {
 			d.MetricAgent.Flush()
 		}
 		log.Debugf("Finished metrics flush #%d", correlationId)
+		metricsFlushMutex.Unlock()
 	}()
 
 	// traces
 	go func() {
+		tracesFlushMutex.Lock()
 		correlationId := r.Intn(10000)
 		log.Debugf("Beginning traces flush #%d", correlationId)
 		if d.TraceAgent != nil {
 			d.TraceAgent.Get().FlushSync()
 		}
 		log.Debugf("Finished traces flush #%d", correlationId)
+		tracesFlushMutex.Unlock()
 	}()
 
 	// logs
 	go func() {
+		logsFlushMutex.Lock()
 		correlationId := r.Intn(10000)
 		log.Debugf("Beginning logs flush #%d", correlationId)
 		logs.Flush(ctx)
 		log.Debugf("Finished logs flush #%d", correlationId)
+		logsFlushMutex.Unlock()
 	}()
 
 	log.Debug("Flush done")
