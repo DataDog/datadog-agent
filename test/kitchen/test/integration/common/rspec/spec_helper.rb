@@ -396,18 +396,9 @@ end
 def is_file_signed(fullpath)
   puts "checking file #{fullpath}"
   expect(File).to exist(fullpath)
-  output = `powershell -command get-authenticodesignature -FilePath '#{fullpath}'`
+  output = `powershell -command (get-authenticodesignature -FilePath '#{fullpath}').SignerCertificate.Thumbprint`
   signature_hash = "748A3B5C681AF45FAC149A76FE59E7CBBDFF058C"
-  if not output.include? signature_hash
-    return false
-  end
-  if not output.include? "Valid"
-    return false
-  end
-  if output.include? "NotSigned"
-    return false
-  end
-  return true
+  return output.upcase == signature_hash
 end
 
 def is_dpkg_package_installed(package)
