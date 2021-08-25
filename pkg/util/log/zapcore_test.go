@@ -25,43 +25,43 @@ func TestZapBasicLogging(t *testing.T) {
 	logger := NewZapLogger()
 	tests := []struct {
 		desc    string
-		f       func(*zap.Logger)
+		log     func(*zap.Logger)
 		level   string
 		pattern string
 	}{
 		{
 			desc:    "Debug (no fields, debug level)",
-			f:       func(l *zap.Logger) { l.Debug("Simple message") },
+			log:     func(l *zap.Logger) { l.Debug("Simple message") },
 			level:   "debug",
 			pattern: "\\[DEBUG\\] Write: \\(log/zapcore_test.go:\\d+\\) \\| Simple message",
 		},
 		{
 			desc:    "Info (no fields, debug level)",
-			f:       func(l *zap.Logger) { l.Info("Simple message") },
+			log:     func(l *zap.Logger) { l.Info("Simple message") },
 			level:   "debug",
 			pattern: "\\[INFO\\] Write: \\(log/zapcore_test.go:\\d+\\) \\| Simple message",
 		},
 		{
 			desc:    "Warn (no fields, debug level)",
-			f:       func(l *zap.Logger) { l.Warn("Simple message") },
+			log:     func(l *zap.Logger) { l.Warn("Simple message") },
 			level:   "debug",
 			pattern: "\\[WARN\\] Write: \\(log/zapcore_test.go:\\d+\\) \\| Simple message",
 		},
 		{
 			desc:    "Error (no fields, debug level)",
-			f:       func(l *zap.Logger) { l.Error("Simple message") },
+			log:     func(l *zap.Logger) { l.Error("Simple message") },
 			level:   "debug",
 			pattern: "\\[ERROR\\] Write: \\(log/zapcore_test.go:\\d+\\) \\| Simple message",
 		},
 		{
 			desc:    "DPanic (no fields, debug level)",
-			f:       func(l *zap.Logger) { l.DPanic("Development panic") },
+			log:     func(l *zap.Logger) { l.DPanic("Development panic") },
 			level:   "debug",
 			pattern: "\\[CRITICAL\\] Write: \\(log/zapcore_test.go:\\d+\\) \\| Development panic",
 		},
 		{
 			desc: "Error level",
-			f: func(l *zap.Logger) {
+			log: func(l *zap.Logger) {
 				l.Debug("Simple message")
 				l.Info("Simple message")
 				l.Warn("Simple message")
@@ -71,19 +71,19 @@ func TestZapBasicLogging(t *testing.T) {
 		},
 		{
 			desc:    "Info (fields)",
-			f:       func(l *zap.Logger) { l.Info("Fields", zap.Int("int", 1), zap.String("key", "val")) },
+			log:     func(l *zap.Logger) { l.Info("Fields", zap.Int("int", 1), zap.String("key", "val")) },
 			level:   "debug",
 			pattern: "\\[INFO\\] Write: int:1, key:val \\| \\(log/zapcore_test.go:\\d+\\) \\| Fields",
 		},
 		{
 			desc:    "Error (fields)",
-			f:       func(l *zap.Logger) { l.Error("Fields", zap.Error(fmt.Errorf("an error"))) },
+			log:     func(l *zap.Logger) { l.Error("Fields", zap.Error(fmt.Errorf("an error"))) },
 			level:   "debug",
 			pattern: "\\[ERROR\\] Write: error:an error \\| \\(log/zapcore_test.go:\\d+\\) \\| Fields",
 		},
 		{
 			desc: "With (using original)",
-			f: func(l *zap.Logger) {
+			log: func(l *zap.Logger) {
 				_ = l.With(zap.Int16("int", 1))
 				l.Info("Fields", zap.Bool("bool", true))
 			},
@@ -92,7 +92,7 @@ func TestZapBasicLogging(t *testing.T) {
 		},
 		{
 			desc: "With (using new)",
-			f: func(l *zap.Logger) {
+			log: func(l *zap.Logger) {
 				extra := l.With(zap.Int16("int", 1))
 				extra.Info("Fields", zap.Bool("bool", true))
 			},
@@ -101,25 +101,25 @@ func TestZapBasicLogging(t *testing.T) {
 		},
 		{
 			desc:    "Namespace",
-			f:       func(l *zap.Logger) { l.Info("Fields", zap.Namespace("ns"), zap.Int("int", 1)) },
+			log:     func(l *zap.Logger) { l.Info("Fields", zap.Namespace("ns"), zap.Int("int", 1)) },
 			level:   "debug",
 			pattern: "\\[INFO\\] Write: ns/int:1 \\| \\(log/zapcore_test.go:\\d+\\) \\| Fields",
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
+	for _, testInstance := range tests {
+		t.Run(testInstance.desc, func(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
 			seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
 			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg\n")
 			require.Nil(t, err)
-			SetupLogger(l, tt.level)
+			SetupLogger(l, testInstance.level)
 			require.NotNil(t, logger)
 
-			tt.f(logger)
+			testInstance.log(logger)
 			w.Flush()
-			pattern := fmt.Sprintf("^%s$", tt.pattern)
+			pattern := fmt.Sprintf("^%s$", testInstance.pattern)
 			assert.Regexp(t, pattern, strings.TrimSuffix(b.String(), "\n"))
 		})
 	}

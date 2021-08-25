@@ -35,7 +35,7 @@ func TestArrayEncoder(t *testing.T) {
 	// Modified from https://github.com/uber-go/zap/blob/v1.19.0/zapcore/memory_encoder_test.go#L227
 	tests := []struct {
 		desc     string
-		f        func(zapcore.ArrayEncoder)
+		encode   func(zapcore.ArrayEncoder)
 		expected interface{}
 	}{
 		{"AppendBool", func(e zapcore.ArrayEncoder) { e.AppendBool(true) }, true},
@@ -61,7 +61,7 @@ func TestArrayEncoder(t *testing.T) {
 		{"AppendReflected", func(e zapcore.ArrayEncoder) { e.AppendReflected(map[string]int{"foo": 5}) }, map[string]int{"foo": 5}},
 		{
 			desc: "AppendArray (arrays of arrays)",
-			f: func(e zapcore.ArrayEncoder) {
+			encode: func(e zapcore.ArrayEncoder) {
 				e.AppendArray(zapcore.ArrayMarshalerFunc(func(inner zapcore.ArrayEncoder) error {
 					inner.AppendBool(true)
 					inner.AppendBool(false)
@@ -72,12 +72,12 @@ func TestArrayEncoder(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
+	for _, testInstance := range tests {
+		t.Run(testInstance.desc, func(t *testing.T) {
 			enc := &sliceArrayEncoder{}
-			tt.f(enc)
-			tt.f(enc)
-			assert.Equal(t, []interface{}{tt.expected, tt.expected}, enc.elems, "Unexpected output.")
+			testInstance.encode(enc)
+			testInstance.encode(enc)
+			assert.Equal(t, []interface{}{testInstance.expected, testInstance.expected}, enc.elems, "Unexpected output.")
 		})
 	}
 }
@@ -86,12 +86,12 @@ func TestObjectEncoder(t *testing.T) {
 	// Adapted from https://github.com/uber-go/zap/blob/v1.19.0/zapcore/memory_encoder_test.go#L31
 	tests := []struct {
 		desc     string
-		f        func(zapcore.ObjectEncoder)
+		encode   func(zapcore.ObjectEncoder)
 		expected interface{}
 	}{
 		{
 			desc: "AddArray",
-			f: func(e zapcore.ObjectEncoder) {
+			encode: func(e zapcore.ObjectEncoder) {
 				assert.NoError(t, e.AddArray("k", zapcore.ArrayMarshalerFunc(func(arr zapcore.ArrayEncoder) error {
 					arr.AppendBool(true)
 					arr.AppendBool(false)
@@ -124,14 +124,14 @@ func TestObjectEncoder(t *testing.T) {
 		{"AddUintptr", func(e zapcore.ObjectEncoder) { e.AddUintptr("k", 42) }, []interface{}{"k", uintptr(42)}},
 		{
 			desc: "AddReflected",
-			f: func(e zapcore.ObjectEncoder) {
+			encode: func(e zapcore.ObjectEncoder) {
 				assert.NoError(t, e.AddReflected("k", map[string]interface{}{"foo": 5}), "Expected AddReflected to succeed.")
 			},
 			expected: []interface{}{"k", map[string]interface{}{"foo": 5}},
 		},
 		{
 			desc: "OpenNamespace",
-			f: func(e zapcore.ObjectEncoder) {
+			encode: func(e zapcore.ObjectEncoder) {
 				e.OpenNamespace("k")
 				e.AddInt("foo", 1)
 				e.OpenNamespace("middle")
@@ -143,11 +143,11 @@ func TestObjectEncoder(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
+	for _, testInstance := range tests {
+		t.Run(testInstance.desc, func(t *testing.T) {
 			enc := &encoder{}
-			tt.f(enc)
-			assert.Equal(t, tt.expected, enc.ctx, "Unexpected encoder output.")
+			testInstance.encode(enc)
+			assert.Equal(t, testInstance.expected, enc.ctx, "Unexpected encoder output.")
 		})
 	}
 
