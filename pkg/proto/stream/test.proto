@@ -1,0 +1,43 @@
+// This is only used for tests in this package.  Regenerate with
+//
+//  (cd pkg/proto/stream; protoc --go_out=. --go_opt=paths=source_relative test.proto && mv test.pb.go stream_pb_test.go)
+
+syntax = "proto3";
+
+option go_package = "github.com/DataDog/datadog-agent/pkg/proto/stream";
+
+message SearchRequest {
+  string query = 1;
+  int32 page_number = 2;
+  int32 result_per_page = 3;
+}
+
+message MultiSearch {
+  string api_key = 10;
+  repeated SearchRequest request = 11;
+}
+
+// A message with every scalar type in it
+message XmasTree {
+  double dub = 1;
+  float flo = 2;
+  int32 i32 = 3;
+  int64 i64 = 4;
+  uint32 u32 = 5;
+  uint64 u64 = 6;
+  sint32 s32 = 7;
+  sint64 s64 = 8;
+  fixed32 f32 = 9;
+  fixed64 f64 = 10;
+  sfixed32 sf32 = 11;
+  sfixed64 sf64 = 12;
+  bool boo = 13;
+  string str = 14;
+  bytes byt = 15;
+
+  enum Enu {
+    e0 = 0;
+    e2 = 2;
+  }
+  Enu enu = 16;
+}
