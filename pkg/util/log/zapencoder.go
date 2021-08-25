@@ -71,11 +71,7 @@ func (e *encoder) AddReflected(k string, v interface{}) error {
 }
 
 func (e *encoder) OpenNamespace(ns string) {
-	if e.prefix == "" {
-		e.prefix = ns + "/"
-	} else {
-		e.prefix = e.prefix + ns + "/"
-	}
+	e.prefix = e.prefix + ns + "/"
 }
 
 var _ zapcore.ArrayEncoder = (*sliceArrayEncoder)(nil)
