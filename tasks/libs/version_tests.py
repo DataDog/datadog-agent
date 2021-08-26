@@ -142,7 +142,7 @@ class TestVersionComparison(unittest.TestCase):
 class TestNonDevelVersion(unittest.TestCase):
     version = Version(major=1, minor=0, devel=True)
 
-    def test_next_version_major(self):
+    def test_non_devel_version(self):
         new_version = self.version.non_devel_version()
         expected_version = Version(major=1, minor=0)  # 1.0.0
 

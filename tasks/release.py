@@ -848,6 +848,7 @@ def finish(ctx, major_versions="6,7"):
 
     for major_version in list_major_versions:
         release_entry = release_entry_for(major_version)
+        # Fetch previous version from the most recent tag on the branch
         previous_version = _create_version_from_match(VERSION_RE.search(get_version(ctx, major_version=major_version)))
 
         # Set the new version
@@ -899,6 +900,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False):
 
     for major_version in list_major_versions:
         release_entry = release_entry_for(major_version)
+        # Fetch previous version from the most recent tag on the branch
         previous_version = _create_version_from_match(VERSION_RE.search(get_version(ctx, major_version=major_version)))
 
         if previous_version.is_rc():

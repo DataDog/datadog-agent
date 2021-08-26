@@ -9,7 +9,7 @@ import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.release import release_entry_for
+from tasks.release import nightly_entry_for, release_entry_for
 from tasks.utils import DEFAULT_BRANCH, get_all_allowed_repo_branches, is_allowed_repo_branch
 
 from .libs.common.color import color_message
@@ -164,15 +164,15 @@ def run(
       inv pipeline.run --here --no-kitchen-tests
 
     Run a deploy pipeline on the 7.32.0 tag, uploading the artifacts to the stable branch of the staging repositories:
-      inv pipeline.run --deploy --use-release-entries --major-versions "6,7" --git-ref "7.28.0" --repo-branch "stable"
+      inv pipeline.run --deploy --use-release-entries --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
     """
 
     project_name = "DataDog/datadog-agent"
     gitlab = Gitlab()
     gitlab.test_project_found(project_name)
 
-    release_version_6 = "nightly"
-    release_version_7 = "nightly-a7"
+    release_version_6 = nightly_entry_for(6)
+    release_version_7 = nightly_entry_for(7)
 
     if use_release_entries:
         release_version_6 = release_entry_for(6)
