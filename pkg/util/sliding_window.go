@@ -142,9 +142,9 @@ func (sw *slidingWindow) newTicker() {
 					sw.numBucketsUsed++
 				}
 
-				sw.bucketsLock.Unlock()
-
 				sw.bucketIdx = (sw.bucketIdx + 1) % sw.numBuckets
+
+				sw.bucketsLock.Unlock()
 
 				if sw.statsUpdateFunc != nil {
 					sw.statsUpdateFunc(sw)
