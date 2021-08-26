@@ -32,7 +32,7 @@ type utilizationTracker struct {
 
 	utilizationStats util.SlidingWindow
 	pollingFunc      util.PollingFunc
-	statsUpdateFunc  util.CallbackFunc
+	statsUpdateFunc  util.StatsUpdateFunc
 
 	busyDuration       time.Duration
 	checkStart         time.Time

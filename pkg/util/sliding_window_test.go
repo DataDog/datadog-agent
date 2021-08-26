@@ -21,8 +21,8 @@ const DefaultDelta = 0.001
 var (
 	dummyPollingFuncToggle = true
 
-	callbackFuncInvocationCount int64
-	pollingFuncInvocationCount  int64
+	pollingFuncInvocationCount     int64
+	statsUpdateFuncInvocationCount int64
 )
 
 // This function on average should return 0.5 value
@@ -38,8 +38,8 @@ func dummyTogglingPollingFunc() float64 {
 	return 0.0
 }
 
-func dummyCallbackFunc(sw SlidingWindow) {
-	atomic.AddInt64(&callbackFuncInvocationCount, 1)
+func dummyStatsUpdateFunc(sw SlidingWindow) {
+	atomic.AddInt64(&statsUpdateFuncInvocationCount, 1)
 }
 
 // This function on average should return about 0.3 value
@@ -55,7 +55,7 @@ func TestSlidingWindow(t *testing.T) {
 	require.Nil(t, err)
 	require.NotNil(t, sw)
 
-	err = sw.Start(dummyTogglingPollingFunc, dummyCallbackFunc)
+	err = sw.Start(dummyTogglingPollingFunc, dummyStatsUpdateFunc)
 	require.Nil(t, err)
 	defer func() {
 		sw.Stop()
@@ -72,7 +72,7 @@ func TestSlidingWindowAccuracy(t *testing.T) {
 	var cbLock sync.RWMutex
 	lastAverage := 0.0
 
-	callbackFunc := func(sw SlidingWindow) {
+	statsUpdateFunc := func(sw SlidingWindow) {
 		cbLock.Lock()
 		defer cbLock.Unlock()
 
@@ -82,7 +82,7 @@ func TestSlidingWindowAccuracy(t *testing.T) {
 	sw, err := NewSlidingWindow(1*time.Second, 10*time.Millisecond)
 	require.Nil(t, err)
 
-	err = sw.Start(dummyFractionalPollingFunc, callbackFunc)
+	err = sw.Start(dummyFractionalPollingFunc, statsUpdateFunc)
 	require.Nil(t, err)
 	defer sw.Stop()
 
@@ -115,7 +115,7 @@ func TestSlidingWindowAverage(t *testing.T) {
 }
 
 func TestSlidingWindowCallback(t *testing.T) {
-	atomic.StoreInt64(&callbackFuncInvocationCount, 0)
+	atomic.StoreInt64(&statsUpdateFuncInvocationCount, 0)
 	atomic.StoreInt64(&pollingFuncInvocationCount, 0)
 
 	sw, err := NewSlidingWindow(100*time.Millisecond, 10*time.Millisecond)
@@ -127,19 +127,19 @@ func TestSlidingWindowCallback(t *testing.T) {
 		return 0.0
 	}
 
-	callbackFunc := func(cbSlidingWindow SlidingWindow) {
+	statsUpdateFunc := func(cbSlidingWindow SlidingWindow) {
 		require.NotNil(t, cbSlidingWindow)
 		require.Equal(t, sw, cbSlidingWindow)
 
 		require.True(
 			t,
-			atomic.LoadInt64(&pollingFuncInvocationCount) > atomic.LoadInt64(&callbackFuncInvocationCount),
+			atomic.LoadInt64(&pollingFuncInvocationCount) > atomic.LoadInt64(&statsUpdateFuncInvocationCount),
 		)
 
 		atomic.StoreInt64(&pollingFuncInvocationCount, 1)
 	}
 
-	err = sw.Start(pollingFunc, callbackFunc)
+	err = sw.Start(pollingFunc, statsUpdateFunc)
 	require.Nil(t, err)
 	defer sw.Stop()
 
@@ -147,13 +147,13 @@ func TestSlidingWindowCallback(t *testing.T) {
 }
 
 func TestSlidingWindowFuncInvocationCounts(t *testing.T) {
-	atomic.StoreInt64(&callbackFuncInvocationCount, 0)
+	atomic.StoreInt64(&statsUpdateFuncInvocationCount, 0)
 	atomic.StoreInt64(&pollingFuncInvocationCount, 0)
 
 	sw, err := NewSlidingWindow(900*time.Millisecond, 100*time.Millisecond)
 	require.Nil(t, err)
 
-	err = sw.Start(dummyFractionalPollingFunc, dummyCallbackFunc)
+	err = sw.Start(dummyFractionalPollingFunc, dummyStatsUpdateFunc)
 	require.Nil(t, err)
 	defer sw.Stop()
 
@@ -161,11 +161,11 @@ func TestSlidingWindowFuncInvocationCounts(t *testing.T) {
 
 	time.Sleep(900 * time.Millisecond)
 	assert.InDelta(t, atomic.LoadInt64(&pollingFuncInvocationCount), 9, 1)
-	assert.InDelta(t, atomic.LoadInt64(&callbackFuncInvocationCount), 9, 1)
+	assert.InDelta(t, atomic.LoadInt64(&statsUpdateFuncInvocationCount), 9, 1)
 
 	time.Sleep(200 * time.Millisecond)
 	assert.InDelta(t, atomic.LoadInt64(&pollingFuncInvocationCount), 11, 1)
-	assert.InDelta(t, atomic.LoadInt64(&callbackFuncInvocationCount), 11, 1)
+	assert.InDelta(t, atomic.LoadInt64(&statsUpdateFuncInvocationCount), 11, 1)
 }
 
 func TestNewSlidingWindowStop(t *testing.T) {
@@ -175,7 +175,7 @@ func TestNewSlidingWindowStop(t *testing.T) {
 	// Implicit check - should not panic
 	sw.Stop()
 
-	err = sw.Start(dummyTogglingPollingFunc, dummyCallbackFunc)
+	err = sw.Start(dummyTogglingPollingFunc, dummyStatsUpdateFunc)
 	require.Nil(t, err)
 
 	// None of these invocations should throw an error
@@ -203,7 +203,7 @@ func TestSlidingWindowParamValidation(t *testing.T) {
 
 	sw, err := NewSlidingWindow(2*time.Second, 1*time.Second)
 	require.Nil(t, err)
-	err = sw.Start(nil, dummyCallbackFunc)
+	err = sw.Start(nil, dummyStatsUpdateFunc)
 	require.Error(t, err)
 	require.EqualError(t, err, "SlidingWindow pollingFunc must not be nil")
 

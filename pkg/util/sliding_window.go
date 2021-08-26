@@ -17,9 +17,9 @@ import (
 // that should be included in the slidingWindow data
 type PollingFunc func() (value float64)
 
-// CallbackFunc is invoked when the polling function collects data and
-// we need to use the newly-calculated values
-type CallbackFunc func(SlidingWindow)
+// StatsUpdateFunc is invoked when the polling function finishes collecting
+// the data and the internal stats are updated.
+type StatsUpdateFunc func(SlidingWindow)
 
 // slidingWindow is an object that polls for a value every `pollingInterval`
 // and then keeps those values for the duration of the `windowSize` that can
@@ -29,7 +29,7 @@ type slidingWindow struct {
 	bucketIdx       int
 	buckets         []float64
 	bucketsLock     sync.RWMutex
-	callbackFunc    CallbackFunc
+	statsUpdateFunc StatsUpdateFunc
 	initialized     bool
 	numBuckets      int
 	numBucketsUsed  int
@@ -44,7 +44,7 @@ type slidingWindow struct {
 
 // SlidingWindow is the public API that we expose from the slidingWindow object
 type SlidingWindow interface {
-	Start(PollingFunc, CallbackFunc) error
+	Start(PollingFunc, StatsUpdateFunc) error
 	Stop()
 
 	Average() float64
@@ -78,12 +78,13 @@ func NewSlidingWindow(windowSize time.Duration, pollingInterval time.Duration) (
 // Start creates a new sliding window object, validates the parameters,
 // and starts the ticker. We use `Start` to define most of the variables
 // instead of the constructor as we are likely to need the SlidingWindow
-// instance in the polling/callback closures, leading to a chicken/egg
+// instance in the polling/update closures, leading to a chicken/egg
 // problem in usage.
 func (sw *slidingWindow) Start(
 	pollingFunc PollingFunc,
-	callbackFunc CallbackFunc,
+	statsUpdateFunc StatsUpdateFunc,
 ) error {
+
 	if sw.isInitialized() {
 		return fmt.Errorf("SlidingWindow already initialized")
 	}
@@ -103,7 +104,7 @@ func (sw *slidingWindow) Start(
 
 	sw.pollingFunc = pollingFunc
 
-	sw.callbackFunc = callbackFunc
+	sw.statsUpdateFunc = statsUpdateFunc
 	sw.stopChan = make(chan struct{}, 1)
 
 	sw.newTicker()
@@ -137,8 +138,8 @@ func (sw *slidingWindow) newTicker() {
 
 				sw.bucketIdx = (sw.bucketIdx + 1) % sw.numBuckets
 
-				if sw.callbackFunc != nil {
-					sw.callbackFunc(sw)
+				if sw.statsUpdateFunc != nil {
+					sw.statsUpdateFunc(sw)
 				}
 
 				sw.windowLock.RUnlock()
