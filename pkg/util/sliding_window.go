@@ -44,10 +44,19 @@ type slidingWindow struct {
 
 // SlidingWindow is the public API that we expose from the slidingWindow object
 type SlidingWindow interface {
+	// Start validates the parameters of a SlidingWindow object and starts the
+	// ticker. Start can only be invoked once on an instance.
 	Start(PollingFunc, StatsUpdateFunc) error
+
+	// Stop stops the polling and processing of the data.
 	Stop()
 
+	// Average returns an average of all the polled values collected so far over
+	// the sliding window range.
 	Average() float64
+
+	// WindowSize returns the amount of time that the SlidingWindow will keep
+	// the polled values before evicting them.
 	WindowSize() time.Duration
 }
 
@@ -75,11 +84,10 @@ func NewSlidingWindow(windowSize time.Duration, pollingInterval time.Duration) (
 	}, nil
 }
 
-// Start creates a new sliding window object, validates the parameters,
-// and starts the ticker. We use `Start` to define most of the variables
-// instead of the constructor as we are likely to need the SlidingWindow
-// instance in the polling/update closures, leading to a chicken/egg
-// problem in usage.
+// Start validates the parameters of a SlidingWindow object and starts the
+// ticker. We use `Start` to define most of the variables instead of the
+// constructor as we are likely to need the SlidingWindow instance in the
+// polling/update closures, leading to a chicken/egg problem in usage.
 func (sw *slidingWindow) Start(
 	pollingFunc PollingFunc,
 	statsUpdateFunc StatsUpdateFunc,
