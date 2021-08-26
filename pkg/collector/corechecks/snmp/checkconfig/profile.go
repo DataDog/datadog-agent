@@ -32,7 +32,6 @@ type profileDefinition struct {
 
 var defaultProfilesMu = &sync.Mutex{}
 
-// globalProfileConfigMap TODO: Avoid exporting it
 var globalProfileConfigMap profileDefinitionMap
 
 // loadDefaultProfiles will load the profiles from disk only once and store it
