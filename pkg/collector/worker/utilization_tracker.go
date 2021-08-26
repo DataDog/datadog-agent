@@ -43,11 +43,22 @@ type utilizationTracker struct {
 // UtilizationTracker is the interface that encapsulates the API around the
 // utilizationTracker object.
 type UtilizationTracker interface {
+	// Start activates the polling ticker for collection of data.
 	Start() error
+
+	// Stop is invoked when a worker is about to exit to remove the instance's
+	// expvars.
 	Stop() error
 
+	// CheckStarted starts tracking the start time of a check.
 	CheckStarted(bool)
+
+	// CheckFinished ends tracking the the runtime of a check previously registered
+	// with `CheckStarted()`.
 	CheckFinished()
+
+	// IsRunningLongCheck returns true if we are currently running a check
+	// that is meant to be of indefinite duration (e.g. jmxfetch checks).
 	IsRunningLongCheck() bool
 }
 
