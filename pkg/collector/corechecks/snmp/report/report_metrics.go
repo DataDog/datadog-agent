@@ -16,8 +16,8 @@ import (
 
 // MetricSender is a wrapper around aggregator.Sender
 type MetricSender struct {
-	sender           aggregator.Sender // TODO: make it private
-	submittedMetrics int               // TODO: make it private
+	sender           aggregator.Sender
+	submittedMetrics int
 }
 
 // NewMetricSender create a new MetricSender
