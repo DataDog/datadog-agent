@@ -8,7 +8,7 @@ import (
 )
 
 func SetConfdPathAndCleanProfiles() {
-	GlobalProfileConfigMap = nil // make sure from the new confd path will be reloaded
+	globalProfileConfigMap = nil // make sure from the new confd path will be reloaded
 	file, _ := filepath.Abs(filepath.Join(".", "test", "conf.d"))
 	if !pathExists(file) {
 		file, _ = filepath.Abs(filepath.Join("..", "test", "conf.d"))
