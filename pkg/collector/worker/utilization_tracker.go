@@ -124,7 +124,7 @@ func (ut *utilizationTracker) Start() error {
 	}
 
 	if ut.stopped {
-		return fmt.Errorf("Attempted to use UtilizationTracker.Start() when the tracker after it was stopped")
+		return fmt.Errorf("Attempted to use UtilizationTracker.Start() after the tracker was stopped")
 	}
 
 	// Initialize the worker expvar
