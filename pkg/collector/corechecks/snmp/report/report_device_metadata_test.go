@@ -4,6 +4,9 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"testing"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
@@ -13,8 +16,6 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"testing"
-	"time"
 )
 
 func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.T) {

@@ -4,12 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
 
 	assert "github.com/stretchr/testify/require"
 

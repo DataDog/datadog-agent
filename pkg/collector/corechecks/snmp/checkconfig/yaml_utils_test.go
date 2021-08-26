@@ -1,8 +1,9 @@
 package checkconfig
 
 import (
-	"gopkg.in/yaml.v2"
 	"testing"
+
+	"gopkg.in/yaml.v2"
 
 	"github.com/stretchr/testify/assert"
 )

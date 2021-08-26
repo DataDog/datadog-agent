@@ -2,10 +2,11 @@ package fetch
 
 import (
 	"fmt"
+	"sort"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
-	"sort"
 
 	"github.com/gosnmp/gosnmp"
 

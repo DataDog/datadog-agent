@@ -3,11 +3,12 @@ package report
 import (
 	"bufio"
 	"bytes"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"

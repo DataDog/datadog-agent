@@ -3,13 +3,14 @@ package snmp
 import (
 	"errors"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/fetch"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/report"
 	session "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
-	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"

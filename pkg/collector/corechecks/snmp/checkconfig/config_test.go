@@ -6,10 +6,11 @@
 package checkconfig
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"regexp"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 
 	"github.com/stretchr/testify/assert"
 )

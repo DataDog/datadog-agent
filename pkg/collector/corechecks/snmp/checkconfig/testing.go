@@ -2,8 +2,9 @@ package checkconfig
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func setConfdPathAndCleanProfiles() {

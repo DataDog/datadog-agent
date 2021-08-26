@@ -3,11 +3,12 @@ package gosnmplib
 import (
 	"bufio"
 	"bytes"
+	"testing"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestTraceLevelLogWriter_Write(t *testing.T) {

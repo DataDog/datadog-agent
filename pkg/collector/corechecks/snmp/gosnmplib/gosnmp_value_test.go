@@ -2,8 +2,9 @@ package gosnmplib
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"

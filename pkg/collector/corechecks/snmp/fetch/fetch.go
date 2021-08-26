@@ -2,6 +2,7 @@ package fetch
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"

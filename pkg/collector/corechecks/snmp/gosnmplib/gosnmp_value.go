@@ -2,9 +2,10 @@ package gosnmplib
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"math"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 
 	"github.com/gosnmp/gosnmp"
 

@@ -1,9 +1,10 @@
 package checkconfig
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 	"regexp"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
