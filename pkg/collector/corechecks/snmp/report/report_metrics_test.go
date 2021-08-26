@@ -268,7 +268,7 @@ func TestSendMetric(t *testing.T) {
 			mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			metricSender.sendMetric(tt.metricName, tt.value, tt.tags, tt.forcedType, tt.options, tt.extractValuePattern)
-			assert.Equal(t, tt.expectedSubMetrics, metricSender.SubmittedMetrics)
+			assert.Equal(t, tt.expectedSubMetrics, metricSender.submittedMetrics)
 			if tt.expectedMethod != "" {
 				mockSender.AssertCalled(t, tt.expectedMethod, tt.expectedMetricName, tt.expectedValue, "", tt.expectedTags)
 			}

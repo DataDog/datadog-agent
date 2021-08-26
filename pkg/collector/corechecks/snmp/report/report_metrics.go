@@ -17,7 +17,7 @@ import (
 // MetricSender is a wrapper around aggregator.Sender
 type MetricSender struct {
 	sender           aggregator.Sender // TODO: make it private
-	SubmittedMetrics int               // TODO: make it private
+	submittedMetrics int               // TODO: make it private
 }
 
 // NewMetricSender create a new MetricSender
@@ -131,20 +131,20 @@ func (ms *MetricSender) sendMetric(metricName string, value valuestore.ResultVal
 	switch forcedType {
 	case "gauge":
 		ms.Gauge(metricFullName, floatValue, "", tags)
-		ms.SubmittedMetrics++
+		ms.submittedMetrics++
 	case "counter":
 		ms.Rate(metricFullName, floatValue, "", tags)
-		ms.SubmittedMetrics++
+		ms.submittedMetrics++
 	case "percent":
 		ms.Rate(metricFullName, floatValue*100, "", tags)
-		ms.SubmittedMetrics++
+		ms.submittedMetrics++
 	case "monotonic_count":
 		ms.MonotonicCount(metricFullName, floatValue, "", tags)
-		ms.SubmittedMetrics++
+		ms.submittedMetrics++
 	case "monotonic_count_and_rate":
 		ms.MonotonicCount(metricFullName, floatValue, "", tags)
 		ms.Rate(metricFullName+".rate", floatValue, "", tags)
-		ms.SubmittedMetrics += 2
+		ms.submittedMetrics += 2
 	default:
 		log.Debugf("metric `%s`: unsupported forcedType: %s", metricFullName, forcedType)
 		return
@@ -173,6 +173,11 @@ func (ms *MetricSender) MonotonicCount(metric string, value float64, hostname st
 func (ms *MetricSender) ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string) {
 	// we need copy tags before using Sender due to https://github.com/DataDog/datadog-agent/issues/7159
 	ms.sender.ServiceCheck(checkName, status, hostname, common.CopyStrings(tags), message)
+}
+
+// GetSubmittedMetrics returns submitted metrics count
+func (ms *MetricSender) GetSubmittedMetrics() int {
+	return ms.submittedMetrics
 }
 
 func getFlagStreamValue(placement uint, strValue string) (float64, error) {
