@@ -36,8 +36,8 @@ func easyjson4ef41860DecodeGithubComDataDogDatadogAgentPkgTraceObfuscate(in *jle
 			continue
 		}
 		switch key {
-		case "quantize_sql_tables":
-			out.QuantizeSQLTables = bool(in.Bool())
+		case "replace_digits":
+			out.ReplaceDigits = bool(in.Bool())
 		default:
 			in.SkipRecursive()
 		}
@@ -53,9 +53,9 @@ func easyjson4ef41860EncodeGithubComDataDogDatadogAgentPkgTraceObfuscate(out *jw
 	first := true
 	_ = first
 	{
-		const prefix string = ",\"quantize_sql_tables\":"
+		const prefix string = ",\"replace_digits\":"
 		out.RawString(prefix[1:])
-		out.Bool(bool(in.QuantizeSQLTables))
+		out.Bool(bool(in.ReplaceDigits))
 	}
 	out.RawByte('}')
 }

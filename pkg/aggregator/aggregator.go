@@ -36,6 +36,9 @@ const bucketSize = 10                         // fixed for now
 // MetricSamplePoolBatchSize is the batch size of the metric sample pool.
 const MetricSamplePoolBatchSize = 32
 
+// tagsetTlm handles telemetry for large tagsets.
+var tagsetTlm *tagsetTelemetry
+
 // Stats stores a statistic from several past flushes allowing computations like median or percentiles
 type Stats struct {
 	Flushes    [32]int64 // circular buffer of recent flushes stat
@@ -79,6 +82,10 @@ func expStatsMap(statsMap map[string]*Stats) func() interface{} {
 	return func() interface{} {
 		return statsMap
 	}
+}
+
+func expMetricTags() interface{} {
+	return tagsetTlm.exp()
 }
 
 func timeNowNano() float64 {
@@ -162,6 +169,10 @@ func init() {
 	aggregatorExpvars.Set("DogstatsdContexts", &aggregatorDogstatsdContexts)
 	aggregatorExpvars.Set("EventPlatformEvents", &aggregatorEventPlatformEvents)
 	aggregatorExpvars.Set("EventPlatformEventsErrors", &aggregatorEventPlatformEventsErrors)
+
+	tagsetTlm = newTagsetTelemetry([]uint64{90, 100})
+
+	aggregatorExpvars.Set("MetricTags", expvar.Func(expMetricTags))
 }
 
 // InitAggregator returns the Singleton instance
@@ -411,6 +422,8 @@ func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
 	}
 	tb := util.NewTagsBuilderFromSlice(sc.Tags)
 	metrics.EnrichTags(tb, sc.OriginID, sc.K8sOriginID, sc.Cardinality)
+
+	tb.SortUniq()
 	sc.Tags = tb.Get()
 
 	agg.serviceChecks = append(agg.serviceChecks, &sc)
@@ -423,6 +436,8 @@ func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 	}
 	tb := util.NewTagsBuilderFromSlice(e.Tags)
 	metrics.EnrichTags(tb, e.OriginID, e.K8sOriginID, e.Cardinality)
+
+	tb.SortUniq()
 	e.Tags = tb.Get()
 
 	agg.events = append(agg.events, &e)
@@ -461,6 +476,8 @@ func (agg *BufferedAggregator) pushSketches(start time.Time, sketches metrics.Sk
 	addFlushTime("MetricSketchFlushTime", int64(time.Since(start)))
 	aggregatorSketchesFlushed.Add(int64(len(sketches)))
 	tlmFlush.Add(float64(len(sketches)), "sketches", state)
+
+	tagsetTlm.updateHugeSketchesTelemetry(&sketches)
 }
 
 func (agg *BufferedAggregator) pushSeries(start time.Time, series metrics.Series) {
@@ -475,6 +492,8 @@ func (agg *BufferedAggregator) pushSeries(start time.Time, series metrics.Series
 	addFlushTime("ChecksMetricSampleFlushTime", int64(time.Since(start)))
 	aggregatorSeriesFlushed.Add(int64(len(series)))
 	tlmFlush.Add(float64(len(series)), "series", state)
+
+	tagsetTlm.updateHugeSeriesTelemetry(&series)
 }
 
 func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series, waitForSerializer bool) {

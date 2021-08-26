@@ -149,8 +149,8 @@ func (mp *provider) fillContainerMetrics(stats *types.StatsJSON, containerBundle
 
 	containerBundle.metrics = &metrics.ContainerMetrics{
 		CPU: &metrics.ContainerCPUStats{
-			User:       user,
-			System:     kernel,
+			User:       float64(user),
+			System:     float64(kernel),
 			UsageTotal: float64(total),
 		},
 		Memory: &metrics.ContainerMemStats{

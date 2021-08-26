@@ -123,7 +123,7 @@ func (c *Check) autodetectProfile(session sessionAPI) error {
 	if c.config.autodetectProfile {
 		sysObjectID, err := fetchSysObjectID(session)
 		if err != nil {
-			return fmt.Errorf("failed to fetching sysobjectid: %s", err)
+			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
 		}
 		c.config.autodetectProfile = false // do not try to auto detect profile next time
 
@@ -175,6 +175,11 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 	}
 
 	return nil
+}
+
+// Interval returns the scheduling time for the check
+func (c *Check) Interval() time.Duration {
+	return c.config.minCollectionInterval
 }
 
 func snmpFactory() check.Check {

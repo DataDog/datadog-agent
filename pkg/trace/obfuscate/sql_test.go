@@ -254,7 +254,7 @@ func TestSQLTableNames(t *testing.T) {
 	})
 }
 
-func TestSQLQuantizeTableNames(t *testing.T) {
+func TestSQLReplaceDigits(t *testing.T) {
 	t.Run("on", func(t *testing.T) {
 		for _, tt := range []struct {
 			query      string
@@ -264,10 +264,56 @@ func TestSQLQuantizeTableNames(t *testing.T) {
 				"REPLACE INTO sales_2019_07_01 (`itemID`, `date`, `qty`, `price`) VALUES ((SELECT itemID FROM item1001 WHERE `sku` = [sku]), CURDATE(), [qty], 0.00)",
 				"REPLACE INTO sales_?_?_? ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item? WHERE sku = [ sku ] ), CURDATE ( ), [ qty ], ? )",
 			},
+			{
+				"SELECT ddh19.name, ddt.tags FROM dd91219.host ddh19, dd21916.host_tags ddt WHERE ddh19.id = ddt.host_id AND ddh19.org_id = 2 AND ddh19.name = 'datadog'",
+				"SELECT ddh?.name, ddt.tags FROM dd?.host ddh?, dd?.host_tags ddt WHERE ddh?.id = ddt.host_id AND ddh?.org_id = ? AND ddh?.name = ?",
+			},
+			{
+				"SELECT ddu2.name, ddo.id10, ddk.app_key52 FROM dd3120.user ddu2, dd1931.orgs55 ddo, dd53819.keys ddk",
+				"SELECT ddu?.name, ddo.id?, ddk.app_key? FROM dd?.user ddu?, dd?.orgs? ddo, dd?.keys ddk",
+			},
+			{`SELECT daily_values1529.*, LEAST((5040000 - @runtot), value1830) AS value1830,
+(@runtot := @runtot + daily_values1529.value1830) AS total
+FROM (SELECT @runtot:=0) AS n, 
+daily_values1529 WHERE daily_values1529.subject_id = 12345 AND daily_values1592.subject_type = 'Skippity'
+AND (daily_values1529.date BETWEEN '2018-05-09' AND '2018-06-19') HAVING value >= 0 ORDER BY date`,
+				"SELECT daily_values?.*, LEAST ( ( ? - @runtot ), value? ), ( @runtot := @runtot + daily_values?.value? ) FROM ( SELECT @runtot := ? ), daily_values? WHERE daily_values?.subject_id = ? AND daily_values?.subject_type = ? AND ( daily_values?.date BETWEEN ? AND ? ) HAVING value >= ? ORDER BY date",
+			},
+			{
+				// Complex query is sourced and modified from https://www.ibm.com/support/knowledgecenter/SSCRJT_6.0.0/com.ibm.swg.im.bigsql.doc/doc/tut_bsql_uc_complex_query.html
+				`WITH
+sales AS
+(SELECT sf2.*
+	FROM gosalesdw28391.sls_order_method_dim AS md,
+		gosalesdw1920.sls_product_dim391 AS pd190,
+		gosalesdw3819.emp_employee_dim AS ed,
+		gosalesdw3919.sls_sales_fact3819 AS sf2
+	WHERE pd190.product_key = sf2.product_key
+	AND pd190.product_number381 > 10000
+	AND pd190.base_product_key > 30
+	AND md.order_method_key = sf2.order_method_key8319
+	AND md.order_method_code > 5
+	AND ed.employee_key = sf2.employee_key
+	AND ed.manager_code1 > 20),
+inventory3118 AS
+(SELECT if.*
+	FROM gosalesdw1592.go_branch_dim AS bd3221,
+	gosalesdw.dist_inventory_fact AS if
+	WHERE if.branch_key = bd3221.branch_key
+	AND bd3221.branch_code > 20)
+SELECT sales1828.product_key AS PROD_KEY,
+SUM(CAST (inventory3118.quantity_shipped AS BIGINT)) AS INV_SHIPPED3118,
+SUM(CAST (sales1828.quantity AS BIGINT)) AS PROD_QUANTITY,
+RANK() OVER ( ORDER BY SUM(CAST (sales1828.quantity AS BIGINT)) DESC) AS PROD_RANK
+FROM sales1828, inventory3118
+WHERE sales1828.product_key = inventory3118.product_key
+GROUP BY sales1828.product_key`,
+				"WITH sales SELECT sf?.* FROM gosalesdw?.sls_order_method_dim, gosalesdw?.sls_product_dim?, gosalesdw?.emp_employee_dim, gosalesdw?.sls_sales_fact? WHERE pd?.product_key = sf?.product_key AND pd?.product_number? > ? AND pd?.base_product_key > ? AND md.order_method_key = sf?.order_method_key? AND md.order_method_code > ? AND ed.employee_key = sf?.employee_key AND ed.manager_code? > ? ) inventory? SELECT if.* FROM gosalesdw?.go_branch_dim, gosalesdw.dist_inventory_fact WHERE if.branch_key = bd?.branch_key AND bd?.branch_code > ? ) SELECT sales?.product_key, SUM ( CAST ( inventory?.quantity_shipped ) ), SUM ( CAST ( sales?.quantity ) ), RANK ( ) OVER ( ORDER BY SUM ( CAST ( sales?.quantity ) ) DESC ) FROM sales?, inventory? WHERE sales?.product_key = inventory?.product_key GROUP BY sales?.product_key",
+			},
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
-				oq, err := NewObfuscator(nil).ObfuscateSQLStringWithOptions(tt.query, SQLOptions{QuantizeSQLTables: true})
+				oq, err := NewObfuscator(nil).ObfuscateSQLStringWithOptions(tt.query, SQLOptions{ReplaceDigits: true})
 				assert.NoError(err)
 				assert.Empty(oq.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
@@ -284,6 +330,51 @@ func TestSQLQuantizeTableNames(t *testing.T) {
 				"REPLACE INTO sales_2019_07_01 (`itemID`, `date`, `qty`, `price`) VALUES ((SELECT itemID FROM item1001 WHERE `sku` = [sku]), CURDATE(), [qty], 0.00)",
 				"REPLACE INTO sales_2019_07_01 ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item1001 WHERE sku = [ sku ] ), CURDATE ( ), [ qty ], ? )",
 			},
+			{
+				"SELECT ddh19.name, ddt.tags FROM dd91219.host ddh19, dd21916.host_tags ddt WHERE ddh19.id = ddt.host_id AND ddh19.org_id = 2 AND ddh19.name = 'datadog'",
+				"SELECT ddh19.name, ddt.tags FROM dd91219.host ddh19, dd21916.host_tags ddt WHERE ddh19.id = ddt.host_id AND ddh19.org_id = ? AND ddh19.name = ?",
+			},
+			{
+				"SELECT ddu2.name, ddo.id10, ddk.app_key52 FROM dd3120.user ddu2, dd1931.orgs55 ddo, dd53819.keys ddk",
+				"SELECT ddu2.name, ddo.id10, ddk.app_key52 FROM dd3120.user ddu2, dd1931.orgs55 ddo, dd53819.keys ddk",
+			},
+			{`SELECT daily_values1529.*, LEAST((5040000 - @runtot), value1830) AS value1830,
+(@runtot := @runtot + daily_values1529.value1830) AS total
+FROM (SELECT @runtot:=0) AS n, 
+daily_values1529 WHERE daily_values1529.subject_id = 12345 AND daily_values1592.subject_type = 'Skippity'
+AND (daily_values1529.date BETWEEN '2018-05-09' AND '2018-06-19') HAVING value >= 0 ORDER BY date`,
+				"SELECT daily_values1529.*, LEAST ( ( ? - @runtot ), value1830 ), ( @runtot := @runtot + daily_values1529.value1830 ) FROM ( SELECT @runtot := ? ), daily_values1529 WHERE daily_values1529.subject_id = ? AND daily_values1592.subject_type = ? AND ( daily_values1529.date BETWEEN ? AND ? ) HAVING value >= ? ORDER BY date",
+			},
+			{
+				// Complex query is sourced and modified from https://www.ibm.com/support/knowledgecenter/SSCRJT_6.0.0/com.ibm.swg.im.bigsql.doc/doc/tut_bsql_uc_complex_query.html
+				`WITH sales AS
+(SELECT sf2.*
+	FROM gosalesdw28391.sls_order_method_dim AS md,
+		gosalesdw1920.sls_product_dim391 AS pd190,
+		gosalesdw3819.emp_employee_dim AS ed,
+		gosalesdw3919.sls_sales_fact3819 AS sf2
+	WHERE pd190.product_key = sf2.product_key
+	AND pd190.product_number381 > 10000
+	AND pd190.base_product_key > 30
+	AND md.order_method_key = sf2.order_method_key8319
+	AND md.order_method_code > 5
+	AND ed.employee_key = sf2.employee_key
+	AND ed.manager_code1 > 20),
+inventory3118 AS
+(SELECT if.*
+	FROM gosalesdw1592.go_branch_dim AS bd3221,
+	gosalesdw.dist_inventory_fact AS if
+	WHERE if.branch_key = bd3221.branch_key
+	AND bd3221.branch_code > 20)
+SELECT sales1828.product_key AS PROD_KEY,
+SUM(CAST (inventory3118.quantity_shipped AS BIGINT)) AS INV_SHIPPED3118,
+SUM(CAST (sales1828.quantity AS BIGINT)) AS PROD_QUANTITY,
+RANK() OVER ( ORDER BY SUM(CAST (sales1828.quantity AS BIGINT)) DESC) AS PROD_RANK
+FROM sales1828, inventory3118
+WHERE sales1828.product_key = inventory3118.product_key
+GROUP BY sales1828.product_key`,
+				"WITH sales SELECT sf2.* FROM gosalesdw28391.sls_order_method_dim, gosalesdw1920.sls_product_dim391, gosalesdw3819.emp_employee_dim, gosalesdw3919.sls_sales_fact3819 WHERE pd190.product_key = sf2.product_key AND pd190.product_number381 > ? AND pd190.base_product_key > ? AND md.order_method_key = sf2.order_method_key8319 AND md.order_method_code > ? AND ed.employee_key = sf2.employee_key AND ed.manager_code1 > ? ) inventory3118 SELECT if.* FROM gosalesdw1592.go_branch_dim, gosalesdw.dist_inventory_fact WHERE if.branch_key = bd3221.branch_key AND bd3221.branch_code > ? ) SELECT sales1828.product_key, SUM ( CAST ( inventory3118.quantity_shipped ) ), SUM ( CAST ( sales1828.quantity ) ), RANK ( ) OVER ( ORDER BY SUM ( CAST ( sales1828.quantity ) ) DESC ) FROM sales1828, inventory3118 WHERE sales1828.product_key = inventory3118.product_key GROUP BY sales1828.product_key",
+			},
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
@@ -296,7 +387,7 @@ func TestSQLQuantizeTableNames(t *testing.T) {
 	})
 }
 
-func TestSQLTableFinderAndQuantizeTableNames(t *testing.T) {
+func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 	t.Run("on", func(t *testing.T) {
 		defer testutil.WithFeatures("table_names")()
 
@@ -375,10 +466,15 @@ func TestSQLTableFinderAndQuantizeTableNames(t *testing.T) {
 				"sales_2019_07_01,item1001",
 				"REPLACE INTO sales_?_?_? ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item? WHERE sku = [ sku ] ), CURDATE ( ), [ qty ], ? )",
 			},
+			{
+				"SELECT name FROM people WHERE person_id = -1",
+				"people",
+				"SELECT name FROM people WHERE person_id = ?",
+			},
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
-				oq, err := NewObfuscator(nil).ObfuscateSQLStringWithOptions(tt.query, SQLOptions{QuantizeSQLTables: true})
+				oq, err := NewObfuscator(nil).ObfuscateSQLStringWithOptions(tt.query, SQLOptions{ReplaceDigits: true})
 				assert.NoError(err)
 				assert.Equal(tt.tables, oq.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
@@ -1375,7 +1471,7 @@ func BenchmarkObfuscateSQLString(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				_, err := obf.ObfuscateSQLStringWithOptions(bm.query, SQLOptions{QuantizeSQLTables: true})
+				_, err := obf.ObfuscateSQLStringWithOptions(bm.query, SQLOptions{ReplaceDigits: true})
 				if err != nil {
 					b.Fatal(err)
 				}

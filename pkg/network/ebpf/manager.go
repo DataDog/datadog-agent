@@ -81,7 +81,6 @@ func NewManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 			{Section: string(probes.Inet6Bind)},
 			{Section: string(probes.InetBindRet), KProbeMaxActive: maxActive},
 			{Section: string(probes.Inet6BindRet), KProbeMaxActive: maxActive},
-			{Section: string(probes.SocketDnsFilter)},
 			{Section: string(probes.IPRouteOutputFlow)},
 			{Section: string(probes.IPRouteOutputFlowReturn), KProbeMaxActive: maxActive},
 			{Section: string(probes.SockFDLookup), KProbeMaxActive: maxActive},

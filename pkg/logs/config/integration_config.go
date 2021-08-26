@@ -32,8 +32,9 @@ const (
 type LogsConfig struct {
 	Type string
 
-	Port int    // Network
-	Path string // File, Journald
+	Port        int    // Network
+	IdleTimeout string `mapstructure:"idle_timeout" json:"idle_timeout"` // Network
+	Path        string // File, Journald
 
 	Encoding     string   `mapstructure:"encoding" json:"encoding"`             // File
 	ExcludePaths []string `mapstructure:"exclude_paths" json:"exclude_paths"`   // File

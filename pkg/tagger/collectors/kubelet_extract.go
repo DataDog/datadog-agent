@@ -30,13 +30,6 @@ const (
 	podStandardLabelPrefix           = "tags.datadoghq.com/"
 )
 
-// KubeAllowedEncodeStringAlphaNums holds the charactes allowed in replicaset names from as parent deployment
-// Taken from https://github.com/kow3ns/kubernetes/blob/96067e6d7b24a05a6a68a0d94db622957448b5ab/staging/src/k8s.io/apimachinery/pkg/util/rand/rand.go#L76
-const KubeAllowedEncodeStringAlphaNums = "bcdfghjklmnpqrstvwxz2456789"
-
-// Digits holds the digits used for naming replicasets in kubenetes < 1.8
-const Digits = "1234567890"
-
 // parsePods convert Pods from the PodWatcher to TagInfo objects
 func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 	var output []*TagInfo
@@ -124,7 +117,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				}
 
 			case kubernetes.JobKind:
-				cronjob := parseCronJobForJob(owner.Name)
+				cronjob := kubernetes.ParseCronJobForJob(owner.Name)
 				if cronjob != "" {
 					tags.AddOrchestrator(kubernetes.JobTagName, owner.Name)
 					tags.AddLow(kubernetes.CronJobTagName, cronjob)
@@ -132,7 +125,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 					tags.AddLow(kubernetes.JobTagName, owner.Name)
 				}
 			case kubernetes.ReplicaSetKind:
-				deployment := parseDeploymentForReplicaSet(owner.Name)
+				deployment := kubernetes.ParseDeploymentForReplicaSet(owner.Name)
 				if len(deployment) > 0 {
 					tags.AddLow(kubernetes.DeploymentTagName, deployment)
 				}
@@ -258,51 +251,6 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 		}
 	}
 	return output, nil
-}
-
-// parseDeploymentForReplicaSet gets the deployment name from a replicaset,
-// or returns an empty string if no parent deployment is found.
-func parseDeploymentForReplicaSet(name string) string {
-	lastDash := strings.LastIndexAny(name, "-")
-	if lastDash == -1 {
-		// No dash
-		return ""
-	}
-	suffix := name[lastDash+1:]
-	if len(suffix) < 3 {
-		// Suffix is variable length but we cutoff at 3+ characters
-		return ""
-	}
-
-	if !utils.StringInRuneset(suffix, Digits) && !utils.StringInRuneset(suffix, KubeAllowedEncodeStringAlphaNums) {
-		// Invalid suffix
-		return ""
-	}
-
-	return name[:lastDash]
-}
-
-// parseCronJobForJob gets the cronjob name from a job,
-// or returns an empty string if no parent cronjob is found.
-// https://github.com/kubernetes/kubernetes/blob/b4e3bd381bd4d7c0db1959341b39558b45187345/pkg/controller/cronjob/utils.go#L156
-func parseCronJobForJob(name string) string {
-	lastDash := strings.LastIndexAny(name, "-")
-	if lastDash == -1 {
-		// No dash
-		return ""
-	}
-	suffix := name[lastDash+1:]
-	if len(suffix) < 3 {
-		// Suffix is variable length but we cutoff at 3+ characters
-		return ""
-	}
-
-	if !utils.StringInRuneset(suffix, Digits) {
-		// Invalid suffix
-		return ""
-	}
-
-	return name[:lastDash]
 }
 
 // extractTagsFromMap extracts tags contained in a JSON string stored at the

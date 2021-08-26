@@ -15,6 +15,21 @@ from invoke import task
 ORG_PATH = "github.com/DataDog"
 DEFAULT_BRANCH = "main"
 REPO_PATH = "{}/datadog-agent".format(ORG_PATH)
+ALLOWED_REPO_NON_NIGHTLY_BRANCHES = {"stable", "beta", "none"}
+ALLOWED_REPO_NIGHTLY_BRANCHES = {"nightly", "oldnightly"}
+ALLOWED_REPO_ALL_BRANCHES = ALLOWED_REPO_NON_NIGHTLY_BRANCHES.union(ALLOWED_REPO_NIGHTLY_BRANCHES)
+
+
+def get_all_allowed_repo_branches():
+    return ALLOWED_REPO_ALL_BRANCHES
+
+
+def is_allowed_repo_branch(branch):
+    return branch in ALLOWED_REPO_ALL_BRANCHES
+
+
+def is_allowed_repo_nightly_branch(branch):
+    return branch in ALLOWED_REPO_NIGHTLY_BRANCHES
 
 
 def bin_name(name, android=False):
@@ -269,18 +284,22 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
         # therefore we keep the same number of characters.
         git_sha = ctx.run(cmd, hide=True).stdout.strip()[:7]
 
-    return version, pre, commit_number, git_sha
+    pipeline_id = os.getenv("CI_PIPELINE_ID", None)
+
+    return version, pre, commit_number, git_sha, pipeline_id
 
 
-def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, major_version='7'):
+def get_version(
+    ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, major_version='7', include_pipeline_id=False
+):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
 
     version = ""
-    version, pre, commits_since_version, git_sha = query_version(
+    version, pre, commits_since_version, git_sha, pipeline_id = query_version(
         ctx, git_sha_length, prefix, major_version_hint=major_version
     )
 
-    is_nightly = os.getenv("DEB_RPM_BUCKET_BRANCH") == "nightly"
+    is_nightly = is_allowed_repo_nightly_branch(os.getenv("DEB_RPM_BUCKET_BRANCH"))
     if pre:
         version = "{0}-{1}".format(version, pre)
 
@@ -296,6 +315,9 @@ def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix
         else:
             version = "{0}+git.{1}.{2}".format(version, commits_since_version, git_sha)
 
+    if is_nightly and include_git and include_pipeline_id and pipeline_id is not None:
+        version = "{0}.pipeline.{1}".format(version, pipeline_id)
+
     # version could be unicode as it comes from `query_version`
     return str(version)
 
@@ -303,7 +325,7 @@ def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7, prefix
 def get_version_numeric_only(ctx, major_version='7'):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
 
-    version, _, _, _ = query_version(ctx, major_version_hint=major_version)
+    version, *_ = query_version(ctx, major_version_hint=major_version)
     return version
 
 

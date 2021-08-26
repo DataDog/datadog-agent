@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
+// +build !serverless
+
 package listeners
 
 import (

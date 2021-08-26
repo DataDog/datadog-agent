@@ -226,7 +226,7 @@ determine the cause.
 If the cause is unclear, please contact Datadog support.
 *****
 "
-    $sudo_cmd apt-get install -y --force-yes "$agent_flavor"
+    $sudo_cmd apt-get install -y --force-yes "$agent_flavor" "datadog-signing-keys"
     ERROR_MESSAGE=""
 elif [ "$OS" = "SUSE" ]; then
   UNAME_M=$(uname -m)

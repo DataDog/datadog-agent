@@ -85,6 +85,11 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 		return nil, fmt.Errorf("no files found for file check %q", file.Path)
 	}
 
+	// NOTE(safchain) workaround to allow fallback on all this resource if there is only one file
+	if len(instances) == 1 {
+		return instances[0].(*_resolvedInstance), nil
+	}
+
 	return newResolvedInstances(instances), nil
 }
 

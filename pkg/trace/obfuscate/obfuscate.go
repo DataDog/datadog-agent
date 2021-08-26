@@ -38,8 +38,8 @@ type Obfuscator struct {
 // SQLOptions holds options that change the behavior of the obfuscator for SQL.
 // easyjson:json
 type SQLOptions struct {
-	// QuantizeSQLTables determines if the obfuscator will perform quantization on the SQL tables.
-	QuantizeSQLTables bool `json:"quantize_sql_tables"`
+	// ReplaceDigits causes the obfuscator to replace digits in identifiers and table names with question marks.
+	ReplaceDigits bool `json:"replace_digits"`
 }
 
 // SetSQLLiteralEscapes sets whether or not escape characters should be treated literally by the SQL obfuscator.

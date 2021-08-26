@@ -12,9 +12,13 @@ type ContainerRateMetrics struct {
 }
 
 // NullContainerRates can be safely used for containers that have no
-// previours rate values stored (new containers)
+// previous rate values stored (new containers)
 var NullContainerRates = ContainerRateMetrics{
-	CPU:        &metrics.ContainerCPUStats{},
+	CPU: &metrics.ContainerCPUStats{
+		User:   -1,
+		System: -1,
+		Shares: -1,
+	},
 	IO:         &metrics.ContainerIOStats{},
 	NetworkSum: &metrics.InterfaceNetStats{},
 	Network:    metrics.ContainerNetStats{},

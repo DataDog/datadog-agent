@@ -15,6 +15,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/zstd"
 
 	proto "github.com/golang/protobuf/proto"
 	"github.com/h2non/filetype"
@@ -22,13 +23,13 @@ import (
 
 // TrafficCaptureReader allows reading back a traffic capture and its contents
 type TrafficCaptureReader struct {
-	Contents []byte
-	Version  int
-	Traffic  chan *pb.UnixDogstatsdMsg
-	Done     chan struct{}
-	fuse     chan struct{}
-	offset   uint32
-	last     int64
+	Contents     []byte
+	mmapContents []byte
+	Version      int
+	Traffic      chan *pb.UnixDogstatsdMsg
+	Done         chan struct{}
+	fuse         chan struct{}
+	offset       uint32
 
 	sync.Mutex
 }
@@ -46,23 +47,40 @@ func NewTrafficCaptureReader(path string, depth int) (*TrafficCaptureReader, err
 	// datadog capture file should be already registered with filetype via the init hooks
 	kind, _ := filetype.Match(c)
 	if kind == filetype.Unknown {
-		return nil, fmt.Errorf("unknown capture file provided")
+		return nil, fmt.Errorf("unknown capture file provided: %v", kind.MIME)
 	}
 
-	ver, err := fileVersion(c)
+	decompress := false
+	if kind.MIME.Subtype == "zstd" {
+		decompress = true
+		log.Debug("capture file compressed with zstd")
+	}
+
+	var contents []byte
+	if decompress {
+		if contents, err = zstd.Decompress(nil, c); err != nil {
+			return nil, err
+		}
+	} else {
+		contents = c
+	}
+
+	ver, err := fileVersion(contents)
 	if err != nil {
 		return nil, err
 	}
 
 	return &TrafficCaptureReader{
-		Contents: c,
-		Version:  ver,
-		Traffic:  make(chan *pb.UnixDogstatsdMsg, depth),
+		mmapContents: c,
+		Contents:     contents,
+		Version:      ver,
+		Traffic:      make(chan *pb.UnixDogstatsdMsg, depth),
 	}, nil
 }
 
 // Read reads the contents of the traffic capture and writes each packet to a channel
-func (tc *TrafficCaptureReader) Read() {
+func (tc *TrafficCaptureReader) Read(ready chan struct{}) {
+	tc.Lock()
 	tc.Done = make(chan struct{})
 	tc.fuse = make(chan struct{})
 	defer close(tc.Done)
@@ -70,9 +88,7 @@ func (tc *TrafficCaptureReader) Read() {
 	log.Debugf("Processing capture file of size: %d", len(tc.Contents))
 
 	// skip header
-	tc.Lock()
 	tc.offset = uint32(len(datadogHeader))
-	tc.Unlock()
 
 	var tsResolution time.Duration
 	if tc.Version < minNanoVersion {
@@ -80,6 +96,12 @@ func (tc *TrafficCaptureReader) Read() {
 	} else {
 		tsResolution = time.Nanosecond
 	}
+	tc.Unlock()
+
+	last := int64(0)
+
+	// we are all ready to go - let the caller know
+	ready <- struct{}{}
 
 	// The state must be read out of band, it makes zero sense in the context
 	// of the replaying process, it must be pushed to the agent. We just read
@@ -94,13 +116,13 @@ func (tc *TrafficCaptureReader) Read() {
 			break
 		}
 
-		if tc.last != 0 {
-			if msg.Timestamp > tc.last {
-				util.Wait(tsResolution * time.Duration(msg.Timestamp-tc.last))
+		if last != 0 {
+			if msg.Timestamp > last {
+				util.Wait(tsResolution * time.Duration(msg.Timestamp-last))
 			}
 		}
 
-		tc.last = msg.Timestamp
+		last = msg.Timestamp
 		tc.Traffic <- msg
 
 		select {
@@ -112,9 +134,16 @@ func (tc *TrafficCaptureReader) Read() {
 	}
 }
 
-// Close cleans up any resources used by the TrafficCaptureReader
+// Close cleans up any resources used by the TrafficCaptureReader, should not normally
+// be called directly.
 func (tc *TrafficCaptureReader) Close() error {
-	return unmapFile(tc.Contents)
+	tc.Lock()
+	defer tc.Unlock()
+
+	// drop reference for GC
+	tc.Contents = nil
+
+	return unmapFile(tc.mmapContents)
 }
 
 // Shutdown triggers the fuse if there's an ongoing read routine, and closes the reader.
@@ -155,6 +184,20 @@ func (tc *TrafficCaptureReader) ReadNext() (*pb.UnixDogstatsdMsg, error) {
 	tc.Unlock()
 
 	return msg, nil
+}
+
+// Seek sets the reader to the specified offset. Please note,
+// the specified offset is relative to the first datagram, not the
+// absolute position in the file, that would include the header. Thus,
+// an offset of 0 would be the first datagram. Use with caution, a bad
+// offset will completely mess up a replay.
+func (tc *TrafficCaptureReader) Seek(offset uint32) {
+
+	tc.Lock()
+	defer tc.Unlock()
+
+	tc.offset = uint32(len(datadogHeader)) + offset
+
 }
 
 // ReadState reads the tagger state from the end of the capture file.

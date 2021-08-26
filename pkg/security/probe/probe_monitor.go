@@ -11,15 +11,15 @@ import (
 	"context"
 	"sync"
 
+	"github.com/DataDog/datadog-go/statsd"
+	"github.com/DataDog/ebpf/manager"
 	"github.com/hashicorp/go-multierror"
+	"github.com/pkg/errors"
 
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-go/statsd"
-	"github.com/DataDog/ebpf/manager"
-	"github.com/pkg/errors"
 )
 
 // Monitor regroups all the work we want to do to monitor the probes we pushed in the kernel
@@ -103,6 +103,10 @@ func (m *Monitor) SendStats() error {
 		return errors.Wrap(err, "failed to send events stats")
 	}
 
+	if err := m.loadController.SendStats(); err != nil {
+		return errors.Wrap(err, "failed to send load controller stats")
+	}
+
 	return nil
 }
 
@@ -142,13 +146,23 @@ func (m *Monitor) ProcessLostEvent(count uint64, cpu int, perfMap *manager.PerfM
 	m.perfBufferMonitor.CountLostEvent(count, perfMap, cpu)
 }
 
+// RuleSetLoadedReport represents the rule and the custom event related to a RuleSetLoaded event, ready to be dispatched
+type RuleSetLoadedReport struct {
+	Rule  *rules.Rule
+	Event *CustomEvent
+}
+
+// PrepareRuleSetLoadedReport prepares a report of new loaded ruleset
+func (m *Monitor) PrepareRuleSetLoadedReport(ruleSet *rules.RuleSet, err *multierror.Error) RuleSetLoadedReport {
+	r, ev := NewRuleSetLoadedEvent(ruleSet, err)
+	return RuleSetLoadedReport{Rule: r, Event: ev}
+}
+
 // ReportRuleSetLoaded reports to Datadog that new ruleset was loaded
-func (m *Monitor) ReportRuleSetLoaded(ruleSet *rules.RuleSet, err *multierror.Error) {
+func (m *Monitor) ReportRuleSetLoaded(report RuleSetLoadedReport) {
 	if err := m.client.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(errors.Wrap(err, "failed to send ruleset_loaded metric"))
 	}
 
-	m.probe.DispatchCustomEvent(
-		NewRuleSetLoadedEvent(ruleSet, err),
-	)
+	m.probe.DispatchCustomEvent(report.Rule, report.Event)
 }

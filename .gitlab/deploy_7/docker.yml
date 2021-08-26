@@ -9,17 +9,17 @@
 # Image tagging & manifest publication
 #
 
-deploy-a7:
+.deploy-a7-base:
   extends: .docker_job_definition
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:2xlarge"]
+  tags: ["runner:main"]
   stage: deploy7
   rules:
     !reference [.on_deploy_a7_manual]
   dependencies: []
   script:
     - python3 -m pip install -r requirements.txt
-    - export VERSION="$(inv -e agent.version --major-version 7 --url-safe)"
+    - if [[ "$VERSION" == "" ]]; then export VERSION="$(inv -e agent.version --major-version 7 --url-safe)"; fi
     - export IMG_LINUX_SOURCES="${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7${JMX}-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7${JMX}-arm64"
     - export IMG_WINDOWS_SOURCES="${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7${JMX}-win1809${SERVERCORE}-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7${JMX}-win1909${SERVERCORE}-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7${JMX}-win2004${SERVERCORE}-amd64"
     - if [[ "$SERVERCORE" == "-servercore" ]]; then export IMG_SOURCES="${IMG_WINDOWS_SOURCES}"; else export IMG_SOURCES="${IMG_LINUX_SOURCES},${IMG_WINDOWS_SOURCES}"; fi
@@ -35,10 +35,20 @@ deploy-a7:
           - "-servercore"
 
 
+deploy-a7:
+  extends: .deploy-a7-base
+
+
+deploy-a7-rc:
+  extends: .deploy-a7-base
+  variables:
+    VERSION: 7-rc
+
+
 deploy-dogstatsd:
   extends: .docker_job_definition
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:2xlarge"]
+  tags: ["runner:main"]
   stage: deploy7
   rules:
     !reference [.on_deploy_a7_manual]
@@ -58,7 +68,7 @@ deploy-dogstatsd:
 deploy_latest-a7:
   extends: .docker_job_definition
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:2xlarge"]
+  tags: ["runner:main"]
   stage: deploy7
   rules:
     !reference [.on_deploy_a7_manual]
@@ -80,7 +90,7 @@ deploy_latest-a7:
 deploy_latest-dogstatsd:
   extends: .docker_job_definition
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main", "size:2xlarge"]
+  tags: ["runner:main"]
   stage: deploy7
   rules:
     !reference [.on_deploy_a7_manual]

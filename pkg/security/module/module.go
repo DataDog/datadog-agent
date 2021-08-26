@@ -29,7 +29,6 @@ import (
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
@@ -57,6 +56,8 @@ type Module struct {
 	cancelFnc        context.CancelFunc
 	rulesLoaded      func(rs *rules.RuleSet)
 	policiesVersions []string
+
+	selfTester *SelfTester
 }
 
 // Register the runtime security agent module
@@ -144,7 +145,7 @@ func (m *Module) Start() error {
 	return nil
 }
 
-func (m *Module) displayReport(report *probe.Report) {
+func (m *Module) displayReport(report *sprobe.Report) {
 	content, _ := json.Marshal(report)
 	log.Debugf("Policy report: %s", content)
 }
@@ -215,6 +216,7 @@ func (m *Module) Reload() error {
 	atomic.StoreUint64(&m.reloading, 1)
 	defer atomic.StoreUint64(&m.reloading, 0)
 
+	policiesDir := m.config.PoliciesDir
 	rsa := sprobe.NewRuleSetApplier(m.config, m.probe)
 
 	newRuleSetOpts := func() *rules.Opts {
@@ -229,16 +231,26 @@ func (m *Module) Reload() error {
 
 	ruleSet := m.probe.NewRuleSet(newRuleSetOpts())
 
-	loadErr := rules.LoadPolicies(m.config.PoliciesDir, ruleSet)
+	loadErr := rules.LoadPolicies(policiesDir, ruleSet)
 
 	model := &model.Model{}
 	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, newRuleSetOpts())
-	loadApproversErr := rules.LoadPolicies(m.config.PoliciesDir, approverRuleSet)
+	loadApproversErr := rules.LoadPolicies(policiesDir, approverRuleSet)
 
 	if loadErr.ErrorOrNil() != nil {
 		logMultiErrors("error while loading policies: %+v", loadErr)
 	} else if loadApproversErr.ErrorOrNil() != nil {
 		logMultiErrors("error while loading policies for Approvers: %+v", loadApproversErr)
+	}
+
+	monitor := m.probe.GetMonitor()
+	ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleSet, loadErr)
+
+	if m.selfTester != nil {
+		if err := m.selfTester.CreateTargetFileIfNeeded(); err != nil {
+			log.Errorf("failed to create self-test target file: %+v", err)
+		}
+		m.selfTester.AddSelfTestRulesToRuleSets(ruleSet, approverRuleSet)
 	}
 
 	approvers, err := approverRuleSet.GetApprovers(sprobe.GetCapababilities())
@@ -274,8 +286,7 @@ func (m *Module) Reload() error {
 	m.displayReport(report)
 
 	// report that a new policy was loaded
-	monitor := m.probe.GetMonitor()
-	monitor.ReportRuleSetLoaded(ruleSet, loadErr)
+	monitor.ReportRuleSetLoaded(ruleSetLoadedReport)
 
 	return nil
 }
@@ -294,6 +305,10 @@ func (m *Module) Close() {
 		os.Remove(m.config.SocketPath)
 	}
 
+	if m.selfTester != nil {
+		_ = m.selfTester.Cleanup()
+	}
+
 	m.probe.Close()
 
 	m.wg.Wait()
@@ -305,7 +320,7 @@ func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field 
 		return
 	}
 
-	if err := m.probe.OnNewDiscarder(rs, event.(*probe.Event), field, eventType); err != nil {
+	if err := m.probe.OnNewDiscarder(rs, event.(*sprobe.Event), field, eventType); err != nil {
 		seclog.Trace(err)
 	}
 }
@@ -325,13 +340,13 @@ func (m *Module) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) 
 // RuleMatch is called by the ruleset when a rule matches
 func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 	// prepare the event
-	m.probe.OnRuleMatch(rule, event.(*probe.Event))
+	m.probe.OnRuleMatch(rule, event.(*sprobe.Event))
 
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing
-	service := event.(*probe.Event).GetProcessServiceTag()
+	service := event.(*sprobe.Event).GetProcessServiceTag()
 
-	id := event.(*probe.Event).ContainerContext.ID
+	id := event.(*sprobe.Event).ContainerContext.ID
 
 	extTagsCb := func() []string {
 		var tags []string
@@ -348,6 +363,9 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 		return append(tags, m.probe.GetResolvers().TagsResolver.Resolve(id)...)
 	}
 
+	if m.selfTester != nil {
+		m.selfTester.SendEventIfExpecting(rule, event)
+	}
 	m.SendEvent(rule, event, extTagsCb, service)
 }
 
@@ -456,6 +474,11 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 	// custom limiters
 	limits := make(map[rules.RuleID]Limit)
 
+	var selfTester *SelfTester
+	if cfg.SelfTestEnabled {
+		selfTester = NewSelfTester()
+	}
+
 	m := &Module{
 		config:         cfg,
 		probe:          probe,
@@ -467,7 +490,9 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 		currentRuleSet: 1,
 		ctx:            ctx,
 		cancelFnc:      cancelFnc,
+		selfTester:     selfTester,
 	}
+	m.apiServer.module = m
 
 	seclog.SetPatterns(cfg.LogPatterns)
 
