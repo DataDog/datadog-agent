@@ -137,7 +137,7 @@ func (ms *MetricSender) sendMetric(metricName string, value valuestore.ResultVal
 		ms.SubmittedMetrics++
 	case "monotonic_count_and_rate":
 		ms.MonotonicCount(metricFullName, floatValue, "", tags)
-		ms.Rate(metricFullName+".Rate", floatValue, "", tags)
+		ms.Rate(metricFullName+".rate", floatValue, "", tags)
 		ms.SubmittedMetrics += 2
 	default:
 		log.Debugf("metric `%s`: unsupported forcedType: %s", metricFullName, forcedType)

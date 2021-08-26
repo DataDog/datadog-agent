@@ -118,7 +118,7 @@ func TestSendMetric(t *testing.T) {
 			forcedType:         "monotonic_count_and_rate",
 			options:            checkconfig.MetricsConfigOption{},
 			expectedMethod:     "Rate",
-			expectedMetricName: "snmp.my.metric.Rate",
+			expectedMetricName: "snmp.my.metric.rate",
 			expectedValue:      float64(10),
 			expectedTags:       []string{},
 			expectedSubMetrics: 2,

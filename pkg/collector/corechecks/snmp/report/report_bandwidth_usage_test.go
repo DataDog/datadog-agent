@@ -53,7 +53,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			},
 			[]Metric{
 				// ((5000000 * 8) / (80 * 1000000)) * 100 = 50.0
-				{"snmp.ifBandwidthInUsage.Rate", 50.0},
+				{"snmp.ifBandwidthInUsage.rate", 50.0},
 			},
 			nil,
 		},
@@ -85,7 +85,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			},
 			[]Metric{
 				// ((1000000 * 8) / (80 * 1000000)) * 100 = 10.0
-				{"snmp.ifBandwidthOutUsage.Rate", 10.0},
+				{"snmp.ifBandwidthOutUsage.rate", 10.0},
 			},
 			nil,
 		},
@@ -343,7 +343,7 @@ func Test_metricSender_trySendBandwidthUsageMetric(t *testing.T) {
 			},
 			[]Metric{
 				// ((5000000 * 8) / (80 * 1000000)) * 100 = 50.0
-				{"snmp.ifBandwidthInUsage.Rate", 50.0},
+				{"snmp.ifBandwidthInUsage.rate", 50.0},
 			},
 		},
 		{

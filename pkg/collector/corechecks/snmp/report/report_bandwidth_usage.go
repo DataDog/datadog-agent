@@ -78,6 +78,6 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol checkconfig.SymbolConfig
 	}
 	usageValue := ((octetsFloatValue * 8) / (ifHighSpeedFloatValue * (1e6))) * 100.0
 
-	ms.sendMetric(usageName+".Rate", valuestore.ResultValue{SubmissionType: "counter", Value: usageValue}, tags, "counter", checkconfig.MetricsConfigOption{}, nil)
+	ms.sendMetric(usageName+".rate", valuestore.ResultValue{SubmissionType: "counter", Value: usageValue}, tags, "counter", checkconfig.MetricsConfigOption{}, nil)
 	return nil
 }
