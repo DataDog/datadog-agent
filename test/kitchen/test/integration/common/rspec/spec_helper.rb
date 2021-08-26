@@ -397,7 +397,9 @@ def is_file_signed(fullpath)
   puts "checking file #{fullpath}"
   expect(File).to exist(fullpath)
   output = `powershell -command "(get-authenticodesignature -FilePath '#{fullpath}').SignerCertificate.Thumbprint"`
+  puts "output is #{output} => #{output.bytes}"
   signature_hash = "748A3B5C681AF45FAC149A76FE59E7CBBDFF058C"
+  puts "signature_hash is #{signature_hash} => #{signature_hash.bytes}"
   return output.upcase == signature_hash
 end
 
