@@ -514,11 +514,15 @@ def _get_release_version_from_release_json(release_json, major_version, version_
     release_version = None
     release_component_version = None
 
+    # Get the release entry for the given Agent major version
     release_entry_name = release_entry_for(major_version)
     release_json_entry = release_json.get(release_entry_name, None)
+
+    # Check that the release entry exists, otherwise fail
     if release_json_entry:
         release_version = release_entry_name
 
+        # Check that the component's version is defined in the release entry
         if release_json_key is not None:
             match = version_re.match(release_json_entry.get(release_json_key, ""))
             if match:
@@ -531,9 +535,9 @@ def _get_release_version_from_release_json(release_json, major_version, version_
                 )
 
     if not release_version:
-        raise Exit("Couldn't find any matching {} version.".format(release_json_key), 1)
+        raise Exit("Couldn't find any matching {} version.".format(release_version), 1)
 
-    if release_component_version is not None:
+    if release_json_key is not None:
         return release_component_version
 
     return release_version
@@ -561,6 +565,17 @@ DIFFERENT_TAGS_TEMPLATE = (
 TAG_NOT_FOUND_TEMPLATE = "Couldn't find a(n) {} version compatible with the new Agent version entry {}"
 RC_TAG_QUESTION_TEMPLATE = "The {} tag found is an RC tag: {}. Are you sure you want to use it?"
 TAG_FOUND_TEMPLATE = "The {} tag is {}"
+
+
+##
+## release.json entry mapping functions
+##
+
+
+def nightly_entry_for(agent_major_version):
+    if agent_major_version == 6:
+        return "nightly"
+    return "nightly-a{}".format(agent_major_version)
 
 
 def release_entry_for(agent_major_version):
@@ -641,7 +656,7 @@ def _fetch_independent_dependency_repo_version(
 
 
 def _get_windows_ddnpm_release_json_info(
-    release_json, agent_major_version, version_re, is_first_rc=False,
+    release_json, agent_major_version, is_first_rc=False,
 ):
     """
     Gets the Windows NPM driver info from the previous entries in the release.json file.
@@ -649,14 +664,12 @@ def _get_windows_ddnpm_release_json_info(
 
     # First RC should use the data from nightly section otherwise reuse the last RC info
     if is_first_rc:
-        print("Using 'nightly' DDNPM values")
-        release_json_version_data = release_json['nightly']
+        previous_release_json_version = nightly_entry_for(agent_major_version)
     else:
-        previous_release_json_version = _get_release_version_from_release_json(
-            release_json, agent_major_version, version_re,
-        )
-        print("Using '{}' DDNPM values".format(previous_release_json_version))
-        release_json_version_data = release_json[release_entry_for(agent_major_version)]
+        previous_release_json_version = release_entry_for(agent_major_version)
+
+    print("Using '{}' DDNPM values".format(previous_release_json_version))
+    release_json_version_data = release_json[previous_release_json_version]
 
     win_ddnpm_driver = release_json_version_data['WINDOWS_DDNPM_DRIVER']
     win_ddnpm_version = release_json_version_data['WINDOWS_DDNPM_VERSION']
@@ -787,7 +800,7 @@ def _update_release_json(release_json, release_entry, new_version, github_token,
     )
 
     windows_ddnpm_driver, windows_ddnpm_version, windows_ddnpm_shasum = _get_windows_ddnpm_release_json_info(
-        release_json, new_version.major, VERSION_RE, is_first_rc=(new_version.rc == 1)
+        release_json, new_version.major, is_first_rc=(new_version.rc == 1)
     )
 
     # Add new entry to the release.json object and return it

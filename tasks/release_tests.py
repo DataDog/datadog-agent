@@ -1,5 +1,4 @@
 import hashlib
-import re
 import unittest
 from typing import OrderedDict
 from unittest import mock
@@ -140,7 +139,7 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
         self.maxDiff = None
         initial_release_json = OrderedDict(
             {
-                "nightly": {
+                release.nightly_entry_for(6): {
                     "INTEGRATIONS_CORE_VERSION": "master",
                     "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
@@ -152,7 +151,7 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                     "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                     "SECURITY_AGENT_POLICIES_VERSION": "master",
                 },
-                "nightly-a7": {
+                release.nightly_entry_for(7): {
                     "INTEGRATIONS_CORE_VERSION": "master",
                     "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
@@ -217,7 +216,7 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
 
         expected_release_json = OrderedDict(
             {
-                "nightly": {
+                release.nightly_entry_for(6): {
                     "INTEGRATIONS_CORE_VERSION": "master",
                     "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
@@ -229,7 +228,7 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
                     "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                     "SECURITY_AGENT_POLICIES_VERSION": "master",
                 },
-                "nightly-a7": {
+                release.nightly_entry_for(7): {
                     "INTEGRATIONS_CORE_VERSION": "master",
                     "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
@@ -273,8 +272,8 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
 
 class TestGetReleaseVersionFromReleaseJson(unittest.TestCase):
     test_release_json = {
-        "nightly": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master",},
-        "nightly-a7": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master",},
+        release.nightly_entry_for(6): {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master",},
+        release.nightly_entry_for(7): {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master",},
         release.release_entry_for(6): {"JMXFETCH_VERSION": "0.43.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.10",},
         release.release_entry_for(7): {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "v0.10",},
     }
@@ -313,14 +312,13 @@ class TestGetReleaseVersionFromReleaseJson(unittest.TestCase):
 
 
 class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
-    test_version_re = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-rc\.(\d+))?')
     test_release_json = {
-        "nightly": {
+        release.nightly_entry_for(6): {
             "WINDOWS_DDNPM_DRIVER": "attestation-signed",
             "WINDOWS_DDNPM_VERSION": "nightly-ddnpm-version",
             "WINDOWS_DDNPM_SHASUM": "nightly-ddnpm-sha",
         },
-        "nightly-a7": {
+        release.nightly_entry_for(7): {
             "WINDOWS_DDNPM_DRIVER": "attestation-signed",
             "WINDOWS_DDNPM_VERSION": "nightly-ddnpm-version",
             "WINDOWS_DDNPM_SHASUM": "nightly-ddnpm-sha",
@@ -338,18 +336,14 @@ class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
     }
 
     def test_ddnpm_info_is_taken_from_nightly_on_first_rc(self):
-        driver, version, shasum = release._get_windows_ddnpm_release_json_info(
-            self.test_release_json, 7, self.test_version_re, True
-        )
+        driver, version, shasum = release._get_windows_ddnpm_release_json_info(self.test_release_json, 7, True)
 
         self.assertEqual(driver, 'attestation-signed')
         self.assertEqual(version, 'nightly-ddnpm-version')
         self.assertEqual(shasum, 'nightly-ddnpm-sha')
 
     def test_ddnpm_info_is_taken_from_previous_rc_on_subsequent_rcs(self):
-        driver, version, shasum = release._get_windows_ddnpm_release_json_info(
-            self.test_release_json, 7, self.test_version_re, False
-        )
+        driver, version, shasum = release._get_windows_ddnpm_release_json_info(self.test_release_json, 7, False)
 
         self.assertEqual(driver, 'release-signed')
         self.assertEqual(version, 'rc3-ddnpm-version')
