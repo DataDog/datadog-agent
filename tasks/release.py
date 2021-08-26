@@ -23,8 +23,9 @@ from .modules import DEFAULT_MODULES
 # Generic version regex. Aims to match:
 # - X.Y.Z
 # - X.Y.Z-rc.t
+# - X.Y.Z-devel
 # - vX.Y(.Z) (security-agent-policies repo)
-VERSION_RE = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-rc\.(\d+))?')
+VERSION_RE = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-devel)?(-rc\.(\d+))?')
 
 
 @task
@@ -424,7 +425,8 @@ def _create_version_from_match(match):
         major=int(groups[1]),
         minor=int(groups[2]),
         patch=int(groups[4]) if groups[4] and groups[4] != 0 else None,
-        rc=int(groups[6]) if groups[6] and groups[6] != 0 else None,
+        devel=True if groups[5] else False,
+        rc=int(groups[7]) if groups[7] and groups[7] != 0 else None,
         prefix=groups[0] if groups[0] else "",
     )
     return version
@@ -460,7 +462,7 @@ def build_compatible_version_re(allowed_major_versions, minor_version):
     the provided minor version.
     """
     return re.compile(
-        r'(v)?({})[.]({})([.](\d+))?(-rc\.(\d+))?'.format("|".join(allowed_major_versions), minor_version)
+        r'(v)?({})[.]({})([.](\d+))?(-devel)?(-rc\.(\d+))?'.format("|".join(allowed_major_versions), minor_version)
     )
 
 
@@ -895,7 +897,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False):
             else:
                 # Minor version bump, we're doing a standard release:
                 # - if the previous tag is a devel tag, use it without the devel tag
-                # - otherwise (should not happen), bump the minor version
+                # - otherwise (should not happen during regular release cycles), bump the minor version
                 if previous_version.is_devel():
                     new_version = previous_version.non_devel_version()
                     new_version = new_version.next_version(rc=True)
