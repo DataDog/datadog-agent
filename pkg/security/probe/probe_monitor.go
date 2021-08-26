@@ -12,7 +12,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-go/statsd"
-	"github.com/DataDog/ebpf/manager"
+	"github.com/DataDog/ebpf-manager/manager"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 

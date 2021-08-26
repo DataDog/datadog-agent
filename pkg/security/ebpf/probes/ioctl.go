@@ -7,13 +7,16 @@
 
 package probes
 
-import "github.com/DataDog/ebpf/manager"
+import "github.com/DataDog/ebpf-manager/manager"
 
 // ioctlProbes holds the list of probes used to track ioctl events
 var ioctlProbes = []*manager.Probe{
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/do_vfs_ioctl",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/do_vfs_ioctl",
+			EBPFFuncName: "kprobe_do_vfs_ioctl",
+		},
 	},
 }
 

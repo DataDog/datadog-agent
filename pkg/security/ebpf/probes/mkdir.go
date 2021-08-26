@@ -7,23 +7,30 @@
 
 package probes
 
-import "github.com/DataDog/ebpf/manager"
+import "github.com/DataDog/ebpf-manager/manager"
 
 // mkdirProbes holds the list of probes used to track mkdir events
 var mkdirProbes = []*manager.Probe{
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/vfs_mkdir",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/vfs_mkdir",
+			EBPFFuncName: "kprobe_vfs_mkdir",
+		},
 	},
 }
 
 func getMkdirProbes() []*manager.Probe {
 	mkdirProbes = append(mkdirProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
 		SyscallFuncName: "mkdir",
 	}, EntryAndExit)...)
 	mkdirProbes = append(mkdirProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
 		SyscallFuncName: "mkdirat",
 	}, EntryAndExit)...)
 	return mkdirProbes

@@ -110,6 +110,8 @@ github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a h1
 github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a/go.mod h1:2qOvG41jii2ks6Umn6MbDGlHRgwoFiYXcjgQQ9VlsS0=
 github.com/DataDog/ebpf v0.0.0-20210419131141-ea64821c9793 h1:cqHOlzcc//2talOrZ+H7y3k9t3g16kH4EHRRYnDeRHU=
 github.com/DataDog/ebpf v0.0.0-20210419131141-ea64821c9793/go.mod h1:tSPYMUcskM0OLVEJSoydgYUVuhX8hOSmtaSLNtOQThg=
+github.com/DataDog/ebpf-manager v0.0.0-20210826153146-e8c086b72c5a h1:+6i0dz1NXoaY7Jt3eQeX/pFLWjmdJJShLc8LuVAbJ3c=
+github.com/DataDog/ebpf-manager v0.0.0-20210826153146-e8c086b72c5a/go.mod h1:9nh7d9k5CAVcxDKKonloCRcq1NLc/Tm0qpcPhWv5IwU=
 github.com/DataDog/extendeddaemonset v0.5.1-0.20210315105301-41547d4ff09c h1:a9OMhZzrrB4nd2eAsXZIBkQ061Gb/QT4CI2g+OWWevs=
 github.com/DataDog/extendeddaemonset v0.5.1-0.20210315105301-41547d4ff09c/go.mod h1:lMIXf2EAzxbIv2zEvWu1bdqlaclUWoCtN13MHuPcY5I=
 github.com/DataDog/gobpf v0.0.0-20210322155958-9866ef4cd22c h1:IlCUv480yLiHPGdB63f5Lw6TP8P1dEP/SjXzOVDRcWA=
@@ -223,8 +225,9 @@ github.com/asaskevich/govalidator v0.0.0-20180720115003-f9ffefc3facf/go.mod h1:l
 github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a/go.mod h1:lB+ZfQJz7igIIfQNfa7Ml4HSf2uFQQRzpGGRXenZAgY=
 github.com/aslakhellesoy/gox v1.0.100/go.mod h1:AJl542QsKKG96COVsv0N74HHzVQgDIQPceVUh1aeU2M=
 github.com/auth0/go-jwt-middleware v0.0.0-20170425171159-5493cabe49f7/go.mod h1:LWMyo4iOLWXHGdBki7NIht1kHru/0wM179h+d3g8ATM=
-github.com/avast/retry-go v2.7.0+incompatible h1:XaGnzl7gESAideSjr+I8Hki/JBi+Yb9baHlMRPeSC84=
 github.com/avast/retry-go v2.7.0+incompatible/go.mod h1:XtSnn+n/sHqQIpZ10K1qAevBhOOCWBLXXy3hyiqqBrY=
+github.com/avast/retry-go v3.0.0+incompatible h1:4SOWQ7Qs+oroOTQOYnAHqelpCO0biHSxpiH9JdtuBj0=
+github.com/avast/retry-go v3.0.0+incompatible/go.mod h1:XtSnn+n/sHqQIpZ10K1qAevBhOOCWBLXXy3hyiqqBrY=
 github.com/awalterschulze/gographviz v0.0.0-20160912181450-761fd5fbb34e/go.mod h1:GEV5wmg4YquNw7v1kkyoX9etIk8yVmXj+AkDHuuETHs=
 github.com/awalterschulze/gographviz v2.0.1+incompatible h1:XIECBRq9VPEQqkQL5pw2OtjCAdrtIgFKoJU8eT98AS8=
 github.com/awalterschulze/gographviz v2.0.1+incompatible/go.mod h1:GEV5wmg4YquNw7v1kkyoX9etIk8yVmXj+AkDHuuETHs=
@@ -504,8 +507,9 @@ github.com/felixge/httpsnoop v1.0.2 h1:+nS9g82KMXccJ/wp0zyRW9ZBHFETmMGtkk+2CTTrW
 github.com/felixge/httpsnoop v1.0.2/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
 github.com/florianl/go-conntrack v0.2.0 h1:JEB4w895ZX35tvNH5JjNM9pxa+Qn73paiA37VeCZGfc=
 github.com/florianl/go-conntrack v0.2.0/go.mod h1:HRSlXmrl5M//9hiHmkwyLDwlaoba2sVDcBpHFRiVo1Q=
-github.com/florianl/go-tc v0.2.0 h1:k3Dr3rtmMP2KCRlWgRUC6XKBZA5lL9rNBAr80H50/6k=
 github.com/florianl/go-tc v0.2.0/go.mod h1:aWdDOHrIpaff8cZp6z7dgJZ1bRsgTS6pXIW0xRdFTK8=
+github.com/florianl/go-tc v0.3.0 h1:qeqQB5kp2lwJP1p/8krLQIuRfkHWpiPPcYr3rhRSaC8=
+github.com/florianl/go-tc v0.3.0/go.mod h1:Ni/GTSK8ymDnsRQfL2meJeGmcXy7RFIvchiVHizU76U=
 github.com/flynn/go-shlex v0.0.0-20150515145356-3f9db97f8568/go.mod h1:xEzjJPgXI435gkrCt3MPfRiAkVrwSbHsst4LCFVfpJc=
 github.com/fogleman/gg v1.2.1-0.20190220221249-0403632d5b90/go.mod h1:R/bRT+9gY/C5z7JzPU0zXsXHKM4/ayA+zqcVNZzPa1k=
 github.com/form3tech-oss/jwt-go v3.2.2+incompatible/go.mod h1:pbq4aXjuKjdthFRnoDwaVPLA+WlJuPGy+QneDUgJi2k=

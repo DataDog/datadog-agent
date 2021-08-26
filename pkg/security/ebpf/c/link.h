@@ -42,7 +42,7 @@ SYSCALL_KPROBE0(linkat) {
 }
 
 SEC("kprobe/vfs_link")
-int kprobe__vfs_link(struct pt_regs *ctx) {
+int kprobe_vfs_link(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
     if (!syscall)
         return 0;
@@ -85,7 +85,7 @@ int kprobe__vfs_link(struct pt_regs *ctx) {
 }
 
 SEC("kprobe/dr_link_src_callback")
-int __attribute__((always_inline)) dr_link_src_callback(struct pt_regs *ctx) {
+int __attribute__((always_inline)) kprobe_dr_link_src_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
     if (!syscall)
         return 0;

@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/DataDog/ebpf/manager"
+	"github.com/DataDog/ebpf-manager/manager"
 )
 
 const (

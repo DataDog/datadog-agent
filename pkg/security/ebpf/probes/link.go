@@ -7,23 +7,30 @@
 
 package probes
 
-import "github.com/DataDog/ebpf/manager"
+import "github.com/DataDog/ebpf-manager/manager"
 
 // linkProbes holds the list of probes used to track link events
 var linkProbes = []*manager.Probe{
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/vfs_link",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/vfs_link",
+			EBPFFuncName: "kprobe_vfs_link",
+		},
 	},
 }
 
 func getLinkProbe() []*manager.Probe {
 	linkProbes = append(linkProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
 		SyscallFuncName: "link",
 	}, EntryAndExit)...)
 	linkProbes = append(linkProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
 		SyscallFuncName: "linkat",
 	}, EntryAndExit)...)
 	return linkProbes

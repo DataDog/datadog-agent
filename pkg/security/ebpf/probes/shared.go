@@ -7,24 +7,36 @@
 
 package probes
 
-import "github.com/DataDog/ebpf/manager"
+import "github.com/DataDog/ebpf-manager/manager"
 
 // sharedProbes is the list of probes that are shared across multiple events
 var sharedProbes = []*manager.Probe{
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/filename_create",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/filename_create",
+			EBPFFuncName: "kprobe_filename_create",
+		},
 	},
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/mnt_want_write",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/mnt_want_write",
+			EBPFFuncName: "kprobe_mnt_want_write",
+		},
 	},
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/mnt_want_write_file",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/mnt_want_write_file",
+			EBPFFuncName: "kprobe_mnt_want_write_file",
+		},
 	},
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/mnt_want_write_file_path",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/mnt_want_write_file_path",
+			EBPFFuncName: "kprobe_mnt_want_write_file_path",
+		},
 	},
 }

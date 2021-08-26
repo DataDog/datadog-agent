@@ -7,33 +7,44 @@
 
 package probes
 
-import (
-	"github.com/DataDog/ebpf/manager"
-)
+import "github.com/DataDog/ebpf-manager/manager"
 
 // mountProbes holds the list of probes used to track mount points events
 var mountProbes = []*manager.Probe{
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/attach_recursive_mnt",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/attach_recursive_mnt",
+			EBPFFuncName: "kprobe_attach_recursive_mnt",
+		},
 	},
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/propagate_mnt",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/propagate_mnt",
+			EBPFFuncName: "kprobe_propagate_mnt",
+		},
 	},
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/security_sb_umount",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/security_sb_umount",
+			EBPFFuncName: "kprobe_security_sb_umount",
+		},
 	},
 }
 
 func getMountProbes() []*manager.Probe {
 	mountProbes = append(mountProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
 		SyscallFuncName: "mount",
 	}, EntryAndExit, true)...)
 	mountProbes = append(mountProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
 		SyscallFuncName: "umount",
 	}, EntryAndExit)...)
 	return mountProbes

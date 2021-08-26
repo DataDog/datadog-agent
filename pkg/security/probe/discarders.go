@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	lib "github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	"github.com/DataDog/ebpf-manager/manager"
+	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
 

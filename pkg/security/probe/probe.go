@@ -18,9 +18,9 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-go/statsd"
-	lib "github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	"github.com/DataDog/ebpf-manager/manager"
 	"github.com/cihub/seelog"
+	lib "github.com/cilium/ebpf"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"

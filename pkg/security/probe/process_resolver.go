@@ -20,9 +20,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
-	lib "github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	"github.com/DataDog/ebpf-manager/manager"
 	"github.com/DataDog/gopsutil/process"
+	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
 

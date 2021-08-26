@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/ebpf/manager"
+	"github.com/DataDog/ebpf-manager/manager"
 )
 
 type reOrdererNodePool struct {

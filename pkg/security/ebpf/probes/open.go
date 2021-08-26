@@ -7,61 +7,89 @@
 
 package probes
 
-import (
-	"github.com/DataDog/ebpf/manager"
-)
+import "github.com/DataDog/ebpf-manager/manager"
 
 // openProbes holds the list of probes used to track file open events
 var openProbes = []*manager.Probe{
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/vfs_truncate",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/vfs_truncate",
+			EBPFFuncName: "kprobe_vfs_truncate",
+		},
 	},
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/vfs_open",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/vfs_open",
+			EBPFFuncName: "kprobe_vfs_open",
+		},
 	},
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/do_dentry_open",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/do_dentry_open",
+			EBPFFuncName: "kprobe_do_dentry_open",
+		},
 	},
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/io_openat2",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/io_openat2",
+			EBPFFuncName: "kprobe_io_openat2",
+		},
 	},
 	{
-		UID:     SecurityAgentUID,
-		Section: "kretprobe/io_openat2",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kretprobe/io_openat2",
+			EBPFFuncName: "kretprobe_io_openat2",
+		},
 	},
 	{
-		UID:     SecurityAgentUID,
-		Section: "kprobe/filp_close",
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/filp_close",
+			EBPFFuncName: "kprobe_filp_close",
+		},
 	},
 }
 
 func getOpenProbes() []*manager.Probe {
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
 		SyscallFuncName: "open",
 	}, EntryAndExit, true)...)
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
 		SyscallFuncName: "creat",
 	}, EntryAndExit)...)
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
 		SyscallFuncName: "open_by_handle_at",
 	}, EntryAndExit, true)...)
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
 		SyscallFuncName: "truncate",
 	}, EntryAndExit, true)...)
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
 		SyscallFuncName: "openat",
 	}, EntryAndExit, true)...)
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
-		UID:             SecurityAgentUID,
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
 		SyscallFuncName: "openat2",
 	}, EntryAndExit)...)
 	return openProbes

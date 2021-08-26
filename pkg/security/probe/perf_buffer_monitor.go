@@ -12,8 +12,8 @@ import (
 	"sync/atomic"
 
 	"github.com/DataDog/datadog-go/statsd"
-	lib "github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	"github.com/DataDog/ebpf-manager/manager"
+	lib "github.com/cilium/ebpf"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"

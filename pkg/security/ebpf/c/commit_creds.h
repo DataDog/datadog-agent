@@ -376,7 +376,7 @@ int tracepoint_handle_sys_commit_creds_exit(struct tracepoint_raw_syscalls_sys_e
 }
 
 SEC("kprobe/commit_creds")
-int kprobe__commit_creds(struct pt_regs *ctx) {
+int kprobe_commit_creds(struct pt_regs *ctx) {
     struct cred *credentials = (struct cred *)PT_REGS_PARM1(ctx);
     struct pid_cache_t new_pid_entry = {};
 
