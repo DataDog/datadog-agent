@@ -25,6 +25,10 @@ var defaultOidBatchSize = 5
 var defaultPort = uint16(161)
 var defaultRetries = 3
 var defaultTimeout = 2
+var defaultWorkers = 10
+var defaultDiscoveryWorkers = 10
+var defaultDiscoveryAllowedFailures = 3
+var defaultDiscoveryInterval = 3600
 var subnetTagPrefix = "autodiscovery_subnet"
 
 // DefaultBulkMaxRepetitions is the default max rep
@@ -72,9 +76,13 @@ type InstanceConfig struct {
 	MinCollectionInterval      int    `yaml:"min_collection_interval"`
 	ExtraMinCollectionInterval Number `yaml:"extra_min_collection_interval"`
 
-	// `network` config is only available in Python SNMP integration
-	// it's added here to raise warning if used with corecheck SNMP integration
-	Network string `yaml:"network_address"`
+	TestInstances            int      `yaml:"test_instances"`
+	Network                  string   `yaml:"network_address"`
+	IgnoredIPAddresses       []string `yaml:"ignored_ip_addresses"`
+	DiscoveryInterval        int      `yaml:"discovery_interval"`
+	DiscoveryAllowedFailures int      `yaml:"discovery_allowed_failures"`
+	DiscoveryWorkers         int      `yaml:"discovery_workers"`
+	Workers                  int      `yaml:"workers"`
 }
 
 // CheckConfig holds config for a check instance
@@ -108,6 +116,14 @@ type CheckConfig struct {
 	Subnet                string
 	AutodetectProfile     bool
 	MinCollectionInterval time.Duration
+
+	Network                  string
+	DiscoveryWorkers         int
+	Workers                  int
+	DiscoveryInterval        int
+	IgnoredIPAddresses       map[string]bool
+	DiscoveryAllowedFailures int
+	TestInstances            int // TODO: remove me
 }
 
 // RefreshWithProfile refreshes config based on profile
@@ -211,12 +227,42 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.ExtraTags = strings.Split(instance.ExtraTags, ",")
 	}
 
-	if instance.Network != "" {
-		log.Warnf("`network_address` config is not available for corecheck SNMP integration to use autodiscovery. Agent `snmp_listener` config can be used instead: https://docs.datadoghq.com/network_monitoring/devices/setup?tab=snmpv2#autodiscovery")
+	c.Network = instance.Network
+	if instance.DiscoveryWorkers == 0 {
+		c.DiscoveryWorkers = defaultDiscoveryWorkers
+	} else {
+		c.DiscoveryWorkers = instance.DiscoveryWorkers
 	}
 
-	if c.IPAddress == "" {
-		return nil, fmt.Errorf("ip_address config must be provided")
+	if instance.Workers == 0 {
+		c.Workers = defaultWorkers
+	} else {
+		c.Workers = instance.Workers
+	}
+
+	if instance.DiscoveryAllowedFailures == 0 {
+		c.DiscoveryAllowedFailures = defaultDiscoveryAllowedFailures
+	} else {
+		c.DiscoveryAllowedFailures = instance.DiscoveryAllowedFailures
+	}
+
+	if instance.DiscoveryInterval == 0 {
+		c.DiscoveryInterval = defaultDiscoveryInterval
+	} else {
+		c.DiscoveryInterval = instance.DiscoveryInterval
+	}
+
+	// TODO: test me
+	c.IgnoredIPAddresses = make(map[string]bool, len(instance.IgnoredIPAddresses))
+	for _, ipAddress := range instance.IgnoredIPAddresses {
+		c.IgnoredIPAddresses[ipAddress] = true
+	}
+
+	c.TestInstances = instance.TestInstances
+
+	if c.IPAddress == "" && c.Network == "" {
+		// TODO: TEST ME
+		return nil, fmt.Errorf("ip_address or network config must be provided")
 	}
 
 	if c.Port == 0 {
