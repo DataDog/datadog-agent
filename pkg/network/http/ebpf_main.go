@@ -74,16 +74,11 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		},
 	}
 
-	// Load SSL probes
-	for _, sec := range sslProbes {
-		mgr.Probes = append(mgr.Probes, &manager.Probe{
-			Section: sec,
-			UID:     baseUID,
-		})
-	}
-
-	// Load crypto probes
-	for _, sec := range cryptoProbes {
+	// Load SSL & Crypto probes
+	var extraProbes []string
+	extraProbes = append(extraProbes, sslProbes)
+	extraProbes = append(extraProbes, cryptoProbes)
+	for _, sec := range extraProbes {
 		mgr.Probes = append(mgr.Probes, &manager.Probe{
 			Section: sec,
 			UID:     baseUID,

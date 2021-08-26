@@ -8,22 +8,95 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/process/so"
 )
 
-const (
-	libssl    = "libssl.so"
-	libcrypto = "libcrypto.so"
-)
+type soRule struct {
+	re           *regexp.Regexp
+	registerCB   func(string) error
+	unregisterCB func(string) error
+}
 
-var openSSLLibs = regexp.MustCompile(
-	fmt.Sprintf("(%s|%s)", regexp.QuoteMeta(libssl), regexp.QuoteMeta(libcrypto)),
-)
+// soWatcher provides a way to tie callback functions to the lifecycle of shared libraries
+type soWatcher struct {
+	procRoot   string
+	all        *regexp.Regexp
+	rules      []soRule
+	registered map[string]func(string) error
+}
 
-func findOpenSSLLibraries(procRoot string) []so.Library {
-	// libraries will include all host-resolved openSSL library paths mapped into memory
-	libraries := so.FindProc(procRoot, openSSLLibs)
+func newSOWatcher(procRoot string, rules ...soRule) *soWatcher {
+	allFilters := make([]string, len(rules))
+	for i, r := range rules {
+		allFilters[i] = r.re.String()
+	}
+
+	all := regexp.MustCompile(fmt.Sprintf("(%s)", strings.Join(allFilters, "|")))
+	return &soWatcher{
+		procRoot: procRoot,
+		all:      all,
+		rules:    rules,
+	}
+}
+
+// Start consuming shared-library events
+// TODO: add streaming option
+func (w *soWatcher) Start() {
+	sharedLibraries := getSharedLibraries(w.procRoot, w.all)
+	w.sync(sharedLibraries)
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			sharedLibraries := getSharedLibraries(w.procRoot, w.all)
+			w.sync(sharedLibraries)
+		}
+	}()
+}
+
+func (w *soWatcher) sync(libraries []so.Library) {
+	old := w.registered
+	w.registered = make(map[string]func(string) error)
+
+OuterLoop:
+	for _, lib := range libraries {
+		for _, r := range w.rules {
+			path := lib.HostPath
+
+			if _, registered := old[path]; registered {
+				delete(old, path)
+				continue OuterLoop
+			}
+
+			if r.re.MatchString(path) {
+				w.register(path, r)
+				continue OuterLoop
+			}
+		}
+	}
+
+	// Now we call the unregister callback for every shared library that is no longer mapped into memory
+	for path, unregisterCB := range old {
+		unregisterCB(path)
+	}
+}
+
+func (w *soWatcher) register(libPath string, r soRule) {
+	err := r.registerCB(libPath)
+	if err != nil {
+		log.Errorf("error activing probes for %s: %s", libPath, err)
+		return
+	}
+
+	w.registered[libPath] = r.unregisterCB
+}
+
+func getSharedLibraries(procRoot string, filter *regexp.Regexp) []so.Library {
+	// libraries will include all host-resolved library paths mapped into memory
+	libraries := so.FindProc(procRoot, filter)
 
 	// TODO: should we ensure all entries are unique in the `so` package instead?
 	seen := make(map[string]struct{}, len(libraries))

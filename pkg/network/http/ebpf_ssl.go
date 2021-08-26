@@ -3,8 +3,7 @@
 package http
 
 import (
-	"strconv"
-	"strings"
+	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,29 +29,63 @@ func initSSLTracing(m *manager.Manager, c *config.Config) {
 		return
 	}
 
-	sharedLibraries := findOpenSSLLibraries(c.ProcRoot)
-	for i, lib := range sharedLibraries {
-		probes := sslProbes
-		if strings.Contains(lib.HostPath, "crypto") {
-			probes = cryptoProbes
+	watcher := newSOWatcher(c.ProcRoot,
+		soRule{
+			re:           regexp.MustCompile(`libssl.so`),
+			registerCB:   addHooks(m, sslProbes),
+			unregisterCB: removeHooks(m, sslProbes),
+		},
+		soRule{
+			re:           regexp.MustCompile(`libcrypto.so`),
+			registerCB:   addHooks(m, cryptoProbes),
+			unregisterCB: removeHooks(m, cryptoProbes),
+		},
+	)
+
+	watcher.Start()
+}
+
+func addHooks(m *manager.Manager, probes []string) func(string) error {
+	return func(libPath string) error {
+		activated := make([]manager.Probe, 0, len(probes))
+		uid := generateUID(libPath)
+		for _, sec := range probes {
+			newProbe := manager.Probe{
+				Section:    sec,
+				BinaryPath: libPath,
+				UID:        uid,
+			}
+
+			err := m.AddHook(baseUID, newProbe)
+			if err == nil {
+				activated = append(activated, newProbe)
+				continue
+			}
+
+			// If we had an error halfway through we detach the previous probes that were attached
+			for _, p := range activated {
+				m.DetachHook(p.Section, p.UID)
+			}
+			return err
 		}
 
-		addHooks(m, probes, lib.HostPath, i)
+		log.Debugf("https: attached probes for %s", libPath)
+		return nil
 	}
 }
 
-func addHooks(m *manager.Manager, probes []string, libPath string, i int) {
-	uid := strconv.Itoa(i)
-	for _, sec := range probes {
-		newProbe := manager.Probe{
-			Section:    sec,
-			BinaryPath: libPath,
-			UID:        uid,
+func removeHooks(m *manager.Manager, probes []string) func(string) error {
+	return func(libPath string) error {
+		uid := generateUID(libPath)
+		for _, sec := range probes {
+			m.DetachHook(sec, uid)
 		}
 
-		err := m.AddHook(baseUID, newProbe)
-		if err != nil {
-			log.Errorf("error cloning %s: %s", sec, err)
-		}
+		log.Debugf("https: detached probes for %s", libPath)
+		return nil
 	}
+}
+
+func generateUID(s string) string {
+	return s
 }
