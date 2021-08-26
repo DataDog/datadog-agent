@@ -8,6 +8,7 @@ import (
 	"github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	protostream "github.com/DataDog/datadog-agent/pkg/proto/stream"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
@@ -106,98 +107,203 @@ func (sl SketchSeriesList) MarshalJSON() ([]byte, error) {
 // it's contents are marshaled individually, packed with the appropriate protobuf metadata, and compressed in stream.
 // The resulting payloads (when decompressed) are binary equal to the result of marshaling the whole object at once.
 func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
-	// The Metadata field of gogen.SketchPayload is never written to - so pack an empty metadata as the footer
-	footer := []byte{0x12, 0}
-
-	bufferContext.CompressorInput.Reset()
-	bufferContext.CompressorOutput.Reset()
-
-	compressor, e := stream.NewCompressor(bufferContext.CompressorInput, bufferContext.CompressorOutput, []byte{}, footer, []byte{})
-	if e != nil {
-		return nil, e
-	}
+	var err error
+	var compressor *stream.Compressor
+	buf := bufferContext.PrecompressionBuf
+	ps := protostream.NewProtoStream()
+	ps.Reset(buf)
 	payloads := []*[]byte{}
 
-	dsl := make([]gogen.SketchPayload_Sketch_Dogsketch, 1)
+	// constants for the protobuf data we will be writing, taken from
+	// https://github.com/DataDog/agent-payload/blob/a2cd634bc9c088865b75c6410335270e6d780416/proto/metrics/agent_payload.proto#L47-L81
+	const payloadSketches = 1
+	const payloadMetadata = 2
+	const sketchMetric = 1
+	const sketchHost = 2
+	const sketchDistributions = 3
+	const sketchTags = 4
+	const sketchDogsketches = 7
+	/* unused
+	const distributionTs = 1
+	const distributionCnt = 2
+	const distributionMin = 3
+	const distributionMax = 4
+	const distributionAvg = 5
+	const distributionSum = 6
+	const distributionV = 7
+	const distributionG = 8
+	const distributionDelta = 9
+	const distributionBuf = 10
+	*/
+	const dogsketchTs = 1
+	const dogsketchCnt = 2
+	const dogsketchMin = 3
+	const dogsketchMax = 4
+	const dogsketchAvg = 5
+	const dogsketchSum = 6
+	const dogsketchK = 7
+	const dogsketchN = 8
+
+	// generate a footer containing an empty Metadata field (TODO: this isn't
+	// necessary; an omitted field will be assumed empty)
+	var footer []byte
+	{
+		buf := bytes.NewBuffer([]byte{})
+		ps := protostream.NewProtoStream()
+		ps.Reset(buf)
+		ps.Embedded(payloadMetadata, func(ps *protostream.ProtoStream) error {
+			return nil
+		})
+		footer = buf.Bytes()
+	}
+
+	// Prepare to write the next payload
+	startPayload := func() error {
+		var err error
+
+		if compressor != nil {
+		}
+
+		bufferContext.CompressorInput.Reset()
+		bufferContext.CompressorOutput.Reset()
+
+		compressor, err = stream.NewCompressor(bufferContext.CompressorInput, bufferContext.CompressorOutput, []byte{}, footer, []byte{})
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	finishPayload := func() error {
+		var payload []byte
+		// Since the compression buffer is full - flush it and rotate
+		payload, err = compressor.Close()
+		if err != nil {
+			return err
+		}
+
+		payloads = append(payloads, &payload)
+
+		return nil
+	}
+
+	// start things off
+	err = startPayload()
+	if err != nil {
+		return nil, err
+	}
+
 	for _, ss := range sl {
-		if len(ss.Points) > cap(dsl) {
-			dsl = make([]gogen.SketchPayload_Sketch_Dogsketch, len(ss.Points))
-		}
+		buf.Reset()
+		err = ps.Embedded(payloadSketches, func(ps *protostream.ProtoStream) error {
+			var err error
 
-		for i, p := range ss.Points {
-			b := p.Sketch.Basic
-			k, n := p.Sketch.Cols()
-			dsl[i] = gogen.SketchPayload_Sketch_Dogsketch{
-				Ts:  p.Ts,
-				Cnt: b.Cnt,
-				Min: b.Min,
-				Max: b.Max,
-				Avg: b.Avg,
-				Sum: b.Sum,
-				K:   k,
-				N:   n,
+			err = ps.String(sketchMetric, ss.Name)
+			if err != nil {
+				return err
 			}
-		}
 
-		sketch := gogen.SketchPayload_Sketch{
-			Metric:      ss.Name,
-			Host:        ss.Host,
-			Tags:        ss.Tags,
-			Dogsketches: dsl[:len(ss.Points)],
-		}
+			err = ps.String(sketchHost, ss.Host)
+			if err != nil {
+				return err
+			}
 
-		// Pack the protobuf metadata - see SketchPayload.MarshalTo in agent_payload.pb.go for reference.
-		metadataSize := 0
-		// Magic number that occurs before the varint encoding
-		bufferContext.PrecompressionBuf[metadataSize] = 0xa
-		metadataSize++
-		metadataSize = encodeVarintAgentPayload(bufferContext.PrecompressionBuf, metadataSize, uint64(sketch.Size()))
+			for _, tag := range ss.Tags {
+				err = ps.String(sketchTags, tag)
+				if err != nil {
+					return err
+				}
+			}
 
-		// Resize the pre-compression buffer if needed
-		totalItemSize := sketch.Size() + metadataSize
-		if totalItemSize > cap(bufferContext.PrecompressionBuf) {
-			bufferContext.PrecompressionBuf = append(bufferContext.PrecompressionBuf, make([]byte, totalItemSize-cap(bufferContext.PrecompressionBuf))...)
-			bufferContext.PrecompressionBuf = bufferContext.PrecompressionBuf[:cap(bufferContext.PrecompressionBuf)]
-		}
+			for _, p := range ss.Points {
+				err = ps.Embedded(sketchDogsketches, func(ps *protostream.ProtoStream) error {
+					b := p.Sketch.Basic
+					k, n := p.Sketch.Cols()
 
-		// Marshal the sketch to the precompression buffer after the metadata
-		_, e := sketch.MarshalTo(bufferContext.PrecompressionBuf[metadataSize:])
-		if e != nil {
-			return nil, e
+					err = ps.Int64(dogsketchTs, p.Ts)
+					if err != nil {
+						return err
+					}
+
+					err = ps.Int64(dogsketchCnt, b.Cnt)
+					if err != nil {
+						return err
+					}
+
+					err = ps.Double(dogsketchMin, b.Min)
+					if err != nil {
+						return err
+					}
+
+					err = ps.Double(dogsketchMax, b.Max)
+					if err != nil {
+						return err
+					}
+
+					err = ps.Double(dogsketchAvg, b.Avg)
+					if err != nil {
+						return err
+					}
+
+					err = ps.Double(dogsketchSum, b.Sum)
+					if err != nil {
+						return err
+					}
+
+					err = ps.Sint32Packed(dogsketchK, k)
+					if err != nil {
+						return err
+					}
+
+					err = ps.Uint32Packed(dogsketchN, n)
+					if err != nil {
+						return err
+					}
+
+					return nil
+				})
+				if err != nil {
+					return err
+				}
+			}
+
+			return nil
+		})
+		if err != nil {
+			return nil, err
 		}
 
 		// Compress the protobuf metadata and the marshaled sketch
-		switch compressor.AddItem(bufferContext.PrecompressionBuf[:totalItemSize]) {
+		err = compressor.AddItem(buf.Bytes())
+		switch err {
 		case stream.ErrPayloadFull:
 			expvarsPayloadFull.Add(1)
 			tlmPayloadFull.Inc()
 
-			// Since the compression buffer is full - flush it and rotate
-			payload, e := compressor.Close()
-			if e != nil {
-				return nil, e
+			err = finishPayload()
+			if err != nil {
+				return nil, err
 			}
-			payloads = append(payloads, &payload)
-			bufferContext.CompressorInput.Reset()
-			bufferContext.CompressorOutput.Reset()
-			compressor, e = stream.NewCompressor(bufferContext.CompressorInput, bufferContext.CompressorOutput, []byte{}, footer, []byte{})
-			if e != nil {
-				return nil, e
+
+			err = startPayload()
+			if err != nil {
+				return nil, err
 			}
 
 			// Add it to the new compression buffer
-			e = compressor.AddItem(bufferContext.PrecompressionBuf[:totalItemSize])
-			if e == stream.ErrItemTooBig {
+			err = compressor.AddItem(buf.Bytes())
+			if err == stream.ErrItemTooBig {
 				// Item was too big, drop it
 				expvarsItemTooBig.Add(1)
 				tlmItemTooBig.Inc()
 				continue
 			}
-			if e != nil {
+			if err != nil {
 				// Unexpected error bail out
 				expvarsUnexpectedItemDrops.Add(1)
 				tlmUnexpectedItemDrops.Inc()
-				return nil, e
+				return nil, err
 			}
 		case stream.ErrItemTooBig:
 			// Item was too big, drop it
@@ -209,17 +315,15 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 			// Unexpected error bail out
 			expvarsUnexpectedItemDrops.Add(1)
 			tlmUnexpectedItemDrops.Inc()
-			return nil, e
+			return nil, err
 		}
 	}
 
-	payload, e := compressor.Close()
-	if e != nil {
-		return nil, e
+	err = finishPayload()
+	if err != nil {
+		return nil, err
 	}
-	payloads = append(payloads, &payload)
 
-	// return payloads, nonCompressed
 	return payloads, nil
 }
 
