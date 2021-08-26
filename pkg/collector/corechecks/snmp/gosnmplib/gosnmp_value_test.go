@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
-
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 )
 
 func Test_getValueFromPDU(t *testing.T) {

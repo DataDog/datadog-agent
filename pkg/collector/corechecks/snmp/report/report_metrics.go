@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 )
 
 // MetricSender is a wrapper around aggregator.Sender

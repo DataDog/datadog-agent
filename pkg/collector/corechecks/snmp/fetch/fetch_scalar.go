@@ -5,15 +5,14 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
-
 	"github.com/gosnmp/gosnmp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 )
 
 func fetchScalarOidsWithBatching(sess session.Session, oids []string, oidBatchSize int) (valuestore.ScalarResultValuesType, error) {

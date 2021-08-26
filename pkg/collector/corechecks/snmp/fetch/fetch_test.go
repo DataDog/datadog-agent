@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gosnmp/gosnmp"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
-
-	"github.com/gosnmp/gosnmp"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func Test_fetchColumnOids(t *testing.T) {

@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 func TestConfigurations(t *testing.T) {

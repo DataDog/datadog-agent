@@ -1,9 +1,10 @@
 package session
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 )
 
 // MockSession mocks a connection session

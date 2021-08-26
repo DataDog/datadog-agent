@@ -4,9 +4,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 )
 
 // SymbolConfig holds info for a single symbol/oid

@@ -5,11 +5,11 @@ import (
 	"math"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
-
 	"github.com/gosnmp/gosnmp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 )
 
 // GetValueFromPDU converts gosnmp.SnmpPDU to ResultValue

@@ -4,15 +4,14 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
-
 	"github.com/gosnmp/gosnmp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 )
 
 func fetchColumnOidsWithBatching(sess session.Session, oids map[string]string, oidBatchSize int, bulkMaxRepetitions uint32) (valuestore.ColumnResultValuesType, error) {

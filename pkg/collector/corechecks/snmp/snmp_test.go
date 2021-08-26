@@ -14,9 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
@@ -24,10 +21,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 )
 
 func TestBasicSample(t *testing.T) {

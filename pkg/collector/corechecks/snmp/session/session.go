@@ -5,12 +5,13 @@ import (
 	stdlog "log"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
 )
 
 const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
