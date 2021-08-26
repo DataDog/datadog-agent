@@ -131,6 +131,7 @@ func (d *DatadogMetricInternal) UpdateFrom(currentSpec datadoghq.DatadogMetricSp
 		d.resolveQuery(currentSpec.Query)
 	}
 	d.query = currentSpec.Query
+	d.MaxAge = currentSpec.MaxAge.Duration
 }
 
 // shouldResolveQuery returns whether we should try to resolve a new query

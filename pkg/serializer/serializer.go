@@ -293,7 +293,7 @@ func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 		return nil
 	}
 
-	useV1API := !config.Datadog.GetBool("use_v2_api.series")
+	const useV1API = true // v2 intake for series is not yet implemented
 
 	var seriesPayloads forwarder.Payloads
 	var extraHeaders http.Header
@@ -309,10 +309,7 @@ func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 		return fmt.Errorf("dropping series payload: %s", err)
 	}
 
-	if useV1API {
-		return s.Forwarder.SubmitV1Series(seriesPayloads, extraHeaders)
-	}
-	return s.Forwarder.SubmitSeries(seriesPayloads, extraHeaders)
+	return s.Forwarder.SubmitV1Series(seriesPayloads, extraHeaders)
 }
 
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder

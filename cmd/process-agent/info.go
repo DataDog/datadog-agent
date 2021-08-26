@@ -19,20 +19,22 @@ import (
 )
 
 var (
-	infoMutex             sync.RWMutex
-	infoOnce              sync.Once
-	infoStart             = time.Now()
-	infoNotRunningTmpl    *template.Template
-	infoTmpl              *template.Template
-	infoErrorTmpl         *template.Template
-	infoDockerSocket      string
-	infoLastCollectTime   string
-	infoProcCount         int
-	infoContainerCount    int
-	infoProcessQueueSize  int
-	infoPodQueueSize      int
-	infoProcessQueueBytes int
-	infoPodQueueBytes     int
+	infoMutex               sync.RWMutex
+	infoOnce                sync.Once
+	infoStart               = time.Now()
+	infoNotRunningTmpl      *template.Template
+	infoTmpl                *template.Template
+	infoErrorTmpl           *template.Template
+	infoDockerSocket        string
+	infoLastCollectTime     string
+	infoProcCount           int
+	infoContainerCount      int
+	infoProcessQueueSize    int
+	infoRTProcessQueueSize  int
+	infoPodQueueSize        int
+	infoProcessQueueBytes   int
+	infoRTProcessQueueBytes int
+	infoPodQueueBytes       int
 )
 
 const (
@@ -50,8 +52,10 @@ const (
   Number of processes: {{.Status.ProcessCount}}
   Number of containers: {{.Status.ContainerCount}}
   Process Queue length: {{.Status.ProcessQueueSize}}
+  RTProcess Queue length: {{.Status.RTProcessQueueSize}}
   Pod Queue length: {{.Status.PodQueueSize}}
   Process Bytes enqueued: {{.Status.ProcessQueueBytes}}
+  RTProcess Bytes enqueued: {{.Status.RTProcessQueueBytes}}
   Pod Bytes enqueued: {{.Status.PodQueueBytes}}
 
   Logs: {{.Status.Config.LogFile}}{{if .Status.ProxyURL}}
@@ -142,10 +146,11 @@ func updateProcContainerCount(msgs []model.MessageBody) {
 	infoContainerCount = containerCount
 }
 
-func updateQueueSize(processQueueSize, podQueueSize int) {
+func updateQueueSize(processQueueSize, rtProcessQueueSize, podQueueSize int) {
 	infoMutex.Lock()
 	defer infoMutex.Unlock()
 	infoProcessQueueSize = processQueueSize
+	infoRTProcessQueueSize = rtProcessQueueSize
 	infoPodQueueSize = podQueueSize
 }
 
@@ -161,10 +166,17 @@ func publishPodQueueSize() interface{} {
 	return infoPodQueueSize
 }
 
-func updateQueueBytes(processQueueBytes, podQueueBytes int64) {
+func publishRTProcessQueueSize() interface{} {
+	infoMutex.RLock()
+	defer infoMutex.RUnlock()
+	return infoRTProcessQueueSize
+}
+
+func updateQueueBytes(processQueueBytes, rtProcessQueueBytes, podQueueBytes int64) {
 	infoMutex.Lock()
 	defer infoMutex.Unlock()
 	infoProcessQueueBytes = int(processQueueBytes)
+	infoRTProcessQueueBytes = int(rtProcessQueueBytes)
 	infoPodQueueBytes = int(podQueueBytes)
 }
 
@@ -178,6 +190,12 @@ func publishPodQueueBytes() interface{} {
 	infoMutex.RLock()
 	defer infoMutex.RUnlock()
 	return infoPodQueueBytes
+}
+
+func publishRTProcessQueueBytes() interface{} {
+	infoMutex.RLock()
+	defer infoMutex.RUnlock()
+	return infoRTProcessQueueBytes
 }
 
 func publishContainerID() interface{} {
@@ -228,21 +246,23 @@ type infoVersion struct {
 
 // StatusInfo is a structure to get information from expvar and feed to template
 type StatusInfo struct {
-	Pid               int                    `json:"pid"`
-	Uptime            int                    `json:"uptime"`
-	MemStats          struct{ Alloc uint64 } `json:"memstats"`
-	Version           infoVersion            `json:"version"`
-	Config            config.AgentConfig     `json:"config"`
-	DockerSocket      string                 `json:"docker_socket"`
-	LastCollectTime   string                 `json:"last_collect_time"`
-	ProcessCount      int                    `json:"process_count"`
-	ContainerCount    int                    `json:"container_count"`
-	ProcessQueueSize  int                    `json:"process_queue_size"`
-	PodQueueSize      int                    `json:"pod_queue_size"`
-	ProcessQueueBytes int                    `json:"process_queue_bytes"`
-	PodQueueBytes     int                    `json:"pod_queue_bytes"`
-	ContainerID       string                 `json:"container_id"`
-	ProxyURL          string                 `json:"proxy_url"`
+	Pid                 int                    `json:"pid"`
+	Uptime              int                    `json:"uptime"`
+	MemStats            struct{ Alloc uint64 } `json:"memstats"`
+	Version             infoVersion            `json:"version"`
+	Config              config.AgentConfig     `json:"config"`
+	DockerSocket        string                 `json:"docker_socket"`
+	LastCollectTime     string                 `json:"last_collect_time"`
+	ProcessCount        int                    `json:"process_count"`
+	ContainerCount      int                    `json:"container_count"`
+	ProcessQueueSize    int                    `json:"process_queue_size"`
+	RTProcessQueueSize  int                    `json:"rtprocess_queue_size"`
+	PodQueueSize        int                    `json:"pod_queue_size"`
+	ProcessQueueBytes   int                    `json:"process_queue_bytes"`
+	RTProcessQueueBytes int                    `json:"rtprocess_queue_bytes"`
+	PodQueueBytes       int                    `json:"pod_queue_bytes"`
+	ContainerID         string                 `json:"container_id"`
+	ProxyURL            string                 `json:"proxy_url"`
 }
 
 func initInfo(_ *config.AgentConfig) error {
@@ -265,8 +285,10 @@ func initInfo(_ *config.AgentConfig) error {
 		expvar.Publish("process_count", expvar.Func(publishProcCount))
 		expvar.Publish("container_count", expvar.Func(publishContainerCount))
 		expvar.Publish("process_queue_size", expvar.Func(publishProcessQueueSize))
+		expvar.Publish("rtprocess_queue_size", expvar.Func(publishRTProcessQueueSize))
 		expvar.Publish("pod_queue_size", expvar.Func(publishPodQueueSize))
 		expvar.Publish("process_queue_bytes", expvar.Func(publishProcessQueueBytes))
+		expvar.Publish("rtprocess_queue_bytes", expvar.Func(publishRTProcessQueueBytes))
 		expvar.Publish("pod_queue_bytes", expvar.Func(publishPodQueueBytes))
 		expvar.Publish("container_id", expvar.Func(publishContainerID))
 

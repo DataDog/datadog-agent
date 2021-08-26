@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/dustin/go-humanize"
+	"go4.org/intern"
 )
 
 // ConnectionType will be either TCP or UDP
@@ -190,7 +191,7 @@ type ConnectionStats struct {
 	DNSSuccessLatencySum        uint64
 	DNSFailureLatencySum        uint64
 	DNSCountByRcode             map[uint32]uint32
-	DNSStatsByDomainByQueryType map[string]map[dns.QueryType]dns.Stats
+	DNSStatsByDomainByQueryType map[*intern.Value]map[dns.QueryType]dns.Stats
 
 	Via *Via
 }

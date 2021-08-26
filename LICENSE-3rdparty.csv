@@ -653,6 +653,8 @@ core,"go.uber.org/zap/internal/bufferpool",MIT
 core,"go.uber.org/zap/internal/color",MIT
 core,"go.uber.org/zap/internal/exit",MIT
 core,"go.uber.org/zap/zapcore",MIT
+core,"go4.org/intern",BSD-3-Clause
+core,"go4.org/unsafe/assume-no-moving-gc",BSD-3-Clause
 core,"golang.org/x/crypto/cast5",BSD-3-Clause
 core,"golang.org/x/crypto/cryptobyte",BSD-3-Clause
 core,"golang.org/x/crypto/cryptobyte/asn1",BSD-3-Clause

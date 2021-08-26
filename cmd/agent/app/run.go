@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
+	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
@@ -299,6 +300,11 @@ func StartAgent() error {
 			return log.Errorf("Error while writing PID file, exiting: %v", err)
 		}
 		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), pidfilePath)
+	}
+
+	err = manager.ConfigureAutoExit(common.MainCtx)
+	if err != nil {
+		return log.Errorf("Unable to configure auto-exit, err: %w", err)
 	}
 
 	hostname, err := util.GetHostname(context.TODO())

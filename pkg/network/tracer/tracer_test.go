@@ -14,6 +14,8 @@ import (
 	nethttp "net/http"
 	"net/url"
 	"os"
+	"os/exec"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -24,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -44,7 +47,7 @@ var (
 const runtimeCompilationEnvVar = "DD_TESTS_RUNTIME_COMPILED"
 
 func TestMain(m *testing.M) {
-	log.SetupLogger(seelog.Default, "trace")
+	log.SetupLogger(seelog.Default, "debug")
 	cfg := testConfig()
 	if cfg.EnableRuntimeCompiler {
 		fmt.Println("RUNTIME COMPILER ENABLED")
@@ -1486,6 +1489,71 @@ func TestHTTPStats(t *testing.T) {
 	assert.Equal(t, 0, httpReqStats[2].Count, "300s") // 300
 	assert.Equal(t, 0, httpReqStats[3].Count, "400s") // 400
 	assert.Equal(t, 0, httpReqStats[4].Count, "500s") // 500
+}
+
+var regexSSL = regexp.MustCompile(`/[^\ ]+libssl.so[^\ ]*`)
+
+func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
+	if !httpSupported(t) {
+		t.Skip("HTTPS feature not available on pre 4.1.0 kernels")
+	}
+
+	wget, err := exec.LookPath("wget")
+	if err != nil {
+		t.Skip("wget not found; skipping test.")
+	}
+
+	ldd, err := exec.LookPath("ldd")
+	if err != nil {
+		t.Skip("ldd not found; skipping test.")
+	}
+
+	linked, _ := exec.Command(ldd, wget).Output()
+	libSSLPath := regexSSL.FindString(string(linked))
+	if _, err := os.Stat(libSSLPath); len(libSSLPath) == 0 || os.IsNotExist(err) {
+		t.Skip("libssl.so not found; skipping test.")
+	}
+
+	os.Setenv("SSL_LIB_PATHS", libSSLPath)
+
+	// Start tracer with HTTPS support
+	cfg := testConfig()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTPSMonitoring = true
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Spin-up HTTPS server
+	enableTLS := true
+	serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", enableTLS)
+	defer serverDoneFn()
+
+	// Issue request using `wget`
+	// This is necessary (as opposed to using net/http) because we want to
+	// test a HTTP client linked to OpenSSL
+	const targetURL = "https://127.0.0.1:443/200/foobar"
+	requestCmd := exec.Command(wget, "--no-check-certificate", "-O/dev/null", targetURL)
+	err1 := requestCmd.Start()
+	err2 := requestCmd.Wait()
+	if err1 != nil || err2 != nil {
+		t.Skip("failed to issue request command; skipping test.")
+	}
+
+	require.Eventuallyf(t, func() bool {
+		payload, err := tr.GetActiveConnections("1")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for key := range payload.HTTP {
+			if key.Path == "/200/foobar" {
+				return true
+			}
+		}
+
+		return false
+	}, 3*time.Second, 10*time.Millisecond, "couldn't find HTTPS stats")
 }
 
 func TestRuntimeCompilerEnvironmentVar(t *testing.T) {

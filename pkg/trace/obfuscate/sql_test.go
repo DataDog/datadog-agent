@@ -466,6 +466,11 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 				"sales_2019_07_01,item1001",
 				"REPLACE INTO sales_?_?_? ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item? WHERE sku = [ sku ] ), CURDATE ( ), [ qty ], ? )",
 			},
+			{
+				"SELECT name FROM people WHERE person_id = -1",
+				"people",
+				"SELECT name FROM people WHERE person_id = ?",
+			},
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)

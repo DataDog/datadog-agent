@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	acl "github.com/hectane/go-acl"
 	"golang.org/x/sys/windows"
 )
@@ -48,26 +49,9 @@ func lookupUsernameAndDomain(usid *syscall.SID) (username, domain string, e erro
 // writes auth token(s) to a file with the same permissions as datadog.yaml
 func saveAuthToken(token, tokenPath string) error {
 	// get the current user
-	var sidString string
-	log.Infof("Getting sidstring from user")
-	tok, e := syscall.OpenCurrentProcessToken()
-	if e != nil {
-		log.Warnf("Couldn't get process token %v", e)
-		return e
-	}
-	defer tok.Close()
-	user, e := tok.GetTokenUser()
-	if e != nil {
-		log.Warnf("Couldn't get  token user %v", e)
-		return e
-	}
-	sidString, e = user.User.Sid.String()
-	if e != nil {
-		log.Warnf("Couldn't get  user sid string %v", e)
-		return e
-	}
+
 	log.Infof("Getting sidstring from current user")
-	currUserSid, err := windows.StringToSid(sidString)
+	currUserSid, err := winutil.GetSidFromUser()
 	if err != nil {
 		log.Warnf("Unable to get current user sid %v", err)
 		return err

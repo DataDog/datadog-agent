@@ -207,9 +207,8 @@ func (l *Collector) run(exit chan struct{}) error {
 			case <-heartbeat.C:
 				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
 			case <-queueSizeTicker.C:
-				updateQueueBytes(processResults.Weight(), podResults.Weight())
-				updateQueueSize(rtProcessResults.Len(), podResults.Len())
-				updateQueueSize(processResults.Len(), podResults.Len())
+				updateQueueBytes(processResults.Weight(), rtProcessResults.Weight(), podResults.Weight())
+				updateQueueSize(processResults.Len(), rtProcessResults.Len(), podResults.Len())
 			case <-queueLogTicker.C:
 				processSize, rtProcessSize, podSize := processResults.Len(), rtProcessResults.Len(), podResults.Len()
 				if processSize > 0 || rtProcessSize > 0 || podSize > 0 {
