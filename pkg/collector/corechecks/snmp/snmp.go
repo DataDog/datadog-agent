@@ -3,6 +3,7 @@ package snmp
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/devicecheck"
 	"strings"
 	"time"
 
@@ -33,9 +34,10 @@ var timeNow = time.Now
 // Check aggregates metrics from one Check instance
 type Check struct {
 	core.CheckBase
-	config  checkconfig.CheckConfig
-	session session.Session
-	sender  *report.MetricSender
+	config   checkconfig.CheckConfig
+	session  session.Session
+	sender   *report.MetricSender
+	deviceCk *devicecheck.DeviceCheck
 }
 
 // Run executes the check
@@ -179,6 +181,8 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 	if err != nil {
 		return fmt.Errorf("session configure failed: %s", err)
 	}
+
+	c.deviceCk = devicecheck.NewDeviceCheck(c.config, c.config.IPAddress)
 
 	return nil
 }
