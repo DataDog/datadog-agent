@@ -178,6 +178,22 @@ var metricsFlushMutex = sync.Mutex{}
 var tracesFlushMutex = sync.Mutex{}
 var logsFlushMutex = sync.Mutex{}
 
+// waitWithTimeout waits for the waitgroup for the specified max timeout.
+// Returns true if waiting timed out.
+func waitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	c := make(chan struct{})
+	go func() {
+		defer close(c)
+		wg.Wait()
+	}()
+	select {
+	case <-c:
+		return false // completed normally
+	case <-time.After(timeout):
+		return true // timed out
+	}
+}
+
 // TriggerFlush triggers a flush of the aggregated metrics, traces and logs.
 // They are flushed concurrently.
 // In some circumstances, it may switch to another flush strategy after the flush.
@@ -189,6 +205,11 @@ func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	wg.Add(1)
+	wg.Add(1)
+
 	// metrics
 	go func() {
 		metricsFlushMutex.Lock()
@@ -198,6 +219,7 @@ func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 			d.MetricAgent.Flush()
 		}
 		log.Debugf("Finished metrics flush #%d", correlationId)
+		wg.Done()
 		metricsFlushMutex.Unlock()
 	}()
 
@@ -210,6 +232,7 @@ func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 			d.TraceAgent.Get().FlushSync()
 		}
 		log.Debugf("Finished traces flush #%d", correlationId)
+		wg.Done()
 		tracesFlushMutex.Unlock()
 	}()
 
@@ -218,10 +241,20 @@ func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
 		logsFlushMutex.Lock()
 		correlationId := r.Intn(10000)
 		log.Debugf("Beginning logs flush #%d", correlationId)
-		logs.Flush(ctx)
+		// logs.Flush(ctx)
+		// sleep instead of flushing to simulate a timeout
+		time.Sleep(10 * time.Second)
 		log.Debugf("Finished logs flush #%d", correlationId)
+		wg.Done()
 		logsFlushMutex.Unlock()
 	}()
+
+	timedOut := waitWithTimeout(&wg, 5*time.Second)
+	if timedOut {
+		log.Debug("Timed out while flushing")
+	} else {
+		log.Debug("Finished flushing successfully")
+	}
 
 	log.Debug("Flush done")
 
