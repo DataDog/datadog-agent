@@ -193,7 +193,7 @@ func (sw *slidingWindow) WindowSize() time.Duration {
 // sliding window range.
 func (sw *slidingWindow) Average() float64 {
 	if !sw.isInitialized() {
-		log.Warnf("Attempting to use SlidingWindow.Average() without initializting it!")
+		log.Warnf("Attempting to use SlidingWindow.Average() without initializing it!")
 		return 0
 	}
 
