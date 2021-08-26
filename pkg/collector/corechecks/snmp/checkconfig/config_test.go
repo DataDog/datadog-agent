@@ -16,7 +16,7 @@ import (
 )
 
 func TestConfigurations(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	SetConfdPathAndCleanProfiles()
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 
 	// language=yaml
@@ -217,7 +217,7 @@ bulk_max_repetitions: 20
 }
 
 func TestInlineProfileConfiguration(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	SetConfdPathAndCleanProfiles()
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 
 	// language=yaml
@@ -272,7 +272,7 @@ profiles:
 }
 
 func TestDefaultConfigurations(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	SetConfdPathAndCleanProfiles()
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -299,7 +299,7 @@ community_string: abc
 }
 
 func TestIPAddressConfiguration(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	SetConfdPathAndCleanProfiles()
 	// TEST Default port
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -310,7 +310,7 @@ ip_address:
 }
 
 func TestPortConfiguration(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	SetConfdPathAndCleanProfiles()
 	// TEST Default port
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -334,7 +334,7 @@ community_string: abc
 }
 
 func TestBatchSizeConfiguration(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	SetConfdPathAndCleanProfiles()
 	// TEST Default batch size
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -387,7 +387,7 @@ oid_batch_size: 15
 }
 
 func TestBulkMaxRepetitionConfiguration(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	SetConfdPathAndCleanProfiles()
 	// TEST Default batch size
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -452,7 +452,7 @@ bulk_max_repetitions: -5
 }
 
 func TestGlobalMetricsConfigurations(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	SetConfdPathAndCleanProfiles()
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -482,7 +482,7 @@ global_metrics:
 }
 
 func TestUseGlobalMetricsFalse(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	SetConfdPathAndCleanProfiles()
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -512,7 +512,7 @@ global_metrics:
 }
 
 func Test_buildConfig(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	SetConfdPathAndCleanProfiles()
 
 	tests := []struct {
 		name              string
@@ -742,7 +742,7 @@ func Test_Configure_invalidYaml(t *testing.T) {
 }
 
 func TestNumberConfigsUsingStrings(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	SetConfdPathAndCleanProfiles()
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -760,7 +760,7 @@ retries: "5"
 }
 
 func TestExtraTags(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	SetConfdPathAndCleanProfiles()
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4

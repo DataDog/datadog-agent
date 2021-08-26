@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -18,8 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
-	"github.com/DataDog/datadog-agent/pkg/config"
-
 	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
@@ -33,14 +30,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 )
 
-func setConfdPathAndCleanProfiles() {
-	checkconfig.GlobalProfileConfigMap = nil // make sure from the new confd path will be reloaded
-	file, _ := filepath.Abs(filepath.Join(".", "test", "conf.d"))
-	config.Datadog.Set("confd_path", file)
-}
-
 func TestBasicSample(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	chk := Check{session: sess}
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
@@ -201,7 +192,7 @@ tags:
 }
 
 func TestSupportedMetricTypes(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	chk := Check{session: sess}
 	// language=yaml
@@ -270,7 +261,7 @@ metrics:
 func TestProfile(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
-	setConfdPathAndCleanProfiles()
+	checkconfig.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
 	chk := Check{session: sess}
@@ -561,7 +552,7 @@ profiles:
 }
 
 func TestProfileWithSysObjectIdDetection(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	chk := Check{session: sess}
 	// language=yaml
@@ -712,7 +703,7 @@ profiles:
 }
 
 func TestServiceCheckFailures(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sess.ConnectErr = fmt.Errorf("can't connect")
 	chk := Check{session: sess}
@@ -743,7 +734,7 @@ ip_address: 1.2.3.4
 }
 
 func TestCheckID(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	checkconfig.SetConfdPathAndCleanProfiles()
 	check1 := snmpFactory()
 	check2 := snmpFactory()
 	// language=yaml
@@ -918,7 +909,7 @@ func TestCheck_Run(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setConfdPathAndCleanProfiles()
+			checkconfig.SetConfdPathAndCleanProfiles()
 			sess := session.CreateMockSession()
 			sess.ConnectErr = tt.sessionConnError
 			chk := Check{session: sess}
@@ -964,7 +955,7 @@ ip_address: 1.2.3.4
 }
 
 func TestCheck_Run_sessionCloseError(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	checkconfig.SetConfdPathAndCleanProfiles()
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
@@ -1018,7 +1009,7 @@ metrics:
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
-	setConfdPathAndCleanProfiles()
+	checkconfig.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
 	chk := Check{session: sess}
@@ -1256,7 +1247,7 @@ tags:
 func TestReportDeviceMetadataWithFetchError(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
-	setConfdPathAndCleanProfiles()
+	checkconfig.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
 	chk := Check{session: sess}

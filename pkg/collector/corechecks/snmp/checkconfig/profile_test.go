@@ -57,7 +57,7 @@ func mockProfilesDefinitions() profileDefinitionMap {
 }
 
 func Test_getDefaultProfilesDefinitionFiles(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	SetConfdPathAndCleanProfiles()
 	actualProfileConfig, err := getDefaultProfilesDefinitionFiles()
 	assert.Nil(t, err)
 
@@ -270,7 +270,7 @@ func Test_getMostSpecificOid(t *testing.T) {
 }
 
 func Test_resolveProfileDefinitionPath(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	SetConfdPathAndCleanProfiles()
 
 	absPath, _ := filepath.Abs(filepath.Join("tmp", "myfile.yaml"))
 	tests := []struct {
@@ -298,7 +298,7 @@ func Test_resolveProfileDefinitionPath(t *testing.T) {
 }
 
 func Test_loadDefaultProfiles(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	SetConfdPathAndCleanProfiles()
 	GlobalProfileConfigMap = nil
 	defaultProfiles, err := loadDefaultProfiles()
 	assert.Nil(t, err)
