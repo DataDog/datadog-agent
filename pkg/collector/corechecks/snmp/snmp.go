@@ -36,7 +36,7 @@ type Check struct {
 	core.CheckBase
 	config  checkconfig.CheckConfig
 	session session.Session
-	sender  report.MetricSender
+	sender  *report.MetricSender
 }
 
 // Run executes the check
@@ -47,7 +47,7 @@ func (c *Check) Run() error {
 	if err != nil {
 		return err
 	}
-	c.sender = report.MetricSender{Sender: sender}
+	c.sender = report.NewMetricSender(sender)
 
 	staticTags := c.config.GetStaticTags()
 

@@ -39,7 +39,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config checkconfig.CheckConf
 			log.Errorf("Error marshalling device metadata: %s", err)
 			return
 		}
-		ms.Sender.EventPlatformEvent(string(payloadBytes), epforwarder.EventTypeNetworkDevicesMetadata)
+		ms.sender.EventPlatformEvent(string(payloadBytes), epforwarder.EventTypeNetworkDevicesMetadata)
 	}
 }
 

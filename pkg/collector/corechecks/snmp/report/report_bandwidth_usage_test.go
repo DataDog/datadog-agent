@@ -292,7 +292,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			sender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			ms := &MetricSender{
-				Sender: sender,
+				sender: sender,
 			}
 			tags := []string{"foo:bar"}
 			err := ms.sendBandwidthUsageMetric(tt.symbol, tt.fullIndex, tt.values, tags)
@@ -382,7 +382,7 @@ func Test_metricSender_trySendBandwidthUsageMetric(t *testing.T) {
 			sender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			ms := &MetricSender{
-				Sender: sender,
+				sender: sender,
 			}
 			tags := []string{"foo:bar"}
 			ms.trySendBandwidthUsageMetric(tt.symbol, tt.fullIndex, tt.values, tags)

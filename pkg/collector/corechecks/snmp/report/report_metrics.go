@@ -16,8 +16,13 @@ import (
 
 // MetricSender is a wrapper around aggregator.Sender
 type MetricSender struct {
-	Sender           aggregator.Sender // TODO: make it private
+	sender           aggregator.Sender // TODO: make it private
 	SubmittedMetrics int               // TODO: make it private
+}
+
+// NewMetricSender create a new MetricSender
+func NewMetricSender(sender aggregator.Sender) *MetricSender {
+	return &MetricSender{sender: sender}
 }
 
 // ReportMetrics reports metrics using Sender
@@ -149,25 +154,25 @@ func (ms *MetricSender) sendMetric(metricName string, value valuestore.ResultVal
 // Gauge wraps Sender.Gauge
 func (ms *MetricSender) Gauge(metric string, value float64, hostname string, tags []string) {
 	// we need copy tags before using Sender due to https://github.com/DataDog/datadog-agent/issues/7159
-	ms.Sender.Gauge(metric, value, hostname, common.CopyStrings(tags))
+	ms.sender.Gauge(metric, value, hostname, common.CopyStrings(tags))
 }
 
 // Rate wraps Sender.Rate
 func (ms *MetricSender) Rate(metric string, value float64, hostname string, tags []string) {
 	// we need copy tags before using Sender due to https://github.com/DataDog/datadog-agent/issues/7159
-	ms.Sender.Rate(metric, value, hostname, common.CopyStrings(tags))
+	ms.sender.Rate(metric, value, hostname, common.CopyStrings(tags))
 }
 
 // MonotonicCount wraps Sender.MonotonicCount
 func (ms *MetricSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
 	// we need copy tags before using Sender due to https://github.com/DataDog/datadog-agent/issues/7159
-	ms.Sender.MonotonicCount(metric, value, hostname, common.CopyStrings(tags))
+	ms.sender.MonotonicCount(metric, value, hostname, common.CopyStrings(tags))
 }
 
 // ServiceCheck wraps Sender.ServiceCheck
 func (ms *MetricSender) ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string) {
 	// we need copy tags before using Sender due to https://github.com/DataDog/datadog-agent/issues/7159
-	ms.Sender.ServiceCheck(checkName, status, hostname, common.CopyStrings(tags), message)
+	ms.sender.ServiceCheck(checkName, status, hostname, common.CopyStrings(tags), message)
 }
 
 func getFlagStreamValue(placement uint, strValue string) (float64, error) {
