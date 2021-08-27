@@ -69,7 +69,7 @@ func TestSlidingWindow(t *testing.T) {
 
 func TestSlidingWindowAccuracy(t *testing.T) {
 	// Floats don't really have good atomic primitives
-	var cbLock sync.Mutex
+	var cbLock sync.RWMutex
 	lastAverage := 0.0
 
 	statsUpdateFunc := func(sw SlidingWindow) {
