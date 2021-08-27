@@ -16,15 +16,15 @@ import (
 )
 
 type regoFixture struct {
-	name     string
-	resource compliance.RegoResource
-	module   string
-	query    string
+	name      string
+	resources []compliance.RegoResource
+	module    string
+	query     string
 
-	processes    processes
-	useCache     bool
-	expectReport *compliance.Report
-	expectError  error
+	processes     processes
+	useCache      bool
+	expectReports []*compliance.Report
+	expectError   error
 }
 
 func (f *regoFixture) newRegoCheck() (*regoCheck, error) {
@@ -39,7 +39,7 @@ func (f *regoFixture) newRegoCheck() (*regoCheck, error) {
 
 	regoCheck := &regoCheck{
 		ruleID:    ruleID,
-		resources: []compliance.RegoResource{f.resource},
+		resources: f.resources,
 	}
 
 	if err := regoCheck.compileRule(rule); err != nil {
@@ -72,7 +72,7 @@ func (f *regoFixture) run(t *testing.T) {
 	assert.NoError(err)
 
 	reports := regoCheck.check(env)
-	assert.Equal(f.expectReport, reports[0])
+	assert.Equal(f.expectReports, reports)
 	assert.Equal(f.expectError, reports[0].Error)
 }
 
@@ -80,10 +80,12 @@ func TestRegoProcessCheck(t *testing.T) {
 	tests := []regoFixture{
 		{
 			name: "simple case",
-			resource: compliance.RegoResource{
-				ResourceCommon: compliance.ResourceCommon{
-					Process: &compliance.Process{
-						Name: "proc1",
+			resources: []compliance.RegoResource{
+				{
+					ResourceCommon: compliance.ResourceCommon{
+						Process: &compliance.Process{
+							Name: "proc1",
+						},
 					},
 				},
 			},
@@ -95,7 +97,6 @@ func TestRegoProcessCheck(t *testing.T) {
 				valid {
 					input.processes[_].flags["--path"] == "foo"
 				}
-
 			`,
 			query: "data.test.valid",
 			processes: processes{
@@ -104,16 +105,88 @@ func TestRegoProcessCheck(t *testing.T) {
 					Cmdline: []string{"arg1", "--path=foo"},
 				},
 			},
-			expectReport: &compliance.Report{
-				Passed: true,
-				Data: event.Data{
-					"process.name":    "proc1",
-					"process.exe":     "",
-					"process.cmdLine": []string{"arg1", "--path=foo"},
+			expectReports: []*compliance.Report{
+				{
+					Passed: true,
+					Data: event.Data{
+						"process.name":    "proc1",
+						"process.exe":     "",
+						"process.cmdLine": []string{"arg1", "--path=foo"},
+					},
+					Resource: compliance.ReportResource{
+						ID:   "42",
+						Type: "process",
+					},
 				},
-				Resource: compliance.ReportResource{
-					ID:   "42",
-					Type: "process",
+			},
+		},
+		{
+			name: "all cases",
+			resources: []compliance.RegoResource{
+				{
+					ResourceCommon: compliance.ResourceCommon{
+						Process: &compliance.Process{
+							Name: "proc1",
+						},
+					},
+				},
+				{
+					ResourceCommon: compliance.ResourceCommon{
+						Process: &compliance.Process{
+							Name: "proc2",
+						},
+					},
+				},
+			},
+			module: `
+				package test
+
+				invalid[p] {
+					p := input.processes[_]
+					p.flags["--path"] != "foo"
+				}
+
+				default valid = false
+
+				valid {
+					count(invalid) == 0
+				}
+			`,
+			query: "data.test.valid",
+			processes: processes{
+				42: {
+					Name:    "proc1",
+					Cmdline: []string{"arg1", "--path=foo"},
+				},
+				43: {
+					Name:    "proc2",
+					Cmdline: []string{"arg2", "--path=foo"},
+				},
+			},
+			expectReports: []*compliance.Report{
+				{
+					Passed: true,
+					Data: event.Data{
+						"process.name":    "proc1",
+						"process.exe":     "",
+						"process.cmdLine": []string{"arg1", "--path=foo"},
+					},
+					Resource: compliance.ReportResource{
+						ID:   "42",
+						Type: "process",
+					},
+				},
+				{
+					Passed: true,
+					Data: event.Data{
+						"process.name":    "proc2",
+						"process.exe":     "",
+						"process.cmdLine": []string{"arg2", "--path=foo"},
+					},
+					Resource: compliance.ReportResource{
+						ID:   "43",
+						Type: "process",
+					},
 				},
 			},
 		},
