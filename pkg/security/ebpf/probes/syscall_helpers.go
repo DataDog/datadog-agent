@@ -11,7 +11,7 @@ import (
 	"bytes"
 	"strings"
 
-	"github.com/DataDog/ebpf-manager/manager"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 

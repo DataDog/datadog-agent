@@ -10,7 +10,7 @@ package probes
 import (
 	"math"
 
-	"github.com/DataDog/ebpf-manager/manager"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 // allProbes contain the list of all the probes of the runtime security module

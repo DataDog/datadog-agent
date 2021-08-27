@@ -7,7 +7,7 @@
 
 package probes
 
-import "github.com/DataDog/ebpf-manager/manager"
+import manager "github.com/DataDog/ebpf-manager"
 
 // sharedProbes is the list of probes that are shared across multiple events
 var sharedProbes = []*manager.Probe{

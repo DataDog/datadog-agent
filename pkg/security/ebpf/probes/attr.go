@@ -7,7 +7,7 @@
 
 package probes
 
-import "github.com/DataDog/ebpf-manager/manager"
+import manager "github.com/DataDog/ebpf-manager"
 
 // attrProbes holds the list of probes used to track link events
 var attrProbes = []*manager.Probe{

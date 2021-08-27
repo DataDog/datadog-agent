@@ -7,7 +7,7 @@
 
 package probes
 
-import "github.com/DataDog/ebpf-manager/manager"
+import manager "github.com/DataDog/ebpf-manager"
 
 // unlinkProbes holds the list of probes used to track unlink events
 var unlinkProbes = []*manager.Probe{

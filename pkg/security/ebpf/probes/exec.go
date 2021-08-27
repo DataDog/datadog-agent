@@ -7,7 +7,7 @@
 
 package probes
 
-import "github.com/DataDog/ebpf-manager/manager"
+import manager "github.com/DataDog/ebpf-manager"
 
 // execProbes holds the list of probes used to track processes execution
 var execProbes = []*manager.Probe{

@@ -7,7 +7,7 @@
 
 package probes
 
-import "github.com/DataDog/ebpf-manager/manager"
+import manager "github.com/DataDog/ebpf-manager"
 
 // rmdirProbes holds the list of probes used to track file rmdir events
 var rmdirProbes = []*manager.Probe{

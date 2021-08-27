@@ -7,7 +7,7 @@
 
 package probes
 
-import "github.com/DataDog/ebpf-manager/manager"
+import manager "github.com/DataDog/ebpf-manager"
 
 // renameProbes holds the list of probes used to track file rename events
 var renameProbes = []*manager.Probe{

@@ -7,7 +7,7 @@
 
 package probes
 
-import "github.com/DataDog/ebpf-manager/manager"
+import manager "github.com/DataDog/ebpf-manager"
 
 // xattrProbes holds the list of probes used to track xattr events
 var xattrProbes = []*manager.Probe{
