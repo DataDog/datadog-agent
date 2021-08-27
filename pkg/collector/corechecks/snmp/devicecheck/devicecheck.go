@@ -23,7 +23,7 @@ const (
 
 // DeviceCheck hold info necessary to collect info for a single device
 type DeviceCheck struct {
-	Config  *checkconfig.CheckConfig // TODO: make it private
+	config  *checkconfig.CheckConfig // TODO: make it private
 	sender  *report.MetricSender
 	session session.Session
 }
@@ -41,7 +41,7 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string) (*DeviceC
 	}
 
 	return &DeviceCheck{
-		Config:  newConfig,
+		config:  newConfig,
 		session: sess,
 	}, nil
 }
@@ -52,7 +52,7 @@ func (d *DeviceCheck) SetSender(sender *report.MetricSender) {
 }
 
 // SetSession sets the current session
-// TODO: should be create in device check constructor
+// Needed for testing
 func (d *DeviceCheck) SetSession(session session.Session) {
 	d.session = session
 }
@@ -60,7 +60,7 @@ func (d *DeviceCheck) SetSession(session session.Session) {
 // Run executes the check
 func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	startTime := time.Now()
-	staticTags := d.Config.GetStaticTags()
+	staticTags := d.config.GetStaticTags()
 
 	// Fetch and report metrics
 	var checkErr error
@@ -72,10 +72,10 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		d.sender.ServiceCheck(serviceCheckName, metrics.ServiceCheckOK, "", tags, "")
 	}
 	if values != nil {
-		d.sender.ReportMetrics(d.Config.Metrics, values, tags)
+		d.sender.ReportMetrics(d.config.Metrics, values, tags)
 	}
 
-	if d.Config.CollectDeviceMetadata {
+	if d.config.CollectDeviceMetadata {
 		if values != nil {
 			deviceStatus = metadata.DeviceStatusReachable
 		} else {
@@ -85,10 +85,10 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		// We include instance tags to `deviceMetadataTags` since device metadata tags are not enriched with `checkSender.checkTags`.
 		// `checkSender.checkTags` are added for metrics, service checks, events only.
 		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
-		deviceMetadataTags := append(common.CopyStrings(tags), d.Config.InstanceTags...)
+		deviceMetadataTags := append(common.CopyStrings(tags), d.config.InstanceTags...)
 
 		// TODO: pass config ref instead of struct
-		d.sender.ReportNetworkDeviceMetadata(*d.Config, values, deviceMetadataTags, collectionTime, deviceStatus)
+		d.sender.ReportNetworkDeviceMetadata(*d.config, values, deviceMetadataTags, collectionTime, deviceStatus)
 	}
 
 	d.submitTelemetryMetrics(startTime, tags)
@@ -116,15 +116,15 @@ func (d *DeviceCheck) getValuesAndTags(staticTags []string) ([]string, *valuesto
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to autodetect profile: %s", err))
 	}
 
-	tags = append(tags, d.Config.ProfileTags...)
+	tags = append(tags, d.config.ProfileTags...)
 
-	valuesStore, err := fetch.Fetch(d.session, d.Config)
+	valuesStore, err := fetch.Fetch(d.session, d.config)
 	log.Debugf("fetched values: %v", valuesStore)
 
 	if err != nil {
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to fetch values: %s", err))
 	} else {
-		tags = append(tags, d.sender.GetCheckInstanceMetricTags(d.Config.MetricTags, valuesStore)...)
+		tags = append(tags, d.sender.GetCheckInstanceMetricTags(d.config.MetricTags, valuesStore)...)
 	}
 
 	var joinedError error
@@ -136,18 +136,18 @@ func (d *DeviceCheck) getValuesAndTags(staticTags []string) ([]string, *valuesto
 
 func (d *DeviceCheck) doAutodetectProfile(sess session.Session) error {
 	// Try to detect profile using device sysobjectid
-	if d.Config.AutodetectProfile {
+	if d.config.AutodetectProfile {
 		sysObjectID, err := session.FetchSysObjectID(sess)
 		if err != nil {
 			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
 		}
-		d.Config.AutodetectProfile = false // do not try to auto detect profile next time
+		d.config.AutodetectProfile = false // do not try to auto detect profile next time
 
-		profile, err := checkconfig.GetProfileForSysObjectID(d.Config.Profiles, sysObjectID)
+		profile, err := checkconfig.GetProfileForSysObjectID(d.config.Profiles, sysObjectID)
 		if err != nil {
 			return fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
 		}
-		err = d.Config.RefreshWithProfile(profile)
+		err = d.config.RefreshWithProfile(profile)
 		if err != nil {
 			// Should not happen since the profile is one of those we matched in GetProfileForSysObjectID
 			return fmt.Errorf("failed to refresh with profile `%s` detected using sysObjectID `%s`: %s", profile, sysObjectID, err)
