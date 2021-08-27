@@ -522,13 +522,15 @@ func logFormatWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc fun
 	return err
 }
 
-func logContext(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string), message string, context ...interface{}) {
+func logContext(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string), message string, depth int, context ...interface{}) {
 	if logger != nil && logger.inner != nil && logger.shouldLog(logLevel) {
 		msg := logger.scrub(message)
 		logger.contextLock.Lock()
 		logger.inner.SetContext(context)
+		logger.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
 		logFunc(msg)
 		logger.inner.SetContext(nil)
+		logger.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
 		// Not using defer to make sure we release lock as fast as possible
 		logger.contextLock.Unlock()
 	} else if bufferLogsBeforeInit && (logger == nil || logger.inner == nil) {
@@ -536,13 +538,15 @@ func logContext(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string
 	}
 }
 
-func logContextWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string) error, message string, fallbackStderr bool, context ...interface{}) error {
+func logContextWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string) error, message string, fallbackStderr bool, depth int, context ...interface{}) error {
 	if logger != nil && logger.inner != nil && logger.shouldLog(logLevel) {
 		msg := logger.scrub(message)
 		logger.contextLock.Lock()
 		logger.inner.SetContext(context)
+		logger.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
 		err := logFunc(msg)
 		logger.inner.SetContext(nil)
+		logger.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
 		// Not using defer to make sure we release lock as fast as possible
 		logger.contextLock.Unlock()
 		return err
@@ -566,9 +570,13 @@ func Tracef(format string, params ...interface{}) {
 	logFormat(seelog.TraceLvl, func() { Tracef(format, params...) }, logger.tracef, format, params...)
 }
 
+func tracecWithDepth(message string, depth int, context ...interface{}) {
+	logContext(seelog.TraceLvl, func() { Tracec(message, context...) }, logger.trace, message, depth, context...)
+}
+
 // Tracec logs at the trace level with context
 func Tracec(message string, context ...interface{}) {
-	logContext(seelog.TraceLvl, func() { Tracec(message, context...) }, logger.trace, message, context...)
+	tracecWithDepth(message, 0, context...)
 }
 
 // Debug logs at the debug level
@@ -581,9 +589,13 @@ func Debugf(format string, params ...interface{}) {
 	logFormat(seelog.DebugLvl, func() { Debugf(format, params...) }, logger.debugf, format, params...)
 }
 
+func debugcWithDepth(message string, depth int, context ...interface{}) {
+	logContext(seelog.DebugLvl, func() { Debugc(message, context...) }, logger.debug, message, depth, context...)
+}
+
 // Debugc logs at the debug level with context
 func Debugc(message string, context ...interface{}) {
-	logContext(seelog.DebugLvl, func() { Debugc(message, context...) }, logger.debug, message, context...)
+	debugcWithDepth(message, 0, context...)
 }
 
 // Info logs at the info level
@@ -596,9 +608,13 @@ func Infof(format string, params ...interface{}) {
 	logFormat(seelog.InfoLvl, func() { Infof(format, params...) }, logger.infof, format, params...)
 }
 
+func infocWithDepth(message string, depth int, context ...interface{}) {
+	logContext(seelog.InfoLvl, func() { Infoc(message, context...) }, logger.info, message, depth, context...)
+}
+
 // Infoc logs at the info level with context
 func Infoc(message string, context ...interface{}) {
-	logContext(seelog.InfoLvl, func() { Infoc(message, context...) }, logger.info, message, context...)
+	infocWithDepth(message, 0, context...)
 }
 
 // Warn logs at the warn level and returns an error containing the formated log message
@@ -611,9 +627,13 @@ func Warnf(format string, params ...interface{}) error {
 	return logFormatWithError(seelog.WarnLvl, func() { Warnf(format, params...) }, logger.warnf, format, false, params...)
 }
 
+func warncWithDepth(message string, depth int, context ...interface{}) error {
+	return logContextWithError(seelog.WarnLvl, func() { Warnc(message, context...) }, logger.warn, message, false, depth, context...)
+}
+
 // Warnc logs at the warn level with context and returns an error containing the formated log message
 func Warnc(message string, context ...interface{}) error {
-	return logContextWithError(seelog.WarnLvl, func() { Warnc(message, context...) }, logger.warn, message, false, context...)
+	return warncWithDepth(message, 0, context...)
 }
 
 // Error logs at the error level and returns an error containing the formated log message
@@ -626,9 +646,13 @@ func Errorf(format string, params ...interface{}) error {
 	return logFormatWithError(seelog.ErrorLvl, func() { Errorf(format, params...) }, logger.errorf, format, true, params...)
 }
 
+func errorcWithDepth(message string, depth int, context ...interface{}) error {
+	return logContextWithError(seelog.ErrorLvl, func() { Errorc(message, context...) }, logger.error, message, true, depth, context...)
+}
+
 // Errorc logs at the error level with context and returns an error containing the formated log message
 func Errorc(message string, context ...interface{}) error {
-	return logContextWithError(seelog.ErrorLvl, func() { Errorc(message, context...) }, logger.error, message, true, context...)
+	return errorcWithDepth(message, 0, context...)
 }
 
 // Critical logs at the critical level and returns an error containing the formated log message
@@ -641,9 +665,13 @@ func Criticalf(format string, params ...interface{}) error {
 	return logFormatWithError(seelog.CriticalLvl, func() { Criticalf(format, params...) }, logger.criticalf, format, true, params...)
 }
 
+func criticalcWithDepth(message string, depth int, context ...interface{}) error {
+	return logContextWithError(seelog.CriticalLvl, func() { Criticalc(message, context...) }, logger.critical, message, true, depth, context...)
+}
+
 // Criticalc logs at the critical level with context and returns an error containing the formated log message
 func Criticalc(message string, context ...interface{}) error {
-	return logContextWithError(seelog.CriticalLvl, func() { Criticalc(message, context...) }, logger.critical, message, true, context...)
+	return criticalcWithDepth(message, 0, context...)
 }
 
 // InfoStackDepth logs at the info level and the current stack depth plus the additional given one

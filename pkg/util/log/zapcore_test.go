@@ -21,43 +21,56 @@ import (
 	"go.uber.org/zap"
 )
 
+func parseShortFilePath(params string) seelog.FormatterFunc {
+	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+		return extractShortPathFromFullPath(context.FullPath())
+	}
+}
+
+func extractShortPathFromFullPath(fullPath string) string {
+	// We want to trim the part containing the path of the project
+	// ie DataDog/datadog-agent/ or DataDog/datadog-process-agent/
+	slices := strings.Split(fullPath, "-agent/")
+	return slices[len(slices)-1]
+}
+
 func TestZapBasicLogging(t *testing.T) {
-	logger := NewZapLogger()
+	logger := zap.New(NewZapCore())
 	tests := []struct {
 		desc    string
 		log     func(*zap.Logger)
 		level   string
-		pattern string
+		message string
 	}{
 		{
 			desc:    "Debug (no fields, debug level)",
 			log:     func(l *zap.Logger) { l.Debug("Simple message") },
 			level:   "debug",
-			pattern: "\\[DEBUG\\] Write: \\(log/zapcore_test.go:\\d+\\) \\| Simple message",
+			message: "[DEBUG] | pkg/util/log/zapcore_test.go | Simple message",
 		},
 		{
 			desc:    "Info (no fields, debug level)",
 			log:     func(l *zap.Logger) { l.Info("Simple message") },
 			level:   "debug",
-			pattern: "\\[INFO\\] Write: \\(log/zapcore_test.go:\\d+\\) \\| Simple message",
+			message: "[INFO] | pkg/util/log/zapcore_test.go | Simple message",
 		},
 		{
 			desc:    "Warn (no fields, debug level)",
 			log:     func(l *zap.Logger) { l.Warn("Simple message") },
 			level:   "debug",
-			pattern: "\\[WARN\\] Write: \\(log/zapcore_test.go:\\d+\\) \\| Simple message",
+			message: "[WARN] | pkg/util/log/zapcore_test.go | Simple message",
 		},
 		{
 			desc:    "Error (no fields, debug level)",
 			log:     func(l *zap.Logger) { l.Error("Simple message") },
 			level:   "debug",
-			pattern: "\\[ERROR\\] Write: \\(log/zapcore_test.go:\\d+\\) \\| Simple message",
+			message: "[ERROR] | pkg/util/log/zapcore_test.go | Simple message",
 		},
 		{
 			desc:    "DPanic (no fields, debug level)",
 			log:     func(l *zap.Logger) { l.DPanic("Development panic") },
 			level:   "debug",
-			pattern: "\\[CRITICAL\\] Write: \\(log/zapcore_test.go:\\d+\\) \\| Development panic",
+			message: "[CRITICAL] | pkg/util/log/zapcore_test.go | Development panic",
 		},
 		{
 			desc: "Error level",
@@ -67,19 +80,19 @@ func TestZapBasicLogging(t *testing.T) {
 				l.Warn("Simple message")
 			},
 			level:   "error",
-			pattern: "",
+			message: "",
 		},
 		{
 			desc:    "Info (fields)",
 			log:     func(l *zap.Logger) { l.Info("Fields", zap.Int("int", 1), zap.String("key", "val")) },
 			level:   "debug",
-			pattern: "\\[INFO\\] Write: int:1, key:val \\| \\(log/zapcore_test.go:\\d+\\) \\| Fields",
+			message: "[INFO] | pkg/util/log/zapcore_test.go | int:1, key:val | Fields",
 		},
 		{
 			desc:    "Error (fields)",
 			log:     func(l *zap.Logger) { l.Error("Fields", zap.Error(fmt.Errorf("an error"))) },
 			level:   "debug",
-			pattern: "\\[ERROR\\] Write: error:an error \\| \\(log/zapcore_test.go:\\d+\\) \\| Fields",
+			message: "[ERROR] | pkg/util/log/zapcore_test.go | error:an error | Fields",
 		},
 		{
 			desc: "With (using original)",
@@ -88,7 +101,7 @@ func TestZapBasicLogging(t *testing.T) {
 				l.Info("Fields", zap.Bool("bool", true))
 			},
 			level:   "debug",
-			pattern: "\\[INFO\\] Write: bool:true \\| \\(log/zapcore_test.go:\\d+\\) \\| Fields",
+			message: "[INFO] | pkg/util/log/zapcore_test.go | bool:true | Fields",
 		},
 		{
 			desc: "With (using new)",
@@ -97,13 +110,13 @@ func TestZapBasicLogging(t *testing.T) {
 				extra.Info("Fields", zap.Bool("bool", true))
 			},
 			level:   "debug",
-			pattern: "\\[INFO\\] Write: int:1, bool:true \\| \\(log/zapcore_test.go:\\d+\\) \\| Fields",
+			message: "[INFO] | pkg/util/log/zapcore_test.go | int:1, bool:true | Fields",
 		},
 		{
 			desc:    "Namespace",
 			log:     func(l *zap.Logger) { l.Info("Fields", zap.Namespace("ns"), zap.Int("int", 1)) },
 			level:   "debug",
-			pattern: "\\[INFO\\] Write: ns/int:1 \\| \\(log/zapcore_test.go:\\d+\\) \\| Fields",
+			message: "[INFO] | pkg/util/log/zapcore_test.go | ns/int:1 | Fields",
 		},
 	}
 
@@ -112,15 +125,15 @@ func TestZapBasicLogging(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
 			seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
-			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg\n")
+			seelog.RegisterCustomFormatter("ShortFilePath", parseShortFilePath)
+			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] | %ShortFilePath | %ExtraTextContext%Msg")
 			require.Nil(t, err)
 			SetupLogger(l, testInstance.level)
 			require.NotNil(t, logger)
 
 			testInstance.log(logger)
 			w.Flush()
-			pattern := fmt.Sprintf("^%s$", testInstance.pattern)
-			assert.Regexp(t, pattern, strings.TrimSuffix(b.String(), "\n"))
+			assert.Equal(t, testInstance.message, b.String())
 		})
 	}
 }

@@ -6,10 +6,7 @@
 package log
 
 import (
-	"fmt"
-
 	"github.com/cihub/seelog"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -67,23 +64,21 @@ func (c *core) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 		context = enc.ctx
 	}
 
-	// use similar format to Python checks: (file:no) | message
-	message := fmt.Sprintf("(%s) | %s", entry.Caller.TrimmedPath(), entry.Message)
-
+	const depth = 3
 	switch entry.Level {
 	case zapcore.DebugLevel:
-		Debugc(message, context...)
+		debugcWithDepth(entry.Message, depth, context...)
 	case zapcore.InfoLevel:
-		Infoc(message, context...)
+		infocWithDepth(entry.Message, depth, context...)
 	// we ignore errors since these are not related to writing
 	case zapcore.WarnLevel:
-		_ = Warnc(message, context...)
+		_ = warncWithDepth(entry.Message, depth, context...)
 	case zapcore.ErrorLevel:
-		_ = Errorc(message, context...)
+		_ = errorcWithDepth(entry.Message, depth, context...)
 	// zap's default core panics or exits at these levels;
 	// we just log them at critical level
 	case zapcore.DPanicLevel, zapcore.PanicLevel, zapcore.FatalLevel:
-		_ = Criticalc(message, context...)
+		_ = criticalcWithDepth(entry.Message, depth, context...)
 	}
 	return nil
 }
@@ -93,11 +88,4 @@ func (c *core) Sync() error { return nil }
 // NewZapCore creates a new zap core that wraps the default agent log instance.
 func NewZapCore() zapcore.Core {
 	return &core{baseEncoder: &encoder{}}
-}
-
-// NewZapLogger creates a new zap Logger that wraps the default agent log instance.
-func NewZapLogger(options ...zap.Option) *zap.Logger {
-	// caller MUST be added for the core to work properly
-	options = append(options, zap.AddCaller())
-	return zap.New(NewZapCore(), options...)
 }
