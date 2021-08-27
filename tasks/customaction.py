@@ -63,12 +63,12 @@ def build(ctx, package_version, vstudio_root=None, arch="x64", major_version='7'
     artefacts = [
         {"source": "customaction.dll", "target": "customaction.dll"},
         {"source": "customaction.pdb", "target": "customaction-{}.pdb".format(package_version)},
-        {"source": "customaction-tests.exe", "target": "customaction-tests.exe"}
+        {"source": "customaction-tests.exe", "target": "customaction-tests.exe"},
     ]
     for artefact in artefacts:
         shutil.copy2(
             "{}\\cal\\{}\\{}\\{}".format(CUSTOM_ACTION_ROOT_DIR, arch, configuration, artefact["source"]),
-            BIN_PATH + "\\{}".format(artefact["target"])
+            BIN_PATH + "\\{}".format(artefact["target"]),
         )
 
 
