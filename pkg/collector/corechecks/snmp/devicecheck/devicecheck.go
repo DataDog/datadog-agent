@@ -32,8 +32,7 @@ type DeviceCheck struct {
 
 // NewDeviceCheck returns a new DeviceCheck
 func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string) (*DeviceCheck, error) {
-	newConfig := config.Copy()
-	newConfig.IPAddress = ipAddress
+	newConfig := config.CopyWithNewIP(ipAddress)
 
 	sess := &session.GosnmpSession{}
 	err := sess.Configure(*newConfig)
