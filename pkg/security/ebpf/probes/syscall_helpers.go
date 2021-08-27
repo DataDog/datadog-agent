@@ -135,7 +135,8 @@ const (
 func getFunctionNameFromSection(section string) string {
 	funcName := strings.ReplaceAll(section, "__ia32_", "__32_")
 	funcName = strings.ReplaceAll(funcName, "__x64_", "__64_")
-	funcName = strings.ReplaceAll(funcName, "/", "")
+	funcName = strings.ReplaceAll(funcName, "/_", "_")
+	funcName = strings.ReplaceAll(funcName, "/", "__64_")
 	return funcName
 }
 
