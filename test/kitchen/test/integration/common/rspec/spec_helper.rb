@@ -470,10 +470,11 @@ shared_examples_for "an installed Agent" do
       # while the Agent is installed in `C:/Program Files`
       # To prevent this issue, we check the system arch and the ProgramFiles folder, and we fix it
       # if needed.
-      program_files = ENV['ProgramFiles']
+      program_files = ENV['ProgramFiles'].dup
       arch = `Powershell -command "(Get-WmiObject Win32_OperatingSystem).OsArchitecture"`
-      if arch.include? "64" && program_files.include? "(x86)"
-        program_files = program_files.slice(" (x86)").strip
+      if arch.include? "64" and program_files.include? "(x86)"
+        program_files.slice!("(x86)")
+        program_files.strip!
       end
 
       verify_signature_files = [
