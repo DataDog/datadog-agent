@@ -79,6 +79,8 @@ func NewSlidingWindow(windowSize time.Duration, pollingInterval time.Duration) (
 	}
 
 	return &slidingWindow{
+		buckets:         make([]float64, windowSize/pollingInterval),
+		numBuckets:      int(windowSize / pollingInterval),
 		pollingInterval: pollingInterval,
 		windowSize:      windowSize,
 	}, nil
@@ -107,11 +109,7 @@ func (sw *slidingWindow) Start(
 	sw.stateChangeLock.Lock()
 	defer sw.stateChangeLock.Unlock()
 
-	sw.buckets = make([]float64, sw.windowSize/sw.pollingInterval)
-	sw.numBuckets = int(sw.windowSize / sw.pollingInterval)
-
 	sw.pollingFunc = pollingFunc
-
 	sw.statsUpdateFunc = statsUpdateFunc
 	sw.stopChan = make(chan struct{}, 1)
 
@@ -131,9 +129,15 @@ func (sw *slidingWindow) newTicker() {
 			case <-sw.stopChan:
 				return
 			case <-sw.ticker.C:
+				// Invoke the polling function
+
 				sw.stateChangeLock.RLock()
 
 				value := sw.pollingFunc()
+
+				sw.stateChangeLock.RUnlock()
+
+				// Store the data and update any needed variables
 
 				sw.bucketsLock.Lock()
 
@@ -145,6 +149,10 @@ func (sw *slidingWindow) newTicker() {
 				sw.bucketIdx = (sw.bucketIdx + 1) % sw.numBuckets
 
 				sw.bucketsLock.Unlock()
+
+				// If statsUpdateFunc is defined, invoke it
+
+				sw.stateChangeLock.RLock()
 
 				if sw.statsUpdateFunc != nil {
 					sw.statsUpdateFunc(sw)
@@ -190,11 +198,6 @@ func (sw *slidingWindow) Stop() {
 // WindowSize is the amount of time that the SlidingWindow will keep
 // the polled values before evicting them.
 func (sw *slidingWindow) WindowSize() time.Duration {
-	if !sw.isInitialized() {
-		log.Warnf("Attempting to use SlidingWindow.WindowSize() without initializting it!")
-		return time.Duration(0)
-	}
-
 	return sw.windowSize
 }
 
