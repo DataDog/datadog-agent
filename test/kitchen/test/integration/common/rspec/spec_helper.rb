@@ -257,8 +257,8 @@ end
 def flavor_service_status(flavor)
   service = get_service_name(flavor)
   if os == :windows
-    status_out = `sc interrogate #{service} 2>&1`
-    status_out.include?('RUNNING')
+    result = `powershell -command "try { (get-service "#{service}" -ErrorAction Stop).Status } catch { write-host "NOTINSTALLED" }"`
+    return result.upcase.trim == "RUNNING"
   else
     if has_systemctl
       system "sudo systemctl status --no-pager #{service}.service"
@@ -272,7 +272,8 @@ end
 
 def is_service_running?(service)
   if os == :windows
-    `sc interrogate #{service} 2>&1`.include?('RUNNING')
+    result = `powershell -command "try { (get-service "#{service}" -ErrorAction Stop).Status } catch { write-host "NOTINSTALLED" }"`
+    return result.upcase.trim == "RUNNING"
   else
     if has_systemctl
       system "sudo systemctl status --no-pager #{service}.service"
@@ -288,14 +289,8 @@ end
 
 def is_windows_service_installed(service)
   raise "is_windows_service_installed is only for windows" unless os == :windows
-  scresult = `sc qc #{service} 2>&1`
-  if scresult.include?('FAILED')
-    return false
-  elsif scresult.include?('SUCCESS')
-    return true
-  end
-  # if we get here, some return we didn't expect happened.
-  raise "Unknown result checking service status #{scresult}"
+  result = `powershell -command "try { (get-service "#{service}" -ErrorAction Stop).Status } catch { write-host "NOTINSTALLED" }"`
+  return result.upcase.trim != "NOTINSTALLED"
 end
   
 def is_flavor_running?(flavor)
