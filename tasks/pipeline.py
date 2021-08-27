@@ -171,12 +171,12 @@ def run(
     gitlab = Gitlab()
     gitlab.test_project_found(project_name)
 
-    release_version_6 = nightly_entry_for(6)
-    release_version_7 = nightly_entry_for(7)
-
     if use_release_entries:
         release_version_6 = release_entry_for(6)
         release_version_7 = release_entry_for(7)
+    else:
+        release_version_6 = nightly_entry_for(6)
+        release_version_7 = nightly_entry_for(7)
 
     major_versions = major_versions.split(',')
     if '6' not in major_versions:
