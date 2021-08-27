@@ -254,10 +254,14 @@ def json_info
   JSON.parse(info_output)
 end
 
+def windows_service_status(service)
+  return (`powershell -command "try { (get-service "#{service}" -ErrorAction Stop).Status } catch { write-host "NOTINSTALLED" }"`).upcase.trim
+end
+
 def flavor_service_status(flavor)
   service = get_service_name(flavor)
   if os == :windows
-    return (`powershell -command "try { (get-service "#{service}" -ErrorAction Stop).Status } catch { write-host "NOTINSTALLED" }"`).upcase.trim
+    return windows_service_status(service)
   else
     if has_systemctl
       system "sudo systemctl status --no-pager #{service}.service"
@@ -271,7 +275,7 @@ end
 
 def is_service_running?(service)
   if os == :windows
-    return flavor_service_status(service) == "RUNNING"
+    return windows_service_status(service) == "RUNNING"
   else
     if has_systemctl
       system "sudo systemctl status --no-pager #{service}.service"
@@ -287,7 +291,7 @@ end
 
 def is_windows_service_installed(service)
   raise "is_windows_service_installed is only for windows" unless os == :windows
-  return flavor_service_status(service) != "NOTINSTALLED"
+  return windows_service_status(service) != "NOTINSTALLED"
 end
   
 def is_flavor_running?(flavor)
