@@ -29,13 +29,21 @@ type DeviceCheck struct {
 }
 
 // NewDeviceCheck returns a new DeviceCheck
-func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string) *DeviceCheck {
+func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string) (*DeviceCheck, error) {
 	// TODO: avoid making copy for single device check ?
 	newConfig := config.Copy()
 	newConfig.IPAddress = ipAddress
-	return &DeviceCheck{
-		Config: newConfig,
+
+	sess := &session.GosnmpSession{}
+	err := sess.Configure(*newConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to configure session: %s", err)
 	}
+
+	return &DeviceCheck{
+		Config:  newConfig,
+		session: sess,
+	}, nil
 }
 
 // SetSender sets the current sender
@@ -79,7 +87,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
 		deviceMetadataTags := append(common.CopyStrings(tags), d.Config.InstanceTags...)
 
-		// TODO: pass ref instead of struct
+		// TODO: pass config ref instead of struct
 		d.sender.ReportNetworkDeviceMetadata(*d.Config, values, deviceMetadataTags, collectionTime, deviceStatus)
 	}
 

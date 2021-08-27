@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/report"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 )
 
 const (
@@ -25,9 +24,7 @@ var timeNow = time.Now
 // Check aggregates metrics from one Check instance
 type Check struct {
 	core.CheckBase
-	config  checkconfig.CheckConfig // TODO: use ref instead of struct ?
-	session session.Session
-	//sender   *report.MetricSender
+	config checkconfig.CheckConfig // TODO: use ref instead of struct ?
 	deviceCk *devicecheck.DeviceCheck
 }
 
@@ -40,7 +37,6 @@ func (c *Check) Run() error {
 	}
 
 	c.deviceCk.SetSender(report.NewMetricSender(sender))
-	c.deviceCk.SetSession(c.session)
 
 	collectionTime := timeNow()
 
@@ -72,12 +68,11 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 	log.Debugf("SNMP configuration: %s", config.ToString())
 
 	c.config = config
-	err = c.session.Configure(c.config)
-	if err != nil {
-		return fmt.Errorf("session configure failed: %s", err)
-	}
 
-	c.deviceCk = devicecheck.NewDeviceCheck(&c.config, c.config.IPAddress)
+	c.deviceCk, err = devicecheck.NewDeviceCheck(&c.config, c.config.IPAddress)
+	if err != nil {
+		return fmt.Errorf("failed to create device check: %s", err)
+	}
 
 	return nil
 }
@@ -89,7 +84,6 @@ func (c *Check) Interval() time.Duration {
 
 func snmpFactory() check.Check {
 	return &Check{
-		session:   &session.GosnmpSession{},
 		CheckBase: core.NewCheckBase(snmpCheckName),
 	}
 }

@@ -33,12 +33,13 @@ import (
 func TestBasicSample(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
-	chk := Check{session: sess}
+	chk := Check{}
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
+community_string: public
 metrics:
 - symbol:
     OID: 1.3.6.1.2.1.2.1
@@ -76,6 +77,7 @@ tags:
 
 	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
+	chk.deviceCk.SetSession(sess)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -194,10 +196,11 @@ tags:
 func TestSupportedMetricTypes(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
-	chk := Check{session: sess}
+	chk := Check{}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
+community_string: public
 metrics:
 - symbol:
     OID: 1.2.3.4.5.0
@@ -212,6 +215,7 @@ metrics:
 
 	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
+	chk.deviceCk.SetSession(sess)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -264,10 +268,11 @@ func TestProfile(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
-	chk := Check{session: sess}
+	chk := Check{}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
+community_string: public
 profile: f5-big-ip
 collect_device_metadata: true
 oid_batch_size: 10
@@ -285,6 +290,7 @@ profiles:
 
 	err := chk.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
+	chk.deviceCk.SetSession(sess)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -554,10 +560,11 @@ profiles:
 func TestProfileWithSysObjectIdDetection(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
-	chk := Check{session: sess}
+	chk := Check{}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
+community_string: public
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
@@ -568,6 +575,7 @@ profiles:
 
 	err := chk.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
+	chk.deviceCk.SetSession(sess)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -706,15 +714,17 @@ func TestServiceCheckFailures(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sess.ConnectErr = fmt.Errorf("can't connect")
-	chk := Check{session: sess}
+	chk := Check{}
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
+community_string: public
 `)
 
 	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
+	chk.deviceCk.SetSession(sess)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -912,15 +922,17 @@ func TestCheck_Run(t *testing.T) {
 			checkconfig.SetConfdPathAndCleanProfiles()
 			sess := session.CreateMockSession()
 			sess.ConnectErr = tt.sessionConnError
-			chk := Check{session: sess}
+			chk := Check{}
 
 			// language=yaml
 			rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
+community_string: public
 `)
 
 			err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 			assert.Nil(t, err)
+			chk.deviceCk.SetSession(sess)
 
 			sender := new(mocksender.MockSender)
 
@@ -966,11 +978,12 @@ func TestCheck_Run_sessionCloseError(t *testing.T) {
 
 	sess := session.CreateMockSession()
 	sess.CloseErr = fmt.Errorf("close error")
-	chk := Check{session: sess}
+	chk := Check{}
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
+community_string: public
 metrics:
 - symbol:
     OID: 1.2.3
@@ -979,6 +992,7 @@ metrics:
 
 	err = chk.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
+	chk.deviceCk.SetSession(sess)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 
@@ -1012,10 +1026,11 @@ func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
-	chk := Check{session: sess}
+	chk := Check{}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
+community_string: public
 collect_device_metadata: true
 oid_batch_size: 10
 tags:
@@ -1027,6 +1042,7 @@ tags:
 
 	err := chk.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
+	chk.deviceCk.SetSession(sess)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1250,10 +1266,11 @@ func TestReportDeviceMetadataWithFetchError(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
-	chk := Check{session: sess}
+	chk := Check{}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.5
+community_string: public
 collect_device_metadata: true
 tags:
   - "mytag:val1"
@@ -1264,6 +1281,7 @@ tags:
 
 	err := chk.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
+	chk.deviceCk.SetSession(sess)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
