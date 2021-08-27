@@ -74,8 +74,6 @@ func (c *Check) Run() error {
 	// Commit
 	sender.Commit()
 	return checkErr
-
-	return nil
 }
 
 func (c *Check) runCheckDeviceWorker(workerID int, wg *sync.WaitGroup, jobs <-chan *devicecheck.DeviceCheck) {
