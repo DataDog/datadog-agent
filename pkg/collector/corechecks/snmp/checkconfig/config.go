@@ -354,6 +354,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 }
 
 // Copy makes a copy of CheckConfig
+// TODO: test me
 func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig := CheckConfig{}
 	newConfig.IPAddress = c.IPAddress
@@ -396,6 +397,15 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.MinCollectionInterval = c.MinCollectionInterval
 
 	return &newConfig
+}
+
+// CopyWithNewIP makes a copy of CheckConfig with new IP
+// TODO: test me
+func (c *CheckConfig) CopyWithNewIP(ipAddress string) *CheckConfig {
+	newConfig := c.Copy()
+	newConfig.IPAddress = ipAddress
+	newConfig.DeviceID, newConfig.DeviceIDTags = buildDeviceID(newConfig.getDeviceIDTags())
+	return newConfig
 }
 
 func getUptimeMetricConfig() MetricsConfig {
