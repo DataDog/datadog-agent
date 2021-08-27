@@ -822,7 +822,7 @@ def _update_release_json(release_json, release_entry, new_version, github_token,
 @task
 def finish(ctx, major_versions="6,7"):
     """
-    Creates a new entry in the release.json file for the new version. Removes all the RC entries.
+    Updates the release entry in the release.json file for the new version.
 
     Updates internal module dependencies with the new version.
     """
@@ -869,12 +869,28 @@ def finish(ctx, major_versions="6,7"):
 @task
 def create_rc(ctx, major_versions="6,7", patch_version=False):
     """
-    Takes whatever version is the highest in release.json and adds a new RC to it.
-    If there was no RC, creates one, and:
-    - by default bumps the minor version.
-    - if --patch-version is specified, bumps the patch version.
+    Updates the release entries in release.json to prepare the next RC build.
+    If the previous version of the Agent (determined as the latest tag on the
+    current branch) is not an RC:
+    - by default, updates the release entries for the next minor version of
+      the Agent.
+    - if --patch-version is specified, updates the release entries for the next
+      patch version of the Agent.
+
+    This changes which tags will be considered on the dependency repositories (only
+    tags that match the same major and minor version as the Agent).
+
+    If the previous version of the Agent was an RC, updates the release entries for RC + 1.
+
+    Examples:
+    If the latest tag on the branch is 7.31.0, and invoke release.create-rc --patch-version
+    is run, then the task will prepare the release entries for 7.31.1-rc.1, and therefore
+    will only use 7.31.X tags on the dependency repositories that follow the Agent version scheme.
     
-    If there was an RC, create RC + 1.
+    If the latest tag on the branch is 7.32.0-devel or 7.31.0, and invoke release.create-rc
+    is run, then the task will prepare the release entries for 7.32.0-rc.1, and therefore
+    will only use 7.32.X tags on the dependency repositories that follow the Agent version scheme.
+
 
     Updates internal module dependencies with the new RC.
     """
