@@ -247,7 +247,7 @@ func TestUtilizationTrackerAccuracy(t *testing.T) {
 	}
 
 	// Assert after many data points that we're really close to 0.3
-	require.InDelta(t, getWorkerUtilizationExpvar(t, "worker"), 0.3, 0.03)
+	require.InDelta(t, getWorkerUtilizationExpvar(t, "worker"), 0.3, 0.05)
 }
 
 func TestUtilizationTrackerLongTaskAccuracy(t *testing.T) {
