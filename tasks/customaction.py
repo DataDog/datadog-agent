@@ -19,7 +19,7 @@ CUSTOM_ACTION_ROOT_DIR = "tools\\windows\\install-help"
 
 
 @task
-def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
+def build(ctx, package_version, vstudio_root=None, arch="x64", major_version='7', debug=False):
     """
     Build the custom action library for the agent
     """
@@ -60,9 +60,14 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
     print("Build Command: %s" % cmd)
 
     ctx.run(cmd)
-    artefacts = ["customaction.dll", "customaction.pdb", "customaction-tests.exe"]
+    artefacts = [
+        { "source": "customaction.dll", "target": "customaction.dll" },
+        { "source": "customaction.pdb", "target": "customaction-{}.pdb".format(package_version) },
+        { "source": "customaction-tests.exe", "target": "customaction-tests.exe"}
+    ]
     for artefact in artefacts:
-        shutil.copy2("{}\\cal\\{}\\{}\\{}".format(CUSTOM_ACTION_ROOT_DIR, arch, configuration, artefact), BIN_PATH)
+        shutil.copy2("{}\\cal\\{}\\{}\\{}".format(CUSTOM_ACTION_ROOT_DIR, arch, configuration, artefact["source"]), BIN_PATH + "\\{}".format(artefact["target"]))
+
 
 
 @task
