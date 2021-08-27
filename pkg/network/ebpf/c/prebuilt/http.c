@@ -11,6 +11,8 @@
 #define EPHEMERAL_RANGE_BEG 32768
 #define EPHEMERAL_RANGE_END 60999
 #define HTTPS_PORT 443
+#define FILEPATH_SIZE 100
+#define SO_SUFFIX_SIZE 3 // .so
 
 static __always_inline int is_ephemeral_port(u16 port) {
     return port >= EPHEMERAL_RANGE_BEG && port <= EPHEMERAL_RANGE_END;
@@ -236,6 +238,37 @@ int uprobe__SSL_shutdown(struct pt_regs* ctx) {
     skb_info.tcp_flags |= TCPHDR_FIN;
     http_process(buffer, &skb_info, skb_info.tup.sport);
     bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
+    return 0;
+}
+
+SEC("kprobe/do_sys_open")
+int kprobe__do_sys_open(struct pt_regs* ctx) {
+    lib_path_t lib_path;
+    __builtin_memset(&lib_path, 0, sizeof(lib_path));
+    lib_path.pid = bpf_get_current_pid_tgid() >> 32;
+
+    char *filename = (char *)PT_REGS_PARM2(ctx);
+    bpf_probe_read(lib_path.buf, sizeof(lib_path.buf), filename);
+
+    int is_shared_library = 0;
+#pragma unroll
+    for (int i = 0; i <= LIB_PATH_MAX_SIZE - SO_SUFFIX_SIZE; i++) {
+        if (lib_path.len) {
+            // cleanup buffer after null character so we don't send garbage to userspace
+            lib_path.buf[i] = 0;
+        } else if (lib_path.buf[i] == 0) {
+            lib_path.len = i;
+        } else if (!is_shared_library && lib_path.buf[i] == '.' && lib_path.buf[i+1] == 's' && lib_path.buf[i+2] == 'o') {
+            is_shared_library = 1;
+        }
+    }
+
+    if (!lib_path.len || !is_shared_library) {
+        return 0;
+    }
+
+    u32 cpu = bpf_get_smp_processor_id();
+    bpf_perf_event_output(ctx, &shared_libraries, cpu, &lib_path, sizeof(lib_path));
     return 0;
 }
 

@@ -9,10 +9,30 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unsafe"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/process/so"
 )
+
+/*
+#include "../ebpf/c/http-types.h"
+*/
+import "C"
+
+const pathMaxSize = int(C.LIB_PATH_MAX_SIZE)
+
+type libPath = C.lib_path_t
+
+func toLibPath(data []byte) C.lib_path_t {
+	return *(*C.lib_path_t)(unsafe.Pointer(&data[0]))
+}
+
+func (l *libPath) Bytes() []byte {
+	b := *(*[pathMaxSize]byte)(unsafe.Pointer(&l.buf))
+	return b[:l.len]
+}
 
 type soRule struct {
 	re           *regexp.Regexp
@@ -26,9 +46,10 @@ type soWatcher struct {
 	all        *regexp.Regexp
 	rules      []soRule
 	registered map[string]func(string) error
+	loadEvents *ddebpf.PerfHandler
 }
 
-func newSOWatcher(procRoot string, rules ...soRule) *soWatcher {
+func newSOWatcher(procRoot string, perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
 	allFilters := make([]string, len(rules))
 	for i, r := range rules {
 		allFilters[i] = r.re.String()
@@ -36,23 +57,50 @@ func newSOWatcher(procRoot string, rules ...soRule) *soWatcher {
 
 	all := regexp.MustCompile(fmt.Sprintf("(%s)", strings.Join(allFilters, "|")))
 	return &soWatcher{
-		procRoot: procRoot,
-		all:      all,
-		rules:    rules,
+		procRoot:   procRoot,
+		all:        all,
+		rules:      rules,
+		loadEvents: perfHandler,
 	}
 }
 
 // Start consuming shared-library events
-// TODO: add streaming option
 func (w *soWatcher) Start() {
 	sharedLibraries := getSharedLibraries(w.procRoot, w.all)
 	w.sync(sharedLibraries)
 	go func() {
 		ticker := time.NewTicker(5 * time.Minute)
 		defer ticker.Stop()
-		for range ticker.C {
-			sharedLibraries := getSharedLibraries(w.procRoot, w.all)
-			w.sync(sharedLibraries)
+
+		for {
+			select {
+			case <-ticker.C:
+				sharedLibraries := getSharedLibraries(w.procRoot, w.all)
+				w.sync(sharedLibraries)
+			case event, ok := <-w.loadEvents.DataChannel:
+				if !ok {
+					return
+				}
+
+				// TODO: the library path here is not host-resolved. We should
+				// should use the PID sent from eBPF, and resolve the path using the
+				// pathResolver from the `so` library.
+				lib := toLibPath(event.Data)
+				path := lib.Bytes()
+				if _, registered := w.registered[string(path)]; registered {
+					break
+				}
+
+				for _, r := range w.rules {
+					if r.re.Match(path) {
+						w.register(string(path), r)
+						break
+					}
+				}
+			case <-w.loadEvents.LostChannel:
+				// Nothing to do in this case
+				break
+			}
 		}
 	}()
 }
@@ -87,7 +135,7 @@ OuterLoop:
 func (w *soWatcher) register(libPath string, r soRule) {
 	err := r.registerCB(libPath)
 	if err != nil {
-		log.Errorf("error activing probes for %s: %s", libPath, err)
+		log.Errorf("error activating probes for %s: %s", libPath, err)
 		return
 	}
 
@@ -110,36 +158,12 @@ func getSharedLibraries(procRoot string, filter *regexp.Regexp) []so.Library {
 	}
 	libraries = libraries[0:i]
 
-	// we merge it with the library locations provided via the SSL_LIB_PATHS env variable
-	if libsFromEnv := fromEnv(); len(libsFromEnv) > 0 {
-		libraries = append(libraries, libsFromEnv...)
-	}
-
 	// prepend everything with the HOST_FS, which designates where the underlying
 	// host file system is mounted. This is intended for internal testing only.
 	if hostFS := os.Getenv("HOST_FS"); hostFS != "" {
 		for i, lib := range libraries {
 			libraries[i].HostPath = filepath.Join(hostFS, lib.HostPath)
 		}
-	}
-
-	return libraries
-}
-
-// this is a temporary hack to inject a library that isn't yet mapped into memory
-// you can specify a libssl path like:
-// SSL_LIB_PATHS=/lib/x86_64-linux-gnu/libssl.so.1.1
-// And add the optional libcrypto path as well:
-// SSL_LIB_PATHS=/lib/x86_64-linux-gnu/libssl.so.1.1,/lib/x86_64-linux-gnu/libcrypto.so.1.1
-func fromEnv() []so.Library {
-	paths := os.Getenv("SSL_LIB_PATHS")
-	if paths == "" {
-		return nil
-	}
-
-	var libraries []so.Library
-	for _, lib := range strings.Split(paths, ",") {
-		libraries = append(libraries, so.Library{HostPath: lib})
 	}
 
 	return libraries

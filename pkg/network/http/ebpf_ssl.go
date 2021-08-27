@@ -5,6 +5,7 @@ package http
 import (
 	"regexp"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf/manager"
@@ -24,12 +25,12 @@ var cryptoProbes = []string{
 	"uretprobe/BIO_new_socket",
 }
 
-func initSSLTracing(m *manager.Manager, c *config.Config) {
+func initSSLTracing(c *config.Config, m *manager.Manager, perfHandler *ddebpf.PerfHandler) {
 	if !c.EnableHTTPSMonitoring {
 		return
 	}
 
-	watcher := newSOWatcher(c.ProcRoot,
+	watcher := newSOWatcher(c.ProcRoot, perfHandler,
 		soRule{
 			re:           regexp.MustCompile(`libssl.so`),
 			registerCB:   addHooks(m, sslProbes),

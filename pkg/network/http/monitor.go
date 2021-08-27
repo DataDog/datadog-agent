@@ -23,12 +23,12 @@ import (
 type Monitor struct {
 	handler func([]httpTX)
 
-	ebpfProgram  *ebpfProgram
-	batchManager *batchManager
-	perfHandler  *ddebpf.PerfHandler
-	telemetry    *telemetry
-	pollRequests chan chan map[Key]RequestStats
-	statkeeper   *httpStatKeeper
+	ebpfProgram            *ebpfProgram
+	batchManager           *batchManager
+	batchCompletionHandler *ddebpf.PerfHandler
+	telemetry              *telemetry
+	pollRequests           chan chan map[Key]RequestStats
+	statkeeper             *httpStatKeeper
 
 	// termination
 	mux           sync.Mutex
@@ -68,7 +68,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, err
 	}
 
-	notificationMap, _, _ := mgr.GetMap(httpNotificationsMap)
+	notificationMap, _, _ := mgr.GetMap(httpNotificationsPerfMap)
 	numCPUs := int(notificationMap.ABI().MaxEntries)
 
 	telemetry := newTelemetry()
@@ -81,14 +81,14 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	}
 
 	return &Monitor{
-		handler:       handler,
-		ebpfProgram:   mgr,
-		batchManager:  newBatchManager(batchMap, batchStateMap, numCPUs),
-		perfHandler:   mgr.perfHandler,
-		telemetry:     telemetry,
-		pollRequests:  make(chan chan map[Key]RequestStats),
-		closeFilterFn: closeFilterFn,
-		statkeeper:    statkeeper,
+		handler:                handler,
+		ebpfProgram:            mgr,
+		batchManager:           newBatchManager(batchMap, batchStateMap, numCPUs),
+		batchCompletionHandler: mgr.batchCompletionHandler,
+		telemetry:              telemetry,
+		pollRequests:           make(chan chan map[Key]RequestStats),
+		closeFilterFn:          closeFilterFn,
+		statkeeper:             statkeeper,
 	}, nil
 }
 
@@ -109,7 +109,7 @@ func (m *Monitor) Start() error {
 		defer report.Stop()
 		for {
 			select {
-			case dataEvent, ok := <-m.perfHandler.DataChannel:
+			case dataEvent, ok := <-m.batchCompletionHandler.DataChannel:
 				if !ok {
 					return
 				}
@@ -118,7 +118,7 @@ func (m *Monitor) Start() error {
 				notification := toHTTPNotification(dataEvent.Data)
 				transactions, err := m.batchManager.GetTransactionsFrom(notification)
 				m.process(transactions, err)
-			case _, ok := <-m.perfHandler.LostChannel:
+			case _, ok := <-m.batchCompletionHandler.LostChannel:
 				if !ok {
 					return
 				}
@@ -179,7 +179,7 @@ func (m *Monitor) Stop() {
 
 	m.ebpfProgram.Close()
 	m.closeFilterFn()
-	m.perfHandler.Stop()
+	m.batchCompletionHandler.Stop()
 	close(m.pollRequests)
 	m.eventLoopWG.Wait()
 	m.stopped = true
