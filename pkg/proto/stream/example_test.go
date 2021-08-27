@@ -165,10 +165,6 @@ func ExampleProtoStream_EmbeddedMessage() {
 	const fieldAPIKey = 10
 	const fieldRequest = 11
 
-	const fieldQuery int = 1
-	const fieldPageNumber int = 2
-	const fieldResultPerPage int = 3
-
 	err = ps.String(fieldAPIKey, "abc-123")
 	if err != nil {
 		panic(err)

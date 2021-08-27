@@ -53,7 +53,10 @@ func (ps *ProtoStream) Double(fieldNumber int, value float64) error {
 	}
 	ps.scratch.Reset()
 	ps.encodeKeyToScratch(fieldNumber, wt64Bit)
-	ps.scratch.EncodeFixed64(math.Float64bits(value))
+	err := ps.scratch.EncodeFixed64(math.Float64bits(value))
+	if err != nil {
+		return err
+	}
 	return ps.writeScratch()
 }
 
@@ -66,7 +69,10 @@ func (ps *ProtoStream) DoublePacked(fieldNumber int, values []float64) error {
 	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
 		ps.scratch.Reset()
 		for _, value := range values {
-			ps.scratch.EncodeFixed64(math.Float64bits(value))
+			err := ps.scratch.EncodeFixed64(math.Float64bits(value))
+			if err != nil {
+				return err
+			}
 		}
 		return ps.writeScratch()
 	})
@@ -79,7 +85,10 @@ func (ps *ProtoStream) Float(fieldNumber int, value float32) error {
 	}
 	ps.scratch.Reset()
 	ps.encodeKeyToScratch(fieldNumber, wt32Bit)
-	ps.scratch.EncodeFixed32(uint64(math.Float32bits(value)))
+	err := ps.scratch.EncodeFixed32(uint64(math.Float32bits(value)))
+	if err != nil {
+		return err
+	}
 	return ps.writeScratch()
 }
 
@@ -92,7 +101,10 @@ func (ps *ProtoStream) FloatPacked(fieldNumber int, values []float32) error {
 	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
 		ps.scratch.Reset()
 		for _, value := range values {
-			ps.scratch.EncodeFixed32(uint64(math.Float32bits(value)))
+			err := ps.scratch.EncodeFixed32(uint64(math.Float32bits(value)))
+			if err != nil {
+				return err
+			}
 		}
 		return ps.writeScratch()
 	})
@@ -105,7 +117,10 @@ func (ps *ProtoStream) Int32(fieldNumber int, value int32) error {
 	}
 	ps.scratch.Reset()
 	ps.encodeKeyToScratch(fieldNumber, wtVarint)
-	ps.scratch.EncodeVarint(uint64(value))
+	err := ps.scratch.EncodeVarint(uint64(value))
+	if err != nil {
+		return err
+	}
 	return ps.writeScratch()
 }
 
@@ -118,7 +133,10 @@ func (ps *ProtoStream) Int32Packed(fieldNumber int, values []int32) error {
 	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
 		ps.scratch.Reset()
 		for _, value := range values {
-			ps.scratch.EncodeVarint(uint64(value))
+			err := ps.scratch.EncodeVarint(uint64(value))
+			if err != nil {
+				return err
+			}
 		}
 		return ps.writeScratch()
 	})
@@ -131,7 +149,10 @@ func (ps *ProtoStream) Int64(fieldNumber int, value int64) error {
 	}
 	ps.scratch.Reset()
 	ps.encodeKeyToScratch(fieldNumber, wtVarint)
-	ps.scratch.EncodeVarint(uint64(value))
+	err := ps.scratch.EncodeVarint(uint64(value))
+	if err != nil {
+		return err
+	}
 	return ps.writeScratch()
 }
 
@@ -144,7 +165,10 @@ func (ps *ProtoStream) Int64Packed(fieldNumber int, values []int64) error {
 	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
 		ps.scratch.Reset()
 		for _, value := range values {
-			ps.scratch.EncodeVarint(uint64(value))
+			err := ps.scratch.EncodeVarint(uint64(value))
+			if err != nil {
+				return err
+			}
 		}
 		return ps.writeScratch()
 	})
@@ -157,7 +181,10 @@ func (ps *ProtoStream) Uint32(fieldNumber int, value uint32) error {
 	}
 	ps.scratch.Reset()
 	ps.encodeKeyToScratch(fieldNumber, wtVarint)
-	ps.scratch.EncodeVarint(uint64(value))
+	err := ps.scratch.EncodeVarint(uint64(value))
+	if err != nil {
+		return err
+	}
 	return ps.writeScratch()
 }
 
@@ -170,7 +197,10 @@ func (ps *ProtoStream) Uint32Packed(fieldNumber int, values []uint32) error {
 	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
 		ps.scratch.Reset()
 		for _, value := range values {
-			ps.scratch.EncodeVarint(uint64(value))
+			err := ps.scratch.EncodeVarint(uint64(value))
+			if err != nil {
+				return err
+			}
 		}
 		return ps.writeScratch()
 	})
@@ -183,7 +213,10 @@ func (ps *ProtoStream) Uint64(fieldNumber int, value uint64) error {
 	}
 	ps.scratch.Reset()
 	ps.encodeKeyToScratch(fieldNumber, wtVarint)
-	ps.scratch.EncodeVarint(uint64(value))
+	err := ps.scratch.EncodeVarint(value)
+	if err != nil {
+		return err
+	}
 	return ps.writeScratch()
 }
 
@@ -196,7 +229,10 @@ func (ps *ProtoStream) Uint64Packed(fieldNumber int, values []uint64) error {
 	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
 		ps.scratch.Reset()
 		for _, value := range values {
-			ps.scratch.EncodeVarint(uint64(value))
+			err := ps.scratch.EncodeVarint(value)
+			if err != nil {
+				return err
+			}
 		}
 		return ps.writeScratch()
 	})
@@ -209,7 +245,10 @@ func (ps *ProtoStream) Sint32(fieldNumber int, value int32) error {
 	}
 	ps.scratch.Reset()
 	ps.encodeKeyToScratch(fieldNumber, wtVarint)
-	ps.scratch.EncodeZigzag32(uint64(value))
+	err := ps.scratch.EncodeZigzag32(uint64(value))
+	if err != nil {
+		return err
+	}
 	return ps.writeScratch()
 }
 
@@ -222,7 +261,10 @@ func (ps *ProtoStream) Sint32Packed(fieldNumber int, values []int32) error {
 	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
 		ps.scratch.Reset()
 		for _, value := range values {
-			ps.scratch.EncodeZigzag32(uint64(value))
+			err := ps.scratch.EncodeZigzag32(uint64(value))
+			if err != nil {
+				return err
+			}
 		}
 		return ps.writeScratch()
 	})
@@ -235,7 +277,10 @@ func (ps *ProtoStream) Sint64(fieldNumber int, value int64) error {
 	}
 	ps.scratch.Reset()
 	ps.encodeKeyToScratch(fieldNumber, wtVarint)
-	ps.scratch.EncodeZigzag64(uint64(value))
+	err := ps.scratch.EncodeZigzag64(uint64(value))
+	if err != nil {
+		return err
+	}
 	return ps.writeScratch()
 }
 
@@ -248,7 +293,10 @@ func (ps *ProtoStream) Sint64Packed(fieldNumber int, values []int64) error {
 	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
 		ps.scratch.Reset()
 		for _, value := range values {
-			ps.scratch.EncodeZigzag64(uint64(value))
+			err := ps.scratch.EncodeZigzag64(uint64(value))
+			if err != nil {
+				return err
+			}
 		}
 		return ps.writeScratch()
 	})
@@ -261,7 +309,10 @@ func (ps *ProtoStream) Fixed32(fieldNumber int, value uint32) error {
 	}
 	ps.scratch.Reset()
 	ps.encodeKeyToScratch(fieldNumber, wt32Bit)
-	ps.scratch.EncodeFixed32(uint64(value))
+	err := ps.scratch.EncodeFixed32(uint64(value))
+	if err != nil {
+		return err
+	}
 	return ps.writeScratch()
 }
 
@@ -274,7 +325,10 @@ func (ps *ProtoStream) Fixed32Packed(fieldNumber int, values []uint32) error {
 	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
 		ps.scratch.Reset()
 		for _, value := range values {
-			ps.scratch.EncodeFixed32(uint64(value))
+			err := ps.scratch.EncodeFixed32(uint64(value))
+			if err != nil {
+				return err
+			}
 		}
 		return ps.writeScratch()
 	})
@@ -287,7 +341,10 @@ func (ps *ProtoStream) Fixed64(fieldNumber int, value uint64) error {
 	}
 	ps.scratch.Reset()
 	ps.encodeKeyToScratch(fieldNumber, wt64Bit)
-	ps.scratch.EncodeFixed64(value)
+	err := ps.scratch.EncodeFixed64(value)
+	if err != nil {
+		return err
+	}
 	return ps.writeScratch()
 }
 
@@ -300,7 +357,10 @@ func (ps *ProtoStream) Fixed64Packed(fieldNumber int, values []uint64) error {
 	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
 		ps.scratch.Reset()
 		for _, value := range values {
-			ps.scratch.EncodeFixed64(value)
+			err := ps.scratch.EncodeFixed64(value)
+			if err != nil {
+				return err
+			}
 		}
 		return ps.writeScratch()
 	})
@@ -313,7 +373,10 @@ func (ps *ProtoStream) Sfixed32(fieldNumber int, value int32) error {
 	}
 	ps.scratch.Reset()
 	ps.encodeKeyToScratch(fieldNumber, wt32Bit)
-	ps.scratch.EncodeFixed32(uint64(value))
+	err := ps.scratch.EncodeFixed32(uint64(value))
+	if err != nil {
+		return err
+	}
 	return ps.writeScratch()
 }
 
@@ -326,7 +389,10 @@ func (ps *ProtoStream) Sfixed32Packed(fieldNumber int, values []int32) error {
 	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
 		ps.scratch.Reset()
 		for _, value := range values {
-			ps.scratch.EncodeFixed32(uint64(value))
+			err := ps.scratch.EncodeFixed32(uint64(value))
+			if err != nil {
+				return err
+			}
 		}
 		return ps.writeScratch()
 	})
@@ -339,7 +405,10 @@ func (ps *ProtoStream) Sfixed64(fieldNumber int, value int64) error {
 	}
 	ps.scratch.Reset()
 	ps.encodeKeyToScratch(fieldNumber, wt64Bit)
-	ps.scratch.EncodeFixed64(uint64(value))
+	err := ps.scratch.EncodeFixed64(uint64(value))
+	if err != nil {
+		return err
+	}
 	return ps.writeScratch()
 }
 
@@ -352,7 +421,10 @@ func (ps *ProtoStream) Sfixed64Packed(fieldNumber int, values []int64) error {
 	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
 		ps.scratch.Reset()
 		for _, value := range values {
-			ps.scratch.EncodeFixed64(uint64(value))
+			err := ps.scratch.EncodeFixed64(uint64(value))
+			if err != nil {
+				return err
+			}
 		}
 		return ps.writeScratch()
 	})
@@ -369,7 +441,10 @@ func (ps *ProtoStream) Bool(fieldNumber int, value bool) error {
 	if value {
 		bit = 1
 	}
-	ps.scratch.EncodeVarint(bit)
+	err := ps.scratch.EncodeVarint(bit)
+	if err != nil {
+		return err
+	}
 	return ps.writeScratch()
 }
 
@@ -391,8 +466,11 @@ func (ps *ProtoStream) Bytes(fieldNumber int, value []byte) error {
 	}
 	ps.scratch.Reset()
 	ps.encodeKeyToScratch(fieldNumber, wtLengthDelimited)
-	ps.scratch.EncodeVarint(uint64(len(value)))
-	err := ps.writeScratch()
+	err := ps.scratch.EncodeVarint(uint64(len(value)))
+	if err != nil {
+		return err
+	}
+	err = ps.writeScratch()
 	if err != nil {
 		return err
 	}
@@ -420,7 +498,10 @@ func (ps *ProtoStream) Embedded(fieldNumber int, inner func(*ProtoStream) error)
 
 	ps.scratch.Reset()
 	ps.encodeKeyToScratch(fieldNumber, wtLengthDelimited)
-	ps.scratch.EncodeVarint(uint64(ps.childBuffer.Len()))
+	err = ps.scratch.EncodeVarint(uint64(ps.childBuffer.Len()))
+	if err != nil {
+		return err
+	}
 
 	// write the key and length prefix
 	err = ps.writeScratch()
@@ -436,7 +517,10 @@ func (ps *ProtoStream) Embedded(fieldNumber int, inner func(*ProtoStream) error)
 func (ps *ProtoStream) EmbeddedMessage(fieldNumber int, m proto.Message) error {
 	ps.scratch.Reset()
 	ps.encodeKeyToScratch(fieldNumber, wtLengthDelimited)
-	ps.scratch.EncodeMessage(m)
+	err := ps.scratch.EncodeMessage(m)
+	if err != nil {
+		return err
+	}
 	return ps.writeScratch()
 }
 
@@ -459,5 +543,6 @@ func (ps *ProtoStream) writeAll(buf []byte) error {
 
 // encodeKeyToScratch encodes a protobuf key into ps.scratch
 func (ps *ProtoStream) encodeKeyToScratch(fieldNumber int, wireType int) {
-	ps.scratch.EncodeVarint(uint64(fieldNumber)<<3 + uint64(wireType))
+	// field/wireType are always a valid varint
+	_ = ps.scratch.EncodeVarint(uint64(fieldNumber)<<3 + uint64(wireType))
 }
