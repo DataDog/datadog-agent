@@ -79,7 +79,7 @@ func (c *testCheck) Run() error {
 // workers. The function is exported since other tests in this directory use
 // it as well.
 func AssertAsyncWorkerCount(t *testing.T, count int) {
-	for idx := 0; idx < 75; idx++ {
+	for idx := 0; idx < 100; idx++ {
 		workers := expvars.GetWorkerCount()
 		if workers == count {
 			// This may seem superfluous but we want to ensure that at least one
@@ -273,8 +273,8 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 		checksTracker,
 		mockShouldAddStatsFunc,
 		func() (aggregator.Sender, error) { return nil, nil },
+		1000*time.Millisecond,
 		100*time.Millisecond,
-		10*time.Millisecond,
 	)
 	require.Nil(t, err)
 
@@ -294,24 +294,26 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 
 	// No tasks should equal no utilization
 
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 	require.InDelta(t, getWorkerUtilizationExpvar(t, "worker_2"), 0, 0)
 
 	// High util checks should be reflected in expvars
 
 	pendingChecksChan <- blockingCheck
-	defer blockingCheck.Unlock()
 
-	time.Sleep(200 * time.Millisecond)
-	require.InDelta(t, getWorkerUtilizationExpvar(t, "worker_2"), 1, 0.05)
+	time.Sleep(2000 * time.Millisecond)
+	assert.InDelta(t, getWorkerUtilizationExpvar(t, "worker_2"), 1, 0.05)
+
+	blockingCheck.Unlock()
 
 	// Long running checks should also be counted as high utilization
 
 	pendingChecksChan <- longRunningCheck
-	defer longRunningCheck.Unlock()
 
-	time.Sleep(50 * time.Millisecond)
-	require.InDelta(t, getWorkerUtilizationExpvar(t, "worker_2"), 1, 0.05)
+	time.Sleep(2000 * time.Millisecond)
+	assert.InDelta(t, getWorkerUtilizationExpvar(t, "worker_2"), 1, 0.05)
+
+	longRunningCheck.Unlock()
 }
 
 func TestWorkerErrorAndWarningHandling(t *testing.T) {

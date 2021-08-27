@@ -182,30 +182,30 @@ func TestUtilizationTrackerCheckLifecycle(t *testing.T) {
 
 		time.Sleep(windowSize / 2)
 		AssertAsyncWorkerCount(t, 1)
-		require.True(t, getWorkerUtilizationExpvar(t, "worker") > 0.1)
-		require.True(t, getWorkerUtilizationExpvar(t, "worker") < 0.9)
+		assert.True(t, getWorkerUtilizationExpvar(t, "worker") > 0.1)
+		assert.True(t, getWorkerUtilizationExpvar(t, "worker") < 0.9)
 
 		time.Sleep(windowSize)
 		AssertAsyncWorkerCount(t, 1)
-		require.InDelta(t, getWorkerUtilizationExpvar(t, "worker"), 1, 0.05)
+		assert.InDelta(t, getWorkerUtilizationExpvar(t, "worker"), 1, 0.05)
 
 		// Ramp down utilization
 		ut.CheckFinished()
 
 		time.Sleep(windowSize / 2)
 		AssertAsyncWorkerCount(t, 1)
-		require.True(t, getWorkerUtilizationExpvar(t, "worker") > 0.1)
-		require.True(t, getWorkerUtilizationExpvar(t, "worker") < 0.9)
+		assert.True(t, getWorkerUtilizationExpvar(t, "worker") > 0.1)
+		assert.True(t, getWorkerUtilizationExpvar(t, "worker") < 0.9)
 
 		time.Sleep(windowSize)
 		AssertAsyncWorkerCount(t, 1)
-		require.InDelta(t, getWorkerUtilizationExpvar(t, "worker"), 0, 0.05)
+		assert.InDelta(t, getWorkerUtilizationExpvar(t, "worker"), 0, 0.05)
 	}
 }
 
 func TestUtilizationTrackerAccuracy(t *testing.T) {
 	windowSize := 3000 * time.Millisecond
-	pollingInterval := 20 * time.Millisecond
+	pollingInterval := 50 * time.Millisecond
 
 	ut, err := NewUtilizationTracker("worker", windowSize, pollingInterval)
 	require.Nil(t, err)
@@ -243,11 +243,11 @@ func TestUtilizationTrackerAccuracy(t *testing.T) {
 		delta := 0.5 - (0.40 * float64(checkIdx) / 10.0)
 
 		time.Sleep(windowSize / 5)
-		require.InDelta(t, getWorkerUtilizationExpvar(t, "worker"), 0.3, delta)
+		assert.InDelta(t, getWorkerUtilizationExpvar(t, "worker"), 0.3, delta)
 	}
 
 	// Assert after many data points that we're really close to 0.3
-	require.InDelta(t, getWorkerUtilizationExpvar(t, "worker"), 0.3, 0.05)
+	assert.InDelta(t, getWorkerUtilizationExpvar(t, "worker"), 0.3, 0.07)
 }
 
 func TestUtilizationTrackerLongTaskAccuracy(t *testing.T) {

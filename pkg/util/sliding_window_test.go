@@ -64,7 +64,7 @@ func TestSlidingWindow(t *testing.T) {
 	time.Sleep(2250 * time.Millisecond)
 	utilPct := sw.Average()
 
-	assert.InDelta(t, utilPct, 0.5, DefaultDelta)
+	assert.InDelta(t, utilPct, 0.5, 0.05)
 }
 
 func TestSlidingWindowAccuracy(t *testing.T) {
@@ -149,22 +149,25 @@ func TestSlidingWindowFuncInvocationCounts(t *testing.T) {
 	atomic.StoreInt64(&statsUpdateFuncInvocationCount, 0)
 	atomic.StoreInt64(&pollingFuncInvocationCount, 0)
 
-	sw, err := NewSlidingWindow(900*time.Millisecond, 100*time.Millisecond)
+	windowSize := 2000 * time.Millisecond
+	pollingInterval := 100 * time.Millisecond
+
+	sw, err := NewSlidingWindow(windowSize, pollingInterval)
 	require.Nil(t, err)
 
 	err = sw.Start(dummyFractionalPollingFunc, dummyStatsUpdateFunc)
 	require.Nil(t, err)
 	defer sw.Stop()
 
-	assert.Equal(t, 900*time.Millisecond, sw.WindowSize())
+	assert.Equal(t, windowSize, sw.WindowSize())
 
-	time.Sleep(900 * time.Millisecond)
-	assert.InDelta(t, atomic.LoadInt64(&pollingFuncInvocationCount), 9, 1)
-	assert.InDelta(t, atomic.LoadInt64(&statsUpdateFuncInvocationCount), 9, 1)
+	time.Sleep(windowSize)
+	assert.InDelta(t, atomic.LoadInt64(&pollingFuncInvocationCount), 19, 3)
+	assert.InDelta(t, atomic.LoadInt64(&statsUpdateFuncInvocationCount), 19, 3)
 
 	time.Sleep(200 * time.Millisecond)
-	assert.InDelta(t, atomic.LoadInt64(&pollingFuncInvocationCount), 11, 1)
-	assert.InDelta(t, atomic.LoadInt64(&statsUpdateFuncInvocationCount), 11, 1)
+	assert.InDelta(t, atomic.LoadInt64(&pollingFuncInvocationCount), 21, 3)
+	assert.InDelta(t, atomic.LoadInt64(&statsUpdateFuncInvocationCount), 21, 3)
 }
 
 func TestNewSlidingWindowStop(t *testing.T) {
