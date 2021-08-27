@@ -133,8 +133,12 @@ func (sw *slidingWindow) newTicker() {
 
 				sw.stateChangeLock.RLock()
 
-				value := sw.pollingFunc()
+				if sw.stopped {
+					sw.stateChangeLock.RUnlock()
+					return
+				}
 
+				value := sw.pollingFunc()
 				sw.stateChangeLock.RUnlock()
 
 				// Store the data and update any needed variables
@@ -154,7 +158,7 @@ func (sw *slidingWindow) newTicker() {
 
 				sw.stateChangeLock.RLock()
 
-				if sw.statsUpdateFunc != nil {
+				if sw.statsUpdateFunc != nil && !sw.stopped {
 					sw.statsUpdateFunc(sw)
 				}
 
