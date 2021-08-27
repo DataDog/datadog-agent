@@ -449,14 +449,19 @@ func (ps *ProtoStream) Bool(fieldNumber int, value bool) error {
 }
 
 // String writes a string to the stream.
-//
-// NOTE: the string must be copied to convert it to []byte, so where possible
-// prefer the Bytes method.
 func (ps *ProtoStream) String(fieldNumber int, value string) error {
-	if value == "" {
+	if len(value) == 0 {
 		return nil
 	}
-	return ps.Bytes(fieldNumber, []byte(value))
+	ps.scratch.Reset()
+	ps.encodeKeyToScratch(fieldNumber, wtLengthDelimited)
+	ps.scratch.EncodeVarint(uint64(len(value)))
+	err := ps.writeScratch()
+	if err != nil {
+		return err
+	}
+
+	return ps.writeAllString(value)
 }
 
 // Bytes writes the given bytes to the stream.
@@ -537,6 +542,19 @@ func (ps *ProtoStream) writeAll(buf []byte) error {
 			return err
 		}
 		buf = buf[n:]
+	}
+	return nil
+}
+
+// writeAllString writes an entire string to output, using io.WriteString
+// to avoid allocation
+func (ps *ProtoStream) writeAllString(value string) error {
+	for len(value) > 0 {
+		n, err := io.WriteString(ps.output, value)
+		if err != nil {
+			return err
+		}
+		value = value[n:]
 	}
 	return nil
 }
