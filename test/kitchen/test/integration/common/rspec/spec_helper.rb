@@ -65,6 +65,25 @@ def os
   )
 end
 
+def safe_program_files
+  # HACK: on non-English Windows, Chef wrongly installs its 32-bit version on 64-bit hosts because
+  # of this issue: https://github.com/chef/mixlib-install/issues/343
+  # Because of this, the ENV['ProgramFiles'] content is wrong (it's `C:/Program Files (x86)`)
+  # while the Agent is installed in `C:/Program Files`
+  # To prevent this issue, we check the system arch and the ProgramFiles folder, and we fix it
+  # if needed.
+
+  # Env variables are frozen strings, they need to be duplicated to modify them
+  program_files = ENV['ProgramFiles'].dup
+  arch = `Powershell -command "(Get-WmiObject Win32_OperatingSystem).OsArchitecture"`
+  if arch.include? "64" and program_files.include? "(x86)"
+    program_files.slice!("(x86)")
+    program_files.strip!
+  end
+
+  program_files
+end
+
 
 def agent_command
   if os == :windows
@@ -464,19 +483,7 @@ shared_examples_for "an installed Agent" do
       is_signed = is_file_signed(msi_path)
       expect(is_signed).to be_truthy
 
-      # HACK: on non-English Windows, Chef wrongly installs its 32-bit version on 64-bit hosts because
-      # of this issue: https://github.com/chef/mixlib-install/issues/343
-      # Because of this, the ENV['ProgramFiles'] content is wrong (it's `C:/Program Files (x86)`)
-      # while the Agent is installed in `C:/Program Files`
-      # To prevent this issue, we check the system arch and the ProgramFiles folder, and we fix it
-      # if needed.
-      program_files = ENV['ProgramFiles'].dup
-      arch = `Powershell -command "(Get-WmiObject Win32_OperatingSystem).OsArchitecture"`
-      if arch.include? "64" and program_files.include? "(x86)"
-        program_files.slice!("(x86)")
-        program_files.strip!
-      end
-
+      program_files = safe_program_files
       verify_signature_files = [
         "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\process-agent.exe",
         "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\trace-agent.exe",
