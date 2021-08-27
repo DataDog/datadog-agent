@@ -287,7 +287,7 @@ end
 
 def is_windows_service_installed(service)
   raise "is_windows_service_installed is only for windows" unless os == :windows
-  return flavor_service_status(service) == "NOTINSTALLED"
+  return flavor_service_status(service) != "NOTINSTALLED"
 end
   
 def is_flavor_running?(flavor)
