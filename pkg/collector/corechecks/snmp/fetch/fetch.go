@@ -9,7 +9,7 @@ import (
 )
 
 // Fetch oid values from device
-func Fetch(sess session.Session, config checkconfig.CheckConfig) (*valuestore.ResultValueStore, error) {
+func Fetch(sess session.Session, config *checkconfig.CheckConfig) (*valuestore.ResultValueStore, error) {
 	// fetch scalar values
 	scalarResults, err := fetchScalarOidsWithBatching(sess, config.OidConfig.ScalarOids, config.OidBatchSize)
 	if err != nil {

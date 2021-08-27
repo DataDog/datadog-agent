@@ -2,6 +2,7 @@ package checkconfig
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -349,6 +350,52 @@ func BuildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 
 	c.addUptimeMetric()
 	return c, nil
+}
+
+// Copy makes a copy of CheckConfig
+func (c *CheckConfig) Copy() *CheckConfig {
+	// TODO: use a separate config for things that do not change e.g. profiles
+	// TODO: convert to deviceConfig instead
+	newConfig := CheckConfig{}
+	newConfig.IPAddress = c.IPAddress
+	newConfig.Port = c.Port
+	newConfig.CommunityString = c.CommunityString
+	newConfig.SnmpVersion = c.SnmpVersion
+	newConfig.Timeout = c.Timeout
+	newConfig.Retries = c.Retries
+	newConfig.User = c.User
+	newConfig.AuthProtocol = c.AuthProtocol
+	newConfig.AuthKey = c.AuthKey
+	newConfig.PrivProtocol = c.PrivProtocol
+	newConfig.PrivKey = c.PrivKey
+	newConfig.ContextName = c.ContextName
+	newConfig.ContextName = c.ContextName
+	newConfig.OidConfig = c.OidConfig
+	newConfig.Metrics = make([]MetricsConfig, len(c.Metrics))
+	for _, metric := range c.Metrics {
+		newConfig.Metrics = append(newConfig.Metrics, metric)
+	}
+	newConfig.MetricTags = make([]MetricTagConfig, len(c.MetricTags))
+	for _, metricTag := range c.MetricTags {
+		newConfig.MetricTags = append(newConfig.MetricTags, metricTag)
+	}
+	newConfig.OidBatchSize = c.OidBatchSize
+	newConfig.BulkMaxRepetitions = c.BulkMaxRepetitions
+	newConfig.Profiles = c.Profiles
+	newConfig.ProfileTags = common.CopyStrings(c.ProfileTags)
+	newConfig.Profile = c.Profile       // TODO: does not change
+	newConfig.ProfileDef = c.ProfileDef // copy by ref, content is never changed
+	newConfig.ExtraTags = common.CopyStrings(c.ExtraTags)
+	newConfig.InstanceTags = common.CopyStrings(c.InstanceTags)
+	newConfig.CollectDeviceMetadata = c.CollectDeviceMetadata
+	newConfig.DeviceID = c.DeviceID
+
+	newConfig.DeviceIDTags = common.CopyStrings(c.DeviceIDTags)
+	newConfig.Subnet = c.Subnet
+	newConfig.AutodetectProfile = c.AutodetectProfile
+	newConfig.MinCollectionInterval = c.MinCollectionInterval
+
+	return &newConfig
 }
 
 func getUptimeMetricConfig() MetricsConfig {

@@ -690,16 +690,16 @@ profiles:
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(132), "", row2Tags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(30), "", snmpTags)
 
-	assert.Equal(t, false, chk.config.AutodetectProfile)
+	assert.Equal(t, false, chk.deviceCk.Config.AutodetectProfile)
 
 	// Make sure we don't auto detect and add metrics twice if we already did that previously
-	firstRunMetrics := chk.config.Metrics
-	firstRunMetricsTags := chk.config.MetricTags
+	firstRunMetrics := chk.deviceCk.Config.Metrics
+	firstRunMetricsTags := chk.deviceCk.Config.MetricTags
 	err = chk.Run()
 	assert.Nil(t, err)
 
-	assert.Len(t, chk.config.Metrics, len(firstRunMetrics))
-	assert.Len(t, chk.config.MetricTags, len(firstRunMetricsTags))
+	assert.Len(t, chk.deviceCk.Config.Metrics, len(firstRunMetrics))
+	assert.Len(t, chk.deviceCk.Config.MetricTags, len(firstRunMetricsTags))
 }
 
 func TestServiceCheckFailures(t *testing.T) {
