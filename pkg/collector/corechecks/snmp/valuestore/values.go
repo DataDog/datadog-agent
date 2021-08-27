@@ -20,7 +20,7 @@ type ScalarResultValuesType map[string]ResultValue
 
 // ResultValueStore store OID values
 type ResultValueStore struct {
-	// TODO: make fields private
+	// TODO: make fields private + use a constructor instead
 	ScalarValues ScalarResultValuesType
 	ColumnValues ColumnResultValuesType
 }
