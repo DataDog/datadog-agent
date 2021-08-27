@@ -90,9 +90,14 @@ func (c *core) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 
 func (c *core) Sync() error { return nil }
 
+// NewZapCore creates a new zap core that wraps the default agent log instance.
+func NewZapCore() zapcore.Core {
+	return &core{baseEncoder: &encoder{}}
+}
+
 // NewZapLogger creates a new zap Logger that wraps the default agent log instance.
 func NewZapLogger(options ...zap.Option) *zap.Logger {
 	// caller MUST be added for the core to work properly
 	options = append(options, zap.AddCaller())
-	return zap.New(&core{baseEncoder: &encoder{}}, options...)
+	return zap.New(NewZapCore(), options...)
 }
