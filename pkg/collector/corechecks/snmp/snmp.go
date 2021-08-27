@@ -25,7 +25,7 @@ var timeNow = time.Now
 type Check struct {
 	core.CheckBase
 	config checkconfig.CheckConfig // TODO: use ref instead of struct ?
-	deviceCk *devicecheck.DeviceCheck
+	singleDeviceCk *devicecheck.DeviceCheck
 }
 
 // Run executes the check
@@ -36,11 +36,11 @@ func (c *Check) Run() error {
 		return err
 	}
 
-	c.deviceCk.SetSender(report.NewMetricSender(sender))
+	c.singleDeviceCk.SetSender(report.NewMetricSender(sender))
 
 	collectionTime := timeNow()
 
-	err = c.deviceCk.Run(collectionTime)
+	err = c.singleDeviceCk.Run(collectionTime)
 	if err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 
 	c.config = config
 
-	c.deviceCk, err = devicecheck.NewDeviceCheck(&c.config, c.config.IPAddress)
+	c.singleDeviceCk, err = devicecheck.NewDeviceCheck(&c.config, c.config.IPAddress)
 	if err != nil {
 		return fmt.Errorf("failed to create device check: %s", err)
 	}

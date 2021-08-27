@@ -77,7 +77,7 @@ tags:
 
 	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
-	chk.deviceCk.SetSession(sess)
+	chk.singleDeviceCk.SetSession(sess)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -215,7 +215,7 @@ metrics:
 
 	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
-	chk.deviceCk.SetSession(sess)
+	chk.singleDeviceCk.SetSession(sess)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -290,7 +290,7 @@ profiles:
 
 	err := chk.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
-	chk.deviceCk.SetSession(sess)
+	chk.singleDeviceCk.SetSession(sess)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -575,7 +575,7 @@ profiles:
 
 	err := chk.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
-	chk.deviceCk.SetSession(sess)
+	chk.singleDeviceCk.SetSession(sess)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -698,16 +698,16 @@ profiles:
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(132), "", row2Tags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(30), "", snmpTags)
 
-	assert.Equal(t, false, chk.deviceCk.Config.AutodetectProfile)
+	assert.Equal(t, false, chk.singleDeviceCk.Config.AutodetectProfile)
 
 	// Make sure we don't auto detect and add metrics twice if we already did that previously
-	firstRunMetrics := chk.deviceCk.Config.Metrics
-	firstRunMetricsTags := chk.deviceCk.Config.MetricTags
+	firstRunMetrics := chk.singleDeviceCk.Config.Metrics
+	firstRunMetricsTags := chk.singleDeviceCk.Config.MetricTags
 	err = chk.Run()
 	assert.Nil(t, err)
 
-	assert.Len(t, chk.deviceCk.Config.Metrics, len(firstRunMetrics))
-	assert.Len(t, chk.deviceCk.Config.MetricTags, len(firstRunMetricsTags))
+	assert.Len(t, chk.singleDeviceCk.Config.Metrics, len(firstRunMetrics))
+	assert.Len(t, chk.singleDeviceCk.Config.MetricTags, len(firstRunMetricsTags))
 }
 
 func TestServiceCheckFailures(t *testing.T) {
@@ -724,7 +724,7 @@ community_string: public
 
 	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
-	chk.deviceCk.SetSession(sess)
+	chk.singleDeviceCk.SetSession(sess)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -932,7 +932,7 @@ community_string: public
 
 			err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 			assert.Nil(t, err)
-			chk.deviceCk.SetSession(sess)
+			chk.singleDeviceCk.SetSession(sess)
 
 			sender := new(mocksender.MockSender)
 
@@ -992,7 +992,7 @@ metrics:
 
 	err = chk.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
-	chk.deviceCk.SetSession(sess)
+	chk.singleDeviceCk.SetSession(sess)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 
@@ -1042,7 +1042,7 @@ tags:
 
 	err := chk.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
-	chk.deviceCk.SetSession(sess)
+	chk.singleDeviceCk.SetSession(sess)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1281,7 +1281,7 @@ tags:
 
 	err := chk.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
-	chk.deviceCk.SetSession(sess)
+	chk.singleDeviceCk.SetSession(sess)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
