@@ -123,6 +123,39 @@ def workflow_rules(gitlab_file=".gitlab-ci.yml"):
 
 
 @task
+def trigger(
+    _, git_ref=DEFAULT_BRANCH, release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"
+):
+    """
+    OBSOLETE: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
+    """
+
+    use_release_entries = ""
+    major_versions = []
+
+    if release_version_6 != "nightly" and release_version_7 != "nightly-a7":
+        use_release_entries = "--use-release-entries "
+
+    if release_version_6 != "":
+        major_versions.append("6")
+
+    if release_version_7 != "":
+        major_versions.append("7")
+
+    raise Exit(
+        """The pipeline.trigger task is obsolete. Use:
+    pipeline.run --git-ref {git_ref} --deploy --major-versions "{major_versions}" --repo-branch {repo_branch} {use_release_entries}
+instead.""".format(
+            git_ref=git_ref,
+            major_versions=",".join(major_versions),
+            repo_branch=repo_branch,
+            use_release_entries=use_release_entries,
+        ),
+        1,
+    )
+
+
+@task
 def run(
     ctx,
     git_ref=DEFAULT_BRANCH,
