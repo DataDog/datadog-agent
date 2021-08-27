@@ -576,7 +576,7 @@ func tracecWithDepth(message string, depth int, context ...interface{}) {
 
 // Tracec logs at the trace level with context
 func Tracec(message string, context ...interface{}) {
-	tracecWithDepth(message, 0, context...)
+	tracecWithDepth(message, 1, context...)
 }
 
 // Debug logs at the debug level
@@ -595,7 +595,7 @@ func debugcWithDepth(message string, depth int, context ...interface{}) {
 
 // Debugc logs at the debug level with context
 func Debugc(message string, context ...interface{}) {
-	debugcWithDepth(message, 0, context...)
+	debugcWithDepth(message, 1, context...)
 }
 
 // Info logs at the info level
@@ -614,7 +614,7 @@ func infocWithDepth(message string, depth int, context ...interface{}) {
 
 // Infoc logs at the info level with context
 func Infoc(message string, context ...interface{}) {
-	infocWithDepth(message, 0, context...)
+	infocWithDepth(message, 1, context...)
 }
 
 // Warn logs at the warn level and returns an error containing the formated log message
@@ -633,7 +633,7 @@ func warncWithDepth(message string, depth int, context ...interface{}) error {
 
 // Warnc logs at the warn level with context and returns an error containing the formated log message
 func Warnc(message string, context ...interface{}) error {
-	return warncWithDepth(message, 0, context...)
+	return warncWithDepth(message, 1, context...)
 }
 
 // Error logs at the error level and returns an error containing the formated log message
@@ -652,7 +652,7 @@ func errorcWithDepth(message string, depth int, context ...interface{}) error {
 
 // Errorc logs at the error level with context and returns an error containing the formated log message
 func Errorc(message string, context ...interface{}) error {
-	return errorcWithDepth(message, 0, context...)
+	return errorcWithDepth(message, 1, context...)
 }
 
 // Critical logs at the critical level and returns an error containing the formated log message
@@ -671,7 +671,7 @@ func criticalcWithDepth(message string, depth int, context ...interface{}) error
 
 // Criticalc logs at the critical level with context and returns an error containing the formated log message
 func Criticalc(message string, context ...interface{}) error {
-	return criticalcWithDepth(message, 0, context...)
+	return criticalcWithDepth(message, 1, context...)
 }
 
 // InfoStackDepth logs at the info level and the current stack depth plus the additional given one
