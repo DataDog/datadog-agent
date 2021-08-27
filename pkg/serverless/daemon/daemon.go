@@ -178,7 +178,7 @@ var metricsFlushMutex = sync.Mutex{}
 var tracesFlushMutex = sync.Mutex{}
 var logsFlushMutex = sync.Mutex{}
 
-// waitWithTimeout waits for the waitgroup for the specified max timeout.
+// waitWithTimeout waits for a WaitGroup with a specified max timeout.
 // Returns true if waiting timed out.
 func waitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 	c := make(chan struct{})
