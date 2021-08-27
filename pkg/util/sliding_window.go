@@ -28,17 +28,17 @@ type StatsUpdateFunc func(SlidingWindow)
 type slidingWindow struct {
 	bucketIdx       int
 	buckets         []float64
-	bucketsLock     sync.RWMutex
-	statsUpdateFunc StatsUpdateFunc
+	bucketsLock     sync.RWMutex // Guards against async changes to underlying stats
 	initialized     bool
 	numBuckets      int
 	numBucketsUsed  int
 	pollingFunc     PollingFunc
 	pollingInterval time.Duration
+	stateChangeLock sync.RWMutex // Guards against async state transitions
+	statsUpdateFunc StatsUpdateFunc
 	stopChan        chan struct{}
 	stopped         bool
 	ticker          *time.Ticker
-	windowLock      sync.RWMutex
 	windowSize      time.Duration
 }
 
@@ -104,8 +104,8 @@ func (sw *slidingWindow) Start(
 	}
 
 	// Initialize SlidingWindow and its ticker
-	sw.windowLock.Lock()
-	defer sw.windowLock.Unlock()
+	sw.stateChangeLock.Lock()
+	defer sw.stateChangeLock.Unlock()
 
 	sw.buckets = make([]float64, sw.windowSize/sw.pollingInterval)
 	sw.numBuckets = int(sw.windowSize / sw.pollingInterval)
@@ -131,7 +131,7 @@ func (sw *slidingWindow) newTicker() {
 			case <-sw.stopChan:
 				return
 			case <-sw.ticker.C:
-				sw.windowLock.RLock()
+				sw.stateChangeLock.RLock()
 
 				value := sw.pollingFunc()
 
@@ -150,15 +150,15 @@ func (sw *slidingWindow) newTicker() {
 					sw.statsUpdateFunc(sw)
 				}
 
-				sw.windowLock.RUnlock()
+				sw.stateChangeLock.RUnlock()
 			}
 		}
 	}()
 }
 
 func (sw *slidingWindow) isInitialized() bool {
-	sw.windowLock.RLock()
-	defer sw.windowLock.RUnlock()
+	sw.stateChangeLock.RLock()
+	defer sw.stateChangeLock.RUnlock()
 
 	if !sw.initialized {
 		return false
@@ -174,8 +174,8 @@ func (sw *slidingWindow) Stop() {
 		return
 	}
 
-	sw.windowLock.Lock()
-	defer sw.windowLock.Unlock()
+	sw.stateChangeLock.Lock()
+	defer sw.stateChangeLock.Unlock()
 
 	if sw.stopped {
 		return
