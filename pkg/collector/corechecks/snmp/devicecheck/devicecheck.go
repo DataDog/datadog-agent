@@ -25,14 +25,13 @@ const (
 
 // DeviceCheck hold info necessary to collect info for a single device
 type DeviceCheck struct {
-	config  *checkconfig.CheckConfig // TODO: make it private
+	config  *checkconfig.CheckConfig
 	sender  *report.MetricSender
 	session session.Session
 }
 
 // NewDeviceCheck returns a new DeviceCheck
 func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string) (*DeviceCheck, error) {
-	// TODO: avoid making copy for single device check ?
 	newConfig := config.Copy()
 	newConfig.IPAddress = ipAddress
 
@@ -89,8 +88,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
 		deviceMetadataTags := append(common.CopyStrings(tags), d.config.InstanceTags...)
 
-		// TODO: pass config ref instead of struct
-		d.sender.ReportNetworkDeviceMetadata(*d.config, values, deviceMetadataTags, collectionTime, deviceStatus)
+		d.sender.ReportNetworkDeviceMetadata(d.config, values, deviceMetadataTags, collectionTime, deviceStatus)
 	}
 
 	d.submitTelemetryMetrics(startTime, tags)

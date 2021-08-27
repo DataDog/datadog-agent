@@ -20,7 +20,7 @@ import (
 var interfaceNameTagKey = "interface"
 
 // ReportNetworkDeviceMetadata reports device metadata
-func (ms *MetricSender) ReportNetworkDeviceMetadata(config checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
+func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
 	tags := common.CopyStrings(origTags)
 	tags = util.SortUniqInPlace(tags)
 
@@ -43,7 +43,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config checkconfig.CheckConf
 	}
 }
 
-func buildNetworkDeviceMetadata(deviceID string, idTags []string, config checkconfig.CheckConfig, store *valuestore.ResultValueStore, tags []string, deviceStatus metadata.DeviceStatus) metadata.DeviceMetadata {
+func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, tags []string, deviceStatus metadata.DeviceStatus) metadata.DeviceMetadata {
 	var vendor, sysName, sysDescr, sysObjectID string
 	if store != nil {
 		sysName = store.GetScalarValueAsString(metadata.SysNameOID)

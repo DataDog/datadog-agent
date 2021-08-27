@@ -37,7 +37,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 		sender: sender,
 	}
 
-	config := checkconfig.CheckConfig{
+	config := &checkconfig.CheckConfig{
 		IPAddress:    "1.2.3.4",
 		DeviceID:     "1234",
 		DeviceIDTags: []string{"device_name:127.0.0.1"},
@@ -104,7 +104,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 		sender: sender,
 	}
 
-	config := checkconfig.CheckConfig{
+	config := &checkconfig.CheckConfig{
 		IPAddress:    "1.2.3.4",
 		DeviceID:     "1234",
 		DeviceIDTags: []string{"device_name:127.0.0.1"},

@@ -355,8 +355,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 // Copy makes a copy of CheckConfig
 func (c *CheckConfig) Copy() *CheckConfig {
-	// TODO: use a separate config for things that do not change e.g. profiles
-	// TODO: convert to deviceConfig instead
 	newConfig := CheckConfig{}
 	newConfig.IPAddress = c.IPAddress
 	newConfig.Port = c.Port
