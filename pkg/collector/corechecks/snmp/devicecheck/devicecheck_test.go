@@ -31,10 +31,10 @@ profiles:
    definition_file: f5-big-ip.yaml
 `)
 
-	config, err := checkconfig.BuildConfig(rawInstanceConfig, rawInitConfig)
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(&config, "1.2.3.4")
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4")
 	assert.Nil(t, err)
 	deviceCk.SetSession(sess)
 

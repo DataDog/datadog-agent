@@ -112,7 +112,7 @@ global_metrics:
 oid_batch_size: 10
 bulk_max_repetitions: 20
 `)
-	config, err := BuildConfig(rawInstanceConfig, rawInitConfig)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
 
 	assert.Nil(t, err)
 	assert.Equal(t, 10, config.OidBatchSize)
@@ -248,7 +248,7 @@ profiles:
             OID: 1.4.5
             name: myMetric
 `)
-	config, err := BuildConfig(rawInstanceConfig, rawInitConfig)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
 
 	assert.Nil(t, err)
 	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, config.GetStaticTags())
@@ -281,7 +281,7 @@ community_string: abc
 `)
 	// language=yaml
 	rawInitConfig := []byte(``)
-	config, err := BuildConfig(rawInstanceConfig, rawInitConfig)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
 
 	assert.Nil(t, err)
 	assert.Equal(t, "1.2.3.4", config.IPAddress)
@@ -305,7 +305,7 @@ func TestIPAddressConfiguration(t *testing.T) {
 	rawInstanceConfig := []byte(`
 ip_address:
 `)
-	_, err := BuildConfig(rawInstanceConfig, []byte(``))
+	_, err := NewCheckConfig(rawInstanceConfig, []byte(``))
 	assert.EqualError(t, err, "ip_address config must be provided")
 }
 
@@ -317,7 +317,7 @@ func TestPortConfiguration(t *testing.T) {
 ip_address: 1.2.3.4
 community_string: abc
 `)
-	config, err := BuildConfig(rawInstanceConfig, []byte(``))
+	config, err := NewCheckConfig(rawInstanceConfig, []byte(``))
 	assert.Nil(t, err)
 	assert.Equal(t, uint16(161), config.Port)
 
@@ -328,7 +328,7 @@ ip_address: 1.2.3.4
 port: 1234
 community_string: abc
 `)
-	config, err = BuildConfig(rawInstanceConfig, []byte(``))
+	config, err = NewCheckConfig(rawInstanceConfig, []byte(``))
 	assert.Nil(t, err)
 	assert.Equal(t, uint16(1234), config.Port)
 }
@@ -341,7 +341,7 @@ func TestBatchSizeConfiguration(t *testing.T) {
 ip_address: 1.2.3.4
 community_string: abc
 `)
-	config, err := BuildConfig(rawInstanceConfig, []byte(``))
+	config, err := NewCheckConfig(rawInstanceConfig, []byte(``))
 	assert.Nil(t, err)
 	assert.Equal(t, 5, config.OidBatchSize)
 
@@ -352,7 +352,7 @@ ip_address: 1.2.3.4
 community_string: abc
 oid_batch_size: 10
 `)
-	config, err = BuildConfig(rawInstanceConfig, []byte(``))
+	config, err = NewCheckConfig(rawInstanceConfig, []byte(``))
 	assert.Nil(t, err)
 	assert.Equal(t, 10, config.OidBatchSize)
 
@@ -366,7 +366,7 @@ community_string: abc
 	rawInitConfig := []byte(`
 oid_batch_size: 15
 `)
-	config, err = BuildConfig(rawInstanceConfig, rawInitConfig)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, 15, config.OidBatchSize)
 
@@ -381,7 +381,7 @@ oid_batch_size: 20
 	rawInitConfig = []byte(`
 oid_batch_size: 15
 `)
-	config, err = BuildConfig(rawInstanceConfig, rawInitConfig)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, 20, config.OidBatchSize)
 }
@@ -394,7 +394,7 @@ func TestBulkMaxRepetitionConfiguration(t *testing.T) {
 ip_address: 1.2.3.4
 community_string: abc
 `)
-	config, err := BuildConfig(rawInstanceConfig, []byte(``))
+	config, err := NewCheckConfig(rawInstanceConfig, []byte(``))
 	assert.Nil(t, err)
 	assert.Equal(t, uint32(10), config.BulkMaxRepetitions)
 
@@ -405,7 +405,7 @@ ip_address: 1.2.3.4
 community_string: abc
 bulk_max_repetitions: 10
 `)
-	config, err = BuildConfig(rawInstanceConfig, []byte(``))
+	config, err = NewCheckConfig(rawInstanceConfig, []byte(``))
 	assert.Nil(t, err)
 	assert.Equal(t, uint32(10), config.BulkMaxRepetitions)
 
@@ -419,7 +419,7 @@ community_string: abc
 	rawInitConfig := []byte(`
 bulk_max_repetitions: 15
 `)
-	config, err = BuildConfig(rawInstanceConfig, rawInitConfig)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, uint32(15), config.BulkMaxRepetitions)
 
@@ -434,7 +434,7 @@ bulk_max_repetitions: 20
 	rawInitConfig = []byte(`
 bulk_max_repetitions: 15
 `)
-	config, err = BuildConfig(rawInstanceConfig, rawInitConfig)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, uint32(20), config.BulkMaxRepetitions)
 
@@ -447,7 +447,7 @@ bulk_max_repetitions: -5
 `)
 	// language=yaml
 	rawInitConfig = []byte(``)
-	config, err = BuildConfig(rawInstanceConfig, rawInitConfig)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.EqualError(t, err, "bulk max repetition must be a positive integer. Invalid value: -5")
 }
 
@@ -470,7 +470,7 @@ global_metrics:
     OID: 1.2.3.4
     name: aGlobalMetric
 `)
-	config, err := BuildConfig(rawInstanceConfig, rawInitConfig)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
 	metrics := []MetricsConfig{
@@ -501,7 +501,7 @@ global_metrics:
     OID: 1.2.3.4
     name: aGlobalMetric
 `)
-	config, err := BuildConfig(rawInstanceConfig, rawInitConfig)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
 	metrics := []MetricsConfig{
@@ -558,7 +558,7 @@ metrics:
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := BuildConfig(tt.rawInstanceConfig, tt.rawInitConfig)
+			_, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig)
 			for _, errStr := range tt.expectedErrors {
 				assert.Contains(t, err.Error(), errStr)
 			}
@@ -735,7 +735,7 @@ func Test_Configure_invalidYaml(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := BuildConfig(tt.rawInstanceConfig, tt.rawInitConfig)
+			_, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig)
 			assert.EqualError(t, err, tt.expectedErr)
 		})
 	}
@@ -751,7 +751,7 @@ port: "123"
 timeout: "15"
 retries: "5"
 `)
-	config, err := BuildConfig(rawInstanceConfig, []byte(``))
+	config, err := NewCheckConfig(rawInstanceConfig, []byte(``))
 	assert.Nil(t, err)
 	assert.Equal(t, uint16(123), config.Port)
 	assert.Equal(t, 15, config.Timeout)
@@ -766,7 +766,7 @@ func TestExtraTags(t *testing.T) {
 ip_address: 1.2.3.4
 community_string: abc
 `)
-	config, err := BuildConfig(rawInstanceConfig, []byte(``))
+	config, err := NewCheckConfig(rawInstanceConfig, []byte(``))
 	assert.Nil(t, err)
 	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, config.GetStaticTags())
 
@@ -776,7 +776,7 @@ ip_address: 1.2.3.4
 community_string: abc
 extra_tags: "extratag1:val1,extratag2:val2"
 `)
-	config, err = BuildConfig(rawInstanceConfigWithExtraTags, []byte(``))
+	config, err = NewCheckConfig(rawInstanceConfigWithExtraTags, []byte(``))
 	assert.Nil(t, err)
 	assert.Equal(t, []string{"snmp_device:1.2.3.4", "extratag1:val1", "extratag2:val2"}, config.GetStaticTags())
 }
@@ -890,7 +890,7 @@ community_string: "abc"
 	rawInitConfig := []byte(`
 oid_batch_size: 10
 `)
-	config, err := BuildConfig(rawInstanceConfig, rawInitConfig)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, false, config.CollectDeviceMetadata)
 
@@ -904,7 +904,7 @@ community_string: "abc"
 oid_batch_size: 10
 collect_device_metadata: true
 `)
-	config, err = BuildConfig(rawInstanceConfig, rawInitConfig)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, true, config.CollectDeviceMetadata)
 
@@ -918,7 +918,7 @@ collect_device_metadata: true
 	rawInitConfig = []byte(`
 oid_batch_size: 10
 `)
-	config, err = BuildConfig(rawInstanceConfig, rawInitConfig)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, true, config.CollectDeviceMetadata)
 
@@ -933,7 +933,7 @@ collect_device_metadata: false
 oid_batch_size: 10
 collect_device_metadata: true
 `)
-	config, err = BuildConfig(rawInstanceConfig, rawInitConfig)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, false, config.CollectDeviceMetadata)
 }
@@ -1039,11 +1039,12 @@ min_collection_interval: -10
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config, err := BuildConfig(tt.rawInstanceConfig, tt.rawInitConfig)
+			config, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig)
 			if tt.expectedErr != "" {
 				assert.EqualError(t, err, tt.expectedErr)
+			} else {
+				assert.Equal(t, tt.expectedInterval, config.MinCollectionInterval)
 			}
-			assert.Equal(t, tt.expectedInterval, config.MinCollectionInterval)
 		})
 	}
 }

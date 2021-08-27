@@ -177,8 +177,8 @@ func (c *CheckConfig) ToString() string {
 	)
 }
 
-// BuildConfig builds a new check config
-func BuildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (CheckConfig, error) {
+// NewCheckConfig builds a new check config
+func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data) (*CheckConfig, error) {
 	instance := InstanceConfig{}
 	initConfig := InitConfig{}
 
@@ -187,15 +187,15 @@ func BuildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 
 	err := yaml.Unmarshal(rawInitConfig, &initConfig)
 	if err != nil {
-		return CheckConfig{}, err
+		return nil, err
 	}
 
 	err = yaml.Unmarshal(rawInstance, &instance)
 	if err != nil {
-		return CheckConfig{}, err
+		return nil, err
 	}
 
-	c := CheckConfig{}
+	c := &CheckConfig{}
 
 	c.SnmpVersion = instance.SnmpVersion
 	c.IPAddress = instance.IPAddress
@@ -216,7 +216,7 @@ func BuildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	}
 
 	if c.IPAddress == "" {
-		return CheckConfig{}, fmt.Errorf("ip_address config must be provided")
+		return nil, fmt.Errorf("ip_address config must be provided")
 	}
 
 	if c.Port == 0 {
@@ -245,7 +245,7 @@ func BuildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		c.MinCollectionInterval = defaults.DefaultCheckInterval
 	}
 	if c.MinCollectionInterval < 0 {
-		return CheckConfig{}, fmt.Errorf("min collection interval must be > 0, but got: %v", c.MinCollectionInterval.Seconds())
+		return nil, fmt.Errorf("min collection interval must be > 0, but got: %v", c.MinCollectionInterval.Seconds())
 	}
 
 	// SNMP connection configs
@@ -276,7 +276,7 @@ func BuildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		bulkMaxRepetitions = int(DefaultBulkMaxRepetitions)
 	}
 	if bulkMaxRepetitions <= 0 {
-		return CheckConfig{}, fmt.Errorf("bulk max repetition must be a positive integer. Invalid value: %d", bulkMaxRepetitions)
+		return nil, fmt.Errorf("bulk max repetition must be a positive integer. Invalid value: %d", bulkMaxRepetitions)
 	}
 	c.BulkMaxRepetitions = uint32(bulkMaxRepetitions)
 
@@ -304,13 +304,13 @@ func BuildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		//   There are possibly multiple init configs
 		customProfiles, err := loadProfiles(initConfig.Profiles)
 		if err != nil {
-			return CheckConfig{}, fmt.Errorf("failed to load custom profiles: %s", err)
+			return nil, fmt.Errorf("failed to load custom profiles: %s", err)
 		}
 		profiles = customProfiles
 	} else {
 		defaultProfiles, err := loadDefaultProfiles()
 		if err != nil {
-			return CheckConfig{}, fmt.Errorf("failed to load default profiles: %s", err)
+			return nil, fmt.Errorf("failed to load default profiles: %s", err)
 		}
 		profiles = defaultProfiles
 	}
@@ -325,7 +325,7 @@ func BuildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	errors := validateEnrichMetrics(c.Metrics)
 	errors = append(errors, ValidateEnrichMetricTags(c.MetricTags)...)
 	if len(errors) > 0 {
-		return CheckConfig{}, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
+		return nil, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
 	}
 
 	if profile != "" || len(c.Metrics) > 0 {
@@ -337,7 +337,7 @@ func BuildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 	if profile != "" {
 		err = c.RefreshWithProfile(profile)
 		if err != nil {
-			return CheckConfig{}, fmt.Errorf("failed to refresh with profile `%s`: %s", profile, err)
+			return nil, fmt.Errorf("failed to refresh with profile `%s`: %s", profile, err)
 		}
 	}
 
@@ -384,8 +384,9 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.BulkMaxRepetitions = c.BulkMaxRepetitions
 	newConfig.Profiles = c.Profiles
 	newConfig.ProfileTags = common.CopyStrings(c.ProfileTags)
-	newConfig.Profile = c.Profile       // TODO: does not change
-	newConfig.ProfileDef = c.ProfileDef // copy by ref, content is never changed
+	// TODO: do we need to have a field for ProfileDef, can we derive from Profile field ?
+	newConfig.Profile = c.Profile
+	newConfig.ProfileDef = c.ProfileDef
 	newConfig.ExtraTags = common.CopyStrings(c.ExtraTags)
 	newConfig.InstanceTags = common.CopyStrings(c.InstanceTags)
 	newConfig.CollectDeviceMetadata = c.CollectDeviceMetadata

@@ -24,7 +24,7 @@ var timeNow = time.Now
 // Check aggregates metrics from one Check instance
 type Check struct {
 	core.CheckBase
-	config         checkconfig.CheckConfig // TODO: use ref instead of struct ?
+	config         *checkconfig.CheckConfig
 	singleDeviceCk *devicecheck.DeviceCheck
 }
 
@@ -60,16 +60,13 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 		return fmt.Errorf("common configure failed: %s", err)
 	}
 
-	config, err := checkconfig.BuildConfig(rawInstance, rawInitConfig)
+	c.config, err = checkconfig.NewCheckConfig(rawInstance, rawInitConfig)
 	if err != nil {
 		return fmt.Errorf("build config failed: %s", err)
 	}
+	log.Debugf("SNMP configuration: %s", c.config.ToString())
 
-	log.Debugf("SNMP configuration: %s", config.ToString())
-
-	c.config = config
-
-	c.singleDeviceCk, err = devicecheck.NewDeviceCheck(&c.config, c.config.IPAddress)
+	c.singleDeviceCk, err = devicecheck.NewDeviceCheck(c.config, c.config.IPAddress)
 	if err != nil {
 		return fmt.Errorf("failed to create device check: %s", err)
 	}
