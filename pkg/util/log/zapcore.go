@@ -83,7 +83,10 @@ func (c *core) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 	return nil
 }
 
-func (c *core) Sync() error { return nil }
+func (c *core) Sync() error {
+	Flush()
+	return nil
+}
 
 // NewZapCore creates a new zap core that wraps the default agent log instance.
 func NewZapCore() zapcore.Core {
