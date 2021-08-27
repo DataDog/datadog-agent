@@ -255,7 +255,7 @@ def json_info
 end
 
 def windows_service_status(service)
-  return (`powershell -command "try { (get-service "#{service}" -ErrorAction Stop).Status } catch { write-host "NOTINSTALLED" }"`).upcase.trim
+  return (`powershell -command "try { (get-service "#{service}" -ErrorAction Stop).Status } catch { write-host "NOTINSTALLED" }"`).upcase.strip
 end
 
 def flavor_service_status(flavor)
