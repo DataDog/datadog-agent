@@ -24,7 +24,7 @@ var timeNow = time.Now
 // Check aggregates metrics from one Check instance
 type Check struct {
 	core.CheckBase
-	config checkconfig.CheckConfig // TODO: use ref instead of struct ?
+	config         checkconfig.CheckConfig // TODO: use ref instead of struct ?
 	singleDeviceCk *devicecheck.DeviceCheck
 }
 
