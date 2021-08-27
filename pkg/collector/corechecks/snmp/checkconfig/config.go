@@ -2,8 +2,11 @@ package checkconfig
 
 import (
 	"fmt"
+	"hash/fnv"
+	"net"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -397,6 +400,42 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	c.addUptimeMetric()
 	return c, nil
+}
+
+// Digest returns an hash value representing the data stored in this configuration, minus the network address
+func (c *CheckConfig) Digest(address string) string {
+	h := fnv.New64()
+	// Hash write never returns an error
+	h.Write([]byte(address))                   //nolint:errcheck
+	h.Write([]byte(fmt.Sprintf("%d", c.Port))) //nolint:errcheck
+	h.Write([]byte(c.SnmpVersion))             //nolint:errcheck
+	h.Write([]byte(c.CommunityString))         //nolint:errcheck
+	h.Write([]byte(c.User))                    //nolint:errcheck
+	h.Write([]byte(c.AuthKey))                 //nolint:errcheck
+	h.Write([]byte(c.AuthProtocol))            //nolint:errcheck
+	h.Write([]byte(c.PrivKey))                 //nolint:errcheck
+	h.Write([]byte(c.PrivProtocol))            //nolint:errcheck
+	//h.Write([]byte(c.ContextEngineID))         //nolint:errcheck
+	h.Write([]byte(c.ContextName)) //nolint:errcheck
+
+	// Sort the addresses to get a stable digest
+	addresses := make([]string, 0, len(c.IgnoredIPAddresses))
+	for ip := range c.IgnoredIPAddresses {
+		addresses = append(addresses, ip)
+	}
+	sort.Strings(addresses)
+	for _, ip := range addresses {
+		h.Write([]byte(ip)) //nolint:errcheck
+	}
+
+	return strconv.FormatUint(h.Sum64(), 16)
+}
+
+// IsIPIgnored checks the given IP against ignoredIPAddresses
+func (c *CheckConfig) IsIPIgnored(ip net.IP) bool {
+	ipString := ip.String()
+	_, present := c.IgnoredIPAddresses[ipString]
+	return present
 }
 
 // Copy makes a copy of CheckConfig

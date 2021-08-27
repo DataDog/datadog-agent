@@ -306,7 +306,7 @@ func TestIPAddressConfiguration(t *testing.T) {
 ip_address:
 `)
 	_, err := NewCheckConfig(rawInstanceConfig, []byte(``))
-	assert.EqualError(t, err, "ip_address config must be provided")
+	assert.EqualError(t, err, "ip_address or network config must be provided")
 }
 
 func TestPortConfiguration(t *testing.T) {
