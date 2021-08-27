@@ -86,13 +86,14 @@ build do
   if windows?
     platform = windows_arch_i386? ? "x86" : "x64"
     debug_customaction = ""
+    package_version = env['PACKAGE_VERSION']
     if ENV['DEBUG_CUSTOMACTION'] and not ENV['DEBUG_CUSTOMACTION'].empty?
       debug_customaction = "--debug"
     end
-    command "invoke customaction.build --major-version #{major_version_arg} #{debug_customaction} --arch=" + platform
+    command "invoke customaction.build --major-version #{major_version_arg} --package-version #{package_version} #{debug_customaction} --arch=" + platform
     unless windows_arch_i386?
-      command "invoke installcmd.build --major-version #{major_version_arg} --arch=" + platform
-      command "invoke uninstallcmd.build --major-version #{major_version_arg} --arch=" + platform
+      command "invoke installcmd.build --major-version #{major_version_arg} --package-version #{package_version} --arch=" + platform
+      command "invoke uninstallcmd.build --major-version #{major_version_arg} --package-version #{package_version} --arch=" + platform
     end
   end
 
