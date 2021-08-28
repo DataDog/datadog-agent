@@ -7,9 +7,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
+
+	"github.com/rapdev-io/datadog-secret-backend/backend"
 )
 
 type InputPayload struct {
@@ -17,12 +18,7 @@ type InputPayload struct {
 	Version string   `json:"version"`
 }
 
-type SecretOutput struct {
-	Value *string `json:"value"`
-	Error *string `json:"error"`
-}
-
-const appVersion = "0.0.1"
+const appVersion = "0.1.0"
 
 func init() {
 	log.SetFormatter(&log.JSONFormatter{})
@@ -38,7 +34,7 @@ func main() {
 	version := flag.Bool("version", false,
 		fmt.Sprintf("displays version and information of %s", os.Args[0]),
 	)
-	configFile := flag.String("config", "secrets.yml", "path to configuration yaml")
+	configFile := flag.String("config", "secret-backends.yml", "path to configuration yaml")
 
 	flag.Parse()
 
@@ -56,29 +52,8 @@ func main() {
 		log.WithError(err).Fatal("failed to unmarshal input")
 	}
 
-	// Load SecretConfigurations
-	secretConfigs := NewSecretConfigurations(configFile)
-
-	secrets := NewSecrets()
-	secretOutputs := make(map[string]SecretOutput)
-	for _, s := range inputPayload.Secrets {
-		segments := strings.SplitN(s, ":", 2)
-		secretId := segments[0]
-		secretKey := segments[1]
-
-		if _, ok := secretConfigs[secretId]; !ok {
-			log.WithField("secret", secretId).Error("undefined secret")
-			secrets.Secrets[secretId] = &ErrorSecret{
-				SecretId: secretId,
-				Error:    fmt.Errorf("secret not defined in configuration"),
-			}
-			secretOutputs[s] = secrets.Secrets[secretId].GetSecretOutput(secretKey)
-		} else {
-			secrets.InitSecret(secretConfigs[secretId], secretId)
-			secretOutputs[s] = secrets.Secrets[secretId].GetSecretOutput(secretKey)
-		}
-
-	}
+	backends := backend.NewBackends(configFile)
+	secretOutputs := backends.GetSecretOutputs(inputPayload.Secrets)
 
 	output, err := json.Marshal(secretOutputs)
 	if err != nil {
