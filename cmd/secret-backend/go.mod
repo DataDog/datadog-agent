@@ -2,6 +2,12 @@ module github.com/rapdev-io/datadog-secret-backend
 
 go 1.17
 
+replace (
+	github.com/rapdev-io/datadog-secret-backend/backend => ./backend
+	github.com/rapdev-io/datadog-secret-backend/backend/aws => ./backend/aws
+	github.com/rapdev-io/datadog-secret-backend/backend/aws/secretsmanager => ./backend/aws/secretsmanager
+)
+
 require (
 	github.com/aws/aws-sdk-go-v2 v1.9.0
 	github.com/aws/aws-sdk-go-v2/config v1.7.0
