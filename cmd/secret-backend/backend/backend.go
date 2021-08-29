@@ -69,8 +69,9 @@ func (b *Backends) InitBackend(backendId string, config map[string]string) {
 		backend, err := aws.NewAwsSecretsManagerBackend(backendId, config)
 		if err != nil {
 			b.Backends[backendId] = &ErrorBackend{BackendId: backendId, Error: err}
+		} else {
+			b.Backends[backendId] = backend
 		}
-		b.Backends[backendId] = backend
 	default:
 		log.WithFields(log.Fields{
 			"backendId":   backendId,
