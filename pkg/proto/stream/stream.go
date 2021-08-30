@@ -5,7 +5,6 @@ import (
 	"io"
 	"math"
 
-	"github.com/golang/protobuf/proto"
 	"google.golang.org/protobuf/encoding/protowire"
 )
 
@@ -15,10 +14,6 @@ const (
 	wt64Bit           int = 1
 	wtLengthDelimited int = 2
 	wt32Bit           int = 5
-
-	// defaultScratchBufferSize is the default size for scratch buffers.  These
-	// are typically quite small.
-	defaultScratchBufferSize int = 512
 
 	// defaultBufferSize is the default size for buffers used for embedded
 	// values, which must first be written to a buffer to determine their
@@ -36,10 +31,10 @@ type ProtoStream struct {
 
 	// scratchBuffer is a buffer used and re-used for generating output.  Each method
 	// should begin by resetting this buffer.
-	scratchBuffer *proto.Buffer
+	scratchBuffer []byte
 
 	// scratchArray is a second, very small array used for packed encodings.  It is large
-	// enough to fit two max-size varints (10 bytes each)
+	// enough to fit two max-size varints (10 bytes each) without reallocation
 	scratchArray [20]byte
 
 	// childStream is a ProtoStream used to implement `Embedded`, and reused for
@@ -59,7 +54,7 @@ type ProtoStream struct {
 // Reset is called.
 func NewProtoStream() *ProtoStream {
 	return &ProtoStream{
-		scratchBuffer: proto.NewBuffer(make([]byte, 0, defaultScratchBufferSize)),
+		scratchBuffer: make([]byte, 0, defaultBufferSize),
 		childStream:   nil,
 		childBuffer:   nil,
 		BufferFactory: func() []byte { return make([]byte, 0, defaultBufferSize) },
@@ -78,12 +73,9 @@ func (ps *ProtoStream) Double(fieldNumber int, value float64) error {
 	if value == 0.0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	ps.encodeKeyToScratch(fieldNumber, wt64Bit)
-	err := ps.scratchBuffer.EncodeFixed64(math.Float64bits(value))
-	if err != nil {
-		return err
-	}
+	ps.scratchBuffer = protowire.AppendFixed64(ps.scratchBuffer, math.Float64bits(value))
 	return ps.writeScratch()
 }
 
@@ -93,12 +85,9 @@ func (ps *ProtoStream) DoublePacked(fieldNumber int, values []float64) error {
 	if len(values) == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	for _, value := range values {
-		err := ps.scratchBuffer.EncodeFixed64(math.Float64bits(value))
-		if err != nil {
-			return err
-		}
+		ps.scratchBuffer = protowire.AppendFixed64(ps.scratchBuffer, math.Float64bits(value))
 	}
 
 	return ps.writeScratchAsPacked(fieldNumber)
@@ -109,12 +98,9 @@ func (ps *ProtoStream) Float(fieldNumber int, value float32) error {
 	if value == 0.0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	ps.encodeKeyToScratch(fieldNumber, wt32Bit)
-	err := ps.scratchBuffer.EncodeFixed32(uint64(math.Float32bits(value)))
-	if err != nil {
-		return err
-	}
+	ps.scratchBuffer = protowire.AppendFixed32(ps.scratchBuffer, math.Float32bits(value))
 	return ps.writeScratch()
 }
 
@@ -124,12 +110,9 @@ func (ps *ProtoStream) FloatPacked(fieldNumber int, values []float32) error {
 	if len(values) == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	for _, value := range values {
-		err := ps.scratchBuffer.EncodeFixed32(uint64(math.Float32bits(value)))
-		if err != nil {
-			return err
-		}
+		ps.scratchBuffer = protowire.AppendFixed32(ps.scratchBuffer, math.Float32bits(value))
 	}
 	return ps.writeScratchAsPacked(fieldNumber)
 }
@@ -139,12 +122,9 @@ func (ps *ProtoStream) Int32(fieldNumber int, value int32) error {
 	if value == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	ps.encodeKeyToScratch(fieldNumber, wtVarint)
-	err := ps.scratchBuffer.EncodeVarint(uint64(value))
-	if err != nil {
-		return err
-	}
+	ps.scratchBuffer = protowire.AppendVarint(ps.scratchBuffer, uint64(value))
 	return ps.writeScratch()
 }
 
@@ -154,12 +134,9 @@ func (ps *ProtoStream) Int32Packed(fieldNumber int, values []int32) error {
 	if len(values) == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	for _, value := range values {
-		err := ps.scratchBuffer.EncodeVarint(uint64(value))
-		if err != nil {
-			return err
-		}
+		ps.scratchBuffer = protowire.AppendVarint(ps.scratchBuffer, uint64(value))
 	}
 	return ps.writeScratchAsPacked(fieldNumber)
 }
@@ -169,12 +146,9 @@ func (ps *ProtoStream) Int64(fieldNumber int, value int64) error {
 	if value == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	ps.encodeKeyToScratch(fieldNumber, wtVarint)
-	err := ps.scratchBuffer.EncodeVarint(uint64(value))
-	if err != nil {
-		return err
-	}
+	ps.scratchBuffer = protowire.AppendVarint(ps.scratchBuffer, uint64(value))
 	return ps.writeScratch()
 }
 
@@ -184,12 +158,9 @@ func (ps *ProtoStream) Int64Packed(fieldNumber int, values []int64) error {
 	if len(values) == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	for _, value := range values {
-		err := ps.scratchBuffer.EncodeVarint(uint64(value))
-		if err != nil {
-			return err
-		}
+		ps.scratchBuffer = protowire.AppendVarint(ps.scratchBuffer, uint64(value))
 	}
 	return ps.writeScratchAsPacked(fieldNumber)
 }
@@ -199,12 +170,9 @@ func (ps *ProtoStream) Uint32(fieldNumber int, value uint32) error {
 	if value == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	ps.encodeKeyToScratch(fieldNumber, wtVarint)
-	err := ps.scratchBuffer.EncodeVarint(uint64(value))
-	if err != nil {
-		return err
-	}
+	ps.scratchBuffer = protowire.AppendVarint(ps.scratchBuffer, uint64(value))
 	return ps.writeScratch()
 }
 
@@ -214,12 +182,9 @@ func (ps *ProtoStream) Uint32Packed(fieldNumber int, values []uint32) error {
 	if len(values) == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	for _, value := range values {
-		err := ps.scratchBuffer.EncodeVarint(uint64(value))
-		if err != nil {
-			return err
-		}
+		ps.scratchBuffer = protowire.AppendVarint(ps.scratchBuffer, uint64(value))
 	}
 	return ps.writeScratchAsPacked(fieldNumber)
 }
@@ -229,12 +194,9 @@ func (ps *ProtoStream) Uint64(fieldNumber int, value uint64) error {
 	if value == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	ps.encodeKeyToScratch(fieldNumber, wtVarint)
-	err := ps.scratchBuffer.EncodeVarint(value)
-	if err != nil {
-		return err
-	}
+	ps.scratchBuffer = protowire.AppendVarint(ps.scratchBuffer, value)
 	return ps.writeScratch()
 }
 
@@ -244,12 +206,9 @@ func (ps *ProtoStream) Uint64Packed(fieldNumber int, values []uint64) error {
 	if len(values) == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	for _, value := range values {
-		err := ps.scratchBuffer.EncodeVarint(value)
-		if err != nil {
-			return err
-		}
+		ps.scratchBuffer = protowire.AppendVarint(ps.scratchBuffer, value)
 	}
 	return ps.writeScratchAsPacked(fieldNumber)
 }
@@ -259,12 +218,9 @@ func (ps *ProtoStream) Sint32(fieldNumber int, value int32) error {
 	if value == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	ps.encodeKeyToScratch(fieldNumber, wtVarint)
-	err := ps.scratchBuffer.EncodeZigzag32(uint64(value))
-	if err != nil {
-		return err
-	}
+	ps.scratchBuffer = protowire.AppendVarint(ps.scratchBuffer, zigzag32(uint64(value)))
 	return ps.writeScratch()
 }
 
@@ -274,12 +230,9 @@ func (ps *ProtoStream) Sint32Packed(fieldNumber int, values []int32) error {
 	if len(values) == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	for _, value := range values {
-		err := ps.scratchBuffer.EncodeZigzag32(uint64(value))
-		if err != nil {
-			return err
-		}
+		ps.scratchBuffer = protowire.AppendVarint(ps.scratchBuffer, zigzag32(uint64(value)))
 	}
 	return ps.writeScratchAsPacked(fieldNumber)
 }
@@ -289,12 +242,9 @@ func (ps *ProtoStream) Sint64(fieldNumber int, value int64) error {
 	if value == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	ps.encodeKeyToScratch(fieldNumber, wtVarint)
-	err := ps.scratchBuffer.EncodeZigzag64(uint64(value))
-	if err != nil {
-		return err
-	}
+	ps.scratchBuffer = protowire.AppendVarint(ps.scratchBuffer, zigzag64(uint64(value)))
 	return ps.writeScratch()
 }
 
@@ -304,12 +254,9 @@ func (ps *ProtoStream) Sint64Packed(fieldNumber int, values []int64) error {
 	if len(values) == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	for _, value := range values {
-		err := ps.scratchBuffer.EncodeZigzag64(uint64(value))
-		if err != nil {
-			return err
-		}
+		ps.scratchBuffer = protowire.AppendVarint(ps.scratchBuffer, zigzag64(uint64(value)))
 	}
 	return ps.writeScratchAsPacked(fieldNumber)
 }
@@ -319,12 +266,9 @@ func (ps *ProtoStream) Fixed32(fieldNumber int, value uint32) error {
 	if value == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	ps.encodeKeyToScratch(fieldNumber, wt32Bit)
-	err := ps.scratchBuffer.EncodeFixed32(uint64(value))
-	if err != nil {
-		return err
-	}
+	ps.scratchBuffer = protowire.AppendFixed32(ps.scratchBuffer, value)
 	return ps.writeScratch()
 }
 
@@ -334,12 +278,9 @@ func (ps *ProtoStream) Fixed32Packed(fieldNumber int, values []uint32) error {
 	if len(values) == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	for _, value := range values {
-		err := ps.scratchBuffer.EncodeFixed32(uint64(value))
-		if err != nil {
-			return err
-		}
+		ps.scratchBuffer = protowire.AppendFixed32(ps.scratchBuffer, value)
 	}
 	return ps.writeScratchAsPacked(fieldNumber)
 }
@@ -349,12 +290,9 @@ func (ps *ProtoStream) Fixed64(fieldNumber int, value uint64) error {
 	if value == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	ps.encodeKeyToScratch(fieldNumber, wt64Bit)
-	err := ps.scratchBuffer.EncodeFixed64(value)
-	if err != nil {
-		return err
-	}
+	ps.scratchBuffer = protowire.AppendFixed64(ps.scratchBuffer, value)
 	return ps.writeScratch()
 }
 
@@ -364,12 +302,9 @@ func (ps *ProtoStream) Fixed64Packed(fieldNumber int, values []uint64) error {
 	if len(values) == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	for _, value := range values {
-		err := ps.scratchBuffer.EncodeFixed64(value)
-		if err != nil {
-			return err
-		}
+		ps.scratchBuffer = protowire.AppendFixed64(ps.scratchBuffer, value)
 	}
 	return ps.writeScratchAsPacked(fieldNumber)
 }
@@ -379,12 +314,9 @@ func (ps *ProtoStream) Sfixed32(fieldNumber int, value int32) error {
 	if value == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	ps.encodeKeyToScratch(fieldNumber, wt32Bit)
-	err := ps.scratchBuffer.EncodeFixed32(uint64(value))
-	if err != nil {
-		return err
-	}
+	ps.scratchBuffer = protowire.AppendFixed32(ps.scratchBuffer, uint32(value))
 	return ps.writeScratch()
 }
 
@@ -394,12 +326,9 @@ func (ps *ProtoStream) Sfixed32Packed(fieldNumber int, values []int32) error {
 	if len(values) == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	for _, value := range values {
-		err := ps.scratchBuffer.EncodeFixed32(uint64(value))
-		if err != nil {
-			return err
-		}
+		ps.scratchBuffer = protowire.AppendFixed32(ps.scratchBuffer, uint32(value))
 	}
 	return ps.writeScratchAsPacked(fieldNumber)
 }
@@ -409,12 +338,9 @@ func (ps *ProtoStream) Sfixed64(fieldNumber int, value int64) error {
 	if value == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	ps.encodeKeyToScratch(fieldNumber, wt64Bit)
-	err := ps.scratchBuffer.EncodeFixed64(uint64(value))
-	if err != nil {
-		return err
-	}
+	ps.scratchBuffer = protowire.AppendFixed64(ps.scratchBuffer, uint64(value))
 	return ps.writeScratch()
 }
 
@@ -424,12 +350,9 @@ func (ps *ProtoStream) Sfixed64Packed(fieldNumber int, values []int64) error {
 	if len(values) == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	for _, value := range values {
-		err := ps.scratchBuffer.EncodeFixed64(uint64(value))
-		if err != nil {
-			return err
-		}
+		ps.scratchBuffer = protowire.AppendFixed64(ps.scratchBuffer, uint64(value))
 	}
 	return ps.writeScratchAsPacked(fieldNumber)
 }
@@ -439,16 +362,13 @@ func (ps *ProtoStream) Bool(fieldNumber int, value bool) error {
 	if value == false {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	ps.encodeKeyToScratch(fieldNumber, wtVarint)
 	var bit uint64
 	if value {
 		bit = 1
 	}
-	err := ps.scratchBuffer.EncodeVarint(bit)
-	if err != nil {
-		return err
-	}
+	ps.scratchBuffer = protowire.AppendVarint(ps.scratchBuffer, bit)
 	return ps.writeScratch()
 }
 
@@ -457,13 +377,10 @@ func (ps *ProtoStream) String(fieldNumber int, value string) error {
 	if len(value) == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	ps.encodeKeyToScratch(fieldNumber, wtLengthDelimited)
-	err := ps.scratchBuffer.EncodeVarint(uint64(len(value)))
-	if err != nil {
-		return err
-	}
-	err = ps.writeScratch()
+	ps.scratchBuffer = protowire.AppendVarint(ps.scratchBuffer, uint64(len(value)))
+	err := ps.writeScratch()
 	if err != nil {
 		return err
 	}
@@ -476,13 +393,10 @@ func (ps *ProtoStream) Bytes(fieldNumber int, value []byte) error {
 	if len(value) == 0 {
 		return nil
 	}
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	ps.encodeKeyToScratch(fieldNumber, wtLengthDelimited)
-	err := ps.scratchBuffer.EncodeVarint(uint64(len(value)))
-	if err != nil {
-		return err
-	}
-	err = ps.writeScratch()
+	ps.scratchBuffer = protowire.AppendVarint(ps.scratchBuffer, uint64(len(value)))
+	err := ps.writeScratch()
 	if err != nil {
 		return err
 	}
@@ -511,12 +425,9 @@ func (ps *ProtoStream) Embedded(fieldNumber int, inner func(*ProtoStream) error)
 		return err
 	}
 
-	ps.scratchBuffer.Reset()
+	ps.scratchBuffer = ps.scratchBuffer[:0]
 	ps.encodeKeyToScratch(fieldNumber, wtLengthDelimited)
-	err = ps.scratchBuffer.EncodeVarint(uint64(ps.childBuffer.Len()))
-	if err != nil {
-		return err
-	}
+	ps.scratchBuffer = protowire.AppendVarint(ps.scratchBuffer, uint64(ps.childBuffer.Len()))
 
 	// write the key and length prefix
 	err = ps.writeScratch()
@@ -528,20 +439,9 @@ func (ps *ProtoStream) Embedded(fieldNumber int, inner func(*ProtoStream) error)
 	return ps.writeAll(ps.childBuffer.Bytes())
 }
 
-// EmbeddedMessage is similar to Embedded, but embeds a proto.Message directly.
-func (ps *ProtoStream) EmbeddedMessage(fieldNumber int, m proto.Message) error {
-	ps.scratchBuffer.Reset()
-	ps.encodeKeyToScratch(fieldNumber, wtLengthDelimited)
-	err := ps.scratchBuffer.EncodeMessage(m)
-	if err != nil {
-		return err
-	}
-	return ps.writeScratch()
-}
-
 // writeScratch flushes the scratch buffer to output
 func (ps *ProtoStream) writeScratch() error {
-	return ps.writeAll(ps.scratchBuffer.Bytes())
+	return ps.writeAll(ps.scratchBuffer)
 }
 
 // writeScratchAsPacked writes the scratch buffer to outputWriter, prefixed with
@@ -554,7 +454,7 @@ func (ps *ProtoStream) writeScratchAsPacked(fieldNumber int) error {
 	// that the value does not escape.
 	keysize := ps.scratchArray[:0]
 	keysize = protowire.AppendVarint(keysize, uint64((fieldNumber<<3)|wtLengthDelimited))
-	keysize = protowire.AppendVarint(keysize, uint64(len(ps.scratchBuffer.Bytes())))
+	keysize = protowire.AppendVarint(keysize, uint64(len(ps.scratchBuffer)))
 
 	// write the key and length prefix
 	err := ps.writeAll(keysize)
@@ -598,6 +498,13 @@ func (ps *ProtoStream) writeAllString(value string) error {
 
 // encodeKeyToScratch encodes a protobuf key into ps.scratch
 func (ps *ProtoStream) encodeKeyToScratch(fieldNumber int, wireType int) {
-	// field/wireType are always a valid varint
-	_ = ps.scratchBuffer.EncodeVarint(uint64(fieldNumber)<<3 + uint64(wireType))
+	ps.scratchBuffer = protowire.AppendVarint(ps.scratchBuffer, uint64(fieldNumber)<<3+uint64(wireType))
+}
+
+func zigzag32(v uint64) uint64 {
+	return uint64((uint32(v) << 1) ^ uint32((int32(v) >> 31)))
+}
+
+func zigzag64(v uint64) uint64 {
+	return (v << 1) ^ uint64((int64(v) >> 63))
 }

@@ -147,58 +147,6 @@ func ExampleProtoStream_Embedded() {
 	// query 1: author=margaret+atwood
 }
 
-func ExampleProtoStream_EmbeddedMessage() {
-	/* Encoding the following:
-	     *
-	     * message MultiSearch {
-	     *   string api_key = 10;
-	     *   repeated SearchRequest request = 11;
-	     * }
-		 *
-		 * message SearchRequest {
-		 *   string query = 1;
-		 *   int32 page_number = 2;
-		 *   int32 result_per_page = 3;
-		 * }
-	*/
-	var err error
-	output := bytes.NewBuffer([]byte{})
-	ps := NewProtoStream()
-	ps.Reset(output)
-
-	// values copied from the .proto file
-	const fieldAPIKey = 10
-	const fieldRequest = 11
-
-	err = ps.String(fieldAPIKey, "abc-123")
-	if err != nil {
-		panic(err)
-	}
-
-	err = ps.EmbeddedMessage(fieldRequest, &SearchRequest{Query: "author=gibran"})
-	if err != nil {
-		panic(err)
-	}
-
-	err = ps.EmbeddedMessage(fieldRequest, &SearchRequest{Query: "author=rumi"})
-	if err != nil {
-		panic(err)
-	}
-
-	// let's unmarshal that and see the result
-	var res MultiSearch
-	err = proto.Unmarshal(output.Bytes(), &res)
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Printf("query 0: %s\n", res.Request[0].Query)
-	fmt.Printf("query 1: %s\n", res.Request[1].Query)
-	// Output:
-	// query 0: author=gibran
-	// query 1: author=rumi
-}
-
 func ExampleProtoStream_Sint32Packed() {
 	/* Encoding the following:
 	 *
