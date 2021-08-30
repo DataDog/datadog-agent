@@ -23,4 +23,12 @@ package stream
 // containing scalar types, use the `*Packed` methods to write the packed form.
 // For non-scalar repeated fields, call the encoding method repeatedly.
 //
+// This package requires a more detailed understanding of the protobuf encoding
+// format than marshaling-based packages.  In particular, the message fields
+// and their types must be encoded in the source calling each of the methods.
+// The field numbers are best encoded as `const` values in the source code.
+// For protocol compatibility, such field numbers will never change, so there
+// is no difficulty with synchronizing the values in two places.  See the
+// examples for details.
+//
 // Note that most methods will do nothing when given their zero value.

@@ -3,7 +3,7 @@ package stream
 import (
 	"bytes"
 	"encoding/binary"
-	fmt "fmt"
+	"fmt"
 
 	"github.com/golang/protobuf/proto"
 )
@@ -19,8 +19,9 @@ func ExampleNew() {
 	 */
 	var err error
 	output := bytes.NewBuffer([]byte{})
-	ps := New(output)
+	ps := NewProtoStream(output)
 
+	// values copied from the .proto file
 	const fieldQuery int = 1
 	const fieldPageNumber int = 2
 	const fieldResultPerPage int = 3
@@ -40,7 +41,7 @@ func ExampleNew() {
 		panic(err)
 	}
 
-	// let's unmarshal that and see the result
+	// Unmarshal that to verify it was encoded correctly
 	var res SearchRequest
 	err = proto.Unmarshal(output.Bytes(), &res)
 	if err != nil {
@@ -72,11 +73,11 @@ func ExampleProtoStream_Embedded() {
 	*/
 	var err error
 	output := bytes.NewBuffer([]byte{})
-	ps := New(output)
+	ps := NewProtoStream(output)
 
+	// values copied from the .proto file
 	const fieldAPIKey = 10
 	const fieldRequest = 11
-
 	const fieldQuery int = 1
 	const fieldPageNumber int = 2
 	const fieldResultPerPage int = 3
@@ -160,8 +161,9 @@ func ExampleProtoStream_EmbeddedMessage() {
 	*/
 	var err error
 	output := bytes.NewBuffer([]byte{})
-	ps := New(output)
+	ps := NewProtoStream(output)
 
+	// values copied from the .proto file
 	const fieldAPIKey = 10
 	const fieldRequest = 11
 
@@ -203,7 +205,7 @@ func ExampleProtoStream_Sint32Packed() {
 	 */
 	var err error
 	output := bytes.NewBuffer([]byte{})
-	ps := New(output)
+	ps := NewProtoStream(output)
 
 	const fieldNumber = 22
 
