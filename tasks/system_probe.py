@@ -559,8 +559,7 @@ def build_bcc_files(ctx, build_dir):
 
 
 def build_object_files(ctx):
-    """build_object_files builds only the eBPF object
-    """
+    """build_object_files builds only the eBPF object"""
 
     # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
     print("checking for clang executable...")
