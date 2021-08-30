@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/encoding/protowire"
 )
 
 const (
@@ -36,6 +37,10 @@ type ProtoStream struct {
 	// scratchBuffer is a buffer used and re-used for generating output.  Each method
 	// should begin by resetting this buffer.
 	scratchBuffer *proto.Buffer
+
+	// scratchArray is a second, very small array used for packed encodings.  It is large
+	// enough to fit two max-size varints (10 bytes each)
+	scratchArray [20]byte
 
 	// childStream is a ProtoStream used to implement `Embedded`, and reused for
 	// multiple calls.
@@ -88,16 +93,15 @@ func (ps *ProtoStream) DoublePacked(fieldNumber int, values []float64) error {
 	if len(values) == 0 {
 		return nil
 	}
-	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
-		ps.scratchBuffer.Reset()
-		for _, value := range values {
-			err := ps.scratchBuffer.EncodeFixed64(math.Float64bits(value))
-			if err != nil {
-				return err
-			}
+	ps.scratchBuffer.Reset()
+	for _, value := range values {
+		err := ps.scratchBuffer.EncodeFixed64(math.Float64bits(value))
+		if err != nil {
+			return err
 		}
-		return ps.writeScratch()
-	})
+	}
+
+	return ps.writeScratchAsPacked(fieldNumber)
 }
 
 // Float writes a value of proto type double to the stream.
@@ -120,16 +124,14 @@ func (ps *ProtoStream) FloatPacked(fieldNumber int, values []float32) error {
 	if len(values) == 0 {
 		return nil
 	}
-	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
-		ps.scratchBuffer.Reset()
-		for _, value := range values {
-			err := ps.scratchBuffer.EncodeFixed32(uint64(math.Float32bits(value)))
-			if err != nil {
-				return err
-			}
+	ps.scratchBuffer.Reset()
+	for _, value := range values {
+		err := ps.scratchBuffer.EncodeFixed32(uint64(math.Float32bits(value)))
+		if err != nil {
+			return err
 		}
-		return ps.writeScratch()
-	})
+	}
+	return ps.writeScratchAsPacked(fieldNumber)
 }
 
 // Int32 writes a value of proto type int32 to the stream.
@@ -152,16 +154,14 @@ func (ps *ProtoStream) Int32Packed(fieldNumber int, values []int32) error {
 	if len(values) == 0 {
 		return nil
 	}
-	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
-		ps.scratchBuffer.Reset()
-		for _, value := range values {
-			err := ps.scratchBuffer.EncodeVarint(uint64(value))
-			if err != nil {
-				return err
-			}
+	ps.scratchBuffer.Reset()
+	for _, value := range values {
+		err := ps.scratchBuffer.EncodeVarint(uint64(value))
+		if err != nil {
+			return err
 		}
-		return ps.writeScratch()
-	})
+	}
+	return ps.writeScratchAsPacked(fieldNumber)
 }
 
 // Int64 writes a value of proto type int64 to the stream.
@@ -184,16 +184,14 @@ func (ps *ProtoStream) Int64Packed(fieldNumber int, values []int64) error {
 	if len(values) == 0 {
 		return nil
 	}
-	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
-		ps.scratchBuffer.Reset()
-		for _, value := range values {
-			err := ps.scratchBuffer.EncodeVarint(uint64(value))
-			if err != nil {
-				return err
-			}
+	ps.scratchBuffer.Reset()
+	for _, value := range values {
+		err := ps.scratchBuffer.EncodeVarint(uint64(value))
+		if err != nil {
+			return err
 		}
-		return ps.writeScratch()
-	})
+	}
+	return ps.writeScratchAsPacked(fieldNumber)
 }
 
 // Uint32 writes a value of proto type uint32 to the stream.
@@ -216,16 +214,14 @@ func (ps *ProtoStream) Uint32Packed(fieldNumber int, values []uint32) error {
 	if len(values) == 0 {
 		return nil
 	}
-	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
-		ps.scratchBuffer.Reset()
-		for _, value := range values {
-			err := ps.scratchBuffer.EncodeVarint(uint64(value))
-			if err != nil {
-				return err
-			}
+	ps.scratchBuffer.Reset()
+	for _, value := range values {
+		err := ps.scratchBuffer.EncodeVarint(uint64(value))
+		if err != nil {
+			return err
 		}
-		return ps.writeScratch()
-	})
+	}
+	return ps.writeScratchAsPacked(fieldNumber)
 }
 
 // Uint64 writes a value of proto type uint64 to the stream.
@@ -248,16 +244,14 @@ func (ps *ProtoStream) Uint64Packed(fieldNumber int, values []uint64) error {
 	if len(values) == 0 {
 		return nil
 	}
-	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
-		ps.scratchBuffer.Reset()
-		for _, value := range values {
-			err := ps.scratchBuffer.EncodeVarint(value)
-			if err != nil {
-				return err
-			}
+	ps.scratchBuffer.Reset()
+	for _, value := range values {
+		err := ps.scratchBuffer.EncodeVarint(value)
+		if err != nil {
+			return err
 		}
-		return ps.writeScratch()
-	})
+	}
+	return ps.writeScratchAsPacked(fieldNumber)
 }
 
 // Sint32 writes a value of proto type sint32 to the stream.
@@ -280,16 +274,14 @@ func (ps *ProtoStream) Sint32Packed(fieldNumber int, values []int32) error {
 	if len(values) == 0 {
 		return nil
 	}
-	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
-		ps.scratchBuffer.Reset()
-		for _, value := range values {
-			err := ps.scratchBuffer.EncodeZigzag32(uint64(value))
-			if err != nil {
-				return err
-			}
+	ps.scratchBuffer.Reset()
+	for _, value := range values {
+		err := ps.scratchBuffer.EncodeZigzag32(uint64(value))
+		if err != nil {
+			return err
 		}
-		return ps.writeScratch()
-	})
+	}
+	return ps.writeScratchAsPacked(fieldNumber)
 }
 
 // Sint64 writes a value of proto type sint64 to the stream.
@@ -312,16 +304,14 @@ func (ps *ProtoStream) Sint64Packed(fieldNumber int, values []int64) error {
 	if len(values) == 0 {
 		return nil
 	}
-	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
-		ps.scratchBuffer.Reset()
-		for _, value := range values {
-			err := ps.scratchBuffer.EncodeZigzag64(uint64(value))
-			if err != nil {
-				return err
-			}
+	ps.scratchBuffer.Reset()
+	for _, value := range values {
+		err := ps.scratchBuffer.EncodeZigzag64(uint64(value))
+		if err != nil {
+			return err
 		}
-		return ps.writeScratch()
-	})
+	}
+	return ps.writeScratchAsPacked(fieldNumber)
 }
 
 // Fixed32 writes a value of proto type fixed32 to the stream.
@@ -344,16 +334,14 @@ func (ps *ProtoStream) Fixed32Packed(fieldNumber int, values []uint32) error {
 	if len(values) == 0 {
 		return nil
 	}
-	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
-		ps.scratchBuffer.Reset()
-		for _, value := range values {
-			err := ps.scratchBuffer.EncodeFixed32(uint64(value))
-			if err != nil {
-				return err
-			}
+	ps.scratchBuffer.Reset()
+	for _, value := range values {
+		err := ps.scratchBuffer.EncodeFixed32(uint64(value))
+		if err != nil {
+			return err
 		}
-		return ps.writeScratch()
-	})
+	}
+	return ps.writeScratchAsPacked(fieldNumber)
 }
 
 // Fixed64 writes a value of proto type fixed64 to the stream.
@@ -376,16 +364,14 @@ func (ps *ProtoStream) Fixed64Packed(fieldNumber int, values []uint64) error {
 	if len(values) == 0 {
 		return nil
 	}
-	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
-		ps.scratchBuffer.Reset()
-		for _, value := range values {
-			err := ps.scratchBuffer.EncodeFixed64(value)
-			if err != nil {
-				return err
-			}
+	ps.scratchBuffer.Reset()
+	for _, value := range values {
+		err := ps.scratchBuffer.EncodeFixed64(value)
+		if err != nil {
+			return err
 		}
-		return ps.writeScratch()
-	})
+	}
+	return ps.writeScratchAsPacked(fieldNumber)
 }
 
 // Sfixed32 writes a value of proto type sfixed32 to the stream.
@@ -408,16 +394,14 @@ func (ps *ProtoStream) Sfixed32Packed(fieldNumber int, values []int32) error {
 	if len(values) == 0 {
 		return nil
 	}
-	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
-		ps.scratchBuffer.Reset()
-		for _, value := range values {
-			err := ps.scratchBuffer.EncodeFixed32(uint64(value))
-			if err != nil {
-				return err
-			}
+	ps.scratchBuffer.Reset()
+	for _, value := range values {
+		err := ps.scratchBuffer.EncodeFixed32(uint64(value))
+		if err != nil {
+			return err
 		}
-		return ps.writeScratch()
-	})
+	}
+	return ps.writeScratchAsPacked(fieldNumber)
 }
 
 // Sfixed64 writes a value of proto type sfixed64 to the stream.
@@ -440,16 +424,14 @@ func (ps *ProtoStream) Sfixed64Packed(fieldNumber int, values []int64) error {
 	if len(values) == 0 {
 		return nil
 	}
-	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
-		ps.scratchBuffer.Reset()
-		for _, value := range values {
-			err := ps.scratchBuffer.EncodeFixed64(uint64(value))
-			if err != nil {
-				return err
-			}
+	ps.scratchBuffer.Reset()
+	for _, value := range values {
+		err := ps.scratchBuffer.EncodeFixed64(uint64(value))
+		if err != nil {
+			return err
 		}
-		return ps.writeScratch()
-	})
+	}
+	return ps.writeScratchAsPacked(fieldNumber)
 }
 
 // Bool writes a value of proto type bool to the stream.
@@ -560,6 +542,33 @@ func (ps *ProtoStream) EmbeddedMessage(fieldNumber int, m proto.Message) error {
 // writeScratch flushes the scratch buffer to output
 func (ps *ProtoStream) writeScratch() error {
 	return ps.writeAll(ps.scratchBuffer.Bytes())
+}
+
+// writeScratchAsPacked writes the scratch buffer to outputWriter, prefixed with
+// the given key and the length of the scratch buffer.  This is used for packed
+// encodings.
+func (ps *ProtoStream) writeScratchAsPacked(fieldNumber int) error {
+	// The scratch buffer is full of the packed data, but we need to write
+	// the key and size, so we use scratchArray.  We could use a stack allocation
+	// here, but as of writing the go compiler is not smart enough to figure out
+	// that the value does not escape.
+	keysize := ps.scratchArray[:0]
+	keysize = protowire.AppendVarint(keysize, uint64((fieldNumber<<3)|wtLengthDelimited))
+	keysize = protowire.AppendVarint(keysize, uint64(len(ps.scratchBuffer.Bytes())))
+
+	// write the key and length prefix
+	err := ps.writeAll(keysize)
+	if err != nil {
+		return err
+	}
+
+	// write out the embedded message
+	err = ps.writeScratch()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // writeAll writes an entire buffer to output
