@@ -287,6 +287,36 @@ func TestPacking(t *testing.T) {
 	})
 }
 
+// Microbenchmark simple encoding performance
+func BenchmarkSimple(b *testing.B) {
+	output := bytes.NewBuffer([]byte{})
+	ps := NewProtoStream()
+	ps.Reset(output)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		output.Reset()
+		ps.Double(fieldDub, 3.14)
+		ps.Float(fieldFlo, 3.14)
+		ps.Int32(fieldI32, int32(-10))
+		ps.Int64(fieldI64, int64(-11))
+		ps.Uint32(fieldU32, uint32(12))
+		ps.Uint64(fieldU64, uint64(13))
+		ps.Sint32(fieldS32, int32(-12))
+		ps.Sint64(fieldS64, int64(-13))
+		ps.Fixed32(fieldF32, uint32(22))
+		ps.Fixed64(fieldF64, uint64(23))
+		ps.Sfixed32(fieldSF32, int32(-22))
+		ps.Sfixed64(fieldSF64, int64(-23))
+		ps.Bool(fieldBoo, true)
+		ps.String(fieldStr, "s")
+		ps.Bytes(fieldByt, []byte("b"))
+		ps.Int32(fieldEnu, enuE2)
+	}
+}
+
 // Microbenchmark packing performance
 func BenchmarkPacking(b *testing.B) {
 	output := bytes.NewBuffer([]byte{})
@@ -312,32 +342,6 @@ func BenchmarkPacking(b *testing.B) {
 			panic(err)
 		}
 	}
-}
-
-// Test using ps.EmbeddedMessage to embed a proto.Message instance
-func TestEmbeddedMessage(t *testing.T) {
-	output := bytes.NewBuffer([]byte{})
-	ps := NewProtoStream()
-	ps.Reset(output)
-
-	// values copied from the .proto file
-	const fieldAPIKey = 10
-	const fieldRequest = 11
-
-	require.NoError(t, ps.String(fieldAPIKey, "abc-123"))
-	require.NoError(t, ps.EmbeddedMessage(fieldRequest, &SearchRequest{Query: "author=butler"}))
-	require.NoError(t, ps.EmbeddedMessage(fieldRequest, &SearchRequest{Query: "author=rumi"}))
-
-	buf := output.Bytes()
-	var res MultiSearch
-
-	require.NoError(t, proto.Unmarshal(buf, &res))
-
-	require.Equal(t, "abc-123", res.ApiKey)
-	require.Equal(t, "author=butler", res.Request[0].Query)
-	require.Equal(t, int32(0), res.Request[0].PageNumber)
-	require.Equal(t, "author=rumi", res.Request[1].Query)
-	require.Equal(t, int32(0), res.Request[1].ResultPerPage)
 }
 
 // Test ps.Embedded embedding a repeated message
