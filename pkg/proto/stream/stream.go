@@ -3,7 +3,6 @@ package stream
 import (
 	"bytes"
 	"io"
-	"log"
 	"math"
 
 	"github.com/golang/protobuf/proto"
@@ -15,6 +14,15 @@ const (
 	wt64Bit           int = 1
 	wtLengthDelimited int = 2
 	wt32Bit           int = 5
+
+	// defaultScratchBufferSize is the default size for scratch buffers.  These
+	// are typically quite small.
+	defaultScratchBufferSize int = 512
+
+	// defaultBufferSize is the default size for buffers used for embedded
+	// values, which must first be written to a buffer to determine their
+	// length.  This is not used if BufferFactory is set.
+	defaultBufferSize int = 1024 * 16
 )
 
 // A ProtoStream supports writing protobuf data in a streaming fashion.  Its methods
@@ -34,16 +42,22 @@ type ProtoStream struct {
 	childStream *ProtoStream
 
 	// childBuffer is the buffer to which `childStream` writes.
-	childBuffer bytes.Buffer
+	childBuffer *bytes.Buffer
+
+	// BufferFactory creates new, empty buffers as needed.  Users may override
+	// this function to provide pre-initialized buffers of a larger size, or
+	// from a buffer pool, for example.
+	BufferFactory func() []byte
 }
 
 // NewProtoStream creates a new ProtoStream.  This ProtoStream _cannot be used_ until
 // Reset is called.
 func NewProtoStream() *ProtoStream {
 	return &ProtoStream{
-		scratchBuffer: proto.NewBuffer([]byte{}),
+		scratchBuffer: proto.NewBuffer(make([]byte, 0, defaultScratchBufferSize)),
 		childStream:   nil,
-		childBuffer:   bytes.Buffer{},
+		childBuffer:   nil,
+		BufferFactory: func() []byte { return make([]byte, 0, defaultBufferSize) },
 	}
 }
 
@@ -74,7 +88,6 @@ func (ps *ProtoStream) DoublePacked(fieldNumber int, values []float64) error {
 	if len(values) == 0 {
 		return nil
 	}
-	log.Printf("values %#v", values)
 	return ps.Embedded(fieldNumber, func(ps *ProtoStream) error {
 		ps.scratchBuffer.Reset()
 		for _, value := range values {
@@ -502,9 +515,11 @@ func (ps *ProtoStream) Bytes(fieldNumber int, value []byte) error {
 // NOTE: if the inner function creates an empty message (such as for a struct
 // at its zero value), that empty message will still be added to the stream.
 func (ps *ProtoStream) Embedded(fieldNumber int, inner func(*ProtoStream) error) error {
+	// create a new child, writing to a buffer, if one does not already exist
 	if ps.childStream == nil {
+		ps.childBuffer = bytes.NewBuffer(ps.BufferFactory())
 		ps.childStream = NewProtoStream()
-		ps.childStream.Reset(&ps.childBuffer)
+		ps.childStream.Reset(ps.childBuffer)
 	}
 
 	// write the embedded value using the child, leaving the result in ps.childBuffer
@@ -513,9 +528,6 @@ func (ps *ProtoStream) Embedded(fieldNumber int, inner func(*ProtoStream) error)
 	if err != nil {
 		return err
 	}
-
-	log.Printf("child buffer: %#v", ps.childBuffer.Bytes())
-	log.Printf("child buffer len: 0x%x", ps.childBuffer.Len())
 
 	ps.scratchBuffer.Reset()
 	ps.encodeKeyToScratch(fieldNumber, wtLengthDelimited)
