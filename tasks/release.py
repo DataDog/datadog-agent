@@ -635,9 +635,7 @@ def _fetch_independent_dependency_repo_version(
     return version
 
 
-def _get_windows_ddnpm_release_json_info(
-    release_json, agent_major_version, version_re, is_first_rc=False,
-):
+def _get_windows_ddnpm_release_json_info(release_json, agent_major_version, version_re, is_first_rc=False):
     """
     Gets the Windows NPM driver info from the previous entries in the release.json file.
     """

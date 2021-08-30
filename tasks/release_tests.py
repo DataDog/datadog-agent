@@ -238,14 +238,14 @@ class TestAddReleaseJsonEntry(unittest.TestCase):
 
 class TestGetHighestVersionFromReleaseJson(unittest.TestCase):
     test_release_json = {
-        "nightly": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master",},
-        "nightly-a7": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master",},
-        "6.28.1": {"JMXFETCH_VERSION": "0.43.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.10",},
-        "7.28.1": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "v0.10",},
-        "6.28.0": {"JMXFETCH_VERSION": "0.42.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.9",},
-        "7.28.0": {"JMXFETCH_VERSION": "0.42.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.9",},
-        "6.27.0": {"JMXFETCH_VERSION": "0.42.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.8",},
-        "7.27.0": {"JMXFETCH_VERSION": "0.42.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.8",},
+        "nightly": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master"},
+        "nightly-a7": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master"},
+        "6.28.1": {"JMXFETCH_VERSION": "0.43.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.10"},
+        "7.28.1": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "v0.10"},
+        "6.28.0": {"JMXFETCH_VERSION": "0.42.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.9"},
+        "7.28.0": {"JMXFETCH_VERSION": "0.42.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.9"},
+        "6.27.0": {"JMXFETCH_VERSION": "0.42.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.8"},
+        "7.27.0": {"JMXFETCH_VERSION": "0.42.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.8"},
     }
 
     def test_highest_release_version_6(self):

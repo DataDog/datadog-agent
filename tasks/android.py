@@ -31,9 +31,7 @@ CORECHECK_CONFS_DIR = "cmd/agent/android/app/src/main/assets/conf.d"
 
 
 @task
-def build(
-    ctx, rebuild=False, race=False, major_version='7', python_runtimes='3',
-):
+def build(ctx, rebuild=False, race=False, major_version='7', python_runtimes='3'):
     """
     Build the android apk. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
