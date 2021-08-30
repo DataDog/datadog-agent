@@ -287,6 +287,33 @@ func TestPacking(t *testing.T) {
 	})
 }
 
+// Microbenchmark packing performance
+func BenchmarkPacking(b *testing.B) {
+	output := bytes.NewBuffer([]byte{})
+	ps := NewProtoStream()
+	ps.Reset(output)
+
+	const packSize = 102400
+	floats := make([]float64, 0, packSize)
+	for i := 0; i < packSize; i++ {
+		// note that nothing in the implementation optimizes for
+		// repeated values, so there's no need to do anything more
+		// interesting than this.
+		floats = append(floats, 2.7182818284)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		output.Reset()
+		err := ps.DoublePacked(fieldDub, floats)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
 // Test using ps.EmbeddedMessage to embed a proto.Message instance
 func TestEmbeddedMessage(t *testing.T) {
 	output := bytes.NewBuffer([]byte{})
