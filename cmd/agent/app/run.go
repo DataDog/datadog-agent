@@ -76,6 +76,9 @@ import (
 	// register metadata providers
 	_ "github.com/DataDog/datadog-agent/pkg/collector/metadata"
 	_ "github.com/DataDog/datadog-agent/pkg/metadata"
+
+	// register workload metadata collectors
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/kubelet"
 )
 
 var (
