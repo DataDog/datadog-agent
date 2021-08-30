@@ -37,15 +37,21 @@ type ProtoStream struct {
 	childBuffer bytes.Buffer
 }
 
-// NewProtoStream creates a new ProtoStream, ready to write encoded data to the embedded
-// writer.
-func NewProtoStream(output io.Writer) *ProtoStream {
+// NewProtoStream creates a new ProtoStream.  This ProtoStream _cannot be used_ until
+// Reset is called.
+func NewProtoStream() *ProtoStream {
 	return &ProtoStream{
-		outputWriter:  output,
 		scratchBuffer: proto.NewBuffer([]byte{}),
 		childStream:   nil,
 		childBuffer:   bytes.Buffer{},
 	}
+}
+
+// Reset sets the Writer to which this ProtoStream streams.  This must be
+// called before any other methods, and can be called again to change the
+// output Writer.
+func (ps *ProtoStream) Reset(outputWriter io.Writer) {
+	ps.outputWriter = outputWriter
 }
 
 // Double writes a value of proto type double to the stream.
@@ -497,7 +503,8 @@ func (ps *ProtoStream) Bytes(fieldNumber int, value []byte) error {
 // at its zero value), that empty message will still be added to the stream.
 func (ps *ProtoStream) Embedded(fieldNumber int, inner func(*ProtoStream) error) error {
 	if ps.childStream == nil {
-		ps.childStream = NewProtoStream(&ps.childBuffer)
+		ps.childStream = NewProtoStream()
+		ps.childStream.Reset(&ps.childBuffer)
 	}
 
 	// write the embedded value using the child, leaving the result in ps.childBuffer

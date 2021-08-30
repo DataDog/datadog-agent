@@ -35,7 +35,8 @@ const enuE2 = 2
 // protofbuf code.  This function should test all proto types.
 func TestSimpleEncoding(t *testing.T) {
 	output := bytes.NewBuffer([]byte{})
-	ps := NewProtoStream(output)
+	ps := NewProtoStream()
+	ps.Reset(output)
 
 	require.NoError(t, ps.Double(fieldDub, 3.14))
 	require.NoError(t, ps.Float(fieldFlo, 3.14))
@@ -80,7 +81,8 @@ func TestSimpleEncoding(t *testing.T) {
 // Test that the zero values for each field do not result in any encoded data.
 func TestSimpleEncodingZero(t *testing.T) {
 	output := bytes.NewBuffer([]byte{})
-	ps := NewProtoStream(output)
+	ps := NewProtoStream()
+	ps.Reset(output)
 
 	require.NoError(t, ps.Double(fieldDub, 0.0))
 	require.NoError(t, ps.Float(fieldFlo, 0.0))
@@ -107,7 +109,8 @@ func TestSimpleEncodingZero(t *testing.T) {
 // Test that the zero values for packed fields do not result in any encoded data.
 func TestPackedEncodingZero(t *testing.T) {
 	output := bytes.NewBuffer([]byte{})
-	ps := NewProtoStream(output)
+	ps := NewProtoStream()
+	ps.Reset(output)
 
 	require.NoError(t, ps.DoublePacked(fieldDub, []float64{}))
 	require.NoError(t, ps.FloatPacked(fieldFlo, []float32{}))
@@ -130,7 +133,8 @@ func TestPackedEncodingZero(t *testing.T) {
 // Test that *Packed functions work.
 func TestPacking(t *testing.T) {
 	output := bytes.NewBuffer([]byte{})
-	ps := NewProtoStream(output)
+	ps := NewProtoStream()
+	ps.Reset(output)
 
 	assertBytes := func(t *testing.T, exp []byte, got []byte) {
 		assert.Equal(t, fmt.Sprintf("%#v", exp), fmt.Sprintf("%#v", got))
@@ -286,7 +290,8 @@ func TestPacking(t *testing.T) {
 // Test using ps.EmbeddedMessage to embed a proto.Message instance
 func TestEmbeddedMessage(t *testing.T) {
 	output := bytes.NewBuffer([]byte{})
-	ps := NewProtoStream(output)
+	ps := NewProtoStream()
+	ps.Reset(output)
 
 	// values copied from the .proto file
 	const fieldAPIKey = 10
@@ -311,7 +316,8 @@ func TestEmbeddedMessage(t *testing.T) {
 // Test ps.Embedded embedding a repeated message
 func TestEmbedding(t *testing.T) {
 	output := bytes.NewBuffer([]byte{})
-	ps := NewProtoStream(output)
+	ps := NewProtoStream()
+	ps.Reset(output)
 
 	// values copied from the .proto file
 	const fieldAPIKey = 10

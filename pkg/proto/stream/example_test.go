@@ -19,7 +19,8 @@ func ExampleNew() {
 	 */
 	var err error
 	output := bytes.NewBuffer([]byte{})
-	ps := NewProtoStream(output)
+	ps := NewProtoStream()
+	ps.Reset(output)
 
 	// values copied from the .proto file
 	const fieldQuery int = 1
@@ -73,7 +74,8 @@ func ExampleProtoStream_Embedded() {
 	*/
 	var err error
 	output := bytes.NewBuffer([]byte{})
-	ps := NewProtoStream(output)
+	ps := NewProtoStream()
+	ps.Reset(output)
 
 	// values copied from the .proto file
 	const fieldAPIKey = 10
@@ -161,7 +163,8 @@ func ExampleProtoStream_EmbeddedMessage() {
 	*/
 	var err error
 	output := bytes.NewBuffer([]byte{})
-	ps := NewProtoStream(output)
+	ps := NewProtoStream()
+	ps.Reset(output)
 
 	// values copied from the .proto file
 	const fieldAPIKey = 10
@@ -205,7 +208,8 @@ func ExampleProtoStream_Sint32Packed() {
 	 */
 	var err error
 	output := bytes.NewBuffer([]byte{})
-	ps := NewProtoStream(output)
+	ps := NewProtoStream()
+	ps.Reset(output)
 
 	const fieldNumber = 22
 
