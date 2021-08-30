@@ -22,6 +22,13 @@ type AwsSecretsManagerBackend struct {
 func NewAwsSecretsManagerBackend(backendId string, backendConfig map[string]string) (
 	*AwsSecretsManagerBackend, error) {
 
+	if _, ok := backendConfig["awsRegion"]; !ok {
+		logWithFields(log.Fields{
+			"backendId": backendId,
+		}).Errorf("missing required backend parameter: %s", "awsRegion")
+		return nil, fmt.Errorf("missing required parameter: %s", "awsRegion")
+	}
+
 	cfg, err := NewAwsConfigFromBackendConfig(backendId, backendConfig)
 	if err != nil {
 		log.WithFields(log.Fields{
