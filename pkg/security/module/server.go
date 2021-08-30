@@ -236,8 +236,9 @@ func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestPara
 // SendEvent forwards events sent by the runtime security module to Datadog
 func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string, service string) {
 	agentContext := &AgentContext{
-		RuleID:  rule.Definition.ID,
-		Version: version.AgentVersion,
+		RuleID:      rule.Definition.ID,
+		RuleVersion: rule.Definition.Version,
+		Version:     version.AgentVersion,
 	}
 
 	ruleEvent := &Signal{
