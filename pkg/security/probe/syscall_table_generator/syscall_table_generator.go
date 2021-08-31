@@ -19,8 +19,6 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
-
-	"k8s.io/kubernetes/pkg/util/slice"
 )
 
 func main() {
@@ -100,7 +98,7 @@ func getSyscallTable(url string, abis []string) ([]syscallDefinition, error) {
 		name := parts[2]
 		camelCaseName := snakeToCamelCase(name)
 
-		if slice.ContainsString(abis, abi, nil) {
+		if containsStringSlice(abis, abi) {
 			syscalls = append(syscalls, syscallDefinition{
 				Number:        int(number),
 				Abi:           abi,
@@ -188,4 +186,13 @@ func writeFileAndFormat(outputPath string, content string) error {
 
 func generateStringer(inputPath, outputPath string) error {
 	return exec.Command("go", "run", "golang.org/x/tools/cmd/stringer", "-type", "Syscall", "-output", outputPath, inputPath).Run()
+}
+
+func containsStringSlice(slice []string, value string) bool {
+	for _, current := range slice {
+		if current == value {
+			return true
+		}
+	}
+	return false
 }
