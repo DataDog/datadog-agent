@@ -62,7 +62,10 @@ func CreateHTTPTransport() *http.Transport {
 
 	// Most of the following timeouts are a copy of Golang http.DefaultTransport
 	// They are mostly used to act as safeguards in case we forget to add a general
-	// timeout to our http clients.
+	// timeout to our http clients.  Setting DialContext and TLSClientConfig has the
+	// desirable side-effect of disabling http/2; if removing those fields then
+	// consider the implication of the protocol switch for intakes and other http
+	// servers. See ForceAttemptHTTP2 in https://pkg.go.dev/net/http#Transport.
 	transport := &http.Transport{
 		TLSClientConfig: tlsConfig,
 		DialContext: (&net.Dialer{
