@@ -13,6 +13,8 @@ import (
 
 const (
 	qualifierEnvVar = "AWS_LAMBDA_FUNCTION_VERSION"
+	envEnvVar       = "DD_ENV"
+	versionEnvVar   = "DD_VERSION"
 
 	traceOriginMetadataKey   = "_dd.origin"
 	traceOriginMetadataValue = "lambda"
@@ -26,6 +28,8 @@ const (
 	resourceKey              = "resource"
 	executedVersionKey       = "executedversion"
 	extensionVersionKey      = "dd_extension_version"
+	envKey                   = "env"
+	versionKey               = "version"
 )
 
 // currentExtensionVersion represents the current version of the Datadog Lambda Extension.
@@ -36,6 +40,9 @@ var currentExtensionVersion = "xxx"
 // BuildTagMap builds a map of tag based on the arn and user defined tags
 func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags := make(map[string]string)
+
+	tags = setIfNotEmpty(tags, envKey, os.Getenv(envEnvVar))
+	tags = setIfNotEmpty(tags, versionKey, os.Getenv(versionEnvVar))
 
 	for _, tag := range configTags {
 		splitTags := strings.Split(tag, ",")
@@ -108,7 +115,7 @@ func AddColdStartTag(tags []string, coldStart bool) []string {
 }
 
 func setIfNotEmpty(tagMap map[string]string, key string, value string) map[string]string {
-	if key != "" {
+	if key != "" && value != "" {
 		tagMap[key] = strings.ToLower(value)
 	}
 	return tagMap

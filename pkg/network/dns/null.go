@@ -17,7 +17,7 @@ func (nullReverseDNS) Resolve(_ []util.Address) map[util.Address][]string {
 	return nil
 }
 
-func (nullReverseDNS) GetDNSStats() map[Key]map[string]map[QueryType]Stats {
+func (nullReverseDNS) GetDNSStats() StatsByKeyByNameByType {
 	return nil
 }
 

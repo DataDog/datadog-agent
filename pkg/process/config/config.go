@@ -18,6 +18,7 @@ import (
 	model "github.com/DataDog/agent-payload/process"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -254,7 +255,9 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 	return ac
 }
 
-func loadConfigIfExists(path string) error {
+// LoadConfigIfExists takes a path to either a directory containing datadog.yaml or a direct path to a datadog.yaml file
+// and loads it into ddconfig.Datadog. It does this silently, and does not produce any logs.
+func LoadConfigIfExists(path string) error {
 	if path != "" {
 		if util.PathExists(path) {
 			config.Datadog.AddConfigPath(path)
@@ -278,7 +281,7 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 	var err error
 
 	// For Agent 6 we will have a YAML config file to use.
-	if err := loadConfigIfExists(yamlPath); err != nil {
+	if err := LoadConfigIfExists(yamlPath); err != nil {
 		return nil, err
 	}
 
@@ -368,7 +371,25 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 		}
 	}
 
+	initRuntimeSettings()
+
 	return cfg, nil
+}
+
+// initRuntimeSettings registers settings to be added to the runtime config.
+func initRuntimeSettings() {
+	// NOTE: Any settings you want to register should simply be added here
+	var processRuntimeSettings = []settings.RuntimeSetting{
+		settings.LogLevelRuntimeSetting{},
+	}
+
+	// Before we begin listening, register runtime settings
+	for _, setting := range processRuntimeSettings {
+		err := settings.RegisterRuntimeSetting(setting)
+		if err != nil {
+			_ = log.Warnf("cannot initialize the runtime setting %s: %v", setting.Name(), err)
+		}
+	}
 }
 
 // getContainerHostType uses the fargate library to detect container environment and returns the protobuf version of it
@@ -394,6 +415,7 @@ func loadEnvVariables() {
 		{"DD_PROCESS_AGENT_REMOTE_TAGGER", "process_config.remote_tagger"},
 		{"DD_PROCESS_AGENT_MAX_PER_MESSAGE", "process_config.max_per_message"},
 		{"DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "process_config.max_ctr_procs_per_message"},
+		{"DD_PROCESS_AGENT_CMD_PORT", "process_config.cmd_port"},
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},

@@ -218,6 +218,10 @@ def has_upstart
   system('/sbin/init --version 2>&1 | grep -q upstart >/dev/null')
 end
 
+def has_dpkg
+  system('command -v dpkg 2>&1 > /dev/null')
+end
+
 def info
   `#{agent_command} status 2>&1`
 end
@@ -406,8 +410,13 @@ def is_file_signed(fullpath)
   return true
 end
 
+def is_dpkg_package_installed(package)
+  system("dpkg -l #{package} | grep ii")
+end
+
 shared_examples_for 'Agent install' do
   it_behaves_like 'an installed Agent'
+  it_behaves_like 'an installed Datadog Signing Keys'
 end
 
 shared_examples_for 'Agent behavior' do
@@ -479,6 +488,15 @@ shared_examples_for "an installed Agent" do
         expect(is_signed).to be_truthy
       end
     end
+  end
+end
+
+shared_examples_for "an installed Datadog Signing Keys" do
+  it 'is installed (on Debian-based systems)' do
+    skip if os == :windows
+    skip unless has_dpkg
+    # Only check on Debian-based systems, which have dpkg installed
+    expect(is_dpkg_package_installed('datadog-signing-keys')).to be_truthy
   end
 end
 

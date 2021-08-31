@@ -85,4 +85,15 @@ typedef struct {
     __u64 batch_idx;
 } http_batch_notification_t;
 
+// OpenSSL types
+typedef struct {
+    void *ctx;
+    void *buf;
+} ssl_read_args_t;
+
+typedef struct {
+    conn_tuple_t tup;
+    __u32 fd;
+} ssl_sock_t;
+
 #endif

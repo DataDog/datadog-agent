@@ -26,6 +26,12 @@ func TestSetIfNotEmptyWithEmptyKey(t *testing.T) {
 	assert.Equal(t, 0, len(testMap))
 }
 
+func TestSetIfNotEmptyWithEmptyValue(t *testing.T) {
+	testMap := make(map[string]string)
+	testMap = setIfNotEmpty(testMap, "nonEmptyKey", "")
+	assert.Equal(t, 0, len(testMap))
+}
+
 func TestBuildTracerTags(t *testing.T) {
 	tagsMap := map[string]string{
 		"key0":     "value0",
@@ -87,6 +93,30 @@ func TestBuildTagMapFromArnComplete(t *testing.T) {
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
 	tagMap := BuildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
 	assert.Equal(t, 11, len(tagMap))
+	assert.Equal(t, "lambda", tagMap["_dd.origin"])
+	assert.Equal(t, "1", tagMap["_dd.compute_stats"])
+	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-function", tagMap["function_arn"])
+	assert.Equal(t, "us-east-1", tagMap["region"])
+	assert.Equal(t, "123456789012", tagMap["aws_account"])
+	assert.Equal(t, "123456789012", tagMap["account_id"])
+	assert.Equal(t, "my-function", tagMap["functionname"])
+	assert.Equal(t, "my-function", tagMap["resource"])
+	assert.Equal(t, "xxx", tagMap["dd_extension_version"])
+	assert.Equal(t, "value0", tagMap["tag0"])
+	assert.Equal(t, "value1", tagMap["tag1"])
+}
+
+func TestBuildTagMapFromArnCompleteWithEnvAndVersion(t *testing.T) {
+	os.Setenv("DD_VERSION", "myTestVersion")
+	defer os.Unsetenv("DD_VERSION")
+	os.Setenv("DD_ENV", "myTestEnv")
+	defer os.Unsetenv("DD_ENV")
+
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
+	tagMap := BuildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
+	assert.Equal(t, 13, len(tagMap))
+	assert.Equal(t, "mytestenv", tagMap["env"])
+	assert.Equal(t, "mytestversion", tagMap["version"])
 	assert.Equal(t, "lambda", tagMap["_dd.origin"])
 	assert.Equal(t, "1", tagMap["_dd.compute_stats"])
 	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-function", tagMap["function_arn"])

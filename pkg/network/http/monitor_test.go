@@ -3,19 +3,15 @@
 package http
 
 import (
-	"context"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"math/rand"
 	nethttp "net/http"
-	"regexp"
-	"strconv"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/http/testutil"
+	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/stretchr/testify/require"
 )
@@ -40,8 +36,8 @@ func TestHTTPMonitorIntegrationWithNAT(t *testing.T) {
 	}
 
 	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
-	testutil.SetupDNAT(t)
-	defer testutil.TeardownDNAT(t)
+	netlink.SetupDNAT(t)
+	defer netlink.TeardownDNAT(t)
 
 	targetAddr := "2.2.2.2:8080"
 	serverAddr := "1.1.1.1:8080"
@@ -49,10 +45,10 @@ func TestHTTPMonitorIntegrationWithNAT(t *testing.T) {
 }
 
 func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int) {
-	srvDoneFn := serverSetup(t, serverAddr)
+	srvDoneFn := testutil.HTTPServer(t, serverAddr, false)
 	defer srvDoneFn()
 
-	monitor, err := NewMonitor(config.New())
+	monitor, err := NewMonitor(config.New(), nil, nil)
 	require.NoError(t, err)
 	err = monitor.Start()
 	require.NoError(t, err)
@@ -73,50 +69,6 @@ func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int) {
 	for _, req := range requests {
 		includesRequest(t, stats, req)
 	}
-}
-
-func includesRequest(t *testing.T, allStats map[Key]RequestStats, req *nethttp.Request) {
-	expectedStatus := statusFromPath(req.URL.Path)
-	for key, stats := range allStats {
-		i := expectedStatus/100 - 1
-		if key.Path == req.URL.Path && stats[i].Count == 1 {
-			return
-		}
-	}
-
-	t.Errorf(
-		"could not find HTTP transaction matching the following criteria:\n path=%s method=%s status=%d",
-		req.URL.Path,
-		req.Method,
-		expectedStatus,
-	)
-}
-
-// serverSetup spins up a HTTP test server that returns the status code included in the URL
-// Example:
-// * GET /200/foo returns a 200 status code;
-// * PUT /404/bar returns a 404 status code;
-func serverSetup(t *testing.T, addr string) func() {
-	handler := func(w nethttp.ResponseWriter, req *nethttp.Request) {
-		statusCode := statusFromPath(req.URL.Path)
-		io.Copy(ioutil.Discard, req.Body)
-		w.WriteHeader(statusCode)
-	}
-
-	srv := &nethttp.Server{
-		Addr:         addr,
-		Handler:      nethttp.HandlerFunc(handler),
-		ReadTimeout:  time.Second,
-		WriteTimeout: time.Second,
-	}
-
-	srv.SetKeepAlivesEnabled(false)
-
-	go func() {
-		_ = srv.ListenAndServe()
-	}()
-
-	return func() { srv.Shutdown(context.Background()) }
 }
 
 func requestGenerator(t *testing.T, targetAddr string) func() *nethttp.Request {
@@ -143,13 +95,19 @@ func requestGenerator(t *testing.T, targetAddr string) func() *nethttp.Request {
 	}
 }
 
-var pathParser = regexp.MustCompile(`/(\d{3})/.+`)
-
-func statusFromPath(path string) (status int) {
-	matches := pathParser.FindStringSubmatch(path)
-	if len(matches) == 2 {
-		status, _ = strconv.Atoi(matches[1])
+func includesRequest(t *testing.T, allStats map[Key]RequestStats, req *nethttp.Request) {
+	expectedStatus := testutil.StatusFromPath(req.URL.Path)
+	for key, stats := range allStats {
+		i := expectedStatus/100 - 1
+		if key.Path == req.URL.Path && stats[i].Count == 1 {
+			return
+		}
 	}
 
-	return
+	t.Errorf(
+		"could not find HTTP transaction matching the following criteria:\n path=%s method=%s status=%d",
+		req.URL.Path,
+		req.Method,
+		expectedStatus,
+	)
 }
