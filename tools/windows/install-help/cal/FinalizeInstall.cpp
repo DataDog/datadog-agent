@@ -73,9 +73,9 @@ bool updateYamlConfig(CustomActionData &customActionData)
     return true;
 }
 
-bool writeInstallInfo(const CustomActionData &customActionData)
+std::optional<std::wstring> GetInstallMethod(const CustomActionData &customActionData)
 {
-    std::wstring customInstallMethod = L"";
+    std::wstring customInstallMethod;
     customActionData.value(L"OVERRIDE_INSTALLATION_METHOD", customInstallMethod);
 
     if (customInstallMethod.empty())
@@ -91,7 +91,7 @@ bool writeInstallInfo(const CustomActionData &customActionData)
         if (uiLevelStrStream.fail())
         {
             WcaLog(LOGMSG_STANDARD, "Could not read UILevel from installer: %S", uiLevelStr.c_str());
-            return false;
+            return std::nullopt;
         }
 
         // 2 = quiet
@@ -105,15 +105,26 @@ bool writeInstallInfo(const CustomActionData &customActionData)
             customInstallMethod = L"windows_msi_quiet";
         }
     }
+    return std::optional<std::wstring> (customInstallMethod);
+}
 
-    WcaLog(LOGMSG_VERBOSE, "Install method: %S", customInstallMethod.c_str());
-    std::wofstream installInfoOutputStream(installInfoFile);
-    installInfoOutputStream << L"---" << std::endl
-                            << L"install_method:" << std::endl
-                            << L"  tool: " << customInstallMethod << std::endl
-                            << L"  tool_version: " << customInstallMethod << std::endl
-                            << L"  installer_version: " << customInstallMethod << std::endl;
-    return true;
+bool writeInstallInfo(const CustomActionData &customActionData)
+{
+    std::optional<std::wstring> installMethod = GetInstallMethod(customActionData);
+    if (installMethod)
+    {
+        WcaLog(LOGMSG_VERBOSE, "Install method: %S", installMethod.value().c_str());
+        std::wofstream installInfoOutputStream(installInfoFile);
+        installInfoOutputStream << L"---" << std::endl
+                                << L"install_method:" << std::endl
+                                << L"  tool: " << installMethod.value() << std::endl
+                                << L"  tool_version: " << installMethod.value() << std::endl
+                                << L"  installer_version: " << installMethod.value() << std::endl;
+        return true;
+    }
+
+    // Prefer logging error in GetInstallMethod to avoid double logging.
+    return false;
 }
 
 UINT doFinalizeInstall(CustomActionData &data)
