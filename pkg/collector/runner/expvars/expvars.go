@@ -15,16 +15,14 @@ import (
 )
 
 const (
-	// Top-level expvar (the convention for them is that they are lowercase)
-	runnerExpvarKey = "runner"
-
-	// Nested keys
 	checksExpvarKey        = "Checks"
 	errorsExpvarKey        = "Errors"
 	runningChecksExpvarKey = "RunningChecks"
+	runnerExpvarKey        = "runner"
 	runsExpvarKey          = "Runs"
-	runningExpvarKey       = "Running"
+	runningExpvarKey       = "running"
 	warningsExpvarKey      = "Warnings"
+	workersExpvarKey       = "Workers"
 )
 
 var (
@@ -40,20 +38,19 @@ type expCheckStats struct {
 }
 
 func init() {
-	runningChecksStats = &expvar.Map{}
-
 	runnerStats = expvar.NewMap(runnerExpvarKey)
-	runnerStats.Set(checksExpvarKey, expvar.Func(expCheckStatsFunc))
+
+	runningChecksStats = &expvar.Map{}
 	runnerStats.Set(runningExpvarKey, runningChecksStats)
 
-	newWorkersExpvar(runnerStats)
+	runnerStats.Set(checksExpvarKey, expvar.Func(expCheckStatsFunc))
 
 	checkStats = &expCheckStats{
 		stats: make(map[string]map[check.ID]*check.Stats),
 	}
 }
 
-// Helpers
+// Functions relating to check run stats (`checkStats`)
 
 func expCheckStatsFunc() interface{} {
 	return GetCheckStats()
@@ -80,14 +77,11 @@ func Reset() {
 		runsExpvarKey,
 		runningChecksExpvarKey,
 		warningsExpvarKey,
+		workersExpvarKey,
 	} {
 		runnerStats.Delete(key)
 	}
-
-	resetWorkersExpvar(runnerStats)
 }
-
-// Functions relating to check run stats (`checkStats`)
 
 // GetCheckStats returns the check stats map
 func GetCheckStats() map[string]map[check.ID]*check.Stats {
@@ -204,6 +198,23 @@ func GetRunningStats(id check.ID) time.Time {
 // DeleteRunningStats clears the start time of a check when it's complete
 func DeleteRunningStats(id check.ID) {
 	runningChecksStats.Delete(string(id))
+}
+
+// Functions relating to top-level runner expvars (`runnerStats`)
+
+// AddWorkerCount is used to increment and decrement the 'Worker' expvar
+func AddWorkerCount(amount int) {
+	runnerStats.Add(workersExpvarKey, int64(amount))
+}
+
+// GetWorkerCount is used to get the value of 'Worker' expvar
+func GetWorkerCount() int64 {
+	count := runnerStats.Get(workersExpvarKey)
+	if count == nil {
+		return 0
+	}
+
+	return count.(*expvar.Int).Value()
 }
 
 // AddRunningCheckCount is used to increment and decrement the 'RunningChecks' expvar
