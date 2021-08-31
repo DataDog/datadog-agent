@@ -6,6 +6,7 @@
 package log
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
 	"go.uber.org/zap/zapcore"
 )
@@ -30,7 +31,7 @@ func (c *core) Enabled(level zapcore.Level) bool {
 	case zapcore.DPanicLevel, zapcore.PanicLevel, zapcore.FatalLevel:
 		seelogLevel = seelog.CriticalLvl
 	}
-	return logger.shouldLog(seelogLevel)
+	return log.ShouldLog(seelogLevel)
 }
 
 func (c *core) With(fields []zapcore.Field) zapcore.Core {
@@ -67,24 +68,24 @@ func (c *core) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 	const depth = 3
 	switch entry.Level {
 	case zapcore.DebugLevel:
-		debugcWithDepth(entry.Message, depth, context...)
+		log.DebugcStackDepth(entry.Message, depth, context...)
 	case zapcore.InfoLevel:
-		infocWithDepth(entry.Message, depth, context...)
+		log.InfocStackDepth(entry.Message, depth, context...)
 	// we ignore errors since these are not related to writing
 	case zapcore.WarnLevel:
-		_ = warncWithDepth(entry.Message, depth, context...)
+		_ = log.WarncStackDepth(entry.Message, depth, context...)
 	case zapcore.ErrorLevel:
-		_ = errorcWithDepth(entry.Message, depth, context...)
+		_ = log.ErrorcStackDepth(entry.Message, depth, context...)
 	// zap's default core panics or exits at these levels;
 	// we just log them at critical level
 	case zapcore.DPanicLevel, zapcore.PanicLevel, zapcore.FatalLevel:
-		_ = criticalcWithDepth(entry.Message, depth, context...)
+		_ = log.CriticalcStackDepth(entry.Message, depth, context...)
 	}
 	return nil
 }
 
 func (c *core) Sync() error {
-	Flush()
+	log.Flush()
 	return nil
 }
 
