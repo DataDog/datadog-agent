@@ -66,9 +66,38 @@ bool updateYamlConfig(CustomActionData &customActionData)
 
 bool writeInstallInfo(const CustomActionData &customActionData)
 {
-    std::wstring customInstallMethod = L"windows_msi_gui";
+    std::wstring customInstallMethod = L"";
     customActionData.value(L"OVERRIDE_INSTALLATION_METHOD", customInstallMethod);
-    WcaLog(LOGMSG_STANDARD, "Install method: %S", customInstallMethod.c_str());
+
+    if (customInstallMethod.empty())
+    {
+        WcaLog(LOGMSG_VERBOSE, "No override installation method specified, computing using UILevel");
+
+        std::wstring uiLevelStr;
+        customActionData.value(L"UILevel", uiLevelStr);
+
+        std::wstringstream uiLevelStrStream(uiLevelStr);
+        int uiLevel = -1;
+        uiLevelStrStream >> uiLevel;
+        if (uiLevelStrStream.fail())
+        {
+            WcaLog(LOGMSG_STANDARD, "Could not read UILevel from installer: %S", uiLevelStr.c_str());
+            return false;
+        }
+
+        // 2 = quiet
+        // > 2 (typically 5) = UI
+        if (uiLevel > 2)
+        {
+            customInstallMethod = L"windows_msi_gui";
+        }
+        else
+        {
+            customInstallMethod = L"windows_msi_quiet";
+        }
+    }
+
+    WcaLog(LOGMSG_VERBOSE, "Install method: %S", customInstallMethod.c_str());
     std::wofstream installInfoOutputStream(installInfoFile);
     installInfoOutputStream << L"---" << std::endl
                             << L"install_method:" << std::endl
