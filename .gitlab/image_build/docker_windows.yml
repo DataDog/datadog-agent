@@ -65,7 +65,7 @@
   needs: ["windows_msi_and_bosh_zip_x64-a7", "build_windows_container_entrypoint"]
   variables:
     AGENT_ZIP: "datadog-agent-7*-x86_64.zip"
-    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT}"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-${VARIANT} --build-arg NETAPI32_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT}"
     TARGET_TAG: "${IMAGE}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TAG_SUFFIX}-win${VARIANT}-amd64"
 
 .docker_build_agent6_windows_common:
@@ -77,21 +77,21 @@
   needs: ["windows_msi_x64-a6", "build_windows_container_entrypoint"]
   variables:
     AGENT_ZIP: "datadog-agent-6*-x86_64.zip"
-    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT}"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-${VARIANT} --build-arg NETAPI32_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT}"
     TARGET_TAG: "${IMAGE}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TAG_SUFFIX}-win${VARIANT}-amd64"
 
 .docker_build_agent6_windows_servercore_common:
   extends:
     - .docker_build_agent6_windows_common
   variables:
-    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT}"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg NETAPI32_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT}"
     TARGET_TAG: "${IMAGE}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TAG_SUFFIX}-win${VARIANT}-servercore-amd64"
 
 .docker_build_agent7_windows_servercore_common:
   extends:
     - .docker_build_agent7_windows_common
   variables:
-    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT}"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg NETAPI32_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT}"
     TARGET_TAG: "${IMAGE}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TAG_SUFFIX}-win${VARIANT}-servercore-amd64"
 
 include:
