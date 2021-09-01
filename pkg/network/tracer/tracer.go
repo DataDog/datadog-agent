@@ -350,7 +350,7 @@ func newReverseDNS(supported bool, c *config.Config) (dns.ReverseDNS, error) {
 
 func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manager.ConstantEditor, error) {
 	// Enable kernel probes used for offset guessing.
-	offsetMgr := netebpf.NewOffsetManager()
+	offsetMgr := newOffsetManager()
 	offsetOptions := manager.Options{
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
