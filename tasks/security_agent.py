@@ -150,9 +150,7 @@ def gen_mocks(ctx):
 
 
 @task
-def run_functional_tests(
-    ctx, testsuite, verbose=False, testflags='',
-):
+def run_functional_tests(ctx, testsuite, verbose=False, testflags=''):
     cmd = '{testsuite} {verbose_opt} {testflags}'
     if os.getuid() != 0:
         cmd = 'sudo -E PATH={path} ' + cmd
@@ -175,7 +173,7 @@ def build_syscall_tester(ctx, build_dir, static=True):
     flags = '-m32'
     if static:
         flags += ' -static'
-    ctx.run(CLANG_EXE_CMD.format(flags=flags, c_file=syscall_tester_c_file, out_file=syscall_tester_exe_file,))
+    ctx.run(CLANG_EXE_CMD.format(flags=flags, c_file=syscall_tester_c_file, out_file=syscall_tester_exe_file))
     return syscall_tester_exe_file
 
 
@@ -249,7 +247,12 @@ def build_functional_tests(
 
 @task
 def build_stress_tests(
-    ctx, output='pkg/security/tests/stresssuite', go_version=None, arch="x64", major_version='7', bundle_ebpf=True,
+    ctx,
+    output='pkg/security/tests/stresssuite',
+    go_version=None,
+    arch="x64",
+    major_version='7',
+    bundle_ebpf=True,
 ):
     build_functional_tests(
         ctx,
@@ -274,11 +277,19 @@ def stress_tests(
     testflags='',
 ):
     build_stress_tests(
-        ctx, go_version=go_version, arch=arch, major_version=major_version, output=output, bundle_ebpf=bundle_ebpf,
+        ctx,
+        go_version=go_version,
+        arch=arch,
+        major_version=major_version,
+        output=output,
+        bundle_ebpf=bundle_ebpf,
     )
 
     run_functional_tests(
-        ctx, testsuite=output, verbose=verbose, testflags=testflags,
+        ctx,
+        testsuite=output,
+        verbose=verbose,
+        testflags=testflags,
     )
 
 
@@ -294,17 +305,30 @@ def functional_tests(
     testflags='',
 ):
     build_functional_tests(
-        ctx, go_version=go_version, arch=arch, major_version=major_version, output=output, bundle_ebpf=bundle_ebpf,
+        ctx,
+        go_version=go_version,
+        arch=arch,
+        major_version=major_version,
+        output=output,
+        bundle_ebpf=bundle_ebpf,
     )
 
     run_functional_tests(
-        ctx, testsuite=output, verbose=verbose, testflags=testflags,
+        ctx,
+        testsuite=output,
+        verbose=verbose,
+        testflags=testflags,
     )
 
 
 @task
 def kitchen_functional_tests(
-    ctx, verbose=False, go_version=None, major_version='7', build_tests=False, testflags='',
+    ctx,
+    verbose=False,
+    go_version=None,
+    major_version='7',
+    build_tests=False,
+    testflags='',
 ):
     if build_tests:
         functional_tests(
@@ -338,7 +362,12 @@ def kitchen_functional_tests(
 
 @task
 def docker_functional_tests(
-    ctx, verbose=False, go_version=None, arch="x64", major_version='7', testflags='',
+    ctx,
+    verbose=False,
+    go_version=None,
+    arch="x64",
+    major_version='7',
+    testflags='',
 ):
     build_functional_tests(
         ctx,
@@ -368,7 +397,7 @@ RUN apt-get update -y \
             f.write(dockerfile)
 
         cmd = 'docker build {docker_file_ctx} --tag {image_tag}'
-        ctx.run(cmd.format(**{"docker_file_ctx": temp_dir, "image_tag": docker_image_tag_name,}))
+        ctx.run(cmd.format(**{"docker_file_ctx": temp_dir, "image_tag": docker_image_tag_name}))
 
     container_name = 'security-agent-tests'
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']

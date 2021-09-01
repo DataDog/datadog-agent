@@ -480,13 +480,17 @@ def generate_protobuf(ctx):
 
         ctx.run(
             "protoc -I{include_path} --go_out=plugins=grpc:{out_path} {targets}".format(
-                include_path=proto_root, out_path=repo_root, targets=' '.join(files),
+                include_path=proto_root,
+                out_path=repo_root,
+                targets=' '.join(files),
             )
         )
         # grpc-gateway logic
         ctx.run(
             "protoc -I{include_path} --grpc-gateway_out=logtostderr=true:{out_path} {targets}".format(
-                include_path=proto_root, out_path=repo_root, targets=' '.join(files),
+                include_path=proto_root,
+                out_path=repo_root,
+                targets=' '.join(files),
             )
         )
         # mockgen
