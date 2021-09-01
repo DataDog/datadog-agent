@@ -23,9 +23,9 @@ configMapGenerator:
      - STS_CLUSTER_NAME=stackstate-demo-cluster
 
 images:
-  - name: docker.io/stackstate/stackstate-agent-test
+  - name: artifactory.stackstate.io/docker-virtual/stackstate/stackstate-agent-test
     newTag: master
-  - name: docker.io/stackstate/stackstate-cluster-agent-test
+  - name: artifactory.stackstate.io/docker-virtual/stackstate/stackstate-cluster-agent-test
     newTag: master
 
 secretGenerator:

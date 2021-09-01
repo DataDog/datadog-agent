@@ -4,7 +4,7 @@
 ####################################################################################################
 ####################################################################################################
 
-image: docker.io/stackstate/stackstate-agent-runner-gitlab:latest7
+image: artifactory.stackstate.io/docker-virtual/stackstate/stackstate-agent-runner-gitlab:latest7
 
 stages:
   - prepare
@@ -202,7 +202,7 @@ pre_release_deb:
 pre_release_main_agent_image: &pre_release_image
   stage: pre_release
   interruptible: true
-  image: docker:18.06.0
+  image: artifactory.stackstate.io/docker-virtual/docker:18.06.0
   needs:
     - build_deb
   variables:
@@ -210,7 +210,8 @@ pre_release_main_agent_image: &pre_release_image
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
   services:
-    - docker:18.09-dind
+    - name: artifactory.stackstate.io/docker-virtual/docker:18.09-dind
+      alias: docker
   before_script: []
   script:
     - cd $CI_PROJECT_DIR

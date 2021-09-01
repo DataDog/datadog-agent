@@ -42,7 +42,7 @@ spec:
     spec:
       serviceAccountName: stackstate-agent
       containers:
-      - image: docker.io/stackstate/stackstate-agent-test:master
+      - image: artifactory.stackstate.io/docker-virtual/stackstate/stackstate-agent-test:master
         imagePullPolicy: Always
         name: stackstate-agent
         ports:

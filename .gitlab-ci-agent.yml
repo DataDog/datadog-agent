@@ -1,4 +1,4 @@
-image: docker.io/stackstate/stackstate-agent-runner-gitlab:latest7
+image: artifactory.stackstate.io/docker-virtual/stackstate/stackstate-agent-runner-gitlab:latest7
 
 stages:
   - prepare
@@ -152,7 +152,7 @@ deps_deb:
 deps_rpm:
   stage: prepare
   interruptible: true
-  image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_latest_v7
+  image: artifactory.stackstate.io/docker-virtual/stackstate/stackstate-agent-runner-gitlab:centos6_latest_v7
   cache:
     key: "deps-rpm-$STS_VER-$CI_COMMIT_REF_SLUG"
     paths:
@@ -403,7 +403,7 @@ build_deb:
 build_rpm:
   stage: build
   interruptible: true
-  image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_latest_v7
+  image: artifactory.stackstate.io/docker-virtual/stackstate/stackstate-agent-runner-gitlab:centos6_latest_v7
   needs:
     - deps_rpm
   tags:
@@ -511,7 +511,7 @@ test_deb_renaming:
 test_rpm_renaming:
   stage: test
   interruptible: true
-  image: docker.io/stackstate/stackstate-agent-runner-gitlab:centos6_20190429
+  image: artifactory.stackstate.io/docker-virtual/stackstate/stackstate-agent-runner-gitlab:centos6_20190429
   needs:
     - build_rpm
   before_script: []
@@ -579,7 +579,7 @@ pre_release_win:
 pre_release_rpm:
   stage: pre_release
   interruptible: true
-  image: docker.io/stackstate/stackstate-agent-runner-gitlab:deb-rpmpublisher
+  image: artifactory.stackstate.io/docker-virtual/stackstate/stackstate-agent-runner-gitlab:deb-rpmpublisher
   needs:
     - build_rpm
   before_script: []
@@ -594,7 +594,7 @@ pre_release_rpm:
 
 pre_release_main_agent_image: &pre_release_image
   stage: pre_release
-  image: docker:18.06.0
+  image: artifactory.stackstate.io/docker-virtual/docker:18.06.0
   needs:
     - build_deb
   variables:
@@ -602,7 +602,8 @@ pre_release_main_agent_image: &pre_release_image
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
   services:
-    - docker:18.09-dind
+    - name: artifactory.stackstate.io/docker-virtual/docker:18.09-dind
+      alias: docker
   before_script: []
   script:
     - cd $CI_PROJECT_DIR
@@ -1145,7 +1146,7 @@ release_deb:
 release_rpm:
   interruptible: true
   stage: release
-  image: docker.io/stackstate/stackstate-agent-runner-gitlab:deb-rpmpublisher
+  image: artifactory.stackstate.io/docker-virtual/stackstate/stackstate-agent-runner-gitlab:deb-rpmpublisher
   dependencies:
     - build_rpm
   before_script:
@@ -1197,7 +1198,7 @@ release_win:
 
 .base_release_image: &base_release_image
   stage: release
-  image: docker:18.06.0
+  image: artifactory.stackstate.io/docker-virtual/docker:18.06.0
   dependencies:
     - build_deb
   variables:
@@ -1205,7 +1206,8 @@ release_win:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
   services:
-    - docker:18.09-dind
+    - name: artifactory.stackstate.io/docker-virtual/docker:18.09-dind
+      alias: docker
   before_script: []
   tags:
     - sts-k8s-m-runner

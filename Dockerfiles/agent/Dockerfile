@@ -8,12 +8,14 @@ COPY stackstate-agent*_amd64.deb /
 WORKDIR /output
 
 # Get s6-overlay and check gpg signature
+# Hack: PGP key store locally as it's currently not available from https://keybase.io/justcontainers/key.asc
+COPY hack/s6-pgp-key /tmp/s6-pgp-key
 ENV S6_VERSION v1.21.2.2
 ADD https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-amd64.tar.gz /output/s6.tgz
 ADD https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-amd64.tar.gz.sig /tmp/s6.tgz.sig
 RUN apt-get update \
  && apt-get install --no-install-recommends -y gpg gpg-agent curl ca-certificates \
- && curl https://keybase.io/justcontainers/key.asc | gpg --import \
+ && cat /tmp/s6-pgp-key | gpg --import \
  && gpg --verify /tmp/s6.tgz.sig /output/s6.tgz
 
 # Extract and cleanup:
