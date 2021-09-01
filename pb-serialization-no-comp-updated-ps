@@ -1,0 +1,32 @@
+goos: linux
+goarch: amd64
+pkg: github.com/DataDog/datadog-agent/pkg/serializer
+BenchmarkSeries_001KItems_2Points_10Tags-16    	     852	   1405094 ns/op	     87161 compressed-payload-bytes	         1.00 payloads	  883339 B/op	      33 allocs/op
+BenchmarkSeries_001KItems_2Points_10Tags-16    	     843	   1412407 ns/op	     87161 compressed-payload-bytes	         1.00 payloads	  883341 B/op	      33 allocs/op
+BenchmarkSeries_001KItems_2Points_10Tags-16    	     860	   1400254 ns/op	     87161 compressed-payload-bytes	         1.00 payloads	  883338 B/op	      33 allocs/op
+BenchmarkSeries_001KItems_2Points_10Tags-16    	     860	   1404233 ns/op	     87161 compressed-payload-bytes	         1.00 payloads	  883338 B/op	      33 allocs/op
+BenchmarkSeries_001KItems_2Points_10Tags-16    	     856	   1410516 ns/op	     87161 compressed-payload-bytes	         1.00 payloads	  883338 B/op	      33 allocs/op
+BenchmarkSeries_001KItems_2Points_50Tags-16    	     307	   3915518 ns/op	    330041 compressed-payload-bytes	         1.00 payloads	 2403338 B/op	      34 allocs/op
+BenchmarkSeries_001KItems_2Points_50Tags-16    	     307	   3903427 ns/op	    330041 compressed-payload-bytes	         1.00 payloads	 2403338 B/op	      34 allocs/op
+BenchmarkSeries_001KItems_2Points_50Tags-16    	     304	   3892829 ns/op	    330041 compressed-payload-bytes	         1.00 payloads	 2403337 B/op	      34 allocs/op
+BenchmarkSeries_001KItems_2Points_50Tags-16    	     306	   4030607 ns/op	    330041 compressed-payload-bytes	         1.00 payloads	 2403338 B/op	      34 allocs/op
+BenchmarkSeries_001KItems_2Points_50Tags-16    	     306	   3883227 ns/op	    330041 compressed-payload-bytes	         1.00 payloads	 2403339 B/op	      34 allocs/op
+BenchmarkSeries_005KItems_2Points_10Tags-16    	     187	   6330828 ns/op	    453161 compressed-payload-bytes	         1.00 payloads	 3439243 B/op	      35 allocs/op
+BenchmarkSeries_005KItems_2Points_10Tags-16    	     189	   6313022 ns/op	    453161 compressed-payload-bytes	         1.00 payloads	 3439246 B/op	      35 allocs/op
+BenchmarkSeries_005KItems_2Points_10Tags-16    	     189	   6308606 ns/op	    453161 compressed-payload-bytes	         1.00 payloads	 3439243 B/op	      35 allocs/op
+BenchmarkSeries_005KItems_2Points_10Tags-16    	     189	   6436628 ns/op	    453161 compressed-payload-bytes	         1.00 payloads	 3439243 B/op	      35 allocs/op
+BenchmarkSeries_005KItems_2Points_10Tags-16    	     188	   6328761 ns/op	    453161 compressed-payload-bytes	         1.00 payloads	 3439241 B/op	      35 allocs/op
+BenchmarkSeries_005KItems_2Points_50Tags-16    	      58	  19634263 ns/op	   1736041 compressed-payload-bytes	         1.00 payloads	12733448 B/op	      37 allocs/op
+BenchmarkSeries_005KItems_2Points_50Tags-16    	      58	  19663657 ns/op	   1736041 compressed-payload-bytes	         1.00 payloads	12733448 B/op	      37 allocs/op
+BenchmarkSeries_005KItems_2Points_50Tags-16    	      60	  19602676 ns/op	   1736041 compressed-payload-bytes	         1.00 payloads	12733448 B/op	      37 allocs/op
+BenchmarkSeries_005KItems_2Points_50Tags-16    	      60	  19659631 ns/op	   1736041 compressed-payload-bytes	         1.00 payloads	12733448 B/op	      37 allocs/op
+BenchmarkSeries_005KItems_2Points_50Tags-16    	      58	  19630947 ns/op	   1736041 compressed-payload-bytes	         1.00 payloads	12733448 B/op	      37 allocs/op
+BenchmarkSeries_010KItems_2Points_10Tags-16    	      92	  12550039 ns/op	    922196 compressed-payload-bytes	         1.00 payloads	 6797962 B/op	      36 allocs/op
+BenchmarkSeries_010KItems_2Points_10Tags-16    	      90	  12549533 ns/op	    922196 compressed-payload-bytes	         1.00 payloads	 6797962 B/op	      36 allocs/op
+BenchmarkSeries_010KItems_2Points_10Tags-16    	      92	  12662994 ns/op	    922196 compressed-payload-bytes	         1.00 payloads	 6797965 B/op	      36 allocs/op
+BenchmarkSeries_010KItems_2Points_10Tags-16    	      91	  12701336 ns/op	    922196 compressed-payload-bytes	         1.00 payloads	 6797962 B/op	      36 allocs/op
+BenchmarkSeries_010KItems_2Points_10Tags-16    	      93	  12655778 ns/op	    922196 compressed-payload-bytes	         1.00 payloads	 6797962 B/op	      36 allocs/op
+BenchmarkSeries_010KItems_2Points_50Tags-16    	      31	  37487775 ns/op	   3551212 compressed-payload-bytes	         2.00 payloads	14781704 B/op	      45 allocs/op
+BenchmarkSeries_010KItems_2Points_50Tags-16    	      31	  37233999 ns/op	   3551212 compressed-payload-bytes	         2.00 payloads	14781704 B/op	      45 allocs/op
+BenchmarkSeries_010KItems_2Points_50Tags-16    	signal: interrupt
+FAIL	github.com/DataDog/datadog-agent/pkg/serializer	41.776s
