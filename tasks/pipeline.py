@@ -201,9 +201,7 @@ def run(
 
     if deploy:
         # Check the validity of the deploy pipeline
-        check_deploy_pipeline(
-            gitlab, project_name, git_ref, release_version_6, release_version_7, repo_branch,
-        )
+        check_deploy_pipeline(gitlab, project_name, git_ref, release_version_6, release_version_7, repo_branch)
         # Force all builds and kitchen tests to be run
         if not all_builds:
             print(

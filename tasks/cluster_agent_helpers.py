@@ -60,9 +60,7 @@ def build_common(
     #
     # We need to remove cross compiling bits if any because go generate must
     # build and execute in the native platform
-    env.update(
-        {"GOOS": "", "GOARCH": "",}
-    )
+    env.update({"GOOS": "", "GOARCH": ""})
 
     cmd = "go generate -mod={go_mod} -tags '{build_tags}' {repo_path}/cmd/cluster-agent{suffix}"
     ctx.run(cmd.format(go_mod=go_mod, build_tags=" ".join(build_tags), repo_path=REPO_PATH, suffix=bin_suffix), env=env)
