@@ -1,6 +1,5 @@
 #include "tracer.h"
 #include "bpf_helpers.h"
-#include "syscalls.h"
 #include "ip.h"
 #include "ipv6.h"
 #include "http.h"
