@@ -278,9 +278,19 @@ type AutoMultilineHandler struct {
 }
 
 // NewAutoMultilineHandler returns a new SingleLineHandler.
-func NewAutoMultilineHandler(outputChan chan *Message, lineLimit, linesToAssess int, matchThreshold float64, matchTimeout time.Duration, flushTimeout time.Duration, source *config.LogSource) *AutoMultilineHandler {
-	scoredMatches := make([]*scoredPattern, len(formatsToTry))
-	for i, v := range formatsToTry {
+func NewAutoMultilineHandler(outputChan chan *Message,
+	lineLimit, linesToAssess int,
+	matchThreshold float64,
+	matchTimeout time.Duration,
+	flushTimeout time.Duration,
+	source *config.LogSource,
+	additionalPatterns []*regexp.Regexp) *AutoMultilineHandler {
+
+	// Put the user patterns at the beginning of the list so we prioritize them if there is a conflicting match.
+	patterns := append(additionalPatterns, formatsToTry...)
+
+	scoredMatches := make([]*scoredPattern, len(patterns))
+	for i, v := range patterns {
 		scoredMatches[i] = &scoredPattern{
 			score:  0,
 			regexp: v,

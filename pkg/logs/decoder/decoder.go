@@ -7,6 +7,7 @@ package decoder
 
 import (
 	"bytes"
+	"regexp"
 	"sync/atomic"
 	"time"
 
@@ -124,17 +125,7 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 
 				lineHandler = NewMultiLineHandler(outputChan, pattern, config.AggregationTimeout(), lineLimit)
 			} else {
-				linesToSample := source.Config.AutoMultiLineSampleSize
-				if linesToSample <= 0 {
-					linesToSample = dd_conf.Datadog.GetInt("logs_config.auto_multi_line_default_sample_size")
-				}
-				matchRatio := source.Config.AutoMultiLineMatchThreshold
-				if matchRatio == 0 {
-					matchRatio = dd_conf.Datadog.GetFloat64("logs_config.auto_multi_line_default_match_threshold")
-
-				}
-				matchTimeout := time.Second * dd_conf.Datadog.GetDuration("logs_config.auto_multi_line_default_match_timeout")
-				lineHandler = NewAutoMultilineHandler(outputChan, lineLimit, linesToSample, matchRatio, matchTimeout, config.AggregationTimeout(), source)
+				lineHandler = buildAutoMultilineHandlerFromConfig(outputChan, lineLimit, source)
 			}
 		} else {
 			lineHandler = NewSingleLineHandler(outputChan, lineLimit)
@@ -148,6 +139,31 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 	}
 
 	return New(inputChan, outputChan, lineParser, lineLimit, matcher)
+}
+
+func buildAutoMultilineHandlerFromConfig(outputChan chan *Message, lineLimit int, source *config.LogSource) *AutoMultilineHandler {
+	linesToSample := source.Config.AutoMultiLineSampleSize
+	if linesToSample <= 0 {
+		linesToSample = dd_conf.Datadog.GetInt("logs_config.auto_multi_line_default_sample_size")
+	}
+	matchRatio := source.Config.AutoMultiLineMatchThreshold
+	if matchRatio == 0 {
+		matchRatio = dd_conf.Datadog.GetFloat64("logs_config.auto_multi_line_default_match_threshold")
+	}
+	additionalPatterns := dd_conf.Datadog.GetStringSlice("logs_config.auto_multi_line_extra_patterns")
+	additionalPatternsCompiled := []*regexp.Regexp{}
+	for _, p := range additionalPatterns {
+
+		compiled, err := regexp.Compile("^" + p)
+		if err != nil {
+			log.Info("logs_config.auto_multi_line_extra_patterns with value: ", p, " is not a valid regular expression")
+			continue
+		}
+		additionalPatternsCompiled = append(additionalPatternsCompiled, compiled)
+	}
+
+	matchTimeout := time.Second * dd_conf.Datadog.GetDuration("logs_config.auto_multi_line_default_match_timeout")
+	return NewAutoMultilineHandler(outputChan, lineLimit, linesToSample, matchRatio, matchTimeout, config.AggregationTimeout(), source, additionalPatternsCompiled)
 }
 
 // New returns an initialized Decoder

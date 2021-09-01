@@ -231,7 +231,7 @@ func TestAutoMultiLineHandlerStaysSingleLineMode(t *testing.T) {
 
 	outputChan := make(chan *Message, 10)
 	source := config.NewLogSource("config", &config.LogsConfig{})
-	h := NewAutoMultilineHandler(outputChan, 100, 5, 1.0, 10*time.Millisecond, 10*time.Millisecond, source)
+	h := NewAutoMultilineHandler(outputChan, 100, 5, 1.0, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{})
 	h.Start()
 
 	for i := 0; i < 6; i++ {
@@ -247,7 +247,7 @@ func TestAutoMultiLineHandlerSwitchesToMultiLineMode(t *testing.T) {
 
 	outputChan := make(chan *Message, 10)
 	source := config.NewLogSource("config", &config.LogsConfig{})
-	h := NewAutoMultilineHandler(outputChan, 100, 5, 1.0, 10*time.Millisecond, 10*time.Millisecond, source)
+	h := NewAutoMultilineHandler(outputChan, 100, 5, 1.0, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{})
 	h.Start()
 
 	for i := 0; i < 6; i++ {
@@ -263,7 +263,7 @@ func TestAutoMultiLineHandlerHandelsMessage(t *testing.T) {
 
 	outputChan := make(chan *Message, 10)
 	source := config.NewLogSource("config", &config.LogsConfig{})
-	h := NewAutoMultilineHandler(outputChan, 500, 1, 1.0, 10*time.Millisecond, 10*time.Millisecond, source)
+	h := NewAutoMultilineHandler(outputChan, 500, 1, 1.0, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{})
 	h.Start()
 
 	h.Handle(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message 1"))
@@ -283,7 +283,7 @@ func TestAutoMultiLineHandlerHandelsMessageConflictingPatterns(t *testing.T) {
 
 	outputChan := make(chan *Message, 10)
 	source := config.NewLogSource("config", &config.LogsConfig{})
-	h := NewAutoMultilineHandler(outputChan, 500, 4, 0.75, 10*time.Millisecond, 10*time.Millisecond, source)
+	h := NewAutoMultilineHandler(outputChan, 500, 4, 0.75, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{})
 	h.Start()
 
 	// we will match both patterns, but one will win with a threshold of 0.75
@@ -310,7 +310,7 @@ func TestAutoMultiLineHandlerHandelsMessageConflictingPatternsNoWinner(t *testin
 
 	outputChan := make(chan *Message, 10)
 	source := config.NewLogSource("config", &config.LogsConfig{})
-	h := NewAutoMultilineHandler(outputChan, 500, 4, 0.75, 10*time.Millisecond, 10*time.Millisecond, source)
+	h := NewAutoMultilineHandler(outputChan, 500, 4, 0.75, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{})
 	h.Start()
 
 	// we will match both patterns, but neither will win because it doesn't meet the threshold
