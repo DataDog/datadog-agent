@@ -221,6 +221,8 @@ func (a APIMetricType) seriesApiV2Enum() int32 {
 	}
 }
 
+var ps = protostream.NewProtoStream()
+
 // MarshalSplitCompress uses the stream compressor to marshal and compress series payloads.
 // If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
 // compressed protobuf marshaled MetricPayload objects.
@@ -228,7 +230,6 @@ func (series Series) MarshalSplitCompress(bufferContext *marshaler.BufferContext
 	var err error
 	var compressor *stream.Compressor
 	buf := bufferContext.PrecompressionBuf
-	ps := protostream.NewProtoStream()
 	ps.Reset(buf)
 	payloads := []*[]byte{}
 

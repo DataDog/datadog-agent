@@ -44,9 +44,10 @@ func generateData(points int, items int, tags int) metrics.Series {
 }
 
 var payloads forwarder.Payloads
+var bufCon = marshaler.DefaultBufferContext()
 
 func serializeSeries(series metrics.Series) forwarder.Payloads {
-	pl, err := series.MarshalSplitCompress(marshaler.DefaultBufferContext())
+	pl, err := series.MarshalSplitCompress(bufCon)
 	if err != nil {
 		panic(err)
 	}
