@@ -396,7 +396,6 @@ func (h *AutoMultilineHandler) processAndTry(message *Message) {
 }
 
 func (h *AutoMultilineHandler) switchToMultilineHandler(r *regexp.Regexp) {
-	// Cleanup interim logic
 	h.flipChan <- struct{}{}
 	h.singleLineHandler = nil
 
@@ -431,10 +430,8 @@ var formatsToTry = []*regexp.Regexp{
 	regexp.MustCompile(`^[A-Za-z_]+, \d+ [A-Za-z_]+ \d+ \d+:\d+:\d+ -\d+`),
 	// time.RFC3339Nano,
 	regexp.MustCompile(`^\d+-\d+-\d+[A-Za-z_]+\d+:\d+:\d+\.\d+[A-Za-z_]+\d+:\d+`),
-	// "2006-01-02 15:04:05",
+	// 2021-07-08 05:08:19,214
 	regexp.MustCompile(`^\d+-\d+-\d+ \d+:\d+:\d+(,\d+)?`),
 	// Default java logging SimpleFormatter date format
 	regexp.MustCompile(`^[A-Za-z_]+ \d+, \d+ \d+:\d+:\d+ (AM|PM)`),
-	// Test pattern for agent logs
-	regexp.MustCompile(`^[a-zA-Z]+\s\d+\s\d+:\d+:\d+`),
 }

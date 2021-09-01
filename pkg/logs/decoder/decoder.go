@@ -117,8 +117,6 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 	if lineHandler == nil {
 		if dd_conf.Datadog.GetBool("logs_config.auto_multi_line_detection") || source.Config.AutoMultiLine {
 			log.Infof("Auto multi line log detection enabled")
-			log.Debugf("auto_multi_line_detection=%v", source.Config.AutoMultiLine)
-			log.Debugf("auto_multi_line_sample_size=%v", source.Config.AutoMultiLineSampleSize)
 
 			if pattern := source.GetPattern(); pattern != nil {
 				log.Infof("Found a previously detected pattern - using multi line handler")
@@ -152,8 +150,8 @@ func buildAutoMultilineHandlerFromConfig(outputChan chan *Message, lineLimit int
 	}
 	additionalPatterns := dd_conf.Datadog.GetStringSlice("logs_config.auto_multi_line_extra_patterns")
 	additionalPatternsCompiled := []*regexp.Regexp{}
-	for _, p := range additionalPatterns {
 
+	for _, p := range additionalPatterns {
 		compiled, err := regexp.Compile("^" + p)
 		if err != nil {
 			log.Info("logs_config.auto_multi_line_extra_patterns with value: ", p, " is not a valid regular expression")
