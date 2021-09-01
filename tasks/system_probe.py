@@ -611,7 +611,9 @@ def generate_cgo_types(ctx, windows=is_windows):
         base, _ = os.path.splitext(file)
         with ctx.cd(fdir):
             ctx.run(
-                "go tool cgo -godefs -- {file} > {base}_{platform}.go".format(file=file, base=base, platform=platform)
+                "go tool cgo -godefs -- -fsigned-char {file} > {base}_{platform}.go".format(
+                    file=file, base=base, platform=platform
+                )
             )
             ctx.run("gofmt -w -s {base}_{platform}.go".format(base=base, platform=platform))
 
