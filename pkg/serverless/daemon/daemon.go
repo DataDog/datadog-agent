@@ -148,12 +148,12 @@ type Flush struct {
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Flush route.")
 	if !f.daemon.ShouldFlush(flush.Stopping, time.Now()) {
-		log.Debug("The flush strategy", f.daemon.LogFlushStategy(), " has decided to not flush in moment:", flush.Stopping)
+		log.Debugf("The flush strategy %s has decided to not flush at moment: %s", f.daemon.LogFlushStategy(), flush.Stopping)
 		f.daemon.FinishInvocation()
 		return
 	}
 
-	log.Debug("The flush strategy", f.daemon.LogFlushStategy(), " has decided to flush in moment:", flush.Stopping)
+	log.Debugf("The flush strategy %s has decided to flush at moment: %s", f.daemon.LogFlushStategy(), flush.Stopping)
 
 	// if the DogStatsD daemon isn't ready, wait for it.
 	if !f.daemon.MetricAgent.IsReady() {
@@ -255,14 +255,14 @@ func (d *Daemon) TriggerFlush(isLastFlushBeforeShutdown bool) {
 // flushMetrics flushes aggregated metrics to the intake.
 // It is protected by a mutex to ensure only one metrics flush can be in progress at any given time.
 func (d *Daemon) flushMetrics(wg *sync.WaitGroup) {
-	correlationId := d.rand.Intn(10000)
+	correlationID := d.rand.Intn(10000)
 
 	d.metricsFlushMutex.Lock()
-	log.Debugf("Beginning metrics flush #%d", correlationId)
+	log.Debugf("Beginning metrics flush #%d", correlationID)
 	if d.MetricAgent != nil {
 		d.MetricAgent.Flush()
 	}
-	log.Debugf("Finished metrics flush #%d", correlationId)
+	log.Debugf("Finished metrics flush #%d", correlationID)
 	wg.Done()
 	d.metricsFlushMutex.Unlock()
 }
@@ -270,14 +270,14 @@ func (d *Daemon) flushMetrics(wg *sync.WaitGroup) {
 // flushTraces flushes aggregated traces to the intake.
 // It is protected by a mutex to ensure only one traces flush can be in progress at any given time.
 func (d *Daemon) flushTraces(wg *sync.WaitGroup) {
-	correlationId := d.rand.Intn(10000)
+	correlationID := d.rand.Intn(10000)
 
 	d.tracesFlushMutex.Lock()
-	log.Debugf("Beginning traces flush #%d", correlationId)
+	log.Debugf("Beginning traces flush #%d", correlationID)
 	if d.TraceAgent != nil {
 		d.TraceAgent.Get().FlushSync()
 	}
-	log.Debugf("Finished traces flush #%d", correlationId)
+	log.Debugf("Finished traces flush #%d", correlationID)
 	wg.Done()
 	d.tracesFlushMutex.Unlock()
 }
@@ -285,12 +285,12 @@ func (d *Daemon) flushTraces(wg *sync.WaitGroup) {
 // flushLogs flushes aggregated logs to the intake.
 // It is protected by a mutex to ensure only one logs flush can be in progress at any given time.
 func (d *Daemon) flushLogs(ctx context.Context, wg *sync.WaitGroup) {
-	correlationId := d.rand.Intn(10000)
+	correlationID := d.rand.Intn(10000)
 
 	d.logsFlushMutex.Lock()
-	log.Debugf("Beginning logs flush #%d", correlationId)
+	log.Debugf("Beginning logs flush #%d", correlationID)
 	logs.Flush(ctx)
-	log.Debugf("Finished logs flush #%d", correlationId)
+	log.Debugf("Finished logs flush #%d", correlationID)
 	wg.Done()
 	d.logsFlushMutex.Unlock()
 }
