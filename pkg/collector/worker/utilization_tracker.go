@@ -12,13 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	// UtilizationWarningThreshold is the utilization level at which we will
-	// show a warning in the agent log
-	UtilizationWarningThreshold = 0.99
 )
 
 // utilizationTracker is the object that polls and evaluates utilization
@@ -107,15 +100,6 @@ func NewUtilizationTracker(
 
 	ut.statsUpdateFunc = func(sw util.SlidingWindow) {
 		utilization := sw.Average()
-
-		if !ut.IsRunningLongCheck() && utilization > UtilizationWarningThreshold {
-			log.Warnf(
-				"Worker '%s' utilization level (%.2f) is above the predefined threshold (%.2f)",
-				workerName,
-				utilization,
-				UtilizationWarningThreshold,
-			)
-		}
 
 		expvars.SetWorkerStats(workerName, &expvars.WorkerStats{
 			Utilization: utilization,
