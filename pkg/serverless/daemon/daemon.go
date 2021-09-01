@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"io/ioutil"
-	"math/rand"
 	"net/http"
 	"sync"
 	"time"
@@ -83,9 +82,6 @@ type Daemon struct {
 
 	// logsFlushMutex ensures that only one logs flush can be underway at a given time
 	logsFlushMutex sync.Mutex
-
-	// rand is a source of random numbers used by the daemon to generate correlation IDs in debug logs
-	rand *rand.Rand
 }
 
 // StartDaemon starts an HTTP server to receive messages from the runtime.
@@ -111,7 +107,6 @@ func StartDaemon(addr string) *Daemon {
 		metricsFlushMutex: sync.Mutex{},
 		tracesFlushMutex:  sync.Mutex{},
 		logsFlushMutex:    sync.Mutex{},
-		rand:              rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 
 	mux.Handle("/lambda/hello", &Hello{daemon})
@@ -255,7 +250,7 @@ func (d *Daemon) TriggerFlush(isLastFlushBeforeShutdown bool) {
 // flushMetrics flushes aggregated metrics to the intake.
 // It is protected by a mutex to ensure only one metrics flush can be in progress at any given time.
 func (d *Daemon) flushMetrics(wg *sync.WaitGroup) {
-	correlationID := d.rand.Intn(10000)
+	correlationID := generateCorrelationID()
 
 	d.metricsFlushMutex.Lock()
 	log.Debugf("Beginning metrics flush #%d", correlationID)
@@ -270,7 +265,7 @@ func (d *Daemon) flushMetrics(wg *sync.WaitGroup) {
 // flushTraces flushes aggregated traces to the intake.
 // It is protected by a mutex to ensure only one traces flush can be in progress at any given time.
 func (d *Daemon) flushTraces(wg *sync.WaitGroup) {
-	correlationID := d.rand.Intn(10000)
+	correlationID := generateCorrelationID()
 
 	d.tracesFlushMutex.Lock()
 	log.Debugf("Beginning traces flush #%d", correlationID)
@@ -285,7 +280,7 @@ func (d *Daemon) flushTraces(wg *sync.WaitGroup) {
 // flushLogs flushes aggregated logs to the intake.
 // It is protected by a mutex to ensure only one logs flush can be in progress at any given time.
 func (d *Daemon) flushLogs(ctx context.Context, wg *sync.WaitGroup) {
-	correlationID := d.rand.Intn(10000)
+	correlationID := generateCorrelationID()
 
 	d.logsFlushMutex.Lock()
 	log.Debugf("Beginning logs flush #%d", correlationID)
