@@ -25,7 +25,7 @@ spec:
       hostPID: true
       containers:
         - name: agent
-          image: "gcr.io/datadoghq/agent:7.29.0"
+          image: "gcr.io/datadoghq/agent:7.29.1"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           resources: {}
@@ -124,7 +124,7 @@ spec:
             successThreshold: 1
             timeoutSeconds: 5
         - name: process-agent
-          image: "gcr.io/datadoghq/agent:7.29.0"
+          image: "gcr.io/datadoghq/agent:7.29.1"
           imagePullPolicy: IfNotPresent
           command: ["process-agent", "-config=/etc/datadog-agent/datadog.yaml"]
           resources: {}
@@ -193,7 +193,7 @@ spec:
               mountPath: /etc/datadog-agent/system-probe.yaml
               subPath: system-probe.yaml
         - name: system-probe
-          image: "gcr.io/datadoghq/agent:7.29.0"
+          image: "gcr.io/datadoghq/agent:7.29.1"
           imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
@@ -246,7 +246,7 @@ spec:
               mountPropagation: None
               readOnly: true
         - name: security-agent
-          image: "gcr.io/datadoghq/agent:7.29.0"
+          image: "gcr.io/datadoghq/agent:7.29.1"
           imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
@@ -335,7 +335,7 @@ spec:
               subPath: system-probe.yaml
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/agent:7.29.0"
+          image: "gcr.io/datadoghq/agent:7.29.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -345,7 +345,7 @@ spec:
               mountPath: /opt/datadog-agent
           resources: {}
         - name: init-config
-          image: "gcr.io/datadoghq/agent:7.29.0"
+          image: "gcr.io/datadoghq/agent:7.29.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -383,7 +383,7 @@ spec:
               value: "yes"
           resources: {}
         - name: seccomp-setup
-          image: "gcr.io/datadoghq/agent:7.29.0"
+          image: "gcr.io/datadoghq/agent:7.29.1"
           command:
             - cp
             - /etc/config/system-probe-seccomp.json

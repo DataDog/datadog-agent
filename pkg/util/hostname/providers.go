@@ -8,7 +8,7 @@ package hostname
 import "context"
 
 // Provider is a generic function to grab the hostname and return it
-type Provider func(context.Context) (string, error)
+type Provider func(ctx context.Context, options map[string]interface{}) (string, error)
 
 // ProviderCatalog holds all the various kinds of hostname providers
 var ProviderCatalog = make(map[string]Provider)

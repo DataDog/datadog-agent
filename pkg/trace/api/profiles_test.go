@@ -190,7 +190,7 @@ func TestProfileProxyHandler(t *testing.T) {
 		var called bool
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			v := req.Header.Get("X-Datadog-Additional-Tags")
-			if !strings.Contains(v, "orchestrator:fargate_unknown") {
+			if !strings.Contains(v, "orchestrator:fargate_orchestrator") {
 				t.Fatalf("invalid X-Datadog-Additional-Tags header, fargate env should contain '%s' tag: %q", "orchestrator", v)
 			}
 			called = true
@@ -202,7 +202,7 @@ func TestProfileProxyHandler(t *testing.T) {
 		}
 		conf := newTestReceiverConfig()
 		conf.Hostname = "myhost"
-		conf.IsFargate = true
+		conf.FargateOrchestrator = "orchestrator"
 		receiver := newTestReceiverFromConfig(conf)
 		receiver.profileProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
 		if !called {

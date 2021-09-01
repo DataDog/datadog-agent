@@ -24,6 +24,10 @@ else
     maintainer 'Datadog Packages <package@datadoghq.com>'
   end
 
+  if debian?
+    runtime_recommended_dependency 'datadog-signing-keys'
+  end
+
   if osx?
     unless ENV['SKIP_SIGN_MAC'] == 'true'
       code_signing_identity 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'
@@ -171,14 +175,14 @@ end
 # Dependencies
 # ------------------------------------
 
+# creates required build directories
+dependency 'datadog-agent-prepare'
+
 # Linux-specific dependencies
 if linux?
   dependency 'procps-ng'
   dependency 'curl'
 end
-
-# creates required build directories
-dependency 'datadog-agent-prepare'
 
 # Datadog agent
 dependency 'datadog-agent'

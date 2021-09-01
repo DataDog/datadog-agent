@@ -54,7 +54,7 @@ func GetInstanceID(ctx context.Context) (string, error) {
 }
 
 // HostnameProvider gets the hostname
-func HostnameProvider(ctx context.Context) (string, error) {
+func HostnameProvider(ctx context.Context, options map[string]interface{}) (string, error) {
 	log.Debug("GetHostname trying Tencent metadata...")
 	return GetInstanceID(ctx)
 }

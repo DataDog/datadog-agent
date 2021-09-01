@@ -140,16 +140,7 @@ static __always_inline int http_begin_response(http_transaction_t *http, const c
     return 1;
 }
 
-static __always_inline void http_read_data(struct __sk_buff *skb, skb_info_t *skb_info, char *p, http_packet_t *packet_type, http_method_t *method) {
-    if (skb->len - skb_info->data_off < HTTP_BUFFER_SIZE) {
-        return;
-    }
-
-#pragma unroll
-    for (int i = 0; i < HTTP_BUFFER_SIZE; i++) {
-        p[i] = load_byte(skb, skb_info->data_off + i);
-    }
-
+static __always_inline void http_parse_data(char *p, http_packet_t *packet_type, http_method_t *method) {
     if ((p[0] == 'H') && (p[1] == 'T') && (p[2] == 'T') && (p[3] == 'P')) {
         *packet_type = HTTP_RESPONSE;
     } else if ((p[0] == 'G') && (p[1] == 'E') && (p[2] == 'T')) {
@@ -176,13 +167,10 @@ static __always_inline void http_read_data(struct __sk_buff *skb, skb_info_t *sk
     }
 }
 
-static __always_inline int http_handle_packet(struct __sk_buff *skb, skb_info_t *skb_info, u16 src_port) {
-    char buffer[HTTP_BUFFER_SIZE];
-    __builtin_memset(&buffer, '\0', sizeof(buffer));
-
+static __always_inline int http_process(char *buffer, skb_info_t *skb_info, u16 src_port) {
     http_packet_t packet_type = HTTP_PACKET_UNKNOWN;
     http_method_t method = HTTP_METHOD_UNKNOWN;
-    http_read_data(skb, skb_info, buffer, &packet_type, &method);
+    http_parse_data(buffer, &packet_type, &method);
     http_transaction_t *http = NULL;
 
     http_transaction_t new_entry = { 0 };
@@ -215,7 +203,7 @@ static __always_inline int http_handle_packet(struct __sk_buff *skb, skb_info_t 
 
     // If we have a (L7/application-layer) payload we want to update the response_last_seen
     // This is to prevent things such as a keep-alive adding up to the transaction latency
-    if (skb->len - 1 > skb_info->data_off) {
+    if (buffer[0] != 0) {
         http->response_last_seen = bpf_ktime_get_ns();
     }
 

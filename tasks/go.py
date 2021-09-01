@@ -21,7 +21,7 @@ from .modules import DEFAULT_MODULES, generate_dummy_package
 from .utils import get_build_flags
 
 # List of modules to ignore when running lint
-MODULE_WHITELIST = [
+MODULE_ALLOWLIST = [
     # Windows
     "doflare.go",
     "iostats_pdh_windows.go",
@@ -48,6 +48,7 @@ MISSPELL_IGNORED_TARGETS = [
     os.path.join("cmd", "agent", "gui", "views", "private"),
     os.path.join("pkg", "collector", "corechecks", "system", "testfiles"),
     os.path.join("pkg", "ebpf", "testdata"),
+    os.path.join("pkg", "network", "event_windows_test.go"),
 ]
 
 # Packages that need go:generate
@@ -93,24 +94,34 @@ def lint(ctx, targets):
 
     # add the /... suffix to the targets
     targets_list = ["{}/...".format(t) for t in targets]
-    result = ctx.run("revive {}".format(' '.join(targets_list)))
+    result = ctx.run("revive {}".format(' '.join(targets_list)), hide=True)
     if result.stdout:
-        files = []
+        files = set()
         skipped_files = set()
         for line in (out for out in result.stdout.split('\n') if out):
-            fname = os.path.basename(line.split(":")[0])
-            if fname in MODULE_WHITELIST:
-                skipped_files.add(fname)
+            fullname = line.split(":")[0]
+            fname = os.path.basename(fullname)
+            if fname in MODULE_ALLOWLIST:
+                skipped_files.add(fullname)
                 continue
-            files.append(fname)
+            print(line)
+            files.add(fullname)
 
-        if files:
-            print("Linting issues found in {} files.".format(len(files)))
-            raise Exit(code=1)
+        # add whitespace for readability
+        print()
 
         if skipped_files:
             for skipped in skipped_files:
                 print("Allowed errors in whitelisted file {}".format(skipped))
+
+        # add whitespace for readability
+        print()
+
+        if files:
+            print("Linting issues found in {} files.".format(len(files)))
+            for f in files:
+                print("Error in {}".format(f))
+            raise Exit(code=1)
 
     print("revive found no issues")
 
@@ -331,16 +342,18 @@ def lint_licenses(ctx):
         print("- {}".format(license))
 
     if len(removed_licenses) + len(added_licenses) > 0:
-        print("licenses are not up-to-date")
-        raise Exit(code=1)
+        raise Exit(
+            message="Licenses are not up-to-date.\n\nPlease run 'inv generate-licenses' to update licenses file.",
+            code=1,
+        )
 
-    print("licenses ok")
+    print("Licenses are ok.")
 
 
 @task
 def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
     """
-    Generates that the LICENSE-3rdparty.csv file is up-to-date with contents of go.sum
+    Generates the LICENSE-3rdparty.csv file. Run this if `inv lint-licenses` fails.
     """
     with open(filename, 'w') as f:
         f.write("Component,Origin,License\n")
@@ -467,13 +480,17 @@ def generate_protobuf(ctx):
 
         ctx.run(
             "protoc -I{include_path} --go_out=plugins=grpc:{out_path} {targets}".format(
-                include_path=proto_root, out_path=repo_root, targets=' '.join(files),
+                include_path=proto_root,
+                out_path=repo_root,
+                targets=' '.join(files),
             )
         )
         # grpc-gateway logic
         ctx.run(
             "protoc -I{include_path} --grpc-gateway_out=logtostderr=true:{out_path} {targets}".format(
-                include_path=proto_root, out_path=repo_root, targets=' '.join(files),
+                include_path=proto_root,
+                out_path=repo_root,
+                targets=' '.join(files),
             )
         )
         # mockgen
@@ -524,9 +541,9 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
     for mod in DEFAULT_MODULES.values():
         with ctx.cd(mod.full_path()):
             ctx.run("go mod tidy")
-            res = ctx.run("git diff-files --exit-code go.mod", warn=True)
+            res = ctx.run("git diff-files --exit-code go.mod go.sum", warn=True)
             if res.exited is None or res.exited > 0:
-                errors_found.append("go.mod for {} module is out of sync".format(mod.import_path))
+                errors_found.append("go.mod or go.sum for {} module is out of sync".format(mod.import_path))
 
     generate_dummy_package(ctx, test_folder)
     with ctx.cd(test_folder):

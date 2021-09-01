@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -20,15 +21,14 @@ const (
 // It is not intended to run as a stand alone. This is currently only used
 // for Fargate instances where host tags are not collected
 type StaticCollector struct {
-	infoOut      chan<- []*TagInfo
-	ddTagsEnvVar []string
+	infoOut chan<- []*TagInfo
+	tags    []string
 }
 
 // Detect detects static tags
 func (c *StaticCollector) Detect(_ context.Context, out chan<- []*TagInfo) (CollectionMode, error) {
 	c.infoOut = out
-	// Extract DD_TAGS environment variable
-	c.ddTagsEnvVar = config.GetConfiguredTags(false)
+	c.tags = fargateStaticTags()
 
 	return FetchOnlyCollection, nil
 }
@@ -39,11 +39,31 @@ func (c *StaticCollector) Fetch(_ context.Context, entity string) ([]string, []s
 
 	c.infoOut <- tagInfoList
 
-	return c.ddTagsEnvVar, []string{}, []string{}, nil
+	return c.tags, []string{}, []string{}, nil
 }
 
 func staticFactory() Collector {
 	return &StaticCollector{}
+}
+
+func fargateStaticTags() (tags []string) {
+	// Extract common ECS and EKS Fargate tags
+	//   - DD_TAGS
+	tags = append(tags, config.GetConfiguredTags(false)...)
+
+	// Extract EKS Fargate specific tags
+	//   - eks_fargate_node
+	if fargate.IsEKSFargateInstance() {
+		node, err := fargate.GetEKSFargateNodename()
+		if err != nil {
+			log.Infof("Couldn't build the 'eks_fargate_node' tag: %w", err)
+			return
+		}
+
+		tags = append(tags, "eks_fargate_node:"+node)
+	}
+
+	return
 }
 
 func init() {

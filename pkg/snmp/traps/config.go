@@ -66,6 +66,6 @@ func (c *Config) BuildV2Params() *gosnmp.GoSNMP {
 		Port:      c.Port,
 		Transport: "udp",
 		Version:   gosnmp.Version2c,
-		Logger:    &trapLogger{},
+		Logger:    gosnmp.NewLogger(&trapLogger{}),
 	}
 }

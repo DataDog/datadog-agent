@@ -38,8 +38,10 @@ func (r RuntimeMutexProfileFraction) Set(value interface{}) error {
 		return err
 	}
 
+	err = checkProfilingNeedsRestart(profiling.GetMutexProfileFraction(), rate)
+
 	profiling.SetMutexProfileFraction(rate)
 	config.Datadog.Set("internal_profiling.mutex_profile_fraction", rate)
 
-	return nil
+	return err
 }

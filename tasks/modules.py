@@ -67,12 +67,13 @@ class GoModule:
 
 
 DEFAULT_MODULES = {
-    ".": GoModule(".", targets=["./pkg", "./cmd"], dependencies=["pkg/util/log", "pkg/util/winutil"]),
+    ".": GoModule(".", targets=["./pkg", "./cmd"], dependencies=["pkg/util/log", "pkg/util/winutil", "pkg/quantile"]),
     "pkg/util/log": GoModule("pkg/util/log"),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "pkg/util/winutil": GoModule(
         "pkg/util/winutil", condition=lambda: sys.platform == 'win32', dependencies=["pkg/util/log"]
     ),
+    "pkg/quantile": GoModule("pkg/quantile"),
 }
 
 MAIN_TEMPLATE = """package main
@@ -103,7 +104,7 @@ def generate_dummy_package(ctx, folder):
             )
         print("Done")
 
-        ctx.run("go mod init")
+        ctx.run("go mod init example.com/testmodule")
         for mod in DEFAULT_MODULES.values():
             if mod.path != ".":
                 ctx.run("go mod edit -require={}".format(mod.dependency_path("0.0.0")))

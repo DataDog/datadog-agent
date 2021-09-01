@@ -15,6 +15,8 @@
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/offset-guess-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess-debug.o
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/http.o $CI_PROJECT_DIR/.tmp/binary-ebpf/http.o
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/http-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/http-debug.o
+  - cp $SRC_PATH/pkg/ebpf/bytecode/build/dns.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns.o
+  - cp $SRC_PATH/pkg/ebpf/bytecode/build/dns-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns-debug.o
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/tracer.c $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.c
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/runtime-security.c $CI_PROJECT_DIR/.tmp/binary-ebpf/runtime-security.c
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/conntrack.c $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack.c
@@ -46,7 +48,7 @@
 tests_ebpf_x64:
   extends: .tests_linux_ebpf
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: [ "runner:main", "size:large" ]
+  tags: [ "runner:main" ]
   needs: [ "linux_x64_go_deps" ]
   variables:
     ARCH: amd64
@@ -88,6 +90,10 @@ tests_ebpf_arm64:
     - !reference [.retrieve_sysprobe_deps]
   script:
     - !reference [.build_sysprobe_artifacts]
+    # Compile runtime security functional tests to be executed in kitchen tests
+    - inv -e security-agent.build-functional-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/testsuite --build-flags "-race"
+    # Compile runtime security stress tests to be executed in kitchen tests
+    - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite
 
 tests_windows_sysprobe_x64:
   extends: .tests_windows_sysprobe

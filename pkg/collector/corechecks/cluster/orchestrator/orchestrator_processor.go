@@ -625,3 +625,129 @@ func chunkStatefulSets(statefulSets []*model.StatefulSet, chunkCount, chunkSize 
 
 	return chunks
 }
+
+// ProcessPersistentVolumeList process a PV list into process messages.
+func ProcessPersistentVolumeList(pvList []*corev1.PersistentVolume, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
+	start := time.Now()
+	pvMsgs := make([]*model.PersistentVolume, 0, len(pvList))
+
+	for s := 0; s < len(pvList); s++ {
+		pv := pvList[s]
+		if orchestrator.SkipKubernetesResource(pv.UID, pv.ResourceVersion, orchestrator.K8sPersistentVolume) {
+			continue
+		}
+
+		pvModel := extractPersistentVolume(pv)
+
+		// k8s objects only have json "omitempty" annotations
+		// + marshalling is more performant than YAML
+		jsonSvc, err := jsoniter.Marshal(pv)
+		if err != nil {
+			log.Warnf("Could not marshal Service to JSON: %s", err)
+			continue
+		}
+		pvModel.Yaml = jsonSvc
+
+		addAdditionalPVTags(pvModel)
+
+		pvMsgs = append(pvMsgs, pvModel)
+	}
+
+	groupSize := orchestrator.GroupSize(len(pvMsgs), cfg.MaxPerMessage)
+
+	chunks := chunkPersistentVolumes(pvMsgs, groupSize, cfg.MaxPerMessage)
+	messages := make([]model.MessageBody, 0, groupSize)
+
+	for i := 0; i < groupSize; i++ {
+		messages = append(messages, &model.CollectorPersistentVolume{
+			ClusterName:       cfg.KubeClusterName,
+			ClusterId:         clusterID,
+			GroupId:           groupID,
+			GroupSize:         int32(groupSize),
+			PersistentVolumes: chunks[i],
+			Tags:              cfg.ExtraTags,
+		})
+	}
+
+	log.Debugf("Collected & enriched %d out of %d Persistent volumes in %s", len(pvMsgs), len(pvList), time.Since(start))
+	return messages, nil
+}
+
+func addAdditionalPVTags(pvModel *model.PersistentVolume) {
+	// additional tags
+	pvPhaseTag := "pv_phase" + pvModel.Status.Phase
+	pvTypeTag := "pv_type" + pvModel.Spec.PersistentVolumeType
+	pvModel.Tags = append(pvModel.Tags, pvPhaseTag)
+	pvModel.Tags = append(pvModel.Tags, pvTypeTag)
+}
+
+// chunkPersistentVolumes chunks the given list of pv, honoring the given chunk count and size.
+// The last chunk may be smaller than the others.
+func chunkPersistentVolumes(persistentVolumes []*model.PersistentVolume, chunkCount, chunkSize int) [][]*model.PersistentVolume {
+	chunks := make([][]*model.PersistentVolume, 0, chunkCount)
+
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(persistentVolumes), chunkCount, chunkSize, counter)
+		chunks = append(chunks, persistentVolumes[chunkStart:chunkEnd])
+	}
+
+	return chunks
+}
+
+// ProcessPersistentVolumeClaimList process a PVC list into process messages.
+func ProcessPersistentVolumeClaimList(pvcList []*corev1.PersistentVolumeClaim, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
+	start := time.Now()
+	pvcMsgs := make([]*model.PersistentVolumeClaim, 0, len(pvcList))
+
+	for s := 0; s < len(pvcList); s++ {
+		pvc := pvcList[s]
+		if orchestrator.SkipKubernetesResource(pvc.UID, pvc.ResourceVersion, orchestrator.K8sPersistentVolumeClaim) {
+			continue
+		}
+
+		pvModel := extractPersistentVolumeClaim(pvc)
+
+		// k8s objects only have json "omitempty" annotations
+		// + marshalling is more performant than YAML
+		jsonSvc, err := jsoniter.Marshal(pvc)
+		if err != nil {
+			log.Warnf("Could not marshal Service to JSON: %s", err)
+			continue
+		}
+		pvModel.Yaml = jsonSvc
+
+		pvcMsgs = append(pvcMsgs, pvModel)
+	}
+
+	groupSize := orchestrator.GroupSize(len(pvcMsgs), cfg.MaxPerMessage)
+
+	chunks := chunkPersistentVolumeClaims(pvcMsgs, groupSize, cfg.MaxPerMessage)
+	messages := make([]model.MessageBody, 0, groupSize)
+
+	for i := 0; i < groupSize; i++ {
+		messages = append(messages, &model.CollectorPersistentVolumeClaim{
+			ClusterName:            cfg.KubeClusterName,
+			ClusterId:              clusterID,
+			GroupId:                groupID,
+			GroupSize:              int32(groupSize),
+			PersistentVolumeClaims: chunks[i],
+			Tags:                   cfg.ExtraTags,
+		})
+	}
+
+	log.Debugf("Collected & enriched %d out of %d Persistent volume claims in %s", len(pvcMsgs), len(pvcList), time.Since(start))
+	return messages, nil
+}
+
+// chunkPersistentVolumeClaims chunks the given list of pvc, honoring the given chunk count and size.
+// The last chunk may be smaller than the others.
+func chunkPersistentVolumeClaims(pvcs []*model.PersistentVolumeClaim, chunkCount, chunkSize int) [][]*model.PersistentVolumeClaim {
+	chunks := make([][]*model.PersistentVolumeClaim, 0, chunkCount)
+
+	for counter := 1; counter <= chunkCount; counter++ {
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(pvcs), chunkCount, chunkSize, counter)
+		chunks = append(chunks, pvcs[chunkStart:chunkEnd])
+	}
+
+	return chunks
+}

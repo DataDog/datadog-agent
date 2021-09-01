@@ -18,17 +18,8 @@
         "group": {
             "type": "string"
         },
-        "executable_path": {
-            "type": "string"
-        },
         "comm": {
             "type": "string"
-        },
-        "executable_inode": {
-            "type": "integer"
-        },
-        "executable_mount_id": {
-            "type": "integer"
         },
         "tty": {
             "allOf": [
@@ -201,10 +192,7 @@
         "tid",
         "uid",
         "gid",
-        "executable_path",
         "comm",
-        "executable_inode",
-        "executable_mount_id",
         "credentials",
         "executable"
     ]

@@ -377,7 +377,7 @@ func isDefaultHostname(hostname string, useWindowsPrefix bool) bool {
 }
 
 // HostnameProvider gets the hostname
-func HostnameProvider(ctx context.Context) (string, error) {
+func HostnameProvider(ctx context.Context, options map[string]interface{}) (string, error) {
 	log.Debug("GetHostname trying EC2 metadata...")
 	return GetInstanceID(ctx)
 }

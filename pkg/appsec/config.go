@@ -11,7 +11,7 @@ import (
 const (
 	// defaultIntakeURLTemplate specifies the string template allowing to obtain
 	// the intake URL from a given site.
-	defaultIntakeURLTemplate = "https://appsecevts-http-intake.logs.%s"
+	defaultIntakeURLTemplate = "https://appsecevts-intake.%s"
 	// defaultSite is the default intake site.
 	defaultSite = "datadoghq.com"
 	// defaultPayloadSize is the default HTTP payload size (ie. the body size) the proxy can copy and forward.

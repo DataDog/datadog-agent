@@ -182,9 +182,7 @@ def build(
     ctx.run(cmd.format(**args), env=env)
 
     # Remove cross-compiling bits to render config
-    env.update(
-        {"GOOS": "", "GOARCH": "",}
-    )
+    env.update({"GOOS": "", "GOARCH": ""})
 
     # Render the Agent configuration file template
     build_type = "agent-py3"
@@ -386,7 +384,9 @@ def get_omnibus_env(
     if hardened_runtime:
         env['HARDENED_RUNTIME_MAC'] = 'true'
 
-    env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, major_version=major_version)
+    env['PACKAGE_VERSION'] = get_version(
+        ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
+    )
     env['MAJOR_VERSION'] = major_version
     env['PY_RUNTIMES'] = python_runtimes
     if with_bcc:
@@ -536,9 +536,7 @@ def omnibus_build(
 
 
 @task
-def build_dep_tree(
-    ctx, git_ref="",
-):
+def build_dep_tree(ctx, git_ref=""):
     """
     Generates a file representing the Golang dependency tree in the current
     directory. Use the "--git-ref=X" argument to specify which tag you would like
@@ -652,7 +650,12 @@ def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_v
                     (the windows builder and the default ubuntu version have such an incompatibility)
     """
     version = get_version(
-        ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length, major_version=major_version
+        ctx,
+        include_git=True,
+        url_safe=url_safe,
+        git_sha_length=git_sha_length,
+        major_version=major_version,
+        include_pipeline_id=True,
     )
     if omnibus_format:
         # See: https://github.com/DataDog/omnibus-ruby/blob/datadog-5.5.0/lib/omnibus/packagers/deb.rb#L599

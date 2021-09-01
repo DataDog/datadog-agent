@@ -9,6 +9,7 @@ import (
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/sketches-go/ddsketch"
@@ -16,6 +17,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go4.org/intern"
 )
 
 var originalConfig = config.Datadog
@@ -37,7 +39,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 		dnsByDomainByQuerytype = map[int32]*model.DNSStatsByQueryType{
 			0: {
 				DnsStatsByQueryType: map[int32]*model.DNSStats{
-					int32(network.DNSTypeA): {
+					int32(dns.TypeA): {
 						DnsTimeouts:          0,
 						DnsSuccessLatencySum: 0,
 						DnsFailureLatencySum: 0,
@@ -135,13 +137,13 @@ func TestSerialization(t *testing.T) {
 				Direction: network.LOCAL,
 
 				DNSCountByRcode: map[uint32]uint32{0: 1},
-				DNSStatsByDomainByQueryType: map[string]map[network.QueryType]network.DNSStats{
-					"foo.com": {
-						network.DNSTypeA: {
-							DNSTimeouts:          0,
-							DNSSuccessLatencySum: 0,
-							DNSFailureLatencySum: 0,
-							DNSCountByRcode:      map[uint32]uint32{0: 1},
+				DNSStatsByDomainByQueryType: map[*intern.Value]map[dns.QueryType]dns.Stats{
+					intern.GetByString("foo.com"): {
+						dns.TypeA: {
+							Timeouts:          0,
+							SuccessLatencySum: 0,
+							FailureLatencySum: 0,
+							CountByRcode:      map[uint32]uint32{0: 1},
 						},
 					},
 				},
@@ -560,8 +562,7 @@ func unmarshalSketch(t *testing.T, bytes []byte) *ddsketch.DDSketch {
 	err := proto.Unmarshal(bytes, &sketchPb)
 	assert.Nil(t, err)
 
-	var sketch *ddsketch.DDSketch
-	ret, err := sketch.FromProto(&sketchPb)
+	ret, err := ddsketch.FromProto(&sketchPb)
 	assert.Nil(t, err)
 
 	return ret

@@ -95,6 +95,7 @@
 /cmd/cluster-agent-cloudfoundry/        @DataDog/integrations-tools-and-libraries
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/integrations-tools-and-libraries
 /cmd/process-agent/                     @DataDog/processes
+/cmd/serverless/                        @DataDog/serverless
 /cmd/system-probe/                      @DataDog/agent-network
 /cmd/security-agent/                    @DataDog/agent-security
 
@@ -173,6 +174,7 @@
 /pkg/util/ecs/                          @DataDog/container-integrations
 /pkg/util/kernel/                       @DataDog/agent-network
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-app
+/pkg/util/orchestrator/                 @DataDog/container-app
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/logs/                              @DataDog/agent-core
 /pkg/logs/input/traps/                  @DataDog/infrastructure-integrations @DataDog/agent-core

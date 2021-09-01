@@ -9,6 +9,7 @@ package tests
 
 import (
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"os/exec"
@@ -523,6 +524,68 @@ func TestProcessContext(t *testing.T) {
 	})
 }
 
+func TestProcessExecCTime(t *testing.T) {
+	executable := "/usr/bin/touch"
+	if resolved, err := os.Readlink(executable); err == nil {
+		executable = resolved
+	} else {
+		if os.IsNotExist(err) {
+			executable = "/bin/touch"
+		}
+	}
+
+	copy := func(src string, dst string) error {
+		in, err := os.Open(src)
+		if err != nil {
+			return err
+		}
+		defer in.Close()
+
+		out, err := os.Create(dst)
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+
+		if _, err = io.Copy(out, in); err != nil {
+			return err
+		}
+		if err := os.Chmod(dst, 0o755); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	ruleDef := &rules.RuleDefinition{
+		ID:         "test_exec_ctime",
+		Expression: "exec.file.change_time < 5s",
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	err = test.GetSignal(t, func() error {
+		testFile, _, err := test.Path("touch")
+		if err != nil {
+			t.Fatal(err)
+		}
+		copy(executable, testFile)
+
+		cmd := exec.Command(testFile, "/tmp/test")
+		return cmd.Run()
+	}, func(event *sprobe.Event, rule *rules.Rule) {
+		assert.Equal(t, "test_exec_ctime", rule.ID, "wrong rule triggered")
+
+		if !validateExecSchema(t, event) {
+			t.Error(event.String())
+		}
+	})
+}
+
 func TestProcessExec(t *testing.T) {
 	executable := "/usr/bin/touch"
 	if resolved, err := os.Readlink(executable); err == nil {
@@ -543,11 +606,6 @@ func TestProcessExec(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-
-	cmd := exec.Command("sh", "-c", executable+" /dev/null")
-	if err := cmd.Run(); err != nil {
-		t.Error(err)
-	}
 
 	err = test.GetSignal(t, func() error {
 		cmd := exec.Command("sh", "-c", executable+" /dev/null")
@@ -640,7 +698,7 @@ func TestProcessMetadata(t *testing.T) {
 	})
 }
 
-func TestProcessLineage(t *testing.T) {
+func TestProcessExecExit(t *testing.T) {
 	executable := "/usr/bin/touch"
 	if resolved, err := os.Readlink(executable); err == nil {
 		executable = resolved
@@ -655,51 +713,63 @@ func TestProcessLineage(t *testing.T) {
 		Expression: fmt.Sprintf(`exec.file.path == "%s" && exec.args in [~"*01010101*"]`, executable),
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{wantProbeEvents: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
-	var execPid int
-	var lastEvent model.EventType
+	var execPid int // will be set by the first fork event
 
 	err = test.GetProbeEvent(func() error {
 		cmd := exec.Command(executable, "-t", "01010101", "/dev/null")
 		return cmd.Run()
 	}, func(event *sprobe.Event) bool {
 		switch event.GetEventType() {
-		case model.ForkEventType:
-			if filename, err := event.GetFieldValue("process.file.name"); err == nil && filename.(string) == "testsuite" {
-				testProcessLineageFork(t, event)
-			}
 		case model.ExecEventType:
-			if lastEvent != model.ForkEventType {
-				t.Error("exec event should follow a fork event")
+			if testProcessEEIsExpectedExecEvent(event) {
+				execPid = int(event.ProcessContext.Pid)
+				if err := testProcessEEExec(t, event); err != nil {
+					t.Error(err)
+				}
 			}
-			if err := testProcessLineageExec(t, event); err != nil {
-				t.Error(err)
-			}
-			execPid = int(event.ProcessContext.Pid)
 		case model.ExitEventType:
-			if lastEvent != model.ExecEventType {
-				t.Error("exit event should follow an exec event")
-			}
-			if int(event.ProcessContext.Pid) == execPid {
+			if execPid != 0 && int(event.ProcessContext.Pid) == execPid {
 				return true
 			}
 		}
-		lastEvent = event.GetEventType()
 		return false
-	}, time.Second*3, model.ForkEventType, model.ExecEventType, model.ExitEventType)
+	}, time.Second*3, model.ExecEventType, model.ExitEventType)
 	if err != nil {
 		t.Error(err)
 	}
 
-	testProcessLineageExit(t, uint32(execPid), test)
+	testProcessEEExit(t, uint32(execPid), test)
 }
 
-func testProcessLineageExec(t *testing.T, event *probe.Event) error {
+func testProcessEEIsExpectedExecEvent(event *sprobe.Event) bool {
+	if event.GetEventType() != model.ExecEventType {
+		return false
+	}
+
+	basename, err := event.GetFieldValue("exec.file.name")
+	if err != nil {
+		return false
+	}
+
+	if basename.(string) != "touch" {
+		return false
+	}
+
+	args, err := event.GetFieldValue("exec.args")
+	if err != nil {
+		return false
+	}
+
+	return strings.Contains(args.(string), "01010101")
+}
+
+func testProcessEEExec(t *testing.T, event *probe.Event) error {
 	// check for the new process context
 	cacheEntry := event.ResolveProcessCacheEntry()
 	if cacheEntry == nil {
@@ -716,32 +786,7 @@ func testProcessLineageExec(t *testing.T, event *probe.Event) error {
 	return nil
 }
 
-func testProcessLineageFork(t *testing.T, event *probe.Event) {
-	// we need to make sure that the child entry if properly populated with its parent metadata
-	newEntry := event.ResolveProcessCacheEntry()
-	if newEntry == nil {
-		t.Errorf("expected a new process cache entry, got nil")
-	} else {
-		// fetch the parent of the new entry, it should the test binary itself
-		parentEntry := newEntry.Ancestor
-
-		if parentEntry == nil {
-			t.Errorf("expected a parent cache entry, got nil")
-		} else {
-			// checking cookie and pathname str should be enough to make sure that the metadata were properly
-			// copied from kernel space (those 2 information are stored in 2 different maps)
-			assert.Equal(t, parentEntry.Cookie, newEntry.Cookie, "wrong cookie")
-			assert.Equal(t, parentEntry.Pid, newEntry.PPid, "wrong ppid")
-			assert.Equal(t, parentEntry.ContainerID, newEntry.ContainerID, "wrong container id")
-
-			// We can't check that the new entry is in the list of the children of its parent because the exit event
-			// has probably already been processed (thus the parent list of children has already been updated and the
-			// child entry deleted).
-		}
-	}
-}
-
-func testProcessLineageExit(t *testing.T, pid uint32, test *testModule) {
+func testProcessEEExit(t *testing.T, pid uint32, test *testModule) {
 	// make sure that the process cache entry of the process was properly deleted from the cache
 	err := retry.Do(func() error {
 		resolvers := test.probe.GetResolvers()

@@ -5,10 +5,12 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -34,6 +36,7 @@ type snmpInitConfig struct {
 	OidBatchSize          Number           `yaml:"oid_batch_size"`
 	BulkMaxRepetitions    Number           `yaml:"bulk_max_repetitions"`
 	CollectDeviceMetadata Boolean          `yaml:"collect_device_metadata"`
+	MinCollectionInterval int              `yaml:"min_collection_interval"`
 }
 
 type snmpInstanceConfig struct {
@@ -58,6 +61,11 @@ type snmpInstanceConfig struct {
 	ExtraTags             string            `yaml:"extra_tags"` // comma separated tags
 	Tags                  []string          `yaml:"tags"`       // used for device metadata
 	CollectDeviceMetadata *Boolean          `yaml:"collect_device_metadata"`
+
+	// To accept min collection interval from snmp_listener, we need to accept it as string
+	// extra_min_collection_interval can accept both string and integer value
+	MinCollectionInterval      int    `yaml:"min_collection_interval"`
+	ExtraMinCollectionInterval Number `yaml:"extra_min_collection_interval"`
 
 	// `network` config is only available in Python SNMP integration
 	// it's added here to raise warning if used with corecheck SNMP integration
@@ -93,6 +101,7 @@ type snmpConfig struct {
 	deviceIDTags          []string
 	subnet                string
 	autodetectProfile     bool
+	minCollectionInterval time.Duration
 }
 
 func (c *snmpConfig) refreshWithProfile(profile string) error {
@@ -216,6 +225,19 @@ func buildConfig(rawInstance integration.Data, rawInitConfig integration.Data) (
 		c.timeout = defaultTimeout
 	} else {
 		c.timeout = int(instance.Timeout)
+	}
+
+	if instance.ExtraMinCollectionInterval != 0 {
+		c.minCollectionInterval = time.Duration(instance.ExtraMinCollectionInterval) * time.Second
+	} else if instance.MinCollectionInterval != 0 {
+		c.minCollectionInterval = time.Duration(instance.MinCollectionInterval) * time.Second
+	} else if initConfig.MinCollectionInterval != 0 {
+		c.minCollectionInterval = time.Duration(initConfig.MinCollectionInterval) * time.Second
+	} else {
+		c.minCollectionInterval = defaults.DefaultCheckInterval
+	}
+	if c.minCollectionInterval < 0 {
+		return snmpConfig{}, fmt.Errorf("min collection interval must be > 0, but got: %v", c.minCollectionInterval.Seconds())
 	}
 
 	// SNMP connection configs

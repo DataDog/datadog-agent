@@ -138,6 +138,10 @@ struct bpf_map_def SEC("maps/inode_discarders") inode_discarders = {
 };
 
 int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u64 inode, u64 timeout, u32 is_leaf) {
+    if (!mount_id || !inode) {
+        return 0;
+    }
+
     struct inode_discarder_t key = {
         .path_key = {
             .ino = inode,
@@ -151,16 +155,17 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
 
     struct inode_discarder_params_t *inode_params = bpf_map_lookup_elem(&inode_discarders, &key);
     if (inode_params) {
-        inode_params->params.event_mask |= event_type;
+        inode_params->params.event_mask |= 1 << (event_type - EVENT_FIRST_DISCARDER);
+        add_event_to_mask(&inode_params->params.event_mask, event_type);
 
         if ((discarder_timestamp = get_discarder_timestamp(&inode_params->params, event_type)) != NULL) {
             *discarder_timestamp = timestamp;
         }
     } else {
         struct inode_discarder_params_t new_inode_params = {
-            .params.event_mask = event_type,
             .revision = get_discarder_revision(mount_id),
         };
+        add_event_to_mask(&new_inode_params.params.event_mask, event_type);
 
         if ((discarder_timestamp = get_discarder_timestamp(&new_inode_params.params, event_type)) != NULL) {
             *discarder_timestamp = timestamp;
@@ -257,15 +262,14 @@ int __attribute__((always_inline)) discard_pid(u64 event_type, u32 tgid, u64 tim
 
     struct pid_discarder_params_t *pid_params = bpf_map_lookup_elem(&pid_discarders, &key);
     if (pid_params) {
-        pid_params->params.event_mask |= event_type;
+        add_event_to_mask(&pid_params->params.event_mask, event_type);
 
         if ((discarder_timestamp = get_discarder_timestamp(&pid_params->params, event_type)) != NULL) {
             *discarder_timestamp = timestamp;
         }
     } else {
-        struct pid_discarder_params_t new_pid_params = {
-            .params.event_mask = event_type,
-        };
+        struct pid_discarder_params_t new_pid_params = {};
+        add_event_to_mask(&new_pid_params.params.event_mask, event_type);
 
         if ((discarder_timestamp = get_discarder_timestamp(&new_pid_params.params, event_type)) != NULL) {
             *discarder_timestamp = timestamp;

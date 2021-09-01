@@ -425,7 +425,7 @@ If the cause is unclear, please contact Datadog support.
     fi
     echo -e "  \033[33mInstalling package: $agent_flavor\n\033[0m"
 
-    $sudo_cmd apt-get install -y --force-yes "$agent_flavor"
+    $sudo_cmd apt-get install -y --force-yes "$agent_flavor" "datadog-signing-keys"
     ERROR_MESSAGE=""
 elif [ "$OS" = "SUSE" ]; then
   UNAME_M=$(uname -m)
