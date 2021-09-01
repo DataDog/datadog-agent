@@ -602,7 +602,9 @@ def generate_cgo_types(ctx, windows=is_windows):
         ]
     else:
         platform = "linux"
-        def_files = []
+        def_files = [
+            "./pkg/network/ebpf/offsetguess_types.go",
+        ]
 
     for f in def_files:
         fdir, file = os.path.split(f)
