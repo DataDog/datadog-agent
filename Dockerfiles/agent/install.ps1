@@ -12,7 +12,15 @@ function Install-Service {
   } else {
       New-Service -Name $SvcName -StartupType Manual -BinaryPathName $BinPath
   }
-  New-Eventlog -Source $SvcName -LogName Application -MessageResourceFile $BinPath -CategoryResourceFile $BinPath
+  #New-EventLog -Source $SvcName -LogName Application -MessageResourceFile $BinPath -CategoryResourceFile $BinPath
+  $eventSourceData = new-object System.Diagnostics.EventSourceCreationData("$SvcName", "Application")  
+  $eventSourceData.CategoryResourceFile = $BinPath
+  $eventSourceData.MessageResourceFile = $BinPath
+
+  If (![System.Diagnostics.EventLog]::SourceExists($eventSourceData.Source))
+  {      
+  [System.Diagnostics.EventLog]::CreateEventSource($eventSourceData)  
+  } 
 }
 
 if ("$env:WITH_JMX" -ne "false") {
