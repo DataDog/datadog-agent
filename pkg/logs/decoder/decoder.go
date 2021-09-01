@@ -133,7 +133,8 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 					matchRatio = dd_conf.Datadog.GetFloat64("logs_config.auto_multi_line_default_match_threshold")
 
 				}
-				lineHandler = NewAutoMultilineHandler(outputChan, lineLimit, linesToSample, matchRatio, config.AggregationTimeout(), source)
+				matchTimeout := time.Second * dd_conf.Datadog.GetDuration("logs_config.auto_multi_line_default_match_timeout")
+				lineHandler = NewAutoMultilineHandler(outputChan, lineLimit, linesToSample, matchRatio, matchTimeout, config.AggregationTimeout(), source)
 			}
 		} else {
 			lineHandler = NewSingleLineHandler(outputChan, lineLimit)

@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 func benchmarkSingleLineHandler(b *testing.B, logs int) {
@@ -42,7 +44,8 @@ func benchmarkAutoMultiLineHandler(b *testing.B, logs int, line string) {
 	}
 
 	outputChan := make(chan *Message, 10)
-	h := NewAutoMultilineHandler(outputChan, defaultContentLenLimit, 1000, 0.9, 1000*time.Millisecond)
+	source := config.NewLogSource("config", &config.LogsConfig{})
+	h := NewAutoMultilineHandler(outputChan, defaultContentLenLimit, 1000, 0.9, 30*time.Second, 1000*time.Millisecond, source)
 	h.Start()
 
 	go func() {

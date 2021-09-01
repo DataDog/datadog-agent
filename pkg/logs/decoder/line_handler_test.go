@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -229,7 +230,8 @@ func TestMultiLineHandlerSendsRawInvalidMessages(t *testing.T) {
 func TestAutoMultiLineHandlerStaysSingleLineMode(t *testing.T) {
 
 	outputChan := make(chan *Message, 10)
-	h := NewAutoMultilineHandler(outputChan, 100, 5, 1.0, 10*time.Millisecond)
+	source := config.NewLogSource("config", &config.LogsConfig{})
+	h := NewAutoMultilineHandler(outputChan, 100, 5, 1.0, 10*time.Millisecond, 10*time.Millisecond, source)
 	h.Start()
 
 	for i := 0; i < 6; i++ {
@@ -238,12 +240,14 @@ func TestAutoMultiLineHandlerStaysSingleLineMode(t *testing.T) {
 	}
 	assert.NotNil(t, h.singleLineHandler)
 	assert.Nil(t, h.multiLineHandler)
+	assert.Nil(t, source.GetPattern())
 }
 
 func TestAutoMultiLineHandlerSwitchesToMultiLineMode(t *testing.T) {
 
 	outputChan := make(chan *Message, 10)
-	h := NewAutoMultilineHandler(outputChan, 100, 5, 1.0, 10*time.Millisecond)
+	source := config.NewLogSource("config", &config.LogsConfig{})
+	h := NewAutoMultilineHandler(outputChan, 100, 5, 1.0, 10*time.Millisecond, 10*time.Millisecond, source)
 	h.Start()
 
 	for i := 0; i < 6; i++ {
@@ -252,12 +256,14 @@ func TestAutoMultiLineHandlerSwitchesToMultiLineMode(t *testing.T) {
 	}
 	assert.Nil(t, h.singleLineHandler)
 	assert.NotNil(t, h.multiLineHandler)
+	assert.NotNil(t, source.GetPattern())
 }
 
 func TestAutoMultiLineHandlerHandelsMessage(t *testing.T) {
 
 	outputChan := make(chan *Message, 10)
-	h := NewAutoMultilineHandler(outputChan, 500, 1, 1.0, 10*time.Millisecond)
+	source := config.NewLogSource("config", &config.LogsConfig{})
+	h := NewAutoMultilineHandler(outputChan, 500, 1, 1.0, 10*time.Millisecond, 10*time.Millisecond, source)
 	h.Start()
 
 	h.Handle(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message 1"))
@@ -276,7 +282,8 @@ func TestAutoMultiLineHandlerHandelsMessage(t *testing.T) {
 func TestAutoMultiLineHandlerHandelsMessageConflictingPatterns(t *testing.T) {
 
 	outputChan := make(chan *Message, 10)
-	h := NewAutoMultilineHandler(outputChan, 500, 4, 0.75, 10*time.Millisecond)
+	source := config.NewLogSource("config", &config.LogsConfig{})
+	h := NewAutoMultilineHandler(outputChan, 500, 4, 0.75, 10*time.Millisecond, 10*time.Millisecond, source)
 	h.Start()
 
 	// we will match both patterns, but one will win with a threshold of 0.75
@@ -302,7 +309,8 @@ func TestAutoMultiLineHandlerHandelsMessageConflictingPatterns(t *testing.T) {
 func TestAutoMultiLineHandlerHandelsMessageConflictingPatternsNoWinner(t *testing.T) {
 
 	outputChan := make(chan *Message, 10)
-	h := NewAutoMultilineHandler(outputChan, 500, 4, 0.75, 10*time.Millisecond)
+	source := config.NewLogSource("config", &config.LogsConfig{})
+	h := NewAutoMultilineHandler(outputChan, 500, 4, 0.75, 10*time.Millisecond, 10*time.Millisecond, source)
 	h.Start()
 
 	// we will match both patterns, but neither will win because it doesn't meet the threshold

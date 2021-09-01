@@ -274,10 +274,11 @@ type AutoMultilineHandler struct {
 	processsingFunc   func(message *Message)
 	flushTimeout      time.Duration
 	source            *config.LogSource
+	timeoutTimer      *time.Timer
 }
 
 // NewAutoMultilineHandler returns a new SingleLineHandler.
-func NewAutoMultilineHandler(outputChan chan *Message, lineLimit, linesToAssess int, matchThreshold float64, flushTimeout time.Duration, source *config.LogSource) *AutoMultilineHandler {
+func NewAutoMultilineHandler(outputChan chan *Message, lineLimit, linesToAssess int, matchThreshold float64, matchTimeout time.Duration, flushTimeout time.Duration, source *config.LogSource) *AutoMultilineHandler {
 	scoredMatches := make([]*scoredPattern, len(formatsToTry))
 	for i, v := range formatsToTry {
 		scoredMatches[i] = &scoredPattern{
@@ -295,6 +296,7 @@ func NewAutoMultilineHandler(outputChan chan *Message, lineLimit, linesToAssess 
 		linesToAssess:  linesToAssess,
 		flushTimeout:   flushTimeout,
 		source:         source,
+		timeoutTimer:   time.NewTimer(matchTimeout),
 	}
 
 	h.singleLineHandler = NewSingleLineHandler(outputChan, lineLimit)
@@ -356,7 +358,18 @@ func (h *AutoMultilineHandler) processAndTry(message *Message) {
 		}
 	}
 
-	if h.linesTested++; h.linesTested >= h.linesToAssess {
+	timeout := false
+	select {
+	case <-h.timeoutTimer.C:
+		log.Debug("Multi-line auto detect timed out before reaching line test threshold")
+		timeout = true
+		break
+	default:
+		break
+	}
+
+	h.linesTested++
+	if h.linesTested >= h.linesToAssess || timeout {
 		topMatch := h.scoredMatches[0]
 		matchRatio := float64(topMatch.score) / float64(h.linesTested)
 
