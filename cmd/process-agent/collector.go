@@ -107,14 +107,13 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue, options
 	updateLastCollectTime(start)
 
 	if withRealTime, ok := c.(checks.CheckWithRealTime); ok {
-		runs, err := withRealTime.RunWithOptions(l.cfg, atomic.AddInt32(&l.groupID, 1), options)
+		run, err := withRealTime.RunWithOptions(l.cfg, atomic.AddInt32(&l.groupID, 1), options)
 		if err != nil {
 			log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 			return
 		}
-		for _, r := range runs {
-			l.messagesToResults(start, r.CheckName, r.Messages, results)
-		}
+		l.messagesToResults(start, withRealTime.Name(), run.Standard, results)
+		l.messagesToResults(start, withRealTime.RealTimeName(), run.RealTime, results)
 	} else {
 		messages, err := c.Run(l.cfg, atomic.AddInt32(&l.groupID, 1))
 		if err != nil {
@@ -124,7 +123,7 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue, options
 		l.messagesToResults(start, c.Name(), messages, results)
 	}
 
-	if !c.RealTime() || options.RunRegular {
+	if !c.RealTime() || options.RunStandard {
 		d := time.Since(start)
 		switch {
 		case runCounter < 5:
@@ -138,6 +137,10 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue, options
 }
 
 func (l *Collector) messagesToResults(start time.Time, name string, messages []model.MessageBody, results *api.WeightedQueue) {
+	if len(messages) == 0 {
+		return
+	}
+
 	payloads := make([]checkPayload, 0, len(messages))
 	sizeInBytes := 0
 

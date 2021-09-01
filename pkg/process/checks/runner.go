@@ -61,7 +61,7 @@ func (r *runnerWithRealTime) run() {
 			rtEnabled := r.RtEnabled()
 			if rtEnabled || r.counter == 0 {
 				r.RunCheck(RunOptions{
-					RunRegular:  r.counter == 0,
+					RunStandard: r.counter == 0,
 					RunRealTime: rtEnabled,
 				})
 			}

@@ -363,7 +363,7 @@ func runCheck(cfg *config.AgentConfig, ch checks.Check) error {
 
 func runCheckAsRealTime(cfg *config.AgentConfig, ch checks.CheckWithRealTime) error {
 	options := checks.RunOptions{
-		RunRegular:  true,
+		RunStandard: true,
 		RunRealTime: true,
 	}
 	if _, err := ch.RunWithOptions(cfg, 0, options); err != nil {
@@ -374,17 +374,12 @@ func runCheckAsRealTime(cfg *config.AgentConfig, ch checks.CheckWithRealTime) er
 
 	printResultsBanner(ch.RealTimeName())
 
-	runs, err := ch.RunWithOptions(cfg, 1, options)
+	run, err := ch.RunWithOptions(cfg, 1, options)
 	if err != nil {
 		return fmt.Errorf("collection error: %s", err)
 	}
 
-	for _, r := range runs {
-		if r.CheckName == ch.RealTimeName() {
-			return printResults(r.Messages)
-		}
-	}
-	return fmt.Errorf("collection error - missing results for: %s", ch.RealTimeName())
+	return printResults(run.RealTime)
 }
 
 func printResultsBanner(name string) {

@@ -20,7 +20,7 @@ import (
 // Processes are split up into a chunks of at most 100 processes per message to
 // limit the message size on intake.
 // See agent.proto for the schema of the message and models used.
-func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) ([]RunResult, error) {
+func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) (*RunResult, error) {
 	cpuTimes, err := cpu.Times(false)
 	if err != nil {
 		return nil, err
@@ -97,11 +97,8 @@ func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) ([]Ru
 	p.realtimeLastCtrRates = util.ExtractContainerRateMetric(ctrList)
 	p.realtimeLastCPUTime = cpuTimes[0]
 
-	return []RunResult{
-		{
-			CheckName: p.RealTimeName(),
-			Messages:  messages,
-		},
+	return &RunResult{
+		RealTime: messages,
 	}, nil
 }
 

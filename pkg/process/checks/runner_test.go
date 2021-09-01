@@ -9,16 +9,16 @@ import (
 )
 
 var (
-	runOptionsWithRegular = RunOptions{
-		RunRegular:  true,
+	runOptionsWithStandard = RunOptions{
+		RunStandard: true,
 		RunRealTime: false,
 	}
-	runOptionsWithRT = RunOptions{
-		RunRegular:  false,
+	runOptionsWithRealTime = RunOptions{
+		RunStandard: false,
 		RunRealTime: true,
 	}
 	runOptionsWithBoth = RunOptions{
-		RunRegular:  true,
+		RunStandard: true,
 		RunRealTime: true,
 	}
 )
@@ -34,20 +34,20 @@ func TestRunnerWithRealTime(t *testing.T) {
 			rtEnabled: true,
 			expectRuns: []RunOptions{
 				runOptionsWithBoth,
-				runOptionsWithRT,
-				runOptionsWithRT,
-				runOptionsWithRT,
-				runOptionsWithRT,
+				runOptionsWithRealTime,
+				runOptionsWithRealTime,
+				runOptionsWithRealTime,
+				runOptionsWithRealTime,
 				runOptionsWithBoth,
-				runOptionsWithRT,
+				runOptionsWithRealTime,
 			},
 		},
 		{
 			desc:      "rt-disabled",
 			rtEnabled: false,
 			expectRuns: []RunOptions{
-				runOptionsWithRegular,
-				runOptionsWithRegular,
+				runOptionsWithStandard,
+				runOptionsWithStandard,
 			},
 		},
 	}

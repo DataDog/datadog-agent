@@ -90,17 +90,15 @@ func (p *ProcessCheck) RealTime() bool { return false }
 // limit the message size on intake.
 // See agent.proto for the schema of the message and models used.
 func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
-	results, err := p.run(cfg, groupID, false)
+	result, err := p.run(cfg, groupID, false)
 	if err != nil {
 		return nil, err
 	}
-	if len(results) == 0 {
-		return nil, nil
-	}
-	return results[0].Messages, nil
+
+	return result.Standard, nil
 }
 
-func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTime bool) ([]RunResult, error) {
+func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTime bool) (*RunResult, error) {
 	start := time.Now()
 	cpuTimes, err := cpu.Times(false)
 	if err != nil {
@@ -131,7 +129,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 	}
 
 	// stores lastPIDs to be used by RTProcess
-	p.lastPIDs = make([]int32, 0, len(procs))
+	p.lastPIDs = p.lastPIDs[:0]
 	for pid := range procs {
 		p.lastPIDs = append(p.lastPIDs, pid)
 	}
@@ -180,11 +178,8 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 	p.lastCtrIDForPID = ctrByProc
 	p.storeCreateTimes()
 
-	results := []RunResult{
-		{
-			CheckName: p.Name(),
-			Messages:  messages,
-		},
+	result := &RunResult{
+		Standard: messages,
 	}
 	if collectRealTime {
 		stats := procsToStats(p.lastProcs)
@@ -208,10 +203,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 					ContainerHostType: cfg.ContainerHostType,
 				})
 			}
-			results = append(results, RunResult{
-				CheckName: p.RealTimeName(),
-				Messages:  messages,
-			})
+			result.RealTime = messages
 		}
 
 		p.realtimeLastCPUTime = p.lastCPUTime
@@ -224,7 +216,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 	statsd.Client.Gauge("datadog.process.processes.host_count", float64(totalProcs), []string{}, 1)       //nolint:errcheck
 	log.Debugf("collected processes in %s", time.Now().Sub(start))
 
-	return results, nil
+	return result, nil
 }
 
 func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
@@ -237,8 +229,8 @@ func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
 
 // RunWithOptions collects process data (regular metadata + stats) and/or realtime process data (stats only)
 // Messages are grouped as RunResult instances with CheckName identifying the type
-func (p *ProcessCheck) RunWithOptions(cfg *config.AgentConfig, groupID int32, options RunOptions) ([]RunResult, error) {
-	if options.RunRegular {
+func (p *ProcessCheck) RunWithOptions(cfg *config.AgentConfig, groupID int32, options RunOptions) (*RunResult, error) {
+	if options.RunStandard {
 		return p.run(cfg, groupID, options.RunRealTime)
 	}
 
@@ -535,7 +527,7 @@ func skipProcess(
 }
 
 func (p *ProcessCheck) storeCreateTimes() {
-	createTimes := map[int32]int64{}
+	createTimes := make(map[int32]int64, len(p.lastProcs))
 	for pid, proc := range p.lastProcs {
 		createTimes[pid] = proc.Stats.CreateTime
 	}
