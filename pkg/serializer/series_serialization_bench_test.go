@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
 func generateData(points int, items int, tags int) metrics.Series {
@@ -45,10 +45,8 @@ func generateData(points int, items int, tags int) metrics.Series {
 
 var payloads forwarder.Payloads
 
-var payloadBuilder = stream.NewJSONPayloadBuilder(true)
-
 func serializeSeries(series metrics.Series) forwarder.Payloads {
-	pl, err := payloadBuilder.Build(series)
+	pl, err := series.MarshalSplitCompress(marshaler.DefaultBufferContext())
 	if err != nil {
 		panic(err)
 	}
