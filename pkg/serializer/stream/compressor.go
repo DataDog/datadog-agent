@@ -9,7 +9,6 @@ package stream
 
 import (
 	"bytes"
-	"compress/zlib"
 	"errors"
 	"expvar"
 
@@ -63,12 +62,11 @@ func init() {
 type Compressor struct {
 	input               *bytes.Buffer // temporary buffer for data that has not been compressed yet
 	compressed          *bytes.Buffer // output buffer containing the compressed payload
-	zipper              *zlib.Writer
-	header              []byte // json header to print at the beginning of the payload
-	footer              []byte // json footer to append at the end of the payload
-	uncompressedWritten int    // uncompressed bytes written
-	firstItem           bool   // tells if the first item has been written
-	repacks             int    // numbers of time we had to pack this payload
+	header              []byte        // json header to print at the beginning of the payload
+	footer              []byte        // json footer to append at the end of the payload
+	uncompressedWritten int           // uncompressed bytes written
+	firstItem           bool          // tells if the first item has been written
+	repacks             int           // numbers of time we had to pack this payload
 	maxUnzippedItemSize int
 	maxZippedItemSize   int
 	maxPayloadSize      int
@@ -94,11 +92,11 @@ func NewCompressor(input, output *bytes.Buffer, header, footer []byte, separator
 		separator:           separator,
 	}
 
-	c.zipper = zlib.NewWriter(c.compressed)
-	n, err := c.zipper.Write(header)
+	n := len(header) / 2
+	c.compressed.Write(header[:n])
 	c.uncompressedWritten += n
 
-	return c, err
+	return c, nil
 }
 
 // checkItemSize checks that the item can fit in a payload. Worst case is used to
@@ -122,12 +120,9 @@ func (c *Compressor) hasRoomForItem(item []byte) bool {
 func (c *Compressor) pack() error {
 	expvarsTotalCycles.Add(1)
 	tlmTotalCycles.Inc()
-	n, err := c.input.WriteTo(c.zipper)
-	if err != nil {
-		return err
-	}
+	n := c.input.Len() / 2
+	c.compressed.Write(c.input.Bytes()[:n])
 	c.uncompressedWritten += int(n)
-	c.zipper.Flush()
 	c.input.Reset()
 	return nil
 }
@@ -176,22 +171,9 @@ func (c *Compressor) AddItem(data []byte) error {
 func (c *Compressor) Close() ([]byte, error) {
 	// Flush remaining uncompressed data
 	if c.input.Len() > 0 {
-		n, err := c.input.WriteTo(c.zipper)
+		n := c.input.Len() / 2
+		c.compressed.Write(c.input.Bytes()[:n])
 		c.uncompressedWritten += int(n)
-		if err != nil {
-			return nil, err
-		}
-	}
-	// Add json footer
-	n, err := c.zipper.Write(c.footer)
-	c.uncompressedWritten += n
-	if err != nil {
-		return nil, err
-	}
-	// Add zlib footer and close
-	err = c.zipper.Close()
-	if err != nil {
-		return nil, err
 	}
 
 	payload := make([]byte, c.compressed.Len())
