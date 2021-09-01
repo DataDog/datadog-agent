@@ -114,18 +114,27 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 		}
 	}
 	if lineHandler == nil {
-		if !(dd_conf.Datadog.GetBool("logs_config.disable_auto_multi_line") || source.Config.AutoMultiLineOff) {
+		if dd_conf.Datadog.GetBool("logs_config.auto_multi_line_detection") || source.Config.AutoMultiLine {
 			log.Infof("Auto multi line log detection enabled")
-			linesToSample := source.Config.AutoMultiLineSampleSize
-			if linesToSample <= 0 {
-				linesToSample = dd_conf.Datadog.GetInt("logs_config.auto_multi_line_default_sample_size")
-			}
-			matchRatio := source.Config.AutoMultiLineMatchThreshold
-			if matchRatio == 0 {
-				matchRatio = dd_conf.Datadog.GetFloat64("logs_config.auto_multi_line_default_match_threshold")
+			log.Debugf("auto_multi_line_detection=%v", source.Config.AutoMultiLine)
+			log.Debugf("auto_multi_line_sample_size=%v", source.Config.AutoMultiLineSampleSize)
 
+			if pattern := source.GetPattern(); pattern != nil {
+				log.Infof("Found a previously detected pattern - using multi line handler")
+
+				lineHandler = NewMultiLineHandler(outputChan, pattern, config.AggregationTimeout(), lineLimit)
+			} else {
+				linesToSample := source.Config.AutoMultiLineSampleSize
+				if linesToSample <= 0 {
+					linesToSample = dd_conf.Datadog.GetInt("logs_config.auto_multi_line_default_sample_size")
+				}
+				matchRatio := source.Config.AutoMultiLineMatchThreshold
+				if matchRatio == 0 {
+					matchRatio = dd_conf.Datadog.GetFloat64("logs_config.auto_multi_line_default_match_threshold")
+
+				}
+				lineHandler = NewAutoMultilineHandler(outputChan, lineLimit, linesToSample, matchRatio, config.AggregationTimeout(), source)
 			}
-			lineHandler = NewAutoMultilineHandler(outputChan, lineLimit, linesToSample, matchRatio, config.AggregationTimeout())
 		} else {
 			lineHandler = NewSingleLineHandler(outputChan, lineLimit)
 		}
@@ -137,8 +146,6 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 		lineParser = NewSingleLineParser(parser, lineHandler)
 	}
 
-	log.Infof("disable_auto_multi_line=%v", source.Config.AutoMultiLineOff)
-	log.Infof("auto_multi_line_sample_size=%v", source.Config.AutoMultiLineSampleSize)
 	return New(inputChan, outputChan, lineParser, lineLimit, matcher)
 }
 

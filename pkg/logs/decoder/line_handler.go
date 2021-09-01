@@ -273,10 +273,11 @@ type AutoMultilineHandler struct {
 	scoredMatches     []*scoredPattern
 	processsingFunc   func(message *Message)
 	flushTimeout      time.Duration
+	source            *config.LogSource
 }
 
 // NewAutoMultilineHandler returns a new SingleLineHandler.
-func NewAutoMultilineHandler(outputChan chan *Message, lineLimit, linesToAssess int, matchThreshold float64, flushTimeout time.Duration) *AutoMultilineHandler {
+func NewAutoMultilineHandler(outputChan chan *Message, lineLimit, linesToAssess int, matchThreshold float64, flushTimeout time.Duration, source *config.LogSource) *AutoMultilineHandler {
 	scoredMatches := make([]*scoredPattern, len(formatsToTry))
 	for i, v := range formatsToTry {
 		scoredMatches[i] = &scoredPattern{
@@ -293,6 +294,7 @@ func NewAutoMultilineHandler(outputChan chan *Message, lineLimit, linesToAssess 
 		scoredMatches:  scoredMatches,
 		linesToAssess:  linesToAssess,
 		flushTimeout:   flushTimeout,
+		source:         source,
 	}
 
 	h.singleLineHandler = NewSingleLineHandler(outputChan, lineLimit)
@@ -360,6 +362,7 @@ func (h *AutoMultilineHandler) processAndTry(message *Message) {
 
 		if matchRatio >= h.matchThreshold {
 			log.Debug("At least one pattern matched all sampled lines")
+			h.source.SetPattern(topMatch.regexp)
 			h.switchToMultilineHandler(topMatch.regexp)
 		} else {
 			log.Debug("No matching pattern found during multi-line autosensing")
@@ -409,4 +412,6 @@ var formatsToTry = []*regexp.Regexp{
 	regexp.MustCompile(`^\d+-\d+-\d+ \d+:\d+:\d+(,\d+)?`),
 	// Default java logging SimpleFormatter date format
 	regexp.MustCompile(`^[A-Za-z_]+ \d+, \d+ \d+:\d+:\d+ (AM|PM)`),
+	// Test pattern for agent logs
+	regexp.MustCompile(`^[a-zA-Z]+\s\d+\s\d+:\d+:\d+`),
 }
