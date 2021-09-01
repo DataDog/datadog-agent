@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"math/rand"
 	"sync"
 	"time"
 )
@@ -19,4 +20,10 @@ func waitWithTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 	case <-time.After(timeout):
 		return true // timed out
 	}
+}
+
+// generateCorrelationID generates a random 4-digit integer for use as a correlation ID
+func generateCorrelationID() int {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	return r.Intn(10000)
 }
