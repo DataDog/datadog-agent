@@ -401,7 +401,8 @@ func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsIn
 		}
 
 		if filepath.Ext(f.Name()) == ".log" || getFirstSuffix(f.Name()) == ".log" {
-			dst := filepath.Join(tempDir, hostname, "logs", f.Name())
+			baseName := strings.Replace(src, logFileDir, "", 1)
+			dst := filepath.Join(tempDir, hostname, "logs", baseName)
 
 			if permsInfos != nil {
 				permsInfos.add(src)
