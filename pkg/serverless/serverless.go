@@ -220,10 +220,10 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 
 	// immediately check if we should flush data
 	if daemon.ShouldFlush(flush.Starting, time.Now()) {
-		log.Debugf("The flush strategy %s has decided to flush at the moment: %s", daemon.LogFlushStategy(), flush.Starting)
+		log.Debugf("The flush strategy %s has decided to flush at moment: %s", daemon.LogFlushStategy(), flush.Starting)
 		daemon.TriggerFlush(false)
 	} else {
-		log.Debugf("The flush strategy %s has decided to NOT flush at the moment: %s", daemon.LogFlushStategy(), flush.Starting)
+		log.Debugf("The flush strategy %s has decided to not flush at moment: %s", daemon.LogFlushStategy(), flush.Starting)
 	}
 	daemon.WaitForDaemon()
 	doneChannel <- true
