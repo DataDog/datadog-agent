@@ -7,7 +7,6 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf/manager"
 )
 
@@ -48,9 +47,18 @@ func initSSLTracing(c *config.Config, m *manager.Manager, perfHandler *ddebpf.Pe
 
 func addHooks(m *manager.Manager, probes []string) func(string) error {
 	return func(libPath string) error {
-		activated := make([]manager.Probe, 0, len(probes))
 		uid := generateUID(libPath)
 		for _, sec := range probes {
+			p, found := m.GetProbe(manager.ProbeIdentificationPair{uid, sec})
+			if found {
+				err := p.Attach()
+				if err != nil {
+					return err
+				}
+
+				continue
+			}
+
 			newProbe := manager.Probe{
 				Section:    sec,
 				BinaryPath: libPath,
@@ -58,19 +66,11 @@ func addHooks(m *manager.Manager, probes []string) func(string) error {
 			}
 
 			err := m.AddHook(baseUID, newProbe)
-			if err == nil {
-				activated = append(activated, newProbe)
-				continue
+			if err != nil {
+				return err
 			}
-
-			// If we had an error halfway through we detach the previous probes that were attached
-			for _, p := range activated {
-				m.DetachHook(p.Section, p.UID)
-			}
-			return err
 		}
 
-		log.Debugf("https: attached probes for %s", libPath)
 		return nil
 	}
 }
@@ -79,10 +79,13 @@ func removeHooks(m *manager.Manager, probes []string) func(string) error {
 	return func(libPath string) error {
 		uid := generateUID(libPath)
 		for _, sec := range probes {
-			m.DetachHook(sec, uid)
+			p, found := m.GetProbe(manager.ProbeIdentificationPair{uid, sec})
+			if !found {
+				continue
+			}
+			p.Detach()
 		}
 
-		log.Debugf("https: detached probes for %s", libPath)
 		return nil
 	}
 }

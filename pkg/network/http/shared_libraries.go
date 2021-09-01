@@ -34,6 +34,11 @@ func (l *libPath) Bytes() []byte {
 	return b[:l.len]
 }
 
+// syncInterval controls the frenquency at which /proc/<PID>/maps are inspected.
+// this is to ensure that we remove/deregister the shared libraries that are no
+// longer mapped into memory.
+const soSyncInterval = 5 * time.Minute
+
 type soRule struct {
 	re           *regexp.Regexp
 	registerCB   func(string) error
@@ -69,8 +74,9 @@ func (w *soWatcher) Start() {
 	sharedLibraries := getSharedLibraries(w.procRoot, w.all)
 	w.sync(sharedLibraries)
 	go func() {
-		ticker := time.NewTicker(5 * time.Minute)
+		ticker := time.NewTicker(soSyncInterval)
 		defer ticker.Stop()
+		thisPID := os.Getpid()
 
 		for {
 			select {
@@ -82,10 +88,17 @@ func (w *soWatcher) Start() {
 					return
 				}
 
+				lib := toLibPath(event.Data)
+				// if this shared library was loaded by system-probe we ignore it.
+				// this is to avoid a feedback-loop since the shared libraries here monitored
+				// end up being opened by system-probe
+				if int(lib.pid) == thisPID {
+					break
+				}
+
 				// TODO: the library path here is not host-resolved. We should
 				// should use the PID sent from eBPF, and resolve the path using the
 				// pathResolver from the `so` library.
-				lib := toLibPath(event.Data)
 				path := lib.Bytes()
 				if _, registered := w.registered[string(path)]; registered {
 					break
@@ -128,6 +141,7 @@ OuterLoop:
 
 	// Now we call the unregister callback for every shared library that is no longer mapped into memory
 	for path, unregisterCB := range old {
+		log.Debugf("unregistering library=%s", path)
 		unregisterCB(path)
 	}
 }
@@ -135,10 +149,13 @@ OuterLoop:
 func (w *soWatcher) register(libPath string, r soRule) {
 	err := r.registerCB(libPath)
 	if err != nil {
+		// TODO: Skip error for aliased probes
 		log.Errorf("error activating probes for %s: %s", libPath, err)
+		r.unregisterCB(libPath)
 		return
 	}
 
+	log.Debugf("registering library=%s", libPath)
 	w.registered[libPath] = r.unregisterCB
 }
 
