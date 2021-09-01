@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/cenkalti/backoff"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
@@ -89,13 +90,25 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 
 	rsa.connected.Store(false)
 
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = 2 * time.Second
+	expBackoff.MaxInterval = 60 * time.Second
+	expBackoff.MaxElapsedTime = 0
+	expBackoff.Reset()
+	logTicker := backoff.NewTicker(expBackoff)
+
 	rsa.running.Store(true)
 	for rsa.running.Load() == true {
 		stream, err := apiClient.GetEvents(context.Background(), &api.GetEventParams{})
 		if err != nil {
 			rsa.connected.Store(false)
 
-			log.Warnf("Error while connecting to the runtime security module: %v", err)
+			select {
+			case <-logTicker.C:
+				log.Warnf("Error while connecting to the runtime security module: %v", err)
+			default:
+				// do nothing
+			}
 
 			// retry in 2 seconds
 			time.Sleep(2 * time.Second)
