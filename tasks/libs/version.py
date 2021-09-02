@@ -19,7 +19,7 @@ class Version:
         version = "{}{}.{}".format(self.prefix, self.major, self.minor)
         if self.patch is not None:
             version = "{}.{}".format(version, self.patch)
-        if self.devel is not None:
+        if self.devel:
             version = "{}-devel".format(version)
         if self.rc is not None and self.rc != 0:
             version = "{}-rc.{}".format(version, self.rc)
