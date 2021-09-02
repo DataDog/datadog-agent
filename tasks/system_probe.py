@@ -587,7 +587,7 @@ def build_object_files(ctx):
 def generate_runtime_files(ctx):
     runtime_compiler_files = [
         "./pkg/network/tracer/compile.go",
-        "./pkg/network/tracer/kprobe/compile.go",
+        "./pkg/network/tracer/connection/kprobe/compile.go",
         "./pkg/security/probe/compile.go",
     ]
     for f in runtime_compiler_files:

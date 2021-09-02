@@ -22,7 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/kprobe"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -40,7 +41,7 @@ type Tracer struct {
 	conntracker netlink.Conntracker
 	reverseDNS  dns.ReverseDNS
 	httpMonitor *http.Monitor
-	ebpfTracer  kprobe.ConnectionTracer
+	ebpfTracer  connection.Tracer
 
 	closedConnsCh <-chan network.ConnectionStats
 
@@ -121,7 +122,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		}
 	}
 
-	ebpfTracer, err := kprobe.NewTracer(config, constantEditors)
+	ebpfTracer, err := kprobe.New(config, constantEditors)
 	if err != nil {
 		return nil, err
 	}
@@ -615,7 +616,7 @@ func (t *Tracer) connVia(cs *network.ConnectionStats) {
 	cs.Via = t.gwLookup.Lookup(cs)
 }
 
-func newHTTPMonitor(supported bool, c *config.Config, tracer kprobe.ConnectionTracer, offsets []manager.ConstantEditor) *http.Monitor {
+func newHTTPMonitor(supported bool, c *config.Config, tracer connection.Tracer, offsets []manager.ConstantEditor) *http.Monitor {
 	if !c.EnableHTTPMonitoring {
 		return nil
 	}

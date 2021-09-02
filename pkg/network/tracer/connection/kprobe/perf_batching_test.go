@@ -127,7 +127,7 @@ func newEmptyBatchManager() *perfBatchManager {
 }
 
 func newTestBatchManager(t *testing.T) (*perfBatchManager, func()) {
-	ctr, err := NewTracer(testConfig(), nil)
+	ctr, err := New(testConfig(), nil)
 	require.NoError(t, err)
 
 	tr := ctr.(*kprobeTracer)
