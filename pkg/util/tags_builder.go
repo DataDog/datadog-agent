@@ -5,10 +5,17 @@
 
 package util
 
+import (
+	"sort"
+
+	"github.com/twmb/murmur3"
+)
+
 // TagsBuilder allows to build a slice of tags to generate the context while
 // reusing the same internal slice.
 type TagsBuilder struct {
 	data []string
+	hash []uint64
 }
 
 // NewTagsBuilder returns a new empty TagsBuilder.
@@ -16,25 +23,51 @@ func NewTagsBuilder() *TagsBuilder {
 	return &TagsBuilder{
 		// Slice will grow as more tags are added to it. 128 tags
 		// should be enough for most metrics.
-		data: make([]string, 0, 128)}
+		data: make([]string, 0, 128),
+		hash: make([]uint64, 0, 128),
+	}
 }
 
 // NewTagsBuilderFromSlice return a new TagsBuilder with the input slice for
 // it's internal buffer.
 func NewTagsBuilderFromSlice(tags []string) *TagsBuilder {
+	hash := make([]uint64, 0, len(tags))
+	for _, t := range tags {
+		hash = append(hash, murmur3.StringSum64(t))
+	}
 	return &TagsBuilder{
 		data: tags,
+		hash: hash,
 	}
 }
 
 // Append appends tags to the builder
 func (tb *TagsBuilder) Append(tags ...string) {
-	tb.data = append(tb.data, tags...)
+	for _, t := range tags {
+		tb.data = append(tb.data, t)
+		tb.hash = append(tb.hash, murmur3.StringSum64(t))
+	}
 }
 
 // SortUniq sorts and remove duplicate in place
 func (tb *TagsBuilder) SortUniq() {
-	tb.data = SortUniqInPlace(tb.data)
+	if tb.Len() < 2 {
+		return
+	}
+
+	sort.Sort(tb)
+
+	j := 0
+	for i := 1; i < len(tb.data); i++ {
+		if tb.hash[i] == tb.hash[j] && tb.data[i] == tb.data[j] {
+			continue
+		}
+		j++
+		tb.data[j] = tb.data[i]
+		tb.hash[j] = tb.hash[i]
+	}
+
+	tb.Truncate(j + 1)
 }
 
 // Reset resets the size of the builder to 0 without discaring the internal
@@ -42,11 +75,13 @@ func (tb *TagsBuilder) SortUniq() {
 func (tb *TagsBuilder) Reset() {
 	// we keep the internal buffer but reset size
 	tb.data = tb.data[0:0]
+	tb.hash = tb.hash[0:0]
 }
 
 // Truncate retains first n tags in the buffer without discarding the internal buffer
 func (tb *TagsBuilder) Truncate(len int) {
 	tb.data = tb.data[0:len]
+	tb.hash = tb.hash[0:len]
 }
 
 // Get returns the internal slice
@@ -54,7 +89,29 @@ func (tb *TagsBuilder) Get() []string {
 	return tb.data
 }
 
+// Hashes returns the internal slice of tag hashes
+func (tb *TagsBuilder) Hashes() []uint64 {
+	return tb.hash
+}
+
 // Copy makes a copy of the internal slice
 func (tb *TagsBuilder) Copy() []string {
 	return append(make([]string, 0, len(tb.data)), tb.data...)
+}
+
+// Less implements sort.Interface.Less
+func (tb *TagsBuilder) Less(i, j int) bool {
+	// FIXME(vickenty): could sort using hashes, which is faster, but a lot of tests check for order.
+	return tb.data[i] < tb.data[j]
+}
+
+// Swap implements sort.Interface.Swap
+func (tb *TagsBuilder) Swap(i, j int) {
+	tb.hash[i], tb.hash[j] = tb.hash[j], tb.hash[i]
+	tb.data[i], tb.data[j] = tb.data[j], tb.data[i]
+}
+
+// Len implements sort.Interface.Len
+func (tb *TagsBuilder) Len() int {
+	return len(tb.data)
 }

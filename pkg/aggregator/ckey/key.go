@@ -98,11 +98,11 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 	//   - n > hashSetSize:         sort
 
 	tags := tagsBuf.Get()
+	hashes := tagsBuf.Hashes()
 
 	if len(tags) > hashSetSize {
 		tagsBuf.SortUniq()
-		for _, tag := range tagsBuf.Get() {
-			h := murmur3.StringSum64(tag)
+		for _, h := range tagsBuf.Hashes() {
 			g.intb = g.intb ^ h
 		}
 	} else if len(tags) > bruteforceSize {
@@ -119,7 +119,7 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 		copy(g.seenIdx[:size], g.empty[:size])
 
 		for i := range tags {
-			h := murmur3.StringSum64(tags[i])
+			h := hashes[i]
 			j := h & mask // address this hash into the hashset
 			for {
 				if g.seenIdx[j] == blank {
@@ -145,7 +145,7 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 	} else {
 	OUTER:
 		for i := range tags {
-			h := murmur3.StringSum64(tags[i])
+			h := hashes[i]
 			for j := 0; j < g.idx; j++ {
 				if g.seen[j] == h && tags[j] == tags[i] {
 					continue OUTER // we do not want to xor multiple times the same tag
