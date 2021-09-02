@@ -64,7 +64,7 @@ tests_ebpf_x64:
     # Compile runtime security stress tests to be executed in kitchen tests
     - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite
     # Compile main version for comparison, uncomment following lines when merged
-    - git checkout -f main || git checkout -f master
+    - git checkout -f main
     - git pull
     - inv -e deps
     - inv -e system-probe.build --bundle-ebpf --incremental-build
