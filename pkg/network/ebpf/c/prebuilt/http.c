@@ -11,8 +11,7 @@
 #define EPHEMERAL_RANGE_BEG 32768
 #define EPHEMERAL_RANGE_END 60999
 #define HTTPS_PORT 443
-#define FILEPATH_SIZE 100
-#define SO_SUFFIX_SIZE 3 // .so
+#define SO_SUFFIX_SIZE 2
 
 static __always_inline int is_ephemeral_port(u16 port) {
     return port >= EPHEMERAL_RANGE_BEG && port <= EPHEMERAL_RANGE_END;
@@ -251,14 +250,15 @@ int kprobe__do_sys_open(struct pt_regs* ctx) {
     bpf_probe_read(lib_path.buf, sizeof(lib_path.buf), filename);
 
     int is_shared_library = 0;
+
 #pragma unroll
-    for (int i = 0; i <= LIB_PATH_MAX_SIZE - SO_SUFFIX_SIZE; i++) {
+    for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
         if (lib_path.len) {
             // cleanup buffer after null character so we don't send garbage to userspace
             lib_path.buf[i] = 0;
         } else if (lib_path.buf[i] == 0) {
             lib_path.len = i;
-        } else if (!is_shared_library && lib_path.buf[i] == '.' && lib_path.buf[i+1] == 's' && lib_path.buf[i+2] == 'o') {
+        } else if (i < LIB_PATH_MAX_SIZE - SO_SUFFIX_SIZE && lib_path.buf[i] == '.' && lib_path.buf[i+1] == 's' && lib_path.buf[i+2] == 'o') {
             is_shared_library = 1;
         }
     }

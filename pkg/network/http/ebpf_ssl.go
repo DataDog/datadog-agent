@@ -51,9 +51,11 @@ func addHooks(m *manager.Manager, probes []string) func(string) error {
 		for _, sec := range probes {
 			p, found := m.GetProbe(manager.ProbeIdentificationPair{uid, sec})
 			if found {
-				err := p.Attach()
-				if err != nil {
-					return err
+				if !p.IsRunning() {
+					err := p.Attach()
+					if err != nil {
+						return err
+					}
 				}
 
 				continue

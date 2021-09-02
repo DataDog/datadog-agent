@@ -5,7 +5,7 @@ package http
 import (
 	"fmt"
 	"os"
-	"path/filepath"
+	fp "path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -13,6 +13,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/gopsutil/process/filepath"
 	"github.com/DataDog/gopsutil/process/so"
 )
 
@@ -47,11 +48,12 @@ type soRule struct {
 
 // soWatcher provides a way to tie callback functions to the lifecycle of shared libraries
 type soWatcher struct {
-	procRoot   string
-	all        *regexp.Regexp
-	rules      []soRule
-	registered map[string]func(string) error
-	loadEvents *ddebpf.PerfHandler
+	procRoot     string
+	pathResolver *filepath.Resolver
+	all          *regexp.Regexp
+	rules        []soRule
+	registered   map[string]func(string) error
+	loadEvents   *ddebpf.PerfHandler
 }
 
 func newSOWatcher(procRoot string, perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
@@ -62,10 +64,11 @@ func newSOWatcher(procRoot string, perfHandler *ddebpf.PerfHandler, rules ...soR
 
 	all := regexp.MustCompile(fmt.Sprintf("(%s)", strings.Join(allFilters, "|")))
 	return &soWatcher{
-		procRoot:   procRoot,
-		all:        all,
-		rules:      rules,
-		loadEvents: perfHandler,
+		procRoot:     procRoot,
+		pathResolver: filepath.NewResolver(procRoot),
+		all:          all,
+		rules:        rules,
+		loadEvents:   perfHandler,
 	}
 }
 
@@ -96,17 +99,20 @@ func (w *soWatcher) Start() {
 					break
 				}
 
-				// TODO: the library path here is not host-resolved. We should
-				// should use the PID sent from eBPF, and resolve the path using the
-				// pathResolver from the `so` library.
 				path := lib.Bytes()
-				if _, registered := w.registered[string(path)]; registered {
-					break
-				}
-
 				for _, r := range w.rules {
 					if r.re.Match(path) {
-						w.register(string(path), r)
+						var (
+							libPath  = string(path)
+							pidPath  = fmt.Sprintf("%s/%d", w.procRoot, lib.pid)
+							hostPath = w.pathResolver.LoadPIDMounts(pidPath).Resolve(libPath)
+						)
+
+						if _, registered := w.registered[hostPath]; registered {
+							break
+						}
+
+						w.register(hostPath, r)
 						break
 					}
 				}
@@ -147,10 +153,13 @@ OuterLoop:
 }
 
 func (w *soWatcher) register(libPath string, r soRule) {
+	if libPath == "" {
+		return
+	}
+
 	err := r.registerCB(libPath)
 	if err != nil {
-		// TODO: Skip error for aliased probes
-		log.Errorf("error activating probes for %s: %s", libPath, err)
+		log.Errorf("error registering library=%s: %s", libPath, err)
 		r.unregisterCB(libPath)
 		return
 	}
@@ -179,7 +188,7 @@ func getSharedLibraries(procRoot string, filter *regexp.Regexp) []so.Library {
 	// host file system is mounted. This is intended for internal testing only.
 	if hostFS := os.Getenv("HOST_FS"); hostFS != "" {
 		for i, lib := range libraries {
-			libraries[i].HostPath = filepath.Join(hostFS, lib.HostPath)
+			libraries[i].HostPath = fp.Join(hostFS, lib.HostPath)
 		}
 	}
 
