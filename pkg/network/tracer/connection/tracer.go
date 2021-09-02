@@ -5,6 +5,7 @@ import (
 	"github.com/DataDog/ebpf"
 )
 
+// Tracer is the common interface implemented by all connection tracers.
 type Tracer interface {
 	// Start begins collecting network connection data.
 	// It returns a channel which contains closed connections as they arrive
