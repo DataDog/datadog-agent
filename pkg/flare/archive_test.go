@@ -252,10 +252,10 @@ func TestCleanDirectoryName(t *testing.T) {
 func TestZipLogFiles(t *testing.T) {
 	srcDir, err := ioutil.TempDir("", "logs")
 	require.NoError(t, err)
-	// defer os.RemoveAll(srcDir)
+	defer os.RemoveAll(srcDir)
 	dstDir, err := ioutil.TempDir("", "TestZipLogFiles")
 	require.NoError(t, err)
-	// defer os.RemoveAll(dstDir)
+	defer os.RemoveAll(dstDir)
 
 	_, err = os.Create(filepath.Join(srcDir, "agent.log"))
 	require.NoError(t, err)
