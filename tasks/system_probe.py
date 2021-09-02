@@ -559,8 +559,7 @@ def build_bcc_files(ctx, build_dir):
 
 
 def build_object_files(ctx):
-    """build_object_files builds only the eBPF object
-    """
+    """build_object_files builds only the eBPF object"""
 
     # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
     print("checking for clang executable...")
@@ -603,14 +602,20 @@ def generate_cgo_types(ctx, windows=is_windows):
         ]
     else:
         platform = "linux"
-        def_files = []
+        def_files = [
+            "./pkg/network/ebpf/offsetguess_types.go",
+            "./pkg/network/ebpf/conntrack_types.go",
+            "./pkg/network/ebpf/tuple_types.go",
+        ]
 
     for f in def_files:
         fdir, file = os.path.split(f)
         base, _ = os.path.splitext(file)
         with ctx.cd(fdir):
             ctx.run(
-                "go tool cgo -godefs -- {file} > {base}_{platform}.go".format(file=file, base=base, platform=platform)
+                "go tool cgo -godefs -- -fsigned-char {file} > {base}_{platform}.go".format(
+                    file=file, base=base, platform=platform
+                )
             )
             ctx.run("gofmt -w -s {base}_{platform}.go".format(base=base, platform=platform))
 

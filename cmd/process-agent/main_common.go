@@ -62,12 +62,8 @@ var (
 
 var (
 	rootCmd = &cobra.Command{
-		Run: func(cmd *cobra.Command, args []string) {
-			exit := make(chan struct{})
-
-			// Invoke the Agent
-			runAgent(exit)
-		},
+		Run:          rootCmdRun,
+		SilenceUsage: true,
 	}
 
 	configCommand = cmdconfig.Config(getSettingsClient)

@@ -182,9 +182,7 @@ def build(
     ctx.run(cmd.format(**args), env=env)
 
     # Remove cross-compiling bits to render config
-    env.update(
-        {"GOOS": "", "GOARCH": "",}
-    )
+    env.update({"GOOS": "", "GOARCH": ""})
 
     # Render the Agent configuration file template
     build_type = "agent-py3"
@@ -538,9 +536,7 @@ def omnibus_build(
 
 
 @task
-def build_dep_tree(
-    ctx, git_ref="",
-):
+def build_dep_tree(ctx, git_ref=""):
     """
     Generates a file representing the Golang dependency tree in the current
     directory. Use the "--git-ref=X" argument to specify which tag you would like

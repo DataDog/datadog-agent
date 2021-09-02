@@ -13,8 +13,8 @@ struct bpf_map_def SEC("maps/conntrack") conntrack = {
 #else
     .type = BPF_MAP_TYPE_HASH,
 #endif
-    .key_size = sizeof(conn_tuple_t),
-    .value_size = sizeof(conn_tuple_t),
+    .key_size = sizeof(conntrack_tuple_t),
+    .value_size = sizeof(conntrack_tuple_t),
     .max_entries = 1024,
     .pinning = 0,
     .namespace = "",

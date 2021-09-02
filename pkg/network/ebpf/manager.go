@@ -16,25 +16,6 @@ const (
 	maxActive = 128
 )
 
-func NewOffsetManager() *manager.Manager {
-	return &manager.Manager{
-		Maps: []*manager.Map{
-			{Name: "connectsock_ipv6"},
-			{Name: string(probes.TracerStatusMap)},
-		},
-		PerfMaps: []*manager.PerfMap{},
-		Probes: []*manager.Probe{
-			{Section: string(probes.TCPGetSockOpt)},
-			{Section: string(probes.SockGetSockOpt)},
-			{Section: string(probes.TCPv6Connect)},
-			{Section: string(probes.IPMakeSkb)},
-			{Section: string(probes.IP6MakeSkb)},
-			{Section: string(probes.IP6MakeSkbPre470), MatchFuncName: "^ip6_make_skb$"},
-			{Section: string(probes.TCPv6ConnectReturn), KProbeMaxActive: maxActive},
-		},
-	}
-}
-
 func NewManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{

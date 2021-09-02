@@ -68,7 +68,11 @@ def add_dca_prelude(ctx, version, agent7_version, agent6_version=""):
     |
     Released on: {1}
     Pinned to datadog-agent v{0}: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/{4}/CHANGELOG.rst#{2}{3}>`_.""".format(
-                agent7_version, date.today(), agent7_version.replace('.', ''), agent6_version, DEFAULT_BRANCH,
+                agent7_version,
+                date.today(),
+                agent7_version.replace('.', ''),
+                agent6_version,
+                DEFAULT_BRANCH,
             )
         )
 
@@ -600,7 +604,7 @@ def _fetch_dependency_repo_version(
     - the tag must have a major version that's in allowed_major_versions
     - the tag must match compatible_version_re (the main usage is to restrict the compatible tags to the
       ones with the same minor version as the Agent)?
-    
+
     If check_for_rc is true, a warning will be emitted if the latest version that satisfies
     the constraints is an RC. User confirmation is then needed to check that this is desired.
     """
@@ -644,7 +648,10 @@ def _fetch_independent_dependency_repo_version(
     """
 
     previous_version = _get_release_version_from_release_json(
-        release_json, agent_major_version, VERSION_RE, release_json_key=release_json_key,
+        release_json,
+        agent_major_version,
+        VERSION_RE,
+        release_json_key=release_json_key,
     )
     # NOTE: This assumes that the repository doesn't change the way it prefixes versions.
     version = _get_highest_repo_version(github_token, repo_name, previous_version.prefix, VERSION_RE)
@@ -655,9 +662,7 @@ def _fetch_independent_dependency_repo_version(
     return version
 
 
-def _get_windows_ddnpm_release_json_info(
-    release_json, agent_major_version, is_first_rc=False,
-):
+def _get_windows_ddnpm_release_json_info(release_json, agent_major_version, is_first_rc=False):
     """
     Gets the Windows NPM driver info from the previous entries in the release.json file.
     """
@@ -886,11 +891,10 @@ def create_rc(ctx, major_versions="6,7", patch_version=False):
     If the latest tag on the branch is 7.31.0, and invoke release.create-rc --patch-version
     is run, then the task will prepare the release entries for 7.31.1-rc.1, and therefore
     will only use 7.31.X tags on the dependency repositories that follow the Agent version scheme.
-    
+
     If the latest tag on the branch is 7.32.0-devel or 7.31.0, and invoke release.create-rc
     is run, then the task will prepare the release entries for 7.32.0-rc.1, and therefore
     will only use 7.32.X tags on the dependency repositories that follow the Agent version scheme.
-
 
     Updates internal module dependencies with the new RC.
     """

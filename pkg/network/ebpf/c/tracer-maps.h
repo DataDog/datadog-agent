@@ -127,34 +127,6 @@ struct bpf_map_def SEC("maps/telemetry") telemetry = {
     .namespace = "",
 };
 
-/*
- * This map is used to store the parameters for a call to ip_route_output_flow
- * to match them later to a kretprobe
- * key is the pid/tid
- * value is ip_route_flow_t
- */
-struct bpf_map_def SEC("maps/ip_route_output_flows") ip_route_output_flows = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(__u64),
-    .value_size = sizeof(ip_route_flow_t),
-    .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
-};
-
-/**
- * This map holds gateway information for destinations. Key is a
- * `ip_route_dest_t`; value is a `ip_route_gateway_t`
-*/
-struct bpf_map_def SEC("maps/ip_route_dest_gateways") ip_route_dest_gateways = {
-    .type = BPF_MAP_TYPE_HASH,
-    .key_size = sizeof(ip_route_dest_t),
-    .value_size = sizeof(ip_route_gateway_t),
-    .max_entries = 1, // This will get overridden at runtime
-    .pinning = 0,
-    .namespace = "",
-};
-
 // This map is used to to temporarily store function arguments (the struct sock*
 // mapped to the given fd_out) for do_sendfile function calls, so they can be
 // acessed by the corresponding kretprobe.
