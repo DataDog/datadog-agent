@@ -29,12 +29,25 @@ const (
 )
 
 type ConnectionTracer interface {
+	// Start begins collecting network connection data.
+	// It returns a channel which contains closed connections as they arrive
 	Start() (<-chan network.ConnectionStats, error)
+	// Stop halts all network data collection.
 	Stop()
+	// GetConnections returns the list of currently active connections, using the buffer provided.
+	// The optional filter function is used to prevent unwanted connections from being returned and consuming resources.
 	GetConnections(buffer []network.ConnectionStats, filter func(*network.ConnectionStats) bool) ([]network.ConnectionStats, error)
+	// FlushPending forces any closed connections waiting for batching to be returned immediately.
+	// This allows synchronous processing to occur, rather than waiting an unknown amount of time for closed connections
+	// to appear on the channel returned from Start.
 	FlushPending() []network.ConnectionStats
+	// Remove deletes the connection from tracking state.
+	// It does not prevent the connection from re-appearing later, if additional traffic occurs.
 	Remove(conn *network.ConnectionStats) error
+	// GetTelemetry returns relevant telemetry.
 	GetTelemetry() map[string]int64
+	// GetMap returns the underlying named map. This is useful if any maps are shared with other eBPF components.
+	// An individual tracer implementation may choose which maps to expose via this function.
 	GetMap(string) *ebpf.Map
 }
 
@@ -166,7 +179,6 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor) (Conne
 	return tr, nil
 }
 
-// Start returns a channel which contains closed connections as they arrive
 func (t *kprobeTracer) Start() (<-chan network.ConnectionStats, error) {
 	err := initializePortBindingMaps(t.config, t.m)
 	if err != nil {
@@ -200,8 +212,6 @@ func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
 	}
 }
 
-// GetConnections returns all the connections in the ebpf maps along with the latest timestamp.  It takes
-// a reusable buffer for appending the connections so that this doesn't continuously allocate
 func (t *kprobeTracer) GetConnections(buffer []network.ConnectionStats, filter func(*network.ConnectionStats) bool) ([]network.ConnectionStats, error) {
 	// Iterate through all key-value pairs in map
 	key, stats := &netebpf.ConnTuple{}, &netebpf.ConnStats{}
@@ -209,7 +219,7 @@ func (t *kprobeTracer) GetConnections(buffer []network.ConnectionStats, filter f
 	entries := t.conns.IterateFrom(unsafe.Pointer(&netebpf.ConnTuple{}))
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
 		conn := connStats(key, stats, t.getTCPStats(key, seen))
-		if filter(&conn) {
+		if filter != nil && filter(&conn) {
 			buffer = append(buffer, conn)
 		}
 	}
@@ -221,7 +231,6 @@ func (t *kprobeTracer) GetConnections(buffer []network.ConnectionStats, filter f
 	return buffer, nil
 }
 
-// FlushPending triggers any closed connections waiting for batching to be read and returned.
 func (t *kprobeTracer) FlushPending() []network.ConnectionStats {
 	done := make(chan []network.ConnectionStats)
 	t.flushPending <- done
@@ -265,7 +274,6 @@ func (t *kprobeTracer) Remove(conn *network.ConnectionStats) error {
 	return nil
 }
 
-// getEbpfTelemetry reads the telemetry map from the kernelspace and returns a map of key -> count
 func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 	var zero uint64
 	mp, err := t.getMap(probes.TelemetryMap)
