@@ -133,10 +133,16 @@ const (
 
 // getFunctionNameFromSection returns the generated function name from the generated section
 func getFunctionNameFromSection(section string) string {
-	funcName := strings.ReplaceAll(section, "__ia32_", "__32_")
-	funcName = strings.ReplaceAll(funcName, "__x64_", "__64_")
-	funcName = strings.ReplaceAll(funcName, "/_", "_")
-	funcName = strings.ReplaceAll(funcName, "/", "__64_")
+	funcName := section
+	if syscallPrefix == "sys_" {
+		funcName = strings.ReplaceAll(funcName, "kprobe/", "kprobe__64_")
+		funcName = strings.ReplaceAll(funcName, "kretprobe/", "kretprobe__64_")
+	} else {
+		funcName = strings.ReplaceAll(funcName, "__ia32_", "__32_")
+		funcName = strings.ReplaceAll(funcName, "__x64_", "__64_")
+		funcName = strings.ReplaceAll(funcName, "/_", "_")
+	}
+	funcName = strings.ReplaceAll(funcName, "tracepoint/syscalls/", "tracepoint_syscalls_")
 	return funcName
 }
 

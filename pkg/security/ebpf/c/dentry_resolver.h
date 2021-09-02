@@ -375,7 +375,7 @@ exit:
 }
 
 SEC("kprobe/dentry_resolver_segment_erpc")
-int kprobe__dentry_resolver_segment_erpc(struct pt_regs *ctx) {
+int kprobe_dentry_resolver_segment_erpc(struct pt_regs *ctx) {
     u32 key = 0;
     u32 resolution_err = 0;
     struct dr_erpc_state_t *state = bpf_map_lookup_elem(&dr_erpc_state, &key);
@@ -419,7 +419,7 @@ exit:
 }
 
 SEC("kprobe/dentry_resolver_parent_erpc")
-int kprobe__dentry_resolver_parent_erpc(struct pt_regs *ctx) {
+int kprobe_dentry_resolver_parent_erpc(struct pt_regs *ctx) {
     u32 key = 0;
     u32 resolution_err = 0;
     struct dr_erpc_state_t *state = bpf_map_lookup_elem(&dr_erpc_state, &key);
