@@ -29,10 +29,10 @@ FROM ubuntu:21.04
 
 LABEL maintainer "Datadog <package@datadoghq.com>"
 
-ENV PATH="/opt/datadog-agent/bin/:$PATH"
-
-# Allow User Group to exec the secret backend script.
-ENV DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true"
+ENV PATH="/opt/datadog-agent/bin/:$PATH" \
+    DOCKER_DD_AGENT="true" \
+    # Allow User Group to exec the secret backend script.
+    DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true"
 
 RUN apt-get update \
     && apt full-upgrade -y \
