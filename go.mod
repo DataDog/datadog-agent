@@ -47,10 +47,11 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
+	github.com/DaataDog/sketches-go v1.1.0
 	github.com/DataDog/agent-payload v4.80.0+incompatible
-	github.com/DataDog/datadog-agent/pkg/quantile v0.31.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/log v0.31.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.31.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/quantile v0.31.0-rc.11
+	github.com/DataDog/datadog-agent/pkg/util/log v0.31.0-rc.11
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.31.0-rc.11
 	github.com/DataDog/datadog-go v4.8.1+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf v0.0.0-20210419131141-ea64821c9793
@@ -58,7 +59,6 @@ require (
 	github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
 	github.com/DataDog/nikos v1.0.0
-	github.com/DaataDog/sketches-go v1.1.0
 	github.com/DataDog/viper v1.9.0
 	github.com/DataDog/watermarkpodautoscaler v0.2.1-0.20210323121426-cfb2caa5613f
 	github.com/DataDog/zstd v1.4.8
