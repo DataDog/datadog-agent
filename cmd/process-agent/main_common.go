@@ -68,6 +68,7 @@ var (
 			// Invoke the Agent
 			runAgent(exit)
 		},
+		SilenceUsage: true,
 	}
 
 	configCommand = cmdconfig.Config(getSettingsClient)

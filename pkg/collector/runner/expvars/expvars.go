@@ -172,8 +172,6 @@ func CheckStats(id check.ID) (*check.Stats, bool) {
 
 	check, checkFound := stats[id]
 	if !checkFound {
-		// This in theory should never happen
-		log.Warnf("Check %s is in stats map but the object is missing the check itself", id)
 		return nil, false
 	}
 
