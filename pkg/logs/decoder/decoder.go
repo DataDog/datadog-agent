@@ -154,7 +154,7 @@ func buildAutoMultilineHandlerFromConfig(outputChan chan *Message, lineLimit int
 	for _, p := range additionalPatterns {
 		compiled, err := regexp.Compile("^" + p)
 		if err != nil {
-			log.Info("logs_config.auto_multi_line_extra_patterns with value: ", p, " is not a valid regular expression")
+			log.Warn("logs_config.auto_multi_line_extra_patterns containing value: ", p, " is not a valid regular expression")
 			continue
 		}
 		additionalPatternsCompiled = append(additionalPatternsCompiled, compiled)

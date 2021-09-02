@@ -384,11 +384,11 @@ func (h *AutoMultilineHandler) processAndTry(message *Message) {
 		matchRatio := float64(topMatch.score) / float64(h.linesTested)
 
 		if matchRatio >= h.matchThreshold {
-			log.Debug("At least one pattern matched all sampled lines")
+			log.Debugf("Pattern %v matched %d lines with a ratio of %f", topMatch.regexp.String(), topMatch.score, matchRatio)
 			h.source.SetPattern(topMatch.regexp)
 			h.switchToMultilineHandler(topMatch.regexp)
 		} else {
-			log.Debug("No matching pattern found during multi-line autosensing")
+			log.Debug("No pattern met the line match threshold during multi-line autosensing - using single line handler")
 			// Stay with the single line handler and no longer attempt to detect multi line matches.
 			h.processsingFunc = h.singleLineHandler.process
 		}

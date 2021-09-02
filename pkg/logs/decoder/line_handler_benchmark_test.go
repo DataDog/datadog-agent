@@ -15,9 +15,9 @@ import (
 )
 
 func benchmarkSingleLineHandler(b *testing.B, logs int) {
-	tags := make([]*Message, logs)
+	messages := make([]*Message, logs)
 	for i := 0; i < logs; i++ {
-		tags[i] = getDummyMessageWithLF(fmt.Sprintf("This is a log test line to benchmark the logs agent blah blah blah %d", i))
+		messages[i] = getDummyMessageWithLF(fmt.Sprintf("This is a log test line to benchmark the logs agent %d", i))
 	}
 
 	outputChan := make(chan *Message, 10)
@@ -31,16 +31,16 @@ func benchmarkSingleLineHandler(b *testing.B, logs int) {
 	}()
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		for _, v := range tags {
+		for _, v := range messages {
 			h.inputChan <- v
 		}
 	}
 }
 
 func benchmarkAutoMultiLineHandler(b *testing.B, logs int, line string) {
-	tags := make([]*Message, logs)
+	messages := make([]*Message, logs)
 	for i := 0; i < logs; i++ {
-		tags[i] = getDummyMessageWithLF(fmt.Sprintf("%s %d", line, i))
+		messages[i] = getDummyMessageWithLF(fmt.Sprintf("%s %d", line, i))
 	}
 
 	outputChan := make(chan *Message, 10)
@@ -55,16 +55,16 @@ func benchmarkAutoMultiLineHandler(b *testing.B, logs int, line string) {
 	}()
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		for _, v := range tags {
+		for _, v := range messages {
 			h.inputChan <- v
 		}
 	}
 }
 
 func benchmarkMultiLineHandler(b *testing.B, logs int, line string) {
-	tags := make([]*Message, logs)
+	messages := make([]*Message, logs)
 	for i := 0; i < logs; i++ {
-		tags[i] = getDummyMessageWithLF(fmt.Sprintf("%s %d", line, i))
+		messages[i] = getDummyMessageWithLF(fmt.Sprintf("%s %d", line, i))
 	}
 
 	outputChan := make(chan *Message, 10)
@@ -78,7 +78,7 @@ func benchmarkMultiLineHandler(b *testing.B, logs int, line string) {
 	}()
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		for _, v := range tags {
+		for _, v := range messages {
 			h.inputChan <- v
 		}
 	}
