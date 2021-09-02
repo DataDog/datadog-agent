@@ -12,7 +12,6 @@ function Install-Service {
   } else {
       New-Service -Name $SvcName -StartupType Manual -BinaryPathName $BinPath
   }
-  #New-EventLog -Source $SvcName -LogName Application -MessageResourceFile $BinPath -CategoryResourceFile $BinPath
   $eventSourceData = new-object System.Diagnostics.EventSourceCreationData("$SvcName", "Application")  
   $eventSourceData.CategoryResourceFile = $BinPath
   $eventSourceData.MessageResourceFile = $BinPath
