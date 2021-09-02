@@ -49,6 +49,12 @@ func (tb *TagsBuilder) Append(tags ...string) {
 	}
 }
 
+// AppendBuilder appends tags from src, re-using hashes.
+func (tb *TagsBuilder) AppendBuilder(src *TagsBuilder) {
+	tb.data = append(tb.data, src.data...)
+	tb.hash = append(tb.hash, src.hash...)
+}
+
 // SortUniq sorts and remove duplicate in place
 func (tb *TagsBuilder) SortUniq() {
 	if tb.Len() < 2 {
@@ -86,16 +92,25 @@ func (tb *TagsBuilder) Truncate(len int) {
 
 // Get returns the internal slice
 func (tb *TagsBuilder) Get() []string {
+	if tb == nil {
+		return nil
+	}
 	return tb.data
 }
 
 // Hashes returns the internal slice of tag hashes
 func (tb *TagsBuilder) Hashes() []uint64 {
+	if tb == nil {
+		return nil
+	}
 	return tb.hash
 }
 
 // Copy makes a copy of the internal slice
 func (tb *TagsBuilder) Copy() []string {
+	if tb == nil {
+		return nil
+	}
 	return append(make([]string, 0, len(tb.data)), tb.data...)
 }
 
@@ -103,6 +118,14 @@ func (tb *TagsBuilder) Copy() []string {
 func (tb *TagsBuilder) Less(i, j int) bool {
 	// FIXME(vickenty): could sort using hashes, which is faster, but a lot of tests check for order.
 	return tb.data[i] < tb.data[j]
+}
+
+// Slice returns a shared slice of tb's internal data.
+func (tb *TagsBuilder) Slice(i, j int) *TagsBuilder {
+	return &TagsBuilder{
+		data: tb.data[i:j],
+		hash: tb.hash[i:j],
+	}
 }
 
 // Swap implements sort.Interface.Swap
@@ -113,5 +136,8 @@ func (tb *TagsBuilder) Swap(i, j int) {
 
 // Len implements sort.Interface.Len
 func (tb *TagsBuilder) Len() int {
+	if tb == nil {
+		return 0
+	}
 	return len(tb.data)
 }

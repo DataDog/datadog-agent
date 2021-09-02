@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/subscriber"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -35,9 +36,9 @@ type entityTags struct {
 	sourceTags         map[string]sourceTags
 	cacheValid         bool
 	cachedSource       []string
-	cachedAll          []string // Low + orchestrator + high
-	cachedOrchestrator []string // Low + orchestrator (subslice of cachedAll)
-	cachedLow          []string // Sub-slice of cachedAll
+	cachedAll          *util.TagsBuilder // Low + orchestrator + high
+	cachedOrchestrator *util.TagsBuilder // Low + orchestrator (subslice of cachedAll)
+	cachedLow          *util.TagsBuilder // Sub-slice of cachedAll
 }
 
 func newEntityTags(entityID string) *entityTags {
@@ -289,7 +290,7 @@ func (s *tagStore) prune() {
 // lookup gets tags from the store and returns them concatenated in a string
 // slice. It returns the source names in the second slice to allow the
 // client to trigger manual lookups on missing sources.
-func (s *tagStore) lookup(entity string, cardinality collectors.TagCardinality) ([]string, []string) {
+func (s *tagStore) lookupBuilder(entity string, cardinality collectors.TagCardinality) (*util.TagsBuilder, []string) {
 	s.RLock()
 	defer s.RUnlock()
 	storedTags, present := s.store[entity]
@@ -297,7 +298,12 @@ func (s *tagStore) lookup(entity string, cardinality collectors.TagCardinality) 
 	if present == false {
 		return nil, nil
 	}
-	return storedTags.get(cardinality)
+	return storedTags.getBuilder(cardinality)
+}
+
+func (s *tagStore) lookup(entity string, cardinality collectors.TagCardinality) ([]string, []string) {
+	tags, sources := s.lookupBuilder(entity, cardinality)
+	return tags.Get(), sources
 }
 
 // lookupStandard returns the standard tags recorded for a given entity
@@ -339,6 +345,11 @@ type tagPriority struct {
 }
 
 func (e *entityTags) get(cardinality collectors.TagCardinality) ([]string, []string) {
+	tags, sources := e.getBuilder(cardinality)
+	return tags.Get(), sources
+}
+
+func (e *entityTags) getBuilder(cardinality collectors.TagCardinality) (*util.TagsBuilder, []string) {
 	e.computeCache()
 
 	if cardinality == collectors.HighCardinality {
@@ -352,12 +363,16 @@ func (e *entityTags) get(cardinality collectors.TagCardinality) ([]string, []str
 func (e *entityTags) toEntity() types.Entity {
 	e.computeCache()
 
+	cachedAll := e.cachedAll.Get()
+	cachedOrchestrator := e.cachedOrchestrator.Get()
+	cachedLow := e.cachedLow.Get()
+
 	return types.Entity{
 		ID:                          e.entityID,
 		StandardTags:                e.getStandard(),
-		HighCardinalityTags:         e.cachedAll[len(e.cachedOrchestrator):],
-		OrchestratorCardinalityTags: e.cachedOrchestrator[len(e.cachedLow):],
-		LowCardinalityTags:          e.cachedLow,
+		HighCardinalityTags:         cachedAll[len(cachedOrchestrator):],
+		OrchestratorCardinalityTags: cachedOrchestrator[len(cachedLow):],
+		LowCardinalityTags:          cachedLow,
 	}
 }
 
@@ -406,12 +421,15 @@ func (e *entityTags) computeCache() {
 	tags := append(lowCardTags, orchestratorCardTags...)
 	tags = append(tags, highCardTags...)
 
+	cached := util.NewTagsBuilder()
+	cached.Append(tags...)
+
 	// Write cache
 	e.cacheValid = true
 	e.cachedSource = sources
-	e.cachedAll = tags
-	e.cachedLow = e.cachedAll[:len(lowCardTags)]
-	e.cachedOrchestrator = e.cachedAll[:len(lowCardTags)+len(orchestratorCardTags)]
+	e.cachedAll = cached
+	e.cachedLow = cached.Slice(0, len(lowCardTags))
+	e.cachedOrchestrator = cached.Slice(0, len(lowCardTags)+len(orchestratorCardTags))
 }
 
 func (e *entityTags) isEmpty() bool {

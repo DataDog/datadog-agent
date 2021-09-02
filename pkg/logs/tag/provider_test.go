@@ -57,5 +57,5 @@ func TestProviderExpectedTags(t *testing.T) {
 	// let the deadline expire + a little grace period
 	<-time.After(time.Until(ll.expectedTagsDeadline.Add(2 * time.Second)))
 
-	assert.Equal(t, []string{}, pp.GetTags())
+	assert.Empty(t, pp.GetTags())
 }

@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
@@ -262,13 +261,13 @@ func (t *Tagger) Stop() error {
 }
 
 // getTags returns a read only list of tags for a given entity.
-func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) ([]string, error) {
+func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) (*util.TagsBuilder, error) {
 	if entity == "" {
 		telemetry.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
 		return nil, fmt.Errorf("empty entity ID")
 	}
 
-	cachedTags, sources := t.store.lookup(entity, cardinality)
+	cachedTags, sources := t.store.lookupBuilder(entity, cardinality)
 
 	if len(sources) == len(t.fetchers) {
 		telemetry.QueriesByCardinality(cardinality).Success.Inc()
@@ -277,7 +276,6 @@ func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) (
 
 	// Else, partial cache miss, query missing data
 	// TODO: get logging on that to make sure we should optimize
-	tagArrays := [][]string{cachedTags}
 
 	t.RLock()
 IterCollectors:
@@ -309,14 +307,6 @@ IterCollectors:
 			collector.telemetry.Success.Inc()
 		}
 
-		tagArrays = append(tagArrays, low)
-		if cardinality == collectors.OrchestratorCardinality {
-			tagArrays = append(tagArrays, orch)
-		} else if cardinality == collectors.HighCardinality {
-			tagArrays = append(tagArrays, orch)
-			tagArrays = append(tagArrays, high)
-		}
-
 		// Submit to cache for next lookup
 		t.store.processTagInfo([]*collectors.TagInfo{
 			{
@@ -332,22 +322,22 @@ IterCollectors:
 	}
 	t.RUnlock()
 
-	tags := utils.ConcatenateTags(tagArrays)
+	cachedTags, _ = t.store.lookupBuilder(entity, cardinality)
 
-	if len(tags) > 0 {
+	if cachedTags.Len() > 0 {
 		telemetry.QueriesByCardinality(cardinality).Success.Inc()
 	} else {
 		telemetry.QueriesByCardinality(cardinality).EmptyTags.Inc()
 	}
 
-	return tags, nil
+	return cachedTags, nil
 }
 
 // TagBuilder appends tags for a given entity from the tagger to the TagsBuilder
 func (t *Tagger) TagBuilder(entity string, cardinality collectors.TagCardinality, tb *util.TagsBuilder) error {
 	tags, err := t.getTags(entity, cardinality)
-	if err == nil {
-		tb.Append(tags...)
+	if tags != nil {
+		tb.AppendBuilder(tags)
 	}
 	return err
 }
@@ -359,7 +349,7 @@ func (t *Tagger) Tag(entity string, cardinality collectors.TagCardinality) ([]st
 		return nil, err
 	}
 
-	return copyArray(tags), nil
+	return tags.Copy(), nil
 }
 
 // Standard returns standard tags for a given entity
@@ -434,14 +424,4 @@ func (t *Tagger) Subscribe(cardinality collectors.TagCardinality) chan []types.E
 // Unsubscribe ends a subscription to entity events and closes its channel.
 func (t *Tagger) Unsubscribe(ch chan []types.EntityEvent) {
 	t.store.unsubscribe(ch)
-}
-
-// copyArray makes sure the tagger does not return internal slices
-// that could be modified by others, by explicitly copying the slice
-// contents to a new slice. As strings are references, the size of
-// the new array is small enough.
-func copyArray(source []string) []string {
-	copied := make([]string, len(source))
-	copy(copied, source)
-	return copied
 }
