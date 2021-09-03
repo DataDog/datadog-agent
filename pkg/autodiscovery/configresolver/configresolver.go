@@ -237,11 +237,12 @@ func getFallbackHost(hosts map[string]string) (string, error) {
 			return host, nil
 		}
 	}
-	for k, v := range hosts {
-		if k == "bridge" {
-			return v, nil
-		}
+
+	bridgeIP, bridgeIsPresent := hosts["bridge"]
+	if bridgeIsPresent {
+		return bridgeIP, nil
 	}
+
 	return "", errors.New("not able to determine which network is reachable")
 }
 
