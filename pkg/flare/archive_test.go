@@ -266,7 +266,9 @@ func TestZipLogFiles(t *testing.T) {
 	_, err = os.Create(filepath.Join(srcDir, "archive", "agent.log"))
 	require.NoError(t, err)
 
-	err = zipLogFiles(dstDir, "test", filepath.Join(srcDir, "agent.log"), nil)
+	permsInfos := make(permissionsInfos)
+
+	err = zipLogFiles(dstDir, "test", filepath.Join(srcDir, "agent.log"), permsInfos)
 	assert.NoError(t, err)
 
 	// Check all the log files are in the destination path, at the right subdirectories
