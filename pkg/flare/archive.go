@@ -396,6 +396,7 @@ func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsIn
 		log.Errorf("Error getting absolute path to log directory of %q: %v", logFilePath, err)
 		return err
 	}
+	permsInfos.add(logFileDir)
 
 	err = filepath.Walk(logFileDir, func(src string, f os.FileInfo, err error) error {
 		if f == nil {
