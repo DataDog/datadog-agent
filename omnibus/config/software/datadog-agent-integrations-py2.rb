@@ -76,11 +76,6 @@ blacklist_packages = Array.new
 # We build these manually
 blacklist_packages.push(/^snowflake-connector-python==/)
 
-# py3 only checks
-# TODO: Remove once AP-1243 is done
-blacklist_folders.push('avi_vantage')
-blacklist_folders.push('ibm_i')
-
 if suse?
   # Temporarily blacklist Aerospike until builder supports new dependency
   blacklist_packages.push(/^aerospike==/)
@@ -277,6 +272,15 @@ build do
 
       check_conf_dir = "#{conf_dir}/#{check}.d"
 
+      setup_file_path = "#{check_dir}/setup.py"
+      File.file?(setup_file_path) || next
+      # Check if it supports Python 2.
+      support = `inv agent.check-supports-python-version #{setup_file_path} 2`
+      if support == "False"
+        log.info(log_key) { "Skipping '#{check}' since it does not support Python 2." }
+        next
+      end
+
       # For each conf file, if it already exists, that means the `datadog-agent` software def
       # wrote it first. In that case, since the agent's confs take precedence, skip the conf
 
@@ -314,7 +318,6 @@ build do
         copy profiles, "#{check_conf_dir}/"
       end
 
-      File.file?("#{check_dir}/setup.py") || next
       if windows?
         command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
         command "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"

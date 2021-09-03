@@ -3,6 +3,7 @@ Agent namespaced tasks
 """
 
 
+import ast
 import datetime
 import glob
 import os
@@ -619,6 +620,25 @@ def omnibus_manifest(
         omnibus_s3_cache=False,
         log_level=log_level,
     )
+
+
+@task
+def check_supports_python_version(_, filename, python):
+    """
+    Check if a setup.py file states support for a given major Python version.
+    """
+    if python not in ['2', '3']:
+        raise Exit("invalid Python version", code=2)
+
+    with open(filename, 'r') as f:
+        tree = ast.parse(f.read(), filename=filename)
+
+    prefix = 'Programming Language :: Python :: {}'.format(python)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.keyword) and node.arg == "classifiers":
+            classifiers = ast.literal_eval(node.value)
+            print(any(cls.startswith(prefix) for cls in classifiers), end="")
+            return
 
 
 @task
