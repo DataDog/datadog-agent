@@ -33,7 +33,8 @@ var templateVariables = map[string]variableGetter{
 }
 
 // SubstituteTemplateVariables replaces %%VARIABLES%% in the config init,
-// instances, and logs config
+// instances, and logs config.
+// When there is an error, it stops processing.
 func SubstituteTemplateVariables(ctx context.Context, config *integration.Config, svc listeners.Service) error {
 	var err error
 
@@ -48,7 +49,9 @@ func SubstituteTemplateVariables(ctx context.Context, config *integration.Config
 }
 
 // SubstituteTemplateEnvVars replaces %%ENV_VARIABLE%% from environment
-// variables in the config init, instances, and logs config
+// variables in the config init, instances, and logs config.
+// When there is an error, it continues replacing. When there are multiple
+// errors, the one returned is the one that happened first.
 func SubstituteTemplateEnvVars(config *integration.Config) error {
 	var retErr error
 
