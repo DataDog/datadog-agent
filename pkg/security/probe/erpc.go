@@ -21,6 +21,21 @@ const (
 	ERPCMaxDataSize = 256
 )
 
+const (
+	// DiscardInodeOp discards an inode
+	DiscardInodeOp = iota + 1
+	// DiscardPidOp discards a pid
+	DiscardPidOp
+	// ResolveSegmentOp resolves the requested segment
+	ResolveSegmentOp
+	// ResolvePathOp resolves the requested path
+	ResolvePathOp
+	// ResolveParentOp resolves the parent of the provide path key
+	ResolveParentOp
+	// RegisterSpanTlsOP is used for span TLS registration
+	RegisterSpanTlsOP
+)
+
 // ERPC defines a krpc object
 type ERPC struct {
 	fd int

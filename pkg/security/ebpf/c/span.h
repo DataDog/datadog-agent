@@ -3,7 +3,12 @@
 
 #include "defs.h"
 
+enum tls_format {
+   DEFAULT
+};
+
 struct span_tls_t {
+   u64 format;
    u64 max_threads;
    void *base;
 };
@@ -19,13 +24,12 @@ struct bpf_map_def SEC("maps/span_tls") span_tls = {
 
 int __attribute__((always_inline)) handle_register_span_memory(void *data) {
    struct span_tls_t span = {};
-   bpf_probe_read(&span.max_threads, sizeof(span.max_threads), data);
-   bpf_probe_read(&span.base, sizeof(span.base), data+sizeof(span.max_threads));
+   bpf_probe_read(&span, sizeof(span), data);
 
    u64 pid_tgid = bpf_get_current_pid_tgid();
    u32 tgid = pid_tgid >> 32;
 
-   bpf_map_update_elem(&span_tls, &tgid, &span, BPF_ANY);
+   bpf_map_update_elem(&span_tls, &tgid, &span, BPF_NOEXIST);
 
    return 0;
 }

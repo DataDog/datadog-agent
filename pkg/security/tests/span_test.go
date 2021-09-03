@@ -36,13 +36,14 @@ func TestSpan(t *testing.T) {
 		tls[i] = 0
 	}
 
-	const RegisterSpanTlsOP = 5
 	req := sprobe.ERPCRequest{
-		OP: RegisterSpanTlsOP,
+		OP: sprobe.RegisterSpanTlsOP,
 	}
 
-	model.ByteOrder.PutUint64(req.Data[0:8], uint64(len(tls)/2))
-	model.ByteOrder.PutUint64(req.Data[8:16], uint64(uintptr(unsafe.Pointer(&tls))))
+	// format, max threads, base ptr
+	model.ByteOrder.PutUint64(req.Data[0:8], 0)
+	model.ByteOrder.PutUint64(req.Data[8:16], uint64(len(tls)/2))
+	model.ByteOrder.PutUint64(req.Data[16:24], uint64(uintptr(unsafe.Pointer(&tls))))
 
 	erpc, err := sprobe.NewERPC()
 	if err != nil {
