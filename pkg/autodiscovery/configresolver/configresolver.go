@@ -32,22 +32,6 @@ var templateVariables = map[string]variableGetter{
 	"kube":     getAdditionalTplVariables,
 }
 
-// SubstituteTemplateVariables replaces %%VARIABLES%% in the config init,
-// instances, and logs config.
-// When there is an error, it stops processing.
-func SubstituteTemplateVariables(ctx context.Context, config *integration.Config, svc listeners.Service) error {
-	var err error
-
-	for _, toResolve := range dataToResolve(config) {
-		*toResolve, err = resolveDataWithTemplateVars(ctx, *toResolve, svc)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // SubstituteTemplateEnvVars replaces %%ENV_VARIABLE%% from environment
 // variables in the config init, instances, and logs config.
 // When there is an error, it continues replacing. When there are multiple
@@ -116,7 +100,7 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		return resolvedConfig, "", errors.New("unable to resolve, service not ready")
 	}
 
-	if err := SubstituteTemplateVariables(ctx, &resolvedConfig, svc); err != nil {
+	if err := substituteTemplateVariables(ctx, &resolvedConfig, svc); err != nil {
 		return resolvedConfig, "", err
 	}
 
@@ -137,6 +121,22 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 	}
 
 	return resolvedConfig, tagsHash, nil
+}
+
+// substituteTemplateVariables replaces %%VARIABLES%% in the config init,
+// instances, and logs config.
+// When there is an error, it stops processing.
+func substituteTemplateVariables(ctx context.Context, config *integration.Config, svc listeners.Service) error {
+	var err error
+
+	for _, toResolve := range dataToResolve(config) {
+		*toResolve, err = resolveDataWithTemplateVars(ctx, *toResolve, svc)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func dataToResolve(config *integration.Config) []*integration.Data {
