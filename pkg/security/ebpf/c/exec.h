@@ -472,6 +472,12 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // send the entry to maintain userspace cache
     send_event(args, EVENT_FORK, event);
 
+    // if the parent is traced, trace the child too
+    u64 *tgid_exec_ts = bpf_map_lookup_elem(&traced_pids, &ppid);
+    if (tgid_exec_ts != NULL) {
+        bpf_map_update_elem(&traced_pids, &pid, &ts, BPF_ANY);
+    }
+
     return 0;
 }
 
@@ -505,6 +511,9 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         send_event(ctx, EVENT_EXIT, event);
 
         unregister_span_memory();
+
+        // delete pid from traced_pids
+        bpf_map_delete_elem(&traced_pids, &tgid);
     }
 
     // remove nr translations

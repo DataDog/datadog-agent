@@ -22,9 +22,11 @@ import (
 	"path"
 	"time"
 
+	ddgostatsd "github.com/DataDog/datadog-go/statsd"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -44,7 +46,6 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	ddgostatsd "github.com/DataDog/datadog-go/statsd"
 )
 
 const (
@@ -70,7 +71,17 @@ var (
 
 	dumpCmd = &cobra.Command{
 		Use:   "dump",
-		Short: "Dump security module information",
+		Short: "Dump security module command",
+	}
+
+	stopCmd = &cobra.Command{
+		Use:   "stop",
+		Short: "Stop security module command",
+	}
+
+	listCmd = &cobra.Command{
+		Use:   "list",
+		Short: "List security module command",
 	}
 
 	dumpProcessArgs = struct {
@@ -82,6 +93,28 @@ var (
 		Short: "process cache",
 		RunE:  dumpProcessCache,
 	}
+
+	dumpActivityCmd = &cobra.Command{
+		Use:   "activity",
+		Short: "record and dump all activity matching a set of tags",
+		RunE:  dumpActivity,
+	}
+
+	listActivityDumpsCmd = &cobra.Command{
+		Use:   "activity",
+		Short: "list all active dumps",
+		RunE:  listActivityDumps,
+	}
+
+	stopActivityDumpCmd = &cobra.Command{
+		Use:   "activity",
+		Short: "stops the first activity dump that matches the provided set of tags",
+		RunE:  stopActivityDump,
+	}
+
+	activityDumpTags    []string
+	activityDumpTimeout int
+	withGraph           bool
 
 	selfTestCmd = &cobra.Command{
 		Use:   "self-test",
@@ -127,8 +160,40 @@ var (
 
 func init() {
 	dumpProcessCacheCmd.Flags().BoolVar(&dumpProcessArgs.withArgs, "with-args", false, "add process arguments to the dump")
+	dumpActivityCmd.Flags().StringArrayVar(
+		&activityDumpTags,
+		"tags",
+		[]string{},
+		"tags are used to filter the activity dump in order to select a specific workload. Tags should be provided in the [tag_name:tag_value] format.",
+	)
+	dumpActivityCmd.Flags().IntVar(
+		&activityDumpTimeout,
+		"timeout",
+		10,
+		"timeout for the activity dump in minutes",
+	)
+	dumpActivityCmd.Flags().BoolVar(
+		&withGraph,
+		"graph",
+		false,
+		"generate a graph from the generated dump",
+	)
+	stopActivityDumpCmd.Flags().StringArrayVar(
+		&activityDumpTags,
+		"tags",
+		[]string{},
+		"tags is used to select an activity dump. Tags should be provided in the [tag_name:tag_value] format.",
+	)
+
 	dumpCmd.AddCommand(dumpProcessCacheCmd)
+	dumpCmd.AddCommand(dumpActivityCmd)
 	runtimeCmd.AddCommand(dumpCmd)
+
+	listCmd.AddCommand(listActivityDumpsCmd)
+	runtimeCmd.AddCommand(listCmd)
+
+	stopCmd.AddCommand(stopActivityDumpCmd)
+	runtimeCmd.AddCommand(stopCmd)
 
 	runtimeCmd.AddCommand(checkPoliciesCmd)
 	checkPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
@@ -149,6 +214,11 @@ func init() {
 }
 
 func dumpProcessCache(cmd *cobra.Command, args []string) error {
+	// Read configuration files received from the command line arguments '-c'
+	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
+		return err
+	}
+
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return errors.Wrap(err, "unable to create a runtime security client instance")
@@ -160,7 +230,90 @@ func dumpProcessCache(cmd *cobra.Command, args []string) error {
 		return errors.Wrap(err, "unable to get a process cache dump")
 	}
 
-	fmt.Printf("Dump written: %s\n", filename)
+	log.Infof("Process dump file: %s\n", filename)
+
+	return nil
+}
+
+func dumpActivity(cmd *cobra.Command, args []string) error {
+	// Read configuration files received from the command line arguments '-c'
+	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
+		return err
+	}
+
+	client, err := secagent.NewRuntimeSecurityClient()
+	if err != nil {
+		return errors.Wrap(err, "unable to create a runtime security client instance")
+	}
+	defer client.Close()
+
+	var filename, graph string
+	filename, graph, err = client.DumpActivity(activityDumpTags, int32(activityDumpTimeout), withGraph)
+	if err != nil {
+		return errors.Wrap(err, "unable to an request activity dump for %s")
+	}
+
+	fmt.Printf("Activity dump file: %s\n", filename)
+	if len(graph) > 0 {
+		fmt.Printf("Graph dump file: %s\n", graph)
+	}
+
+	return nil
+}
+
+func listActivityDumps(cmd *cobra.Command, args []string) error {
+	// Read configuration files received from the command line arguments '-c'
+	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
+		return err
+	}
+
+	client, err := secagent.NewRuntimeSecurityClient()
+	if err != nil {
+		return errors.Wrap(err, "unable to create a runtime security client instance")
+	}
+	defer client.Close()
+
+	var activeDumps []string
+	activeDumps, err = client.ListActivityDumps()
+	if err != nil {
+		return errors.Wrap(err, "unable to request the list activity dumps")
+	}
+
+	if len(activeDumps) > 0 {
+		fmt.Println("Active dumps:")
+		for _, d := range activeDumps {
+			fmt.Printf("\t- %s\n", d)
+		}
+	} else {
+		fmt.Println("No active dumps found")
+	}
+
+	return nil
+}
+
+func stopActivityDump(cmd *cobra.Command, args []string) error {
+	// Read configuration files received from the command line arguments '-c'
+	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
+		return err
+	}
+
+	client, err := secagent.NewRuntimeSecurityClient()
+	if err != nil {
+		return errors.Wrap(err, "unable to create a runtime security client instance")
+	}
+	defer client.Close()
+
+	var msg string
+	msg, err = client.StopActivityDump(activityDumpTags)
+	if err != nil {
+		return errors.Wrap(err, "unable to stop the request activity dump")
+	}
+
+	if len(msg) == 0 {
+		fmt.Println("done!")
+	} else {
+		fmt.Println(msg)
+	}
 
 	return nil
 }

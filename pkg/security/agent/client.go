@@ -32,6 +32,48 @@ func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool) (string, error) 
 	return response.Filename, nil
 }
 
+// DumpActivity send a dump activity request
+func (c *RuntimeSecurityClient) DumpActivity(tags []string, timeout int32, withGraph bool) (string, string, error) {
+	apiClient := api.NewSecurityModuleClient(c.conn)
+
+	response, err := apiClient.DumpActivity(context.Background(), &api.DumpActivityParams{
+		Tags:      tags,
+		Timeout:   timeout,
+		WithGraph: withGraph,
+	})
+	if err != nil {
+		return "", "", err
+	}
+
+	return response.OutputFilename, response.GraphFilename, nil
+}
+
+// ListActivityDumps lists the active activity dumps
+func (c *RuntimeSecurityClient) ListActivityDumps() ([]string, error) {
+	apiClient := api.NewSecurityModuleClient(c.conn)
+
+	response, err := apiClient.ListActivityDumps(context.Background(), &api.ListActivityDumpsParams{})
+	if err != nil {
+		return nil, err
+	}
+
+	return response.DumpTags, nil
+}
+
+// StopActivityDump stops an active dump if it exists
+func (c *RuntimeSecurityClient) StopActivityDump(tags []string) (string, error) {
+	apiClient := api.NewSecurityModuleClient(c.conn)
+
+	response, err := apiClient.StopActivityDump(context.Background(), &api.StopActivityDumpParams{
+		Tags: tags,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return response.Error, nil
+}
+
 // GetConfig retrieves the config of the runtime security module
 func (c *RuntimeSecurityClient) GetConfig() (*api.SecurityConfigMessage, error) {
 	response, err := c.apiClient.GetConfig(context.Background(), &api.GetConfigParams{})

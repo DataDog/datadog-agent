@@ -16,6 +16,16 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 	parent.Retain()
 }
 
+// GetNextAncestorNoFork returns the first ancestor that is not a fork entry
+func (pc *ProcessCacheEntry) GetNextAncestorNoFork() *ProcessCacheEntry {
+	if pc.Ancestor != nil {
+		if (pc.Ancestor.ExitTime == pc.ExecTime || pc.Ancestor.ExitTime == time.Time{}) && pc.Tid == pc.Ancestor.Tid {
+			return pc.Ancestor.Ancestor
+		}
+	}
+	return pc.Ancestor
+}
+
 // Exit a process
 func (pc *ProcessCacheEntry) Exit(exitTime time.Time) {
 	pc.ExitTime = exitTime

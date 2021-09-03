@@ -258,7 +258,8 @@ type Process struct {
 	Filesystem          string `field:"file.filesystem"` // FileSystem of the process executable
 	PathResolutionError error  `field:"-"`
 
-	ContainerID string `field:"container.id"` // Container ID
+	ContainerID   string   `field:"container.id"` // Container ID
+	ContainerTags []string `field:"-"`
 
 	TTYName string `field:"tty_name"` // Name of the TTY associated with the process
 	Comm    string `field:"comm"`     // Comm attribute of the process

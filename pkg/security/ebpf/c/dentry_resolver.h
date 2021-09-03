@@ -107,6 +107,16 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(struct dentry_resolv
     struct dentry *d_parent;
     struct inode *d_inode = NULL;
     int segment_len = 0;
+    struct is_discarded_by_inode_t params = {
+        .event_type = input->discarder_type,
+        .tgid = bpf_get_current_pid_tgid() >> 32,
+        .now = bpf_ktime_get_ns(),
+    };
+    u64 *tgid_exec_ts = bpf_map_lookup_elem(&traced_pids, &params.tgid);
+    if (tgid_exec_ts != NULL) {
+        params.tgid_is_traced = 1;
+        params.tgid_exec_ts = *tgid_exec_ts;
+    }
 
     if (key.ino == 0 || key.mount_id == 0) {
         return DENTRY_INVALID;
@@ -131,7 +141,10 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(struct dentry_resolv
         }
 
         if (input->discarder_type && i <= 3) {
-            if (is_discarded_by_inode(input->discarder_type, key.mount_id, key.ino, i == 0)) {
+            params.inode = key.ino;
+            params.mount_id = key.mount_id;
+            params.is_leaf = i == 0;
+            if (is_discarded_by_inode(&params)) {
                 return DENTRY_DISCARDED;
             }
         }

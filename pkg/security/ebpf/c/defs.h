@@ -597,4 +597,28 @@ static __attribute__((always_inline)) u64 get_vfs_rename_target_dentry_offset() 
     return offset ? offset : 40; // offsetof(struct renamedata, new_dentry)
 }
 
+struct bpf_map_def SEC("maps/traced_pids") traced_pids = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u64),
+    .max_entries = 4096,
+    .pinning = 0,
+    .namespace = "",
+};
+
+struct traced_inode_t {
+    u32 tgid;
+    u32 mount_id;
+    u64 inode;
+};
+
+struct bpf_map_def SEC("maps/traced_inodes") traced_inodes = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(struct traced_inode_t),
+    .value_size = sizeof(u64),
+    .max_entries = 8192,
+    .pinning = 0,
+    .namespace = "",
+};
+
 #endif

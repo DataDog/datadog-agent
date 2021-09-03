@@ -4,7 +4,7 @@ option go_package = "pkg/security/api";
 
 package api;
 
-message GetEventParams{}
+message GetEventParams {}
 
 message SecurityEventMessage {
     string RuleID = 1;
@@ -13,7 +13,7 @@ message SecurityEventMessage {
     string Service = 4;
 }
 
-message DumpProcessCacheParams{
+message DumpProcessCacheParams {
     bool WithArgs = 1;
 }
 
@@ -21,14 +21,14 @@ message SecurityDumpProcessCacheMessage {
     string Filename = 1;
 }
 
-message GetConfigParams{}
+message GetConfigParams {}
 
 message SecurityConfigMessage {
     bool RuntimeEnabled = 1;
     bool FIMEnabled = 2;
 }
 
-message RunSelfTestParams{}
+message RunSelfTestParams {}
 
 message ReloadPoliciesParams{}
 
@@ -39,9 +39,37 @@ message SecuritySelfTestResultMessage {
     string Error = 2;
 }
 
+message DumpActivityParams {
+    repeated string Tags = 1;
+    int32 timeout = 2;
+    bool with_graph = 3;
+}
+
+message SecurityActivityDumpMessage {
+    string OutputFilename = 1;
+    string GraphFilename = 2;
+}
+
+message ListActivityDumpsParams {}
+
+message SecurityActivityDumpListMessage {
+    repeated string DumpTags = 1;
+}
+
+message StopActivityDumpParams {
+    repeated string Tags = 1;
+}
+
+message SecurityActivityDumpStoppedMessage {
+    string Error = 1;
+}
+
 service SecurityModule {
     rpc GetEvents(GetEventParams) returns (stream SecurityEventMessage) {}
     rpc DumpProcessCache(DumpProcessCacheParams) returns (SecurityDumpProcessCacheMessage) {}
+    rpc DumpActivity(DumpActivityParams) returns (SecurityActivityDumpMessage) {}
+    rpc ListActivityDumps(ListActivityDumpsParams) returns (SecurityActivityDumpListMessage) {}
+    rpc StopActivityDump(StopActivityDumpParams) returns (SecurityActivityDumpStoppedMessage) {}
     rpc GetConfig(GetConfigParams) returns (SecurityConfigMessage) {}
     rpc RunSelfTest(RunSelfTestParams) returns (SecuritySelfTestResultMessage) {}
     rpc ReloadPolicies(ReloadPoliciesParams) returns (ReloadPoliciesResultMessage) {}

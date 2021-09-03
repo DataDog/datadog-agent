@@ -414,6 +414,256 @@ func (m *SecuritySelfTestResultMessage) GetError() string {
 	return ""
 }
 
+type DumpActivityParams struct {
+	Tags                 []string `protobuf:"bytes,1,rep,name=Tags,proto3" json:"Tags,omitempty"`
+	Timeout              int32    `protobuf:"varint,2,opt,name=timeout,proto3" json:"timeout,omitempty"`
+	WithGraph            bool     `protobuf:"varint,3,opt,name=with_graph,json=withGraph,proto3" json:"with_graph,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DumpActivityParams) Reset()         { *m = DumpActivityParams{} }
+func (m *DumpActivityParams) String() string { return proto.CompactTextString(m) }
+func (*DumpActivityParams) ProtoMessage()    {}
+func (*DumpActivityParams) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{10}
+}
+
+func (m *DumpActivityParams) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DumpActivityParams.Unmarshal(m, b)
+}
+func (m *DumpActivityParams) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DumpActivityParams.Marshal(b, m, deterministic)
+}
+func (m *DumpActivityParams) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DumpActivityParams.Merge(m, src)
+}
+func (m *DumpActivityParams) XXX_Size() int {
+	return xxx_messageInfo_DumpActivityParams.Size(m)
+}
+func (m *DumpActivityParams) XXX_DiscardUnknown() {
+	xxx_messageInfo_DumpActivityParams.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DumpActivityParams proto.InternalMessageInfo
+
+func (m *DumpActivityParams) GetTags() []string {
+	if m != nil {
+		return m.Tags
+	}
+	return nil
+}
+
+func (m *DumpActivityParams) GetTimeout() int32 {
+	if m != nil {
+		return m.Timeout
+	}
+	return 0
+}
+
+func (m *DumpActivityParams) GetWithGraph() bool {
+	if m != nil {
+		return m.WithGraph
+	}
+	return false
+}
+
+type SecurityActivityDumpMessage struct {
+	OutputFilename       string   `protobuf:"bytes,1,opt,name=OutputFilename,proto3" json:"OutputFilename,omitempty"`
+	GraphFilename        string   `protobuf:"bytes,2,opt,name=GraphFilename,proto3" json:"GraphFilename,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *SecurityActivityDumpMessage) Reset()         { *m = SecurityActivityDumpMessage{} }
+func (m *SecurityActivityDumpMessage) String() string { return proto.CompactTextString(m) }
+func (*SecurityActivityDumpMessage) ProtoMessage()    {}
+func (*SecurityActivityDumpMessage) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{11}
+}
+
+func (m *SecurityActivityDumpMessage) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SecurityActivityDumpMessage.Unmarshal(m, b)
+}
+func (m *SecurityActivityDumpMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SecurityActivityDumpMessage.Marshal(b, m, deterministic)
+}
+func (m *SecurityActivityDumpMessage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SecurityActivityDumpMessage.Merge(m, src)
+}
+func (m *SecurityActivityDumpMessage) XXX_Size() int {
+	return xxx_messageInfo_SecurityActivityDumpMessage.Size(m)
+}
+func (m *SecurityActivityDumpMessage) XXX_DiscardUnknown() {
+	xxx_messageInfo_SecurityActivityDumpMessage.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SecurityActivityDumpMessage proto.InternalMessageInfo
+
+func (m *SecurityActivityDumpMessage) GetOutputFilename() string {
+	if m != nil {
+		return m.OutputFilename
+	}
+	return ""
+}
+
+func (m *SecurityActivityDumpMessage) GetGraphFilename() string {
+	if m != nil {
+		return m.GraphFilename
+	}
+	return ""
+}
+
+type ListActivityDumpsParams struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ListActivityDumpsParams) Reset()         { *m = ListActivityDumpsParams{} }
+func (m *ListActivityDumpsParams) String() string { return proto.CompactTextString(m) }
+func (*ListActivityDumpsParams) ProtoMessage()    {}
+func (*ListActivityDumpsParams) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{12}
+}
+
+func (m *ListActivityDumpsParams) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ListActivityDumpsParams.Unmarshal(m, b)
+}
+func (m *ListActivityDumpsParams) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ListActivityDumpsParams.Marshal(b, m, deterministic)
+}
+func (m *ListActivityDumpsParams) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListActivityDumpsParams.Merge(m, src)
+}
+func (m *ListActivityDumpsParams) XXX_Size() int {
+	return xxx_messageInfo_ListActivityDumpsParams.Size(m)
+}
+func (m *ListActivityDumpsParams) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListActivityDumpsParams.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListActivityDumpsParams proto.InternalMessageInfo
+
+type SecurityActivityDumpListMessage struct {
+	DumpTags             []string `protobuf:"bytes,1,rep,name=DumpTags,proto3" json:"DumpTags,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *SecurityActivityDumpListMessage) Reset()         { *m = SecurityActivityDumpListMessage{} }
+func (m *SecurityActivityDumpListMessage) String() string { return proto.CompactTextString(m) }
+func (*SecurityActivityDumpListMessage) ProtoMessage()    {}
+func (*SecurityActivityDumpListMessage) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{13}
+}
+
+func (m *SecurityActivityDumpListMessage) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SecurityActivityDumpListMessage.Unmarshal(m, b)
+}
+func (m *SecurityActivityDumpListMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SecurityActivityDumpListMessage.Marshal(b, m, deterministic)
+}
+func (m *SecurityActivityDumpListMessage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SecurityActivityDumpListMessage.Merge(m, src)
+}
+func (m *SecurityActivityDumpListMessage) XXX_Size() int {
+	return xxx_messageInfo_SecurityActivityDumpListMessage.Size(m)
+}
+func (m *SecurityActivityDumpListMessage) XXX_DiscardUnknown() {
+	xxx_messageInfo_SecurityActivityDumpListMessage.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SecurityActivityDumpListMessage proto.InternalMessageInfo
+
+func (m *SecurityActivityDumpListMessage) GetDumpTags() []string {
+	if m != nil {
+		return m.DumpTags
+	}
+	return nil
+}
+
+type StopActivityDumpParams struct {
+	Tags                 []string `protobuf:"bytes,1,rep,name=Tags,proto3" json:"Tags,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *StopActivityDumpParams) Reset()         { *m = StopActivityDumpParams{} }
+func (m *StopActivityDumpParams) String() string { return proto.CompactTextString(m) }
+func (*StopActivityDumpParams) ProtoMessage()    {}
+func (*StopActivityDumpParams) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{14}
+}
+
+func (m *StopActivityDumpParams) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_StopActivityDumpParams.Unmarshal(m, b)
+}
+func (m *StopActivityDumpParams) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_StopActivityDumpParams.Marshal(b, m, deterministic)
+}
+func (m *StopActivityDumpParams) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StopActivityDumpParams.Merge(m, src)
+}
+func (m *StopActivityDumpParams) XXX_Size() int {
+	return xxx_messageInfo_StopActivityDumpParams.Size(m)
+}
+func (m *StopActivityDumpParams) XXX_DiscardUnknown() {
+	xxx_messageInfo_StopActivityDumpParams.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_StopActivityDumpParams proto.InternalMessageInfo
+
+func (m *StopActivityDumpParams) GetTags() []string {
+	if m != nil {
+		return m.Tags
+	}
+	return nil
+}
+
+type SecurityActivityDumpStoppedMessage struct {
+	Error                string   `protobuf:"bytes,1,opt,name=Error,proto3" json:"Error,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *SecurityActivityDumpStoppedMessage) Reset()         { *m = SecurityActivityDumpStoppedMessage{} }
+func (m *SecurityActivityDumpStoppedMessage) String() string { return proto.CompactTextString(m) }
+func (*SecurityActivityDumpStoppedMessage) ProtoMessage()    {}
+func (*SecurityActivityDumpStoppedMessage) Descriptor() ([]byte, []int) {
+	return fileDescriptor_ce049ba84fb5261a, []int{15}
+}
+
+func (m *SecurityActivityDumpStoppedMessage) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SecurityActivityDumpStoppedMessage.Unmarshal(m, b)
+}
+func (m *SecurityActivityDumpStoppedMessage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SecurityActivityDumpStoppedMessage.Marshal(b, m, deterministic)
+}
+func (m *SecurityActivityDumpStoppedMessage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SecurityActivityDumpStoppedMessage.Merge(m, src)
+}
+func (m *SecurityActivityDumpStoppedMessage) XXX_Size() int {
+	return xxx_messageInfo_SecurityActivityDumpStoppedMessage.Size(m)
+}
+func (m *SecurityActivityDumpStoppedMessage) XXX_DiscardUnknown() {
+	xxx_messageInfo_SecurityActivityDumpStoppedMessage.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SecurityActivityDumpStoppedMessage proto.InternalMessageInfo
+
+func (m *SecurityActivityDumpStoppedMessage) GetError() string {
+	if m != nil {
+		return m.Error
+	}
+	return ""
+}
+
 func init() {
 	proto.RegisterType((*GetEventParams)(nil), "api.GetEventParams")
 	proto.RegisterType((*SecurityEventMessage)(nil), "api.SecurityEventMessage")
@@ -425,41 +675,59 @@ func init() {
 	proto.RegisterType((*ReloadPoliciesParams)(nil), "api.ReloadPoliciesParams")
 	proto.RegisterType((*ReloadPoliciesResultMessage)(nil), "api.ReloadPoliciesResultMessage")
 	proto.RegisterType((*SecuritySelfTestResultMessage)(nil), "api.SecuritySelfTestResultMessage")
+	proto.RegisterType((*DumpActivityParams)(nil), "api.DumpActivityParams")
+	proto.RegisterType((*SecurityActivityDumpMessage)(nil), "api.SecurityActivityDumpMessage")
+	proto.RegisterType((*ListActivityDumpsParams)(nil), "api.ListActivityDumpsParams")
+	proto.RegisterType((*SecurityActivityDumpListMessage)(nil), "api.SecurityActivityDumpListMessage")
+	proto.RegisterType((*StopActivityDumpParams)(nil), "api.StopActivityDumpParams")
+	proto.RegisterType((*SecurityActivityDumpStoppedMessage)(nil), "api.SecurityActivityDumpStoppedMessage")
 }
 
 func init() { proto.RegisterFile("pkg/security/api/api.proto", fileDescriptor_ce049ba84fb5261a) }
 
 var fileDescriptor_ce049ba84fb5261a = []byte{
-	// 464 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x74, 0x93, 0x5f, 0x6b, 0xdb, 0x3c,
-	0x14, 0xc6, 0xf3, 0xa7, 0x6f, 0xdf, 0xe4, 0x6c, 0x78, 0xe9, 0x69, 0x16, 0x3c, 0x95, 0x6e, 0x41,
-	0x8c, 0x91, 0xab, 0x76, 0x6c, 0xbb, 0x1d, 0x63, 0x6b, 0xd2, 0x52, 0x46, 0x48, 0x50, 0x0a, 0x85,
-	0xdd, 0x0c, 0xd5, 0x39, 0x75, 0x45, 0x1c, 0xdb, 0x48, 0x76, 0x61, 0x1f, 0x61, 0xdf, 0x7a, 0x44,
-	0xb6, 0x4a, 0xec, 0x79, 0x17, 0x06, 0x9d, 0xc7, 0x47, 0x8f, 0x1f, 0xeb, 0x77, 0x04, 0x2c, 0xdd,
-	0x84, 0xe7, 0x86, 0x82, 0x5c, 0xab, 0xec, 0xd7, 0xb9, 0x4c, 0xd5, 0xee, 0x39, 0x4b, 0x75, 0x92,
-	0x25, 0xd8, 0x95, 0xa9, 0xe2, 0x03, 0xf0, 0xae, 0x28, 0x9b, 0x3d, 0x52, 0x9c, 0x2d, 0xa5, 0x96,
-	0x5b, 0xc3, 0x53, 0x18, 0xae, 0xca, 0x0d, 0x56, 0x9e, 0x93, 0x31, 0x32, 0x24, 0x1c, 0xc1, 0xa1,
-	0xc8, 0x23, 0xba, 0x9e, 0xfa, 0xed, 0x71, 0x7b, 0xd2, 0x17, 0x65, 0x85, 0x08, 0x07, 0x53, 0x99,
-	0x49, 0xbf, 0x33, 0x6e, 0x4f, 0x9e, 0x0b, 0xbb, 0xde, 0x69, 0x37, 0x32, 0x34, 0x7e, 0x77, 0xdc,
-	0x9d, 0xf4, 0x85, 0x5d, 0xa3, 0x0f, 0xff, 0xaf, 0x48, 0x3f, 0xaa, 0x80, 0xfc, 0x03, 0x6b, 0xe0,
-	0x4a, 0xfe, 0x09, 0x46, 0xd3, 0x7c, 0x9b, 0x2e, 0x75, 0x12, 0x90, 0x31, 0x17, 0x32, 0x78, 0xa0,
-	0x22, 0x0b, 0x32, 0xe8, 0xdd, 0xaa, 0xec, 0xe1, 0xab, 0x0e, 0x8d, 0xfd, 0x6a, 0x4f, 0x3c, 0xd5,
-	0xfc, 0x33, 0xbc, 0x71, 0x39, 0xeb, 0xbb, 0x5d, 0x64, 0x06, 0xbd, 0x4b, 0x15, 0x51, 0x2c, 0xb7,
-	0x54, 0x86, 0x7e, 0xaa, 0xf9, 0x11, 0xbc, 0xb8, 0xa2, 0xec, 0x22, 0x89, 0xef, 0x55, 0x58, 0xfe,
-	0xf9, 0x4f, 0x78, 0xe9, 0x1c, 0x0b, 0xdd, 0xf9, 0xbc, 0x03, 0x4f, 0xe4, 0x71, 0xa6, 0xb6, 0x34,
-	0x8b, 0xe5, 0x5d, 0x44, 0xeb, 0x32, 0x4c, 0x4d, 0xc5, 0xd7, 0x00, 0x97, 0xd7, 0x73, 0xd7, 0xd3,
-	0xb1, 0x3d, 0x7b, 0x0a, 0x3f, 0x86, 0x23, 0x91, 0xc7, 0x2b, 0x8a, 0xee, 0x6f, 0xc8, 0xb8, 0xf3,
-	0x1e, 0xc1, 0x50, 0x50, 0x94, 0xc8, 0xf5, 0x32, 0x89, 0x54, 0xa0, 0xc8, 0x94, 0xfa, 0x29, 0x9c,
-	0x54, 0x75, 0x41, 0x26, 0x8f, 0x1c, 0x0e, 0x3e, 0x83, 0x53, 0x17, 0xd6, 0x19, 0x56, 0x1a, 0xd0,
-	0x83, 0xce, 0x62, 0x53, 0x06, 0xed, 0x2c, 0x36, 0x38, 0x84, 0xff, 0x66, 0x5a, 0x27, 0xda, 0xe6,
-	0xea, 0x8b, 0xa2, 0xf8, 0xf0, 0xbb, 0x0b, 0x9e, 0xf3, 0x99, 0x27, 0xeb, 0x3c, 0x22, 0xfc, 0x02,
-	0x7d, 0x37, 0x12, 0x06, 0x8f, 0xcf, 0x76, 0x03, 0x53, 0x1d, 0x11, 0xf6, 0xca, 0x8a, 0x4d, 0x53,
-	0xc2, 0x5b, 0xef, 0xdb, 0x78, 0x0b, 0x83, 0x3a, 0x11, 0x3c, 0xb1, 0x5b, 0x9a, 0x31, 0xb3, 0xb7,
-	0x15, 0xbf, 0x7f, 0xd0, 0xe4, 0xad, 0x32, 0x59, 0xc1, 0x06, 0x87, 0x2e, 0xd9, 0x3e, 0x43, 0xc6,
-	0x2a, 0x56, 0x15, 0x8c, 0xbc, 0x85, 0xdf, 0xe1, 0xd9, 0x1e, 0x00, 0x1c, 0xd9, 0xe6, 0xbf, 0x90,
-	0x30, 0x5e, 0x31, 0x69, 0x3c, 0x5e, 0xde, 0xc2, 0x05, 0x78, 0x55, 0x40, 0x58, 0x9c, 0x4b, 0x13,
-	0x4d, 0x36, 0x6e, 0x78, 0x55, 0x33, 0xfc, 0x86, 0x3f, 0x06, 0xf5, 0xeb, 0x7a, 0x77, 0x68, 0xef,
-	0xea, 0xc7, 0x3f, 0x01, 0x00, 0x00, 0xff, 0xff, 0xd0, 0xff, 0xb1, 0x35, 0xc9, 0x03, 0x00, 0x00,
+	// 650 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x55, 0x51, 0x4f, 0x13, 0x41,
+	0x10, 0xbe, 0xb6, 0x80, 0x74, 0xc4, 0x5a, 0x86, 0x5a, 0xca, 0x21, 0xda, 0x6c, 0x88, 0xf2, 0x60,
+	0xc0, 0xa8, 0x4f, 0x26, 0xc6, 0x20, 0x14, 0x42, 0x94, 0x94, 0x5c, 0x49, 0x88, 0xbc, 0x90, 0xa5,
+	0x5d, 0xda, 0x4d, 0xaf, 0xbd, 0xcb, 0xed, 0x5e, 0x0d, 0x3f, 0xc2, 0xff, 0x6c, 0x6e, 0xef, 0xf6,
+	0xb2, 0x7b, 0x5c, 0x7d, 0x20, 0xe9, 0x7c, 0xcc, 0x7c, 0x33, 0x3b, 0xdf, 0xcc, 0x1c, 0xb8, 0xe1,
+	0x74, 0x7c, 0x24, 0xd8, 0x30, 0x8e, 0xb8, 0x7c, 0x3c, 0xa2, 0x21, 0x4f, 0xfe, 0x0e, 0xc3, 0x28,
+	0x90, 0x01, 0xd6, 0x68, 0xc8, 0x49, 0x13, 0x1a, 0xe7, 0x4c, 0xf6, 0x16, 0x6c, 0x2e, 0xaf, 0x68,
+	0x44, 0x67, 0x82, 0x84, 0xd0, 0x1a, 0x64, 0x01, 0x0a, 0xbe, 0x64, 0x42, 0xd0, 0x31, 0xc3, 0x36,
+	0xac, 0x79, 0xb1, 0xcf, 0x2e, 0x4e, 0x3b, 0x95, 0x6e, 0xe5, 0xa0, 0xee, 0x65, 0x16, 0x22, 0xac,
+	0x9c, 0x52, 0x49, 0x3b, 0xd5, 0x6e, 0xe5, 0x60, 0xc3, 0x53, 0xbf, 0x13, 0xec, 0x9a, 0x8e, 0x45,
+	0xa7, 0xd6, 0xad, 0x1d, 0xd4, 0x3d, 0xf5, 0x1b, 0x3b, 0xf0, 0x6c, 0xc0, 0xa2, 0x05, 0x1f, 0xb2,
+	0xce, 0x8a, 0x22, 0xd0, 0x26, 0xf9, 0x02, 0xed, 0xd3, 0x78, 0x16, 0x5e, 0x45, 0xc1, 0x90, 0x09,
+	0x71, 0x42, 0x87, 0x13, 0x96, 0xd6, 0x82, 0x2e, 0xac, 0xdf, 0x70, 0x39, 0x39, 0x8e, 0xc6, 0x42,
+	0x65, 0x5d, 0xf7, 0x72, 0x9b, 0x7c, 0x83, 0xb7, 0xba, 0xce, 0x62, 0xb4, 0x2e, 0xd9, 0x85, 0xf5,
+	0x33, 0xee, 0xb3, 0x39, 0x9d, 0xb1, 0xac, 0xe8, 0xdc, 0x26, 0x9b, 0xf0, 0xf2, 0x9c, 0xc9, 0x93,
+	0x60, 0xfe, 0xc0, 0xc7, 0xd9, 0xcb, 0xef, 0xe0, 0x95, 0x66, 0x4c, 0x71, 0xcd, 0xf3, 0x0e, 0x1a,
+	0x5e, 0x3c, 0x97, 0x7c, 0xc6, 0x7a, 0x73, 0x7a, 0xef, 0xb3, 0x51, 0x56, 0x4c, 0x01, 0xc5, 0x37,
+	0x00, 0x67, 0x17, 0x97, 0xda, 0xa7, 0xaa, 0x7c, 0x0c, 0x84, 0x6c, 0xc1, 0xa6, 0x17, 0xcf, 0x07,
+	0xcc, 0x7f, 0xb8, 0x66, 0x42, 0xf7, 0xbb, 0x0d, 0x2d, 0x8f, 0xf9, 0x01, 0x1d, 0x5d, 0x05, 0x3e,
+	0x1f, 0x72, 0x26, 0x32, 0x7c, 0x0f, 0x76, 0x6d, 0xdc, 0x63, 0x22, 0xf6, 0xb5, 0x1c, 0xa4, 0x07,
+	0x7b, 0xba, 0x58, 0x4d, 0x68, 0x39, 0x60, 0x03, 0xaa, 0xfd, 0x69, 0x56, 0x68, 0xb5, 0x3f, 0xc5,
+	0x16, 0xac, 0xf6, 0xa2, 0x28, 0x88, 0x54, 0x5d, 0x75, 0x2f, 0x35, 0x08, 0x05, 0x4c, 0xba, 0x77,
+	0x3c, 0x94, 0x7c, 0xc1, 0xe5, 0x63, 0xd6, 0x77, 0xad, 0x5f, 0xc5, 0xd6, 0x2f, 0x79, 0x6b, 0x10,
+	0x4b, 0xc5, 0xb0, 0xea, 0x69, 0x13, 0xf7, 0x00, 0xfe, 0x70, 0x39, 0xb9, 0x1b, 0x47, 0x34, 0x9c,
+	0x74, 0x6a, 0x2a, 0x63, 0x3d, 0x41, 0xce, 0x13, 0x80, 0x4c, 0x61, 0x57, 0x57, 0xaa, 0xd3, 0x24,
+	0x29, 0x8d, 0xe6, 0xf6, 0x63, 0x19, 0xc6, 0xb2, 0x20, 0x55, 0x01, 0xc5, 0x7d, 0x78, 0xa1, 0xf8,
+	0x72, 0xb7, 0xf4, 0x1d, 0x36, 0x48, 0x76, 0x60, 0xfb, 0x17, 0x17, 0xd2, 0x4c, 0xa4, 0x1b, 0x6a,
+	0x0c, 0x8c, 0xf9, 0xef, 0xc4, 0xdd, 0x18, 0x98, 0x04, 0x32, 0xde, 0x9e, 0xdb, 0xe4, 0x03, 0xb4,
+	0x07, 0x32, 0x08, 0xcd, 0xd0, 0xe5, 0xdd, 0x22, 0x5f, 0x81, 0x94, 0x25, 0x4b, 0x18, 0x42, 0x36,
+	0xd2, 0xf9, 0x72, 0x4d, 0x2a, 0x86, 0x26, 0x9f, 0xfe, 0xae, 0x42, 0x43, 0x07, 0x5f, 0x06, 0xa3,
+	0xd8, 0x67, 0xf8, 0x1d, 0xea, 0x7a, 0x4d, 0x05, 0x6e, 0x1d, 0x26, 0x4b, 0x6c, 0xaf, 0xad, 0xbb,
+	0xa3, 0xc0, 0xb2, 0xcd, 0x25, 0xce, 0xc7, 0x0a, 0xde, 0x40, 0xb3, 0xb8, 0x25, 0xb8, 0xab, 0x42,
+	0xca, 0x57, 0xcf, 0xdd, 0xb7, 0xf8, 0x96, 0x6c, 0x18, 0x71, 0xf0, 0x27, 0x6c, 0x98, 0x03, 0x84,
+	0xdb, 0x39, 0xa9, 0x3d, 0x53, 0x6e, 0xd7, 0x22, 0x2c, 0x99, 0x04, 0xe2, 0xe0, 0x6f, 0xd8, 0x7c,
+	0xa2, 0x1e, 0xbe, 0x56, 0x81, 0x4b, 0x54, 0x2d, 0xd4, 0xb9, 0x44, 0x58, 0xe2, 0xe0, 0x2d, 0x34,
+	0x8b, 0xf2, 0x65, 0x0d, 0x28, 0x57, 0xd5, 0x7d, 0xbf, 0x94, 0xd8, 0x16, 0x91, 0x38, 0x99, 0x3a,
+	0xe9, 0xcd, 0xc0, 0x96, 0x56, 0xc7, 0xbc, 0x2d, 0xae, 0x6b, 0xb1, 0x59, 0xe7, 0x45, 0x35, 0xf1,
+	0xb9, 0x71, 0x18, 0xb0, 0xad, 0x9c, 0x9f, 0x9c, 0x0a, 0x97, 0x58, 0x24, 0xa5, 0x6b, 0x4f, 0x1c,
+	0xec, 0x43, 0xc3, 0x3e, 0x1c, 0x98, 0xce, 0x46, 0xd9, 0x95, 0xc9, 0x54, 0xf9, 0xdf, 0xa1, 0x71,
+	0x7e, 0xe0, 0x6d, 0xb3, 0xf8, 0x19, 0xb9, 0x5f, 0x53, 0xdf, 0x90, 0xcf, 0xff, 0x02, 0x00, 0x00,
+	0xff, 0xff, 0xc7, 0xb4, 0x24, 0x7d, 0x61, 0x06, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -476,6 +744,9 @@ const _ = grpc.SupportPackageIsVersion4
 type SecurityModuleClient interface {
 	GetEvents(ctx context.Context, in *GetEventParams, opts ...grpc.CallOption) (SecurityModule_GetEventsClient, error)
 	DumpProcessCache(ctx context.Context, in *DumpProcessCacheParams, opts ...grpc.CallOption) (*SecurityDumpProcessCacheMessage, error)
+	DumpActivity(ctx context.Context, in *DumpActivityParams, opts ...grpc.CallOption) (*SecurityActivityDumpMessage, error)
+	ListActivityDumps(ctx context.Context, in *ListActivityDumpsParams, opts ...grpc.CallOption) (*SecurityActivityDumpListMessage, error)
+	StopActivityDump(ctx context.Context, in *StopActivityDumpParams, opts ...grpc.CallOption) (*SecurityActivityDumpStoppedMessage, error)
 	GetConfig(ctx context.Context, in *GetConfigParams, opts ...grpc.CallOption) (*SecurityConfigMessage, error)
 	RunSelfTest(ctx context.Context, in *RunSelfTestParams, opts ...grpc.CallOption) (*SecuritySelfTestResultMessage, error)
 	ReloadPolicies(ctx context.Context, in *ReloadPoliciesParams, opts ...grpc.CallOption) (*ReloadPoliciesResultMessage, error)
@@ -530,6 +801,33 @@ func (c *securityModuleClient) DumpProcessCache(ctx context.Context, in *DumpPro
 	return out, nil
 }
 
+func (c *securityModuleClient) DumpActivity(ctx context.Context, in *DumpActivityParams, opts ...grpc.CallOption) (*SecurityActivityDumpMessage, error) {
+	out := new(SecurityActivityDumpMessage)
+	err := c.cc.Invoke(ctx, "/api.SecurityModule/DumpActivity", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *securityModuleClient) ListActivityDumps(ctx context.Context, in *ListActivityDumpsParams, opts ...grpc.CallOption) (*SecurityActivityDumpListMessage, error) {
+	out := new(SecurityActivityDumpListMessage)
+	err := c.cc.Invoke(ctx, "/api.SecurityModule/ListActivityDumps", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *securityModuleClient) StopActivityDump(ctx context.Context, in *StopActivityDumpParams, opts ...grpc.CallOption) (*SecurityActivityDumpStoppedMessage, error) {
+	out := new(SecurityActivityDumpStoppedMessage)
+	err := c.cc.Invoke(ctx, "/api.SecurityModule/StopActivityDump", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *securityModuleClient) GetConfig(ctx context.Context, in *GetConfigParams, opts ...grpc.CallOption) (*SecurityConfigMessage, error) {
 	out := new(SecurityConfigMessage)
 	err := c.cc.Invoke(ctx, "/api.SecurityModule/GetConfig", in, out, opts...)
@@ -561,6 +859,9 @@ func (c *securityModuleClient) ReloadPolicies(ctx context.Context, in *ReloadPol
 type SecurityModuleServer interface {
 	GetEvents(*GetEventParams, SecurityModule_GetEventsServer) error
 	DumpProcessCache(context.Context, *DumpProcessCacheParams) (*SecurityDumpProcessCacheMessage, error)
+	DumpActivity(context.Context, *DumpActivityParams) (*SecurityActivityDumpMessage, error)
+	ListActivityDumps(context.Context, *ListActivityDumpsParams) (*SecurityActivityDumpListMessage, error)
+	StopActivityDump(context.Context, *StopActivityDumpParams) (*SecurityActivityDumpStoppedMessage, error)
 	GetConfig(context.Context, *GetConfigParams) (*SecurityConfigMessage, error)
 	RunSelfTest(context.Context, *RunSelfTestParams) (*SecuritySelfTestResultMessage, error)
 	ReloadPolicies(context.Context, *ReloadPoliciesParams) (*ReloadPoliciesResultMessage, error)
@@ -575,6 +876,15 @@ func (*UnimplementedSecurityModuleServer) GetEvents(req *GetEventParams, srv Sec
 }
 func (*UnimplementedSecurityModuleServer) DumpProcessCache(ctx context.Context, req *DumpProcessCacheParams) (*SecurityDumpProcessCacheMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DumpProcessCache not implemented")
+}
+func (*UnimplementedSecurityModuleServer) DumpActivity(ctx context.Context, req *DumpActivityParams) (*SecurityActivityDumpMessage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DumpActivity not implemented")
+}
+func (*UnimplementedSecurityModuleServer) ListActivityDumps(ctx context.Context, req *ListActivityDumpsParams) (*SecurityActivityDumpListMessage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListActivityDumps not implemented")
+}
+func (*UnimplementedSecurityModuleServer) StopActivityDump(ctx context.Context, req *StopActivityDumpParams) (*SecurityActivityDumpStoppedMessage, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StopActivityDump not implemented")
 }
 func (*UnimplementedSecurityModuleServer) GetConfig(ctx context.Context, req *GetConfigParams) (*SecurityConfigMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetConfig not implemented")
@@ -625,6 +935,60 @@ func _SecurityModule_DumpProcessCache_Handler(srv interface{}, ctx context.Conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(SecurityModuleServer).DumpProcessCache(ctx, req.(*DumpProcessCacheParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SecurityModule_DumpActivity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DumpActivityParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecurityModuleServer).DumpActivity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.SecurityModule/DumpActivity",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecurityModuleServer).DumpActivity(ctx, req.(*DumpActivityParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SecurityModule_ListActivityDumps_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListActivityDumpsParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecurityModuleServer).ListActivityDumps(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.SecurityModule/ListActivityDumps",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecurityModuleServer).ListActivityDumps(ctx, req.(*ListActivityDumpsParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SecurityModule_StopActivityDump_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StopActivityDumpParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SecurityModuleServer).StopActivityDump(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.SecurityModule/StopActivityDump",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SecurityModuleServer).StopActivityDump(ctx, req.(*StopActivityDumpParams))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -690,6 +1054,18 @@ var _SecurityModule_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DumpProcessCache",
 			Handler:    _SecurityModule_DumpProcessCache_Handler,
+		},
+		{
+			MethodName: "DumpActivity",
+			Handler:    _SecurityModule_DumpActivity_Handler,
+		},
+		{
+			MethodName: "ListActivityDumps",
+			Handler:    _SecurityModule_ListActivityDumps_Handler,
+		},
+		{
+			MethodName: "StopActivityDump",
+			Handler:    _SecurityModule_StopActivityDump_Handler,
 		},
 		{
 			MethodName: "GetConfig",

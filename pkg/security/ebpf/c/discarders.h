@@ -181,21 +181,54 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
     return 0;
 }
 
-int __attribute__((always_inline)) is_discarded_by_inode(u64 event_type, u32 mount_id, u64 inode, u32 is_leaf) {
+struct is_discarded_by_inode_t {
+    u64 event_type;
+    u64 inode;
+    u32 mount_id;
+    u32 is_leaf;
+
+    u64 now;
+    u32 tgid_is_traced;
+    u64 tgid_exec_ts;
+    u32 tgid;
+};
+
+int __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_inode_t *params) {
+    if (params->tgid_is_traced && params->is_leaf) {
+        struct traced_inode_t traced_key = {
+            .tgid = params->tgid,
+            .inode = params->inode,
+            .mount_id = params->mount_id,
+        };
+        u64 *last_sent = bpf_map_lookup_elem(&traced_inodes, &traced_key);
+        if (last_sent == NULL) {
+            bpf_map_update_elem(&traced_inodes, &traced_key, &params->now, BPF_ANY);
+            return 0;
+        } else {
+            if (params->tgid_exec_ts > *last_sent || params->tgid_exec_ts == 0) {
+                // the tgid was reused, update the last_sent timestamp and send do not discard
+                *last_sent = params->now;
+                return 0;
+            } else {
+                return 1;
+            }
+        }
+    }
+
     struct inode_discarder_t key = {
         .path_key = {
-            .ino = inode,
-            .mount_id = mount_id,
+            .ino = params->inode,
+            .mount_id = params->mount_id,
         },
-        .is_leaf = is_leaf,
+        .is_leaf = params->is_leaf,
     };
 
-    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *) is_discarded(&inode_discarders, &key, event_type);
+    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *) is_discarded(&inode_discarders, &key, params->event_type);
     if (!inode_params) {
         return 0;
     }
 
-    return inode_params->revision == get_discarder_revision(mount_id);
+    return inode_params->revision == get_discarder_revision(params->mount_id);
 }
 
 void __attribute__((always_inline)) remove_inode_discarders(u32 mount_id, u64 inode) {
@@ -319,7 +352,12 @@ int __attribute__((always_inline)) is_discarded_by_process(const char mode, u64 
             return 1;
 
         struct proc_cache_t *entry = get_proc_cache(tgid);
-        if (entry && is_discarded_by_inode(event_type, entry->executable.path_key.mount_id, entry->executable.path_key.ino, 0)) {
+        struct is_discarded_by_inode_t params = {
+            .event_type = event_type,
+            .inode = entry->executable.path_key.ino,
+            .mount_id = entry->executable.path_key.mount_id,
+        };
+        if (entry && is_discarded_by_inode(&params)) {
             return 1;
         }
     }

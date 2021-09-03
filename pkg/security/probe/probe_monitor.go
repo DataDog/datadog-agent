@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 
+	"github.com/DataDog/datadog-agent/pkg/security/api"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -29,10 +30,11 @@ type Monitor struct {
 	probe  *Probe
 	client *statsd.Client
 
-	loadController    *LoadController
-	perfBufferMonitor *PerfBufferMonitor
-	syscallMonitor    *SyscallMonitor
-	reordererMonitor  *ReordererMonitor
+	loadController      *LoadController
+	perfBufferMonitor   *PerfBufferMonitor
+	syscallMonitor      *SyscallMonitor
+	reordererMonitor    *ReordererMonitor
+	activityDumpManager *ActivityDumpManager
 }
 
 // NewMonitor returns a new instance of a ProbeMonitor
@@ -60,6 +62,13 @@ func NewMonitor(p *Probe, client *statsd.Client) (*Monitor, error) {
 		return nil, errors.Wrap(err, "couldn't create the reorder monitor")
 	}
 
+	if p.config.ActivityDumpEnabled {
+		m.activityDumpManager, err = NewActivityDumpManager(p, client)
+		if err != nil {
+			return nil, errors.Wrap(err, "couldn't create the activity dump manager")
+		}
+	}
+
 	// create a new syscall monitor if requested
 	if p.config.SyscallMonitor {
 		m.syscallMonitor, err = NewSyscallMonitor(p.manager)
@@ -77,10 +86,14 @@ func (m *Monitor) GetPerfBufferMonitor() *PerfBufferMonitor {
 
 // Start triggers the goroutine of all the underlying controllers and monitors of the Monitor
 func (m *Monitor) Start(ctx context.Context, wg *sync.WaitGroup) error {
-	wg.Add(2)
+	wg.Add(3)
 
 	go m.loadController.Start(ctx, wg)
 	go m.reordererMonitor.Start(ctx, wg)
+
+	if m.activityDumpManager != nil {
+		go m.activityDumpManager.Start(ctx, wg)
+	}
 	return nil
 }
 
@@ -146,6 +159,10 @@ func (m *Monitor) ProcessEvent(event *Event, size uint64, CPU int, perfMap *mana
 		m.probe.DispatchCustomEvent(
 			NewAbnormalPathEvent(event, err),
 		)
+	} else {
+		if m.activityDumpManager != nil {
+			m.activityDumpManager.ProcessEvent(event)
+		}
 	}
 }
 
@@ -174,4 +191,19 @@ func (m *Monitor) ReportRuleSetLoaded(report RuleSetLoadedReport) {
 	}
 
 	m.probe.DispatchCustomEvent(report.Rule, report.Event)
+}
+
+// DumpActivity handles an activity dump request
+func (m *Monitor) DumpActivity(params *api.DumpActivityParams) (string, string, error) {
+	return m.activityDumpManager.DumpActivity(params)
+}
+
+// ListActivityDumps returns the list of active dumps
+func (m *Monitor) ListActivityDumps(params *api.ListActivityDumpsParams) []string {
+	return m.activityDumpManager.ListActivityDumps(params)
+}
+
+// StopActivityDump stops an active activity dump
+func (m *Monitor) StopActivityDump(params *api.StopActivityDumpParams) error {
+	return m.activityDumpManager.StopActivityDump(params)
 }
