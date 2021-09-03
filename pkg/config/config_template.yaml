@@ -1941,6 +1941,7 @@ api_key:
 #   <HIGH_CARDINALITY_NAMESPACE_LABEL_NAME>: +<TAG_KEY>
 
 ## @param container_env_as_tags - map - optional
+## @env DD_CONTAINER_ENV_AS_TAGS - map - optional
 ## The Agent can extract environment variable values and set them as metric tags values associated to a <TAG_KEY>.
 ## Requires the container runtime socket to be reachable. (Supported container runtimes: Containerd)
 #
