@@ -49,19 +49,14 @@ func (d *DiscoveryCheck) Run(_ *config.AgentConfig, groupID int32) ([]model.Mess
 		},
 	}
 	for _, proc := range procs {
-		for _, gid := range proc.Gids {
-			if gid == groupID {
-				payload.ProcessDiscoveries = append(payload.ProcessDiscoveries, &model.ProcessDiscovery{
-					Pid:     proc.Pid,
-					NsPid:   proc.NsPid,
-					Host:    payload.Host,
-					Command: formatCommand(proc),
-					User:    formatUser(proc),
-				})
-				payload.GroupSize += 1
-				break
-			}
-		}
+		payload.ProcessDiscoveries = append(payload.ProcessDiscoveries, &model.ProcessDiscovery{
+			Pid:     proc.Pid,
+			NsPid:   proc.NsPid,
+			Host:    payload.Host,
+			Command: formatCommand(proc),
+			User:    formatUser(proc),
+		})
+		payload.GroupSize += 1
 	}
 
 	return []model.MessageBody{&payload}, nil
