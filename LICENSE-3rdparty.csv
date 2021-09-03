@@ -47,6 +47,7 @@ core,"github.com/DataDog/gopsutil/internal/common",BSD-3-Clause
 core,"github.com/DataDog/gopsutil/mem",BSD-3-Clause
 core,"github.com/DataDog/gopsutil/net",BSD-3-Clause
 core,"github.com/DataDog/gopsutil/process",BSD-3-Clause
+core,"github.com/DataDog/gopsutil/process/so",BSD-3-Clause
 core,"github.com/DataDog/gostackparse",Apache-2.0
 core,"github.com/DataDog/mmh3",UNKNOWN
 core,"github.com/DataDog/nikos/apt",MIT
