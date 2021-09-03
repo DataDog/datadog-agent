@@ -69,7 +69,8 @@ class SlackMessage:
                 jobs_info.append(job_info)
 
             print(
-                "- {jobs} (`{stage}` stage)".format(jobs=", ".join(jobs_info), stage=stage), file=buffer,
+                "- {jobs} (`{stage}` stage)".format(jobs=", ".join(jobs_info), stage=stage),
+                file=buffer,
             )
 
     def __render_tests_section(self, buffer):

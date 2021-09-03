@@ -62,20 +62,23 @@ var (
 
 var (
 	rootCmd = &cobra.Command{
-		Run: func(cmd *cobra.Command, args []string) {
-			exit := make(chan struct{})
-
-			// Invoke the Agent
-			runAgent(exit)
-		},
+		Run:          rootCmdRun,
+		SilenceUsage: true,
 	}
 
 	configCommand = cmdconfig.Config(getSettingsClient)
 )
 
 func getSettingsClient() (settings.Client, error) {
-	// Set up the config in case the cmd_port was specified
-	_, err := config.NewAgentConfig(loggerName, opts.configPath, opts.sysProbeConfigPath)
+	// Set up the config so we can get the port later
+	// We set this up differently from the main process-agent because this way is quieter
+	cfg := config.NewDefaultAgentConfig(false)
+	if opts.configPath != "" {
+		if err := config.LoadConfigIfExists(opts.configPath); err != nil {
+			return nil, err
+		}
+	}
+	err := cfg.LoadProcessYamlConfig(opts.configPath)
 	if err != nil {
 		return nil, err
 	}

@@ -14,7 +14,7 @@ from invoke import Failure, task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
-from tasks.utils import DEFAULT_BRANCH
+from tasks.utils import DEFAULT_BRANCH, get_version
 
 from .libs.common.user_interactions import yes_no_question
 from .libs.version import Version
@@ -23,8 +23,9 @@ from .modules import DEFAULT_MODULES
 # Generic version regex. Aims to match:
 # - X.Y.Z
 # - X.Y.Z-rc.t
+# - X.Y.Z-devel
 # - vX.Y(.Z) (security-agent-policies repo)
-VERSION_RE = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-rc\.(\d+))?')
+VERSION_RE = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-devel)?(-rc\.(\d+))?')
 
 
 @task
@@ -67,7 +68,11 @@ def add_dca_prelude(ctx, version, agent7_version, agent6_version=""):
     |
     Released on: {1}
     Pinned to datadog-agent v{0}: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/{4}/CHANGELOG.rst#{2}{3}>`_.""".format(
-                agent7_version, date.today(), agent7_version.replace('.', ''), agent6_version, DEFAULT_BRANCH,
+                agent7_version,
+                date.today(),
+                agent7_version.replace('.', ''),
+                agent6_version,
+                DEFAULT_BRANCH,
             )
         )
 
@@ -424,7 +429,8 @@ def _create_version_from_match(match):
         major=int(groups[1]),
         minor=int(groups[2]),
         patch=int(groups[4]) if groups[4] and groups[4] != 0 else None,
-        rc=int(groups[6]) if groups[6] and groups[6] != 0 else None,
+        devel=True if groups[5] else False,
+        rc=int(groups[7]) if groups[7] and groups[7] != 0 else None,
         prefix=groups[0] if groups[0] else "",
     )
     return version
@@ -460,7 +466,7 @@ def build_compatible_version_re(allowed_major_versions, minor_version):
     the provided minor version.
     """
     return re.compile(
-        r'(v)?({})[.]({})([.](\d+))?(-rc\.(\d+))?'.format("|".join(allowed_major_versions), minor_version)
+        r'(v)?({})[.]({})([.](\d+))?(-devel)?(-rc\.(\d+))?'.format("|".join(allowed_major_versions), minor_version)
     )
 
 
@@ -503,39 +509,42 @@ def _get_highest_repo_version(auth, repo, version_prefix, version_re, allowed_ma
     return highest_version
 
 
-def _get_highest_version_from_release_json(release_json, major_version, version_re, release_json_key=None):
+def _get_release_version_from_release_json(release_json, major_version, version_re, release_json_key=None):
     """
     If release_json_key is None, returns the highest version entry in release.json.
     If release_json_key is set, returns the entry for release_json_key of the highest version entry in release.json.
     """
 
-    highest_version = None
-    highest_component_version = None
-    for key, value in release_json.items():
-        match = version_re.match(key)
-        if match:
-            this_version = _create_version_from_match(match)
-            if this_version > highest_version and this_version.major <= major_version:
-                highest_version = this_version
+    release_version = None
+    release_component_version = None
 
-                if release_json_key is not None:
-                    match = version_re.match(value.get(release_json_key, ""))
-                    if match:
-                        highest_component_version = _create_version_from_match(match)
-                    else:
-                        print(
-                            "{} does not have a valid {} ({}), ignoring".format(
-                                this_version, release_json_key, value.get(release_json_key, "")
-                            )
-                        )
+    # Get the release entry for the given Agent major version
+    release_entry_name = release_entry_for(major_version)
+    release_json_entry = release_json.get(release_entry_name, None)
 
-    if not highest_version:
-        raise Exit("Couldn't find any matching {} version.".format(release_json_key), 1)
+    # Check that the release entry exists, otherwise fail
+    if release_json_entry:
+        release_version = release_entry_name
+
+        # Check that the component's version is defined in the release entry
+        if release_json_key is not None:
+            match = version_re.match(release_json_entry.get(release_json_key, ""))
+            if match:
+                release_component_version = _create_version_from_match(match)
+            else:
+                print(
+                    "{} does not have a valid {} ({}), ignoring".format(
+                        release_entry_name, release_json_key, release_json_entry.get(release_json_key, "")
+                    )
+                )
+
+    if not release_version:
+        raise Exit("Couldn't find any matching {} version.".format(release_version), 1)
 
     if release_json_key is not None:
-        return highest_component_version
+        return release_component_version
 
-    return highest_version
+    return release_version
 
 
 ##
@@ -555,11 +564,26 @@ COMPATIBLE_MAJOR_VERSIONS = {6: ["6", "7"], 7: ["7"]}
 # Defined here either because they're long and would make the code less legible,
 # or because they're used multiple times.
 DIFFERENT_TAGS_TEMPLATE = (
-    "The latest version of {} ({}) does not match the latest version found in the release.json file ({})."
+    "The latest version of {} ({}) does not match the version used in the previous release entry ({})."
 )
 TAG_NOT_FOUND_TEMPLATE = "Couldn't find a(n) {} version compatible with the new Agent version entry {}"
 RC_TAG_QUESTION_TEMPLATE = "The {} tag found is an RC tag: {}. Are you sure you want to use it?"
 TAG_FOUND_TEMPLATE = "The {} tag is {}"
+
+
+##
+## release.json entry mapping functions
+##
+
+
+def nightly_entry_for(agent_major_version):
+    if agent_major_version == 6:
+        return "nightly"
+    return "nightly-a{}".format(agent_major_version)
+
+
+def release_entry_for(agent_major_version):
+    return "release-a{}".format(agent_major_version)
 
 
 ##
@@ -580,7 +604,7 @@ def _fetch_dependency_repo_version(
     - the tag must have a major version that's in allowed_major_versions
     - the tag must match compatible_version_re (the main usage is to restrict the compatible tags to the
       ones with the same minor version as the Agent)?
-    
+
     If check_for_rc is true, a warning will be emitted if the latest version that satisfies
     the constraints is an RC. User confirmation is then needed to check that this is desired.
     """
@@ -623,35 +647,34 @@ def _fetch_independent_dependency_repo_version(
     - if the above two versions are different, emit a warning and ask for user confirmation before updating the version.
     """
 
-    highest_version = _get_highest_version_from_release_json(
-        release_json, agent_major_version, VERSION_RE, release_json_key=release_json_key,
+    previous_version = _get_release_version_from_release_json(
+        release_json,
+        agent_major_version,
+        VERSION_RE,
+        release_json_key=release_json_key,
     )
     # NOTE: This assumes that the repository doesn't change the way it prefixes versions.
-    version = _get_highest_repo_version(github_token, repo_name, highest_version.prefix, VERSION_RE)
+    version = _get_highest_repo_version(github_token, repo_name, previous_version.prefix, VERSION_RE)
 
-    version = _confirm_independent_dependency_repo_version(repo_name, version, highest_version)
+    version = _confirm_independent_dependency_repo_version(repo_name, version, previous_version)
     print(TAG_FOUND_TEMPLATE.format(repo_name, version))
 
     return version
 
 
-def _get_windows_ddnpm_release_json_info(
-    release_json, agent_major_version, version_re, is_first_rc=False,
-):
+def _get_windows_ddnpm_release_json_info(release_json, agent_major_version, is_first_rc=False):
     """
     Gets the Windows NPM driver info from the previous entries in the release.json file.
     """
 
     # First RC should use the data from nightly section otherwise reuse the last RC info
     if is_first_rc:
-        print("Using 'nightly' DDNPM values")
-        release_json_version_data = release_json['nightly']
+        previous_release_json_version = nightly_entry_for(agent_major_version)
     else:
-        highest_release_json_version = _get_highest_version_from_release_json(
-            release_json, agent_major_version, version_re
-        )
-        print("Using '{}' DDNPM values".format(highest_release_json_version))
-        release_json_version_data = release_json[str(highest_release_json_version)]
+        previous_release_json_version = release_entry_for(agent_major_version)
+
+    print("Using '{}' DDNPM values".format(previous_release_json_version))
+    release_json_version_data = release_json[previous_release_json_version]
 
     win_ddnpm_driver = release_json_version_data['WINDOWS_DDNPM_DRIVER']
     win_ddnpm_version = release_json_version_data['WINDOWS_DDNPM_VERSION']
@@ -677,9 +700,9 @@ def get_variable(_, name, version='nightly'):
 ##
 
 
-def _add_release_json_entry(
+def _update_release_json_entry(
     release_json,
-    new_version,
+    release_entry,
     integrations_version,
     omnibus_software_version,
     omnibus_ruby_version,
@@ -720,19 +743,12 @@ def _add_release_json_entry(
     # Necessary if we want to maintain the JSON order, so that humans don't get confused
     new_release_json = OrderedDict()
 
-    # The nightlies should be at the top of the file
-    nightly_version_re = re.compile('nightly(-a[0-9])?')
+    # Add all versions from the old release.json
     for key, value in release_json.items():
-        if nightly_version_re.match(key):
-            new_release_json[key] = value
+        new_release_json[key] = value
 
-    # Then the new versions
-    new_release_json[str(new_version)] = _stringify_config(new_version_config)
-
-    # Then the rest of the versions
-    for key, value in release_json.items():
-        if key not in new_release_json:
-            new_release_json[key] = value
+    # Then update the entry
+    new_release_json[release_entry] = _stringify_config(new_version_config)
 
     return new_release_json
 
@@ -742,7 +758,7 @@ def _add_release_json_entry(
 ##
 
 
-def _update_release_json(release_json, new_version, github_token, check_for_rc=False):
+def _update_release_json(release_json, release_entry, new_version, github_token, check_for_rc=False):
     """
     Updates the provided release.json object by fetching compatible versions for all dependencies
     of the provided Agent version, constructing the new entry, adding it to the release.json object
@@ -789,13 +805,13 @@ def _update_release_json(release_json, new_version, github_token, check_for_rc=F
     )
 
     windows_ddnpm_driver, windows_ddnpm_version, windows_ddnpm_shasum = _get_windows_ddnpm_release_json_info(
-        release_json, new_version.major, VERSION_RE, is_first_rc=(new_version.rc == 1)
+        release_json, new_version.major, is_first_rc=(new_version.rc == 1)
     )
 
     # Add new entry to the release.json object and return it
-    return _add_release_json_entry(
+    return _update_release_json_entry(
         release_json,
-        new_version,
+        release_entry,
         integrations_version,
         omnibus_software_version,
         omnibus_ruby_version,
@@ -811,7 +827,7 @@ def _update_release_json(release_json, new_version, github_token, check_for_rc=F
 @task
 def finish(ctx, major_versions="6,7"):
     """
-    Creates a new entry in the release.json file for the new version. Removes all the RC entries.
+    Updates the release entry in the release.json file for the new version.
 
     Updates internal module dependencies with the new version.
     """
@@ -836,22 +852,18 @@ def finish(ctx, major_versions="6,7"):
     release_json = _load_release_json()
 
     for major_version in list_major_versions:
-        highest_version = _get_highest_version_from_release_json(release_json, major_version, VERSION_RE)
+        release_entry = release_entry_for(major_version)
+        # Fetch previous version from the most recent tag on the branch
+        previous_version = _create_version_from_match(VERSION_RE.search(get_version(ctx, major_version=major_version)))
 
         # Set the new version
-        new_version = highest_version.next_version(rc=False)
-        print("Creating {}".format(new_version))
+        new_version = previous_version.next_version(rc=False)
+        print("Updating {} for {}".format(release_entry, new_version))
 
         # Update release.json object with the entry for the new version
-        release_json = _update_release_json(release_json, new_version, github_token, check_for_rc=True)
-
-        # Erase RCs after we're done processing the new entry
-        while highest_version.is_rc():
-            # In case we have skipped an RC in the file...
-            try:
-                release_json.pop(str(highest_version))
-            finally:
-                highest_version.rc = highest_version.rc - 1
+        release_json = _update_release_json(
+            release_json, release_entry, previous_version, github_token, check_for_rc=True
+        )
 
     _save_release_json(release_json)
 
@@ -862,12 +874,27 @@ def finish(ctx, major_versions="6,7"):
 @task
 def create_rc(ctx, major_versions="6,7", patch_version=False):
     """
-    Takes whatever version is the highest in release.json and adds a new RC to it.
-    If there was no RC, creates one, and:
-    - by default bumps the minor version.
-    - if --patch-version is specified, bumps the patch version.
-    
-    If there was an RC, create RC + 1.
+    Updates the release entries in release.json to prepare the next RC build.
+    If the previous version of the Agent (determined as the latest tag on the
+    current branch) is not an RC:
+    - by default, updates the release entries for the next minor version of
+      the Agent.
+    - if --patch-version is specified, updates the release entries for the next
+      patch version of the Agent.
+
+    This changes which tags will be considered on the dependency repositories (only
+    tags that match the same major and minor version as the Agent).
+
+    If the previous version of the Agent was an RC, updates the release entries for RC + 1.
+
+    Examples:
+    If the latest tag on the branch is 7.31.0, and invoke release.create-rc --patch-version
+    is run, then the task will prepare the release entries for 7.31.1-rc.1, and therefore
+    will only use 7.31.X tags on the dependency repositories that follow the Agent version scheme.
+
+    If the latest tag on the branch is 7.32.0-devel or 7.31.0, and invoke release.create-rc
+    is run, then the task will prepare the release entries for 7.32.0-rc.1, and therefore
+    will only use 7.32.X tags on the dependency repositories that follow the Agent version scheme.
 
     Updates internal module dependencies with the new RC.
     """
@@ -892,20 +919,29 @@ def create_rc(ctx, major_versions="6,7", patch_version=False):
     release_json = _load_release_json()
 
     for major_version in list_major_versions:
-        highest_version = _get_highest_version_from_release_json(release_json, major_version, VERSION_RE)
+        release_entry = release_entry_for(major_version)
+        # Fetch previous version from the most recent tag on the branch
+        previous_version = _create_version_from_match(VERSION_RE.search(get_version(ctx, major_version=major_version)))
 
-        if highest_version.is_rc():
+        if previous_version.is_rc():
             # We're already on an RC, only bump the RC version
-            new_version = highest_version.next_version(rc=True)
+            new_version = previous_version.next_version(rc=True)
         else:
             if patch_version:
-                new_version = highest_version.next_version(bump_patch=True, rc=True)
+                new_version = previous_version.next_version(bump_patch=True, rc=True)
             else:
-                new_version = highest_version.next_version(bump_minor=True, rc=True)
-        print("Creating {}".format(new_version))
+                # Minor version bump, we're doing a standard release:
+                # - if the previous tag is a devel tag, use it without the devel tag
+                # - otherwise (should not happen during regular release cycles), bump the minor version
+                if previous_version.is_devel():
+                    new_version = previous_version.non_devel_version()
+                    new_version = new_version.next_version(rc=True)
+                else:
+                    new_version = previous_version.next_version(bump_minor=True, rc=True)
+        print("Updating {} for {}".format(release_entry, new_version))
 
         # Update release.json object with the entry for the new version
-        release_json = _update_release_json(release_json, new_version, github_token, check_for_rc=False)
+        release_json = _update_release_json(release_json, release_entry, new_version, github_token, check_for_rc=False)
 
     _save_release_json(release_json)
 

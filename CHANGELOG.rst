@@ -2,6 +2,28 @@
 Release Notes
 =============
 
+.. _Release Notes_7.30.2:
+
+7.30.2
+======
+
+.. _Release Notes_7.30.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2021-08-23
+
+This is a Windows-only release.
+
+.. _Release Notes_7.30.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- On Windows, disables ephemeral port range detection.  Fixes crash on non
+  EN-US windows
+
 .. _Release Notes_7.30.1:
 
 7.30.1

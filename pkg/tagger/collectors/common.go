@@ -33,6 +33,17 @@ func retrieveMappingFromConfig(configKey string) map[string]string {
 	return labelsList
 }
 
+// mergeMaps merges two maps, in case of conflict the first argument is prioritized
+func mergeMaps(first, second map[string]string) map[string]string {
+	for k, v := range second {
+		if _, found := first[k]; !found {
+			first[k] = v
+		}
+	}
+
+	return first
+}
+
 func parseContainerADTagsLabels(tags *utils.TagList, labelValue string) {
 	tagNames := []string{}
 	err := json.Unmarshal([]byte(labelValue), &tagNames)

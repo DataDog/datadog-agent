@@ -50,7 +50,7 @@ class Gitlab(object):
 
         path = "/projects/{}/pipeline".format(quote(project_name, safe=""))
         headers = {"Content-Type": "application/json"}
-        data = json.dumps({"ref": ref, "variables": [{"key": k, "value": v} for (k, v) in variables.items()],})
+        data = json.dumps({"ref": ref, "variables": [{"key": k, "value": v} for (k, v) in variables.items()]})
         return self.make_request(path, headers=headers, data=data, json_output=True)
 
     def all_pipelines_for_ref(self, project_name, ref, sha=None):

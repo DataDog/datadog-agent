@@ -66,34 +66,34 @@ AGENT_TAGS = set(
 )
 
 # ANDROID_TAGS lists the tags needed when building the android agent
-ANDROID_TAGS = set(["android", "zlib",])
+ANDROID_TAGS = set(["android", "zlib"])
 
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
-CLUSTER_AGENT_TAGS = set(["clusterchecks", "kubeapiserver", "orchestrator", "secrets", "zlib", "ec2", "gce",])
+CLUSTER_AGENT_TAGS = set(["clusterchecks", "kubeapiserver", "orchestrator", "secrets", "zlib", "ec2", "gce"])
 
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
-CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = set(["clusterchecks", "secrets",])
+CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = set(["clusterchecks", "secrets"])
 
 # DOGSTATSD_TAGS lists the tags needed when building dogstatsd
-DOGSTATSD_TAGS = set(["docker", "kubelet", "secrets", "zlib",])
+DOGSTATSD_TAGS = set(["docker", "kubelet", "secrets", "zlib"])
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
-IOT_AGENT_TAGS = set(["jetson", "systemd", "zlib",])
+IOT_AGENT_TAGS = set(["jetson", "systemd", "zlib"])
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
-PROCESS_AGENT_TAGS = AGENT_TAGS.union(set(["clusterchecks", "fargateprocess", "orchestrator",]))
+PROCESS_AGENT_TAGS = AGENT_TAGS.union(set(["clusterchecks", "fargateprocess", "orchestrator"]))
 
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
-SECURITY_AGENT_TAGS = set(["netcgo", "secrets", "docker", "kubeapiserver", "kubelet",])
+SECURITY_AGENT_TAGS = set(["netcgo", "secrets", "docker", "kubeapiserver", "kubelet"])
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
-SYSTEM_PROBE_TAGS = AGENT_TAGS.union(set(["clusterchecks", "linux_bpf", "npm",]))
+SYSTEM_PROBE_TAGS = AGENT_TAGS.union(set(["clusterchecks", "linux_bpf", "npm"]))
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
-TRACE_AGENT_TAGS = set(["docker", "kubeapiserver", "kubelet", "netcgo", "secrets",])
+TRACE_AGENT_TAGS = set(["docker", "kubeapiserver", "kubelet", "netcgo", "secrets"])
 
 # TEST_TAGS lists the tags that have to be added to run tests
-TEST_TAGS = AGENT_TAGS.union(set(["clusterchecks",]))
+TEST_TAGS = AGENT_TAGS.union(set(["clusterchecks"]))
 
 ### Tag exclusion lists
 
@@ -104,7 +104,7 @@ LINUX_ONLY_TAGS = set(["containerd", "cri", "netcgo", "systemd", "jetson", "linu
 WINDOWS_EXCLUDE_TAGS = set(["linux_bpf"])
 
 # List of tags to always remove when building on Windows 32-bits
-WINDOWS_32BIT_EXCLUDE_TAGS = set(["docker", "kubeapiserver", "kubelet", "orchestrator",])
+WINDOWS_32BIT_EXCLUDE_TAGS = set(["docker", "kubeapiserver", "kubelet", "orchestrator"])
 
 # Build type: build tags map
 build_tags = {

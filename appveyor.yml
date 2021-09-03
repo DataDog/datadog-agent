@@ -10,8 +10,8 @@ image: "Visual Studio 2017"
 # environment must be set for python 64 bit
 environment:
   GOPATH: C:\gopath
-  GOVERSION: '1.15.13'
-  GOROOT: C:\go_1.15.13
+  GOVERSION: '1.16.7'
+  GOROOT: C:\go_1.16.7
   # Give hints to CMake to find Pythons
   Python2_ROOT_DIR: C:\Python27-x64
   Python3_ROOT_DIR: C:\Python38-x64

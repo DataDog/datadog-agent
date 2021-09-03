@@ -73,6 +73,59 @@ bool updateYamlConfig(CustomActionData &customActionData)
     return true;
 }
 
+std::optional<std::wstring> GetInstallMethod(const CustomActionData &customActionData)
+{
+    std::wstring customInstallMethod;
+    customActionData.value(L"OVERRIDE_INSTALLATION_METHOD", customInstallMethod);
+
+    if (customInstallMethod.empty())
+    {
+        WcaLog(LOGMSG_VERBOSE, "No override installation method specified, computing using UILevel");
+
+        std::wstring uiLevelStr;
+        customActionData.value(L"UILevel", uiLevelStr);
+
+        std::wstringstream uiLevelStrStream(uiLevelStr);
+        int uiLevel = -1;
+        uiLevelStrStream >> uiLevel;
+        if (uiLevelStrStream.fail())
+        {
+            WcaLog(LOGMSG_STANDARD, "Could not read UILevel from installer: %S", uiLevelStr.c_str());
+            return std::nullopt;
+        }
+
+        // 2 = quiet
+        // > 2 (typically 5) = UI
+        if (uiLevel > 2)
+        {
+            customInstallMethod = L"windows_msi_gui";
+        }
+        else
+        {
+            customInstallMethod = L"windows_msi_quiet";
+        }
+    }
+    return std::optional<std::wstring> (customInstallMethod);
+}
+
+bool writeInstallInfo(const CustomActionData &customActionData)
+{
+    std::optional<std::wstring> installMethod = GetInstallMethod(customActionData);
+    if (installMethod)
+    {
+        WcaLog(LOGMSG_VERBOSE, "Install method: %S", installMethod.value().c_str());
+        std::wofstream installInfoOutputStream(installInfoFile);
+        installInfoOutputStream << L"---" << std::endl
+                                << L"install_method:" << std::endl
+                                << L"  tool: " << installMethod.value() << std::endl
+                                << L"  tool_version: " << installMethod.value() << std::endl
+                                << L"  installer_version: " << installMethod.value() << std::endl;
+        return true;
+    }
+
+    // Prefer logging error in GetInstallMethod to avoid double logging.
+    return false;
+}
 
 UINT doFinalizeInstall(CustomActionData &data)
 {
@@ -269,6 +322,13 @@ UINT doFinalizeInstall(CustomActionData &data)
     if (!updateYamlConfig(data))
     {
         WcaLog(LOGMSG_STANDARD, "Failed to update datadog.yaml");
+        er = ERROR_INSTALL_FAILURE;
+        goto LExit;
+    }
+
+    if (!writeInstallInfo(data))
+    {
+        WcaLog(LOGMSG_STANDARD, "Failed to update install_info");
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
     }

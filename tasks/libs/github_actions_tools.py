@@ -88,7 +88,7 @@ def follow_workflow_run(run_id):
         print("Workflow run not found.")
         raise Exit(code=1)
 
-    print(color_message("Workflow run link: " + color_message(run["html_url"], "green",), "blue",))
+    print(color_message("Workflow run link: " + color_message(run["html_url"], "green"), "blue"))
 
     minutes = 0
     failures = 0
@@ -110,10 +110,10 @@ def follow_workflow_run(run_id):
 
         if status == "completed":
             if conclusion == "success":
-                print(color_message("Workflow run succeeded", "green",))
+                print(color_message("Workflow run succeeded", "green"))
                 return
             else:
-                print(color_message("Workflow run ended with state: {}".format(conclusion), "red",))
+                print(color_message("Workflow run ended with state: {}".format(conclusion), "red"))
                 raise Exit(code=1)
         else:
             print("Workflow still running... ({}m)".format(minutes))

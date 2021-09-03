@@ -349,10 +349,22 @@ func (d *DockerCheck) reportCPUMetrics(cpu *cmetrics.ContainerCPUStats, limits *
 		return
 	}
 
-	sender.Rate("docker.cpu.system", cpu.System, "", tags)
-	sender.Rate("docker.cpu.user", cpu.User, "", tags)
-	sender.Rate("docker.cpu.usage", cpu.UsageTotal, "", tags)
-	sender.Gauge("docker.cpu.shares", cpu.Shares, "", tags)
+	if cpu.System != -1 {
+		sender.Rate("docker.cpu.system", cpu.System, "", tags)
+	}
+
+	if cpu.User != -1 {
+		sender.Rate("docker.cpu.user", cpu.User, "", tags)
+	}
+
+	if cpu.UsageTotal != -1 {
+		sender.Rate("docker.cpu.usage", cpu.UsageTotal, "", tags)
+	}
+
+	if cpu.Shares != 0 {
+		sender.Gauge("docker.cpu.shares", cpu.Shares, "", tags)
+	}
+
 	sender.Rate("docker.cpu.throttled", float64(cpu.NrThrottled), "", tags)
 	sender.Rate("docker.cpu.throttled.time", cpu.ThrottledTime, "", tags)
 	if cpu.ThreadCount != 0 {

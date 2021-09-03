@@ -48,9 +48,9 @@ require (
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/DataDog/agent-payload v4.80.0+incompatible
-	github.com/DataDog/datadog-agent/pkg/quantile v0.31.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/log v0.31.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.31.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/quantile v0.31.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/util/log v0.31.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.31.0-rc.8
 	github.com/DataDog/datadog-go v4.8.1+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf v0.0.0-20210419131141-ea64821c9793
@@ -88,7 +88,7 @@ require (
 	github.com/coreos/go-semver v0.3.0
 	github.com/coreos/go-systemd v0.0.0-20190620071333-e64a0ec8b42a
 	github.com/davecgh/go-spew v1.1.1
-	github.com/dgraph-io/ristretto v0.1.0
+	github.com/dgraph-io/ristretto v0.0.3
 	github.com/docker/docker v17.12.0-ce-rc1.0.20200916142827-bd33bbf0497b+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/dustin/go-humanize v1.0.0
@@ -162,7 +162,7 @@ require (
 	github.com/tedsuo/ifrit v0.0.0-20191009134036-9a97d0632f00 // indirect
 	github.com/tinylib/msgp v1.1.6
 	github.com/tklauser/go-sysconf v0.3.4 // indirect
-	github.com/twmb/murmur3 v1.1.5
+	github.com/twmb/murmur3 v1.1.6
 	github.com/ulikunitz/xz v0.5.10 // indirect
 	github.com/urfave/negroni v1.0.0
 	github.com/vishvananda/netlink v1.1.1-0.20210508154835-66ddd91f7ddd
@@ -185,7 +185,7 @@ require (
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/genproto v0.0.0-20210602131652-f16073e35f0c
 	google.golang.org/grpc v1.38.0
-	gopkg.in/DataDog/dd-trace-go.v1 v1.31.1
+	gopkg.in/DataDog/dd-trace-go.v1 v1.33.0
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
