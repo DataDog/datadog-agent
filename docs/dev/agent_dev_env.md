@@ -93,9 +93,9 @@ variables (see Invoke docs for more details).
 
 ## Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.15`. Make
-sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke` cannot use any
-additional tool it might need.
+You must [install Golang](https://golang.org/doc/install) version `1.16.7` or
+higher. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
+cannot use any additional tool it might need.
 
 **Please note that versions of Golang that aren't an exact match to the version
 specified in our build images (see e.g. [here](https://github.com/DataDog/datadog-agent/blob/main/.circleci/images/builder/Dockerfile#L1))
