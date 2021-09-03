@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Introduce a new configuration parameter ``container_env_as_tags``
+    to allow converting containerd containers' environment variables into tags.
