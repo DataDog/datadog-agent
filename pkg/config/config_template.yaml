@@ -1943,7 +1943,7 @@ api_key:
 ## @param container_env_as_tags - map - optional
 ## @env DD_CONTAINER_ENV_AS_TAGS - map - optional
 ## The Agent can extract environment variable values and set them as metric tags values associated to a <TAG_KEY>.
-## Requires the container runtime socket to be reachable. (Supported container runtimes: Containerd)
+## Requires the container runtime socket to be reachable. (Supported container runtimes: Containerd, Docker)
 #
 # container_env_as_tags:
 #   <ENV>: <TAG_KEY>
