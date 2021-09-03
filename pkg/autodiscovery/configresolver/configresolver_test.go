@@ -707,7 +707,6 @@ func TestResolve(t *testing.T) {
 			},
 		},
 	}
-	validTemplates := 0
 
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("case %d: %s", i, tc.testName), func(t *testing.T) {
@@ -722,7 +721,6 @@ func TestResolve(t *testing.T) {
 				assert.Equal(t, tc.out, cfg)
 				assert.Equal(t, checksum, tc.tpl.Digest())
 				assert.Equal(t, "hash", hash) // Resolve must return a non-empty hash if err == nil
-				validTemplates++
 			}
 		})
 	}
