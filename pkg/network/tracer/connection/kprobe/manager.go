@@ -1,6 +1,6 @@
-// +build linux_bpf
+//+build linux_bpf
 
-package ebpf
+package kprobe
 
 import (
 	"os"
@@ -12,11 +12,11 @@ import (
 
 const (
 	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
-	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the accept syscall).
+	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the `accept` syscall).
 	maxActive = 128
 )
 
-func NewManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
+func newManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConnMap)},
@@ -64,15 +64,15 @@ func NewManager(closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Ma
 			{Section: string(probes.Inet6BindRet), KProbeMaxActive: maxActive},
 			{Section: string(probes.IPRouteOutputFlow)},
 			{Section: string(probes.IPRouteOutputFlowReturn), KProbeMaxActive: maxActive},
-			{Section: string(probes.SockFDLookup), KProbeMaxActive: maxActive},
+			{Section: string(probes.SockFDLookup)},
 			{Section: string(probes.SockFDLookupRet), KProbeMaxActive: maxActive},
-			{Section: string(probes.DoSendfile), KProbeMaxActive: maxActive},
+			{Section: string(probes.DoSendfile)},
 			{Section: string(probes.DoSendfileRet), KProbeMaxActive: maxActive},
 		},
 	}
 
 	// the runtime compiled tracer has no need for separate probes targeting specific kernel versions, since it can
-	// do that with #ifdefs inline. Thus the following probes should only be declared as existing in the prebuilt
+	// do that with #ifdefs inline. Thus, the following probes should only be declared as existing in the prebuilt
 	// tracer.
 	if !runtimeTracer {
 		mgr.Probes = append(mgr.Probes,
