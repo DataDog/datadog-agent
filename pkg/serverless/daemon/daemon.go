@@ -238,7 +238,7 @@ func (d *Daemon) TriggerFlush(isLastFlushBeforeShutdown bool) {
 	if timedOut {
 		log.Debug("Timed out while flushing, flush may be continued on next invocation")
 	} else {
-		log.Debug("Finished flushing successfully")
+		log.Debug("Finished flushing")
 	}
 	cancel()
 
