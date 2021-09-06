@@ -134,8 +134,12 @@ func (a *APIServer) DumpActivity(ctx context.Context, params *api.DumpActivityPa
 // ListActivityDumps returns the list of active dumps
 func (a *APIServer) ListActivityDumps(ctx context.Context, params *api.ListActivityDumpsParams) (*api.SecurityActivityDumpListMessage, error) {
 	var activeDumps []string
+	var err error
 	if monitor := a.probe.GetMonitor(); monitor != nil {
-		activeDumps = monitor.ListActivityDumps(params)
+		activeDumps, err = monitor.ListActivityDumps(params)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &api.SecurityActivityDumpListMessage{

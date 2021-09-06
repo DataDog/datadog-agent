@@ -86,7 +86,11 @@ func (m *Monitor) GetPerfBufferMonitor() *PerfBufferMonitor {
 
 // Start triggers the goroutine of all the underlying controllers and monitors of the Monitor
 func (m *Monitor) Start(ctx context.Context, wg *sync.WaitGroup) error {
-	wg.Add(3)
+	delta := 2
+	if m.activityDumpManager != nil {
+		delta++
+	}
+	wg.Add(delta)
 
 	go m.loadController.Start(ctx, wg)
 	go m.reordererMonitor.Start(ctx, wg)
@@ -193,17 +197,29 @@ func (m *Monitor) ReportRuleSetLoaded(report RuleSetLoadedReport) {
 	m.probe.DispatchCustomEvent(report.Rule, report.Event)
 }
 
+// ErrActivityDumpManagerDisabled is returned when the activity dump manager is disabled
+var ErrActivityDumpManagerDisabled = errors.New("ActivityDumpManager is disabled")
+
 // DumpActivity handles an activity dump request
 func (m *Monitor) DumpActivity(params *api.DumpActivityParams) (string, string, error) {
+	if !m.probe.config.ActivityDumpEnabled {
+		return "", "", ErrActivityDumpManagerDisabled
+	}
 	return m.activityDumpManager.DumpActivity(params)
 }
 
 // ListActivityDumps returns the list of active dumps
-func (m *Monitor) ListActivityDumps(params *api.ListActivityDumpsParams) []string {
-	return m.activityDumpManager.ListActivityDumps(params)
+func (m *Monitor) ListActivityDumps(params *api.ListActivityDumpsParams) ([]string, error) {
+	if !m.probe.config.ActivityDumpEnabled {
+		return nil, ErrActivityDumpManagerDisabled
+	}
+	return m.activityDumpManager.ListActivityDumps(params), nil
 }
 
 // StopActivityDump stops an active activity dump
 func (m *Monitor) StopActivityDump(params *api.StopActivityDumpParams) error {
+	if !m.probe.config.ActivityDumpEnabled {
+		return ErrActivityDumpManagerDisabled
+	}
 	return m.activityDumpManager.StopActivityDump(params)
 }
