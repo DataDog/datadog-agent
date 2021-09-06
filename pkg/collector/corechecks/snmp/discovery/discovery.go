@@ -1,7 +1,9 @@
 package discovery
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"net"
 	"strconv"
 	"sync"
@@ -18,6 +20,8 @@ import (
 )
 
 // TODO: move to separate package ?
+
+const cacheKeyPrefix = "snmp_corecheck"
 
 // Discovery handles snmp discovery states
 type Discovery struct {
@@ -113,7 +117,7 @@ func (d *Discovery) checkDevices() {
 	startingIP := ipAddr.Mask(ipNet.Mask)
 
 	configHash := d.config.Digest(d.config.Network)
-	cacheKey := fmt.Sprintf("snmp:%s", configHash)
+	cacheKey := fmt.Sprintf("%s:%s", cacheKeyPrefix, configHash)
 
 	subnet := snmpSubnet{
 		config:         d.config,
@@ -124,7 +128,7 @@ func (d *Discovery) checkDevices() {
 		deviceFailures: map[string]int{},
 	}
 
-	//l.loadCache(&subnet)
+	d.loadCache(&subnet)
 
 	jobs := make(chan snmpJob)
 	for w := 0; w < d.config.DiscoveryWorkers; w++ {
@@ -185,10 +189,9 @@ func (d *Discovery) createDevice(entityID string, subnet *snmpSubnet, deviceIP s
 	subnet.deviceFailures[entityID] = 0
 	log.Warnf("[DEV] Create device : %s, discoveredDevices: %v", deviceIP, len(d.discoveredDevices))
 
-	//if writeCache {
-	//	d.writeCache(subnet)
-	//}
-	//d.newService <- svc
+	if writeCache {
+		d.writeCache(subnet)
+	}
 }
 
 func (d *Discovery) deleteDevice(entityID string, subnet *snmpSubnet) {
@@ -205,10 +208,9 @@ func (d *Discovery) deleteDevice(entityID string, subnet *snmpSubnet) {
 		}
 
 		if d.config.DiscoveryAllowedFailures != -1 && failure >= d.config.DiscoveryAllowedFailures {
-			//d.delService <- svc
 			delete(d.discoveredDevices, entityID)
 			delete(subnet.devices, entityID)
-			//d.writeCache(subnet)
+			d.writeCache(subnet)
 		}
 	}
 }
@@ -253,6 +255,44 @@ func (d *Discovery) GetDiscoveredDeviceConfigsTestInstances(testInstances int, s
 // Stop signal discovery to shut down
 func (d *Discovery) Stop() {
 	d.stop <- true
+}
+
+func (d *Discovery) loadCache(subnet *snmpSubnet) {
+	cacheValue, err := persistentcache.Read(subnet.cacheKey)
+	if err != nil {
+		log.Errorf("Couldn't read cache for %s: %s", subnet.cacheKey, err)
+		return
+	}
+	if cacheValue == "" {
+		return
+	}
+	var devices []net.IP
+	if err = json.Unmarshal([]byte(cacheValue), &devices); err != nil {
+		log.Errorf("Couldn't unmarshal cache for %s: %s", subnet.cacheKey, err)
+		return
+	}
+	for _, deviceIP := range devices {
+		entityID := subnet.config.Digest(deviceIP.String())
+		d.createDevice(entityID, subnet, deviceIP.String(), false)
+	}
+}
+
+func (d *Discovery) writeCache(subnet *snmpSubnet) {
+	// We don't lock the subnet for now, because the discovery ought to be already locked
+	devices := make([]string, 0, len(subnet.devices))
+	for _, v := range subnet.devices {
+		devices = append(devices, v)
+	}
+
+	cacheValue, err := json.Marshal(devices)
+	if err != nil {
+		log.Errorf("Couldn't marshal cache: %s", err)
+		return
+	}
+
+	if err = persistentcache.Write(subnet.cacheKey, string(cacheValue)); err != nil {
+		log.Errorf("Couldn't write cache: %s", err)
+	}
 }
 
 // NewDiscovery return a new Discovery instance
