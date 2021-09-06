@@ -402,8 +402,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	return c, nil
 }
 
-// Digest returns an hash value representing the data stored in this configuration, minus the network address
-func (c *CheckConfig) Digest(address string) string {
+// DiscoveryDigest returns a hash value representing the minimal configs used to connect to the device
+func (c *CheckConfig) DiscoveryDigest(address string) string {
 	h := fnv.New64()
 	// Hash write never returns an error
 	h.Write([]byte(address))                   //nolint:errcheck
@@ -415,8 +415,7 @@ func (c *CheckConfig) Digest(address string) string {
 	h.Write([]byte(c.AuthProtocol))            //nolint:errcheck
 	h.Write([]byte(c.PrivKey))                 //nolint:errcheck
 	h.Write([]byte(c.PrivProtocol))            //nolint:errcheck
-	//h.Write([]byte(c.ContextEngineID))         //nolint:errcheck
-	h.Write([]byte(c.ContextName)) //nolint:errcheck
+	h.Write([]byte(c.ContextName))             //nolint:errcheck
 
 	// Sort the addresses to get a stable digest
 	addresses := make([]string, 0, len(c.IgnoredIPAddresses))

@@ -1048,3 +1048,213 @@ min_collection_interval: -10
 		})
 	}
 }
+
+func TestCheckConfig_DiscoveryDigest(t *testing.T) {
+	baseCaseHash := "a1d0f0237ee2fe8f"
+	tests := []struct {
+		name         string
+		config       CheckConfig
+		ipAddress    string
+		expectedHash string
+	}{
+		{
+			name:      "base case",
+			ipAddress: "127.0.0.1",
+			config: CheckConfig{
+				Port:            161,
+				CommunityString: "public",
+				SnmpVersion:     "2",
+				User:            "123",
+				AuthProtocol:    "sha",
+				AuthKey:         "123",
+				PrivProtocol:    "des",
+				PrivKey:         "123",
+				ContextName:     "",
+			},
+			expectedHash: baseCaseHash,
+		},
+		{
+			name:      "different ip",
+			ipAddress: "127.0.0.2",
+			config: CheckConfig{
+				Port:            161,
+				CommunityString: "public",
+				SnmpVersion:     "2",
+				User:            "123",
+				AuthProtocol:    "sha",
+				AuthKey:         "123",
+				PrivProtocol:    "des",
+				PrivKey:         "123",
+				ContextName:     "",
+			},
+			expectedHash: "82787fd6ceade9e2",
+		},
+		{
+			name:      "different CommunityString",
+			ipAddress: "127.0.0.1",
+			config: CheckConfig{
+				Port:            161,
+				CommunityString: "public2",
+				SnmpVersion:     "2",
+				User:            "123",
+				AuthProtocol:    "sha",
+				AuthKey:         "123",
+				PrivProtocol:    "des",
+				PrivKey:         "123",
+				ContextName:     "",
+			},
+			expectedHash: "cdf44b020cb2a9e7",
+		},
+		{
+			name:      "different snmp version",
+			ipAddress: "127.0.0.1",
+			config: CheckConfig{
+				Port:            161,
+				CommunityString: "public",
+				SnmpVersion:     "3",
+				User:            "123",
+				AuthProtocol:    "sha",
+				AuthKey:         "123",
+				PrivProtocol:    "des",
+				PrivKey:         "123",
+				ContextName:     "",
+			},
+			expectedHash: "d41b9d5601104294",
+		},
+		{
+			name:      "different user",
+			ipAddress: "127.0.0.1",
+			config: CheckConfig{
+				Port:            161,
+				CommunityString: "public",
+				SnmpVersion:     "2",
+				User:            "user2",
+				AuthProtocol:    "sha",
+				AuthKey:         "123",
+				PrivProtocol:    "des",
+				PrivKey:         "123",
+				ContextName:     "",
+			},
+			expectedHash: "992c6d4145819fd2",
+		},
+		{
+			name:      "different AuthProtocol",
+			ipAddress: "127.0.0.1",
+			config: CheckConfig{
+				Port:            161,
+				CommunityString: "public",
+				SnmpVersion:     "2",
+				User:            "123",
+				AuthProtocol:    "md5",
+				AuthKey:         "123",
+				PrivProtocol:    "des",
+				PrivKey:         "123",
+				ContextName:     "",
+			},
+			expectedHash: "16e9c29b483c41ad",
+		},
+		{
+			name:      "different AuthKey",
+			ipAddress: "127.0.0.1",
+			config: CheckConfig{
+				Port:            161,
+				CommunityString: "public",
+				SnmpVersion:     "2",
+				User:            "123",
+				AuthProtocol:    "sha",
+				AuthKey:         "1234",
+				PrivProtocol:    "des",
+				PrivKey:         "123",
+				ContextName:     "",
+			},
+			expectedHash: "ea3fce2535709f4d",
+		},
+		{
+			name:      "different PrivProtocol",
+			ipAddress: "127.0.0.1",
+			config: CheckConfig{
+				Port:            161,
+				CommunityString: "public",
+				SnmpVersion:     "2",
+				User:            "123",
+				AuthProtocol:    "sha",
+				AuthKey:         "123",
+				PrivProtocol:    "aes",
+				PrivKey:         "123",
+				ContextName:     "",
+			},
+			expectedHash: "a1dbe4237eecf26e",
+		},
+		{
+			name:      "different PrivKey",
+			ipAddress: "127.0.0.1",
+			config: CheckConfig{
+				Port:            161,
+				CommunityString: "public",
+				SnmpVersion:     "2",
+				User:            "123",
+				AuthProtocol:    "sha",
+				AuthKey:         "123",
+				PrivProtocol:    "des",
+				PrivKey:         "1234",
+				ContextName:     "",
+			},
+			expectedHash: "3942f94fb039bddd",
+		},
+		{
+			name:      "different context name",
+			ipAddress: "127.0.0.1",
+			config: CheckConfig{
+				Port:            161,
+				CommunityString: "public",
+				SnmpVersion:     "2",
+				User:            "123",
+				AuthProtocol:    "sha",
+				AuthKey:         "123",
+				PrivProtocol:    "des",
+				PrivKey:         "123",
+				ContextName:     "123",
+			},
+			expectedHash: "36e5cb68e8ad58d1",
+		},
+		{
+			name:      "different ignored ips",
+			ipAddress: "127.0.0.1",
+			config: CheckConfig{
+				Port:               161,
+				CommunityString:    "public",
+				SnmpVersion:        "2",
+				User:               "123",
+				AuthProtocol:       "sha",
+				AuthKey:            "123",
+				PrivProtocol:       "des",
+				PrivKey:            "123",
+				ContextName:        "123",
+				IgnoredIPAddresses: map[string]bool{"127.0.0.3": true},
+			},
+			expectedHash: "20714cf5b9e95cfe",
+		},
+		{
+			name:      "different other fields lead to same hash",
+			ipAddress: "127.0.0.1",
+			config: CheckConfig{
+				Port:            161,
+				CommunityString: "public",
+				SnmpVersion:     "2",
+				User:            "123",
+				AuthProtocol:    "sha",
+				AuthKey:         "123",
+				PrivProtocol:    "des",
+				PrivKey:         "123",
+				ContextName:     "",
+				Retries:         999,
+			},
+			expectedHash: baseCaseHash,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedHash, tt.config.DiscoveryDigest(tt.ipAddress))
+		})
+	}
+}

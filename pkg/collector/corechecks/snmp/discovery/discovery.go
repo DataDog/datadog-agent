@@ -80,7 +80,7 @@ func (d *Discovery) checkDevice(job snmpJob) {
 		log.Errorf("Error configure session %s: %v", deviceIP, err)
 		return
 	}
-	entityID := job.subnet.config.Digest(deviceIP)
+	entityID := job.subnet.config.DiscoveryDigest(deviceIP)
 	if err := sess.Connect(); err != nil {
 		log.Debugf("SNMP connect to %s error: %v", deviceIP, err)
 		d.deleteDevice(entityID, job.subnet)
@@ -114,7 +114,7 @@ func (d *Discovery) checkDevices() {
 
 	startingIP := ipAddr.Mask(ipNet.Mask)
 
-	configHash := d.config.Digest(d.config.Network)
+	configHash := d.config.DiscoveryDigest(d.config.Network)
 	cacheKey := fmt.Sprintf("%s:%s", cacheKeyPrefix, configHash)
 
 	subnet := snmpSubnet{
@@ -269,7 +269,7 @@ func (d *Discovery) loadCache(subnet *snmpSubnet) {
 		return
 	}
 	for _, deviceIP := range devices {
-		entityID := subnet.config.Digest(deviceIP.String())
+		entityID := subnet.config.DiscoveryDigest(deviceIP.String())
 		d.createDevice(entityID, subnet, deviceIP.String(), false)
 	}
 }
