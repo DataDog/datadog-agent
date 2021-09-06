@@ -195,7 +195,7 @@ func (c *ControllerV1) generateTemplates() {
 }
 
 func (c *ControllerV1) getWebhookSkeleton(nameSuffix, path string) admiv1.MutatingWebhook {
-	failurePolicy := admiv1.Ignore
+	failurePolicy := c.config.getFailurePolicy()
 	matchPolicy := admiv1.Exact
 	sideEffects := admiv1.SideEffectClassNone
 	port := c.config.getServicePort()
