@@ -64,12 +64,12 @@ var worker = func(d *Discovery, jobs <-chan snmpJob) {
 
 // Start discovery
 func (d *Discovery) Start() {
+	log.Debugf("Start discovery for subnet %s", d.config.Network)
 	go d.checkDevices()
 }
 
 func (d *Discovery) checkDevice(job snmpJob) {
 	deviceIP := job.currentIP.String()
-	log.Warnf("[DEV] check Device %s", deviceIP)
 	config := *job.subnet.config // shallow copy
 	config.IPAddress = deviceIP
 	sess := session.GosnmpSession{}
@@ -97,7 +97,6 @@ func (d *Discovery) checkDevice(job snmpJob) {
 			d.deleteDevice(entityID, job.subnet)
 		} else {
 			log.Debugf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
-			log.Warnf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
 			d.createDevice(entityID, job.subnet, deviceIP, true)
 		}
 	}
@@ -131,11 +130,9 @@ func (d *Discovery) checkDevices() {
 		go worker(d, jobs)
 	}
 
-	log.Warnf("[DEV] jobs %v", jobs)
 	discoveryTicker := time.NewTicker(time.Duration(d.config.DiscoveryInterval) * time.Second)
 
 	for {
-		log.Warnf("[DEV] start discovery")
 
 		startingIP := make(net.IP, len(subnet.startingIP))
 		copy(startingIP, subnet.startingIP)
@@ -183,7 +180,6 @@ func (d *Discovery) createDevice(entityID string, subnet *snmpSubnet, deviceIP s
 	d.discoveredDevices[entityID] = svc
 	subnet.devices[entityID] = deviceIP
 	subnet.deviceFailures[entityID] = 0
-	log.Warnf("[DEV] Create device : %s, discoveredDevices: %v", deviceIP, len(d.discoveredDevices))
 
 	if writeCache {
 		d.writeCache(subnet)
@@ -229,6 +225,7 @@ func (d *Discovery) GetDiscoveredDeviceConfigs(sender aggregator.Sender) []*devi
 
 // Stop signal discovery to shut down
 func (d *Discovery) Stop() {
+	log.Debugf("Stop discovery for subnet %s", d.config.Network)
 	d.stop <- true
 }
 

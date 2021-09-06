@@ -55,7 +55,6 @@ func (c *Check) Run() error {
 		for i := range discoveredDevices {
 			deviceCk := discoveredDevices[i]
 			deviceCk.SetSender(report.NewMetricSender(sender))
-			log.Warnf("[DEV] schedule device collection: %s, tags: %v", deviceCk.GetIPAddress(), deviceCk.GetIDTags())
 			jobs <- deviceCk
 		}
 		close(jobs)
@@ -74,13 +73,11 @@ func (c *Check) Run() error {
 func (c *Check) runCheckDeviceWorker(workerID int, wg *sync.WaitGroup, jobs <-chan *devicecheck.DeviceCheck) {
 	defer wg.Done()
 	for job := range jobs {
-		log.Warnf("[DEV] worker %d starting collect device %s, tags %s", workerID, job.GetIPAddress(), job.GetIDTags())
 		err := c.runCheckDevice(job)
 		if err != nil {
-			log.Warnf("[DEV] worker %d error collect device %s: %s", workerID, job.GetIPAddress(), err)
+			log.Debugf("worker %d : error collecting for device %s: %s", workerID, job.GetIPAddress(), err)
 			continue
 		}
-		log.Warnf("[DEV] worker %d done collect device %s ", workerID, job.GetIPAddress())
 	}
 }
 
@@ -117,7 +114,6 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 	}
 
 	if c.config.Network != "" {
-		log.Warnf("[DEV] Network: %s", c.config.Network)
 		c.discovery = discovery.NewDiscovery(c.config)
 		c.discovery.Start()
 	}
@@ -126,7 +122,6 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 
 // Cancel is called when check is unscheduled
 func (c *Check) Cancel() {
-	log.Warnf("[DEV] Cancel called for check %s", c.ID())
 	c.discovery.Stop()
 }
 
