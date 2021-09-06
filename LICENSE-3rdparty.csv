@@ -420,8 +420,6 @@ core,"github.com/huandu/xstrings",MIT
 core,"github.com/ianlancetaylor/cgosymbolizer",BSD-3-Clause
 core,"github.com/imdario/mergo",BSD-3-Clause
 core,"github.com/inconshreveable/mousetrap",Apache-2.0
-core,"github.com/iovisor/gobpf/bcc",Apache-2.0
-core,"github.com/iovisor/gobpf/pkg/cpuonline",Apache-2.0
 core,"github.com/iovisor/gobpf/pkg/cpupossible",Apache-2.0
 core,"github.com/iovisor/gobpf/pkg/cpurange",Apache-2.0
 core,"github.com/itchyny/gojq",MIT
