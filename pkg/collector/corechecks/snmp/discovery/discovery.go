@@ -19,8 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 )
 
-// TODO: move to separate package ?
-
 const cacheKeyPrefix = "snmp_corecheck"
 
 // Discovery handles snmp discovery states
@@ -220,7 +218,6 @@ func (d *Discovery) GetDiscoveredDeviceConfigs(sender aggregator.Sender) []*devi
 	d.Lock()
 	defer d.Unlock()
 	var discoveredDevices []*devicecheck.DeviceCheck
-	// TODO: store config instead of discoveredDevices ?
 	for _, device := range d.discoveredDevices {
 		config := device.config
 		deviceCk, err := devicecheck.NewDeviceCheck(config, device.deviceIP)
