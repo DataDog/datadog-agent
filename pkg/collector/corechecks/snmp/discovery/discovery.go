@@ -2,23 +2,25 @@ package discovery
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
-	devicecheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/devicecheck"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"net"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/devicecheck"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 )
 
 // TODO: move to separate package ?
 
-// SnmpDiscovery handles snmp discovery states
-type SnmpDiscovery struct {
+// Discovery handles snmp discovery states
+type Discovery struct {
 	sync.RWMutex
 	config            *checkconfig.CheckConfig
 	stop              chan bool
@@ -57,7 +59,7 @@ func incrementIP(ip net.IP) {
 }
 
 // Don't make it a method, to be overridden in tests
-var worker = func(d *SnmpDiscovery, jobs <-chan snmpJob) {
+var worker = func(d *Discovery, jobs <-chan snmpJob) {
 	for {
 		select {
 		case <-d.stop:
@@ -71,11 +73,11 @@ var worker = func(d *SnmpDiscovery, jobs <-chan snmpJob) {
 }
 
 // Start discovery
-func (d *SnmpDiscovery) Start() {
+func (d *Discovery) Start() {
 	go d.checkDevices()
 }
 
-func (d *SnmpDiscovery) checkDevice(job snmpJob) {
+func (d *Discovery) checkDevice(job snmpJob) {
 	deviceIP := job.currentIP.String()
 	log.Warnf("[DEV] check Device %s", deviceIP)
 	config := *job.subnet.config // shallow copy
@@ -111,7 +113,7 @@ func (d *SnmpDiscovery) checkDevice(job snmpJob) {
 	}
 }
 
-func (d *SnmpDiscovery) checkDevices() {
+func (d *Discovery) checkDevices() {
 	ipAddr, ipNet, err := net.ParseCIDR(d.config.Network)
 	if err != nil {
 		log.Errorf("Couldn't parse SNMP network: %s", err)
@@ -176,7 +178,7 @@ func (d *SnmpDiscovery) checkDevices() {
 	}
 }
 
-func (d *SnmpDiscovery) createService(entityID string, subnet *snmpSubnet, deviceIP string, writeCache bool) {
+func (d *Discovery) createService(entityID string, subnet *snmpSubnet, deviceIP string, writeCache bool) {
 	d.Lock()
 	defer d.Unlock()
 	if _, present := d.discoveredDevices[entityID]; present {
@@ -199,7 +201,7 @@ func (d *SnmpDiscovery) createService(entityID string, subnet *snmpSubnet, devic
 	//d.newService <- svc
 }
 
-func (d *SnmpDiscovery) deleteService(entityID string, subnet *snmpSubnet) {
+func (d *Discovery) deleteService(entityID string, subnet *snmpSubnet) {
 	d.Lock()
 	defer d.Unlock()
 	if _, present := d.discoveredDevices[entityID]; present {
@@ -222,7 +224,7 @@ func (d *SnmpDiscovery) deleteService(entityID string, subnet *snmpSubnet) {
 }
 
 // GetDiscoveredDeviceConfigs returns discovered device configs
-func (d *SnmpDiscovery) GetDiscoveredDeviceConfigs(sender aggregator.Sender) []*devicecheck.DeviceCheck {
+func (d *Discovery) GetDiscoveredDeviceConfigs(sender aggregator.Sender) []*devicecheck.DeviceCheck {
 	d.Lock()
 	defer d.Unlock()
 	var discoveredDevices []*devicecheck.DeviceCheck
@@ -239,7 +241,7 @@ func (d *SnmpDiscovery) GetDiscoveredDeviceConfigs(sender aggregator.Sender) []*
 }
 
 // GetDiscoveredDeviceConfigsTestInstances returns discovered test instances
-func (d *SnmpDiscovery) GetDiscoveredDeviceConfigsTestInstances(testInstances int, sender aggregator.Sender) []*devicecheck.DeviceCheck {
+func (d *Discovery) GetDiscoveredDeviceConfigsTestInstances(testInstances int, sender aggregator.Sender) []*devicecheck.DeviceCheck {
 	d.Lock()
 	defer d.Unlock()
 	var discoveredDevices []*devicecheck.DeviceCheck
@@ -259,13 +261,13 @@ func (d *SnmpDiscovery) GetDiscoveredDeviceConfigsTestInstances(testInstances in
 }
 
 // Stop signal discovery to shut down
-func (d *SnmpDiscovery) Stop() {
+func (d *Discovery) Stop() {
 	d.stop <- true
 }
 
-// NewSnmpDiscovery return a new SnmpDiscovery instance
-func NewSnmpDiscovery(config *checkconfig.CheckConfig) SnmpDiscovery {
-	return SnmpDiscovery{
+// NewDiscovery return a new Discovery instance
+func NewDiscovery(config *checkconfig.CheckConfig) Discovery {
+	return Discovery{
 		discoveredDevices: map[string]Device{},
 		stop:              make(chan bool),
 		config:            config,

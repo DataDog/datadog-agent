@@ -28,7 +28,7 @@ type Check struct {
 	core.CheckBase
 	config         *checkconfig.CheckConfig
 	singleDeviceCk *devicecheck.DeviceCheck
-	discovery      discovery.SnmpDiscovery
+	discovery      discovery.Discovery
 }
 
 // Run executes the check
@@ -125,7 +125,7 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 
 	if c.config.Network != "" {
 		log.Warnf("[DEV] Network: %s", c.config.Network)
-		c.discovery = discovery.NewSnmpDiscovery(c.config)
+		c.discovery = discovery.NewDiscovery(c.config)
 		c.discovery.Start()
 	}
 	return nil
