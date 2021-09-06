@@ -79,7 +79,6 @@ type InstanceConfig struct {
 	MinCollectionInterval      int    `yaml:"min_collection_interval"`
 	ExtraMinCollectionInterval Number `yaml:"extra_min_collection_interval"`
 
-	TestInstances            int      `yaml:"test_instances"`
 	Network                  string   `yaml:"network_address"`
 	IgnoredIPAddresses       []string `yaml:"ignored_ip_addresses"`
 	DiscoveryInterval        int      `yaml:"discovery_interval"`
@@ -254,16 +253,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.DiscoveryInterval = instance.DiscoveryInterval
 	}
 
-	// TODO: test me
 	c.IgnoredIPAddresses = make(map[string]bool, len(instance.IgnoredIPAddresses))
 	for _, ipAddress := range instance.IgnoredIPAddresses {
 		c.IgnoredIPAddresses[ipAddress] = true
 	}
 
-	c.TestInstances = instance.TestInstances
-
 	if c.IPAddress == "" && c.Network == "" {
-		// TODO: TEST ME
 		return nil, fmt.Errorf("ip_address or network config must be provided")
 	}
 
@@ -481,7 +476,6 @@ func (c *CheckConfig) Copy() *CheckConfig {
 }
 
 // CopyWithNewIP makes a copy of CheckConfig with new IP
-// TODO: test me
 func (c *CheckConfig) CopyWithNewIP(ipAddress string) *CheckConfig {
 	newConfig := c.Copy()
 	newConfig.IPAddress = ipAddress

@@ -53,17 +53,15 @@ func (c *Check) Run() error {
 		}
 
 		for i := range discoveredDevices {
-			devivceCk := discoveredDevices[i]
-			devivceCk.SetSender(report.NewMetricSender(sender))
-			log.Warnf("[DEV] schedule device collection: %s, tags: %v", devivceCk.GetIPAddress(), devivceCk.GetIDTags())
-			//checkErr = c.runCheckDevice(devivceCk)
-			jobs <- devivceCk
+			deviceCk := discoveredDevices[i]
+			deviceCk.SetSender(report.NewMetricSender(sender))
+			log.Warnf("[DEV] schedule device collection: %s, tags: %v", deviceCk.GetIPAddress(), deviceCk.GetIDTags())
+			jobs <- deviceCk
 		}
 		close(jobs)
 		wg.Wait() // wait for all workers to finish
 
 	} else {
-		// TODO: sender submittedMetrics state, so need to be per config/device level
 		c.singleDeviceCk.SetSender(report.NewMetricSender(sender))
 		checkErr = c.runCheckDevice(c.singleDeviceCk)
 	}
@@ -88,7 +86,6 @@ func (c *Check) runCheckDeviceWorker(workerID int, wg *sync.WaitGroup, jobs <-ch
 
 func (c *Check) runCheckDevice(deviceCk *devicecheck.DeviceCheck) error {
 	collectionTime := timeNow()
-	time.Sleep(1 * time.Second) // TODO: Remove me, for testing
 
 	err := deviceCk.Run(collectionTime)
 	if err != nil {

@@ -217,6 +217,35 @@ bulk_max_repetitions: 20
 	assert.Equal(t, false, config.AutodetectProfile)
 }
 
+func TestDiscoveryConfigurations(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`
+network_address: 127.0.0.0/24
+ignored_ip_addresses:
+  - 127.0.0.9
+  - 127.0.0.8
+discovery_interval: 5
+discovery_allowed_failures: 15
+discovery_workers: 20
+workers: 30
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+`)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+
+	assert.Nil(t, err)
+	assert.Equal(t, "127.0.0.0/24", config.Network)
+	assert.Equal(t, 5, config.DiscoveryInterval)
+	assert.Equal(t, 15, config.DiscoveryAllowedFailures)
+	assert.Equal(t, 20, config.DiscoveryWorkers)
+	assert.Equal(t, 30, config.Workers)
+	assert.Equal(t, map[string]bool{
+		"127.0.0.8": true,
+		"127.0.0.9": true,
+	}, config.IgnoredIPAddresses)
+}
+
 func TestInlineProfileConfiguration(t *testing.T) {
 	SetConfdPathAndCleanProfiles()
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
@@ -269,7 +298,10 @@ profiles:
 	assert.Equal(t, 2, len(config.Profiles))
 	assert.Equal(t, "74f22f3320d2d692", config.DeviceID)
 	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, config.DeviceIDTags)
-	assert.Equal(t, false, config.AutodetectProfile)
+	assert.Equal(t, 3600, config.DiscoveryInterval)
+	assert.Equal(t, 3, config.DiscoveryAllowedFailures)
+	assert.Equal(t, 10, config.DiscoveryWorkers)
+	assert.Equal(t, 10, config.Workers)
 }
 
 func TestDefaultConfigurations(t *testing.T) {
@@ -1350,4 +1382,21 @@ func TestCheckConfig_Copy(t *testing.T) {
 	assert.Equal(t, config.Subnet, configCopy.Subnet)
 	assert.Equal(t, config.AutodetectProfile, configCopy.AutodetectProfile)
 	assert.Equal(t, config.MinCollectionInterval, configCopy.MinCollectionInterval)
+}
+
+func TestCheckConfig_CopyWithNewIP(t *testing.T) {
+	config := CheckConfig{
+		IPAddress:       "127.0.0.5",
+		Port:            161,
+		CommunityString: "public",
+		InstanceTags:    []string{"tag1:val1"},
+	}
+	config.DeviceID, config.DeviceIDTags = buildDeviceID(config.getDeviceIDTags())
+
+	configCopy := config.CopyWithNewIP("127.0.0.10")
+
+	assert.Equal(t, "127.0.0.10", configCopy.IPAddress)
+	assert.Equal(t, config.Port, configCopy.Port)
+	assert.Equal(t, config.CommunityString, configCopy.CommunityString)
+	assert.NotEqual(t, config.DeviceID, configCopy.DeviceID)
 }
