@@ -48,16 +48,6 @@ type snmpJob struct {
 	currentIP net.IP
 }
 
-// TODO: move to pkg/snmp
-func incrementIP(ip net.IP) {
-	for i := len(ip) - 1; i >= 0; i-- {
-		ip[i]++
-		if ip[i] > 0 {
-			break
-		}
-	}
-}
-
 // Don't make it a method, to be overridden in tests
 var worker = func(d *Discovery, jobs <-chan snmpJob) {
 	for {
