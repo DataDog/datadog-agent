@@ -3,6 +3,7 @@ package snmp
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/discovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/report"
 	"sync"
 	"time"
@@ -27,7 +28,7 @@ type Check struct {
 	core.CheckBase
 	config         *checkconfig.CheckConfig
 	singleDeviceCk *devicecheck.DeviceCheck
-	discovery      snmpDiscovery
+	discovery      discovery.SnmpDiscovery
 }
 
 // Run executes the check
@@ -41,9 +42,9 @@ func (c *Check) Run() error {
 	if c.config.Network != "" {
 		var discoveredDevices []*devicecheck.DeviceCheck
 		if c.config.TestInstances == 0 {
-			discoveredDevices = c.discovery.getDiscoveredDeviceConfigs(sender)
+			discoveredDevices = c.discovery.GetDiscoveredDeviceConfigs(sender)
 		} else {
-			discoveredDevices = c.discovery.getDiscoveredDeviceConfigsTestInstances(c.config.TestInstances, sender)
+			discoveredDevices = c.discovery.GetDiscoveredDeviceConfigsTestInstances(c.config.TestInstances, sender)
 		}
 
 		jobs := make(chan *devicecheck.DeviceCheck, len(discoveredDevices))
@@ -124,7 +125,7 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 
 	if c.config.Network != "" {
 		log.Warnf("[DEV] Network: %s", c.config.Network)
-		c.discovery = newSnmpDiscovery(c.config)
+		c.discovery = discovery.NewSnmpDiscovery(c.config)
 		c.discovery.Start()
 	}
 	return nil
@@ -133,7 +134,7 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 // Cancel is called when check is unscheduled
 func (c *Check) Cancel() {
 	log.Warnf("[DEV] Cancel called for check %s", c.ID())
-	c.discovery.stop <- true
+	c.discovery.Stop()
 }
 
 // Interval returns the scheduling time for the check
