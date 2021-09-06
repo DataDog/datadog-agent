@@ -6,7 +6,7 @@ default_version "2.6.0"
 
 
 source :url => "https://github.com/snowflakedb/snowflake-connector-python/archive/refs/tags/v#{version}.tar.gz",
-       :sha256 => "31764cb1ee30a575d8b15aa3af1df8795d30838f",
+       :sha256 => "bb7af6933bdd6b8b105dac304de66fdb03e0b17378d588b5be6f1026b6ce3674",
        :extract => :seven_zip
 
 relative_path "snowflake-connector-python-#{version}"
