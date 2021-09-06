@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"net"
-	"strconv"
 	"sync"
 	"time"
 
@@ -14,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/devicecheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 )
@@ -225,26 +223,6 @@ func (d *Discovery) GetDiscoveredDeviceConfigs(sender aggregator.Sender) []*devi
 			log.Warnf("failed to create new device check `%s`: %s", device.deviceIP, err)
 		}
 		discoveredDevices = append(discoveredDevices, deviceCk)
-	}
-	return discoveredDevices
-}
-
-// GetDiscoveredDeviceConfigsTestInstances returns discovered test instances
-func (d *Discovery) GetDiscoveredDeviceConfigsTestInstances(testInstances int, sender aggregator.Sender) []*devicecheck.DeviceCheck {
-	d.Lock()
-	defer d.Unlock()
-	var discoveredDevices []*devicecheck.DeviceCheck
-	for _, device := range d.discoveredDevices {
-		for i := 0; i < testInstances; i++ {
-			config := device.config.Copy()
-			config.ExtraTags = append(common.CopyStrings(config.ExtraTags), "test_instance:"+strconv.Itoa(i)) // TODO: for testing only
-			deviceCk, err := devicecheck.NewDeviceCheck(config, device.deviceIP)
-			if err != nil {
-				log.Warnf("failed to create new device check `%s`: %s", device.deviceIP, err)
-			}
-			discoveredDevices = append(discoveredDevices, deviceCk)
-
-		}
 	}
 	return discoveredDevices
 }

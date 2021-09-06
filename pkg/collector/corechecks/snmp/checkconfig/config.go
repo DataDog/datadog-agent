@@ -126,7 +126,6 @@ type CheckConfig struct {
 	DiscoveryInterval        int
 	IgnoredIPAddresses       map[string]bool
 	DiscoveryAllowedFailures int
-	TestInstances            int // TODO: remove me
 }
 
 // RefreshWithProfile refreshes config based on profile
