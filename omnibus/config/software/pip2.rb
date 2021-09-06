@@ -1,11 +1,11 @@
 name "pip2"
 
-default_version "20.3"
+default_version "20.3.3"
 
 dependency "setuptools2"
 
 source :url => "https://github.com/pypa/pip/archive/#{version}.tar.gz",
-       :sha256 => "0208a01d94d6858e25ff6bdf0d82da693ed36ef79f07b4448c540f86828278e2",
+       :sha256 => "016f8d509871b72fb05da911db513c11059d8a99f4591dda3050a3cf83a29a79",
        :extract => :seven_zip
 
 relative_path "pip-#{version}"
