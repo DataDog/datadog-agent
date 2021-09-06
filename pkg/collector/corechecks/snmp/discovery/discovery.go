@@ -81,7 +81,7 @@ func (d *Discovery) checkDevice(job snmpJob) {
 	entityID := job.subnet.config.Digest(deviceIP)
 	if err := sess.Connect(); err != nil {
 		log.Debugf("SNMP connect to %s error: %v", deviceIP, err)
-		d.deleteService(entityID, job.subnet)
+		d.deleteDevice(entityID, job.subnet)
 	} else {
 		defer sess.Close()
 
@@ -91,14 +91,14 @@ func (d *Discovery) checkDevice(job snmpJob) {
 		value, err := sess.Get(oids)
 		if err != nil {
 			log.Debugf("SNMP get to %s error: %v", deviceIP, err)
-			d.deleteService(entityID, job.subnet)
+			d.deleteDevice(entityID, job.subnet)
 		} else if len(value.Variables) < 1 || value.Variables[0].Value == nil {
 			log.Debugf("SNMP get to %s no data", deviceIP)
-			d.deleteService(entityID, job.subnet)
+			d.deleteDevice(entityID, job.subnet)
 		} else {
 			log.Debugf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
 			log.Warnf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
-			d.createService(entityID, job.subnet, deviceIP, true)
+			d.createDevice(entityID, job.subnet, deviceIP, true)
 		}
 	}
 }
@@ -168,7 +168,7 @@ func (d *Discovery) checkDevices() {
 	}
 }
 
-func (d *Discovery) createService(entityID string, subnet *snmpSubnet, deviceIP string, writeCache bool) {
+func (d *Discovery) createDevice(entityID string, subnet *snmpSubnet, deviceIP string, writeCache bool) {
 	d.Lock()
 	defer d.Unlock()
 	if _, present := d.discoveredDevices[entityID]; present {
@@ -183,7 +183,7 @@ func (d *Discovery) createService(entityID string, subnet *snmpSubnet, deviceIP 
 	d.discoveredDevices[entityID] = svc
 	subnet.devices[entityID] = deviceIP
 	subnet.deviceFailures[entityID] = 0
-	log.Warnf("[DEV] Create service : %s, discoveredDevices: %v", deviceIP, len(d.discoveredDevices))
+	log.Warnf("[DEV] Create device : %s, discoveredDevices: %v", deviceIP, len(d.discoveredDevices))
 
 	//if writeCache {
 	//	d.writeCache(subnet)
@@ -191,7 +191,7 @@ func (d *Discovery) createService(entityID string, subnet *snmpSubnet, deviceIP 
 	//d.newService <- svc
 }
 
-func (d *Discovery) deleteService(entityID string, subnet *snmpSubnet) {
+func (d *Discovery) deleteDevice(entityID string, subnet *snmpSubnet) {
 	d.Lock()
 	defer d.Unlock()
 	if _, present := d.discoveredDevices[entityID]; present {
