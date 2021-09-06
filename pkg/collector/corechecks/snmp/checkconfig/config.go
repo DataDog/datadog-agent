@@ -438,7 +438,6 @@ func (c *CheckConfig) IsIPIgnored(ip net.IP) bool {
 }
 
 // Copy makes a copy of CheckConfig
-// TODO: test me
 func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig := CheckConfig{}
 	newConfig.IPAddress = c.IPAddress
@@ -455,11 +454,11 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.ContextName = c.ContextName
 	newConfig.ContextName = c.ContextName
 	newConfig.OidConfig = c.OidConfig
-	newConfig.Metrics = make([]MetricsConfig, len(c.Metrics))
+	newConfig.Metrics = make([]MetricsConfig, 0, len(c.Metrics))
 	for _, metric := range c.Metrics {
 		newConfig.Metrics = append(newConfig.Metrics, metric)
 	}
-	newConfig.MetricTags = make([]MetricTagConfig, len(c.MetricTags))
+	newConfig.MetricTags = make([]MetricTagConfig, 0, len(c.MetricTags))
 	for _, metricTag := range c.MetricTags {
 		newConfig.MetricTags = append(newConfig.MetricTags, metricTag)
 	}
@@ -467,7 +466,6 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.BulkMaxRepetitions = c.BulkMaxRepetitions
 	newConfig.Profiles = c.Profiles
 	newConfig.ProfileTags = common.CopyStrings(c.ProfileTags)
-	// TODO: do we need to have a field for ProfileDef, can we derive from Profile field ?
 	newConfig.Profile = c.Profile
 	newConfig.ProfileDef = c.ProfileDef
 	newConfig.ExtraTags = common.CopyStrings(c.ExtraTags)
