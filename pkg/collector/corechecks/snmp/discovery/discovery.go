@@ -3,11 +3,11 @@ package discovery
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"net"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
@@ -55,6 +55,29 @@ func (d *Discovery) Start() {
 	go d.checkDevices()
 }
 
+// Stop signal discovery to shut down
+func (d *Discovery) Stop() {
+	// TODO: test Stop
+	log.Debugf("Stop discovery for subnet %s", d.config.Network)
+	d.stop <- true
+}
+
+// GetDiscoveredDeviceConfigs returns discovered device configs
+func (d *Discovery) GetDiscoveredDeviceConfigs() []*devicecheck.DeviceCheck {
+	d.Lock()
+	defer d.Unlock()
+	var discoveredDevices []*devicecheck.DeviceCheck
+	for _, device := range d.discoveredDevices {
+		config := device.config
+		deviceCk, err := devicecheck.NewDeviceCheck(config, device.deviceIP)
+		if err != nil {
+			log.Warnf("failed to create new device check `%s`: %s", device.deviceIP, err)
+		}
+		discoveredDevices = append(discoveredDevices, deviceCk)
+	}
+	return discoveredDevices
+}
+
 // Start discovery
 func (d *Discovery) runWorker(jobs <-chan snmpJob) {
 	for {
@@ -65,39 +88,6 @@ func (d *Discovery) runWorker(jobs <-chan snmpJob) {
 		case job := <-jobs:
 			log.Debugf("Handling IP %s", job.currentIP.String())
 			d.checkDevice(job)
-		}
-	}
-}
-
-func (d *Discovery) checkDevice(job snmpJob) {
-	deviceIP := job.currentIP.String()
-	config := *job.subnet.config // shallow copy
-	config.IPAddress = deviceIP
-	sess, err := session.NewSession(&config)
-	if err != nil {
-		log.Errorf("Error configure session %s: %v", deviceIP, err)
-		return
-	}
-	entityID := job.subnet.config.DiscoveryDigest(deviceIP)
-	if err := sess.Connect(); err != nil {
-		log.Debugf("SNMP connect to %s error: %v", deviceIP, err)
-		d.deleteDevice(entityID, job.subnet)
-	} else {
-		defer sess.Close()
-
-		oids := []string{"1.3.6.1.2.1.1.2.0"}
-		// Since `params<GoSNMP>.ContextEngineID` is empty
-		// `params.Get` might lead to multiple SNMP GET calls when using SNMP v3
-		value, err := sess.Get(oids)
-		if err != nil {
-			log.Debugf("SNMP get to %s error: %v", deviceIP, err)
-			d.deleteDevice(entityID, job.subnet)
-		} else if len(value.Variables) < 1 || value.Variables[0].Value == nil {
-			log.Debugf("SNMP get to %s no data", deviceIP)
-			d.deleteDevice(entityID, job.subnet)
-		} else {
-			log.Debugf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
-			d.createDevice(entityID, job.subnet, deviceIP, true)
 		}
 	}
 }
@@ -167,6 +157,39 @@ func (d *Discovery) checkDevices() {
 	}
 }
 
+func (d *Discovery) checkDevice(job snmpJob) {
+	deviceIP := job.currentIP.String()
+	config := *job.subnet.config // shallow copy
+	config.IPAddress = deviceIP
+	sess, err := session.NewSession(&config)
+	if err != nil {
+		log.Errorf("Error configure session %s: %v", deviceIP, err)
+		return
+	}
+	entityID := job.subnet.config.DiscoveryDigest(deviceIP)
+	if err := sess.Connect(); err != nil {
+		log.Debugf("SNMP connect to %s error: %v", deviceIP, err)
+		d.deleteDevice(entityID, job.subnet)
+	} else {
+		defer sess.Close()
+
+		oids := []string{"1.3.6.1.2.1.1.2.0"}
+		// Since `params<GoSNMP>.ContextEngineID` is empty
+		// `params.Get` might lead to multiple SNMP GET calls when using SNMP v3
+		value, err := sess.Get(oids)
+		if err != nil {
+			log.Debugf("SNMP get to %s error: %v", deviceIP, err)
+			d.deleteDevice(entityID, job.subnet)
+		} else if len(value.Variables) < 1 || value.Variables[0].Value == nil {
+			log.Debugf("SNMP get to %s no data", deviceIP)
+			d.deleteDevice(entityID, job.subnet)
+		} else {
+			log.Debugf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
+			d.createDevice(entityID, job.subnet, deviceIP, true)
+		}
+	}
+}
+
 func (d *Discovery) createDevice(entityID string, subnet *snmpSubnet, deviceIP string, writeCache bool) {
 	d.Lock()
 	defer d.Unlock()
@@ -208,29 +231,6 @@ func (d *Discovery) deleteDevice(entityID string, subnet *snmpSubnet) {
 			d.writeCache(subnet)
 		}
 	}
-}
-
-// GetDiscoveredDeviceConfigs returns discovered device configs
-func (d *Discovery) GetDiscoveredDeviceConfigs() []*devicecheck.DeviceCheck {
-	d.Lock()
-	defer d.Unlock()
-	var discoveredDevices []*devicecheck.DeviceCheck
-	for _, device := range d.discoveredDevices {
-		config := device.config
-		deviceCk, err := devicecheck.NewDeviceCheck(config, device.deviceIP)
-		if err != nil {
-			log.Warnf("failed to create new device check `%s`: %s", device.deviceIP, err)
-		}
-		discoveredDevices = append(discoveredDevices, deviceCk)
-	}
-	return discoveredDevices
-}
-
-// Stop signal discovery to shut down
-func (d *Discovery) Stop() {
-	// TODO: test Stop
-	log.Debugf("Stop discovery for subnet %s", d.config.Network)
-	d.stop <- true
 }
 
 func (d *Discovery) loadCache(subnet *snmpSubnet) {
