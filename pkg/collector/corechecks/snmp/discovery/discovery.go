@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
@@ -28,17 +27,20 @@ type Discovery struct {
 
 // Device implements and store results from the Service interface for the SNMP listener
 type Device struct {
-	entityID     string
-	deviceIP     string
-	creationTime integration.CreationTime
-	config       *checkconfig.CheckConfig
+	entityID string
+	deviceIP string
+	config   *checkconfig.CheckConfig
 }
 type snmpSubnet struct {
-	config         *checkconfig.CheckConfig
-	startingIP     net.IP
-	network        net.IPNet
-	cacheKey       string
-	devices        map[string]string
+	config     *checkconfig.CheckConfig
+	startingIP net.IP
+	network    net.IPNet
+
+	// TODO: Test caching
+	cacheKey   string
+	devices    map[string]string
+
+	// TODO: test device failures
 	deviceFailures map[string]int
 }
 
@@ -47,8 +49,14 @@ type snmpJob struct {
 	currentIP net.IP
 }
 
-// Don't make it a method, to be overridden in tests
-var worker = func(d *Discovery, jobs <-chan snmpJob) {
+// Start discovery
+func (d *Discovery) Start() {
+	log.Debugf("Start discovery for subnet %s", d.config.Network)
+	go d.checkDevices()
+}
+
+// Start discovery
+func (d *Discovery) runWorker(jobs <-chan snmpJob) {
 	for {
 		select {
 		case <-d.stop:
@@ -59,12 +67,6 @@ var worker = func(d *Discovery, jobs <-chan snmpJob) {
 			d.checkDevice(job)
 		}
 	}
-}
-
-// Start discovery
-func (d *Discovery) Start() {
-	log.Debugf("Start discovery for subnet %s", d.config.Network)
-	go d.checkDevices()
 }
 
 func (d *Discovery) checkDevice(job snmpJob) {
@@ -125,13 +127,12 @@ func (d *Discovery) checkDevices() {
 
 	jobs := make(chan snmpJob)
 	for w := 0; w < d.config.DiscoveryWorkers; w++ {
-		go worker(d, jobs)
+		go d.runWorker(jobs)
 	}
 
 	discoveryTicker := time.NewTicker(time.Duration(d.config.DiscoveryInterval) * time.Second)
 
 	for {
-
 		startingIP := make(net.IP, len(subnet.startingIP))
 		copy(startingIP, subnet.startingIP)
 		for currentIP := startingIP; subnet.network.Contains(currentIP); incrementIP(currentIP) {
@@ -150,6 +151,7 @@ func (d *Discovery) checkDevices() {
 
 			select {
 			case <-d.stop:
+				// TODO: TEST ME
 				return
 			default:
 			}
@@ -157,8 +159,10 @@ func (d *Discovery) checkDevices() {
 
 		select {
 		case <-d.stop:
+			// TODO: TEST ME
 			return
 		case <-discoveryTicker.C:
+			// TODO: TEST ME
 		}
 	}
 }
@@ -170,21 +174,22 @@ func (d *Discovery) createDevice(entityID string, subnet *snmpSubnet, deviceIP s
 		return
 	}
 	svc := Device{
-		entityID:     entityID,
-		deviceIP:     deviceIP,
-		creationTime: integration.Before,
-		config:       subnet.config.Copy(),
+		entityID: entityID,
+		deviceIP: deviceIP,
+		config:   subnet.config.Copy(),
 	}
 	d.discoveredDevices[entityID] = svc
 	subnet.devices[entityID] = deviceIP
 	subnet.deviceFailures[entityID] = 0
 
+	// TODO: TEST writeCache
 	if writeCache {
 		d.writeCache(subnet)
 	}
 }
 
 func (d *Discovery) deleteDevice(entityID string, subnet *snmpSubnet) {
+	// TODO: TEST deleteDevice
 	d.Lock()
 	defer d.Unlock()
 	if _, present := d.discoveredDevices[entityID]; present {
@@ -223,11 +228,13 @@ func (d *Discovery) GetDiscoveredDeviceConfigs() []*devicecheck.DeviceCheck {
 
 // Stop signal discovery to shut down
 func (d *Discovery) Stop() {
+	// TODO: test Stop
 	log.Debugf("Stop discovery for subnet %s", d.config.Network)
 	d.stop <- true
 }
 
 func (d *Discovery) loadCache(subnet *snmpSubnet) {
+	// TODO: test loadCache
 	cacheValue, err := persistentcache.Read(subnet.cacheKey)
 	if err != nil {
 		log.Errorf("Couldn't read cache for %s: %s", subnet.cacheKey, err)
