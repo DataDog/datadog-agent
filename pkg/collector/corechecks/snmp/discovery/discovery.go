@@ -71,6 +71,8 @@ func (d *Discovery) GetDiscoveredDeviceConfigs() []*devicecheck.DeviceCheck {
 		config := device.config
 		deviceCk, err := devicecheck.NewDeviceCheck(config, device.deviceIP)
 		if err != nil {
+			// should not happen since the config is expected to be valid at this point
+			// and are only changing the device ip
 			log.Warnf("failed to create new device check `%s`: %s", device.deviceIP, err)
 			continue
 		}
