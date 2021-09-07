@@ -271,3 +271,62 @@ func TestDiscovery_checkDevice(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(discovery.discoveredDevices))
 }
+
+func TestDiscovery_createDevice(t *testing.T) {
+	checkConfig := &checkconfig.CheckConfig{
+		Network:                  "192.168.0.0/32",
+		CommunityString:          "public",
+		DiscoveryInterval:        1,
+		DiscoveryWorkers:         1,
+		DiscoveryAllowedFailures: 3,
+	}
+	discovery := NewDiscovery(checkConfig)
+	ipAddr, ipNet, err := net.ParseCIDR(checkConfig.Network)
+	assert.Nil(t, err)
+	startingIP := ipAddr.Mask(ipNet.Mask)
+
+	subnet := &snmpSubnet{
+		config:         checkConfig,
+		startingIP:     startingIP,
+		network:        *ipNet,
+		cacheKey:       "abc:123",
+		devices:        map[string]string{},
+		deviceFailures: map[string]int{},
+	}
+
+	device1Digest := subnet.config.DiscoveryDigest("192.168.0.1")
+	device2Digest := subnet.config.DiscoveryDigest("192.168.0.2")
+	device3Digest := subnet.config.DiscoveryDigest("192.168.0.3")
+	discovery.createDevice(device1Digest, subnet, "192.168.0.1", true)
+	discovery.createDevice(device2Digest, subnet, "192.168.0.2", true)
+	discovery.createDevice(device3Digest, subnet, "192.168.0.3", false)
+
+	assert.Equal(t, 3, len(discovery.discoveredDevices))
+
+	assert.Equal(t, device1Digest, discovery.discoveredDevices[device1Digest].entityID)
+	assert.Equal(t, "192.168.0.1", discovery.discoveredDevices[device1Digest].deviceIP)
+	assert.Equal(t, "192.168.0.1", discovery.discoveredDevices[device1Digest].deviceCheck.GetIPAddress())
+	assert.Equal(t, []string{"snmp_device:192.168.0.1"}, discovery.discoveredDevices[device1Digest].deviceCheck.GetIDTags())
+
+	assert.Equal(t, device2Digest, discovery.discoveredDevices[device2Digest].entityID)
+	assert.Equal(t, "192.168.0.2", discovery.discoveredDevices[device2Digest].deviceIP)
+
+	// test that only createDevice with writeCache:true are written to cache
+	ips, err := discovery.readCache(subnet)
+	assert.Nil(t, err)
+	assert.Equal(t, 2, len(ips))
+
+	// test deleteDevice
+	assert.Equal(t, 0, subnet.deviceFailures[device1Digest])
+	assert.Equal(t, 3, len(discovery.discoveredDevices))
+	discovery.deleteDevice(device1Digest, subnet) // increment failure count
+	assert.Equal(t, 1, subnet.deviceFailures[device1Digest])
+	assert.Equal(t, 3, len(discovery.discoveredDevices))
+	discovery.deleteDevice(device1Digest, subnet) // increment failure count
+	assert.Equal(t, 2, subnet.deviceFailures[device1Digest])
+	assert.Equal(t, 3, len(discovery.discoveredDevices))
+	_, present := subnet.deviceFailures[device1Digest]
+	assert.Equal(t, true, present)
+	discovery.deleteDevice(device1Digest, subnet) // really deletes the device
+	assert.Equal(t, 2, len(discovery.discoveredDevices))
+}

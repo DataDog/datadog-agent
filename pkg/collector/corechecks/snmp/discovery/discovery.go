@@ -39,7 +39,6 @@ type snmpSubnet struct {
 	cacheKey string
 	devices  map[string]string
 
-	// TODO: test device failures
 	deviceFailures map[string]int
 }
 
@@ -56,7 +55,6 @@ func (d *Discovery) Start() {
 
 // Stop signal discovery to shut down
 func (d *Discovery) Stop() {
-	// TODO: test Stop
 	log.Debugf("Stop discovery for subnet %s", d.config.Network)
 	d.stop <- true
 }
@@ -200,23 +198,21 @@ func (d *Discovery) createDevice(entityID string, subnet *snmpSubnet, deviceIP s
 	if _, present := d.discoveredDevices[entityID]; present {
 		return
 	}
-	svc := Device{
+	device := Device{
 		entityID:    entityID,
 		deviceIP:    deviceIP,
 		deviceCheck: deviceCk,
 	}
-	d.discoveredDevices[entityID] = svc
+	d.discoveredDevices[entityID] = device
 	subnet.devices[entityID] = deviceIP
 	subnet.deviceFailures[entityID] = 0
 
-	// TODO: TEST writeCache
 	if writeCache {
 		d.writeCache(subnet)
 	}
 }
 
 func (d *Discovery) deleteDevice(entityID string, subnet *snmpSubnet) {
-	// TODO: TEST deleteDevice
 	d.discDevMu.Lock()
 	defer d.discDevMu.Unlock()
 	if _, present := d.discoveredDevices[entityID]; present {
@@ -232,24 +228,31 @@ func (d *Discovery) deleteDevice(entityID string, subnet *snmpSubnet) {
 		if d.config.DiscoveryAllowedFailures != -1 && failure >= d.config.DiscoveryAllowedFailures {
 			delete(d.discoveredDevices, entityID)
 			delete(subnet.devices, entityID)
+			delete(subnet.deviceFailures, entityID)
 			d.writeCache(subnet)
 		}
 	}
 }
 
-func (d *Discovery) loadCache(subnet *snmpSubnet) {
-	// TODO: test loadCache
+func (d *Discovery) readCache(subnet *snmpSubnet) ([]net.IP, error) {
 	cacheValue, err := persistentcache.Read(subnet.cacheKey)
 	if err != nil {
-		log.Errorf("Couldn't read cache for %s: %s", subnet.cacheKey, err)
-		return
+		return nil, fmt.Errorf("couldn't read cache for %s: %s", subnet.cacheKey, err)
 	}
 	if cacheValue == "" {
-		return
+		return []net.IP{}, nil
 	}
 	var devices []net.IP
 	if err = json.Unmarshal([]byte(cacheValue), &devices); err != nil {
-		log.Errorf("Couldn't unmarshal cache for %s: %s", subnet.cacheKey, err)
+		return nil, fmt.Errorf("couldn't unmarshal cache for %s: %s", subnet.cacheKey, err)
+	}
+	return devices, nil
+}
+
+func (d *Discovery) loadCache(subnet *snmpSubnet) {
+	devices, err := d.readCache(subnet)
+	if err != nil {
+		log.Errorf("error reading cache: %s", err)
 		return
 	}
 	for _, deviceIP := range devices {
