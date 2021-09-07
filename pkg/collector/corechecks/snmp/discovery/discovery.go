@@ -278,7 +278,7 @@ func (d *Discovery) writeCache(subnet *snmpSubnet) {
 // NewDiscovery return a new Discovery instance
 func NewDiscovery(config *checkconfig.CheckConfig) Discovery {
 	return Discovery{
-		discoveredDevices: map[string]Device{},
+		discoveredDevices: make(map[string]Device),
 		stop:              make(chan bool),
 		config:            config,
 	}
