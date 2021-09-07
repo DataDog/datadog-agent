@@ -72,6 +72,7 @@ func (d *Discovery) GetDiscoveredDeviceConfigs() []*devicecheck.DeviceCheck {
 		deviceCk, err := devicecheck.NewDeviceCheck(config, device.deviceIP)
 		if err != nil {
 			log.Warnf("failed to create new device check `%s`: %s", device.deviceIP, err)
+			continue
 		}
 		discoveredDevices = append(discoveredDevices, deviceCk)
 	}
