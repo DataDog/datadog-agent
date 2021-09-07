@@ -36,7 +36,6 @@ type snmpSubnet struct {
 	startingIP net.IP
 	network    net.IPNet
 
-	// TODO: Test caching
 	cacheKey string
 	devices  map[string]string
 
