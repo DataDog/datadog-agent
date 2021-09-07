@@ -19,6 +19,10 @@ import (
 func TestProfileWithSysObjectIdDetection(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
+	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -36,7 +40,6 @@ profiles:
 
 	deviceCk, err := NewDeviceCheck(config, "1.2.3.4")
 	assert.Nil(t, err)
-	deviceCk.SetSession(sess)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()

@@ -72,8 +72,7 @@ func (d *Discovery) checkDevice(job snmpJob) {
 	deviceIP := job.currentIP.String()
 	config := *job.subnet.config // shallow copy
 	config.IPAddress = deviceIP
-	sess := session.GosnmpSession{}
-	err := sess.Configure(config)
+	sess, err := session.NewSession(&config)
 	if err != nil {
 		log.Errorf("Error configure session %s: %v", deviceIP, err)
 		return

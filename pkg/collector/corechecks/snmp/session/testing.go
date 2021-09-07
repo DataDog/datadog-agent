@@ -59,3 +59,8 @@ func CreateMockSession() *MockSession {
 	session.Version = gosnmp.Version2c
 	return session
 }
+
+// NewMockSession creates a mock session
+func NewMockSession() Session {
+	return CreateMockSession()
+}

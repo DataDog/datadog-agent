@@ -34,8 +34,7 @@ type DeviceCheck struct {
 func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string) (*DeviceCheck, error) {
 	newConfig := config.CopyWithNewIP(ipAddress)
 
-	sess := &session.GosnmpSession{}
-	err := sess.Configure(*newConfig)
+	sess, err := session.NewSession(newConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure session: %s", err)
 	}
@@ -49,12 +48,6 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string) (*DeviceC
 // SetSender sets the current sender
 func (d *DeviceCheck) SetSender(sender *report.MetricSender) {
 	d.sender = sender
-}
-
-// SetSession sets the current session
-// Needed for testing
-func (d *DeviceCheck) SetSession(session session.Session) {
-	d.session = session
 }
 
 // GetIPAddress returns device IP
