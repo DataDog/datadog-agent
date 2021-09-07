@@ -108,14 +108,14 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 	}
 	log.Debugf("SNMP configuration: %s", c.config.ToString())
 
-	c.singleDeviceCk, err = devicecheck.NewDeviceCheck(c.config, c.config.IPAddress)
-	if err != nil {
-		return fmt.Errorf("failed to create device check: %s", err)
-	}
-
 	if c.config.Network != "" {
 		c.discovery = discovery.NewDiscovery(c.config)
 		c.discovery.Start()
+	} else {
+		c.singleDeviceCk, err = devicecheck.NewDeviceCheck(c.config, c.config.IPAddress)
+		if err != nil {
+			return fmt.Errorf("failed to create device check: %s", err)
+		}
 	}
 	return nil
 }

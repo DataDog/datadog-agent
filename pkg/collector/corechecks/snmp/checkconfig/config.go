@@ -259,7 +259,11 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	}
 
 	if c.IPAddress == "" && c.Network == "" {
-		return nil, fmt.Errorf("ip_address or network config must be provided")
+		return nil, fmt.Errorf("`ip_address` or `network` config must be provided")
+	}
+
+	if c.IPAddress != "" && c.Network != "" {
+		return nil, fmt.Errorf("`ip_address` and `network` cannot be used at the same time")
 	}
 
 	if c.Port == 0 {

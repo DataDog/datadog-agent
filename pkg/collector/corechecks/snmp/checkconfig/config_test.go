@@ -332,17 +332,6 @@ community_string: abc
 	assert.Equal(t, mockProfilesDefinitions()["f5-big-ip"].Metrics, config.Profiles["f5-big-ip"].Metrics)
 }
 
-func TestIPAddressConfiguration(t *testing.T) {
-	SetConfdPathAndCleanProfiles()
-	// TEST Default port
-	// language=yaml
-	rawInstanceConfig := []byte(`
-ip_address:
-`)
-	_, err := NewCheckConfig(rawInstanceConfig, []byte(``))
-	assert.EqualError(t, err, "ip_address or network config must be provided")
-}
-
 func TestPortConfiguration(t *testing.T) {
 	SetConfdPathAndCleanProfiles()
 	// TEST Default port
@@ -545,7 +534,7 @@ global_metrics:
 	assert.Equal(t, metrics, config.Metrics)
 }
 
-func Test_buildConfig(t *testing.T) {
+func Test_NewCheckConfig_errors(t *testing.T) {
 	SetConfdPathAndCleanProfiles()
 
 	tests := []struct {
@@ -582,11 +571,34 @@ metrics:
 -
 `),
 			// language=yaml
-			rawInitConfig: []byte(`
-`),
+			rawInitConfig: []byte(``),
 			expectedErrors: []string{
 				"validation errors: either a table symbol or a scalar symbol must be provided",
 				"either a table symbol or a scalar symbol must be provided",
+			},
+		},
+		{
+			name: "both ip_address and network error",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+network_address: 10.0.0.0/24
+`),
+			// language=yaml
+			rawInitConfig: []byte(``),
+			expectedErrors: []string{
+				"`ip_address` and `network` cannot be used at the same time",
+			},
+		},
+		{
+			name: "no ip_address or network error",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+`),
+			// language=yaml
+			rawInitConfig: []byte(``),
+			expectedErrors: []string{
+				"`ip_address` or `network` config must be provided",
 			},
 		},
 	}
