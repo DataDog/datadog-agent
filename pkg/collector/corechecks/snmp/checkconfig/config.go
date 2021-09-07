@@ -487,6 +487,11 @@ func (c *CheckConfig) CopyWithNewIP(ipAddress string) *CheckConfig {
 	return newConfig
 }
 
+// IsDiscovery return weather it's a network/autodiscovery config or not
+func (c *CheckConfig) IsDiscovery() bool {
+	return c.Network != ""
+}
+
 func getUptimeMetricConfig() MetricsConfig {
 	// Reference sysUpTimeInstance directly, see http://oidref.com/1.3.6.1.2.1.1.3.0
 	return MetricsConfig{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}}

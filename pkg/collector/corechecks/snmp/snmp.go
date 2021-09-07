@@ -39,7 +39,7 @@ func (c *Check) Run() error {
 		return err
 	}
 
-	if c.config.Network != "" {
+	if c.config.IsDiscovery() {
 		var discoveredDevices []*devicecheck.DeviceCheck
 		discoveredDevices = c.discovery.GetDiscoveredDeviceConfigs()
 
@@ -108,7 +108,7 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 	}
 	log.Debugf("SNMP configuration: %s", c.config.ToString())
 
-	if c.config.Network != "" {
+	if c.config.IsDiscovery() {
 		c.discovery = discovery.NewDiscovery(c.config)
 		c.discovery.Start()
 	} else {
