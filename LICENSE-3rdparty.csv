@@ -52,9 +52,9 @@ core,"github.com/DataDog/gostackparse",Apache-2.0
 core,"github.com/DataDog/mmh3",UNKNOWN
 core,"github.com/DataDog/nikos/apt",MIT
 core,"github.com/DataDog/nikos/cos",MIT
+core,"github.com/DataDog/nikos/extract",MIT
 core,"github.com/DataDog/nikos/rpm",MIT
 core,"github.com/DataDog/nikos/rpm/dnf",MIT
-core,"github.com/DataDog/nikos/tarball",MIT
 core,"github.com/DataDog/nikos/types",MIT
 core,"github.com/DataDog/nikos/wsl",MIT
 core,"github.com/DataDog/sketches-go/ddsketch",Apache-2.0
