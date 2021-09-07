@@ -40,6 +40,7 @@ func (c *Check) Run() error {
 	}
 
 	if c.config.IsDiscovery() {
+		// TODO: TEST ME
 		var discoveredDevices []*devicecheck.DeviceCheck
 		discoveredDevices = c.discovery.GetDiscoveredDeviceConfigs()
 
@@ -71,6 +72,7 @@ func (c *Check) Run() error {
 }
 
 func (c *Check) runCheckDeviceWorker(workerID int, wg *sync.WaitGroup, jobs <-chan *devicecheck.DeviceCheck) {
+	// TODO: TEST ME
 	defer wg.Done()
 	for job := range jobs {
 		err := c.runCheckDevice(job)
@@ -109,6 +111,7 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 	log.Debugf("SNMP configuration: %s", c.config.ToString())
 
 	if c.config.IsDiscovery() {
+		// TODO: TEST ME
 		c.discovery = discovery.NewDiscovery(c.config)
 		c.discovery.Start()
 	} else {
