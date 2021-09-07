@@ -26,6 +26,7 @@ func (d *DiscoveryCheck) Name() string { return config.DiscoveryCheckName }
 func (d *DiscoveryCheck) RealTime() bool { return false }
 
 func (d *DiscoveryCheck) Run(_ *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
+	log.Info("Running process discovery check")
 	hostname, err := os.Hostname()
 	if err != nil {
 		_ = log.Warn("unable to get hostname")
