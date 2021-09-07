@@ -443,6 +443,7 @@ func (f *fixtureV1beta1) run(t *testing.T) *ControllerV1beta1 {
 		factory.Core().V1().Secrets(),
 		factory.Admissionregistration().V1beta1().MutatingWebhookConfigurations(),
 		func() bool { return true },
+		make(chan struct{}),
 		v1beta1Cfg,
 	)
 
