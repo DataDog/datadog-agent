@@ -2,68 +2,57 @@ package discovery
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
+	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"testing"
+	"time"
 )
 
 func TestDiscovery(t *testing.T) {
-	testChan := make(chan snmpJob, 10)
-
-	worker = func(l *Discovery, jobs <-chan snmpJob) {
-		for {
-			job := <-jobs
-			testChan <- job
-		}
+	sess := session.CreateMockSession()
+	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
 	}
+
+	packet := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.1.2.0",
+				Type:  gosnmp.ObjectIdentifier,
+				Value: "1.3.6.1.4.1.3375.2.1.3.4.1",
+			},
+		},
+	}
+	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&packet, nil)
 
 	checkConfig := &checkconfig.CheckConfig{
-		Network:           "192.168.0.0/24",
-		CommunityString:   "public",
-		DiscoveryInterval: 3600,
-		DiscoveryWorkers:  1,
-	}
-	discovery := NewDiscovery(checkConfig)
-	discovery.Start()
-
-	job := <-testChan
-
-	assert.Equal(t, "public", job.subnet.config.CommunityString)
-	assert.Equal(t, "192.168.0.0", job.currentIP.String())
-	assert.Equal(t, "192.168.0.0", job.subnet.startingIP.String())
-	assert.Equal(t, "192.168.0.0/24", job.subnet.config.Network)
-
-	job = <-testChan
-	assert.Equal(t, "192.168.0.1", job.currentIP.String())
-	assert.Equal(t, "192.168.0.0", job.subnet.startingIP.String())
-}
-
-func TestDiscovery_IgnoreAddresses(t *testing.T) {
-	testChan := make(chan snmpJob, 10)
-
-	worker = func(l *Discovery, jobs <-chan snmpJob) {
-		for {
-			job := <-jobs
-			testChan <- job
-		}
-	}
-
-	checkConfig := &checkconfig.CheckConfig{
-		Network:            "192.168.0.0/24",
+		Network:            "192.168.0.0/29",
 		CommunityString:    "public",
 		DiscoveryInterval:  3600,
 		DiscoveryWorkers:   1,
-		IgnoredIPAddresses: map[string]bool{"192.168.0.0": true},
+		IgnoredIPAddresses: map[string]bool{"192.168.0.5": true},
 	}
 	discovery := NewDiscovery(checkConfig)
 	discovery.Start()
+	time.Sleep(100 * time.Millisecond)
+	discovery.Stop()
 
-	job := <-testChan
+	deviceConfigs := discovery.GetDiscoveredDeviceConfigs()
 
-	assert.Equal(t, "public", job.subnet.config.CommunityString)
-	assert.Equal(t, "192.168.0.1", job.currentIP.String())
-	assert.Equal(t, "192.168.0.0", job.subnet.startingIP.String())
-
-	job = <-testChan
-	assert.Equal(t, "192.168.0.2", job.currentIP.String())
-	assert.Equal(t, "192.168.0.0", job.subnet.startingIP.String())
+	var actualDiscoveredIps []string
+	for _, deviceCk := range deviceConfigs {
+		actualDiscoveredIps = append(actualDiscoveredIps, deviceCk.GetIPAddress())
+	}
+	expectedDiscoveredIps := []string{
+		"192.168.0.0",
+		"192.168.0.1",
+		"192.168.0.2",
+		"192.168.0.3",
+		"192.168.0.4",
+		// 192.168.0.5 is ignored
+		"192.168.0.6",
+		"192.168.0.7",
+	}
+	assert.ElementsMatch(t, expectedDiscoveredIps, actualDiscoveredIps)
 }

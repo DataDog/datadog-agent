@@ -41,7 +41,7 @@ func (c *Check) Run() error {
 
 	if c.config.Network != "" {
 		var discoveredDevices []*devicecheck.DeviceCheck
-		discoveredDevices = c.discovery.GetDiscoveredDeviceConfigs(sender)
+		discoveredDevices = c.discovery.GetDiscoveredDeviceConfigs()
 
 		jobs := make(chan *devicecheck.DeviceCheck, len(discoveredDevices))
 

@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -207,7 +206,7 @@ func (d *Discovery) deleteDevice(entityID string, subnet *snmpSubnet) {
 }
 
 // GetDiscoveredDeviceConfigs returns discovered device configs
-func (d *Discovery) GetDiscoveredDeviceConfigs(sender aggregator.Sender) []*devicecheck.DeviceCheck {
+func (d *Discovery) GetDiscoveredDeviceConfigs() []*devicecheck.DeviceCheck {
 	d.Lock()
 	defer d.Unlock()
 	var discoveredDevices []*devicecheck.DeviceCheck
