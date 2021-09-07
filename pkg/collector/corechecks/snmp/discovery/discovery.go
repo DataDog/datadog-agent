@@ -144,7 +144,6 @@ func (d *Discovery) checkDevices() {
 
 			select {
 			case <-d.stop:
-				// TODO: TEST ME
 				return
 			default:
 			}
@@ -152,10 +151,8 @@ func (d *Discovery) checkDevices() {
 
 		select {
 		case <-d.stop:
-			// TODO: TEST ME
 			return
 		case <-discoveryTicker.C:
-			// TODO: TEST ME
 		}
 	}
 }
