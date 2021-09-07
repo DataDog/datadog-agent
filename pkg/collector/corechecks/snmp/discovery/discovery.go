@@ -37,8 +37,8 @@ type snmpSubnet struct {
 	network    net.IPNet
 
 	// TODO: Test caching
-	cacheKey   string
-	devices    map[string]string
+	cacheKey string
+	devices  map[string]string
 
 	// TODO: test device failures
 	deviceFailures map[string]int
