@@ -378,13 +378,7 @@ func (t *Tagger) Standard(entity string) ([]string, error) {
 
 // GetEntity returns the entity corresponding to the specified id and an error
 func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
-	tags, err := t.store.GetEntityTags(entityID)
-	if err != nil {
-		return nil, err
-	}
-
-	entity := tags.ToEntity()
-	return &entity, nil
+	return t.store.GetEntity(entityID)
 }
 
 // List the content of the tagger
