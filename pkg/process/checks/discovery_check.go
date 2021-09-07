@@ -21,7 +21,7 @@ func (d *DiscoveryCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 	d.info = info
 }
 
-func (d *DiscoveryCheck) Name() string { return "discovery" }
+func (d *DiscoveryCheck) Name() string { return config.DiscoveryCheckName }
 
 func (d *DiscoveryCheck) RealTime() bool { return false }
 

@@ -93,6 +93,7 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	a.setCheckInterval(ns, "process", ProcessCheckName)
 	a.setCheckInterval(ns, "process_realtime", RTProcessCheckName)
 	a.setCheckInterval(ns, "connections", ConnectionsCheckName)
+	a.setCheckInterval(ns, DiscoveryCheckName, DiscoveryCheckName)
 
 	// A list of regex patterns that will exclude a process if matched.
 	if k := key(ns, "blacklist_patterns"); config.Datadog.IsSet(k) {
