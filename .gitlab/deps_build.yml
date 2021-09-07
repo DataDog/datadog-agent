@@ -64,8 +64,8 @@ build_clang_arm64:
     - git clone https://github.com/DataDog/omnibus-nikos.git /tmp/omnibus-nikos
     - cd /tmp/omnibus-nikos
     - /bin/bash -l -c "bundle install"
-    - /bin/bash -l -c "bundle exec omnibus build nikos"
-    - cd /opt/nikos/embedded
+    - /bin/bash -l -c "export NIKOS_INSTALL_DIR=$NIKOS_INSTALL_DIR && bundle exec omnibus build nikos"
+    - cd $NIKOS_EMBEDDED_PATH
     - cp lib/glib-2.0/include/glibconfig.h include
     - tar czf nikos.tar.gz *
     - $S3_CP_CMD nikos.tar.gz $S3_PERMANENT_ARTIFACTS_URI/nikos-$ARCH.tar.gz

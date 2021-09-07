@@ -32,4 +32,11 @@ build do
   end
 
   copy 'pkg/ebpf/c/COPYING', "#{install_dir}/embedded/share/system-probe/ebpf/"
+
+  if not ENV['NIKOS_PATH'].empty?
+    copy "#{ENV['NIKOS_PATH']}/bin", "#{install_dir}/embedded/nikos/embedded/"
+    copy "#{ENV['NIKOS_PATH']}/sbin", "#{install_dir}/embedded/nikos/embedded/"
+    copy "#{ENV['NIKOS_PATH']}/ssl", "#{install_dir}/embedded/nikos/embedded/"
+    copy "#{ENV['NIKOS_PATH']}/libexec", "#{install_dir}/embedded/nikos/embedded/"
+  end
 end
