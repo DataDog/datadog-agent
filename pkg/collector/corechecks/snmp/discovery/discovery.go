@@ -27,9 +27,9 @@ type Discovery struct {
 
 // Device implements and store results from the Service interface for the SNMP listener
 type Device struct {
-	entityID string
-	deviceIP string
-	config   *checkconfig.CheckConfig
+	entityID    string
+	deviceIP    string
+	deviceCheck *devicecheck.DeviceCheck
 }
 type snmpSubnet struct {
 	config     *checkconfig.CheckConfig
@@ -66,17 +66,10 @@ func (d *Discovery) Stop() {
 func (d *Discovery) GetDiscoveredDeviceConfigs() []*devicecheck.DeviceCheck {
 	d.discDevMu.RLock()
 	defer d.discDevMu.RUnlock()
-	var discoveredDevices []*devicecheck.DeviceCheck
+
+	discoveredDevices := make([]*devicecheck.DeviceCheck, 0, len(d.discoveredDevices))
 	for _, device := range d.discoveredDevices {
-		config := device.config
-		deviceCk, err := devicecheck.NewDeviceCheck(config, device.deviceIP)
-		if err != nil {
-			// should not happen since the config is expected to be valid at this point
-			// and are only changing the device ip
-			log.Warnf("failed to create new device check `%s`: %s", device.deviceIP, err)
-			continue
-		}
-		discoveredDevices = append(discoveredDevices, deviceCk)
+		discoveredDevices = append(discoveredDevices, device.deviceCheck)
 	}
 	return discoveredDevices
 }
@@ -194,15 +187,24 @@ func (d *Discovery) checkDevice(job snmpJob) error {
 }
 
 func (d *Discovery) createDevice(entityID string, subnet *snmpSubnet, deviceIP string, writeCache bool) {
+	deviceCk, err := devicecheck.NewDeviceCheck(subnet.config, deviceIP)
+	if err != nil {
+		// should not happen since the deviceCheck is expected to be valid at this point
+		// and are only changing the device ip
+		log.Warnf("failed to create new device check `%s`: %s", deviceIP, err)
+		return
+	}
+
 	d.discDevMu.Lock()
 	defer d.discDevMu.Unlock()
+
 	if _, present := d.discoveredDevices[entityID]; present {
 		return
 	}
 	svc := Device{
-		entityID: entityID,
-		deviceIP: deviceIP,
-		config:   subnet.config.Copy(),
+		entityID:    entityID,
+		deviceIP:    deviceIP,
+		deviceCheck: deviceCk,
 	}
 	d.discoveredDevices[entityID] = svc
 	subnet.devices[entityID] = deviceIP
