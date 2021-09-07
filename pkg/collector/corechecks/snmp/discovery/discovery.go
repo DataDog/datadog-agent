@@ -19,9 +19,9 @@ const cacheKeyPrefix = "snmp_corecheck"
 
 // Discovery handles snmp discovery states
 type Discovery struct {
-	sync.RWMutex
 	config            *checkconfig.CheckConfig
 	stop              chan bool
+	discDevMu         sync.RWMutex
 	discoveredDevices map[string]Device
 }
 
@@ -64,8 +64,8 @@ func (d *Discovery) Stop() {
 
 // GetDiscoveredDeviceConfigs returns discovered device configs
 func (d *Discovery) GetDiscoveredDeviceConfigs() []*devicecheck.DeviceCheck {
-	d.Lock()
-	defer d.Unlock()
+	d.discDevMu.RLock()
+	defer d.discDevMu.RUnlock()
 	var discoveredDevices []*devicecheck.DeviceCheck
 	for _, device := range d.discoveredDevices {
 		config := device.config
@@ -191,8 +191,8 @@ func (d *Discovery) checkDevice(job snmpJob) {
 }
 
 func (d *Discovery) createDevice(entityID string, subnet *snmpSubnet, deviceIP string, writeCache bool) {
-	d.Lock()
-	defer d.Unlock()
+	d.discDevMu.Lock()
+	defer d.discDevMu.Unlock()
 	if _, present := d.discoveredDevices[entityID]; present {
 		return
 	}
@@ -213,8 +213,8 @@ func (d *Discovery) createDevice(entityID string, subnet *snmpSubnet, deviceIP s
 
 func (d *Discovery) deleteDevice(entityID string, subnet *snmpSubnet) {
 	// TODO: TEST deleteDevice
-	d.Lock()
-	defer d.Unlock()
+	d.discDevMu.Lock()
+	defer d.discDevMu.Unlock()
 	if _, present := d.discoveredDevices[entityID]; present {
 		failure, present := subnet.deviceFailures[entityID]
 		if !present {
