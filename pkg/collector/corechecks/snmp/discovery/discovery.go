@@ -16,6 +16,7 @@ import (
 )
 
 const cacheKeyPrefix = "snmp_corecheck"
+const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
 
 // Discovery handles snmp discovery states
 type Discovery struct {
@@ -165,7 +166,7 @@ func (d *Discovery) checkDevice(job snmpJob) error {
 	} else {
 		defer sess.Close()
 
-		oids := []string{"1.3.6.1.2.1.1.2.0"}
+		oids := []string{sysObjectIDOid}
 		// Since `params<GoSNMP>.ContextEngineID` is empty
 		// `params.Get` might lead to multiple SNMP GET calls when using SNMP v3
 		value, err := sess.Get(oids)
