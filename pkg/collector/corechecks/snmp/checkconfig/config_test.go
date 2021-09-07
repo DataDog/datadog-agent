@@ -298,6 +298,7 @@ profiles:
 	assert.Equal(t, 2, len(config.Profiles))
 	assert.Equal(t, "74f22f3320d2d692", config.DeviceID)
 	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, config.DeviceIDTags)
+	assert.Equal(t, false, config.AutodetectProfile)
 	assert.Equal(t, 3600, config.DiscoveryInterval)
 	assert.Equal(t, 3, config.DiscoveryAllowedFailures)
 	assert.Equal(t, 10, config.DiscoveryWorkers)
