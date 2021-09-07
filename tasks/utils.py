@@ -105,7 +105,7 @@ def get_nikos_linker_flags(nikos_libs_path):
     linker_flags = map(lambda lib: nikos_libs_path + '/lib' + lib + '.a', nikos_libs)
 
     return (
-        ' -L' + nikos_libs_path + ' ' + ' '.join(linker_flags) + ' -l:libresolv.a -static-libstdc++ -pthread -ldl -lm'
+        ' -L' + nikos_libs_path + ' ' + ' '.join(linker_flags) + ' -static-libstdc++ -pthread -ldl -lm'
     )
 
 
