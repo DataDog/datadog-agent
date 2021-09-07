@@ -2,12 +2,10 @@ package snmp
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/discovery"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/report"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -15,6 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/devicecheck"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/discovery"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/report"
 )
 
 const (
