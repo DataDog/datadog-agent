@@ -1,10 +1,12 @@
 package discovery
 
 import (
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
+	"net"
 	"testing"
 	"time"
 )
@@ -157,4 +159,115 @@ func TestDiscoveryTicker(t *testing.T) {
 	// expected to be called 3 times for 1.5 sec
 	// first time on discovery.Start, then once every second for the first 1 sec
 	assert.Equal(t, 2, len(sess.Calls))
+}
+
+func TestDiscovery_checkDevice(t *testing.T) {
+	checkConfig := &checkconfig.CheckConfig{
+		Network:           "192.168.0.0/32",
+		CommunityString:   "public",
+		DiscoveryInterval: 1,
+		DiscoveryWorkers:  1,
+	}
+	discovery := NewDiscovery(checkConfig)
+	ipAddr, ipNet, err := net.ParseCIDR(checkConfig.Network)
+	assert.Nil(t, err)
+	startingIP := ipAddr.Mask(ipNet.Mask)
+
+	subnet := snmpSubnet{
+		config:         checkConfig,
+		startingIP:     startingIP,
+		network:        *ipNet,
+		cacheKey:       "abc:123",
+		devices:        map[string]string{},
+		deviceFailures: map[string]int{},
+	}
+
+	job := snmpJob{
+		subnet:    &subnet,
+		currentIP: startingIP,
+	}
+
+	packet := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.1.2.0",
+				Type:  gosnmp.ObjectIdentifier,
+				Value: "1.3.6.1.4.1.3375.2.1.3.4.1",
+			},
+		},
+	}
+
+	var sess *session.MockSession
+
+	checkDeviceOnce := func() {
+		sess = session.CreateMockSession()
+		session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+			return sess, nil
+		}
+		sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&packet, nil)
+		err = discovery.checkDevice(job) // add device
+		assert.Nil(t, err)
+		assert.Equal(t, 1, len(discovery.discoveredDevices))
+	}
+
+	// session configuration error
+	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+		return nil, fmt.Errorf("some error")
+	}
+	err = discovery.checkDevice(job)
+	assert.EqualError(t, err, "error configure session for ip 192.168.0.0: some error")
+	assert.Equal(t, 0, len(discovery.discoveredDevices))
+
+	// Test session.Connect() error
+	checkDeviceOnce()
+	sess.ConnectErr = fmt.Errorf("connection error")
+	err = discovery.checkDevice(job)
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(discovery.discoveredDevices))
+
+	// Test session.Get() error
+	checkDeviceOnce()
+	sess = session.CreateMockSession()
+	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+	var nilPacket *gosnmp.SnmpPacket
+	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(nilPacket, fmt.Errorf("get error"))
+	err = discovery.checkDevice(job) // check device with Get error
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(discovery.discoveredDevices))
+
+	// Test session.Get() packet with no variable
+	checkDeviceOnce()
+	sess = session.CreateMockSession()
+	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+	packetNoVariable := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{},
+	}
+	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&packetNoVariable, nil)
+	err = discovery.checkDevice(job) // check device with Get error
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(discovery.discoveredDevices))
+
+	// Test session.Get() packet with nil value
+	checkDeviceOnce()
+	sess = session.CreateMockSession()
+	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+	packetNilValue := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.1.2.0",
+				Type:  gosnmp.ObjectIdentifier,
+				Value: nil,
+			},
+		},
+	}
+	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&packetNilValue, nil)
+	err = discovery.checkDevice(job) // check device with Get error
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(discovery.discoveredDevices))
 }

@@ -90,7 +90,10 @@ func (d *Discovery) runWorker(jobs <-chan snmpJob) {
 			return
 		case job := <-jobs:
 			log.Debugf("Handling IP %s", job.currentIP.String())
-			d.checkDevice(job)
+			err := d.checkDevice(job)
+			if err != nil {
+				log.Errorf(err.Error())
+			}
 		}
 	}
 }
@@ -157,14 +160,13 @@ func (d *Discovery) checkDevices() {
 	}
 }
 
-func (d *Discovery) checkDevice(job snmpJob) {
+func (d *Discovery) checkDevice(job snmpJob) error {
 	deviceIP := job.currentIP.String()
 	config := *job.subnet.config // shallow copy
 	config.IPAddress = deviceIP
 	sess, err := session.NewSession(&config)
 	if err != nil {
-		log.Errorf("Error configure session %s: %v", deviceIP, err)
-		return
+		return fmt.Errorf("error configure session for ip %s: %v", deviceIP, err)
 	}
 	entityID := job.subnet.config.DiscoveryDigest(deviceIP)
 	if err := sess.Connect(); err != nil {
@@ -188,6 +190,7 @@ func (d *Discovery) checkDevice(job snmpJob) {
 			d.createDevice(entityID, job.subnet, deviceIP, true)
 		}
 	}
+	return nil
 }
 
 func (d *Discovery) createDevice(entityID string, subnet *snmpSubnet, deviceIP string, writeCache bool) {
