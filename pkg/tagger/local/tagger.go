@@ -25,7 +25,6 @@ import (
 
 const (
 	notFoundTTL = 5 * time.Minute
-	deletedTTL  = 5 * time.Minute
 	errTTL      = 30 * time.Second
 )
 
