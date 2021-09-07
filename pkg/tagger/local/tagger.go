@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -38,7 +39,7 @@ type Tagger struct {
 	streamers  map[string]collectors.Streamer
 	fetchers   map[string]fetcherEntry
 
-	store       *tagStore
+	store       *tagstore.TagStore
 	retryTicker *time.Ticker
 
 	ctx    context.Context
@@ -68,7 +69,7 @@ func NewTagger(catalog collectors.Catalog) *Tagger {
 		streamers:  make(map[string]collectors.Streamer),
 		fetchers:   make(map[string]fetcherEntry),
 
-		store: newTagStore(),
+		store: tagstore.NewTagStore(),
 
 		ctx:    ctx,
 		cancel: cancel,
@@ -92,7 +93,7 @@ func (t *Tagger) Init() error {
 	t.startCollectors(t.ctx)
 
 	go t.runPuller(t.ctx)
-	go t.store.run(t.ctx)
+	go t.store.Run(t.ctx)
 
 	go t.run()
 
@@ -174,7 +175,7 @@ func (t *Tagger) tryCollectors(ctx context.Context) []collectorReply {
 
 	for name, factory := range t.candidates {
 		collector := factory()
-		mode, err := collector.Detect(ctx, t.store.infoIn)
+		mode, err := collector.Detect(ctx, t.store.InfoIn)
 		if mode == collectors.NoCollection && err == nil {
 			log.Infof("collector %s skipped as feature not activated", name)
 			delete(t.candidates, name)
@@ -266,7 +267,7 @@ func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) (
 		return nil, fmt.Errorf("empty entity ID")
 	}
 
-	cachedTags, sources := t.store.lookupBuilder(entity, cardinality)
+	cachedTags, sources := t.store.LookupBuilder(entity, cardinality)
 
 	if len(sources) == len(t.fetchers) {
 		telemetry.QueriesByCardinality(cardinality).Success.Inc()
@@ -307,7 +308,7 @@ IterCollectors:
 		}
 
 		// Submit to cache for next lookup
-		t.store.processTagInfo([]*collectors.TagInfo{
+		t.store.ProcessTagInfo([]*collectors.TagInfo{
 			{
 				Entity:               entity,
 				Source:               name,
@@ -321,7 +322,7 @@ IterCollectors:
 	}
 	t.RUnlock()
 
-	cachedTags, _ = t.store.lookupBuilder(entity, cardinality)
+	cachedTags, _ = t.store.LookupBuilder(entity, cardinality)
 
 	if cachedTags.Len() > 0 {
 		telemetry.QueriesByCardinality(cardinality).Success.Inc()
@@ -358,14 +359,14 @@ func (t *Tagger) Standard(entity string) ([]string, error) {
 		return nil, fmt.Errorf("empty entity ID")
 	}
 
-	tags, err := t.store.lookupStandard(entity)
-	if err == errNotFound {
+	tags, err := t.store.LookupStandard(entity)
+	if err == tagstore.ErrNotFound {
 		// entity not found yet in the tagger
 		// trigger tagger fetch operations
 		log.Debugf("Entity '%s' not found in tagger cache, will try to fetch it", entity)
 		_, _ = t.Tag(entity, collectors.LowCardinality)
 
-		return t.store.lookupStandard(entity)
+		return t.store.LookupStandard(entity)
 	}
 
 	if err != nil {
@@ -377,50 +378,28 @@ func (t *Tagger) Standard(entity string) ([]string, error) {
 
 // GetEntity returns the entity corresponding to the specified id and an error
 func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
-	tags, err := t.store.getEntityTags(entityID)
+	tags, err := t.store.GetEntityTags(entityID)
 	if err != nil {
 		return nil, err
 	}
 
-	entity := tags.toEntity()
+	entity := tags.ToEntity()
 	return &entity, nil
 }
 
 // List the content of the tagger
 func (t *Tagger) List(cardinality collectors.TagCardinality) response.TaggerListResponse {
-	r := response.TaggerListResponse{
-		Entities: make(map[string]response.TaggerListEntity),
-	}
-
-	t.store.RLock()
-	defer t.store.RUnlock()
-
-	for entityID, et := range t.store.store {
-		entity := response.TaggerListEntity{
-			Tags: make(map[string][]string),
-		}
-
-		for source, sourceTags := range et.sourceTags {
-			tags := append([]string(nil), sourceTags.lowCardTags...)
-			tags = append(tags, sourceTags.orchestratorCardTags...)
-			tags = append(tags, sourceTags.highCardTags...)
-			entity.Tags[source] = tags
-		}
-
-		r.Entities[entityID] = entity
-	}
-
-	return r
+	return t.store.List()
 }
 
 // Subscribe returns a list of existing entities in the store, alongside a
 // channel that receives events whenever an entity is added, modified or
 // deleted.
 func (t *Tagger) Subscribe(cardinality collectors.TagCardinality) chan []types.EntityEvent {
-	return t.store.subscribe(cardinality)
+	return t.store.Subscribe(cardinality)
 }
 
 // Unsubscribe ends a subscription to entity events and closes its channel.
 func (t *Tagger) Unsubscribe(ch chan []types.EntityEvent) {
-	t.store.unsubscribe(ch)
+	t.store.Unsubscribe(ch)
 }
