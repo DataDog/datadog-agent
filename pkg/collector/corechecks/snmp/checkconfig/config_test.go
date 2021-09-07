@@ -6,6 +6,7 @@
 package checkconfig
 
 import (
+	"fmt"
 	"regexp"
 	"testing"
 	"time"
@@ -1047,4 +1048,113 @@ min_collection_interval: -10
 			}
 		})
 	}
+}
+
+func assertNotSameButEqualElements(t *testing.T, item1 interface{}, item2 interface{}) {
+	assert.NotEqual(t, fmt.Sprintf("%p", item1), fmt.Sprintf("%p", item2))
+	assert.Equal(t, fmt.Sprintf("%p", item1), fmt.Sprintf("%p", item1))
+	assert.Equal(t, fmt.Sprintf("%p", item2), fmt.Sprintf("%p", item2))
+	assert.ElementsMatch(t, item1, item2)
+}
+
+func TestCheckConfig_Copy(t *testing.T) {
+	config := CheckConfig{
+		IPAddress:       "127.0.0.5",
+		Port:            161,
+		CommunityString: "public",
+		SnmpVersion:     "2",
+		Timeout:         5,
+		Retries:         5,
+		User:            "123",
+		AuthProtocol:    "sha",
+		AuthKey:         "123",
+		PrivProtocol:    "des",
+		PrivKey:         "123",
+		ContextName:     "",
+		OidConfig: OidConfig{
+			ScalarOids: []string{"1.2.3"},
+			ColumnOids: []string{"1.2.3", "2.3.4"},
+		},
+		Metrics: []MetricsConfig{
+			{
+				Symbol: SymbolConfig{
+					OID:  "1.2",
+					Name: "abc",
+				},
+			},
+		},
+		MetricTags: []MetricTagConfig{
+			{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
+		},
+		OidBatchSize:       10,
+		BulkMaxRepetitions: 10,
+		Profiles: profileDefinitionMap{"f5-big-ip": profileDefinition{
+			Device: deviceMeta{Vendor: "f5"},
+		}},
+		ProfileTags: []string{"profile_tag:atag"},
+		Profile:     "f5",
+		ProfileDef: &profileDefinition{
+			Device: deviceMeta{Vendor: "f5"},
+		},
+		ExtraTags:             []string{"ExtraTags:tag"},
+		InstanceTags:          []string{"InstanceTags:tag"},
+		CollectDeviceMetadata: true,
+		DeviceID:              "123",
+		DeviceIDTags:          []string{"DeviceIDTags:tag"},
+		Subnet:                "1.2.3.4/28",
+		AutodetectProfile:     true,
+		MinCollectionInterval: 120,
+	}
+	configCopy := config.Copy()
+
+	assert.Equal(t, config.IPAddress, configCopy.IPAddress)
+	assert.Equal(t, config.Port, configCopy.Port)
+	assert.Equal(t, config.CommunityString, configCopy.CommunityString)
+	assert.Equal(t, config.SnmpVersion, configCopy.SnmpVersion)
+	assert.Equal(t, config.Timeout, configCopy.Timeout)
+	assert.Equal(t, config.Retries, configCopy.Retries)
+	assert.Equal(t, config.User, configCopy.User)
+	assert.Equal(t, config.AuthProtocol, configCopy.AuthProtocol)
+	assert.Equal(t, config.AuthKey, configCopy.AuthKey)
+	assert.Equal(t, config.PrivProtocol, configCopy.PrivProtocol)
+	assert.Equal(t, config.PrivKey, configCopy.PrivKey)
+	assert.Equal(t, config.ContextName, configCopy.ContextName)
+	assert.Equal(t, config.OidConfig, configCopy.OidConfig)
+
+	assertNotSameButEqualElements(t, config.Metrics, configCopy.Metrics)
+	assertNotSameButEqualElements(t, config.MetricTags, configCopy.MetricTags)
+
+	assert.Equal(t, config.OidBatchSize, configCopy.OidBatchSize)
+	assert.Equal(t, config.BulkMaxRepetitions, configCopy.BulkMaxRepetitions)
+	assert.Equal(t, config.Profiles, configCopy.Profiles)
+
+	assertNotSameButEqualElements(t, config.ProfileTags, configCopy.ProfileTags)
+
+	assert.Equal(t, config.Profile, configCopy.Profile)
+	assert.Equal(t, config.ProfileDef, configCopy.ProfileDef)
+	assertNotSameButEqualElements(t, config.ExtraTags, configCopy.ExtraTags)
+	assertNotSameButEqualElements(t, config.InstanceTags, configCopy.InstanceTags)
+	assert.Equal(t, config.CollectDeviceMetadata, configCopy.CollectDeviceMetadata)
+	assert.Equal(t, config.DeviceID, configCopy.DeviceID)
+	assertNotSameButEqualElements(t, config.DeviceIDTags, configCopy.DeviceIDTags)
+	assert.Equal(t, config.Subnet, configCopy.Subnet)
+	assert.Equal(t, config.AutodetectProfile, configCopy.AutodetectProfile)
+	assert.Equal(t, config.MinCollectionInterval, configCopy.MinCollectionInterval)
+}
+
+func TestCheckConfig_CopyWithNewIP(t *testing.T) {
+	config := CheckConfig{
+		IPAddress:       "127.0.0.5",
+		Port:            161,
+		CommunityString: "public",
+		InstanceTags:    []string{"tag1:val1"},
+	}
+	config.DeviceID, config.DeviceIDTags = buildDeviceID(config.getDeviceIDTags())
+
+	configCopy := config.CopyWithNewIP("127.0.0.10")
+
+	assert.Equal(t, "127.0.0.10", configCopy.IPAddress)
+	assert.Equal(t, config.Port, configCopy.Port)
+	assert.Equal(t, config.CommunityString, configCopy.CommunityString)
+	assert.NotEqual(t, config.DeviceID, configCopy.DeviceID)
 }
