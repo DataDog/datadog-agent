@@ -207,16 +207,18 @@ func Test_snmpSession_Configure(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &GosnmpSession{}
-			err := s.Configure(tt.config)
+			s, err := NewGosnmpSession(&tt.config)
 			assert.Equal(t, tt.expectedError, err)
-			assert.Equal(t, tt.expectedVersion, s.gosnmpInst.Version)
-			assert.Equal(t, tt.expectedRetries, s.gosnmpInst.Retries)
-			assert.Equal(t, tt.expectedTimeout, s.gosnmpInst.Timeout)
-			assert.Equal(t, tt.expectedCommunity, s.gosnmpInst.Community)
-			assert.Equal(t, tt.expectedContextName, s.gosnmpInst.ContextName)
-			assert.Equal(t, tt.expectedMsgFlags, s.gosnmpInst.MsgFlags)
-			assert.Equal(t, tt.expectedSecurityParameters, s.gosnmpInst.SecurityParameters)
+			if tt.expectedError == nil {
+				gosnmpSess := s.(*GosnmpSession)
+				assert.Equal(t, tt.expectedVersion, gosnmpSess.gosnmpInst.Version)
+				assert.Equal(t, tt.expectedRetries, gosnmpSess.gosnmpInst.Retries)
+				assert.Equal(t, tt.expectedTimeout, gosnmpSess.gosnmpInst.Timeout)
+				assert.Equal(t, tt.expectedCommunity, gosnmpSess.gosnmpInst.Community)
+				assert.Equal(t, tt.expectedContextName, gosnmpSess.gosnmpInst.ContextName)
+				assert.Equal(t, tt.expectedMsgFlags, gosnmpSess.gosnmpInst.MsgFlags)
+				assert.Equal(t, tt.expectedSecurityParameters, gosnmpSess.gosnmpInst.SecurityParameters)
+			}
 		})
 	}
 }
@@ -233,10 +235,10 @@ func Test_snmpSession_traceLog_disabled(t *testing.T) {
 	assert.Nil(t, err)
 	log.SetupLogger(l, "info")
 
-	s := &GosnmpSession{}
-	err = s.Configure(config)
+	s, err := NewGosnmpSession(&config)
+	gosnmpSess := s.(*GosnmpSession)
 	assert.Nil(t, err)
-	assert.Equal(t, gosnmp.Logger{}, s.gosnmpInst.Logger)
+	assert.Equal(t, gosnmp.Logger{}, gosnmpSess.gosnmpInst.Logger)
 
 }
 func Test_snmpSession_traceLog_enabled(t *testing.T) {
@@ -250,13 +252,13 @@ func Test_snmpSession_traceLog_enabled(t *testing.T) {
 	assert.Nil(t, err)
 	log.SetupLogger(l, "trace")
 
-	s := &GosnmpSession{}
-	err = s.Configure(config)
+	s, err := NewGosnmpSession(&config)
+	gosnmpSess := s.(*GosnmpSession)
 	assert.Nil(t, err)
-	assert.NotNil(t, s.gosnmpInst.Logger)
+	assert.NotNil(t, gosnmpSess.gosnmpInst.Logger)
 
-	s.gosnmpInst.Logger.Print("log line 1")
-	s.gosnmpInst.Logger.Print("log line 2")
+	gosnmpSess.gosnmpInst.Logger.Print("log line 1")
+	gosnmpSess.gosnmpInst.Logger.Print("log line 2")
 
 	w.Flush()
 	logs := b.String()
@@ -271,21 +273,21 @@ func Test_snmpSession_Connect_Logger(t *testing.T) {
 		IPAddress:       "1.2.3.4",
 		CommunityString: "abc",
 	}
-	s := &GosnmpSession{}
-	err := s.Configure(config)
+	s, err := NewGosnmpSession(&config)
+	gosnmpSess := s.(*GosnmpSession)
 	require.NoError(t, err)
 
 	logger := gosnmp.NewLogger(stdlog.New(ioutil.Discard, "abc", 0))
-	s.gosnmpInst.Logger = logger
+	gosnmpSess.gosnmpInst.Logger = logger
 	s.Connect()
-	assert.Equal(t, logger, s.gosnmpInst.Logger)
+	assert.Equal(t, logger, gosnmpSess.gosnmpInst.Logger)
 
 	s.Connect()
-	assert.Equal(t, logger, s.gosnmpInst.Logger)
+	assert.Equal(t, logger, gosnmpSess.gosnmpInst.Logger)
 
 	logger2 := gosnmp.NewLogger(stdlog.New(ioutil.Discard, "123", 0))
-	s.gosnmpInst.Logger = logger2
+	gosnmpSess.gosnmpInst.Logger = logger2
 	s.Connect()
-	assert.NotEqual(t, logger, s.gosnmpInst.Logger)
-	assert.Equal(t, logger2, s.gosnmpInst.Logger)
+	assert.NotEqual(t, logger, gosnmpSess.gosnmpInst.Logger)
+	assert.Equal(t, logger2, gosnmpSess.gosnmpInst.Logger)
 }

@@ -16,9 +16,12 @@ import (
 
 const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
 
+// NewSession returns a new session
+// Can be replaced in tests to use a mock session
+var NewSession = NewGosnmpSession
+
 // Session interface for connecting to a snmp device
 type Session interface {
-	Configure(config checkconfig.CheckConfig) error
 	Connect() error
 	Close() error
 	Get(oids []string) (result *gosnmp.SnmpPacket, err error)
@@ -30,72 +33,6 @@ type Session interface {
 // GosnmpSession is used to connect to a snmp device
 type GosnmpSession struct {
 	gosnmpInst gosnmp.GoSNMP
-}
-
-// Configure configures the session
-func (s *GosnmpSession) Configure(config checkconfig.CheckConfig) error {
-	if config.OidBatchSize > gosnmp.MaxOids {
-		return fmt.Errorf("config oidBatchSize (%d) cannot be higher than gosnmp.MaxOids: %d", config.OidBatchSize, gosnmp.MaxOids)
-	}
-
-	if config.CommunityString != "" {
-		if config.SnmpVersion == "1" {
-			s.gosnmpInst.Version = gosnmp.Version1
-		} else {
-			s.gosnmpInst.Version = gosnmp.Version2c
-		}
-		s.gosnmpInst.Community = config.CommunityString
-	} else if config.User != "" {
-		authProtocol, err := gosnmplib.GetAuthProtocol(config.AuthProtocol)
-		if err != nil {
-			return err
-		}
-
-		privProtocol, err := gosnmplib.GetPrivProtocol(config.PrivProtocol)
-		if err != nil {
-			return err
-		}
-
-		msgFlags := gosnmp.NoAuthNoPriv
-		if privProtocol != gosnmp.NoPriv {
-			// Auth is needed if privacy is used.
-			// "The User-based Security Model also prescribes that a message needs to be authenticated if privacy is in use."
-			// https://tools.ietf.org/html/rfc3414#section-1.4.3
-			msgFlags = gosnmp.AuthPriv
-		} else if authProtocol != gosnmp.NoAuth {
-			msgFlags = gosnmp.AuthNoPriv
-		}
-
-		s.gosnmpInst.Version = gosnmp.Version3
-		s.gosnmpInst.MsgFlags = msgFlags
-		s.gosnmpInst.ContextName = config.ContextName
-		s.gosnmpInst.SecurityModel = gosnmp.UserSecurityModel
-		s.gosnmpInst.SecurityParameters = &gosnmp.UsmSecurityParameters{
-			UserName:                 config.User,
-			AuthenticationProtocol:   authProtocol,
-			AuthenticationPassphrase: config.AuthKey,
-			PrivacyProtocol:          privProtocol,
-			PrivacyPassphrase:        config.PrivKey,
-		}
-	} else {
-		return fmt.Errorf("an authentication method needs to be provided")
-	}
-
-	s.gosnmpInst.Target = config.IPAddress
-	s.gosnmpInst.Port = config.Port
-	s.gosnmpInst.Timeout = time.Duration(config.Timeout) * time.Second
-	s.gosnmpInst.Retries = config.Retries
-
-	lvl, err := log.GetLogLevel()
-	if err != nil {
-		log.Warnf("failed to get logger: %s", err)
-	} else {
-		if lvl == seelog.TraceLvl {
-			TraceLevelLogWriter := gosnmplib.TraceLevelLogWriter{}
-			s.gosnmpInst.Logger = gosnmp.NewLogger(stdlog.New(&TraceLevelLogWriter, "", stdlog.Lshortfile))
-		}
-	}
-	return nil
 }
 
 // Connect is used to create a new connection
@@ -126,6 +63,73 @@ func (s *GosnmpSession) GetNext(oids []string) (result *gosnmp.SnmpPacket, err e
 // GetVersion returns the snmp version used
 func (s *GosnmpSession) GetVersion() gosnmp.SnmpVersion {
 	return s.gosnmpInst.Version
+}
+
+// NewGosnmpSession creates a new session
+func NewGosnmpSession(config *checkconfig.CheckConfig) (Session, error) {
+	s := &GosnmpSession{}
+	if config.OidBatchSize > gosnmp.MaxOids {
+		return nil, fmt.Errorf("config oidBatchSize (%d) cannot be higher than gosnmp.MaxOids: %d", config.OidBatchSize, gosnmp.MaxOids)
+	}
+
+	if config.CommunityString != "" {
+		if config.SnmpVersion == "1" {
+			s.gosnmpInst.Version = gosnmp.Version1
+		} else {
+			s.gosnmpInst.Version = gosnmp.Version2c
+		}
+		s.gosnmpInst.Community = config.CommunityString
+	} else if config.User != "" {
+		authProtocol, err := gosnmplib.GetAuthProtocol(config.AuthProtocol)
+		if err != nil {
+			return nil, err
+		}
+
+		privProtocol, err := gosnmplib.GetPrivProtocol(config.PrivProtocol)
+		if err != nil {
+			return nil, err
+		}
+
+		msgFlags := gosnmp.NoAuthNoPriv
+		if privProtocol != gosnmp.NoPriv {
+			// Auth is needed if privacy is used.
+			// "The User-based Security Model also prescribes that a message needs to be authenticated if privacy is in use."
+			// https://tools.ietf.org/html/rfc3414#section-1.4.3
+			msgFlags = gosnmp.AuthPriv
+		} else if authProtocol != gosnmp.NoAuth {
+			msgFlags = gosnmp.AuthNoPriv
+		}
+
+		s.gosnmpInst.Version = gosnmp.Version3
+		s.gosnmpInst.MsgFlags = msgFlags
+		s.gosnmpInst.ContextName = config.ContextName
+		s.gosnmpInst.SecurityModel = gosnmp.UserSecurityModel
+		s.gosnmpInst.SecurityParameters = &gosnmp.UsmSecurityParameters{
+			UserName:                 config.User,
+			AuthenticationProtocol:   authProtocol,
+			AuthenticationPassphrase: config.AuthKey,
+			PrivacyProtocol:          privProtocol,
+			PrivacyPassphrase:        config.PrivKey,
+		}
+	} else {
+		return nil, fmt.Errorf("an authentication method needs to be provided")
+	}
+
+	s.gosnmpInst.Target = config.IPAddress
+	s.gosnmpInst.Port = config.Port
+	s.gosnmpInst.Timeout = time.Duration(config.Timeout) * time.Second
+	s.gosnmpInst.Retries = config.Retries
+
+	lvl, err := log.GetLogLevel()
+	if err != nil {
+		log.Warnf("failed to get logger: %s", err)
+	} else {
+		if lvl == seelog.TraceLvl {
+			TraceLevelLogWriter := gosnmplib.TraceLevelLogWriter{}
+			s.gosnmpInst.Logger = gosnmp.NewLogger(stdlog.New(&TraceLevelLogWriter, "", stdlog.Lshortfile))
+		}
+	}
+	return s, nil
 }
 
 // FetchSysObjectID fetches the sys object id from the device
