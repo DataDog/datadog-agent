@@ -23,6 +23,5 @@ build do
 
 
   ship_license "https://raw.githubusercontent.com/snowflakedb/snowflake-connector-python/v#{version}/LICENSE.txt"
-  patch :source => "dependencies.patch", :target => "setup.py"
   command "#{pip} install ."
 end
