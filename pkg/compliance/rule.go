@@ -29,6 +29,7 @@ type RegoRule struct {
 	Resources  []RegoResource `yaml:"resources,omitempty"`
 	Module     string         `yaml:"module,omitempty"`
 	Query      string         `yaml:"query,omitempty"`
+	Errors     string         `yaml:"errors,omitempty"`
 }
 
 // RuleScope defines scope for applicability of a rule

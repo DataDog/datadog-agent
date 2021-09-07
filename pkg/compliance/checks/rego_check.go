@@ -28,8 +28,26 @@ type regoCheck struct {
 func (r *regoCheck) compileRule(rule *compliance.RegoRule) error {
 	ctx := context.TODO()
 
+	var query string
+	if rule.Errors != "" {
+		query = fmt.Sprintf(`
+			{
+				"result": %s,
+				"errors": %s
+			}
+		`, rule.Query, rule.Errors)
+	} else {
+		query = fmt.Sprintf(`
+			{
+				"result": %s,
+				"errors": []
+			}
+		`, rule.Query)
+	}
+	log.Debugf("rego query: %v", query)
+
 	preparedEvalQuery, err := rego.New(
-		rego.Query(rule.Query),
+		rego.Query(query),
 		rego.Module(fmt.Sprintf("rule_%s.rego", rule.ID), rule.Module),
 	).PrepareForEval(ctx)
 
@@ -123,10 +141,17 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 
 	log.Debugf("%s: rego evaluation done => %+v\n", r.ruleID, results)
 
-	passed, ok := results[0].Expressions[0].Value.(bool)
+	res, ok := results[0].Expressions[0].Value.(map[string]interface{})
 	if !ok {
 		return []*compliance.Report{compliance.BuildReportForError(errors.New("wrong result type"))}
 	}
+
+	passed, ok := res["result"].(bool)
+	if !ok {
+		return []*compliance.Report{compliance.BuildReportForError(errors.New("wrong result type"))}
+	}
+
+	log.Debugf("errors: %v", res["errors"])
 
 	var reports []*compliance.Report
 	for instance, reportedFields := range instances {
