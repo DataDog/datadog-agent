@@ -159,7 +159,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 			p.realtimeLastCtrRates = p.lastCtrRates
 			p.realtimeLastRun = p.lastRun
 		}
-		return nil, nil
+		return &RunResult{}, nil
 	}
 
 	connsByPID := Connections.getLastConnectionsByPID()

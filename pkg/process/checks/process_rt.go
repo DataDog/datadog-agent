@@ -31,7 +31,7 @@ func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) (*Run
 
 	// if processCheck haven't fetched any PIDs, return early
 	if len(p.lastPIDs) == 0 {
-		return nil, nil
+		return &RunResult{}, nil
 	}
 
 	var sysProbeUtil *net.RemoteSysProbeUtil
@@ -67,7 +67,7 @@ func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) (*Run
 		p.realtimeLastCPUTime = cpuTimes[0]
 		p.realtimeLastRun = time.Now()
 		log.Debug("first run of rtprocess check - no stats to report")
-		return nil, nil
+		return &RunResult{}, nil
 	}
 
 	connsByPID := Connections.getLastConnectionsByPID()
