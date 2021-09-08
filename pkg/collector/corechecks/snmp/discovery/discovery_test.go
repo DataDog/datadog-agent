@@ -60,6 +60,7 @@ func TestDiscovery(t *testing.T) {
 }
 
 func TestDiscoveryCache(t *testing.T) {
+	SetTestRunPath()
 	sess := session.CreateMockSession()
 	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -162,6 +163,7 @@ func TestDiscoveryTicker(t *testing.T) {
 }
 
 func TestDiscovery_checkDevice(t *testing.T) {
+	SetTestRunPath()
 	checkConfig := &checkconfig.CheckConfig{
 		Network:           "192.168.0.0/32",
 		CommunityString:   "public",
@@ -273,6 +275,7 @@ func TestDiscovery_checkDevice(t *testing.T) {
 }
 
 func TestDiscovery_createDevice(t *testing.T) {
+	SetTestRunPath()
 	checkConfig := &checkconfig.CheckConfig{
 		Network:                  "192.168.0.0/32",
 		CommunityString:          "public",
