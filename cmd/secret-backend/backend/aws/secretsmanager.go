@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"errors"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -23,7 +24,7 @@ func NewAwsSecretsManagerBackend(backendId string, backendConfig map[string]stri
 	*AwsSecretsManagerBackend, error) {
 
 	if _, ok := backendConfig["awsRegion"]; !ok {
-		logWithFields(log.Fields{
+		log.WithFields(log.Fields{
 			"backendId": backendId,
 		}).Errorf("missing required backend parameter: %s", "awsRegion")
 		return nil, fmt.Errorf("missing required parameter: %s", "awsRegion")
@@ -66,13 +67,13 @@ func NewAwsSecretsManagerBackend(backendId string, backendConfig map[string]stri
 		return nil, err
 	}
 
-	secret := &AwsSecretsManagerBackend{
+	backend := &AwsSecretsManagerBackend{
 		BackendId: backendId,
 		Client:    client,
 		Config:    backendConfig,
 		Secret:    secretValue,
 	}
-	return secret, nil
+	return backend, nil
 }
 
 func (b *AwsSecretsManagerBackend) GetSecretOutput(secretKey string) secret.SecretOutput {
