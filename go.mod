@@ -47,7 +47,7 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
-	github.com/DataDog/agent-payload v4.80.0+incompatible
+	github.com/DataDog/agent-payload v4.81.0+incompatible
 	github.com/DataDog/datadog-agent/pkg/quantile v0.31.0-rc.8
 	github.com/DataDog/datadog-agent/pkg/util/log v0.31.0-rc.8
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.31.0-rc.8
@@ -72,7 +72,7 @@ require (
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
 	github.com/andybalholm/brotli v1.0.1 // indirect
 	github.com/avast/retry-go v2.7.0+incompatible
-	github.com/aws/aws-sdk-go v1.40.14
+	github.com/aws/aws-sdk-go v1.40.38
 	github.com/beevik/ntp v0.3.0
 	github.com/benesch/cgosymbolizer v0.0.0-20190515212042-bec6fe6e597b
 	github.com/bhmj/jsonslice v0.0.0-20200323023432-92c3edaad8e2
