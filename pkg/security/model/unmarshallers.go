@@ -315,6 +315,7 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 	return n + 8, nil
 }
 
+// UnmarshalBinary unmarshals a binary representation of itself
 func (s *SpanContext) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData

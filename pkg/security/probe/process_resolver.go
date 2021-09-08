@@ -500,8 +500,7 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 
-	entry, exists := p.entryCache[pid]
-	if exists {
+	if entry := p.resolveFromCache(pid, tid); entry != nil {
 		atomic.AddInt64(p.hitsStats[metrics.CacheTag], 1)
 		return entry
 	}
@@ -511,13 +510,13 @@ func (p *ProcessResolver) Resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	}
 
 	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
-	if entry = p.resolveWithKernelMaps(pid, tid); entry != nil {
+	if entry := p.resolveWithKernelMaps(pid, tid); entry != nil {
 		atomic.AddInt64(p.hitsStats[metrics.KernelMapsTag], 1)
 		return entry
 	}
 
 	// fallback to /proc, the in-kernel LRU may have deleted the entry
-	if entry = p.resolveWithProcfs(pid, procResolveMaxDepth); entry != nil {
+	if entry := p.resolveWithProcfs(pid, procResolveMaxDepth); entry != nil {
 		atomic.AddInt64(p.hitsStats[metrics.ProcFSTag], 1)
 		return entry
 	}

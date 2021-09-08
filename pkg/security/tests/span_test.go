@@ -37,7 +37,7 @@ func TestSpan(t *testing.T) {
 	}
 
 	req := sprobe.ERPCRequest{
-		OP: sprobe.RegisterSpanTlsOP,
+		OP: sprobe.RegisterSpanTLSOP,
 	}
 
 	// format, max threads, base ptr

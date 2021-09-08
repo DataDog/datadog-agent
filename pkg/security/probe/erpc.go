@@ -32,8 +32,8 @@ const (
 	ResolvePathOp
 	// ResolveParentOp resolves the parent of the provide path key
 	ResolveParentOp
-	// RegisterSpanTlsOP is used for span TLS registration
-	RegisterSpanTlsOP
+	// RegisterSpanTLSOP is used for span TLS registration
+	RegisterSpanTLSOP //nolint:deadcode,unused
 )
 
 // ERPC defines a krpc object
