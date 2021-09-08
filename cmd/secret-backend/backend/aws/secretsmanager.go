@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"errors"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -22,7 +23,14 @@ type AwsSecretsManagerBackend struct {
 func NewAwsSecretsManagerBackend(backendId string, backendConfig map[string]string) (
 	*AwsSecretsManagerBackend, error) {
 
-	cfg, err := NewAwsConfigFromBackendConfig(backendId, backendConfig, "us-east-1")
+	if _, ok := backendConfig["awsRegion"]; !ok {
+		log.WithFields(log.Fields{
+			"backendId": backendId,
+		}).Errorf("missing required backend parameter: %s", "awsRegion")
+		return nil, fmt.Errorf("missing required parameter: %s", "awsRegion")
+	}
+
+	cfg, err := NewAwsConfigFromBackendConfig(backendId, backendConfig)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"backendId": backendId,
@@ -33,15 +41,16 @@ func NewAwsSecretsManagerBackend(backendId string, backendConfig map[string]stri
 
 	// GetSecretValue
 	input := &secretsmanager.GetSecretValueInput{
-		SecretId: aws.String(backendConfig["secretName"]),
+		SecretId: aws.String(backendConfig["secretId"]),
 	}
 	out, err := client.GetSecretValue(context.TODO(), input)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"backendId":   backendId,
-			"secretName":  backendConfig["secretName"],
-			"secretType":  backendConfig["type"],
+			"backendType": backendConfig["type"],
+			"secretId":    backendConfig["secretId"],
 			"accessKeyId": backendConfig["accessKeyId"],
+			"awsProfile":  backendConfig["awsProfile"],
 		}).WithError(err).Error("failed to retrieve secret value")
 		return nil, err
 	}
@@ -51,19 +60,20 @@ func NewAwsSecretsManagerBackend(backendId string, backendConfig map[string]stri
 		log.WithFields(log.Fields{
 			"backendId":   backendId,
 			"backendType": backendConfig["type"],
-			"secretName":  backendConfig["secretName"],
+			"secretId":    backendConfig["secretId"],
 			"accessKeyID": backendConfig["accessKeyID"],
+			"awsProfile":  backendConfig["awsProfile"],
 		}).WithError(err).Error("failed to retrieve secret value")
 		return nil, err
 	}
 
-	secret := &AwsSecretsManagerBackend{
+	backend := &AwsSecretsManagerBackend{
 		BackendId: backendId,
 		Client:    client,
 		Config:    backendConfig,
 		Secret:    secretValue,
 	}
-	return secret, nil
+	return backend, nil
 }
 
 func (b *AwsSecretsManagerBackend) GetSecretOutput(secretKey string) secret.SecretOutput {
