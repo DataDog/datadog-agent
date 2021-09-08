@@ -108,11 +108,15 @@ func (w *soWatcher) Start() {
 							hostPath = w.pathResolver.LoadPIDMounts(pidPath).Resolve(libPath)
 						)
 
-						if _, registered := w.registered[hostPath]; registered {
+						if hostPath != "" {
+							libPath = hostPath
+						}
+
+						if _, registered := w.registered[libPath]; registered {
 							break
 						}
 
-						w.register(hostPath, r)
+						w.register(libPath, r)
 						break
 					}
 				}
@@ -153,10 +157,6 @@ OuterLoop:
 }
 
 func (w *soWatcher) register(libPath string, r soRule) {
-	if libPath == "" {
-		return
-	}
-
 	err := r.registerCB(libPath)
 	if err != nil {
 		log.Errorf("error registering library=%s: %s", libPath, err)
