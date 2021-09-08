@@ -267,7 +267,7 @@ func getLogsMeta() *LogsMeta {
 	return &LogsMeta{Transport: string(status.CurrentTransport)}
 }
 
-// Expose the no_proxy_nonexact_match as well as any warnings of proxy behavior change in the metadata payload.
+// Expose the value of no_proxy_nonexact_match as well as any warnings of proxy behavior change in the metadata payload.
 // The NoProxy maps contain any errors or warnings due to the behavior changing when no_proxy_nonexact_match is enabled.
 func getProxyMeta() *ProxyMeta {
 	httputils.NoProxyMapMutex.Lock()
