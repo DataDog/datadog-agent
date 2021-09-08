@@ -1535,12 +1535,11 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 		t.Skip("libssl.so not found; skipping test.")
 	}
 
-	os.Setenv("SSL_LIB_PATHS", libSSLPath)
-
 	// Start tracer with HTTPS support
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTPSMonitoring = true
+	cfg.BPFDebug = true
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()
@@ -1550,14 +1549,17 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 	serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", enableTLS)
 	defer serverDoneFn()
 
+	// Run wget once to make sure the OpenSSL is detected and uprobes are attached
+	exec.Command(wget).Run()
+	time.Sleep(time.Second)
+
 	// Issue request using `wget`
 	// This is necessary (as opposed to using net/http) because we want to
 	// test a HTTP client linked to OpenSSL
 	const targetURL = "https://127.0.0.1:443/200/foobar"
 	requestCmd := exec.Command(wget, "--no-check-certificate", "-O/dev/null", targetURL)
-	err1 := requestCmd.Start()
-	err2 := requestCmd.Wait()
-	if err1 != nil || err2 != nil {
+	err = requestCmd.Run()
+	if err != nil {
 		t.Skip("failed to issue request command; skipping test.")
 	}
 
