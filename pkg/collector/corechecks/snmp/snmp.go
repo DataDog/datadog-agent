@@ -59,6 +59,9 @@ func (c *Check) Run() error {
 		}
 		close(jobs)
 		wg.Wait() // wait for all workers to finish
+
+		tags := append(c.config.GetStaticTags(), "network:"+c.config.Network)
+		sender.Gauge("snmp.discovered_devices_count", float64(len(discoveredDevices)), "", tags)
 	} else {
 		c.singleDeviceCk.SetSender(report.NewMetricSender(sender))
 		checkErr = c.runCheckDevice(c.singleDeviceCk)

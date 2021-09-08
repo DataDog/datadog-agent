@@ -160,15 +160,22 @@ func (c *CheckConfig) addUptimeMetric() {
 // warning: changing GetStaticTags logic might lead to different deviceID
 // GetStaticTags does not contain tags from instance[].tags config
 func (c *CheckConfig) GetStaticTags() []string {
+	return common.CopyStrings(c.ExtraTags)
+}
+
+// GetDeviceStaticTags return static tags built from configuration
+// warning: changing GetDeviceStaticTags logic might lead to different deviceID
+// GetDeviceStaticTags does not contain tags from instance[].tags config
+func (c *CheckConfig) GetDeviceStaticTags() []string {
 	tags := []string{"snmp_device:" + c.IPAddress}
-	tags = append(tags, c.ExtraTags...)
+	tags = append(tags, c.GetStaticTags()...)
 	return tags
 }
 
 // getDeviceIDTags return sorted tags used for generating device id
 // warning: changing getDeviceIDTags logic might lead to different deviceID
 func (c *CheckConfig) getDeviceIDTags() []string {
-	tags := c.GetStaticTags()
+	tags := c.GetDeviceStaticTags()
 	tags = append(tags, c.InstanceTags...)
 	sort.Strings(tags)
 	return tags

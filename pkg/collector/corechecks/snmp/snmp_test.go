@@ -1297,4 +1297,5 @@ metric_tags:
 		sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpGlobalTagsWithLoader)
 		sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 2, "", snmpGlobalTagsWithLoader)
 	}
+	sender.AssertMetric(t, "Gauge", "snmp.discovered_devices_count", 4, "", []string{"network:10.10.0.0/30"})
 }
