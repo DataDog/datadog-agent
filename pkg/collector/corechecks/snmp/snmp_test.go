@@ -1374,12 +1374,11 @@ metric_tags:
 		sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 0, "", snmpGlobalTagsWithLoader)
 	}
 
-
 	w.Flush()
 	logs := b.String()
 
 	assert.Equal(t, strings.Count(logs, "error collecting for device 10.10.0."), 4, logs)
 	for i := 0; i < 4; i++ {
-		assert.Equal(t, strings.Count(logs, "error collecting for device 10.10.0." + strconv.Itoa(i)), 1, logs)
+		assert.Equal(t, strings.Count(logs, "error collecting for device 10.10.0."+strconv.Itoa(i)), 1, logs)
 	}
 }
