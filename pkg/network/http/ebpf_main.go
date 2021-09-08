@@ -29,7 +29,8 @@ const (
 	httpSocketFilter = "socket/http_filter"
 
 	// Probe used for streaming shared library events
-	doSysOpen = "kprobe/do_sys_open"
+	doSysOpen    = "kprobe/do_sys_open"
+	doSysOpenRet = "kretprobe/do_sys_open"
 
 	// maxActive configures the maximum number of instances of the
 	// kretprobe-probed functions handled simultaneously.  This value should be
@@ -89,6 +90,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{Section: httpSocketFilter},
 			{Section: string(probes.TCPSendMsgReturn), KProbeMaxActive: maxActive},
 			{Section: doSysOpen, KProbeMaxActive: maxActive},
+			{Section: doSysOpenRet, KProbeMaxActive: maxActive},
 		},
 	}
 
@@ -150,6 +152,11 @@ func (e *ebpfProgram) Init() error {
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					Section: doSysOpen,
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					Section: doSysOpenRet,
 				},
 			},
 		},

@@ -81,6 +81,15 @@ struct bpf_map_def SEC("maps/fd_by_ssl_bio") fd_by_ssl_bio = {
     .namespace = "",
 };
 
+struct bpf_map_def SEC("maps/open_at_args") open_at_args = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(__u64), // pid_tgid
+    .value_size = sizeof(lib_path_t),
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
 /* This map used for notifying userspace of a shared library being loaded */
 struct bpf_map_def SEC("maps/shared_libraries") shared_libraries = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
