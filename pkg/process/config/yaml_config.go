@@ -94,6 +94,8 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	a.setCheckInterval(ns, "process_realtime", RTProcessCheckName)
 	a.setCheckInterval(ns, "connections", ConnectionsCheckName)
 
+	// We need another method to read in process discovery check configs because it is in its own object,
+	// and uses a different unit of time
 	a.initProcessDiscoveryCheck()
 
 	// A list of regex patterns that will exclude a process if matched.
@@ -278,29 +280,11 @@ func (a *AgentConfig) setCheckInterval(ns, check, checkKey string) {
 func (a *AgentConfig) initProcessDiscoveryCheck() {
 	root := key(ns, "process_discovery")
 
-	if !config.Datadog.IsSet(root) {
-		a.EnabledChecks = append(a.EnabledChecks, DiscoveryCheckName)
-		a.CheckIntervals[DiscoveryCheckName] = 4 * time.Hour
-		return
-	}
+	// We don't need to check if the key exists since we already bound it to a default in InitConfig
+	interval := config.Datadog.GetInt(key(root, "interval"))
+	a.CheckIntervals[DiscoveryCheckName] = time.Duration(interval) * time.Hour
 
-	// Check for interval override
-	intervalKey := key(root, "interval")
-	if config.Datadog.IsSet(intervalKey) {
-		if interval := config.Datadog.GetInt(intervalKey); interval != 0 {
-			log.Infof("Overriding discovery check interval to %ds", interval)
-			a.CheckIntervals[DiscoveryCheckName] = time.Duration(interval) * time.Hour
-		}
-	}
-
-	// Check to make sure that the process_discovery check is explicitly enabled or disabled.
-	// If not specified, disable by default (the OOTB datadog.yaml defaults to having this on, however).
-	enabledKey := key(root, "enabled")
-	if config.Datadog.IsSet(enabledKey) && config.Datadog.GetBool(enabledKey) {
-		if enabled := config.Datadog.GetBool(enabledKey); enabled {
-			a.EnabledChecks = append(a.EnabledChecks, DiscoveryCheckName)
-		}
-	} else {
+	if enabled := config.Datadog.GetBool(key(root, "enabled")); enabled {
 		a.EnabledChecks = append(a.EnabledChecks, DiscoveryCheckName)
 	}
 }
