@@ -197,6 +197,7 @@ func load(configPath string) (*Config, error) {
 
 	if len(c.EnabledModules) > 0 {
 		c.Enabled = true
+		cfg.Set(key(spNS, "enabled"), c.Enabled)
 	}
 
 	return c, nil
