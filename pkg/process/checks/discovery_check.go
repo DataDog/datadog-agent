@@ -9,23 +9,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var Discovery = &DiscoveryCheck{}
+var ProcessDiscovery = &ProcessDiscoveryCheck{}
 
-type DiscoveryCheck struct {
+type ProcessDiscoveryCheck struct {
 	probe *procutil.Probe
 	info  *model.SystemInfo
 }
 
-func (d *DiscoveryCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
+func (d *ProcessDiscoveryCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 	d.probe = procutil.NewProcessProbe()
 	d.info = info
 }
 
-func (d *DiscoveryCheck) Name() string { return config.DiscoveryCheckName }
+func (d *ProcessDiscoveryCheck) Name() string { return config.DiscoveryCheckName }
 
-func (d *DiscoveryCheck) RealTime() bool { return false }
+func (d *ProcessDiscoveryCheck) RealTime() bool { return false }
 
-func (d *DiscoveryCheck) Run(_ *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
+func (d *ProcessDiscoveryCheck) Run(_ *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
 	log.Info("Running process discovery check")
 	hostname, err := os.Hostname()
 	if err != nil {
