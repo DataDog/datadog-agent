@@ -129,7 +129,7 @@ bulk_max_repetitions: 20
 	assert.Equal(t, "aes", config.PrivProtocol)
 	assert.Equal(t, "my-privKey", config.PrivKey)
 	assert.Equal(t, "my-contextName", config.ContextName)
-	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, config.GetDeviceStaticTags())
+	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, config.GetStaticTags())
 	metrics := []MetricsConfig{
 		{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.2.1", Name: "ifNumber"}},
 		{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.2.2", Name: "ifNumber2"}, MetricTags: MetricTagConfigList{
@@ -281,7 +281,7 @@ profiles:
 	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
 
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, config.GetDeviceStaticTags())
+	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, config.GetStaticTags())
 	metrics := []MetricsConfig{
 		{Symbol: SymbolConfig{OID: "1.4.5", Name: "myMetric"}, ForcedType: "gauge"},
 	}
@@ -814,7 +814,7 @@ community_string: abc
 `)
 	config, err := NewCheckConfig(rawInstanceConfig, []byte(``))
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, config.GetDeviceStaticTags())
+	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, config.GetStaticTags())
 
 	// language=yaml
 	rawInstanceConfigWithExtraTags := []byte(`
@@ -824,7 +824,7 @@ extra_tags: "extratag1:val1,extratag2:val2"
 `)
 	config, err = NewCheckConfig(rawInstanceConfigWithExtraTags, []byte(``))
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"snmp_device:1.2.3.4", "extratag1:val1", "extratag2:val2"}, config.GetDeviceStaticTags())
+	assert.Equal(t, []string{"snmp_device:1.2.3.4", "extratag1:val1", "extratag2:val2"}, config.GetStaticTags())
 }
 
 func Test_snmpConfig_getDeviceIDTags(t *testing.T) {

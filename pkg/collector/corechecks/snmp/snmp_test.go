@@ -1285,7 +1285,7 @@ metric_tags:
 	assert.Nil(t, err)
 
 	for i := 0; i < 4; i++ {
-		snmpTags := []string{fmt.Sprintf("snmp_device:10.10.0.%d", i)}
+		snmpTags := []string{fmt.Sprintf("snmp_device:10.10.0.%d", i), "autodiscovery_subnet:10.10.0.0/30"}
 		snmpGlobalTags := append(common.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
 		snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
 		scalarTags := append(common.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
@@ -1298,7 +1298,8 @@ metric_tags:
 		sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpGlobalTagsWithLoader)
 		sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 2, "", snmpGlobalTagsWithLoader)
 	}
-	sender.AssertMetric(t, "Gauge", "snmp.discovered_devices_count", 4, "", []string{"network:10.10.0.0/30"})
+	networkTags := []string{"network:10.10.0.0/30", "autodiscovery_subnet:10.10.0.0/30"}
+	sender.AssertMetric(t, "Gauge", "snmp.discovered_devices_count", 4, "", networkTags)
 }
 
 func TestDiscovery_CheckError(t *testing.T) {
