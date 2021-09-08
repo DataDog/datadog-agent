@@ -11,6 +11,7 @@ relative_path 'src/github.com/DataDog/datadog-agent'
 build do
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf"
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf/runtime"
+  mkdir "#{install_dir}/embedded/nikos/embedded"
 
   if ENV.has_key?('SYSTEM_PROBE_BIN') and not ENV['SYSTEM_PROBE_BIN'].empty?
     copy "#{ENV['SYSTEM_PROBE_BIN']}/system-probe", "#{install_dir}/embedded/bin/system-probe"
@@ -33,10 +34,7 @@ build do
 
   copy 'pkg/ebpf/c/COPYING', "#{install_dir}/embedded/share/system-probe/ebpf/"
 
-  if not ENV['NIKOS_PATH'].empty?
-    copy "#{ENV['NIKOS_PATH']}/bin", "#{install_dir}/embedded/nikos/embedded/"
-    copy "#{ENV['NIKOS_PATH']}/sbin", "#{install_dir}/embedded/nikos/embedded/"
-    copy "#{ENV['NIKOS_PATH']}/ssl", "#{install_dir}/embedded/nikos/embedded/"
-    copy "#{ENV['NIKOS_PATH']}/libexec", "#{install_dir}/embedded/nikos/embedded/"
+  if ENV.has_key?('NIKOS_PATH') and not ENV['NIKOS_PATH'].empty?
+    copy "#{ENV['NIKOS_PATH']}/*", "#{install_dir}/embedded/nikos/embedded/"
   end
 end
