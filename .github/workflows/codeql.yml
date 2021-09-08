@@ -43,11 +43,12 @@ jobs:
         # Override language selection by uncommenting this and choosing your languages
         with:
           languages: go, javascript, python, cpp
+          config-file: ./.github/codeql/codeql-config.yml
+          queries: github/codeql-go/ql/src/RedundantCode@main
           setup-python-dependencies: false
           # TODO determine if this can be enabled
           source-root: go/src/github.com/DataDog/datadog-agent
-          config-file: ./.github/codeql/codeql-config.yml
-          queries: github/codeql-go/ql/src/RedundantCode@main
+          
 
       # Autobuild attempts to build any compiled languages (C/C++, C#, or Java).
       # If this step fails, then you should remove it and run the build manually (see below).
