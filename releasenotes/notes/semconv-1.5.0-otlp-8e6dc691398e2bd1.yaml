@@ -7,4 +7,4 @@
 # Each section note must be formatted as reStructuredText.
 ---
 enhancements:
-  - OTLP traces now supports semantic conventions from version 1.5.0 of the OpenTelemetry specification.
+  - APM: OTLP traces now supports semantic conventions from version 1.5.0 of the OpenTelemetry specification.
