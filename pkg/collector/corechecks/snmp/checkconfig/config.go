@@ -162,10 +162,10 @@ func (c *CheckConfig) addUptimeMetric() {
 func (c *CheckConfig) GetStaticTags() []string {
 	tags := common.CopyStrings(c.ExtraTags)
 	if c.Network != "" {
-		tags = append(tags, "autodiscovery_subnet:" + c.Network)
+		tags = append(tags, "autodiscovery_subnet:"+c.Network)
 	}
 	if c.IPAddress != "" {
-		tags = append(tags, "snmp_device:" + c.IPAddress)
+		tags = append(tags, "snmp_device:"+c.IPAddress)
 	}
 	return tags
 }
@@ -444,6 +444,7 @@ func (c *CheckConfig) IsIPIgnored(ip net.IP) bool {
 func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig := CheckConfig{}
 	newConfig.IPAddress = c.IPAddress
+	newConfig.Network = c.Network
 	newConfig.Port = c.Port
 	newConfig.CommunityString = c.CommunityString
 	newConfig.SnmpVersion = c.SnmpVersion

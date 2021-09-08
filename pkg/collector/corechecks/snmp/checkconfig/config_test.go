@@ -824,7 +824,7 @@ extra_tags: "extratag1:val1,extratag2:val2"
 `)
 	config, err = NewCheckConfig(rawInstanceConfigWithExtraTags, []byte(``))
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"snmp_device:1.2.3.4", "extratag1:val1", "extratag2:val2"}, config.GetStaticTags())
+	assert.ElementsMatch(t, []string{"snmp_device:1.2.3.4", "extratag1:val1", "extratag2:val2"}, config.GetStaticTags())
 }
 
 func Test_snmpConfig_getDeviceIDTags(t *testing.T) {
@@ -1314,6 +1314,7 @@ func assertNotSameButEqualElements(t *testing.T, item1 interface{}, item2 interf
 
 func TestCheckConfig_Copy(t *testing.T) {
 	config := CheckConfig{
+		Network:         "127.0.0.0/30",
 		IPAddress:       "127.0.0.5",
 		Port:            161,
 		CommunityString: "public",
@@ -1362,6 +1363,7 @@ func TestCheckConfig_Copy(t *testing.T) {
 	}
 	configCopy := config.Copy()
 
+	assert.Equal(t, config.Network, configCopy.Network)
 	assert.Equal(t, config.IPAddress, configCopy.IPAddress)
 	assert.Equal(t, config.Port, configCopy.Port)
 	assert.Equal(t, config.CommunityString, configCopy.CommunityString)
