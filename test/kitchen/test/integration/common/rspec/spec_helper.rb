@@ -274,22 +274,8 @@ def json_info
 end
 
 def windows_service_status(service)
+  # Language-independent way of getting the service status
   return (`powershell -command "try { (get-service "#{service}" -ErrorAction Stop).Status } catch { write-host "NOTINSTALLED" }"`).upcase.strip
-end
-
-def flavor_service_status(flavor)
-  service = get_service_name(flavor)
-  if os == :windows
-    return windows_service_status(service)
-  else
-    if has_systemctl
-      system "sudo systemctl status --no-pager #{service}.service"
-    elsif has_upstart
-      system "sudo initctl status #{service}"
-    else
-      system "sudo /sbin/service #{service} status"
-    end
-  end
 end
 
 def is_service_running?(service)
@@ -515,7 +501,7 @@ shared_examples_for "a running Agent with no errors" do
   end
 
   it 'is running' do
-    expect(flavor_service_status "datadog-agent").to be_truthy
+    expect(is_flavor_running? "datadog-agent").to be_truthy
   end
 
   it 'has a config file' do
@@ -632,7 +618,7 @@ shared_examples_for 'an Agent that stops' do
     if os != :windows
       expect(output).to be_truthy
     end
-    expect(flavor_service_status "datadog-agent").to be_truthy
+    expect(is_flavor_running? "datadog-agent").to be_truthy
   end
 end
 
