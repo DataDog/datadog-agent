@@ -7,7 +7,6 @@ package config
 
 import (
 	"expvar"
-	"regexp"
 	"sync"
 	"time"
 
@@ -49,24 +48,20 @@ type LogSource struct {
 	// LatencyStats tracks internal stats on the time spent by messages from this source in a processing pipeline, i.e.
 	// the duration between when a message is decoded by the tailer/listener/decoder and when the message is handled by a sender
 	LatencyStats *util.StatsTracker
-
-	// If a multi line pattern is detected, it is stored here for re-use between file rotations
-	detectedPattern *regexp.Regexp
 }
 
 // NewLogSource creates a new log source.
 func NewLogSource(name string, config *LogsConfig) *LogSource {
 	return &LogSource{
-		Name:            name,
-		Config:          config,
-		Status:          NewLogStatus(),
-		inputs:          make(map[string]bool),
-		lock:            &sync.Mutex{},
-		Messages:        NewMessages(),
-		BytesRead:       expvar.Int{},
-		info:            make(map[string]InfoProvider),
-		LatencyStats:    util.NewStatsTracker(time.Hour*24, time.Hour),
-		detectedPattern: nil,
+		Name:         name,
+		Config:       config,
+		Status:       NewLogStatus(),
+		inputs:       make(map[string]bool),
+		lock:         &sync.Mutex{},
+		Messages:     NewMessages(),
+		BytesRead:    expvar.Int{},
+		info:         make(map[string]InfoProvider),
+		LatencyStats: util.NewStatsTracker(time.Hour*24, time.Hour),
 	}
 }
 
@@ -136,18 +131,4 @@ func (s *LogSource) GetInfoStatus() map[string][]string {
 		info[v.InfoKey()] = v.Info()
 	}
 	return info
-}
-
-// SetPattern sets the detected pattern
-func (s *LogSource) SetPattern(pattern *regexp.Regexp) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	s.detectedPattern = pattern
-}
-
-// GetPattern returns the detected pattern (if any)
-func (s *LogSource) GetPattern() *regexp.Regexp {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	return s.detectedPattern
 }

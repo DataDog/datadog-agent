@@ -231,7 +231,8 @@ func TestAutoMultiLineHandlerStaysSingleLineMode(t *testing.T) {
 
 	outputChan := make(chan *Message, 10)
 	source := config.NewLogSource("config", &config.LogsConfig{})
-	h := NewAutoMultilineHandler(outputChan, 100, 5, 1.0, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{})
+	detectedPattern := &DetectedPattern{}
+	h := NewAutoMultilineHandler(outputChan, 100, 5, 1.0, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{}, detectedPattern)
 	h.Start()
 
 	for i := 0; i < 6; i++ {
@@ -240,14 +241,15 @@ func TestAutoMultiLineHandlerStaysSingleLineMode(t *testing.T) {
 	}
 	assert.NotNil(t, h.singleLineHandler)
 	assert.Nil(t, h.multiLineHandler)
-	assert.Nil(t, source.GetPattern())
+	assert.Nil(t, detectedPattern.Get())
 }
 
 func TestAutoMultiLineHandlerSwitchesToMultiLineMode(t *testing.T) {
 
 	outputChan := make(chan *Message, 10)
 	source := config.NewLogSource("config", &config.LogsConfig{})
-	h := NewAutoMultilineHandler(outputChan, 100, 5, 1.0, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{})
+	detectedPattern := &DetectedPattern{}
+	h := NewAutoMultilineHandler(outputChan, 100, 5, 1.0, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{}, detectedPattern)
 	h.Start()
 
 	for i := 0; i < 6; i++ {
@@ -256,14 +258,14 @@ func TestAutoMultiLineHandlerSwitchesToMultiLineMode(t *testing.T) {
 	}
 	assert.Nil(t, h.singleLineHandler)
 	assert.NotNil(t, h.multiLineHandler)
-	assert.NotNil(t, source.GetPattern())
+	assert.NotNil(t, detectedPattern.Get())
 }
 
 func TestAutoMultiLineHandlerHandelsMessage(t *testing.T) {
 
 	outputChan := make(chan *Message, 10)
 	source := config.NewLogSource("config", &config.LogsConfig{})
-	h := NewAutoMultilineHandler(outputChan, 500, 1, 1.0, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{})
+	h := NewAutoMultilineHandler(outputChan, 500, 1, 1.0, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{})
 	h.Start()
 
 	h.Handle(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message 1"))
@@ -283,7 +285,7 @@ func TestAutoMultiLineHandlerHandelsMessageConflictingPatterns(t *testing.T) {
 
 	outputChan := make(chan *Message, 10)
 	source := config.NewLogSource("config", &config.LogsConfig{})
-	h := NewAutoMultilineHandler(outputChan, 500, 4, 0.75, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{})
+	h := NewAutoMultilineHandler(outputChan, 500, 4, 0.75, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{})
 	h.Start()
 
 	// we will match both patterns, but one will win with a threshold of 0.75
@@ -310,7 +312,7 @@ func TestAutoMultiLineHandlerHandelsMessageConflictingPatternsNoWinner(t *testin
 
 	outputChan := make(chan *Message, 10)
 	source := config.NewLogSource("config", &config.LogsConfig{})
-	h := NewAutoMultilineHandler(outputChan, 500, 4, 0.75, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{})
+	h := NewAutoMultilineHandler(outputChan, 500, 4, 0.75, 10*time.Millisecond, 10*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{})
 	h.Start()
 
 	// we will match both patterns, but neither will win because it doesn't meet the threshold

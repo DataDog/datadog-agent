@@ -45,7 +45,7 @@ func benchmarkAutoMultiLineHandler(b *testing.B, logs int, line string) {
 
 	outputChan := make(chan *Message, 10)
 	source := config.NewLogSource("config", &config.LogsConfig{})
-	h := NewAutoMultilineHandler(outputChan, defaultContentLenLimit, 1000, 0.9, 30*time.Second, 1000*time.Millisecond, source, []*regexp.Regexp{})
+	h := NewAutoMultilineHandler(outputChan, defaultContentLenLimit, 1000, 0.9, 30*time.Second, 1000*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{})
 	h.Start()
 
 	go func() {

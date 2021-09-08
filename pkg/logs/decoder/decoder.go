@@ -82,20 +82,26 @@ type Decoder struct {
 	lineParser      LineParser
 	contentLenLimit int
 	rawDataLen      int
+
+	// The decoder holds on to an instace of DetectedPattern which is a thread safe container used to
+	// pass a multi line pattern up from the line handler in order to surface it to the tailer.
+	// The tailer uses this to determine if a pattern should be reused when a file rotates.
+	detectedPattern *DetectedPattern
 }
 
 // InitializeDecoder returns a properly initialized Decoder
 func InitializeDecoder(source *config.LogSource, parser parser.Parser) *Decoder {
-	return NewDecoderWithEndLineMatcher(source, parser, &NewLineMatcher{})
+	return NewDecoderWithEndLineMatcher(source, parser, &NewLineMatcher{}, nil)
 }
 
 // NewDecoderWithEndLineMatcher initialize a decoder with given endline strategy.
-func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser, matcher EndLineMatcher) *Decoder {
+func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser, matcher EndLineMatcher, multiLinePattern *regexp.Regexp) *Decoder {
 	inputChan := make(chan *Input)
 	outputChan := make(chan *Message)
 	lineLimit := defaultContentLenLimit
 	var lineHandler LineHandler
 	var lineParser LineParser
+	detectedPattern := &DetectedPattern{}
 
 	for _, rule := range source.Config.ProcessingRules {
 		if rule.Type == config.MultiLine {
@@ -118,12 +124,15 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 		if dd_conf.Datadog.GetBool("logs_config.auto_multi_line_detection") || source.Config.AutoMultiLine {
 			log.Infof("Auto multi line log detection enabled")
 
-			if pattern := source.GetPattern(); pattern != nil {
+			if multiLinePattern != nil {
 				log.Infof("Found a previously detected pattern - using multi line handler")
 
-				lineHandler = NewMultiLineHandler(outputChan, pattern, config.AggregationTimeout(), lineLimit)
+				// Save the pattern again for the next rotation
+				detectedPattern.Set(multiLinePattern)
+
+				lineHandler = NewMultiLineHandler(outputChan, multiLinePattern, config.AggregationTimeout(), lineLimit)
 			} else {
-				lineHandler = buildAutoMultilineHandlerFromConfig(outputChan, lineLimit, source)
+				lineHandler = buildAutoMultilineHandlerFromConfig(outputChan, lineLimit, source, detectedPattern)
 			}
 		} else {
 			lineHandler = NewSingleLineHandler(outputChan, lineLimit)
@@ -136,10 +145,10 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 		lineParser = NewSingleLineParser(parser, lineHandler)
 	}
 
-	return New(inputChan, outputChan, lineParser, lineLimit, matcher)
+	return New(inputChan, outputChan, lineParser, lineLimit, matcher, detectedPattern)
 }
 
-func buildAutoMultilineHandlerFromConfig(outputChan chan *Message, lineLimit int, source *config.LogSource) *AutoMultilineHandler {
+func buildAutoMultilineHandlerFromConfig(outputChan chan *Message, lineLimit int, source *config.LogSource, detectedPattern *DetectedPattern) *AutoMultilineHandler {
 	linesToSample := source.Config.AutoMultiLineSampleSize
 	if linesToSample <= 0 {
 		linesToSample = dd_conf.Datadog.GetInt("logs_config.auto_multi_line_default_sample_size")
@@ -161,11 +170,19 @@ func buildAutoMultilineHandlerFromConfig(outputChan chan *Message, lineLimit int
 	}
 
 	matchTimeout := time.Second * dd_conf.Datadog.GetDuration("logs_config.auto_multi_line_default_match_timeout")
-	return NewAutoMultilineHandler(outputChan, lineLimit, linesToSample, matchRatio, matchTimeout, config.AggregationTimeout(), source, additionalPatternsCompiled)
+	return NewAutoMultilineHandler(outputChan,
+		lineLimit,
+		linesToSample,
+		matchRatio,
+		matchTimeout,
+		config.AggregationTimeout(),
+		source,
+		additionalPatternsCompiled,
+		detectedPattern)
 }
 
 // New returns an initialized Decoder
-func New(InputChan chan *Input, OutputChan chan *Message, lineParser LineParser, contentLenLimit int, matcher EndLineMatcher) *Decoder {
+func New(InputChan chan *Input, OutputChan chan *Message, lineParser LineParser, contentLenLimit int, matcher EndLineMatcher, detectedPattern *DetectedPattern) *Decoder {
 	var lineBuffer bytes.Buffer
 	return &Decoder{
 		InputChan:       InputChan,
@@ -174,6 +191,7 @@ func New(InputChan chan *Input, OutputChan chan *Message, lineParser LineParser,
 		lineParser:      lineParser,
 		contentLenLimit: contentLenLimit,
 		matcher:         matcher,
+		detectedPattern: detectedPattern,
 	}
 }
 
@@ -191,6 +209,11 @@ func (d *Decoder) Stop() {
 // GetLineCount returns the number of decoded lines
 func (d *Decoder) GetLineCount() int64 {
 	return atomic.LoadInt64(&d.linesDecoded)
+}
+
+// GetDetectedPattern returns a detected pattern (if any)
+func (d *Decoder) GetDetectedPattern() *regexp.Regexp {
+	return d.detectedPattern.Get()
 }
 
 // run lets the Decoder handle data coming from InputChan

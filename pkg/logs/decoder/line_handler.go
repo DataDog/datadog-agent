@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"regexp"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -258,6 +259,26 @@ type scoredPattern struct {
 	regexp *regexp.Regexp
 }
 
+// DetectedPattern is a container to safely access a detected multi line pattern
+type DetectedPattern struct {
+	sync.Mutex
+	pattern *regexp.Regexp
+}
+
+// Set sets the pattern
+func (d *DetectedPattern) Set(pattern *regexp.Regexp) {
+	d.Lock()
+	defer d.Unlock()
+	d.pattern = pattern
+}
+
+// Get gets the pattern
+func (d *DetectedPattern) Get() *regexp.Regexp {
+	d.Lock()
+	defer d.Unlock()
+	return d.pattern
+}
+
 // AutoMultilineHandler can switch from single to multiline handler if upon the occurrence
 // of a stable pattern at the begginning of the process
 type AutoMultilineHandler struct {
@@ -275,6 +296,7 @@ type AutoMultilineHandler struct {
 	flushTimeout      time.Duration
 	source            *config.LogSource
 	timeoutTimer      *time.Timer
+	detectedPattern   *DetectedPattern
 }
 
 // NewAutoMultilineHandler returns a new SingleLineHandler.
@@ -284,7 +306,9 @@ func NewAutoMultilineHandler(outputChan chan *Message,
 	matchTimeout time.Duration,
 	flushTimeout time.Duration,
 	source *config.LogSource,
-	additionalPatterns []*regexp.Regexp) *AutoMultilineHandler {
+	additionalPatterns []*regexp.Regexp,
+	detectedPattern *DetectedPattern,
+) *AutoMultilineHandler {
 
 	// Put the user patterns at the beginning of the list so we prioritize them if there is a conflicting match.
 	patterns := append(additionalPatterns, formatsToTry...)
@@ -297,16 +321,17 @@ func NewAutoMultilineHandler(outputChan chan *Message,
 		}
 	}
 	h := &AutoMultilineHandler{
-		inputChan:      make(chan *Message),
-		outputChan:     outputChan,
-		flipChan:       make(chan struct{}, 1),
-		lineLimit:      lineLimit,
-		matchThreshold: matchThreshold,
-		scoredMatches:  scoredMatches,
-		linesToAssess:  linesToAssess,
-		flushTimeout:   flushTimeout,
-		source:         source,
-		timeoutTimer:   time.NewTimer(matchTimeout),
+		inputChan:       make(chan *Message),
+		outputChan:      outputChan,
+		flipChan:        make(chan struct{}, 1),
+		lineLimit:       lineLimit,
+		matchThreshold:  matchThreshold,
+		scoredMatches:   scoredMatches,
+		linesToAssess:   linesToAssess,
+		flushTimeout:    flushTimeout,
+		source:          source,
+		timeoutTimer:    time.NewTimer(matchTimeout),
+		detectedPattern: detectedPattern,
 	}
 
 	h.singleLineHandler = NewSingleLineHandler(outputChan, lineLimit)
@@ -385,7 +410,7 @@ func (h *AutoMultilineHandler) processAndTry(message *Message) {
 
 		if matchRatio >= h.matchThreshold {
 			log.Debugf("Pattern %v matched %d lines with a ratio of %f", topMatch.regexp.String(), topMatch.score, matchRatio)
-			h.source.SetPattern(topMatch.regexp)
+			h.detectedPattern.Set(topMatch.regexp)
 			h.switchToMultilineHandler(topMatch.regexp)
 		} else {
 			log.Debug("No pattern met the line match threshold during multi-line autosensing - using single line handler")
