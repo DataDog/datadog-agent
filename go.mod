@@ -171,7 +171,7 @@ require (
 	github.com/vmihailenco/msgpack/v4 v4.3.12
 	github.com/xeipuuv/gojsonschema v0.0.0-20180618132009-1d523034197f
 	go.etcd.io/etcd/client/v2 v2.305.0
-	go.opentelemetry.io/otel v0.20.0
+	go.opentelemetry.io/collector/model v0.34.0
 	go.uber.org/automaxprocs v1.4.0
 	go4.org/intern v0.0.0-20210108033219-3eb7198706b2
 	golang.org/x/crypto v0.0.0-20210317152858-513c2a44f670 // indirect
@@ -183,8 +183,8 @@ require (
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	golang.org/x/tools v0.1.5
 	gomodules.xyz/jsonpatch/v3 v3.0.1
-	google.golang.org/genproto v0.0.0-20210602131652-f16073e35f0c
-	google.golang.org/grpc v1.38.0
+	google.golang.org/genproto v0.0.0-20210604141403-392c879c8b08
+	google.golang.org/grpc v1.40.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.33.0
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
