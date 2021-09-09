@@ -399,6 +399,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	if err != nil {
 		log.Debugf("subnet not found: %s", err)
 	}
+	// TODO: set subnet to Network if exist
 	c.Subnet = subnet
 
 	c.addUptimeMetric()

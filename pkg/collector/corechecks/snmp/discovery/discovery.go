@@ -50,13 +50,13 @@ type snmpJob struct {
 
 // Start discovery
 func (d *Discovery) Start() {
-	log.Debugf("Start discovery for subnet %s", d.config.Network)
+	log.Debugf("subnet %s: Start discovery", d.config.Network)
 	go d.checkDevices()
 }
 
 // Stop signal discovery to shut down
 func (d *Discovery) Stop() {
-	log.Debugf("Stop discovery for subnet %s", d.config.Network)
+	log.Debugf("subnet %s: Stop discovery", d.config.Network)
 	d.stop <- true
 }
 
@@ -73,14 +73,15 @@ func (d *Discovery) GetDiscoveredDeviceConfigs() []*devicecheck.DeviceCheck {
 }
 
 // Start discovery
-func (d *Discovery) runWorker(jobs <-chan snmpJob) {
+func (d *Discovery) runWorker(w int, jobs <-chan snmpJob) {
+	log.Debugf("subnet %s: Start SNMP worker %d", w, d.config.Network)
 	for {
 		select {
 		case <-d.stop:
-			log.Debug("Stopping SNMP worker")
+			log.Debugf("subnet %s: Stop SNMP worker %d", w, d.config.Network)
 			return
 		case job := <-jobs:
-			log.Debugf("Handling IP %s", job.currentIP.String())
+			log.Debugf("subnet %s: Handling IP %s", d.config.Network, job.currentIP.String())
 			err := d.checkDevice(job)
 			if err != nil {
 				log.Errorf(err.Error())
@@ -92,7 +93,7 @@ func (d *Discovery) runWorker(jobs <-chan snmpJob) {
 func (d *Discovery) checkDevices() {
 	ipAddr, ipNet, err := net.ParseCIDR(d.config.Network)
 	if err != nil {
-		log.Errorf("Couldn't parse SNMP network: %s", err)
+		log.Errorf("subnet %s: Couldn't parse SNMP network: %s", d.config.Network, err)
 		return
 	}
 
@@ -114,12 +115,13 @@ func (d *Discovery) checkDevices() {
 
 	jobs := make(chan snmpJob)
 	for w := 0; w < d.config.DiscoveryWorkers; w++ {
-		go d.runWorker(jobs)
+		go d.runWorker(w, jobs)
 	}
 
 	discoveryTicker := time.NewTicker(time.Duration(d.config.DiscoveryInterval) * time.Second)
 
 	for {
+		log.Debugf("subnet %s: Run discovery", d.config.Network)
 		startingIP := make(net.IP, len(subnet.startingIP))
 		copy(startingIP, subnet.startingIP)
 		for currentIP := startingIP; subnet.network.Contains(currentIP); incrementIP(currentIP) {
@@ -138,6 +140,7 @@ func (d *Discovery) checkDevices() {
 
 			select {
 			case <-d.stop:
+				log.Debugf("subnet %s: Stop scheduling devices", d.config.Network)
 				return
 			default:
 			}
@@ -145,6 +148,7 @@ func (d *Discovery) checkDevices() {
 
 		select {
 		case <-d.stop:
+			log.Debugf("subnet %s: Stop scheduling devices", d.config.Network)
 			return
 		case <-discoveryTicker.C:
 		}
@@ -161,7 +165,7 @@ func (d *Discovery) checkDevice(job snmpJob) error {
 	}
 	entityID := job.subnet.config.DiscoveryDigest(deviceIP)
 	if err := sess.Connect(); err != nil {
-		log.Debugf("SNMP connect to %s error: %v", deviceIP, err)
+		log.Debugf("subnet %s: SNMP connect to %s error: %v", d.config.Network, deviceIP, err)
 		d.deleteDevice(entityID, job.subnet)
 	} else {
 		defer sess.Close()
@@ -171,13 +175,13 @@ func (d *Discovery) checkDevice(job snmpJob) error {
 		// `params.Get` might lead to multiple SNMP GET calls when using SNMP v3
 		value, err := sess.Get(oids)
 		if err != nil {
-			log.Debugf("SNMP get to %s error: %v", deviceIP, err)
+			log.Debugf("subnet %s: SNMP get to %s error: %v", d.config.Network, deviceIP, err)
 			d.deleteDevice(entityID, job.subnet)
 		} else if len(value.Variables) < 1 || value.Variables[0].Value == nil {
-			log.Debugf("SNMP get to %s no data", deviceIP)
+			log.Debugf("subnet %s: SNMP get to %s no data", d.config.Network, deviceIP)
 			d.deleteDevice(entityID, job.subnet)
 		} else {
-			log.Debugf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
+			log.Debugf("subnet %s: SNMP get to %s success: %v", d.config.Network, deviceIP, value.Variables[0].Value)
 			d.createDevice(entityID, job.subnet, deviceIP, true)
 		}
 	}
@@ -189,7 +193,7 @@ func (d *Discovery) createDevice(entityID string, subnet *snmpSubnet, deviceIP s
 	if err != nil {
 		// should not happen since the deviceCheck is expected to be valid at this point
 		// and are only changing the device ip
-		log.Warnf("failed to create new device check `%s`: %s", deviceIP, err)
+		log.Warnf("subnet %s: failed to create new device check `%s`: %s", d.config.Network, deviceIP, err)
 		return
 	}
 
@@ -253,7 +257,7 @@ func (d *Discovery) readCache(subnet *snmpSubnet) ([]net.IP, error) {
 func (d *Discovery) loadCache(subnet *snmpSubnet) {
 	devices, err := d.readCache(subnet)
 	if err != nil {
-		log.Errorf("error reading cache: %s", err)
+		log.Errorf("subnet %s: error reading cache: %s", d.config.Network, err)
 		return
 	}
 	for _, deviceIP := range devices {
@@ -271,12 +275,12 @@ func (d *Discovery) writeCache(subnet *snmpSubnet) {
 
 	cacheValue, err := json.Marshal(devices)
 	if err != nil {
-		log.Errorf("Couldn't marshal cache: %s", err)
+		log.Errorf("subnet %s: Couldn't marshal cache: %s", d.config.Network, err)
 		return
 	}
 
 	if err = persistentcache.Write(subnet.cacheKey, string(cacheValue)); err != nil {
-		log.Errorf("Couldn't write cache: %s", err)
+		log.Errorf("subnet %s: Couldn't write cache: %s", d.config.Network, err)
 	}
 }
 
