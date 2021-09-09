@@ -1076,9 +1076,9 @@ api_key:
       ## that can be enabled by the user
       # enabled: true
 
-      ## @param interval - integer - optional - default: 4
+      ## @param interval - duration - optional - default: 4h
       ## An interval, in hours, that speficies how often the process discovery check should run
-      # interval: 4
+      # interval: 4h
 
 
   ## @param blacklist_patterns - list of strings - optional

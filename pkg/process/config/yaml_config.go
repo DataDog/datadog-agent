@@ -282,8 +282,7 @@ func (a *AgentConfig) initProcessDiscoveryCheck() {
 	root := key(ns, "process_discovery")
 
 	// We don't need to check if the key exists since we already bound it to a default in InitConfig
-	interval := config.Datadog.GetInt(key(root, "interval"))
-	a.CheckIntervals[DiscoveryCheckName] = time.Duration(interval) * time.Second
+	a.CheckIntervals[DiscoveryCheckName] = config.Datadog.GetDuration(key(root, "interval"))
 
 	// Discovery check should be only enabled when process_config.process_discovery.enabled = true and
 	// process_config.enabled is set to "false". This effectively makes sure the check only runs when other checks are
