@@ -151,7 +151,6 @@ Exiting.`
 )
 
 func runAgent(exit chan struct{}) {
-	fmt.Println("version", opts.version)
 	if opts.version {
 		fmt.Print(versionString("\n"))
 		cleanupAndExit(0)
