@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Move the maximum meta and metrics value length from 5k to 25k
+    APM: The maximum allowed tag value length has been increased to 25,000 bytes.
