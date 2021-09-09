@@ -301,8 +301,8 @@ profiles:
 	assert.Equal(t, false, config.AutodetectProfile)
 	assert.Equal(t, 3600, config.DiscoveryInterval)
 	assert.Equal(t, 3, config.DiscoveryAllowedFailures)
-	assert.Equal(t, 10, config.DiscoveryWorkers)
-	assert.Equal(t, 10, config.Workers)
+	assert.Equal(t, 5, config.DiscoveryWorkers)
+	assert.Equal(t, 5, config.Workers)
 }
 
 func TestDefaultConfigurations(t *testing.T) {
