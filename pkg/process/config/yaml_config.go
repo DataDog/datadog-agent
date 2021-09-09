@@ -276,15 +276,21 @@ func (a *AgentConfig) setCheckInterval(ns, check, checkKey string) {
 }
 
 // Separate handler for initializing the process discovery check.
-// Since it has its own unique object, we need to handle loading in the check config differently separately from the other checks.
+// Since it has its own unique object, we need to handle loading in the check config differently separately
+// from the other checks.
 func (a *AgentConfig) initProcessDiscoveryCheck() {
 	root := key(ns, "process_discovery")
 
 	// We don't need to check if the key exists since we already bound it to a default in InitConfig
 	interval := config.Datadog.GetInt(key(root, "interval"))
-	a.CheckIntervals[DiscoveryCheckName] = time.Duration(interval) * time.Hour
+	a.CheckIntervals[DiscoveryCheckName] = time.Duration(interval) * time.Second
 
-	if enabled := config.Datadog.GetBool(key(root, "enabled")); enabled {
+	// Discovery check should be only enabled when process_config.process_discovery.enabled = true and
+	// process_config.enabled is set to "false". This effectively makes sure the check only runs when other checks are
+	// disabled, while also respecting the users wishes when they want to disable either the check or the process agent completely.
+	processAgentEnabled := strings.ToLower(config.Datadog.GetString(key(ns, "enabled")))
+	checkEnabled := config.Datadog.GetBool(key(root, "enabled"))
+	if checkEnabled && processAgentEnabled == "false" {
 		a.EnabledChecks = append(a.EnabledChecks, DiscoveryCheckName)
 	}
 }

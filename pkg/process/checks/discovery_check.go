@@ -33,6 +33,7 @@ func (d *ProcessDiscoveryCheck) Run(_ *config.AgentConfig, groupID int32) ([]mod
 		hostname = "unknown"
 	}
 
+	// Does not need to collect process stats, only metadata
 	procs, err := getAllProcesses(d.probe)
 	if err != nil {
 		return nil, log.Error(err)
