@@ -115,7 +115,7 @@ type CheckConfig struct {
 	CollectDeviceMetadata bool
 	DeviceID              string
 	DeviceIDTags          []string
-	Subnet                string
+	ResolvedSubnetName    string
 	AutodetectProfile     bool
 	MinCollectionInterval time.Duration
 
@@ -395,15 +395,25 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	c.DeviceID, c.DeviceIDTags = buildDeviceID(c.getDeviceIDTags())
 
-	subnet, err := getSubnetFromTags(c.InstanceTags)
-	if err != nil {
-		log.Debugf("subnet not found: %s", err)
-	}
-	// TODO: set subnet to Network if exist
-	c.Subnet = subnet
+	c.ResolvedSubnetName = c.getResolvedSubnetName()
 
 	c.addUptimeMetric()
 	return c, nil
+}
+
+func (c *CheckConfig) getResolvedSubnetName() string {
+	var resolvedSubnet string
+	if c.Network != "" {
+		resolvedSubnet = c.Network
+	} else {
+		subnet, err := getSubnetFromTags(c.InstanceTags)
+		if err != nil {
+			log.Debugf("subnet not found: %s", err)
+		} else {
+			resolvedSubnet = subnet
+		}
+	}
+	return resolvedSubnet
 }
 
 // DiscoveryDigest returns a hash value representing the minimal configs used to connect to the device
@@ -479,7 +489,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.DeviceID = c.DeviceID
 
 	newConfig.DeviceIDTags = common.CopyStrings(c.DeviceIDTags)
-	newConfig.Subnet = c.Subnet
+	newConfig.ResolvedSubnetName = c.ResolvedSubnetName
 	newConfig.AutodetectProfile = c.AutodetectProfile
 	newConfig.MinCollectionInterval = c.MinCollectionInterval
 

@@ -213,7 +213,7 @@ bulk_max_repetitions: 20
 	assert.Equal(t, 1, len(config.Profiles))
 	assert.Equal(t, "780a58c96c908df8", config.DeviceID)
 	assert.Equal(t, []string{"snmp_device:1.2.3.4", "tag1", "tag2:val2"}, config.DeviceIDTags)
-	assert.Equal(t, "127.0.0.0/30", config.Subnet)
+	assert.Equal(t, "127.0.0.0/30", config.ResolvedSubnetName)
 	assert.Equal(t, false, config.AutodetectProfile)
 }
 
@@ -1357,7 +1357,7 @@ func TestCheckConfig_Copy(t *testing.T) {
 		CollectDeviceMetadata: true,
 		DeviceID:              "123",
 		DeviceIDTags:          []string{"DeviceIDTags:tag"},
-		Subnet:                "1.2.3.4/28",
+		ResolvedSubnetName:    "1.2.3.4/28",
 		AutodetectProfile:     true,
 		MinCollectionInterval: 120,
 	}
@@ -1394,7 +1394,7 @@ func TestCheckConfig_Copy(t *testing.T) {
 	assert.Equal(t, config.CollectDeviceMetadata, configCopy.CollectDeviceMetadata)
 	assert.Equal(t, config.DeviceID, configCopy.DeviceID)
 	assertNotSameButEqualElements(t, config.DeviceIDTags, configCopy.DeviceIDTags)
-	assert.Equal(t, config.Subnet, configCopy.Subnet)
+	assert.Equal(t, config.ResolvedSubnetName, configCopy.ResolvedSubnetName)
 	assert.Equal(t, config.AutodetectProfile, configCopy.AutodetectProfile)
 	assert.Equal(t, config.MinCollectionInterval, configCopy.MinCollectionInterval)
 }
@@ -1414,4 +1414,33 @@ func TestCheckConfig_CopyWithNewIP(t *testing.T) {
 	assert.Equal(t, config.Port, configCopy.Port)
 	assert.Equal(t, config.CommunityString, configCopy.CommunityString)
 	assert.NotEqual(t, config.DeviceID, configCopy.DeviceID)
+}
+
+func TestCheckConfig_getResolvedSubnetName(t *testing.T) {
+	tests := []struct {
+		name               string
+		network            string
+		instanceTags       []string
+		expectedSubnetName string
+	}{
+		{
+			name:               "from Network",
+			network:            "1.2.0.0/24",
+			expectedSubnetName: "1.2.0.0/24",
+		},
+		{
+			name:               "from instance tags",
+			instanceTags:       []string{"autodiscovery_subnet:10.10.0.0/25"},
+			expectedSubnetName: "10.10.0.0/25",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &CheckConfig{
+				Network:      tt.network,
+				InstanceTags: tt.instanceTags,
+			}
+			assert.Equal(t, tt.expectedSubnetName, c.getResolvedSubnetName())
+		})
+	}
 }
