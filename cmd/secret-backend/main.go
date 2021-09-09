@@ -18,7 +18,7 @@ type InputPayload struct {
 	Version string   `json:"version"`
 }
 
-const appVersion = "0.1.0"
+const appVersion = "0.1.1"
 
 func init() {
 	log.SetFormatter(&log.JSONFormatter{})
@@ -33,12 +33,12 @@ func printVersion() {
 func main() {
 	program, _ := os.Executable()
 	programPath := filepath.Dir(program)
-	defaultConfigFile := fmt.Sprintf("%s/datadog-secret-backend.yaml", programPath)
+	defaultConfigFile := filepath.Join(programPath, "datadog-secret-backend.yaml")
 
 	version := flag.Bool("version", false,
-		fmt.Sprintf("displays version and information of %s", os.Args[0]),
+		fmt.Sprintf("Displays version and information of %s", filepath.Base(program)),
 	)
-	configFile := flag.String("config", defaultConfigFile, "path to configuration yaml")
+	configFile := flag.String("config", defaultConfigFile, "Path to backend configuration yaml")
 
 	flag.Parse()
 
