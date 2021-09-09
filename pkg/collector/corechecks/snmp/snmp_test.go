@@ -1210,6 +1210,7 @@ tags:
 }
 
 func TestDiscovery(t *testing.T) {
+	timeNow = common.MockTimeNow
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1222,6 +1223,8 @@ func TestDiscovery(t *testing.T) {
 	rawInstanceConfig := []byte(`
 network_address: 10.10.0.0/30
 community_string: public
+collect_device_metadata: true
+oid_batch_size: 10
 metrics:
 - symbol:
     OID: 1.3.6.1.2.1.2.1
@@ -1257,6 +1260,7 @@ metric_tags:
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
 	packet := gosnmp.SnmpPacket{
@@ -1281,11 +1285,136 @@ metric_tags:
 
 	sess.On("Get", mock.Anything).Return(&packet, nil)
 
+	bulkPacket := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.2.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("ifDescRow1"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.6.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("00:00:00:00:00:01"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.7.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.8.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.1.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("nameRow1"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.18.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("descRow1"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.2.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("ifDescRow2"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.6.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("00:00:00:00:00:02"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.7.2",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.8.2",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.1.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("nameRow2"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.18.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("descRow2"),
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+		},
+	}
+
+	sess.On("GetBulk", []string{
+		//"1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7", "1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.31.1.1.1.1"
+		"1.3.6.1.2.1.2.2.1.2",
+		"1.3.6.1.2.1.2.2.1.6",
+		"1.3.6.1.2.1.2.2.1.7",
+		"1.3.6.1.2.1.2.2.1.8",
+		"1.3.6.1.2.1.31.1.1.1.1",
+		"1.3.6.1.2.1.31.1.1.1.18",
+	}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
+
+	deviceMap := []struct {
+		ipAddress string
+		deviceId  string
+	}{
+		{ipAddress: "10.10.0.0", deviceId: "e162c69954d2b408"},
+		{ipAddress: "10.10.0.1", deviceId: "e162c69954d2b409"},
+		{ipAddress: "10.10.0.2", deviceId: "e162c69954d2b40a"},
+		{ipAddress: "10.10.0.3", deviceId: "e162c69954d2b40b"},
+	}
+
 	err = chk.Run()
 	assert.Nil(t, err)
 
-	for i := 0; i < 4; i++ {
-		snmpTags := []string{fmt.Sprintf("snmp_device:10.10.0.%d", i), "autodiscovery_subnet:10.10.0.0/30"}
+	for _, deviceData := range deviceMap {
+		snmpTags := []string{"snmp_device:" + deviceData.ipAddress, "autodiscovery_subnet:10.10.0.0/30"}
 		snmpGlobalTags := append(common.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
 		snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
 		scalarTags := append(common.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
@@ -1297,6 +1426,66 @@ metric_tags:
 		sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpGlobalTagsWithLoader)
 		sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpGlobalTagsWithLoader)
 		sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 2, "", snmpGlobalTagsWithLoader)
+
+		// language=json
+		event := []byte(fmt.Sprintf(`
+{
+  "subnet": "10.10.0.0/30",
+  "devices": [
+    {
+      "id": "%s",
+      "id_tags": [
+        "snmp_device:%s"
+      ],
+      "name": "foo_sys_name",
+      "description": "",
+      "ip_address": "%s",
+      "sys_object_id": "",
+      "profile": "",
+      "vendor": "",
+      "subnet": "10.10.0.0/30",
+      "tags": [
+        "autodiscovery_subnet:10.10.0.0/30",
+        "snmp_device:%s",
+        "snmp_host:foo_sys_name"
+      ],
+      "status": 1
+    }
+  ],
+  "interfaces": [
+    {
+      "device_id": "%s",
+      "id_tags": ["interface:nameRow1"],
+      "index": 1,
+      "name": "nameRow1",
+      "alias": "descRow1",
+      "description": "ifDescRow1",
+      "mac_address": "00:00:00:00:00:01",
+      "admin_status": 1,
+      "oper_status": 1
+    },
+    {
+      "device_id": "%s",
+	  "id_tags": ["interface:nameRow2"],
+      "index": 2,
+      "name": "nameRow2",
+      "alias": "descRow2",
+      "description": "ifDescRow2",
+      "mac_address": "00:00:00:00:00:02",
+      "admin_status": 1,
+      "oper_status": 1
+    }
+  ],
+  "collect_timestamp":946684800
+}
+`, deviceData.deviceId, deviceData.ipAddress, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceId, deviceData.deviceId))
+		compactEvent := new(bytes.Buffer)
+		err = json.Compact(compactEvent, event)
+		assert.NoError(t, err)
+
+		fmt.Println("event", string(compactEvent.String()))
+		sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+
 	}
 	networkTags := []string{"network:10.10.0.0/30", "autodiscovery_subnet:10.10.0.0/30"}
 	sender.AssertMetric(t, "Gauge", "snmp.discovered_devices_count", 4, "", networkTags)
