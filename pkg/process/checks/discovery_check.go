@@ -1,8 +1,6 @@
 package checks
 
 import (
-	"os"
-
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -25,27 +23,19 @@ func (d *ProcessDiscoveryCheck) Name() string { return config.DiscoveryCheckName
 
 func (d *ProcessDiscoveryCheck) RealTime() bool { return false }
 
-func (d *ProcessDiscoveryCheck) Run(_ *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
-	log.Info("Running process discovery check")
-	hostname, err := os.Hostname()
-	if err != nil {
-		_ = log.Warn("unable to get hostname")
-		hostname = "unknown"
-	}
-
+func (d *ProcessDiscoveryCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
 	// Does not need to collect process stats, only metadata
 	procs, err := getAllProcesses(d.probe)
 	if err != nil {
 		return nil, log.Error(err)
 	}
-
 	payload := model.CollectorProcDiscovery{
-		HostName:           hostname,
+		HostName:           cfg.HostName,
 		GroupId:            groupID,
 		GroupSize:          0,
 		ProcessDiscoveries: make([]*model.ProcessDiscovery, 0, len(procs)),
 		Host: &model.Host{
-			Name:        hostname,
+			Name:        cfg.HostName,
 			NumCpus:     d.info.Cpus[0].Number,
 			TotalMemory: d.info.TotalMemory,
 		},
