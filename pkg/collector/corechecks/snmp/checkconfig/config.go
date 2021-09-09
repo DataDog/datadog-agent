@@ -170,6 +170,15 @@ func (c *CheckConfig) GetStaticTags() []string {
 	return tags
 }
 
+// GetStaticTagsForMetrics return static tags to be used for metrics, service checks, etc
+func (c *CheckConfig) GetStaticTagsForMetrics() []string {
+	tags := c.GetStaticTags()
+	if c.Network != "" {
+		tags = append(tags, "autodiscovery_subnet:"+c.Network)
+	}
+	return tags
+}
+
 // getDeviceIDTags return sorted tags used for generating device id
 // warning: changing getDeviceIDTags logic might lead to different deviceID
 func (c *CheckConfig) getDeviceIDTags() []string {
