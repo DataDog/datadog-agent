@@ -60,12 +60,6 @@ func FormatStatus(data []byte) (string, error) {
 	if config.Datadog.GetBool("system_probe_config.enabled") {
 		renderStatusTemplate(b, "/systemprobe.tmpl", systemProbeStats)
 	}
-	// TODO is this a better heuristic?
-	// if systemProbeStatsMap, ok := systemProbeStats.(map[string]interface{}); ok {
-	// 	if _, ok := systemProbeStatsMap["Errors"]; !ok {
-	// 		renderStatusTemplate(b, "/systemprobe.tmpl", systemProbeStats)
-	// 	}
-	// }
 	renderStatusTemplate(b, "/trace-agent.tmpl", stats["apmStats"])
 	renderStatusTemplate(b, "/aggregator.tmpl", aggregatorStats)
 	renderStatusTemplate(b, "/dogstatsd.tmpl", dogstatsdStats)

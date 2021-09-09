@@ -63,10 +63,7 @@ var statusCmd = &cobra.Command{
 			return err
 		}
 
-		if err = common.SetupSystemProbeConfig(sysProbeConfFilePath); err != nil {
-			// log.Infof("System probe config not found, disabling pulling system probe info in the status page: %v", err)
-			// TODO log?
-		}
+		_ = common.SetupSystemProbeConfig(sysProbeConfFilePath)
 
 		return requestStatus()
 	},
