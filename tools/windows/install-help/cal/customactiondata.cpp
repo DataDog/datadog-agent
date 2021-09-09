@@ -214,13 +214,11 @@ std::optional<CustomActionData::User> CustomActionData::findSuppliedUserInfo()
 {
     User user;
     std::wstring tmpName;
-    if (value(propertyDDAgentUserName, tmpName))
+    if (!value(propertyDDAgentUserName, tmpName) || tmpName.length() == 0)
     {
-        if (tmpName.length() == 0)
-        {
-            return std::nullopt;
-        }
+        return std::nullopt;
     }
+
     if (std::wstring::npos == tmpName.find(L'\\'))
     {
         WcaLog(LOGMSG_STANDARD, "loaded username doesn't have domain specifier, assuming local");
@@ -233,45 +231,49 @@ std::optional<CustomActionData::User> CustomActionData::findSuppliedUserInfo()
     getline(asStream, user.Domain, L'\\');
     getline(asStream, user.Name, L'\\');
 
-    if (user.Domain == L".")
+    return std::optional<User>(user);
+}
+
+void CustomActionData::ensureDomainHasCorrectFormat()
+{
+    if (_user.Domain == L".")
     {
         if (_targetMachine->IsDomainController())
         {
             // User didn't specify a domain OR didn't specify a user, but we're on a domain controller
             // let's use the joined domain.
-            user.Domain = _targetMachine->JoinedDomainName();
+            _user.Domain = _targetMachine->JoinedDomainName();
             _domainUser = true;
             WcaLog(LOGMSG_STANDARD,
                    "No domain name supplied for installation on a Domain Controller, using joined domain \"%S\"",
-                   user.Domain.c_str());
+                   _user.Domain.c_str());
         }
         else
         {
             WcaLog(LOGMSG_STANDARD, "Supplied qualified domain '.', using hostname");
-            user.Domain = _targetMachine->GetMachineName();
+            _user.Domain = _targetMachine->GetMachineName();
             _domainUser = false;
         }
     }
     else
     {
-        if (0 == _wcsicmp(user.Domain.c_str(), _targetMachine->GetMachineName().c_str()))
+        if (0 == _wcsicmp(_user.Domain.c_str(), _targetMachine->GetMachineName().c_str()))
         {
             WcaLog(LOGMSG_STANDARD, "Supplied hostname as authority");
             _domainUser = false;
         }
-        else if (0 == _wcsicmp(user.Domain.c_str(), _targetMachine->DnsDomainName().c_str()))
+        else if (0 == _wcsicmp(_user.Domain.c_str(), _targetMachine->DnsDomainName().c_str()))
         {
-            WcaLog(LOGMSG_STANDARD, "Supplied domain name %S", user.Domain.c_str());
+            WcaLog(LOGMSG_STANDARD, "Supplied domain name %S", _user.Domain.c_str());
             _domainUser = true;
         }
         else
         {
-            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (%S != %S)", user.Domain.c_str(),
+            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (%S != %S)", _user.Domain.c_str(),
                    _targetMachine->DnsDomainName().c_str());
             _domainUser = true;
         }
     }
-    return std::optional<User>(user);
 }
 
 bool CustomActionData::parseUsernameData()
@@ -295,9 +297,10 @@ bool CustomActionData::parseUsernameData()
     {
         // Didn't find a user in the registry nor from the command line
         // use default value. Order of construction is Domain then Name
-        _user = {L".\\", ddAgentUserName };
+        _user = {L".", ddAgentUserName };
     }
 
+    ensureDomainHasCorrectFormat();
     auto sidResult = GetSidForUser(nullptr, Username().c_str());
 
     if (sidResult.Result == ERROR_NONE_MAPPED)

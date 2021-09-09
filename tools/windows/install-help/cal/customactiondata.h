@@ -74,6 +74,7 @@ class CustomActionData : ICustomActionData
     std::shared_ptr<ITargetMachine> _targetMachine;
     std::optional<User> findPreviousUserInfo();
     std::optional<User> findSuppliedUserInfo();
+    void ensureDomainHasCorrectFormat();
     bool parseUsernameData();
     bool parseSysprobeData();
 };
