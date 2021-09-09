@@ -47,20 +47,17 @@ type AutoMultilineHandler struct {
 	singleLineHandler *SingleLineHandler
 	inputChan         chan *Message
 	outputChan        chan *Message
-
-	// flipChan is signaled when switching to a multiline handler to stop
-	// the AutomMultilineHandler from processing logs.
-	flipChan        chan struct{}
-	linesToAssess   int
-	linesTested     int
-	lineLimit       int
-	matchThreshold  float64
-	scoredMatches   []*scoredPattern
-	processsingFunc func(message *Message)
-	flushTimeout    time.Duration
-	source          *config.LogSource
-	timeoutTimer    *time.Timer
-	detectedPattern *DetectedPattern
+	isRunning         bool
+	linesToAssess     int
+	linesTested       int
+	lineLimit         int
+	matchThreshold    float64
+	scoredMatches     []*scoredPattern
+	processsingFunc   func(message *Message)
+	flushTimeout      time.Duration
+	source            *config.LogSource
+	timeoutTimer      *time.Timer
+	detectedPattern   *DetectedPattern
 }
 
 // NewAutoMultilineHandler returns a new AutoMultilineHandler.
@@ -87,7 +84,7 @@ func NewAutoMultilineHandler(outputChan chan *Message,
 	h := &AutoMultilineHandler{
 		inputChan:       make(chan *Message),
 		outputChan:      outputChan,
-		flipChan:        make(chan struct{}, 1),
+		isRunning:       true,
 		lineLimit:       lineLimit,
 		matchThreshold:  matchThreshold,
 		scoredMatches:   scoredMatches,
@@ -122,17 +119,15 @@ func (h *AutoMultilineHandler) Start() {
 // run consumes new lines and processes them.
 func (h *AutoMultilineHandler) run() {
 	for {
-		select {
-		case <-h.flipChan:
+		if !h.isRunning {
 			return
-		default:
-			line, isOpen := <-h.inputChan
-			if !isOpen {
-				close(h.outputChan)
-				return
-			}
-			h.processsingFunc(line)
 		}
+		line, isOpen := <-h.inputChan
+		if !isOpen {
+			close(h.outputChan)
+			return
+		}
+		h.processsingFunc(line)
 	}
 }
 
@@ -185,7 +180,7 @@ func (h *AutoMultilineHandler) processAndTry(message *Message) {
 }
 
 func (h *AutoMultilineHandler) switchToMultilineHandler(r *regexp.Regexp) {
-	h.flipChan <- struct{}{}
+	h.isRunning = false
 	h.singleLineHandler = nil
 
 	// Build and start a multiline-handler
