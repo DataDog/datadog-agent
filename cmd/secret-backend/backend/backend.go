@@ -31,13 +31,13 @@ func NewBackends(configFile *string) Backends {
 
 	configYAML, err := ioutil.ReadFile(*configFile)
 	if err != nil {
-		log.WithField("configFile", *configFile).
+		log.WithField("config_file", *configFile).
 			WithError(err).Fatal("failed to configuration file")
 	}
 
 	backendConfigs := &BackendConfigurations{}
 	if err := yaml.Unmarshal(configYAML, backendConfigs); err != nil {
-		log.WithField("configFile", *configFile).
+		log.WithField("config_file", *configFile).
 			WithError(err).Fatal("failed to unmarshal configuration yaml")
 	}
 
@@ -53,29 +53,30 @@ func (b *Backends) InitBackend(backendId string, config map[string]string) {
 		return
 	}
 
-	if _, ok := config["type"]; !ok {
+	if _, ok := config["backend_type"]; !ok {
 		log.WithFields(log.Fields{
-			"backendId": backendId,
+			"backend_id": backendId,
 		}).Error("undefined secret backend type in configuration")
 
-		b.Backends[backendId] = &ErrorBackend{BackendId: backendId,
-			Error: fmt.Errorf("undefined secret backend type in configuration"),
+		b.Backends[backendId] = &ErrorBackend{
+			BackendId: backendId,
+			Error:     fmt.Errorf("undefined secret backend type in configuration"),
 		}
 		return
 	}
 
-	switch backendType := config["type"]; backendType {
+	switch backendType := config["backend_type"]; backendType {
 	case "aws.secretsmanager":
 		backend, err := aws.NewAwsSecretsManagerBackend(backendId, config)
 		if err != nil {
-			b.Backends[backendId] = &ErrorBackend{BackendId: backendId, Error: err}
+			b.Backends[backendId] = NewErrorBackend(backendId, err)
 		} else {
 			b.Backends[backendId] = backend
 		}
 	default:
 		log.WithFields(log.Fields{
-			"backendId":   backendId,
-			"backendType": backendType,
+			"backend_id":   backendId,
+			"backend_type": backendType,
 		}).Error("unsupported backend type")
 
 		b.Backends[backendId] = &ErrorBackend{
@@ -96,8 +97,8 @@ func (b *Backends) GetSecretOutputs(secrets []string) map[string]secret.SecretOu
 
 		if _, ok := b.Backends[backendId]; !ok {
 			log.WithFields(log.Fields{
-				"backendId": backendId,
-				"secretKey": secretKey,
+				"backend_id": backendId,
+				"secret_key": secretKey,
 			}).Error("undefined backend")
 
 			b.Backends[backendId] = &ErrorBackend{

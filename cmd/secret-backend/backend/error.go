@@ -7,6 +7,10 @@ type ErrorBackend struct {
 	Error     error
 }
 
+func NewErrorBackend(backendId string, e error) *ErrorBackend {
+	return &ErrorBackend{BackendId: backendId, Error: e}
+}
+
 func (b *ErrorBackend) GetSecretOutput(secretKey string) secret.SecretOutput {
 	es := b.Error.Error()
 	return secret.SecretOutput{
