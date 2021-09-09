@@ -12,6 +12,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"strconv"
 	"testing"
 	"time"
@@ -292,6 +293,35 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 	suite.Equal(2, len(tags))
 	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
 	suite.Equal("dirname:"+filepath.Dir(suite.testFile.Name()), tags[1])
+}
+
+func (suite *TailerTestSuite) TestMutliLineAutoDetect() {
+	lines := "Jul 12, 2021 12:55:15 PM test message 1\n"
+	lines += "Jul 12, 2021 12:55:15 PM test message 2\n"
+
+	var err error
+
+	suite.source.Config.AutoMultiLine = true
+	suite.source.Config.AutoMultiLineSampleSize = 3
+
+	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source, true), 10*time.Millisecond, NewDecoderFromSource(suite.source))
+
+	_, err = suite.testFile.WriteString(lines)
+	suite.Nil(err)
+
+	suite.tailer.Start(0, io.SeekStart)
+	<-suite.outputChan
+	<-suite.outputChan
+
+	suite.Nil(suite.tailer.GetDetectedPattern())
+	_, err = suite.testFile.WriteString(lines)
+	suite.Nil(err)
+
+	<-suite.outputChan
+	<-suite.outputChan
+
+	expectedRegex := regexp.MustCompile(`^[A-Za-z_]+ \d+, \d+ \d+:\d+:\d+ (AM|PM)`)
+	suite.Equal(suite.tailer.GetDetectedPattern(), expectedRegex)
 }
 
 func toInt(str string) int {
