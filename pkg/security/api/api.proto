@@ -41,8 +41,9 @@ message SecuritySelfTestResultMessage {
 
 message DumpActivityParams {
     repeated string Tags = 1;
-    int32 timeout = 2;
-    bool with_graph = 3;
+    string comm = 2;
+    int32 timeout = 3;
+    bool with_graph = 4;
 }
 
 message SecurityActivityDumpMessage {
@@ -58,6 +59,7 @@ message SecurityActivityDumpListMessage {
 
 message StopActivityDumpParams {
     repeated string Tags = 1;
+    string Comm = 2;
 }
 
 message SecurityActivityDumpStoppedMessage {

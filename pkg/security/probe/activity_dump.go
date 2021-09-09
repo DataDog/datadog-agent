@@ -23,7 +23,8 @@ import (
 
 // ActivityDump holds the activity tree for the workload defined by the provided list of tags
 type ActivityDump struct {
-	Tags                []string                        `json:"tags"`
+	Tags                []string                        `json:"tags,omitempty"`
+	Comm                string                          `json:"comm,omitempty"`
 	Start               time.Time                       `json:"start"`
 	Timeout             time.Duration                   `json:"duration"`
 	End                 time.Time                       `json:"end"`
@@ -38,11 +39,12 @@ type ActivityDump struct {
 }
 
 // NewActivityDump returns a new instance of an ActivityDump
-func NewActivityDump(tags []string, timeout time.Duration, withGraph bool, tracedPIDs *ebpf.Map) (*ActivityDump, error) {
+func NewActivityDump(tags []string, comm string, timeout time.Duration, withGraph bool, tracedPIDs *ebpf.Map) (*ActivityDump, error) {
 	var err error
 
 	ad := ActivityDump{
 		Tags:        tags,
+		Comm:        comm,
 		CookiesNode: make(map[uint32]*ProcessActivityNode),
 		Start:       time.Now(),
 		Timeout:     timeout,
@@ -89,6 +91,19 @@ func (ad *ActivityDump) TagsListMatches(tags []string) bool {
 	return matchCount == len(ad.Tags)
 }
 
+// CommMatches returns true if the ActivityDump comm matches the provided comm
+func (ad *ActivityDump) CommMatches(comm string) bool {
+	return ad.Comm == comm
+}
+
+// Matches returns true if the provided list of tags and / or the provided comm match the current ActivityDump
+func (ad *ActivityDump) Matches(tags []string, comm string) bool {
+	if len(ad.Comm) > 0 {
+		return ad.CommMatches(comm) && ad.TagsListMatches(tags)
+	}
+	return ad.TagsListMatches(tags)
+}
+
 // Done stops an active dump
 func (ad *ActivityDump) Done() {
 	ad.End = time.Now()
@@ -96,7 +111,14 @@ func (ad *ActivityDump) Done() {
 	ad.dump()
 	_ = ad.outputFile.Close()
 	if ad.graphFile != nil {
-		err := ad.generateGraph(fmt.Sprintf("Activity tree for %s", strings.Join(ad.Tags, " ")))
+		title := "Activity tree"
+		if len(ad.Tags) > 0 {
+			title = fmt.Sprintf("%s [%s]", title, strings.Join(ad.Tags, " "))
+		}
+		if len(ad.Comm) > 0 {
+			title = fmt.Sprintf("%s Comm(%s)", title, ad.Comm)
+		}
+		err := ad.generateGraph(title)
 		if err != nil {
 			seclog.Errorf("couldn't generate activity graph: %s", err)
 		}
@@ -146,7 +168,7 @@ func (ad *ActivityDump) Insert(event *Event) {
 	// insert the event based on its type
 	switch event.GetEventType() {
 	case model.FileOpenEventType:
-		node.InsertOpen(&event.Open)
+		node.InsertOpen(event)
 	}
 }
 
@@ -154,7 +176,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 	var node *ProcessActivityNode
 
 	// check if the provided cache entry matches the activity dump tags
-	if entry == nil || !ad.TagsListMatches(resolvers.ResolvePCEContainerTags(entry)) {
+	if entry == nil || !ad.Matches(resolvers.ResolvePCEContainerTags(entry), entry.Comm) {
 		return node
 	}
 
@@ -292,23 +314,23 @@ func extractFirstParent(path string) (string, int) {
 }
 
 // InsertOpen inserts the provided file open event in the current node
-func (pan *ProcessActivityNode) InsertOpen(event *model.OpenEvent) {
-	prefix, prefixLen := extractFirstParent(event.File.PathnameStr)
+func (pan *ProcessActivityNode) InsertOpen(event *Event) {
+	prefix, prefixLen := extractFirstParent(event.ResolveFilePath(&event.Open.File))
 
 	for _, child := range pan.Files {
 		if child.Name == prefix {
-			child.InsertOpen(event, event.File.PathnameStr[prefixLen:])
+			child.InsertOpen(&event.Open, event.Open.File.PathnameStr[prefixLen:])
 			return
 		}
 		// TODO: look for patterns / merge algo
 	}
 
 	// create new child
-	if len(event.File.PathnameStr) <= prefixLen+1 {
-		pan.Files = append(pan.Files, NewFileActivityNode(event, prefix))
+	if len(event.Open.File.PathnameStr) <= prefixLen+1 {
+		pan.Files = append(pan.Files, NewFileActivityNode(&event.Open, prefix))
 	} else {
 		child := NewFileActivityNode(nil, prefix)
-		child.InsertOpen(event, event.File.PathnameStr[prefixLen:])
+		child.InsertOpen(&event.Open, event.Open.File.PathnameStr[prefixLen:])
 		pan.Files = append(pan.Files, child)
 
 	}

@@ -194,7 +194,7 @@ struct is_discarded_by_inode_t {
 };
 
 int __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_inode_t *params) {
-    if (params->tgid_is_traced && params->is_leaf) {
+    if (params->tgid_is_traced) {
         struct traced_inode_t traced_key = {
             .tgid = params->tgid,
             .inode = params->inode,
@@ -206,7 +206,7 @@ int __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_
             return 0;
         } else {
             if (params->tgid_exec_ts > *last_sent || params->tgid_exec_ts == 0) {
-                // the tgid was reused, update the last_sent timestamp and send do not discard
+                // the tgid was reused, update the last_sent timestamp and do not discard
                 *last_sent = params->now;
                 return 0;
             } else {

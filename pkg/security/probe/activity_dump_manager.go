@@ -9,9 +9,12 @@ package probe
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
+
+	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/cilium/ebpf"
@@ -27,6 +30,7 @@ type ActivityDumpManager struct {
 	cleanupPeriod time.Duration
 	probe         *Probe
 	tracedPids    *ebpf.Map
+	tracedComms   *ebpf.Map
 	statsdClient  *statsd.Client
 
 	activeDumps []*ActivityDump
@@ -83,10 +87,19 @@ func NewActivityDumpManager(p *Probe, client *statsd.Client) (*ActivityDumpManag
 		return nil, errors.New("couldn't find traced_pids map")
 	}
 
+	tracedComms, found, err := p.manager.GetMap("traced_comms")
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, errors.New("couldn't find traced_comms map")
+	}
+
 	return &ActivityDumpManager{
 		probe:         p,
 		statsdClient:  client,
 		tracedPids:    tracedPIDs,
+		tracedComms:   tracedComms,
 		cleanupPeriod: p.config.ActivityDumpCleanupPeriod,
 	}, nil
 }
@@ -96,12 +109,23 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.DumpActivityParams) (st
 	adm.Lock()
 	defer adm.Unlock()
 
-	newDump, err := NewActivityDump(params.Tags, time.Duration(params.Timeout)*time.Minute, params.WithGraph, adm.tracedPids)
+	newDump, err := NewActivityDump(params.Tags, params.Comm, time.Duration(params.Timeout)*time.Minute, params.WithGraph, adm.tracedPids)
 	if err != nil {
 		return "", "", err
 	}
 
 	adm.activeDumps = append(adm.activeDumps, newDump)
+
+	// push comm to kernel space
+	if len(params.Comm) > 0 {
+		commB := make([]byte, 16)
+		copy(commB, params.Comm)
+		value := uint32(1)
+		err = adm.tracedComms.Put(commB, &value)
+		if err != nil {
+			seclog.Debugf("couldn't insert activity dump filter comm(%s): %v", params.Comm, err)
+		}
+	}
 
 	// loop through the process cache entry tree and push traced pids if necessary
 	adm.probe.resolvers.ProcessResolver.Walk(adm.SearchTracedProcessCacheEntryCallback)
@@ -116,7 +140,7 @@ func (adm *ActivityDumpManager) ListActivityDumps(params *api.ListActivityDumpsP
 
 	var activeDumps []string
 	for _, d := range adm.activeDumps {
-		activeDumps = append(activeDumps, strings.Join(d.Tags, ", "))
+		activeDumps = append(activeDumps, fmt.Sprintf("tags: %s, comm: %s", strings.Join(d.Tags, ", "), d.Comm))
 	}
 	return activeDumps
 }
@@ -129,9 +153,19 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.StopActivityDumpPar
 	toDelete := -1
 	inputDump := ActivityDump{Tags: params.Tags}
 	for i, d := range adm.activeDumps {
-		if d.TagsListMatches(params.Tags) && inputDump.TagsListMatches(d.Tags) {
+		if (d.TagsListMatches(params.Tags) && inputDump.TagsListMatches(d.Tags)) || d.CommMatches(params.Comm) {
 			d.Done()
 			toDelete = i
+
+			// push comm to kernel space
+			if len(d.Comm) > 0 {
+				commB := make([]byte, 16)
+				copy(commB, d.Comm)
+				err := adm.tracedComms.Delete(commB)
+				if err != nil {
+					seclog.Debugf("couldn't delete activity dump filter comm(%s): %v", d.Comm, err)
+				}
+			}
 			break
 		}
 	}
@@ -147,9 +181,16 @@ func (adm *ActivityDumpManager) ProcessEvent(event *Event) {
 	adm.Lock()
 	defer adm.Unlock()
 
+	var comm string
+	var pce *model.ProcessCacheEntry
 	for _, d := range adm.activeDumps {
 		_ = event.ResolveContainerTags(&event.ContainerContext)
-		if d.TagsListMatches(event.GetTags()) {
+		if pce = event.ResolveProcessCacheEntry(); pce != nil {
+			comm = pce.Comm
+		} else {
+			comm = ""
+		}
+		if d.Matches(event.GetTags(), comm) {
 			d.Insert(event)
 		}
 	}
@@ -158,7 +199,7 @@ func (adm *ActivityDumpManager) ProcessEvent(event *Event) {
 // SearchTracedProcessCacheEntryCallback inserts traced pids if necessary
 func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(entry *model.ProcessCacheEntry) {
 	for _, d := range adm.activeDumps {
-		if d.TagsListMatches(adm.probe.resolvers.ResolvePCEContainerTags(entry)) {
+		if d.Matches(adm.probe.resolvers.ResolvePCEContainerTags(entry), entry.Comm) {
 			_ = d.tracedPIDs.Put(entry.Pid, uint64(0))
 			return
 		}

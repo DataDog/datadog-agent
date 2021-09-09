@@ -33,11 +33,12 @@ func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool) (string, error) 
 }
 
 // DumpActivity send a dump activity request
-func (c *RuntimeSecurityClient) DumpActivity(tags []string, timeout int32, withGraph bool) (string, string, error) {
+func (c *RuntimeSecurityClient) DumpActivity(tags []string, comm string, timeout int32, withGraph bool) (string, string, error) {
 	apiClient := api.NewSecurityModuleClient(c.conn)
 
 	response, err := apiClient.DumpActivity(context.Background(), &api.DumpActivityParams{
 		Tags:      tags,
+		Comm:      comm,
 		Timeout:   timeout,
 		WithGraph: withGraph,
 	})
@@ -61,11 +62,12 @@ func (c *RuntimeSecurityClient) ListActivityDumps() ([]string, error) {
 }
 
 // StopActivityDump stops an active dump if it exists
-func (c *RuntimeSecurityClient) StopActivityDump(tags []string) (string, error) {
+func (c *RuntimeSecurityClient) StopActivityDump(tags []string, comm string) (string, error) {
 	apiClient := api.NewSecurityModuleClient(c.conn)
 
 	response, err := apiClient.StopActivityDump(context.Background(), &api.StopActivityDumpParams{
 		Tags: tags,
+		Comm: comm,
 	})
 	if err != nil {
 		return "", err

@@ -25,6 +25,13 @@ struct str_array_buffer_t {
     char value[MAX_STR_BUFF_LEN];
 };
 
+struct bpf_map_def SEC("maps/traced_comms") traced_comms = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = TASK_COMM_LEN,
+    .value_size = sizeof(u32),
+    .max_entries = 200,
+};
+
 struct bpf_map_def SEC("maps/args_envs_progs") args_envs_progs = {
     .type = BPF_MAP_TYPE_PROG_ARRAY,
     .key_size = sizeof(u32),
@@ -602,6 +609,13 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
             // copy proc_cache entry data
             copy_proc_cache_except_comm(proc_entry, &event.proc_entry);
             bpf_get_current_comm(&event.proc_entry.comm, sizeof(event.proc_entry.comm));
+
+            // lookup comm to see if the process should be traced
+            u32 *traced = bpf_map_lookup_elem(&traced_comms, event.proc_entry.comm);
+            if (traced != NULL && *traced == 1) {
+                u64 ts = bpf_ktime_get_ns();
+                bpf_map_update_elem(&traced_pids, &tgid, &ts, BPF_ANY);
+            }
 
             // copy pid_cache entry data
             copy_pid_cache_except_exit_ts(pid_entry, &event.pid_entry);
