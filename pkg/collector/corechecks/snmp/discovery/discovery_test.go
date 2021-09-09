@@ -109,15 +109,15 @@ func TestDiscoveryCache(t *testing.T) {
 		return sess2, nil
 	}
 
-	discovery.discoveredDevices = make(map[string]Device) // empty discovered devices
-	discovery.config.DiscoveryWorkers = 0                 // do not start any worker, we are interested in devices being loaded via cache
+	checkConfig = &checkconfig.CheckConfig{
+		Network:           "192.168.0.0/30",
+		CommunityString:   "public",
+		DiscoveryInterval: 3600,
+		DiscoveryWorkers:  0, // no workers, the devices will be loaded from cache
+	}
+	discovery = NewDiscovery(checkConfig)
 	discovery.Start()
 	time.Sleep(100 * time.Millisecond)
-
-	// consume stop to avoid being blocked
-	go func() {
-		<-discovery.stop
-	}()
 	discovery.Stop()
 
 	deviceConfigsFromCache := discovery.GetDiscoveredDeviceConfigs()

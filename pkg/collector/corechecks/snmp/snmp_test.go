@@ -1402,12 +1402,12 @@ metric_tags:
 
 	deviceMap := []struct {
 		ipAddress string
-		deviceId  string
+		deviceID  string
 	}{
-		{ipAddress: "10.10.0.0", deviceId: "e162c69954d2b408"},
-		{ipAddress: "10.10.0.1", deviceId: "e162c69954d2b409"},
-		{ipAddress: "10.10.0.2", deviceId: "e162c69954d2b40a"},
-		{ipAddress: "10.10.0.3", deviceId: "e162c69954d2b40b"},
+		{ipAddress: "10.10.0.0", deviceID: "e162c69954d2b408"},
+		{ipAddress: "10.10.0.1", deviceID: "e162c69954d2b409"},
+		{ipAddress: "10.10.0.2", deviceID: "e162c69954d2b40a"},
+		{ipAddress: "10.10.0.3", deviceID: "e162c69954d2b40b"},
 	}
 
 	err = chk.Run()
@@ -1478,7 +1478,7 @@ metric_tags:
   ],
   "collect_timestamp":946684800
 }
-`, deviceData.deviceId, deviceData.ipAddress, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceId, deviceData.deviceId))
+`, deviceData.deviceID, deviceData.ipAddress, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID))
 		compactEvent := new(bytes.Buffer)
 		err = json.Compact(compactEvent, event)
 		assert.NoError(t, err)
