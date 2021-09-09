@@ -32,7 +32,7 @@ func NewBackends(configFile *string) Backends {
 	configYAML, err := ioutil.ReadFile(*configFile)
 	if err != nil {
 		log.WithField("config_file", *configFile).
-			WithError(err).Fatal("failed to configuration file")
+			WithError(err).Fatal("failed to read configuration file")
 	}
 
 	backendConfigs := &BackendConfigurations{}

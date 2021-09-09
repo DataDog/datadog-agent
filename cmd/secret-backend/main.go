@@ -31,10 +31,14 @@ func printVersion() {
 }
 
 func main() {
+	program, _ := os.Executable()
+	programPath := filepath.Dir(program)
+	defaultConfigFile := fmt.Sprintf("%s/datadog-secret-backend.yaml", programPath)
+
 	version := flag.Bool("version", false,
 		fmt.Sprintf("displays version and information of %s", os.Args[0]),
 	)
-	configFile := flag.String("config", "secret-backends.yml", "path to configuration yaml")
+	configFile := flag.String("config", defaultConfigFile, "path to configuration yaml")
 
 	flag.Parse()
 
