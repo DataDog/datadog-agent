@@ -130,7 +130,7 @@ func TestDiscoveryCache(t *testing.T) {
 }
 
 func TestDiscoveryTicker(t *testing.T) {
-	t.Skip()  // TODO: FIX ME, currently this test is leading to data race when ran with other tests
+	t.Skip() // TODO: FIX ME, currently this test is leading to data race when ran with other tests
 
 	sess := session.CreateMockSession()
 	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
