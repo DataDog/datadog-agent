@@ -161,9 +161,6 @@ func (c *CheckConfig) addUptimeMetric() {
 // GetStaticTags does not contain tags from instance[].tags config
 func (c *CheckConfig) GetStaticTags() []string {
 	tags := common.CopyStrings(c.ExtraTags)
-	if c.Network != "" {
-		tags = append(tags, "autodiscovery_subnet:"+c.Network)
-	}
 	if c.IPAddress != "" {
 		tags = append(tags, "snmp_device:"+c.IPAddress)
 	}
