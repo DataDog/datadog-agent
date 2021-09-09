@@ -21,7 +21,7 @@ const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
 // Discovery handles snmp discovery states
 type Discovery struct {
 	config            *checkconfig.CheckConfig
-	stop              chan bool
+	stop              chan struct{}
 	discDevMu         sync.RWMutex
 	discoveredDevices map[string]Device
 }
@@ -57,7 +57,7 @@ func (d *Discovery) Start() {
 // Stop signal discovery to shut down
 func (d *Discovery) Stop() {
 	log.Debugf("subnet %s: Stop discovery", d.config.Network)
-	d.stop <- true
+	close(d.stop)
 }
 
 // GetDiscoveredDeviceConfigs returns discovered device configs
@@ -74,11 +74,11 @@ func (d *Discovery) GetDiscoveredDeviceConfigs() []*devicecheck.DeviceCheck {
 
 // Start discovery
 func (d *Discovery) runWorker(w int, jobs <-chan snmpJob) {
-	log.Debugf("subnet %s: Start SNMP worker %d", w, d.config.Network)
+	log.Debugf("subnet %s: Start SNMP worker %d", d.config.Network, w)
 	for {
 		select {
 		case <-d.stop:
-			log.Debugf("subnet %s: Stop SNMP worker %d", w, d.config.Network)
+			log.Debugf("subnet %s: Stop SNMP worker %d", d.config.Network, w)
 			return
 		case job := <-jobs:
 			log.Debugf("subnet %s: Handling IP %s", d.config.Network, job.currentIP.String())
@@ -288,7 +288,7 @@ func (d *Discovery) writeCache(subnet *snmpSubnet) {
 func NewDiscovery(config *checkconfig.CheckConfig) Discovery {
 	return Discovery{
 		discoveredDevices: make(map[string]Device),
-		stop:              make(chan bool),
+		stop:              make(chan struct{}),
 		config:            config,
 	}
 }
