@@ -20,7 +20,7 @@ type scoredPattern struct {
 	regexp *regexp.Regexp
 }
 
-// DetectedPattern is a container to safely access a detected multi line pattern
+// DetectedPattern is a container to safely access a detected multiline pattern
 type DetectedPattern struct {
 	sync.Mutex
 	pattern *regexp.Regexp
@@ -40,27 +40,30 @@ func (d *DetectedPattern) Get() *regexp.Regexp {
 	return d.pattern
 }
 
-// AutoMultilineHandler can switch from single to multiline handler if upon the occurrence
-// of a stable pattern at the begginning of the process
+// AutoMultilineHandler can attempts to detect a known/commob pattern (a timestamp) in the logs
+// and will switch to a MultiLine handler if one is detected and the thresholds are met.
 type AutoMultilineHandler struct {
 	multiLineHandler  *MultiLineHandler
 	singleLineHandler *SingleLineHandler
 	inputChan         chan *Message
 	outputChan        chan *Message
-	flipChan          chan struct{}
-	linesToAssess     int
-	linesTested       int
-	lineLimit         int
-	matchThreshold    float64
-	scoredMatches     []*scoredPattern
-	processsingFunc   func(message *Message)
-	flushTimeout      time.Duration
-	source            *config.LogSource
-	timeoutTimer      *time.Timer
-	detectedPattern   *DetectedPattern
+
+	// flipChan is signaled when switching to a multiline handler to stop
+	// the AutomMultilineHandler from processing logs.
+	flipChan        chan struct{}
+	linesToAssess   int
+	linesTested     int
+	lineLimit       int
+	matchThreshold  float64
+	scoredMatches   []*scoredPattern
+	processsingFunc func(message *Message)
+	flushTimeout    time.Duration
+	source          *config.LogSource
+	timeoutTimer    *time.Timer
+	detectedPattern *DetectedPattern
 }
 
-// NewAutoMultilineHandler returns a new SingleLineHandler.
+// NewAutoMultilineHandler returns a new AutoMultilineHandler.
 func NewAutoMultilineHandler(outputChan chan *Message,
 	lineLimit, linesToAssess int,
 	matchThreshold float64,
@@ -140,7 +143,7 @@ func (h *AutoMultilineHandler) processAndTry(message *Message) {
 	for i, scoredPattern := range h.scoredMatches {
 		match := scoredPattern.regexp.Match(message.Content)
 		if match {
-			log.Tracef("A regexp matched during multi-line auto sensing: %v", scoredPattern.regexp)
+			log.Tracef("A regexp matched during multiline auto sensing: %v", scoredPattern.regexp)
 			scoredPattern.score++
 
 			// By keeping the scored matches sorted, the best match always comes first. Since we expect one timestamp to match overwhelmingly
@@ -157,7 +160,7 @@ func (h *AutoMultilineHandler) processAndTry(message *Message) {
 	timeout := false
 	select {
 	case <-h.timeoutTimer.C:
-		log.Debug("Multi-line auto detect timed out before reaching line test threshold")
+		log.Debug("Multiline auto detect timed out before reaching line test threshold")
 		timeout = true
 		break
 	default:
@@ -174,8 +177,8 @@ func (h *AutoMultilineHandler) processAndTry(message *Message) {
 			h.detectedPattern.Set(topMatch.regexp)
 			h.switchToMultilineHandler(topMatch.regexp)
 		} else {
-			log.Debug("No pattern met the line match threshold during multi-line autosensing - using single line handler")
-			// Stay with the single line handler and no longer attempt to detect multi line matches.
+			log.Debug("No pattern met the line match threshold during multiline autosensing - using single line handler")
+			// Stay with the single line handler and no longer attempt to detect multiline matches.
 			h.processsingFunc = h.singleLineHandler.process
 		}
 	}
@@ -185,11 +188,11 @@ func (h *AutoMultilineHandler) switchToMultilineHandler(r *regexp.Regexp) {
 	h.flipChan <- struct{}{}
 	h.singleLineHandler = nil
 
-	// Build & start a multiline-handler
+	// Build and start a multiline-handler
 	h.multiLineHandler = newMultiLineHandler(h.inputChan, h.outputChan, r, h.flushTimeout, h.lineLimit)
 	h.multiLineHandler.Start()
 
-	// At this point control is handed over to the multi line handler and the AutoMultilineHandler read loop will be stopped.
+	// At this point control is handed over to the multiline handler and the AutoMultilineHandler read loop has stopped.
 }
 
 // Originally referenced from https://github.com/egnyte/ax/blob/master/pkg/heuristic/timestamp.go

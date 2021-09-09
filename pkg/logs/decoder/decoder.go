@@ -84,7 +84,7 @@ type Decoder struct {
 	rawDataLen      int
 
 	// The decoder holds on to an instace of DetectedPattern which is a thread safe container used to
-	// pass a multi line pattern up from the line handler in order to surface it to the tailer.
+	// pass a multiline pattern up from the line handler in order to surface it to the tailer.
 	// The tailer uses this to determine if a pattern should be reused when a file rotates.
 	detectedPattern *DetectedPattern
 }
@@ -125,7 +125,7 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 			log.Infof("Auto multi line log detection enabled")
 
 			if multiLinePattern != nil {
-				log.Infof("Found a previously detected pattern - using multi line handler")
+				log.Infof("Found a previously detected pattern - using multiline handler")
 
 				// Save the pattern again for the next rotation
 				detectedPattern.Set(multiLinePattern)

@@ -67,7 +67,7 @@ func NewDecoderFromSource(source *config.LogSource) *decoder.Decoder {
 	return NewDecoderFromSourceWithPattern(source, nil)
 }
 
-// NewDecoderFromSourceWithPattern creates a new decoder from a log source with a multi-line pattern
+// NewDecoderFromSourceWithPattern creates a new decoder from a log source with a multiline pattern
 func NewDecoderFromSourceWithPattern(source *config.LogSource, multiLinePattern *regexp.Regexp) *decoder.Decoder {
 
 	// TODO: remove those checks and add to source a reference to a tagProvider and a lineParser.
