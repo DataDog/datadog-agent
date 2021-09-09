@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -278,10 +279,14 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		c.ReceiverHost = "0.0.0.0"
 	}
 
+	var grpcPort int
+	if otlp.IsEnabled(config.Datadog) {
+		grpcPort = config.Datadog.GetInt("experimental.otlp.internal_traces_port")
+	}
+
 	c.OTLPReceiver = &OTLP{
 		BindHost:        c.ReceiverHost,
-		HTTPPort:        config.Datadog.GetInt("experimental.otlp.http_port"),
-		GRPCPort:        config.Datadog.GetInt("experimental.otlp.grpc_port"),
+		GRPCPort:        grpcPort,
 		MaxRequestBytes: c.MaxRequestBytes,
 	}
 

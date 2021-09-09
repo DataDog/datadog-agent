@@ -85,10 +85,6 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.internal_profiling.enabled", "DD_APM_INTERNAL_PROFILING_ENABLED")
 	config.BindEnv("apm_config.debugger_dd_url", "DD_APM_DEBUGGER_DD_URL")
 
-	config.BindEnvAndSetDefault("experimental.otlp.internal_traces_port", 5003)
-	config.BindEnv("experimental.otlp.http_port", "DD_OTLP_HTTP_PORT")
-	config.BindEnv("experimental.otlp.grpc_port", "DD_OTLP_GRPC_PORT")
-
 	config.SetEnvKeyTransformer("apm_config.ignore_resources", func(in string) interface{} {
 		r, err := splitCSVString(in, ',')
 		if err != nil {
