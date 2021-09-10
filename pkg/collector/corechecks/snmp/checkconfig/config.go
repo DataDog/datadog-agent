@@ -33,6 +33,8 @@ const subnetTagPrefix = "autodiscovery_subnet"
 // - snmp-net uses 10
 const DefaultBulkMaxRepetitions = uint32(10)
 
+var uptimeMetricConfig = MetricsConfig{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}}
+
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
 	Profiles              profileConfigMap `yaml:"profiles"`
@@ -139,9 +141,8 @@ func (c *CheckConfig) UpdateDeviceIDAndTags() {
 }
 
 func (c *CheckConfig) addUptimeMetric() {
-	metricConfig := getUptimeMetricConfig()
-	c.Metrics = append(c.Metrics, metricConfig)
-	c.OidConfig.addScalarOids([]string{metricConfig.Symbol.OID})
+	c.Metrics = append(c.Metrics, uptimeMetricConfig)
+	c.OidConfig.addScalarOids([]string{uptimeMetricConfig.Symbol.OID})
 }
 
 // GetStaticTags return static tags built from configuration
@@ -408,11 +409,6 @@ func (c *CheckConfig) CopyWithNewIP(ipAddress string) *CheckConfig {
 	newConfig.IPAddress = ipAddress
 	newConfig.UpdateDeviceIDAndTags()
 	return newConfig
-}
-
-func getUptimeMetricConfig() MetricsConfig {
-	// Reference sysUpTimeInstance directly, see http://oidref.com/1.3.6.1.2.1.1.3.0
-	return MetricsConfig{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}}
 }
 
 func parseScalarOids(metrics []MetricsConfig, metricTags []MetricTagConfig) []string {
