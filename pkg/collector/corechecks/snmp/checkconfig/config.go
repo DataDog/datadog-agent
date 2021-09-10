@@ -33,7 +33,7 @@ const subnetTagPrefix = "autodiscovery_subnet"
 // - snmp-net uses 10
 const DefaultBulkMaxRepetitions = uint32(10)
 
-// InitConfig maps to a check init config
+// InitConfig is used to deserialize integration init config
 type InitConfig struct {
 	Profiles              profileConfigMap `yaml:"profiles"`
 	GlobalMetrics         []MetricsConfig  `yaml:"global_metrics"`
@@ -43,7 +43,7 @@ type InitConfig struct {
 	MinCollectionInterval int              `yaml:"min_collection_interval"`
 }
 
-// InstanceConfig maps to a check instance config
+// InstanceConfig is used to deserialize integration instance config
 type InstanceConfig struct {
 	IPAddress             string            `yaml:"ip_address"`
 	Port                  Number            `yaml:"port"`
@@ -77,7 +77,7 @@ type InstanceConfig struct {
 	Network string `yaml:"network_address"`
 }
 
-// CheckConfig holds config for a check instance
+// CheckConfig holds config needed for an integration instance to run
 type CheckConfig struct {
 	IPAddress             string
 	Port                  uint16
