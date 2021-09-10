@@ -11,7 +11,16 @@ import (
 	// log "github.com/sirupsen/logrus"
 )
 
-func NewAwsConfigFromBackendConfig(backendId string, backendConfig map[string]interface{}) (
+type AwsSessionBackendConfig struct {
+	AwsRegion          string `mapstructure:"aws_region"`
+	AwsAccessKeyId     string `mapstructure:"aws_access_key_id"`
+	AwsSecretAccessKey string `mapstructure:"aws_secret_access_key"`
+	AwsProfile         string `mapstructure:"aws_profile"`
+	AwsRoleArn         string `mapstructure:"aws_role_arn"`
+	AwsExternalId      string `mapstructure:"aws_external_id"`
+}
+
+func NewAwsConfigFromBackendConfig(backendId string, sessionConfig AwsSessionBackendConfig) (
 	*aws.Config, error) {
 
 	/* add LoadDefaultConfig support for:
@@ -23,21 +32,21 @@ func NewAwsConfigFromBackendConfig(backendId string, backendConfig map[string]in
 	options := make([]func(*config.LoadOptions) error, 0)
 
 	// aws_region
-	if region, ok := backendConfig["aws_region"].(string); ok {
+	if sessionConfig.AwsRegion != "" {
 		options = append(options, func(o *config.LoadOptions) error {
-			o.Region = region
+			o.Region = sessionConfig.AwsRegion
 			return nil
 		})
 	}
 
 	// StaticCredentials (aws_access_key_id & aws_secret_access_key)
-	if access_key, ok := backendConfig["aws_access_key_id"].(string); ok {
-		if secret_key, ok := backendConfig["aws_secret_access_key"].(string); ok {
+	if sessionConfig.AwsAccessKeyId != "" {
+		if sessionConfig.AwsSecretAccessKey != "" {
 			options = append(options, func(o *config.LoadOptions) error {
 				o.Credentials = credentials.StaticCredentialsProvider{
 					Value: aws.Credentials{
-						AccessKeyID:     access_key,
-						SecretAccessKey: secret_key,
+						AccessKeyID:     sessionConfig.AwsAccessKeyId,
+						SecretAccessKey: sessionConfig.AwsSecretAccessKey,
 					},
 				}
 				return nil
@@ -46,22 +55,21 @@ func NewAwsConfigFromBackendConfig(backendId string, backendConfig map[string]in
 	}
 
 	// SharedConfigProfile (aws_profile)
-	if profile, ok := backendConfig["aws_profile"].(string); ok {
-		options = append(options, config.WithSharedConfigProfile(profile))
+	if sessionConfig.AwsProfile != "" {
+		options = append(options, config.WithSharedConfigProfile(sessionConfig.AwsProfile))
 	}
 
 	cfg, err := config.LoadDefaultConfig(context.TODO(), options...)
 
 	// sts:AssumeRole (aws_role_arn)
-	if arn, ok := backendConfig["aws_role_arn"].(string); ok {
-		creds := stscreds.NewAssumeRoleProvider(sts.NewFromConfig(cfg), arn,
+	if sessionConfig.AwsRoleArn != "" {
+		creds := stscreds.NewAssumeRoleProvider(sts.NewFromConfig(cfg), sessionConfig.AwsRoleArn,
 			func(o *stscreds.AssumeRoleOptions) {
-				if eid, ok := backendConfig["aws_external_id"].(string); ok {
-					o.ExternalID = &eid
+				if sessionConfig.AwsExternalId != "" {
+					o.ExternalID = &sessionConfig.AwsExternalId
 				}
 			},
 		)
-
 		cfg.Credentials = aws.NewCredentialsCache(creds)
 	}
 

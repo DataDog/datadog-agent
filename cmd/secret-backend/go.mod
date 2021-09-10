@@ -15,6 +15,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.6.0
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.10.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.7.0
+	github.com/mitchellh/mapstructure v1.4.1
 	github.com/sirupsen/logrus v1.8.1
 	gopkg.in/yaml.v2 v2.4.0
 )
