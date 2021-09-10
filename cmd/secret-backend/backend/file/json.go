@@ -1,8 +1,8 @@
 package file
 
 import (
-	"errors"
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 
 	"github.com/mitchellh/mapstructure"
@@ -40,7 +40,7 @@ func NewFileJsonBackend(backendId string, bc map[string]interface{}) (
 	}
 
 	secretValue := make(map[string]string, 0)
-	if err := json.Unmarshal([]byte(content), &secretValue); err != nil {
+	if err := json.Unmarshal(content, &secretValue); err != nil {
 		log.WithField("file_path", backendConfig.FilePath).
 			WithError(err).Error("failed to unmarshal json secret")
 		return nil, err
