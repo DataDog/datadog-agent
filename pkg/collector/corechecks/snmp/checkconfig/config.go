@@ -170,6 +170,8 @@ func (c *CheckConfig) GetStaticTags() []string {
 }
 
 // GetNetworkTags returns network tags
+// network tags are not part of the static tags since we don't want the deviceID
+// to change if the network/subnet changes e.g. 10.0.0.0/29 to 10.0.0.0/30
 func (c *CheckConfig) GetNetworkTags() []string {
 	var tags []string
 	if c.Network != "" {
