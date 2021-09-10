@@ -5,7 +5,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -149,12 +148,6 @@ func parsePortString(port string) (uint64, error) {
 	return p, nil
 }
 
-var ipBufferPool = sync.Pool{
-	New: func() interface{} {
-		return make([]byte, 16)
-	},
-}
-
 // IsExcludedConnection returns true if a given connection should be excluded
 // by the tracer based on user defined filters
 func IsExcludedConnection(scf []*ConnectionFilter, dcf []*ConnectionFilter, conn *ConnectionStats) bool {
@@ -163,8 +156,8 @@ func IsExcludedConnection(scf []*ConnectionFilter, dcf []*ConnectionFilter, conn
 		return false
 	}
 
-	buf := ipBufferPool.Get().([]byte)
-	defer ipBufferPool.Put(buf)
+	buf := util.IPBufferPool.Get().([]byte)
+	defer util.IPBufferPool.Put(buf)
 
 	if len(scf) > 0 && conn.Source != nil {
 		if findMatchingFilter(scf, util.NetIPFromAddress(conn.Source, buf), conn.SPort, conn.Type) {

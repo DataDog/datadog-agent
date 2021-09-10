@@ -3,6 +3,7 @@ package util
 import (
 	"encoding/binary"
 	"net"
+	"sync"
 )
 
 // Address is an IP abstraction that is family (v4/v6) agnostic
@@ -142,4 +143,11 @@ func (a v6Address) String() string {
 // IsLoopback returns true if this address is the loopback address
 func (a v6Address) IsLoopback() bool {
 	return net.IP(a[:]).IsLoopback()
+}
+
+// IPBufferPool is meant to be used in conjunction with `NetIPFromAddress`
+var IPBufferPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, net.IPv6len)
+	},
 }
