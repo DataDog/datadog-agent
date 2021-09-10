@@ -232,6 +232,15 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.SnmpVersion = instance.SnmpVersion
 	c.IPAddress = instance.IPAddress
 	c.Port = uint16(instance.Port)
+	c.Network = instance.Network
+
+	if c.IPAddress == "" && c.Network == "" {
+		return nil, fmt.Errorf("`ip_address` or `network` config must be provided")
+	}
+
+	if c.IPAddress != "" && c.Network != "" {
+		return nil, fmt.Errorf("`ip_address` and `network` cannot be used at the same time")
+	}
 
 	if instance.CollectDeviceMetadata != nil {
 		c.CollectDeviceMetadata = bool(*instance.CollectDeviceMetadata)
@@ -243,7 +252,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.ExtraTags = strings.Split(instance.ExtraTags, ",")
 	}
 
-	c.Network = instance.Network
 	if instance.DiscoveryWorkers == 0 {
 		c.DiscoveryWorkers = defaultDiscoveryWorkers
 	} else {
@@ -271,14 +279,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.IgnoredIPAddresses = make(map[string]bool, len(instance.IgnoredIPAddresses))
 	for _, ipAddress := range instance.IgnoredIPAddresses {
 		c.IgnoredIPAddresses[ipAddress] = true
-	}
-
-	if c.IPAddress == "" && c.Network == "" {
-		return nil, fmt.Errorf("`ip_address` or `network` config must be provided")
-	}
-
-	if c.IPAddress != "" && c.Network != "" {
-		return nil, fmt.Errorf("`ip_address` and `network` cannot be used at the same time")
 	}
 
 	if c.Port == 0 {
