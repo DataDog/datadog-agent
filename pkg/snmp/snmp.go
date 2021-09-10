@@ -156,13 +156,13 @@ func (c *Config) Digest(address string) string {
 	h.Write([]byte(c.ContextName))             //nolint:errcheck
 	h.Write([]byte(c.Loader))                  //nolint:errcheck
 
-	// Sort the addresses to get a stable digest
-	addresses := make([]string, 0, len(c.IgnoredIPAddresses))
+	// Sort the ignoredIPs to get a stable digest
+	ignoredIPs := make([]string, 0, len(c.IgnoredIPAddresses))
 	for ip := range c.IgnoredIPAddresses {
-		addresses = append(addresses, ip)
+		ignoredIPs = append(ignoredIPs, ip)
 	}
-	sort.Strings(addresses)
-	for _, ip := range addresses {
+	sort.Strings(ignoredIPs)
+	for _, ip := range ignoredIPs {
 		h.Write([]byte(ip)) //nolint:errcheck
 	}
 
