@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -113,7 +112,7 @@ func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 // sources and appends them to the TagsBuilder.  It can return tags at high
 // cardinality (with tags about individual containers), or at orchestrator
 // cardinality (pod/task level).
-func TagBuilder(entity string, cardinality collectors.TagCardinality, tb *util.TagsBuilder) error {
+func TagBuilder(entity string, cardinality collectors.TagCardinality, tb types.TagsBuilder) error {
 	//TODO: defer unlock once performance overhead of defer is negligible
 	mux.RLock()
 	if captureTagger != nil {
@@ -191,7 +190,7 @@ func OrchestratorScopeTag() ([]string, error) {
 
 // OrchestratorScopeTagBuilder queries tags for orchestrator scope (e.g.
 // task_arn in ECS Fargate) and appends them to the TagsBuilder
-func OrchestratorScopeTagBuilder(tb *util.TagsBuilder) error {
+func OrchestratorScopeTagBuilder(tb types.TagsBuilder) error {
 	mux.RLock()
 	if captureTagger != nil {
 		err := captureTagger.TagBuilder(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality, tb)
@@ -250,7 +249,7 @@ func init() {
 // NOTE(remy): it is not needed to sort/dedup the tags anymore since after the
 // enrichment, the metric and its tags is sent to the context key generator, which
 // is taking care of deduping the tags while generating the context key.
-func EnrichTags(tb *util.TagsBuilder, origin string, k8sOriginID string, cardinalityName string) {
+func EnrichTags(tb types.TagsBuilder, origin string, k8sOriginID string, cardinalityName string) {
 	cardinality := taggerCardinality(cardinalityName)
 
 	if origin != packets.NoOrigin {
@@ -271,6 +270,7 @@ func EnrichTags(tb *util.TagsBuilder, origin string, k8sOriginID string, cardina
 			tlmUDPOriginDetectionError.Inc()
 			log.Tracef("Cannot get tags for entity %s: %s", k8sOriginID, err)
 		}
+
 	}
 }
 

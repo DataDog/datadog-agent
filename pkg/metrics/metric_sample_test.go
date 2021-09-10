@@ -27,4 +27,3 @@ func TestMetricSampleCopy(t *testing.T) {
 	assert.False(t, src == dst)
 	assert.True(t, reflect.DeepEqual(&src, &dst))
 }
-

@@ -705,7 +705,7 @@ func (s *Server) storeMetricStats(sample metrics.MetricSample) {
 	defer s.Debug.Unlock()
 
 	// key
-	tags := util.NewTagsBuilderFromSlice(sample.Tags)
+	tags := util.NewHashingTagsBuilderFromSlice(sample.Tags)
 	key := s.Debug.keyGen.Generate(sample.Name, "", tags)
 
 	// store

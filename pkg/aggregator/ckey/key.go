@@ -79,7 +79,7 @@ type KeyGenerator struct {
 
 // Generate returns the ContextKey hash for the given parameters.
 // tagsBuf is re-arranged in place and truncated to only contain unique tags.
-func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder) ContextKey {
+func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.HashingTagsBuilder) ContextKey {
 	// between two generations, we have to set the hash to something neutral, let's
 	// use this big value seed from the murmur3 implementations
 	g.intb = 0xc6a4a7935bd1e995

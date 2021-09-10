@@ -39,9 +39,9 @@ type EntityTags struct {
 	sourceTags         map[string]sourceTags
 	cacheValid         bool
 	cachedSource       []string
-	cachedAll          *util.TagsBuilder // Low + orchestrator + high
-	cachedOrchestrator *util.TagsBuilder // Low + orchestrator (subslice of cachedAll)
-	cachedLow          *util.TagsBuilder // Sub-slice of cachedAll
+	cachedAll          *util.HashingTagsBuilder // Low + orchestrator + high
+	cachedOrchestrator *util.HashingTagsBuilder // Low + orchestrator (subslice of cachedAll)
+	cachedLow          *util.HashingTagsBuilder // Sub-slice of cachedAll
 }
 
 func newEntityTags(entityID string) *EntityTags {
@@ -300,7 +300,7 @@ func (s *TagStore) Prune() {
 // LookupBuilder gets tags from the store and returns them as a TagsBuilder instance. It
 // returns the source names in the second slice to allow the client to trigger manual
 // lookups on missing sources.
-func (s *TagStore) LookupBuilder(entity string, cardinality collectors.TagCardinality) (*util.TagsBuilder, []string) {
+func (s *TagStore) LookupBuilder(entity string, cardinality collectors.TagCardinality) (*util.HashingTagsBuilder, []string) {
 	s.RLock()
 	defer s.RUnlock()
 	storedTags, present := s.store[entity]
@@ -362,7 +362,7 @@ func (e *EntityTags) get(cardinality collectors.TagCardinality) ([]string, []str
 	return tags.Get(), sources
 }
 
-func (e *EntityTags) getBuilder(cardinality collectors.TagCardinality) (*util.TagsBuilder, []string) {
+func (e *EntityTags) getBuilder(cardinality collectors.TagCardinality) (*util.HashingTagsBuilder, []string) {
 	e.computeCache()
 
 	if cardinality == collectors.HighCardinality {
@@ -461,7 +461,7 @@ func (e *EntityTags) computeCache() {
 	tags := append(lowCardTags, orchestratorCardTags...)
 	tags = append(tags, highCardTags...)
 
-	cached := util.NewTagsBuilder()
+	cached := util.NewHashingTagsBuilder()
 	cached.Append(tags...)
 
 	// Write cache

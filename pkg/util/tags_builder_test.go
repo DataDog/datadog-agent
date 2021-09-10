@@ -12,20 +12,20 @@ import (
 )
 
 func TestNewBuilder(t *testing.T) {
-	tb := NewTagsBuilder()
+	tb := NewHashingTagsBuilder()
 	assert.NotNil(t, tb)
 	assert.Equal(t, []string{}, tb.data)
 }
 
 func TestNewBuilderFromSlice(t *testing.T) {
 	test := []string{"a", "b", "c"}
-	tb := NewTagsBuilderFromSlice(test)
+	tb := NewHashingTagsBuilderFromSlice(test)
 	assert.NotNil(t, tb)
 	assert.Equal(t, test, tb.data)
 }
 
 func TestTagsBuilderAppend(t *testing.T) {
-	tb := NewTagsBuilder()
+	tb := NewHashingTagsBuilder()
 
 	tb.Append("a", "b", "c")
 	assert.Equal(t, []string{"a", "b", "c"}, tb.data)
@@ -34,18 +34,8 @@ func TestTagsBuilderAppend(t *testing.T) {
 	assert.Equal(t, []string{"a", "b", "c", "d"}, tb.data)
 }
 
-func TestTagsBuilderSortUniq(t *testing.T) {
-	tb := NewTagsBuilder()
-
-	tb.Append("c", "b", "b", "a")
-	assert.Equal(t, []string{"c", "b", "b", "a"}, tb.data)
-
-	tb.SortUniq()
-	assert.Equal(t, []string{"a", "b", "c"}, tb.data)
-}
-
 func TestTagsBuilderReset(t *testing.T) {
-	tb := NewTagsBuilder()
+	tb := NewHashingTagsBuilder()
 
 	tb.Append("a", "b", "c")
 	assert.Equal(t, []string{"a", "b", "c"}, tb.data)
@@ -55,7 +45,7 @@ func TestTagsBuilderReset(t *testing.T) {
 }
 
 func TestTagsBuilderGet(t *testing.T) {
-	tb := NewTagsBuilder()
+	tb := NewHashingTagsBuilder()
 
 	tb.Append("a", "b", "c")
 	internalData := tb.Get()
@@ -68,7 +58,7 @@ func TestTagsBuilderGet(t *testing.T) {
 }
 
 func TestTagsBuilderCopy(t *testing.T) {
-	tb := NewTagsBuilder()
+	tb := NewHashingTagsBuilder()
 
 	tb.Append("a", "b", "c")
 	tagsCopy := tb.Copy()
