@@ -133,6 +133,11 @@ func (c *CheckConfig) RefreshWithProfile(profile string) error {
 	return nil
 }
 
+// UpdateDeviceIDAndTags updates DeviceID and DeviceIDTags
+func (c *CheckConfig) UpdateDeviceIDAndTags() {
+	c.DeviceID, c.DeviceIDTags = buildDeviceID(c.getDeviceIDTags())
+}
+
 func (c *CheckConfig) addUptimeMetric() {
 	metricConfig := getUptimeMetricConfig()
 	c.Metrics = append(c.Metrics, metricConfig)
@@ -341,7 +346,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		}
 	}
 
-	c.DeviceID, c.DeviceIDTags = buildDeviceID(c.getDeviceIDTags())
+	c.UpdateDeviceIDAndTags()
 
 	subnet, err := getSubnetFromTags(c.InstanceTags)
 	if err != nil {
@@ -401,7 +406,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 func (c *CheckConfig) CopyWithNewIP(ipAddress string) *CheckConfig {
 	newConfig := c.Copy()
 	newConfig.IPAddress = ipAddress
-	newConfig.DeviceID, newConfig.DeviceIDTags = buildDeviceID(newConfig.getDeviceIDTags())
+	newConfig.UpdateDeviceIDAndTags()
 	return newConfig
 }
 
