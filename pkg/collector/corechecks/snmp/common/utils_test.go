@@ -71,11 +71,18 @@ func Test_makeStringBatches(t *testing.T) {
 			nil,
 		},
 		{
-			"zero batch",
+			"zero batch size",
 			[]string{"aa", "bb", "cc", "dd", "ee"},
 			0,
 			nil,
 			fmt.Errorf("batch size must be positive. invalid size: 0"),
+		},
+		{
+			"negative batch size",
+			[]string{"aa", "bb", "cc", "dd", "ee"},
+			-1,
+			nil,
+			fmt.Errorf("batch size must be positive. invalid size: -1"),
 		},
 	}
 	for _, tt := range tests {
