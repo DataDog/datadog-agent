@@ -77,7 +77,6 @@ func NewAwsSsmParameterStoreBackend(backendId string, bc map[string]interface{})
 
 	// GetParameters
 	if len(backendConfig.Parameters) > 0 {
-
 		input := &ssm.GetParametersInput{Names: backendConfig.Parameters, WithDecryption: true}
 		out, err := client.GetParameters(context.TODO(), input)
 		if err != nil {
