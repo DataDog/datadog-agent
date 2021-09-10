@@ -96,7 +96,7 @@ typedef struct {
     __u32 fd;
 } ssl_sock_t;
 
-#define LIB_PATH_MAX_SIZE 150
+ #define LIB_PATH_MAX_SIZE 140
 
 typedef struct {
     __u32 pid;

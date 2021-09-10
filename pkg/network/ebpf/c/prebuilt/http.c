@@ -269,6 +269,12 @@ int kprobe__do_sys_open(struct pt_regs* ctx) {
 SEC("kretprobe/do_sys_open")
 int kretprobe__do_sys_open(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    // If file couldn't be opened, bail out
+    if (!(long)PT_REGS_RC(ctx)) {
+        goto cleanup;
+    }
+
     lib_path_t *path = bpf_map_lookup_elem(&open_at_args, &pid_tgid);
     if (path == NULL) {
         return 0;
