@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/rapdev-io/datadog-secret-backend/backend/aws"
+	"github.com/rapdev-io/datadog-secret-backend/backend/file"
 	"github.com/rapdev-io/datadog-secret-backend/secret"
 
 	log "github.com/sirupsen/logrus"
@@ -75,6 +76,13 @@ func (b *Backends) InitBackend(backendId string, config map[string]interface{}) 
 		}
 	case "aws.ssm":
 		backend, err := aws.NewAwsSsmParameterStoreBackend(backendId, config)
+		if err != nil {
+			b.Backends[backendId] = NewErrorBackend(backendId, err)
+		} else {
+			b.Backends[backendId] = backend
+		}
+	case "file.yaml":
+		backend, err := file.NewFileYamlBackend(backendId, config)
 		if err != nil {
 			b.Backends[backendId] = NewErrorBackend(backendId, err)
 		} else {
