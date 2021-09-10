@@ -37,6 +37,7 @@ union selinux_write_payload_t {
     } status;
 };
 
+#define MAX_SYMLINKS 12
 struct syscall_cache_t {
     struct policy_t policy;
     u64 type;
@@ -130,6 +131,7 @@ struct syscall_cache_t {
             struct str_array_ref_t args;
             struct str_array_ref_t envs;
             struct span_context_t span_context;
+            struct path_key_t symlink_arg0; // potentially filled by symlinks
             u32 next_tail;
             u8 is_parsed;
         } exec;

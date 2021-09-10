@@ -17,7 +17,7 @@ struct bpf_map_def SEC("maps/open_flags_approvers") open_flags_approvers = {
 
 struct bpf_map_def SEC("maps/io_uring_req_pid") io_uring_req_pid = {
     .type = BPF_MAP_TYPE_LRU_HASH,
-    .key_size = sizeof(void*),
+    .key_size = sizeof(void *),
     .value_size = sizeof(u64),
     .max_entries = 2048,
     .pinning = 0,
@@ -57,7 +57,7 @@ int __attribute__((always_inline)) trace__sys_openat(u8 async, int flags, umode_
 }
 
 SYSCALL_KPROBE2(creat, const char *, filename, umode_t, mode) {
-    int flags = O_CREAT|O_WRONLY|O_TRUNC;
+    int flags = O_CREAT | O_WRONLY | O_TRUNC;
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
@@ -67,16 +67,16 @@ SYSCALL_COMPAT_KPROBE3(open_by_handle_at, int, mount_fd, struct file_handle *, h
 }
 
 SYSCALL_COMPAT_KPROBE0(truncate) {
-    int flags = O_CREAT|O_WRONLY|O_TRUNC;
+    int flags = O_CREAT | O_WRONLY | O_TRUNC;
     umode_t mode = 0;
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
-SYSCALL_COMPAT_KPROBE3(open, const char*, filename, int, flags, umode_t, mode) {
+SYSCALL_COMPAT_KPROBE3(open, const char *, filename, int, flags, umode_t, mode) {
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
-SYSCALL_COMPAT_KPROBE4(openat, int, dirfd, const char*, filename, int, flags, umode_t, mode) {
+SYSCALL_COMPAT_KPROBE4(openat, int, dirfd, const char *, filename, int, flags, umode_t, mode) {
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
@@ -86,7 +86,7 @@ struct openat2_open_how {
     u64 resolve;
 };
 
-SYSCALL_KPROBE4(openat2, int, dirfd, const char*, filename, struct openat2_open_how*, phow, size_t, size) {
+SYSCALL_KPROBE4(openat2, int, dirfd, const char *, filename, struct openat2_open_how *, phow, size_t, size) {
     struct openat2_open_how how;
     bpf_probe_read(&how, sizeof(struct openat2_open_how), phow);
     return trace__sys_openat(SYNC_SYSCALL, how.flags, how.mode);
@@ -207,7 +207,7 @@ struct io_open {
 SEC("kprobe/__io_openat_prep")
 int kprobe___io_openat_prep(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    void *raw_req = (void*) PT_REGS_PARM1(ctx);
+    void *raw_req = (void *)PT_REGS_PARM1(ctx);
     bpf_map_update_elem(&io_uring_req_pid, &raw_req, &pid_tgid, BPF_ANY);
     return 0;
 }
@@ -215,7 +215,7 @@ int kprobe___io_openat_prep(struct pt_regs *ctx) {
 SEC("kprobe/io_openat2")
 int kprobe_io_openat2(struct pt_regs *ctx) {
     struct io_open req;
-    if (bpf_probe_read(&req, sizeof(req), (void*) PT_REGS_PARM1(ctx))) {
+    if (bpf_probe_read(&req, sizeof(req), (void *)PT_REGS_PARM1(ctx))) {
         return 0;
     }
 
@@ -260,7 +260,6 @@ int __attribute__((always_inline)) sys_open_ret_with_pid_tgid(void *ctx, int ret
     pop_syscall(EVENT_OPEN);
     return 0;
 }
-
 
 int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_type) {
     return sys_open_ret_with_pid_tgid(ctx, retval, dr_type, 0);
@@ -334,7 +333,7 @@ SEC("kretprobe/io_openat2")
 int kretprobe_io_openat2(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
 
-    void *raw_req = (void*) PT_REGS_PARM1(ctx);
+    void *raw_req = (void *)PT_REGS_PARM1(ctx);
     u64 *pid_tgid_ptr = bpf_map_lookup_elem(&io_uring_req_pid, &raw_req);
     u64 pid_tgid = 0;
     if (pid_tgid_ptr != NULL) {
@@ -346,7 +345,7 @@ int kretprobe_io_openat2(struct pt_regs *ctx) {
 
 SEC("kprobe/filp_close")
 int kprobe_filp_close(struct pt_regs *ctx) {
-    struct file *file = (struct file *) PT_REGS_PARM1(ctx);
+    struct file *file = (struct file *)PT_REGS_PARM1(ctx);
     u32 mount_id = get_file_mount_id(file);
     if (mount_id) {
         dec_mount_ref(ctx, mount_id);
@@ -354,6 +353,53 @@ int kprobe_filp_close(struct pt_regs *ctx) {
 
     return 0;
 }
+
+/*
+SEC("kprobe/security_inode_follow_link")
+int kprobe__security_inode_follow_link(struct pt_regs *ctx) {
+    struct dentry *dentry = (struct dentry *) PT_REGS_PARM1(ctx);
+    
+    char name[64];
+    get_dentry_name(dentry, &name, sizeof(name));
+
+    bpf_printk("follow_link: %s\n", name);
+
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
+    if (!syscall)
+        return 0;
+
+    if (syscall->exec.argv0.ino) {
+        return 0;
+    }
+
+
+
+    struct dentry *dentry = get_path_dentry(path);
+
+    syscall->open.dentry = dentry;
+    syscall->open.file.path_key = get_dentry_key_path(syscall->open.dentry, path);
+
+    u8 symlink_num = syscall->open.symlink_num;
+    if (symlink_num >= MAX_SYMLINKS)
+        return 0;
+
+    // need to approve all the symlinks
+
+    syscall->open.symlink_num++;
+
+    syscall->resolver.key = syscall->open.symlink_keys[symlink_num&(MAX_SYMLINKS - 1)];
+    syscall->resolver.dentry = dentry;
+    syscall->resolver.discarder_type = 0;
+    syscall->resolver.callback = DR_NO_CALLBACK;
+    syscall->resolver.iteration = 0;
+    syscall->resolver.ret = 0;
+
+    // tail call
+    resolve_dentry(ctx, DR_KPROBE);
+    return 0;
+}
+
+*/
 
 int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_OPEN);

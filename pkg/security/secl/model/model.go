@@ -313,6 +313,11 @@ type Process struct {
 	Envp          []string `field:"envp,handler:ResolveProcessEnvp:100" msg:"-"`                                                                                                                                                        // Environment variables of the process
 	EnvsTruncated bool     `field:"envs_truncated,handler:ResolveProcessEnvsTruncated" msg:"-"`                                                                                                                                         // Indicator of environment variables truncation
 
+	// symlink to the process binary
+	SymlinkArg0PathKey     PathKey `field:"-" msg:"-"`
+	SymlinkArg0PathnameStr string  `field:"-" msg:"-"`
+	SymlinkArg0BasenameStr string  `field:"-" msg:"-"`
+
 	// cache version
 	ScrubbedArgvResolved  bool           `field:"-" msg:"-"`
 	ScrubbedArgv          []string       `field:"-" msg:"-"`
@@ -336,6 +341,8 @@ type ExecEvent struct {
 
 // FileFields holds the information required to identify a file
 type FileFields struct {
+	PathKey
+
 	UID   uint32 `field:"uid" msg:"uid"`                                                                                            // UID of the file's owner
 	User  string `field:"user,handler:ResolveFileFieldsUser" msg:"user"`                                                            // User of the file's owner
 	GID   uint32 `field:"gid" msg:"gid"`                                                                                            // GID of the file's owner
@@ -344,13 +351,10 @@ type FileFields struct {
 	CTime uint64 `field:"change_time" msg:"ctime"`                                                                                  // Change time of the file
 	MTime uint64 `field:"modification_time" msg:"mtime"`                                                                            // Modification time of the file
 
-	MountID      uint32 `field:"mount_id" msg:"mount_id"`                                                   // Mount ID of the file
-	Inode        uint64 `field:"inode" msg:"inode"`                                                         // Inode of the file
-	InUpperLayer bool   `field:"in_upper_layer,handler:ResolveFileFieldsInUpperLayer" msg:"in_upper_layer"` // Indicator of the file layer, in an OverlayFS for example
+	InUpperLayer bool `field:"in_upper_layer,handler:ResolveFileFieldsInUpperLayer" msg:"in_upper_layer"` // Indicator of the file layer, in an OverlayFS for example
 
-	NLink  uint32 `field:"-" msg:"-"`
-	PathID uint32 `field:"-" msg:"-"`
-	Flags  int32  `field:"-" msg:"-"`
+	NLink uint32 `field:"-" msg:"-"`
+	Flags int32  `field:"-" msg:"-"`
 }
 
 // HasHardLinks returns whether the file has hardlink
@@ -381,6 +385,9 @@ type FileEvent struct {
 	// used to mark as already resolved, can be used in case of empty path
 	IsPathnameStrResolved bool `field:"-" msg:"-"`
 	IsBasenameStrResolved bool `field:"-" msg:"-"`
+
+	SymlinkPathnameStrs [3]PathKey `field:"-" msg:"-"`
+	SymlinkBasenameStrs [3]PathKey `field:"-" msg:"-"`
 }
 
 // SetPathnameStr set and mark as resolved
@@ -852,4 +859,40 @@ type VethPairEvent struct {
 
 	HostDevice NetDevice
 	PeerDevice NetDevice
+}
+
+// PathKey identifies an entry in the dentry cache
+type PathKey struct {
+	Inode   uint64 `field:"inode" msg:"inode"`       // Inode of the file
+	MountID uint32 `field:"mount_id" msg:"mount_id"` // Mount ID of the file
+	PathID  uint32 `field:"-" msg:"-"`
+}
+
+// Write data into buffer
+func (p *PathKey) Write(buffer []byte) {
+	ByteOrder.PutUint64(buffer[0:8], p.Inode)
+	ByteOrder.PutUint32(buffer[8:12], p.MountID)
+	ByteOrder.PutUint32(buffer[12:16], p.PathID)
+}
+
+// IsNull returns true if a key is invalid
+func (p *PathKey) IsNull() bool {
+	return p.Inode == 0 && p.MountID == 0
+}
+
+// String returns a string representation
+func (p *PathKey) String() string {
+	return fmt.Sprintf("%x/%x", p.MountID, p.Inode)
+}
+
+// MarshalBinary returns the binary representation of a path key
+func (p *PathKey) MarshalBinary() ([]byte, error) {
+	if p.IsNull() {
+		return nil, &ErrInvalidPathKey{Inode: p.Inode, MountID: p.MountID}
+	}
+
+	buff := make([]byte, 16)
+	p.Write(buff)
+
+	return buff, nil
 }

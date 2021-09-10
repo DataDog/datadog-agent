@@ -152,7 +152,7 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
-	if len(data[read:]) < 112 {
+	if len(data[read:]) < 128 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -208,6 +208,12 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	e.EnvsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
 	read += 8
 
+	n, err = UnmarshalBinary(data[read:], &e.SymlinkArg0PathKey)
+	if err != nil {
+		return 0, err
+	}
+	read += n
+
 	return read, nil
 }
 
@@ -242,32 +248,36 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 72 {
+	n, err := UnmarshalBinary(data, &e.PathKey)
+	if err != nil {
+		return 0, err
+	}
+
+	data = data[n:]
+	if len(data) < 56 {
 		return 0, ErrNotEnoughData
 	}
-	e.Inode = ByteOrder.Uint64(data[0:8])
-	e.MountID = ByteOrder.Uint32(data[8:12])
-	e.PathID = ByteOrder.Uint32(data[12:16])
-	e.Flags = int32(ByteOrder.Uint32(data[16:20]))
+
+	e.Flags = int32(ByteOrder.Uint32(data[0:4]))
 
 	// +4 for padding
 
-	e.UID = ByteOrder.Uint32(data[24:28])
-	e.GID = ByteOrder.Uint32(data[28:32])
-	e.NLink = ByteOrder.Uint32(data[32:36])
-	e.Mode = ByteOrder.Uint16(data[36:38])
+	e.UID = ByteOrder.Uint32(data[4:8])
+	e.GID = ByteOrder.Uint32(data[8:12])
+	e.NLink = ByteOrder.Uint32(data[12:16])
+	e.Mode = ByteOrder.Uint16(data[16:18])
 
 	// +2 for padding
 
-	timeSec := ByteOrder.Uint64(data[40:48])
-	timeNsec := ByteOrder.Uint64(data[48:56])
+	timeSec := ByteOrder.Uint64(data[20:28])
+	timeNsec := ByteOrder.Uint64(data[28:36])
 	e.CTime = uint64(time.Unix(int64(timeSec), int64(timeNsec)).UnixNano())
 
-	timeSec = ByteOrder.Uint64(data[56:64])
-	timeNsec = ByteOrder.Uint64(data[64:72])
+	timeSec = ByteOrder.Uint64(data[36:44])
+	timeNsec = ByteOrder.Uint64(data[44:56])
 	e.MTime = uint64(time.Unix(int64(timeSec), int64(timeNsec)).UnixNano())
 
-	return 72, nil
+	return n + 56, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -929,4 +939,17 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	return read + 20, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (p *PathKey) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+
+	p.Inode = ByteOrder.Uint64(data[0:8])
+	p.MountID = ByteOrder.Uint32(data[8:12])
+	p.PathID = ByteOrder.Uint32(data[12:16])
+
+	return 16, nil
 }

@@ -102,7 +102,7 @@ func (ev *Event) GetPathResolutionError() error {
 
 // ResolveFilePath resolves the inode to a full path
 func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
-	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
+	if !f.IsPathnameStrResolved {
 		path, err := ev.resolvers.resolveFileFieldsPath(&f.FileFields)
 		if err != nil {
 			switch err.(type) {

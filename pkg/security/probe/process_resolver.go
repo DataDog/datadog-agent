@@ -553,24 +553,34 @@ func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
 }
 
 // SetProcessPath resolves process file path
-func (p *ProcessResolver) SetProcessPath(entry *model.ProcessCacheEntry) (string, error) {
-	if entry.FileEvent.Inode == 0 || entry.FileEvent.MountID == 0 {
+func (p *ProcessResolver) SetProcessPath(entry *model.ProcessCacheEntry) error {
+	if entry.FileEvent.IsNull() {
 		entry.FileEvent.SetPathnameStr("")
 		entry.FileEvent.SetBasenameStr("")
 
-		return "", &ErrInvalidKeyPath{Inode: entry.FileEvent.Inode, MountID: entry.FileEvent.MountID}
+		return &model.ErrInvalidPathKey{Inode: entry.FileEvent.Inode, MountID: entry.FileEvent.MountID}
 	}
 	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&entry.FileEvent.FileFields)
 	if err != nil {
 		entry.FileEvent.SetPathnameStr("")
 		entry.FileEvent.SetBasenameStr("")
 
-		return "", &ErrInvalidKeyPath{Inode: entry.FileEvent.Inode, MountID: entry.FileEvent.MountID}
+		return &model.ErrInvalidPathKey{Inode: entry.FileEvent.Inode, MountID: entry.FileEvent.MountID}
 	}
 	entry.FileEvent.SetPathnameStr(pathnameStr)
 	entry.FileEvent.SetBasenameStr(path.Base(entry.FileEvent.PathnameStr))
 
-	return entry.FileEvent.PathnameStr, nil
+	// set symlink arg0 if available, best effort
+	if !entry.SymlinkArg0PathKey.IsNull() {
+		pathKey := entry.SymlinkArg0PathKey
+		pathnameStr, err := p.resolvers.DentryResolver.Resolve(pathKey.MountID, pathKey.Inode, pathKey.PathID, true)
+		if err == nil {
+			entry.SymlinkArg0PathnameStr = pathnameStr
+			entry.SymlinkArg0BasenameStr = path.Base(pathnameStr)
+		}
+	}
+
+	return nil
 }
 
 // SetProcessFilesystem resolves process file system
@@ -621,7 +631,7 @@ func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheE
 
 // ResolveNewProcessCacheEntry resolves the context fields of a new process cache entry parsed from kernel data
 func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry) error {
-	if _, err := p.SetProcessPath(entry); err != nil {
+	if err := p.SetProcessPath(entry); err != nil {
 		return fmt.Errorf("failed to resolve exec path: %w", err)
 	}
 

@@ -141,7 +141,7 @@ func newPidDiscarders(m *lib.Map, erpc *ERPC) *pidDiscarders {
 }
 
 type inodeDiscarderMapEntry struct {
-	PathKey PathKey
+	PathKey model.PathKey
 	IsLeaf  uint32
 	Padding uint32
 }
@@ -501,7 +501,7 @@ func filenameDiscarderWrapper(eventType model.EventType, handler onDiscarderHand
 
 			isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(probe.discarderReq, rs, eventType, field, filename, mountID, inode, pathID, event.TimestampRaw)
 			if !isDiscarded && !isDeleted {
-				if _, ok := err.(*ErrInvalidKeyPath); !ok {
+				if _, ok := err.(*model.ErrInvalidPathKey); !ok {
 					if !IsFakeInode(inode) {
 						seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, inode, filename)
 

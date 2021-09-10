@@ -6,6 +6,8 @@
 package model
 
 import (
+	"fmt"
+
 	"github.com/pkg/errors"
 )
 
@@ -22,3 +24,13 @@ var (
 	// ErrNonPrintable returned when a string contains non printable char
 	ErrNonPrintable = errors.New("non printable")
 )
+
+// ErrInvalidPathKey is returned when inode or mountid are not valid
+type ErrInvalidPathKey struct {
+	Inode   uint64
+	MountID uint32
+}
+
+func (e *ErrInvalidPathKey) Error() string {
+	return fmt.Sprintf("invalid inode/mountID couple: %d/%d", e.Inode, e.MountID)
+}

@@ -41,7 +41,7 @@ struct bpf_map_def SEC("maps/str_array_buffers") str_array_buffers = {
     .namespace = "",
 };
 
-struct exec_event_t {
+struct process_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
@@ -51,6 +51,7 @@ struct exec_event_t {
     u32 args_truncated;
     u32 envs_id;
     u32 envs_truncated;
+    struct path_key_t symlink_arg0;
 };
 
 struct exit_event_t {
@@ -371,6 +372,36 @@ int __attribute__((always_inline)) handle_do_fork(struct pt_regs *ctx) {
     return 0;
 }
 
+SEC("kprobe/pick_link")
+int kprobe_pick_link(struct pt_regs *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
+    if (!syscall || syscall->exec.is_parsed)
+        return 0;
+
+    struct path *path = (struct path *)PT_REGS_PARM2(ctx);
+    struct inode *inode = (struct inode *)PT_REGS_PARM3(ctx);
+
+    syscall->exec.symlink_arg0 = get_inode_key_path(inode, path);
+
+    struct dentry *dentry = get_path_dentry(path);
+
+    char name[64];
+    get_dentry_name(dentry, &name, sizeof(name));
+    bpf_printk("follow_link: %s %d %d\n", name, syscall->exec.symlink_arg0.ino, syscall->exec.symlink_arg0.mount_id);
+
+    syscall->resolver.key = syscall->exec.symlink_arg0;
+    syscall->resolver.dentry = dentry;
+    syscall->resolver.discarder_type = 0;
+    syscall->resolver.callback = DR_NO_CALLBACK;
+    syscall->resolver.iteration = 0;
+    syscall->resolver.ret = 0;
+
+    // tail call
+    resolve_dentry(ctx, DR_KPROBE);
+
+    return 0;
+}
+
 SEC("kprobe/kernel_clone")
 int kprobe_kernel_clone(struct pt_regs *ctx) {
     return handle_do_fork(ctx);
@@ -479,7 +510,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     }
 
     u64 ts = bpf_ktime_get_ns();
-    struct exec_event_t event = {
+    struct process_event_t event = {
         .pid_entry.fork_timestamp = ts,
     };
     bpf_get_current_comm(&event.proc_entry.comm, sizeof(event.proc_entry.comm));
@@ -624,7 +655,7 @@ int kprobe_security_bprm_check(struct pt_regs *ctx) {
     return parse_args_and_env(ctx);
 }
 
-void __attribute__((always_inline)) fill_args_envs(struct exec_event_t *event, struct syscall_cache_t *syscall) {
+void __attribute__((always_inline)) fill_args_envs(struct process_event_t *event, struct syscall_cache_t *syscall) {
     event->args_id = syscall->exec.args.id;
     event->args_truncated = syscall->exec.args.truncated;
     event->envs_id = syscall->exec.envs.id;
@@ -648,7 +679,7 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
         u32 cookie = pid_entry->cookie;
         struct proc_cache_t *proc_entry = bpf_map_lookup_elem(&proc_cache, &cookie);
         if (proc_entry) {
-            struct exec_event_t event = {};
+            struct process_event_t event = {};
             // copy proc_cache entry data
             copy_proc_cache_except_comm(proc_entry, &event.proc_entry);
             bpf_get_current_comm(&event.proc_entry.comm, sizeof(event.proc_entry.comm));
@@ -661,6 +692,9 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
 
             copy_span_context(&syscall->exec.span_context, &event.span);
             fill_args_envs(&event, syscall);
+
+            // symlink arg0
+            event.symlink_arg0 = syscall->exec.symlink_arg0;
 
             // [activity_dump] check if this process should be traced
             should_trace_new_process(ctx, now, tgid, event.proc_entry.container.container_id, event.proc_entry.comm);
