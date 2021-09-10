@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"encoding/json"
-	// "fmt"
 	"errors"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -15,12 +14,11 @@ import (
 
 type AwsSecretsManagerBackend struct {
 	BackendId string
-	Client    *secretsmanager.Client
-	Config    map[string]string
+	Config    map[string]interface{}
 	Secret    map[string]string
 }
 
-func NewAwsSecretsManagerBackend(backendId string, backendConfig map[string]string) (
+func NewAwsSecretsManagerBackend(backendId string, backendConfig map[string]interface{}) (
 	*AwsSecretsManagerBackend, error) {
 
 	cfg, err := NewAwsConfigFromBackendConfig(backendId, backendConfig)
@@ -34,16 +32,16 @@ func NewAwsSecretsManagerBackend(backendId string, backendConfig map[string]stri
 
 	// GetSecretValue
 	input := &secretsmanager.GetSecretValueInput{
-		SecretId: aws.String(backendConfig["secret_id"]),
+		SecretId: aws.String(backendConfig["secret_id"].(string)),
 	}
 	out, err := client.GetSecretValue(context.TODO(), input)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"backend_id":        backendId,
-			"backend_type":      backendConfig["backend_type"],
-			"secret_id":         backendConfig["secret_id"],
-			"aws_access_key_id": backendConfig["aws_access_key_id"],
-			"aws_profile":       backendConfig["aws_profile"],
+			"backend_type":      backendConfig["backend_type"].(string),
+			"secret_id":         backendConfig["secret_id"].(string),
+			"aws_access_key_id": backendConfig["aws_access_key_id"].(string),
+			"aws_profile":       backendConfig["aws_profile"].(string),
 		}).WithError(err).Error("failed to retrieve secret value")
 		return nil, err
 	}
@@ -52,17 +50,16 @@ func NewAwsSecretsManagerBackend(backendId string, backendConfig map[string]stri
 	if err := json.Unmarshal([]byte(*out.SecretString), &secretValue); err != nil {
 		log.WithFields(log.Fields{
 			"backend_id":        backendId,
-			"backend_type":      backendConfig["backend_type"],
-			"secret_id":         backendConfig["secret_id"],
-			"aws_access_key_id": backendConfig["aws_access_key_id"],
-			"aws_profile":       backendConfig["aws_profile"],
+			"backend_type":      backendConfig["backend_type"].(string),
+			"secret_id":         backendConfig["secret_id"].(string),
+			"aws_access_key_id": backendConfig["aws_access_key_id"].(string),
+			"aws_profile":       backendConfig["aws_profile"].(string),
 		}).WithError(err).Error("failed to retrieve secret value")
 		return nil, err
 	}
 
 	backend := &AwsSecretsManagerBackend{
 		BackendId: backendId,
-		Client:    client,
 		Config:    backendConfig,
 		Secret:    secretValue,
 	}
@@ -77,8 +74,8 @@ func (b *AwsSecretsManagerBackend) GetSecretOutput(secretKey string) secret.Secr
 
 	log.WithFields(log.Fields{
 		"backend_id":   b.BackendId,
-		"backend_type": b.Config["backend_type"],
-		"secret_id":    b.Config["secret_id"],
+		"backend_type": b.Config["backend_type"].(string),
+		"secret_id":    b.Config["secret_id"].(string),
 	}).Error("backend does not provide secret key")
 	return secret.SecretOutput{Value: nil, Error: &es}
 }

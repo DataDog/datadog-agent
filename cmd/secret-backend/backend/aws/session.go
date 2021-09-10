@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	// "fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -12,7 +11,7 @@ import (
 	// log "github.com/sirupsen/logrus"
 )
 
-func NewAwsConfigFromBackendConfig(backendId string, backendConfig map[string]string) (
+func NewAwsConfigFromBackendConfig(backendId string, backendConfig map[string]interface{}) (
 	*aws.Config, error) {
 
 	/* add LoadDefaultConfig support for:
@@ -24,7 +23,7 @@ func NewAwsConfigFromBackendConfig(backendId string, backendConfig map[string]st
 	options := make([]func(*config.LoadOptions) error, 0)
 
 	// aws_region
-	if region, ok := backendConfig["aws_region"]; ok {
+	if region, ok := backendConfig["aws_region"].(string); ok {
 		options = append(options, func(o *config.LoadOptions) error {
 			o.Region = region
 			return nil
@@ -32,8 +31,8 @@ func NewAwsConfigFromBackendConfig(backendId string, backendConfig map[string]st
 	}
 
 	// StaticCredentials (aws_access_key_id & aws_secret_access_key)
-	if access_key, ok := backendConfig["aws_access_key_id"]; ok {
-		if secret_key, ok := backendConfig["aws_secret_access_key"]; ok {
+	if access_key, ok := backendConfig["aws_access_key_id"].(string); ok {
+		if secret_key, ok := backendConfig["aws_secret_access_key"].(string); ok {
 			options = append(options, func(o *config.LoadOptions) error {
 				o.Credentials = credentials.StaticCredentialsProvider{
 					Value: aws.Credentials{
@@ -47,17 +46,17 @@ func NewAwsConfigFromBackendConfig(backendId string, backendConfig map[string]st
 	}
 
 	// SharedConfigProfile (aws_profile)
-	if profile, ok := backendConfig["aws_profile"]; ok {
+	if profile, ok := backendConfig["aws_profile"].(string); ok {
 		options = append(options, config.WithSharedConfigProfile(profile))
 	}
 
 	cfg, err := config.LoadDefaultConfig(context.TODO(), options...)
 
 	// sts:AssumeRole (aws_role_arn)
-	if arn, ok := backendConfig["aws_role_arn"]; ok {
+	if arn, ok := backendConfig["aws_role_arn"].(string); ok {
 		creds := stscreds.NewAssumeRoleProvider(sts.NewFromConfig(cfg), arn,
 			func(o *stscreds.AssumeRoleOptions) {
-				if eid, ok := backendConfig["aws_external_id"]; ok {
+				if eid, ok := backendConfig["aws_external_id"].(string); ok {
 					o.ExternalID = &eid
 				}
 			},
