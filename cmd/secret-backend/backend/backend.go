@@ -21,7 +21,7 @@ type Backends struct {
 }
 
 type BackendConfigurations struct {
-	Configs map[string]map[string]string `yaml:"backends"`
+	Configs map[string]map[string]interface{} `yaml:"backends"`
 }
 
 func NewBackends(configFile *string) Backends {
@@ -48,12 +48,12 @@ func NewBackends(configFile *string) Backends {
 	return backends
 }
 
-func (b *Backends) InitBackend(backendId string, config map[string]string) {
+func (b *Backends) InitBackend(backendId string, config map[string]interface{}) {
 	if _, ok := b.Backends[backendId]; ok {
 		return
 	}
 
-	if _, ok := config["backend_type"]; !ok {
+	if _, ok := config["backend_type"].(string); !ok {
 		log.WithFields(log.Fields{
 			"backend_id": backendId,
 		}).Error("undefined secret backend type in configuration")
@@ -65,9 +65,16 @@ func (b *Backends) InitBackend(backendId string, config map[string]string) {
 		return
 	}
 
-	switch backendType := config["backend_type"]; backendType {
-	case "aws.secretsmanager":
+	switch backendType := config["backend_type"].(string); backendType {
+	case "aws.secrets":
 		backend, err := aws.NewAwsSecretsManagerBackend(backendId, config)
+		if err != nil {
+			b.Backends[backendId] = NewErrorBackend(backendId, err)
+		} else {
+			b.Backends[backendId] = backend
+		}
+	case "aws.ssm":
+		backend, err := aws.NewAwsSsmParameterStoreBackend(backendId, config)
 		if err != nil {
 			b.Backends[backendId] = NewErrorBackend(backendId, err)
 		} else {

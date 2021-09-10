@@ -18,7 +18,7 @@ type InputPayload struct {
 	Version string   `json:"version"`
 }
 
-const appVersion = "0.1.1"
+const appVersion = "0.1.2"
 
 func init() {
 	log.SetFormatter(&log.JSONFormatter{})
