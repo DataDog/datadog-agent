@@ -14,7 +14,7 @@ var bandwidthMetricNameToUsage = map[string]string{
 	"ifHCOutOctets": "ifBandwidthOutUsage",
 }
 
-var ifHighSpeedOID = "1.3.6.1.2.1.31.1.1.1.15"
+const ifHighSpeedOID = "1.3.6.1.2.1.31.1.1.1.15"
 
 func (ms *MetricSender) trySendBandwidthUsageMetric(symbol checkconfig.SymbolConfig, fullIndex string, values *valuestore.ResultValueStore, tags []string) {
 	err := ms.sendBandwidthUsageMetric(symbol, fullIndex, values, tags)

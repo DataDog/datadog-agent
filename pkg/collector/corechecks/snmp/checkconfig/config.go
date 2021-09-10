@@ -20,12 +20,12 @@ import (
 // Using high oid batch size might lead to snmp calls timing out.
 // For some devices, the default oid_batch_size of 5 might be high (leads to timeouts),
 // and require manual setting oid_batch_size to a lower value.
-var defaultOidBatchSize = 5
+const defaultOidBatchSize = 5
 
-var defaultPort = uint16(161)
-var defaultRetries = 3
-var defaultTimeout = 2
-var subnetTagPrefix = "autodiscovery_subnet"
+const defaultPort = uint16(161)
+const defaultRetries = 3
+const defaultTimeout = 2
+const subnetTagPrefix = "autodiscovery_subnet"
 
 // DefaultBulkMaxRepetitions is the default max rep
 // Using too high max repetitions might lead to tooBig SNMP error messages.

@@ -2,7 +2,7 @@ package metadata
 
 // PayloadMetadataBatchSize is the number of resources per event payload
 // Resources are devices, interfaces, etc
-var PayloadMetadataBatchSize = 100
+const PayloadMetadataBatchSize = 100
 
 // DeviceStatus enum type
 type DeviceStatus int32
