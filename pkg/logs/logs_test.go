@@ -15,6 +15,7 @@ func TestBuildServerlessEndpoints(t *testing.T) {
 	endpoints, err := buildEndpoints(true)
 	assert.Nil(t, err)
 	assert.Equal(t, "lambda-http-intake.logs.datadoghq.com", endpoints.Main.Host)
+	assert.Equal(t, "lambda-extension", string(endpoints.Main.Origin))
 }
 
 func TestBuildEndpoints(t *testing.T) {

@@ -19,11 +19,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestCreateArchive(t *testing.T) {
@@ -245,6 +247,37 @@ func TestCleanDirectoryName(t *testing.T) {
 
 	assert.Len(t, cleanedHostname, directoryNameMaxSize)
 	assert.True(t, !directoryNameFilter.MatchString(cleanedHostname))
+}
+
+func TestZipLogFiles(t *testing.T) {
+	srcDir, err := ioutil.TempDir("", "logs")
+	require.NoError(t, err)
+	defer os.RemoveAll(srcDir)
+	dstDir, err := ioutil.TempDir("", "TestZipLogFiles")
+	require.NoError(t, err)
+	defer os.RemoveAll(dstDir)
+
+	_, err = os.Create(filepath.Join(srcDir, "agent.log"))
+	require.NoError(t, err)
+	_, err = os.Create(filepath.Join(srcDir, "trace-agent.log"))
+	require.NoError(t, err)
+	err = os.Mkdir(filepath.Join(srcDir, "archive"), 0700)
+	require.NoError(t, err)
+	_, err = os.Create(filepath.Join(srcDir, "archive", "agent.log"))
+	require.NoError(t, err)
+
+	permsInfos := make(permissionsInfos)
+
+	err = zipLogFiles(dstDir, "test", filepath.Join(srcDir, "agent.log"), permsInfos)
+	assert.NoError(t, err)
+
+	// Check all the log files are in the destination path, at the right subdirectories
+	_, err = os.Stat(filepath.Join(dstDir, "test", "logs", "agent.log"))
+	assert.NoError(t, err)
+	_, err = os.Stat(filepath.Join(dstDir, "test", "logs", "trace-agent.log"))
+	assert.NoError(t, err)
+	_, err = os.Stat(filepath.Join(dstDir, "test", "logs", "archive", "agent.log"))
+	assert.NoError(t, err)
 }
 
 func TestZipTaggerList(t *testing.T) {

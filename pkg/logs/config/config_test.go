@@ -511,7 +511,7 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 			RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
 			Version:          EPIntakeVersion2,
 			TrackType:        "test-track",
-			Origin:           "test-source",
+			Origin:           "lambda-extension",
 			Protocol:         "test-proto",
 		},
 		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
@@ -519,7 +519,7 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
 	}
 
-	endpoints, err := BuildServerlessEndpoints("test-track", "test-proto", "test-source")
+	endpoints, err := BuildServerlessEndpoints("test-track", "test-proto")
 
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)

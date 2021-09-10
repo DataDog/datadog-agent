@@ -256,7 +256,7 @@ func (s *tagStore) prune() {
 		}
 
 		// remove all sourceTags only if they're all empty
-		if storedTags.isEmpty() {
+		if storedTags.shouldRemove() {
 			storedTags.sourceTags = nil
 			changed = true
 		}
@@ -414,9 +414,9 @@ func (e *entityTags) computeCache() {
 	e.cachedOrchestrator = e.cachedAll[:len(lowCardTags)+len(orchestratorCardTags)]
 }
 
-func (e *entityTags) isEmpty() bool {
+func (e *entityTags) shouldRemove() bool {
 	for _, tags := range e.sourceTags {
-		if !tags.isEmpty() {
+		if !tags.expiryDate.IsZero() || !tags.isEmpty() {
 			return false
 		}
 	}
