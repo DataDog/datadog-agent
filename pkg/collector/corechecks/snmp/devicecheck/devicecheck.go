@@ -63,7 +63,7 @@ func (d *DeviceCheck) GetIDTags() []string {
 // Run executes the check
 func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	startTime := time.Now()
-	staticTags := d.config.GetStaticTagsForMetrics()
+	staticTags := append(d.config.GetStaticTags(), d.config.GetNetworkTags()...)
 
 	// Fetch and report metrics
 	var checkErr error

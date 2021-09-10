@@ -32,6 +32,8 @@ var defaultWorkers = 5
 var defaultDiscoveryWorkers = 5
 var defaultDiscoveryAllowedFailures = 3
 var defaultDiscoveryInterval = 3600
+
+// subnetTagPrefix is the prefix used for subnet tag
 var subnetTagPrefix = "autodiscovery_subnet"
 
 // DefaultBulkMaxRepetitions is the default max rep
@@ -167,11 +169,11 @@ func (c *CheckConfig) GetStaticTags() []string {
 	return tags
 }
 
-// GetStaticTagsForMetrics return static tags to be used for metrics, service checks, etc
-func (c *CheckConfig) GetStaticTagsForMetrics() []string {
-	tags := c.GetStaticTags()
+// GetNetworkTags returns network tags
+func (c *CheckConfig) GetNetworkTags() []string {
+	var tags []string
 	if c.Network != "" {
-		tags = append(tags, "autodiscovery_subnet:"+c.Network)
+		tags = append(tags, subnetTagPrefix+":"+c.Network)
 	}
 	return tags
 }
