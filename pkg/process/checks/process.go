@@ -231,10 +231,12 @@ func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
 // Messages are grouped as RunResult instances with CheckName identifying the type
 func (p *ProcessCheck) RunWithOptions(cfg *config.AgentConfig, groupID int32, options RunOptions) (*RunResult, error) {
 	if options.RunStandard {
+		log.Tracef("Running process check")
 		return p.run(cfg, groupID, options.RunRealTime)
 	}
 
 	if options.RunRealTime {
+		log.Tracef("Running rtprocess check")
 		return p.runRealtime(cfg, groupID)
 	}
 	return nil, errors.New("invalid run options for check")

@@ -101,48 +101,60 @@ func (p *probe) initEnumSpecs() {
 		pdhutil.CounterAllProcessParentPID: {
 			format:      pdhutil.PDH_FMT_LARGE,
 			processMeta: true,
-			enumFunc:    p.mapParentPID,
+			enumFunc:    valueToUint64(p.mapParentPID),
 		},
 		pdhutil.CounterAllProcessPctUserTime: {
-			format:   pdhutil.PDH_FMT_DOUBLE | pdhutil.PDH_FMT_NOCAP100,
-			enumFunc: p.mapPctUserTime,
+			format:   pdhutil.PDH_FMT_DOUBLE,
+			enumFunc: valueToFloat64(p.mapPctUserTime),
 		},
 		pdhutil.CounterAllProcessPctPrivilegedTime: {
-			format:   pdhutil.PDH_FMT_DOUBLE | pdhutil.PDH_FMT_NOCAP100,
-			enumFunc: p.mapPctPrivilegedTime,
+			format:   pdhutil.PDH_FMT_DOUBLE,
+			enumFunc: valueToFloat64(p.mapPctPrivilegedTime),
 		},
 		pdhutil.CounterAllProcessWorkingSet: {
 			format:   pdhutil.PDH_FMT_LARGE,
-			enumFunc: p.mapWorkingSet,
+			enumFunc: valueToUint64(p.mapWorkingSet),
 		},
 		pdhutil.CounterAllProcessPoolPagedBytes: {
 			format:   pdhutil.PDH_FMT_LARGE,
-			enumFunc: p.mapPoolPagedBytes,
+			enumFunc: valueToUint64(p.mapPoolPagedBytes),
 		},
 		pdhutil.CounterAllProcessThreadCount: {
 			format:   pdhutil.PDH_FMT_LARGE,
-			enumFunc: p.mapThreadCount,
+			enumFunc: valueToUint64(p.mapThreadCount),
 		},
 		pdhutil.CounterAllProcessHandleCount: {
 			format:   pdhutil.PDH_FMT_LARGE,
-			enumFunc: p.mapHandleCount,
+			enumFunc: valueToUint64(p.mapHandleCount),
 		},
 		pdhutil.CounterAllProcessIOReadOpsPerSec: {
 			format:   pdhutil.PDH_FMT_DOUBLE,
-			enumFunc: p.mapIOReadOpsPerSec,
+			enumFunc: valueToFloat64(p.mapIOReadOpsPerSec),
 		},
 		pdhutil.CounterAllProcessIOWriteOpsPerSec: {
 			format:   pdhutil.PDH_FMT_DOUBLE,
-			enumFunc: p.mapIOWriteOpsPerSec,
+			enumFunc: valueToFloat64(p.mapIOWriteOpsPerSec),
 		},
 		pdhutil.CounterAllProcessIOReadBytesPerSec: {
 			format:   pdhutil.PDH_FMT_DOUBLE,
-			enumFunc: p.mapIOReadBytesPerSec,
+			enumFunc: valueToFloat64(p.mapIOReadBytesPerSec),
 		},
 		pdhutil.CounterAllProcessIOWriteBytesPerSec: {
 			format:   pdhutil.PDH_FMT_DOUBLE,
-			enumFunc: p.mapIOWriteBytesPerSec,
+			enumFunc: valueToFloat64(p.mapIOWriteBytesPerSec),
 		},
+	}
+}
+
+func valueToFloat64(fn func(string, float64)) pdhutil.ValueEnumFunc {
+	return func(instance string, value pdhutil.PdhCounterValue) {
+		fn(instance, value.Double)
+	}
+}
+
+func valueToUint64(fn func(string, uint64)) pdhutil.ValueEnumFunc {
+	return func(instance string, value pdhutil.PdhCounterValue) {
+		fn(instance, uint64(value.Large))
 	}
 }
 
@@ -239,7 +251,13 @@ func (p *probe) enumCounters(includeProcMeta bool) error {
 		return fmt.Errorf("PdhCollectQueryData failed with 0x%x", status)
 	}
 
-	err := p.formatter.Enum(p.counters[pdhutil.CounterAllProcessPID], pdhutil.PDH_FMT_LARGE, p.mapPID)
+	ignored := []string{
+		"_Total", // Total sum
+		"Idle",   // System Idle process
+	}
+
+	err := p.formatter.Enum(p.counters[pdhutil.CounterAllProcessPID], pdhutil.PDH_FMT_LARGE, ignored, valueToUint64(p.mapPID))
+
 	if err != nil {
 		return err
 	}
@@ -260,7 +278,7 @@ func (p *probe) enumCounters(includeProcMeta bool) error {
 		if spec.processMeta && !includeProcMeta {
 			continue
 		}
-		err := p.formatter.Enum(p.counters[counter], spec.format, spec.enumFunc)
+		err := p.formatter.Enum(p.counters[counter], spec.format, ignored, spec.enumFunc)
 		if err != nil {
 			return err
 		}
@@ -273,106 +291,141 @@ func (p *probe) StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, erro
 	return nil, fmt.Errorf("probe(Windows): StatsWithPermByPID is not implemented")
 }
 
+func (p *probe) getProc(instance string) *Process {
+	pid, ok := p.instanceToPID[instance]
+	if !ok {
+		log.Debugf("proc - no pid for instance %s", instance)
+		return nil
+	}
+
+	proc, ok := p.procs[pid]
+	if !ok {
+		log.Debugf("proc - no process for pid %d (instance=%s)", pid, instance)
+		return nil
+	}
+	return proc
+}
+
 func (p *probe) mapToProc(instance string, fn func(proc *Process)) {
-	pid, ok := p.instanceToPID[instance]
-	if !ok {
-		// TODO: log
-		return
+	if proc := p.getProc(instance); proc != nil {
+		fn(proc)
 	}
-
-	proc, ok := p.procs[pid]
-	if !ok {
-		// TODO: log
-		return
-	}
-
-	fn(proc)
 }
 
-func (p *probe) mapToStat(instance string, fn func(proc *Stats)) {
-	pid, ok := p.instanceToPID[instance]
-	if !ok {
-		// TODO: log
-		return
+func (p *probe) mapToStatFloat64(instance string, v float64, fn func(pid int32, proc *Stats, instance string, v float64)) {
+	if proc := p.getProc(instance); proc != nil {
+		fn(proc.Pid, proc.Stats, instance, v)
 	}
-
-	proc, ok := p.procs[pid]
-	if !ok {
-		// TODO: log
-		return
-	}
-
-	fn(proc.Stats)
 }
 
-func (p *probe) mapPID(instance string, value pdhutil.PdhCounterValue) {
-	p.instanceToPID[instance] = int32(value.Large)
+func (p *probe) mapToStatUint64(instance string, v uint64, fn func(pid int32, proc *Stats, instance string, v uint64)) {
+	if proc := p.getProc(instance); proc != nil {
+		fn(proc.Pid, proc.Stats, instance, v)
+	}
 }
 
-func (p *probe) mapParentPID(instance string, value pdhutil.PdhCounterValue) {
+func (p *probe) mapPID(instance string, pid uint64) {
+	p.instanceToPID[instance] = int32(pid)
+}
+
+func setProcParentPID(proc *Process, instance string, pid int32) {
+	proc.Ppid = pid
+}
+
+func (p *probe) mapParentPID(instance string, v uint64) {
 	p.mapToProc(instance, func(proc *Process) {
-		proc.Ppid = int32(value.Large)
+		setProcParentPID(proc, instance, int32(v))
 	})
 }
 
-func (p *probe) mapHandleCount(instance string, value pdhutil.PdhCounterValue) {
-	p.mapToStat(instance, func(stat *Stats) {
-		stat.OpenFdCount = int32(value.Large)
-	})
+func setProcOpenFdCount(pid int32, stats *Stats, instance string, v uint64) {
+	log.Tracef("FdCount[%s,pid=%d] %d", instance, pid, v)
+	stats.OpenFdCount = int32(v)
 }
 
-func (p *probe) mapThreadCount(instance string, value pdhutil.PdhCounterValue) {
-	p.mapToStat(instance, func(stat *Stats) {
-		stat.NumThreads = int32(value.Large)
-	})
+func (p *probe) mapHandleCount(instance string, v uint64) {
+	p.mapToStatUint64(instance, v, setProcOpenFdCount)
 }
 
-func (p *probe) mapPctUserTime(instance string, value pdhutil.PdhCounterValue) {
-	p.mapToStat(instance, func(stat *Stats) {
-		stat.CPUTime.User = value.Double
-	})
+func setProcNumThreads(pid int32, stats *Stats, instance string, v uint64) {
+	log.Tracef("NumThreads[%s,pid=%d] %d", instance, pid, v)
+	stats.NumThreads = int32(v)
 }
 
-func (p *probe) mapPctPrivilegedTime(instance string, value pdhutil.PdhCounterValue) {
-	p.mapToStat(instance, func(stat *Stats) {
-		stat.CPUTime.System = value.Double
-	})
+func (p *probe) mapThreadCount(instance string, v uint64) {
+	p.mapToStatUint64(instance, v, setProcNumThreads)
 }
 
-func (p *probe) mapWorkingSet(instance string, value pdhutil.PdhCounterValue) {
-	p.mapToStat(instance, func(stat *Stats) {
-		stat.MemInfo.RSS = uint64(value.Large)
-	})
+func setProcCPUTimeUser(pid int32, stats *Stats, instance string, v float64) {
+	log.Tracef("CPU.User[%s,pid=%d] %f", instance, pid, v)
+	stats.CPUTime.User = v
 }
 
-func (p *probe) mapPoolPagedBytes(instance string, value pdhutil.PdhCounterValue) {
-	p.mapToStat(instance, func(stat *Stats) {
-		stat.MemInfo.VMS = uint64(value.Large)
-	})
+func (p *probe) mapPctUserTime(instance string, v float64) {
+	p.mapToStatFloat64(instance, v, setProcCPUTimeUser)
 }
 
-func (p *probe) mapIOReadOpsPerSec(instance string, value pdhutil.PdhCounterValue) {
-	p.mapToStat(instance, func(stat *Stats) {
-		stat.IORateStat.ReadRate = value.Double
-	})
+func setProcCPUTimeSystem(pid int32, stats *Stats, instance string, v float64) {
+	log.Tracef("CPU.System[%s,pid=%d] %f", instance, pid, v)
+	stats.CPUTime.System = v
 }
 
-func (p *probe) mapIOWriteOpsPerSec(instance string, value pdhutil.PdhCounterValue) {
-	p.mapToStat(instance, func(stat *Stats) {
-		stat.IORateStat.WriteRate = value.Double
-	})
+func (p *probe) mapPctPrivilegedTime(instance string, v float64) {
+	p.mapToStatFloat64(instance, v, setProcCPUTimeSystem)
 }
 
-func (p *probe) mapIOReadBytesPerSec(instance string, value pdhutil.PdhCounterValue) {
-	p.mapToStat(instance, func(stat *Stats) {
-		stat.IORateStat.ReadBytesRate = value.Double
-	})
+func setProcMemRSS(pid int32, stats *Stats, instance string, v uint64) {
+	log.Tracef("Mem.RSS[%s,pid=%d] %d", instance, pid, v)
+	stats.MemInfo.RSS = v
 }
 
-func (p *probe) mapIOWriteBytesPerSec(instance string, value pdhutil.PdhCounterValue) {
-	p.mapToStat(instance, func(stat *Stats) {
-		stat.IORateStat.WriteBytesRate = value.Double
-	})
+func (p *probe) mapWorkingSet(instance string, v uint64) {
+	p.mapToStatUint64(instance, v, setProcMemRSS)
+}
+
+func setProcMemVMS(pid int32, stats *Stats, instance string, v uint64) {
+	log.Tracef("Mem.VMS[%s,pid=%d] %d", instance, pid, v)
+	stats.MemInfo.RSS = v
+}
+
+func (p *probe) mapPoolPagedBytes(instance string, v uint64) {
+	p.mapToStatUint64(instance, v, setProcMemVMS)
+}
+
+func setProcIOReadOpsRate(pid int32, stats *Stats, instance string, v float64) {
+	log.Tracef("ReadRate[%s,pid=%d] %f", instance, pid, v)
+	stats.IORateStat.ReadRate = v
+}
+
+func (p *probe) mapIOReadOpsPerSec(instance string, v float64) {
+	p.mapToStatFloat64(instance, v, setProcIOReadOpsRate)
+}
+
+func setProcIOWriteOpsRate(pid int32, stats *Stats, instance string, v float64) {
+	log.Tracef("WriteRate[%s,pid=%d] %f", instance, pid, v)
+	stats.IORateStat.WriteRate = v
+}
+
+func (p *probe) mapIOWriteOpsPerSec(instance string, v float64) {
+	p.mapToStatFloat64(instance, v, setProcIOWriteOpsRate)
+}
+
+func setProcIOReadBytesRate(pid int32, stats *Stats, instance string, v float64) {
+	log.Tracef("ReadBytesRate[%s,pid=%d] %f", instance, pid, v)
+	stats.IORateStat.ReadBytesRate = v
+}
+
+func (p *probe) mapIOReadBytesPerSec(instance string, v float64) {
+	p.mapToStatFloat64(instance, v, setProcIOReadBytesRate)
+}
+
+func setProcIOWriteBytesRate(pid int32, stats *Stats, instance string, v float64) {
+	log.Tracef("WriteBytesRate[%s,pid=%d] %f", instance, pid, v)
+	stats.IORateStat.WriteBytesRate = v
+}
+
+func (p *probe) mapIOWriteBytesPerSec(instance string, v float64) {
+	p.mapToStatFloat64(instance, v, setProcIOWriteBytesRate)
 }
 
 func getPIDs() ([]int32, error) {

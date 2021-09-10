@@ -163,12 +163,22 @@ const (
 	CounterAllProcessWorkingSetPrivate  = `\Process(*)\Working Set - Private`
 )
 
-// PDH_FMT_COUNTERVALUE_ITEM structure contains the instance name and formatted value of a counter.
-type PDH_FMT_COUNTERVALUE_ITEM struct {
+// PDH_FMT_COUNTERVALUE_ITEM_LONG structure contains the instance name and formatted value of a PDH_FMT_COUNTERVALUE_LONG counter.
+type PDH_FMT_COUNTERVALUE_ITEM_LONG struct {
 	szName *uint8
-	// Note that while this field is declared as a PDH_FMT_COUNTERVALUE_LONG due to lack of unions in Go,
-	// we have to cast it to a specialization of PDH_FMT_COUNTERVALUE_*
-	value PDH_FMT_COUNTERVALUE_LONG
+	value  PDH_FMT_COUNTERVALUE_LONG
+}
+
+// PDH_FMT_COUNTERVALUE_ITEM_LARGE structure contains the instance name and formatted value of a PDH_FMT_COUNTERVALUE_LARGE counter.
+type PDH_FMT_COUNTERVALUE_ITEM_LARGE struct {
+	szName *uint8
+	value  PDH_FMT_COUNTERVALUE_LARGE
+}
+
+// PDH_FMT_COUNTERVALUE_ITEM_DOUBLE structure contains the instance name and formatted value of a PDH_FMT_COUNTERVALUE_DOUBLE counter.
+type PDH_FMT_COUNTERVALUE_ITEM_DOUBLE struct {
+	szName *uint8
+	value  PDH_FMT_COUNTERVALUE_DOUBLE
 }
 
 // PdhOpenQuery Creates a new query that is used to manage the collection of performance data.
