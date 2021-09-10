@@ -8,6 +8,7 @@ package agent
 import (
 	"context"
 	"io"
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -41,8 +42,9 @@ func NewRuntimeSecurityAgent(hostname string, reporter event.Reporter) (*Runtime
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}
 
-	path := "unix://" + socketPath
-	conn, err := grpc.Dial(path, grpc.WithInsecure())
+	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
+		return net.Dial("unix", url)
+	}))
 	if err != nil {
 		return nil, err
 	}

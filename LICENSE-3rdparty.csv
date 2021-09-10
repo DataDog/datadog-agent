@@ -47,12 +47,14 @@ core,"github.com/DataDog/gopsutil/internal/common",BSD-3-Clause
 core,"github.com/DataDog/gopsutil/mem",BSD-3-Clause
 core,"github.com/DataDog/gopsutil/net",BSD-3-Clause
 core,"github.com/DataDog/gopsutil/process",BSD-3-Clause
+core,"github.com/DataDog/gopsutil/process/so",BSD-3-Clause
 core,"github.com/DataDog/gostackparse",Apache-2.0
 core,"github.com/DataDog/mmh3",UNKNOWN
 core,"github.com/DataDog/nikos/apt",MIT
 core,"github.com/DataDog/nikos/cos",MIT
+core,"github.com/DataDog/nikos/extract",MIT
 core,"github.com/DataDog/nikos/rpm",MIT
-core,"github.com/DataDog/nikos/tarball",MIT
+core,"github.com/DataDog/nikos/rpm/dnf",MIT
 core,"github.com/DataDog/nikos/types",MIT
 core,"github.com/DataDog/nikos/wsl",MIT
 core,"github.com/DataDog/sketches-go/ddsketch",Apache-2.0
@@ -97,8 +99,6 @@ core,"github.com/NYTimes/gziphandler",Apache-2.0
 core,"github.com/PuerkitoBio/purell",BSD-3-Clause
 core,"github.com/PuerkitoBio/urlesc",BSD-3-Clause
 core,"github.com/StackExchange/wmi",MIT
-core,"github.com/VividCortex/ewma",MIT
-core,"github.com/acarl005/stripansi",MIT
 core,"github.com/alecthomas/participle",MIT
 core,"github.com/alecthomas/participle/lexer",MIT
 core,"github.com/alecthomas/participle/lexer/ebnf",MIT
@@ -174,6 +174,7 @@ core,"github.com/blabber/go-freebsd-sysctl/sysctl",0BSD
 core,"github.com/blang/semver",MIT
 core,"github.com/bmizerany/pat",UNKNOWN
 core,"github.com/cenkalti/backoff",MIT
+core,"github.com/cespare/xxhash",MIT
 core,"github.com/cespare/xxhash/v2",MIT
 core,"github.com/cihub/seelog",BSD-3-Clause
 core,"github.com/clbanning/mxj",MIT
@@ -254,7 +255,6 @@ core,"github.com/cyphar/filepath-securejoin",BSD-3-Clause
 core,"github.com/davecgh/go-spew/spew",ISC
 core,"github.com/dgraph-io/ristretto",Apache-2.0
 core,"github.com/dgraph-io/ristretto/z",MIT
-core,"github.com/dgraph-io/ristretto/z/simd",MIT
 core,"github.com/dgryski/go-jump",MIT
 core,"github.com/docker/distribution/digestset",Apache-2.0
 core,"github.com/docker/distribution/reference",Apache-2.0
@@ -419,8 +419,6 @@ core,"github.com/huandu/xstrings",MIT
 core,"github.com/ianlancetaylor/cgosymbolizer",BSD-3-Clause
 core,"github.com/imdario/mergo",BSD-3-Clause
 core,"github.com/inconshreveable/mousetrap",Apache-2.0
-core,"github.com/iovisor/gobpf/bcc",Apache-2.0
-core,"github.com/iovisor/gobpf/pkg/cpuonline",Apache-2.0
 core,"github.com/iovisor/gobpf/pkg/cpupossible",Apache-2.0
 core,"github.com/iovisor/gobpf/pkg/cpurange",Apache-2.0
 core,"github.com/itchyny/gojq",MIT
@@ -580,10 +578,6 @@ core,"github.com/ulikunitz/xz/internal/hash",BSD-3-Clause
 core,"github.com/ulikunitz/xz/internal/xlog",BSD-3-Clause
 core,"github.com/ulikunitz/xz/lzma",BSD-3-Clause
 core,"github.com/urfave/negroni",MIT
-core,"github.com/vbauerster/mpb/v5",Unlicense
-core,"github.com/vbauerster/mpb/v5/cwriter",Unlicense
-core,"github.com/vbauerster/mpb/v5/decor",Unlicense
-core,"github.com/vbauerster/mpb/v5/internal",Unlicense
 core,"github.com/vishvananda/netlink",Apache-2.0
 core,"github.com/vishvananda/netlink/nl",Apache-2.0
 core,"github.com/vishvananda/netns",Apache-2.0
@@ -638,10 +632,7 @@ core,"go.opencensus.io/trace",Apache-2.0
 core,"go.opencensus.io/trace/internal",Apache-2.0
 core,"go.opencensus.io/trace/propagation",Apache-2.0
 core,"go.opencensus.io/trace/tracestate",Apache-2.0
-core,"go.opentelemetry.io/otel/attribute",Apache-2.0
-core,"go.opentelemetry.io/otel/codes",Apache-2.0
-core,"go.opentelemetry.io/otel/internal",Apache-2.0
-core,"go.opentelemetry.io/otel/semconv",Apache-2.0
+core,"go.opentelemetry.io/collector/model/semconv/v1.5.0",Apache-2.0
 core,"go.uber.org/atomic",MIT
 core,"go.uber.org/automaxprocs/internal/cgroups",MIT
 core,"go.uber.org/automaxprocs/internal/runtime",MIT

@@ -8,6 +8,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -47,16 +48,16 @@ func (cache *cachedConntrack) Close() error {
 	return nil
 }
 
-func (cache *cachedConntrack) ExistsInRootNS(c *ConnTuple) (bool, error) {
+func (cache *cachedConntrack) ExistsInRootNS(c *network.ConnectionStats) (bool, error) {
 	return cache.exists(c, 0, 1)
 }
 
-func (cache *cachedConntrack) Exists(c *ConnTuple) (bool, error) {
-	return cache.exists(c, c.NetNS(), int(c.Pid()))
+func (cache *cachedConntrack) Exists(c *network.ConnectionStats) (bool, error) {
+	return cache.exists(c, c.NetNS, int(c.Pid))
 }
 
-func (cache *cachedConntrack) exists(c *ConnTuple, netns uint64, pid int) (bool, error) {
-	ctrk, err := cache.ensureConntrack(netns, pid)
+func (cache *cachedConntrack) exists(c *network.ConnectionStats, netns uint32, pid int) (bool, error) {
+	ctrk, err := cache.ensureConntrack(uint64(netns), pid)
 	if err != nil {
 		return false, err
 	}
@@ -66,12 +67,12 @@ func (cache *cachedConntrack) exists(c *ConnTuple, netns uint64, pid int) (bool,
 	}
 
 	var protoNumber uint8 = unix.IPPROTO_UDP
-	if c.isTCP() {
+	if c.Type == network.TCP {
 		protoNumber = unix.IPPROTO_TCP
 	}
 
-	srcAddr, dstAddr := util.NetIPFromAddress(c.SourceAddress()), util.NetIPFromAddress(c.DestAddress())
-	srcPort, dstPort := c.SourcePort(), c.DestPort()
+	srcAddr, dstAddr := util.NetIPFromAddress(c.Source), util.NetIPFromAddress(c.Dest)
+	srcPort, dstPort := c.SPort, c.DPort
 
 	conn := netlink.Con{
 		Con: ct.Con{
@@ -90,7 +91,7 @@ func (cache *cachedConntrack) exists(c *ConnTuple, netns uint64, pid int) (bool,
 	ok, err := ctrk.Exists(&conn)
 	if err != nil {
 		log.Debugf("error while checking conntrack for connection %#v: %s", conn, err)
-		cache.removeConntrack(netns)
+		cache.removeConntrack(uint64(netns))
 		return false, err
 	}
 
@@ -103,7 +104,7 @@ func (cache *cachedConntrack) exists(c *ConnTuple, netns uint64, pid int) (bool,
 	ok, err = ctrk.Exists(&conn)
 	if err != nil {
 		log.Debugf("error while checking conntrack for connection %#v: %s", conn, err)
-		cache.removeConntrack(netns)
+		cache.removeConntrack(uint64(netns))
 		return false, err
 	}
 
@@ -132,7 +133,7 @@ func (cache *cachedConntrack) ensureConntrack(ino uint64, pid int) (netlink.Conn
 
 	ns, err := util.GetNetNamespaceFromPid(cache.procRoot, pid)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) || errors.Is(err, unix.ENOENT) {
+		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
 		}
 

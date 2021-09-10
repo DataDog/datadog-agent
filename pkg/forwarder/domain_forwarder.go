@@ -251,7 +251,7 @@ func (f *domainForwarder) sendHTTPTransactions(t transaction.Transaction) error 
 		f.addToTransactionRetryQueue(t)
 		transactionsDroppedOnInput.Add(1)
 		tlmTxDroppedOnInput.Inc(f.domain, t.GetEndpointName())
-		return fmt.Errorf("the forwarder input queue for %s is full: dropping transaction", f.domain)
+		return fmt.Errorf("dropping transaction because the forwarder input queue for %s is full; consider increasing forwarder_num_workers", f.domain)
 	}
 	return nil
 }

@@ -15,7 +15,7 @@
   tags: ["runner:main"]
   stage: deploy6
   rules:
-    !reference [.on_deploy_a6_manual]
+    !reference [.on_deploy_a6_manual_auto_on_rc]
   dependencies: []
   script:
     - python3 -m pip install -r requirements.txt

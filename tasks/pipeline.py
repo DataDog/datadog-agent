@@ -9,6 +9,7 @@ import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.release import nightly_entry_for, release_entry_for
 from tasks.utils import DEFAULT_BRANCH, get_all_allowed_repo_branches, is_allowed_repo_branch
 
 from .libs.common.color import color_message
@@ -115,40 +116,6 @@ def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_
     cancel_pipelines_with_confirmation(gitlab, project_name, pipelines)
 
 
-@task
-def trigger(
-    ctx, git_ref=DEFAULT_BRANCH, release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"
-):
-    """
-    DEPRECATED: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
-
-    The --release-version-6 and --release-version-7 options indicate which release.json entries are used.
-    To not build Agent 6, set --release-version-6 "". To not build Agent 7, set --release-version-7 "".
-    The --repo-branch option indicates which branch of the staging repository the packages will be deployed to.
-
-    Example:
-    inv pipeline.trigger --git-ref 7.22.0 --release-version-6 "6.22.0" --release-version-7 "7.22.0" --repo-branch "stable"
-    """
-    print(
-        color_message(
-            "WARNING: the pipeline.trigger invoke task is deprecated and will be removed in the future.\n"
-            + "         Use pipeline.run with the --deploy option instead.",
-            "orange",
-        )
-    )
-
-    run(
-        ctx,
-        git_ref=git_ref,
-        release_version_6=release_version_6,
-        release_version_7=release_version_7,
-        repo_branch=repo_branch,
-        deploy=True,
-        all_builds=True,
-        kitchen_tests=True,
-    )
-
-
 def workflow_rules(gitlab_file=".gitlab-ci.yml"):
     """Get Gitlab workflow rules list in a YAML-formatted string."""
     with open(gitlab_file, 'r') as f:
@@ -156,26 +123,64 @@ def workflow_rules(gitlab_file=".gitlab-ci.yml"):
 
 
 @task
+def trigger(
+    _, git_ref=DEFAULT_BRANCH, release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"
+):
+    """
+    OBSOLETE: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
+    """
+
+    use_release_entries = ""
+    major_versions = []
+
+    if release_version_6 != "nightly" and release_version_7 != "nightly-a7":
+        use_release_entries = "--use-release-entries "
+
+    if release_version_6 != "":
+        major_versions.append("6")
+
+    if release_version_7 != "":
+        major_versions.append("7")
+
+    raise Exit(
+        """The pipeline.trigger task is obsolete. Use:
+    pipeline.run --git-ref {git_ref} --deploy --major-versions "{major_versions}" --repo-branch {repo_branch} {use_release_entries}
+instead.""".format(
+            git_ref=git_ref,
+            major_versions=",".join(major_versions),
+            repo_branch=repo_branch,
+            use_release_entries=use_release_entries,
+        ),
+        1,
+    )
+
+
+@task
 def run(
     ctx,
-    git_ref=DEFAULT_BRANCH,
+    git_ref=None,
     here=False,
-    release_version_6="nightly",
-    release_version_7="nightly-a7",
+    use_release_entries=False,
+    major_versions='6,7',
     repo_branch="nightly",
     deploy=False,
     all_builds=True,
     kitchen_tests=True,
 ):
     """
-    Run a pipeline on the given git ref, or on the current branch if --here is given.
+    Run a pipeline on the given git ref (--git-ref <git ref>), or on the current branch if --here is given.
     By default, this pipeline will run all builds & tests, including all kitchen tests, but is not a deploy pipeline.
     Use --deploy to make this pipeline a deploy pipeline, which will upload artifacts to the staging repositories.
     Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on pipelines on the default branch).
     Use --no-kitchen-tests to not run all kitchen tests on the pipeline.
 
-    The --release-version-6 and --release-version-7 options indicate which release.json entries are used.
-    To not build Agent 6, set --release-version-6 "". To not build Agent 7, set --release-version-7 "".
+    By default, the nightly release.json entries (nightly and nightly-a7) are used.
+    Use the --use-release-entries option to use the release-a6 and release-a7 release.json entries instead.
+
+    By default, the pipeline builds both Agent 6 and Agent 7.
+    Use the --major-versions option to specify a comma-separated string of the major Agent versions to build
+    (eg. '6' to build Agent 6 only, '6,7' to build both Agent 6 and Agent 7).
+
     The --repo-branch option indicates which branch of the staging repository the packages will be deployed to (useful only on deploy pipelines).
 
     If other pipelines are already running on the git ref, the script will prompt the user to confirm if these previous
@@ -191,19 +196,33 @@ def run(
     Run a pipeline without kitchen tests on the current branch:
       inv pipeline.run --here --no-kitchen-tests
 
-    Run a deploy pipeline on the 7.28.0 tag, uploading the artifacts to the stable branch of the staging repositories:
-      inv pipeline.run --deploy --git-ref 7.28.0 --release-version-6 "6.28.0" --release-version-7 "7.28.0" --repo-branch "stable"
+    Run a deploy pipeline on the 7.32.0 tag, uploading the artifacts to the stable branch of the staging repositories:
+      inv pipeline.run --deploy --use-release-entries --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
     """
 
     project_name = "DataDog/datadog-agent"
     gitlab = Gitlab()
     gitlab.test_project_found(project_name)
 
+    if not git_ref and not here:
+        raise Exit("Either --here or --git-ref <git ref> must be specified.", code=1)
+
+    if use_release_entries:
+        release_version_6 = release_entry_for(6)
+        release_version_7 = release_entry_for(7)
+    else:
+        release_version_6 = nightly_entry_for(6)
+        release_version_7 = nightly_entry_for(7)
+
+    major_versions = major_versions.split(',')
+    if '6' not in major_versions:
+        release_version_6 = ""
+    if '7' not in major_versions:
+        release_version_7 = ""
+
     if deploy:
         # Check the validity of the deploy pipeline
-        check_deploy_pipeline(
-            gitlab, project_name, git_ref, release_version_6, release_version_7, repo_branch,
-        )
+        check_deploy_pipeline(gitlab, project_name, git_ref, release_version_6, release_version_7, repo_branch)
         # Force all builds and kitchen tests to be run
         if not all_builds:
             print(

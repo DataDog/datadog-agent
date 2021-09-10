@@ -2,12 +2,13 @@ from copy import deepcopy
 
 
 class Version:
-    def __init__(self, major, minor, patch=None, rc=None, prefix=""):
+    def __init__(self, major, minor, patch=None, rc=None, devel=False, prefix=""):
         self.prefix = prefix
         self.major = major
         self.minor = minor
         self.patch = patch
         self.rc = rc
+        self.devel = devel
 
     def _safe_value(self, part):
         # Transform None values into 0, as for comparison purposes a None
@@ -18,6 +19,8 @@ class Version:
         version = "{}{}.{}".format(self.prefix, self.major, self.minor)
         if self.patch is not None:
             version = "{}.{}".format(version, self.patch)
+        if self.devel:
+            version = "{}-devel".format(version)
         if self.rc is not None and self.rc != 0:
             version = "{}-rc.{}".format(version, self.rc)
         return version
@@ -31,7 +34,7 @@ class Version:
 
         res = True
         # If one value is None, it is equivalent to 0
-        for part in ["prefix", "major", "minor", "patch", "rc"]:
+        for part in ["prefix", "major", "minor", "patch", "rc", "devel"]:
             res = res and (self._safe_value(part) == other._safe_value(part))
 
         return res
@@ -50,14 +53,26 @@ class Version:
             if self_part != other_part:
                 return self_part > other_part
 
+        # Everything else being equal, self > other only if other is a devel version while
+        # self is not.
+        if self.devel != other.devel:
+            return not self.devel and other.devel
+
         if self.rc is None or other.rc is None:
             # Everything else being equal, self can only be higher than other if other is not a released version
             return other.rc is not None
-
         return self.rc > other.rc
 
     def is_rc(self):
         return self._safe_value("rc") != 0
+
+    def is_devel(self):
+        return self.devel
+
+    def non_devel_version(self):
+        new_version = deepcopy(self)
+        new_version.devel = False
+        return new_version
 
     def next_version(self, bump_major=False, bump_minor=False, bump_patch=False, rc=False):
         new_version = deepcopy(self)
