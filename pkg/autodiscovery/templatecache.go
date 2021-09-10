@@ -105,10 +105,14 @@ func (cache *TemplateCache) Del(tpl integration.Config) error {
 	for _, id := range tpl.ADIdentifiers {
 		digests := cache.adIDToDigests[id]
 		// remove the template from id2templates
-		for i, digest := range digests {
-			if digest == d {
-				cache.adIDToDigests[id] = append(digests[:i], digests[i+1:]...)
-				break
+		if len(digests) == 1 && digests[0] == d {
+			delete(cache.adIDToDigests, id)
+		} else {
+			for i, digest := range digests {
+				if digest == d {
+					cache.adIDToDigests[id] = append(digests[:i], digests[i+1:]...)
+					break
+				}
 			}
 		}
 	}
