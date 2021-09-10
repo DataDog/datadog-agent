@@ -14,8 +14,11 @@ type ProcessDiscoveryCheck struct {
 	info  *model.SystemInfo
 }
 
-func (d *ProcessDiscoveryCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
-	d.probe = procutil.NewProcessProbe()
+func (d *ProcessDiscoveryCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
+	probeOptions := []procutil.Option{
+		procutil.WithCollectStats(false),
+	}
+	d.probe = procutil.NewProcessProbe(probeOptions...)
 	d.info = info
 }
 

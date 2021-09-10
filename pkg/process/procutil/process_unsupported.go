@@ -1,3 +1,4 @@
+//go:build !linux
 // +build !linux
 
 package procutil
@@ -26,15 +27,28 @@ func WithPermission(enabled bool) Option {
 	}
 }
 
+// WithCollectStats configures whether the probe should collect stats.
+// If collectStats is false, the probe will only collect process metadata
+func WithCollectStats(enabled bool) Option {
+	return func(p *Probe) {
+		p.collectStats = enabled
+	}
+}
+
 // NewProcessProbe returns a Probe object
 func NewProcessProbe(options ...Option) *Probe {
-	return &Probe{}
+	probe := &Probe{}
+	for option := range options {
+		option(probe)
+	}
+	return probe
 }
 
 // Probe is an unimplemented struct for unsupported platforms
 type Probe struct {
 	returnZeroPermStats bool
 	withPermission      bool
+	collectStats        bool
 }
 
 // Close is currently not implemented in non-linux environments
