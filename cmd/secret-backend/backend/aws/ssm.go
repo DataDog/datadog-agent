@@ -13,10 +13,10 @@ import (
 )
 
 type AwsSsmParameterStoreBackendConfig struct {
-	AwsSessionBackendConfig `mapstructure:",squash"`
-	BackendType             string   `mapstructure:"backend_type"`
-	ParameterPath           string   `mapstructure:"parameter_path"`
-	Parameters              []string `mapstructure:"parameters"`
+	AwsSession    AwsSessionBackendConfig `mapstructure:"aws_session"`
+	BackendType   string                  `mapstructure:"backend_type"`
+	ParameterPath string                  `mapstructure:"parameter_path"`
+	Parameters    []string                `mapstructure:"parameters"`
 }
 
 type AwsSsmParameterStoreBackend struct {
@@ -28,15 +28,8 @@ type AwsSsmParameterStoreBackend struct {
 func NewAwsSsmParameterStoreBackend(backendId string, bc map[string]interface{}) (
 	*AwsSsmParameterStoreBackend, error) {
 
-	sessionConfig := AwsSessionBackendConfig{}
-	err := mapstructure.Decode(bc, &sessionConfig)
-	if err != nil {
-		log.WithError(err).Error("failed to map session configuration")
-		return nil, err
-	}
-
 	backendConfig := AwsSsmParameterStoreBackendConfig{}
-	err = mapstructure.Decode(bc, &backendConfig)
+	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
 		log.WithError(err).Error("failed to map backend configuration")
 		return nil, err
@@ -44,7 +37,7 @@ func NewAwsSsmParameterStoreBackend(backendId string, bc map[string]interface{})
 
 	secretValue := make(map[string]string, 0)
 
-	cfg, err := NewAwsConfigFromBackendConfig(backendId, sessionConfig)
+	cfg, err := NewAwsConfigFromBackendConfig(backendId, backendConfig.AwsSession)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"backend_id": backendId,
@@ -69,9 +62,9 @@ func NewAwsSsmParameterStoreBackend(backendId string, bc map[string]interface{})
 					"backend_id":        backendId,
 					"backend_type":      backendConfig.BackendType,
 					"parameter_path":    backendConfig.ParameterPath,
-					"aws_access_key_id": backendConfig.AwsAccessKeyId,
-					"aws_profile":       backendConfig.AwsProfile,
-					"aws_region":        backendConfig.AwsRegion,
+					"aws_access_key_id": backendConfig.AwsSession.AwsAccessKeyId,
+					"aws_profile":       backendConfig.AwsSession.AwsProfile,
+					"aws_region":        backendConfig.AwsSession.AwsRegion,
 				}).WithError(err).Error("failed to retrieve parameters from path")
 				return nil, err
 			}
@@ -92,9 +85,9 @@ func NewAwsSsmParameterStoreBackend(backendId string, bc map[string]interface{})
 				"backend_id":        backendId,
 				"backend_type":      backendConfig.BackendType,
 				"parameters":        strings.Join(backendConfig.Parameters, ","),
-				"aws_access_key_id": backendConfig.AwsAccessKeyId,
-				"aws_profile":       backendConfig.AwsProfile,
-				"aws_region":        backendConfig.AwsRegion,
+				"aws_access_key_id": backendConfig.AwsSession.AwsAccessKeyId,
+				"aws_profile":       backendConfig.AwsSession.AwsProfile,
+				"aws_region":        backendConfig.AwsSession.AwsRegion,
 			}).WithError(err).Error("failed to retrieve parameters")
 			return nil, err
 		}

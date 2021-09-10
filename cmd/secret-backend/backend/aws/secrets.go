@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/mitchellh/mapstructure"
 	"github.com/rapdev-io/datadog-secret-backend/secret"
@@ -15,9 +13,9 @@ import (
 )
 
 type AwsSecretsManagerBackendConfig struct {
-	AwsSessionBackendConfig `mapstructure:",squash"`
-	BackendType             string `mapstructure:"backend_type"`
-	SecretId                string `mapstructure:"secret_id"`
+	AwsSession  AwsSessionBackendConfig `mapstructure:"aws_session"`
+	BackendType string                  `mapstructure:"backend_type"`
+	SecretId    string                  `mapstructure:"secret_id"`
 }
 
 type AwsSecretsManagerBackend struct {
@@ -29,21 +27,14 @@ type AwsSecretsManagerBackend struct {
 func NewAwsSecretsManagerBackend(backendId string, bc map[string]interface{}) (
 	*AwsSecretsManagerBackend, error) {
 
-	sessionConfig := AwsSessionBackendConfig{}
-	err := mapstructure.Decode(bc, &sessionConfig)
-	if err != nil {
-		log.WithError(err).Error("failed to map session configuration")
-		return nil, err
-	}
-
 	backendConfig := AwsSecretsManagerBackendConfig{}
-	err = mapstructure.Decode(bc, &backendConfig)
+	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
 		log.WithError(err).Error("failed to map backend configuration")
 		return nil, err
 	}
 
-	cfg, err := NewAwsConfigFromBackendConfig(backendId, sessionConfig)
+	cfg, err := NewAwsConfigFromBackendConfig(backendId, backendConfig.AwsSession)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"backend_id": backendId,
@@ -54,7 +45,7 @@ func NewAwsSecretsManagerBackend(backendId string, bc map[string]interface{}) (
 
 	// GetSecretValue
 	input := &secretsmanager.GetSecretValueInput{
-		SecretId: aws.String(fmt.Sprintf("%s", bc["secret_id"])),
+		SecretId: &backendConfig.SecretId,
 	}
 	out, err := client.GetSecretValue(context.TODO(), input)
 	if err != nil {
@@ -62,8 +53,8 @@ func NewAwsSecretsManagerBackend(backendId string, bc map[string]interface{}) (
 			"backend_id":        backendId,
 			"backend_type":      backendConfig.BackendType,
 			"secret_id":         backendConfig.SecretId,
-			"aws_access_key_id": backendConfig.AwsAccessKeyId,
-			"aws_profile":       backendConfig.AwsProfile,
+			"aws_access_key_id": backendConfig.AwsSession.AwsAccessKeyId,
+			"aws_profile":       backendConfig.AwsSession.AwsProfile,
 		}).WithError(err).Error("failed to retrieve secret value")
 		return nil, err
 	}
@@ -74,8 +65,8 @@ func NewAwsSecretsManagerBackend(backendId string, bc map[string]interface{}) (
 			"backend_id":        backendId,
 			"backend_type":      backendConfig.BackendType,
 			"secret_id":         backendConfig.SecretId,
-			"aws_access_key_id": backendConfig.AwsAccessKeyId,
-			"aws_profile":       backendConfig.AwsProfile,
+			"aws_access_key_id": backendConfig.AwsSession.AwsAccessKeyId,
+			"aws_profile":       backendConfig.AwsSession.AwsProfile,
 		}).WithError(err).Error("failed to retrieve secret value")
 		return nil, err
 	}
