@@ -1069,15 +1069,15 @@ api_key:
   #   process_realtime: 2
 
   ## @param process_discovery - custom object - optional
-  ## Specifies custom settings for the process_discovery object
+  ## Specifies custom settings for the `process_discovery` object.
   # process_discovery
       ## @param enabled - boolean - optional - default: enabled
-      ## Toggles the process_discovery check. This check is used to gather information about possible intergrations
-      ## that can be enabled by the user
+      ## Toggles the `process_discovery` check. This check gathers information about possible integrations
+      ## for the user to enable.
       # enabled: true
 
       ## @param interval - duration - optional - default: 4h
-      ## An interval, in hours, that speficies how often the process discovery check should run
+      ## An interval in hours that specifies how often the process discovery check should run.
       # interval: 4h
 
 
