@@ -38,7 +38,7 @@ func WithCollectStats(enabled bool) Option {
 // NewProcessProbe returns a Probe object
 func NewProcessProbe(options ...Option) *Probe {
 	probe := &Probe{}
-	for option := range options {
+	for _, option := range options {
 		option(probe)
 	}
 	return probe
