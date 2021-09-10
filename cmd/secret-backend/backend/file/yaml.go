@@ -64,6 +64,7 @@ func (b *FileYamlBackend) GetSecretOutput(secretKey string) secret.SecretOutput 
 		"backend_id":   b.BackendId,
 		"backend_type": b.Config.BackendType,
 		"file_path":    b.Config.FilePath,
+		"secret_key":   secretKey,
 	}).Error("backend does not provide secret key")
 	return secret.SecretOutput{Value: nil, Error: &es}
 }

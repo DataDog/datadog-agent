@@ -112,8 +112,11 @@ func (b *AwsSsmParameterStoreBackend) GetSecretOutput(secretKey string) secret.S
 	es := errors.New("backend does not provide secret key").Error()
 
 	log.WithFields(log.Fields{
-		"backend_id":   b.BackendId,
-		"backend_type": b.Config.BackendType,
+		"backend_id":     b.BackendId,
+		"backend_type":   b.Config.BackendType,
+		"parameters":     b.Config.Parameters,
+		"parameter_path": b.Config.ParameterPath,
+		"secret_key":     secretKey,
 	}).Error("backend does not provide secret key")
 	return secret.SecretOutput{Value: nil, Error: &es}
 }
