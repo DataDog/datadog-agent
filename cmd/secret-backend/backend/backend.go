@@ -88,6 +88,13 @@ func (b *Backends) InitBackend(backendId string, config map[string]interface{}) 
 		} else {
 			b.Backends[backendId] = backend
 		}
+	case "file.json":
+		backend, err := file.NewFileJsonBackend(backendId, config)
+		if err != nil {
+			b.Backends[backendId] = NewErrorBackend(backendId, err)
+		} else {
+			b.Backends[backendId] = backend
+		}
 	default:
 		log.WithFields(log.Fields{
 			"backend_id":   backendId,
