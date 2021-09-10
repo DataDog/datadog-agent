@@ -75,6 +75,7 @@ func TestAnalyzeResponse(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		r := &http.Response{
 			StatusCode: 200,
+			Header:     http.Header{"Content-Type": []string{"application/json; charset=UTF-8"}},
 			Body:       ioutil.NopCloser(bytes.NewBuffer([]byte("{\"case_id\": 1234}"))),
 		}
 		resstr, reserr := analyzeResponse(r, nil)
@@ -87,6 +88,7 @@ func TestAnalyzeResponse(t *testing.T) {
 	t.Run("error-from-server", func(t *testing.T) {
 		r := &http.Response{
 			StatusCode: 200,
+			Header:     http.Header{"Content-Type": []string{"application/json; charset=UTF-8"}},
 			Body:       ioutil.NopCloser(bytes.NewBuffer([]byte("{\"case_id\": 1234, \"error\": \"uhoh\"}"))),
 		}
 		resstr, reserr := analyzeResponse(r, nil)
@@ -99,6 +101,7 @@ func TestAnalyzeResponse(t *testing.T) {
 	t.Run("unparseable-from-server", func(t *testing.T) {
 		r := &http.Response{
 			StatusCode: 200,
+			Header:     http.Header{"Content-Type": []string{"application/json; charset=UTF-8"}},
 			Body:       ioutil.NopCloser(bytes.NewBuffer([]byte("thats-not-json"))),
 		}
 		resstr, reserr := analyzeResponse(r, nil)
@@ -119,6 +122,7 @@ func TestAnalyzeResponse(t *testing.T) {
 		}
 		r := &http.Response{
 			StatusCode: 200,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
 			Body:       ioutil.NopCloser(bytes.NewBuffer([]byte(resp))),
 		}
 		resstr, reserr := analyzeResponse(r, nil)
@@ -126,6 +130,56 @@ func TestAnalyzeResponse(t *testing.T) {
 			errors.New("invalid character 'u' looking for beginning of value\n"+
 				"Server returned:\n"+
 				resp[:150]),
+			reserr)
+		require.Equal(t,
+			"Error: could not deserialize response body -- Please contact support by email.",
+			resstr)
+	})
+
+	t.Run("no-content-type", func(t *testing.T) {
+		r := &http.Response{
+			StatusCode: 200,
+			Body:       ioutil.NopCloser(bytes.NewBuffer([]byte("{\"json\": true}"))),
+		}
+		resstr, reserr := analyzeResponse(r, nil)
+		require.Equal(t,
+			errors.New("Server returned no content-type header\n"+
+				"Server returned:\n"+
+				"{\"json\": true}"),
+			reserr)
+		require.Equal(t,
+			"Error: could not deserialize response body -- Please contact support by email.",
+			resstr)
+	})
+
+	t.Run("bad-content-type", func(t *testing.T) {
+		r := &http.Response{
+			StatusCode: 200,
+			Header:     http.Header{"Content-Type": []string{"text/plain"}},
+			Body:       ioutil.NopCloser(bytes.NewBuffer([]byte("{\"json\": true}"))),
+		}
+		resstr, reserr := analyzeResponse(r, nil)
+		require.Equal(t,
+			errors.New("Server returned unknown content-type text/plain\n"+
+				"Server returned:\n"+
+				"{\"json\": true}"),
+			reserr)
+		require.Equal(t,
+			"Error: could not deserialize response body -- Please contact support by email.",
+			resstr)
+	})
+
+	t.Run("unknown-status", func(t *testing.T) {
+		r := &http.Response{
+			StatusCode: 502,
+			Status:     "Bad Gateway",
+			Body:       ioutil.NopCloser(bytes.NewBuffer([]byte("<html>.."))),
+		}
+		resstr, reserr := analyzeResponse(r, nil)
+		require.Equal(t,
+			errors.New("HTTP 502 Bad Gateway\n"+
+				"Server returned:\n"+
+				"<html>.."),
 			reserr)
 		require.Equal(t,
 			"Error: could not deserialize response body -- Please contact support by email.",
