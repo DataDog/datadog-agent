@@ -51,13 +51,13 @@ require (
 	github.com/DataDog/datadog-agent/pkg/quantile v0.31.0-rc.8
 	github.com/DataDog/datadog-agent/pkg/util/log v0.31.0-rc.8
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.31.0-rc.8
-	github.com/DataDog/datadog-go v4.8.1+incompatible
+	github.com/DataDog/datadog-go v4.8.2+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf v0.0.0-20210419131141-ea64821c9793
 	github.com/DataDog/gohai v0.0.0-20210303102637-6b668acb50dd
-	github.com/DataDog/gopsutil v0.0.0-20200624212600-1b53412ef321
+	github.com/DataDog/gopsutil v0.0.0-20210826200402-bbfc5b0ae6e9
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
-	github.com/DataDog/nikos v1.0.0
+	github.com/DataDog/nikos v1.2.1-0.20210908154039-72372ae79f70
 	github.com/DataDog/sketches-go v1.1.0
 	github.com/DataDog/viper v1.9.0
 	github.com/DataDog/watermarkpodautoscaler v0.2.1-0.20210323121426-cfb2caa5613f
@@ -72,7 +72,7 @@ require (
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
 	github.com/andybalholm/brotli v1.0.1 // indirect
 	github.com/avast/retry-go v2.7.0+incompatible
-	github.com/aws/aws-sdk-go v1.40.14
+	github.com/aws/aws-sdk-go v1.40.38
 	github.com/beevik/ntp v0.3.0
 	github.com/benesch/cgosymbolizer v0.0.0-20190515212042-bec6fe6e597b
 	github.com/bhmj/jsonslice v0.0.0-20200323023432-92c3edaad8e2
@@ -171,20 +171,20 @@ require (
 	github.com/vmihailenco/msgpack/v4 v4.3.12
 	github.com/xeipuuv/gojsonschema v0.0.0-20180618132009-1d523034197f
 	go.etcd.io/etcd/client/v2 v2.305.0
-	go.opentelemetry.io/otel v0.20.0
+	go.opentelemetry.io/collector/model v0.34.0
 	go.uber.org/automaxprocs v1.4.0
 	go4.org/intern v0.0.0-20210108033219-3eb7198706b2
 	golang.org/x/crypto v0.0.0-20210317152858-513c2a44f670 // indirect
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/net v0.0.0-20210614182718-04defd469f4e
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210601080250-7ecdf8ef093b
-	golang.org/x/text v0.3.6
+	golang.org/x/sys v0.0.0-20210823070655-63515b42dcdf
+	golang.org/x/text v0.3.7
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	golang.org/x/tools v0.1.5
 	gomodules.xyz/jsonpatch/v3 v3.0.1
-	google.golang.org/genproto v0.0.0-20210602131652-f16073e35f0c
-	google.golang.org/grpc v1.38.0
+	google.golang.org/genproto v0.0.0-20210604141403-392c879c8b08
+	google.golang.org/grpc v1.40.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.33.0
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
