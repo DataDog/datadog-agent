@@ -108,6 +108,8 @@ func newRouteKey(source, dest util.Address, netns uint32) routeKey {
 
 type netlinkRouter struct {
 	rootNs uint32
+	srcBuf []byte
+	dstBuf []byte
 }
 
 // NewNetlinkRouter create a Router that queries routes via netlink
@@ -117,18 +119,25 @@ func NewNetlinkRouter(procRoot string) (Router, error) {
 		return nil, fmt.Errorf("netlink gw cache backing: could not get root net ns: %w", err)
 	}
 
-	return &netlinkRouter{rootNs: rootNs}, nil
+	return &netlinkRouter{
+		rootNs: rootNs,
+		srcBuf: make([]byte, 16),
+		dstBuf: make([]byte, 16),
+	}, nil
 }
 
 func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, bool) {
 	var iifName string
+
+	srcIP := util.NetIPFromAddress(source, n.srcBuf)
 	if n.rootNs != netns {
 		// if its a non-root ns, we're dealing with traffic from
 		// a container most likely, and so need to find out
 		// which interface is associated with the ns
 
 		// get input interface for src ip
-		routes, err := netlink.RouteGet(util.NetIPFromAddress(source))
+
+		routes, err := netlink.RouteGet(srcIP)
 		if err != nil || len(routes) != 1 {
 			return Route{}, false
 		}
@@ -143,10 +152,11 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 		}
 	}
 
+	dstIP := util.NetIPFromAddress(dest, n.dstBuf)
 	routes, err := netlink.RouteGetWithOptions(
-		util.NetIPFromAddress(dest),
+		dstIP,
 		&netlink.RouteGetOptions{
-			SrcAddr: util.NetIPFromAddress(source),
+			SrcAddr: srcIP,
 			Iif:     iifName,
 		})
 

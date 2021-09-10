@@ -23,6 +23,10 @@ type cachedConntrack struct {
 	cache            *lru.Cache
 	conntrackCreator func(int) (netlink.Conntrack, error)
 	closed           bool
+
+	// buffers to avoid IP allocations
+	srcBuf []byte
+	dstBuf []byte
 }
 
 func newCachedConntrack(procRoot string, conntrackCreator func(int) (netlink.Conntrack, error), size int) *cachedConntrack {
@@ -30,6 +34,8 @@ func newCachedConntrack(procRoot string, conntrackCreator func(int) (netlink.Con
 		procRoot:         procRoot,
 		conntrackCreator: conntrackCreator,
 		cache:            lru.New(size),
+		srcBuf:           make([]byte, 16),
+		dstBuf:           make([]byte, 16),
 	}
 
 	cache.cache.OnEvicted = func(_ lru.Key, v interface{}) {
@@ -71,7 +77,7 @@ func (cache *cachedConntrack) exists(c *network.ConnectionStats, netns uint32, p
 		protoNumber = unix.IPPROTO_TCP
 	}
 
-	srcAddr, dstAddr := util.NetIPFromAddress(c.Source), util.NetIPFromAddress(c.Dest)
+	srcAddr, dstAddr := util.NetIPFromAddress(c.Source, cache.srcBuf), util.NetIPFromAddress(c.Dest, cache.dstBuf)
 	srcPort, dstPort := c.SPort, c.DPort
 
 	conn := netlink.Con{

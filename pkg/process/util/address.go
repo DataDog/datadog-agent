@@ -32,8 +32,24 @@ func AddressFromString(ip string) Address {
 }
 
 // NetIPFromAddress returns a net.IP from an Address
-func NetIPFromAddress(addr Address) net.IP {
-	return net.IP(addr.Bytes())
+func NetIPFromAddress(addr Address, buf []byte) net.IP {
+	var addrLen int
+	switch addr.(type) {
+	case v4Address:
+		addrLen = 4
+	case v6Address:
+		addrLen = 16
+	default:
+		return nil
+	}
+
+	if len(buf) < addrLen {
+		// if the function is misused we allocate
+		buf = make([]byte, addrLen)
+	}
+
+	n := addr.WriteTo(buf)
+	return net.IP(buf[:n])
 }
 
 // ToLowHigh converts an address into a pair of uint64 numbers

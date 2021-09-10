@@ -22,6 +22,7 @@ type gatewayLookup struct {
 	routeCache          network.RouteCache
 	subnetCache         *simplelru.LRU // interface index to subnet cache
 	subnetForHwAddrFunc func(net.HardwareAddr) (network.Subnet, error)
+	ipBuffer            []byte
 }
 
 type cloudProvider interface {
@@ -62,6 +63,7 @@ func newGatewayLookup(config *config.Config) *gatewayLookup {
 		subnetCache:         lru,
 		routeCache:          network.NewRouteCache(routeCacheSize, router),
 		subnetForHwAddrFunc: ec2SubnetForHardwareAddr,
+		ipBuffer:            make([]byte, 16),
 	}
 }
 
@@ -78,7 +80,7 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 
 	// if there is no gateway, we don't need to add subnet info
 	// for gateway resolution in the backend
-	if util.NetIPFromAddress(r.Gateway).IsUnspecified() {
+	if util.NetIPFromAddress(r.Gateway, g.ipBuffer).IsUnspecified() {
 		return nil
 	}
 
