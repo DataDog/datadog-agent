@@ -89,6 +89,7 @@ func (b *AwsSecretsManagerBackend) GetSecretOutput(secretKey string) secret.Secr
 		"backend_id":   b.BackendId,
 		"backend_type": b.Config.BackendType,
 		"secret_id":    b.Config.SecretId,
+		"secret_key":   secretKey,
 	}).Error("backend does not provide secret key")
 	return secret.SecretOutput{Value: nil, Error: &es}
 }
