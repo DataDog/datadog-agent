@@ -13,13 +13,8 @@ import (
 	"github.com/DataDog/gopsutil/cpu"
 )
 
-// TODO: this comment is no longer accurate (describe procutil.Probe and hint at various implementations here)
-// runRealtime runs the RTProcessCheck to collect statistics about the running processes.
-// On most POSIX systems these statistics are collected from procfs. The bulk
-// of this collection is abstracted into the `gopsutil` library.
-// Processes are split up into a chunks of at most 100 processes per message to
-// limit the message size on intake.
-// See agent.proto for the schema of the message and models used.
+// runRealtime runs the realtime ProcessCheck to collect statistics about the running processes.
+// Underying procutil.Probe is responsible for the actual implementation
 func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) (*RunResult, error) {
 	cpuTimes, err := cpu.Times(false)
 	if err != nil {

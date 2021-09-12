@@ -229,15 +229,15 @@ func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
 
 // RunWithOptions collects process data (regular metadata + stats) and/or realtime process data (stats only)
 // Messages are grouped as RunResult instances with CheckName identifying the type
-func (p *ProcessCheck) RunWithOptions(cfg *config.AgentConfig, groupID int32, options RunOptions) (*RunResult, error) {
+func (p *ProcessCheck) RunWithOptions(cfg *config.AgentConfig, nextGroupID func() int32, options RunOptions) (*RunResult, error) {
 	if options.RunStandard {
 		log.Tracef("Running process check")
-		return p.run(cfg, groupID, options.RunRealTime)
+		return p.run(cfg, nextGroupID(), options.RunRealTime)
 	}
 
 	if options.RunRealTime {
 		log.Tracef("Running rtprocess check")
-		return p.runRealtime(cfg, groupID)
+		return p.runRealtime(cfg, nextGroupID())
 	}
 	return nil, errors.New("invalid run options for check")
 }

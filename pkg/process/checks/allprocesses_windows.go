@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
-	"sync"
 	"time"
 	"unsafe"
 
@@ -26,16 +25,6 @@ var (
 	procGetProcessMemoryInfo  = modpsapi.NewProc("GetProcessMemoryInfo")
 	procGetProcessHandleCount = modkernel.NewProc("GetProcessHandleCount")
 	procGetProcessIoCounters  = modkernel.NewProc("GetProcessIoCounters")
-
-	// XXX: Cross-check state is stored globally so the checks are not thread-safe.
-	cachedProcesses = map[uint32]*cachedProcess{}
-	// TODO: remove locking here
-	// cacheProcessesMutex is a mutex to protect cachedProcesses from being accessed concurrently.
-	// So far this is the case for Process check and RTProcess check
-	// TODO: revisit cacheProcesses usage so that we don't need to lock the whole getAllProcesses()
-	cacheProcessesMutex sync.Mutex
-	checkCount          = 0
-	haveWarnedNoArgs    = false
 )
 
 type IO_COUNTERS struct {
@@ -80,6 +69,13 @@ func getProcessIoCounters(h windows.Handle, counters *IO_COUNTERS) (err error) {
 }
 
 type legacyWindowsProbe struct {
+	cachedProcesses map[uint32]*cachedProcess
+}
+
+func newLegacyWindowsProbe() procutil.Probe {
+	return &legacyWindowsProbe{
+		cachedProcesses: map[uint32]*cachedProcess{},
+	}
 }
 
 func (p *legacyWindowsProbe) Close() {}
@@ -116,13 +112,8 @@ func (p *legacyWindowsProbe) ProcessesByPID(now time.Time, collectStats bool) (m
 	var pe32 w32.PROCESSENTRY32
 	pe32.DwSize = uint32(unsafe.Sizeof(pe32))
 
-	checkCount++
-
-	cacheProcessesMutex.Lock()
-	defer cacheProcessesMutex.Unlock()
-
 	knownPids := make(map[uint32]struct{})
-	for pid := range cachedProcesses {
+	for pid := range p.cachedProcesses {
 		knownPids[pid] = struct{}{}
 	}
 
@@ -136,7 +127,7 @@ func (p *legacyWindowsProbe) ProcessesByPID(now time.Time, collectStats bool) (m
 			// want to do.
 			continue
 		}
-		cp, ok := cachedProcesses[pid]
+		cp, ok := p.cachedProcesses[pid]
 		if !ok {
 			// wasn't already in the map.
 			cp = &cachedProcess{}
@@ -145,7 +136,7 @@ func (p *legacyWindowsProbe) ProcessesByPID(now time.Time, collectStats bool) (m
 				log.Debugf("could not fill Win32 process information for pid %v %v", pid, err)
 				continue
 			}
-			cachedProcesses[pid] = cp
+			p.cachedProcesses[pid] = cp
 		} else {
 			if err := cp.openProcHandle(pe32.Th32ProcessID); err != nil {
 				log.Debugf("Could not reopen process handle for pid %v %v", pid, err)
@@ -223,9 +214,9 @@ func (p *legacyWindowsProbe) ProcessesByPID(now time.Time, collectStats bool) (m
 		}
 	}
 	for pid := range knownPids {
-		cp := cachedProcesses[pid]
+		cp := p.cachedProcesses[pid]
 		log.Debugf("removing process %v %v", pid, cp.executablePath)
-		delete(cachedProcesses, pid)
+		delete(p.cachedProcesses, pid)
 	}
 
 	return procs, nil

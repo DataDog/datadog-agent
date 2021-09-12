@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	legacyProbe = &legacyWindowsProbe{}
+	legacyProbe = newLegacyWindowsProbe()
 }
 
 func formatUser(fp *procutil.Process) *model.ProcessUser {

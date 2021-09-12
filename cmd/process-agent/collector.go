@@ -107,7 +107,7 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue, options
 	updateLastCollectTime(start)
 
 	if withRealTime, ok := c.(checks.CheckWithRealTime); ok {
-		run, err := withRealTime.RunWithOptions(l.cfg, atomic.AddInt32(&l.groupID, 1), options)
+		run, err := withRealTime.RunWithOptions(l.cfg, l.nextGroupID, options)
 		if err != nil {
 			log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 			return
@@ -115,7 +115,7 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue, options
 		l.messagesToResults(start, withRealTime.Name(), run.Standard, results)
 		l.messagesToResults(start, withRealTime.RealTimeName(), run.RealTime, results)
 	} else {
-		messages, err := c.Run(l.cfg, atomic.AddInt32(&l.groupID, 1))
+		messages, err := c.Run(l.cfg, l.nextGroupID())
 		if err != nil {
 			log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 			return
@@ -134,6 +134,10 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue, options
 			log.Infof("Finish %s check #%d in %s", c.Name(), runCounter, d)
 		}
 	}
+}
+
+func (l *Collector) nextGroupID() int32 {
+	return atomic.AddInt32(&l.groupID, 1)
 }
 
 func (l *Collector) messagesToResults(start time.Time, name string, messages []model.MessageBody, results *api.WeightedQueue) {

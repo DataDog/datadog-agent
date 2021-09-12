@@ -366,7 +366,15 @@ func runCheckAsRealTime(cfg *config.AgentConfig, ch checks.CheckWithRealTime) er
 		RunStandard: true,
 		RunRealTime: true,
 	}
-	if _, err := ch.RunWithOptions(cfg, 0, options); err != nil {
+	var (
+		groupID     int32
+		nextGroupID = func() int32 {
+			groupID++
+			return groupID
+		}
+	)
+
+	if _, err := ch.RunWithOptions(cfg, nextGroupID, options); err != nil {
 		return fmt.Errorf("collection error: %s", err)
 	}
 
@@ -374,7 +382,7 @@ func runCheckAsRealTime(cfg *config.AgentConfig, ch checks.CheckWithRealTime) er
 
 	printResultsBanner(ch.RealTimeName())
 
-	run, err := ch.RunWithOptions(cfg, 1, options)
+	run, err := ch.RunWithOptions(cfg, nextGroupID, options)
 	if err != nil {
 		return fmt.Errorf("collection error: %s", err)
 	}

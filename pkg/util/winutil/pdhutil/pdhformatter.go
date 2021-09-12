@@ -12,6 +12,8 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // PdhFormatter implements a formatter for PDH performance counters
@@ -30,7 +32,7 @@ type PdhCounterValue struct {
 type ValueEnumFunc func(s string, v PdhCounterValue)
 
 // Enum enumerates performance counter values for a wildcard instance counter (e.g. `\Process(*)\% Processor Time`)
-func (f *PdhFormatter) Enum(hCounter PDH_HCOUNTER, format uint32, ignoreInstances []string, fn ValueEnumFunc) error {
+func (f *PdhFormatter) Enum(counterName string, hCounter PDH_HCOUNTER, format uint32, ignoreInstances []string, fn ValueEnumFunc) error {
 	var bufLen uint32
 	var itemCount uint32
 
@@ -118,6 +120,13 @@ func (f *PdhFormatter) Enum(hCounter PDH_HCOUNTER, format uint32, ignoreInstance
 			instanceIdx++
 		}
 
+		instance := fmt.Sprintf("%s#%d", name, instanceIdx)
+		if item.value.CStatus != PDH_CSTATUS_VALID_DATA &&
+			item.value.CStatus != PDH_CSTATUS_NEW_DATA {
+			log.Errorf("Counter error for %s[%s]: 0x%x", counterName, instance, item.value.CStatus)
+			continue
+		}
+
 		var value PdhCounterValue
 
 		switch format {
@@ -132,7 +141,7 @@ func (f *PdhFormatter) Enum(hCounter PDH_HCOUNTER, format uint32, ignoreInstance
 			value.Large = from.value.LargeValue
 		}
 
-		fn(fmt.Sprintf("%s#%d", name, instanceIdx), value)
+		fn(instance, value)
 	}
 	return nil
 }

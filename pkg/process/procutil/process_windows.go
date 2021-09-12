@@ -256,7 +256,7 @@ func (p *probe) enumCounters(includeProcMeta bool) error {
 		"Idle",   // System Idle process
 	}
 
-	err := p.formatter.Enum(p.counters[pdhutil.CounterAllProcessPID], pdhutil.PDH_FMT_LARGE, ignored, valueToUint64(p.mapPID))
+	err := p.formatter.Enum(pdhutil.CounterAllProcessPID, p.counters[pdhutil.CounterAllProcessPID], pdhutil.PDH_FMT_LARGE, ignored, valueToUint64(p.mapPID))
 
 	if err != nil {
 		return err
@@ -278,7 +278,7 @@ func (p *probe) enumCounters(includeProcMeta bool) error {
 		if spec.processMeta && !includeProcMeta {
 			continue
 		}
-		err := p.formatter.Enum(p.counters[counter], spec.format, ignored, spec.enumFunc)
+		err := p.formatter.Enum(counter, p.counters[counter], spec.format, ignored, spec.enumFunc)
 		if err != nil {
 			return err
 		}
