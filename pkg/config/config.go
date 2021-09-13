@@ -212,6 +212,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("enable_metadata_collection", true)
 	config.BindEnvAndSetDefault("enable_gohai", true)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
+	config.BindEnvAndSetDefault("auth_token", "")
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
 	config.BindEnv("bind_host")
 	config.BindEnvAndSetDefault("ipc_address", "localhost")

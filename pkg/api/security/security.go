@@ -132,9 +132,14 @@ func fetchAuthToken(tokenCreationAllowed bool) (string, error) {
 	// Create a new token if it doesn't exist and if permitted by calling func
 	if _, e := os.Stat(authTokenFile); os.IsNotExist(e) && tokenCreationAllowed {
 		key := make([]byte, authTokenMinimalLen)
-		_, e = rand.Read(key)
-		if e != nil {
-			return "", fmt.Errorf("can't create agent authentication token value: %s", e)
+
+		if len([]byte(config.Datadog.GetString("auth_token"))) >= authTokenMinimalLen {
+			copy(key, []byte(config.Datadog.GetString("auth_token")))
+		} else {
+			_, e = rand.Read(key)
+			if e != nil {
+				return "", fmt.Errorf("can't create agent authentication token value: %s", e)
+			}
 		}
 
 		// Write the auth token to the auth token file (platform-specific)

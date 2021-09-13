@@ -8,6 +8,7 @@
 package security
 
 import (
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -21,6 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+const (
+	tokenEnvVar = "DD_AUTH_TOKEN"
+	tokenValue  = "deadbeef01234567899876543210deadbeef"
+)
+
 func initMockConf(t *testing.T) string {
 	testDir, err := ioutil.TempDir("", "fake-datadog-etc-")
 	require.Nil(t, err, fmt.Sprintf("%v", err))
@@ -30,7 +36,7 @@ func initMockConf(t *testing.T) string {
 
 	mockConfig := config.Mock()
 	mockConfig.SetConfigFile(f.Name())
-	mockConfig.Set("auth_token", "")
+	mockConfig.Set("auth_token_file_path", "")
 
 	return filepath.Join(testDir, "auth_token")
 }
@@ -69,4 +75,26 @@ func TestFetchAuthToken(t *testing.T) {
 	token, err = FetchAuthToken()
 	require.Nil(t, err, fmt.Sprintf("%v", err))
 	require.Equal(t, newToken, token)
+}
+
+func TestFetchAuthTokenFromEnv(t *testing.T) {
+	expectTokenPath := initMockConf(t)
+	defer cleanMockConf(expectTokenPath)
+
+	os.Setenv(tokenEnvVar, tokenValue)
+	defer os.Unsetenv(tokenEnvVar)
+
+	sourceToken := string(hex.EncodeToString([]byte(tokenValue[:authTokenMinimalLen])))
+
+	newToken, err := CreateOrFetchToken()
+	require.Nil(t, err, fmt.Sprintf("%v", err))
+	require.True(t, len(newToken) > authTokenMinimalLen, fmt.Sprintf("%d", len(newToken)))
+	_, err = os.Stat(expectTokenPath)
+	require.Nil(t, err)
+	assert.Equal(t, newToken, sourceToken)
+
+	token, err := FetchAuthToken()
+	require.Nil(t, err, fmt.Sprintf("%v", err))
+	require.Equal(t, newToken, token)
+	assert.Equal(t, token, sourceToken)
 }
