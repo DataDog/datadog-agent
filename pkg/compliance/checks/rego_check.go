@@ -9,9 +9,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
+	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
+	"github.com/open-policy-agent/opa/types"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
@@ -29,26 +32,30 @@ func (r *regoCheck) compileRule(rule *compliance.RegoRule) error {
 	ctx := context.TODO()
 
 	var query string
-	if rule.Errors != "" {
+	if rule.Denies != "" {
 		query = fmt.Sprintf(`
 			{
 				"result": %s,
-				"errors": %s
+				"denies": %s
 			}
-		`, rule.Query, rule.Errors)
+		`, rule.Query, rule.Denies)
 	} else {
 		query = fmt.Sprintf(`
 			{
 				"result": %s,
-				"errors": []
+				"denies": []
 			}
 		`, rule.Query)
 	}
 	log.Debugf("rego query: %v", query)
 
+	moduleArgs := make([]func(*rego.Rego), 0, 2+len(regoBuiltins))
+	moduleArgs = append(moduleArgs, rego.Query(query),
+		rego.Module(fmt.Sprintf("rule_%s.rego", rule.ID), rule.Module))
+	moduleArgs = append(moduleArgs, regoBuiltins...)
+
 	preparedEvalQuery, err := rego.New(
-		rego.Query(query),
-		rego.Module(fmt.Sprintf("rule_%s.rego", rule.ID), rule.Module),
+		moduleArgs...,
 	).PrepareForEval(ctx)
 
 	if err != nil {
@@ -131,6 +138,8 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 		}
 	}
 
+	log.Debugf("rego eval input: %v", input)
+
 	ctx := context.TODO()
 	results, err := r.preparedEvalQuery.Eval(ctx, rego.EvalInput(input))
 	if err != nil {
@@ -151,7 +160,7 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 		return []*compliance.Report{compliance.BuildReportForError(errors.New("wrong result type"))}
 	}
 
-	log.Debugf("errors: %v", res["errors"])
+	log.Debugf("denies: %v", res["denies"])
 
 	var reports []*compliance.Report
 	for instance, reportedFields := range instances {
@@ -159,5 +168,30 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 		reports = append(reports, report)
 	}
 
+	log.Debugf("reports: %v", reports)
 	return reports
 }
+
+var regoBuiltins = []func(*rego.Rego){
+	octalLiteralFunc,
+}
+
+var octalLiteralFunc = rego.Function1(
+	&rego.Function{
+		Name: "parseOctal",
+		Decl: types.NewFunction(types.Args(types.S), types.N),
+	},
+	func(_ rego.BuiltinContext, a *ast.Term) (*ast.Term, error) {
+		str, ok := a.Value.(ast.String)
+		if !ok {
+			return nil, errors.New("failed to parse octal literal")
+		}
+
+		value, err := strconv.ParseInt(string(str), 8, 0)
+		if err != nil {
+			return nil, err
+		}
+
+		return ast.IntNumberTerm(int(value)), err
+	},
+)
