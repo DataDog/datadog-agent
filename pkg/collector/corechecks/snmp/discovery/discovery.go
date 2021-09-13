@@ -112,10 +112,10 @@ func (d *Discovery) discoverDevices() {
 	cacheKey := fmt.Sprintf("%s:%s", cacheKeyPrefix, configHash)
 
 	subnet := snmpSubnet{
-		config:         d.config,
-		startingIP:     startingIP,
-		network:        *ipNet,
-		cacheKey:       cacheKey,
+		config:     d.config,
+		startingIP: startingIP,
+		network:    *ipNet,
+		cacheKey:   cacheKey,
 
 		// Since subnet devices fields (`devices` and `deviceFailures`) are changed at the same time
 		// as Discovery.discoveredDevices, we rely on Discovery.discDevMu mutex to protect against concurrent changes.
