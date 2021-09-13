@@ -1401,3 +1401,4 @@ core,"sigs.k8s.io/structured-merge-diff/v4/schema",Apache-2.0
 core,"sigs.k8s.io/structured-merge-diff/v4/typed",Apache-2.0
 core,"sigs.k8s.io/structured-merge-diff/v4/value",Apache-2.0
 core,"sigs.k8s.io/yaml",MIT
+core,"github.com/DataDog/sketches-go/ddsketch/stat",Apache-2.0
