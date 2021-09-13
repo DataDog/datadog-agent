@@ -85,7 +85,7 @@ func getProcessIoCounters(h windows.Handle, counters *IO_COUNTERS) (err error) {
 }
 
 func getAllProcStats(probe *procutil.Probe, pids []int32) (map[int32]*procutil.Stats, error) {
-	procs, err := getAllProcesses(probe)
+	procs, err := getAllProcesses(probe, true)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +96,7 @@ func getAllProcStats(probe *procutil.Probe, pids []int32) (map[int32]*procutil.S
 	return stats, nil
 }
 
-func getAllProcesses(probe *procutil.Probe) (map[int32]*procutil.Process, error) {
+func getAllProcesses(probe *procutil.Probe, collectStats bool) (map[int32]*procutil.Process, error) {
 	// make sure we get the consistent snapshot by using the same OS thread
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -152,7 +152,7 @@ func getAllProcesses(probe *procutil.Probe) (map[int32]*procutil.Process, error)
 		procHandle := cp.procHandle
 
 		stats := &procutil.Stats{}
-		if probe.ShouldCollectStats() {
+		if collectStats {
 			var CPU windows.Rusage
 			if err := windows.GetProcessTimes(procHandle, &CPU.CreationTime, &CPU.ExitTime, &CPU.KernelTime, &CPU.UserTime); err != nil {
 				log.Debugf("Could not get process times for %v %v", pid, err)

@@ -1,4 +1,3 @@
-//go:build linux
 // +build linux
 
 package procutil
@@ -80,14 +79,6 @@ func WithBootTimeRefreshInterval(bootTimeRefreshInterval time.Duration) Option {
 	}
 }
 
-// WithCollectStats configures whether the probe should collect stats.
-// If collectStats is false, the probe will only collect process metadata
-func WithCollectStats(collectStats bool) Option {
-	return func(p *Probe) {
-		p.collectStats = collectStats
-	}
-}
-
 // Probe is a service that fetches process related info on current host
 type Probe struct {
 	procRootLoc  string // ProcFS
@@ -101,7 +92,6 @@ type Probe struct {
 	// configurations
 	withPermission          bool
 	returnZeroPermStats     bool
-	collectStats            bool
 	bootTimeRefreshInterval time.Duration
 }
 
@@ -202,7 +192,7 @@ func (p *Probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 }
 
 // ProcessesByPID returns a map of process info indexed by PID
-func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
+func (p *Probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Process, error) {
 	pids, err := p.getActivePIDs()
 	if err != nil {
 		return nil, err
@@ -229,7 +219,7 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 			memInfoEx  = &MemoryInfoExStat{}
 		)
 
-		if p.collectStats {
+		if collectStats {
 			statusInfo = p.parseStatus(pathForPID)
 			statInfo = p.parseStat(pathForPID, pid, now)
 			memInfoEx = p.parseStatm(pathForPID)

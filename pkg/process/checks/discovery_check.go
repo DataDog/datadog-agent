@@ -15,10 +15,7 @@ type ProcessDiscoveryCheck struct {
 }
 
 func (d *ProcessDiscoveryCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
-	probeOptions := []procutil.Option{
-		procutil.WithCollectStats(false),
-	}
-	d.probe = procutil.NewProcessProbe(probeOptions...)
+	d.probe = procutil.NewProcessProbe()
 	d.info = info
 }
 
@@ -28,7 +25,7 @@ func (d *ProcessDiscoveryCheck) RealTime() bool { return false }
 
 func (d *ProcessDiscoveryCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
 	// Does not need to collect process stats, only metadata
-	procs, err := getAllProcesses(d.probe)
+	procs, err := getAllProcesses(d.probe, false)
 	if err != nil {
 		return nil, log.Error(err)
 	}
