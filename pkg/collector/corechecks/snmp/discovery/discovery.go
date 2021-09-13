@@ -83,7 +83,7 @@ func (d *Discovery) GetDiscoveredDeviceConfigs() []*devicecheck.DeviceCheck {
 
 // Start discovery
 func (d *Discovery) runWorker(w int, jobs <-chan snmpJob) {
-	log.Debugf("subnet %s: Start SNMP worker %d", d.config.Network, w)
+	log.Debugf("subnet %s: Start SNMP discovery worker %d", d.config.Network, w)
 	for {
 		select {
 		case <-d.stop:
