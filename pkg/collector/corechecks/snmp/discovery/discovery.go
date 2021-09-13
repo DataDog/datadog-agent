@@ -20,17 +20,21 @@ const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
 
 // Discovery handles snmp discovery states
 type Discovery struct {
-	config            *checkconfig.CheckConfig
-	stop              chan struct{}
-	discDevMu         sync.RWMutex
-	discoveredDevices map[string]Device
+	config    *checkconfig.CheckConfig
+	stop      chan struct{}
+	discDevMu sync.RWMutex
+
+	// TODO: use a new type for device deviceDigest
+	// discoveredDevices contains devices with device deviceDigest as map key
+	// see also CheckConfig.DeviceDigest()
+	discoveredDevices map[checkconfig.DeviceDigest]Device
 }
 
 // Device implements and store results from the Service interface for the SNMP listener
 type Device struct {
-	entityID    string
-	deviceIP    string
-	deviceCheck *devicecheck.DeviceCheck
+	deviceDigest checkconfig.DeviceDigest
+	deviceIP     string
+	deviceCheck  *devicecheck.DeviceCheck
 }
 type snmpSubnet struct {
 	config     *checkconfig.CheckConfig
@@ -38,9 +42,14 @@ type snmpSubnet struct {
 	network    net.IPNet
 
 	cacheKey string
-	devices  map[string]string
 
-	deviceFailures map[string]int
+	// discoveredDevices contains devices ip with device deviceDigest as map key
+	// see also CheckConfig.DeviceDigest()
+	devices map[checkconfig.DeviceDigest]string
+
+	// discoveredDevices contains device failures count with device deviceDigest as map key
+	// see also CheckConfig.DeviceDigest()
+	deviceFailures map[checkconfig.DeviceDigest]int
 }
 
 type snmpJob struct {
@@ -99,7 +108,7 @@ func (d *Discovery) checkDevices() {
 
 	startingIP := ipAddr.Mask(ipNet.Mask)
 
-	configHash := d.config.DiscoveryDigest(d.config.Network)
+	configHash := d.config.DeviceDigest(d.config.Network)
 	cacheKey := fmt.Sprintf("%s:%s", cacheKeyPrefix, configHash)
 
 	subnet := snmpSubnet{
@@ -107,8 +116,8 @@ func (d *Discovery) checkDevices() {
 		startingIP:     startingIP,
 		network:        *ipNet,
 		cacheKey:       cacheKey,
-		devices:        map[string]string{},
-		deviceFailures: map[string]int{},
+		devices:        map[checkconfig.DeviceDigest]string{},
+		deviceFailures: map[checkconfig.DeviceDigest]int{},
 	}
 
 	d.loadCache(&subnet)
@@ -163,10 +172,10 @@ func (d *Discovery) checkDevice(job snmpJob) error {
 	if err != nil {
 		return fmt.Errorf("error configure session for ip %s: %v", deviceIP, err)
 	}
-	entityID := job.subnet.config.DiscoveryDigest(deviceIP)
+	deviceDigest := job.subnet.config.DeviceDigest(deviceIP)
 	if err := sess.Connect(); err != nil {
 		log.Debugf("subnet %s: SNMP connect to %s error: %v", d.config.Network, deviceIP, err)
-		d.deleteDevice(entityID, job.subnet)
+		d.deleteDevice(deviceDigest, job.subnet)
 	} else {
 		defer sess.Close()
 
@@ -176,19 +185,19 @@ func (d *Discovery) checkDevice(job snmpJob) error {
 		value, err := sess.Get(oids)
 		if err != nil {
 			log.Debugf("subnet %s: SNMP get to %s error: %v", d.config.Network, deviceIP, err)
-			d.deleteDevice(entityID, job.subnet)
+			d.deleteDevice(deviceDigest, job.subnet)
 		} else if len(value.Variables) < 1 || value.Variables[0].Value == nil {
 			log.Debugf("subnet %s: SNMP get to %s no data", d.config.Network, deviceIP)
-			d.deleteDevice(entityID, job.subnet)
+			d.deleteDevice(deviceDigest, job.subnet)
 		} else {
 			log.Debugf("subnet %s: SNMP get to %s success: %v", d.config.Network, deviceIP, value.Variables[0].Value)
-			d.createDevice(entityID, job.subnet, deviceIP, true)
+			d.createDevice(deviceDigest, job.subnet, deviceIP, true)
 		}
 	}
 	return nil
 }
 
-func (d *Discovery) createDevice(entityID string, subnet *snmpSubnet, deviceIP string, writeCache bool) {
+func (d *Discovery) createDevice(deviceDigest checkconfig.DeviceDigest, subnet *snmpSubnet, deviceIP string, writeCache bool) {
 	deviceCk, err := devicecheck.NewDeviceCheck(subnet.config, deviceIP)
 	if err != nil {
 		// should not happen since the deviceCheck is expected to be valid at this point
@@ -200,40 +209,40 @@ func (d *Discovery) createDevice(entityID string, subnet *snmpSubnet, deviceIP s
 	d.discDevMu.Lock()
 	defer d.discDevMu.Unlock()
 
-	if _, present := d.discoveredDevices[entityID]; present {
+	if _, present := d.discoveredDevices[deviceDigest]; present {
 		return
 	}
 	device := Device{
-		entityID:    entityID,
-		deviceIP:    deviceIP,
-		deviceCheck: deviceCk,
+		deviceDigest: deviceDigest,
+		deviceIP:     deviceIP,
+		deviceCheck:  deviceCk,
 	}
-	d.discoveredDevices[entityID] = device
-	subnet.devices[entityID] = deviceIP
-	subnet.deviceFailures[entityID] = 0
+	d.discoveredDevices[deviceDigest] = device
+	subnet.devices[deviceDigest] = deviceIP
+	subnet.deviceFailures[deviceDigest] = 0
 
 	if writeCache {
 		d.writeCache(subnet)
 	}
 }
 
-func (d *Discovery) deleteDevice(entityID string, subnet *snmpSubnet) {
+func (d *Discovery) deleteDevice(deviceDigest checkconfig.DeviceDigest, subnet *snmpSubnet) {
 	d.discDevMu.Lock()
 	defer d.discDevMu.Unlock()
-	if _, present := d.discoveredDevices[entityID]; present {
-		failure, present := subnet.deviceFailures[entityID]
+	if _, present := d.discoveredDevices[deviceDigest]; present {
+		failure, present := subnet.deviceFailures[deviceDigest]
 		if !present {
-			subnet.deviceFailures[entityID] = 1
+			subnet.deviceFailures[deviceDigest] = 1
 			failure = 1
 		} else {
-			subnet.deviceFailures[entityID]++
+			subnet.deviceFailures[deviceDigest]++
 			failure++
 		}
 
 		if d.config.DiscoveryAllowedFailures != -1 && failure >= d.config.DiscoveryAllowedFailures {
-			delete(d.discoveredDevices, entityID)
-			delete(subnet.devices, entityID)
-			delete(subnet.deviceFailures, entityID)
+			delete(d.discoveredDevices, deviceDigest)
+			delete(subnet.devices, deviceDigest)
+			delete(subnet.deviceFailures, deviceDigest)
 			d.writeCache(subnet)
 		}
 	}
@@ -261,8 +270,8 @@ func (d *Discovery) loadCache(subnet *snmpSubnet) {
 		return
 	}
 	for _, deviceIP := range devices {
-		entityID := subnet.config.DiscoveryDigest(deviceIP.String())
-		d.createDevice(entityID, subnet, deviceIP.String(), false)
+		deviceDigest := subnet.config.DeviceDigest(deviceIP.String())
+		d.createDevice(deviceDigest, subnet, deviceIP.String(), false)
 	}
 }
 
@@ -287,7 +296,7 @@ func (d *Discovery) writeCache(subnet *snmpSubnet) {
 // NewDiscovery return a new Discovery instance
 func NewDiscovery(config *checkconfig.CheckConfig) Discovery {
 	return Discovery{
-		discoveredDevices: make(map[string]Device),
+		discoveredDevices: make(map[checkconfig.DeviceDigest]Device),
 		stop:              make(chan struct{}),
 		config:            config,
 	}

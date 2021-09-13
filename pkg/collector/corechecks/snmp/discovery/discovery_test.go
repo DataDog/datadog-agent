@@ -182,8 +182,8 @@ func TestDiscovery_checkDevice(t *testing.T) {
 		startingIP:     startingIP,
 		network:        *ipNet,
 		cacheKey:       "abc:123",
-		devices:        map[string]string{},
-		deviceFailures: map[string]int{},
+		devices:        map[checkconfig.DeviceDigest]string{},
+		deviceFailures: map[checkconfig.DeviceDigest]int{},
 	}
 
 	job := snmpJob{
@@ -295,25 +295,25 @@ func TestDiscovery_createDevice(t *testing.T) {
 		startingIP:     startingIP,
 		network:        *ipNet,
 		cacheKey:       "abc:123",
-		devices:        map[string]string{},
-		deviceFailures: map[string]int{},
+		devices:        map[checkconfig.DeviceDigest]string{},
+		deviceFailures: map[checkconfig.DeviceDigest]int{},
 	}
 
-	device1Digest := subnet.config.DiscoveryDigest("192.168.0.1")
-	device2Digest := subnet.config.DiscoveryDigest("192.168.0.2")
-	device3Digest := subnet.config.DiscoveryDigest("192.168.0.3")
+	device1Digest := subnet.config.DeviceDigest("192.168.0.1")
+	device2Digest := subnet.config.DeviceDigest("192.168.0.2")
+	device3Digest := subnet.config.DeviceDigest("192.168.0.3")
 	discovery.createDevice(device1Digest, subnet, "192.168.0.1", true)
 	discovery.createDevice(device2Digest, subnet, "192.168.0.2", true)
 	discovery.createDevice(device3Digest, subnet, "192.168.0.3", false)
 
 	assert.Equal(t, 3, len(discovery.discoveredDevices))
 
-	assert.Equal(t, device1Digest, discovery.discoveredDevices[device1Digest].entityID)
+	assert.Equal(t, device1Digest, discovery.discoveredDevices[device1Digest].deviceDigest)
 	assert.Equal(t, "192.168.0.1", discovery.discoveredDevices[device1Digest].deviceIP)
 	assert.Equal(t, "192.168.0.1", discovery.discoveredDevices[device1Digest].deviceCheck.GetIPAddress())
 	assert.Equal(t, []string{"snmp_device:192.168.0.1"}, discovery.discoveredDevices[device1Digest].deviceCheck.GetIDTags())
 
-	assert.Equal(t, device2Digest, discovery.discoveredDevices[device2Digest].entityID)
+	assert.Equal(t, device2Digest, discovery.discoveredDevices[device2Digest].deviceDigest)
 	assert.Equal(t, "192.168.0.2", discovery.discoveredDevices[device2Digest].deviceIP)
 
 	// test that only createDevice with writeCache:true are written to cache

@@ -1096,12 +1096,12 @@ min_collection_interval: -10
 }
 
 func TestCheckConfig_DiscoveryDigest(t *testing.T) {
-	baseCaseHash := "a1d0f0237ee2fe8f"
+	baseCaseHash := DeviceDigest("a1d0f0237ee2fe8f")
 	tests := []struct {
 		name         string
 		config       CheckConfig
 		ipAddress    string
-		expectedHash string
+		expectedHash DeviceDigest
 	}{
 		{
 			name:      "base case",
@@ -1300,7 +1300,7 @@ func TestCheckConfig_DiscoveryDigest(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expectedHash, tt.config.DiscoveryDigest(tt.ipAddress))
+			assert.Equal(t, tt.expectedHash, tt.config.DeviceDigest(tt.ipAddress))
 		})
 	}
 }

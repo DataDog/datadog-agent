@@ -42,6 +42,9 @@ var subnetTagPrefix = "autodiscovery_subnet"
 // - snmp-net uses 10
 const DefaultBulkMaxRepetitions = uint32(10)
 
+// DeviceDigest is the digest of a minimal config used for autodiscovery
+type DeviceDigest string
+
 // InitConfig maps to a check init config
 type InitConfig struct {
 	Profiles              profileConfigMap `yaml:"profiles"`
@@ -426,8 +429,9 @@ func (c *CheckConfig) getResolvedSubnetName() string {
 	return resolvedSubnet
 }
 
-// DiscoveryDigest returns a hash value representing the minimal configs used to connect to the device
-func (c *CheckConfig) DiscoveryDigest(address string) string {
+// DeviceDigest returns a hash value representing the minimal configs used to connect to the device.
+// DeviceDigest is used for device discovery.
+func (c *CheckConfig) DeviceDigest(address string) DeviceDigest {
 	h := fnv.New64()
 	// Hash write never returns an error
 	h.Write([]byte(address))                   //nolint:errcheck
@@ -451,7 +455,7 @@ func (c *CheckConfig) DiscoveryDigest(address string) string {
 		h.Write([]byte(ip)) //nolint:errcheck
 	}
 
-	return strconv.FormatUint(h.Sum64(), 16)
+	return DeviceDigest(strconv.FormatUint(h.Sum64(), 16))
 }
 
 // IsIPIgnored checks the given IP against ignoredIPAddresses
