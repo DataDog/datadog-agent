@@ -35,10 +35,10 @@ type checkMetadataCacheEntry struct {
 }
 
 var (
-	checkMetadataCache = make(map[string]*checkMetadataCacheEntry) // by check ID
-	checkCacheMutex    = &sync.Mutex{}
-	agentMetadataCache = make(AgentMetadata)
-	agentCacheMutex    = &sync.Mutex{}
+	checkMetadata      = make(map[string]*checkMetadataCacheEntry) // by check ID
+	checkMetadataMutex = &sync.Mutex{}
+	agentMetadata      = make(AgentMetadata)
+	agentMetadataMutex = &sync.Mutex{}
 
 	agentStartupTime = timeNow()
 
@@ -66,11 +66,11 @@ const (
 
 // SetAgentMetadata updates the agent metadata value in the cache
 func SetAgentMetadata(name AgentMetadataName, value interface{}) {
-	agentCacheMutex.Lock()
-	defer agentCacheMutex.Unlock()
+	agentMetadataMutex.Lock()
+	defer agentMetadataMutex.Unlock()
 
-	if agentMetadataCache[string(name)] != value {
-		agentMetadataCache[string(name)] = value
+	if agentMetadata[string(name)] != value {
+		agentMetadata[string(name)] = value
 
 		select {
 		case metadataUpdatedC <- nil:
@@ -81,15 +81,15 @@ func SetAgentMetadata(name AgentMetadataName, value interface{}) {
 
 // SetCheckMetadata updates a metadata value for one check instance in the cache.
 func SetCheckMetadata(checkID, key string, value interface{}) {
-	checkCacheMutex.Lock()
-	defer checkCacheMutex.Unlock()
+	checkMetadataMutex.Lock()
+	defer checkMetadataMutex.Unlock()
 
-	entry, found := checkMetadataCache[checkID]
+	entry, found := checkMetadata[checkID]
 	if !found {
 		entry = &checkMetadataCacheEntry{
 			CheckInstanceMetadata: make(CheckInstanceMetadata),
 		}
-		checkMetadataCache[checkID] = entry
+		checkMetadata[checkID] = entry
 	}
 
 	if entry.CheckInstanceMetadata[key] != value {
@@ -109,7 +109,7 @@ func createCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceM
 	var checkInstanceMetadata CheckInstanceMetadata
 	var lastUpdated time.Time
 
-	if entry, found := checkMetadataCache[checkID]; found {
+	if entry, found := checkMetadata[checkID]; found {
 		checkInstanceMetadata = make(CheckInstanceMetadata, len(entry.CheckInstanceMetadata)+transientFields)
 		for k, v := range entry.CheckInstanceMetadata {
 			checkInstanceMetadata[k] = v
@@ -129,48 +129,50 @@ func createCheckInstanceMetadata(checkID, configProvider string) *CheckInstanceM
 
 // CreatePayload fills and returns the inventory metadata payload
 func CreatePayload(ctx context.Context, hostname string, ac AutoConfigInterface, coll CollectorInterface) *Payload {
-	checkCacheMutex.Lock()
-	defer checkCacheMutex.Unlock()
+	checkMetadataMutex.Lock()
+	defer checkMetadataMutex.Unlock()
 
-	checkMetadata := make(CheckMetadata)
+	// Collect check metadata for the payload
+	payloadCheckMeta := make(CheckMetadata)
 
 	foundInCollector := map[string]struct{}{}
 	if ac != nil {
 		configs := ac.GetLoadedConfigs()
 		for _, config := range configs {
-			checkMetadata[config.Name] = make([]*CheckInstanceMetadata, 0)
+			payloadCheckMeta[config.Name] = make([]*CheckInstanceMetadata, 0)
 			instanceIDs := coll.GetAllInstanceIDs(config.Name)
 			for _, id := range instanceIDs {
 				checkInstanceMetadata := createCheckInstanceMetadata(string(id), config.Provider)
-				checkMetadata[config.Name] = append(checkMetadata[config.Name], checkInstanceMetadata)
+				payloadCheckMeta[config.Name] = append(payloadCheckMeta[config.Name], checkInstanceMetadata)
 				foundInCollector[string(id)] = struct{}{}
 			}
 		}
 	}
-	// if metadata where added for check not in the collector we still need
-	// to add them to the checkMetadata (this happens when using the
+	// if metadata were added for a check not in the collector we still need
+	// to add them to the payloadCheckMeta (this happens when using the
 	// 'check' command)
-	for id := range checkMetadataCache {
+	for id := range checkMetadata {
 		if _, found := foundInCollector[id]; !found {
 			// id should be "check_name:check_hash"
 			parts := strings.SplitN(id, ":", 2)
-			checkMetadata[parts[0]] = append(checkMetadata[parts[0]], createCheckInstanceMetadata(id, ""))
+			payloadCheckMeta[parts[0]] = append(payloadCheckMeta[parts[0]], createCheckInstanceMetadata(id, ""))
 		}
 	}
 
-	agentCacheMutex.Lock()
-	defer agentCacheMutex.Unlock()
-	// Creating a copy of agentMetadataCache
-	agentMetadata := make(AgentMetadata)
-	for k, v := range agentMetadataCache {
-		agentMetadata[k] = v
+	agentMetadataMutex.Lock()
+	defer agentMetadataMutex.Unlock()
+
+	// Create a static copy of agentMetadata for the payload
+	payloadAgentMeta := make(AgentMetadata)
+	for k, v := range agentMetadata {
+		payloadAgentMeta[k] = v
 	}
 
 	return &Payload{
 		Hostname:      hostname,
 		Timestamp:     timeNow().UnixNano(),
-		CheckMetadata: &checkMetadata,
-		AgentMetadata: &agentMetadata,
+		CheckMetadata: &payloadCheckMeta,
+		AgentMetadata: &payloadAgentMeta,
 	}
 }
 
