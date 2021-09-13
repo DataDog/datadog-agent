@@ -189,7 +189,7 @@ func (r *regoCheck) appendInstance(resourceInstances map[int]instanceFields, inp
 		instance: instance,
 		fields:   reportedFields,
 	}
-	*idCounter += 1
+	*idCounter++
 
 	input[key] = append(vars, normalized)
 }
