@@ -58,6 +58,9 @@ const (
 	// CloudProviderMetatadaName is the field name to use to set the cloud
 	// provider name in the agent metadata.
 	CloudProviderMetatadaName = "cloud_provider"
+	// HostnameSourceMetadataName is the field name to use to set the hostname
+	// source in the agent metadata.
+	HostnameSourceMetadataName = "hostname_source"
 )
 
 // SetAgentMetadata updates the agent metadata value in the cache
