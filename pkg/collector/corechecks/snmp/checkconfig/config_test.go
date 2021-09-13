@@ -601,6 +601,18 @@ network_address: 10.0.0.0/24
 				"`ip_address` or `network` config must be provided",
 			},
 		},
+		{
+			name: "invalid subnet cidr",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+network_address: 10.0.0.0/xx
+`),
+			// language=yaml
+			rawInitConfig: []byte(``),
+			expectedErrors: []string{
+				"couldn't parse SNMP network: invalid CIDR address: 10.0.0.0/xx",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

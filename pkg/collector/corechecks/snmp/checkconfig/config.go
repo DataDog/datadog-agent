@@ -244,6 +244,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	if c.IPAddress != "" && c.Network != "" {
 		return nil, fmt.Errorf("`ip_address` and `network` cannot be used at the same time")
 	}
+	if c.Network != "" {
+		_, _, err = net.ParseCIDR(c.Network)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't parse SNMP network: %s", err)
+		}
+	}
 
 	if instance.CollectDeviceMetadata != nil {
 		c.CollectDeviceMetadata = bool(*instance.CollectDeviceMetadata)
