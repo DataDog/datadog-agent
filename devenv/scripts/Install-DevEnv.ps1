@@ -27,19 +27,6 @@ cinst -y git
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Getting 7zip'
 cinst -y 7zip
 
-Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Visual Studio build tools'
-cinst -y visualstudio2017buildtools --params "--add Microsoft.VisualStudio.ComponentGroup.NativeDesktop.Win81"
-
-Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Visual C++ Workload'
-cinst -y visualstudio2017-workload-vctools
-
-Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Wix'
-cinst -y wixtoolset --version 3.11.2
-[Environment]::SetEnvironmentVariable(
-    "Path",
-    [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::Machine) + ";${env:ProgramFiles}\WiX Toolset v3.11\bin",
-    [System.EnvironmentVariableTarget]::Machine)
-
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing CMake'
 cinst -y cmake
 [Environment]::SetEnvironmentVariable(
@@ -83,12 +70,6 @@ Write-Host -ForegroundColor Green "Installed go $ENV:GO_VERSION"
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Python 3'
 cinst -y python3
 
-Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Ruby'
-cinst -y ruby --version 2.4.3.1
-
-Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing MSYS'
-cinst -y msys2 --params "/NoUpdate" # install msys2 without system update
-
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing MINGW'
 cinst -y mingw
 
@@ -98,11 +79,6 @@ cinst -y make
 # Reload environment to get ruby in path
 Update-SessionEnvironment
 
-Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Toolchain'
-ridk install 2 3 # use ruby's ridk to update the system and install development toolchain
-
-Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Bundler'
-gem install bundler
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Creating GOPATH'
 cd ~
