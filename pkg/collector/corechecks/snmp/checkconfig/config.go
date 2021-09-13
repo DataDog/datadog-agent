@@ -81,9 +81,9 @@ type InstanceConfig struct {
 	// The bulk_max_repetitions config indicates how many rows of the table are to be retrieved in a single GetBulk call
 	BulkMaxRepetitions Number `yaml:"bulk_max_repetitions"`
 
-	// To accept min collection interval from snmp_listener, we need to accept it as string
-	// extra_min_collection_interval can accept both string and integer value
-	MinCollectionInterval      int    `yaml:"min_collection_interval"`
+	MinCollectionInterval int `yaml:"min_collection_interval"`
+	// To accept min collection interval from snmp_listener, we need to accept it as string.
+	// Using extra_min_collection_interval, we can accept both string and integer value.
 	ExtraMinCollectionInterval Number `yaml:"extra_min_collection_interval"`
 
 	// `network` config is only available in Python SNMP integration
