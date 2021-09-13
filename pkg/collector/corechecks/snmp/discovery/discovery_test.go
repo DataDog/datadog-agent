@@ -186,7 +186,7 @@ func TestDiscovery_checkDevice(t *testing.T) {
 		deviceFailures: map[checkconfig.DeviceDigest]int{},
 	}
 
-	job := snmpJob{
+	job := checkDeviceJob{
 		subnet:    &subnet,
 		currentIP: startingIP,
 	}

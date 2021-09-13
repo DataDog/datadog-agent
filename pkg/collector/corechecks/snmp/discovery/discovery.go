@@ -52,7 +52,7 @@ type snmpSubnet struct {
 	deviceFailures map[checkconfig.DeviceDigest]int
 }
 
-type snmpJob struct {
+type checkDeviceJob struct {
 	subnet    *snmpSubnet
 	currentIP net.IP
 }
@@ -60,7 +60,7 @@ type snmpJob struct {
 // Start discovery
 func (d *Discovery) Start() {
 	log.Debugf("subnet %s: Start discovery", d.config.Network)
-	go d.checkDevices()
+	go d.discoverDevices()
 }
 
 // Stop signal discovery to shut down
@@ -82,8 +82,8 @@ func (d *Discovery) GetDiscoveredDeviceConfigs() []*devicecheck.DeviceCheck {
 }
 
 // Start discovery
-func (d *Discovery) runWorker(w int, jobs <-chan snmpJob) {
-	log.Debugf("subnet %s: Start SNMP discovery worker %d", d.config.Network, w)
+func (d *Discovery) runWorker(w int, jobs <-chan checkDeviceJob) {
+	log.Debugf("subnet %s: Start SNMP worker %d", d.config.Network, w)
 	for {
 		select {
 		case <-d.stop:
@@ -99,7 +99,7 @@ func (d *Discovery) runWorker(w int, jobs <-chan snmpJob) {
 	}
 }
 
-func (d *Discovery) checkDevices() {
+func (d *Discovery) discoverDevices() {
 	ipAddr, ipNet, err := net.ParseCIDR(d.config.Network)
 	if err != nil {
 		log.Errorf("subnet %s: Couldn't parse SNMP network: %s", d.config.Network, err)
@@ -122,7 +122,7 @@ func (d *Discovery) checkDevices() {
 
 	d.loadCache(&subnet)
 
-	jobs := make(chan snmpJob)
+	jobs := make(chan checkDeviceJob)
 	for w := 0; w < d.config.DiscoveryWorkers; w++ {
 		go d.runWorker(w, jobs)
 	}
@@ -141,7 +141,7 @@ func (d *Discovery) checkDevices() {
 
 			jobIP := make(net.IP, len(currentIP))
 			copy(jobIP, currentIP)
-			job := snmpJob{
+			job := checkDeviceJob{
 				subnet:    &subnet,
 				currentIP: jobIP,
 			}
@@ -164,7 +164,7 @@ func (d *Discovery) checkDevices() {
 	}
 }
 
-func (d *Discovery) checkDevice(job snmpJob) error {
+func (d *Discovery) checkDevice(job checkDeviceJob) error {
 	deviceIP := job.currentIP.String()
 	config := *job.subnet.config // shallow copy
 	config.IPAddress = deviceIP
