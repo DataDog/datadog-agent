@@ -415,7 +415,7 @@ func (ac *AutoConfig) AddScheduler(name string, s scheduler.Scheduler, replayCon
 		return
 	}
 
-	configs := ac.CurrentLoadedConfigs()
+	configs := ac.LoadedConfigs()
 	s.Schedule(configs)
 }
 
@@ -571,9 +571,9 @@ func (ac *AutoConfig) MapOverLoadedConfigs(f func(map[string]integration.Config)
 	ac.store.mapOverLoadedConfigs(f)
 }
 
-// CurrentLoadedConfigs returns a slice of all loaded configs.  This slice
+// LoadedConfigs returns a slice of all loaded configs.  This slice
 // is freshly created and will not be modified after return.
-func (ac *AutoConfig) CurrentLoadedConfigs() []integration.Config {
+func (ac *AutoConfig) LoadedConfigs() []integration.Config {
 	var configs []integration.Config
 	ac.store.mapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
 		configs = make([]integration.Config, 0, len(loadedConfigs))
