@@ -17,6 +17,7 @@ import (
 
 	"github.com/cilium/ebpf"
 
+	"github.com/DataDog/datadog-agent/pkg/security/api"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 )
@@ -36,19 +37,24 @@ type ActivityDump struct {
 	GraphFile  string `json:"-"`
 	graphFile  *os.File
 	tracedPIDs *ebpf.Map
+	resolvers  *Resolvers
+
+	differentiateArgs bool
 }
 
 // NewActivityDump returns a new instance of an ActivityDump
-func NewActivityDump(tags []string, comm string, timeout time.Duration, withGraph bool, tracedPIDs *ebpf.Map) (*ActivityDump, error) {
+func NewActivityDump(params *api.DumpActivityParams, tracedPIDs *ebpf.Map, resolvers *Resolvers) (*ActivityDump, error) {
 	var err error
 
 	ad := ActivityDump{
-		Tags:        tags,
-		Comm:        comm,
-		CookiesNode: make(map[uint32]*ProcessActivityNode),
-		Start:       time.Now(),
-		Timeout:     timeout,
-		tracedPIDs:  tracedPIDs,
+		Tags:              params.Tags,
+		Comm:              params.Comm,
+		CookiesNode:       make(map[uint32]*ProcessActivityNode),
+		Start:             time.Now(),
+		Timeout:           time.Duration(params.Timeout) * time.Minute,
+		tracedPIDs:        tracedPIDs,
+		resolvers:         resolvers,
+		differentiateArgs: params.DifferentiateArgs,
 	}
 
 	// generate random output file
@@ -63,7 +69,7 @@ func NewActivityDump(tags []string, comm string, timeout time.Duration, withGrap
 	ad.OutputFile = ad.outputFile.Name()
 
 	// generate random graph file
-	if withGraph {
+	if params.WithGraph {
 		ad.graphFile, err = ioutil.TempFile("/tmp", "graph-dump-")
 		if err != nil {
 			return nil, err
@@ -79,16 +85,20 @@ func NewActivityDump(tags []string, comm string, timeout time.Duration, withGrap
 
 // TagsListMatches returns true if the ActivityDump tags list matches the provided list of tags
 func (ad *ActivityDump) TagsListMatches(tags []string) bool {
-	var matchCount int
+	var found bool
 	for _, adTag := range ad.Tags {
+		found = false
 		for _, tag := range tags {
 			if adTag == tag {
-				matchCount++
+				found = true
 				break
 			}
 		}
+		if !found {
+			return false
+		}
 	}
-	return matchCount == len(ad.Tags)
+	return true
 }
 
 // CommMatches returns true if the ActivityDump comm matches the provided comm
@@ -102,6 +112,27 @@ func (ad *ActivityDump) Matches(tags []string, comm string) bool {
 		return ad.CommMatches(comm) && ad.TagsListMatches(tags)
 	}
 	return ad.TagsListMatches(tags)
+}
+
+// EventMatches returns true if the provided event tags and / or comm match the current ActivityDump
+func (ad *ActivityDump) EventMatches(event *Event) bool {
+	var comm string
+
+	// only resolve tags if necessary
+	if len(ad.Tags) > 0 {
+		_ = event.ResolveContainerTags(&event.ContainerContext)
+	}
+
+	// only resolve comm if necessary
+	if len(ad.Comm) > 0 {
+		if pce := event.ResolveProcessCacheEntry(); pce != nil {
+			comm = pce.Comm
+		} else {
+			comm = ""
+		}
+	}
+
+	return ad.Matches(event.GetTags(), comm)
 }
 
 // Done stops an active dump
@@ -198,7 +229,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 	if parentNode == nil {
 		// go through the root nodes and check if one of them matches the input ProcessCacheEntry:
 		for _, root := range ad.ProcessActivityTree {
-			if root.Matches(entry, resolvers) {
+			if root.Matches(entry, ad.differentiateArgs, resolvers) {
 				return root
 			}
 		}
@@ -212,7 +243,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 		// if parentNode wasn't nil, go through the root children of the parent node and check if one of them matches the
 		// input ProcessCacheEntry
 		for _, child := range parentNode.Children {
-			if child.Matches(entry, resolvers) {
+			if child.Matches(entry, ad.differentiateArgs, resolvers) {
 				return child
 			}
 		}
@@ -292,11 +323,39 @@ func (pan *ProcessActivityNode) recursiveRelease() {
 	}
 }
 
-// Matches return true if the process private key fields are identical with the provided ProcessCacheEntry
-func (pan *ProcessActivityNode) Matches(entry *model.ProcessCacheEntry, resolvers *Resolvers) bool {
-	// TODO: check args ?
-	return pan.Process.Comm == entry.Comm && pan.Process.PathnameStr == entry.PathnameStr &&
-		pan.Process.Credentials == entry.Credentials
+// Matches return true if the process fields used to generate the dump are identical with the provided ProcessCacheEntry
+func (pan *ProcessActivityNode) Matches(entry *model.ProcessCacheEntry, matchArgs bool, resolvers *Resolvers) bool {
+
+	if pan.Process.Comm == entry.Comm && pan.Process.PathnameStr == entry.PathnameStr &&
+		pan.Process.Credentials == entry.Credentials {
+
+		if matchArgs {
+
+			panArgs, _ := resolvers.ProcessResolver.GetProcessArgv(&pan.Process)
+			entryArgs, _ := resolvers.ProcessResolver.GetProcessArgv(&entry.Process)
+			if len(panArgs) != len(entryArgs) {
+				return false
+			}
+
+			var found bool
+			for _, arg1 := range panArgs {
+				found = false
+				for _, arg2 := range entryArgs {
+					if arg1 == arg2 {
+						found = true
+						break
+					}
+				}
+				if !found {
+					return false
+				}
+			}
+			return true
+		}
+
+		return true
+	}
+	return false
 }
 
 func extractFirstParent(path string) (string, int) {

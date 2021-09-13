@@ -14,13 +14,12 @@ import (
 	"sync"
 	"time"
 
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
-
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/cilium/ebpf"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
+	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 )
 
@@ -109,7 +108,7 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.DumpActivityParams) (st
 	adm.Lock()
 	defer adm.Unlock()
 
-	newDump, err := NewActivityDump(params.Tags, params.Comm, time.Duration(params.Timeout)*time.Minute, params.WithGraph, adm.tracedPids)
+	newDump, err := NewActivityDump(params, adm.tracedPids, adm.probe.resolvers)
 	if err != nil {
 		return "", "", err
 	}
@@ -181,16 +180,8 @@ func (adm *ActivityDumpManager) ProcessEvent(event *Event) {
 	adm.Lock()
 	defer adm.Unlock()
 
-	var comm string
-	var pce *model.ProcessCacheEntry
 	for _, d := range adm.activeDumps {
-		_ = event.ResolveContainerTags(&event.ContainerContext)
-		if pce = event.ResolveProcessCacheEntry(); pce != nil {
-			comm = pce.Comm
-		} else {
-			comm = ""
-		}
-		if d.Matches(event.GetTags(), comm) {
+		if d.EventMatches(event) {
 			d.Insert(event)
 		}
 	}

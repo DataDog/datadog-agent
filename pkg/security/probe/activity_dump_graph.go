@@ -9,6 +9,7 @@ package probe
 
 import (
 	"fmt"
+	"strings"
 	"text/template"
 
 	"golang.org/x/crypto/blake2b"
@@ -83,9 +84,11 @@ func (ad *ActivityDump) prepareGraphData(title string) graph {
 
 func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data *graph) {
 	processID := fmt.Sprintf("%s_%s_%d", p.Process.PathnameStr, p.Process.ExecTime, p.Process.Tid)
+	var args []string
+	args, _ = ad.resolvers.ProcessResolver.GetProcessArgv(&p.Process)
 	data.Nodes[processID] = node{
 		ID:    generateNodeID(processID),
-		Label: p.Process.PathnameStr,
+		Label: fmt.Sprintf("%s %s", p.Process.PathnameStr, strings.Join(args, " ")),
 		Size:  60,
 		Color: processColor,
 	}

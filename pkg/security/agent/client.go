@@ -33,14 +33,15 @@ func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool) (string, error) 
 }
 
 // DumpActivity send a dump activity request
-func (c *RuntimeSecurityClient) DumpActivity(tags []string, comm string, timeout int32, withGraph bool) (string, string, error) {
+func (c *RuntimeSecurityClient) DumpActivity(tags []string, comm string, timeout int32, withGraph bool, differentiateArgs bool) (string, string, error) {
 	apiClient := api.NewSecurityModuleClient(c.conn)
 
 	response, err := apiClient.DumpActivity(context.Background(), &api.DumpActivityParams{
-		Tags:      tags,
-		Comm:      comm,
-		Timeout:   timeout,
-		WithGraph: withGraph,
+		Tags:              tags,
+		Comm:              comm,
+		Timeout:           timeout,
+		WithGraph:         withGraph,
+		DifferentiateArgs: differentiateArgs,
 	})
 	if err != nil {
 		return "", "", err
