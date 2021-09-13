@@ -79,6 +79,8 @@ core,github.com/Microsoft/hcsshim,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/computestorage,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/internal/cow,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/internal/hcs,MIT,Microsoft | Microsoft Corp
+core,github.com/Microsoft/hcsshim/internal/hcs/schema1,MIT,Microsoft | Microsoft Corp
+core,github.com/Microsoft/hcsshim/internal/hcs/schema2,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/internal/hcserror,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/internal/hns,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/internal/interop,MIT,Microsoft | Microsoft Corp
@@ -88,13 +90,12 @@ core,github.com/Microsoft/hcsshim/internal/longpath,MIT,Microsoft | Microsoft Co
 core,github.com/Microsoft/hcsshim/internal/mergemaps,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/internal/oc,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/internal/safefile,MIT,Microsoft | Microsoft Corp
-core,github.com/Microsoft/hcsshim/internal/schema1,MIT,Microsoft | Microsoft Corp
-core,github.com/Microsoft/hcsshim/internal/schema2,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/internal/timeout,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/internal/vmcompute,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/internal/wclayer,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/internal/winapi,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/osversion,MIT,Microsoft | Microsoft Corp
+core,github.com/Microsoft/hcsshim/pkg/ociwclayer,MIT,Microsoft | Microsoft Corp
 core,github.com/NYTimes/gziphandler,Apache-2.0,The New York Times Company
 core,github.com/PuerkitoBio/purell,BSD-3-Clause,Martin Angers
 core,github.com/PuerkitoBio/urlesc,BSD-3-Clause,The Go Authors
@@ -170,6 +171,7 @@ core,github.com/beevik/ntp,BSD-2-Clause,Anton Tolchanov (knyar) | Ask Bjørn Han
 core,github.com/benesch/cgosymbolizer,BSD-3-Clause,Cockroach Labs
 core,github.com/beorn7/perks/quantile,MIT,Blake Mizerany
 core,github.com/bhmj/jsonslice,MIT,bhmj
+core,github.com/bits-and-blooms/bitset,BSD-3-Clause,Will Fitzgerald
 core,github.com/blabber/go-freebsd-sysctl/sysctl,0BSD,Tobias Rehbein <tobias.rehbein@web.de>
 core,github.com/blang/semver,MIT,Benedikt Lang <github at benediktlang.de>
 core,github.com/bmizerany/pat,UNKNOWN,"Keith Rarick, Blake Mizerany"
@@ -220,6 +222,7 @@ core,github.com/containerd/containerd/namespaces,Apache-2.0,The containerd Autho
 core,github.com/containerd/containerd/oci,Apache-2.0,The containerd Authors
 core,github.com/containerd/containerd/pkg/cap,Apache-2.0,The containerd Authors
 core,github.com/containerd/containerd/pkg/dialer,Apache-2.0,The containerd Authors
+core,github.com/containerd/containerd/pkg/userns,Apache-2.0,The containerd Authors
 core,github.com/containerd/containerd/platforms,Apache-2.0,The containerd Authors
 core,github.com/containerd/containerd/plugin,Apache-2.0,The containerd Authors
 core,github.com/containerd/containerd/reference,Apache-2.0,The containerd Authors
@@ -475,6 +478,7 @@ core,github.com/mitchellh/go-homedir,MIT,Mitchell Hashimoto
 core,github.com/mitchellh/mapstructure,MIT,Mitchell Hashimoto
 core,github.com/mitchellh/reflectwalk,MIT,Mitchell Hashimoto
 core,github.com/mkrautz/goar,BSD-3-Clause,Mikkel Krautz
+core,github.com/moby/locker,Apache-2.0,"Docker, Inc"
 core,github.com/moby/sys/mountinfo,Apache-2.0,UNKNOWN
 core,github.com/modern-go/concurrent,Apache-2.0,UNKNOWN
 core,github.com/modern-go/reflect2,Apache-2.0,UNKNOWN
@@ -487,11 +491,10 @@ core,github.com/opencontainers/image-spec/identity,Apache-2.0,The Linux Foundati
 core,github.com/opencontainers/image-spec/specs-go,Apache-2.0,The Linux Foundation
 core,github.com/opencontainers/image-spec/specs-go/v1,Apache-2.0,The Linux Foundation
 core,github.com/opencontainers/runc/libcontainer/cgroups,Apache-2.0,"Docker, Inc"
-core,github.com/opencontainers/runc/libcontainer/cgroups/fscommon,Apache-2.0,"Docker, Inc"
 core,github.com/opencontainers/runc/libcontainer/configs,Apache-2.0,"Docker, Inc"
 core,github.com/opencontainers/runc/libcontainer/devices,Apache-2.0,"Docker, Inc"
-core,github.com/opencontainers/runc/libcontainer/system,Apache-2.0,"Docker, Inc"
 core,github.com/opencontainers/runc/libcontainer/user,Apache-2.0,"Docker, Inc"
+core,github.com/opencontainers/runc/libcontainer/userns,Apache-2.0,"Docker, Inc"
 core,github.com/opencontainers/runtime-spec/specs-go,Apache-2.0,The Linux Foundation
 core,github.com/opencontainers/selinux/go-selinux,Apache-2.0,UNKNOWN
 core,github.com/opencontainers/selinux/go-selinux/label,Apache-2.0,UNKNOWN
@@ -583,7 +586,6 @@ core,github.com/vishvananda/netlink/nl,Apache-2.0,"Docker, Inc | Vishvananda Ish
 core,github.com/vishvananda/netns,Apache-2.0,"Docker, Inc | Vishvananda Ishaya"
 core,github.com/vito/go-sse/sse,Apache-2.0,UNKNOWN
 core,github.com/wille/osutil,UNKNOWN,UNKNOWN
-core,github.com/willf/bitset,BSD-3-Clause,Will Fitzgerald
 core,github.com/xeipuuv/gojsonpointer,Apache-2.0,UNKNOWN
 core,github.com/xeipuuv/gojsonreference,Apache-2.0,UNKNOWN
 core,github.com/xeipuuv/gojsonschema,Apache-2.0,UNKNOWN
