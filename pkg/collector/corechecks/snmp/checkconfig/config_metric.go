@@ -42,7 +42,7 @@ type MetricTagConfig struct {
 	pattern   *regexp.Regexp
 }
 
-// MetricTagConfigList holds configs for a list os metric tags
+// MetricTagConfigList holds configs for a list of metric tags
 type MetricTagConfigList []MetricTagConfig
 
 // MetricIndexTransform holds configs for metric index transform
@@ -141,12 +141,12 @@ func (m *MetricsConfig) GetSymbolTags() []string {
 	return symbolTags
 }
 
-// IsColumn returns true is the metrics config define columns metrics
+// IsColumn returns true if the metrics config define columns metrics
 func (m *MetricsConfig) IsColumn() bool {
 	return len(m.Symbols) > 0
 }
 
-// IsScalar returns true is the metrics config define scalar metrics
+// IsScalar returns true if the metrics config define scalar metrics
 func (m *MetricsConfig) IsScalar() bool {
 	return m.Symbol.OID != "" && m.Symbol.Name != ""
 }

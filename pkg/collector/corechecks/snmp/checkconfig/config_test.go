@@ -1418,7 +1418,7 @@ func TestCheckConfig_CopyWithNewIP(t *testing.T) {
 		CommunityString: "public",
 		InstanceTags:    []string{"tag1:val1"},
 	}
-	config.DeviceID, config.DeviceIDTags = buildDeviceID(config.getDeviceIDTags())
+	config.UpdateDeviceIDAndTags()
 
 	configCopy := config.CopyWithNewIP("127.0.0.10")
 

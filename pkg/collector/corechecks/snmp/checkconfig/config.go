@@ -23,18 +23,18 @@ import (
 // Using high oid batch size might lead to snmp calls timing out.
 // For some devices, the default oid_batch_size of 5 might be high (leads to timeouts),
 // and require manual setting oid_batch_size to a lower value.
-var defaultOidBatchSize = 5
+const defaultOidBatchSize = 5
 
-var defaultPort = uint16(161)
-var defaultRetries = 3
-var defaultTimeout = 2
-var defaultWorkers = 5
-var defaultDiscoveryWorkers = 5
-var defaultDiscoveryAllowedFailures = 3
-var defaultDiscoveryInterval = 3600
+const defaultPort = uint16(161)
+const defaultRetries = 3
+const defaultTimeout = 2
+const defaultWorkers = 5
+const defaultDiscoveryWorkers = 5
+const defaultDiscoveryAllowedFailures = 3
+const defaultDiscoveryInterval = 3600
 
 // subnetTagPrefix is the prefix used for subnet tag
-var subnetTagPrefix = "autodiscovery_subnet"
+const subnetTagPrefix = "autodiscovery_subnet"
 
 // DefaultBulkMaxRepetitions is the default max rep
 // Using too high max repetitions might lead to tooBig SNMP error messages.
@@ -42,10 +42,12 @@ var subnetTagPrefix = "autodiscovery_subnet"
 // - snmp-net uses 10
 const DefaultBulkMaxRepetitions = uint32(10)
 
+var uptimeMetricConfig = MetricsConfig{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}}
+
 // DeviceDigest is the digest of a minimal config used for autodiscovery
 type DeviceDigest string
 
-// InitConfig maps to a check init config
+// InitConfig is used to deserialize integration init config
 type InitConfig struct {
 	Profiles              profileConfigMap `yaml:"profiles"`
 	GlobalMetrics         []MetricsConfig  `yaml:"global_metrics"`
@@ -55,7 +57,7 @@ type InitConfig struct {
 	MinCollectionInterval int              `yaml:"min_collection_interval"`
 }
 
-// InstanceConfig maps to a check instance config
+// InstanceConfig is used to deserialize integration instance config
 type InstanceConfig struct {
 	IPAddress             string            `yaml:"ip_address"`
 	Port                  Number            `yaml:"port"`
@@ -63,25 +65,37 @@ type InstanceConfig struct {
 	SnmpVersion           string            `yaml:"snmp_version"`
 	Timeout               Number            `yaml:"timeout"`
 	Retries               Number            `yaml:"retries"`
-	OidBatchSize          Number            `yaml:"oid_batch_size"`
-	BulkMaxRepetitions    Number            `yaml:"bulk_max_repetitions"`
 	User                  string            `yaml:"user"`
 	AuthProtocol          string            `yaml:"authProtocol"`
 	AuthKey               string            `yaml:"authKey"`
 	PrivProtocol          string            `yaml:"privProtocol"`
 	PrivKey               string            `yaml:"privKey"`
 	ContextName           string            `yaml:"context_name"`
-	Metrics               []MetricsConfig   `yaml:"metrics"`
-	MetricTags            []MetricTagConfig `yaml:"metric_tags"`
+	Metrics               []MetricsConfig   `yaml:"metrics"`     // SNMP metrics definition
+	MetricTags            []MetricTagConfig `yaml:"metric_tags"` // SNMP metric tags definition
 	Profile               string            `yaml:"profile"`
 	UseGlobalMetrics      bool              `yaml:"use_global_metrics"`
-	ExtraTags             string            `yaml:"extra_tags"` // comma separated tags
-	Tags                  []string          `yaml:"tags"`       // used for device metadata
 	CollectDeviceMetadata *Boolean          `yaml:"collect_device_metadata"`
 
-	// To accept min collection interval from snmp_listener, we need to accept it as string
-	// extra_min_collection_interval can accept both string and integer value
-	MinCollectionInterval      int    `yaml:"min_collection_interval"`
+	// ExtraTags is a workaround to pass tags from snmp listener to snmp integration via AD template
+	// (see cmd/agent/dist/conf.d/snmp.d/auto_conf.yaml) that only works with strings.
+	// TODO: deprecated extra tags in favour of using autodiscovery listener Service.GetTags()
+	ExtraTags string `yaml:"extra_tags"` // comma separated tags
+
+	// Tags are just static tags from the instance that is common to all integrations.
+	// Normally, the Agent will enrich metrics with the metrics with those tags.
+	// See https://github.com/DataDog/datadog-agent/blob/1e8321ff089d04ccce3987b84f8b75630d7a18c0/pkg/collector/corechecks/checkbase.go#L131-L139
+	// But we need to deserialize here since we need them for NDM metadata.
+	Tags []string `yaml:"tags"` // used for device metadata
+
+	// The oid_batch_size indicates how many OIDs are retrieved in a single Get or GetBulk call
+	OidBatchSize Number `yaml:"oid_batch_size"`
+	// The bulk_max_repetitions config indicates how many rows of the table are to be retrieved in a single GetBulk call
+	BulkMaxRepetitions Number `yaml:"bulk_max_repetitions"`
+
+	MinCollectionInterval int `yaml:"min_collection_interval"`
+	// To accept min collection interval from snmp_listener, we need to accept it as string.
+	// Using extra_min_collection_interval, we can accept both string and integer value.
 	ExtraMinCollectionInterval Number `yaml:"extra_min_collection_interval"`
 
 	Network                  string   `yaml:"network_address"`
@@ -92,7 +106,7 @@ type InstanceConfig struct {
 	Workers                  int      `yaml:"workers"`
 }
 
-// CheckConfig holds config for a check instance
+// CheckConfig holds config needed for an integration instance to run
 type CheckConfig struct {
 	IPAddress             string
 	Port                  uint16
@@ -155,10 +169,14 @@ func (c *CheckConfig) RefreshWithProfile(profile string) error {
 	return nil
 }
 
+// UpdateDeviceIDAndTags updates DeviceID and DeviceIDTags
+func (c *CheckConfig) UpdateDeviceIDAndTags() {
+	c.DeviceID, c.DeviceIDTags = buildDeviceID(c.getDeviceIDTags())
+}
+
 func (c *CheckConfig) addUptimeMetric() {
-	metricConfig := getUptimeMetricConfig()
-	c.Metrics = append(c.Metrics, metricConfig)
-	c.OidConfig.addScalarOids([]string{metricConfig.Symbol.OID})
+	c.Metrics = append(c.Metrics, uptimeMetricConfig)
+	c.OidConfig.addScalarOids([]string{uptimeMetricConfig.Symbol.OID})
 }
 
 // GetStaticTags return static tags built from configuration
@@ -412,7 +430,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		}
 	}
 
-	c.DeviceID, c.DeviceIDTags = buildDeviceID(c.getDeviceIDTags())
+	c.UpdateDeviceIDAndTags()
 
 	c.ResolvedSubnetName = c.getResolvedSubnetName()
 
@@ -520,18 +538,13 @@ func (c *CheckConfig) Copy() *CheckConfig {
 func (c *CheckConfig) CopyWithNewIP(ipAddress string) *CheckConfig {
 	newConfig := c.Copy()
 	newConfig.IPAddress = ipAddress
-	newConfig.DeviceID, newConfig.DeviceIDTags = buildDeviceID(newConfig.getDeviceIDTags())
+	newConfig.UpdateDeviceIDAndTags()
 	return newConfig
 }
 
 // IsDiscovery return weather it's a network/autodiscovery config or not
 func (c *CheckConfig) IsDiscovery() bool {
 	return c.Network != ""
-}
-
-func getUptimeMetricConfig() MetricsConfig {
-	// Reference sysUpTimeInstance directly, see http://oidref.com/1.3.6.1.2.1.1.3.0
-	return MetricsConfig{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}}
 }
 
 func parseScalarOids(metrics []MetricsConfig, metricTags []MetricTagConfig) []string {
