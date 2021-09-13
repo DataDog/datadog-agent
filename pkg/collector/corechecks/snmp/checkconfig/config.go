@@ -53,8 +53,6 @@ type InstanceConfig struct {
 	SnmpVersion           string            `yaml:"snmp_version"`
 	Timeout               Number            `yaml:"timeout"`
 	Retries               Number            `yaml:"retries"`
-	OidBatchSize          Number            `yaml:"oid_batch_size"`
-	BulkMaxRepetitions    Number            `yaml:"bulk_max_repetitions"`
 	User                  string            `yaml:"user"`
 	AuthProtocol          string            `yaml:"authProtocol"`
 	AuthKey               string            `yaml:"authKey"`
@@ -68,6 +66,11 @@ type InstanceConfig struct {
 	ExtraTags             string            `yaml:"extra_tags"` // comma separated tags
 	Tags                  []string          `yaml:"tags"`       // used for device metadata
 	CollectDeviceMetadata *Boolean          `yaml:"collect_device_metadata"`
+
+	// The oid_batch_size indicates how many OIDs are retrieved in a single Get or GetBulk call
+	OidBatchSize Number `yaml:"oid_batch_size"`
+	// The bulk_max_repetitions config indicates how many rows of the table are to be retrieved in a single GetBulk call
+	BulkMaxRepetitions Number `yaml:"bulk_max_repetitions"`
 
 	// To accept min collection interval from snmp_listener, we need to accept it as string
 	// extra_min_collection_interval can accept both string and integer value
