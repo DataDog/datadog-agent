@@ -1,0 +1,65 @@
+# this file contains overrides for the automatic determination of copyright
+# implemented in tasks/licenses.py.  The table keys are the golang package name
+# or pattern, and the value is either a copyright owner or a list of owners.
+#
+# Package patterns may end with a `*`.
+
+# NOTE: in general, we prefer to pull data from the repository so that it will
+# be updated automatically, so prefer to make such a change in
+# tasks/licenses.py if possible.  Line-wrapping can be difficult to handle, and
+# may be overridden here.
+
+# These whole classes of package names have fixed copyright
+cloud.google.com/*: Google LLC
+code.cloudfoundry.org/*: CloudFoundry.org Foundation, Inc
+github.com/aws/aws-sdk-go: ["Amazon.com, Inc. or its affiliates", "Stripe, Inc."]
+github.com/containerd/*: The containerd Authors
+github.com/coreos/*: CoreOS Project
+github.com/DataDog/*: Datadog, Inc.
+github.com/docker/*: Docker, Inc
+github.com/elastic/*: Elasticsearch B.V.
+github.com/golang/*: The Go Authors
+github.com/googleapis/*: Google LLC
+github.com/google/go-cmp/*: The Go Authors
+github.com/grpc-ecosystem/*: Gengo, Inc
+github.com/hashicorp/*: HashiCorp Inc.
+github.com/prometheus/*: The Prometheus Authors
+go.etcd.io/*: the etcd maintainers
+google.golang.org/appengine: the Go App Engine Maintainers
+google.golang.org/appengine/*: the Go App Engine Maintainers
+google.golang.org/genproto: The Go Generated Proto Package Maintainers
+google.golang.org/genproto/*: The Go Generated Proto Package Maintainers
+go.opentelemetry.io/*: Open Telemetry Maintainers
+gopkg.in/DataDog/*: Datadog, Inc.
+k8s.io/*: Cloud Native Computing Foundation (CNCF)
+
+# https://raw.githubusercontent.com/golang/go/master/LICENSE
+golang/go: The Go Authors
+
+# This has old and new code licensed to two different names, with some awkward
+# line wrapping
+gopkg.in/yaml.v3: ["Kirill Simonov", "Canonical, Ltd."]
+
+# This has awkward line wrapping.
+gopkg.in/inf.v0: ["Péter Surányi", "The Go Authors"]
+
+# See https://github.com/googleapis/google-api-go-client/blob/master/AUTHORS
+google.golang.org/api/*: ["Google Inc.", "LightStep Inc."]
+
+# See https://github.com/openshift/api/blob/master/quota/OWNERS
+github.com/openshift/api/quota: ["David Eads", "Michal Fojtik"]
+
+# Apache license, so no copyright in the license file
+github.com/tklauser/numcpus: "Tobias Klauser"
+
+# These have large AUTHORS/CONTRIBUTORS files but attribute copyright as a group
+github.com/aptly-dev/aptly: aptly authors
+github.com/google/gopacket: ["Google, Inc.", "Andreas Krennmair"]
+github.com/fsnotify/fsnotify: The fsnotify authors
+github.com/gosnmp/gosnmp: The GoSNMP authors
+github.com/shuLhan/go-bindata: The go-bindata authors
+github.com/lxn/walk: The walk authors
+github.com/lxn/win: The win authors
+github.com/klauspost/compress/snappy: The Snappy-Go Authors
+github.com/shirou/w32: The w32 Authors
+github.com/gogo/protobuf: ["The Go Authors", "The GoGo Authors"]
