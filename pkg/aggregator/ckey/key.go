@@ -126,6 +126,7 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.HashingTags
 				} else if g.seen[j] == h && tags[g.seenIdx[j]] == tags[i] {
 					// already seen, we do not want to xor multiple times the same tag
 					tags[i] = tags[ntags-1]
+					hashes[i] = hashes[ntags-1]
 					ntags--
 					break
 				} else {
@@ -145,6 +146,7 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.HashingTags
 			for j := 0; j < i; j++ {
 				if g.seen[j] == h && tags[j] == tags[i] {
 					tags[i] = tags[ntags-1]
+					hashes[i] = hashes[ntags-1]
 					ntags--
 					continue OUTER // we do not want to xor multiple times the same tag
 				}
