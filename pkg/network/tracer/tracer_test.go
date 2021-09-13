@@ -1063,9 +1063,13 @@ func TestDNSStatsWithNAT(t *testing.T) {
 	// Setup a NAT rule to translate 2.2.2.2 to 8.8.8.8 and issue a DNS request to 2.2.2.2
 	cmds := []string{"iptables -t nat -A OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
 	nettestutil.RunCommands(t, cmds, true)
+
+	defer func() {
+		cmds = []string{"iptables -t nat -D OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
+		nettestutil.RunCommands(t, cmds, true)
+	}()
+
 	testDNSStats(t, "golang.org", 1, 0, 0, "2.2.2.2")
-	cmds = []string{"iptables -t nat -D OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
-	nettestutil.RunCommands(t, cmds, true)
 }
 
 func TestTCPEstablished(t *testing.T) {
