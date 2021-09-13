@@ -151,41 +151,38 @@ func getAllProcesses(probe *procutil.Probe) (map[int32]*procutil.Process, error)
 
 		procHandle := cp.procHandle
 
-		var CPU windows.Rusage
-		if err := windows.GetProcessTimes(procHandle, &CPU.CreationTime, &CPU.ExitTime, &CPU.KernelTime, &CPU.UserTime); err != nil {
-			log.Debugf("Could not get process times for %v %v", pid, err)
-			continue
-		}
+		stats := &procutil.Stats{}
+		if probe.ShouldCollectStats() {
+			var CPU windows.Rusage
+			if err := windows.GetProcessTimes(procHandle, &CPU.CreationTime, &CPU.ExitTime, &CPU.KernelTime, &CPU.UserTime); err != nil {
+				log.Debugf("Could not get process times for %v %v", pid, err)
+				continue
+			}
 
-		var handleCount uint32
-		if err := getProcessHandleCount(procHandle, &handleCount); err != nil {
-			log.Debugf("could not get handle count for %v %v", pid, err)
-			continue
-		}
+			var handleCount uint32
+			if err := getProcessHandleCount(procHandle, &handleCount); err != nil {
+				log.Debugf("could not get handle count for %v %v", pid, err)
+				continue
+			}
 
-		var pmemcounter process.PROCESS_MEMORY_COUNTERS
-		if err := getProcessMemoryInfo(procHandle, &pmemcounter); err != nil {
-			log.Debugf("could not get memory info for %v %v", pid, err)
-			continue
-		}
+			var pmemcounter process.PROCESS_MEMORY_COUNTERS
+			if err := getProcessMemoryInfo(procHandle, &pmemcounter); err != nil {
+				log.Debugf("could not get memory info for %v %v", pid, err)
+				continue
+			}
 
-		// shell out to getprocessiocounters for io stats
-		var ioCounters IO_COUNTERS
-		if err := getProcessIoCounters(procHandle, &ioCounters); err != nil {
-			log.Debugf("could not get IO Counters for %v %v", pid, err)
-			continue
-		}
-		ctime := CPU.CreationTime.Nanoseconds() / 1000000
+			// shell out to getprocessiocounters for io stats
+			var ioCounters IO_COUNTERS
+			if err := getProcessIoCounters(procHandle, &ioCounters); err != nil {
+				log.Debugf("could not get IO Counters for %v %v", pid, err)
+				continue
+			}
+			ctime := CPU.CreationTime.Nanoseconds() / 1000000
 
-		utime := float64((int64(CPU.UserTime.HighDateTime) << 32) | int64(CPU.UserTime.LowDateTime))
-		stime := float64((int64(CPU.KernelTime.HighDateTime) << 32) | int64(CPU.KernelTime.LowDateTime))
+			utime := float64((int64(CPU.UserTime.HighDateTime) << 32) | int64(CPU.UserTime.LowDateTime))
+			stime := float64((int64(CPU.KernelTime.HighDateTime) << 32) | int64(CPU.KernelTime.LowDateTime))
 
-		delete(knownPids, pid)
-		procs[int32(pid)] = &procutil.Process{
-			Pid:     int32(pid),
-			Ppid:    int32(ppid),
-			Cmdline: cp.parsedArgs,
-			Stats: &procutil.Stats{
+			stats = &procutil.Stats{
 				CreateTime:  ctime,
 				OpenFdCount: int32(handleCount),
 				NumThreads:  int32(pe32.CntThreads),
@@ -206,8 +203,15 @@ func getAllProcesses(probe *procutil.Probe) (map[int32]*procutil.Process, error)
 					WriteBytes: int64(ioCounters.WriteTransferCount),
 				},
 				CtxSwitches: &procutil.NumCtxSwitchesStat{},
-			},
+			}
+		}
 
+		delete(knownPids, pid)
+		procs[int32(pid)] = &procutil.Process{
+			Pid:      int32(pid),
+			Ppid:     int32(ppid),
+			Cmdline:  cp.parsedArgs,
+			Stats:    stats,
 			Exe:      cp.executablePath,
 			Username: cp.userName,
 		}
