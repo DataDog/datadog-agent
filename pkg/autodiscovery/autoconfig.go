@@ -415,7 +415,7 @@ func (ac *AutoConfig) AddScheduler(name string, s scheduler.Scheduler, replayCon
 		return
 	}
 
-	configs := ac.AllLoadedConfigs()
+	configs := ac.CurrentLoadedConfigs()
 	s.Schedule(configs)
 }
 
@@ -559,23 +559,23 @@ func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc list
 	return resolvedConfig, nil
 }
 
-// WithLoadedConfigs calls the given function with the map of all
+// MapOverLoadedConfigs calls the given function with the map of all
 // loaded configs.  This is done with the config store locked, so
 // callers should perform minimal work within f.
-func (ac *AutoConfig) WithLoadedConfigs(f func(map[string]integration.Config)) {
+func (ac *AutoConfig) MapOverLoadedConfigs(f func(map[string]integration.Config)) {
 	if ac == nil || ac.store == nil {
 		log.Error("Autoconfig store not initialized")
 		f(map[string]integration.Config{})
 		return
 	}
-	ac.store.withLoadedConfigs(f)
+	ac.store.mapOverLoadedConfigs(f)
 }
 
-// AllLoadedConfigs returns a slice of all loaded configs.  This slice
+// CurrentLoadedConfigs returns a slice of all loaded configs.  This slice
 // is freshly created and will not be modified after return.
-func (ac *AutoConfig) AllLoadedConfigs() []integration.Config {
+func (ac *AutoConfig) CurrentLoadedConfigs() []integration.Config {
 	var configs []integration.Config
-	ac.store.withLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
+	ac.store.mapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
 		configs = make([]integration.Config, 0, len(loadedConfigs))
 		for _, c := range loadedConfigs {
 			configs = append(configs, c)

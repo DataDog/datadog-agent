@@ -147,7 +147,7 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	configSlice := common.AC.AllLoadedConfigs()
+	configSlice := common.AC.CurrentLoadedConfigs()
 	sort.Slice(configSlice, func(i, j int) bool {
 		return configSlice[i].Name < configSlice[j].Name
 	})

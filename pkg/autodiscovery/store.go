@@ -115,10 +115,10 @@ func (s *store) removeLoadedConfig(config integration.Config) {
 	delete(s.loadedConfigs, config.Digest())
 }
 
-// withLoadedConfigs calls the given function with the map of all
+// mapOverLoadedConfigs calls the given function with the map of all
 // loaded configs.  This is done with the config store locked, so
 // callers should perform minimal work within f.
-func (s *store) withLoadedConfigs(f func(map[string]integration.Config)) {
+func (s *store) mapOverLoadedConfigs(f func(map[string]integration.Config)) {
 	s.m.RLock()
 	defer s.m.RUnlock()
 	f(s.loadedConfigs)
