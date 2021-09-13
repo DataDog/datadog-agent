@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/http/testutil"
-	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -1057,19 +1056,6 @@ func TestDNSStatsForInvalidDomain(t *testing.T) {
 
 func TestDNSStatsForTimeout(t *testing.T) {
 	testDNSStats(t, "golang.org", 0, 0, 1, "1.2.3.4")
-}
-
-func TestDNSStatsWithNAT(t *testing.T) {
-	// Setup a NAT rule to translate 2.2.2.2 to 8.8.8.8 and issue a DNS request to 2.2.2.2
-	cmds := []string{"iptables -t nat -A OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
-	nettestutil.RunCommands(t, cmds, true)
-
-	defer func() {
-		cmds = []string{"iptables -t nat -D OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
-		nettestutil.RunCommands(t, cmds, true)
-	}()
-
-	testDNSStats(t, "golang.org", 1, 0, 0, "2.2.2.2")
 }
 
 func TestTCPEstablished(t *testing.T) {
