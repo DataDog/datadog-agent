@@ -17,7 +17,7 @@ echo "DOCKERFILE_PATH=${DOCKERFILE_PATH}"
 BUILD_TAG="${IMAGE_REPO}:${IMAGE_TAG}"
 
 docker login -u "${docker_user}" -p "${docker_password}" "${REGISTRY}"
-docker login -u "${quay_user}" -p "${quay_user}" "${REGISTRY_QUAY}"
+docker login -u "${quay_user}" -p "${quay_password}" "${REGISTRY_QUAY}"
 
 docker build -t "${BUILD_TAG}" "${DOCKERFILE_PATH}"
 
