@@ -116,6 +116,9 @@ func (d *Discovery) discoverDevices() {
 		startingIP:     startingIP,
 		network:        *ipNet,
 		cacheKey:       cacheKey,
+
+		// Since subnet devices fields (`devices` and `deviceFailures`) are changed at the same time
+		// as Discovery.discoveredDevices, we rely on Discovery.discDevMu mutex to protect against concurrent changes.
 		devices:        map[checkconfig.DeviceDigest]string{},
 		deviceFailures: map[checkconfig.DeviceDigest]int{},
 	}
