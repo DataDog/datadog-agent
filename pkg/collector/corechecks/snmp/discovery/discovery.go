@@ -227,6 +227,8 @@ func (d *Discovery) createDevice(deviceDigest checkconfig.DeviceDigest, subnet *
 	}
 }
 
+// deleteDevice removes a device from discovered devices list and cache
+// if the allowed device failures count is reached
 func (d *Discovery) deleteDevice(deviceDigest checkconfig.DeviceDigest, subnet *snmpSubnet) {
 	d.discDevMu.Lock()
 	defer d.discDevMu.Unlock()
