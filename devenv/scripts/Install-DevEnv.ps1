@@ -59,10 +59,12 @@ Start-Process "7z" -ArgumentList 'x -oc:\ c:\go.zip' -Wait
 Write-Host -ForegroundColor Green "Removing temporary file $out"
 Remove-Item 'c:\go.zip'
 
-setx GOROOT c:\go
-$Env:GOROOT="c:\go"
-setx PATH "$Env:Path;c:\go\bin;"
-$Env:Path="$Env:Path;c:\go\bin;"
+[Environment]::SetEnvironmentVariable(
+    "Path",
+    [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::Machine) + ";C:\go\bin",
+    [System.EnvironmentVariableTarget]::Machine)
+
+setx /m GOROOT c:\go
 # End Go workaround
 
 Write-Host -ForegroundColor Green "Installed go $ENV:GO_VERSION"
@@ -76,13 +78,15 @@ cinst -y mingw
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Make'
 cinst -y make
 
-# Reload environment to get ruby in path
-Update-SessionEnvironment
+$GoPath="C:\gopath"
+$AgentPath="$GoPath\src\github.com\datadog\datadog-agent"
+mkdir -Force $AgentPath
 
+[Environment]::SetEnvironmentVariable(
+    "Path",
+    [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::Machine) + ";$GoPath\bin;$AgentPath\rtloader\bin",
+    [System.EnvironmentVariableTarget]::Machine)
 
-Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Creating GOPATH'
-cd ~
-mkdir go\src\github.com\DataDog
-[Environment]::SetEnvironmentVariable("GOPATH", "${env:HOMEDRIVE}${env:HOMEPATH}\go", [EnvironmentVariableTarget]::User)
+setx /m GOPATH "$GoPath"
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen ' * DONE *'
