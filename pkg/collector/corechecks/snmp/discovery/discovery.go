@@ -182,6 +182,7 @@ func (d *Discovery) checkDevice(job checkDeviceJob) error {
 		oids := []string{sysObjectIDOid}
 		// Since `params<GoSNMP>.ContextEngineID` is empty
 		// `params.Get` might lead to multiple SNMP GET calls when using SNMP v3
+		// a first call might be needed to retrieve the engineID and then the call to get the oid values.
 		value, err := sess.Get(oids)
 		if err != nil {
 			log.Debugf("subnet %s: SNMP get to %s error: %v", d.config.Network, deviceIP, err)
