@@ -59,13 +59,22 @@ type InstanceConfig struct {
 	PrivProtocol          string            `yaml:"privProtocol"`
 	PrivKey               string            `yaml:"privKey"`
 	ContextName           string            `yaml:"context_name"`
-	Metrics               []MetricsConfig   `yaml:"metrics"`
-	MetricTags            []MetricTagConfig `yaml:"metric_tags"`
+	Metrics               []MetricsConfig   `yaml:"metrics"`     // SNMP metrics definition
+	MetricTags            []MetricTagConfig `yaml:"metric_tags"` // SNMP metric tags definition
 	Profile               string            `yaml:"profile"`
 	UseGlobalMetrics      bool              `yaml:"use_global_metrics"`
-	ExtraTags             string            `yaml:"extra_tags"` // comma separated tags
-	Tags                  []string          `yaml:"tags"`       // used for device metadata
 	CollectDeviceMetadata *Boolean          `yaml:"collect_device_metadata"`
+
+	// ExtraTags is a workaround to pass tags from snmp listener to snmp integration via AD template
+	// (see cmd/agent/dist/conf.d/snmp.d/auto_conf.yaml) that only works with strings.
+	// TODO: deprecated extra tags in favour of using autodiscovery listener Service.GetTags()
+	ExtraTags string `yaml:"extra_tags"` // comma separated tags
+
+	// Tags are just static tags from the instance that is common to all integrations.
+	// Normally, the Agent will enrich metrics with the metrics with those tags.
+	// See https://github.com/DataDog/datadog-agent/blob/1e8321ff089d04ccce3987b84f8b75630d7a18c0/pkg/collector/corechecks/checkbase.go#L131-L139
+	// But we need to deserialize here since we need them for NDM metadata.
+	Tags []string `yaml:"tags"` // used for device metadata
 
 	// The oid_batch_size indicates how many OIDs are retrieved in a single Get or GetBulk call
 	OidBatchSize Number `yaml:"oid_batch_size"`
