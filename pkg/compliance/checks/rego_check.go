@@ -7,6 +7,7 @@ package checks
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -77,12 +78,15 @@ func (r *regoCheck) normalizeInputMap(vars map[string]interface{}) map[string]in
 	return normalized
 }
 
+type instanceFields struct {
+	instance eval.Instance
+	fields   []string
+}
+
 func (r *regoCheck) check(env env.Env) []*compliance.Report {
 	log.Debugf("%s: rego check starting", r.ruleID)
 
 	input := make(map[string][]interface{})
-
-	instances := make(map[resolvedInstance][]string)
 
 	name := func(resource compliance.ResourceCommon) string {
 		str := string(resource.Kind())
@@ -93,6 +97,8 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 		return str + "s"
 	}
 
+	currentIDCounter := 0
+	resourceInstances := make(map[int]instanceFields)
 	for _, resource := range r.resources {
 		resolve, reportedFields, err := resourceKindToResolverAndFields(env, r.ruleID, resource.Kind())
 		if err != nil {
@@ -112,14 +118,7 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 
 		switch res := resolved.(type) {
 		case resolvedInstance:
-			vars, exists := input[key]
-			if !exists {
-				vars = []interface{}{}
-			}
-			normalized := r.normalizeInputMap(res.Vars().GoMap())
-			input[key] = append(vars, normalized)
-
-			instances[res] = reportedFields
+			r.appendInstance(resourceInstances, input, key, res, &currentIDCounter, reportedFields)
 		case eval.Iterator:
 			it := res
 			for !it.Done() {
@@ -128,17 +127,12 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 					return []*compliance.Report{compliance.BuildReportForError(err)}
 				}
 
-				vars, exists := input[key]
-				if !exists {
-					vars = []interface{}{}
-				}
-				normalized := r.normalizeInputMap(instance.Vars().GoMap())
-				input[key] = append(vars, normalized)
+				r.appendInstance(resourceInstances, input, key, instance, &currentIDCounter, reportedFields)
 			}
 		}
 	}
 
-	log.Debugf("rego eval input: %v", input)
+	log.Debugf("rego eval input: %+v", input)
 
 	ctx := context.TODO()
 	results, err := r.preparedEvalQuery.Eval(ctx, rego.EvalInput(input))
@@ -155,25 +149,54 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 		return []*compliance.Report{compliance.BuildReportForError(errors.New("wrong result type"))}
 	}
 
-	passed, ok := res["result"].(bool)
-	if !ok {
-		return []*compliance.Report{compliance.BuildReportForError(errors.New("wrong result type"))}
+	/*
+		passed, ok := res["result"].(bool)
+		if !ok {
+			return []*compliance.Report{compliance.BuildReportForError(errors.New("wrong result type"))}
+		}
+	*/
+
+	denies, err := extractDeniesRIDs(res["denies"])
+	if err != nil {
+		return []*compliance.Report{compliance.BuildReportForError(err)}
 	}
 
-	log.Debugf("denies: %v", res["denies"])
-
 	var reports []*compliance.Report
-	for instance, reportedFields := range instances {
-		report := instanceToReport(instance, passed, reportedFields)
-		reports = append(reports, report)
+	for resID, instanceFields := range resourceInstances {
+		passed := !containsInt(denies, resID)
+		ri, ok := instanceFields.instance.(resolvedInstance)
+		if ok {
+			report := instanceToReport(ri, passed, instanceFields.fields)
+			reports = append(reports, report)
+		} else {
+			report := evalInstanceToReport(instanceFields.instance, passed, instanceFields.fields)
+			reports = append(reports, report)
+		}
 	}
 
 	log.Debugf("reports: %v", reports)
 	return reports
 }
 
+func (r *regoCheck) appendInstance(resourceInstances map[int]instanceFields, input map[string][]interface{}, key string, instance eval.Instance, idCounter *int, reportedFields []string) {
+	vars, exists := input[key]
+	if !exists {
+		vars = []interface{}{}
+	}
+	normalized := r.normalizeInputMap(instance.Vars().GoMap())
+	normalized["rid"] = *idCounter
+	resourceInstances[*idCounter] = instanceFields{
+		instance: instance,
+		fields:   reportedFields,
+	}
+	*idCounter += 1
+
+	input[key] = append(vars, normalized)
+}
+
 var regoBuiltins = []func(*rego.Rego){
 	octalLiteralFunc,
+	resourceToRID,
 }
 
 var octalLiteralFunc = rego.Function1(
@@ -195,3 +218,48 @@ var octalLiteralFunc = rego.Function1(
 		return ast.IntNumberTerm(int(value)), err
 	},
 )
+
+var resourceToRID = rego.Function1(
+	&rego.Function{
+		Name: "denyResource",
+		Decl: types.NewFunction(types.Args(types.A), types.N),
+	},
+	func(_ rego.BuiltinContext, a *ast.Term) (*ast.Term, error) {
+		rid, err := a.Value.Find([]*ast.Term{ast.StringTerm("rid")})
+		if err != nil {
+			return nil, err
+		}
+		res := ast.NumberTerm(json.Number(rid.String()))
+		return res, nil
+	},
+)
+
+func containsInt(data []int, value int) bool {
+	for _, v := range data {
+		if v == value {
+			return true
+		}
+	}
+	return false
+}
+
+func extractDeniesRIDs(denies interface{}) ([]int, error) {
+	rids, ok := denies.([]interface{})
+	if !ok {
+		return nil, errors.New("wrong denies type")
+	}
+
+	res := make([]int, 0)
+	for _, rid := range rids {
+		id, ok := rid.(json.Number)
+		if !ok {
+			return nil, errors.New("wrond rid type")
+		}
+		finalRid, err := id.Int64()
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, int(finalRid))
+	}
+	return res, nil
+}

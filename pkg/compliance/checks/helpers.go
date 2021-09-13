@@ -163,6 +163,19 @@ func instanceToReport(instance resolvedInstance, passed bool, allowedFields []st
 	}
 }
 
+func evalInstanceToReport(instance eval.Instance, passed bool, allowedFields []string) *compliance.Report {
+	var data event.Data
+
+	if instance != nil {
+		data = instanceToEventData(instance, allowedFields)
+	}
+
+	return &compliance.Report{
+		Passed: passed,
+		Data:   data,
+	}
+}
+
 // instanceToReports converts an evaluated instanceResult to reports
 // filtering out fields not on the allowedFields list
 func instanceResultToReport(result *eval.InstanceResult, allowedFields []string) *compliance.Report {
