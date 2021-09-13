@@ -221,6 +221,7 @@ func TestDiscovery_checkDevice(t *testing.T) {
 	err = discovery.checkDevice(job)
 	assert.EqualError(t, err, "error configure session for ip 192.168.0.0: some error")
 	assert.Equal(t, 0, len(discovery.discoveredDevices))
+	assert.Equal(t, "", discovery.config.IPAddress)
 
 	// Test session.Connect() error
 	checkDeviceOnce()
