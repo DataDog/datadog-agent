@@ -48,6 +48,7 @@ func (c inventoriesCollector) Send(ctx context.Context, s *serializer.Serializer
 
 // Init initializes the inventory metadata collection
 func (c inventoriesCollector) Init() error {
+	inventories.InitializeData()
 	return inventories.StartMetadataUpdatedGoroutine(c.sc, config.Datadog.GetDuration("inventories_min_interval")*time.Second)
 }
 
@@ -78,5 +79,6 @@ func SetupInventories(sc *Scheduler, ac inventories.AutoConfigInterface, coll in
 	}
 
 	SetupInventoriesExpvar(ac, coll)
+
 	return nil
 }
