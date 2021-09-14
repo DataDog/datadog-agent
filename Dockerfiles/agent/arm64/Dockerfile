@@ -1,5 +1,10 @@
-FROM ubuntu:21.04 AS faccessat
+FROM ubuntu:21.04 AS baseimage
+ARG CIBUILD
+RUN if [ "$CIBUILD" = "true" ]; then \
+  sed -i 's#http://archive.ubuntu.com#http://us-east-1.ec2.archive.ubuntu.com#g' /etc/apt/sources.list; \
+  fi
 
+FROM baseimage AS faccessat
 COPY faccessat/faccessat.c   /tmp/faccessat.c
 COPY faccessat/faccessat.sym /tmp/faccessat.sym
 ENV DEBIAN_FRONTEND=noninteractive
@@ -11,7 +16,7 @@ RUN gcc -pipe -Wall -Wextra -O2 -shared -o /tmp/libfaccessat.so /tmp/faccessat.c
 #  Preparation stage: extract and cleanup  #
 ############################################
 
-FROM ubuntu:21.04 AS extract
+FROM baseimage AS extract
 ARG WITH_JMX
 ARG PYTHON_VERSION
 ARG DD_AGENT_ARTIFACT=datadog-agent*_arm64.deb
@@ -86,7 +91,7 @@ COPY install_info etc/datadog-agent/
 #  Actual docker image construction  #
 ######################################
 
-FROM ubuntu:21.04 AS release
+FROM baseimage AS release
 LABEL maintainer "Datadog <package@datadoghq.com>"
 ARG WITH_JMX
 ARG PYTHON_VERSION
