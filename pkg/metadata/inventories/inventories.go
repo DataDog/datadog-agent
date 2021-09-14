@@ -54,6 +54,8 @@ var (
 	timeSince = time.Since
 )
 
+// AgentMetadataName is an enum type containing all defined keys for
+// SetAgentMetadata.
 type AgentMetadataName string
 
 // Constants for the metadata names; these are defined in
