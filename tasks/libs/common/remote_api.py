@@ -7,6 +7,10 @@ errno_regex = re.compile(r".*\[Errno (\d+)\] (.*)")
 
 
 class RemoteAPI(object):
+    """
+    Helper class to perform calls against a given remote API.
+    """
+
     BASE_URL = ""
 
     def __init__(self):
@@ -32,11 +36,12 @@ class RemoteAPI(object):
         json_input: If set to true, data is passed with the json parameter of requests.post instead of the data parameter.
 
         By default, the request method is GET, or POST if data is not empty.
-        method: Can be set to "POST" to force a POST request even when data is empty.
+        method: Can be set to another .
 
         By default, we return the text field of the response object. The following fields can alter this behavior:
         json_output: the json field of the response object is returned.
         stream_output: the request asks for a stream response, and the raw response object is returned.
+        raw_output: the content field of the resposne object is returned.
         """
         import requests
 
@@ -47,14 +52,18 @@ class RemoteAPI(object):
         try:
             # If json_input is true, we specifically want to send data using the json
             # parameter of requests.post
-            if data and json_input:
-                r = requests.post(url, headers=headers, json=data, stream=stream_output)
-            elif method == "PUT":
-                r = requests.put(url, headers=headers, json=data, stream=stream_output)
-            elif method == "DELETE":
+            if method == "PUT":
+                if json_input:
+                    r = requests.put(url, headers=headers, json=data, stream=stream_output)
+                else:
+                    r = requests.put(url, headers=headers, data=data, stream=stream_output)
+            if method == "DELETE":
                 r = requests.delete(url, headers=headers, stream=stream_output)
             elif data or method == "POST":
-                r = requests.post(url, headers=headers, data=data, stream=stream_output)
+                if json_input:
+                    r = requests.post(url, headers=headers, json=data, stream=stream_output)
+                else:
+                    r = requests.post(url, headers=headers, data=data, stream=stream_output)
             else:
                 r = requests.get(url, headers=headers, stream=stream_output)
             if r.status_code == 401:

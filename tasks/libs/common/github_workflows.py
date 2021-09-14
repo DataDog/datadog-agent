@@ -12,6 +12,10 @@ class GithubException(Exception):
 
 
 class GithubWorkflows(RemoteAPI):
+    """
+    Helper class to perform API calls against the Github Workflows API, using a Github App.
+    """
+
     BASE_URL = "https://api.github.com"
 
     def __init__(self, api_token=None):

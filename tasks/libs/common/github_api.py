@@ -11,6 +11,10 @@ __all__ = ["GithubAPI"]
 
 
 class GithubAPI(RemoteAPI):
+    """
+    Helper class to perform API calls against the Github API, using a Github PAT.
+    """
+
     BASE_URL = "https://api.github.com"
 
     def __init__(self, api_token=None):
@@ -26,7 +30,7 @@ class GithubAPI(RemoteAPI):
 
     def get_branch(self, repo_name, branch_name):
         """
-        Creates a PR in the given repository.
+        Gets info on a given branch in the given Github repository.
         """
 
         path = "/repos/{}/branches/{}".format(repo_name, branch_name)
@@ -34,24 +38,32 @@ class GithubAPI(RemoteAPI):
 
     def create_pr(self, repo_name, pr_title, pr_body, base_branch, target_branch):
         """
-        Creates a PR in the given repository.
+        Creates a PR in the given Github repository.
         """
 
         path = "/repos/{}/pulls".format(repo_name)
         data = json.dumps({"head": target_branch, "base": base_branch, "title": pr_title, "body": pr_body})
         return self.make_request(path, method="POST", json_output=True, data=data)
 
-    def update_pr(self, repo_name, pull_number, milestone, labels):
+    def update_pr(self, repo_name, pull_number, milestone_number, labels):
+        """
+        Updates a given PR with the provided milestone number and labels.
+        """
+
         path = "/repos/{}/issues/{}".format(repo_name, pull_number)
         data = json.dumps(
             {
-                "milestone": milestone,
+                "milestone": milestone_number,
                 "labels": labels,
             }
         )
         return self.make_request(path, method="POST", json_output=True, data=data)
 
     def get_milestone_by_name(self, repo_name, milestone_name):
+        """
+        Searches for a milestone in the given repository that matches the provided name,
+        and returns data about it.
+        """
         path = "/repos/{}/milestones".format(repo_name)
         res = self.make_request(path, method="GET", json_output=True)
         for milestone in res:

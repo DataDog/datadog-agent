@@ -12,6 +12,10 @@ __all__ = ["Gitlab"]
 
 
 class Gitlab(RemoteAPI):
+    """
+    Helper class to perform API calls against the Gitlab API, using a Gitlab PAT.
+    """
+
     BASE_URL = "https://gitlab.ddbuild.io/api/v4"
 
     def __init__(self, api_token=None):
@@ -218,7 +222,7 @@ class Gitlab(RemoteAPI):
             "active": active,
         }
         no_none_data = {k: v for k, v in data.items() if v is not None}
-        return self.make_request(path, json_output=True, data=no_none_data, method="PUT")
+        return self.make_request(path, json_input=True, json_output=True, data=no_none_data, method="PUT")
 
     def delete_pipeline_schedule(self, project_name, schedule_id):
         """
@@ -246,7 +250,7 @@ class Gitlab(RemoteAPI):
         Edit an existing variable for a pipeline schedule.
         """
         path = "/projects/{}/pipeline_schedules/{}/variables/{}".format(quote(project_name, safe=""), schedule_id, key)
-        return self.make_request(path, data={"value": value}, json_output=True, method="PUT")
+        return self.make_request(path, json_input=True, data={"value": value}, json_output=True, method="PUT")
 
     def delete_pipeline_schedule_variable(self, project_name, schedule_id, key):
         """
