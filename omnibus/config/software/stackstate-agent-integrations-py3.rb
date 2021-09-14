@@ -128,7 +128,6 @@ build do
     # install the core integrations.
     #
     command "#{pip} install wheel==0.34.1"
-    command "#{pip} install pip-tools==5.4.0"
 
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
@@ -139,18 +138,6 @@ build do
       "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
     }
 
-    # On Linux & Windows, specify the C99 standard explicitly to avoid issues while building some
-    # wheels (eg. ddtrace).
-    # Not explicitly setting that option has caused us problems in the past on SUSE, where the ddtrace
-    # wheel has to be manually built, as the C code in ddtrace doesn't follow the C89 standard (the default value of std).
-    # Note: We don't set this on MacOS, as on MacOS we need to build a bunch of packages & C extensions that
-    # don't have precompiled MacOS wheels. When building C extensions, the CFLAGS variable is added to
-    # the command-line parameters, even when compiling C++ code, where -std=c99 is invalid.
-    # See: https://github.com/python/cpython/blob/v3.8.8/Lib/distutils/sysconfig.py#L227
-    if linux? || windows?
-      nix_build_env["CFLAGS"] += " -std=c99"
-    end
-
     #
     # Prepare the requirements file containing ALL the dependencies needed by
     # any integration. This will provide the "static Python environment" of the Agent.
@@ -158,10 +145,12 @@ build do
     # want to filter out things before installing.
     #
     if windows?
+      command "#{pip} install pip-tools==5.4.0"
       static_reqs_in_file = "#{windows_safe_path(project_dir)}\\stackstate_checks_base\\stackstate_checks\\base\\data\\#{agent_requirements_in}"
       static_reqs_out_file = "#{windows_safe_path(project_dir)}\\#{filtered_agent_requirements_in}"
       shared_libraries_in_file = "#{windows_safe_path(project_dir)}\\#{shared_libraries_in}"
     else
+      command "#{pip} install pip-tools==4.2.0"
       static_reqs_in_file = "#{project_dir}/stackstate_checks_base/stackstate_checks/base/data/#{agent_requirements_in}"
       static_reqs_out_file = "#{project_dir}/#{filtered_agent_requirements_in}"
       shared_libraries_in_file = "#{project_dir}/#{shared_libraries_in}"
@@ -299,6 +288,13 @@ build do
       else
         command "#{pip} install --no-deps .", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
       end
+    end
+
+    # Patch applies to only one file: set it explicitly as a target, no need for -p
+    if windows?
+      patch :source => "jpype_0_7.patch", :target => "#{python_3_embedded}/Lib/site-packages/jaydebeapi/__init__.py"
+    else
+      patch :source => "jpype_0_7.patch", :target => "#{install_dir}/embedded/lib/python3.8/site-packages/jaydebeapi/__init__.py"
     end
 
   end
