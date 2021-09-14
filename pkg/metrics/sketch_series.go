@@ -322,17 +322,6 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 	return payloads, nil
 }
 
-// taken from agent_payload.pb.go
-func encodeVarintAgentPayload(dAtA []byte, offset int, v uint64) int {
-	for v >= 1<<7 {
-		dAtA[offset] = uint8(v&0x7f | 0x80)
-		v >>= 7
-		offset++
-	}
-	dAtA[offset] = uint8(v)
-	return offset + 1
-}
-
 // Marshal encodes this series list.
 func (sl SketchSeriesList) Marshal() ([]byte, error) {
 	pb := &gogen.SketchPayload{
