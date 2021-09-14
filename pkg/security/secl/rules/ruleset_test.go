@@ -25,7 +25,7 @@ type testHandler struct {
 func (f *testHandler) RuleMatch(rule *Rule, event eval.Event) {
 }
 
-func (f *testHandler) EventDiscarderFound(rs *RuleSet, event eval.Event, field string, eventType eval.EventType) {
+func (f *testHandler) EventDiscarderFound(re *RuleEngine, event eval.Event, field string, eventType eval.EventType) {
 	values, ok := f.filters[event.GetType()]
 	if !ok {
 		values = make(testFieldValues)
@@ -55,7 +55,7 @@ func (f *testHandler) EventDiscarderFound(rs *RuleSet, event eval.Event, field s
 	values[field] = discarders
 }
 
-func addRuleExpr(t *testing.T, rs *RuleSet, exprs ...string) {
+func addPolicyRuleExpr(t *testing.T, re *RuleEngine, exprs ...string) {
 	var ruleDefs []*RuleDefinition
 
 	for i, expr := range exprs {
@@ -67,7 +67,7 @@ func addRuleExpr(t *testing.T, rs *RuleSet, exprs ...string) {
 		ruleDefs = append(ruleDefs, ruleDef)
 	}
 
-	if err := rs.AddRules(ruleDefs); err != nil {
+	if err := re.policy.AddRules(ruleDefs); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -81,22 +81,22 @@ func TestRuleBuckets(t *testing.T) {
 		WithSupportedDiscarders(testSupportedDiscarders).
 		WithEventTypeEnabled(enabled)
 
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
+	re := NewRuleEngine(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
 
 	exprs := []string{
 		`(open.filename =~ "/sbin/*" || open.filename =~ "/usr/sbin/*") && process.uid != 0 && open.flags & O_CREAT > 0`,
 		`(mkdir.filename =~ "/sbin/*" || mkdir.filename =~ "/usr/sbin/*") && process.uid != 0`,
 	}
 
-	addRuleExpr(t, rs, exprs...)
+	addPolicyRuleExpr(t, re, exprs...)
 
-	if bucket, ok := rs.eventRuleBuckets["open"]; !ok || len(bucket.rules) != 1 {
+	if bucket, ok := re.policy.eventRuleBuckets["open"]; !ok || len(bucket.rules) != 1 {
 		t.Fatal("unable to find `open` rules or incorrect number of rules")
 	}
-	if bucket, ok := rs.eventRuleBuckets["mkdir"]; !ok || len(bucket.rules) != 1 {
+	if bucket, ok := re.policy.eventRuleBuckets["mkdir"]; !ok || len(bucket.rules) != 1 {
 		t.Fatal("unable to find `mkdir` rules or incorrect number of rules")
 	}
-	for _, bucket := range rs.eventRuleBuckets {
+	for _, bucket := range re.policy.eventRuleBuckets {
 		for _, rule := range bucket.rules {
 			if rule.GetPartialEval("process.uid") == nil {
 				t.Fatal("failed to initialize partials")
@@ -121,8 +121,8 @@ func TestRuleSetDiscarders(t *testing.T) {
 		WithSupportedDiscarders(testSupportedDiscarders).
 		WithEventTypeEnabled(enabled)
 
-	rs := NewRuleSet(m, func() eval.Event { return &testEvent{} }, &opts)
-	rs.AddListener(handler)
+	re := NewRuleEngine(m, func() eval.Event { return &testEvent{} }, &opts)
+	re.AddListener(handler)
 
 	exprs := []string{
 		`open.filename == "/etc/passwd" && process.uid != 0`,
@@ -131,7 +131,7 @@ func TestRuleSetDiscarders(t *testing.T) {
 		`(mkdir.filename =~ "/var/run/*") && process.uid != 0`,
 	}
 
-	addRuleExpr(t, rs, exprs...)
+	addPolicyRuleExpr(t, re, exprs...)
 
 	event := &testEvent{
 		process: testProcess{
@@ -153,8 +153,8 @@ func TestRuleSetDiscarders(t *testing.T) {
 		mode:     0777,
 	}
 
-	rs.Evaluate(&ev1)
-	rs.Evaluate(&ev2)
+	re.Evaluate(&ev1)
+	re.Evaluate(&ev2)
 
 	expected := map[string]testFieldValues{
 		"open": {
@@ -189,9 +189,9 @@ func TestRuleSetFilters1(t *testing.T) {
 		WithSupportedDiscarders(testSupportedDiscarders).
 		WithEventTypeEnabled(enabled)
 
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
+	re := NewRuleEngine(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
 
-	addRuleExpr(t, rs, `open.filename in ["/etc/passwd", "/etc/shadow"] && (process.uid == 0 || process.gid == 0)`)
+	addPolicyRuleExpr(t, re, `open.filename in ["/etc/passwd", "/etc/shadow"] && (process.uid == 0 || process.gid == 0)`)
 
 	caps := FieldCapabilities{
 		{
@@ -204,7 +204,7 @@ func TestRuleSetFilters1(t *testing.T) {
 		},
 	}
 
-	approvers, err := rs.GetEventApprovers("open", caps)
+	approvers, err := re.GetEventApprovers("open", caps)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +224,7 @@ func TestRuleSetFilters1(t *testing.T) {
 		},
 	}
 
-	approvers, err = rs.GetEventApprovers("open", caps)
+	approvers, err = re.GetEventApprovers("open", caps)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,7 +240,7 @@ func TestRuleSetFilters1(t *testing.T) {
 		},
 	}
 
-	_, err = rs.GetEventApprovers("open", caps)
+	_, err = re.GetEventApprovers("open", caps)
 	if err == nil {
 		t.Fatal("shouldn't get any approver")
 	}
@@ -255,14 +255,14 @@ func TestRuleSetFilters2(t *testing.T) {
 		WithSupportedDiscarders(testSupportedDiscarders).
 		WithEventTypeEnabled(enabled)
 
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
+	re := NewRuleEngine(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
 
 	exprs := []string{
 		`open.filename in ["/etc/passwd", "/etc/shadow"] && process.uid == 0`,
 		`open.flags & O_CREAT > 0 && (process.uid == 0 || process.gid == 0)`,
 	}
 
-	addRuleExpr(t, rs, exprs...)
+	addPolicyRuleExpr(t, re, exprs...)
 
 	caps := FieldCapabilities{
 		{
@@ -271,7 +271,7 @@ func TestRuleSetFilters2(t *testing.T) {
 		},
 	}
 
-	_, err := rs.GetEventApprovers("open", caps)
+	_, err := re.GetEventApprovers("open", caps)
 	if err == nil {
 		t.Fatal("shouldn't get any approver")
 	}
@@ -291,7 +291,7 @@ func TestRuleSetFilters2(t *testing.T) {
 		},
 	}
 
-	approvers, err := rs.GetEventApprovers("open", caps)
+	approvers, err := re.GetEventApprovers("open", caps)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,9 +319,9 @@ func TestRuleSetFilters3(t *testing.T) {
 		WithSupportedDiscarders(testSupportedDiscarders).
 		WithEventTypeEnabled(enabled)
 
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
+	re := NewRuleEngine(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
 
-	addRuleExpr(t, rs, `open.filename in ["/etc/passwd", "/etc/shadow"] && (process.uid == process.gid)`)
+	addPolicyRuleExpr(t, re, `open.filename in ["/etc/passwd", "/etc/shadow"] && (process.uid == process.gid)`)
 
 	caps := FieldCapabilities{
 		{
@@ -330,7 +330,7 @@ func TestRuleSetFilters3(t *testing.T) {
 		},
 	}
 
-	approvers, err := rs.GetEventApprovers("open", caps)
+	approvers, err := re.GetEventApprovers("open", caps)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -353,9 +353,9 @@ func TestRuleSetFilters4(t *testing.T) {
 		WithSupportedDiscarders(testSupportedDiscarders).
 		WithEventTypeEnabled(enabled)
 
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
+	re := NewRuleEngine(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
 
-	addRuleExpr(t, rs, `open.filename =~ "/etc/passwd" && process.uid == 0`)
+	addPolicyRuleExpr(t, re, `open.filename =~ "/etc/passwd" && process.uid == 0`)
 
 	caps := FieldCapabilities{
 		{
@@ -364,7 +364,7 @@ func TestRuleSetFilters4(t *testing.T) {
 		},
 	}
 
-	if _, err := rs.GetEventApprovers("open", caps); err == nil {
+	if _, err := re.GetEventApprovers("open", caps); err == nil {
 		t.Fatal("shouldn't get any approver")
 	}
 
@@ -375,7 +375,7 @@ func TestRuleSetFilters4(t *testing.T) {
 		},
 	}
 
-	if _, err := rs.GetEventApprovers("open", caps); err != nil {
+	if _, err := re.GetEventApprovers("open", caps); err != nil {
 		t.Fatal("expected approver not found")
 	}
 }
@@ -389,9 +389,9 @@ func TestRuleSetFilters5(t *testing.T) {
 		WithSupportedDiscarders(testSupportedDiscarders).
 		WithEventTypeEnabled(enabled)
 
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
+	re := NewRuleEngine(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
 
-	addRuleExpr(t, rs, `(open.flags & O_CREAT > 0 || open.flags & O_EXCL > 0) && open.flags & O_RDWR > 0`)
+	addPolicyRuleExpr(t, re, `(open.flags & O_CREAT > 0 || open.flags & O_EXCL > 0) && open.flags & O_RDWR > 0`)
 
 	caps := FieldCapabilities{
 		{
@@ -404,7 +404,7 @@ func TestRuleSetFilters5(t *testing.T) {
 		},
 	}
 
-	if _, err := rs.GetEventApprovers("open", caps); err != nil {
+	if _, err := re.GetEventApprovers("open", caps); err != nil {
 		t.Fatal("expected approver not found")
 	}
 }
@@ -421,9 +421,9 @@ func TestRuleSetFilters6(t *testing.T) {
 		WithSupportedDiscarders(testSupportedDiscarders).
 		WithEventTypeEnabled(enabled)
 
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
+	re := NewRuleEngine(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
 
-	addRuleExpr(t, rs, `(open.flags & O_CREAT > 0 || open.flags & O_EXCL > 0) || process.name == "httpd"`)
+	addPolicyRuleExpr(t, re, `(open.flags & O_CREAT > 0 || open.flags & O_EXCL > 0) || process.name == "httpd"`)
 
 	caps := FieldCapabilities{
 		{
@@ -432,7 +432,7 @@ func TestRuleSetFilters6(t *testing.T) {
 		},
 	}
 
-	if _, err := rs.GetEventApprovers("open", caps); err == nil {
+	if _, err := re.GetEventApprovers("open", caps); err == nil {
 		t.Fatal("shouldn't get any approver")
 	}
 }
@@ -446,9 +446,9 @@ func TestRuleSetFilters7(t *testing.T) {
 		WithSupportedDiscarders(testSupportedDiscarders).
 		WithEventTypeEnabled(enabled)
 
-	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
+	re := NewRuleEngine(&testModel{}, func() eval.Event { return &testEvent{} }, &opts)
 
-	addRuleExpr(t, rs, `open.filename == "123456"`)
+	addPolicyRuleExpr(t, re, `open.filename == "123456"`)
 
 	caps := FieldCapabilities{
 		{
@@ -460,7 +460,7 @@ func TestRuleSetFilters7(t *testing.T) {
 		},
 	}
 
-	if _, err := rs.GetEventApprovers("open", caps); err != nil {
+	if _, err := re.GetEventApprovers("open", caps); err != nil {
 		t.Fatal("expected approver not found")
 	}
 
@@ -474,7 +474,7 @@ func TestRuleSetFilters7(t *testing.T) {
 		},
 	}
 
-	if _, err := rs.GetEventApprovers("open", caps); err == nil {
+	if _, err := re.GetEventApprovers("open", caps); err == nil {
 		t.Fatal("shouldn't get any approver")
 	}
 }

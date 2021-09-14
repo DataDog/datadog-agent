@@ -43,22 +43,22 @@ import (
 // Module represents the system-probe module for the runtime security agent
 type Module struct {
 	sync.RWMutex
-	wg               sync.WaitGroup
-	probe            *sprobe.Probe
-	config           *sconfig.Config
-	ruleSets         [2]*rules.RuleSet
-	currentRuleSet   uint64
-	reloading        uint64
-	statsdClient     *statsd.Client
-	apiServer        *APIServer
-	grpcServer       *grpc.Server
-	listener         net.Listener
-	rateLimiter      *RateLimiter
-	sigupChan        chan os.Signal
-	ctx              context.Context
-	cancelFnc        context.CancelFunc
-	rulesLoaded      func(rs *rules.RuleSet)
-	policiesVersions []string
+	wg                sync.WaitGroup
+	probe             *sprobe.Probe
+	config            *sconfig.Config
+	ruleEngines       [2]*rules.RuleEngine
+	currentRuleEngine uint64
+	reloading         uint64
+	statsdClient      *statsd.Client
+	apiServer         *APIServer
+	grpcServer        *grpc.Server
+	listener          net.Listener
+	rateLimiter       *RateLimiter
+	sigupChan         chan os.Signal
+	ctx               context.Context
+	cancelFnc         context.CancelFunc
+	rulesLoaded       func(rs *rules.RuleEngine)
+	policiesVersions  []string
 
 	selfTester *SelfTester
 }
@@ -268,11 +268,11 @@ func (m *Module) Reload() error {
 		WithLogger(&seclog.PatternLogger{})
 
 	model := &model.Model{}
-	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts)
-	loadApproversErr := rules.LoadPolicies(policiesDir, approverRuleSet)
+	approverRuleEngine := rules.NewRuleEngine(model, model.NewEvent, &opts)
+	loadApproversErr := approverRuleEngine.Load(policiesDir)
 
-	ruleSet := m.probe.NewRuleSet(&opts)
-	loadErr := rules.LoadPolicies(policiesDir, ruleSet)
+	ruleEngine := m.probe.NewRuleEngine(&opts)
+	loadErr := ruleEngine.Load(policiesDir)
 
 	if loadErr.ErrorOrNil() != nil {
 		logMultiErrors("error while loading policies: %+v", loadErr)
@@ -281,40 +281,40 @@ func (m *Module) Reload() error {
 	}
 
 	monitor := m.probe.GetMonitor()
-	ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleSet, loadErr)
+	ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleEngine, loadErr)
 
 	if m.selfTester != nil {
 		if err := m.selfTester.CreateTargetFileIfNeeded(); err != nil {
 			log.Errorf("failed to create self-test target file: %+v", err)
 		}
-		m.selfTester.AddSelfTestRulesToRuleSets(ruleSet, approverRuleSet)
+		m.selfTester.AddSelfTestRulesToRuleSets(ruleEngine.GetPolicy(), approverRuleEngine.GetPolicy())
 	}
 
-	approvers, err := approverRuleSet.GetApprovers(sprobe.GetCapababilities())
+	approvers, err := approverRuleEngine.GetApprovers(sprobe.GetCapababilities())
 	if err != nil {
 		return err
 	}
 
-	m.policiesVersions = getPoliciesVersions(ruleSet)
+	m.policiesVersions = getPoliciesVersions(ruleEngine.GetPolicy())
 
-	ruleSet.AddListener(m)
+	ruleEngine.AddListener(m)
 	if m.rulesLoaded != nil {
-		m.rulesLoaded(ruleSet)
+		m.rulesLoaded(ruleEngine)
 	}
 
-	currentRuleSet := 1 - atomic.LoadUint64(&m.currentRuleSet)
-	m.ruleSets[currentRuleSet] = ruleSet
-	atomic.StoreUint64(&m.currentRuleSet, currentRuleSet)
+	currentRuleEngine := 1 - atomic.LoadUint64(&m.currentRuleEngine)
+	m.ruleEngines[currentRuleEngine] = ruleEngine
+	atomic.StoreUint64(&m.currentRuleEngine, currentRuleEngine)
 
 	// analyze the ruleset, push default policies in the kernel and generate the policy report
-	report, err := rsa.Apply(ruleSet, approvers)
+	report, err := rsa.Apply(ruleEngine, approvers)
 	if err != nil {
 		return err
 	}
 
 	// full list of IDs, user rules + custom
 	var ruleIDs []rules.RuleID
-	ruleIDs = append(ruleIDs, ruleSet.ListRuleIDs()...)
+	ruleIDs = append(ruleIDs, ruleEngine.GetPolicy().ListRuleIDs()...)
 	ruleIDs = append(ruleIDs, sprobe.AllCustomRuleIDs()...)
 
 	m.apiServer.Apply(ruleIDs)
@@ -352,20 +352,20 @@ func (m *Module) Close() {
 }
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
-func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
+func (m *Module) EventDiscarderFound(re *rules.RuleEngine, event eval.Event, field eval.Field, eventType eval.EventType) {
 	if atomic.LoadUint64(&m.reloading) == 1 {
 		return
 	}
 
-	if err := m.probe.OnNewDiscarder(rs, event.(*sprobe.Event), field, eventType); err != nil {
+	if err := m.probe.OnNewDiscarder(re, event.(*sprobe.Event), field, eventType); err != nil {
 		seclog.Trace(err)
 	}
 }
 
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (m *Module) HandleEvent(event *sprobe.Event) {
-	if ruleSet := m.GetRuleSet(); ruleSet != nil {
-		ruleSet.Evaluate(event)
+	if ruleEngine := m.GetRuleEngine(); ruleEngine != nil {
+		ruleEngine.Evaluate(event)
 	}
 }
 
@@ -478,13 +478,13 @@ func (m *Module) GetProbe() *sprobe.Probe {
 	return m.probe
 }
 
-// GetRuleSet returns the set of loaded rules
-func (m *Module) GetRuleSet() (rs *rules.RuleSet) {
-	return m.ruleSets[atomic.LoadUint64(&m.currentRuleSet)]
+// GetRuleEngine returns the current loaded rule engine
+func (m *Module) GetRuleEngine() (rs *rules.RuleEngine) {
+	return m.ruleEngines[atomic.LoadUint64(&m.currentRuleEngine)]
 }
 
 // SetRulesetLoadedCallback allows setting a callback called when a rule set is loaded
-func (m *Module) SetRulesetLoadedCallback(cb func(rs *rules.RuleSet)) {
+func (m *Module) SetRulesetLoadedCallback(cb func(rs *rules.RuleEngine)) {
 	m.rulesLoaded = cb
 }
 
@@ -521,17 +521,17 @@ func NewModule(cfg *sconfig.Config) (module.Module, error) {
 	}
 
 	m := &Module{
-		config:         cfg,
-		probe:          probe,
-		statsdClient:   statsdClient,
-		apiServer:      NewAPIServer(cfg, probe, statsdClient),
-		grpcServer:     grpc.NewServer(),
-		rateLimiter:    NewRateLimiter(statsdClient, LimiterOpts{Limits: limits}),
-		sigupChan:      make(chan os.Signal, 1),
-		currentRuleSet: 1,
-		ctx:            ctx,
-		cancelFnc:      cancelFnc,
-		selfTester:     selfTester,
+		config:            cfg,
+		probe:             probe,
+		statsdClient:      statsdClient,
+		apiServer:         NewAPIServer(cfg, probe, statsdClient),
+		grpcServer:        grpc.NewServer(),
+		rateLimiter:       NewRateLimiter(statsdClient, LimiterOpts{Limits: limits}),
+		sigupChan:         make(chan os.Signal, 1),
+		currentRuleEngine: 1,
+		ctx:               ctx,
+		cancelFnc:         cancelFnc,
+		selfTester:        selfTester,
 	}
 	m.apiServer.module = m
 

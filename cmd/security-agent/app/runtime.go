@@ -135,20 +135,20 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 		WithLogger(&seclog.PatternLogger{})
 
 	model := &model.Model{}
-	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts)
+	ruleEngine := rules.NewRuleEngine(model, model.NewEvent, &opts)
 
-	if err := rules.LoadPolicies(cfg.PoliciesDir, ruleSet); err.ErrorOrNil() != nil {
+	if err := ruleEngine.Load(cfg.PoliciesDir); err.ErrorOrNil() != nil {
 		return err
 	}
 
-	approvers, err := ruleSet.GetApprovers(sprobe.GetCapababilities())
+	approvers, err := ruleEngine.GetApprovers(sprobe.GetCapababilities())
 	if err != nil {
 		return err
 	}
 
 	rsa := sprobe.NewRuleSetApplier(cfg, nil)
 
-	report, err := rsa.Apply(ruleSet, approvers)
+	report, err := rsa.Apply(ruleEngine, approvers)
 	if err != nil {
 		return err
 	}

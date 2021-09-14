@@ -85,6 +85,16 @@ func (e ErrPolicyLoad) Error() string {
 	return fmt.Sprintf("policy file error `%s`: %s", e.Name, e.Err)
 }
 
+// ErrProfileLoad is returned on profile file error
+type ErrProfileLoad struct {
+	Name string
+	Err  error
+}
+
+func (e ErrProfileLoad) Error() string {
+	return fmt.Sprintf("profile file error `%s`: %s", e.Name, e.Err)
+}
+
 // ErrMacroLoad is on macro definition error
 type ErrMacroLoad struct {
 	Definition *MacroDefinition

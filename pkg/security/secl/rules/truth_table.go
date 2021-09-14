@@ -20,7 +20,7 @@ type truthTable struct {
 	Entries []truthEntry
 }
 
-func (tt *truthTable) getApprovers(fields ...string) map[eval.Field]FilterValues {
+func (tt *truthTable) getApprovers(policy bool, fields ...string) map[eval.Field]FilterValues {
 	filterValues := make(map[eval.Field]FilterValues)
 
 	for _, entry := range tt.Entries {
@@ -33,9 +33,11 @@ func (tt *truthTable) getApprovers(fields ...string) map[eval.Field]FilterValues
 		allFalse := true
 		for _, field := range fields {
 			for _, value := range entry.Values {
-				if value.Field == field && !value.Not {
-					allFalse = false
-					break
+				if value.Field == field {
+					if (policy && !value.Not) || (!policy && value.Not) {
+						allFalse = false
+						break
+					}
 				}
 			}
 		}
@@ -47,16 +49,18 @@ func (tt *truthTable) getApprovers(fields ...string) map[eval.Field]FilterValues
 		for _, field := range fields {
 		LOOP:
 			for _, value := range entry.Values {
-				if !value.ignore && !value.Not && field == value.Field {
-					fvs := filterValues[value.Field]
-					for _, fv := range fvs {
-						// do not append twice the same value
-						if fv.Value == value.Value {
-							continue LOOP
+				if !value.ignore && field == value.Field {
+					if (policy && !value.Not) || (!policy && value.Not) {
+						fvs := filterValues[value.Field]
+						for _, fv := range fvs {
+							// do not append twice the same value
+							if fv.Value == value.Value {
+								continue LOOP
+							}
 						}
+						fvs = append(fvs, value)
+						filterValues[value.Field] = fvs
 					}
-					fvs = append(fvs, value)
-					filterValues[value.Field] = fvs
 				}
 			}
 		}
@@ -81,7 +85,7 @@ func combineBitmasks(bitmasks []int) []int {
 	return result
 }
 
-func genFilterValues(rule *eval.Rule, event eval.Event) ([]FilterValues, error) {
+func genFilterValues(rule *eval.Rule, event eval.Event, defaultNot bool) ([]FilterValues, error) {
 	var filterValues []FilterValues
 	for field, fValues := range rule.GetEvaluator().FieldValues {
 		// case where there is no static value, ex: process.gid == process.uid
@@ -127,6 +131,7 @@ func genFilterValues(rule *eval.Rule, event eval.Event) ([]FilterValues, error) 
 					Field: field,
 					Value: fValue.Value,
 					Type:  fValue.Type,
+					Not:   defaultNot,
 				})
 
 				notValue, err := eval.NotOfValue(fValue.Value)
@@ -138,7 +143,7 @@ func genFilterValues(rule *eval.Rule, event eval.Event) ([]FilterValues, error) 
 					Field: field,
 					Value: notValue,
 					Type:  fValue.Type,
-					Not:   true,
+					Not:   !defaultNot,
 				})
 			case eval.BitmaskValueType:
 				bitmasks = append(bitmasks, fValue.Value.(int))
@@ -148,11 +153,15 @@ func genFilterValues(rule *eval.Rule, event eval.Event) ([]FilterValues, error) 
 		// add combinations of bitmask if bitmasks are used
 		if len(bitmasks) > 0 {
 			for _, mask := range combineBitmasks(bitmasks) {
+				bitmaskNot := mask == 0
+				if defaultNot {
+					bitmaskNot = !bitmaskNot
+				}
 				values = append(values, FilterValue{
 					Field: field,
 					Value: mask,
 					Type:  eval.BitmaskValueType,
-					Not:   mask == 0,
+					Not:   bitmaskNot,
 				})
 			}
 		}
@@ -190,14 +199,14 @@ func combineFilterValues(filterValues []FilterValues) []FilterValues {
 	return combined
 }
 
-func newTruthTable(rule *eval.Rule, event eval.Event) (*truthTable, error) {
+func newTruthTable(rule *eval.Rule, event eval.Event, defaultNot bool) (*truthTable, error) {
 	ctx := eval.NewContext(event.GetPointer())
 
 	if len(rule.GetEvaluator().FieldValues) == 0 {
 		return nil, nil
 	}
 
-	filterValues, err := genFilterValues(rule, event)
+	filterValues, err := genFilterValues(rule, event, defaultNot)
 	if err != nil {
 		return nil, err
 	}

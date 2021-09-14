@@ -77,11 +77,9 @@ type RuleSet struct {
 	macros           map[eval.RuleID]*Macro
 	model            eval.Model
 	eventCtor        func() eval.Event
-	listeners        []RuleSetListener
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
 	fields []string
 	logger Logger
-	pool   *eval.ContextPool
 }
 
 // ListRuleIDs returns the list of RuleIDs from the ruleset
@@ -250,25 +248,6 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 	return rule.Rule, nil
 }
 
-// NotifyRuleMatch notifies all the ruleset listeners that an event matched a rule
-func (rs *RuleSet) NotifyRuleMatch(rule *Rule, event eval.Event) {
-	for _, listener := range rs.listeners {
-		listener.RuleMatch(rule, event)
-	}
-}
-
-// NotifyDiscarderFound notifies all the ruleset listeners that a discarder was found for an event
-func (rs *RuleSet) NotifyDiscarderFound(event eval.Event, field eval.Field, eventType eval.EventType) {
-	for _, listener := range rs.listeners {
-		listener.EventDiscarderFound(rs, event, field, eventType)
-	}
-}
-
-// AddListener adds a listener on the ruleset
-func (rs *RuleSet) AddListener(listener RuleSetListener) {
-	rs.listeners = append(rs.listeners, listener)
-}
-
 // HasRulesForEventType returns if there is at least one rule for the given event type
 func (rs *RuleSet) HasRulesForEventType(eventType eval.EventType) bool {
 	bucket, found := rs.eventRuleBuckets[eventType]
@@ -286,35 +265,6 @@ func (rs *RuleSet) GetBucket(eventType eval.EventType) *RuleBucket {
 	return nil
 }
 
-// GetApprovers returns all approvers
-func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) (map[eval.EventType]Approvers, error) {
-	approvers := make(map[eval.EventType]Approvers)
-	for _, eventType := range rs.GetEventTypes() {
-		caps, exists := fieldCaps[eventType]
-		if !exists {
-			continue
-		}
-
-		eventApprovers, err := rs.GetEventApprovers(eventType, caps)
-		if err != nil {
-			continue
-		}
-		approvers[eventType] = eventApprovers
-	}
-
-	return approvers, nil
-}
-
-// GetEventApprovers returns approvers for the given event type and the fields
-func (rs *RuleSet) GetEventApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, error) {
-	bucket, exists := rs.eventRuleBuckets[eventType]
-	if !exists {
-		return nil, ErrNoEventTypeBucket{EventType: eventType}
-	}
-
-	return bucket.GetApprovers(rs.eventCtor(), fieldCaps)
-}
-
 // GetFieldValues returns all the values of the given field
 func (rs *RuleSet) GetFieldValues(field eval.Field) []eval.FieldValue {
 	var values []eval.FieldValue
@@ -329,41 +279,13 @@ func (rs *RuleSet) GetFieldValues(field eval.Field) []eval.FieldValue {
 	return values
 }
 
-// IsDiscarder partially evaluates an Event against a field
-func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error) {
-	eventType, err := event.GetFieldEventType(field)
-	if err != nil {
-		return false, err
-	}
-
-	bucket, exists := rs.eventRuleBuckets[eventType]
-	if !exists {
-		return false, &ErrNoEventTypeBucket{EventType: eventType}
-	}
-
-	ctx := rs.pool.Get(event.GetPointer())
-	defer rs.pool.Put(ctx)
-
-	for _, rule := range bucket.rules {
-		isTrue, err := rule.PartialEval(ctx, field)
-		if err != nil || isTrue {
-			return false, err
-		}
-	}
-	return true, nil
-}
-
 // Evaluate the specified event against the set of rules
-func (rs *RuleSet) Evaluate(event eval.Event) bool {
-	ctx := rs.pool.Get(event.GetPointer())
-	defer rs.pool.Put(ctx)
-
+func (rs *RuleSet) Evaluate(ctx *eval.Context, event eval.Event, cb func(*Rule, eval.Event)) bool {
 	eventType := event.GetType()
 
-	result := false
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {
-		return result
+		return false
 	}
 	rs.logger.Tracef("Evaluating event of type `%s` against set of %d rules", eventType, len(bucket.rules))
 
@@ -371,45 +293,14 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 		if rule.GetEvaluator().Eval(ctx) {
 			rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
 
-			rs.NotifyRuleMatch(rule, event)
-			result = true
+			if cb != nil {
+				cb(rule, event)
+			}
+			return true
 		}
 	}
 
-	if !result {
-		rs.logger.Tracef("Looking for discarders for event of type `%s`", eventType)
-
-		for _, field := range bucket.fields {
-			if rs.opts.SupportedDiscarders != nil {
-				if _, exists := rs.opts.SupportedDiscarders[field]; !exists {
-					continue
-				}
-			}
-
-			isDiscarder := true
-			for _, rule := range bucket.rules {
-				isTrue, err := rule.PartialEval(ctx, field)
-				if err != nil || isTrue {
-					isDiscarder = false
-					break
-				}
-			}
-			if isDiscarder {
-				rs.NotifyDiscarderFound(event, field, eventType)
-			}
-		}
-	}
-
-	return result
-}
-
-// GetEventTypes returns all the event types handled by the ruleset
-func (rs *RuleSet) GetEventTypes() []eval.EventType {
-	eventTypes := make([]string, 0, len(rs.eventRuleBuckets))
-	for eventType := range rs.eventRuleBuckets {
-		eventTypes = append(eventTypes, eventType)
-	}
-	return eventTypes
+	return false
 }
 
 // AddFields merges the provided set of fields with the existing set of fields of the ruleset
@@ -448,7 +339,6 @@ func (rs *RuleSet) AddPolicyVersion(filename string, version string) {
 // NewRuleSet returns a new ruleset for the specified data model
 func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts) *RuleSet {
 	var logger Logger
-
 	if opts.Logger != nil {
 		logger = opts.Logger
 	} else {
@@ -464,6 +354,5 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts) *Rule
 		macros:           make(map[eval.RuleID]*Macro),
 		loadedPolicies:   make(map[string]string),
 		logger:           logger,
-		pool:             eval.NewContextPool(),
 	}
 }

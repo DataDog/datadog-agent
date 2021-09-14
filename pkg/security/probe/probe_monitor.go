@@ -153,8 +153,8 @@ type RuleSetLoadedReport struct {
 }
 
 // PrepareRuleSetLoadedReport prepares a report of new loaded ruleset
-func (m *Monitor) PrepareRuleSetLoadedReport(ruleSet *rules.RuleSet, err *multierror.Error) RuleSetLoadedReport {
-	r, ev := NewRuleSetLoadedEvent(ruleSet, err)
+func (m *Monitor) PrepareRuleSetLoadedReport(ruleEngine *rules.RuleEngine, err *multierror.Error) RuleSetLoadedReport {
+	r, ev := NewRuleSetLoadedEvent(ruleEngine, err)
 	return RuleSetLoadedReport{Rule: r, Event: ev}
 }
 

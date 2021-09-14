@@ -62,7 +62,7 @@ func (rsa *RuleSetApplier) applyDefaultFilterPolicies() {
 	}
 }
 
-func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventType, approvers rules.Approvers) error {
+func (rsa *RuleSetApplier) setupFilters(re *rules.RuleEngine, eventType eval.EventType, approvers rules.Approvers) error {
 	if !rsa.config.EnableKernelFilters {
 		return rsa.applyFilterPolicy(eventType, PolicyModeNoFilter, math.MaxUint8)
 	}
@@ -90,10 +90,10 @@ func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventT
 }
 
 // Apply setup the filters for the provided set of rules and returns the policy report.
-func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, approvers map[eval.EventType]rules.Approvers) (*Report, error) {
+func (rsa *RuleSetApplier) Apply(re *rules.RuleEngine, approvers map[eval.EventType]rules.Approvers) (*Report, error) {
 	if rsa.probe != nil {
 		// based on the ruleset and the requested rules, select the probes that need to be activated
-		if err := rsa.probe.SelectProbes(rs); err != nil {
+		if err := rsa.probe.SelectProbes(re); err != nil {
 			return nil, errors.Wrap(err, "failed to select probes")
 		}
 
@@ -105,8 +105,8 @@ func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, approvers map[eval.EventType
 	// apply deny filter by default
 	rsa.applyDefaultFilterPolicies()
 
-	for _, eventType := range rs.GetEventTypes() {
-		if err := rsa.setupFilters(rs, eventType, approvers[eventType]); err != nil {
+	for _, eventType := range re.GetEventTypes() {
+		if err := rsa.setupFilters(re, eventType, approvers[eventType]); err != nil {
 			return nil, err
 		}
 	}

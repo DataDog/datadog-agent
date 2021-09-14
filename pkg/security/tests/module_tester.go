@@ -514,9 +514,9 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		cmdWrapper:   cmdWrapper,
 	}
 
-	testMod.module.SetRulesetLoadedCallback(func(rs *rules.RuleSet) {
+	testMod.module.SetRulesetLoadedCallback(func(re *rules.RuleEngine) {
 		log.Infof("Adding test module as listener")
-		rs.AddListener(testMod)
+		re.AddListener(testMod)
 	})
 
 	if err := testMod.module.Init(); err != nil {
@@ -572,7 +572,7 @@ func (tm *testModule) RegisterEventDiscarderHandler(cb eventDiscarderHandler) {
 	tm.eventDiscarderHandler.Unlock()
 }
 
-func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
+func (tm *testModule) EventDiscarderFound(re *rules.RuleEngine, event eval.Event, field eval.Field, eventType eval.EventType) {
 	tm.eventDiscarderHandler.RLock()
 	callback := tm.eventDiscarderHandler.callback
 	tm.eventDiscarderHandler.RUnlock()

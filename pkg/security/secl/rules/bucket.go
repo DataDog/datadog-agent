@@ -46,6 +46,18 @@ func (rb *RuleBucket) GetRules() []*Rule {
 	return rb.rules
 }
 
+// Merge buckets
+func (rb *RuleBucket) Merge(rb2 *RuleBucket) {
+	rb.rules = append(rb.rules, rb2.rules...)
+	for _, field := range rb2.fields {
+		index := sort.SearchStrings(rb.fields, field)
+		if index < len(rb.fields) && rb.fields[index] == field {
+			continue
+		}
+		rb.fields = append(rb.fields, field)
+	}
+}
+
 // FieldCombinations - array all the combinations of field
 type FieldCombinations [][]eval.Field
 
@@ -73,19 +85,19 @@ func fieldCombinations(fields []eval.Field) FieldCombinations {
 }
 
 // GetApprovers returns the approvers for an event
-func (rb *RuleBucket) GetApprovers(event eval.Event, fieldCaps FieldCapabilities) (Approvers, error) {
+func (rb *RuleBucket) GetApprovers(event eval.Event, fieldCaps FieldCapabilities, policy bool) (Approvers, error) {
 	fcs := fieldCombinations(fieldCaps.GetFields())
 
 	approvers := make(Approvers)
 	for _, rule := range rb.rules {
-		truthTable, err := newTruthTable(rule.Rule, event)
+		truthTable, err := newTruthTable(rule.Rule, event, !policy)
 		if err != nil {
 			return nil, err
 		}
 
 		var ruleApprovers map[eval.Field]FilterValues
 		for _, fields := range fcs {
-			ruleApprovers = truthTable.getApprovers(fields...)
+			ruleApprovers = truthTable.getApprovers(policy, fields...)
 
 			// only one approver is currently required to ensure that the rule will be applied
 			// this could be improve by adding weight to use the most valuable one

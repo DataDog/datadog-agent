@@ -207,14 +207,14 @@ type RulesetLoadedEvent struct {
 }
 
 // NewRuleSetLoadedEvent returns the rule and a populated custom event for a new_rules_loaded event
-func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rule, *CustomEvent) {
+func NewRuleSetLoadedEvent(re *rules.RuleEngine, err *multierror.Error) (*rules.Rule, *CustomEvent) {
 	mp := make(map[string]*PolicyLoaded)
 
 	var policy *PolicyLoaded
 	var exists bool
 
 	// rule successfully loaded
-	for _, rule := range rs.GetRules() {
+	for _, rule := range re.GetPolicy().GetRules() {
 		policyName := rule.Definition.Policy.Name
 
 		if policy, exists = mp[policyName]; !exists {
@@ -253,13 +253,15 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 		policies = append(policies, policy)
 	}
 
+	// TODO(lebauce) add profiles here
+
 	return newRule(&rules.RuleDefinition{
 			ID: RulesetLoadedRuleID,
 		}), newCustomEvent(model.CustomRulesetLoadedEventType, RulesetLoadedEvent{
 			Timestamp:       time.Now(),
 			PoliciesLoaded:  policies,
 			PoliciesIgnored: &PoliciesIgnored{Errors: err},
-			MacrosLoaded:    rs.ListMacroIDs(),
+			MacrosLoaded:    re.GetPolicy().ListMacroIDs(),
 		})
 }
 

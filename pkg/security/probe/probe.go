@@ -574,7 +574,7 @@ func (p *Probe) OnRuleMatch(rule *rules.Rule, event *Event) {
 }
 
 // OnNewDiscarder is called when a new discarder is found
-func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field, eventType eval.EventType) error {
+func (p *Probe) OnNewDiscarder(re *rules.RuleEngine, event *Event, field eval.Field, eventType eval.EventType) error {
 	// discarders disabled
 	if !p.config.EnableDiscarders {
 		return nil
@@ -587,7 +587,7 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 	seclog.Tracef("New discarder of type %s for field %s", eventType, field)
 
 	if handler, ok := allDiscarderHandlers[eventType]; ok {
-		return handler(rs, event, p, Discarder{Field: field})
+		return handler(re, event, p, Discarder{Field: field})
 	}
 
 	return nil
@@ -649,11 +649,11 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 
 // SelectProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
-func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
+func (p *Probe) SelectProbes(re *rules.RuleEngine) error {
 	var activatedProbes []manager.ProbesSelector
 
 	for eventType, selectors := range probes.SelectorsPerEventType {
-		if eventType == "*" || rs.HasRulesForEventType(eventType) {
+		if eventType == "*" || re.HasRulesForEventType(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 		}
 	}
@@ -686,7 +686,7 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	}
 
 	enabledEvents := uint64(0)
-	for _, eventName := range rs.GetEventTypes() {
+	for _, eventName := range re.GetEventTypes() {
 		if eventName != "*" {
 			eventType := model.ParseEvalEventType(eventName)
 			if eventType == model.UnknownEventType {
@@ -833,14 +833,14 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 	return debug
 }
 
-// NewRuleSet returns a new rule set
-func (p *Probe) NewRuleSet(opts *rules.Opts) *rules.RuleSet {
+// NewRuleEngine returns a new rule engine
+func (p *Probe) NewRuleEngine(opts *rules.Opts) *rules.RuleEngine {
 	eventCtor := func() eval.Event {
 		return NewEvent(p.resolvers, p.scrubber)
 	}
 	opts.Logger = &seclog.PatternLogger{}
 
-	return rules.NewRuleSet(&Model{}, eventCtor, opts)
+	return rules.NewRuleEngine(&Model{}, eventCtor, opts)
 }
 
 // NewProbe instantiates a new runtime security agent probe

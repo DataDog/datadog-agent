@@ -27,15 +27,15 @@ func TestApproverAncestors1(t *testing.T) {
 		WithLogger(&seclog.PatternLogger{})
 
 	m := &model.Model{}
-	rs := rules.NewRuleSet(m, m.NewEvent, &opts)
-	addRuleExpr(t, rs, `open.file.path == "/etc/passwd" && process.ancestors.file.name == "vipw"`, `open.file.path == "/etc/shadow" && process.ancestors.file.name == "vipw"`)
+	re := rules.NewRuleEngine(m, m.NewEvent, &opts)
+	addRuleExpr(t, re, `open.file.path == "/etc/passwd" && process.ancestors.file.name == "vipw"`, `open.file.path == "/etc/shadow" && process.ancestors.file.name == "vipw"`)
 
 	capabilities, exists := allCapabilities["open"]
 	if !exists {
 		t.Fatal("no capabilities for open")
 	}
 
-	approvers, err := rs.GetEventApprovers("open", capabilities.GetFieldCapabilities())
+	approvers, err := re.GetEventApprovers("open", capabilities.GetFieldCapabilities())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,13 +56,13 @@ func TestApproverAncestors2(t *testing.T) {
 		WithLogger(&seclog.PatternLogger{})
 
 	m := &model.Model{}
-	rs := rules.NewRuleSet(m, m.NewEvent, &opts)
-	addRuleExpr(t, rs, `(open.file.path == "/etc/shadow" || open.file.path == "/etc/gshadow") && process.ancestors.file.path not in ["/usr/bin/dpkg"]`)
+	re := rules.NewRuleEngine(m, m.NewEvent, &opts)
+	addRuleExpr(t, re, `(open.file.path == "/etc/shadow" || open.file.path == "/etc/gshadow") && process.ancestors.file.path not in ["/usr/bin/dpkg"]`)
 	capabilities, exists := allCapabilities["open"]
 	if !exists {
 		t.Fatal("no capabilities for open")
 	}
-	approvers, err := rs.GetEventApprovers("open", capabilities.GetFieldCapabilities())
+	approvers, err := re.GetEventApprovers("open", capabilities.GetFieldCapabilities())
 	if err != nil {
 		t.Fatal(err)
 	}
