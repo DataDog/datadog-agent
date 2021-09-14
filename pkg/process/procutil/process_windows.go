@@ -385,7 +385,7 @@ func (p *probe) mapWorkingSet(instance string, v uint64) {
 
 func setProcMemVMS(pid int32, stats *Stats, instance string, v uint64) {
 	log.Tracef("Mem.VMS[%s,pid=%d] %d", instance, pid, v)
-	stats.MemInfo.RSS = v
+	stats.MemInfo.VMS = v
 }
 
 func (p *probe) mapPoolPagedBytes(instance string, v uint64) {
