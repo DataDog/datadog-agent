@@ -910,7 +910,11 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	}
 
 	// tail calls
-	p.managerOptions.TailCallRouter = probes.AllTailRoutes()
+	p.managerOptions.TailCallRouter = probes.AllTailRoutes(p.config.ERPCDentryResolutionEnabled)
+	if !p.config.ERPCDentryResolutionEnabled {
+		// exclude the programs that use the bpf_probe_write_user helper
+		p.managerOptions.ExcludedSections = probes.AllBPFProbeWriteUserSections()
+	}
 
 	resolvers, err := NewResolvers(config, p)
 	if err != nil {
