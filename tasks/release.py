@@ -1260,6 +1260,11 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
     # which tag to target when creating the pipeline.
     new_version = next_rc_version(ctx, max(list_major_versions), patch_version)
 
+    # Get a string representation of the RC, eg. "6/7.32.0-rc.1"
+    versions_string = "{}".format(
+        "/".join([str(n) for n in list_major_versions[:-1]] + [str(new_version)]),
+    )
+
     # Step 0: checks
 
     print(color_message("Checking repository state", "bold"))
@@ -1267,14 +1272,27 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
     current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
     fail_if_not_base_branch(current_branch, new_version)
 
-    print(color_message("Tagging RC for agent version(s) {}".format(list_major_versions), "bold"))
+    latest_commit = ctx.run("git --no-pager log --no-color -1 --oneline").stdout.strip()
+
+    if not yes_no_question(
+        "This task will create tags for {} on the current commit: {}. Is this OK?".format(
+            versions_string, latest_commit
+        ),
+        color="orange",
+        default=False,
+    ):
+        raise Exit(color_message("Aborrting.", "red"), code=1)
 
     # Step 1: Tag versions
 
+    print(color_message("Tagging RC for agent version(s) {}".format(list_major_versions), "bold"))
+    print(
+        color_message("If commit signing is enabled, you will have to make sure each tag gets properly signed.", "bold")
+    )
     # tag_version only takes the highest version (Agent 7 currently), and creates
     # the tags for all supported versions
     # TODO: make it possible to do Agent 6-only tags?
-    tag_version(ctx, str(new_version), push=False)
+    tag_version(ctx, str(new_version))
 
     print(color_message("Waiting until the {} tag appears in Gitlab".format(new_version), "bold"))
     gitlab_tag = None
