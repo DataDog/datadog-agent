@@ -172,7 +172,6 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 
 	finishPayload := func() error {
 		var payload []byte
-		// Since the compression buffer is full - flush it and rotate
 		payload, err = compressor.Close()
 		if err != nil {
 			return err
@@ -276,6 +275,7 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 			expvarsPayloadFull.Add(1)
 			tlmPayloadFull.Inc()
 
+			// Since the compression buffer is full - flush it and start a new one
 			err = finishPayload()
 			if err != nil {
 				return nil, err
