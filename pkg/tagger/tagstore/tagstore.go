@@ -316,6 +316,9 @@ func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardina
 // lookups on missing sources.
 func (s *TagStore) Lookup(entity string, cardinality collectors.TagCardinality) ([]string, []string) {
 	tags, sources := s.LookupHashed(entity, cardinality)
+	if tags == nil {
+		return nil, sources
+	}
 	return tags.Get(), sources
 }
 

@@ -100,7 +100,6 @@ func (h hashedTags) len() int {
 	return len(h.data)
 }
 
-
 // HashingTagsBuilder allows to build a slice of tags to generate the context while
 // reusing the same internal slice.
 type HashingTagsBuilder struct {
@@ -171,25 +170,16 @@ func (tb *HashingTagsBuilder) Truncate(len int) {
 
 // Get returns the internal slice
 func (tb *HashingTagsBuilder) Get() []string {
-	if tb == nil {
-		return nil
-	}
 	return tb.data
 }
 
 // Hashes returns the internal slice of tag hashes
 func (tb *HashingTagsBuilder) Hashes() []uint64 {
-	if tb == nil {
-		return nil
-	}
 	return tb.hash
 }
 
 // Copy makes a copy of the internal slice
 func (tb *HashingTagsBuilder) Copy() []string {
-	if tb == nil {
-		return nil
-	}
 	return append(make([]string, 0, len(tb.data)), tb.data...)
 }
 
@@ -207,9 +197,6 @@ func (tb *HashingTagsBuilder) Swap(i, j int) {
 
 // Len implements sort.Interface.Len
 func (tb *HashingTagsBuilder) Len() int {
-	if tb == nil {
-		return 0
-	}
 	return len(tb.data)
 }
 

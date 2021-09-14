@@ -348,6 +348,9 @@ func (t *Tagger) Tag(entity string, cardinality collectors.TagCardinality) ([]st
 	if err != nil {
 		return nil, err
 	}
+	if tags == nil {
+		return nil, nil
+	}
 
 	return tags.Copy(), nil
 }
