@@ -40,7 +40,7 @@ func (tb *TagsBuilder) Append(tags ...string) {
 }
 
 // AppendHashed appends tags and corresponding hashes to the builder
-func (tb *TagsBuilder) AppendHashed(src *HashingTagsBuilder) {
+func (tb *TagsBuilder) AppendHashed(src *HashedTags) {
 	tb.data = append(tb.data, src.data...)
 }
 
@@ -61,34 +61,63 @@ func (tb *TagsBuilder) Reset() {
 	tb.data = tb.data[0:0]
 }
 
+// hashedTags is the base type for HashingTagsBuilder and HashedTags
+type hashedTags struct {
+	data []string
+	hash []uint64
+}
+
+func newHashedTagsWithCapacity(cap int) hashedTags {
+	return hashedTags{
+		data: make([]string, 0, cap),
+		hash: make([]uint64, 0, cap),
+	}
+}
+
+func newHashedTagsFromSlice(tags []string) hashedTags {
+	hash := make([]uint64, 0, len(tags))
+	for _, t := range tags {
+		hash = append(hash, murmur3.StringSum64(t))
+	}
+	return hashedTags{
+		data: tags,
+		hash: hash,
+	}
+}
+
+func (h hashedTags) slice(i, j int) hashedTags {
+	return hashedTags{
+		data: h.data[i:j],
+		hash: h.hash[i:j],
+	}
+}
+
+func (h hashedTags) copy() []string {
+	return append(make([]string, 0, len(h.data)), h.data...)
+}
+
+func (h hashedTags) len() int {
+	return len(h.data)
+}
+
+
 // HashingTagsBuilder allows to build a slice of tags to generate the context while
 // reusing the same internal slice.
 type HashingTagsBuilder struct {
-	data []string
-	hash []uint64
+	hashedTags
 }
 
 // NewHashingTagsBuilder returns a new empty TagsBuilder.
 func NewHashingTagsBuilder() *HashingTagsBuilder {
 	return &HashingTagsBuilder{
-		// Slice will grow as more tags are added to it. 128 tags
-		// should be enough for most metrics.
-		data: make([]string, 0, 128),
-		hash: make([]uint64, 0, 128),
+		hashedTags: newHashedTagsWithCapacity(128),
 	}
 }
 
 // NewHashingTagsBuilderFromSlice return a new TagsBuilder with the input slice for
 // it's internal buffer.
 func NewHashingTagsBuilderFromSlice(tags []string) *HashingTagsBuilder {
-	hash := make([]uint64, 0, len(tags))
-	for _, t := range tags {
-		hash = append(hash, murmur3.StringSum64(t))
-	}
-	return &HashingTagsBuilder{
-		data: tags,
-		hash: hash,
-	}
+	return &HashingTagsBuilder{newHashedTagsFromSlice(tags)}
 }
 
 // Append appends tags to the builder
@@ -100,7 +129,7 @@ func (tb *HashingTagsBuilder) Append(tags ...string) {
 }
 
 // AppendHashed appends tags and corresponding hashes to the builder
-func (tb *HashingTagsBuilder) AppendHashed(src *HashingTagsBuilder) {
+func (tb *HashingTagsBuilder) AppendHashed(src *HashedTags) {
 	tb.data = append(tb.data, src.data...)
 	tb.hash = append(tb.hash, src.hash...)
 }
@@ -170,14 +199,6 @@ func (tb *HashingTagsBuilder) Less(i, j int) bool {
 	return tb.data[i] < tb.data[j]
 }
 
-// Slice returns a shared slice of tb's internal data.
-func (tb *HashingTagsBuilder) Slice(i, j int) *HashingTagsBuilder {
-	return &HashingTagsBuilder{
-		data: tb.data[i:j],
-		hash: tb.hash[i:j],
-	}
-}
-
 // Swap implements sort.Interface.Swap
 func (tb *HashingTagsBuilder) Swap(i, j int) {
 	tb.hash[i], tb.hash[j] = tb.hash[j], tb.hash[i]
@@ -190,4 +211,34 @@ func (tb *HashingTagsBuilder) Len() int {
 		return 0
 	}
 	return len(tb.data)
+}
+
+// HashedTags is an immutable slice of pre-hashed tags.
+type HashedTags struct {
+	hashedTags
+}
+
+// NewHashedTagsFromSlice creates a new instance, re-using tags as the internal slice.
+func NewHashedTagsFromSlice(tags []string) HashedTags {
+	return HashedTags{newHashedTagsFromSlice(tags)}
+}
+
+// Slice returns a shared sub-slice of tags from t.
+func (t HashedTags) Slice(i, j int) HashedTags {
+	return HashedTags{t.hashedTags.slice(i, j)}
+}
+
+// Get returns the internal strings slice. It should not be modified.
+func (t HashedTags) Get() []string {
+	return t.data
+}
+
+// Len returns number of tags.
+func (t HashedTags) Len() int {
+	return t.hashedTags.len()
+}
+
+// Copy returns a new slice with tags.
+func (t HashedTags) Copy() []string {
+	return t.hashedTags.copy()
 }

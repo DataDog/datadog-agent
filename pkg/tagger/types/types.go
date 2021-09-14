@@ -82,5 +82,5 @@ type EntityEvent struct {
 // TagsBuilder represents a consumer for tags stored in the tagger.
 type TagsBuilder interface {
 	Append(...string)
-	AppendHashed(*util.HashingTagsBuilder)
+	AppendHashed(*util.HashedTags)
 }

@@ -261,13 +261,13 @@ func (t *Tagger) Stop() error {
 }
 
 // getTags returns a read only list of tags for a given entity.
-func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) (*util.HashingTagsBuilder, error) {
+func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) (*util.HashedTags, error) {
 	if entity == "" {
 		telemetry.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
 		return nil, fmt.Errorf("empty entity ID")
 	}
 
-	cachedTags, sources := t.store.LookupBuilder(entity, cardinality)
+	cachedTags, sources := t.store.LookupHashed(entity, cardinality)
 
 	if len(sources) == len(t.fetchers) {
 		telemetry.QueriesByCardinality(cardinality).Success.Inc()
@@ -322,7 +322,7 @@ IterCollectors:
 	}
 	t.RUnlock()
 
-	cachedTags, _ = t.store.LookupBuilder(entity, cardinality)
+	cachedTags, _ = t.store.LookupHashed(entity, cardinality)
 
 	if cachedTags.Len() > 0 {
 		telemetry.QueriesByCardinality(cardinality).Success.Inc()

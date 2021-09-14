@@ -39,9 +39,9 @@ type EntityTags struct {
 	sourceTags         map[string]sourceTags
 	cacheValid         bool
 	cachedSource       []string
-	cachedAll          *util.HashingTagsBuilder // Low + orchestrator + high
-	cachedOrchestrator *util.HashingTagsBuilder // Low + orchestrator (subslice of cachedAll)
-	cachedLow          *util.HashingTagsBuilder // Sub-slice of cachedAll
+	cachedAll          util.HashedTags // Low + orchestrator + high
+	cachedOrchestrator util.HashedTags // Low + orchestrator (subslice of cachedAll)
+	cachedLow          util.HashedTags // Sub-slice of cachedAll
 }
 
 func newEntityTags(entityID string) *EntityTags {
@@ -297,10 +297,10 @@ func (s *TagStore) Prune() {
 	}
 }
 
-// LookupBuilder gets tags from the store and returns them as a TagsBuilder instance. It
+// LookupHashed gets tags from the store and returns them as a TagsBuilder instance. It
 // returns the source names in the second slice to allow the client to trigger manual
 // lookups on missing sources.
-func (s *TagStore) LookupBuilder(entity string, cardinality collectors.TagCardinality) (*util.HashingTagsBuilder, []string) {
+func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardinality) (*util.HashedTags, []string) {
 	s.RLock()
 	defer s.RUnlock()
 	storedTags, present := s.store[entity]
@@ -315,7 +315,7 @@ func (s *TagStore) LookupBuilder(entity string, cardinality collectors.TagCardin
 // returns the source names in the second slice to allow the client to trigger manual
 // lookups on missing sources.
 func (s *TagStore) Lookup(entity string, cardinality collectors.TagCardinality) ([]string, []string) {
-	tags, sources := s.LookupBuilder(entity, cardinality)
+	tags, sources := s.LookupHashed(entity, cardinality)
 	return tags.Get(), sources
 }
 
@@ -362,15 +362,15 @@ func (e *EntityTags) get(cardinality collectors.TagCardinality) ([]string, []str
 	return tags.Get(), sources
 }
 
-func (e *EntityTags) getBuilder(cardinality collectors.TagCardinality) (*util.HashingTagsBuilder, []string) {
+func (e *EntityTags) getBuilder(cardinality collectors.TagCardinality) (*util.HashedTags, []string) {
 	e.computeCache()
 
 	if cardinality == collectors.HighCardinality {
-		return e.cachedAll, e.cachedSource
+		return &e.cachedAll, e.cachedSource
 	} else if cardinality == collectors.OrchestratorCardinality {
-		return e.cachedOrchestrator, e.cachedSource
+		return &e.cachedOrchestrator, e.cachedSource
 	}
-	return e.cachedLow, e.cachedSource
+	return &e.cachedLow, e.cachedSource
 }
 
 func (e *EntityTags) toEntity() types.Entity {
@@ -461,8 +461,7 @@ func (e *EntityTags) computeCache() {
 	tags := append(lowCardTags, orchestratorCardTags...)
 	tags = append(tags, highCardTags...)
 
-	cached := util.NewHashingTagsBuilder()
-	cached.Append(tags...)
+	cached := util.NewHashedTagsFromSlice(tags)
 
 	// Write cache
 	e.cacheValid = true
