@@ -13,6 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type schedulerInterface interface {
@@ -64,6 +66,8 @@ type AgentMetadataName string
 const (
 	AgentCloudProvider  AgentMetadataName = "cloud_provider"
 	AgentHostnameSource AgentMetadataName = "hostname_source"
+	AgentVersion        AgentMetadataName = "version"
+	AgentFlavor         AgentMetadataName = "flavor"
 )
 
 // SetAgentMetadata updates the agent metadata value in the cache
@@ -204,4 +208,10 @@ func StartMetadataUpdatedGoroutine(sc schedulerInterface, minSendInterval time.D
 		}
 	}()
 	return nil
+}
+
+// InitializeData inits the inventories payload with basic and static information (agent version, flavor name, ...)
+func InitializeData() {
+	SetAgentMetadata(AgentVersion, version.AgentVersion)
+	SetAgentMetadata(AgentFlavor, flavor.GetFlavor())
 }
