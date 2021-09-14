@@ -4,7 +4,6 @@ import (
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var ProcessDiscovery = &ProcessDiscoveryCheck{}
@@ -27,29 +26,59 @@ func (d *ProcessDiscoveryCheck) Run(cfg *config.AgentConfig, groupID int32) ([]m
 	// Does not need to collect process stats, only metadata
 	procs, err := getAllProcesses(d.probe, false)
 	if err != nil {
-		return nil, log.Error(err)
+		return nil, err
 	}
-	payload := model.CollectorProcDiscovery{
-		HostName:           cfg.HostName,
-		GroupId:            groupID,
-		GroupSize:          0,
-		ProcessDiscoveries: make([]*model.ProcessDiscovery, 0, len(procs)),
-		Host: &model.Host{
-			Name:        cfg.HostName,
-			NumCpus:     d.info.Cpus[0].Number,
-			TotalMemory: d.info.TotalMemory,
-		},
+
+	host := &model.Host{
+		Name:        cfg.HostName,
+		NumCpus:     d.info.Cpus[0].Number,
+		TotalMemory: d.info.TotalMemory,
 	}
-	for _, proc := range procs {
-		payload.ProcessDiscoveries = append(payload.ProcessDiscoveries, &model.ProcessDiscovery{
+	procDiscoveryChunks := chunkProcessDiscoveries(pidMaptoProcDiscoveryArray(procs, host), cfg.MaxPerMessage)
+	payload := make([]model.MessageBody, len(procDiscoveryChunks))
+	for i, procDiscoveryChunk := range procDiscoveryChunks {
+		payload[i] = &model.CollectorProcDiscovery{
+			HostName:           cfg.HostName,
+			GroupId:            groupID,
+			GroupSize:          int32(len(procDiscoveryChunk)),
+			ProcessDiscoveries: procDiscoveryChunk,
+			Host:               host,
+		}
+	}
+
+	return payload, nil
+}
+
+func pidMaptoProcDiscoveryArray(pidMap map[int32]*procutil.Process, host *model.Host) []*model.ProcessDiscovery {
+	array := make([]*model.ProcessDiscovery, 0, len(pidMap))
+	for _, proc := range pidMap {
+		array = append(array, &model.ProcessDiscovery{
 			Pid:     proc.Pid,
 			NsPid:   proc.NsPid,
-			Host:    payload.Host,
+			Host:    host,
 			Command: formatCommand(proc),
 			User:    formatUser(proc),
 		})
-		payload.GroupSize += 1
+	}
+	return array
+}
+
+// chunkProcessDiscoveries split non-container processes into chunks and return a list of chunks
+// This function is patiently awaiting go to support generics, so that we don't need two chunkProcesses functions :)
+func chunkProcessDiscoveries(procs []*model.ProcessDiscovery, size int) [][]*model.ProcessDiscovery {
+	chunkCount := len(procs) / size
+	if chunkCount*size < len(procs) {
+		chunkCount++
+	}
+	chunks := make([][]*model.ProcessDiscovery, 0, chunkCount)
+
+	for i := 0; i < len(procs); i += size {
+		end := i + size
+		if end > len(procs) {
+			end = len(procs)
+		}
+		chunks = append(chunks, procs[i:end])
 	}
 
-	return []model.MessageBody{&payload}, nil
+	return chunks
 }
