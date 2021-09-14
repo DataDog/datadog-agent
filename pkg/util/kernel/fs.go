@@ -14,7 +14,7 @@ func IsDebugFSMounted() (bool, error) {
 
 	if err != nil {
 		if os.IsPermission(err) {
-			return false, fmt.Errorf("system-probe does not have permission to access debugfs")
+			return false, fmt.Errorf("eBPF not supported, does not have permission to access debugfs")
 		} else if os.IsNotExist(err) {
 			return false, fmt.Errorf("debugfs is not mounted and is needed for eBPF-based checks, run \"sudo mount -t debugfs none /sys/kernel/debug\" to mount debugfs")
 		} else {

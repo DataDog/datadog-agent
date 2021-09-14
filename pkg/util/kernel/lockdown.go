@@ -43,10 +43,3 @@ func GetLockdownMode() LockdownMode {
 
 	return getLockdownMode(string(data))
 }
-
-func IsLockdownEnabled() bool {
-	if mode := GetLockdownMode(); mode != None && mode != Unknown {
-		return true
-	}
-	return false
-}
