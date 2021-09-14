@@ -143,18 +143,6 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 	const dogsketchK = 7
 	const dogsketchN = 8
 
-	// generate a footer containing an empty Metadata field (TODO: this isn't
-	// necessary; an omitted field will be assumed empty)
-	var footer []byte
-	{
-		buf := bytes.NewBuffer([]byte{})
-		ps := molecule.NewProtoStream(buf)
-		ps.Embedded(payloadMetadata, func(ps *molecule.ProtoStream) error {
-			return nil
-		})
-		footer = buf.Bytes()
-	}
-
 	// Prepare to write the next payload
 	startPayload := func() error {
 		var err error
@@ -162,7 +150,7 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 		bufferContext.CompressorInput.Reset()
 		bufferContext.CompressorOutput.Reset()
 
-		compressor, err = stream.NewCompressor(bufferContext.CompressorInput, bufferContext.CompressorOutput, []byte{}, footer, []byte{})
+		compressor, err = stream.NewCompressor(bufferContext.CompressorInput, bufferContext.CompressorOutput, []byte{}, []byte{}, []byte{})
 		if err != nil {
 			return err
 		}
