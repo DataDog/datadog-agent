@@ -84,7 +84,7 @@ func TestFetchAuthTokenFromEnv(t *testing.T) {
 	os.Setenv(tokenEnvVar, tokenValue)
 	defer os.Unsetenv(tokenEnvVar)
 
-	sourceToken := string(hex.EncodeToString([]byte(tokenValue[:authTokenMinimalLen])))
+	sourceToken := hex.EncodeToString([]byte(tokenValue[:authTokenMinimalLen]))
 
 	newToken, err := CreateOrFetchToken()
 	require.Nil(t, err, fmt.Sprintf("%v", err))
