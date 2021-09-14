@@ -961,19 +961,22 @@ def fail_if_not_base_branch(branch, release_version):
 
 def check_local_branch(ctx, branch):
     """
-    Checks if the given branch doesn't exist locally
+    Checks if the given branch exists locally
     """
     matching_branch = ctx.run("git --no-pager branch --list {} | wc -l".format(branch), hide=True).stdout.strip()
+
+    # Return True if a branch is returned by git branch --list
     return matching_branch != "0"
 
 
-def check_upstream_branch(ctx, repository, branch):
+def check_upstream_branch(github, repository, branch):
     """
-    Checks if the given branch doesn't exist in the given upstream repository
+    Checks if the given branch already exists in the given upstream repository
     """
-    matching_remote_branch = ctx.run("git ls-remote {} {} | wc -l".format(repository, branch), hide=True).stdout.strip()
+    branch = github.get_branch(repository, branch)
 
-    return matching_remote_branch != "0"
+    # Return True if the branch exists
+    return branch and branch.get('name', False)
 
 
 def parse_major_versions(major_versions):
@@ -1025,7 +1028,7 @@ def finish(ctx, major_versions="6,7"):
 
 
 @task
-def create_rc(ctx, major_versions="6,7", patch_version=False):
+def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin"):
     """
     Updates the release entries in release.json to prepare the next RC build.
     If the previous version of the Agent (determined as the latest tag on the
@@ -1052,6 +1055,9 @@ def create_rc(ctx, major_versions="6,7", patch_version=False):
     Updates internal module dependencies with the new RC.
 
     Commits the above changes, and then creates a PR on the upstream repository with the change.
+
+    The --upstream option can be set if the remote repsoitory's name is not "origin" in your git repository
+    config.
 
     Notes:
     This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
@@ -1098,7 +1104,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False):
             code=1,
         )
 
-    if check_upstream_branch(ctx, "https://github.com/{}".format(repo_name), update_branch):
+    if check_upstream_branch(github, "https://github.com/{}".format(repo_name), update_branch):
         raise Exit(
             "The branch {} already exists upstream. Please remove it before trying again.".format(update_branch),
             code=1,
@@ -1128,7 +1134,18 @@ def create_rc(ctx, major_versions="6,7", patch_version=False):
     ctx.run("git commit -m 'Update release.json and Go modules for {}'".format(versions_string))
 
     print(color_message("Pushing new branch to the upstream repository", "bold"))
-    ctx.run("git push --set-upstream origin {}".format(update_branch))
+    try:
+        ctx.run("git push --set-upstream {} {}".format(upstream, update_branch))
+    except Exception:
+        color_message(
+            "Could not push branch {} to the upstream ({}). Please push it manually and then open a PR against {}.".format(
+                update_branch,
+                upstream,
+                current_branch,
+            ),
+            "red",
+        )
+        raise
 
     print(color_message("Creating PR", "bold"))
 

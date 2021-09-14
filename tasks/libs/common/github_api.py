@@ -24,6 +24,14 @@ class GithubAPI(RemoteAPI):
         path = "/repos/{}".format(repo_name)
         return self.make_request(path, method="GET", json_output=True)
 
+    def get_branch(self, repo_name, branch_name):
+        """
+        Creates a PR in the given repository.
+        """
+
+        path = "/repos/{}/branches/{}".format(repo_name, branch_name)
+        return self.make_request(path, method="GET", json_output=True)
+
     def create_pr(self, repo_name, pr_title, pr_body, base_branch, target_branch):
         """
         Creates a PR in the given repository.
