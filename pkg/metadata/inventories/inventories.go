@@ -63,7 +63,7 @@ type AgentMetadataName string
 // be updated there as well.
 const (
 	AgentCloudProvider  AgentMetadataName = "cloud_provider"
-	AgentHostnameSource                   = "hostname_source"
+	AgentHostnameSource AgentMetadataName = "hostname_source"
 )
 
 // SetAgentMetadata updates the agent metadata value in the cache
