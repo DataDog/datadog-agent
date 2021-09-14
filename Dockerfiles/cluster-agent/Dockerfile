@@ -2,7 +2,7 @@
 # Preparation stage: layout and chmods #
 ########################################
 
-FROM ubuntu:20.04 as builder
+FROM debian:buster-slim as builder
 
 WORKDIR /output
 
@@ -22,7 +22,7 @@ RUN chmod 755 entrypoint.sh \
 # Actual docker image construction #
 ####################################
 
-FROM ubuntu:20.04
+FROM debian:buster-slim
 
 LABEL maintainer "StackState <info@stackstate.com>"
 
