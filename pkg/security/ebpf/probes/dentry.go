@@ -22,6 +22,20 @@ func getDentryResolverTailCallRoutes() []manager.TailCallRoute {
 		},
 		{
 			ProgArrayName: "dentry_resolver_kprobe_progs",
+			Key:           DentryResolverParentERPCKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				Section: "kprobe/dentry_resolver_parent_erpc",
+			},
+		},
+		{
+			ProgArrayName: "dentry_resolver_kprobe_progs",
+			Key:           DentryResolverSegmentERPCKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				Section: "kprobe/dentry_resolver_segment_erpc",
+			},
+		},
+		{
+			ProgArrayName: "dentry_resolver_kprobe_progs",
 			Key:           DentryResolverKernKprobeKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				Section: "kprobe/dentry_resolver_kern",
