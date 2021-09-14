@@ -952,11 +952,24 @@ def fail_if_not_base_branch(branch, release_version):
     """
     if branch != DEFAULT_BRANCH and branch != "{}.{}.x".format(release_version.major, release_version.minor):
         raise Exit(
-            "The branch you are on is neither main or the correct release branch ({}.{}.x). Aborting.".format(
-                release_version.major, release_version.minor
+            color_message(
+                "The branch you are on is neither {} or the correct release branch ({}.{}.x). Aborting.".format(
+                    DEFAULT_BRANCH, release_version.major, release_version.minor
+                ),
+                "red",
             ),
             code=1,
         )
+
+
+def check_uncommitted_changes(ctx):
+    """
+    Checks if there are uncommitted changes in the local git repository.
+    """
+    modified_files = ctx.run("git --no-pager diff --name-only HEAD | wc -l", hide=True).stdout.strip()
+
+    # Return True if at least one file has uncommitted changes.
+    return modified_files != "0"
 
 
 def check_local_branch(ctx, branch):
@@ -1086,10 +1099,13 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
     print(color_message("Checking repository state", "bold"))
     ctx.run("git fetch")
 
-    modified_files = ctx.run("git --no-pager diff --name-only HEAD | wc -l", hide=True).stdout.strip()
-    if modified_files != "0":
+    if check_uncommitted_changes(ctx):
         raise Exit(
-            "There are uncomitted changes in your repository. Please commit or stash them before trying again.", code=1
+            color_message(
+                "There are uncomitted changes in your repository. Please commit or stash them before trying again.",
+                "red",
+            ),
+            code=1,
         )
 
     # Check that the current and update branches are valid
@@ -1100,13 +1116,19 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
 
     if check_local_branch(ctx, update_branch):
         raise Exit(
-            "The branch {} already exists locally. Please remove it before trying again.".format(update_branch),
+            color_message(
+                "The branch {} already exists locally. Please remove it before trying again.".format(update_branch),
+                "red",
+            ),
             code=1,
         )
 
     if check_upstream_branch(github, repo_name, update_branch):
         raise Exit(
-            "The branch {} already exists upstream. Please remove it before trying again.".format(update_branch),
+            color_message(
+                "The branch {} already exists upstream. Please remove it before trying again.".format(update_branch),
+                "red",
+            ),
             code=1,
         )
 
@@ -1129,23 +1151,41 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
     ctx.run("git checkout -b {}".format(update_branch))
 
     print(color_message("Committing release.json and Go modules updates", "bold"))
+    print(
+        color_message(
+            "If commit signing is enabled, you will have to make sure the commit gets properly signed.", "bold"
+        )
+    )
     ctx.run("git add release.json")
     ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
-    ctx.run("git commit -m 'Update release.json and Go modules for {}'".format(versions_string))
+
+    res = ctx.run("git commit -m 'Update release.json and Go modules for {}'".format(versions_string), warn=True)
+    if res.exited is None or res.exited > 0:
+        raise Exit(
+            color_message(
+                "Could not create commit. Please commit manually, push the {} branch and then open a PR against {}.".format(
+                    update_branch,
+                    current_branch,
+                ),
+                "red",
+            ),
+            code=1,
+        )
 
     print(color_message("Pushing new branch to the upstream repository", "bold"))
-    try:
-        ctx.run("git push --set-upstream {} {}".format(upstream, update_branch))
-    except Exception:
-        color_message(
-            "Could not push branch {} to the upstream ({}). Please push it manually and then open a PR against {}.".format(
-                update_branch,
-                upstream,
-                current_branch,
+    res = ctx.run("git push --set-upstream {} {}".format(upstream, update_branch), warn=True)
+    if res.exited is None or res.exited > 0:
+        raise Exit(
+            color_message(
+                "Could not push branch {} to the upstream '{}'. Please push it manually and then open a PR against {}.".format(
+                    update_branch,
+                    upstream,
+                    current_branch,
+                ),
+                "red",
             ),
-            "red",
+            code=1,
         )
-        raise
 
     print(color_message("Creating PR", "bold"))
 
@@ -1161,7 +1201,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
 
     if not pr or not pr["number"]:
         raise Exit(
-            "Could not create PR in the Github repository. Response: {}".format(pr),
+            color_message("Could not create PR in the Github repository. Response: {}".format(pr), "red"),
             code=1,
         )
 
@@ -1176,7 +1216,10 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
 
     if not milestone or not milestone["number"]:
         raise Exit(
-            "Could not find milestone {} in the Github repository. Response: {}".format(milestone_name, milestone),
+            color_message(
+                "Could not find milestone {} in the Github repository. Response: {}".format(milestone_name, milestone),
+                "red",
+            ),
             code=1,
         )
 
@@ -1189,7 +1232,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
 
     if not updated_pr or not updated_pr["number"]:
         raise Exit(
-            "Could not update PR in the Github repository. Response: {}".format(updated_pr),
+            color_message("Could not update PR in the Github repository. Response: {}".format(updated_pr), "red"),
             code=1,
         )
 
