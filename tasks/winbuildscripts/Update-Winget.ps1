@@ -1,17 +1,25 @@
 $ErrorActionPreference = 'Stop';
 Set-Location c:\mnt
 
-Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+(New-Object System.Net.WebClient).DownloadFile("https://aka.ms/wingetcreate/latest", ".\wingetcreate.exe")
 
 # Install dev tools, including invoke
 pip3 install -r requirements.txt
 
 $rawAgentVersion = (inv agent.version)
-$releasePattern = "(\d+\.\d+\.\d+)"
-if ($rawAgentVersion -match $releasePattern) {
+Write-Host "Detected agent version ${rawAgentVersion}"
+$m = [regex]::match($rawAgentVersion, "(\d+\.\d+\.\d+)(-rc.(\d+))?")
+if ($m) {
+    $agentVersion = $m.Groups[1].Value
+    $rc = $m.Groups[3].Value
 } else {
-    Write-Host "Unsupported agent version '$rawAgentVersion', aborting"
+    Write-Host "Unsupported agent version '$agentVersion', aborting"
     exit 1
 }
-Write-Host ("Updating Winget manifest for Agent version {0}" -f $rawAgentVersion)
-.\wingetcreate.exe update --id "Datadog.Agent" --url "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-$($agentVersion).msi" --version $($agentVersion) --token $env:WINGET_GITHUB_ACCESS_TOKEN
+if ($rc) {
+    Write-Host ("Updating Winget manifest for Agent version ${agentVersion}-${rc}")
+    .\wingetcreate.exe update --urls "https://s3.amazonaws.com/dd-agent-mstesting/builds/tagged/datadog-agent-${agentVersion}-rc.${rc}-1-x86_64.msi" --version "${agentVersion}-rc.${rc}" --token $env:WINGET_GITHUB_ACCESS_TOKEN "Datadog.Agent"
+} else {
+    Write-Host ("Updating Winget manifest for Agent version ${agentVersion}")
+    .\wingetcreate.exe update --urls "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-${agentVersion}.msi" --version "${agentVersion}" --token $env:WINGET_GITHUB_ACCESS_TOKEN "Datadog.Agent"
+}
