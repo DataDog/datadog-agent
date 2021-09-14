@@ -65,6 +65,25 @@ def os
   )
 end
 
+def safe_program_files
+  # HACK: on non-English Windows, Chef wrongly installs its 32-bit version on 64-bit hosts because
+  # of this issue: https://github.com/chef/mixlib-install/issues/343
+  # Because of this, the ENV['ProgramFiles'] content is wrong (it's `C:/Program Files (x86)`)
+  # while the Agent is installed in `C:/Program Files`
+  # To prevent this issue, we check the system arch and the ProgramFiles folder, and we fix it
+  # if needed.
+
+  # Env variables are frozen strings, they need to be duplicated to modify them
+  program_files = ENV['ProgramFiles'].dup
+  arch = `Powershell -command "(Get-WmiObject Win32_OperatingSystem).OsArchitecture"`
+  if arch.include? "64" and program_files.include? "(x86)"
+    program_files.slice!("(x86)")
+    program_files.strip!
+  end
+
+  program_files
+end
+
 
 def agent_command
   if os == :windows
@@ -254,25 +273,14 @@ def json_info
   JSON.parse(info_output)
 end
 
-def flavor_service_status(flavor)
-  service = get_service_name(flavor)
-  if os == :windows
-    status_out = `sc interrogate #{service} 2>&1`
-    status_out.include?('RUNNING')
-  else
-    if has_systemctl
-      system "sudo systemctl status --no-pager #{service}.service"
-    elsif has_upstart
-      system "sudo initctl status #{service}"
-    else
-      system "sudo /sbin/service #{service} status"
-    end
-  end
+def windows_service_status(service)
+  # Language-independent way of getting the service status
+  return (`powershell -command "try { (get-service "#{service}" -ErrorAction Stop).Status } catch { write-host "NOTINSTALLED" }"`).upcase.strip
 end
 
 def is_service_running?(service)
   if os == :windows
-    `sc interrogate #{service} 2>&1`.include?('RUNNING')
+    return windows_service_status(service) == "RUNNING"
   else
     if has_systemctl
       system "sudo systemctl status --no-pager #{service}.service"
@@ -288,14 +296,7 @@ end
 
 def is_windows_service_installed(service)
   raise "is_windows_service_installed is only for windows" unless os == :windows
-  scresult = `sc qc #{service} 2>&1`
-  if scresult.include?('FAILED')
-    return false
-  elsif scresult.include?('SUCCESS')
-    return true
-  end
-  # if we get here, some return we didn't expect happened.
-  raise "Unknown result checking service status #{scresult}"
+  return windows_service_status(service) != "NOTINSTALLED"
 end
   
 def is_flavor_running?(flavor)
@@ -396,18 +397,9 @@ end
 def is_file_signed(fullpath)
   puts "checking file #{fullpath}"
   expect(File).to exist(fullpath)
-  output = `powershell -command get-authenticodesignature -FilePath '#{fullpath}'`
+  output = `powershell -command "(get-authenticodesignature -FilePath '#{fullpath}').SignerCertificate.Thumbprint"`
   signature_hash = "748A3B5C681AF45FAC149A76FE59E7CBBDFF058C"
-  if not output.include? signature_hash
-    return false
-  end
-  if not output.include? "Valid"
-    return false
-  end
-  if output.include? "NotSigned"
-    return false
-  end
-  return true
+  return output.upcase.strip == signature_hash
 end
 
 def is_dpkg_package_installed(package)
@@ -477,11 +469,12 @@ shared_examples_for "an installed Agent" do
       is_signed = is_file_signed(msi_path)
       expect(is_signed).to be_truthy
 
+      program_files = safe_program_files
       verify_signature_files = [
-        "#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\process-agent.exe",
-        "#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\trace-agent.exe",
-        "#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent\\ddtray.exe",
-        "#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent\\bin\\agent.exe"
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\process-agent.exe",
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\trace-agent.exe",
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\ddtray.exe",
+        "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent.exe"
       ]
       verify_signature_files.each do |vf|
         is_signed = is_file_signed(vf)
@@ -508,7 +501,7 @@ shared_examples_for "a running Agent with no errors" do
   end
 
   it 'is running' do
-    expect(flavor_service_status "datadog-agent").to be_truthy
+    expect(is_flavor_running? "datadog-agent").to be_truthy
   end
 
   it 'has a config file' do
@@ -625,7 +618,7 @@ shared_examples_for 'an Agent that stops' do
     if os != :windows
       expect(output).to be_truthy
     end
-    expect(flavor_service_status "datadog-agent").to be_truthy
+    expect(is_flavor_running? "datadog-agent").to be_truthy
   end
 end
 
@@ -809,7 +802,8 @@ shared_examples_for 'an Agent that is removed' do
             'c:/windows/System32/LogFiles/',
             'c:/windows/SoftwareDistribution/',
             'c:/windows/ServiceProfiles/NetworkService/AppData/',
-            'c:/windows/System32/Tasks/Microsoft/Windows/UpdateOrchestrator/'
+            'c:/windows/System32/Tasks/Microsoft/Windows/UpdateOrchestrator/',
+            'c:/windows/System32/Tasks/Microsoft/Windows/Windows Defender/Windows Defender Scheduled Scan'
       ].each { |e| e.downcase! }
 
       # We don't really need to create this file since we consume it right afterwards, but it's useful for debugging

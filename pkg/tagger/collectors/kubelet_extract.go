@@ -159,6 +159,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			}
 			cTags := tags.Copy()
 			cTags.AddLow("kube_container_name", container.Name)
+			cTags.AddLow("image_id", container.ImageID)
 			cTags.AddHigh("container_id", kubelet.TrimRuntimeFromCID(container.ID))
 			if container.Name != "" && pod.Metadata.Name != "" {
 				cTags.AddHigh("display_container_name", fmt.Sprintf("%s_%s", container.Name, pod.Metadata.Name))

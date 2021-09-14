@@ -390,9 +390,15 @@ func addParentPerms(dirPath string, permsInfos permissionsInfos) {
 }
 
 func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsInfos) error {
-	logFileDir := filepath.Dir(logFilePath)
+	// Force dir path to be absolute first
+	logFileDir, err := filepath.Abs(filepath.Dir(logFilePath))
+	if err != nil {
+		log.Errorf("Error getting absolute path to log directory of %q: %v", logFilePath, err)
+		return err
+	}
+	permsInfos.add(logFileDir)
 
-	err := filepath.Walk(logFileDir, func(src string, f os.FileInfo, err error) error {
+	err = filepath.Walk(logFileDir, func(src string, f os.FileInfo, err error) error {
 		if f == nil {
 			return nil
 		}
@@ -401,7 +407,12 @@ func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsIn
 		}
 
 		if filepath.Ext(f.Name()) == ".log" || getFirstSuffix(f.Name()) == ".log" {
-			dst := filepath.Join(tempDir, hostname, "logs", f.Name())
+			targRelPath, relErr := filepath.Rel(logFileDir, src)
+			if relErr != nil {
+				log.Errorf("Can't get relative path to %q: %v", src, relErr)
+				return nil
+			}
+			dst := filepath.Join(tempDir, hostname, "logs", targRelPath)
 
 			if permsInfos != nil {
 				permsInfos.add(src)
@@ -414,12 +425,7 @@ func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsIn
 
 	// The permsInfos map is empty when we cannot read the auth token.
 	if len(permsInfos) != 0 {
-		// Force path to be absolute for getting parent permissions.
-		absPath, err := filepath.Abs(logFileDir)
-		if err != nil {
-			log.Errorf("Error while getting absolute file path for parent directory: %v", err)
-		}
-		addParentPerms(absPath, permsInfos)
+		addParentPerms(logFileDir, permsInfos)
 	}
 
 	return err

@@ -84,7 +84,7 @@ class Github(object):
     def make_request(self, endpoint, headers=None, method="GET", data=None, output_format="text"):
         """
         Utility to make an HTTP request to the Gitlab API.
-        
+
         endpoint is the HTTP endpoint that will be requested.
 
         headers is a dict of HTTP headers that can be added to the request.
@@ -94,7 +94,7 @@ class Github(object):
 
         The method parameter dictates the type of request made (GET or POST).
         If method is GET, the data parameter is ignored (no body can be sent in a GET request).
-        
+
         The output_format allows changing the structure of the response:
         - text: a string containing the body of the response.
         - json: an object containing the deserialized json body response. Works only if the response

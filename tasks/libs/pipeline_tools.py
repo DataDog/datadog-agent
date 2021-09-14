@@ -15,9 +15,7 @@ class FilteredOutException(Exception):
     pass
 
 
-def get_running_pipelines_on_same_ref(
-    gitlab, project, ref, sha=None,
-):
+def get_running_pipelines_on_same_ref(gitlab, project, ref, sha=None):
     pipelines = gitlab.all_pipelines_for_ref(project, ref, sha=sha)
 
     RUNNING_STATUSES = ["created", "pending", "running"]
@@ -118,9 +116,7 @@ def trigger_agent_pipeline(
     raise RuntimeError("Invalid response from Gitlab: {}".format(result))
 
 
-def wait_for_pipeline(
-    gitlab, project, pipeline_id, pipeline_finish_timeout_sec=PIPELINE_FINISH_TIMEOUT_SEC,
-):
+def wait_for_pipeline(gitlab, project, pipeline_id, pipeline_finish_timeout_sec=PIPELINE_FINISH_TIMEOUT_SEC):
     """
     Follow a given pipeline, periodically checking the pipeline status
     and printing changes to the job statuses.
@@ -144,14 +140,14 @@ def wait_for_pipeline(
     print(
         color_message(
             "Pipeline Link: "
-            + color_message("https://gitlab.ddbuild.io/{}/pipelines/{}".format(project, pipeline_id), "green",),
+            + color_message("https://gitlab.ddbuild.io/{}/pipelines/{}".format(project, pipeline_id), "green"),
             "blue",
         )
     )
 
     print(color_message("Waiting for pipeline to finish. Exiting won't cancel it.", "blue"))
 
-    f = functools.partial(pipeline_status, gitlab, project, pipeline_id,)
+    f = functools.partial(pipeline_status, gitlab, project, pipeline_id)
 
     loop_status(f, pipeline_finish_timeout_sec)
 
@@ -274,14 +270,20 @@ def print_job_status(job):
         print(
             color_message(
                 "[{date}] Job {name} (stage: {stage}) {status} [job duration: {m:.0f}m{s:2.0f}s]\n{link}".format(
-                    name=name, stage=stage, date=date, m=(duration // 60), s=(duration % 60), status=status, link=link,
+                    name=name,
+                    stage=stage,
+                    date=date,
+                    m=(duration // 60),
+                    s=(duration % 60),
+                    status=status,
+                    link=link,
                 ).strip(),
                 color,
             )
         )
 
     def print_retry(name, date):
-        print(color_message("[{date}] Job {name} was retried".format(date=date, name=name,), "grey",))
+        print(color_message("[{date}] Job {name} was retried".format(date=date, name=name), "grey"))
 
     name = job['name']
     stage = job['stage']

@@ -15,6 +15,7 @@ const (
 	qualifierEnvVar = "AWS_LAMBDA_FUNCTION_VERSION"
 	envEnvVar       = "DD_ENV"
 	versionEnvVar   = "DD_VERSION"
+	serviceEnvVar   = "DD_SERVICE"
 
 	traceOriginMetadataKey   = "_dd.origin"
 	traceOriginMetadataValue = "lambda"
@@ -30,6 +31,7 @@ const (
 	extensionVersionKey      = "dd_extension_version"
 	envKey                   = "env"
 	versionKey               = "version"
+	serviceKey               = "service"
 )
 
 // currentExtensionVersion represents the current version of the Datadog Lambda Extension.
@@ -43,6 +45,7 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 
 	tags = setIfNotEmpty(tags, envKey, os.Getenv(envEnvVar))
 	tags = setIfNotEmpty(tags, versionKey, os.Getenv(versionEnvVar))
+	tags = setIfNotEmpty(tags, serviceKey, os.Getenv(serviceEnvVar))
 
 	for _, tag := range configTags {
 		splitTags := strings.Split(tag, ",")
