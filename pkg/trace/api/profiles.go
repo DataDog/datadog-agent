@@ -148,6 +148,7 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 		// is just a proxy to existing clients, some clients break on
 		// encountering a 202 response when proxying for the new api/v2/profile endpoints.
 		if rresp != nil && rresp.StatusCode == http.StatusAccepted {
+			rresp.Status = http.StatusText(http.StatusOK)
 			rresp.StatusCode = http.StatusOK
 		}
 	}()
