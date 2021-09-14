@@ -54,22 +54,23 @@ var (
 	timeSince = time.Since
 )
 
+type AgentMetadataName string
+
+// Constants for the metadata names; these are defined in
+// pkg/metadata/inventories/README.md and any additions should
+// be updated there as well.
 const (
-	// CloudProviderMetatadaName is the field name to use to set the cloud
-	// provider name in the agent metadata.
-	CloudProviderMetatadaName = "cloud_provider"
-	// HostnameSourceMetadataName is the field name to use to set the hostname
-	// source in the agent metadata.
-	HostnameSourceMetadataName = "hostname_source"
+	AgentCloudProvider  AgentMetadataName = "cloud_provider"
+	AgentHostnameSource                   = "hostname_source"
 )
 
 // SetAgentMetadata updates the agent metadata value in the cache
-func SetAgentMetadata(name string, value interface{}) {
+func SetAgentMetadata(name AgentMetadataName, value interface{}) {
 	agentCacheMutex.Lock()
 	defer agentCacheMutex.Unlock()
 
-	if agentMetadataCache[name] != value {
-		agentMetadataCache[name] = value
+	if agentMetadataCache[string(name)] != value {
+		agentMetadataCache[string(name)] = value
 
 		select {
 		case metadataUpdatedC <- nil:
