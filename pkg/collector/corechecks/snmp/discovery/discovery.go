@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 )
 
-const cacheKeyPrefix = "snmp_corecheck"
+const cacheKeyPrefix = "snmp"
 const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
 
 // Discovery handles snmp discovery states
