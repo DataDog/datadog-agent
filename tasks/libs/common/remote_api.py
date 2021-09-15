@@ -51,13 +51,13 @@ class RemoteAPI(object):
         # manually
         try:
             # If json_input is true, we specifically want to send data using the json
-            # parameter of requests.post
+            # parameter of requests.post / requests.put
             if method == "PUT":
                 if json_input:
                     r = requests.put(url, headers=headers, json=data, stream=stream_output)
                 else:
                     r = requests.put(url, headers=headers, data=data, stream=stream_output)
-            if method == "DELETE":
+            elif method == "DELETE":
                 r = requests.delete(url, headers=headers, stream=stream_output)
             elif data or method == "POST":
                 if json_input:
