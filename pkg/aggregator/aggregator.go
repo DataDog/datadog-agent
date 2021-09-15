@@ -776,8 +776,9 @@ func (agg *BufferedAggregator) run() {
 		case ms := <-agg.bufferedMetricIn:
 			aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
 			tlmProcessed.Add(float64(len(ms)), "dogstatsd_metrics")
+			t := timeNowNano()
 			for i := 0; i < len(ms); i++ {
-				agg.addSample(&ms[i], timeNowNano())
+				agg.addSample(&ms[i], t)
 			}
 			agg.MetricSamplePool.PutBatch(ms)
 		case serviceChecks := <-agg.bufferedServiceCheckIn:

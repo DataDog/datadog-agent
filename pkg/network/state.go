@@ -232,10 +232,13 @@ func (ns *networkState) addDNSStats(id string, conns []ConnectionStats) {
 		if conn.DPort != 53 {
 			continue
 		}
+
+		serverIP, _ := GetNATRemoteAddress(*conn)
+		clientIP, clientPort := GetNATLocalAddress(*conn)
 		key := dns.Key{
-			ServerIP:   conn.Dest,
-			ClientIP:   conn.Source,
-			ClientPort: conn.SPort,
+			ServerIP:   serverIP,
+			ClientIP:   clientIP,
+			ClientPort: clientPort,
 		}
 		switch conn.Type {
 		case TCP:

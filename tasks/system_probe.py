@@ -20,6 +20,7 @@ BPF_TAG = "linux_bpf"
 BUNDLE_TAG = "ebpf_bindata"
 NPM_TAG = "npm"
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
+DNF_TAG = "dnf"
 
 CLANG_CMD = "clang {flags} -c '{c_file}' -o '{bc_file}'"
 LLC_CMD = "llc -march=bpf -filetype=obj -o '{obj_file}' '{bc_file}'"
@@ -46,6 +47,7 @@ def build(
     arch="x64",
     embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
     compile_ebpf=True,
+    nikos_embedded_path=None,
     bundle_ebpf=False,
 ):
     """
@@ -86,14 +88,19 @@ def build(
 
     generate_cgo_types(ctx, windows=windows)
     ldflags, gcflags, env = get_build_flags(
-        ctx, major_version=major_version, python_runtimes=python_runtimes, embedded_path=embedded_path
+        ctx,
+        major_version=major_version,
+        python_runtimes=python_runtimes,
+        embedded_path=embedded_path,
+        nikos_embedded_path=nikos_embedded_path,
     )
 
     build_tags = get_default_build_tags(build="system-probe", arch=arch)
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
+    if nikos_embedded_path:
+        build_tags.append(DNF_TAG)
 
-    # TODO static option
     cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
 

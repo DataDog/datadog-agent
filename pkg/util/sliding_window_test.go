@@ -7,6 +7,7 @@ package util
 
 import (
 	"math/rand"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -68,6 +69,10 @@ func TestSlidingWindow(t *testing.T) {
 }
 
 func TestSlidingWindowAccuracy(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("Skipping flaky test on Darwin")
+	}
+
 	// Floats don't really have good atomic primitives
 	var cbLock sync.RWMutex
 	lastAverage := 0.0
@@ -97,6 +102,10 @@ func TestSlidingWindowAccuracy(t *testing.T) {
 }
 
 func TestSlidingWindowAverage(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping flaky test on Windows")
+	}
+
 	sw, err := NewSlidingWindow(1*time.Second, 100*time.Millisecond)
 	require.Nil(t, err)
 

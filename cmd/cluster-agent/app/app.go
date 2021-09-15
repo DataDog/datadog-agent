@@ -278,12 +278,13 @@ func start(cmd *cobra.Command, args []string) error {
 
 	if config.Datadog.GetBool("admission_controller.enabled") {
 		admissionCtx := admissionpkg.ControllerContext{
-			IsLeaderFunc:     le.IsLeader,
-			SecretInformers:  apiCl.CertificateSecretInformerFactory,
-			WebhookInformers: apiCl.WebhookConfigInformerFactory,
-			Client:           apiCl.Cl,
-			DiscoveryClient:  apiCl.DiscoveryCl,
-			StopCh:           stopCh,
+			IsLeaderFunc:        le.IsLeader,
+			LeaderSubscribeFunc: le.Subscribe,
+			SecretInformers:     apiCl.CertificateSecretInformerFactory,
+			WebhookInformers:    apiCl.WebhookConfigInformerFactory,
+			Client:              apiCl.Cl,
+			DiscoveryClient:     apiCl.DiscoveryCl,
+			StopCh:              stopCh,
 		}
 		err = admissionpkg.StartControllers(admissionCtx)
 		if err != nil {
