@@ -17,40 +17,44 @@ class GithubAPI(RemoteAPI):
 
     BASE_URL = "https://api.github.com"
 
-    def __init__(self, api_token=None):
+    def __init__(self, repository="", api_token=None):
         self.api_token = api_token if api_token else self._api_token()
+        self.repository = repository
+        self.authorization_error_message = (
+            "HTTP 401: The token is invalid. Is the Github token provided still allowed to perform this action?"
+        )
 
-    def repo(self, repo_name):
+    def repo(self):
         """
         Gets the repo info.
         """
 
-        path = "/repos/{}".format(repo_name)
+        path = "/repos/{}".format(self.repository)
         return self.make_request(path, method="GET", json_output=True)
 
-    def get_branch(self, repo_name, branch_name):
+    def get_branch(self, branch_name):
         """
         Gets info on a given branch in the given Github repository.
         """
 
-        path = "/repos/{}/branches/{}".format(repo_name, branch_name)
+        path = "/repos/{}/branches/{}".format(self.repository, branch_name)
         return self.make_request(path, method="GET", json_output=True)
 
-    def create_pr(self, repo_name, pr_title, pr_body, base_branch, target_branch):
+    def create_pr(self, pr_title, pr_body, base_branch, target_branch):
         """
         Creates a PR in the given Github repository.
         """
 
-        path = "/repos/{}/pulls".format(repo_name)
+        path = "/repos/{}/pulls".format(self.repository)
         data = json.dumps({"head": target_branch, "base": base_branch, "title": pr_title, "body": pr_body})
         return self.make_request(path, method="POST", json_output=True, data=data)
 
-    def update_pr(self, repo_name, pull_number, milestone_number, labels):
+    def update_pr(self, pull_number, milestone_number, labels):
         """
         Updates a given PR with the provided milestone number and labels.
         """
 
-        path = "/repos/{}/issues/{}".format(repo_name, pull_number)
+        path = "/repos/{}/issues/{}".format(self.repository, pull_number)
         data = json.dumps(
             {
                 "milestone": milestone_number,
@@ -59,12 +63,12 @@ class GithubAPI(RemoteAPI):
         )
         return self.make_request(path, method="POST", json_output=True, data=data)
 
-    def get_milestone_by_name(self, repo_name, milestone_name):
+    def get_milestone_by_name(self, milestone_name):
         """
         Searches for a milestone in the given repository that matches the provided name,
         and returns data about it.
         """
-        path = "/repos/{}/milestones".format(repo_name)
+        path = "/repos/{}/milestones".format(self.repository)
         res = self.make_request(path, method="GET", json_output=True)
         for milestone in res:
             if milestone["title"] == milestone_name:
@@ -111,6 +115,6 @@ class GithubAPI(RemoteAPI):
                 "https://github.com/settings/tokens and "
                 "add it as GITHUB_TOKEN in your keychain "
                 "or export it from your .bashrc or equivalent.",
-                code=1
+                code=1,
             )
         return os.environ["GITHUB_TOKEN"]

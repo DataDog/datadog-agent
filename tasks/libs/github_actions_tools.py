@@ -47,7 +47,9 @@ def trigger_macos_workflow(
 
     # The workflow trigger endpoint doesn't return anything. You need to fetch the workflow run id
     # by yourself.
-    GithubWorkflows().trigger_workflow("DataDog/datadog-agent-macos-build", "macos.yaml", github_action_ref, inputs)
+    GithubWorkflows(repository="DataDog/datadog-agent-macos-build").trigger_workflow(
+        "macos.yaml", github_action_ref, inputs
+    )
 
     # Thus the following hack: query the latest run for ref, wait until we get a non-completed run
     # that started after we triggered the workflow.
@@ -71,8 +73,8 @@ def get_macos_workflow_run_for_ref(github_action_ref="master"):
     """
     Get the latest workflow for the given ref.
     """
-    return GithubWorkflows().latest_workflow_run_for_ref(
-        "DataDog/datadog-agent-macos-build", "macos.yaml", github_action_ref
+    return GithubWorkflows("DataDog/datadog-agent-macos-build").latest_workflow_run_for_ref(
+        "macos.yaml", github_action_ref
     )
 
 
@@ -80,9 +82,10 @@ def follow_workflow_run(run_id):
     """
     Follow the workflow run until completion.
     """
+    github_workflows = GithubWorkflows("DataDog/datadog-agent-macos-build")
 
     try:
-        run = GithubWorkflows().workflow_run("DataDog/datadog-agent-macos-build", run_id)
+        run = github_workflows.workflow_run(run_id)
     except GithubException:
         raise Exit(code=1)
 
@@ -98,7 +101,7 @@ def follow_workflow_run(run_id):
     while True:
         # Do not fail outright for temporary failures
         try:
-            run = GithubWorkflows().workflow_run("DataDog/datadog-agent-macos-build", run_id)
+            run = github_workflows.workflow_run(run_id)
         except GithubException:
             failures += 1
             print("Workflow run not found, retrying in 15 seconds (failure {}/{})".format(failures, MAX_FAILURES))
@@ -131,10 +134,11 @@ def download_artifacts(run_id, destination="."):
     """
     Download all artifacts for a given job in the specified location.
     """
+    github_workflows = GithubWorkflows("DataDog/datadog-agent-macos-build")
 
     print(color_message("Downloading artifacts for run {} to {}".format(run_id, destination), "blue"))
 
-    run_artifacts = GithubWorkflows().workflow_run_artifacts("DataDog/datadog-agent-macos-build", run_id)
+    run_artifacts = github_workflows.workflow_run_artifacts(run_id)
     if run_artifacts is None:
         print("Workflow run not found.")
         raise Exit(code=1)
@@ -143,7 +147,7 @@ def download_artifacts(run_id, destination="."):
     with tempfile.TemporaryDirectory() as tmpdir:
         for artifact in run_artifacts["artifacts"]:
             # Download artifact
-            zip_path = GithubWorkflows().download_artifact("DataDog/datadog-agent-macos-build", artifact["id"], tmpdir)
+            zip_path = github_workflows.download_artifact(artifact["id"], tmpdir)
 
             # Unzip it in the target destination
             with zipfile.ZipFile(zip_path, "r") as zip_ref:

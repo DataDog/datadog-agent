@@ -18,22 +18,23 @@ class GithubWorkflows(RemoteAPI):
 
     BASE_URL = "https://api.github.com"
 
-    def __init__(self, api_token=None):
+    def __init__(self, repository="", api_token=None):
         self.api_token = api_token if api_token else self._api_token()
+        self.repository = repository
         self.api_name = "GitHub Workflows"
         self.authorization_error_message = (
             "HTTP 401: The token is invalid. Is the Github App still allowed to perform this action?"
         )
 
-    def repo(self, repo_name):
+    def repo(self):
         """
         Gets the repo info.
         """
 
-        path = "/repos/{}".format(repo_name)
+        path = "/repos/{}".format(self.repository)
         return self.make_request(path, method="GET", json_output=True)
 
-    def trigger_workflow(self, repo_name, workflow_name, ref, inputs=None):
+    def trigger_workflow(self, workflow_name, ref, inputs=None):
         """
         Create a pipeline targeting a given reference of a project.
         ref must be a branch or a tag.
@@ -41,22 +42,22 @@ class GithubWorkflows(RemoteAPI):
         if inputs is None:
             inputs = dict()
 
-        path = "/repos/{}/actions/workflows/{}/dispatches".format(repo_name, workflow_name)
+        path = "/repos/{}/actions/workflows/{}/dispatches".format(self.repository, workflow_name)
         data = json.dumps({"ref": ref, "inputs": inputs})
         return self.make_request(path, method="POST", data=data)
 
-    def workflow_run(self, repo_name, run_id):
+    def workflow_run(self, run_id):
         """
         Gets info on a specific workflow.
         """
-        path = "/repos/{}/actions/runs/{}".format(repo_name, run_id)
+        path = "/repos/{}/actions/runs/{}".format(self.repository, run_id)
         return self.make_request(path, method="GET", json_output=True)
 
-    def download_artifact(self, repo_name, artifact_id, destination_dir):
+    def download_artifact(self, artifact_id, destination_dir):
         """
         Downloads the artifact identified by artifact_id to destination_dir.
         """
-        path = "/repos/{}/actions/artifacts/{}/zip".format(repo_name, artifact_id)
+        path = "/repos/{}/actions/artifacts/{}/zip".format(self.repository, artifact_id)
         content = self.make_request(path, method="GET", raw_output=True)
 
         zip_target_path = os.path.join(destination_dir, "{}.zip".format(artifact_id))
@@ -64,26 +65,26 @@ class GithubWorkflows(RemoteAPI):
             f.write(content)
         return zip_target_path
 
-    def workflow_run_artifacts(self, repo_name, run_id):
+    def workflow_run_artifacts(self, run_id):
         """
         Gets list of artifacts for a workflow run.
         """
-        path = "/repos/{}/actions/runs/{}/artifacts".format(repo_name, run_id)
+        path = "/repos/{}/actions/runs/{}/artifacts".format(self.repository, run_id)
         return self.make_request(path, method="GET", json_output=True)
 
-    def latest_workflow_run_for_ref(self, repo_name, workflow_name, ref):
+    def latest_workflow_run_for_ref(self, workflow_name, ref):
         """
         Gets latest workflow run for a given reference
         """
-        runs = self.workflow_runs(repo_name, workflow_name)
+        runs = self.workflow_runs(self.repository, workflow_name)
         ref_runs = [run for run in runs["workflow_runs"] if run["head_branch"] == ref]
         return max(ref_runs, key=lambda run: run['created_at'], default=None)
 
-    def workflow_runs(self, repo_name, workflow_name):
+    def workflow_runs(self, workflow_name):
         """
         Gets all workflow runs for a workflow.
         """
-        path = "/repos/{}/actions/workflows/{}/runs".format(repo_name, workflow_name)
+        path = "/repos/{}/actions/workflows/{}/runs".format(self.repository, workflow_name)
         return self.make_request(path, method="GET", json_output=True)
 
     def make_request(self, path, headers=None, method="GET", data=None, json_output=False, raw_output=False):

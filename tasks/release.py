@@ -978,11 +978,11 @@ def check_local_branch(ctx, branch):
     return matching_branch != "0"
 
 
-def check_upstream_branch(github, repo_name, branch):
+def check_upstream_branch(github, branch):
     """
-    Checks if the given branch already exists in the given upstream repository
+    Checks if the given branch already exists in the upstream repository
     """
-    github_branch = github.get_branch(repo_name, branch)
+    github_branch = github.get_branch(branch)
 
     # Return True if the branch exists
     return github_branch and github_branch.get('name', False)
@@ -1066,7 +1066,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
         return Exit(code=1)
 
     repo_name = "DataDog/datadog-agent"
-    github = GithubAPI()
+    github = GithubAPI(repo_name)
 
     list_major_versions = parse_major_versions(major_versions)
 
@@ -1110,7 +1110,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
             code=1,
         )
 
-    if check_upstream_branch(github, repo_name, update_branch):
+    if check_upstream_branch(github, update_branch):
         raise Exit(
             color_message(
                 "The branch {} already exists upstream. Please remove it before trying again.".format(update_branch),
@@ -1178,7 +1178,6 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
     # Step 4: create PR
 
     pr = github.create_pr(
-        repo_name=repo_name,
         pr_title="[release] Update release.json and Go modules for {}".format(versions_string),
         pr_body="",
         base_branch=current_branch,
@@ -1198,7 +1197,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
     # Find milestone based on what the next final version is
     milestone_name = str(next_final_version(ctx, max(list_major_versions)))
 
-    milestone = github.get_milestone_by_name(repo_name=repo_name, milestone_name=milestone_name)
+    milestone = github.get_milestone_by_name(milestone_name)
 
     if not milestone or not milestone["number"]:
         raise Exit(
@@ -1210,7 +1209,6 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
         )
 
     updated_pr = github.update_pr(
-        repo_name=repo_name,
         pull_number=pr["number"],
         milestone=milestone["number"],
         labels=["changelog/no-changelog", "team/agent-platform", "team/agent-core"],
@@ -1243,7 +1241,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
         print("Must use Python 3 for this task")
         return Exit(code=1)
 
-    gitlab = Gitlab()
+    gitlab = Gitlab("DataDog/datadog-agent")
     list_major_versions = parse_major_versions(major_versions)
 
     # Get the version of the highest major: needed for tag_version and to know
@@ -1287,7 +1285,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
     print(color_message("Waiting until the {} tag appears in Gitlab".format(new_version), "bold"))
     gitlab_tag = None
     while not gitlab_tag:
-        gitlab_tag = gitlab.find_tag("DataDog/datadog-agent", str(new_version)).get("name", None)
+        gitlab_tag = gitlab.find_tag(str(new_version)).get("name", None)
         sleep(5)
 
     print(color_message("Creating RC pipeline", "bold"))
