@@ -283,7 +283,6 @@ func (c *AgentConfig) applyDatadogConfig() error {
 	if otlp.IsEnabled(config.Datadog) {
 		grpcPort = config.Datadog.GetInt("experimental.otlp.internal_traces_port")
 	}
-
 	c.OTLPReceiver = &OTLP{
 		BindHost:        c.ReceiverHost,
 		GRPCPort:        grpcPort,
