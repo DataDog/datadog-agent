@@ -747,7 +747,7 @@ def _update_release_json_entry(
 ##
 
 
-def _update_release_json(release_json, release_entry, new_version, github_token, check_for_rc=False):
+def _update_release_json(release_json, release_entry, new_version: Version, github_token):
     """
     Updates the provided release.json object by fetching compatible versions for all dependencies
     of the provided Agent version, constructing the new entry, adding it to the release.json object
@@ -762,6 +762,10 @@ def _update_release_json(release_json, release_entry, new_version, github_token,
     # tags with the same minor version, to avoid problems when releasing a patch
     # version while a minor version release is ongoing.
     compatible_version_re = build_compatible_version_re(allowed_major_versions, new_version.minor)
+
+    # If the new version is a final version, set the check_for_rc flag to true to warn if a dependency's version
+    # is an RC.
+    check_for_rc = not new_version.is_rc()
 
     integrations_version = _fetch_dependency_repo_version(
         "integrations-core", new_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
@@ -813,30 +817,17 @@ def _update_release_json(release_json, release_entry, new_version, github_token,
     )
 
 
-def update_release_json(new_version: Version):
+def update_release_json(github_token, new_version: Version):
     """
-    Updates the release entries in release.json to prepare the next RC build.
+    Updates the release entries in release.json to prepare the next RC or final build.
     """
-
-    if sys.version_info[0] < 3:
-        print("Must use Python 3 for this task")
-        return Exit(code=1)
-
-    github_token = os.environ.get('GITHUB_TOKEN')
-    if github_token is None:
-        print(
-            "Error: set the GITHUB_TOKEN environment variable.\nYou can create one by going to"
-            " https://github.com/settings/tokens. It should have at least the 'repo' permissions."
-        )
-        return Exit(code=1)
-
     release_json = _load_release_json()
 
     release_entry = release_entry_for(new_version.major)
     print("Updating {} for {}".format(release_entry, new_version))
 
     # Update release.json object with the entry for the new version
-    release_json = _update_release_json(release_json, release_entry, new_version, github_token, check_for_rc=False)
+    release_json = _update_release_json(release_json, release_entry, new_version, github_token)
 
     _save_release_json(release_json)
 
@@ -919,6 +910,11 @@ def next_final_version(ctx, major_version) -> Version:
     previous_version = _create_version_from_match(VERSION_RE.search(get_version(ctx, major_version=major_version)))
 
     # Set the new version
+    if previous_version.is_devel():
+        # If the previous version was a devel version, use the same version without devel
+        # (should never happen during regular releases, we always do at least one RC)
+        return previous_version.non_devel_version()
+
     return previous_version.next_version(rc=False)
 
 
@@ -1008,10 +1004,8 @@ def finish(ctx, major_versions="6,7"):
         print("Must use Python 3 for this task")
         return Exit(code=1)
 
-    list_major_versions = major_versions.split(",")
+    list_major_versions = parse_major_versions(major_versions)
     print("Finishing release for major version(s) {}".format(list_major_versions))
-
-    list_major_versions = [int(x) for x in list_major_versions]
 
     github_token = os.environ.get('GITHUB_TOKEN')
     if github_token is None:
@@ -1021,20 +1015,9 @@ def finish(ctx, major_versions="6,7"):
         )
         return Exit(code=1)
 
-    release_json = _load_release_json()
-
     for major_version in list_major_versions:
-        release_entry = release_entry_for(major_version)
-
-        # Set the new version
         new_version = next_final_version(ctx, major_version)
-
-        print("Updating {} for {}".format(release_entry, new_version))
-
-        # Update release.json object with the entry for the new version
-        release_json = _update_release_json(release_json, release_entry, new_version, github_token, check_for_rc=True)
-
-    _save_release_json(release_json)
+        update_release_json(github_token, new_version)
 
     # Update internal module dependencies
     update_modules(ctx, str(new_version))
@@ -1078,6 +1061,10 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
     This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
     release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
+    if sys.version_info[0] < 3:
+        print("Must use Python 3 for this task")
+        return Exit(code=1)
+
     repo_name = "DataDog/datadog-agent"
     github = GithubAPI()
 
@@ -1137,8 +1124,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
     print(color_message("Updating release entries", "bold"))
     for major_version in list_major_versions:
         new_version = next_rc_version(ctx, major_version, patch_version)
-
-        update_release_json(new_version)
+        update_release_json(github.api_token, new_version)
 
     # Step 2: Update internal module dependencies
 
@@ -1253,6 +1239,10 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
     Tags the new RC versions on the current commit, and creates the build pipeline for these
     new tags.
     """
+    if sys.version_info[0] < 3:
+        print("Must use Python 3 for this task")
+        return Exit(code=1)
+
     gitlab = Gitlab()
     list_major_versions = parse_major_versions(major_versions)
 
