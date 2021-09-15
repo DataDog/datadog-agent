@@ -43,6 +43,11 @@ The payload is a JSON dict with the following fields
   - `version` - **string**: the version of the Agent.
   - `flavor` - **string**: the flavor of the Agent. The Agent can be build under different flavor such as standalone
     dogstatsd, iot, serverless ... (see `pkg/util/flavor` package).
+  - `install_method_tool` - **string**: the name of the tool used to install the agent (ie, Chef, Ansible, ...).
+  - `install_method_tool_version` - **string**: the tool version used to install the agent (ie: Chef version, Ansible
+    version, ...). This defaults to `"undefined"` when not installed through a tool (like when installed with apt, source
+    build, ...).
+  - `install_method_installer_version` - **string**:  The version of Datadog module (ex: the Chef Datadog package, the Datadog Ansible playbook, ...).
 
 ## Example Payload
 
