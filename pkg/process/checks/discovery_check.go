@@ -6,8 +6,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
+// ProcessDiscovery is ProcessDiscoveryCheck singleton. ProcessDiscoveryCheck should not be instantiated elsewhere.
 var ProcessDiscovery = &ProcessDiscoveryCheck{}
 
+// ProcessDiscoveryCheck is a check that gathers basic process metadata and sends it to the process discovery service.
+// It uses its own ProcessDiscovery payload, which is intended to be read by the process_discovery kafka topic.
+// The goal of this check is to collect information about possible integrations that may be enabled by the end user.
 type ProcessDiscoveryCheck struct {
 	probe *procutil.Probe
 	info  *model.SystemInfo
