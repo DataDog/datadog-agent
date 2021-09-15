@@ -13,11 +13,11 @@ if ($m) {
     $agentVersion = $m.Groups[1].Value
     $rc = $m.Groups[3].Value
 } else {
-    Write-Host "Unsupported agent version '$agentVersion', aborting"
+    Write-Host "Unsupported agent version '$rawAgentVersion', aborting"
     exit 1
 }
 if ($rc) {
-    Write-Host ("Updating Winget manifest for Agent version ${agentVersion}-${rc}")
+    Write-Host ("Updating Winget manifest for Agent version ${agentVersion}-rc.${rc}")
     .\wingetcreate.exe update --urls "https://s3.amazonaws.com/dd-agent-mstesting/builds/tagged/datadog-agent-${agentVersion}-rc.${rc}-1-x86_64.msi" --version "${agentVersion}-rc.${rc}" --submit --token "${env:WINGET_GITHUB_ACCESS_TOKEN}" "Datadog.Agent"
 } else {
     Write-Host ("Updating Winget manifest for Agent version ${agentVersion}")
