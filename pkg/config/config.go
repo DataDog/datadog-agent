@@ -867,7 +867,7 @@ func InitConfig(config Config) {
 
 	// Process Discovery Check
 	config.BindEnvAndSetDefault("process_config.process_discovery.enabled", true)
-	config.BindEnvAndSetDefault("process_config.process_discovery.interval", 4*time.Hour) 
+	config.BindEnvAndSetDefault("process_config.process_discovery.interval", 4*time.Hour)
 
 	// Network
 	config.BindEnv("network.id")
