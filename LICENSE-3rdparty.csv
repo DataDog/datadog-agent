@@ -67,7 +67,7 @@ core,github.com/DataDog/watermarkpodautoscaler/api/v1alpha1,Apache-2.0,"Datadog,
 core,github.com/DataDog/zstd,BSD-3-Clause,"Datadog, Inc."
 core,github.com/DataDog/zstd_0,BSD-3-Clause,"Datadog, Inc."
 core,github.com/DisposaBoy/JsonConfigReader,MIT,* Andreas Jaekle `https://github.com/ekle` | * DisposaBoy `https://github.com/DisposaBoy` | * Steven Osborn `https://github.com/steve918` | The JsonConfigReader Authors | This is the official list of JsonConfigReader authors for copyright purposes.
-core,github.com/Masterminds/goutils,Apache-2.0,UNKNOWN
+core,github.com/Masterminds/goutils,Apache-2.0,Alexander Okoli
 core,github.com/Masterminds/semver,MIT,Matt Butcher and Matt Farina
 core,github.com/Masterminds/sprig,MIT,Masterminds
 core,github.com/Microsoft/go-winio,MIT,Microsoft
@@ -256,7 +256,7 @@ core,github.com/coreos/pkg/capnslog,Apache-2.0,CoreOS Project
 core,github.com/coreos/pkg/dlopen,Apache-2.0,CoreOS Project
 core,github.com/cyphar/filepath-securejoin,BSD-3-Clause,Docker Inc & Go Authors | SUSE LLC
 core,github.com/davecgh/go-spew/spew,ISC,Dave Collins <dave@davec.name>
-core,github.com/dgraph-io/ristretto,Apache-2.0,UNKNOWN
+core,github.com/dgraph-io/ristretto,Apache-2.0,"Dgraph Labs, Inc. and Contributors"
 core,github.com/dgraph-io/ristretto/z,MIT,"Andreas Briese, eduToolbox@Bri-C GmbH, Sarstedt | Dgraph Labs, Inc. and Contributors | Ewan Chou"
 core,github.com/dgryski/go-jump,MIT,Damian Gryski <damian@gryski.com>
 core,github.com/docker/distribution/digestset,Apache-2.0,"Docker, Inc"
@@ -315,13 +315,13 @@ core,github.com/freddierice/go-losetup,MIT,Freddie Rice
 core,github.com/fsnotify/fsnotify,BSD-3-Clause,The fsnotify authors
 core,github.com/ghodss/yaml,MIT,Sam Ghods | The Go Authors
 core,github.com/go-ini/ini,Apache-2.0,Unknwon
-core,github.com/go-logr/logr,Apache-2.0,UNKNOWN
+core,github.com/go-logr/logr,Apache-2.0,The logr Authors
 core,github.com/go-ole/go-ole,MIT,"Yasuhiro Matsumoto, <mattn.jp@gmail.com>"
 core,github.com/go-ole/go-ole/oleutil,MIT,"Yasuhiro Matsumoto, <mattn.jp@gmail.com>"
-core,github.com/go-openapi/jsonpointer,Apache-2.0,UNKNOWN
-core,github.com/go-openapi/jsonreference,Apache-2.0,UNKNOWN
-core,github.com/go-openapi/spec,Apache-2.0,UNKNOWN
-core,github.com/go-openapi/swag,Apache-2.0,UNKNOWN
+core,github.com/go-openapi/jsonpointer,Apache-2.0,sigu-399 ( https://github.com/sigu-399 )
+core,github.com/go-openapi/jsonreference,Apache-2.0,sigu-399 ( https://github.com/sigu-399 )
+core,github.com/go-openapi/spec,Apache-2.0,go-swagger maintainers
+core,github.com/go-openapi/swag,Apache-2.0,go-swagger maintainers
 core,github.com/gobwas/glob,MIT,Sergey Kamardin
 core,github.com/gobwas/glob/compiler,MIT,Sergey Kamardin
 core,github.com/gobwas/glob/match,MIT,Sergey Kamardin
@@ -363,8 +363,8 @@ core,github.com/google/go-cmp/cmp/internal/diff,BSD-3-Clause,The Go Authors
 core,github.com/google/go-cmp/cmp/internal/flags,BSD-3-Clause,The Go Authors
 core,github.com/google/go-cmp/cmp/internal/function,BSD-3-Clause,The Go Authors
 core,github.com/google/go-cmp/cmp/internal/value,BSD-3-Clause,The Go Authors
-core,github.com/google/gofuzz,Apache-2.0,UNKNOWN
-core,github.com/google/gofuzz/bytesource,Apache-2.0,UNKNOWN
+core,github.com/google/gofuzz,Apache-2.0,"Google, Inc."
+core,github.com/google/gofuzz/bytesource,Apache-2.0,"Google, Inc."
 core,github.com/google/gopacket,BSD-3-Clause,"Andreas Krennmair | Google, Inc."
 core,github.com/google/gopacket/afpacket,BSD-3-Clause,"Andreas Krennmair | Google, Inc."
 core,github.com/google/gopacket/layers,BSD-3-Clause,"Andreas Krennmair | Google, Inc."
@@ -444,16 +444,16 @@ core,github.com/klauspost/compress/snappy,BSD-3-Clause,The Snappy-Go Authors
 core,github.com/klauspost/compress/zstd,BSD-3-Clause,Caleb Spare | Klaus Post | The Go Authors
 core,github.com/klauspost/compress/zstd/internal/xxhash,MIT,Caleb Spare | Klaus Post | The Go Authors
 core,github.com/klauspost/pgzip,MIT,Klaus Post
-core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/apiserver,Apache-2.0,UNKNOWN
-core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/apiserver/endpoints/handlers,Apache-2.0,UNKNOWN
-core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/apiserver/installer,Apache-2.0,UNKNOWN
-core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/apiserver/registry/rest,Apache-2.0,UNKNOWN
-core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/cmd,Apache-2.0,UNKNOWN
-core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/cmd/server,Apache-2.0,UNKNOWN
-core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/dynamicmapper,Apache-2.0,UNKNOWN
-core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/provider,Apache-2.0,UNKNOWN
-core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/registry/custom_metrics,Apache-2.0,UNKNOWN
-core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/registry/external_metrics,Apache-2.0,UNKNOWN
+core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/apiserver,Apache-2.0,The Kubernetes Authors
+core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/apiserver/endpoints/handlers,Apache-2.0,The Kubernetes Authors
+core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/apiserver/installer,Apache-2.0,The Kubernetes Authors
+core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/apiserver/registry/rest,Apache-2.0,The Kubernetes Authors
+core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/cmd,Apache-2.0,The Kubernetes Authors
+core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/cmd/server,Apache-2.0,The Kubernetes Authors
+core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/dynamicmapper,Apache-2.0,The Kubernetes Authors
+core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/provider,Apache-2.0,The Kubernetes Authors
+core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/registry/custom_metrics,Apache-2.0,The Kubernetes Authors
+core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/registry/external_metrics,Apache-2.0,The Kubernetes Authors
 core,github.com/lxn/walk,BSD-3-Clause,The walk authors
 core,github.com/lxn/win,BSD-3-Clause,The win authors
 core,github.com/magiconair/properties,BSD-2-Clause,Frank Schroeder
@@ -479,9 +479,9 @@ core,github.com/mitchellh/mapstructure,MIT,Mitchell Hashimoto
 core,github.com/mitchellh/reflectwalk,MIT,Mitchell Hashimoto
 core,github.com/mkrautz/goar,BSD-3-Clause,Mikkel Krautz
 core,github.com/moby/locker,Apache-2.0,"Docker, Inc"
-core,github.com/moby/sys/mountinfo,Apache-2.0,UNKNOWN
-core,github.com/modern-go/concurrent,Apache-2.0,UNKNOWN
-core,github.com/modern-go/reflect2,Apache-2.0,UNKNOWN
+core,github.com/moby/sys/mountinfo,Apache-2.0,"Docker, Inc."
+core,github.com/modern-go/concurrent,Apache-2.0,taowen
+core,github.com/modern-go/reflect2,Apache-2.0,taowen
 core,github.com/munnerz/goautoneg,BSD-3-Clause,Open Knowledge Foundation Ltd
 core,github.com/mxk/go-flowrate/flowrate,BSD-3-Clause,The Go-FlowRate Authors
 core,github.com/nwaples/rardecode,BSD-2-Clause,Nicholas Waples
@@ -496,9 +496,9 @@ core,github.com/opencontainers/runc/libcontainer/devices,Apache-2.0,"Docker, Inc
 core,github.com/opencontainers/runc/libcontainer/user,Apache-2.0,"Docker, Inc"
 core,github.com/opencontainers/runc/libcontainer/userns,Apache-2.0,"Docker, Inc"
 core,github.com/opencontainers/runtime-spec/specs-go,Apache-2.0,The Linux Foundation
-core,github.com/opencontainers/selinux/go-selinux,Apache-2.0,UNKNOWN
-core,github.com/opencontainers/selinux/go-selinux/label,Apache-2.0,UNKNOWN
-core,github.com/opencontainers/selinux/pkg/pwalk,Apache-2.0,UNKNOWN
+core,github.com/opencontainers/selinux/go-selinux,Apache-2.0,OpenContainers Authors
+core,github.com/opencontainers/selinux/go-selinux/label,Apache-2.0,OpenContainers Authors
+core,github.com/opencontainers/selinux/pkg/pwalk,Apache-2.0,OpenContainers Authors
 core,github.com/openshift/api/quota/v1,Apache-2.0,David Eads | Michal Fojtik
 core,github.com/patrickmn/go-cache,MIT,Alex Edwards <ajmedwards@gmail.com> | Dustin Sallings <dustin@spy.net> | Jason Mooberry <jasonmoo@me.com> | Patrick Mylund Nielsen and the go-cache contributors | Sergey Shepelev <temotor@gmail.com>
 core,github.com/pborman/uuid,BSD-3-Clause,Google Inc | Paul Borman <borman@google.com>
@@ -526,9 +526,9 @@ core,github.com/prometheus/procfs/internal/fs,Apache-2.0,The Prometheus Authors
 core,github.com/prometheus/procfs/internal/util,Apache-2.0,The Prometheus Authors
 core,github.com/robfig/cron/v3,MIT,Rob Figueiredo
 core,github.com/samuel/go-zookeeper/zk,BSD-3-Clause,Samuel Stauffer <samuel@descolada.com>
-core,github.com/sassoftware/go-rpmutils,Apache-2.0,UNKNOWN
-core,github.com/sassoftware/go-rpmutils/cpio,Apache-2.0,UNKNOWN
-core,github.com/sassoftware/go-rpmutils/fileutil,Apache-2.0,UNKNOWN
+core,github.com/sassoftware/go-rpmutils,Apache-2.0,"SAS Institute, Inc."
+core,github.com/sassoftware/go-rpmutils/cpio,Apache-2.0,"SAS Institute, Inc."
+core,github.com/sassoftware/go-rpmutils/fileutil,Apache-2.0,"SAS Institute, Inc."
 core,github.com/shirou/gopsutil/cpu,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
 core,github.com/shirou/gopsutil/disk,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
 core,github.com/shirou/gopsutil/host,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
@@ -543,10 +543,10 @@ core,github.com/shuLhan/go-bindata/cmd/go-bindata,CC0-1.0,The go-bindata authors
 core,github.com/sirupsen/logrus,MIT,Simon Eskildsen
 core,github.com/smira/go-ftp-protocol/protocol,MIT,Andrey Smirnov
 core,github.com/smira/go-xz,MIT,Andrey Smirnov
-core,github.com/spf13/afero,Apache-2.0,UNKNOWN
-core,github.com/spf13/afero/mem,Apache-2.0,UNKNOWN
+core,github.com/spf13/afero,Apache-2.0,The Authors
+core,github.com/spf13/afero/mem,Apache-2.0,The Authors
 core,github.com/spf13/cast,MIT,Steve Francia
-core,github.com/spf13/cobra,Apache-2.0,UNKNOWN
+core,github.com/spf13/cobra,Apache-2.0,Steve Francia <spf@spf13.com>
 core,github.com/spf13/jwalterweatherman,MIT,Steve Francia
 core,github.com/spf13/pflag,BSD-3-Clause,Alex Ogier | The Go Authors
 core,github.com/stretchr/objx,MIT,"Stretchr, Inc | objx contributors"
@@ -584,11 +584,11 @@ core,github.com/urfave/negroni,MIT,Jeremy Saenz
 core,github.com/vishvananda/netlink,Apache-2.0,"Docker, Inc | Vishvananda Ishaya"
 core,github.com/vishvananda/netlink/nl,Apache-2.0,"Docker, Inc | Vishvananda Ishaya"
 core,github.com/vishvananda/netns,Apache-2.0,"Docker, Inc | Vishvananda Ishaya"
-core,github.com/vito/go-sse/sse,Apache-2.0,UNKNOWN
-core,github.com/wille/osutil,UNKNOWN,UNKNOWN
-core,github.com/xeipuuv/gojsonpointer,Apache-2.0,UNKNOWN
-core,github.com/xeipuuv/gojsonreference,Apache-2.0,UNKNOWN
-core,github.com/xeipuuv/gojsonschema,Apache-2.0,UNKNOWN
+core,github.com/vito/go-sse/sse,Apache-2.0,The Authors
+core,github.com/wille/osutil,UNKNOWN,wille
+core,github.com/xeipuuv/gojsonpointer,Apache-2.0,xeipuuv ( https://github.com/xeipuuv )
+core,github.com/xeipuuv/gojsonreference,Apache-2.0,xeipuuv ( https://github.com/xeipuuv )
+core,github.com/xeipuuv/gojsonschema,Apache-2.0,xeipuuv ( https://github.com/xeipuuv )
 core,github.com/xi2/xz,UNKNOWN,Igor Pavlov <http://7-zip.org/> | Lasse Collin <lasse.collin@tukaani.org> | Michael Cross <https://github.com/xi2>
 core,github.com/xor-gate/ar,MIT,Blake Smith <blakesmith0@gmail.com>
 core,go.etcd.io/etcd/api/v3/version,Apache-2.0,the etcd maintainers
@@ -718,7 +718,7 @@ core,golang.org/x/text/unicode/norm,BSD-3-Clause,The Go Authors
 core,golang.org/x/text/width,BSD-3-Clause,The Go Authors
 core,golang.org/x/time/rate,BSD-3-Clause,The Go Authors
 core,golang/go,BSD-3-Clause,The Go Authors
-core,gomodules.xyz/jsonpatch/v3,Apache-2.0,UNKNOWN
+core,gomodules.xyz/jsonpatch/v3,Apache-2.0,The Authors
 core,gomodules.xyz/orderedmap,MIT,Ian Coleman
 core,google.golang.org/api/googleapi,BSD-3-Clause,Google Inc. | LightStep Inc.
 core,google.golang.org/api/googleapi/transport,BSD-3-Clause,Google Inc. | LightStep Inc.
@@ -1394,12 +1394,12 @@ core,k8s.io/utils/nsenter,Apache-2.0,Cloud Native Computing Foundation (CNCF)
 core,k8s.io/utils/path,Apache-2.0,Cloud Native Computing Foundation (CNCF)
 core,k8s.io/utils/pointer,Apache-2.0,Cloud Native Computing Foundation (CNCF)
 core,k8s.io/utils/trace,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,sigs.k8s.io/apiserver-network-proxy/konnectivity-client/pkg/client,Apache-2.0,UNKNOWN
-core,sigs.k8s.io/apiserver-network-proxy/konnectivity-client/proto/client,Apache-2.0,UNKNOWN
-core,sigs.k8s.io/controller-runtime/pkg/scheme,Apache-2.0,UNKNOWN
-core,sigs.k8s.io/structured-merge-diff/v4/fieldpath,Apache-2.0,UNKNOWN
-core,sigs.k8s.io/structured-merge-diff/v4/merge,Apache-2.0,UNKNOWN
-core,sigs.k8s.io/structured-merge-diff/v4/schema,Apache-2.0,UNKNOWN
-core,sigs.k8s.io/structured-merge-diff/v4/typed,Apache-2.0,UNKNOWN
-core,sigs.k8s.io/structured-merge-diff/v4/value,Apache-2.0,UNKNOWN
-core,sigs.k8s.io/yaml,MIT,Sam Ghods | The Go Authors
+core,sigs.k8s.io/apiserver-network-proxy/konnectivity-client/pkg/client,Apache-2.0,The Kubernetes Authors
+core,sigs.k8s.io/apiserver-network-proxy/konnectivity-client/proto/client,Apache-2.0,The Kubernetes Authors
+core,sigs.k8s.io/controller-runtime/pkg/scheme,Apache-2.0,The Kubernetes Authors
+core,sigs.k8s.io/structured-merge-diff/v4/fieldpath,Apache-2.0,The Kubernetes Authors
+core,sigs.k8s.io/structured-merge-diff/v4/merge,Apache-2.0,The Kubernetes Authors
+core,sigs.k8s.io/structured-merge-diff/v4/schema,Apache-2.0,The Kubernetes Authors
+core,sigs.k8s.io/structured-merge-diff/v4/typed,Apache-2.0,The Kubernetes Authors
+core,sigs.k8s.io/structured-merge-diff/v4/value,Apache-2.0,The Kubernetes Authors
+core,sigs.k8s.io/yaml,MIT,The Kubernetes Authors
