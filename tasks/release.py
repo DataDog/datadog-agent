@@ -1106,6 +1106,23 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
             code=1,
         )
 
+    # Find milestone based on what the next final version is. If the milestone does not exist, fail.
+    milestone_name = str(next_final_version(ctx, max(list_major_versions)))
+
+    milestone = github.get_milestone_by_name(milestone_name)
+
+    if not milestone or not milestone["number"]:
+        raise Exit(
+            color_message(
+                """Could not find milestone {} in the Github repository. Response: {}
+Make sure that milestone is open before trying again.""".format(
+                    milestone_name, milestone
+                ),
+                "red",
+            ),
+            code=1,
+        )
+
     # Step 1: Update release entries
 
     print(color_message("Updating release entries", "bold"))
@@ -1180,20 +1197,6 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
     print(color_message("Created PR #{}".format(pr["number"]), "bold"))
 
     # Step 5: add milestone and labels to PR
-
-    # Find milestone based on what the next final version is
-    milestone_name = str(next_final_version(ctx, max(list_major_versions)))
-
-    milestone = github.get_milestone_by_name(milestone_name)
-
-    if not milestone or not milestone["number"]:
-        raise Exit(
-            color_message(
-                "Could not find milestone {} in the Github repository. Response: {}".format(milestone_name, milestone),
-                "red",
-            ),
-            code=1,
-        )
 
     updated_pr = github.update_pr(
         pull_number=pr["number"],
