@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 package gcp
 
 import (
@@ -20,6 +21,7 @@ import (
 	conventions "go.opentelemetry.io/collector/model/semconv/v1.5.0"
 )
 
+// HostInfo holds the GCP host information.
 type HostInfo struct {
 	HostAliases []string
 	GCPTags     []string
