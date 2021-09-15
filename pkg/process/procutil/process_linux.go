@@ -110,7 +110,6 @@ func NewProcessProbe(options ...Option) *Probe {
 		clockTicks:              getClockTicks(),
 		exit:                    make(chan struct{}),
 		bootTimeRefreshInterval: time.Minute,
-		collectStats:            true,
 	}
 	atomic.StoreUint64(&p.bootTime, bootTime)
 
