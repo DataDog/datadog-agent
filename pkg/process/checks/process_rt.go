@@ -141,7 +141,7 @@ func fmtProcessStats(
 			Pid:                    pid,
 			CreateTime:             fp.CreateTime,
 			Memory:                 formatMemory(fp),
-			Cpu:                    formatCPU(fp, fp.CPUTime, lastProcs[pid].CPUTime, syst2, syst1),
+			Cpu:                    formatCPU(fp, lastProcs[pid], syst2, syst1),
 			Nice:                   fp.Nice,
 			Threads:                fp.NumThreads,
 			OpenFdCount:            fp.OpenFdCount,

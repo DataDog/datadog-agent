@@ -208,7 +208,7 @@ func (p *probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 		proc := &Process{
 			Pid: int32(pid),
 			Stats: &Stats{
-				CPUTime:     &CPUTimesStat{},
+				CPUPercent:  &CPUPercentStat{},
 				MemInfo:     &MemoryInfoStat{},
 				CtxSwitches: &NumCtxSwitchesStat{},
 				IORateStat:  &IOCountersRateStat{},
@@ -358,7 +358,7 @@ func (p *probe) mapThreadCount(instance string, v uint64) {
 
 func setProcCPUTimeUser(pid int32, stats *Stats, instance string, v float64) {
 	log.Tracef("CPU.User[%s,pid=%d] %f", instance, pid, v)
-	stats.CPUTime.User = v
+	stats.CPUPercent.UserPct = v
 }
 
 func (p *probe) mapPctUserTime(instance string, v float64) {
@@ -367,7 +367,7 @@ func (p *probe) mapPctUserTime(instance string, v float64) {
 
 func setProcCPUTimeSystem(pid int32, stats *Stats, instance string, v float64) {
 	log.Tracef("CPU.System[%s,pid=%d] %f", instance, pid, v)
-	stats.CPUTime.System = v
+	stats.CPUPercent.SystemPct = v
 }
 
 func (p *probe) mapPctPrivilegedTime(instance string, v float64) {

@@ -62,6 +62,7 @@ type Stats struct {
 	Nice        int32
 	OpenFdCount int32
 	NumThreads  int32
+	CPUPercent  *CPUPercentStat
 	CPUTime     *CPUTimesStat
 	MemInfo     *MemoryInfoStat
 	MemInfoEx   *MemoryInfoExStat
@@ -82,6 +83,10 @@ func (s *Stats) DeepCopy() *Stats {
 	if s.CPUTime != nil {
 		copy.CPUTime = &CPUTimesStat{}
 		*copy.CPUTime = *s.CPUTime
+	}
+	if s.CPUPercent != nil {
+		copy.CPUPercent = &CPUPercentStat{}
+		*copy.CPUPercent = *s.CPUPercent
 	}
 	if s.MemInfo != nil {
 		copy.MemInfo = &MemoryInfoStat{}
@@ -132,6 +137,12 @@ type CPUTimesStat struct {
 func (c *CPUTimesStat) Total() float64 {
 	total := c.User + c.System + c.Nice + c.Iowait + c.Irq + c.Softirq + c.Steal + c.Guest + c.GuestNice + c.Idle + c.Stolen
 	return total
+}
+
+// CPUPercentStat holds CPU stat metrics of a process as CPU usage percent
+type CPUPercentStat struct {
+	UserPct   float64
+	SystemPct float64
 }
 
 // MemoryInfoStat holds commonly used memory metrics for a process

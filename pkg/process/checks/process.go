@@ -411,7 +411,7 @@ func fmtProcesses(
 			Command:                formatCommand(fp),
 			User:                   formatUser(fp),
 			Memory:                 formatMemory(fp.Stats),
-			Cpu:                    formatCPU(fp.Stats, fp.Stats.CPUTime, lastProcs[fp.Pid].Stats.CPUTime, syst2, syst1),
+			Cpu:                    formatCPU(fp.Stats, lastProcs[fp.Pid].Stats, syst2, syst1),
 			CreateTime:             fp.Stats.CreateTime,
 			OpenFdCount:            fp.Stats.OpenFdCount,
 			State:                  model.ProcessState(model.ProcessState_value[fp.Stats.Status]),
@@ -505,6 +505,18 @@ func formatNetworks(conns []*model.Connection, interval int) *model.ProcessNetwo
 	}
 	bytesRate := float32(totalTraffic) / float32(interval)
 	return &model.ProcessNetworks{ConnectionRate: connRate, BytesRate: bytesRate}
+}
+
+func formatCPU(statsNow, statsBefore *procutil.Stats, syst2, syst1 cpu.TimesStat) *model.CPUStat {
+	if statsNow.CPUPercent != nil {
+		return &model.CPUStat{
+			LastCpu:   "cpu",
+			TotalPct:  float32(statsNow.CPUPercent.UserPct + statsNow.CPUPercent.SystemPct),
+			UserPct:   float32(statsNow.CPUPercent.UserPct),
+			SystemPct: float32(statsNow.CPUPercent.UserPct),
+		}
+	}
+	return formatCPUTimes(statsNow, statsNow.CPUTime, statsBefore.CPUTime, syst2, syst1)
 }
 
 // skipProcess will skip a given process if it's blacklisted or hasn't existed
