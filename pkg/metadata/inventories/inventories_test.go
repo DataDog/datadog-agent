@@ -19,12 +19,12 @@ import (
 )
 
 func clearMetadata() {
-	checkCacheMutex.Lock()
-	defer checkCacheMutex.Unlock()
-	checkMetadataCache = make(map[string]*checkMetadataCacheEntry)
-	agentCacheMutex.Lock()
-	defer agentCacheMutex.Unlock()
-	agentMetadataCache = make(AgentMetadata)
+	checkMetadataMutex.Lock()
+	defer checkMetadataMutex.Unlock()
+	checkMetadata = make(map[string]*checkMetadataCacheEntry)
+	agentMetadataMutex.Lock()
+	defer agentMetadataMutex.Unlock()
+	agentMetadata = make(AgentMetadata)
 
 	// purge metadataUpdatedC
 L:
@@ -269,7 +269,7 @@ func Test_createCheckInstanceMetadata_returnsNewMetadata(t *testing.T) {
 		metadataKey    = "a-metadata-key"
 	)
 
-	checkMetadataCache[checkID] = &checkMetadataCacheEntry{
+	checkMetadata[checkID] = &checkMetadataCacheEntry{
 		CheckInstanceMetadata: CheckInstanceMetadata{
 			metadataKey: "a-metadata-value",
 		},
@@ -278,5 +278,5 @@ func Test_createCheckInstanceMetadata_returnsNewMetadata(t *testing.T) {
 	md := createCheckInstanceMetadata(checkID, configProvider)
 	(*md)[metadataKey] = "a-different-metadata-value"
 
-	assert.NotEqual(t, checkMetadataCache[checkID].CheckInstanceMetadata[metadataKey], (*md)[metadataKey])
+	assert.NotEqual(t, checkMetadata[checkID].CheckInstanceMetadata[metadataKey], (*md)[metadataKey])
 }
