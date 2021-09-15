@@ -1,0 +1,9 @@
+upgrade:
+  - |
+    Process Agent now runs by default even outside of a container. When running, the process agent does not collect full
+    statistics on proceses. Instead, the process agent only gathers metadata on processes, and uses this data to suggest
+    possible integrations that the user may enable. This check is lightweight, and is configured by default to only run every 4 hours.
+features:
+  - |
+    Created a new process discovery check. This is a lightweight check that runs every 4 hours by default, and collects
+    process metadata, so that Datadog can suggest potential integrations for the user to enable.
