@@ -115,25 +115,24 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 
 	// constants for the protobuf data we will be writing, taken from
 	// https://github.com/DataDog/agent-payload/blob/a2cd634bc9c088865b75c6410335270e6d780416/proto/metrics/agent_payload.proto#L47-L81
+	// Unused fields are commented out
 	const payloadSketches = 1
-	const payloadMetadata = 2
+	// const payloadMetadata = 2
 	const sketchMetric = 1
 	const sketchHost = 2
-	const sketchDistributions = 3
+	// const sketchDistributions = 3
 	const sketchTags = 4
 	const sketchDogsketches = 7
-	/* unused
-	const distributionTs = 1
-	const distributionCnt = 2
-	const distributionMin = 3
-	const distributionMax = 4
-	const distributionAvg = 5
-	const distributionSum = 6
-	const distributionV = 7
-	const distributionG = 8
-	const distributionDelta = 9
-	const distributionBuf = 10
-	*/
+	// const distributionTs = 1
+	// const distributionCnt = 2
+	// const distributionMin = 3
+	// const distributionMax = 4
+	// const distributionAvg = 5
+	// const distributionSum = 6
+	// const distributionV = 7
+	// const distributionG = 8
+	// const distributionDelta = 9
+	// const distributionBuf = 10
 	const dogsketchTs = 1
 	const dogsketchCnt = 2
 	const dogsketchMin = 3
