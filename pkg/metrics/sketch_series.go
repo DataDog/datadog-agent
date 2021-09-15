@@ -117,7 +117,7 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 	// https://github.com/DataDog/agent-payload/blob/a2cd634bc9c088865b75c6410335270e6d780416/proto/metrics/agent_payload.proto#L47-L81
 	// Unused fields are commented out
 	const payloadSketches = 1
-	// const payloadMetadata = 2
+	const payloadMetadata = 2
 	const sketchMetric = 1
 	const sketchHost = 2
 	// const sketchDistributions = 3
@@ -142,6 +142,20 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 	const dogsketchK = 7
 	const dogsketchN = 8
 
+	// Generate a footer containing an empty Metadata field.  The gogoproto
+	// generated serialization code includes this when marshaling the struct,
+	// despite the protobuf encoding not really requiring it (all fields
+	// default to their zero value)
+	var footer []byte
+	{
+		buf := bytes.NewBuffer([]byte{})
+		ps := molecule.NewProtoStream(buf)
+		_ = ps.Embedded(payloadMetadata, func(ps *molecule.ProtoStream) error {
+			return nil
+		})
+		footer = buf.Bytes()
+	}
+
 	// Prepare to write the next payload
 	startPayload := func() error {
 		var err error
@@ -149,7 +163,7 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 		bufferContext.CompressorInput.Reset()
 		bufferContext.CompressorOutput.Reset()
 
-		compressor, err = stream.NewCompressor(bufferContext.CompressorInput, bufferContext.CompressorOutput, []byte{}, []byte{}, []byte{})
+		compressor, err = stream.NewCompressor(bufferContext.CompressorInput, bufferContext.CompressorOutput, []byte{}, footer, []byte{})
 		if err != nil {
 			return err
 		}
