@@ -295,12 +295,6 @@ func batchConnections(
 			}
 		}
 
-		//
-		batchDomainIndexes := make([]int32, 0)
-		for k := range domainIndices {
-			batchDomainIndexes = append(batchDomainIndexes, k)
-		}
-
 		// remap route indices
 		// map of old index to new index
 		newRouteIndices := make(map[int32]int32)
@@ -337,7 +331,6 @@ func batchConnections(
 			ContainerForPid:       ctrIDForPID,
 			EncodedDomainDatabase: encodedNameDb,
 			EncodedDnsLookups:     mappedDNSLookups,
-			IndexedDomains:        batchDomainIndexes,
 			ContainerHostType:     cfg.ContainerHostType,
 			Routes:                batchRoutes,
 		}
