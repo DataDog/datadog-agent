@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"expvar"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -29,9 +30,11 @@ const (
 
 // HTTP errors.
 var (
-	errClient = errors.New("client error")
-	errServer = errors.New("server error")
-	tlmSend   = telemetry.NewCounter("logs_client_http_destination", "send", []string{"endpoint_host", "error"}, "Payloads sent")
+	errClient         = errors.New("client error")
+	errServer         = errors.New("server error")
+	tlmSend           = telemetry.NewCounter("logs_client_http_destination", "send", []string{"endpoint_host", "error"}, "Payloads sent")
+	tlmSenderWaitTime = telemetry.NewCounter("logs_client_http_destination", "sender_wait", nil, "Time spent waiting for a sender")
+	expSenderWaitTime = expvar.Int{}
 )
 
 // emptyPayload is an empty payload used to check HTTP connectivity without sending logs.
@@ -207,19 +210,28 @@ func (d *Destination) SendAsync(payload []byte) {
 func (d *Destination) sendInBackground(payloadChan chan []byte) {
 	ctx := d.destinationsContext.Context()
 	go func() {
+		start := time.Now()
+		reportElapsed := func() {
+			elapsed := time.Since(start)
+			expSenderWaitTime.Add(int64(elapsed))
+			tlmSenderWaitTime.Add(float64(elapsed))
+		}
 		for {
 			select {
 			case payload := <-payloadChan:
 				// if the channel is non-buffered then there is no concurrency and we block on sending each payload
 				if cap(d.climit) == 0 {
+					reportElapsed()
 					d.unconditionalSend(payload) //nolint:errcheck
 					break
 				}
 				d.climit <- struct{}{}
+				reportElapsed()
 				go func() {
 					d.unconditionalSend(payload) //nolint:errcheck
 					<-d.climit
 				}()
+				start = time.Now()
 			case <-ctx.Done():
 				return
 			}
