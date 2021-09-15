@@ -507,6 +507,7 @@ func (f *DefaultForwarder) SubmitProcessChecks(payload Payloads, extra http.Head
 	return f.submitProcessLikePayload(processesEndpoint, payload, extra, true)
 }
 
+// SubmitProcessDiscoveryChecks sends process discovery checks
 func (f *DefaultForwarder) SubmitProcessDiscoveryChecks(payload Payloads, extra http.Header) (chan Response, error) {
 	return f.submitProcessLikePayload(processDiscoveryEndpoint, payload, extra, true)
 }

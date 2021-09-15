@@ -1,6 +1,8 @@
 package checks
 
 import (
+	"fmt"
+
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -13,20 +15,31 @@ var ProcessDiscovery = &ProcessDiscoveryCheck{}
 // It uses its own ProcessDiscovery payload, which is intended to be read by the process_discovery kafka topic.
 // The goal of this check is to collect information about possible integrations that may be enabled by the end user.
 type ProcessDiscoveryCheck struct {
-	probe *procutil.Probe
-	info  *model.SystemInfo
+	probe      *procutil.Probe
+	info       *model.SystemInfo
+	initCalled bool
 }
 
+// Init initializes the ProcessDiscoveryCheck. It is a runtime error to call Run without first having called Init.
 func (d *ProcessDiscoveryCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	d.probe = procutil.NewProcessProbe()
 	d.info = info
+	d.initCalled = true
 }
 
+// Name returns the name of the ProcessDiscoveryCheck. In this case it is "process_discovery"
 func (d *ProcessDiscoveryCheck) Name() string { return config.DiscoveryCheckName }
 
+// RealTime returns a value that says whether this check should be run in real time.
 func (d *ProcessDiscoveryCheck) RealTime() bool { return false }
 
+// Run collects process metadata, and packages it into a CollectorProcessDiscovery payload to be sent to process-intake.
+// It is a runtime error to call Run without first having called Init.
 func (d *ProcessDiscoveryCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
+	if !d.initCalled {
+		return nil, fmt.Errorf("ProcessDiscoveryCheck.Run called before Init")
+	}
+
 	// Does not need to collect process stats, only metadata
 	procs, err := getAllProcesses(d.probe, false)
 	if err != nil {
