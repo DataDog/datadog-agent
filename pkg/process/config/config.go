@@ -46,7 +46,7 @@ const (
 	RTContainerCheckName = "rtcontainer"
 	ConnectionsCheckName = "connections"
 	PodCheckName         = "pod"
-	DiscoveryCheckName	 = "process_discovery"
+	DiscoveryCheckName   = "process_discovery"
 
 	NetworkCheckName        = "Network"
 	OOMKillCheckName        = "OOM Kill"
