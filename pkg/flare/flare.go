@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -144,12 +145,26 @@ func analyzeResponse(r *http.Response, err error) (string, error) {
 		return response, fmt.Errorf("HTTP 403 Forbidden: %s", errStr)
 	}
 
+	var res flareResponse
 	b, _ := ioutil.ReadAll(r.Body)
-	var res = flareResponse{}
-	err = json.Unmarshal(b, &res)
+	if r.StatusCode != http.StatusOK {
+		err = fmt.Errorf("HTTP %d %s", r.StatusCode, r.Status)
+	} else if contentType := r.Header.Get("Content-Type"); !strings.HasPrefix(contentType, "application/json") {
+		if contentType != "" {
+			err = fmt.Errorf("Server returned unknown content-type %s", contentType)
+		} else {
+			err = fmt.Errorf("Server returned no content-type header")
+		}
+	} else {
+		err = json.Unmarshal(b, &res)
+	}
 	if err != nil {
 		response = fmt.Sprintf("Error: could not deserialize response body -- Please contact support by email.")
-		return response, fmt.Errorf("%v\nServer returned:\n%s", err, string(b)[:150])
+		sample := string(b)
+		if len(sample) > 150 {
+			sample = sample[:150]
+		}
+		return response, fmt.Errorf("%v\nServer returned:\n%s", err, sample)
 	}
 
 	if res.Error != "" {

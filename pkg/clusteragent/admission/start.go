@@ -25,12 +25,13 @@ import (
 
 // ControllerContext holds necessary context for the admission controllers
 type ControllerContext struct {
-	IsLeaderFunc     func() bool
-	SecretInformers  informers.SharedInformerFactory
-	WebhookInformers informers.SharedInformerFactory
-	Client           kubernetes.Interface
-	DiscoveryClient  discovery.DiscoveryInterface
-	StopCh           chan struct{}
+	IsLeaderFunc        func() bool
+	LeaderSubscribeFunc func() <-chan struct{}
+	SecretInformers     informers.SharedInformerFactory
+	WebhookInformers    informers.SharedInformerFactory
+	Client              kubernetes.Interface
+	DiscoveryClient     discovery.DiscoveryInterface
+	StopCh              chan struct{}
 }
 
 // StartControllers starts the secret and webhook controllers
@@ -52,6 +53,7 @@ func StartControllers(ctx ControllerContext) error {
 		ctx.Client,
 		ctx.SecretInformers.Core().V1().Secrets(),
 		ctx.IsLeaderFunc,
+		ctx.LeaderSubscribeFunc(),
 		secretConfig,
 	)
 
@@ -71,6 +73,7 @@ func StartControllers(ctx ControllerContext) error {
 		ctx.SecretInformers.Core().V1().Secrets(),
 		ctx.WebhookInformers.Admissionregistration(),
 		ctx.IsLeaderFunc,
+		ctx.LeaderSubscribeFunc(),
 		webhookConfig,
 	)
 

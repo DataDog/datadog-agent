@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	agenterr "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -107,7 +108,16 @@ func (c *KubeletCollector) Pull(ctx context.Context) error {
 // Fetch fetches tags for a given entity by iterating on the whole podlist
 // TODO: optimize if called too often on production
 func (c *KubeletCollector) Fetch(ctx context.Context, entity string) ([]string, []string, []string, error) {
-	pod, err := c.watcher.GetPodForEntityID(ctx, entity)
+	kubeEntityID := entity
+
+	// kubeUtil uses `kubernetes_pod://` IDs, while the tagger uses
+	// `kubernetes_pod_uid` so we need to convert between the two
+	prefix, id := containers.SplitEntityName(kubeEntityID)
+	if prefix == kubelet.KubePodTaggerEntityName {
+		kubeEntityID = kubelet.KubePodPrefix + id
+	}
+
+	pod, err := c.watcher.GetPodForEntityID(ctx, kubeEntityID)
 	if err != nil {
 		return []string{}, []string{}, []string{}, err
 	}

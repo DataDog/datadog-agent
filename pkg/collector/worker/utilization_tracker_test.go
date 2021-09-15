@@ -8,6 +8,7 @@ package worker
 import (
 	"expvar"
 	"math/rand"
+	"runtime"
 	"testing"
 	"time"
 
@@ -204,6 +205,10 @@ func TestUtilizationTrackerCheckLifecycle(t *testing.T) {
 }
 
 func TestUtilizationTrackerAccuracy(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("Skipping flaky test on Darwin")
+	}
+
 	windowSize := 3000 * time.Millisecond
 	pollingInterval := 50 * time.Millisecond
 

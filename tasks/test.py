@@ -602,8 +602,6 @@ def make_kitchen_gitlab_yml(_):
             and job.get('stage', None) == 'binary_build'
             and name != 'build_system-probe-arm64'
             and name != 'build_system-probe-x64'
-            and name != 'build_system-probe_with-bcc-arm64'
-            and name != 'build_system-probe_with-bcc-x64'
         ):
             del data[name]
             continue
