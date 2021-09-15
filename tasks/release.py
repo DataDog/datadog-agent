@@ -978,14 +978,14 @@ def check_local_branch(ctx, branch):
     return matching_branch != "0"
 
 
-def check_upstream_branch(github, repository, branch):
+def check_upstream_branch(github, repo_name, branch):
     """
     Checks if the given branch already exists in the given upstream repository
     """
-    branch = github.get_branch(repository, branch)
+    github_branch = github.get_branch(repo_name, branch)
 
     # Return True if the branch exists
-    return branch and branch.get('name', False)
+    return github_branch and github_branch.get('name', False)
 
 
 def parse_major_versions(major_versions):
@@ -1271,7 +1271,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
         color="orange",
         default=False,
     ):
-        raise Exit(color_message("Aborrting.", "red"), code=1)
+        raise Exit(color_message("Aborting.", "red"), code=1)
 
     # Step 1: Tag versions
 
@@ -1281,7 +1281,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
     )
     # tag_version only takes the highest version (Agent 7 currently), and creates
     # the tags for all supported versions
-    # TODO: make it possible to do Agent 6-only tags?
+    # TODO: make it possible to do Agent 6-only or Agent 7-only tags?
     tag_version(ctx, str(new_version))
 
     print(color_message("Waiting until the {} tag appears in Gitlab".format(new_version), "bold"))
