@@ -402,8 +402,8 @@ github.com/gostaticanalysis/forcetypeassert v0.0.0-20200621232751-01d4955beaa5 h
 github.com/gostaticanalysis/forcetypeassert v0.0.0-20200621232751-01d4955beaa5/go.mod h1:qZEedyP/sY1lTGV1uJ3VhWZ2mqag3IkWsDHVbplHXak=
 github.com/gostaticanalysis/nilerr v0.1.1 h1:ThE+hJP0fEp4zWLkWHWcRyI2Od0p7DlgYG3Uqrmrcpk=
 github.com/gostaticanalysis/nilerr v0.1.1/go.mod h1:wZYb6YI5YAxxq0i1+VJbY0s2YONW0HU0GPE3+5PWN4A=
-github.com/goware/modvendor v0.3.0 h1:pQoHt7SOUiWSwN/W5FzibTQLx/1Xa3VMBRcZGtdb1wo=
-github.com/goware/modvendor v0.3.0/go.mod h1:rtogeSlPLJT6MlypJyGp24o/vnHvF+ebCoTQrDX6oGY=
+github.com/goware/modvendor v0.5.0 h1:3XXkmWdTccMzBswM5FTTXvWEtCV7DP7VRkIACRCGaqU=
+github.com/goware/modvendor v0.5.0/go.mod h1:rtogeSlPLJT6MlypJyGp24o/vnHvF+ebCoTQrDX6oGY=
 github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79/go.mod h1:FecbI9+v66THATjSRHfNgh1IVFe/9kFxbXtjV0ctIMA=
 github.com/grpc-ecosystem/go-grpc-middleware v1.0.0/go.mod h1:FiyG127CGDf3tlThmgyCl78X/SZQqEOJBCDaAfeWzPs=
 github.com/grpc-ecosystem/go-grpc-middleware v1.0.1-0.20190118093823-f849b5445de4/go.mod h1:FiyG127CGDf3tlThmgyCl78X/SZQqEOJBCDaAfeWzPs=
