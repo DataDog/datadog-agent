@@ -1107,7 +1107,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
             code=1,
         )
 
-    if check_upstream_branch(github, "https://github.com/{}".format(repo_name), update_branch):
+    if check_upstream_branch(github, repo_name, update_branch):
         raise Exit(
             color_message(
                 "The branch {} already exists upstream. Please remove it before trying again.".format(update_branch),
