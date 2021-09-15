@@ -50,7 +50,7 @@ func TestDNSNameEncoding(t *testing.T) {
 		"1.1.2.4": {Names: []string{"host4.domain.com"}},
 	}
 	cfg := config.NewDefaultAgentConfig(false)
-	chunks := batchConnections(cfg, 0, p, dns, "nid", nil, nil, nil, nil, nil)
+	chunks := batchConnections(cfg, 0, p, dns, "nid", nil, nil, nil, nil, nil, nil)
 	assert.Equal(t, len(chunks), 1)
 
 	chunk := chunks[0]
@@ -110,7 +110,7 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		cfg.MaxConnsPerMessage = tc.maxSize
 		ctm := &model.CollectorConnectionsTelemetry{}
 		rctm := map[string]*model.RuntimeCompilationTelemetry{}
-		chunks := batchConnections(cfg, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", ctm, rctm, nil, nil, nil)
+		chunks := batchConnections(cfg, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", ctm, rctm, nil, nil, nil, nil)
 
 		assert.Len(t, chunks, tc.expectedChunks, "len %d", i)
 		total := 0
@@ -151,7 +151,7 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 1
 
-	chunks := batchConnections(cfg, 0, p, dns, "nid", nil, nil, nil, nil, nil)
+	chunks := batchConnections(cfg, 0, p, dns, "nid", nil, nil, nil, nil, nil, nil)
 
 	assert.Len(t, chunks, 4)
 	total := 0
@@ -192,7 +192,7 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 2
 
-	chunks := batchConnections(cfg, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil, nil, nil, nil)
+	chunks := batchConnections(cfg, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil, nil, nil, nil, nil)
 
 	assert.Len(t, chunks, 3)
 	total := 0
@@ -277,7 +277,7 @@ func TestNetworkConnectionBatchingWithDomainsByQueryType(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 1
 
-	chunks := batchConnections(cfg, 0, conns, dnsmap, "nid", nil, nil, domains, nil, nil)
+	chunks := batchConnections(cfg, 0, conns, dnsmap, "nid", nil, nil, domains, nil, nil, nil)
 
 	assert.Len(t, chunks, 4)
 	total := 0
@@ -396,7 +396,7 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 1
 
-	chunks := batchConnections(cfg, 0, conns, dnsmap, "nid", nil, nil, domains, nil, nil)
+	chunks := batchConnections(cfg, 0, conns, dnsmap, "nid", nil, nil, domains, nil, nil, nil)
 
 	assert.Len(t, chunks, 4)
 	total := 0
@@ -506,7 +506,7 @@ func TestNetworkConnectionBatchingWithRoutes(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 4
 
-	chunks := batchConnections(cfg, 0, conns, nil, "nid", nil, nil, nil, routes, nil)
+	chunks := batchConnections(cfg, 0, conns, nil, "nid", nil, nil, nil, routes, nil, nil)
 
 	assert.Len(t, chunks, 2)
 	total := 0
@@ -536,4 +536,60 @@ func TestNetworkConnectionBatchingWithRoutes(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 8, total)
+}
+
+func TestNetworkConnectionTags(t *testing.T) {
+	conns := makeConnections(8)
+
+	tags := []string{
+		"tag0",
+		"tag1",
+		"tag2",
+		"tag3",
+	}
+
+	conns[0].Tags = []uint32{0}
+	// conns[1] contains no tags
+	conns[2].Tags = []uint32{0, 2}
+	conns[3].Tags = []uint32{1, 2}
+	conns[4].Tags = []uint32{1}
+	conns[5].Tags = []uint32{2}
+	conns[6].Tags = []uint32{3}
+	conns[7].Tags = []uint32{2, 3}
+
+	type fakeConn struct {
+		tags []string
+	}
+	expectedTags := []fakeConn{
+		{tags: []string{"tag0"}},
+		{},
+		{tags: []string{"tag0", "tag2"}},
+		{tags: []string{"tag1", "tag2"}},
+		{tags: []string{"tag1"}},
+		{tags: []string{"tag2"}},
+		{tags: []string{"tag3"}},
+		{tags: []string{"tag2", "tag3"}},
+	}
+	foundTags := []fakeConn{}
+
+	cfg := config.NewDefaultAgentConfig(false)
+	cfg.MaxConnsPerMessage = 4
+
+	chunks := batchConnections(cfg, 0, conns, nil, "nid", nil, nil, nil, nil, tags, nil)
+
+	assert.Len(t, chunks, 2)
+	total := 0
+	for _, c := range chunks {
+		connections := c.(*model.CollectorConnections)
+		total += len(connections.Connections)
+		for _, conn := range connections.Connections {
+			// conn.Tags must be used between system-probe and the agent only
+			assert.Nil(t, conn.Tags)
+
+			foundTags = append(foundTags, fakeConn{tags: connections.GetConnectionsTags(conn.TagsIdx)})
+		}
+	}
+
+	assert.Equal(t, 8, total)
+	require.EqualValues(t, expectedTags, foundTags)
 }

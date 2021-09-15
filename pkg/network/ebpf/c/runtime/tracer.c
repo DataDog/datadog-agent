@@ -10,6 +10,7 @@
 #include "netns.h"
 #include "sockfd.h"
 #include "conn-tuple.h"
+#include "tags.h"
 
 #ifdef FEATURE_IPV6_ENABLED
 #include "ipv6.h"

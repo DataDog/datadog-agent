@@ -11,6 +11,7 @@ package ebpf
 /*
 #include "./c/tracer.h"
 #include "./c/tcp_states.h"
+#include "./c/tags-types.h"
 #include "./c/prebuilt/offset-guess.h"
 */
 import "C"
@@ -53,3 +54,10 @@ const (
 )
 
 const BatchSize = C.CONN_CLOSED_BATCH_SIZE
+
+var (
+	StaticTags = map[uint64]string{
+		C.LIBGNUTLS: "tls.library:gnutls",
+		C.LIBSSL:    "tls.library:openssl",
+	}
+)

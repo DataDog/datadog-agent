@@ -59,7 +59,7 @@ require (
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/BurntSushi/toml v0.4.1 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.4
+	github.com/DataDog/agent-payload/v5 v5.0.6
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.33.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/quantile v0.33.0-rc.4
