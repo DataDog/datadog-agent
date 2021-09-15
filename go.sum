@@ -119,8 +119,8 @@ github.com/DataDog/gopsutil v0.0.0-20210826200402-bbfc5b0ae6e9 h1:DR+Nj8SovZrJFc
 github.com/DataDog/gopsutil v0.0.0-20210826200402-bbfc5b0ae6e9/go.mod h1:glkxNt/qRu9lnpmUEQwOIAXW+COWDTBOTEAHqbgBPts=
 github.com/DataDog/gostackparse v0.5.0 h1:jb72P6GFHPHz2W0onsN51cS3FkaMDcjb0QzgxxA4gDk=
 github.com/DataDog/gostackparse v0.5.0/go.mod h1:lTfqcJKqS9KnXQGnyQMCugq3u1FP6UZMfWR0aitKFMM=
-github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
-github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
+github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 h1:UcKqIrOowv2PjTkOC27Xm9TMZlPbRi3CK1OCoawdvl0=
+github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/nikos v1.2.1-0.20210908154039-72372ae79f70 h1:GioQ2pnjkG3aEESQ9PjO2//JUGJ/nyprufJUe+rcnaU=
 github.com/DataDog/nikos v1.2.1-0.20210908154039-72372ae79f70/go.mod h1:olb8xQIYk6Bp/jwnapJpMvB2570/LaY31ZQiVWRZxvE=
 github.com/DataDog/sketches-go v1.1.0 h1:eeUOWMFL6Yygjq/8Lv116uanBlHXiF5kLihR7kYLnH4=
