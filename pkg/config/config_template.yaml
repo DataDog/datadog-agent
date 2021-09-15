@@ -1075,6 +1075,7 @@ api_key:
 # process_config:
 
   ## @param enabled - string - optional - default: "false"
+  ## @env DD_PROCESS_CONFIG_ENABLED - string - optional - default: "false"
   ##  A string indicating the enabled state of the Process Agent:
   ##    * "false"    : The Agent collects only containers information.
   ##    * "true"     : The Agent collects containers and processes information.
@@ -1083,21 +1084,27 @@ api_key:
   # enabled: "true"
 
   ## @param expvar_port - string - optional - default: 6062
+  ## @env DD_PROCESS_CONFIG_EXPVAR_PORT - string - optional - default: 6062
   ## Port for the debug endpoints for the process Agent.
   #
   # expvar_port: 6062
 
-  ## @param config_port - string - optional - default: 6162
+  ## @param cmd_port - string - optional - default: 6162
   ## Port for configuring runtime settings for the process Agent.
   #
   # cmd_port: 6162
 
   ## @param log_file - string - optional
+  ## @env DD_PROCESS_CONFIG_LOG_FILE - string - optional
   ## The full path to the file where process Agent logs are written.
   #
   # log_file: <PROCESS_LOG_FILE_PATH>
 
   ## @param intervals - custom object - optional - default: 10s for normal checks and 2s for others.
+  ## @env DD_PROCESS_CONFIG_INTERVALS_CONTAINER - integer - optional - default: 10
+  ## @env DD_PROCESS_CONFIG_INTERVALS_CONTAINER_REALTIME - integer - optional - default: 2
+  ## @env DD_PROCESS_CONFIG_INTERVALS_PROCESS - integer - optional - default: 10
+  ## @env DD_PROCESS_CONFIG_INTERVALS_PROCESS_REALTIME - integer - optional - default: 2
   ## The interval, in seconds, at which the Agent runs each check. If you want consistent
   ## behavior between real-time, set the `container_realtime` and `process_realtime` intervals to 10.
   #
@@ -1108,22 +1115,26 @@ api_key:
   #   process_realtime: 2
 
   ## @param blacklist_patterns - list of strings - optional
+  ## @env DD_PROCESS_CONFIG_BLACKLIST_PATTERNS - space separated list of strings - optional
   ## A list of regex patterns that exclude processes if matched.
   #
   # blacklist_patterns:
   #   - <REGEX>
 
   ## @param queue_size - integer - optional - default: 20
+  ## @env DD_PROCESS_CONFIG_QUEUE_SIZE - integer - optional - default: 20
   ## How many check results to buffer in memory when POST fails.
   #
   # queue_size: 20
 
   ## @param max_per_message - integer - optional - default: 100
+  ## @env DD_PROCESS_CONFIG_MAX_PER_MESSAGE - integer - optional - default: 100
   ## The maximum number of processes or containers per message.
   #
   # max_per_message: 100
 
   ## @param dd_agent_bin - string - optional
+  ## @env DD_PROCESS_CONFIG_DD_AGENT_BIN - string - optional
   ## Overrides the path to the Agent bin used for getting the hostname. Defaults are:
   ##   * Windows: <AGENT_DIRECTORY>\embedded\\agent.exe
   ##   * Unix: /opt/datadog-agent/bin/agent/agent
@@ -1131,16 +1142,19 @@ api_key:
   # dd_agent_bin: <AGENT_BIN_PATH>
 
   ## @param dd_agent_env - string - optional - default: ""
+  ## @env DD_PROCESS_CONFIG_DD_AGENT_ENV - string - optional - default: ""
   ## Overrides of the environment we pass to fetch the hostname.
   #
   # dd_agent_env: ""
 
   ## @param scrub_args - boolean - optional - default: true
+  ## @env DD_PROCESS_CONFIG_SCRUB_ARGS - boolean - optional - default: true
   ## Hide sensitive data on the Live Processes page.
   #
   # scrub_args: true
 
   ## @param custom_sensitive_words - list of strings - optional
+  ## @env DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS - space separated list of strings - optional
   ## Define your own list of sensitive data to be merged with the default one.
   ## Read more on Datadog documentation:
   ## https://docs.datadoghq.com/graphing/infrastructure/process/#process-arguments-scrubbing
