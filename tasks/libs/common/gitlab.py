@@ -18,10 +18,10 @@ class Gitlab(RemoteAPI):
 
     BASE_URL = "https://gitlab.ddbuild.io/api/v4"
 
-    def __init__(self, project_name="", api_token=None):
+    def __init__(self, project_name="", api_token=""):
         super(Gitlab, self).__init__()
 
-        self.api_token = api_token if api_token else self._api_token()
+        self.api_token = api_token
         self.project_name = project_name
         self.api_name = "Gitlab"
         self.authorization_error_message = (
@@ -294,24 +294,45 @@ class Gitlab(RemoteAPI):
             method=method,
         )
 
-    def _api_token(self):
-        if "GITLAB_TOKEN" not in os.environ:
-            print("GITLAB_TOKEN not found in env. Trying keychain...")
-            if platform.system() == "Darwin":
-                try:
-                    output = subprocess.check_output(
-                        ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITLAB_TOKEN', '-w']
-                    )
-                    if len(output) > 0:
-                        return output.strip()
-                except subprocess.CalledProcessError:
-                    print("GITLAB_TOKEN not found in keychain...")
-                    pass
-            print(
-                "Please create an 'api' access token at "
-                "https://gitlab.ddbuild.io/profile/personal_access_tokens and "
-                "add it as GITLAB_TOKEN in your keychain "
-                "or export it from your .bashrc or equivalent."
-            )
-            raise Exit(code=1)
-        return os.environ["GITLAB_TOKEN"]
+
+def get_gitlab_token():
+    if "GITLAB_TOKEN" not in os.environ:
+        print("GITLAB_TOKEN not found in env. Trying keychain...")
+        if platform.system() == "Darwin":
+            try:
+                output = subprocess.check_output(
+                    ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITLAB_TOKEN', '-w']
+                )
+                if len(output) > 0:
+                    return output.strip()
+            except subprocess.CalledProcessError:
+                print("GITLAB_TOKEN not found in keychain...")
+                pass
+        print(
+            "Please create an 'api' access token at "
+            "https://gitlab.ddbuild.io/profile/personal_access_tokens and "
+            "add it as GITLAB_TOKEN in your keychain "
+            "or export it from your .bashrc or equivalent."
+        )
+        raise Exit(code=1)
+    return os.environ["GITLAB_TOKEN"]
+
+
+def get_gitlab_bot_token():
+    if "GITLAB_BOT_TOKEN" not in os.environ:
+        print("GITLAB_BOT_TOKEN not found in env. Trying keychain...")
+        if platform.system() == "Darwin":
+            try:
+                output = subprocess.check_output(
+                    ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITLAB_BOT_TOKEN', '-w']
+                )
+                if output:
+                    return output.strip()
+            except subprocess.CalledProcessError:
+                print("GITLAB_BOT_TOKEN not found in keychain...")
+                pass
+        print(
+            "Please make sure that the GITLAB_BOT_TOKEN is set or that " "the GITLAB_BOT_TOKEN keychain entry is set."
+        )
+        raise Exit(code=1)
+    return os.environ["GITLAB_BOT_TOKEN"]

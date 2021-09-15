@@ -18,7 +18,7 @@ from tasks.utils import (
 )
 
 from .libs.common.color import color_message
-from .libs.common.gitlab import Gitlab
+from .libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
 from .libs.pipeline_notifications import (
     base_message,
     find_job_owners,
@@ -97,7 +97,7 @@ def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_
     """
 
     project_name = "DataDog/datadog-agent"
-    gitlab = Gitlab(project_name)
+    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
     gitlab.test_project_found()
 
     if here:
@@ -206,7 +206,7 @@ def run(
     """
 
     project_name = "DataDog/datadog-agent"
-    gitlab = Gitlab(project_name)
+    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
     gitlab.test_project_found()
 
     if use_release_entries:
@@ -295,7 +295,7 @@ def follow(ctx, id=None, git_ref=None, here=False):
     """
 
     project_name = "DataDog/datadog-agent"
-    gitlab = Gitlab(project_name)
+    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
     gitlab.test_project_found()
 
     if id is not None:
@@ -389,7 +389,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variables=""):
     # we won't use it here
     os.environ["GITLAB_TOKEN"] = os.environ['CI_JOB_TOKEN']
 
-    gitlab = Gitlab(project_name)
+    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
 
     data = {"token": os.environ['CI_JOB_TOKEN'], "ref": git_ref, "variables": {}}
 
@@ -458,11 +458,7 @@ def notify_failure(_, notification_type="merge", print_to_stdout=False):
 
 def _init_pipeline_schedule_task():
     project_name = "DataDog/datadog-agent"
-    try:
-        bot_token = os.environ['GITLAB_BOT_TOKEN']
-    except KeyError:
-        raise Exit(message="You must specify GITLAB_BOT_TOKEN environment variable", code=1)
-    gitlab = Gitlab(project_name=project_name, api_token=bot_token)
+    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_bot_token())
     gitlab.test_project_found()
     return gitlab
 

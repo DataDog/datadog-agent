@@ -4,7 +4,7 @@ import os
 from .githubapp import GithubApp, GithubAppException
 from .remote_api import RemoteAPI
 
-__all__ = ["GithubWorkflows", "GithubException"]
+__all__ = ["GithubWorkflows", "GithubException", "get_github_app_token"]
 
 
 class GithubException(Exception):
@@ -18,8 +18,8 @@ class GithubWorkflows(RemoteAPI):
 
     BASE_URL = "https://api.github.com"
 
-    def __init__(self, repository="", api_token=None):
-        self.api_token = api_token if api_token else self._api_token()
+    def __init__(self, repository="", api_token=""):
+        self.api_token = api_token
         self.repository = repository
         self.api_name = "GitHub Workflows"
         self.authorization_error_message = (
@@ -114,10 +114,11 @@ class GithubWorkflows(RemoteAPI):
             )
         raise GithubException("Failed while making HTTP request: {} {}".format(method, url))
 
-    def _api_token(self):
-        try:
-            token = GithubApp().get_token()
-        except GithubAppException:
-            raise GithubException("Couldn't get API token.")
 
-        return token
+def get_github_app_token():
+    try:
+        token = GithubApp().get_token()
+    except GithubAppException:
+        raise GithubException("Couldn't get API token.")
+
+    return token

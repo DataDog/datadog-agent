@@ -4,7 +4,6 @@ Release helper tasks
 
 import hashlib
 import json
-import os
 import re
 import sys
 from collections import OrderedDict
@@ -15,8 +14,8 @@ from invoke import Failure, task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
-from tasks.libs.common.github_api import GithubAPI
-from tasks.libs.common.gitlab import Gitlab
+from tasks.libs.common.github_api import GithubAPI, get_github_token
+from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
 from tasks.pipeline import run
 from tasks.utils import DEFAULT_BRANCH, get_version, nightly_entry_for, release_entry_for
 
@@ -379,13 +378,7 @@ def list_major_change(_, milestone):
     List all PR labeled "major_changed" for this release.
     """
 
-    github_token = os.environ.get('GITHUB_TOKEN')
-    if github_token is None:
-        print(
-            "Error: set the GITHUB_TOKEN environment variable.\nYou can create one by going to"
-            " https://github.com/settings/tokens. It should have at least the 'repo' permissions."
-        )
-        return Exit(code=1)
+    github_token = get_github_token()
 
     response = _query_github_api(
         github_token,
@@ -1007,13 +1000,7 @@ def finish(ctx, major_versions="6,7"):
     list_major_versions = parse_major_versions(major_versions)
     print("Finishing release for major version(s) {}".format(list_major_versions))
 
-    github_token = os.environ.get('GITHUB_TOKEN')
-    if github_token is None:
-        print(
-            "Error: set the GITHUB_TOKEN environment variable.\nYou can create one by going to"
-            " https://github.com/settings/tokens. It should have at least the 'repo' permissions."
-        )
-        return Exit(code=1)
+    github_token = get_github_token()
 
     for major_version in list_major_versions:
         new_version = next_final_version(ctx, major_version)
@@ -1052,7 +1039,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
 
     Commits the above changes, and then creates a PR on the upstream repository with the change.
 
-    The --upstream option can be set if the remote repsoitory's name is not "origin" in your git repository
+    The --upstream option can be set if the remote repository's name is not "origin" in your git repository
     config.
 
     Notes:
@@ -1066,7 +1053,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
         return Exit(code=1)
 
     repo_name = "DataDog/datadog-agent"
-    github = GithubAPI(repo_name)
+    github = GithubAPI(repository=repo_name, api_token=get_github_token())
 
     list_major_versions = parse_major_versions(major_versions)
 
@@ -1241,7 +1228,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
         print("Must use Python 3 for this task")
         return Exit(code=1)
 
-    gitlab = Gitlab("DataDog/datadog-agent")
+    gitlab = Gitlab(project_name="DataDog/datadog-agent", api_token=get_gitlab_token())
     list_major_versions = parse_major_versions(major_versions)
 
     # Get the version of the highest major: needed for tag_version and to know

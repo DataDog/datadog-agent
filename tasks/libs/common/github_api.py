@@ -7,7 +7,7 @@ from invoke.exceptions import Exit
 
 from .remote_api import RemoteAPI
 
-__all__ = ["GithubAPI"]
+__all__ = ["GithubAPI", "get_github_token"]
 
 
 class GithubAPI(RemoteAPI):
@@ -17,8 +17,8 @@ class GithubAPI(RemoteAPI):
 
     BASE_URL = "https://api.github.com"
 
-    def __init__(self, repository="", api_token=None):
-        self.api_token = api_token if api_token else self._api_token()
+    def __init__(self, repository="", api_token=""):
+        self.api_token = api_token
         self.repository = repository
         self.authorization_error_message = (
             "HTTP 401: The token is invalid. Is the Github token provided still allowed to perform this action?"
@@ -97,24 +97,25 @@ class GithubAPI(RemoteAPI):
             method=method,
         )
 
-    def _api_token(self):
-        if "GITHUB_TOKEN" not in os.environ:
-            print("GITHUB_TOKEN not found in env. Trying keychain...")
-            if platform.system() == "Darwin":
-                try:
-                    output = subprocess.check_output(
-                        ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITHUB_TOKEN', '-w']
-                    )
-                    if output:
-                        return output.strip()
-                except subprocess.CalledProcessError:
-                    print("GITHUB_TOKEN not found in keychain...")
-                    pass
-            raise Exit(
-                message="Please create a 'repo' access token at "
-                "https://github.com/settings/tokens and "
-                "add it as GITHUB_TOKEN in your keychain "
-                "or export it from your .bashrc or equivalent.",
-                code=1,
-            )
-        return os.environ["GITHUB_TOKEN"]
+
+def get_github_token():
+    if "GITHUB_TOKEN" not in os.environ:
+        print("GITHUB_TOKEN not found in env. Trying keychain...")
+        if platform.system() == "Darwin":
+            try:
+                output = subprocess.check_output(
+                    ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITHUB_TOKEN', '-w']
+                )
+                if output:
+                    return output.strip()
+            except subprocess.CalledProcessError:
+                print("GITHUB_TOKEN not found in keychain...")
+                pass
+        raise Exit(
+            message="Please create a 'repo' access token at "
+            "https://github.com/settings/tokens and "
+            "add it as GITHUB_TOKEN in your keychain "
+            "or export it from your .bashrc or equivalent.",
+            code=1,
+        )
+    return os.environ["GITHUB_TOKEN"]

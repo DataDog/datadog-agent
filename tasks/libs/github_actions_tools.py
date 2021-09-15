@@ -9,7 +9,7 @@ from invoke.exceptions import Exit
 from tasks.utils import DEFAULT_BRANCH
 
 from .common.color import color_message
-from .common.github_workflows import GithubException, GithubWorkflows
+from .common.github_workflows import GithubException, GithubWorkflows, get_github_app_token
 
 
 def trigger_macos_workflow(
@@ -47,7 +47,7 @@ def trigger_macos_workflow(
 
     # The workflow trigger endpoint doesn't return anything. You need to fetch the workflow run id
     # by yourself.
-    GithubWorkflows(repository="DataDog/datadog-agent-macos-build").trigger_workflow(
+    GithubWorkflows(repository="DataDog/datadog-agent-macos-build", api_token=get_github_app_token()).trigger_workflow(
         "macos.yaml", github_action_ref, inputs
     )
 
@@ -73,16 +73,16 @@ def get_macos_workflow_run_for_ref(github_action_ref="master"):
     """
     Get the latest workflow for the given ref.
     """
-    return GithubWorkflows("DataDog/datadog-agent-macos-build").latest_workflow_run_for_ref(
-        "macos.yaml", github_action_ref
-    )
+    return GithubWorkflows(
+        repository="DataDog/datadog-agent-macos-build", api_token=get_github_app_token()
+    ).latest_workflow_run_for_ref("macos.yaml", github_action_ref)
 
 
 def follow_workflow_run(run_id):
     """
     Follow the workflow run until completion.
     """
-    github_workflows = GithubWorkflows("DataDog/datadog-agent-macos-build")
+    github_workflows = GithubWorkflows(repository="DataDog/datadog-agent-macos-build", api_token=get_github_app_token())
 
     try:
         run = github_workflows.workflow_run(run_id)
@@ -134,7 +134,7 @@ def download_artifacts(run_id, destination="."):
     """
     Download all artifacts for a given job in the specified location.
     """
-    github_workflows = GithubWorkflows("DataDog/datadog-agent-macos-build")
+    github_workflows = GithubWorkflows(repository="DataDog/datadog-agent-macos-build", api_token=get_github_app_token())
 
     print(color_message("Downloading artifacts for run {} to {}".format(run_id, destination), "blue"))
 
