@@ -524,6 +524,9 @@ core,github.com/prometheus/common/model,Apache-2.0,The Prometheus Authors
 core,github.com/prometheus/procfs,Apache-2.0,The Prometheus Authors
 core,github.com/prometheus/procfs/internal/fs,Apache-2.0,The Prometheus Authors
 core,github.com/prometheus/procfs/internal/util,Apache-2.0,The Prometheus Authors
+core,github.com/richardartoul/molecule,MIT,Richard Artoul
+core,github.com/richardartoul/molecule/src/codec,Apache-2.0,Richard Artoul
+core,github.com/richardartoul/molecule/src/protowire,BSD-3-Clause,Richard Artoul | The Go Authors
 core,github.com/robfig/cron/v3,MIT,Rob Figueiredo
 core,github.com/samuel/go-zookeeper/zk,BSD-3-Clause,Samuel Stauffer <samuel@descolada.com>
 core,github.com/sassoftware/go-rpmutils,Apache-2.0,"SAS Institute, Inc."
