@@ -101,16 +101,16 @@ class GithubAPI(RemoteAPI):
                     output = subprocess.check_output(
                         ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITHUB_TOKEN', '-w']
                     )
-                    if len(output) > 0:
+                    if output:
                         return output.strip()
                 except subprocess.CalledProcessError:
                     print("GITHUB_TOKEN not found in keychain...")
                     pass
-            print(
-                "Please create a 'repo' access token at "
+            raise Exit(
+                message="Please create a 'repo' access token at "
                 "https://github.com/settings/tokens and "
                 "add it as GITHUB_TOKEN in your keychain "
-                "or export it from your .bashrc or equivalent."
+                "or export it from your .bashrc or equivalent.",
+                code=1
             )
-            raise Exit(code=1)
         return os.environ["GITHUB_TOKEN"]
