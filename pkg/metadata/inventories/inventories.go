@@ -64,10 +64,13 @@ type AgentMetadataName string
 // pkg/metadata/inventories/README.md and any additions should
 // be updated there as well.
 const (
-	AgentCloudProvider  AgentMetadataName = "cloud_provider"
-	AgentHostnameSource AgentMetadataName = "hostname_source"
-	AgentVersion        AgentMetadataName = "version"
-	AgentFlavor         AgentMetadataName = "flavor"
+	AgentCloudProvider      AgentMetadataName = "cloud_provider"
+	AgentHostnameSource     AgentMetadataName = "hostname_source"
+	AgentVersion            AgentMetadataName = "version"
+	AgentFlavor             AgentMetadataName = "flavor"
+	AgentInstallerVersion   AgentMetadataName = "install_method_installer_version"
+	AgentInstallTool        AgentMetadataName = "install_method_tool"
+	AgentInstallToolVersion AgentMetadataName = "install_method_tool_version"
 )
 
 // SetAgentMetadata updates the agent metadata value in the cache
