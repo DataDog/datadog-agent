@@ -90,15 +90,15 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.HashingTags
 	//                          	the hashset when there is less than 16 tags
 	//   - n > hashSetSize:         sort
 
-	tags := tagsBuf.Get()
-	hashes := tagsBuf.Hashes()
-
-	if len(tags) > hashSetSize {
+	if tagsBuf.Len() > hashSetSize {
 		tagsBuf.SortUniq()
 		for _, h := range tagsBuf.Hashes() {
 			g.intb = g.intb ^ h
 		}
-	} else if len(tags) > bruteforceSize {
+	} else if tagsBuf.Len() > bruteforceSize {
+		tags := tagsBuf.Get()
+		hashes := tagsBuf.Hashes()
+
 		// reset the `seen` hashset.
 		// it copies `g.empty` instead of using make because it's faster
 
@@ -139,7 +139,9 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.HashingTags
 		}
 		tagsBuf.Truncate(ntags)
 	} else {
-		ntags := len(tags)
+		tags := tagsBuf.Get()
+		hashes := tagsBuf.Hashes()
+		ntags := tagsBuf.Len()
 	OUTER:
 		for i := 0; i < ntags; {
 			h := hashes[i]
