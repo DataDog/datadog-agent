@@ -368,7 +368,10 @@ func (agg *BufferedAggregator) registerSender(id check.ID) error {
 	if _, ok := agg.checkSamplers[id]; ok {
 		return fmt.Errorf("Sender with ID '%s' has already been registered, will use existing sampler", id)
 	}
-	agg.checkSamplers[id] = newCheckSampler(config.Datadog.GetInt("check_sampler_bucket_commits_count_expiry"))
+	agg.checkSamplers[id] = newCheckSampler(
+		config.Datadog.GetInt("check_sampler_bucket_commits_count_expiry"),
+		config.Datadog.GetDuration("check_sampler_stateful_metric_expiration_time"),
+	)
 	return nil
 }
 

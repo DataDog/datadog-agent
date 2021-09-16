@@ -1,0 +1,48 @@
+package metrics
+
+import (
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+)
+
+func TestCheckMetrics(t *testing.T) {
+	cm := NewCheckMetrics(1000 * time.Second)
+	t0 := 16_0000_0000.0
+
+	cm.AddSample(1, &MetricSample{Mtype: GaugeType}, t0, 1)
+	assert.Contains(t, cm.metrics, ckey.ContextKey(1))
+
+	cm.AddSample(2, &MetricSample{Mtype: MonotonicCountType}, t0, 1)
+	assert.Contains(t, cm.metrics, ckey.ContextKey(2))
+
+	cm.AddSample(3, &MetricSample{Mtype: MonotonicCountType}, t0, 1)
+	assert.Contains(t, cm.metrics, ckey.ContextKey(3))
+
+	cm.AddSample(4, &MetricSample{Mtype: GaugeType}, t0, 1)
+	assert.Contains(t, cm.metrics, ckey.ContextKey(4))
+
+	cm.Remove([]ckey.ContextKey{1, 2}, t0+100)
+	assert.NotContains(t, cm.metrics, ckey.ContextKey(1))
+	assert.Contains(t, cm.metrics, ckey.ContextKey(2))
+	assert.Contains(t, cm.metrics, ckey.ContextKey(3))
+	assert.Contains(t, cm.metrics, ckey.ContextKey(4))
+
+	cm.Cleanup(t0 + 100)
+	assert.Contains(t, cm.metrics, ckey.ContextKey(2))
+	assert.Contains(t, cm.metrics, ckey.ContextKey(3))
+	assert.Contains(t, cm.metrics, ckey.ContextKey(4))
+
+	cm.Cleanup(t0 + 1100)
+	assert.Contains(t, cm.metrics, ckey.ContextKey(2))
+	assert.Contains(t, cm.metrics, ckey.ContextKey(3))
+	assert.Contains(t, cm.metrics, ckey.ContextKey(4))
+
+	cm.Cleanup(t0 + 1101)
+	assert.NotContains(t, cm.metrics, ckey.ContextKey(2))
+	assert.Contains(t, cm.metrics, ckey.ContextKey(3))
+	assert.Contains(t, cm.metrics, ckey.ContextKey(4))
+}
