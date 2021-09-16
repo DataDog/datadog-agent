@@ -418,9 +418,7 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 	}
 
 	for _, t := range transactions {
-		if err := f.domainForwarders[t.Domain].sendHTTPTransactions(t); err != nil {
-			log.Errorf(err.Error())
-		}
+		f.domainForwarders[t.Domain].sendHTTPTransactions(t)
 	}
 	return nil
 }
