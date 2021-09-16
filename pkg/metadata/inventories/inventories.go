@@ -8,6 +8,7 @@ package inventories
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -84,39 +85,12 @@ const (
 	AgentInstallToolVersion           AgentMetadataName = "install_method_tool_version"
 )
 
-// metadataEqual compares two interface{} values for equality, including
-// string slices (which go cannot do itself)
-func metadataEqual(a, b interface{}) bool {
-	aStr, aok := a.(string)
-	bStr, bok := b.(string)
-
-	if aok && bok {
-		return aStr == bStr
-	}
-
-	aStrSlice, aok := a.(string)
-	bStrSlice, bok := b.(string)
-	if aok && bok {
-		if len(aStrSlice) == len(bStrSlice) {
-			for i := range aStrSlice {
-				if aStrSlice[i] != bStrSlice[i] {
-					return false
-				}
-			}
-			return true
-		}
-		return false
-	}
-
-	return false
-}
-
 // SetAgentMetadata updates the agent metadata value in the cache
 func SetAgentMetadata(name AgentMetadataName, value interface{}) {
 	agentMetadataMutex.Lock()
 	defer agentMetadataMutex.Unlock()
 
-	if !metadataEqual(agentMetadata[string(name)], value) {
+	if !reflect.DeepEqual(agentMetadata[string(name)], value) {
 		agentMetadata[string(name)] = value
 
 		select {
@@ -139,7 +113,7 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 		checkMetadata[checkID] = entry
 	}
 
-	if !metadataEqual(entry.CheckInstanceMetadata[key], value) {
+	if !reflect.DeepEqual(entry.CheckInstanceMetadata[key], value) {
 		entry.LastUpdated = timeNow()
 		entry.CheckInstanceMetadata[key] = value
 
