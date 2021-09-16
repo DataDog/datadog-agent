@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build orchestrator
 // +build orchestrator
 
 package orchestrator
@@ -66,6 +67,9 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 
 		// additional tags
 		podModel.Tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(podModel.Status)))
+
+		// collect priorityClassName
+		podModel.Tags = append(tags, fmt.Sprintf("priority_class:%s", strings.ToLower(podModel.PriorityClass)))
 
 		// The resource version field collected from the Kubelet can't be
 		// trusted because it's not updated, therefore not reflecting changes in
@@ -151,6 +155,8 @@ func extractPodMessage(p *v1.Pod) *model.Pod {
 	podModel.IP = p.Status.PodIP
 	podModel.RestartCount = 0
 	podModel.QOSClass = string(p.Status.QOSClass)
+	// pod priority class
+	podModel.PriorityClass = string(p.Spec.PriorityClassName)
 	for _, cs := range p.Status.ContainerStatuses {
 		podModel.RestartCount += cs.RestartCount
 		cStatus := convertContainerStatus(cs)
