@@ -165,6 +165,13 @@ func testProcessesByPID(t *testing.T) {
 			compareProcess(t, ConvertFromFilledProcess(expectProc), procByPID[pid])
 		}
 	}
+
+	// Test processesByPID with collectStats == false
+	procByPID, err = probe.ProcessesByPID(time.Now(), false)
+	assert.NoError(t, err)
+	for _, proc := range procByPID {
+		assert.Empty(t, proc.Stats)
+	}
 }
 
 func compareProcess(t *testing.T, procV1, procV2 *Process) {

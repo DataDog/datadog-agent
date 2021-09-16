@@ -216,12 +216,23 @@ func (p *Probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 			statusInfo = &statusInfo{}
 			statInfo   = &statInfo{}
 			memInfoEx  = &MemoryInfoExStat{}
+			stats      *Stats
 		)
 
 		if collectStats {
 			statusInfo = p.parseStatus(pathForPID)
 			statInfo = p.parseStat(pathForPID, pid, now)
 			memInfoEx = p.parseStatm(pathForPID)
+			stats = &Stats{
+				CreateTime:  statInfo.createTime,    // /proc/[pid]/stat
+				Status:      statusInfo.status,      // /proc/[pid]/status
+				Nice:        statInfo.nice,          // /proc/[pid]/stat
+				CPUTime:     statInfo.cpuStat,       // /proc/[pid]/stat
+				MemInfo:     statusInfo.memInfo,     // /proc/[pid]/status
+				MemInfoEx:   memInfoEx,              // /proc/[pid]/statm
+				CtxSwitches: statusInfo.ctxSwitches, // /proc/[pid]/status
+				NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
+			}
 		}
 		proc := &Process{
 			Pid:     pid,                                       // /proc/[pid]
@@ -233,27 +244,20 @@ func (p *Probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 			Cwd:     p.getLinkWithAuthCheck(pathForPID, "cwd"), // /proc/[pid]/cwd, requires permission checks
 			Exe:     p.getLinkWithAuthCheck(pathForPID, "exe"), // /proc/[pid]/exe, requires permission checks
 			NsPid:   statusInfo.nspid,                          // /proc/[pid]/status
-			Stats: &Stats{
-				CreateTime:  statInfo.createTime,    // /proc/[pid]/stat
-				Status:      statusInfo.status,      // /proc/[pid]/status
-				Nice:        statInfo.nice,          // /proc/[pid]/stat
-				CPUTime:     statInfo.cpuStat,       // /proc/[pid]/stat
-				MemInfo:     statusInfo.memInfo,     // /proc/[pid]/status
-				MemInfoEx:   memInfoEx,              // /proc/[pid]/statm
-				CtxSwitches: statusInfo.ctxSwitches, // /proc/[pid]/status
-				NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
-			},
+			Stats:   stats,
 		}
-		if p.withPermission && collectStats {
-			proc.Stats.OpenFdCount = p.getFDCountImproved(pathForPID) // /proc/[pid]/fd, requires permission checks
-			proc.Stats.IOStat = p.parseIO(pathForPID)                 // /proc/[pid]/io, requires permission checks
-		} else {
-			proc.Stats.IOStat = &IOCountersStat{
-				ReadCount:  -1,
-				WriteCount: -1,
-				ReadBytes:  -1,
-				WriteBytes: -1,
-			} // use -1 values to represent "no permission"
+		if collectStats {
+			if p.withPermission {
+				proc.Stats.OpenFdCount = p.getFDCountImproved(pathForPID) // /proc/[pid]/fd, requires permission checks
+				proc.Stats.IOStat = p.parseIO(pathForPID)                 // /proc/[pid]/io, requires permission checks
+			} else {
+				proc.Stats.IOStat = &IOCountersStat{
+					ReadCount:  -1,
+					WriteCount: -1,
+					ReadBytes:  -1,
+					WriteBytes: -1,
+				} // use -1 values to represent "no permission"
+			}
 		}
 		procsByPID[pid] = proc
 	}
