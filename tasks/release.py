@@ -902,8 +902,12 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force
     print("Created all tags for version {}".format(agent_version))
 
 
+def current_version(ctx, major_version) -> Version:
+    return _create_version_from_match(VERSION_RE.search(get_version(ctx, major_version=major_version)))
+
+
 def next_final_version(ctx, major_version) -> Version:
-    previous_version = _create_version_from_match(VERSION_RE.search(get_version(ctx, major_version=major_version)))
+    previous_version = current_version(ctx, major_version)
 
     # Set the new version
     if previous_version.is_devel():
@@ -916,7 +920,7 @@ def next_final_version(ctx, major_version) -> Version:
 
 def next_rc_version(ctx, major_version, patch_version=False) -> Version:
     # Fetch previous version from the most recent tag on the branch
-    previous_version = _create_version_from_match(VERSION_RE.search(get_version(ctx, major_version=major_version)))
+    previous_version = current_version(ctx, major_version)
 
     if previous_version.is_rc():
         # We're already on an RC, only bump the RC version
@@ -1215,8 +1219,8 @@ Make sure that milestone is open before trying again.""".format(
     )
 
 
-@task
-def build_rc(ctx, major_versions="6,7", patch_version=False):
+@task(help={'redo': "Redo the tag & build for the last RC that was tagged, instead of creating tags for the next RC."})
+def build_rc(ctx, major_versions="6,7", patch_version=False, redo=False):
     """
     To be done after the PR created by release.create-rc is merged, with the same options
     as release.create-rc.
@@ -1232,7 +1236,11 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
 
     # Get the version of the highest major: needed for tag_version and to know
     # which tag to target when creating the pipeline.
-    new_version = next_rc_version(ctx, max(list_major_versions), patch_version)
+    if redo:
+        # If redo is enabled, we're moving the current RC tag, so we keep the same version
+        new_version = current_version(ctx, max(list_major_versions))
+    else:
+        new_version = next_rc_version(ctx, max(list_major_versions), patch_version)
 
     # Get a string representation of the RC, eg. "6/7.32.0-rc.1"
     versions_string = "{}".format(
@@ -1276,7 +1284,8 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
     # tag_version only takes the highest version (Agent 7 currently), and creates
     # the tags for all supported versions
     # TODO: make it possible to do Agent 6-only or Agent 7-only tags?
-    tag_version(ctx, str(new_version))
+    # Note: if redo is enabled, then we need to set the --force option to move the tags.
+    tag_version(ctx, str(new_version), force=redo)
 
     print(color_message("Waiting until the {} tag appears in Gitlab".format(new_version), "bold"))
     gitlab_tag = None
