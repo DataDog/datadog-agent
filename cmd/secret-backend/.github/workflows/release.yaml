@@ -23,3 +23,5 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         goos: ${{ matrix.goos }}
         goarch: ${{ matrix.goarch }}
+        binary_name: datadog-secret-backend
+        asset_name: ${{ binary-name }}-${{ matrix.goos }}-${{ matrix.goarch }}
