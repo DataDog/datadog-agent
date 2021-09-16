@@ -6,8 +6,6 @@ if not exist c:\mnt\ goto nomntdir
 REM don't use `OUTDIR` as an environment variable. It will confuse the VC build
 set PKG_OUTDIR=c:\mnt\build-out\%CI_JOB_ID%
 
-call c:\mnt\tasks\winbuildscripts\extract-modcache.bat
-
 mkdir \dev\go\src\github.com\DataDog\datadog-agent\Dockerfiles\agent\windows\entrypoint
 if not exist \dev\go\src\github.com\DataDog\datadog-agent\Dockerfiles\agent\windows\entrypoint exit /b 1
 cd \dev\go\src\github.com\DataDog\datadog-agent\Dockerfiles\agent\windows\entrypoint || exit /b 2
