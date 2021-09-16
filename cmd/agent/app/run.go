@@ -37,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -253,9 +252,6 @@ func StartAgent() error {
 	if err := initRuntimeSettings(); err != nil {
 		log.Warnf("Can't initiliaze the runtime settings: %v", err)
 	}
-
-	// Setup inventory reporting for config
-	inventories.SetConfigMetadata(config.Datadog)
 
 	// Setup Internal Profiling
 	if v := config.Datadog.GetInt("internal_profiling.block_profile_rate"); v > 0 {

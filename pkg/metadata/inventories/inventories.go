@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -224,4 +225,13 @@ func StartMetadataUpdatedGoroutine(sc schedulerInterface, minSendInterval time.D
 func InitializeData() {
 	SetAgentMetadata(AgentVersion, version.AgentVersion)
 	SetAgentMetadata(AgentFlavor, flavor.GetFlavor())
+
+	SetAgentMetadata(AgentConfigApmDDURL, config.Datadog.GetString("apm_config.dd_url"))
+	SetAgentMetadata(AgentConfigDDURL, config.Datadog.GetString("dd_url"))
+	SetAgentMetadata(AgentConfigLogsDDURL, config.Datadog.GetString("logs_config.logs_dd_url"))
+	SetAgentMetadata(AgentConfigLogsSocks5ProxyAddress, config.Datadog.GetString("logs_config.socks5_proxy_address"))
+	SetAgentMetadata(AgentConfigNoProxy, config.Datadog.GetStringSlice("proxy.no_proxy"))
+	SetAgentMetadata(AgentConfigProcessDDURL, config.Datadog.GetString("process_config.process_dd_url"))
+	SetAgentMetadata(AgentConfigProxyHTTP, config.Datadog.GetString("proxy.http"))
+	SetAgentMetadata(AgentConfigProxyHTTPS, config.Datadog.GetString("proxy.https"))
 }
