@@ -51,7 +51,7 @@ var (
 	tlmTxInputCount = telemetry.NewCounter("transactions", "input_count",
 		[]string{"domain", "endpoint"}, "Incoming transaction count")
 	tlmTxHighPriorityQueueFull = telemetry.NewCounter("transactions", "high_priority_queue_full",
-		[]string{"domain", "endpoint"}, "Count of transactions added to the retry queue because the high priotiy queue is full")
+		[]string{"domain", "endpoint"}, "Count of transactions added to the retry queue because the high priority queue is full")
 	tlmTxRequeued = telemetry.NewCounter("transactions", "requeued",
 		[]string{"domain", "endpoint"}, "Transaction requeue count")
 	tlmTxRetried = telemetry.NewCounter("transactions", "retries",
