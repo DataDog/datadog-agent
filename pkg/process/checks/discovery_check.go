@@ -47,7 +47,7 @@ func (d *ProcessDiscoveryCheck) Run(cfg *config.AgentConfig, groupID int32) ([]m
 
 	host := &model.Host{
 		Name:        cfg.HostName,
-		NumCpus:     d.info.Cpus[0].Number,
+		NumCpus:     calculateNumCores(d.info),
 		TotalMemory: d.info.TotalMemory,
 	}
 	procDiscoveryChunks := chunkProcessDiscoveries(pidMapToProcDiscoveries(procs, host), cfg.MaxPerMessage)
@@ -98,4 +98,16 @@ func chunkProcessDiscoveries(procs []*model.ProcessDiscovery, size int) [][]*mod
 	}
 
 	return chunks
+}
+
+// Needed to calculate the correct normalized cpu metric value
+// On linux, the cpu array contains an entry per logical core.
+// On windows, the cpu array contains an entry per physical core, with correct logical core counts.
+func calculateNumCores(info *model.SystemInfo) int32 {
+	var numCores int32
+	for _, cpu := range info.Cpus {
+		numCores += cpu.Cores
+	}
+
+	return numCores
 }
