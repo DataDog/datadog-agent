@@ -86,12 +86,12 @@ class RemoteAPI(object):
             message = m.group(2)
 
             if errno_code == errno.ENOEXEC:
-                print("Error resolving {}: {}".format(url, message))
+                exit_msg = "Error resolving {}: {}".format(url, message)
             elif errno_code == errno.ECONNREFUSED:
-                print("Connection to {} ({}) refused".format(self.api_name, url))
+                exit_msg = "Connection to {} ({}) refused".format(self.api_name, url)
             else:
-                print("Error while connecting to {}: {}".format(url, str(e)))
-            raise Exit(code=1)
+                exit_msg = "Error while connecting to {}: {}".format(url, str(e))
+            raise Exit(message=exit_msg, code=1)
 
         if json_output:
             return r.json()

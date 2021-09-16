@@ -982,7 +982,7 @@ def check_upstream_branch(github, branch):
 
 
 def parse_major_versions(major_versions):
-    return sorted([int(x) for x in major_versions.split(",")])
+    return sorted(int(x) for x in major_versions.split(","))
 
 
 @task
@@ -994,8 +994,7 @@ def finish(ctx, major_versions="6,7"):
     """
 
     if sys.version_info[0] < 3:
-        print("Must use Python 3 for this task")
-        return Exit(code=1)
+        return Exit(message="Must use Python 3 for this task", code=1)
 
     list_major_versions = parse_major_versions(major_versions)
     print("Finishing release for major version(s) {}".format(list_major_versions))
@@ -1010,7 +1009,7 @@ def finish(ctx, major_versions="6,7"):
     update_modules(ctx, str(new_version))
 
 
-@task
+@task(help={'upstream': "Remote repository name (default 'origin')"})
 def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin"):
     """
     Updates the release entries in release.json to prepare the next RC build.
