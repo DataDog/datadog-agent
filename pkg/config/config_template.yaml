@@ -1110,7 +1110,7 @@ api_key:
   ## @param process_discovery - custom object - optional
   ## Specifies custom settings for the `process_discovery` object.
   # process_discovery
-      ## @param enabled - boolean - optional - default: enabled
+      ## @param enabled - boolean - optional - default: true
       ## Toggles the `process_discovery` check. This check gathers information about possible integrations
       ## for the user to enable.
       # enabled: true
