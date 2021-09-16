@@ -197,7 +197,7 @@ func (t *kprobeTracer) GetConnections(buffer []network.ConnectionStats, filter f
 	entries := t.conns.IterateFrom(unsafe.Pointer(&netebpf.ConnTuple{}))
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
 		conn := connStats(key, stats)
-		if filter != nil && filter(&conn) == false {
+		if filter != nil && !filter(&conn) {
 			continue
 		}
 		if tcpStats := t.getTCPStats(key, seen); tcpStats != nil {
