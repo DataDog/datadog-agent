@@ -216,7 +216,8 @@ func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
 
 	require.EqualValues(suite.T(),
 		map[string]string{
-			"url": fmt.Sprintf("http://127.0.0.1:%d", kubeletPort),
+			"url":        fmt.Sprintf("http://127.0.0.1:%d", kubeletPort),
+			"verify_tls": "false",
 		}, ku.GetRawConnectionInfo())
 }
 
@@ -626,7 +627,8 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttp() {
 
 	require.EqualValues(suite.T(),
 		map[string]string{
-			"url": fmt.Sprintf("http://127.0.0.1:%d", kubeletPort),
+			"url":        fmt.Sprintf("http://127.0.0.1:%d", kubeletPort),
+			"verify_tls": "false",
 			// token must be unset
 		}, ku.GetRawConnectionInfo())
 }
@@ -662,7 +664,8 @@ func (suite *KubeletTestSuite) TestKubeletInitHttp() {
 
 	require.EqualValues(suite.T(),
 		map[string]string{
-			"url": fmt.Sprintf("http://127.0.0.1:%d", kubeletPort),
+			"url":        fmt.Sprintf("http://127.0.0.1:%d", kubeletPort),
+			"verify_tls": "false",
 		}, ku.GetRawConnectionInfo())
 }
 
