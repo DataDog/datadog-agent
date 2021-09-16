@@ -288,8 +288,6 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
 
-	t.state.StoreClosedConnections(closed)
-
 	// Grow or shrink buffer depending on the usage
 	if needed := len(active) + len(closed); needed >= cap(t.buffer) {
 		log.Debugf("growing buffer. old_cap=%d new_cap=%d", cap(t.buffer), cap(t.buffer)*2)
@@ -299,7 +297,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		t.buffer = make([]network.ConnectionStats, 0, cap(t.buffer)/2)
 	}
 
-	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
+	delta := t.state.GetDelta(clientID, latestTime, active, closed, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
 	ips := make([]util.Address, 0, len(delta.Connections)*2)
 	for _, conn := range delta.Connections {
 		ips = append(ips, conn.Source, conn.Dest)

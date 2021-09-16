@@ -37,13 +37,10 @@ type State interface {
 	GetDelta(
 		clientID string,
 		latestTime uint64,
-		latestConns []ConnectionStats,
+		active, closed []ConnectionStats,
 		dns dns.StatsByKeyByNameByType,
 		http map[http.Key]http.RequestStats,
 	) Delta
-
-	// StoreClosedConnection stores a new closed connection
-	StoreClosedConnections(conns []ConnectionStats)
 
 	// RemoveClient stops tracking stateful data for a given client
 	RemoveClient(clientID string)
@@ -149,16 +146,19 @@ func (ns *networkState) getClients() []string {
 func (ns *networkState) GetDelta(
 	id string,
 	latestTime uint64,
-	latestConns []ConnectionStats,
+	active []ConnectionStats,
+	closed []ConnectionStats,
 	dnsStats dns.StatsByKeyByNameByType,
 	httpStats map[http.Key]http.RequestStats,
 ) Delta {
 	ns.Lock()
 	defer ns.Unlock()
 
+	ns.storeClosedConnections(closed)
+
 	// Update the latest known time
 	ns.latestTimeEpoch = latestTime
-	connsByKey := getConnsByKey(latestConns, ns.buf)
+	connsByKey := getConnsByKey(active, ns.buf)
 
 	// If its the first time we've seen this client, use global state as connection set
 	if client, ok := ns.newClient(id); !ok {
@@ -176,18 +176,18 @@ func (ns *networkState) GetDelta(
 			c.LastTCPClosed = 0
 		}
 
-		ns.determineConnectionIntraHost(latestConns)
+		ns.determineConnectionIntraHost(active)
 		if len(dnsStats) > 0 {
 			ns.storeDNSStats(dnsStats)
-			ns.addDNSStats(id, latestConns)
+			ns.addDNSStats(id, active)
 		}
 		if len(httpStats) > 0 {
 			ns.storeHTTPStats(httpStats)
 		}
 
 		// copy to ensure return value doesn't get clobbered
-		conns := make([]ConnectionStats, len(latestConns))
-		copy(conns, latestConns)
+		conns := make([]ConnectionStats, len(active))
+		copy(conns, active)
 		return Delta{
 			Connections: conns,
 			HTTP:        ns.getHTTPDelta(id),
@@ -208,8 +208,7 @@ func (ns *networkState) GetDelta(
 	}
 	ns.clients[id].stats = newStats
 
-	// TODO: Figure out how we want to GC this
-	ns.clients[id].closedConnections = ns.clients[id].closedConnections[:0]
+	ns.clients[id].closedConnections = nil
 	ns.determineConnectionIntraHost(conns)
 	if len(dnsStats) > 0 {
 		ns.storeDNSStats(dnsStats)
@@ -313,9 +312,15 @@ func getConnsByKey(conns []ConnectionStats, buf []byte) map[string]*ConnectionSt
 }
 
 // StoreClosedConnection stores the given connection for every client
-func (ns *networkState) StoreClosedConnections(conns []ConnectionStats) {
-	ns.Lock()
-	defer ns.Unlock()
+func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
+	// fast-path for default case:
+	// if there is only one client registered we don't bother to copy the data
+	if len(ns.clients) == 1 {
+		for _, client := range ns.clients {
+			client.closedConnections = conns
+			return
+		}
+	}
 
 	for _, client := range ns.clients {
 		var (
