@@ -83,6 +83,12 @@ const (
 	AgentInstallTool                  AgentMetadataName = "install_method_tool"
 	AgentInstallToolVersion           AgentMetadataName = "install_method_tool_version"
 	AgentLogsTransport                AgentMetadataName = "logs_transport"
+	AgentSecurityEnabled              AgentMetadataName = "feature_cws_enabled"
+	AgentProcessEnabled               AgentMetadataName = "feature_process_enabled"
+	AgentNetworksEnabled              AgentMetadataName = "feature_networks_enabled"
+	AgentLogsEnabled                  AgentMetadataName = "feature_logs_enabled"
+	AgentComplianceEnabled            AgentMetadataName = "feature_cspm_enabled"
+	AgentAPMEnabled                   AgentMetadataName = "feature_apm_enabled"
 )
 
 // SetAgentMetadata updates the agent metadata value in the cache
@@ -257,4 +263,10 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentConfigProcessDDURL, clean(cfg.GetString("process_config.process_dd_url")))
 	SetAgentMetadata(AgentConfigProxyHTTP, clean(cfg.GetString("proxy.http")))
 	SetAgentMetadata(AgentConfigProxyHTTPS, clean(cfg.GetString("proxy.https")))
+	SetAgentMetadata(AgentSecurityEnabled, config.Datadog.GetBool("runtime_security_config.enabled"))
+	SetAgentMetadata(AgentProcessEnabled, config.Datadog.GetBool("process_config.enabled"))
+	SetAgentMetadata(AgentNetworksEnabled, config.Datadog.GetBool("network_config.enabled"))
+	SetAgentMetadata(AgentLogsEnabled, config.Datadog.GetBool("logs_enabled"))
+	SetAgentMetadata(AgentComplianceEnabled, config.Datadog.GetBool("compliance_config.enabled"))
+	SetAgentMetadata(AgentAPMEnabled, config.Datadog.GetBool("apm_config.enabled"))
 }
