@@ -21,7 +21,7 @@ import (
 
 var (
 	tlmDroppedTooLarge = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
-	tlmSenderWaitTime  = telemetry.NewCounter("logs_sender_batch_strategy", "sender_wait", nil, "Time spent waiting for a sender")
+	tlmSenderWaitTime  = telemetry.NewGauge("logs_sender_batch_strategy_gauge", "sender_wait", nil, "Time spent waiting for a sender")
 	expSenderWaitTime  = expvar.Int{}
 )
 
@@ -135,8 +135,7 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Message, send func(
 	start := time.Now()
 	reportElapsed := func() {
 		elapsed := time.Since(start)
-		expSenderWaitTime.Add(int64(elapsed))
-		tlmSenderWaitTime.Add(float64(elapsed))
+		tlmSenderWaitTime.Set(float64(elapsed / time.Millisecond))
 	}
 
 	if s.buffer.IsEmpty() {
