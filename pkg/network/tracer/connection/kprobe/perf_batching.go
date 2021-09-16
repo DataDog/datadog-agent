@@ -14,10 +14,11 @@ import (
 
 const defaultExpiredStateInterval = 60 * time.Second
 
-// perfBatchManager is reponsbile for two things:
+// perfBatchManager is reponsbile for three things:
 //
 // * Keeping track of the state of each batch object we read off the perf ring;
 // * Detecting idle batches (this might happen in hosts with a low connection churn);
+// * Running an optional filter/callback on each of the connections;
 //
 // The motivation is to impose an upper limit on how long a TCP close connection
 // event remains stored in the eBPF map before being processed by the NetworkAgent.
@@ -30,11 +31,16 @@ type perfBatchManager struct {
 	stateByCPU []percpuState
 
 	expiredStateInterval time.Duration
+
+	filter func(*network.ConnectionStats) bool
+
+	// cached object
+	ct *netebpf.Conn
 }
 
 // newPerfBatchManager returns a new `perfBatchManager` and initializes the
 // eBPF map that holds the tcp_close batch objects.
-func newPerfBatchManager(batchMap *ebpf.Map, numCPUs int) (*perfBatchManager, error) {
+func newPerfBatchManager(batchMap *ebpf.Map, numCPUs int, filter func(*network.ConnectionStats) bool) (*perfBatchManager, error) {
 	if batchMap == nil {
 		return nil, fmt.Errorf("batchMap is nil")
 	}
@@ -54,11 +60,13 @@ func newPerfBatchManager(batchMap *ebpf.Map, numCPUs int) (*perfBatchManager, er
 		batchMap:             batchMap,
 		stateByCPU:           state,
 		expiredStateInterval: defaultExpiredStateInterval,
+		filter:               filter,
+		ct:                   new(netebpf.Conn),
 	}, nil
 }
 
 // Extract from the given batch all connections that haven't been processed yet.
-func (p *perfBatchManager) Extract(b *netebpf.Batch, cpu int) []network.ConnectionStats {
+func (p *perfBatchManager) Extract(buffer []network.ConnectionStats, b *netebpf.Batch, cpu int) []network.ConnectionStats {
 	if cpu >= len(p.stateByCPU) {
 		return nil
 	}
@@ -70,7 +78,6 @@ func (p *perfBatchManager) Extract(b *netebpf.Batch, cpu int) []network.Connecti
 		start = bState.offset
 	}
 
-	buffer := make([]network.ConnectionStats, 0, netebpf.BatchSize-start)
 	conns := p.extractBatchInto(buffer, b, start, netebpf.BatchSize)
 	delete(cpuState.processed, batchId)
 
@@ -80,13 +87,11 @@ func (p *perfBatchManager) Extract(b *netebpf.Batch, cpu int) []network.Connecti
 // GetPendingConns return all connections that are in batches that are not yet full.
 // It tracks which connections have been processed by this call, by batch id.
 // This prevents double-processing of connections between GetPendingConns and Extract.
-func (p *perfBatchManager) GetPendingConns() []network.ConnectionStats {
-	var idle []network.ConnectionStats
+func (p *perfBatchManager) GetPendingConns(buffer []network.ConnectionStats) []network.ConnectionStats {
 	b := new(netebpf.Batch)
 	for cpu := 0; cpu < len(p.stateByCPU); cpu++ {
 		cpuState := &p.stateByCPU[cpu]
 
-		// we have an idle batch, so let's retrieve its data from eBPF
 		err := p.batchMap.Lookup(unsafe.Pointer(&cpu), unsafe.Pointer(b))
 		if err != nil {
 			continue
@@ -96,6 +101,7 @@ func (p *perfBatchManager) GetPendingConns() []network.ConnectionStats {
 		if batchLen == 0 {
 			continue
 		}
+
 		// have we already processed these messages?
 		start := uint16(0)
 		batchId := b.Id
@@ -103,13 +109,13 @@ func (p *perfBatchManager) GetPendingConns() []network.ConnectionStats {
 			start = bState.offset
 		}
 
-		idle = p.extractBatchInto(idle, b, start, batchLen)
+		buffer = p.extractBatchInto(buffer, b, start, batchLen)
 		// update timestamp regardless since this partial batch still exists
 		cpuState.processed[batchId] = batchState{offset: batchLen, updated: time.Now()}
 	}
 
 	p.cleanupExpiredState(time.Now())
-	return idle
+	return buffer
 }
 
 type percpuState struct {
@@ -130,25 +136,31 @@ func (p *perfBatchManager) extractBatchInto(buffer []network.ConnectionStats, b 
 	}
 
 	for i := start; i < end; i++ {
-		var ct netebpf.Conn
 		switch i {
 		case 0:
-			ct = b.C0
+			*p.ct = b.C0
 			break
 		case 1:
-			ct = b.C1
+			*p.ct = b.C1
 			break
 		case 2:
-			ct = b.C2
+			*p.ct = b.C2
 			break
 		case 3:
-			ct = b.C3
+			*p.ct = b.C3
 			break
 		default:
 			panic("batch size is out of sync")
 		}
 
-		buffer = append(buffer, connStats(&ct.Tup, &ct.Conn_stats, &ct.Tcp_stats))
+		buffer = append(buffer, connStats(&p.ct.Tup, &p.ct.Conn_stats, &p.ct.Tcp_stats))
+		conn := &buffer[len(buffer)-1]
+
+		// Run callback/filter and verify if the connection should be filtered out
+		if p.filter != nil && !p.filter(conn) {
+			buffer = buffer[:len(buffer)-1]
+			continue
+		}
 	}
 	return buffer
 }
