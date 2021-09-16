@@ -408,7 +408,8 @@ func (r *HTTPReceiver) replyOK(v Version, w http.ResponseWriter) {
 	case v01, v02, v03:
 		httpOK(w)
 	default:
-		httpRateByService(w, r.dynConf)
+		n := httpRateByService(w, r.dynConf)
+		metrics.Histogram("datadog.trace_agent.receiver.rate_response_bytes", float64(n), []string{"endpoint:traces_" + string(v)}, 1)
 	}
 }
 
@@ -464,6 +465,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		return
 	}
 
+	defer timing.Since("datadog.trace_agent.receiver.serve_traces_ms", time.Now())
 	traces, err := decodeTraces(v, req)
 	if err != nil {
 		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
