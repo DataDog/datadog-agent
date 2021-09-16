@@ -31,7 +31,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 		log.Debugf("Unable to build interfaces metadata: %s", err)
 	}
 
-	metadataPayloads := batchPayloads(config.Subnet, collectTime, metadata.PayloadMetadataBatchSize, device, interfaces)
+	metadataPayloads := batchPayloads(config.ResolvedSubnetName, collectTime, metadata.PayloadMetadataBatchSize, device, interfaces)
 
 	for _, payload := range metadataPayloads {
 		payloadBytes, err := json.Marshal(payload)
@@ -65,7 +65,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		Profile:     config.Profile,
 		Vendor:      vendor,
 		Tags:        tags,
-		Subnet:      config.Subnet,
+		Subnet:      config.ResolvedSubnetName,
 		Status:      deviceStatus,
 	}
 }

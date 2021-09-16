@@ -9,7 +9,7 @@ import (
 )
 
 // Fetch oid values from device
-// TODO: pass only specific configs instead of the whole checkconfig.CheckConfig ?
+// TODO: pass only specific configs instead of the whole CheckConfig
 func Fetch(sess session.Session, config *checkconfig.CheckConfig) (*valuestore.ResultValueStore, error) {
 	// fetch scalar values
 	scalarResults, err := fetchScalarOidsWithBatching(sess, config.OidConfig.ScalarOids, config.OidBatchSize)

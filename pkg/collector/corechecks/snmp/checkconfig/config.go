@@ -2,8 +2,11 @@ package checkconfig
 
 import (
 	"fmt"
+	"hash/fnv"
+	"net"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +28,12 @@ const defaultOidBatchSize = 5
 const defaultPort = uint16(161)
 const defaultRetries = 3
 const defaultTimeout = 2
+const defaultWorkers = 5
+const defaultDiscoveryWorkers = 5
+const defaultDiscoveryAllowedFailures = 3
+const defaultDiscoveryInterval = 3600
+
+// subnetTagPrefix is the prefix used for subnet tag
 const subnetTagPrefix = "autodiscovery_subnet"
 
 // DefaultBulkMaxRepetitions is the default max rep
@@ -34,6 +43,9 @@ const subnetTagPrefix = "autodiscovery_subnet"
 const DefaultBulkMaxRepetitions = uint32(10)
 
 var uptimeMetricConfig = MetricsConfig{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}}
+
+// DeviceDigest is the digest of a minimal config used for autodiscovery
+type DeviceDigest string
 
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
@@ -86,9 +98,12 @@ type InstanceConfig struct {
 	// Using extra_min_collection_interval, we can accept both string and integer value.
 	ExtraMinCollectionInterval Number `yaml:"extra_min_collection_interval"`
 
-	// `network` config is only available in Python SNMP integration
-	// it's added here to raise warning if used with corecheck SNMP integration
-	Network string `yaml:"network_address"`
+	Network                  string   `yaml:"network_address"`
+	IgnoredIPAddresses       []string `yaml:"ignored_ip_addresses"`
+	DiscoveryInterval        int      `yaml:"discovery_interval"`
+	DiscoveryAllowedFailures int      `yaml:"discovery_allowed_failures"`
+	DiscoveryWorkers         int      `yaml:"discovery_workers"`
+	Workers                  int      `yaml:"workers"`
 }
 
 // CheckConfig holds config needed for an integration instance to run
@@ -119,9 +134,16 @@ type CheckConfig struct {
 	CollectDeviceMetadata bool
 	DeviceID              string
 	DeviceIDTags          []string
-	Subnet                string
+	ResolvedSubnetName    string
 	AutodetectProfile     bool
 	MinCollectionInterval time.Duration
+
+	Network                  string
+	DiscoveryWorkers         int
+	Workers                  int
+	DiscoveryInterval        int
+	IgnoredIPAddresses       map[string]bool
+	DiscoveryAllowedFailures int
 }
 
 // RefreshWithProfile refreshes config based on profile
@@ -161,8 +183,21 @@ func (c *CheckConfig) addUptimeMetric() {
 // warning: changing GetStaticTags logic might lead to different deviceID
 // GetStaticTags does not contain tags from instance[].tags config
 func (c *CheckConfig) GetStaticTags() []string {
-	tags := []string{"snmp_device:" + c.IPAddress}
-	tags = append(tags, c.ExtraTags...)
+	tags := common.CopyStrings(c.ExtraTags)
+	if c.IPAddress != "" {
+		tags = append(tags, "snmp_device:"+c.IPAddress)
+	}
+	return tags
+}
+
+// GetNetworkTags returns network tags
+// network tags are not part of the static tags since we don't want the deviceID
+// to change if the network/subnet changes e.g. 10.0.0.0/29 to 10.0.0.0/30
+func (c *CheckConfig) GetNetworkTags() []string {
+	var tags []string
+	if c.Network != "" {
+		tags = append(tags, subnetTagPrefix+":"+c.Network)
+	}
 	return tags
 }
 
@@ -218,6 +253,21 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.SnmpVersion = instance.SnmpVersion
 	c.IPAddress = instance.IPAddress
 	c.Port = uint16(instance.Port)
+	c.Network = instance.Network
+
+	if c.IPAddress == "" && c.Network == "" {
+		return nil, fmt.Errorf("`ip_address` or `network` config must be provided")
+	}
+
+	if c.IPAddress != "" && c.Network != "" {
+		return nil, fmt.Errorf("`ip_address` and `network` cannot be used at the same time")
+	}
+	if c.Network != "" {
+		_, _, err = net.ParseCIDR(c.Network)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't parse SNMP network: %s", err)
+		}
+	}
 
 	if instance.CollectDeviceMetadata != nil {
 		c.CollectDeviceMetadata = bool(*instance.CollectDeviceMetadata)
@@ -229,12 +279,33 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.ExtraTags = strings.Split(instance.ExtraTags, ",")
 	}
 
-	if instance.Network != "" {
-		log.Warnf("`network_address` config is not available for corecheck SNMP integration to use autodiscovery. Agent `snmp_listener` config can be used instead: https://docs.datadoghq.com/network_monitoring/devices/setup?tab=snmpv2#autodiscovery")
+	if instance.DiscoveryWorkers == 0 {
+		c.DiscoveryWorkers = defaultDiscoveryWorkers
+	} else {
+		c.DiscoveryWorkers = instance.DiscoveryWorkers
 	}
 
-	if c.IPAddress == "" {
-		return nil, fmt.Errorf("ip_address config must be provided")
+	if instance.Workers == 0 {
+		c.Workers = defaultWorkers
+	} else {
+		c.Workers = instance.Workers
+	}
+
+	if instance.DiscoveryAllowedFailures == 0 {
+		c.DiscoveryAllowedFailures = defaultDiscoveryAllowedFailures
+	} else {
+		c.DiscoveryAllowedFailures = instance.DiscoveryAllowedFailures
+	}
+
+	if instance.DiscoveryInterval == 0 {
+		c.DiscoveryInterval = defaultDiscoveryInterval
+	} else {
+		c.DiscoveryInterval = instance.DiscoveryInterval
+	}
+
+	c.IgnoredIPAddresses = make(map[string]bool, len(instance.IgnoredIPAddresses))
+	for _, ipAddress := range instance.IgnoredIPAddresses {
+		c.IgnoredIPAddresses[ipAddress] = true
 	}
 
 	if c.Port == 0 {
@@ -361,20 +432,68 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	c.UpdateDeviceIDAndTags()
 
-	subnet, err := getSubnetFromTags(c.InstanceTags)
-	if err != nil {
-		log.Debugf("subnet not found: %s", err)
-	}
-	c.Subnet = subnet
+	c.ResolvedSubnetName = c.getResolvedSubnetName()
 
 	c.addUptimeMetric()
 	return c, nil
+}
+
+func (c *CheckConfig) getResolvedSubnetName() string {
+	var resolvedSubnet string
+	if c.Network != "" {
+		resolvedSubnet = c.Network
+	} else {
+		subnet, err := getSubnetFromTags(c.InstanceTags)
+		if err != nil {
+			log.Debugf("subnet not found: %s", err)
+		} else {
+			resolvedSubnet = subnet
+		}
+	}
+	return resolvedSubnet
+}
+
+// DeviceDigest returns a hash value representing the minimal configs used to connect to the device.
+// DeviceDigest is used for device discovery.
+func (c *CheckConfig) DeviceDigest(address string) DeviceDigest {
+	h := fnv.New64()
+	// Hash write never returns an error
+	h.Write([]byte(address))                   //nolint:errcheck
+	h.Write([]byte(fmt.Sprintf("%d", c.Port))) //nolint:errcheck
+	h.Write([]byte(c.SnmpVersion))             //nolint:errcheck
+	h.Write([]byte(c.CommunityString))         //nolint:errcheck
+	h.Write([]byte(c.User))                    //nolint:errcheck
+	h.Write([]byte(c.AuthKey))                 //nolint:errcheck
+	h.Write([]byte(c.AuthProtocol))            //nolint:errcheck
+	h.Write([]byte(c.PrivKey))                 //nolint:errcheck
+	h.Write([]byte(c.PrivProtocol))            //nolint:errcheck
+	h.Write([]byte(c.ContextName))             //nolint:errcheck
+
+	// Sort the addresses to get a stable digest
+	addresses := make([]string, 0, len(c.IgnoredIPAddresses))
+	for ip := range c.IgnoredIPAddresses {
+		addresses = append(addresses, ip)
+	}
+	sort.Strings(addresses)
+	for _, ip := range addresses {
+		h.Write([]byte(ip)) //nolint:errcheck
+	}
+
+	return DeviceDigest(strconv.FormatUint(h.Sum64(), 16))
+}
+
+// IsIPIgnored checks the given IP against ignoredIPAddresses
+func (c *CheckConfig) IsIPIgnored(ip net.IP) bool {
+	ipString := ip.String()
+	_, present := c.IgnoredIPAddresses[ipString]
+	return present
 }
 
 // Copy makes a copy of CheckConfig
 func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig := CheckConfig{}
 	newConfig.IPAddress = c.IPAddress
+	newConfig.Network = c.Network
 	newConfig.Port = c.Port
 	newConfig.CommunityString = c.CommunityString
 	newConfig.SnmpVersion = c.SnmpVersion
@@ -408,7 +527,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.DeviceID = c.DeviceID
 
 	newConfig.DeviceIDTags = common.CopyStrings(c.DeviceIDTags)
-	newConfig.Subnet = c.Subnet
+	newConfig.ResolvedSubnetName = c.ResolvedSubnetName
 	newConfig.AutodetectProfile = c.AutodetectProfile
 	newConfig.MinCollectionInterval = c.MinCollectionInterval
 
@@ -421,6 +540,11 @@ func (c *CheckConfig) CopyWithNewIP(ipAddress string) *CheckConfig {
 	newConfig.IPAddress = ipAddress
 	newConfig.UpdateDeviceIDAndTags()
 	return newConfig
+}
+
+// IsDiscovery return weather it's a network/autodiscovery config or not
+func (c *CheckConfig) IsDiscovery() bool {
+	return c.Network != ""
 }
 
 func parseScalarOids(metrics []MetricsConfig, metricTags []MetricTagConfig) []string {
