@@ -99,13 +99,24 @@ One point to keep in mind: the template is used to generate a file that is in it
 
 ## How to generate the documentation ?
 
-### Requirements
+### Using Docker
+
+From the root of the datadog-agent repository please run:
+```sh
+./docs/cloud-workload-security/scripts/generate_documentation_docker.sh
+```
+To run all documentation generation steps in a docker container (thus skipping the requirement of setting up a development environment).
+
+### Manual steps
+
+#### Requirements
 
 - Golang (see `go.mod` for the minimal version supported)
 - Python
 	- `pip install -r requirements.txt` to install dependencies
 
-### Steps
+
+#### Steps
 
 If a `*.go` file in `pkg/security` has been edited you will first need to generate the `*.json` files.
 Please run:
