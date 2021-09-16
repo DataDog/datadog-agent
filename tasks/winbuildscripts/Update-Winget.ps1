@@ -23,3 +23,6 @@ if ($rc) {
     Write-Host ("Updating Winget manifest for Agent version ${agentVersion}.1")
     .\wingetcreate.exe update --urls "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-${agentVersion}.msi" --version "${agentVersion}.1" --submit --token "${env:WINGET_GITHUB_ACCESS_TOKEN}" "Datadog.Agent"
 }
+if ($lastExitCode -ne 0) {
+    Write-Error -Message "Wingetcreate update did not run successfully."
+}
