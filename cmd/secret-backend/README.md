@@ -32,7 +32,7 @@
 
 ## Configuring the secrets module
 
-1) Create a new file `datadog-secret-backend.yaml` for holding all the configurations for the secrets module. An example of the contents is provided below for each of the currently supported secret types:
+1) Create a new file `datadog-secret-backend.yaml` for holding all the configurations for the secrets module. Store this file in the same location that you did the executable in the previous step (e.g. `/etc/rapdev-datadog/`) An example of the contents is provided below for each of the currently supported secret types:
 
     ```
     backends:
@@ -54,3 +54,30 @@
         secret_id: 'arn:aws:ssm:us-east-1:<ACCOUNT_ID>:secret:/<SECRET_NAME>'
         aws_region: 'us-east-1'
     ```
+
+## Configuring your secrets
+
+- <b>Local File</b>: If you are storing your secrets in a file (JSON or YAML), create the file in the appropriate format with key value pairs mapping to your secret values:
+
+    ```
+    ## YAML
+    dd_api_key: <MY_API_KEY>
+    dd_app_key: <MY_APP_KEY>
+    my_secret: <SECRET_VALUE>
+
+    ## JSON
+    {
+      "dd_api_key": "<MY_API_KEY>",
+      "dd_app_key": "<MY_APP_KEY>",
+      "my_secret": "<SECRET_VALUE>"
+    }
+    ```
+
+- <b>AWS SSM</b>:
+
+- <b>AWS SecretsManager</b>:
+
+## Configuring the Agent(s) to use the secrets module
+
+
+## Accessing your secret values
