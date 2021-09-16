@@ -38,10 +38,10 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 	}
 
 	config := &checkconfig.CheckConfig{
-		IPAddress:    "1.2.3.4",
-		DeviceID:     "1234",
-		DeviceIDTags: []string{"device_name:127.0.0.1"},
-		Subnet:       "127.0.0.0/29",
+		IPAddress:          "1.2.3.4",
+		DeviceID:           "1234",
+		DeviceIDTags:       []string{"device_name:127.0.0.1"},
+		ResolvedSubnetName: "127.0.0.0/29",
 	}
 	layout := "2006-01-02 15:04:05"
 	str := "2014-11-12 11:45:26"
@@ -105,10 +105,10 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 	}
 
 	config := &checkconfig.CheckConfig{
-		IPAddress:    "1.2.3.4",
-		DeviceID:     "1234",
-		DeviceIDTags: []string{"device_name:127.0.0.1"},
-		Subnet:       "127.0.0.0/29",
+		IPAddress:          "1.2.3.4",
+		DeviceID:           "1234",
+		DeviceIDTags:       []string{"device_name:127.0.0.1"},
+		ResolvedSubnetName: "127.0.0.0/29",
 	}
 
 	layout := "2006-01-02 15:04:05"

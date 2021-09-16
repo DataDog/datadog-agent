@@ -50,10 +50,20 @@ func (d *DeviceCheck) SetSender(sender *report.MetricSender) {
 	d.sender = sender
 }
 
+// GetIPAddress returns device IP
+func (d *DeviceCheck) GetIPAddress() string {
+	return d.config.IPAddress
+}
+
+// GetIDTags returns device IDTags
+func (d *DeviceCheck) GetIDTags() []string {
+	return d.config.DeviceIDTags
+}
+
 // Run executes the check
 func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	startTime := time.Now()
-	staticTags := d.config.GetStaticTags()
+	staticTags := append(d.config.GetStaticTags(), d.config.GetNetworkTags()...)
 
 	// Fetch and report metrics
 	var checkErr error

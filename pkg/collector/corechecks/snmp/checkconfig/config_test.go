@@ -213,8 +213,37 @@ bulk_max_repetitions: 20
 	assert.Equal(t, 1, len(config.Profiles))
 	assert.Equal(t, "780a58c96c908df8", config.DeviceID)
 	assert.Equal(t, []string{"snmp_device:1.2.3.4", "tag1", "tag2:val2"}, config.DeviceIDTags)
-	assert.Equal(t, "127.0.0.0/30", config.Subnet)
+	assert.Equal(t, "127.0.0.0/30", config.ResolvedSubnetName)
 	assert.Equal(t, false, config.AutodetectProfile)
+}
+
+func TestDiscoveryConfigurations(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`
+network_address: 127.0.0.0/24
+ignored_ip_addresses:
+  - 127.0.0.9
+  - 127.0.0.8
+discovery_interval: 5
+discovery_allowed_failures: 15
+discovery_workers: 20
+workers: 30
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+`)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+
+	assert.Nil(t, err)
+	assert.Equal(t, "127.0.0.0/24", config.Network)
+	assert.Equal(t, 5, config.DiscoveryInterval)
+	assert.Equal(t, 15, config.DiscoveryAllowedFailures)
+	assert.Equal(t, 20, config.DiscoveryWorkers)
+	assert.Equal(t, 30, config.Workers)
+	assert.Equal(t, map[string]bool{
+		"127.0.0.8": true,
+		"127.0.0.9": true,
+	}, config.IgnoredIPAddresses)
 }
 
 func TestInlineProfileConfiguration(t *testing.T) {
@@ -270,6 +299,10 @@ profiles:
 	assert.Equal(t, "74f22f3320d2d692", config.DeviceID)
 	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, config.DeviceIDTags)
 	assert.Equal(t, false, config.AutodetectProfile)
+	assert.Equal(t, 3600, config.DiscoveryInterval)
+	assert.Equal(t, 3, config.DiscoveryAllowedFailures)
+	assert.Equal(t, 5, config.DiscoveryWorkers)
+	assert.Equal(t, 5, config.Workers)
 }
 
 func TestDefaultConfigurations(t *testing.T) {
@@ -297,17 +330,6 @@ community_string: abc
 	assert.Equal(t, metricsTags, config.MetricTags)
 	assert.Equal(t, 1, len(config.Profiles))
 	assert.Equal(t, mockProfilesDefinitions()["f5-big-ip"].Metrics, config.Profiles["f5-big-ip"].Metrics)
-}
-
-func TestIPAddressConfiguration(t *testing.T) {
-	SetConfdPathAndCleanProfiles()
-	// TEST Default port
-	// language=yaml
-	rawInstanceConfig := []byte(`
-ip_address:
-`)
-	_, err := NewCheckConfig(rawInstanceConfig, []byte(``))
-	assert.EqualError(t, err, "ip_address config must be provided")
 }
 
 func TestPortConfiguration(t *testing.T) {
@@ -512,7 +534,7 @@ global_metrics:
 	assert.Equal(t, metrics, config.Metrics)
 }
 
-func Test_buildConfig(t *testing.T) {
+func Test_NewCheckConfig_errors(t *testing.T) {
 	SetConfdPathAndCleanProfiles()
 
 	tests := []struct {
@@ -549,11 +571,46 @@ metrics:
 -
 `),
 			// language=yaml
-			rawInitConfig: []byte(`
-`),
+			rawInitConfig: []byte(``),
 			expectedErrors: []string{
 				"validation errors: either a table symbol or a scalar symbol must be provided",
 				"either a table symbol or a scalar symbol must be provided",
+			},
+		},
+		{
+			name: "both ip_address and network error",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+network_address: 10.0.0.0/24
+`),
+			// language=yaml
+			rawInitConfig: []byte(``),
+			expectedErrors: []string{
+				"`ip_address` and `network` cannot be used at the same time",
+			},
+		},
+		{
+			name: "no ip_address or network error",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+`),
+			// language=yaml
+			rawInitConfig: []byte(``),
+			expectedErrors: []string{
+				"`ip_address` or `network` config must be provided",
+			},
+		},
+		{
+			name: "invalid subnet cidr",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+network_address: 10.0.0.0/xx
+`),
+			// language=yaml
+			rawInitConfig: []byte(``),
+			expectedErrors: []string{
+				"couldn't parse SNMP network: invalid CIDR address: 10.0.0.0/xx",
 			},
 		},
 	}
@@ -779,7 +836,7 @@ extra_tags: "extratag1:val1,extratag2:val2"
 `)
 	config, err = NewCheckConfig(rawInstanceConfigWithExtraTags, []byte(``))
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"snmp_device:1.2.3.4", "extratag1:val1", "extratag2:val2"}, config.GetStaticTags())
+	assert.ElementsMatch(t, []string{"snmp_device:1.2.3.4", "extratag1:val1", "extratag2:val2"}, config.GetStaticTags())
 }
 
 func Test_snmpConfig_getDeviceIDTags(t *testing.T) {
@@ -1050,6 +1107,216 @@ min_collection_interval: -10
 	}
 }
 
+func TestCheckConfig_DiscoveryDigest(t *testing.T) {
+	baseCaseHash := DeviceDigest("a1d0f0237ee2fe8f")
+	tests := []struct {
+		name         string
+		config       CheckConfig
+		ipAddress    string
+		expectedHash DeviceDigest
+	}{
+		{
+			name:      "base case",
+			ipAddress: "127.0.0.1",
+			config: CheckConfig{
+				Port:            161,
+				CommunityString: "public",
+				SnmpVersion:     "2",
+				User:            "123",
+				AuthProtocol:    "sha",
+				AuthKey:         "123",
+				PrivProtocol:    "des",
+				PrivKey:         "123",
+				ContextName:     "",
+			},
+			expectedHash: baseCaseHash,
+		},
+		{
+			name:      "different ip",
+			ipAddress: "127.0.0.2",
+			config: CheckConfig{
+				Port:            161,
+				CommunityString: "public",
+				SnmpVersion:     "2",
+				User:            "123",
+				AuthProtocol:    "sha",
+				AuthKey:         "123",
+				PrivProtocol:    "des",
+				PrivKey:         "123",
+				ContextName:     "",
+			},
+			expectedHash: "82787fd6ceade9e2",
+		},
+		{
+			name:      "different CommunityString",
+			ipAddress: "127.0.0.1",
+			config: CheckConfig{
+				Port:            161,
+				CommunityString: "public2",
+				SnmpVersion:     "2",
+				User:            "123",
+				AuthProtocol:    "sha",
+				AuthKey:         "123",
+				PrivProtocol:    "des",
+				PrivKey:         "123",
+				ContextName:     "",
+			},
+			expectedHash: "cdf44b020cb2a9e7",
+		},
+		{
+			name:      "different snmp version",
+			ipAddress: "127.0.0.1",
+			config: CheckConfig{
+				Port:            161,
+				CommunityString: "public",
+				SnmpVersion:     "3",
+				User:            "123",
+				AuthProtocol:    "sha",
+				AuthKey:         "123",
+				PrivProtocol:    "des",
+				PrivKey:         "123",
+				ContextName:     "",
+			},
+			expectedHash: "d41b9d5601104294",
+		},
+		{
+			name:      "different user",
+			ipAddress: "127.0.0.1",
+			config: CheckConfig{
+				Port:            161,
+				CommunityString: "public",
+				SnmpVersion:     "2",
+				User:            "user2",
+				AuthProtocol:    "sha",
+				AuthKey:         "123",
+				PrivProtocol:    "des",
+				PrivKey:         "123",
+				ContextName:     "",
+			},
+			expectedHash: "992c6d4145819fd2",
+		},
+		{
+			name:      "different AuthProtocol",
+			ipAddress: "127.0.0.1",
+			config: CheckConfig{
+				Port:            161,
+				CommunityString: "public",
+				SnmpVersion:     "2",
+				User:            "123",
+				AuthProtocol:    "md5",
+				AuthKey:         "123",
+				PrivProtocol:    "des",
+				PrivKey:         "123",
+				ContextName:     "",
+			},
+			expectedHash: "16e9c29b483c41ad",
+		},
+		{
+			name:      "different AuthKey",
+			ipAddress: "127.0.0.1",
+			config: CheckConfig{
+				Port:            161,
+				CommunityString: "public",
+				SnmpVersion:     "2",
+				User:            "123",
+				AuthProtocol:    "sha",
+				AuthKey:         "1234",
+				PrivProtocol:    "des",
+				PrivKey:         "123",
+				ContextName:     "",
+			},
+			expectedHash: "ea3fce2535709f4d",
+		},
+		{
+			name:      "different PrivProtocol",
+			ipAddress: "127.0.0.1",
+			config: CheckConfig{
+				Port:            161,
+				CommunityString: "public",
+				SnmpVersion:     "2",
+				User:            "123",
+				AuthProtocol:    "sha",
+				AuthKey:         "123",
+				PrivProtocol:    "aes",
+				PrivKey:         "123",
+				ContextName:     "",
+			},
+			expectedHash: "a1dbe4237eecf26e",
+		},
+		{
+			name:      "different PrivKey",
+			ipAddress: "127.0.0.1",
+			config: CheckConfig{
+				Port:            161,
+				CommunityString: "public",
+				SnmpVersion:     "2",
+				User:            "123",
+				AuthProtocol:    "sha",
+				AuthKey:         "123",
+				PrivProtocol:    "des",
+				PrivKey:         "1234",
+				ContextName:     "",
+			},
+			expectedHash: "3942f94fb039bddd",
+		},
+		{
+			name:      "different context name",
+			ipAddress: "127.0.0.1",
+			config: CheckConfig{
+				Port:            161,
+				CommunityString: "public",
+				SnmpVersion:     "2",
+				User:            "123",
+				AuthProtocol:    "sha",
+				AuthKey:         "123",
+				PrivProtocol:    "des",
+				PrivKey:         "123",
+				ContextName:     "123",
+			},
+			expectedHash: "36e5cb68e8ad58d1",
+		},
+		{
+			name:      "different ignored ips",
+			ipAddress: "127.0.0.1",
+			config: CheckConfig{
+				Port:               161,
+				CommunityString:    "public",
+				SnmpVersion:        "2",
+				User:               "123",
+				AuthProtocol:       "sha",
+				AuthKey:            "123",
+				PrivProtocol:       "des",
+				PrivKey:            "123",
+				ContextName:        "123",
+				IgnoredIPAddresses: map[string]bool{"127.0.0.3": true},
+			},
+			expectedHash: "20714cf5b9e95cfe",
+		},
+		{
+			name:      "different other fields lead to same hash",
+			ipAddress: "127.0.0.1",
+			config: CheckConfig{
+				Port:            161,
+				CommunityString: "public",
+				SnmpVersion:     "2",
+				User:            "123",
+				AuthProtocol:    "sha",
+				AuthKey:         "123",
+				PrivProtocol:    "des",
+				PrivKey:         "123",
+				ContextName:     "",
+				Retries:         999,
+			},
+			expectedHash: baseCaseHash,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedHash, tt.config.DeviceDigest(tt.ipAddress))
+		})
+	}
+}
+
 func assertNotSameButEqualElements(t *testing.T, item1 interface{}, item2 interface{}) {
 	assert.NotEqual(t, fmt.Sprintf("%p", item1), fmt.Sprintf("%p", item2))
 	assert.Equal(t, fmt.Sprintf("%p", item1), fmt.Sprintf("%p", item1))
@@ -1059,6 +1326,7 @@ func assertNotSameButEqualElements(t *testing.T, item1 interface{}, item2 interf
 
 func TestCheckConfig_Copy(t *testing.T) {
 	config := CheckConfig{
+		Network:         "127.0.0.0/30",
 		IPAddress:       "127.0.0.5",
 		Port:            161,
 		CommunityString: "public",
@@ -1101,12 +1369,13 @@ func TestCheckConfig_Copy(t *testing.T) {
 		CollectDeviceMetadata: true,
 		DeviceID:              "123",
 		DeviceIDTags:          []string{"DeviceIDTags:tag"},
-		Subnet:                "1.2.3.4/28",
+		ResolvedSubnetName:    "1.2.3.4/28",
 		AutodetectProfile:     true,
 		MinCollectionInterval: 120,
 	}
 	configCopy := config.Copy()
 
+	assert.Equal(t, config.Network, configCopy.Network)
 	assert.Equal(t, config.IPAddress, configCopy.IPAddress)
 	assert.Equal(t, config.Port, configCopy.Port)
 	assert.Equal(t, config.CommunityString, configCopy.CommunityString)
@@ -1137,7 +1406,7 @@ func TestCheckConfig_Copy(t *testing.T) {
 	assert.Equal(t, config.CollectDeviceMetadata, configCopy.CollectDeviceMetadata)
 	assert.Equal(t, config.DeviceID, configCopy.DeviceID)
 	assertNotSameButEqualElements(t, config.DeviceIDTags, configCopy.DeviceIDTags)
-	assert.Equal(t, config.Subnet, configCopy.Subnet)
+	assert.Equal(t, config.ResolvedSubnetName, configCopy.ResolvedSubnetName)
 	assert.Equal(t, config.AutodetectProfile, configCopy.AutodetectProfile)
 	assert.Equal(t, config.MinCollectionInterval, configCopy.MinCollectionInterval)
 }
@@ -1157,4 +1426,33 @@ func TestCheckConfig_CopyWithNewIP(t *testing.T) {
 	assert.Equal(t, config.Port, configCopy.Port)
 	assert.Equal(t, config.CommunityString, configCopy.CommunityString)
 	assert.NotEqual(t, config.DeviceID, configCopy.DeviceID)
+}
+
+func TestCheckConfig_getResolvedSubnetName(t *testing.T) {
+	tests := []struct {
+		name               string
+		network            string
+		instanceTags       []string
+		expectedSubnetName string
+	}{
+		{
+			name:               "from Network",
+			network:            "1.2.0.0/24",
+			expectedSubnetName: "1.2.0.0/24",
+		},
+		{
+			name:               "from instance tags",
+			instanceTags:       []string{"autodiscovery_subnet:10.10.0.0/25"},
+			expectedSubnetName: "10.10.0.0/25",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &CheckConfig{
+				Network:      tt.network,
+				InstanceTags: tt.instanceTags,
+			}
+			assert.Equal(t, tt.expectedSubnetName, c.getResolvedSubnetName())
+		})
+	}
 }
