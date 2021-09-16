@@ -934,21 +934,12 @@ def next_rc_version(ctx, major_version, patch_version=False) -> Version:
     return new_version
 
 
-def fail_if_not_base_branch(branch, release_version):
+def check_base_branch(branch, release_version):
     """
     Checks if the given branch is either the default branch or the release branch associated
     with the given release version.
     """
-    if branch != DEFAULT_BRANCH and branch != "{}.{}.x".format(release_version.major, release_version.minor):
-        raise Exit(
-            color_message(
-                "The branch you are on is neither {} or the correct release branch ({}.{}.x). Aborting.".format(
-                    DEFAULT_BRANCH, release_version.major, release_version.minor
-                ),
-                "red",
-            ),
-            code=1,
-        )
+    return branch == DEFAULT_BRANCH or branch == release_version.branch()
 
 
 def check_uncommitted_changes(ctx):
@@ -1038,9 +1029,6 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
 
     Commits the above changes, and then creates a PR on the upstream repository with the change.
 
-    The --upstream option can be set if the remote repository's name is not "origin" in your git repository
-    config.
-
     Notes:
     This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
     with 'repo' permissions.
@@ -1048,8 +1036,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
     release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
     if sys.version_info[0] < 3:
-        print("Must use Python 3 for this task")
-        return Exit(code=1)
+        return Exit(message="Must use Python 3 for this task", code=1)
 
     repo_name = "DataDog/datadog-agent"
     github = GithubAPI(repository=repo_name, api_token=get_github_token())
@@ -1085,7 +1072,16 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
     current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
     update_branch = "release/{}".format(new_highest_version)
 
-    fail_if_not_base_branch(current_branch, new_highest_version)
+    if not check_base_branch(current_branch, new_highest_version):
+        raise Exit(
+            color_message(
+                "The branch you are on is neither {} or the correct release branch ({}). Aborting.".format(
+                    DEFAULT_BRANCH, new_highest_version.branch()
+                ),
+                "red",
+            ),
+            code=1,
+        )
 
     if check_local_branch(ctx, update_branch):
         raise Exit(
@@ -1227,8 +1223,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
     new tags.
     """
     if sys.version_info[0] < 3:
-        print("Must use Python 3 for this task")
-        return Exit(code=1)
+        return Exit(message="Must use Python 3 for this task", code=1)
 
     gitlab = Gitlab(project_name="DataDog/datadog-agent", api_token=get_gitlab_token())
     list_major_versions = parse_major_versions(major_versions)
@@ -1247,7 +1242,17 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
     print(color_message("Checking repository state", "bold"))
     # Check that the base branch is valid
     current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
-    fail_if_not_base_branch(current_branch, new_version)
+
+    if not check_base_branch(current_branch, new_version):
+        raise Exit(
+            color_message(
+                "The branch you are on is neither {} or the correct release branch ({}). Aborting.".format(
+                    DEFAULT_BRANCH, new_version.branch()
+                ),
+                "red",
+            ),
+            code=1,
+        )
 
     latest_commit = ctx.run("git --no-pager log --no-color -1 --oneline").stdout.strip()
 
