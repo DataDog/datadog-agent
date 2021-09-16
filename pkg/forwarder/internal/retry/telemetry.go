@@ -53,10 +53,10 @@ func (g *gaugeExpvar) set(v float64) {
 
 var (
 	removalPolicyExpvar                  = expvar.Map{}
-	newRemovalPolicyCountTelemetry       *counterExpvar
-	registeredDomainCountTelemetry       *counterExpvar
-	outdatedFilesCountTelemetry          *counterExpvar
-	filesFromUnknownDomainCountTelemetry *counterExpvar
+	newRemovalPolicyCountTelemetry       *gaugeExpvar
+	registeredDomainCountTelemetry       *gaugeExpvar
+	outdatedFilesCountTelemetry          *gaugeExpvar
+	filesFromUnknownDomainCountTelemetry *gaugeExpvar
 
 	transactionContainerExpvar        = expvar.Map{}
 	currentMemSizeInBytesTelemetry    *gaugeExpvar
@@ -64,37 +64,37 @@ var (
 	transactionsDroppedCountTelemetry *counterExpvar
 	errorsCountTelemetry              *counterExpvar
 
-	fileStorageExpvar                     = expvar.Map{}
-	serializeCountTelemetry               *counterExpvar
-	deserializeCountTelemetry             *counterExpvar
-	fileSizeTelemetry                     *gaugeExpvar
-	currentSizeInBytesTelemetry           *gaugeExpvar
-	filesCountTelemetry                   *gaugeExpvar
-	reloadedRetryFilesCountTelemetry      *counterExpvar
-	filesRemovedCountTelemetry            *counterExpvar
-	deserializeErrorsCountTelemetry       *counterExpvar
-	deserializeTransactionsCountTelemetry *counterExpvar
+	fileStorageExpvar                       = expvar.Map{}
+	serializeCountTelemetry                 *counterExpvar
+	deserializeCountTelemetry               *counterExpvar
+	fileSizeTelemetry                       *gaugeExpvar
+	currentSizeInBytesTelemetry             *gaugeExpvar
+	filesCountTelemetry                     *gaugeExpvar
+	startupReloadedRetryFilesCountTelemetry *gaugeExpvar
+	filesRemovedCountTelemetry              *counterExpvar
+	deserializeErrorsCountTelemetry         *counterExpvar
+	deserializeTransactionsCountTelemetry   *counterExpvar
 )
 
 func init() {
 	transaction.ForwarderExpvars.Set("RemovalPolicy", &removalPolicyExpvar)
-	newRemovalPolicyCountTelemetry = newCounterExpvar(
-		"removal_policy",
+	newRemovalPolicyCountTelemetry = newGaugeExpvar(
+		"startup_removal_policy",
 		"new_removal_policy_count",
 		"The number of times FileRemovalPolicy is created",
 		&removalPolicyExpvar)
-	registeredDomainCountTelemetry = newCounterExpvar(
-		"removal_policy",
+	registeredDomainCountTelemetry = newGaugeExpvar(
+		"startup_removal_policy",
 		"registered_domain_count",
 		"The number of domains registered by FileRemovalPolicy",
 		&removalPolicyExpvar)
-	outdatedFilesCountTelemetry = newCounterExpvar(
-		"removal_policy",
+	outdatedFilesCountTelemetry = newGaugeExpvar(
+		"startup_removal_policy",
 		"outdated_files_count",
 		"The number of outdated files removed",
 		&removalPolicyExpvar)
-	filesFromUnknownDomainCountTelemetry = newCounterExpvar(
-		"removal_policy",
+	filesFromUnknownDomainCountTelemetry = newGaugeExpvar(
+		"startup_removal_policy",
 		"files_from_unknown_domain_count",
 		"The number of files removed from an unknown domain",
 		&removalPolicyExpvar)
@@ -147,9 +147,9 @@ func init() {
 		"files_count",
 		"The number of files",
 		&fileStorageExpvar)
-	reloadedRetryFilesCountTelemetry = newCounterExpvar(
+	startupReloadedRetryFilesCountTelemetry = newGaugeExpvar(
 		"file_storage",
-		"reloaded_retry_files_count",
+		"startup_reloaded_retry_files_count",
 		"The number of files reloaded from a previous run of the Agent",
 		&fileStorageExpvar)
 	filesRemovedCountTelemetry = newCounterExpvar(
@@ -172,19 +172,19 @@ func init() {
 // FileRemovalPolicyTelemetry handles the telemetry for FileRemovalPolicy.
 type FileRemovalPolicyTelemetry struct{}
 
-func (FileRemovalPolicyTelemetry) addNewRemovalPolicyCount() {
-	newRemovalPolicyCountTelemetry.add(1)
+func (FileRemovalPolicyTelemetry) setNewRemovalPolicyCount(count int) {
+	newRemovalPolicyCountTelemetry.set(float64(count))
 }
 
-func (FileRemovalPolicyTelemetry) addRegisteredDomainCount() {
-	registeredDomainCountTelemetry.add(1)
+func (FileRemovalPolicyTelemetry) setRegisteredDomainCount(count int) {
+	registeredDomainCountTelemetry.set(float64(count))
 }
-func (FileRemovalPolicyTelemetry) addOutdatedFilesCount(count int) {
-	outdatedFilesCountTelemetry.add(float64(count))
+func (FileRemovalPolicyTelemetry) setOutdatedFilesCount(count int) {
+	outdatedFilesCountTelemetry.set(float64(count))
 }
 
-func (FileRemovalPolicyTelemetry) addFilesFromUnknownDomainCount(count int) {
-	filesFromUnknownDomainCountTelemetry.add(float64(count))
+func (FileRemovalPolicyTelemetry) setFilesFromUnknownDomainCount(count int) {
+	filesFromUnknownDomainCountTelemetry.set(float64(count))
 }
 
 // TransactionRetryQueueTelemetry handles the telemetry for TransactionRetryQueue
@@ -228,8 +228,8 @@ func (onDiskRetryQueueTelemetry) setFilesCount(count int) {
 	filesCountTelemetry.set(float64(count))
 }
 
-func (onDiskRetryQueueTelemetry) addReloadedRetryFilesCount(count int) {
-	reloadedRetryFilesCountTelemetry.add(float64(count))
+func (onDiskRetryQueueTelemetry) setReloadedRetryFilesCount(count int) {
+	startupReloadedRetryFilesCountTelemetry.set(float64(count))
 }
 
 func (onDiskRetryQueueTelemetry) addFilesRemovedCount() {
