@@ -12,7 +12,7 @@ import (
 var ProcessDiscovery = &ProcessDiscoveryCheck{probe: procutil.NewProcessProbe()}
 
 // ProcessDiscoveryCheck is a check that gathers basic process metadata and sends it to the process discovery service.
-// It uses its own ProcessDiscovery payload, which is intended to be read by the process_discovery kafka topic.
+// It uses its own ProcessDiscovery payload.
 // The goal of this check is to collect information about possible integrations that may be enabled by the end user.
 type ProcessDiscoveryCheck struct {
 	probe      *procutil.Probe
