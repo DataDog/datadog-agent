@@ -55,6 +55,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	routeIndex := make(map[string]RouteIdx)
 	httpIndex := FormatHTTPStats(conns.HTTP)
 	httpMatches := make(map[http.Key]struct{}, len(httpIndex))
+	ipc := make(ipCache, len(conns.Conns)/2)
 
 	dnsWithQueryType := config.Datadog.GetBool("network_config.enable_dns_by_querytype")
 
@@ -65,7 +66,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 			httpMatches[httpKey] = struct{}{}
 		}
 
-		agentConns[i] = FormatConnection(conn, domainSet, routeIndex, httpAggregations, dnsWithQueryType)
+		agentConns[i] = FormatConnection(conn, domainSet, routeIndex, httpAggregations, dnsWithQueryType, ipc)
 	}
 
 	if orphans := len(httpIndex) - len(httpMatches); orphans > 0 {
@@ -88,7 +89,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	payload := connsPool.Get().(*model.Connections)
 	payload.Conns = agentConns
 	payload.Domains = domains
-	payload.Dns = FormatDNS(conns.DNS)
+	payload.Dns = FormatDNS(conns.DNS, ipc)
 	payload.ConnTelemetry = FormatConnTelemetry(conns.ConnTelemetry)
 	payload.CompilationTelemetryByAsset = FormatCompilationTelemetry(conns.CompilationTelemetryByAsset)
 	payload.Routes = routes

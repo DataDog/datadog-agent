@@ -538,6 +538,9 @@ core,github.com/prometheus/procfs/internal/fs,Apache-2.0,The Prometheus Authors
 core,github.com/prometheus/procfs/internal/util,Apache-2.0,The Prometheus Authors
 core,github.com/prometheus/statsd_exporter/pkg/mapper,Apache-2.0,The Prometheus Authors
 core,github.com/prometheus/statsd_exporter/pkg/mapper/fsm,Apache-2.0,The Prometheus Authors
+core,github.com/richardartoul/molecule,MIT,Richard Artoul
+core,github.com/richardartoul/molecule/src/codec,Apache-2.0,Richard Artoul
+core,github.com/richardartoul/molecule/src/protowire,BSD-3-Clause,Richard Artoul | The Go Authors
 core,github.com/robfig/cron/v3,MIT,Rob Figueiredo
 core,github.com/rs/cors,MIT,Olivier Poitrey <rs@dailymotion.com>
 core,github.com/samuel/go-zookeeper/zk,BSD-3-Clause,Samuel Stauffer <samuel@descolada.com>
