@@ -244,7 +244,7 @@ func (p *Probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 				NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
 			},
 		}
-		if p.withPermission {
+		if p.withPermission && collectStats {
 			proc.Stats.OpenFdCount = p.getFDCountImproved(pathForPID) // /proc/[pid]/fd, requires permission checks
 			proc.Stats.IOStat = p.parseIO(pathForPID)                 // /proc/[pid]/io, requires permission checks
 		} else {
