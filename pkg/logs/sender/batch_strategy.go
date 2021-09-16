@@ -7,9 +7,11 @@ package sender
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"expvar"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -19,6 +21,8 @@ import (
 
 var (
 	tlmDroppedTooLarge = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
+	tlmSenderWaitTime  = telemetry.NewCounter("logs_sender_batch_strategy", "sender_wait", nil, "Time spent waiting for a sender")
+	expSenderWaitTime  = expvar.Int{}
 )
 
 // batchStrategy contains all the logic to send logs in batch.
@@ -128,6 +132,13 @@ func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *mess
 // flushBuffer sends all the messages that are stored in the buffer and forwards them
 // to the next stage of the pipeline.
 func (s *batchStrategy) flushBuffer(outputChan chan *message.Message, send func([]byte) error) {
+	start := time.Now()
+	reportElapsed := func() {
+		elapsed := time.Since(start)
+		expSenderWaitTime.Add(int64(elapsed))
+		tlmSenderWaitTime.Add(float64(elapsed))
+	}
+
 	if s.buffer.IsEmpty() {
 		return
 	}
@@ -136,9 +147,11 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Message, send func(
 	// if the channel is non-buffered then there is no concurrency and we block on sending each payload
 	if cap(s.climit) == 0 {
 		s.sendMessages(messages, outputChan, send)
+		reportElapsed()
 		return
 	}
 	s.climit <- struct{}{}
+	reportElapsed()
 	s.pendingSends.Add(1)
 	go func() {
 		s.sendMessages(messages, outputChan, send)
