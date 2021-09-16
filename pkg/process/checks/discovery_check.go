@@ -32,7 +32,7 @@ func (d *ProcessDiscoveryCheck) Name() string { return config.DiscoveryCheckName
 // RealTime returns a value that says whether this check should be run in real time.
 func (d *ProcessDiscoveryCheck) RealTime() bool { return false }
 
-// Run collects process metadata, and packages it into a CollectorProcessDiscovery payload to be sent to process-intake.
+// Run collects process metadata, and packages it into a CollectorProcessDiscovery payload to be sent.
 // It is a runtime error to call Run without first having called Init.
 func (d *ProcessDiscoveryCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
 	if !d.initCalled {
