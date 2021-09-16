@@ -332,24 +332,19 @@ func (ku *KubeUtil) GetPodForEntityID(entityID string) (*Pod, error) {
 //  - HTTPS w/ service account token
 //  - HTTP (unauthenticated)
 func (ku *KubeUtil) setupKubeletAPIClient(tlsVerify bool) error {
-	transport := &http.Transport{}
-	err := ku.setupTLS(
-		tlsVerify,
-		config.Datadog.GetString("kubelet_client_ca"),
-		transport)
+	err := ku.setupTLS(tlsVerify)
 	if err != nil {
 		log.Debugf("Failed to init tls, will try http only: %s", err)
 		return nil
 	}
 
-	ku.kubeletAPIClient.Transport = transport
 	switch {
 	case isCertificatesConfigured():
 		log.Debug("Using HTTPS with configured TLS certificates")
 		return ku.setCertificates(
 			config.Datadog.GetString("kubelet_client_crt"),
 			config.Datadog.GetString("kubelet_client_key"),
-			transport.TLSClientConfig)
+			ku.kubeletAPIClient.Transport.(*http.Transport).TLSClientConfig)
 
 	case isTokenPathConfigured():
 		log.Debug("Using HTTPS with configured bearer token")
@@ -364,10 +359,9 @@ func (ku *KubeUtil) setupKubeletAPIClient(tlsVerify bool) error {
 	}
 }
 
-func (ku *KubeUtil) setupTLS(verifyTLS bool, caPath string, transport *http.Transport) error {
-	if transport == nil {
-		return fmt.Errorf("uninitialized http transport")
-	}
+func (ku *KubeUtil) setupTLS(verifyTLS bool) error {
+	transport := &http.Transport{}
+	caPath := config.Datadog.GetString("kubelet_client_ca")
 
 	tlsConf, err := buildTLSConfig(verifyTLS, caPath)
 	if err != nil {
@@ -380,6 +374,7 @@ func (ku *KubeUtil) setupTLS(verifyTLS bool, caPath string, transport *http.Tran
 	if verifyTLS {
 		ku.rawConnectionInfo["ca_cert"] = caPath
 	}
+	ku.kubeletAPIClient.Transport = transport
 	return nil
 }
 
@@ -519,7 +514,6 @@ func (ku *KubeUtil) setupKubeletAPIEndpoint() error {
 	if httpsURLErr == nil {
 		return nil
 	}
-	log.Warnf("Failed to securely reach the kubelet over HTTPS. Trying a non secure connection over HTTP. We highly recommend configuring TLS to access the kubelet")
 
 	// sts begin
 	// Try HTTPS without TLS verification (only useful if it was enabled in the first place)
@@ -540,16 +534,20 @@ func (ku *KubeUtil) setupKubeletAPIEndpoint() error {
 	ku.resetCredentials()
 
 	// HTTP
-	httpURLErr := ku.configureKubeletEndpoint(fmt.Sprintf("http://%s:%d", ku.kubeletHost, config.Datadog.GetInt("kubernetes_http_kubelet_port")), false)
-	if httpURLErr == nil {
-		return nil
+	log.Warnf("Failed to securely reach the kubelet over HTTPS. Trying a non secure connection over HTTP. We highly recommend configuring TLS to access the kubelet")
+	if config.Datadog.GetBool("kubelet_fallback_to_insecure") { // sts
+		httpURLErr := ku.configureKubeletEndpoint(fmt.Sprintf("http://%s:%d", ku.kubeletHost, config.Datadog.GetInt("kubernetes_http_kubelet_port")), false)
+		if httpURLErr == nil {
+			return nil
+		}
+		return fmt.Errorf("cannot connect: https: %q, http: %q", httpsURLErr, httpURLErr)
 	}
 
-	return fmt.Errorf("cannot connect: https: %q, http: %q", httpsURLErr, httpURLErr)
+	return fmt.Errorf("cannot connect: https: %q", httpsURLErr)
 }
 
 func (ku *KubeUtil) configureKubeletEndpoint(endpoint string, verifyTLS bool) error {
-	err := ku.setupKubeletAPIClient(verifyTLS)
+	err := ku.setupTLS(verifyTLS)
 	if err != nil {
 		return err
 	}
