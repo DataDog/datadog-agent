@@ -125,7 +125,7 @@ func NewDecoderWithEndLineMatcher(source *config.LogSource, parser parser.Parser
 			log.Infof("Auto multi line log detection enabled")
 
 			if multiLinePattern != nil {
-				log.Infof("Found a previously detected pattern - using multiline handler")
+				log.Info("Found a previously detected pattern - using multiline handler")
 
 				// Save the pattern again for the next rotation
 				detectedPattern.Set(multiLinePattern)
