@@ -27,7 +27,7 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 		batch.C2.Tup.Pid = 3
 		batch.C3.Tup.Pid = 4
 
-		conns := manager.Extract(batch, 0)
+		conns := manager.ExtractBatchInto(batch, 0)
 		assert.Len(t, conns, 4)
 		assert.Equal(t, uint32(1), conns[0].Pid)
 		assert.Equal(t, uint32(2), conns[1].Pid)
@@ -50,7 +50,7 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 			0: {offset: 3},
 		}
 
-		conns := manager.Extract(batch, 0)
+		conns := manager.ExtractBatchInto(batch, 0)
 		assert.Len(t, conns, 1)
 		assert.Equal(t, uint32(4), conns[0].Pid)
 	})

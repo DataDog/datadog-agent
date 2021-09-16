@@ -66,9 +66,9 @@ func newPerfBatchManager(batchMap *ebpf.Map, numCPUs int, filter func(*network.C
 }
 
 // Extract from the given batch all connections that haven't been processed yet.
-func (p *perfBatchManager) Extract(buffer []network.ConnectionStats, b *netebpf.Batch, cpu int) []network.ConnectionStats {
+func (p *perfBatchManager) ExtractBatchInto(buffer *network.Buffer, b *netebpf.Batch, cpu int) {
 	if cpu >= len(p.stateByCPU) {
-		return nil
+		return
 	}
 
 	batchId := b.Id
@@ -78,16 +78,14 @@ func (p *perfBatchManager) Extract(buffer []network.ConnectionStats, b *netebpf.
 		start = bState.offset
 	}
 
-	conns := p.extractBatchInto(buffer, b, start, netebpf.BatchSize)
+	p.extractBatchInto(buffer, b, start, netebpf.BatchSize)
 	delete(cpuState.processed, batchId)
-
-	return conns
 }
 
 // GetPendingConns return all connections that are in batches that are not yet full.
 // It tracks which connections have been processed by this call, by batch id.
 // This prevents double-processing of connections between GetPendingConns and Extract.
-func (p *perfBatchManager) GetPendingConns(buffer []network.ConnectionStats) []network.ConnectionStats {
+func (p *perfBatchManager) GetPendingConns(buffer *network.Buffer) {
 	b := new(netebpf.Batch)
 	for cpu := 0; cpu < len(p.stateByCPU); cpu++ {
 		cpuState := &p.stateByCPU[cpu]
@@ -109,13 +107,12 @@ func (p *perfBatchManager) GetPendingConns(buffer []network.ConnectionStats) []n
 			start = bState.offset
 		}
 
-		buffer = p.extractBatchInto(buffer, b, start, batchLen)
+		p.extractBatchInto(buffer, b, start, batchLen)
 		// update timestamp regardless since this partial batch still exists
 		cpuState.processed[batchId] = batchState{offset: batchLen, updated: time.Now()}
 	}
 
 	p.cleanupExpiredState(time.Now())
-	return buffer
 }
 
 type percpuState struct {
@@ -130,9 +127,9 @@ type batchState struct {
 
 // ExtractBatchInto extract network.ConnectionStats objects from the given `batch` into the supplied `buffer`.
 // The `start` (inclusive) and `end` (exclusive) arguments represent the offsets of the connections we're interested in.
-func (p *perfBatchManager) extractBatchInto(buffer []network.ConnectionStats, b *netebpf.Batch, start, end uint16) []network.ConnectionStats {
+func (p *perfBatchManager) extractBatchInto(buffer *network.Buffer, b *netebpf.Batch, start, end uint16) {
 	if start >= end || end > netebpf.BatchSize {
-		return buffer
+		return
 	}
 
 	for i := start; i < end; i++ {
@@ -153,16 +150,15 @@ func (p *perfBatchManager) extractBatchInto(buffer []network.ConnectionStats, b 
 			panic("batch size is out of sync")
 		}
 
-		buffer = append(buffer, connStats(&p.ct.Tup, &p.ct.Conn_stats, &p.ct.Tcp_stats))
-		conn := &buffer[len(buffer)-1]
+		conn := buffer.Next()
+		*conn = connStats(&p.ct.Tup, &p.ct.Conn_stats, &p.ct.Tcp_stats)
 
 		// Run callback/filter and verify if the connection should be filtered out
 		if p.filter != nil && !p.filter(conn) {
-			buffer = buffer[:len(buffer)-1]
+			buffer.Reclaim(1)
 			continue
 		}
 	}
-	return buffer
 }
 
 func (p *perfBatchManager) cleanupExpiredState(now time.Time) {

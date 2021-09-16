@@ -181,25 +181,27 @@ func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
 	}
 }
 
-func (t *kprobeTracer) GetConnections(buffer []network.ConnectionStats, filter func(*network.ConnectionStats) bool) ([]network.ConnectionStats, []network.ConnectionStats, error) {
+func (t *kprobeTracer) GetConnections(active, closed *network.Buffer, filter func(*network.ConnectionStats) bool) (int, int, error) {
 	// Iterate through all key-value pairs in map
 	key, stats := &netebpf.ConnTuple{}, &netebpf.ConnStats{}
 	seen := make(map[netebpf.ConnTuple]struct{})
 	entries := t.conns.IterateFrom(unsafe.Pointer(&netebpf.ConnTuple{}))
+	var activeCount int
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
 		conn := connStats(key, stats, t.getTCPStats(key, seen))
 		if filter != nil && filter(&conn) {
-			buffer = append(buffer, conn)
+			activeCount++
+			*active.Next() = conn
 		}
 	}
 
 	if err := entries.Err(); err != nil {
-		return nil, nil, fmt.Errorf("unable to iterate connection map: %s", err)
+		return 0, 0, fmt.Errorf("unable to iterate connection map: %s", err)
 	}
 
 	// Add all connections that were closed since the last `GetConnections` call
-	closed := t.closeConsumer.GetClosedConnections(buffer[len(buffer):])
-	return buffer, closed, nil
+	closedCount := t.closeConsumer.GetClosedConnections(closed)
+	return activeCount, closedCount, nil
 }
 
 func (t *kprobeTracer) Remove(conn *network.ConnectionStats) error {
