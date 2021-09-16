@@ -7,6 +7,7 @@ package inventories
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -82,12 +84,39 @@ const (
 	AgentInstallToolVersion           AgentMetadataName = "install_method_tool_version"
 )
 
+// metadataEqual compares two interface{} values for equality, including
+// string slices (which go cannot do itself)
+func metadataEqual(a, b interface{}) bool {
+	aStr, aok := a.(string)
+	bStr, bok := b.(string)
+
+	if aok && bok {
+		return aStr == bStr
+	}
+
+	aStrSlice, aok := a.(string)
+	bStrSlice, bok := b.(string)
+	if aok && bok {
+		if len(aStrSlice) == len(bStrSlice) {
+			for i := range aStrSlice {
+				if aStrSlice[i] != bStrSlice[i] {
+					return false
+				}
+			}
+			return true
+		}
+		return false
+	}
+
+	return false
+}
+
 // SetAgentMetadata updates the agent metadata value in the cache
 func SetAgentMetadata(name AgentMetadataName, value interface{}) {
 	agentMetadataMutex.Lock()
 	defer agentMetadataMutex.Unlock()
 
-	if agentMetadata[string(name)] != value {
+	if !metadataEqual(agentMetadata[string(name)], value) {
 		agentMetadata[string(name)] = value
 
 		select {
@@ -110,7 +139,7 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 		checkMetadata[checkID] = entry
 	}
 
-	if entry.CheckInstanceMetadata[key] != value {
+	if !metadataEqual(entry.CheckInstanceMetadata[key], value) {
 		entry.LastUpdated = timeNow()
 		entry.CheckInstanceMetadata[key] = value
 
@@ -226,12 +255,33 @@ func InitializeData() {
 	SetAgentMetadata(AgentVersion, version.AgentVersion)
 	SetAgentMetadata(AgentFlavor, flavor.GetFlavor())
 
-	SetAgentMetadata(AgentConfigApmDDURL, config.Datadog.GetString("apm_config.dd_url"))
-	SetAgentMetadata(AgentConfigDDURL, config.Datadog.GetString("dd_url"))
-	SetAgentMetadata(AgentConfigLogsDDURL, config.Datadog.GetString("logs_config.logs_dd_url"))
-	SetAgentMetadata(AgentConfigLogsSocks5ProxyAddress, config.Datadog.GetString("logs_config.socks5_proxy_address"))
-	SetAgentMetadata(AgentConfigNoProxy, config.Datadog.GetStringSlice("proxy.no_proxy"))
-	SetAgentMetadata(AgentConfigProcessDDURL, config.Datadog.GetString("process_config.process_dd_url"))
-	SetAgentMetadata(AgentConfigProxyHTTP, config.Datadog.GetString("proxy.http"))
-	SetAgentMetadata(AgentConfigProxyHTTPS, config.Datadog.GetString("proxy.https"))
+	initializeConfig(config.Datadog)
+}
+
+func initializeConfig(cfg config.Config) {
+	clean := func(s string) string {
+		// Errors come from internal use of a Reader interface.  Since we are
+		// reading from a buffer, no errors are possible.
+		cleanBytes, _ := log.CredentialsCleanerBytes([]byte(s))
+		return string(cleanBytes)
+	}
+
+	cleanSlice := func(ss []string) []string {
+		rv := make([]string, len(ss))
+		for i, s := range ss {
+			rv[i] = clean(s)
+		}
+		return rv
+	}
+
+	fmt.Printf("INPUT %s\n", cfg.GetString("proxy.https"))
+	fmt.Printf("GOT %s\n", clean(cfg.GetString("proxy.https")))
+	SetAgentMetadata(AgentConfigApmDDURL, clean(cfg.GetString("apm_config.apm_dd_url")))
+	SetAgentMetadata(AgentConfigDDURL, clean(cfg.GetString("dd_url")))
+	SetAgentMetadata(AgentConfigLogsDDURL, clean(cfg.GetString("logs_config.logs_dd_url")))
+	SetAgentMetadata(AgentConfigLogsSocks5ProxyAddress, clean(cfg.GetString("logs_config.socks5_proxy_address")))
+	SetAgentMetadata(AgentConfigNoProxy, cleanSlice(cfg.GetStringSlice("proxy.no_proxy")))
+	SetAgentMetadata(AgentConfigProcessDDURL, clean(cfg.GetString("process_config.process_dd_url")))
+	SetAgentMetadata(AgentConfigProxyHTTP, clean(cfg.GetString("proxy.http")))
+	SetAgentMetadata(AgentConfigProxyHTTPS, clean(cfg.GetString("proxy.https")))
 }
