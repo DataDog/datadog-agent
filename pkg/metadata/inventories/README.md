@@ -58,6 +58,16 @@ The payload is a JSON dict with the following fields
   - `install_method_installer_version` - **string**:  The version of Datadog module (ex: the Chef Datadog package, the Datadog Ansible playbook, ...).
   - `logs_transport` - **string**:  The transport used to send logs to Datadog. Value is either `"HTTP"` or `"TCP"` when logs collection is
     enabled, otherwise the field is omitted.
+  - `feature_cws_enabled` - **bool**: True if the Cloud Workload Security is enabled (see: `runtime_security_config.enabled`
+    config option).
+  - `feature_process_enabled` - **bool**: True if the Process Agent is enabled (see: `process_config.enabled` config
+    option).
+  - `feature_networks_enabled` - **bool**: True if the Network Performance Monitoring is enabled (see:
+    `network_config.enabled` config option in `system-probe.yaml`).
+  - `feature_logs_enabled` - **bool**: True if the logs collection is enabled (see: `logs_enabled` config option).
+  - `feature_cspm_enabled` - **bool**: True if the Cloud Security Posture Management is enabled (see:
+    `compliance_config.enabled` config option).
+  - `feature_apm_enabled` - **bool**: True if the APM Agent is enabled (see: `apm_config.enabled` config option).
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 
