@@ -163,6 +163,7 @@
 /pkg/config/config_template.yaml        @DataDog/agent-all @DataDog/documentation
 /pkg/config/apm.go                      @DataDog/agent-apm
 /pkg/config/system_probe.go             @DataDog/agent-network
+/pkg/otlp/                              @DataDog/agent-platform
 /pkg/tagger/                            @DataDog/container-integrations
 /pkg/tagger/collectors/garden*.go       @DataDog/integrations-tools-and-libraries
 /pkg/util/cloudfoundry/                 @DataDog/integrations-tools-and-libraries

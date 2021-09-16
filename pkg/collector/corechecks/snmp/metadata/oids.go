@@ -1,7 +1,7 @@
 package metadata
 
 // Scalar OIDs
-var (
+const (
 	// SysNameOID is the OID for SysName
 	SysNameOID = "1.3.6.1.2.1.1.5.0"
 	// SysDescrOID is the OID for SysDescr
@@ -17,7 +17,7 @@ var ScalarOIDs = []string{
 	SysObjectIDOID,
 }
 
-var (
+const (
 	// IfNameOID is the OID for IfName
 	IfNameOID = "1.3.6.1.2.1.31.1.1.1.1"
 	// IfAliasOID is the OID for IfAlias

@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
@@ -384,6 +385,16 @@ func StartAgent() error {
 	}
 	log.Debugf("statsd started")
 
+	// Start OTLP intake
+	if otlp.IsEnabled(config.Datadog) {
+		var err error
+		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, config.Datadog)
+		if err != nil {
+			log.Errorf("Could not start OTLP: %s", err)
+		}
+	}
+	log.Debug("OTLP pipeline started")
+
 	// Start SNMP trap server
 	if traps.IsEnabled() {
 		if config.Datadog.GetBool("logs_enabled") {
@@ -463,6 +474,9 @@ func StopAgent() {
 
 	if common.DSD != nil {
 		common.DSD.Stop()
+	}
+	if common.OTLP != nil {
+		common.OTLP.Stop()
 	}
 	if common.AC != nil {
 		common.AC.Stop()

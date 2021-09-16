@@ -121,14 +121,23 @@ func AllPerfMaps() []*manager.PerfMap {
 }
 
 // AllTailRoutes returns the list of all the tail call routes
-func AllTailRoutes() []manager.TailCallRoute {
+func AllTailRoutes(ERPCDentryResolutionEnabled bool) []manager.TailCallRoute {
 	var routes []manager.TailCallRoute
 
 	routes = append(routes, getExecTailCallRoutes()...)
-	routes = append(routes, getDentryResolverTailCallRoutes()...)
+	routes = append(routes, getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled)...)
 	routes = append(routes, getSysExitTailCallRoutes()...)
 
 	return routes
+}
+
+// AllBPFProbeWriteUserSections returns the list of program sections that use the bpf_probe_write_user helper
+func AllBPFProbeWriteUserSections() []string {
+	return []string{
+		"kprobe/dentry_resolver_erpc",
+		"kprobe/dentry_resolver_parent_erpc",
+		"kprobe/dentry_resolver_segment_erpc",
+	}
 }
 
 // GetPerfBufferStatisticsMaps returns the list of maps used to monitor the performances of each perf buffers
