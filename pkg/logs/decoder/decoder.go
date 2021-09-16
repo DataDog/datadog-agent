@@ -153,9 +153,9 @@ func buildAutoMultilineHandlerFromConfig(outputChan chan *Message, lineLimit int
 	if linesToSample <= 0 {
 		linesToSample = dd_conf.Datadog.GetInt("logs_config.auto_multi_line_default_sample_size")
 	}
-	matchRatio := source.Config.AutoMultiLineMatchThreshold
-	if matchRatio == 0 {
-		matchRatio = dd_conf.Datadog.GetFloat64("logs_config.auto_multi_line_default_match_threshold")
+	matchThreshold := source.Config.AutoMultiLineMatchThreshold
+	if matchThreshold == 0 {
+		matchThreshold = dd_conf.Datadog.GetFloat64("logs_config.auto_multi_line_default_match_threshold")
 	}
 	additionalPatterns := dd_conf.Datadog.GetStringSlice("logs_config.auto_multi_line_extra_patterns")
 	additionalPatternsCompiled := []*regexp.Regexp{}
@@ -173,7 +173,7 @@ func buildAutoMultilineHandlerFromConfig(outputChan chan *Message, lineLimit int
 	return NewAutoMultilineHandler(outputChan,
 		lineLimit,
 		linesToSample,
-		matchRatio,
+		matchThreshold,
 		matchTimeout,
 		config.AggregationTimeout(),
 		source,
@@ -213,6 +213,9 @@ func (d *Decoder) GetLineCount() int64 {
 
 // GetDetectedPattern returns a detected pattern (if any)
 func (d *Decoder) GetDetectedPattern() *regexp.Regexp {
+	if d.detectedPattern == nil {
+		return nil
+	}
 	return d.detectedPattern.Get()
 }
 

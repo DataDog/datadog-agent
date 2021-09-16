@@ -138,7 +138,6 @@ func (h *AutoMultilineHandler) processAndTry(message *Message) {
 	for i, scoredPattern := range h.scoredMatches {
 		match := scoredPattern.regexp.Match(message.Content)
 		if match {
-			log.Tracef("A regexp matched during multiline auto sensing: %v", scoredPattern.regexp)
 			scoredPattern.score++
 
 			// By keeping the scored matches sorted, the best match always comes first. Since we expect one timestamp to match overwhelmingly
