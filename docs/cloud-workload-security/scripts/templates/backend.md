@@ -1,3 +1,10 @@
+---
+title: CWS Event Documentation
+kind: documentation
+description: JSON schema documentation of the CWS backend event
+disable_edit: true
+---
+
 # CWS Event Documentation
 
 The CWS event sent to the backend by the security agent respects the following schema:

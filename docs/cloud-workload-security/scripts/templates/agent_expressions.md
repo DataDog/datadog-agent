@@ -2,6 +2,7 @@
 title: Agent Expressions
 kind: documentation
 description: "Agent expression attributes and operators for Cloud Workload Security Rules"
+disable_edit: true
 further_reading:
 - link: "/security_platform/cloud_workload_security/getting_started/"
   tag: "Documentation"
