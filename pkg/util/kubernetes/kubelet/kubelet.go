@@ -410,7 +410,6 @@ func (ku *KubeUtil) setBearerToken(tokenPath string) error {
 	defer ku.Unlock()
 	ku.kubeletAPIRequestHeaders.Set("Authorization", fmt.Sprintf("bearer %s", token))
 	ku.rawConnectionInfo["token"] = token
-	log.Debugf("Setting token: %s", token)
 	return nil
 }
 
@@ -536,8 +535,6 @@ func (ku *KubeUtil) setupKubeletAPIEndpoint() error {
 	}
 	// sts end
 
-	// We don't want to carry the token in open http communication
-
 	// HTTP
 	log.Warnf("Failed to securely reach the kubelet over HTTPS. Trying a non secure connection over HTTP. We highly recommend configuring TLS to access the kubelet")
 	if config.Datadog.GetBool("kubelet_fallback_to_insecure") { // sts
@@ -560,6 +557,7 @@ func (ku *KubeUtil) configureKubeletEndpoint(endpoint string, verifyTLS bool, in
 	ku.kubeletAPIEndpoint = endpoint
 
 	if insecure {
+		// We don't want to carry the token in open http communication
 		ku.resetCredentials()
 	}
 
