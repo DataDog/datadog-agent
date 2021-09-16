@@ -50,7 +50,7 @@ func (d *ProcessDiscoveryCheck) Run(cfg *config.AgentConfig, groupID int32) ([]m
 		NumCpus:     d.info.Cpus[0].Number,
 		TotalMemory: d.info.TotalMemory,
 	}
-	procDiscoveryChunks := chunkProcessDiscoveries(pidMaptoProcDiscoveryArray(procs, host), cfg.MaxPerMessage)
+	procDiscoveryChunks := chunkProcessDiscoveries(pidMapToProcDiscoveries(procs, host), cfg.MaxPerMessage)
 	payload := make([]model.MessageBody, len(procDiscoveryChunks))
 	for i, procDiscoveryChunk := range procDiscoveryChunks {
 		payload[i] = &model.CollectorProcDiscovery{
@@ -65,10 +65,10 @@ func (d *ProcessDiscoveryCheck) Run(cfg *config.AgentConfig, groupID int32) ([]m
 	return payload, nil
 }
 
-func pidMaptoProcDiscoveryArray(pidMap map[int32]*procutil.Process, host *model.Host) []*model.ProcessDiscovery {
-	array := make([]*model.ProcessDiscovery, 0, len(pidMap))
+func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process, host *model.Host) []*model.ProcessDiscovery {
+	pd := make([]*model.ProcessDiscovery, 0, len(pidMap))
 	for _, proc := range pidMap {
-		array = append(array, &model.ProcessDiscovery{
+		pd = append(pd, &model.ProcessDiscovery{
 			Pid:     proc.Pid,
 			NsPid:   proc.NsPid,
 			Host:    host,
@@ -77,7 +77,7 @@ func pidMaptoProcDiscoveryArray(pidMap map[int32]*procutil.Process, host *model.
 		})
 	}
 
-	return array
+	return pd
 }
 
 // chunkProcessDiscoveries split non-container processes into chunks and return a list of chunks
