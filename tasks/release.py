@@ -30,6 +30,8 @@ from .modules import DEFAULT_MODULES
 # - vX.Y(.Z) (security-agent-policies repo)
 VERSION_RE = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-devel)?(-rc\.(\d+))?')
 
+REPOSITORY_NAME = "DataDog/datadog-agent"
+
 
 @task
 def add_prelude(ctx, version):
@@ -70,12 +72,13 @@ def add_dca_prelude(ctx, version, agent7_version, agent6_version=""):
             """prelude:
     |
     Released on: {1}
-    Pinned to datadog-agent v{0}: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/{4}/CHANGELOG.rst#{2}{3}>`_.""".format(
+    Pinned to datadog-agent v{0}: `CHANGELOG <https://github.com/{5}/blob/{4}/CHANGELOG.rst#{2}{3}>`_.""".format(
                 agent7_version,
                 date.today(),
                 agent7_version.replace('.', ''),
                 agent6_version,
                 DEFAULT_BRANCH,
+                REPOSITORY_NAME,
             )
         )
 
@@ -1038,8 +1041,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
     if sys.version_info[0] < 3:
         return Exit(message="Must use Python 3 for this task", code=1)
 
-    repo_name = "DataDog/datadog-agent"
-    github = GithubAPI(repository=repo_name, api_token=get_github_token())
+    github = GithubAPI(repository=REPOSITORY_NAME, api_token=get_github_token())
 
     list_major_versions = parse_major_versions(major_versions)
 
@@ -1225,7 +1227,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
     if sys.version_info[0] < 3:
         return Exit(message="Must use Python 3 for this task", code=1)
 
-    gitlab = Gitlab(project_name="DataDog/datadog-agent", api_token=get_gitlab_token())
+    gitlab = Gitlab(project_name=REPOSITORY_NAME, api_token=get_gitlab_token())
     list_major_versions = parse_major_versions(major_versions)
 
     # Get the version of the highest major: needed for tag_version and to know
