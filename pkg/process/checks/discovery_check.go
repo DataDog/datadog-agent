@@ -8,8 +8,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-// ProcessDiscovery is ProcessDiscoveryCheck singleton. ProcessDiscoveryCheck should not be instantiated elsewhere.
-var ProcessDiscovery = &ProcessDiscoveryCheck{}
+// ProcessDiscovery is a ProcessDiscoveryCheck singleton. ProcessDiscoveryCheck should not be instantiated elsewhere.
+var ProcessDiscovery = &ProcessDiscoveryCheck{probe: procutil.NewProcessProbe()}
 
 // ProcessDiscoveryCheck is a check that gathers basic process metadata and sends it to the process discovery service.
 // It uses its own ProcessDiscovery payload, which is intended to be read by the process_discovery kafka topic.
@@ -22,7 +22,6 @@ type ProcessDiscoveryCheck struct {
 
 // Init initializes the ProcessDiscoveryCheck. It is a runtime error to call Run without first having called Init.
 func (d *ProcessDiscoveryCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
-	d.probe = procutil.NewProcessProbe()
 	d.info = info
 	d.initCalled = true
 }
