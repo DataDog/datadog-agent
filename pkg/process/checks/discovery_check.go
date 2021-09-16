@@ -56,7 +56,7 @@ func (d *ProcessDiscoveryCheck) Run(cfg *config.AgentConfig, groupID int32) ([]m
 		payload[i] = &model.CollectorProcDiscovery{
 			HostName:           cfg.HostName,
 			GroupId:            groupID,
-			GroupSize:          int32(len(procDiscoveryChunk)),
+			GroupSize:          int32(len(procDiscoveryChunks)),
 			ProcessDiscoveries: procDiscoveryChunk,
 			Host:               host,
 		}
@@ -76,6 +76,7 @@ func pidMaptoProcDiscoveryArray(pidMap map[int32]*procutil.Process, host *model.
 			User:    formatUser(proc),
 		})
 	}
+
 	return array
 }
 
