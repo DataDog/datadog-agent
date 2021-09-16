@@ -142,6 +142,13 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 		}
 	}
 
+	// How many check results to buffer in memory when POST fails. The default is usually fine.
+	if k := key(ns, "rt_queue_size"); config.Datadog.IsSet(k) {
+		if rtqueueSize := config.Datadog.GetInt(k); rtqueueSize > 0 {
+			a.RTQueueSize = rtqueueSize
+		}
+	}
+
 	// The maximum number of processes, or containers per message. Note: Only change if the defaults are causing issues.
 	if k := key(ns, "max_per_message"); config.Datadog.IsSet(k) {
 		if maxPerMessage := config.Datadog.GetInt(k); maxPerMessage <= 0 {
@@ -201,6 +208,9 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 				})
 			}
 		}
+	}
+	if !config.Datadog.IsSet(key(ns, "cmd_port")) {
+		config.Datadog.Set(key(ns, "cmd_port"), 6162)
 	}
 
 	// use `internal_profiling.enabled` field in `process_config` section to enable/disable profiling for process-agent,

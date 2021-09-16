@@ -83,3 +83,11 @@ func Stop() {
 		running = false
 	}
 }
+
+// IsRunning returns true if the profiler is running; this function is thread-safe.
+func IsRunning() bool {
+	mu.RLock()
+	v := running
+	mu.RUnlock()
+	return v
+}

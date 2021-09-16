@@ -134,17 +134,17 @@ func CreatePerformanceProfile(prefix, debugURL string, cpusec int, target *Profi
 }
 
 // CreateArchive packages up the files
-func CreateArchive(local bool, distPath, pyChecksPath string, logFilePaths []string, pdata ProfileData) (string, error) {
+func CreateArchive(local bool, distPath, pyChecksPath string, logFilePaths []string, pdata ProfileData, ipcError error) (string, error) {
 	zipFilePath := getArchivePath()
 	confSearchPaths := SearchPaths{
 		"":        config.Datadog.GetString("confd_path"),
 		"dist":    filepath.Join(distPath, "conf.d"),
 		"checksd": pyChecksPath,
 	}
-	return createArchive(confSearchPaths, local, zipFilePath, logFilePaths, pdata)
+	return createArchive(confSearchPaths, local, zipFilePath, logFilePaths, pdata, ipcError)
 }
 
-func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, logFilePaths []string, pdata ProfileData) (string, error) {
+func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, logFilePaths []string, pdata ProfileData, ipcError error) (string, error) {
 	tempDir, err := createTempDir()
 	if err != nil {
 		return "", err
@@ -167,14 +167,28 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 		if err != nil {
 			return "", err
 		}
-		// Can't reach the agent, mention it in those two files
-		err = writeStatusFile(tempDir, hostname, []byte("unable to get the status of the agent, is it running?"))
-		if err != nil {
-			return "", err
-		}
-		err = writeConfigCheck(tempDir, hostname, []byte("unable to get loaded checks config, is the agent running?"))
-		if err != nil {
-			return "", err
+
+		if ipcError != nil {
+			msg := []byte(fmt.Sprintf("unable to contact the agent to retrieve flare: %s", ipcError))
+			// Can't reach the agent, mention it in those two files
+			err = writeStatusFile(tempDir, hostname, msg)
+			if err != nil {
+				return "", err
+			}
+			err = writeConfigCheck(tempDir, hostname, msg)
+			if err != nil {
+				return "", err
+			}
+		} else {
+			// Can't reach the agent, mention it in those two files
+			err = writeStatusFile(tempDir, hostname, []byte("unable to get the status of the agent, is it running?"))
+			if err != nil {
+				return "", err
+			}
+			err = writeConfigCheck(tempDir, hostname, []byte("unable to get loaded checks config, is the agent running?"))
+			if err != nil {
+				return "", err
+			}
 		}
 	} else {
 		// Status informations are available, zip them up as the agent is running.
@@ -288,6 +302,10 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 	if err != nil {
 		log.Errorf("Could not export Windows event logs: %s", err)
 	}
+	err = zipServiceStatus(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not export Windows driver status: %s", err)
+	}
 
 	// force a log flush before zipping them
 	log.Flush()
@@ -376,9 +394,15 @@ func addParentPerms(dirPath string, permsInfos permissionsInfos) {
 }
 
 func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsInfos) error {
-	logFileDir := filepath.Dir(logFilePath)
+	// Force dir path to be absolute first
+	logFileDir, err := filepath.Abs(filepath.Dir(logFilePath))
+	if err != nil {
+		log.Errorf("Error getting absolute path to log directory of %q: %v", logFilePath, err)
+		return err
+	}
+	permsInfos.add(logFileDir)
 
-	err := filepath.Walk(logFileDir, func(src string, f os.FileInfo, err error) error {
+	err = filepath.Walk(logFileDir, func(src string, f os.FileInfo, err error) error {
 		if f == nil {
 			return nil
 		}
@@ -387,7 +411,12 @@ func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsIn
 		}
 
 		if filepath.Ext(f.Name()) == ".log" || getFirstSuffix(f.Name()) == ".log" {
-			dst := filepath.Join(tempDir, hostname, "logs", f.Name())
+			targRelPath, relErr := filepath.Rel(logFileDir, src)
+			if relErr != nil {
+				log.Errorf("Can't get relative path to %q: %v", src, relErr)
+				return nil
+			}
+			dst := filepath.Join(tempDir, hostname, "logs", targRelPath)
 
 			if permsInfos != nil {
 				permsInfos.add(src)
@@ -400,12 +429,7 @@ func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsIn
 
 	// The permsInfos map is empty when we cannot read the auth token.
 	if len(permsInfos) != 0 {
-		// Force path to be absolute for getting parent permissions.
-		absPath, err := filepath.Abs(logFileDir)
-		if err != nil {
-			log.Errorf("Error while getting absolute file path for parent directory: %v", err)
-		}
-		addParentPerms(absPath, permsInfos)
+		addParentPerms(logFileDir, permsInfos)
 	}
 
 	return err
@@ -535,9 +559,15 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 		}
 		// figure out system-probe file path based on main config path,
 		// and use best effort to include system-probe.yaml to the flare
-		systemProbePath := getSystemProbePath(filePath)
+		systemProbePath := getConfigPath(filePath, "system-probe.yaml")
 		if systemErr := createConfigFiles(systemProbePath, tempDir, hostname, permsInfos); systemErr != nil {
 			log.Warnf("could not zip system-probe.yaml, system-probe might not be configured, or is in a different directory with datadog.yaml: %s", systemErr)
+		}
+
+		// use best effort to include security-agent.yaml to the flare
+		securityAgentPath := getConfigPath(filePath, "security-agent.yaml")
+		if secErr := createConfigFiles(securityAgentPath, tempDir, hostname, permsInfos); secErr != nil {
+			log.Warnf("could not zip security-agent.yaml, security-agent might not be configured, or is in a different directory with datadog.yaml: %s", secErr)
 		}
 	}
 
@@ -939,8 +969,8 @@ func createConfigFiles(filePath, tempDir, hostname string, permsInfos permission
 	return err
 }
 
-// getSystemProbePath would take the path to datadog.yaml and replace the file name with system-probe.yaml
-func getSystemProbePath(ddCfgFilePath string) string {
+// getConfigPath would take the path to datadog.yaml and replace the file name with the given agent file name
+func getConfigPath(ddCfgFilePath string, agentFileName string) string {
 	path := filepath.Dir(ddCfgFilePath)
-	return filepath.Join(path, "system-probe.yaml")
+	return filepath.Join(path, agentFileName)
 }

@@ -12,8 +12,8 @@
 .kitchen_os_debian:
   variables:
     KITCHEN_PLATFORM: "debian"
-    KITCHEN_OSVERS: "debian-8,debian-9,debian-10"
-    DEFAULT_KITCHEN_OSVERS: "debian-10"
+    KITCHEN_OSVERS: "debian-8,debian-9,debian-10,debian-11"
+    DEFAULT_KITCHEN_OSVERS: "debian-11"
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
     - cd $DD_AGENT_TESTING_DIR

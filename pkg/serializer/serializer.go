@@ -98,7 +98,7 @@ type MetricSerializer interface {
 	SendMetadata(m marshaler.Marshaler) error
 	SendHostMetadata(m marshaler.Marshaler) error
 	SendProcessesMetadata(data interface{}) error
-	SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID, payloadType string) error
+	SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID string, payloadType int) error
 }
 
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder
@@ -293,7 +293,7 @@ func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 		return nil
 	}
 
-	useV1API := !config.Datadog.GetBool("use_v2_api.series")
+	const useV1API = true // v2 intake for series is not yet implemented
 
 	var seriesPayloads forwarder.Payloads
 	var extraHeaders http.Header
@@ -309,10 +309,7 @@ func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 		return fmt.Errorf("dropping series payload: %s", err)
 	}
 
-	if useV1API {
-		return s.Forwarder.SubmitV1Series(seriesPayloads, extraHeaders)
-	}
-	return s.Forwarder.SubmitSeries(seriesPayloads, extraHeaders)
+	return s.Forwarder.SubmitV1Series(seriesPayloads, extraHeaders)
 }
 
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder
@@ -401,7 +398,7 @@ func (s *Serializer) SendProcessesMetadata(data interface{}) error {
 }
 
 // SendOrchestratorMetadata serializes & send orchestrator metadata payloads
-func (s *Serializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID, payloadType string) error {
+func (s *Serializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID string, payloadType int) error {
 	if s.orchestratorForwarder == nil {
 		return errors.New("orchestrator forwarder is not setup")
 	}

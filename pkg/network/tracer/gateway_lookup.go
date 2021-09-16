@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/ebpf/manager"
 	"github.com/hashicorp/golang-lru/simplelru"
 )
 
@@ -40,7 +39,7 @@ func gwLookupEnabled(config *config.Config) bool {
 	return config.EnableGatewayLookup && cloud.IsAWS() && ddconfig.IsCloudProviderEnabled(ec2.CloudProviderName)
 }
 
-func newGatewayLookup(config *config.Config, m *manager.Manager) *gatewayLookup {
+func newGatewayLookup(config *config.Config) *gatewayLookup {
 	if !gwLookupEnabled(config) {
 		return nil
 	}
@@ -77,9 +76,11 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 		return nil
 	}
 
+	buf := util.IPBufferPool.Get().([]byte)
+	defer util.IPBufferPool.Put(buf)
 	// if there is no gateway, we don't need to add subnet info
 	// for gateway resolution in the backend
-	if util.NetIPFromAddress(r.Gateway).IsUnspecified() {
+	if util.NetIPFromAddress(r.Gateway, buf).IsUnspecified() {
 		return nil
 	}
 

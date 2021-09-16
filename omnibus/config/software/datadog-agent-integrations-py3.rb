@@ -58,12 +58,7 @@ blacklist_folders = [
   'datadog_checks_base',           # namespacing package for wheels (NOT AN INTEGRATION)
   'datadog_checks_dev',            # Development package, (NOT AN INTEGRATION)
   'datadog_checks_tests_helper',   # Testing and Development package, (NOT AN INTEGRATION)
-  'agent_metrics',
-  'docker_daemon',
-  'kubernetes',
-  'ntp',                           # provided as a go check by the core agent
-  # Python 2-only
-  'tokumx',
+  'docker_daemon',                 # Agent v5 only
 ]
 
 # package names of dependencies that won't be added to the Agent Python environment
@@ -265,6 +260,15 @@ build do
 
       check_conf_dir = "#{conf_dir}/#{check}.d"
 
+      setup_file_path = "#{check_dir}/setup.py"
+      File.file?(setup_file_path) || next
+      # Check if it supports Python 3.
+      support = `inv agent.check-supports-python-version #{setup_file_path} 3`
+      if support == "False"
+        log.info(log_key) { "Skipping '#{check}' since it does not support Python 3." }
+        next
+      end
+
       # For each conf file, if it already exists, that means the `datadog-agent` software def
       # wrote it first. In that case, since the agent's confs take precedence, skip the conf
 
@@ -302,7 +306,6 @@ build do
         copy profiles, "#{check_conf_dir}/"
       end
 
-      File.file?("#{check_dir}/setup.py") || next
       if windows?
         command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
         command "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"

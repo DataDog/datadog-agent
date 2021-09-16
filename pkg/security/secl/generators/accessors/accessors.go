@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"unicode"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/structtag"
@@ -197,6 +198,10 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 
 				if isEmbedded := len(field.Names) == 0; !isEmbedded {
 					fieldName := field.Names[0].Name
+
+					if !unicode.IsUpper(rune(fieldName[0])) {
+						continue
+					}
 
 					if dejavu[fieldName] {
 						continue

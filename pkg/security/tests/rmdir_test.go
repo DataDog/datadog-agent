@@ -53,8 +53,8 @@ func TestRmdir(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "rmdir", "wrong event type")
-			assert.Equal(t, event.Rmdir.File.Inode, inode, "wrong inode")
+			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
+			assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong inode")
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
 
 			assertNearTime(t, event.Rmdir.File.MTime)
@@ -81,8 +81,8 @@ func TestRmdir(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "rmdir", "wrong event type")
-			assert.Equal(t, event.Rmdir.File.Inode, inode, "wrong inode")
+			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
+			assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong inode")
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
 
 			assertNearTime(t, event.Rmdir.File.MTime)
@@ -119,7 +119,7 @@ func TestRmdirInvalidate(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "rmdir", "wrong event type")
+			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "rmdir.file.path", testFile)
 		})
 		if err != nil {

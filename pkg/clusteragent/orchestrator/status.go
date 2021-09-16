@@ -24,6 +24,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
+type stats struct {
+	orchestrator.CheckStats
+	NodeType  string
+	TotalHits int64
+	TotalMiss int64
+}
+
 // GetStatus returns status info for the orchestrator explorer.
 func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]interface{} {
 	status := make(map[string]interface{})
@@ -68,31 +75,33 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 
 	// get cache hits
 	cacheHitsJSON := []byte(expvar.Get("orchestrator-cache").String())
-	cacheHits := make(map[string]interface{})
+	cacheHits := make(map[string]int64)
 	json.Unmarshal(cacheHitsJSON, &cacheHits) //nolint:errcheck
 	status["CacheHits"] = cacheHits
 
 	// get cache Miss
 	cacheMissJSON := []byte(expvar.Get("orchestrator-sends").String())
-	cacheMiss := make(map[string]interface{})
+	cacheMiss := make(map[string]int64)
 	json.Unmarshal(cacheMissJSON, &cacheMiss) //nolint:errcheck
 	status["CacheMiss"] = cacheMiss
+	cacheStats := make(map[string]stats)
 
 	// get cache efficiency
 	for _, node := range orchestrator.NodeTypes() {
 		if value, found := orchestrator.KubernetesResourceCache.Get(orchestrator.BuildStatsKey(node)); found {
-			status[node.String()+"sStats"] = value
+			orcStats := value.(orchestrator.CheckStats)
+			totalMiss := cacheMiss[orcStats.String()]
+			totalHit := cacheHits[orcStats.String()]
+			s := stats{
+				CheckStats: orcStats,
+				NodeType:   orcStats.String(),
+				TotalHits:  totalHit,
+				TotalMiss:  totalMiss,
+			}
+			cacheStats[node.String()+"sStats"] = s
 		}
 	}
-
-	// get Leader information
-	engine, err := leaderelection.GetLeaderEngine()
-	if err != nil {
-		status["LeaderError"] = err
-	} else {
-		status["Leader"] = engine.IsLeader()
-		status["LeaderName"] = engine.GetLeader()
-	}
+	status["CacheInformation"] = cacheStats
 
 	// get options
 	if config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled") {
@@ -119,10 +128,23 @@ func setClusterName(ctx context.Context, status map[string]interface{}) {
 
 // setCollectionIsWorking checks whether collection is running by checking telemetry/cache data
 func setCollectionIsWorking(status map[string]interface{}) {
-	c := orchestrator.KubernetesResourceCache.ItemCount()
-	if c > 0 {
-		status["CollectionWorking"] = "The collection is at least partially running since the cache has been populated."
-	} else {
-		status["CollectionWorking"] = "The collection has not run successfully yet since the cache is empty."
+	engine, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		status["CollectionWorking"] = "The collection has not run successfully because no leader has been elected."
+		status["LeaderError"] = err
+		return
 	}
+	status["Leader"] = engine.IsLeader()
+	status["LeaderName"] = engine.GetLeader()
+	if engine.IsLeader() {
+		c := orchestrator.KubernetesResourceCache.ItemCount()
+		if c > 0 {
+			status["CollectionWorking"] = "The collection is at least partially running since the cache has been populated."
+		} else {
+			status["CollectionWorking"] = "The collection has not run successfully yet since the cache is empty."
+		}
+	} else {
+		status["CollectionWorking"] = "The collection is not running because this agent is not the leader"
+	}
+
 }

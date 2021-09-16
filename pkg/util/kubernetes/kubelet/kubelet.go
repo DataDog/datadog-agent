@@ -293,10 +293,13 @@ func (ku *KubeUtil) searchPodForContainerID(podList []*Pod, containerID string) 
 
 	// We will match only on the id itself, without runtime identifier, it should be quite unlikely on a Kube node
 	// to have a container in the runtime used by Kube to match a container in another runtime...
-	strippedContainerID := containers.ContainerIDForEntity(containerID)
+	if containers.IsEntityName(containerID) {
+		containerID = containers.ContainerIDForEntity(containerID)
+	}
+
 	for _, pod := range podList {
 		for _, container := range pod.Status.GetAllContainers() {
-			if containers.ContainerIDForEntity(container.ID) == strippedContainerID {
+			if container.ID != "" && containers.ContainerIDForEntity(container.ID) == containerID {
 				return pod, nil
 			}
 		}

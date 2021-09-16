@@ -15,8 +15,6 @@ import (
 	"strconv"
 	"strings"
 
-	agentpayload "github.com/DataDog/agent-payload/gogen"
-	"github.com/gogo/protobuf/proto"
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -61,38 +59,9 @@ type Serie struct {
 // Series represents a list of Serie ready to be serialize
 type Series []*Serie
 
-func marshalPoints(points []Point) []*agentpayload.MetricsPayload_Sample_Point {
-	pointsPayload := []*agentpayload.MetricsPayload_Sample_Point{}
-
-	for _, p := range points {
-		pointsPayload = append(pointsPayload, &agentpayload.MetricsPayload_Sample_Point{
-			Ts:    int64(p.Ts),
-			Value: p.Value,
-		})
-	}
-	return pointsPayload
-}
-
-// Marshal serialize timeseries using agent-payload definition
+// Marshal serialize timeseries using protobuf
 func (series Series) Marshal() ([]byte, error) {
-	payload := &agentpayload.MetricsPayload{
-		Samples:  []*agentpayload.MetricsPayload_Sample{},
-		Metadata: &agentpayload.CommonMetadata{},
-	}
-
-	for _, serie := range series {
-		payload.Samples = append(payload.Samples,
-			&agentpayload.MetricsPayload_Sample{
-				Metric:         serie.Name,
-				Type:           serie.MType.String(),
-				Host:           serie.Host,
-				Points:         marshalPoints(serie.Points),
-				Tags:           serie.Tags,
-				SourceTypeName: serie.SourceTypeName,
-			})
-	}
-
-	return proto.Marshal(payload)
+	return nil, fmt.Errorf("Series payload serialization is not implemented")
 }
 
 // MarshalStrings converts the timeseries to a sorted slice of string slices

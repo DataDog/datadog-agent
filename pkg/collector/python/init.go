@@ -86,7 +86,7 @@ void SetCheckMetadata(char *, char *, char *);
 void SetExternalTags(char *, char *, char **);
 void WritePersistentCache(char *, char *);
 bool TracemallocEnabled();
-char* ObfuscateSQL(char *, char **);
+char* ObfuscateSQL(char *, char *, char **);
 char* ObfuscateSQLExecPlan(char *, bool, char **);
 
 void initDatadogAgentModule(rtloader_t *rtloader) {

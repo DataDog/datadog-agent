@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixes an issue where the `docker.containers.stopped` metric would have
+    unpredictable tags. Now all stopped containers will always be reported with
+    the correct tags.

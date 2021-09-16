@@ -108,8 +108,18 @@ func TestDestinationSend500(t *testing.T) {
 	server := NewHTTPServerTest(500)
 	err := server.destination.Send([]byte("yo"))
 	assert.NotNil(t, err)
-	_, ok := err.(*client.RetryableError)
-	assert.True(t, ok)
+	_, retriable := err.(*client.RetryableError)
+	assert.True(t, retriable)
+	assert.Equal(t, "server error", err.Error())
+	server.stop()
+}
+
+func TestDestinationSend429(t *testing.T) {
+	server := NewHTTPServerTest(429)
+	err := server.destination.Send([]byte("yo"))
+	assert.NotNil(t, err)
+	_, retriable := err.(*client.RetryableError)
+	assert.True(t, retriable)
 	assert.Equal(t, "server error", err.Error())
 	server.stop()
 }
@@ -118,8 +128,8 @@ func TestDestinationSend400(t *testing.T) {
 	server := NewHTTPServerTest(400)
 	err := server.destination.Send([]byte("yo"))
 	assert.NotNil(t, err)
-	_, ok := err.(*client.RetryableError)
-	assert.False(t, ok)
+	_, retriable := err.(*client.RetryableError)
+	assert.False(t, retriable)
 	assert.Equal(t, "client error", err.Error())
 	server.stop()
 }

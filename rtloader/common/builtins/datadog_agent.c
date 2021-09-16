@@ -35,7 +35,7 @@ static PyObject *set_check_metadata(PyObject *self, PyObject *args);
 static PyObject *set_external_tags(PyObject *self, PyObject *args);
 static PyObject *write_persistent_cache(PyObject *self, PyObject *args);
 static PyObject *read_persistent_cache(PyObject *self, PyObject *args);
-static PyObject *obfuscate_sql(PyObject *self, PyObject *args);
+static PyObject *obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObject *kwargs);
 
 static PyMethodDef methods[] = {
@@ -50,7 +50,7 @@ static PyMethodDef methods[] = {
     { "set_external_tags", set_external_tags, METH_VARARGS, "Send external host tags." },
     { "write_persistent_cache", write_persistent_cache, METH_VARARGS, "Store a value for a given key." },
     { "read_persistent_cache", read_persistent_cache, METH_VARARGS, "Retrieve the value associated with a key." },
-    { "obfuscate_sql", (PyCFunction)obfuscate_sql, METH_VARARGS, "Obfuscate & normalize a SQL string." },
+    { "obfuscate_sql", (PyCFunction)obfuscate_sql, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a SQL string." },
     { "obfuscate_sql_exec_plan", (PyCFunction)obfuscate_sql_exec_plan, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a SQL Execution Plan." },
     { NULL, NULL } // guards
 };
@@ -671,18 +671,19 @@ done:
 
 }
 
-/*! \fn PyObject *obfuscate_sql(PyObject *self, PyObject *args)
+/*! \fn PyObject *obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs)
     \brief This function implements the `datadog_agent.obfuscate_sql` method, obfuscating
     the provided sql string.
     \param self A PyObject* pointer to the `datadog_agent` module.
     \param args A PyObject* pointer to a tuple containing the key to retrieve.
+    \param kwargs A PyObject* pointer to a map of key value pairs.
     \return A PyObject* pointer to the value.
 
     This function is callable as the `datadog_agent.obfuscate_sql` Python method and
     uses the `cb_obfuscate_sql()` callback to retrieve the value from the agent
     with CGO. If the callback has not been set `None` will be returned.
 */
-static PyObject *obfuscate_sql(PyObject *self, PyObject *args)
+static PyObject *obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs)
 {
     // callback must be set
     if (cb_obfuscate_sql == NULL) {
@@ -691,15 +692,17 @@ static PyObject *obfuscate_sql(PyObject *self, PyObject *args)
 
     PyGILState_STATE gstate = PyGILState_Ensure();
 
-    char *rawQuery;
-    if (!PyArg_ParseTuple(args, "s", &rawQuery)) {
+    char *rawQuery = NULL;
+    char *optionsObj = NULL;
+    static char *kwlist[] = {"query", "options", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|s", kwlist, &rawQuery, &optionsObj)) {
         PyGILState_Release(gstate);
         return NULL;
     }
 
     char *obfQuery = NULL;
     char *error_message = NULL;
-    obfQuery = cb_obfuscate_sql(rawQuery, &error_message);
+    obfQuery = cb_obfuscate_sql(rawQuery, optionsObj, &error_message);
 
     PyObject *retval = NULL;
     if (error_message != NULL) {

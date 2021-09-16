@@ -4,12 +4,14 @@
 #########################
 
 ## @param api_key - string - required
+## @env DD_API_KEY - string - required
 ## The Datadog API key to associate your Agent's data with your organization.
 ## Create a new API key here: https://app.datadoghq.com/account/settings
 #
 api_key:
 
 ## @param site - string - optional - default: datadoghq.com
+## @env DD_SITE - string - optional - default: datadoghq.com
 ## The site of the Datadog intake to send Agent data to.
 ## Set to 'datadoghq.eu' to send data to the EU site.
 ## Set to 'us3.datadoghq.com' to send data to the US3 site.
@@ -18,6 +20,7 @@ api_key:
 # site: datadoghq.com
 
 ## @param dd_url - string - optional - default: https://app.datadoghq.com
+## @env DD_URL - string - optional - default: https://app.datadoghq.com
 ## The host of the Datadog intake server to send metrics to, only set this option
 ## if you need the Agent to send metrics to a custom URL, it overrides the site
 ## setting defined in "site". It does not affect APM, Logs or Live Process intake which have their
@@ -26,6 +29,9 @@ api_key:
 # dd_url: https://app.datadoghq.com
 
 ## @param proxy - custom object - optional
+## @env DD_PROXY_HTTP - string - optional
+## @env DD_PROXY_HTTPS - string - optional
+## @env DD_PROXY_NO_PROXY - space separated list of strings - optional
 ## If you need a proxy to connect to the Internet, provide it here (default:
 ## disabled). Refer to https://docs.datadoghq.com/agent/proxy/ to understand how to use these settings.
 ## For Logs proxy information, refer to https://docs.datadoghq.com/agent/proxy/#proxy-for-logs
@@ -38,22 +44,34 @@ api_key:
 #     - <HOSTNAME-2>
 
 ## @param skip_ssl_validation - boolean - optional - default: false
+## @env DD_SKIP_SSL_VALIDATION - boolean - optional - default: false
 ## Setting this option to "true" tells the Agent to skip validation of SSL/TLS certificates.
 #
 # skip_ssl_validation: false
 
 ## @param force_tls_12 - boolean - optional - default: false
+## @env DD_FORCE_TLS_12 - boolean - optional - default: false
 ## Setting this option to "true" forces the Agent to only use TLS 1.2 when
 ## pushing data to the Datadog intake specified in "site" or "dd_url".
 #
 # force_tls_12: false
 
 ## @param hostname - string - optional - default: auto-detected
+## @env DD_HOSTNAME - string - optional - default: auto-detected
 ## Force the hostname name.
 #
 # hostname: <HOSTNAME_NAME>
 
+## @param hostname_file - string - optional
+## In some environments, auto-detection of the hostname is not adequate and
+## environment variables cannot be used to set the value. In such cases, the
+## file on the host can also be used provide an appropriate value. If
+## 'hostname' value has been set to a non-empty value, this option is ignored.
+#
+# hostname_file: /var/lib/cloud/data/instance-id
+
 ## @param hostname_fqdn - boolean - optional - default: false
+## @env DD_HOSTNAME_FQDN - boolean - optional - default: false
 ## When the Agent relies on the OS to determine the hostname, make it use the
 ## FQDN instead of the short hostname. Recommended value: true
 ## More information at https://dtdg.co/flag-hostname-fqdn
@@ -71,6 +89,7 @@ api_key:
 #   - <ALIAS-2>
 
 ## @param tags  - list of key:value elements - optional
+## @env DD_TAGS - space separated list of strings - optional
 ## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
 ##
 ## Additional tags can be supplied using the `DD_EXTRA_TAGS` environment variable.
@@ -82,12 +101,14 @@ api_key:
 #   - <TAG_KEY>:<TAG_VALUE>
 
 ## @param env - string - optional
+## @env DD_ENV - string - optional
 ## The environment name where the agent is running. Attached in-app to every
 ## metric, event, log, trace, and service check emitted by this Agent.
 #
 # env: <environment name>
 
 ## @param tag_value_split_separator - map - optional
+## @env DD_TAG_VALUE_SPLIT_SEPARATOR - list of key:value strings - optional
 ## Split tag values according to a given separator. Only applies to host tags,
 ## and tags coming from container integrations. It does not apply to tags on dogstatsd metrics,
 ## and tags collected by other integrations.
@@ -105,6 +126,7 @@ api_key:
 #   <TAG_KEY>: <SEPARATOR>
 
 ## @param checks_tag_cardinality - string - optional - default: low
+## @env DD_CHECKS_TAG_CARDINALITY - string - optional - default: low
 ## Configure the level of granularity of tags to send for checks metrics and events. Choices are:
 ##   * low: add tags about low-cardinality objects (clusters, hosts, deployments, container images, ...)
 ##   * orchestrator: add tags about pod, (in Kubernetes), or task (in ECS or Mesos) -level of cardinality
@@ -115,6 +137,7 @@ api_key:
 # checks_tag_cardinality: low
 
 ## @param dogstatsd_tag_cardinality - string - optional - default: low
+## @env DD_DOGSTATSD_TAG_CARDINALITY - string - optional - default: low
 ## Configure the level of granularity of tags to send for DogStatsD metrics and events. Choices are:
 ##   * low: add tags about low-cardinality objects (clusters, hosts, deployments, container images, ...)
 ##   * orchestrator: add tags about pod, (in Kubernetes), or task (in ECS or Mesos) -level of cardinality
@@ -126,6 +149,7 @@ api_key:
 # dogstatsd_tag_cardinality: low
 
 ## @param histogram_aggregates - list of strings - optional - default: ["max", "median", "avg", "count"]
+## @env DD_HISTOGRAM_AGGREGATES - space separated list of strings - optional - default: max median avg count
 ## Configure which aggregated value to compute.
 ## Possible values are: min, max, median, avg, sum and count.
 #
@@ -136,6 +160,7 @@ api_key:
 #   - count
 
 ## @param histogram_percentiles - list of strings - optional - default: ["0.95"]
+## @env DD_HISTOGRAM_PERCENTILES - space separated list of strings - optional - default: 0.95
 ## Configure which percentiles are computed by the Agent. It must be a list of float between 0 and 1.
 ## Warning: percentiles must be specified as yaml strings
 #
@@ -143,17 +168,20 @@ api_key:
 #   - "0.95"
 
 ## @param histogram_copy_to_distribution - boolean - optional - default: false
+## @env DD_HISTOGRAM_COPY_TO_DISTRIBUTION - boolean - optional - default: false
 ## Copy histogram values to distributions for true global distributions (in beta)
 ## Note: This increases the number of custom metrics created.
 #
 # histogram_copy_to_distribution: false
 
 ## @param histogram_copy_to_distribution_prefix - string - optional
+## @env DD_HISTOGRAM_COPY_TO_DISTRIBUTION_PREFIX - string - optional
 ## A prefix to add to distribution metrics created when histogram_copy_to_distributions is true
 #
 # histogram_copy_to_distribution_prefix: "<PREFIX>"
 
 ## @param aggregator_stop_timeout - integer - optional - default: 2
+## @env DD_AGGREGATOR_STOP_TIMEOUT - integer - optional - default: 2
 ## When stopping the agent, the Aggregator will try to flush out data ready for
 ## aggregation (metrics, events, ...). Data are flushed to the Forwarder in order
 ## to be sent to Datadog, therefore the Agent might take at most
@@ -164,15 +192,17 @@ api_key:
 ## 'aggregator_stop_timeout' to 0.
 #
 # aggregator_stop_timeout: 2
-#
-# @param aggregator_buffer_size - integer - optional - default: 100
-# The default buffer size for the aggregator use a sane value for most of the
-# use cases, however, it could be useful to manually set it in order to trade
-# RSS usage with better performances.
+
+## @param aggregator_buffer_size - integer - optional - default: 100
+## @env DD_AGGREGATOR_BUFFER_SIZE - integer - optional - default: 100
+## The default buffer size for the aggregator use a sane value for most of the
+## use cases, however, it could be useful to manually set it in order to trade
+## RSS usage with better performances.
 #
 # aggregator_buffer_size: 100
 
 ## @param forwarder_timeout - integer - optional - default: 20
+## @env DD_FORWARDER_TIMEOUT - integer - optional - default: 20
 ## Forwarder timeout in seconds
 #
 # forwarder_timeout: 20
@@ -185,11 +215,13 @@ api_key:
 # forwarder_retry_queue_payloads_max_size: 15728640
 
 ## @param forwarder_num_workers - integer - optional - default: 1
+## @env DD_FORWARDER_NUM_WORKERS - integer - optional - default: 1
 ## The number of workers used by the forwarder.
 #
 # forwarder_num_workers: 1
 
 ## @param forwarder_stop_timeout - integer - optional - default: 2
+## @env DD_FORWARDER_STOP_TIMEOUT - integer - optional - default: 2
 ## When stopping the agent, the Forwarder will try to flush all new
 ## transactions (not the ones in retry state).  New transactions will be created
 ## as the Aggregator flush it's internal data too, therefore the Agent might take
@@ -208,13 +240,13 @@ api_key:
 #
 # forwarder_storage_max_size_in_bytes: 50000000
 
-## @param forwarder_storage_max_disk_ratio - float - optional - default: 0.95
+## @param forwarder_storage_max_disk_ratio - float - optional - default: 0.8
 ## `forwarder_storage_max_disk_ratio` defines the disk capacity limit for storing transactions.
-## `0.95` means the Agent can store transactions on disk until `forwarder_storage_max_size_in_bytes`
-## is reached or when the disk mount for `forwarder_storage_path` exceeds 95% of the disk capacity,
+## `0.8` means the Agent can store transactions on disk until `forwarder_storage_max_size_in_bytes`
+## is reached or when the disk mount for `forwarder_storage_path` exceeds 80% of the disk capacity,
 ## whichever is lower.
 #
-# forwarder_storage_max_disk_ratio: 0.95
+# forwarder_storage_max_disk_ratio: 0.8
 
 ## @param forwarder_outdated_file_in_days - int - optional - default: 10
 ## This value specifies how many days the overflow transactions will remain valid before
@@ -222,7 +254,6 @@ api_key:
 ## created more than `forwarder_outdated_file_in_days` days ago, they are removed.
 #
 # forwarder_outdated_file_in_days: 10
-
 
 ## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba"]
 ## This option restricts which cloud provider endpoint will be used by the
@@ -248,6 +279,7 @@ api_key:
 #   - "alibaba"
 
 ## @param collect_ec2_tags - boolean - optional - default: false
+## @env DD_COLLECT_EC2_TAGS - boolean - optional - default: false
 ## Collect AWS EC2 custom tags as host tags.
 ## Requires the EC2 instance to have an IAM role with the `EC2:DescribeTags`
 ## permission. See docs for further details:
@@ -271,11 +303,13 @@ api_key:
 # ec2_prefer_imdsv2: false
 
 ## @param collect_gce_tags - boolean - optional - default: true
+## @env DD_COLLECT_GCE_TAGS - boolean - optional - default: true
 ## Collect Google Cloud Engine metadata as host tags
 #
 # collect_gce_tags: true
 
 ## @param exclude_gce_tags - list of strings - optional - default: ["kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"]
+## @env DD_EXCLUDE_GCE_TAGS - space separated list of strings - optional - default: kube-env kubelet-config containerd-configure-sh startup-script shutdown-script configure-sh sshKeys ssh-keys user-data cli-cert ipsec-cert ssl-cert google-container-manifest bosh_settings
 ## Google Cloud Engine metadata attribute to exclude from being converted into
 ## host tags -- only applicable when collect_gce_tags is true.
 #
@@ -319,6 +353,7 @@ api_key:
 # azure_hostname_style: "os"
 
 ## @param flare_stripped_keys - list of strings - optional
+## @env DD_FLARE_STRIPPED_KEYS - space separated list of strings - optional
 ## By default, the Agent removes known sensitive keys from Agent and Integrations yaml configs before
 ## including them in the flare.
 ## Use this parameter to define additional sensitive keys that the Agent should scrub from
@@ -340,11 +375,39 @@ api_key:
 #
 # use_proxy_for_cloud_metadata: false
 
+## @param auto_exit - custom object - optional
+## Configuration for the automatic exit mechanism: the Agent stops when some conditions are met.
+#
+# auto_exit:
+
+  ## @param noprocess - custom object - optional
+  ## Configure the `noprocess` automatic exit method.
+  ## Detect when no other processes (non-agent) are running to trigger automatic exit. `HOST_PROC` is taken into account when gathering processes.
+  ## Feature is only supported on POSIX systems.
+  #
+  # noprocess:
+    ## @param enabled - boolean - optional - default: false
+    ## Enable the `noprocess` method
+    #
+    # enabled: false
+
+    ## @param enabled - list of strings - optional
+    ## List of regular expressions to exclude extra processes (on top of built-in list).
+    #
+    # excluded_processes: []
+
+  ## @param validation_period - int - optional - default: 60
+  ## Time (in seconds) delay during which the auto exit validates that the selected method continuously detects an exit condition, before exiting.
+  ## The value is verified every 30s. By default, three consecutive checks need to return true to trigger an automatic exit.
+  #
+  # validation_period: 60
+
 {{ end }}
 {{- if .Agent }}
 {{- if .Python }}
 {{- if .BothPythonPresent -}}
 ## @param python_version - integer - optional - default: 2
+## @env DD_PYTHON_VERSION - integer - optional - default: 2
 ## The major version of Python used to run integrations and custom checks.
 ## The only supported values are 2 (to use Python 2) or 3 (to use Python 3).
 ## Do not change this option when using the official Docker Agent images.
@@ -359,28 +422,33 @@ api_key:
 ############################
 
 ## @param confd_path - string - optional
+## @env DD_CONFD_PATH - string - optional
 ## The path containing check configuration files. By default, uses the conf.d folder
 ## located in the Agent configuration folder.
 #
 # confd_path: ""
 
 ## @param additional_checksd - string - optional
+## @env DD_ADDITIONAL_CHECKSD - string - optional
 ## Additional path indicating where to search for Python checks. By default, uses the checks.d folder
 ## located in the Agent configuration folder.
 #
 # additional_checksd: <CHECKD_FOLDER_PATH>
 
 ## @param expvar_port - integer - optional - default: 5000
+## @env DD_EXPVAR_PORT - integer - optional - default: 5000
 ## The port for the go_expvar server.
 #
 # expvar_port: 5000
 
 ## @param cmd_port - integer - optional - default: 5001
+## @env DD_CMD_PORT - integer - optional - default: 5001
 ## The port on which the IPC api listens.
 #
 # cmd_port: 5001
 
 ## @param GUI_port - integer - optional
+## @env DD_GUI_PORT - integer - optional
 ## The port for the browser GUI to be served.
 ## Setting 'GUI_port: -1' turns off the GUI completely
 ## Default is:
@@ -391,6 +459,7 @@ api_key:
 # GUI_port: <GUI_PORT>
 
 ## @param health_port - integer - optional - default: 0
+## @env DD_HEALTH_PORT - integer - optional - default: 0
 ## The Agent can expose its health check on a dedicated http port.
 ## This is useful for orchestrators that support http probes.
 ## Default is 0 (disabled), set a valid port number (eg. 5555) to enable.
@@ -398,6 +467,7 @@ api_key:
 # health_port: 0
 
 ## @param check_runners - integer - optional - default: 4
+## @env DD_CHECK_RUNNERS - integer - optional - default: 4
 ## The `check_runners` refers to the number of concurrent check runners available for check instance execution.
 ## The scheduler attempts to spread the instances over the collection interval and will _at most_ be
 ## running the number of check runners instances concurrently.
@@ -410,6 +480,7 @@ api_key:
 # check_runners: 4
 
 ## @param enable_metadata_collection - boolean - optional - default: true
+## @env DD_ENABLE_METADATA_COLLECTION - boolean - optional - default: true
 ## Metadata collection should always be enabled, except if you are running several
 ## agents/dsd instances per host. In that case, only one Agent should have it on.
 ## WARNING: disabling it on every Agent leads to display and billing issues.
@@ -417,16 +488,19 @@ api_key:
 # enable_metadata_collection: true
 
 ## @param enable_gohai - boolean - optional - default: true
+## @env DD_ENABLE_GOHAI - boolean - optional - default: true
 ## Enable the gohai collection of systems data.
 #
 # enable_gohai: true
 
-## @param server_timeout - integer - optional - default: 15
+## @param server_timeout - integer - optional - default: 30
+## @env DD_SERVER_TIMEOUT - integer - optional - default: 30
 ## IPC api server timeout in seconds.
 #
-# server_timeout: 15
+# server_timeout: 30
 
 ## @param procfs_path - string - optional
+## @env DD_PROCFS_PATH - string - optional
 ## Some environments may have the procfs file system mounted in a miscellaneous
 ## location. The procfs_path configuration parameter provides a mechanism to
 ## override the standard default location: '/proc' - this setting trickles down to
@@ -435,21 +509,25 @@ api_key:
 # procfs_path: <PROCFS_PATH>
 {{ if .Python }}
 ## @param disable_py3_validation - boolean - optional - default: false
+## @env DD_DISABLE_PY3_VALIDATION - boolean - optional - default: false
 ## Disable Python3 validation of python checks.
 #
 # disable_py3_validation: false
 #
 ## @param python3_linter_timeout - integer - optional - default: 120
+## @env DD_PYTHON3_LINTER_TIMEOUT - integer - optional - default: 120
 ## Timeout in seconds for validation of compatibility with python 3 when running python 2.
 #
 # python3_linter_timeout: 120
 
 ## @param memtrack_enabled - boolean - optional - default: true
+## @env DD_MEMTRACK_ENABLED - boolean - optional - default: true
 ## Enables tracking of memory allocations made from the python runtime loader.
 #
 # memtrack_enabled: true
 
 ## @param tracemalloc_debug - boolean - optional - default: false
+## @env DD_TRACEMALLOC_DEBUG - boolean - optional - default: false
 ## Enables debugging with tracemalloc for python checks.
 ## Please note that this option is only available when python_version is set to "3".
 ## Additionally when this option becomes effective the number of check runners is
@@ -458,24 +536,28 @@ api_key:
 # tracemalloc_debug: false
 
 ## @param tracemalloc_include - string - optional
+## @env DD_TRACEMALLOC_INCLUDE - string - optional
 ## Comma-separated list of Python checks to enable tracemalloc for when `tracemalloc_debug` is true.
 ## By default, all Python checks are enabled.
 #
 # tracemalloc_include: <TRACEMALLOC_EXCLUDE>
 
 ## @param tracemalloc_exclude - string - optional
+## @env DD_TRACEMALLOC_EXCLUDE - string - optional
 ## Comma-separated list of Python checks to disable tracemalloc for when `tracemalloc_debug` is true.
 ## By default, all Python checks are enabled. This setting takes precedence over `tracemalloc_include`.
 #
 # tracemalloc_exclude: <TRACEMALLOC_INCLUDE>
 
 ## @param windows_use_pythonpath - boolean - optional
+## @env DD_WINDOWS_USE_PYTHONPATH - boolean - optional
 ## Whether to honour the value of the PYTHONPATH env var when set on Windows.
 ## Disabled by default, so we only load Python libraries bundled with the Agent.
 #
 # windows_use_pythonpath: false
 {{ end }}
 ## @param secret_backend_command - string - optional
+## @env DD_SECRET_BACKEND_COMMAND - string - optional
 ## `secret_backend_command` is the path to the script to execute to fetch secrets.
 ## The executable must have specific rights that differ on Windows and Linux.
 ##
@@ -484,6 +566,7 @@ api_key:
 # secret_backend_command: <COMMAND_PATH>
 
 ## @param secret_backend_arguments - list of strings - optional
+## @env DD_SECRET_BACKEND_ARGUMENTS - space separated list of strings - optional
 ## If secret_backend_command is set, specify here a list of arguments to give to the command at each run.
 #
 # secret_backend_arguments:
@@ -491,11 +574,13 @@ api_key:
 #   - <ARGUMENT_2>
 
 ## @param secret_backend_output_max_size - integer - optional - default: 1048576
+## @env DD_SECRET_BACKEND_OUTPUT_MAX_SIZE - integer - optional - default: 1048576
 ## The size in bytes of the buffer used to store the command answer (apply to both stdout and stderr)
 #
 # secret_backend_output_max_size: 1048576
 
 ## @param secret_backend_timeout - integer - optional - default: 30
+## @env DD_SECRET_BACKEND_TIMEOUT - integer - optional - default: 30
 ## The timeout to execute the command in second
 #
 # secret_backend_timeout: 30
@@ -531,6 +616,21 @@ api_key:
   ## If a device shuts down, the Agent stops monitoring it after `discovery_interval * discovery_allowed_failures` seconds.
   #
   # discovery_allowed_failures: 3
+
+  ## @param loader - string - optional - default: python
+  ## Check loader to use. Available loaders:
+  ## - core: (recommended) Uses new corecheck SNMP integration
+  ## - python: Uses legacy python SNMP integration
+  #
+  # loader: core
+
+  ## @param min_collection_interval - number - optional - default: 15
+  ## This changes the collection interval for the check instances created
+  ## from discovered SNMP devices.
+  ## For more information, see:
+  ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+  #
+  # min_collection_interval: 15
 
   ## @param configs - list - required
   ## The actual list of configurations used to discover SNMP devices in various subnets.
@@ -586,9 +686,10 @@ api_key:
 
     ## @param community_string - string - optional
     ## Required for SNMP v1 & v2.
+    ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
     ## Ex: 'public'
     #
-    # community_string: <COMMUNITY>
+    # community_string: '<COMMUNITY>'
 
     ## @param user - string - optional
     ## The username to connect to your SNMP devices.
@@ -643,6 +744,15 @@ api_key:
     #
     # loader: core
 
+    ## @param min_collection_interval - number - optional - default: 15
+    ## This changes the collection interval for the check instances created from
+    ## discovered SNMP devices. It applies to each specific config from `snmp_listener.configs`
+    ## and has precedence over `snmp_listener.min_collection_interval`.
+    ## For more information, see:
+    ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+    #
+    # min_collection_interval: 15
+
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
 ## Enter specific configurations for internal profiling.
@@ -675,6 +785,7 @@ api_key:
 ##################################
 
 ## @param logs_enabled - boolean - optional - default: false
+## @env DD_LOGS_ENABLED - boolean - optional - default: false
 ## Enable Datadog Agent log collection by setting logs_enabled to true.
 #
 # logs_enabled: false
@@ -687,17 +798,20 @@ api_key:
 # logs_config:
 
   ## @param container_collect_all - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL - boolean - optional - default: false
   ## Enable container log collection for all the containers (see ac_exclude to filter out containers)
   #
   # container_collect_all: false
 
   ## @param logs_dd_url - string - optional
+  ## @env DD_LOGS_CONFIG_DD_URL - string - optional
   ## Define the endpoint and port to hit when using a proxy for logs. The logs are forwarded in TCP
   ## therefore the proxy must be able to handle TCP connections.
   #
   # logs_dd_url: <ENDPOINT>:<PORT>
 
   ## @param logs_no_ssl - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_LOGS_NO_SSL - optional - default: false
   ## Disable the SSL encryption. This parameter should only be used when logs are
   ## forwarded locally to a proxy. It is highly recommended to then handle the SSL encryption
   ## on the proxy side.
@@ -705,6 +819,7 @@ api_key:
   # logs_no_ssl: false
 
   ## @param processing_rules - list of custom objects - optional
+  ## @env DD_LOGS_CONFIG_PROCESSING_RULES - list of custom objects - optional
   ## Global processing rules that are applied to all logs. The available rules are
   ## "exclude_at_match", "include_at_match" and "mask_sequences". More information in Datadog documentation:
   ## https://docs.datadoghq.com/agent/logs/advanced_log_collection/#global-processing-rules
@@ -715,6 +830,7 @@ api_key:
   #     pattern: <RULE_PATTERN>
 
   ## @param use_http - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_USE_HTTP - boolean - optional - default: false
   ## By default, logs are sent through TCP, use this parameter
   ## to send logs in HTTPS batches to port 443
   #
@@ -727,22 +843,25 @@ api_key:
   # use_tcp: true
 
   ## @param use_compression - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_USE_COMPRESSION - boolean - optional - default: false
   ## This parameter is available when sending logs with HTTPS. If enabled, the Agent
   ## compresses logs before sending them.
   #
   # use_compression: true
 
   ## @param compression_level - integer - optional - default: 6
+  ## @env DD_LOGS_CONFIG_COMPRESSION_LEVEL - boolean - optional - default: false
   ## The compression_level parameter accepts values from 0 (no compression)
   ## to 9 (maximum compression but higher resource usage).
   #
   # compression_level: 6
 
   ## @param batch_wait - integer - optional - default: 5
+  ## @env DD_LOGS_CONFIG_BATCH_WAIT - integer - optional - default: 5
   ## The maximum time the Datadog Agent waits to fill each batch of logs before sending.
   #
   # batch_wait: 5
-  
+
 {{ end -}}
 {{- if .TraceAgent }}
 
@@ -758,11 +877,13 @@ api_key:
 # apm_config:
 
   ## @param enabled - boolean - optional - default: true
+  ## @env DD_APM_CONFIG_ENABLED - boolean - optional - default: true
   ## Set to true to enable the APM Agent.
   #
   # enabled: true
 
   ## @param env - string - optional - default: none
+  ## @env DD_APM_CONFIG_ENV - string - optional - default: none
   ## The environment tag that Traces should be tagged with.
   ## If not set the value will be inherited, in order, from the top level
   ## "env" config option if set and then from the 'env:' tag if present in the
@@ -771,29 +892,34 @@ api_key:
   # env: none
 
   ## @param receiver_port - integer - optional - default: 8126
+  ## @env DD_APM_CONFIG_RECEIVER_PORT - integer - optional - default: 8126
   ## The port that the trace receiver should listen on.
   #
   # receiver_port: 8126
 
   ## @param receiver_socket - string - optional
+  ## @env DD_APM_CONFIG_RECEIVER_SOCKET - string - optional
   ## Accept traces through Unix Domain Sockets.
   ## It is off by default. When set, it must point to a valid socket file.
   #
   # receiver_socket: <UNIX_SOCKET_PATH>
 
   ## @param apm_non_local_traffic - boolean - optional - default: false
+  ## @env DD_APM_CONFIG_APM_NON_LOCAL_TRAFFIC - boolean - optional - default: false
   ## Set to true so the Trace Agent listens for non local traffic,
   ## i.e if Traces are being sent to this Agent from another host/container
   #
   # apm_non_local_traffic: false
 
   ## @param apm_dd_url - string - optional
+  ## @env DD_APM_CONFIG_APM_DD_URL - string - optional
   ## Define the endpoint and port to hit when using a proxy for APM. The traces are forwarded in TCP
   ## therefore the proxy must be able to handle TCP connections.
   #
   # apm_dd_url: <ENDPOINT>:<PORT>
 
   ## @param extra_sample_rate - float - optional - default: 1.0
+  ## @env DD_APM_CONFIG_EXTRA_SAMPLE_RATE - float - optional - default: 1.0
   ## Extra global sample rate to apply on all the traces
   ## This sample rate is combined to the sample rate from the sampler logic, still promoting interesting traces.
   ## From 1 (no extra rate) to 0 (don't sample at all)
@@ -801,17 +927,20 @@ api_key:
   # extra_sample_rate: 1.0
 
   ## @param max_traces_per_second - integer - optional - default: 10
+  ## @env DD_APM_CONFIG_MAX_TRACES_PER_SECOND - integer - optional - default: 10
   ## Maximum number of traces per second to sample. The limit is applied over an average over
   ## a few minutes ; much bigger spikes are possible. Set to 0 to disable the limit.
   #
   # max_traces_per_second: 10
 
   ## @param max_events_per_second - integer - optional - default: 200
+  ## @env DD_APM_CONFIG_MAX_EVENTS_PER_SECOND - integer - optional - default: 200
   ## Maximum number of APM events per second to sample.
   #
   # max_events_per_second: 200
 
   ## @param max_memory - integer - optional - default: 500000000
+  ## @env DD_APM_CONFIG_MAX_MEMORY - integer - optional - default: 500000000
   ## This value is what the Agent aims to use in terms of memory. If surpassed, the API
   ## rate limits incoming requests to aim and stay below this value.
   ## Note: The Agent process is killed if it uses more than 150% of `max_memory`.
@@ -820,6 +949,7 @@ api_key:
   # max_memory: 500000000
 
   ## @param max_cpu_percent - integer - optional - default: 50
+  ## @env DD_APM_CONFIG_MAX_CPU_PERCENT - integer - optional - default: 50
   ## The CPU percentage that the Agent aims to use. If surpassed, the API rate limits
   ## incoming requests to aim and stay below this value. Examples: 50 = half a core, 200 = two cores.
   ## Set `max_cpu_percent` to `0` to disable rate limiting based on CPU usage.
@@ -827,8 +957,9 @@ api_key:
   # max_cpu_percent: 50
 
   ## @param obfuscation - object - optional
+  ## @env DD_APM_CONFIG_OBFUSCATION_* - optional
   ## Defines obfuscation rules for sensitive data. Disabled by default.
-  ## See https://docs.datadoghq.com/tracing/guide/agent-obfuscation
+  ## See https://docs.datadoghq.com/tracing/setup_overview/configure_data_security/#agent-trace-obfuscation
   #
   # obfuscation:
   #     <OBFUSCATION_CONFIGURATION>
@@ -844,6 +975,7 @@ api_key:
   #     reject: [<LIST_OF_KEY_VALUE_TAGS>]
 
   ## @param replace_tags - list of objects - optional
+  ## @env DD_APM_CONFIG_REPLACE_TAGS  - list of objects - optional
   ## Defines a set of rules to replace or remove certain resources, tags containing
   ## potentially sensitive information.
   ## Each rules has to contain:
@@ -851,7 +983,7 @@ api_key:
   ##  * pattern - string - The pattern to match the desired content to replace
   ##  * repl - string - what to inline if the pattern is matched
   ##
-  ## See https://docs.datadoghq.com/tracing/guide/security/#replace-rules
+  ## See https://docs.datadoghq.com/tracing/setup_overview/configure_data_security/#replace-rules-for-tag-filtering
   ##
   #
   # replace_tags:
@@ -860,17 +992,20 @@ api_key:
   #     repl: "<PATTERN_TO_INLINE>"
 
   ## @param ignore_resources - list of strings - optional
-  ## A blacklist of regular expressions can be provided to disable certain traces based on their resource name
+  ## @env DD_APM_CONFIG_IGNORE_RESOURCES - space separated list of strings - optional
+  ## An exclusion list of regular expressions can be provided to disable certain traces based on their resource name
   ## all entries must be surrounded by double quotes and separated by commas.
   #
   # ignore_resources: ["(GET|POST) /healthcheck"]
 
   ## @param log_file - string - optional
+  ## @env DD_APM_CONFIG_LOG_FILE - string - optional
   ## The full path to the file where APM-agent logs are written.
   #
   # log_file: <APM_LOG_FILE_PATH>
 
   ## @param log_throttling - boolean - default: true
+  ## @env DD_APM_CONFIG_LOG_THROTTLING - boolean - default: true
   ## Limits the total number of warnings and errors to 10 for every 10 second interval.
   #
   # log_throttling: true
@@ -899,6 +1034,32 @@ api_key:
 
   {{ end }}
 
+####################################
+## AppSec Configuration           ##
+####################################
+
+## @param appsec_config - custom object - optional
+## Enter specific configurations for your AppSec collection.
+## Uncomment the parameters `appsec_config` and `enabled` to enable AppSec.
+#
+# appsec_config:
+
+  ## @param enabled - boolean - optional - default: true
+  ## Enable the AppSec proxy in the APM Agent.
+  #
+  # enabled: true
+
+  ## @param appsec_dd_url - string - optional
+  ## Define the endpoint and port to hit when using a proxy for AppSec. Logs are forwarded by TCP;
+  ## therefore, the proxy must be able to handle TCP connections.
+  #
+  # appsec_dd_url: <ENDPOINT>:<PORT>
+
+  ## @param max_payload_size - integer - optional - default: 5242880 (5MB)
+  ## Define the maximum HTTP payload size (the body) in bytes the AppSec proxy allows.
+  #
+  # max_payload_size: 5242880
+
 {{ end -}}
 {{- if .ProcessAgent }}
 
@@ -925,6 +1086,11 @@ api_key:
   ## Port for the debug endpoints for the process Agent.
   #
   # expvar_port: 6062
+
+  ## @param config_port - string - optional - default: 6162
+  ## Port for configuring runtime settings for the process Agent.
+  #
+  # cmd_port: 6162
 
   ## @param log_file - string - optional
   ## The full path to the file where process Agent logs are written.
@@ -1019,7 +1185,7 @@ api_key:
 # compliance_config:
 
   ## @param enabled - boolean - optional - default: false
-  ## Set to true to enable continuous compliance checks
+  ## Set to true to enable Cloud Security Posture Management (CSPM).
   #
   # enabled: false
 
@@ -1112,12 +1278,13 @@ api_key:
 
 # runtime_security_config:
   ## @param enabled - boolean - optional - default: false
-  ## Set to true to enable the Security Runtime Module.
+  ## Set to true to enable Cloud Workload Security (CWS).
   #
   # enabled: false
 
   ## @param fim_enabled - boolean - optional - default: false
-  ## Set to true to enable the File Integrity Monitoring feature.
+  ## Set to true to enable the File Integrity Monitoring (FIM) feature of Cloud Workload Security (CWS).
+  #
   # fim_enabled: false
 
   ## @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
@@ -1140,7 +1307,7 @@ api_key:
   # syscall_monitor:
 
     ## @param enabled - boolean - optional - default: false
-    ## Set to true to enable the Syscall monitoring.
+    ## Set to true to enable the Syscall monitoring (recommended for troubleshooting only).
     #
     #  enabled: false
 
@@ -1168,7 +1335,7 @@ api_key:
 
 # runtime_security_config:
   ## @param enabled - boolean - optional - default: false
-  ## Set to true to enable the Security Runtime Module.
+  ## Set to true to enable Cloud Workload Security (CWS).
   #
   # enabled: false
 
@@ -1579,6 +1746,34 @@ api_key:
 # extra_config_providers:
 #   - clusterchecks
 
+## @param autoconfig_exclude_features - list of comma separated strings - optional
+## Exclude features automatically detected and enabled by environment autodiscovery.
+## Supported syntax is a list of `(<attribute>:)<regexp>`. Currently only the `name` attribute is supported.
+## When no attribute is present, it defaults to `name:` attribute.
+#
+# autoconfig_exclude_features:
+#  - cloudfoundry
+#  - containerd
+#  - cri
+#  - docker
+#  - ecsfargate
+#  - eksfargate
+#  - kubernetes
+#  - orchestratorexplorer
+
+## @param autoconfig_include_features - list of comma separated strings - optional
+## Force activation of features (as if they were discovered by environment autodiscovery).
+#
+# autoconfig_include_features:
+#  - cloudfoundry
+#  - containerd
+#  - cri
+#  - docker
+#  - ecsfargate
+#  - eksfargate
+#  - kubernetes
+#  - orchestratorexplorer
+
 {{ end -}}
 {{- if .Autodiscovery }}
 
@@ -1784,6 +1979,14 @@ api_key:
 #   <NAMESPACE_LABEL>: <TAG_KEY>
 #   <HIGH_CARDINALITY_NAMESPACE_LABEL_NAME>: +<TAG_KEY>
 
+## @param container_env_as_tags - map - optional
+## @env DD_CONTAINER_ENV_AS_TAGS - map - optional
+## The Agent can extract environment variable values and set them as metric tags values associated to a <TAG_KEY>.
+## Requires the container runtime socket to be reachable. (Supported container runtimes: Containerd, Docker)
+#
+# container_env_as_tags:
+#   <ENV>: <TAG_KEY>
+
 {{ end -}}
 {{- if .ECS }}
 
@@ -1964,6 +2167,20 @@ api_key:
 #
 # kubernetes_kubeconfig_path: ""
 
+## @param kubernetes_apiserver_ca_path - string - optional - default: ""
+## When running in a pod, the Agent automatically uses the pod's service account CA.
+## Use this option to keep using the InCluster config but overriding the default CA Path.
+## This parameter has no effect if `kubernetes_kubeconfig_path` is set.
+#
+# kubernetes_apiserver_ca_path: ""
+
+## @param kubernetes_apiserver_tls_verify - boolean - optional - default: true
+## When running in a pod, the Agent automatically uses the pod's service account CA.
+## Use this option to keep using the InCluster config but deactivating TLS verification (in case APIServer CA is not ServiceAccount CA)
+## This parameter has no effect if `kubernetes_kubeconfig_path` is set.
+#
+# kubernetes_apiserver_tls_verify: true
+
 ## @param kubernetes_apiserver_use_protobuf - boolean - optional - default: false
 ## By default, communication with the apiserver is in json format. Setting the following
 ## option to true allows communication in the binary protobuf format.
@@ -2123,6 +2340,11 @@ api_key:
   #
   # poll_interval: 60
 
+  ## @param apps_batch_size - integer - optional - default: 5000
+  ## Number of apps per page to collect when calling the list apps endpoint of the CC API. Max 5000.
+  #
+  # apps_batch_size: 5000
+
 {{ end -}}
 {{- if .SNMP }}
 
@@ -2150,11 +2372,12 @@ api_key:
   ## @param community_strings - list of strings - required
   ## A list of known SNMPv2 community strings that devices can use to send traps to the Agent.
   ## Traps with an unknown community string are ignored.
+  ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
   ## Must be non-empty.
   #
   # community_strings:
-  #   - <COMMUNITY_1>
-  #   - <COMMUNITY_2>
+  #   - '<COMMUNITY_1>'
+  #   - '<COMMUNITY_2>'
 
   ## @param bind_host - string - optional
   ## The hostname to listen on for incoming trap packets.

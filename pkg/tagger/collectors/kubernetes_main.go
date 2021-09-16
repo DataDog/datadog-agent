@@ -37,13 +37,11 @@ type KubeMetadataCollector struct {
 	dcaClient           clusteragent.DCAClientInterface
 	clusterAgentEnabled bool
 	updateFreq          time.Duration
-	expireFreq          time.Duration
+	expire              *expire
 
 	m sync.RWMutex
 	// used to set a custom delay
 	lastUpdate time.Time
-	lastExpire time.Time
-	lastSeen   map[string]time.Time
 
 	namespaceLabelsAsTags map[string]string
 	globNamespaceLabels   map[string]glob.Glob
@@ -51,6 +49,10 @@ type KubeMetadataCollector struct {
 
 // Detect tries to connect to the kubelet and the API Server if the DCA is not used or the DCA.
 func (c *KubeMetadataCollector) Detect(_ context.Context, out chan<- []*TagInfo) (CollectionMode, error) {
+	if !config.IsFeaturePresent(config.Kubernetes) {
+		return NoCollection, nil
+	}
+
 	if config.Datadog.GetBool("kubernetes_collect_metadata_tags") == false {
 		log.Infof("The metadata mapper was configured to be disabled, not collecting metadata for the pods from the API Server")
 		return NoCollection, fmt.Errorf("collection disabled by the configuration")
@@ -92,9 +94,10 @@ func (c *KubeMetadataCollector) Detect(_ context.Context, out chan<- []*TagInfo)
 
 	c.infoOut = out
 	c.updateFreq = time.Duration(config.Datadog.GetInt("kubernetes_metadata_tag_update_freq")) * time.Second
-	c.expireFreq = kubeMetadataExpireFreq
-	c.lastExpire = time.Now()
-	c.lastSeen = make(map[string]time.Time)
+	c.expire, err = newExpire(kubeMetadataCollectorName, kubeMetadataExpireFreq)
+	if err != nil {
+		return NoCollection, err
+	}
 
 	c.namespaceLabelsAsTags, c.globNamespaceLabels = utils.InitMetadataAsTags(
 		config.Datadog.GetStringMapString("kubernetes_namespace_labels_as_tags"),
@@ -146,22 +149,12 @@ func (c *KubeMetadataCollector) collectUpdates(pods []*kubelet.Pod) []*TagInfo {
 	now := time.Now()
 
 	for _, tagInfo := range tagInfos {
-		c.lastSeen[tagInfo.Entity] = now
+		c.expire.Update(tagInfo.Entity, now)
 	}
 
-	if now.Sub(c.lastExpire) >= c.expireFreq {
-		for id, lastSeen := range c.lastSeen {
-			if now.Sub(lastSeen) >= c.expireFreq {
-				delete(c.lastSeen, id)
-				tagInfos = append(tagInfos, &TagInfo{
-					Source:       kubeMetadataCollectorName,
-					Entity:       id,
-					DeleteEntity: true,
-				})
-			}
-		}
-
-		c.lastExpire = now
+	expires := c.expire.ComputeExpires()
+	if len(expires) > 0 {
+		c.infoOut <- expires
 	}
 
 	c.lastUpdate = now

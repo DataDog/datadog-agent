@@ -36,13 +36,13 @@ func TestRulesetLoaded(t *testing.T) {
 	}
 
 	t.Run("ruleset_loaded", func(t *testing.T) {
-		if err := test.GetProbeCustomEvent(func() error {
+		if err := test.GetProbeCustomEvent(t, func() error {
 			test.reloadConfiguration()
 			return nil
 		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
-			assert.Equal(t, rule.ID, probe.RulesetLoadedRuleID, "wrong rule")
+			assert.Equal(t, probe.RulesetLoadedRuleID, rule.ID, "wrong rule")
 			return true
-		}, 3*time.Second, model.CustomRulesetLoadedEventType); err != nil {
+		}, model.CustomRulesetLoadedEventType); err != nil {
 			t.Error(err)
 		}
 	})
@@ -76,16 +76,16 @@ func truncatedParents(t *testing.T, opts testOpts) {
 
 		defer os.Remove(truncatedParentsFile)
 
-		err = test.GetProbeCustomEvent(func() error {
+		err = test.GetProbeCustomEvent(t, func() error {
 			f, err := os.OpenFile(truncatedParentsFile, os.O_CREATE, 0755)
 			if err != nil {
 				t.Fatal(err)
 			}
 			return f.Close()
 		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
-			assert.Equal(t, rule.ID, probe.AbnormalPathRuleID, "wrong rule")
+			assert.Equal(t, probe.AbnormalPathRuleID, rule.ID, "wrong rule")
 			return true
-		}, 3*time.Second, model.CustomTruncatedParentsEventType)
+		}, model.CustomTruncatedParentsEventType)
 		if err != nil {
 			t.Error(err)
 		}
@@ -106,9 +106,9 @@ func truncatedParents(t *testing.T, opts testOpts) {
 					// count the "a"s.
 					splittedFilepath = splittedFilepath[1:]
 				}
-				assert.Equal(t, splittedFilepath[0], "a", "invalid path resolution at the left edge")
-				assert.Equal(t, splittedFilepath[len(splittedFilepath)-1], "a", "invalid path resolution at the right edge")
-				assert.Equal(t, len(splittedFilepath), model.MaxPathDepth, "invalid path depth")
+				assert.Equal(t, "a", splittedFilepath[0], "invalid path resolution at the left edge")
+				assert.Equal(t, "a", splittedFilepath[len(splittedFilepath)-1], "invalid path resolution at the right edge")
+				assert.Equal(t, model.MaxPathDepth, len(splittedFilepath), "invalid path depth")
 			}
 		})
 		if err != nil {
@@ -142,7 +142,7 @@ func TestNoisyProcess(t *testing.T) {
 	}
 
 	t.Run("noisy_process", func(t *testing.T) {
-		err = test.GetProbeCustomEvent(func() error {
+		err = test.GetProbeCustomEvent(t, func() error {
 			// generate load
 			for i := int64(0); i < testMod.config.LoadControllerEventsCountThreshold*2; i++ {
 				f, err := os.OpenFile(file, os.O_CREATE, 0755)
@@ -154,9 +154,9 @@ func TestNoisyProcess(t *testing.T) {
 			}
 			return nil
 		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
-			assert.Equal(t, rule.ID, probe.NoisyProcessRuleID, "wrong rule")
+			assert.Equal(t, probe.NoisyProcessRuleID, rule.ID, "wrong rule")
 			return true
-		}, 3*time.Second, model.CustomNoisyProcessEventType)
+		}, model.CustomNoisyProcessEventType)
 		if err != nil {
 			t.Error(err)
 		}

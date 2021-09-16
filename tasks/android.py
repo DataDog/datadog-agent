@@ -31,9 +31,7 @@ CORECHECK_CONFS_DIR = "cmd/agent/android/app/src/main/assets/conf.d"
 
 
 @task
-def build(
-    ctx, rebuild=False, race=False, major_version='7', python_runtimes='3',
-):
+def build(ctx, rebuild=False, race=False, major_version='7', python_runtimes='3'):
     """
     Build the android apk. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -92,7 +90,7 @@ def build(
         cmd = "./gradlew --no-daemon build"
     ctx.run(cmd)
     os.chdir(pwd)
-    ver = get_version(ctx, include_git=True, git_sha_length=7, major_version=major_version)
+    ver = get_version(ctx, include_git=True, git_sha_length=7, major_version=major_version, include_pipeline_id=True)
     outfile = "bin/agent/ddagent-{}-unsigned.apk".format(ver)
     shutil.copyfile("cmd/agent/android/app/build/outputs/apk/release/app-release-unsigned.apk", outfile)
 

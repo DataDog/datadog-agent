@@ -6,6 +6,9 @@
 package ckey
 
 import (
+	"math/bits"
+
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/twmb/murmur3"
 )
 
@@ -31,14 +34,26 @@ type ContextKey uint64
 // while generating the hash. This size has been selected to have space for
 // approximately 500 tags since it's not impacting much the performances,
 // even if the backend is truncating after 100 tags.
+//
+// Must be a power of two.
 const hashSetSize = 512
+
+// bruteforceSize is the threshold number of tags below which a bruteforce algorithm is
+// faster than a hashset.
+const bruteforceSize = 4
+
+// blank is a marker value to indicate that hashset slot is vacant.
+const blank = -1
 
 // NewKeyGenerator creates a new key generator
 func NewKeyGenerator() *KeyGenerator {
-	return &KeyGenerator{
-		seen:  make([]uint64, 512, 512),
-		empty: make([]uint64, 512, 512),
+	g := &KeyGenerator{}
+
+	for i := 0; i < len(g.empty); i++ {
+		g.empty[i] = blank
 	}
+
+	return g
 }
 
 // KeyGenerator generates hash for the given name, hostname and tags.
@@ -51,18 +66,16 @@ type KeyGenerator struct {
 
 	// seen is used as a hashset to deduplicate the tags when there is more than
 	// 16 and less than 512 tags.
-	seen []uint64
-	// empty is an empty hashset with all values set to 0, to reset `seen`
-	empty []uint64
-
-	// idx is used to deduplicate tags when there is less than 16 tags (faster than the
-	// hashset) or more than 512 tags (hashset has been allocated with 512 values max)
-	idx int
+	seen [hashSetSize]uint64
+	// seenIdx is the index of the tag stored in the hashset
+	seenIdx [hashSetSize]int16
+	// empty is an empty hashset with all values set to `blank`, to reset `seenIdx`
+	empty [hashSetSize]int16
 }
 
 // Generate returns the ContextKey hash for the given parameters.
-// The tags array is sorted in place to avoid heap allocations.
-func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey {
+// tagsBuf is re-arranged in place and truncated to only contain unique tags.
+func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder) ContextKey {
 	// between two generations, we have to set the hash to something neutral, let's
 	// use this big value seed from the murmur3 implementations
 	g.intb = 0xc6a4a7935bd1e995
@@ -70,56 +83,77 @@ func (g *KeyGenerator) Generate(name, hostname string, tags []string) ContextKey
 	g.intb = g.intb ^ murmur3.StringSum64(name)
 	g.intb = g.intb ^ murmur3.StringSum64(hostname)
 
-	// there is two implementations used here to deduplicate the tags depending on how
+	// There are three implementations used here to deduplicate the tags depending on how
 	// many tags we have to process:
 	//   -  16 < n < hashSetSize:	we use a hashset of `hashSetSize` values.
-	//   -  n < 16 or n > hashSetSize: we use a simple for loops, which is faster than
-	//                         	the hashset when there is less than 16 tags, and
-	//                         	we use it as fallback when there is more than `hashSetSize`
-	//                         	because it is the maximum size the allocated
-	//                         	hashset can handle.
-	if len(tags) > 16 && len(tags) < hashSetSize {
+	//   -  n < 16:                 we use a simple for loops, which is faster than
+	//                          	the hashset when there is less than 16 tags
+	//   - n > hashSetSize:         sort
+
+	tags := tagsBuf.Get()
+
+	if len(tags) > hashSetSize {
+		tagsBuf.SortUniq()
+		for _, tag := range tagsBuf.Get() {
+			h := murmur3.StringSum64(tag)
+			g.intb = g.intb ^ h
+		}
+	} else if len(tags) > bruteforceSize {
 		// reset the `seen` hashset.
 		// it copies `g.empty` instead of using make because it's faster
-		copy(g.seen, g.empty)
-		for i := range tags {
+
+		// for smaller tag sets, initialize only a portion of the array. when len(tags) is
+		// close to a power of two, size one up to keep hashset load low.
+		size := 1 << bits.Len(uint(len(tags)+len(tags)/8))
+		if size > hashSetSize {
+			size = hashSetSize
+		}
+		mask := uint64(size - 1)
+		copy(g.seenIdx[:size], g.empty[:size])
+
+		ntags := len(tags)
+		for i := 0; i < ntags; {
 			h := murmur3.StringSum64(tags[i])
-			j := h & (hashSetSize - 1) // address this hash into the hashset
+			j := h & mask // address this hash into the hashset
 			for {
-				if g.seen[j] == 0 {
+				if g.seenIdx[j] == blank {
 					// not seen, we will add it to the hash
-					// TODO(remy): we may want to store the original bytes instead
-					// of the hash, even if the comparison would be slower, we would
-					// be able to avoid collisions here.
-					// See https://github.com/DataDog/datadog-agent/pull/8529#discussion_r661493647
 					g.seen[j] = h
+					g.seenIdx[j] = int16(i)
 					g.intb = g.intb ^ h // add this tag into the hash
+					i++
 					break
-				} else if g.seen[j] == h {
+				} else if g.seen[j] == h && tags[g.seenIdx[j]] == tags[i] {
 					// already seen, we do not want to xor multiple times the same tag
+					tags[i] = tags[ntags-1]
+					ntags--
 					break
 				} else {
 					// move 'right' in the hashset because there is already a value,
 					// in this bucket, which is not the one we're dealing with right now,
 					// we may have already seen this tag
-					j = (j + 1) & (hashSetSize - 1)
+					j = (j + 1) & mask
 				}
 			}
 		}
+		tagsBuf.Truncate(ntags)
 	} else {
-		g.idx = 0
+		ntags := len(tags)
 	OUTER:
-		for i := range tags {
+		for i := 0; i < ntags; {
 			h := murmur3.StringSum64(tags[i])
-			for j := 0; j < g.idx; j++ {
-				if g.seen[j] == h {
+			for j := 0; j < i; j++ {
+				if g.seen[j] == h && tags[j] == tags[i] {
+					tags[i] = tags[ntags-1]
+					ntags--
 					continue OUTER // we do not want to xor multiple times the same tag
 				}
 			}
 			g.intb = g.intb ^ h
-			g.seen[g.idx] = h
-			g.idx++
+			g.seen[i] = h
+			i++
 		}
+		tagsBuf.Truncate(ntags)
 	}
 
 	return ContextKey(g.intb)

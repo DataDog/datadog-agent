@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func HostnameProvider(ctx context.Context) (string, error) {
+func HostnameProvider(ctx context.Context, options map[string]interface{}) (string, error) {
 	nodeName, err := a.HostNodeName(ctx)
 	if err != nil {
 		return "", err

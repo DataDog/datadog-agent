@@ -47,7 +47,7 @@ type Config interface {
 	GetSizeInBytes(key string) uint
 
 	SetEnvPrefix(in string)
-	BindEnv(input ...string) error
+	BindEnv(input ...string)
 	SetEnvKeyReplacer(r *strings.Replacer)
 	SetEnvKeyTransformer(key string, fn func(string) interface{})
 

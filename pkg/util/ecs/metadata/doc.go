@@ -4,7 +4,6 @@
 // Copyright 2020-present Datadog, Inc.
 
 /*
-
 Package metadata provides clients for Metadata APIs exposed by the ECS agent.
 There are three versions of these APIs:
 
@@ -17,6 +16,5 @@ There are three versions of these APIs:
 	platform version 1.3.0 with the Faragate launch type.
 
 Each of these versions sits in its own subpackage.
-
 */
 package metadata

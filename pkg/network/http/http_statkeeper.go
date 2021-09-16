@@ -2,9 +2,6 @@
 
 package http
 
-import (
-	"C"
-)
 import "sync/atomic"
 
 type httpStatKeeper struct {

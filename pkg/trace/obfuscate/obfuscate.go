@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+//go:generate easyjson -no_std_marshalers $GOFILE
+
 // Obfuscator quantizes and obfuscates spans. The obfuscator is not safe for
 // concurrent use.
 type Obfuscator struct {
@@ -31,6 +33,13 @@ type Obfuscator struct {
 	sqlLiteralEscapes int32
 	// queryCache keeps a cache of already obfuscated queries.
 	queryCache *measuredCache
+}
+
+// SQLOptions holds options that change the behavior of the obfuscator for SQL.
+// easyjson:json
+type SQLOptions struct {
+	// ReplaceDigits causes the obfuscator to replace digits in identifiers and table names with question marks.
+	ReplaceDigits bool `json:"replace_digits"`
 }
 
 // SetSQLLiteralEscapes sets whether or not escape characters should be treated literally by the SQL obfuscator.

@@ -10,7 +10,9 @@ package aggregator
 import (
 	// stdlib
 	"errors"
+	"expvar"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -189,6 +191,112 @@ func TestDefaultData(t *testing.T) {
 	agg.Flush(start, false)
 	s.AssertNotCalled(t, "SendEvents")
 	s.AssertNotCalled(t, "SendSketch")
+
+	// not counted as huge for (just checking the first threshold..)
+	assert.Equal(t, uint64(0), atomic.LoadUint64(&tagsetTlm.hugeSeriesCount[0]))
+}
+
+func TestSeriesTooManyTags(t *testing.T) {
+	test := func(tagCount int) func(t *testing.T) {
+		expHugeCounts := make([]uint64, tagsetTlm.size)
+
+		for i, thresh := range tagsetTlm.sizeThresholds {
+			if uint64(tagCount) > thresh {
+				expHugeCounts[i]++
+			}
+		}
+
+		return func(t *testing.T) {
+			resetAggregator()
+			s := &serializer.MockSerializer{}
+			agg := InitAggregator(s, nil, "hostname")
+			start := time.Now()
+
+			var tags []string
+			for i := 0; i < tagCount; i++ {
+				tags = append(tags, fmt.Sprintf("tag%d", i))
+			}
+
+			ser := &metrics.Serie{
+				Name:           "test.series",
+				Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
+				Tags:           tags,
+				Host:           agg.hostname,
+				MType:          metrics.APIGaugeType,
+				SourceTypeName: "System",
+			}
+			AddRecurrentSeries(ser)
+
+			s.On("SendServiceChecks", mock.Anything).Return(nil).Times(1)
+			s.On("SendSeries", mock.Anything).Return(nil).Times(1)
+
+			agg.Flush(start, true)
+			s.AssertNotCalled(t, "SendEvents")
+			s.AssertNotCalled(t, "SendSketch")
+
+			expMap := map[string]uint64{}
+			for i, thresh := range tagsetTlm.sizeThresholds {
+				assert.Equal(t, expHugeCounts[i], atomic.LoadUint64(&tagsetTlm.hugeSeriesCount[i]))
+				expMap[fmt.Sprintf("Above%d", thresh)] = expHugeCounts[i]
+			}
+			gotMap := aggregatorExpvars.Get("MetricTags").(expvar.Func).Value().(map[string]map[string]uint64)["Series"]
+			assert.Equal(t, expMap, gotMap)
+		}
+	}
+	t.Run("not-huge", test(10))
+	t.Run("almost-huge", test(95))
+	t.Run("huge", test(110))
+}
+
+func TestDistributionsTooManyTags(t *testing.T) {
+	test := func(tagCount int) func(t *testing.T) {
+		expHugeCounts := make([]uint64, tagsetTlm.size)
+
+		for i, thresh := range tagsetTlm.sizeThresholds {
+			if uint64(tagCount) > thresh {
+				expHugeCounts[i]++
+			}
+		}
+
+		return func(t *testing.T) {
+			resetAggregator()
+			s := &serializer.MockSerializer{}
+			agg := InitAggregator(s, nil, "hostname")
+			start := time.Now()
+
+			var tags []string
+			for i := 0; i < tagCount; i++ {
+				tags = append(tags, fmt.Sprintf("tag%d", i))
+			}
+
+			samp := &metrics.MetricSample{
+				Name:  "test.sample",
+				Value: 13.0,
+				Mtype: metrics.DistributionType,
+				Tags:  tags,
+				Host:  agg.hostname,
+			}
+			agg.addSample(samp, timeNowNano()-10000000)
+
+			s.On("SendServiceChecks", mock.Anything).Return(nil).Times(1)
+			s.On("SendSeries", mock.Anything).Return(nil).Times(1)
+			s.On("SendSketch", mock.Anything).Return(nil).Times(1)
+
+			agg.Flush(start, true)
+			s.AssertNotCalled(t, "SendEvents")
+
+			expMap := map[string]uint64{}
+			for i, thresh := range tagsetTlm.sizeThresholds {
+				assert.Equal(t, expHugeCounts[i], atomic.LoadUint64(&tagsetTlm.hugeSketchesCount[i]))
+				expMap[fmt.Sprintf("Above%d", thresh)] = expHugeCounts[i]
+			}
+			gotMap := aggregatorExpvars.Get("MetricTags").(expvar.Func).Value().(map[string]map[string]uint64)["Sketches"]
+			assert.Equal(t, expMap, gotMap)
+		}
+	}
+	t.Run("not-huge", test(10))
+	t.Run("almost-huge", test(95))
+	t.Run("huge", test(110))
 }
 
 func TestRecurentSeries(t *testing.T) {

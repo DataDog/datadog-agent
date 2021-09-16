@@ -117,16 +117,22 @@ type Conditions struct {
 
 // ContainerStatus contains fields for unmarshalling a Pod.Status.Containers
 type ContainerStatus struct {
-	Name  string         `json:"name"`
-	Image string         `json:"image"`
-	ID    string         `json:"containerID"`
-	Ready bool           `json:"ready"`
-	State ContainerState `json:"state"`
+	Name    string         `json:"name"`
+	Image   string         `json:"image"`
+	ImageID string         `json:"imageID"`
+	ID      string         `json:"containerID"`
+	Ready   bool           `json:"ready"`
+	State   ContainerState `json:"state"`
 }
 
 // IsPending returns if the container doesn't have an ID
 func (c *ContainerStatus) IsPending() bool {
 	return c.ID == ""
+}
+
+// IsTerminated returns if the container is in a terminated state
+func (c *ContainerStatus) IsTerminated() bool {
+	return c.State.Terminated != nil
 }
 
 // ContainerState holds a possible state of container.

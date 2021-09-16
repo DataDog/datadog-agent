@@ -53,8 +53,7 @@ var (
 )
 
 const (
-	grpcAddr        = "127.0.0.1:18787"
-	getEventTimeout = 3 * time.Second
+	getEventTimeout = 10 * time.Second
 )
 
 type stringSlice []string
@@ -121,17 +120,11 @@ const (
 	DockerEnvironment = "docker"
 )
 
-type testEvent struct {
-	eval.Event
-	rule *eval.Rule
-}
-
 type testOpts struct {
 	testDir                     string
 	disableFilters              bool
 	disableApprovers            bool
 	disableDiscarders           bool
-	wantProbeEvents             bool
 	eventsCountThreshold        int
 	reuseProbeHandler           bool
 	disableERPCDentryResolution bool
@@ -257,7 +250,7 @@ func assertMode(t *testing.T, actualMode, expectedMode uint32, msgAndArgs ...int
 	if len(msgAndArgs) == 0 {
 		msgAndArgs = append(msgAndArgs, "wrong mode")
 	}
-	assert.Equal(t, strconv.FormatUint(uint64(actualMode), 8), strconv.FormatUint(uint64(expectedMode), 8), msgAndArgs...)
+	assert.Equal(t, strconv.FormatUint(uint64(expectedMode), 8), strconv.FormatUint(uint64(actualMode), 8), msgAndArgs...)
 }
 
 func assertRights(t *testing.T, actualMode, expectedMode uint16, msgAndArgs ...interface{}) {
@@ -265,9 +258,9 @@ func assertRights(t *testing.T, actualMode, expectedMode uint16, msgAndArgs ...i
 	assertMode(t, uint32(actualMode)&01777, uint32(expectedMode), msgAndArgs...)
 }
 
-func assertNearTime(t *testing.T, event time.Time) {
+func assertNearTime(t *testing.T, ns uint64) {
 	t.Helper()
-	now := time.Now()
+	now, event := time.Now(), time.Unix(0, int64(ns))
 	if event.After(now) || event.Before(now.Add(-1*time.Hour)) {
 		t.Errorf("expected time close to %s, got %s", now, event)
 	}
@@ -275,12 +268,12 @@ func assertNearTime(t *testing.T, event time.Time) {
 
 func assertTriggeredRule(t *testing.T, r *rules.Rule, id string) {
 	t.Helper()
-	assert.Equal(t, r.ID, id, "wrong triggered rule")
+	assert.Equal(t, id, r.ID, "wrong triggered rule")
 }
 
 func assertReturnValue(t *testing.T, retval, expected int64) {
 	t.Helper()
-	assert.Equal(t, retval, expected, "wrong return value")
+	assert.Equal(t, expected, retval, "wrong return value")
 }
 
 func assertFieldEqual(t *testing.T, e *sprobe.Event, field string, value interface{}, msgAndArgs ...interface{}) {
@@ -289,7 +282,7 @@ func assertFieldEqual(t *testing.T, e *sprobe.Event, field string, value interfa
 	if err != nil {
 		t.Errorf("failed to get field '%s': %s", field, err)
 	} else {
-		assert.Equal(t, fieldValue, value, msgAndArgs...)
+		assert.Equal(t, value, fieldValue, msgAndArgs...)
 	}
 }
 
@@ -436,6 +429,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, errors.Wrap(err, "failed to create config")
 	}
 
+	config.SelfTestEnabled = false
 	config.ERPCDentryResolutionEnabled = !opts.disableERPCDentryResolution
 	config.MapDentryResolutionEnabled = !opts.disableMapDentryResolution
 
@@ -567,7 +561,8 @@ func (tm *testModule) RegisterRuleEventHandler(cb ruleHandler) {
 	tm.ruleHandler.Unlock()
 }
 
-func (tm *testModule) GetProbeCustomEvent(action func() error, cb func(rule *rules.Rule, event *sprobe.CustomEvent) bool, timeout time.Duration, eventType ...model.EventType) error {
+func (tm *testModule) GetProbeCustomEvent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *sprobe.CustomEvent) bool, eventType ...model.EventType) error {
+	tb.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -632,8 +627,10 @@ func (tm *testModule) GetProbeEvent(action func() error, cb func(event *sprobe.E
 	})
 	defer tm.RegisterEventHandler(nil)
 
-	if err := action(); err != nil {
-		return err
+	if action != nil {
+		if err := action(); err != nil {
+			return err
+		}
 	}
 
 	select {

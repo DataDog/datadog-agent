@@ -63,14 +63,16 @@ type Launcher struct {
 
 // IsAvailable retrues true if the launcher is available and a retrier otherwise
 func IsAvailable() (bool, *retry.Retrier) {
+	if !coreConfig.IsFeaturePresent(coreConfig.Docker) {
+		return false, nil
+	}
+
 	util, retrier := dockerutil.GetDockerUtilWithRetrier()
 	if util != nil {
 		log.Info("Docker launcher is available")
 		return true, nil
 	}
-	if coreConfig.IsFeaturePresent(coreConfig.Docker) {
-		log.Warnf("Docker launcher is not available: %v", retrier.LastError())
-	}
+
 	return false, retrier
 }
 
@@ -255,7 +257,6 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 
 	standardService := l.serviceNameFunc(container.container.Name, dockerutil.ContainerIDToTaggerEntityName(containerID))
 	shortName, err := container.getShortImageName(context.TODO())
-
 	if err != nil {
 		log.Warnf("Could not get short image name for container %v: %v", ShortContainerID(containerID), err)
 	}

@@ -17,47 +17,11 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
-	agentpayload "github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
-	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestMarshalSeries(t *testing.T) {
-	series := Series{{
-		Points: []Point{
-			{Ts: 12345.0, Value: float64(21.21)},
-			{Ts: 67890.0, Value: float64(12.12)},
-		},
-		MType: APIGaugeType,
-		Name:  "test.metrics",
-		Host:  "localHost",
-		Tags:  []string{"tag1", "tag2:yes"},
-	}}
-
-	payload, err := series.Marshal()
-	assert.Nil(t, err)
-	assert.NotNil(t, payload)
-
-	newPayload := &agentpayload.MetricsPayload{}
-	err = proto.Unmarshal(payload, newPayload)
-	assert.Nil(t, err)
-
-	require.Len(t, newPayload.Samples, 1)
-	assert.Equal(t, newPayload.Samples[0].Metric, "test.metrics")
-	assert.Equal(t, newPayload.Samples[0].Type, "gauge")
-	assert.Equal(t, newPayload.Samples[0].Host, "localHost")
-	require.Len(t, newPayload.Samples[0].Tags, 2)
-	assert.Equal(t, newPayload.Samples[0].Tags[0], "tag1")
-	assert.Equal(t, newPayload.Samples[0].Tags[1], "tag2:yes")
-	require.Len(t, newPayload.Samples[0].Points, 2)
-	assert.Equal(t, newPayload.Samples[0].Points[0].Ts, int64(12345))
-	assert.Equal(t, newPayload.Samples[0].Points[0].Value, float64(21.21))
-	assert.Equal(t, newPayload.Samples[0].Points[1].Ts, int64(67890))
-	assert.Equal(t, newPayload.Samples[0].Points[1].Value, float64(12.12))
-}
 
 func TestPopulateDeviceField(t *testing.T) {
 	for _, tc := range []struct {

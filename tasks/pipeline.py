@@ -1,13 +1,16 @@
 import io
 import os
+import pprint
 import re
 import traceback
 from collections import defaultdict
 
+import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.utils import DEFAULT_BRANCH
+from tasks.release import nightly_entry_for, release_entry_for
+from tasks.utils import DEFAULT_BRANCH, get_all_allowed_repo_branches, is_allowed_repo_branch
 
 from .libs.common.color import color_message
 from .libs.common.gitlab import Gitlab
@@ -19,6 +22,7 @@ from .libs.pipeline_notifications import (
     send_slack_message,
 )
 from .libs.pipeline_tools import (
+    FilteredOutException,
     cancel_pipelines_with_confirmation,
     get_running_pipelines_on_same_ref,
     trigger_agent_pipeline,
@@ -27,8 +31,6 @@ from .libs.pipeline_tools import (
 from .libs.types import SlackMessage, TeamMessage
 
 # Tasks to trigger pipelines
-
-ALLOWED_REPO_BRANCHES = {"stable", "beta", "nightly", "none"}
 
 
 def check_deploy_pipeline(gitlab, project_name, git_ref, release_version_6, release_version_7, repo_branch):
@@ -39,10 +41,10 @@ def check_deploy_pipeline(gitlab, project_name, git_ref, release_version_6, rele
     """
 
     # Check that the target repo branch is valid
-    if repo_branch not in ALLOWED_REPO_BRANCHES:
+    if not is_allowed_repo_branch(repo_branch):
         print(
             "--repo-branch argument '{}' is not in the list of allowed repository branches: {}".format(
-                repo_branch, ALLOWED_REPO_BRANCHES
+                repo_branch, get_all_allowed_repo_branches()
             )
         )
         raise Exit(code=1)
@@ -114,61 +116,71 @@ def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_
     cancel_pipelines_with_confirmation(gitlab, project_name, pipelines)
 
 
+def workflow_rules(gitlab_file=".gitlab-ci.yml"):
+    """Get Gitlab workflow rules list in a YAML-formatted string."""
+    with open(gitlab_file, 'r') as f:
+        return yaml.dump(yaml.safe_load(f.read())["workflow"]["rules"])
+
+
 @task
 def trigger(
-    ctx, git_ref=DEFAULT_BRANCH, release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"
+    _, git_ref=DEFAULT_BRANCH, release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"
 ):
     """
-    DEPRECATED: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
-
-    The --release-version-6 and --release-version-7 options indicate which release.json entries are used.
-    To not build Agent 6, set --release-version-6 "". To not build Agent 7, set --release-version-7 "".
-    The --repo-branch option indicates which branch of the staging repository the packages will be deployed to.
-
-    Example:
-    inv pipeline.trigger --git-ref 7.22.0 --release-version-6 "6.22.0" --release-version-7 "7.22.0" --repo-branch "stable"
+    OBSOLETE: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
     """
-    print(
-        color_message(
-            "WARNING: the pipeline.trigger invoke task is deprecated and will be removed in the future.\n"
-            + "         Use pipeline.run with the --deploy option instead.",
-            "orange",
-        )
-    )
 
-    run(
-        ctx,
-        git_ref=git_ref,
-        release_version_6=release_version_6,
-        release_version_7=release_version_7,
-        repo_branch=repo_branch,
-        deploy=True,
-        all_builds=True,
-        kitchen_tests=True,
+    use_release_entries = ""
+    major_versions = []
+
+    if release_version_6 != "nightly" and release_version_7 != "nightly-a7":
+        use_release_entries = "--use-release-entries "
+
+    if release_version_6 != "":
+        major_versions.append("6")
+
+    if release_version_7 != "":
+        major_versions.append("7")
+
+    raise Exit(
+        """The pipeline.trigger task is obsolete. Use:
+    pipeline.run --git-ref {git_ref} --deploy --major-versions "{major_versions}" --repo-branch {repo_branch} {use_release_entries}
+instead.""".format(
+            git_ref=git_ref,
+            major_versions=",".join(major_versions),
+            repo_branch=repo_branch,
+            use_release_entries=use_release_entries,
+        ),
+        1,
     )
 
 
 @task
 def run(
     ctx,
-    git_ref=DEFAULT_BRANCH,
+    git_ref=None,
     here=False,
-    release_version_6="nightly",
-    release_version_7="nightly-a7",
+    use_release_entries=False,
+    major_versions='6,7',
     repo_branch="nightly",
     deploy=False,
     all_builds=True,
     kitchen_tests=True,
 ):
     """
-    Run a pipeline on the given git ref, or on the current branch if --here is given.
+    Run a pipeline on the given git ref (--git-ref <git ref>), or on the current branch if --here is given.
     By default, this pipeline will run all builds & tests, including all kitchen tests, but is not a deploy pipeline.
     Use --deploy to make this pipeline a deploy pipeline, which will upload artifacts to the staging repositories.
     Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on pipelines on the default branch).
     Use --no-kitchen-tests to not run all kitchen tests on the pipeline.
 
-    The --release-version-6 and --release-version-7 options indicate which release.json entries are used.
-    To not build Agent 6, set --release-version-6 "". To not build Agent 7, set --release-version-7 "".
+    By default, the nightly release.json entries (nightly and nightly-a7) are used.
+    Use the --use-release-entries option to use the release-a6 and release-a7 release.json entries instead.
+
+    By default, the pipeline builds both Agent 6 and Agent 7.
+    Use the --major-versions option to specify a comma-separated string of the major Agent versions to build
+    (eg. '6' to build Agent 6 only, '6,7' to build both Agent 6 and Agent 7).
+
     The --repo-branch option indicates which branch of the staging repository the packages will be deployed to (useful only on deploy pipelines).
 
     If other pipelines are already running on the git ref, the script will prompt the user to confirm if these previous
@@ -184,19 +196,33 @@ def run(
     Run a pipeline without kitchen tests on the current branch:
       inv pipeline.run --here --no-kitchen-tests
 
-    Run a deploy pipeline on the 7.28.0 tag, uploading the artifacts to the stable branch of the staging repositories:
-      inv pipeline.run --deploy --git-ref 7.28.0 --release-version-6 "6.28.0" --release-version-7 "7.28.0" --repo-branch "stable"
+    Run a deploy pipeline on the 7.32.0 tag, uploading the artifacts to the stable branch of the staging repositories:
+      inv pipeline.run --deploy --use-release-entries --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
     """
 
     project_name = "DataDog/datadog-agent"
     gitlab = Gitlab()
     gitlab.test_project_found(project_name)
 
+    if not git_ref and not here:
+        raise Exit("Either --here or --git-ref <git ref> must be specified.", code=1)
+
+    if use_release_entries:
+        release_version_6 = release_entry_for(6)
+        release_version_7 = release_entry_for(7)
+    else:
+        release_version_6 = nightly_entry_for(6)
+        release_version_7 = nightly_entry_for(7)
+
+    major_versions = major_versions.split(',')
+    if '6' not in major_versions:
+        release_version_6 = ""
+    if '7' not in major_versions:
+        release_version_7 = ""
+
     if deploy:
         # Check the validity of the deploy pipeline
-        check_deploy_pipeline(
-            gitlab, project_name, git_ref, release_version_6, release_version_7, repo_branch,
-        )
+        check_deploy_pipeline(gitlab, project_name, git_ref, release_version_6, release_version_7, repo_branch)
         # Force all builds and kitchen tests to be run
         if not all_builds:
             print(
@@ -230,17 +256,26 @@ def run(
         )
         cancel_pipelines_with_confirmation(gitlab, project_name, pipelines)
 
-    pipeline_id = trigger_agent_pipeline(
-        gitlab,
-        project_name,
-        git_ref,
-        release_version_6,
-        release_version_7,
-        repo_branch,
-        deploy=deploy,
-        all_builds=all_builds,
-        kitchen_tests=kitchen_tests,
-    )
+    try:
+        pipeline_id = trigger_agent_pipeline(
+            gitlab,
+            project_name,
+            git_ref,
+            release_version_6,
+            release_version_7,
+            repo_branch,
+            deploy=deploy,
+            all_builds=all_builds,
+            kitchen_tests=kitchen_tests,
+        )
+    except FilteredOutException:
+        print(
+            color_message(
+                "ERROR: pipeline does not match any workflow rule. Rules:\n{}".format(workflow_rules()), "red"
+            )
+        )
+        return
+
     wait_for_pipeline(gitlab, project_name, pipeline_id)
 
 
@@ -418,3 +453,126 @@ def notify_failure(_, notification_type="merge", print_to_stdout=False):
             print("Would send to {channel}:\n{message}".format(channel=channel, message=str(message)))
         else:
             send_slack_message(channel, str(message))  # TODO: use channel variable
+
+
+def _init_pipeline_schedule_task():
+    project_name = "DataDog/datadog-agent"
+    try:
+        bot_token = os.environ['GITLAB_BOT_TOKEN']
+    except KeyError:
+        raise Exit(message="You must specify GITLAB_BOT_TOKEN environment variable", code=1)
+    gitlab = Gitlab(api_token=bot_token)
+    gitlab.test_project_found(project_name)
+    return project_name, gitlab
+
+
+@task
+def get_schedules(_):
+    """
+    Pretty-print all pipeline schedules on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    for ps in gitlab.all_pipeline_schedules(project_name):
+        pprint.pprint(ps)
+
+
+@task
+def get_schedule(_, schedule_id):
+    """
+    Pretty-print a single pipeline schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.pipeline_schedule(project_name, schedule_id)
+    pprint.pprint(result)
+
+
+@task
+def create_schedule(_, description, ref, cron, cron_timezone=None, active=False):
+    """
+    Create a new pipeline schedule on the repository.
+
+    Note that unless you explicitly specify the --active flag, the schedule will be created as inactive.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.create_pipeline_schedule(project_name, description, ref, cron, cron_timezone, active)
+    pprint.pprint(result)
+
+
+@task
+def edit_schedule(_, schedule_id, description=None, ref=None, cron=None, cron_timezone=None):
+    """
+    Edit an existing pipeline schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.edit_pipeline_schedule(project_name, schedule_id, description, ref, cron, cron_timezone)
+    pprint.pprint(result)
+
+
+@task
+def activate_schedule(_, schedule_id):
+    """
+    Activate an existing pipeline schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.edit_pipeline_schedule(project_name, schedule_id, active=True)
+    pprint.pprint(result)
+
+
+@task
+def deactivate_schedule(_, schedule_id):
+    """
+    Deactivate an existing pipeline schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.edit_pipeline_schedule(project_name, schedule_id, active=False)
+    pprint.pprint(result)
+
+
+@task
+def delete_schedule(_, schedule_id):
+    """
+    Delete an existing pipeline schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.delete_pipeline_schedule(project_name, schedule_id)
+    pprint.pprint(result)
+
+
+@task
+def create_schedule_variable(_, schedule_id, key, value):
+    """
+    Create a variable for an existing schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.create_pipeline_schedule_variable(project_name, schedule_id, key, value)
+    pprint.pprint(result)
+
+
+@task
+def edit_schedule_variable(_, schedule_id, key, value):
+    """
+    Edit an existing variable for a schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.edit_pipeline_schedule_variable(project_name, schedule_id, key, value)
+    pprint.pprint(result)
+
+
+@task
+def delete_schedule_variable(_, schedule_id, key):
+    """
+    Delete an existing variable for a schedule on the repository.
+    """
+
+    project_name, gitlab = _init_pipeline_schedule_task()
+    result = gitlab.delete_pipeline_schedule_variable(project_name, schedule_id, key)
+    pprint.pprint(result)

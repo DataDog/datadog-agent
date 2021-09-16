@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // ContentType options,
@@ -51,7 +52,8 @@ type Destination struct {
 	backoff             backoff.Policy
 	nbErrors            int
 	blockedUntil        time.Time
-	protocol            string
+	protocol            config.IntakeProtocol
+	origin              config.IntakeOrigin
 }
 
 // NewDestination returns a new Destination.
@@ -86,6 +88,7 @@ func newDestination(endpoint config.Endpoint, contentType string, destinationsCo
 		climit:              make(chan struct{}, maxConcurrentBackgroundSends),
 		backoff:             policy,
 		protocol:            endpoint.Protocol,
+		origin:              endpoint.Origin,
 	}
 }
 
@@ -144,11 +147,21 @@ func (d *Destination) unconditionalSend(payload []byte) (err error) {
 	req.Header.Set("Content-Type", d.contentType)
 	req.Header.Set("Content-Encoding", d.contentEncoding.name())
 	if d.protocol != "" {
-		req.Header.Set("DD-PROTOCOL", d.protocol)
+		req.Header.Set("DD-PROTOCOL", string(d.protocol))
+	}
+	if d.origin != "" {
+		req.Header.Set("DD-EVP-ORIGIN", string(d.origin))
+		req.Header.Set("DD-EVP-ORIGIN-VERSION", version.AgentVersion)
 	}
 	req = req.WithContext(ctx)
 
+	then := time.Now()
 	resp, err := d.client.Do(req)
+
+	latency := time.Since(then).Milliseconds()
+	metrics.TlmSenderLatency.Observe(float64(latency))
+	metrics.SenderLatency.Set(latency)
+
 	if err != nil {
 		if ctx.Err() == context.Canceled {
 			return ctx.Err()
@@ -167,9 +180,9 @@ func (d *Destination) unconditionalSend(payload []byte) (err error) {
 	if resp.StatusCode >= 400 {
 		log.Warnf("failed to post http payload. code=%d host=%s response=%s", resp.StatusCode, d.host, string(response))
 	}
-	if resp.StatusCode >= 500 {
-		// the server could not serve the request,
-		// most likely because of an internal error
+	if resp.StatusCode == 429 || resp.StatusCode >= 500 {
+		// the server could not serve the request, most likely because of an
+		// internal error or, (429) because it is overwhelmed
 		return client.NewRetryableError(errServer)
 	} else if resp.StatusCode >= 400 {
 		// the logs-agent is likely to be misconfigured,

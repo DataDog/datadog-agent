@@ -10,6 +10,7 @@ package listeners
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -136,10 +137,17 @@ func getMockedPods() []*kubelet.Pod {
 			},
 		},
 	}
+	initContainerSpecs := []kubelet.ContainerSpec{
+		{
+			Name:  "init",
+			Image: "org/init:latest",
+		},
+	}
 	kubeletSpec := kubelet.Spec{
-		HostNetwork: false,
-		NodeName:    "mockn-node",
-		Containers:  containerSpecs,
+		HostNetwork:    false,
+		NodeName:       "mockn-node",
+		Containers:     containerSpecs,
+		InitContainers: initContainerSpecs,
 	}
 	containerStatuses := []kubelet.ContainerStatus{
 		{
@@ -187,14 +195,50 @@ func getMockedPods() []*kubelet.Pod {
 			Image: "org/custom:latest",
 			ID:    "docker://custom-check-id",
 		},
+		{
+			Name:  "dead",
+			Image: "datadoghq.com/dead:beef",
+			ID:    "docker://dead",
+			State: kubelet.ContainerState{
+				Terminated: &kubelet.ContainerStateTerminated{
+					FinishedAt: time.Now().Add(-1 * time.Hour),
+				},
+			},
+		},
+		{
+			Name:  "dead-too-long",
+			Image: "datadoghq.com/dead:beef",
+			ID:    "docker://dead-too-long",
+			State: kubelet.ContainerState{
+				Terminated: &kubelet.ContainerStateTerminated{
+					FinishedAt: time.Now().Add(-24 * time.Hour),
+				},
+			},
+		},
 	}
+
+	initContainerStatuses := []kubelet.ContainerStatus{
+		{
+			Name:  "init",
+			Image: "org/init:latest",
+			ID:    "docker://init-container",
+			State: kubelet.ContainerState{
+				Terminated: &kubelet.ContainerStateTerminated{
+					FinishedAt: time.Now(),
+				},
+			},
+		},
+	}
+
 	kubeletStatus := kubelet.Status{
-		Phase:         "Running",
-		PodIP:         "127.0.0.1",
-		HostIP:        "127.0.0.2",
-		Containers:    containerStatuses,
-		AllContainers: containerStatuses,
+		Phase:          "Running",
+		PodIP:          "127.0.0.1",
+		HostIP:         "127.0.0.2",
+		Containers:     containerStatuses,
+		InitContainers: initContainerStatuses,
+		AllContainers:  append(containerStatuses, initContainerStatuses...),
 	}
+
 	return []*kubelet.Pod{
 		{
 			Spec:   kubeletSpec,
@@ -230,7 +274,7 @@ func TestProcessNewPod(t *testing.T) {
 		config.Datadog.SetDefault("exclude_pause_container", true)
 	}()
 
-	services := make(chan Service, 9)
+	services := make(chan Service, 11)
 	listener := KubeletListener{
 		newService: services,
 		services:   make(map[string]Service),
@@ -489,6 +533,45 @@ func TestProcessNewPod(t *testing.T) {
 		assert.FailNow(t, "ninth service not in channel")
 	}
 
+	// Terminated container that's recent enough
+	select {
+	case service := <-services:
+		assert.Equal(t, "docker://dead", service.GetEntity())
+	default:
+		assert.FailNow(t, "pod service not in channel")
+	}
+
+	select {
+	case service := <-services:
+		assert.Equal(t, "docker://init-container", service.GetEntity())
+		assert.Equal(t, "container_id://init-container", service.GetTaggerEntity())
+		adIdentifiers, err := service.GetADIdentifiers(ctx)
+		assert.Nil(t, err)
+		assert.Equal(t, []string{"docker://init-container", "org/init:latest", "init"}, adIdentifiers)
+		hosts, err := service.GetHosts(ctx)
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
+		ports, err := service.GetPorts(ctx)
+		assert.Nil(t, err)
+		assert.Len(t, ports, 0)
+		_, err = service.GetPid(ctx)
+		assert.Equal(t, ErrNotSupported, err)
+		assert.Len(t, service.GetCheckNames(ctx), 0)
+		assert.True(t, service.HasFilter(containers.MetricsFilter)) // Init containers are excluded
+		assert.False(t, service.HasFilter(containers.LogsFilter))
+		podName, err := service.GetExtraConfig([]byte("pod_name"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod"), podName)
+		podUID, err := service.GetExtraConfig([]byte("pod_uid"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-uid"), podUID)
+		podNamespace, err := service.GetExtraConfig([]byte("namespace"))
+		assert.Nil(t, err)
+		assert.Equal(t, []byte("mock-pod-namespace"), podNamespace)
+	default:
+		assert.FailNow(t, "tenth service not in channel")
+	}
+
 	// Pod service
 	select {
 	case service := <-services:
@@ -514,7 +597,7 @@ func TestProcessNewPod(t *testing.T) {
 
 	select {
 	case <-services:
-		assert.FailNow(t, "10 services in channel, filtering is broken")
+		assert.FailNow(t, "11 services in channel, filtering is broken")
 	default:
 		// all good
 	}

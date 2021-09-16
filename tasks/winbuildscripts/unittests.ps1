@@ -1,3 +1,4 @@
+$ErrorActionPreference = "Stop"
 $Password = ConvertTo-SecureString "dummyPW_:-gch6Rejae9" -AsPlainText -Force
 New-LocalUser -Name "ddagentuser" -Description "Test user for the secrets feature on windows." -Password $Password
 
@@ -69,7 +70,7 @@ if($err -ne 0){
 }
 
 & inv -e install-tools
-& inv -e test --race --profile --rerun-fails=2 --cpus 4 --arch $archflag --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --rtloader-root=$Env:BUILD_ROOT\rtloader --save-result-json C:\mnt\test_output.json
+& inv -e test --race --profile --rerun-fails=2 --cpus 4 --arch $archflag --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --save-result-json C:\mnt\test_output.json
 
 $err = $LASTEXITCODE
 Write-Host Test result is $err

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Auto-discovered checks will not target init containers anymore in Kubernetes.

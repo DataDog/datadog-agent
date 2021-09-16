@@ -57,8 +57,8 @@ func TestRename(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "rename", "wrong event type")
-			assert.Equal(t, event.Rename.New.Inode, getInode(t, testNewFile), "wrong inode")
+			assert.Equal(t, "rename", event.GetType(), "wrong event type")
+			assert.Equal(t, getInode(t, testNewFile), event.Rename.New.Inode, "wrong inode")
 			assertFieldEqual(t, event, "rename.file.destination.inode", int(getInode(t, testNewFile)), "wrong inode")
 
 			assertRights(t, event.Rename.Old.Mode, expectedMode)
@@ -70,7 +70,7 @@ func TestRename(t *testing.T) {
 			assertNearTime(t, event.Rename.New.CTime)
 
 			if !validateRenameSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 		if err != nil {
@@ -90,8 +90,8 @@ func TestRename(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "rename", "wrong event type")
-			assert.Equal(t, event.Rename.New.Inode, getInode(t, testNewFile), "wrong inode")
+			assert.Equal(t, "rename", event.GetType(), "wrong event type")
+			assert.Equal(t, getInode(t, testNewFile), event.Rename.New.Inode, "wrong inode")
 			assertFieldEqual(t, event, "rename.file.destination.inode", int(getInode(t, testNewFile)), "wrong inode")
 
 			assertRights(t, event.Rename.Old.Mode, expectedMode)
@@ -103,7 +103,7 @@ func TestRename(t *testing.T) {
 			assertNearTime(t, event.Rename.New.CTime)
 
 			if !validateRenameSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 		if err != nil {
@@ -126,8 +126,8 @@ func TestRename(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "rename", "wrong event type")
-			assert.Equal(t, event.Rename.New.Inode, getInode(t, testNewFile), "wrong inode")
+			assert.Equal(t, "rename", event.GetType(), "wrong event type")
+			assert.Equal(t, getInode(t, testNewFile), event.Rename.New.Inode, "wrong inode")
 			assertFieldEqual(t, event, "rename.file.destination.inode", int(getInode(t, testNewFile)), "wrong inode")
 
 			assertRights(t, event.Rename.Old.Mode, expectedMode)
@@ -139,7 +139,7 @@ func TestRename(t *testing.T) {
 			assertNearTime(t, event.Rename.New.CTime)
 
 			if !validateRenameSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 		if err != nil {
@@ -186,11 +186,11 @@ func TestRenameInvalidate(t *testing.T) {
 			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "rename", "wrong event type")
+			assert.Equal(t, "rename", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "rename.file.destination.path", testNewFile)
 
 			if !validateRenameSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 		})
 		if err != nil {
@@ -253,7 +253,7 @@ func TestRenameReuseInode(t *testing.T) {
 		}
 		return nil
 	}, func(event *sprobe.Event, rule *rules.Rule) {
-		assert.Equal(t, event.GetType(), "open", "wrong event type")
+		assert.Equal(t, "open", event.GetType(), "wrong event type")
 	})
 	if err != nil {
 		t.Error(err)
@@ -287,12 +287,12 @@ func TestRenameReuseInode(t *testing.T) {
 		}
 		return f.Close()
 	}, func(event *sprobe.Event, rule *rules.Rule) {
-		assert.Equal(t, event.GetType(), "open", "wrong event type")
+		assert.Equal(t, "open", event.GetType(), "wrong event type")
 		assertFieldEqual(t, event, "open.file.inode", int(testNewFileInode))
 		assertFieldEqual(t, event, "open.file.path", testReuseInodeFile)
 
 		if !validateRenameSchema(t, event) {
-			t.Fatal(event.String())
+			t.Error(event.String())
 		}
 	})
 	if err != nil {
@@ -336,16 +336,16 @@ func TestRenameFolder(t *testing.T) {
 			}
 			return testFile.Close()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
-			assert.Equal(t, event.GetType(), "open", "wrong event type")
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "open.file.path", filename.Load().(string))
 
 			if !validateRenameSchema(t, event) {
-				t.Fatal(event.String())
+				t.Error(event.String())
 			}
 
 			// swap
 			if err := os.Rename(testOldFolder, testNewFolder); err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 
 			old := testOldFolder

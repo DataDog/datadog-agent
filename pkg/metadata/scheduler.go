@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
@@ -47,7 +48,7 @@ func NewScheduler(s *serializer.Serializer) *Scheduler {
 		collectors: make(map[string]*scheduledCollector),
 	}
 
-	if enableFirstRunCollection {
+	if enableFirstRunCollection && config.Datadog.GetBool("enable_metadata_collection") {
 		err := scheduler.firstRun()
 		if err != nil {
 			log.Errorf("Unable to send host metadata at first run: %v", err)

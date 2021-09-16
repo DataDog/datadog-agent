@@ -11,6 +11,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/docker/docker/api/types"
@@ -37,6 +38,10 @@ type DockerCollector struct {
 
 // Detect tries to connect to the docker socket and returns success
 func (c *DockerCollector) Detect(_ context.Context, out chan<- []*TagInfo) (CollectionMode, error) {
+	if !config.IsFeaturePresent(config.Docker) {
+		return NoCollection, nil
+	}
+
 	du, err := docker.GetDockerUtil()
 	if err != nil {
 		return NoCollection, err
@@ -48,7 +53,7 @@ func (c *DockerCollector) Detect(_ context.Context, out chan<- []*TagInfo) (Coll
 
 	// We lower-case the values collected by viper as well as the ones from inspecting the labels of containers.
 	c.labelsAsTags = retrieveMappingFromConfig("docker_labels_as_tags")
-	c.envAsTags = retrieveMappingFromConfig("docker_env_as_tags")
+	c.envAsTags = mergeMaps(retrieveMappingFromConfig("docker_env_as_tags"), retrieveMappingFromConfig("container_env_as_tags"))
 
 	// TODO: list and inspect existing containers once docker utils are merged
 
@@ -125,7 +130,6 @@ func (c *DockerCollector) processEvent(ctx context.Context, e *docker.ContainerE
 		low, orchestrator, high, standard, err := c.fetchForDockerID(ctx, e.ContainerID, fetchOptions{
 			inspectCached: e.Action == docker.ContainerEventActionStart,
 		})
-
 		if err != nil {
 			log.Debugf("Error fetching tags for container '%s': %v", e.ContainerName, err)
 		}

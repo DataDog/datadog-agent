@@ -80,4 +80,12 @@ var endpoints = []endpoint{
 		Pattern: "/v0.6/stats",
 		Handler: func(r *HTTPReceiver) http.Handler { return http.HandlerFunc(r.handleStats) },
 	},
+	{
+		Pattern: "/appsec/proxy/",
+		Handler: func(r *HTTPReceiver) http.Handler { return http.StripPrefix("/appsec/proxy", r.appsecHandler) },
+	},
+	{
+		Pattern: "/debugger/v1/input",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.debuggerProxyHandler() },
+	},
 }

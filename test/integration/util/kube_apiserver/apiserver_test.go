@@ -186,7 +186,7 @@ func (suite *testSuite) TestHostnameProvider() {
 	defer core.Pods("default").Delete(ctx, myHostname, v1.DeleteOptions{})
 
 	// Hostname provider should return the expected value
-	foundHost, err := hostname_apiserver.HostnameProvider(ctx)
+	foundHost, err := hostname_apiserver.HostnameProvider(ctx, nil)
 	assert.Equal(suite.T(), "target.host", foundHost)
 
 	// Testing hostname when a cluster name is set
@@ -196,6 +196,6 @@ func (suite *testSuite) TestHostnameProvider() {
 	defer mockConfig.Set("cluster_name", "")
 	defer clustername.ResetClusterName()
 
-	foundHost, err = hostname_apiserver.HostnameProvider(ctx)
+	foundHost, err = hostname_apiserver.HostnameProvider(ctx, nil)
 	assert.Equal(suite.T(), "target.host-laika", foundHost)
 }

@@ -29,6 +29,9 @@ build do
 
             copy "#{cf_source_root}/agent/agent.exe", "#{cf_bin_root_bin}"
             copy "#{cf_source_root}/agent/libdatadog-agent-three.dll", "#{cf_bin_root_bin}"
+            if with_python_runtime? "2"
+                copy "#{cf_source_root}/agent/libdatadog-agent-two.dll", "#{cf_bin_root_bin}"
+            end
 
             unless windows_arch_i386?
               copy "#{cf_source_root}/agent/install-cmd.exe", "#{cf_bin_root_bin}/agent"

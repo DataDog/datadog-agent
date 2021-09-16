@@ -3,6 +3,24 @@
 #include "TargetMachine.h"
 #include <fstream>
 
+bool ShouldUpdateConfig(std::wstring const &inputConfig)
+{
+    // If we find an API key entry in the yaml file, don't do anything
+    std::wregex re(L"^api_key:(.*)");
+    std::match_results<std::wstring::const_iterator> results;
+    if (std::regex_search(inputConfig, results, re))
+    {
+        auto api_key = results[1].str();
+        api_key.erase(api_key.begin(),
+                      std::find_if(api_key.begin(), api_key.end(), [](int ch) { return !std::isspace(ch); }));
+        if (api_key.length() > 0)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool updateYamlConfig(CustomActionData &customActionData)
 {
     std::wstring inputConfig;
@@ -25,19 +43,10 @@ bool updateYamlConfig(CustomActionData &customActionData)
         inputConfig.assign(std::istreambuf_iterator<wchar_t>(inputConfigStream), std::istreambuf_iterator<wchar_t>());
     }
 
-    // If we find an API key entry in the yaml file, don't do anything
-    std::wregex re(L"^api_key:(.*)");
-    std::match_results<std::wstring::const_iterator> results;
-    if (std::regex_search(inputConfig, results, re))
+    if (!ShouldUpdateConfig(inputConfig))
     {
-        auto api_key = results[1].str();
-        api_key.erase(api_key.begin(),
-                      std::find_if(api_key.begin(), api_key.end(), [](int ch) { return !std::isspace(ch); }));
-        if (api_key.length() > 0)
-        {
-            WcaLog(LOGMSG_STANDARD, "API key already present in configuration - not modifying it");
-            return true;
-        }
+        WcaLog(LOGMSG_STANDARD, "API key already present in configuration - not modifying it");
+        return true;
     }
 
     std::vector<std::wstring> failedToReplace;
@@ -64,6 +73,59 @@ bool updateYamlConfig(CustomActionData &customActionData)
     return true;
 }
 
+std::optional<std::wstring> GetInstallMethod(const CustomActionData &customActionData)
+{
+    std::wstring customInstallMethod;
+    customActionData.value(L"OVERRIDE_INSTALLATION_METHOD", customInstallMethod);
+
+    if (customInstallMethod.empty())
+    {
+        WcaLog(LOGMSG_VERBOSE, "No override installation method specified, computing using UILevel");
+
+        std::wstring uiLevelStr;
+        customActionData.value(L"UILevel", uiLevelStr);
+
+        std::wstringstream uiLevelStrStream(uiLevelStr);
+        int uiLevel = -1;
+        uiLevelStrStream >> uiLevel;
+        if (uiLevelStrStream.fail())
+        {
+            WcaLog(LOGMSG_STANDARD, "Could not read UILevel from installer: %S", uiLevelStr.c_str());
+            return std::nullopt;
+        }
+
+        // 2 = quiet
+        // > 2 (typically 5) = UI
+        if (uiLevel > 2)
+        {
+            customInstallMethod = L"windows_msi_gui";
+        }
+        else
+        {
+            customInstallMethod = L"windows_msi_quiet";
+        }
+    }
+    return std::optional<std::wstring> (customInstallMethod);
+}
+
+bool writeInstallInfo(const CustomActionData &customActionData)
+{
+    std::optional<std::wstring> installMethod = GetInstallMethod(customActionData);
+    if (installMethod)
+    {
+        WcaLog(LOGMSG_VERBOSE, "Install method: %S", installMethod.value().c_str());
+        std::wofstream installInfoOutputStream(installInfoFile);
+        installInfoOutputStream << L"---" << std::endl
+                                << L"install_method:" << std::endl
+                                << L"  tool: " << installMethod.value() << std::endl
+                                << L"  tool_version: " << installMethod.value() << std::endl
+                                << L"  installer_version: " << installMethod.value() << std::endl;
+        return true;
+    }
+
+    // Prefer logging error in GetInstallMethod to avoid double logging.
+    return false;
+}
 
 UINT doFinalizeInstall(CustomActionData &data)
 {
@@ -260,6 +322,13 @@ UINT doFinalizeInstall(CustomActionData &data)
     if (!updateYamlConfig(data))
     {
         WcaLog(LOGMSG_STANDARD, "Failed to update datadog.yaml");
+        er = ERROR_INSTALL_FAILURE;
+        goto LExit;
+    }
+
+    if (!writeInstallInfo(data))
+    {
+        WcaLog(LOGMSG_STANDARD, "Failed to update install_info");
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
     }

@@ -24,7 +24,7 @@ import (
 // Reporter defines an interface for reporting rule events
 type Reporter interface {
 	Report(event *Event)
-	ReportRaw(content []byte, tags ...string)
+	ReportRaw(content []byte, service string, tags ...string)
 }
 
 type reporter struct {
@@ -72,12 +72,13 @@ func (r *reporter) Report(event *Event) {
 		log.Errorf("Failed to serialize rule event for rule %s", event.AgentRuleID)
 		return
 	}
-	r.ReportRaw(buf)
+	r.ReportRaw(buf, "")
 }
 
-func (r *reporter) ReportRaw(content []byte, tags ...string) {
+func (r *reporter) ReportRaw(content []byte, service string, tags ...string) {
 	origin := message.NewOrigin(r.logSource)
 	origin.SetTags(tags)
+	origin.SetService(service)
 	msg := message.NewMessage(content, origin, message.StatusInfo, time.Now().UnixNano())
 	r.logChan <- msg
 }

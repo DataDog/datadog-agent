@@ -9,12 +9,14 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -68,7 +70,11 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 	if err != nil {
 		return errorHandler(err)
 	}
-	tags := fmt.Sprintf("host:%s,default_env:%s", r.conf.Hostname, r.conf.DefaultEnv)
+	tags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, info.Version)
+	if orch := r.conf.FargateOrchestrator; orch != fargate.Unknown {
+		tag := fmt.Sprintf("orchestrator:fargate_%s", strings.ToLower(string(orch)))
+		tags = tags + "," + tag
+	}
 	return newProfileProxy(r.conf.NewHTTPTransport(), targets, keys, tags)
 }
 

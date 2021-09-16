@@ -226,6 +226,9 @@ func batchConnections(
 			if c.Laddr.ContainerId != "" {
 				ctrIDForPID[c.Pid] = c.Laddr.ContainerId
 			}
+			for d := range c.DnsStatsByDomain {
+				domainIndices[d] = struct{}{}
+			}
 			for d := range c.DnsStatsByDomainByQueryType {
 				domainIndices[d] = struct{}{}
 			}

@@ -42,6 +42,7 @@ type DockerListenerTestSuite struct {
 func (suite *DockerListenerTestSuite) SetupSuite() {
 	config.Datadog.SetDefault("ac_include", []string{"name:.*redis.*"})
 	config.Datadog.SetDefault("ac_exclude", []string{"image:datadog/docker-library:redis.*"})
+	config.DetectFeatures()
 	containers.ResetSharedFilter()
 
 	tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
@@ -193,7 +194,8 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 			expectedADIDs[entity] = []string{
 				entity,
 				"datadog/docker-library",
-				"docker-library"}
+				"docker-library",
+			}
 		}
 	}
 

@@ -1,13 +1,13 @@
 *                                    @DataDog/agent-platform
 
 # Deps build
-build_libbcc*                        @DataDog/agent-network
 build_clang*                         @DataDog/agent-network
 
 # Source test
 # Notifications are handled separately for more fine-grained control on go tests
 tests_*                              @DataDog/multiple
 tests_ebpf                           @DataDog/agent-network
+security_go_generate_check           @DataDog/agent-security
 
 # Binary build
 build_system-probe*                  @DataDog/agent-network
@@ -43,3 +43,8 @@ cleanup_kitchen_functional_test      @DataDog/agent-network @DataDog/agent-secur
 
 # E2E
 k8s-e2e-*                         @DataDog/container-integrations
+
+
+# TODO(AP-1208): Remove once arm runners are in a better shape
+*arm64*  @DataDog/do-not-notify
+*armhf*  @DataDog/do-not-notify

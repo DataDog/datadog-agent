@@ -10,7 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app/settings"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/cmd/agent/common/commands"
+	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -19,7 +19,7 @@ import (
 )
 
 func init() {
-	AgentCmd.AddCommand(commands.Config(getSettingsClient))
+	AgentCmd.AddCommand(cmdconfig.Config(getSettingsClient))
 }
 
 func setupConfig() error {
@@ -65,6 +65,9 @@ func initRuntimeSettings() error {
 		return err
 	}
 	if err := commonsettings.RegisterRuntimeSetting(settings.DsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration")); err != nil {
+		return err
+	}
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.LogPayloadsRuntimeSetting{}); err != nil {
 		return err
 	}
 	if err := commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingGoroutines("internal_profiling_goroutines")); err != nil {

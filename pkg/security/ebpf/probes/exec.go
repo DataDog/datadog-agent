@@ -63,6 +63,10 @@ var execProbes = []*manager.Probe{
 	},
 	{
 		UID:     SecurityAgentUID,
+		Section: "kprobe/security_bprm_check",
+	},
+	{
+		UID:     SecurityAgentUID,
 		Section: "kprobe/security_bprm_committed_creds",
 	},
 	{

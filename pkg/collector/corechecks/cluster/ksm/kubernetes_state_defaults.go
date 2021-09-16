@@ -27,7 +27,7 @@ var (
 		"daemonset":                           "kube_daemon_set",
 		"replicationcontroller":               "kube_replication_controller",
 		"replicaset":                          "kube_replica_set",
-		"statefulset ":                        "kube_stateful_set",
+		"statefulset":                         "kube_stateful_set",
 		"deployment":                          "kube_deployment",
 		"service":                             "kube_service",
 		"endpoint":                            "kube_endpoint",
@@ -63,7 +63,6 @@ var (
 		"kube_daemonset_status_number_available":                                                   "daemonset.daemons_available",
 		"kube_endpoint_address_available":                                                          "endpoint.address_available",
 		"kube_endpoint_address_not_ready":                                                          "endpoint.address_not_ready",
-		"kube_node_info":                                                                           "node.count",
 		"kube_pod_container_status_terminated":                                                     "container.terminated",
 		"kube_pod_container_status_waiting":                                                        "container.waiting",
 		"kube_pod_container_resource_requests_cpu_cores":                                           "container.cpu_requested",
@@ -159,7 +158,7 @@ var (
 		},
 		"kube_pod_info": {
 			LabelsToMatch: []string{"pod", "namespace"},
-			LabelsToGet:   []string{"node"},
+			LabelsToGet:   []string{"node", "created_by_kind", "created_by_name"},
 		},
 		"kube_persistentvolume_info": {
 			LabelsToMatch: []string{"persistentvolume"}, // persistent volumes are not namespaced
