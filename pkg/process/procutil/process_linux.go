@@ -215,23 +215,21 @@ func (p *Probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 		var (
 			statusInfo = &statusInfo{}
 			statInfo   = &statInfo{}
-			memInfoEx  = &MemoryInfoExStat{}
 			stats      *Stats
 		)
 
 		if collectStats {
 			statusInfo = p.parseStatus(pathForPID)
 			statInfo = p.parseStat(pathForPID, pid, now)
-			memInfoEx = p.parseStatm(pathForPID)
 			stats = &Stats{
-				CreateTime:  statInfo.createTime,    // /proc/[pid]/stat
-				Status:      statusInfo.status,      // /proc/[pid]/status
-				Nice:        statInfo.nice,          // /proc/[pid]/stat
-				CPUTime:     statInfo.cpuStat,       // /proc/[pid]/stat
-				MemInfo:     statusInfo.memInfo,     // /proc/[pid]/status
-				MemInfoEx:   memInfoEx,              // /proc/[pid]/statm
-				CtxSwitches: statusInfo.ctxSwitches, // /proc/[pid]/status
-				NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
+				CreateTime:  statInfo.createTime,      // /proc/[pid]/stat
+				Status:      statusInfo.status,        // /proc/[pid]/status
+				Nice:        statInfo.nice,            // /proc/[pid]/stat
+				CPUTime:     statInfo.cpuStat,         // /proc/[pid]/stat
+				MemInfo:     statusInfo.memInfo,       // /proc/[pid]/status
+				MemInfoEx:   p.parseStatm(pathForPID), // /proc/[pid]/statm
+				CtxSwitches: statusInfo.ctxSwitches,   // /proc/[pid]/status
+				NumThreads:  statusInfo.numThreads,    // /proc/[pid]/status
 			}
 		}
 		proc := &Process{
