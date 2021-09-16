@@ -251,6 +251,6 @@ func (f *domainForwarder) sendHTTPTransactions(t transaction.Transaction) {
 		f.addToTransactionRetryQueue(t)
 		highPriorityQueueFull.Add(1)
 		tlmTxHighPriorityQueueFull.Inc(f.domain, t.GetEndpointName())
-		log.Infof("adding the transaction to the retry queue because the forwarder input queue for %s is full; consider increasing forwarder_num_workers", f.domain)
+		log.Debugf("Adding the transaction to the retry queue because the forwarder input queue for %s is full; consider increasing forwarder_num_workers", f.domain)
 	}
 }
