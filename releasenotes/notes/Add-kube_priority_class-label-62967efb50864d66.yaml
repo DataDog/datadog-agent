@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    On Kubernetes, add a `kube_priority_class` label on metrics coming from pods with a priority class.
+    On Kubernetes, add a `kube_priority_class` tag on metrics coming from pods with a priority class.
