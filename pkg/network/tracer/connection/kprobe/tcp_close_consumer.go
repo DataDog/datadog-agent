@@ -7,17 +7,19 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/ebpf/manager"
 )
 
 type tcpCloseConsumer struct {
-	// TODO: enforce a maximum number of entries
-	closedBuffer []network.ConnectionStats
 	perfHandler  *ddebpf.PerfHandler
 	batchManager *perfBatchManager
 	requests     chan requestPayload
+
+	closedBuffer  []network.ConnectionStats
+	maxBufferSize int
 
 	// Telemetry
 	perfReceived int64
@@ -29,7 +31,7 @@ type requestPayload struct {
 	responseChan chan []network.ConnectionStats
 }
 
-func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler, filter func(*network.ConnectionStats) bool) (*tcpCloseConsumer, error) {
+func newTCPCloseConsumer(cfg *config.Config, m *manager.Manager, perfHandler *ddebpf.PerfHandler, filter func(*network.ConnectionStats) bool) (*tcpCloseConsumer, error) {
 	connCloseEventMap, _, err := m.GetMap(string(probes.ConnCloseEventMap))
 	if err != nil {
 		return nil, err
@@ -46,10 +48,11 @@ func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler, fi
 	}
 
 	c := &tcpCloseConsumer{
-		closedBuffer: make([]network.ConnectionStats, 0, 500),
-		perfHandler:  perfHandler,
-		batchManager: batchManager,
-		requests:     make(chan requestPayload),
+		perfHandler:   perfHandler,
+		batchManager:  batchManager,
+		requests:      make(chan requestPayload),
+		closedBuffer:  make([]network.ConnectionStats, 0, 500),
+		maxBufferSize: cfg.MaxClosedConnectionsBuffered,
 	}
 	c.start()
 
@@ -89,6 +92,12 @@ func (c *tcpCloseConsumer) start() {
 				if !ok {
 					return
 				}
+
+				if len(c.closedBuffer) >= c.maxBufferSize {
+					atomic.AddInt64(&c.perfLost, 1)
+					continue
+				}
+
 				atomic.AddInt64(&c.perfReceived, 1)
 				batch := netebpf.ToBatch(batchData.Data)
 				c.closedBuffer = c.batchManager.Extract(c.closedBuffer, batch, batchData.CPU)

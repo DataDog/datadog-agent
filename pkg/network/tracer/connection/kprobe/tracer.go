@@ -147,7 +147,7 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 }
 
 func (t *kprobeTracer) Start(closeFilter func(*network.ConnectionStats) bool) error {
-	closeConsumer, err := newTCPCloseConsumer(t.m, t.closeHandler, closeFilter)
+	closeConsumer, err := newTCPCloseConsumer(t.config, t.m, t.closeHandler, closeFilter)
 	if err != nil {
 		t.Stop()
 		return fmt.Errorf("could not create tcpCloseConsumer: %s", err)
