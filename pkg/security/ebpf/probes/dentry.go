@@ -10,16 +10,9 @@ package probes
 import "github.com/DataDog/ebpf/manager"
 
 // getDentryResolverTailCallRoutes is the list of routes used during the dentry resolution process
-func getDentryResolverTailCallRoutes() []manager.TailCallRoute {
-	return []manager.TailCallRoute{
+func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled bool) []manager.TailCallRoute {
+	routes := []manager.TailCallRoute{
 		// dentry resolver programs
-		{
-			ProgArrayName: "dentry_resolver_kprobe_progs",
-			Key:           DentryResolverERPCKey,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: "kprobe/dentry_resolver_erpc",
-			},
-		},
 		{
 			ProgArrayName: "dentry_resolver_kprobe_progs",
 			Key:           DentryResolverKernKprobeKey,
@@ -151,4 +144,33 @@ func getDentryResolverTailCallRoutes() []manager.TailCallRoute {
 			},
 		},
 	}
+
+	// add routes for programs with the bpf_probe_write_user only if necessary
+	if ERPCDentryResolutionEnabled {
+		routes = append(routes, []manager.TailCallRoute{
+			{
+				ProgArrayName: "dentry_resolver_kprobe_progs",
+				Key:           DentryResolverERPCKey,
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					Section: "kprobe/dentry_resolver_erpc",
+				},
+			},
+			{
+				ProgArrayName: "dentry_resolver_kprobe_progs",
+				Key:           DentryResolverParentERPCKey,
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					Section: "kprobe/dentry_resolver_parent_erpc",
+				},
+			},
+			{
+				ProgArrayName: "dentry_resolver_kprobe_progs",
+				Key:           DentryResolverSegmentERPCKey,
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					Section: "kprobe/dentry_resolver_segment_erpc",
+				},
+			},
+		}...)
+	}
+
+	return routes
 }
