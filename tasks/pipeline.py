@@ -220,6 +220,9 @@ def run(
     if '7' not in major_versions:
         release_version_7 = ""
 
+    if here:
+        git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+
     if deploy:
         # Check the validity of the deploy pipeline
         check_deploy_pipeline(gitlab, project_name, git_ref, release_version_6, release_version_7, repo_branch)
@@ -240,9 +243,6 @@ def run(
                 )
             )
             kitchen_tests = True
-
-    if here:
-        git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
 
     pipelines = get_running_pipelines_on_same_ref(gitlab, project_name, git_ref)
 
