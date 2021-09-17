@@ -308,7 +308,7 @@ func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardina
 	if present == false {
 		return nil, nil
 	}
-	return storedTags.getBuilder(cardinality)
+	return storedTags.getHashedTags(cardinality)
 }
 
 // Lookup gets tags from the store and returns them concatenated in a string slice. It
@@ -361,11 +361,11 @@ type tagPriority struct {
 }
 
 func (e *EntityTags) get(cardinality collectors.TagCardinality) ([]string, []string) {
-	tags, sources := e.getBuilder(cardinality)
+	tags, sources := e.getHashedTags(cardinality)
 	return tags.Get(), sources
 }
 
-func (e *EntityTags) getBuilder(cardinality collectors.TagCardinality) (*util.HashedTags, []string) {
+func (e *EntityTags) getHashedTags(cardinality collectors.TagCardinality) (*util.HashedTags, []string) {
 	e.computeCache()
 
 	if cardinality == collectors.HighCardinality {
