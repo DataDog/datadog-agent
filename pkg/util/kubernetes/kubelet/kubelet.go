@@ -794,6 +794,10 @@ func selectFromPotentialHostsHTTPS(ku *KubeUtil, hosts []string, httpsPort int) 
 			if config.Datadog.GetBool("kubelet_fallback_to_unverified_tls") && verifyTLS {
 				unverifiedTLSAttemptWarning(err)
 				err = tryKubeletConnection(ku, host, httpsPort, false)
+				if err != nil {
+					connectionErrors = append(connectionErrors, err)
+					continue
+				}
 			} else {
 				continue
 			}
