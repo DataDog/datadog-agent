@@ -43,11 +43,21 @@ The payload is a JSON dict with the following fields
   - `agent_version` - **string**: the version of the Agent.
   - `flavor` - **string**: the flavor of the Agent. The Agent can be build under different flavor such as standalone
     dogstatsd, iot, serverless ... (see `pkg/util/flavor` package).
+  - `config_apm_dd_url` - **string**: the configuration value `apm_config.dd_url` (scrubbed)
+  - `config_dd_url` - **string**: the configuration value `dd_url` (scrubbed)
+  - `config_logs_dd_url` - **string**: the configuration value `logs_config.logs_dd_url` (scrubbed)
+  - `config_logs_socks5_proxy_address` - **string**: the configuration value `logs_config.socks5_proxy_address` (scrubbed)
+  - `config_no_proxy` - **array of strings**: the configuration value `proxy.no_proxy` (scrubbed)
+  - `config_process_dd_url` - **string**: the configuration value `process_config.process_dd_url` (scrubbed)
+  - `config_proxy_http` - **string**: the configuration value `proxy.http` (scrubbed)
+  - `config_proxy_https` - **string**: the configuration value `proxy.https` (scrubbed)
   - `install_method_tool` - **string**: the name of the tool used to install the agent (ie, Chef, Ansible, ...).
   - `install_method_tool_version` - **string**: the tool version used to install the agent (ie: Chef version, Ansible
     version, ...). This defaults to `"undefined"` when not installed through a tool (like when installed with apt, source
     build, ...).
   - `install_method_installer_version` - **string**:  The version of Datadog module (ex: the Chef Datadog package, the Datadog Ansible playbook, ...).
+
+("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 
 ## Example Payload
 
