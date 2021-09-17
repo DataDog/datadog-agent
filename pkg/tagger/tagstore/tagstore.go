@@ -219,9 +219,9 @@ func (s *TagStore) collectTelemetry() {
 	}
 }
 
-// Subscribe returns a list of existing entities in the store, alongside a
-// channel that receives events whenever an entity is added, modified or
-// deleted.
+// Subscribe returns a channel that receives a slice of events whenever an entity is
+// added, modified or deleted. It can send an initial burst of events only to the new
+// subscriber, without notifying all of the others.
 func (s *TagStore) Subscribe(cardinality collectors.TagCardinality) chan []types.EntityEvent {
 	s.RLock()
 	defer s.RUnlock()

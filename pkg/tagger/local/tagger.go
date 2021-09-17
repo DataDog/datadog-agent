@@ -389,9 +389,9 @@ func (t *Tagger) List(cardinality collectors.TagCardinality) response.TaggerList
 	return t.store.List()
 }
 
-// Subscribe returns a list of existing entities in the store, alongside a
-// channel that receives events whenever an entity is added, modified or
-// deleted.
+// Subscribe returns a channel that receives a slice of events whenever an entity is
+// added, modified or deleted. It can send an initial burst of events only to the new
+// subscriber, without notifying all of the others.
 func (t *Tagger) Subscribe(cardinality collectors.TagCardinality) chan []types.EntityEvent {
 	return t.store.Subscribe(cardinality)
 }
