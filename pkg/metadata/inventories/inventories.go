@@ -7,7 +7,6 @@ package inventories
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"strings"
 	"sync"
@@ -248,8 +247,6 @@ func initializeConfig(cfg config.Config) {
 		return rv
 	}
 
-	fmt.Printf("INPUT %s\n", cfg.GetString("proxy.https"))
-	fmt.Printf("GOT %s\n", clean(cfg.GetString("proxy.https")))
 	SetAgentMetadata(AgentConfigApmDDURL, clean(cfg.GetString("apm_config.apm_dd_url")))
 	SetAgentMetadata(AgentConfigDDURL, clean(cfg.GetString("dd_url")))
 	SetAgentMetadata(AgentConfigLogsDDURL, clean(cfg.GetString("logs_config.logs_dd_url")))
