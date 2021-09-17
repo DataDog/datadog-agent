@@ -223,3 +223,11 @@ func (m *Monitor) StopActivityDump(params *api.StopActivityDumpParams) error {
 	}
 	return m.activityDumpManager.StopActivityDump(params)
 }
+
+// GenerateProfile returns a profile from the provided activity dump
+func (m *Monitor) GenerateProfile(params *api.GenerateProfileParams) (string, error) {
+	if !m.probe.config.ActivityDumpEnabled {
+		return "", ErrActivityDumpManagerDisabled
+	}
+	return m.activityDumpManager.GenerateProfile(params)
+}

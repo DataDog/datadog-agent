@@ -19,7 +19,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // ActivityDump holds the activity tree for the workload defined by the provided list of tags
@@ -262,6 +263,112 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 	_ = ad.tracedPIDs.Put(entry.Pid, uint64(0))
 
 	return node
+}
+
+type Profile struct {
+	Name     string
+	Selector string
+	Rules    []ProfileRule
+}
+
+type ProfileRule struct {
+	ID         string
+	Expression string
+}
+
+// NewProfileRule returns a new ProfileRule
+func NewProfileRule(expression string, ruleIDPrefix string) ProfileRule {
+	return ProfileRule{
+		ID:         ruleIDPrefix + "_" + utils.RandID(5),
+		Expression: expression,
+	}
+}
+
+func (ad *ActivityDump) generateFIMRules(file *FileActivityNode, activityNode *ProcessActivityNode, ancestors []*ProcessActivityNode, ruleIDPrefix string) []ProfileRule {
+	var rules []ProfileRule
+
+	if file.Open != nil {
+		rule := NewProfileRule(fmt.Sprintf(
+			"open.file.path == \"%s\" && open.file.in_upper_layer == %v && open.file.uid == %d && open.file.gid == %d && open.file.mode == %d",
+			file.Open.File.PathnameStr,
+			file.Open.File.InUpperLayer,
+			file.Open.File.UID,
+			file.Open.File.GID,
+			file.Open.File.Mode),
+			ruleIDPrefix,
+		)
+		rule.Expression += fmt.Sprintf(" && process.file.path == \"%s\"", activityNode.Process.PathnameStr)
+		for _, parent := range ancestors {
+			rule.Expression += fmt.Sprintf(" && process.ancestors.file.path == \"%s\"", parent.Process.PathnameStr)
+		}
+		rules = append(rules, rule)
+	}
+
+	for _, child := range file.Children {
+		childrenRules := ad.generateFIMRules(child, activityNode, ancestors, ruleIDPrefix)
+		rules = append(rules, childrenRules...)
+	}
+
+	return rules
+}
+
+func (ad *ActivityDump) generateRules(node *ProcessActivityNode, ancestors []*ProcessActivityNode, ruleIDPrefix string) []ProfileRule {
+	var rules []ProfileRule
+
+	// add exec rule
+	rule := NewProfileRule(fmt.Sprintf(
+		"exec.file.path == \"%s\" && process.uid == %d && process.gid == %d && process.cap_effective == %d && process.cap_permitted == %d",
+		node.Process.PathnameStr,
+		node.Process.UID,
+		node.Process.GID,
+		node.Process.CapEffective,
+		node.Process.CapPermitted),
+		ruleIDPrefix,
+	)
+	for _, parent := range ancestors {
+		rule.Expression += fmt.Sprintf(" && process.ancestors.file.path == \"%s\"", parent.Process.PathnameStr)
+	}
+	rules = append(rules, rule)
+
+	// add FIM rules
+	for _, file := range node.Files {
+		fimRules := ad.generateFIMRules(file, node, ancestors, ruleIDPrefix)
+		rules = append(rules, fimRules...)
+	}
+
+	// add children rules recursively
+	newAncestors := append([]*ProcessActivityNode{node}, ancestors...)
+	for _, child := range node.Children {
+		childrenRules := ad.generateRules(child, newAncestors, ruleIDPrefix)
+		rules = append(rules, childrenRules...)
+	}
+
+	return rules
+}
+
+func (ad *ActivityDump) GenerateProfileData() Profile {
+	p := Profile{}
+	if len(ad.Tags) > 0 {
+		p.Name = strings.Join(ad.Tags, "_")
+		for i, tag := range ad.Tags {
+			if i >= 1 {
+				p.Selector += " && "
+			}
+			p.Selector += fmt.Sprintf("\"%s\" in container.tags", tag)
+		}
+	} else if len(ad.Comm) > 0 {
+		p.Name = ad.Comm
+	} else {
+		p.Name = "profile"
+	}
+
+	// Add rules
+	for _, node := range ad.ProcessActivityTree {
+		rules := ad.generateRules(node, nil, p.Name)
+		p.Rules = append(p.Rules, rules...)
+	}
+
+	return p
 }
 
 // ProcessActivityNode holds the activity of a process

@@ -32,8 +32,8 @@ func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool) (string, error) 
 	return response.Filename, nil
 }
 
-// DumpActivity send a dump activity request
-func (c *RuntimeSecurityClient) DumpActivity(tags []string, comm string, timeout int32, withGraph bool, differentiateArgs bool) (string, string, error) {
+// GenerateActivityDump send a dump activity request
+func (c *RuntimeSecurityClient) GenerateActivityDump(tags []string, comm string, timeout int32, withGraph bool, differentiateArgs bool) (string, string, error) {
 	apiClient := api.NewSecurityModuleClient(c.conn)
 
 	response, err := apiClient.DumpActivity(context.Background(), &api.DumpActivityParams{
@@ -75,6 +75,19 @@ func (c *RuntimeSecurityClient) StopActivityDump(tags []string, comm string) (st
 	}
 
 	return response.Error, nil
+}
+
+func (c *RuntimeSecurityClient) GenerateProfile(file string) (string, error) {
+	apiClient := api.NewSecurityModuleClient(c.conn)
+
+	response, err := apiClient.GenerateProfile(context.Background(), &api.GenerateProfileParams{
+		ActivityDumpFile: file,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return response.ProfilePath, nil
 }
 
 // GetConfig retrieves the config of the runtime security module

@@ -67,12 +67,21 @@ message SecurityActivityDumpStoppedMessage {
     string Error = 1;
 }
 
+message GenerateProfileParams {
+    string ActivityDumpFile = 1;
+}
+
+message SecurityProfileGeneratedMessage {
+    string ProfilePath = 1;
+}
+
 service SecurityModule {
     rpc GetEvents(GetEventParams) returns (stream SecurityEventMessage) {}
     rpc DumpProcessCache(DumpProcessCacheParams) returns (SecurityDumpProcessCacheMessage) {}
     rpc DumpActivity(DumpActivityParams) returns (SecurityActivityDumpMessage) {}
     rpc ListActivityDumps(ListActivityDumpsParams) returns (SecurityActivityDumpListMessage) {}
     rpc StopActivityDump(StopActivityDumpParams) returns (SecurityActivityDumpStoppedMessage) {}
+    rpc GenerateProfile(GenerateProfileParams) returns (SecurityProfileGeneratedMessage) {}
     rpc GetConfig(GetConfigParams) returns (SecurityConfigMessage) {}
     rpc RunSelfTest(RunSelfTestParams) returns (SecuritySelfTestResultMessage) {}
     rpc ReloadPolicies(ReloadPoliciesParams) returns (ReloadPoliciesResultMessage) {}

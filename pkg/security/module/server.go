@@ -162,6 +162,22 @@ func (a *APIServer) StopActivityDump(ctx context.Context, params *api.StopActivi
 	}, nil
 }
 
+// GenerateProfile generates a profile from an activity dump
+func (a *APIServer) GenerateProfile(ctx context.Context, params *api.GenerateProfileParams) (*api.SecurityProfileGeneratedMessage, error) {
+	var output string
+	var err error
+	if monitor := a.probe.GetMonitor(); monitor != nil {
+		output, err = monitor.GenerateProfile(params)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &api.SecurityProfileGeneratedMessage{
+		ProfilePath: output,
+	}, nil
+}
+
 func (a *APIServer) enqueue(msg *pendingMsg) {
 	a.queueLock.Lock()
 	a.queue = append(a.queue, msg)

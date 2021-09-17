@@ -9,9 +9,13 @@ package probe
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
@@ -20,7 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
-	"github.com/DataDog/datadog-agent/pkg/security/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // ActivityDumpManager is used to manage ActivityDumps
@@ -196,4 +200,54 @@ func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(entry *mod
 		}
 	}
 	return
+}
+
+var profileTmpl = `---
+name: {{ .Name }}
+selector:
+  - {{ .Selector }}
+
+rules:{{ range .Rules }}
+  - id: {{ .ID }}
+    expression: {{ .Expression }}
+{{ end }}
+`
+
+// GenerateProfile returns a profile generated from the provided activity dump
+func (adm *ActivityDumpManager) GenerateProfile(params *api.GenerateProfileParams) (string, error) {
+	// open and parse activity dump file
+	f, err := os.Open(params.ActivityDumpFile)
+	if err != nil {
+		return "", errors.Wrap(err, "couldn't open activity dump file")
+	}
+
+	data, err := ioutil.ReadAll(f)
+	if err != nil {
+		return "", errors.Wrap(err, "couldn't read activity dump file")
+	}
+
+	var dump ActivityDump
+	err = json.Unmarshal(data, &dump)
+	if err != nil {
+		return "", errors.Wrap(err, "couldn't parse activity dump file")
+	}
+
+	// create profile output file
+	var profile *os.File
+	profile, err = ioutil.TempFile("/tmp", "profile-")
+	if err != nil {
+		return "", errors.Wrap(err, "couldn't create profile file")
+	}
+
+	if err = os.Chmod(profile.Name(), 0400); err != nil {
+		return "", errors.Wrap(err, "couldn't change the mode of the profile file")
+	}
+
+	t := template.Must(template.New("tmpl").Parse(profileTmpl))
+	err = t.Execute(profile, dump.GenerateProfileData())
+	if err != nil {
+		return "", errors.Wrap(err, "couldn't generate profile")
+	}
+
+	return profile.Name(), nil
 }
