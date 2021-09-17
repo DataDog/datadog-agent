@@ -132,6 +132,11 @@ func (c *Compressor) pack() error {
 	return nil
 }
 
+func (c *Compressor) Write(data []byte) (int, error) {
+	err := c.AddItem(data)
+	return len(data), err
+}
+
 // AddItem will try to add the given item
 func (c *Compressor) AddItem(data []byte) error {
 	// check item size sanity

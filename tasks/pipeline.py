@@ -163,7 +163,7 @@ instead.""".format(
 @task
 def run(
     ctx,
-    git_ref=DEFAULT_BRANCH,
+    git_ref=None,
     here=False,
     use_release_entries=False,
     major_versions='6,7',
@@ -173,7 +173,7 @@ def run(
     kitchen_tests=True,
 ):
     """
-    Run a pipeline on the given git ref, or on the current branch if --here is given.
+    Run a pipeline on the given git ref (--git-ref <git ref>), or on the current branch if --here is given.
     By default, this pipeline will run all builds & tests, including all kitchen tests, but is not a deploy pipeline.
     Use --deploy to make this pipeline a deploy pipeline, which will upload artifacts to the staging repositories.
     Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on pipelines on the default branch).
@@ -209,6 +209,9 @@ def run(
     gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
     gitlab.test_project_found()
 
+    if not git_ref and not here:
+        raise Exit("Either --here or --git-ref <git ref> must be specified.", code=1)
+
     if use_release_entries:
         release_version_6 = release_entry_for(6)
         release_version_7 = release_entry_for(7)
@@ -221,6 +224,9 @@ def run(
         release_version_6 = ""
     if '7' not in major_versions:
         release_version_7 = ""
+
+    if here:
+        git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
 
     if deploy:
         # Check the validity of the deploy pipeline
@@ -242,9 +248,6 @@ def run(
                 )
             )
             kitchen_tests = True
-
-    if here:
-        git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
 
     pipelines = get_running_pipelines_on_same_ref(gitlab, git_ref)
 

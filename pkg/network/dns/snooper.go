@@ -165,7 +165,6 @@ func (s *socketFilterSnooper) processPacket(data []byte, ts time.Time) error {
 			atomic.AddInt64(&s.truncatedPkts, 1)
 		default:
 			atomic.AddInt64(&s.decodingErrors, 1)
-			log.Tracef("error decoding DNS payload: %v", err)
 		}
 		return nil
 	}

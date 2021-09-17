@@ -85,6 +85,9 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 		// Pod phase
 		tags.AddLow("pod_phase", strings.ToLower(pod.Status.Phase))
 
+		// Priority class
+		tags.AddLow("kube_priority_class", pod.Spec.PriorityClassName)
+
 		// OpenShift pod annotations
 		if dcName, found := pod.Metadata.Annotations["openshift.io/deployment-config.name"]; found {
 			tags.AddLow("oshift_deployment_config", dcName)
@@ -159,6 +162,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			}
 			cTags := tags.Copy()
 			cTags.AddLow("kube_container_name", container.Name)
+			cTags.AddLow("image_id", container.ImageID)
 			cTags.AddHigh("container_id", kubelet.TrimRuntimeFromCID(container.ID))
 			if container.Name != "" && pod.Metadata.Name != "" {
 				cTags.AddHigh("display_container_name", fmt.Sprintf("%s_%s", container.Name, pod.Metadata.Name))

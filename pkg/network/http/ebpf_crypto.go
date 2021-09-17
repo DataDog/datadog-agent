@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/network/so"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf/manager"
+	"github.com/DataDog/gopsutil/process/so"
 	"golang.org/x/sys/unix"
 )
 

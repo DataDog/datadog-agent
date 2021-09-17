@@ -168,7 +168,7 @@ api_key:
 #   - "0.95"
 
 ## @param histogram_copy_to_distribution - boolean - optional - default: false
-## env DD_HISTOGRAM_COPY_TO_DISTRIBUTION - boolean - optional - default: false
+## @env DD_HISTOGRAM_COPY_TO_DISTRIBUTION - boolean - optional - default: false
 ## Copy histogram values to distributions for true global distributions (in beta)
 ## Note: This increases the number of custom metrics created.
 #
@@ -488,16 +488,19 @@ api_key:
 # enable_metadata_collection: true
 
 ## @param enable_gohai - boolean - optional - default: true
+## @env DD_ENABLE_GOHAI - boolean - optional - default: true
 ## Enable the gohai collection of systems data.
 #
 # enable_gohai: true
 
 ## @param server_timeout - integer - optional - default: 30
+## @env DD_SERVER_TIMEOUT - integer - optional - default: 30
 ## IPC api server timeout in seconds.
 #
 # server_timeout: 30
 
 ## @param procfs_path - string - optional
+## @env DD_PROCFS_PATH - string - optional
 ## Some environments may have the procfs file system mounted in a miscellaneous
 ## location. The procfs_path configuration parameter provides a mechanism to
 ## override the standard default location: '/proc' - this setting trickles down to
@@ -506,21 +509,25 @@ api_key:
 # procfs_path: <PROCFS_PATH>
 {{ if .Python }}
 ## @param disable_py3_validation - boolean - optional - default: false
+## @env DD_DISABLE_PY3_VALIDATION - boolean - optional - default: false
 ## Disable Python3 validation of python checks.
 #
 # disable_py3_validation: false
 #
 ## @param python3_linter_timeout - integer - optional - default: 120
+## @env DD_PYTHON3_LINTER_TIMEOUT - integer - optional - default: 120
 ## Timeout in seconds for validation of compatibility with python 3 when running python 2.
 #
 # python3_linter_timeout: 120
 
 ## @param memtrack_enabled - boolean - optional - default: true
+## @env DD_MEMTRACK_ENABLED - boolean - optional - default: true
 ## Enables tracking of memory allocations made from the python runtime loader.
 #
 # memtrack_enabled: true
 
 ## @param tracemalloc_debug - boolean - optional - default: false
+## @env DD_TRACEMALLOC_DEBUG - boolean - optional - default: false
 ## Enables debugging with tracemalloc for python checks.
 ## Please note that this option is only available when python_version is set to "3".
 ## Additionally when this option becomes effective the number of check runners is
@@ -529,24 +536,28 @@ api_key:
 # tracemalloc_debug: false
 
 ## @param tracemalloc_include - string - optional
+## @env DD_TRACEMALLOC_INCLUDE - string - optional
 ## Comma-separated list of Python checks to enable tracemalloc for when `tracemalloc_debug` is true.
 ## By default, all Python checks are enabled.
 #
 # tracemalloc_include: <TRACEMALLOC_EXCLUDE>
 
 ## @param tracemalloc_exclude - string - optional
+## @env DD_TRACEMALLOC_EXCLUDE - string - optional
 ## Comma-separated list of Python checks to disable tracemalloc for when `tracemalloc_debug` is true.
 ## By default, all Python checks are enabled. This setting takes precedence over `tracemalloc_include`.
 #
 # tracemalloc_exclude: <TRACEMALLOC_INCLUDE>
 
 ## @param windows_use_pythonpath - boolean - optional
+## @env DD_WINDOWS_USE_PYTHONPATH - boolean - optional
 ## Whether to honour the value of the PYTHONPATH env var when set on Windows.
 ## Disabled by default, so we only load Python libraries bundled with the Agent.
 #
 # windows_use_pythonpath: false
 {{ end }}
 ## @param secret_backend_command - string - optional
+## @env DD_SECRET_BACKEND_COMMAND - string - optional
 ## `secret_backend_command` is the path to the script to execute to fetch secrets.
 ## The executable must have specific rights that differ on Windows and Linux.
 ##
@@ -555,6 +566,7 @@ api_key:
 # secret_backend_command: <COMMAND_PATH>
 
 ## @param secret_backend_arguments - list of strings - optional
+## @env DD_SECRET_BACKEND_ARGUMENTS - space separated list of strings - optional
 ## If secret_backend_command is set, specify here a list of arguments to give to the command at each run.
 #
 # secret_backend_arguments:
@@ -562,11 +574,13 @@ api_key:
 #   - <ARGUMENT_2>
 
 ## @param secret_backend_output_max_size - integer - optional - default: 1048576
+## @env DD_SECRET_BACKEND_OUTPUT_MAX_SIZE - integer - optional - default: 1048576
 ## The size in bytes of the buffer used to store the command answer (apply to both stdout and stderr)
 #
 # secret_backend_output_max_size: 1048576
 
 ## @param secret_backend_timeout - integer - optional - default: 30
+## @env DD_SECRET_BACKEND_TIMEOUT - integer - optional - default: 30
 ## The timeout to execute the command in second
 #
 # secret_backend_timeout: 30
@@ -771,6 +785,7 @@ api_key:
 ##################################
 
 ## @param logs_enabled - boolean - optional - default: false
+## @env DD_LOGS_ENABLED - boolean - optional - default: false
 ## Enable Datadog Agent log collection by setting logs_enabled to true.
 #
 # logs_enabled: false
@@ -783,17 +798,20 @@ api_key:
 # logs_config:
 
   ## @param container_collect_all - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL - boolean - optional - default: false
   ## Enable container log collection for all the containers (see ac_exclude to filter out containers)
   #
   # container_collect_all: false
 
   ## @param logs_dd_url - string - optional
+  ## @env DD_LOGS_CONFIG_DD_URL - string - optional
   ## Define the endpoint and port to hit when using a proxy for logs. The logs are forwarded in TCP
   ## therefore the proxy must be able to handle TCP connections.
   #
   # logs_dd_url: <ENDPOINT>:<PORT>
 
   ## @param logs_no_ssl - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_LOGS_NO_SSL - optional - default: false
   ## Disable the SSL encryption. This parameter should only be used when logs are
   ## forwarded locally to a proxy. It is highly recommended to then handle the SSL encryption
   ## on the proxy side.
@@ -801,6 +819,7 @@ api_key:
   # logs_no_ssl: false
 
   ## @param processing_rules - list of custom objects - optional
+  ## @env DD_LOGS_CONFIG_PROCESSING_RULES - list of custom objects - optional
   ## Global processing rules that are applied to all logs. The available rules are
   ## "exclude_at_match", "include_at_match" and "mask_sequences". More information in Datadog documentation:
   ## https://docs.datadoghq.com/agent/logs/advanced_log_collection/#global-processing-rules
@@ -811,6 +830,7 @@ api_key:
   #     pattern: <RULE_PATTERN>
 
   ## @param use_http - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_USE_HTTP - boolean - optional - default: false
   ## By default, logs are sent through TCP, use this parameter
   ## to send logs in HTTPS batches to port 443
   #
@@ -823,18 +843,21 @@ api_key:
   # use_tcp: true
 
   ## @param use_compression - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_USE_COMPRESSION - boolean - optional - default: false
   ## This parameter is available when sending logs with HTTPS. If enabled, the Agent
   ## compresses logs before sending them.
   #
   # use_compression: true
 
   ## @param compression_level - integer - optional - default: 6
+  ## @env DD_LOGS_CONFIG_COMPRESSION_LEVEL - boolean - optional - default: false
   ## The compression_level parameter accepts values from 0 (no compression)
   ## to 9 (maximum compression but higher resource usage).
   #
   # compression_level: 6
 
   ## @param batch_wait - integer - optional - default: 5
+  ## @env DD_LOGS_CONFIG_BATCH_WAIT - integer - optional - default: 5
   ## The maximum time the Datadog Agent waits to fill each batch of logs before sending.
   #
   # batch_wait: 5
@@ -854,11 +877,13 @@ api_key:
 # apm_config:
 
   ## @param enabled - boolean - optional - default: true
+  ## @env DD_APM_CONFIG_ENABLED - boolean - optional - default: true
   ## Set to true to enable the APM Agent.
   #
   # enabled: true
 
   ## @param env - string - optional - default: none
+  ## @env DD_APM_CONFIG_ENV - string - optional - default: none
   ## The environment tag that Traces should be tagged with.
   ## If not set the value will be inherited, in order, from the top level
   ## "env" config option if set and then from the 'env:' tag if present in the
@@ -867,29 +892,34 @@ api_key:
   # env: none
 
   ## @param receiver_port - integer - optional - default: 8126
+  ## @env DD_APM_CONFIG_RECEIVER_PORT - integer - optional - default: 8126
   ## The port that the trace receiver should listen on.
   #
   # receiver_port: 8126
 
   ## @param receiver_socket - string - optional
+  ## @env DD_APM_CONFIG_RECEIVER_SOCKET - string - optional
   ## Accept traces through Unix Domain Sockets.
   ## It is off by default. When set, it must point to a valid socket file.
   #
   # receiver_socket: <UNIX_SOCKET_PATH>
 
   ## @param apm_non_local_traffic - boolean - optional - default: false
+  ## @env DD_APM_CONFIG_APM_NON_LOCAL_TRAFFIC - boolean - optional - default: false
   ## Set to true so the Trace Agent listens for non local traffic,
   ## i.e if Traces are being sent to this Agent from another host/container
   #
   # apm_non_local_traffic: false
 
   ## @param apm_dd_url - string - optional
+  ## @env DD_APM_CONFIG_APM_DD_URL - string - optional
   ## Define the endpoint and port to hit when using a proxy for APM. The traces are forwarded in TCP
   ## therefore the proxy must be able to handle TCP connections.
   #
   # apm_dd_url: <ENDPOINT>:<PORT>
 
   ## @param extra_sample_rate - float - optional - default: 1.0
+  ## @env DD_APM_CONFIG_EXTRA_SAMPLE_RATE - float - optional - default: 1.0
   ## Extra global sample rate to apply on all the traces
   ## This sample rate is combined to the sample rate from the sampler logic, still promoting interesting traces.
   ## From 1 (no extra rate) to 0 (don't sample at all)
@@ -897,17 +927,20 @@ api_key:
   # extra_sample_rate: 1.0
 
   ## @param max_traces_per_second - integer - optional - default: 10
+  ## @env DD_APM_CONFIG_MAX_TRACES_PER_SECOND - integer - optional - default: 10
   ## Maximum number of traces per second to sample. The limit is applied over an average over
   ## a few minutes ; much bigger spikes are possible. Set to 0 to disable the limit.
   #
   # max_traces_per_second: 10
 
   ## @param max_events_per_second - integer - optional - default: 200
+  ## @env DD_APM_CONFIG_MAX_EVENTS_PER_SECOND - integer - optional - default: 200
   ## Maximum number of APM events per second to sample.
   #
   # max_events_per_second: 200
 
   ## @param max_memory - integer - optional - default: 500000000
+  ## @env DD_APM_CONFIG_MAX_MEMORY - integer - optional - default: 500000000
   ## This value is what the Agent aims to use in terms of memory. If surpassed, the API
   ## rate limits incoming requests to aim and stay below this value.
   ## Note: The Agent process is killed if it uses more than 150% of `max_memory`.
@@ -916,6 +949,7 @@ api_key:
   # max_memory: 500000000
 
   ## @param max_cpu_percent - integer - optional - default: 50
+  ## @env DD_APM_CONFIG_MAX_CPU_PERCENT - integer - optional - default: 50
   ## The CPU percentage that the Agent aims to use. If surpassed, the API rate limits
   ## incoming requests to aim and stay below this value. Examples: 50 = half a core, 200 = two cores.
   ## Set `max_cpu_percent` to `0` to disable rate limiting based on CPU usage.
@@ -923,8 +957,9 @@ api_key:
   # max_cpu_percent: 50
 
   ## @param obfuscation - object - optional
+  ## @env DD_APM_CONFIG_OBFUSCATION_* - optional
   ## Defines obfuscation rules for sensitive data. Disabled by default.
-  ## See https://docs.datadoghq.com/tracing/guide/agent-obfuscation
+  ## See https://docs.datadoghq.com/tracing/setup_overview/configure_data_security/#agent-trace-obfuscation
   #
   # obfuscation:
   #     <OBFUSCATION_CONFIGURATION>
@@ -940,6 +975,7 @@ api_key:
   #     reject: [<LIST_OF_KEY_VALUE_TAGS>]
 
   ## @param replace_tags - list of objects - optional
+  ## @env DD_APM_CONFIG_REPLACE_TAGS  - list of objects - optional
   ## Defines a set of rules to replace or remove certain resources, tags containing
   ## potentially sensitive information.
   ## Each rules has to contain:
@@ -947,7 +983,7 @@ api_key:
   ##  * pattern - string - The pattern to match the desired content to replace
   ##  * repl - string - what to inline if the pattern is matched
   ##
-  ## See https://docs.datadoghq.com/tracing/guide/security/#replace-rules
+  ## See https://docs.datadoghq.com/tracing/setup_overview/configure_data_security/#replace-rules-for-tag-filtering
   ##
   #
   # replace_tags:
@@ -956,17 +992,20 @@ api_key:
   #     repl: "<PATTERN_TO_INLINE>"
 
   ## @param ignore_resources - list of strings - optional
-  ## A blacklist of regular expressions can be provided to disable certain traces based on their resource name
+  ## @env DD_APM_CONFIG_IGNORE_RESOURCES - space separated list of strings - optional
+  ## An exclusion list of regular expressions can be provided to disable certain traces based on their resource name
   ## all entries must be surrounded by double quotes and separated by commas.
   #
   # ignore_resources: ["(GET|POST) /healthcheck"]
 
   ## @param log_file - string - optional
+  ## @env DD_APM_CONFIG_LOG_FILE - string - optional
   ## The full path to the file where APM-agent logs are written.
   #
   # log_file: <APM_LOG_FILE_PATH>
 
   ## @param log_throttling - boolean - default: true
+  ## @env DD_APM_CONFIG_LOG_THROTTLING - boolean - default: true
   ## Limits the total number of warnings and errors to 10 for every 10 second interval.
   #
   # log_throttling: true
@@ -1939,6 +1978,14 @@ api_key:
 # kubernetes_namespace_labels_as_tags:
 #   <NAMESPACE_LABEL>: <TAG_KEY>
 #   <HIGH_CARDINALITY_NAMESPACE_LABEL_NAME>: +<TAG_KEY>
+
+## @param container_env_as_tags - map - optional
+## @env DD_CONTAINER_ENV_AS_TAGS - map - optional
+## The Agent can extract environment variable values and set them as metric tags values associated to a <TAG_KEY>.
+## Requires the container runtime socket to be reachable. (Supported container runtimes: Containerd, Docker)
+#
+# container_env_as_tags:
+#   <ENV>: <TAG_KEY>
 
 {{ end -}}
 {{- if .ECS }}
