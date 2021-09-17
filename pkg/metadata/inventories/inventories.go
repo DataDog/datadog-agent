@@ -66,7 +66,7 @@ type AgentMetadataName string
 const (
 	AgentCloudProvider      AgentMetadataName = "cloud_provider"
 	AgentHostnameSource     AgentMetadataName = "hostname_source"
-	AgentVersion            AgentMetadataName = "version"
+	AgentVersion            AgentMetadataName = "agent_version"
 	AgentFlavor             AgentMetadataName = "flavor"
 	AgentInstallerVersion   AgentMetadataName = "install_method_installer_version"
 	AgentInstallTool        AgentMetadataName = "install_method_tool"
