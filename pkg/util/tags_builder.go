@@ -85,19 +85,24 @@ func newHashedTagsFromSlice(tags []string) hashedTags {
 	}
 }
 
-func (h hashedTags) slice(i, j int) hashedTags {
-	return hashedTags{
-		data: h.data[i:j],
-		hash: h.hash[i:j],
-	}
-}
-
-func (h hashedTags) copy() []string {
+// Copy returns a new slice with the copy of the tags
+func (h hashedTags) Copy() []string {
 	return append(make([]string, 0, len(h.data)), h.data...)
 }
 
-func (h hashedTags) len() int {
+// Len returns number of tags
+func (h hashedTags) Len() int {
 	return len(h.data)
+}
+
+// Get returns the internal slice
+func (h hashedTags) Get() []string {
+	return h.data
+}
+
+// Hashes returns the internal slice of tag hashes
+func (h hashedTags) Hashes() []uint64 {
+	return h.hash
 }
 
 // HashingTagsBuilder allows to build a slice of tags to generate the context while
@@ -178,11 +183,6 @@ func (tb *HashingTagsBuilder) Hashes() []uint64 {
 	return tb.hash
 }
 
-// Copy makes a copy of the internal slice
-func (tb *HashingTagsBuilder) Copy() []string {
-	return append(make([]string, 0, len(tb.data)), tb.data...)
-}
-
 // Less implements sort.Interface.Less
 func (tb *HashingTagsBuilder) Less(i, j int) bool {
 	// FIXME(vickenty): could sort using hashes, which is faster, but a lot of tests check for order.
@@ -193,11 +193,6 @@ func (tb *HashingTagsBuilder) Less(i, j int) bool {
 func (tb *HashingTagsBuilder) Swap(i, j int) {
 	tb.hash[i], tb.hash[j] = tb.hash[j], tb.hash[i]
 	tb.data[i], tb.data[j] = tb.data[j], tb.data[i]
-}
-
-// Len implements sort.Interface.Len
-func (tb *HashingTagsBuilder) Len() int {
-	return len(tb.data)
 }
 
 // HashedTags is an immutable slice of pre-hashed tags.
@@ -212,20 +207,10 @@ func NewHashedTagsFromSlice(tags []string) HashedTags {
 
 // Slice returns a shared sub-slice of tags from t.
 func (t HashedTags) Slice(i, j int) HashedTags {
-	return HashedTags{t.hashedTags.slice(i, j)}
-}
-
-// Get returns the internal strings slice. It should not be modified.
-func (t HashedTags) Get() []string {
-	return t.data
-}
-
-// Len returns number of tags.
-func (t HashedTags) Len() int {
-	return t.hashedTags.len()
-}
-
-// Copy returns a new slice with tags.
-func (t HashedTags) Copy() []string {
-	return t.hashedTags.copy()
+	return HashedTags{
+		hashedTags{
+			data: t.data[i:j],
+			hash: t.hash[i:j],
+		},
+	}
 }
