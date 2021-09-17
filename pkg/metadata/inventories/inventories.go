@@ -7,13 +7,16 @@ package inventories
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -64,13 +67,21 @@ type AgentMetadataName string
 // pkg/metadata/inventories/README.md and any additions should
 // be updated there as well.
 const (
-	AgentCloudProvider      AgentMetadataName = "cloud_provider"
-	AgentHostnameSource     AgentMetadataName = "hostname_source"
-	AgentVersion            AgentMetadataName = "agent_version"
-	AgentFlavor             AgentMetadataName = "flavor"
-	AgentInstallerVersion   AgentMetadataName = "install_method_installer_version"
-	AgentInstallTool        AgentMetadataName = "install_method_tool"
-	AgentInstallToolVersion AgentMetadataName = "install_method_tool_version"
+	AgentCloudProvider                AgentMetadataName = "cloud_provider"
+	AgentHostnameSource               AgentMetadataName = "hostname_source"
+	AgentVersion                      AgentMetadataName = "agent_version"
+	AgentFlavor                       AgentMetadataName = "flavor"
+	AgentConfigApmDDURL               AgentMetadataName = "config_apm_dd_url"
+	AgentConfigDDURL                  AgentMetadataName = "config_dd_url"
+	AgentConfigLogsDDURL              AgentMetadataName = "config_logs_dd_url"
+	AgentConfigLogsSocks5ProxyAddress AgentMetadataName = "config_logs_socks5_proxy_address"
+	AgentConfigNoProxy                AgentMetadataName = "config_no_proxy"
+	AgentConfigProcessDDURL           AgentMetadataName = "config_process_dd_url"
+	AgentConfigProxyHTTP              AgentMetadataName = "config_proxy_http"
+	AgentConfigProxyHTTPS             AgentMetadataName = "config_proxy_https"
+	AgentInstallerVersion             AgentMetadataName = "install_method_installer_version"
+	AgentInstallTool                  AgentMetadataName = "install_method_tool"
+	AgentInstallToolVersion           AgentMetadataName = "install_method_tool_version"
 )
 
 // SetAgentMetadata updates the agent metadata value in the cache
@@ -78,7 +89,7 @@ func SetAgentMetadata(name AgentMetadataName, value interface{}) {
 	agentMetadataMutex.Lock()
 	defer agentMetadataMutex.Unlock()
 
-	if agentMetadata[string(name)] != value {
+	if !reflect.DeepEqual(agentMetadata[string(name)], value) {
 		agentMetadata[string(name)] = value
 
 		select {
@@ -101,7 +112,7 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 		checkMetadata[checkID] = entry
 	}
 
-	if entry.CheckInstanceMetadata[key] != value {
+	if !reflect.DeepEqual(entry.CheckInstanceMetadata[key], value) {
 		entry.LastUpdated = timeNow()
 		entry.CheckInstanceMetadata[key] = value
 
@@ -217,4 +228,32 @@ func StartMetadataUpdatedGoroutine(sc schedulerInterface, minSendInterval time.D
 func InitializeData() {
 	SetAgentMetadata(AgentVersion, version.AgentVersion)
 	SetAgentMetadata(AgentFlavor, flavor.GetFlavor())
+
+	initializeConfig(config.Datadog)
+}
+
+func initializeConfig(cfg config.Config) {
+	clean := func(s string) string {
+		// Errors come from internal use of a Reader interface.  Since we are
+		// reading from a buffer, no errors are possible.
+		cleanBytes, _ := log.CredentialsCleanerBytes([]byte(s))
+		return string(cleanBytes)
+	}
+
+	cleanSlice := func(ss []string) []string {
+		rv := make([]string, len(ss))
+		for i, s := range ss {
+			rv[i] = clean(s)
+		}
+		return rv
+	}
+
+	SetAgentMetadata(AgentConfigApmDDURL, clean(cfg.GetString("apm_config.apm_dd_url")))
+	SetAgentMetadata(AgentConfigDDURL, clean(cfg.GetString("dd_url")))
+	SetAgentMetadata(AgentConfigLogsDDURL, clean(cfg.GetString("logs_config.logs_dd_url")))
+	SetAgentMetadata(AgentConfigLogsSocks5ProxyAddress, clean(cfg.GetString("logs_config.socks5_proxy_address")))
+	SetAgentMetadata(AgentConfigNoProxy, cleanSlice(cfg.GetStringSlice("proxy.no_proxy")))
+	SetAgentMetadata(AgentConfigProcessDDURL, clean(cfg.GetString("process_config.process_dd_url")))
+	SetAgentMetadata(AgentConfigProxyHTTP, clean(cfg.GetString("proxy.http")))
+	SetAgentMetadata(AgentConfigProxyHTTPS, clean(cfg.GetString("proxy.https")))
 }
