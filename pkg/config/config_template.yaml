@@ -168,7 +168,7 @@ api_key:
 #   - "0.95"
 
 ## @param histogram_copy_to_distribution - boolean - optional - default: false
-## env DD_HISTOGRAM_COPY_TO_DISTRIBUTION - boolean - optional - default: false
+## @env DD_HISTOGRAM_COPY_TO_DISTRIBUTION - boolean - optional - default: false
 ## Copy histogram values to distributions for true global distributions (in beta)
 ## Note: This increases the number of custom metrics created.
 #
@@ -488,16 +488,19 @@ api_key:
 # enable_metadata_collection: true
 
 ## @param enable_gohai - boolean - optional - default: true
+## @env DD_ENABLE_GOHAI - boolean - optional - default: true
 ## Enable the gohai collection of systems data.
 #
 # enable_gohai: true
 
 ## @param server_timeout - integer - optional - default: 30
+## @env DD_SERVER_TIMEOUT - integer - optional - default: 30
 ## IPC api server timeout in seconds.
 #
 # server_timeout: 30
 
 ## @param procfs_path - string - optional
+## @env DD_PROCFS_PATH - string - optional
 ## Some environments may have the procfs file system mounted in a miscellaneous
 ## location. The procfs_path configuration parameter provides a mechanism to
 ## override the standard default location: '/proc' - this setting trickles down to
@@ -506,21 +509,25 @@ api_key:
 # procfs_path: <PROCFS_PATH>
 {{ if .Python }}
 ## @param disable_py3_validation - boolean - optional - default: false
+## @env DD_DISABLE_PY3_VALIDATION - boolean - optional - default: false
 ## Disable Python3 validation of python checks.
 #
 # disable_py3_validation: false
 #
 ## @param python3_linter_timeout - integer - optional - default: 120
+## @env DD_PYTHON3_LINTER_TIMEOUT - integer - optional - default: 120
 ## Timeout in seconds for validation of compatibility with python 3 when running python 2.
 #
 # python3_linter_timeout: 120
 
 ## @param memtrack_enabled - boolean - optional - default: true
+## @env DD_MEMTRACK_ENABLED - boolean - optional - default: true
 ## Enables tracking of memory allocations made from the python runtime loader.
 #
 # memtrack_enabled: true
 
 ## @param tracemalloc_debug - boolean - optional - default: false
+## @env DD_TRACEMALLOC_DEBUG - boolean - optional - default: false
 ## Enables debugging with tracemalloc for python checks.
 ## Please note that this option is only available when python_version is set to "3".
 ## Additionally when this option becomes effective the number of check runners is
@@ -529,18 +536,21 @@ api_key:
 # tracemalloc_debug: false
 
 ## @param tracemalloc_include - string - optional
+## @env DD_TRACEMALLOC_INCLUDE - string - optional
 ## Comma-separated list of Python checks to enable tracemalloc for when `tracemalloc_debug` is true.
 ## By default, all Python checks are enabled.
 #
 # tracemalloc_include: <TRACEMALLOC_EXCLUDE>
 
 ## @param tracemalloc_exclude - string - optional
+## @env DD_TRACEMALLOC_EXCLUDE - string - optional
 ## Comma-separated list of Python checks to disable tracemalloc for when `tracemalloc_debug` is true.
 ## By default, all Python checks are enabled. This setting takes precedence over `tracemalloc_include`.
 #
 # tracemalloc_exclude: <TRACEMALLOC_INCLUDE>
 
 ## @param windows_use_pythonpath - boolean - optional
+## @env DD_WINDOWS_USE_PYTHONPATH - boolean - optional
 ## Whether to honour the value of the PYTHONPATH env var when set on Windows.
 ## Disabled by default, so we only load Python libraries bundled with the Agent.
 #
@@ -1939,6 +1949,14 @@ api_key:
 # kubernetes_namespace_labels_as_tags:
 #   <NAMESPACE_LABEL>: <TAG_KEY>
 #   <HIGH_CARDINALITY_NAMESPACE_LABEL_NAME>: +<TAG_KEY>
+
+## @param container_env_as_tags - map - optional
+## @env DD_CONTAINER_ENV_AS_TAGS - map - optional
+## The Agent can extract environment variable values and set them as metric tags values associated to a <TAG_KEY>.
+## Requires the container runtime socket to be reachable. (Supported container runtimes: Containerd, Docker)
+#
+# container_env_as_tags:
+#   <ENV>: <TAG_KEY>
 
 {{ end -}}
 {{- if .ECS }}

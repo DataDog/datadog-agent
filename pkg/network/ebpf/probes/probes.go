@@ -86,9 +86,9 @@ const (
 	// SockMapFdReturn maps a file descriptor to a kernel sock
 	SockMapFdReturn ProbeName = "kretprobe/sockfd_lookup_light"
 
-	// IPRouteOutputFlow is the kprobe of a ip_route_output_flow call
+	// IPRouteOutputFlow is the kprobe of an ip_route_output_flow call
 	IPRouteOutputFlow ProbeName = "kprobe/ip_route_output_flow"
-	// IPRouteOutputFlow is the kretprobe of a ip_route_output_flow call
+	// IPRouteOutputFlow is the kretprobe of an ip_route_output_flow call
 	IPRouteOutputFlowReturn ProbeName = "kretprobe/ip_route_output_flow"
 
 	// ConntrackHashInsert is the probe for new conntrack entries
@@ -100,10 +100,10 @@ const (
 	// SockFDLookupRet is the kretprobe used for mapping socket FDs to kernel sock structs
 	SockFDLookupRet ProbeName = "kretprobe/sockfd_lookup_light"
 
-	// DoSendfile is the kprobe used used to trace traffic via SENDFILE(2) syscall
+	// DoSendfile is the kprobe used to trace traffic via SENDFILE(2) syscall
 	DoSendfile ProbeName = "kprobe/do_sendfile"
 
-	// DoSendfileRet is the kretprobe used used to trace traffic via SENDFILE(2) syscall
+	// DoSendfileRet is the kretprobe used to trace traffic via SENDFILE(2) syscall
 	DoSendfileRet ProbeName = "kretprobe/do_sendfile"
 )
 
@@ -119,7 +119,6 @@ const (
 	UdpPortBindingsMap    BPFMapName = "udp_port_bindings"
 	TelemetryMap          BPFMapName = "telemetry"
 	ConnCloseBatchMap     BPFMapName = "conn_close_batch"
-	GatewayMap            BPFMapName = "ip_route_dest_gateways"
 	ConntrackMap          BPFMapName = "conntrack"
 	ConntrackTelemetryMap BPFMapName = "conntrack_telemetry"
 	SockFDLookupArgsMap   BPFMapName = "sockfd_lookup_args"

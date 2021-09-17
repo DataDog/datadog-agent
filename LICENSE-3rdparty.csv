@@ -47,6 +47,7 @@ core,"github.com/DataDog/gopsutil/internal/common",BSD-3-Clause
 core,"github.com/DataDog/gopsutil/mem",BSD-3-Clause
 core,"github.com/DataDog/gopsutil/net",BSD-3-Clause
 core,"github.com/DataDog/gopsutil/process",BSD-3-Clause
+core,"github.com/DataDog/gopsutil/process/so",BSD-3-Clause
 core,"github.com/DataDog/gostackparse",Apache-2.0
 core,"github.com/DataDog/mmh3",UNKNOWN
 core,"github.com/DataDog/nikos/apt",MIT
@@ -174,6 +175,7 @@ core,"github.com/blabber/go-freebsd-sysctl/sysctl",0BSD
 core,"github.com/blang/semver",MIT
 core,"github.com/bmizerany/pat",UNKNOWN
 core,"github.com/cenkalti/backoff",MIT
+core,"github.com/cespare/xxhash",MIT
 core,"github.com/cespare/xxhash/v2",MIT
 core,"github.com/cihub/seelog",BSD-3-Clause
 core,"github.com/clbanning/mxj",MIT
@@ -254,7 +256,6 @@ core,"github.com/cyphar/filepath-securejoin",BSD-3-Clause
 core,"github.com/davecgh/go-spew/spew",ISC
 core,"github.com/dgraph-io/ristretto",Apache-2.0
 core,"github.com/dgraph-io/ristretto/z",MIT
-core,"github.com/dgraph-io/ristretto/z/simd",MIT
 core,"github.com/dgryski/go-jump",MIT
 core,"github.com/docker/distribution/digestset",Apache-2.0
 core,"github.com/docker/distribution/reference",Apache-2.0
@@ -419,8 +420,6 @@ core,"github.com/huandu/xstrings",MIT
 core,"github.com/ianlancetaylor/cgosymbolizer",BSD-3-Clause
 core,"github.com/imdario/mergo",BSD-3-Clause
 core,"github.com/inconshreveable/mousetrap",Apache-2.0
-core,"github.com/iovisor/gobpf/bcc",Apache-2.0
-core,"github.com/iovisor/gobpf/pkg/cpuonline",Apache-2.0
 core,"github.com/iovisor/gobpf/pkg/cpupossible",Apache-2.0
 core,"github.com/iovisor/gobpf/pkg/cpurange",Apache-2.0
 core,"github.com/itchyny/gojq",MIT
@@ -638,10 +637,7 @@ core,"go.opencensus.io/trace",Apache-2.0
 core,"go.opencensus.io/trace/internal",Apache-2.0
 core,"go.opencensus.io/trace/propagation",Apache-2.0
 core,"go.opencensus.io/trace/tracestate",Apache-2.0
-core,"go.opentelemetry.io/otel/attribute",Apache-2.0
-core,"go.opentelemetry.io/otel/codes",Apache-2.0
-core,"go.opentelemetry.io/otel/internal",Apache-2.0
-core,"go.opentelemetry.io/otel/semconv",Apache-2.0
+core,"go.opentelemetry.io/collector/model/semconv/v1.5.0",Apache-2.0
 core,"go.uber.org/atomic",MIT
 core,"go.uber.org/automaxprocs/internal/cgroups",MIT
 core,"go.uber.org/automaxprocs/internal/runtime",MIT

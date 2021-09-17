@@ -2,48 +2,6 @@
 # deps_build stage
 # Contains jobs which build various libraries needed for system-probe.
 
-.build_libbcc_common:
-  rules:
-    !reference [.manual]
-  stage: deps_build
-  script:
-    - git clone -b "$BCC_VERSION" --depth=1 https://github.com/iovisor/bcc.git /tmp/bcc
-    # Patch libbcc to remove references to glibc symbols with a too recent version
-    - cd /tmp/bcc
-    - patch -p1 < "$CI_PROJECT_DIR"/omnibus/config/software/libbcc_compat.patch
-    - mkdir /tmp/bcc/build
-    - cd /tmp/bcc/build
-    - cmake .. -DENABLE_EXAMPLES=OFF -DENABLE_TESTS=OFF -DENABLE_MAN=OFF -DCMAKE_INSTALL_PREFIX=/opt/libbcc -DCMAKE_EXE_LINKER_FLAGS="-Wl,-rpath,$DATADOG_AGENT_EMBEDDED_PATH/lib" -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-rpath,$DATADOG_AGENT_EMBEDDED_PATH/lib"
-    - make -j 4 # "$(nproc)"
-    # Check that libbcc has no references to glibc >= 2.18
-    - objdump -p src/cc/libbcc.so | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1
-    - make install
-    - cd /opt/libbcc
-    - chmod go-rwx lib/libbcc*
-    - rm -rf share/bcc/introspection share/bcc/tools lib/python2* lib/python3*
-    - cp $(ldd lib/libbcc.so | awk '$1 ~ /^libtinfo/ {system("dirname " $3)}')/libtinfo.so.6* lib
-    - mkdir -p $CI_PROJECT_DIR/.tmp
-    - tar cvaf $CI_PROJECT_DIR/.tmp/libbcc-$ARCH-$BCC_VERSION.tar.xz .
-    - $S3_CP_CMD $CI_PROJECT_DIR/.tmp/libbcc-$ARCH-$BCC_VERSION.tar.xz $S3_PERMANENT_ARTIFACTS_URI/libbcc-$ARCH-$BCC_VERSION.tar.xz
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - $CI_PROJECT_DIR/.tmp/libbcc-$ARCH-$BCC_VERSION.tar.xz
-
-build_libbcc_x64:
-  extends: .build_libbcc_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["runner:main"]
-  variables:
-    ARCH: amd64
-
-build_libbcc_arm64:
-  extends: .build_libbcc_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
-  variables:
-    ARCH: arm64
-
 .build_clang_common:
   rules:
     !reference [.manual]

@@ -16,9 +16,6 @@ Release on: 2021-08-23
 
 This is a Windows-only release.
 
-- Please refer to the `7.30.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7302>`_ for the list of changes on the Core Checks
-
-
 .. _Release Notes_7.30.2_Bug Fixes:
 
 Bug Fixes

@@ -15,7 +15,7 @@
   tags: ["runner:main"]
   stage: deploy7
   rules:
-    !reference [.on_deploy_a7_manual]
+    !reference [.on_deploy_a7_manual_auto_on_rc]
   dependencies: []
   script:
     - python3 -m pip install -r requirements.txt
@@ -51,7 +51,7 @@ deploy-dogstatsd:
   tags: ["runner:main"]
   stage: deploy7
   rules:
-    !reference [.on_deploy_a7_manual]
+    !reference [.on_deploy_a7_manual_auto_on_rc]
   dependencies: []
   script:
     - python3 -m pip install -r requirements.txt
