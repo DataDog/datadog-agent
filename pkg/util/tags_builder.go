@@ -173,16 +173,6 @@ func (tb *HashingTagsBuilder) Truncate(len int) {
 	tb.hash = tb.hash[0:len]
 }
 
-// Get returns the internal slice
-func (tb *HashingTagsBuilder) Get() []string {
-	return tb.data
-}
-
-// Hashes returns the internal slice of tag hashes
-func (tb *HashingTagsBuilder) Hashes() []uint64 {
-	return tb.hash
-}
-
 // Less implements sort.Interface.Less
 func (tb *HashingTagsBuilder) Less(i, j int) bool {
 	// FIXME(vickenty): could sort using hashes, which is faster, but a lot of tests check for order.
