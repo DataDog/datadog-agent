@@ -64,6 +64,7 @@ func (d *DeviceCheck) GetIDTags() []string {
 func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	startTime := time.Now()
 	staticTags := append(d.config.GetStaticTags(), d.config.GetNetworkTags()...)
+	//staticTags = append(staticTags, fmt.Sprintf("host:device_id:%s", d.config.DeviceID))
 
 	// Fetch and report metrics
 	var checkErr error
@@ -159,7 +160,8 @@ func (d *DeviceCheck) doAutodetectProfile(sess session.Session) error {
 }
 
 func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string) {
-	newTags := append(common.CopyStrings(tags), snmpLoaderTag)
+	host := fmt.Sprintf("device_id_using_tag:%s", d.config.DeviceID)
+	newTags := append(common.CopyStrings(tags), snmpLoaderTag, "host:" + host)
 
 	d.sender.Gauge("snmp.devices_monitored", float64(1), "", newTags)
 
