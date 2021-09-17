@@ -39,7 +39,7 @@ L:
 
 type mockAutoConfig struct{}
 
-func (*mockAutoConfig) WithLoadedConfigs(f func(map[string]integration.Config)) {
+func (*mockAutoConfig) MapOverLoadedConfigs(f func(map[string]integration.Config)) {
 	configs := make(map[string]integration.Config)
 	configs["check1_digest"] = integration.Config{
 		Name:     "check1",

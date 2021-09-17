@@ -19,9 +19,9 @@ type schedulerInterface interface {
 	TriggerAndResetCollectorTimer(name string, delay time.Duration)
 }
 
-// AutoConfigInterface is an interface for the WithLoadedConfigs method of autodiscovery
+// AutoConfigInterface is an interface for the MapOverLoadedConfigs method of autodiscovery
 type AutoConfigInterface interface {
-	WithLoadedConfigs(func(map[string]integration.Config))
+	MapOverLoadedConfigs(func(map[string]integration.Config))
 }
 
 // CollectorInterface is an interface for the GetAllInstanceIDs method of the collector
@@ -135,7 +135,7 @@ func CreatePayload(ctx context.Context, hostname string, ac AutoConfigInterface,
 
 	foundInCollector := map[string]struct{}{}
 	if ac != nil {
-		ac.WithLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
+		ac.MapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
 			for _, config := range loadedConfigs {
 				checkMetadata[config.Name] = make([]*CheckInstanceMetadata, 0)
 				instanceIDs := coll.GetAllInstanceIDs(config.Name)
