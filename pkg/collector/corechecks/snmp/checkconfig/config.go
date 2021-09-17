@@ -60,25 +60,24 @@ type InitConfig struct {
 
 // InstanceConfig is used to deserialize integration instance config
 type InstanceConfig struct {
-	IPAddress        string            `yaml:"ip_address"`
-	Port             Number            `yaml:"port"`
-	CommunityString  string            `yaml:"community_string"`
-	SnmpVersion      string            `yaml:"snmp_version"`
-	Timeout          Number            `yaml:"timeout"`
-	Retries          Number            `yaml:"retries"`
-	User             string            `yaml:"user"`
-	AuthProtocol     string            `yaml:"authProtocol"`
-	AuthKey          string            `yaml:"authKey"`
-	PrivProtocol     string            `yaml:"privProtocol"`
-	PrivKey          string            `yaml:"privKey"`
-	ContextName      string            `yaml:"context_name"`
-	Metrics          []MetricsConfig   `yaml:"metrics"`     // SNMP metrics definition
-	MetricTags       []MetricTagConfig `yaml:"metric_tags"` // SNMP metric tags definition
-	Profile          string            `yaml:"profile"`
-	UseGlobalMetrics bool              `yaml:"use_global_metrics"`
-
-	CollectDeviceMetadata *Boolean `yaml:"collect_device_metadata"`
-	UseDeviceIDAsHostname *Boolean `yaml:"use_device_id_as_hostname"`
+	IPAddress             string            `yaml:"ip_address"`
+	Port                  Number            `yaml:"port"`
+	CommunityString       string            `yaml:"community_string"`
+	SnmpVersion           string            `yaml:"snmp_version"`
+	Timeout               Number            `yaml:"timeout"`
+	Retries               Number            `yaml:"retries"`
+	User                  string            `yaml:"user"`
+	AuthProtocol          string            `yaml:"authProtocol"`
+	AuthKey               string            `yaml:"authKey"`
+	PrivProtocol          string            `yaml:"privProtocol"`
+	PrivKey               string            `yaml:"privKey"`
+	ContextName           string            `yaml:"context_name"`
+	Metrics               []MetricsConfig   `yaml:"metrics"`     // SNMP metrics definition
+	MetricTags            []MetricTagConfig `yaml:"metric_tags"` // SNMP metric tags definition
+	Profile               string            `yaml:"profile"`
+	UseGlobalMetrics      bool              `yaml:"use_global_metrics"`
+	CollectDeviceMetadata *Boolean          `yaml:"collect_device_metadata"`
+	UseDeviceIDAsHostname *Boolean          `yaml:"use_device_id_as_hostname"`
 
 	// ExtraTags is a workaround to pass tags from snmp listener to snmp integration via AD template
 	// (see cmd/agent/dist/conf.d/snmp.d/auto_conf.yaml) that only works with strings.
