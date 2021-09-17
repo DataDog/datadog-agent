@@ -297,7 +297,7 @@ func (s *TagStore) Prune() {
 	}
 }
 
-// LookupHashed gets tags from the store and returns them as a TagsBuilder instance. It
+// LookupHashed gets tags from the store and returns them as a HashedTags instance. It
 // returns the source names in the second slice to allow the client to trigger manual
 // lookups on missing sources.
 func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardinality) (*util.HashedTags, []string) {
