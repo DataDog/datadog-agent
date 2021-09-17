@@ -7,7 +7,6 @@ package sender
 
 import (
 	"context"
-	"expvar"
 	"sync"
 	"time"
 
@@ -22,7 +21,6 @@ import (
 var (
 	tlmDroppedTooLarge = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
 	tlmSenderWaitTime  = telemetry.NewGauge("logs_sender_batch_strategy_gauge", "sender_wait", nil, "Time spent waiting for a sender")
-	expSenderWaitTime  = expvar.Int{}
 )
 
 // batchStrategy contains all the logic to send logs in batch.
