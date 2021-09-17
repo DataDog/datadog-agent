@@ -245,7 +245,7 @@ func init() {
 	SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
 }
 
-// EnrichTags expend a tag list with origin detection tags
+// EnrichTags extends a tag list with origin detection tags
 // NOTE(remy): it is not needed to sort/dedup the tags anymore since after the
 // enrichment, the metric and its tags is sent to the context key generator, which
 // is taking care of deduping the tags while generating the context key.
