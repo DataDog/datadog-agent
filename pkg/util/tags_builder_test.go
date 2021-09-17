@@ -11,21 +11,21 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewBuilder(t *testing.T) {
-	tb := NewHashingTagsBuilder()
+func TestNewTagsBuilder(t *testing.T) {
+	tb := NewTagsBuilder()
 	assert.NotNil(t, tb)
 	assert.Equal(t, []string{}, tb.data)
 }
 
-func TestNewBuilderFromSlice(t *testing.T) {
+func TestNewTagsBuilderFromSlice(t *testing.T) {
 	test := []string{"a", "b", "c"}
-	tb := NewHashingTagsBuilderFromSlice(test)
+	tb := NewTagsBuilderFromSlice(test)
 	assert.NotNil(t, tb)
 	assert.Equal(t, test, tb.data)
 }
 
 func TestTagsBuilderAppend(t *testing.T) {
-	tb := NewHashingTagsBuilder()
+	tb := NewTagsBuilder()
 
 	tb.Append("a", "b", "c")
 	assert.Equal(t, []string{"a", "b", "c"}, tb.data)
@@ -35,7 +35,7 @@ func TestTagsBuilderAppend(t *testing.T) {
 }
 
 func TestTagsBuilderReset(t *testing.T) {
-	tb := NewHashingTagsBuilder()
+	tb := NewTagsBuilder()
 
 	tb.Append("a", "b", "c")
 	assert.Equal(t, []string{"a", "b", "c"}, tb.data)
@@ -45,6 +45,52 @@ func TestTagsBuilderReset(t *testing.T) {
 }
 
 func TestTagsBuilderGet(t *testing.T) {
+	tb := NewTagsBuilder()
+
+	tb.Append("a", "b", "c")
+	internalData := tb.Get()
+	assert.Equal(t, []string{"a", "b", "c"}, internalData)
+
+	// check that the internal buffer was indeed returned and not a copy
+	internalData[0] = "test"
+	assert.Equal(t, []string{"test", "b", "c"}, internalData)
+	assert.Equal(t, []string{"test", "b", "c"}, tb.data)
+}
+
+func TestNewHashingTagsBuilder(t *testing.T) {
+	tb := NewHashingTagsBuilder()
+	assert.NotNil(t, tb)
+	assert.Equal(t, []string{}, tb.data)
+}
+
+func TestNewHashingTagsBuilderFromSlice(t *testing.T) {
+	test := []string{"a", "b", "c"}
+	tb := NewHashingTagsBuilderFromSlice(test)
+	assert.NotNil(t, tb)
+	assert.Equal(t, test, tb.data)
+}
+
+func TestHashingTagsBuilderAppend(t *testing.T) {
+	tb := NewHashingTagsBuilder()
+
+	tb.Append("a", "b", "c")
+	assert.Equal(t, []string{"a", "b", "c"}, tb.data)
+
+	tb.Append("d")
+	assert.Equal(t, []string{"a", "b", "c", "d"}, tb.data)
+}
+
+func TestHashingTagsBuilderReset(t *testing.T) {
+	tb := NewHashingTagsBuilder()
+
+	tb.Append("a", "b", "c")
+	assert.Equal(t, []string{"a", "b", "c"}, tb.data)
+
+	tb.Reset()
+	assert.Equal(t, []string{}, tb.data)
+}
+
+func TestHashingTagsBuilderGet(t *testing.T) {
 	tb := NewHashingTagsBuilder()
 
 	tb.Append("a", "b", "c")
@@ -57,7 +103,7 @@ func TestTagsBuilderGet(t *testing.T) {
 	assert.Equal(t, []string{"test", "b", "c"}, tb.data)
 }
 
-func TestTagsBuilderCopy(t *testing.T) {
+func TestHashingTagsBuilderCopy(t *testing.T) {
 	tb := NewHashingTagsBuilder()
 
 	tb.Append("a", "b", "c")
