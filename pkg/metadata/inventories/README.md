@@ -40,7 +40,7 @@ The payload is a JSON dict with the following fields
 - `agent_metadata` - **dict of string to JSON type**:
   - `cloud_provider` - **string**: the name of the cloud provider detected by the Agent (omitted if no cloud is detected).
   - `hostname_source` - **string**: the source for the agent hostname (see pkg/util/hostname.go:GetHostnameData).
-  - `version` - **string**: the version of the Agent.
+  - `agent_version` - **string**: the version of the Agent.
   - `flavor` - **string**: the flavor of the Agent. The Agent can be build under different flavor such as standalone
     dogstatsd, iot, serverless ... (see `pkg/util/flavor` package).
   - `install_method_tool` - **string**: the name of the tool used to install the agent (ie, Chef, Ansible, ...).
