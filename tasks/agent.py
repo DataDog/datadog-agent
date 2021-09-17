@@ -3,6 +3,7 @@ Agent namespaced tasks
 """
 
 
+import ast
 import datetime
 import glob
 import os
@@ -350,6 +351,7 @@ def get_omnibus_env(
     python_runtimes='3',
     hardened_runtime=False,
     system_probe_bin=None,
+    nikos_path=None,
     go_mod_cache=None,
 ):
     env = load_release_versions(ctx, release_version)
@@ -389,6 +391,8 @@ def get_omnibus_env(
     env['PY_RUNTIMES'] = python_runtimes
     if system_probe_bin:
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
+    if nikos_path:
+        env['NIKOS_PATH'] = nikos_path
 
     return env
 
@@ -461,6 +465,7 @@ def omnibus_build(
     omnibus_s3_cache=False,
     hardened_runtime=False,
     system_probe_bin=None,
+    nikos_path=None,
     go_mod_cache=None,
 ):
     """
@@ -491,6 +496,7 @@ def omnibus_build(
         python_runtimes=python_runtimes,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
+        nikos_path=nikos_path,
         go_mod_cache=go_mod_cache,
     )
 
@@ -605,6 +611,25 @@ def omnibus_manifest(
         omnibus_s3_cache=False,
         log_level=log_level,
     )
+
+
+@task
+def check_supports_python_version(_, filename, python):
+    """
+    Check if a setup.py file states support for a given major Python version.
+    """
+    if python not in ['2', '3']:
+        raise Exit("invalid Python version", code=2)
+
+    with open(filename, 'r') as f:
+        tree = ast.parse(f.read(), filename=filename)
+
+    prefix = 'Programming Language :: Python :: {}'.format(python)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.keyword) and node.arg == "classifiers":
+            classifiers = ast.literal_eval(node.value)
+            print(any(cls.startswith(prefix) for cls in classifiers), end="")
+            return
 
 
 @task

@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -440,6 +441,46 @@ func TestConntrackExpiration(t *testing.T) {
 	_ = getConnections(t, tr)
 
 	assert.Nil(t, tr.conntracker.GetTranslationForConn(*conn), "translation should have been deleted")
+}
+
+func TestTranslationBindingRegression(t *testing.T) {
+	setupDNAT(t)
+	defer teardownDNAT(t)
+
+	tr, err := NewTracer(testConfig())
+	require.NoError(t, err)
+	defer tr.Stop()
+
+	// Warm-up tracer state
+	_ = getConnections(t, tr)
+
+	// Setup TCP server
+	rand.Seed(time.Now().UnixNano())
+	port := 5430 + rand.Intn(100)
+	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
+		io.Copy(ioutil.Discard, c)
+		c.Close()
+	})
+	doneChan := make(chan struct{})
+	err = server.Run(doneChan)
+	require.NoError(t, err)
+	defer close(doneChan)
+
+	// Send data to 2.2.2.2 (which should be translated to 1.1.1.1)
+	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%d", port))
+	require.NoError(t, err)
+	defer c.Close()
+	_, err = c.Write([]byte("ping"))
+	require.NoError(t, err)
+
+	// Give enough time for conntrack cache to be populated
+	time.Sleep(100 * time.Millisecond)
+
+	// Assert that the connection to 2.2.2.2 has an IPTranslation object bound to it
+	connections := getConnections(t, tr)
+	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+	require.True(t, ok)
+	require.NotNil(t, conn.IPTranslation, "missing translation for connection")
 }
 
 func TestUnconnectedUDPSendIPv6(t *testing.T) {
@@ -1140,6 +1181,19 @@ func TestUDPPeekCount(t *testing.T) {
 	require.Equal(t, 0, int(incoming.MonotonicSentBytes))
 	require.Equal(t, len(msg), int(incoming.MonotonicRecvBytes))
 	require.True(t, incoming.IntraHost)
+}
+
+func TestDNSStatsWithNAT(t *testing.T) {
+	// Setup a NAT rule to translate 2.2.2.2 to 8.8.8.8 and issue a DNS request to 2.2.2.2
+	cmds := []string{"iptables -t nat -A OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
+	nettestutil.RunCommands(t, cmds, true)
+
+	defer func() {
+		cmds = []string{"iptables -t nat -D OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
+		nettestutil.RunCommands(t, cmds, true)
+	}()
+
+	testDNSStats(t, "golang.org", 1, 0, 0, "2.2.2.2")
 }
 
 func iptablesWrapper(t *testing.T, f func()) {

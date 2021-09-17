@@ -713,6 +713,7 @@ func InitConfig(config Config) {
 
 	bindEnvAndSetLogsConfigKeys(config, "logs_config.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
+	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.activity.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
 
@@ -926,6 +927,7 @@ func InitConfig(config Config) {
 	setAssetFs(config)
 	setupAPM(config)
 	setupAppSec(config)
+	setupOTLP(config)
 }
 
 var ddURLRegexp = regexp.MustCompile(`^app(\.(us|eu)\d)?\.datad(oghq|0g)\.(com|eu)$`)

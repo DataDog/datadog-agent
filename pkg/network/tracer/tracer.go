@@ -437,8 +437,8 @@ func (t *Tracer) getConnections(buffer []network.ConnectionStats) ([]network.Con
 		return nil, 0, err
 	}
 
-	for _, conn := range active {
-		conn.IPTranslation = t.conntracker.GetTranslationForConn(conn)
+	for i, conn := range active {
+		active[i].IPTranslation = t.conntracker.GetTranslationForConn(conn)
 	}
 
 	entryCount := uint(len(active))

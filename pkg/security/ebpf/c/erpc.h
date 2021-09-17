@@ -116,11 +116,11 @@ int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
 
     switch (op) {
         case RESOLVE_SEGMENT_OP:
-            return handle_resolve_segment(data);
+            return handle_dr_request(ctx, data, DR_ERPC_SEGMENT_KEY);
         case RESOLVE_PATH_OP:
-            return handle_resolve_path(ctx, data);
+            return handle_dr_request(ctx, data, DR_ERPC_KEY);
         case RESOLVE_PARENT_OP:
-            return handle_resolve_parent(data);
+            return handle_dr_request(ctx, data, DR_ERPC_PARENT_KEY);
     }
 
     return 0;

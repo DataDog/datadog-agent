@@ -1,3 +1,4 @@
+$ErrorActionPreference = "Stop"
 $Password = ConvertTo-SecureString "dummyPW_:-gch6Rejae9" -AsPlainText -Force
 New-LocalUser -Name "ddagentuser" -Description "Test user for the secrets feature on windows." -Password $Password
 
