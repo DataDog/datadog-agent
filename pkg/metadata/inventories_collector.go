@@ -46,7 +46,8 @@ func (c inventoriesCollector) Send(ctx context.Context, s *serializer.Serializer
 	return nil
 }
 
-// Init initializes the inventory metadata collection
+// Init initializes the inventory metadata collection. This should be called in
+// all agents that wish to track inventory, after configuration is initialized.
 func (c inventoriesCollector) Init() error {
 	inventories.InitializeData()
 	return inventories.StartMetadataUpdatedGoroutine(c.sc, config.Datadog.GetDuration("inventories_min_interval")*time.Second)
