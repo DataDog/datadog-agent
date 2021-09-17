@@ -72,7 +72,6 @@ func (d *DeviceCheck) GetHostname() string {
 func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	startTime := time.Now()
 	staticTags := append(d.config.GetStaticTags(), d.config.GetNetworkTags()...)
-	//staticTags = append(staticTags, fmt.Sprintf("host:device_id:%s", d.config.DeviceID))
 
 	// Fetch and report metrics
 	var checkErr error
