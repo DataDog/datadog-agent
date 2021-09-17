@@ -168,8 +168,7 @@ func (d *DeviceCheck) doAutodetectProfile(sess session.Session) error {
 }
 
 func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string) {
-	host := fmt.Sprintf("device_id_using_tag:%s", d.config.DeviceID)
-	newTags := append(common.CopyStrings(tags), snmpLoaderTag, "host:"+host)
+	newTags := append(common.CopyStrings(tags), snmpLoaderTag)
 
 	d.sender.Gauge("snmp.devices_monitored", float64(1), newTags)
 
