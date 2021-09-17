@@ -24,6 +24,7 @@ running the agent on one of the supported platforms.
 
 - [ ] A [release note](https://github.com/DataDog/datadog-agent/blob/main/docs/dev/contributing.md#reno) has been added or the `changelog/no-changelog` label has been applied.
 - [ ] The `need-change/operator` and `need-change/helm` labels has been applied if applicable.
+- [ ] Use the `major_change` label if your change either has a major impact, is impacting multiple teams or is changing important well-established internals of the Agent.
 - [ ] The appropriate `team/..` label has been applied, if known.
 - [ ] If known, an appropriate milestone has been selected; otherwise the `Triage` milestone is set.
 - [ ] The [config template](https://github.com/DataDog/datadog-agent/blob/main/pkg/config/config_template.yaml) has been updated if applicable.
