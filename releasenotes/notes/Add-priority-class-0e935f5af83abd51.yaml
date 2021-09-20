@@ -6,7 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-upgrade:
+features:
   - |
-    [Orchestrator]Extract priority class from pod and update unit test
+    priority class name of pods are now collected and sent to the orchestration endpoint
 
