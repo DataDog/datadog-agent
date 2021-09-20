@@ -14,6 +14,7 @@ import (
 type Env interface {
 	Clients
 	Configuration
+	RegoConfiguration
 	Reporter() event.Reporter
 }
 
@@ -22,6 +23,11 @@ type Clients interface {
 	DockerClient() DockerClient
 	AuditClient() AuditClient
 	KubeClient() KubeClient
+}
+
+type RegoConfiguration interface {
+	ProvidedInput() *map[string][]interface{}
+	DumpInputPath() string
 }
 
 // Configuration provides an abstraction for various environment methods used by checks

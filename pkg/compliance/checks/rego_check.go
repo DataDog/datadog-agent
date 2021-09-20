@@ -6,10 +6,12 @@
 package checks
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"strconv"
 	"strings"
 
@@ -83,26 +85,30 @@ type instanceFields struct {
 	fields   []string
 }
 
-func (r *regoCheck) check(env env.Env) []*compliance.Report {
-	log.Debugf("%s: rego check starting", r.ruleID)
+func resourcePluralizer(resource compliance.ResourceCommon) string {
+	str := string(resource.Kind())
 
-	input := make(map[string][]interface{})
-
-	name := func(resource compliance.ResourceCommon) string {
-		str := string(resource.Kind())
-
-		if strings.HasSuffix(str, "s") {
-			return str + "es"
-		}
-		return str + "s"
+	if strings.HasSuffix(str, "s") {
+		return str + "es"
 	}
+	return str + "s"
+}
+
+type envInput struct {
+	input             map[string][]interface{}
+	resourceInstances map[int]instanceFields
+}
+
+func (r *regoCheck) buildNormalInput(env env.Env) (envInput, error) {
+	input := make(map[string][]interface{})
 
 	currentIDCounter := 0
 	resourceInstances := make(map[int]instanceFields)
 	for _, resource := range r.resources {
 		resolve, reportedFields, err := resourceKindToResolverAndFields(env, r.ruleID, resource.Kind())
 		if err != nil {
-			return []*compliance.Report{compliance.BuildReportForError(err)}
+			return envInput{}, err
+			// return []*compliance.Report{compliance.BuildReportForError(err)}
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
@@ -114,7 +120,7 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 		}
 		cancel()
 
-		key := name(resource.ResourceCommon)
+		key := resourcePluralizer(resource.ResourceCommon)
 
 		switch res := resolved.(type) {
 		case resolvedInstance:
@@ -124,7 +130,7 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 			for !it.Done() {
 				instance, err := it.Next()
 				if err != nil {
-					return []*compliance.Report{compliance.BuildReportForError(err)}
+					return envInput{}, err
 				}
 
 				r.appendInstance(resourceInstances, input, key, instance, &currentIDCounter, reportedFields)
@@ -132,7 +138,60 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 		}
 	}
 
+	return envInput{
+		input:             input,
+		resourceInstances: resourceInstances,
+	}, nil
+}
+
+func (r *regoCheck) check(env env.Env) []*compliance.Report {
+	log.Debugf("%s: rego check starting", r.ruleID)
+
+	var resultFinalizer func(bool, []int) []*compliance.Report
+
+	var input map[string][]interface{}
+	providedInput := env.ProvidedInput()
+
+	if providedInput != nil {
+		input = *providedInput
+
+		resultFinalizer = func(passed bool, denies []int) []*compliance.Report {
+			log.Infof("denies: %v", denies)
+			return nil
+		}
+	} else {
+		envInput, err := r.buildNormalInput(env)
+		if err != nil {
+			return []*compliance.Report{compliance.BuildReportForError(err)}
+		}
+
+		input = envInput.input
+
+		resultFinalizer = func(passed bool, denies []int) []*compliance.Report {
+			var reports []*compliance.Report
+			for resID, instanceFields := range envInput.resourceInstances {
+				specificPassed := !containsInt(denies, resID)
+				// if the global checked passed, the specific doesn't matter
+				resultPassed := passed || specificPassed
+
+				ri, ok := instanceFields.instance.(resolvedInstance)
+				if ok {
+					report := instanceToReport(ri, resultPassed, instanceFields.fields)
+					reports = append(reports, report)
+				} else {
+					report := evalInstanceToReport(instanceFields.instance, resultPassed, instanceFields.fields)
+					reports = append(reports, report)
+				}
+			}
+			return reports
+		}
+	}
+
 	log.Debugf("rego eval input: %+v", input)
+
+	if path := env.DumpInputPath(); path != "" {
+		dumpInputToFile(path, input)
+	}
 
 	ctx := context.TODO()
 	results, err := r.preparedEvalQuery.Eval(ctx, rego.EvalInput(input))
@@ -149,33 +208,32 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 		return []*compliance.Report{compliance.BuildReportForError(errors.New("wrong result type"))}
 	}
 
-	/*
-		passed, ok := res["result"].(bool)
-		if !ok {
-			return []*compliance.Report{compliance.BuildReportForError(errors.New("wrong result type"))}
-		}
-	*/
+	passed, ok := res["result"].(bool)
+	if !ok {
+		return []*compliance.Report{compliance.BuildReportForError(errors.New("wrong result type"))}
+	}
 
 	denies, err := extractDeniesRIDs(res["denies"])
 	if err != nil {
 		return []*compliance.Report{compliance.BuildReportForError(err)}
 	}
 
-	var reports []*compliance.Report
-	for resID, instanceFields := range resourceInstances {
-		passed := !containsInt(denies, resID)
-		ri, ok := instanceFields.instance.(resolvedInstance)
-		if ok {
-			report := instanceToReport(ri, passed, instanceFields.fields)
-			reports = append(reports, report)
-		} else {
-			report := evalInstanceToReport(instanceFields.instance, passed, instanceFields.fields)
-			reports = append(reports, report)
-		}
-	}
+	reports := resultFinalizer(passed, denies)
 
 	log.Debugf("reports: %v", reports)
 	return reports
+}
+
+func dumpInputToFile(path string, input interface{}) error {
+	jsonInputDump, err := json.Marshal(input)
+	if err != nil {
+		return err
+	}
+
+	var buffer bytes.Buffer
+	json.Indent(&buffer, jsonInputDump, "", "\t")
+
+	return ioutil.WriteFile(path, buffer.Bytes(), 0644)
 }
 
 func (r *regoCheck) appendInstance(resourceInstances map[int]instanceFields, input map[string][]interface{}, key string, instance eval.Instance, idCounter *int, reportedFields []string) {

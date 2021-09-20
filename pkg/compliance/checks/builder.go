@@ -8,8 +8,10 @@ package checks
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"strings"
 	"time"
 
@@ -214,6 +216,26 @@ func WithNodeLabels(nodeLabels map[string]string) BuilderOption {
 	}
 }
 
+// WithRegoInput configures a builder to provide rego input based on the content
+// of a file instead of the current environment
+func WithRegoInput(regoInputPath string) BuilderOption {
+	return func(b *builder) error {
+		content, err := ioutil.ReadFile(regoInputPath)
+		if err != nil {
+			return err
+		}
+		return json.Unmarshal(content, &b.regoInput)
+	}
+}
+
+// WithRegoInputDumpPath configures a builder to dump the rego input to the provided file path
+func WithRegoInputDumpPath(regoInputDumpPath string) BuilderOption {
+	return func(b *builder) error {
+		b.regoInputDumpPath = regoInputDumpPath
+		return nil
+	}
+}
+
 // IsFramework matches a compliance suite by the name of the framework
 func IsFramework(framework string) SuiteMatcher {
 	return func(s *compliance.SuiteMeta) bool {
@@ -271,6 +293,9 @@ type builder struct {
 	auditClient  env.AuditClient
 	kubeClient   *kubeClient
 	isLeaderFunc func() bool
+
+	regoInput         *map[string][]interface{}
+	regoInputDumpPath string
 
 	status *status
 }
@@ -698,6 +723,14 @@ func (b *builder) AuditClient() env.AuditClient {
 
 func (b *builder) KubeClient() env.KubeClient {
 	return b.kubeClient
+}
+
+func (b *builder) ProvidedInput() *map[string][]interface{} {
+	return b.regoInput
+}
+
+func (b *builder) DumpInputPath() string {
+	return b.regoInputDumpPath
 }
 
 func (b *builder) Hostname() string {
