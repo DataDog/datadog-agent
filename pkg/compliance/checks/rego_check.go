@@ -254,7 +254,7 @@ func (r *regoCheck) appendInstance(resourceInstances map[int]instanceFields, inp
 
 var regoBuiltins = []func(*rego.Rego){
 	octalLiteralFunc,
-	resourceToRID,
+	denyInput,
 }
 
 var octalLiteralFunc = rego.Function1(
@@ -277,9 +277,9 @@ var octalLiteralFunc = rego.Function1(
 	},
 )
 
-var resourceToRID = rego.Function1(
+var denyInput = rego.Function1(
 	&rego.Function{
-		Name: "denyResource",
+		Name: "deny_input",
 		Decl: types.NewFunction(types.Args(types.A), types.N),
 	},
 	func(_ rego.BuiltinContext, a *ast.Term) (*ast.Term, error) {

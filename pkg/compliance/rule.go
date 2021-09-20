@@ -26,7 +26,7 @@ type Rule struct {
 // RegoRule defines a rule in a compliance config
 type RegoRule struct {
 	RuleCommon `yaml:",inline"`
-	Resources  []RegoResource `yaml:"resources,omitempty"`
+	Resources  []RegoResource `yaml:"inputs,omitempty"`
 	Module     string         `yaml:"module,omitempty"`
 	Query      string         `yaml:"query,omitempty"`
 	Denies     string         `yaml:"denies,omitempty"`
