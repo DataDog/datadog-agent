@@ -3,13 +3,17 @@
 package http
 
 import (
+	"fmt"
 	"math"
 	"os"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
 	"golang.org/x/sys/unix"
@@ -53,9 +57,24 @@ type subprogram interface {
 }
 
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*ebpfProgram, error) {
-	bytecode, err := getRuntimeCompiledHTTP(c)
-	if err != nil {
-		return nil, err
+	var bytecode bytecode.AssetReader
+	var err error
+	if c.EnableRuntimeCompiler {
+		runtime.RuntimeCompilationEnabled = true
+		bytecode, err = getRuntimeCompiledHTTP(c)
+		if err != nil {
+			if !c.AllowPrecompiledFallback {
+				return nil, fmt.Errorf("error compiling network http tracer: %s", err)
+			}
+			log.Warnf("error compiling network http tracer, falling back to pre-compiled: %s", err)
+		}
+	}
+
+	if bytecode == nil {
+		bytecode, err = netebpf.ReadHTTPModule(c.BPFDir, c.BPFDebug)
+		if err != nil {
+			return nil, fmt.Errorf("could not read bpf module: %s", err)
+		}
 	}
 
 	batchCompletionHandler := ddebpf.NewPerfHandler(batchNotificationsChanSize)
@@ -100,6 +119,8 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 }
 
 func (e *ebpfProgram) Init() error {
+	defer e.bytecode.Close()
+
 	for _, s := range e.subprograms {
 		s.ConfigureManager(e.Manager)
 	}
