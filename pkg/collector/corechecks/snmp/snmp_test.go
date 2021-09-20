@@ -1623,7 +1623,7 @@ use_device_id_as_hostname: true
 	err = chk.Run()
 	assert.Nil(t, err)
 
-	hostname := "device_id:74f22f3320d2d692"
+	hostname := "snmp:device:74f22f3320d2d692"
 	snmpTags := []string{"snmp_device:1.2.3.4"}
 	snmpGlobalTags := common.CopyStrings(snmpTags)
 	snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
@@ -1723,7 +1723,7 @@ metrics:
 	assert.Nil(t, err)
 
 	for _, deviceData := range deviceMap {
-		hostname := "device_id:" + deviceData.deviceID
+		hostname := "snmp:device:" + deviceData.deviceID
 		snmpTags := []string{"snmp_device:" + deviceData.ipAddress, "autodiscovery_subnet:10.10.0.0/30"}
 		snmpGlobalTags := common.CopyStrings(snmpTags)
 		snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")

@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	snmpLoaderTag    = "loader:core"
-	serviceCheckName = "snmp.can_check"
+	snmpLoaderTag        = "loader:core"
+	serviceCheckName     = "snmp.can_check"
+	deviceHostnamePrefix = "snmp:device:"
 )
 
 // DeviceCheck hold info necessary to collect info for a single device
@@ -63,7 +64,7 @@ func (d *DeviceCheck) GetIDTags() []string {
 // GetHostname returns DeviceID as hostname if UseDeviceIDAsHostname is true
 func (d *DeviceCheck) GetHostname() string {
 	if d.config.UseDeviceIDAsHostname {
-		return "device_id:" + d.config.DeviceID
+		return deviceHostnamePrefix + d.config.DeviceID
 	}
 	return ""
 }
