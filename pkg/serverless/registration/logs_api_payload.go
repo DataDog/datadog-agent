@@ -21,9 +21,10 @@ type buffering struct {
 
 // LogSubscriptionPayload is the payload we send while subscribing to the AWS Logs API
 type LogSubscriptionPayload struct {
-	Buffering   buffering   `json:"buffering"`
-	Destination destination `json:"destination"`
-	Types       []string    `json:"types"`
+	Buffering     buffering   `json:"buffering"`
+	Destination   destination `json:"destination"`
+	Types         []string    `json:"types"`
+	SchemaVersion string      `json:"schemaVersion"`
 }
 
 // MarshalJSON marshals the given LogSubscriptionPayload object

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Latest Lambda pricing per https://aws.amazon.com/lambda/pricing/
@@ -28,6 +29,24 @@ func getOutOfMemorySubstrings() []string {
 		"Runtime exited with error: signal: killed", // Node
 		"MemoryError", // Python
 		"failed to allocate memory (NoMemoryError)", // Ruby
+	}
+}
+
+func GenerateRuntimeDurationMetric(start time.Time, end time.Time, status string, tags []string, metricsChan chan []metrics.MetricSample) {
+	// first check if both date are set
+	if start.IsZero() || end.IsZero() {
+		log.Debug("Impossible to compute aws.lambda.enhanced.runtime_duration due to an invalid interval")
+	} else {
+		duration := end.Sub(start).Milliseconds()
+		// TODO do we want to do something with status (success/error/timeout) here ?
+		metricsChan <- []metrics.MetricSample{{
+			Name:       "aws.lambda.enhanced.runtime_duration",
+			Value:      float64(duration),
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  float64(end.UnixNano()),
+		}}
 	}
 }
 

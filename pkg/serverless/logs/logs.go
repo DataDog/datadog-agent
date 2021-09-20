@@ -34,6 +34,7 @@ type ExecutionContext struct {
 	ColdstartRequestID string
 	LastLogRequestID   string
 	Coldstart          bool
+	StartTime          time.Time
 }
 
 // CollectionRouteInfo is the route on which the AWS environment is sending the logs
@@ -53,6 +54,7 @@ type PlatformObjectRecord struct {
 	RequestID string           // uuid; present in LogTypePlatform{Start,End,Report}
 	Version   string           // present in LogTypePlatformStart only
 	Metrics   ReportLogMetrics // present in LogTypePlatformReport only
+	Status    string           // present in LogTypePlatformRuntimeDone only
 }
 
 // ReportLogMetrics contains metrics found in a LogTypePlatformReport log
@@ -86,6 +88,8 @@ const (
 	LogTypePlatformLogsSubscription = "platform.logsSubscription"
 	// LogTypePlatformExtension is used for the log messages about Extension API registration
 	LogTypePlatformExtension = "platform.extension"
+	// LogTypePlatformRuntimeDone is received when the runtime (customer's code) has returned (success or error)
+	LogTypePlatformRuntimeDone = "platform.runtimeDone"
 )
 
 // LogMessage is a log message sent by the AWS API.
@@ -130,7 +134,7 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 	case LogTypeFunction, LogTypeExtension:
 		l.Type = typ
 		l.StringRecord = j["record"].(string)
-	case LogTypePlatformStart, LogTypePlatformEnd, LogTypePlatformReport:
+	case LogTypePlatformStart, LogTypePlatformEnd, LogTypePlatformReport, LogTypePlatformRuntimeDone:
 		l.Type = typ
 		if objectRecord, ok := j["record"].(map[string]interface{}); ok {
 			// all of these have the requestId
@@ -173,6 +177,12 @@ func (l *LogMessage) UnmarshalJSON(data []byte) error {
 					log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
 				}
 				l.StringRecord = createStringRecordForReportLog(l)
+			case LogTypePlatformRuntimeDone:
+				if status, ok := objectRecord["status"].(string); ok {
+					l.ObjectRecord.Status = status
+				} else {
+					log.Debug("Can't read the status from runtimeDone log message")
+				}
 			}
 		} else {
 			log.Error("LogMessage.UnmarshalJSON: can't read the record object")
@@ -279,6 +289,7 @@ func processMessage(message LogMessage, executionContext *ExecutionContext, enha
 
 	if message.Type == LogTypePlatformStart {
 		executionContext.LastLogRequestID = message.ObjectRecord.RequestID
+		executionContext.StartTime = message.Time
 	}
 
 	if enhancedMetricsEnabled {
@@ -294,6 +305,9 @@ func processMessage(message LogMessage, executionContext *ExecutionContext, enha
 				message.ObjectRecord.Metrics.MemorySizeMB,
 				message.ObjectRecord.Metrics.MaxMemoryUsedMB,
 				message.Time, tags, metricsChan)
+		}
+		if message.Type == LogTypePlatformRuntimeDone {
+			serverlessMetrics.GenerateRuntimeDurationMetric(executionContext.StartTime, message.Time, message.ObjectRecord.Status, tags, metricsChan)
 		}
 	}
 

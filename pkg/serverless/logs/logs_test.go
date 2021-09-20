@@ -509,3 +509,54 @@ func TestUnmarshalJSONLogTypeIncorrectReportNotFatalReport(t *testing.T) {
 	err := logMessage.UnmarshalJSON(raw)
 	assert.Nil(t, err)
 }
+
+func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
+	message := LogMessage{
+		Type: LogTypePlatformRuntimeDone,
+		Time: time.Now(),
+		ObjectRecord: PlatformObjectRecord{
+			RequestID: "8286a188-ba32-4475-8077-530cd35c09a9",
+			Status:    "success",
+		},
+	}
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
+	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
+	metricTags := []string{"functionname:test-function"}
+
+	metricsChan := make(chan []metrics.MetricSample, 1)
+	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
+	executionContext := &ExecutionContext{ARN: arn, LastRequestID: lastRequestID, StartTime: startTime}
+	computeEnhancedMetrics := true
+	processMessage(message, executionContext, computeEnhancedMetrics, metricTags, metricsChan)
+	assert.Equal(t, startTime, executionContext.StartTime)
+}
+
+func TestUnmarshalPlatformRuntimeDoneLog(t *testing.T) {
+	raw, err := ioutil.ReadFile("./testdata/platform_runtime_done_log_valid.json")
+	require.NoError(t, err)
+	var message LogMessage
+	err = json.Unmarshal(raw, &message)
+	require.NoError(t, err)
+
+	expectedTime := time.Date(2021, 05, 19, 18, 11, 22, 478000000, time.UTC)
+
+	expectedLogMessage := LogMessage{
+		Type: LogTypePlatformRuntimeDone,
+		Time: expectedTime,
+		ObjectRecord: PlatformObjectRecord{
+			RequestID: "13dee504-0d50-4c86-8d82-efd20693afc9",
+			Status:    "success",
+		},
+	}
+	assert.Equal(t, expectedLogMessage, message)
+}
+
+func TestUnmarshalPlatformRuntimeDoneLogNotFatal(t *testing.T) {
+	logMessage := &LogMessage{}
+	raw, errReadFile := ioutil.ReadFile("./testdata/platform_incorrect_runtime_done_log_valid.json")
+	if errReadFile != nil {
+		assert.Fail(t, "should be able to read the file")
+	}
+	err := logMessage.UnmarshalJSON(raw)
+	assert.Nil(t, err)
+}
