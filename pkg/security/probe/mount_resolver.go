@@ -370,7 +370,7 @@ func getMountIDOffset(probe *Probe) uint64 {
 	offset := uint64(284)
 
 	switch {
-	case probe.kernelVersion.IsSuseKernel():
+	case probe.kernelVersion.IsSuseKernel() || probe.kernelVersion.Code >= kernel.Kernel5_12:
 		offset = 292
 	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < kernel.Kernel4_13:
 		offset = 268
