@@ -213,13 +213,12 @@ func (p *Probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 		}
 
 		var (
-			statusInfo = &statusInfo{}
+			statusInfo = p.parseStatus(pathForPID)
 			statInfo   = &statInfo{}
 			stats      = &Stats{}
 		)
 
 		if collectStats {
-			statusInfo = p.parseStatus(pathForPID)
 			statInfo = p.parseStat(pathForPID, pid, now)
 			stats = &Stats{
 				CreateTime:  statInfo.createTime,      // /proc/[pid]/stat
