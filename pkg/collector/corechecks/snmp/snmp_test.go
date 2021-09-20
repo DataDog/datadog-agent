@@ -28,6 +28,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 )
 
@@ -168,6 +169,8 @@ tags:
 		},
 	}
 
+	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
+	sess.On("Get", mock.Anything).Return(&packet, nil)
 	sess.On("Get", mock.Anything).Return(&packet, nil)
 	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.20"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
 	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14.2", "1.3.6.1.2.1.2.2.1.2.2", "1.3.6.1.2.1.2.2.1.20.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
@@ -254,6 +257,7 @@ metrics:
 		},
 	}
 
+	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", mock.Anything).Return(&packet, nil)
 
 	err = chk.Run()
@@ -461,6 +465,7 @@ profiles:
 		},
 	}
 
+	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{
 		"1.3.6.1.2.1.1.5.0",
 		"1.3.6.1.2.1.1.1.0",
@@ -717,6 +722,8 @@ func TestCheck_Run(t *testing.T) {
 		sessionConnError         error
 		sysObjectIDPacket        gosnmp.SnmpPacket
 		sysObjectIDError         error
+		reachableGetNextError    error
+		reachableValuesPacket    gosnmp.SnmpPacket
 		valuesPacket             gosnmp.SnmpPacket
 		valuesError              error
 		expectedErr              string
@@ -731,46 +738,62 @@ func TestCheck_Run(t *testing.T) {
 			name:                     "failed to fetch sysobjectid",
 			sysObjectIDError:         fmt.Errorf("no sysobjectid"),
 			valuesPacket:             valuesPacketUptime,
+			reachableValuesPacket:    gosnmplib.MockValidReachableGetNextPacket,
 			expectedErr:              "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no sysobjectid",
 			expectedSubmittedMetrics: 1.0,
 		},
 		{
-			name:        "unexpected values count",
-			expectedErr: "failed to autodetect profile: failed to fetch sysobjectid: expected 1 value, but got 0: variables=[]",
+			name:                  "unexpected values count",
+			reachableValuesPacket: gosnmplib.MockValidReachableGetNextPacket,
+			expectedErr:           "failed to autodetect profile: failed to fetch sysobjectid: expected 1 value, but got 0: variables=[]",
 		},
 		{
-			name:              "failed to fetch sysobjectid with invalid value",
-			sysObjectIDPacket: sysObjectIDPacketInvalidValueMock,
-			expectedErr:       "failed to autodetect profile: failed to fetch sysobjectid: error getting value from pdu: oid 1.3.6.1.2.1.1.2.0: ObjectIdentifier should be string type but got float64 type: gosnmp.SnmpPDU{Name:\"1.3.6.1.2.1.1.2.0\", Type:0x6, Value:1}",
+			name:                  "failed to fetch sysobjectid with invalid value",
+			reachableValuesPacket: gosnmplib.MockValidReachableGetNextPacket,
+			sysObjectIDPacket:     sysObjectIDPacketInvalidValueMock,
+			expectedErr:           "failed to autodetect profile: failed to fetch sysobjectid: error getting value from pdu: oid 1.3.6.1.2.1.1.2.0: ObjectIdentifier should be string type but got float64 type: gosnmp.SnmpPDU{Name:\"1.3.6.1.2.1.1.2.0\", Type:0x6, Value:1}",
 		},
 		{
-			name:              "failed to fetch sysobjectid with conversion error",
-			sysObjectIDPacket: sysObjectIDPacketInvalidConversionMock,
-			expectedErr:       "failed to autodetect profile: failed to fetch sysobjectid: error getting value from pdu: oid 1.3.6.1.2.1.1.2.0: ObjectIdentifier should be string type but got gosnmp.SnmpPDU type: gosnmp.SnmpPDU{Name:\"1.3.6.1.2.1.1.2.0\", Type:0x6, Value:gosnmp.SnmpPDU{Name:\"\", Type:0x0, Value:interface {}(nil)}}",
+			name:                  "failed to fetch sysobjectid with conversion error",
+			reachableValuesPacket: gosnmplib.MockValidReachableGetNextPacket,
+			sysObjectIDPacket:     sysObjectIDPacketInvalidConversionMock,
+			expectedErr:           "failed to autodetect profile: failed to fetch sysobjectid: error getting value from pdu: oid 1.3.6.1.2.1.1.2.0: ObjectIdentifier should be string type but got gosnmp.SnmpPDU type: gosnmp.SnmpPDU{Name:\"1.3.6.1.2.1.1.2.0\", Type:0x6, Value:gosnmp.SnmpPDU{Name:\"\", Type:0x0, Value:interface {}(nil)}}",
 		},
 		{
-			name:              "failed to fetch sysobjectid with error oid",
-			sysObjectIDPacket: sysObjectIDPacketInvalidOidMock,
-			expectedErr:       "failed to autodetect profile: failed to fetch sysobjectid: expect `1.3.6.1.2.1.1.2.0` OID but got `1.3.6.1.6.3.15.1.1.1.0` OID with value `{counter 123}`",
+			name:                  "failed to fetch sysobjectid with error oid",
+			reachableValuesPacket: gosnmplib.MockValidReachableGetNextPacket,
+			sysObjectIDPacket:     sysObjectIDPacketInvalidOidMock,
+			expectedErr:           "failed to autodetect profile: failed to fetch sysobjectid: expect `1.3.6.1.2.1.1.2.0` OID but got `1.3.6.1.6.3.15.1.1.1.0` OID with value `{counter 123}`",
 		},
 		{
-			name:              "failed to get profile sys object id",
-			sysObjectIDPacket: sysObjectIDPacketInvalidSysObjectIDMock,
-			expectedErr:       "failed to autodetect profile: failed to get profile sys object id for `1.999999`: failed to get most specific profile for sysObjectID `1.999999`, for matched oids []: cannot get most specific oid from empty list of oids",
+			name:                  "failed to get profile sys object id",
+			reachableValuesPacket: gosnmplib.MockValidReachableGetNextPacket,
+			sysObjectIDPacket:     sysObjectIDPacketInvalidSysObjectIDMock,
+			expectedErr:           "failed to autodetect profile: failed to get profile sys object id for `1.999999`: failed to get most specific profile for sysObjectID `1.999999`, for matched oids []: cannot get most specific oid from empty list of oids",
 		},
 		{
-			name:              "failed to fetch values",
-			sysObjectIDPacket: sysObjectIDPacketOkMock,
-			valuesPacket:      valuesPacketErrMock,
-			valuesError:       fmt.Errorf("no value"),
-			expectedErr:       "failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.3.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.999 1.2.3.4.5 1.3.6.1.2.1.1.5.0]`: no value",
+			name:                  "failed to fetch values",
+			reachableValuesPacket: gosnmplib.MockValidReachableGetNextPacket,
+			sysObjectIDPacket:     sysObjectIDPacketOkMock,
+			valuesPacket:          valuesPacketErrMock,
+			valuesError:           fmt.Errorf("no value"),
+			expectedErr:           "failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.3.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.999 1.2.3.4.5 1.3.6.1.2.1.1.5.0]`: no value",
 		},
 		{
-			name:             "failed to fetch sysobjectid and failed to fetch values",
-			sysObjectIDError: fmt.Errorf("no sysobjectid"),
-			valuesPacket:     valuesPacketErrMock,
-			valuesError:      fmt.Errorf("no value"),
-			expectedErr:      "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no sysobjectid; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.3.0]`: no value",
+			name:                  "failed to fetch sysobjectid and failed to fetch values",
+			reachableValuesPacket: gosnmplib.MockValidReachableGetNextPacket,
+			sysObjectIDError:      fmt.Errorf("no sysobjectid"),
+			valuesPacket:          valuesPacketErrMock,
+			valuesError:           fmt.Errorf("no value"),
+			expectedErr:           "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no sysobjectid; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.3.0]`: no value",
+		},
+		{
+			name:                  "failed reachability check",
+			sysObjectIDError:      fmt.Errorf("no sysobjectid"),
+			reachableGetNextError: fmt.Errorf("no value for GextNext"),
+			valuesPacket:          valuesPacketErrMock,
+			valuesError:           fmt.Errorf("no value"),
+			expectedErr:           "check device reachable: failed: no value for GextNext; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no sysobjectid; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.3.0]`: no value",
 		},
 	}
 	for _, tt := range tests {
@@ -800,6 +823,7 @@ community_string: public
 
 			mocksender.SetSender(sender, chk.ID())
 
+			sess.On("GetNext", []string{"1.3"}).Return(&tt.reachableValuesPacket, tt.reachableGetNextError)
 			sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&tt.sysObjectIDPacket, tt.sysObjectIDError)
 			sess.On("Get", []string{"1.3.6.1.2.1.1.3.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0"}).Return(&tt.valuesPacket, tt.valuesError)
 			sess.On("Get", []string{"1.3.6.1.2.1.1.3.0"}).Return(&tt.valuesPacket, tt.valuesError)
@@ -861,6 +885,7 @@ metrics:
 	packet := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{},
 	}
+	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{"1.2.3", "1.3.6.1.2.1.1.3.0"}).Return(&packet, nil)
 	sender.SetupAcceptAll()
 
@@ -1032,6 +1057,7 @@ tags:
 			},
 		},
 	}
+	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	var sysObjectIDPacket *gosnmp.SnmpPacket
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(sysObjectIDPacket, fmt.Errorf("no value"))
 
@@ -1155,6 +1181,7 @@ tags:
 	sender.On("Commit").Return()
 
 	var nilPacket *gosnmp.SnmpPacket
+	sess.On("GetNext", []string{"1.3"}).Return(nilPacket, fmt.Errorf("no value for GetNext"))
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(nilPacket, fmt.Errorf("no value"))
 
 	sess.On("Get", []string{
@@ -1164,8 +1191,10 @@ tags:
 		"1.3.6.1.2.1.1.3.0",
 	}).Return(nilPacket, fmt.Errorf("device failure"))
 
+	expectedErrMsg := "check device reachable: failed: no value for GetNext; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.1.0 1.3.6.1.2.1.1.2.0 1.3.6.1.2.1.1.3.0]`: device failure"
+
 	err = chk.Run()
-	assert.EqualError(t, err, "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.1.0 1.3.6.1.2.1.1.2.0 1.3.6.1.2.1.1.3.0]`: device failure")
+	assert.EqualError(t, err, expectedErrMsg)
 
 	snmpTags := []string{"snmp_device:1.2.3.5"}
 
@@ -1206,7 +1235,7 @@ tags:
 
 	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
 
-	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.1.0 1.3.6.1.2.1.1.2.0 1.3.6.1.2.1.1.3.0]`: device failure")
+	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, expectedErrMsg)
 }
 
 func TestDiscovery(t *testing.T) {
@@ -1247,6 +1276,8 @@ metric_tags:
 			},
 		},
 	}
+
+	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&discoveryPacket, nil)
 
 	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
@@ -1531,6 +1562,8 @@ metric_tags:
 			},
 		},
 	}
+
+	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&discoveryPacket, nil)
 
 	err = chk.Configure(rawInstanceConfig, []byte(``), "test")
