@@ -45,7 +45,7 @@ func setupCheckCmd(cmd *cobra.Command) {
 // CheckCmd returns a cobra command to run security agent checks
 func CheckCmd(confPathArray []string) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "check [rule ID]",
+		Use:   "check",
 		Short: "Run compliance check(s)",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
