@@ -90,7 +90,7 @@ build do
     if ENV['DEBUG_CUSTOMACTION'] and not ENV['DEBUG_CUSTOMACTION'].empty?
       debug_customaction = "--debug"
     end
-    command "invoke customaction.build --major-version #{major_version_arg} --package-version #{package_version} #{debug_customaction} --arch=" + platform
+    command "invoke -e customaction.build --major-version #{major_version_arg} --arch=" + platform
     unless windows_arch_i386?
       command "invoke installcmd.build --major-version #{major_version_arg} --arch=" + platform
       command "invoke uninstallcmd.build --major-version #{major_version_arg} --arch=" + platform
