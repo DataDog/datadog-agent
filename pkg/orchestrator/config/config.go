@@ -170,7 +170,7 @@ func NewOrchestratorForwarder() *forwarder.DefaultForwarder {
 		log.Errorf("Error loading the orchestrator config: %s", err)
 	}
 	keysPerDomain := apicfg.KeysPerDomains(orchestratorCfg.OrchestratorEndpoints)
-	orchestratorForwarderOpts := forwarder.NewOptions(keysPerDomain)
+	orchestratorForwarderOpts := forwarder.NewOptions(forwarder.NewSingleDomainResolvers(keysPerDomain))
 	orchestratorForwarderOpts.DisableAPIKeyChecking = true
 
 	return forwarder.NewDefaultForwarder(orchestratorForwarderOpts)

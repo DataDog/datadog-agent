@@ -55,10 +55,11 @@ func NewHTTPTransactionsSerializer(domain string, apiKeys []string) *HTTPTransac
 // This function uses references on HTTPTransaction.Payload and HTTPTransaction.Headers
 // and so the transaction must not be updated until a call to `GetBytesAndReset`.
 func (s *HTTPTransactionsSerializer) Add(transaction *transaction.HTTPTransaction) error {
-	if transaction.Domain != s.domain {
-		// This error is not supposed to happen (Sanity check).
-		return fmt.Errorf("The domain of the transaction %v does not match the domain %v", transaction.Domain, s.domain)
-	}
+	// if transaction.Domain != s.domain {
+	// Ignore this at the moment
+	// This error is not supposed to happen (Sanity check).
+	// return fmt.Errorf("The domain of the transaction %v does not match the domain %v", transaction.Domain, s.domain)
+	// }
 
 	priority, err := toTransactionPriorityProto(transaction.Priority)
 	if err != nil {

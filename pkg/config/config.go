@@ -954,6 +954,10 @@ func InitConfig(config Config) {
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
 
+	// Vector integration
+	config.BindEnvAndSetDefault("vector.metrics.enabled", false)
+	config.BindEnvAndSetDefault("vector.metrics.url", false)
+
 	setAssetFs(config)
 	setupAPM(config)
 	setupAppSec(config)
@@ -1518,4 +1522,19 @@ func GetConfiguredTags(includeDogstatsd bool) []string {
 	combined = append(combined, dsdTags...)
 
 	return combined
+}
+
+// GetVectorURL returns the URL under the 'vector.' prefix for the given datatype
+func GetVectorURL(datatype string) (string, bool, error) {
+	if Datadog.GetBool("vector."+datatype+".enabled") && Datadog.IsSet("vector."+datatype+".enabled") {
+		vectorURL := Datadog.GetString("vector." + datatype + ".url")
+		if vectorURL != "" {
+			_, err := url.Parse(vectorURL)
+			if err != nil {
+				return "", false, fmt.Errorf("could not parse vector %s endpoint: %s", datatype, err)
+			}
+			return vectorURL, true, nil
+		}
+	}
+	return "", false, nil
 }

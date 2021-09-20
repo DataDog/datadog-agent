@@ -53,7 +53,7 @@ type forwarderHealth struct {
 	stop                  chan bool
 	stopped               chan struct{}
 	timeout               time.Duration
-	keysPerDomains        map[string][]string
+	domainResolvers       map[string]DomainResolver
 	keysPerAPIEndpoint    map[string][]string
 	disableAPIKeyChecking bool
 	validationInterval    time.Duration
@@ -69,8 +69,8 @@ func (fh *forwarderHealth) init() {
 	// Since timeout is the maximum duration we can wait, we need to divide it
 	// by the total number of api keys to obtain the max duration for each key
 	apiKeyCount := 0
-	for _, apiKeys := range fh.keysPerDomains {
-		apiKeyCount += len(apiKeys)
+	for _, dr := range fh.domainResolvers {
+		apiKeyCount += len(dr.GetAPIKeys())
 	}
 
 	fh.timeout = validateAPIKeyTimeout
@@ -130,7 +130,7 @@ func (fh *forwarderHealth) healthCheckLoop() {
 
 // computeDomainsURL populates a map containing API Endpoints per API keys that belongs to the forwarderHealth struct
 func (fh *forwarderHealth) computeDomainsURL() {
-	for domain, apiKeys := range fh.keysPerDomains {
+	for domain, dr := range fh.domainResolvers {
 		apiDomain := ""
 		re := regexp.MustCompile(`((us|eu)\d\.)?datadoghq.[a-z]+$`)
 		if re.MatchString(domain) {
@@ -138,7 +138,7 @@ func (fh *forwarderHealth) computeDomainsURL() {
 		} else {
 			apiDomain = domain
 		}
-		fh.keysPerAPIEndpoint[apiDomain] = append(fh.keysPerAPIEndpoint[apiDomain], apiKeys...)
+		fh.keysPerAPIEndpoint[apiDomain] = append(fh.keysPerAPIEndpoint[apiDomain], dr.GetAPIKeys()...)
 	}
 }
 

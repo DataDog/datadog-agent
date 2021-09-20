@@ -264,7 +264,7 @@ func (l *Collector) run(exit chan struct{}) error {
 		}
 	}()
 
-	processForwarderOpts := forwarder.NewOptions(apicfg.KeysPerDomains(l.cfg.APIEndpoints))
+	processForwarderOpts := forwarder.NewOptions(forwarder.NewSingleDomainResolvers(apicfg.KeysPerDomains(l.cfg.APIEndpoints)))
 	processForwarderOpts.DisableAPIKeyChecking = true
 	processForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.cfg.ProcessQueueBytes // Allow more in-flight requests than the default
 	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
@@ -272,7 +272,7 @@ func (l *Collector) run(exit chan struct{}) error {
 	// rt forwarder can reuse processForwarder's config
 	rtProcessForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
 
-	podForwarderOpts := forwarder.NewOptions(apicfg.KeysPerDomains(l.cfg.Orchestrator.OrchestratorEndpoints))
+	podForwarderOpts := forwarder.NewOptions(forwarder.NewSingleDomainResolvers(apicfg.KeysPerDomains(l.cfg.Orchestrator.OrchestratorEndpoints)))
 	podForwarderOpts.DisableAPIKeyChecking = true
 	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.cfg.ProcessQueueBytes // Allow more in-flight requests than the default
 	podForwarder := forwarder.NewDefaultForwarder(podForwarderOpts)

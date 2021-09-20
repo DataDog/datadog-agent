@@ -30,7 +30,7 @@ func TestHasValidAPIKey(t *testing.T) {
 		ts2.URL: {"key3"},
 	}
 
-	fh := forwarderHealth{keysPerDomains: keysPerDomains}
+	fh := forwarderHealth{domainResolvers: NewSingleDomainResolvers(keysPerDomains)}
 	fh.init()
 	assert.True(t, fh.hasValidAPIKey())
 
@@ -65,7 +65,7 @@ func TestComputeDomainsURL(t *testing.T) {
 		sort.Strings(keys)
 	}
 
-	fh := forwarderHealth{keysPerDomains: keysPerDomains}
+	fh := forwarderHealth{domainResolvers: NewSingleDomainResolvers(keysPerDomains)}
 	fh.init()
 
 	// lexicographical sort for assert

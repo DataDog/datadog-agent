@@ -108,7 +108,7 @@ func buildBufferedAggregator(multipleEndpointConfig MultipleEndpointConfig, forw
 		log.Errorf("Misconfiguration of agent endpoints: %s", err)
 		return nil
 	}
-	f := forwarder.NewSyncForwarder(keysPerDomain, forwarderTimeout)
+	f := forwarder.NewSyncForwarder(forwarder.NewSingleDomainResolvers(keysPerDomain), forwarderTimeout)
 	f.Start() //nolint:errcheck
 	serializer := serializer.NewSerializer(f, nil)
 	return aggregator.InitAggregator(serializer, nil, "serverless")

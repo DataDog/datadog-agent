@@ -183,7 +183,7 @@ func runAgent(ctx context.Context) (err error) {
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
+	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(forwarder.NewSingleDomainResolvers(keysPerDomain)))
 	f.Start() //nolint:errcheck
 	s := serializer.NewSerializer(f, nil)
 
