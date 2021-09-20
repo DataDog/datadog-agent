@@ -3,6 +3,7 @@
 package procutil
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -170,7 +171,7 @@ func testProcessesByPID(t *testing.T) {
 	procByPID, err = probe.ProcessesByPID(time.Now(), false)
 	assert.NoError(t, err)
 	for _, proc := range procByPID {
-		assert.Empty(t, proc.Stats)
+		assert.Equal(t, &Stats{IOStat: &IOCountersStat{-1, -1, -1, -1}}, proc.Stats)
 	}
 }
 
@@ -935,6 +936,7 @@ func TestStatsWithPermByPID(t *testing.T) {
 	WithReturnZeroPermStats(false)(probe)
 	stats, err = probe.StatsWithPermByPID([]int32{pid})
 	require.NoError(t, err)
+	fmt.Printf("%#v\n", stats)
 	assert.Empty(t, stats)
 }
 

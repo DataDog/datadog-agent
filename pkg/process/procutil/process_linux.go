@@ -215,7 +215,7 @@ func (p *Probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 		var (
 			statusInfo = &statusInfo{}
 			statInfo   = &statInfo{}
-			stats      *Stats
+			stats      = &Stats{}
 		)
 
 		if collectStats {
@@ -244,18 +244,16 @@ func (p *Probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 			NsPid:   statusInfo.nspid,                          // /proc/[pid]/status
 			Stats:   stats,
 		}
-		if collectStats {
-			if p.withPermission {
-				proc.Stats.OpenFdCount = p.getFDCountImproved(pathForPID) // /proc/[pid]/fd, requires permission checks
-				proc.Stats.IOStat = p.parseIO(pathForPID)                 // /proc/[pid]/io, requires permission checks
-			} else {
-				proc.Stats.IOStat = &IOCountersStat{
-					ReadCount:  -1,
-					WriteCount: -1,
-					ReadBytes:  -1,
-					WriteBytes: -1,
-				} // use -1 values to represent "no permission"
-			}
+		if p.withPermission && collectStats {
+			proc.Stats.OpenFdCount = p.getFDCountImproved(pathForPID) // /proc/[pid]/fd, requires permission checks
+			proc.Stats.IOStat = p.parseIO(pathForPID)                 // /proc/[pid]/io, requires permission checks
+		} else {
+			proc.Stats.IOStat = &IOCountersStat{
+				ReadCount:  -1,
+				WriteCount: -1,
+				ReadBytes:  -1,
+				WriteBytes: -1,
+			} // use -1 values to represent "no permission"
 		}
 		procsByPID[pid] = proc
 	}
