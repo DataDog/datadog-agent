@@ -27,8 +27,8 @@ func TestExtractShortPathFromFullPath(t *testing.T) {
 	// process agent
 	assert.Equal(t, "cmd/agent/collector.go", extractShortPathFromFullPath("/home/jenkins/workspace/process-agent-build-ddagent/go/src/github.com/DataDog/datadog-process-agent/cmd/agent/collector.go"))
 	// various possible dependency paths
-	assert.Equal(t, "go.opentelemetry.io/collector@v0.35.0/receiver/otlpreceiver/otlp.go", extractShortPathFromFullPath("/Users/runner/programming/go/pkg/mod/go.opentelemetry.io/collector@v0.35.0/receiver/otlpreceiver/otlp.go"))
-	assert.Equal(t, "go.opentelemetry.io/collector@v0.35.0/receiver/otlpreceiver/otlp.go", extractShortPathFromFullPath("/gomodcache/go.opentelemetry.io/collector@v0.35.0/receiver/otlpreceiver/otlp.go"))
+	assert.Equal(t, "collector@v0.35.0/receiver/otlpreceiver/otlp.go", extractShortPathFromFullPath("/Users/runner/programming/go/pkg/mod/go.opentelemetry.io/collector@v0.35.0/receiver/otlpreceiver/otlp.go"))
+	assert.Equal(t, "collector@v0.35.0/receiver/otlpreceiver/otlp.go", extractShortPathFromFullPath("/gomodcache/go.opentelemetry.io/collector@v0.35.0/receiver/otlpreceiver/otlp.go"))
 }
 
 func TestSeelogConfig(t *testing.T) {
