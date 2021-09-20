@@ -203,7 +203,7 @@ community_string: public
 
 	// with hostname
 	deviceCk.config.UseDeviceIDAsHostname = true
-	deviceCk.SetSender(report.NewMetricSender(sender, "snmp:device:123"))
+	deviceCk.SetSender(report.NewMetricSender(sender, "device:123"))
 	deviceCk.sender.Gauge("snmp.devices_monitored", float64(1), []string{"snmp_device:1.2.3.4"})
-	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "snmp:device:123", []string{"snmp_device:1.2.3.4"})
+	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "device:123", []string{"snmp_device:1.2.3.4"})
 }

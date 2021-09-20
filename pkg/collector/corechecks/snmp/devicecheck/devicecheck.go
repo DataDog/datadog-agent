@@ -21,7 +21,7 @@ import (
 const (
 	snmpLoaderTag        = "loader:core"
 	serviceCheckName     = "snmp.can_check"
-	deviceHostnamePrefix = "snmp:device:"
+	deviceHostnamePrefix = "device:"
 )
 
 // DeviceCheck hold info necessary to collect info for a single device
