@@ -227,19 +227,22 @@ func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventTy
 		return false, nil
 	}
 
-	basenameField := strings.Replace(filenameField, ".path", ".name", 1)
-
 	event := discarderEvent
 	defer func() {
 		*discarderEvent = eventZero
 	}()
 
 	if _, err := event.GetFieldType(filenameField); err != nil {
-		return false, nil
+		return false, err
 	}
 
+	if !strings.HasSuffix(filenameField, ".path") {
+		return false, errors.New("path suffix not found")
+	}
+
+	basenameField := strings.Replace(filenameField, ".path", ".name", 1)
 	if _, err := event.GetFieldType(basenameField); err != nil {
-		return false, nil
+		return false, err
 	}
 
 	for _, rule := range bucket.GetRules() {
@@ -287,14 +290,6 @@ func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventTy
 					return false, nil
 				}
 			}
-
-			if err := event.SetFieldValue(filenameField, dirname); err != nil {
-				return false, err
-			}
-
-			if isDiscarder, _ := rs.IsDiscarder(event, filenameField); isDiscarder {
-				return true, nil
-			}
 		}
 
 		// check basename
@@ -307,6 +302,14 @@ func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventTy
 				return false, nil
 			}
 		}
+	}
+
+	if err := event.SetFieldValue(filenameField, dirname); err != nil {
+		return false, err
+	}
+
+	if isDiscarder, _ := rs.IsDiscarder(event, filenameField); !isDiscarder {
+		return false, nil
 	}
 
 	seclog.Tracef("`%s` discovered as parent discarder", dirname)
