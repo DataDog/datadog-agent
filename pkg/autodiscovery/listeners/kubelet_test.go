@@ -26,16 +26,16 @@ const (
 	podNamespace  = "default"
 )
 
-func TestCreatePodService(t *testing.T) {
+func TestKubeletCreatePodService(t *testing.T) {
 	tests := []struct {
 		name             string
-		pod              workloadmeta.KubernetesPod
-		containers       []workloadmeta.Container
+		pod              *workloadmeta.KubernetesPod
+		containers       []*workloadmeta.Container
 		expectedServices map[string]Service
 	}{
 		{
 			name: "pod with several containers collects ports in ascending order",
-			pod: workloadmeta.KubernetesPod{
+			pod: &workloadmeta.KubernetesPod{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindKubernetesPod,
 					ID:   podID,
@@ -46,7 +46,7 @@ func TestCreatePodService(t *testing.T) {
 				},
 				IP: "127.0.0.1",
 			},
-			containers: []workloadmeta.Container{
+			containers: []*workloadmeta.Container{
 				{
 					Ports: []workloadmeta.ContainerPort{
 						{
@@ -91,7 +91,7 @@ func TestCreatePodService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			newCh := make(chan Service)
 			delCh := make(chan Service)
-			listener := newListener(t, newCh, delCh)
+			listener := newKubeletListener(t, newCh, delCh)
 			actualServices, doneCh := consumeServiceCh(t, newCh, delCh)
 
 			listener.createPodService(tt.pod, tt.containers, false)
@@ -105,8 +105,8 @@ func TestCreatePodService(t *testing.T) {
 	}
 }
 
-func TestCreateContainerService(t *testing.T) {
-	pod := workloadmeta.KubernetesPod{
+func TestKubeletCreateContainerService(t *testing.T) {
+	pod := &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
 			ID:   podID,
@@ -118,7 +118,7 @@ func TestCreateContainerService(t *testing.T) {
 		IP: "127.0.0.1",
 	}
 
-	podWithAnnotations := workloadmeta.KubernetesPod{
+	podWithAnnotations := &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
 			ID:   podID,
@@ -151,14 +151,14 @@ func TestCreateContainerService(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		pod              workloadmeta.KubernetesPod
-		container        workloadmeta.Container
+		pod              *workloadmeta.KubernetesPod
+		container        *workloadmeta.Container
 		expectedServices map[string]Service
 	}{
 		{
 			name: "basic container setup",
 			pod:  pod,
-			container: workloadmeta.Container{
+			container: &workloadmeta.Container{
 				EntityID:   containerEntityID,
 				EntityMeta: containerEntityMeta,
 				Image: workloadmeta.ContainerImage{
@@ -194,7 +194,7 @@ func TestCreateContainerService(t *testing.T) {
 		{
 			name: "recently stopped container excludes metrics but not logs",
 			pod:  pod,
-			container: workloadmeta.Container{
+			container: &workloadmeta.Container{
 				EntityID:   containerEntityID,
 				EntityMeta: containerEntityMeta,
 				Image:      basicImage,
@@ -227,7 +227,7 @@ func TestCreateContainerService(t *testing.T) {
 		{
 			name: "old stopped container does not get collected",
 			pod:  pod,
-			container: workloadmeta.Container{
+			container: &workloadmeta.Container{
 				EntityID:   containerEntityID,
 				EntityMeta: containerEntityMeta,
 				Image:      basicImage,
@@ -241,7 +241,7 @@ func TestCreateContainerService(t *testing.T) {
 		{
 			name: "container with multiple ports collects them in ascending order",
 			pod:  pod,
-			container: workloadmeta.Container{
+			container: &workloadmeta.Container{
 				EntityID:   containerEntityID,
 				EntityMeta: containerEntityMeta,
 				Image:      basicImage,
@@ -292,7 +292,7 @@ func TestCreateContainerService(t *testing.T) {
 		{
 			name: "pod with custom check names and identifiers",
 			pod:  podWithAnnotations,
-			container: workloadmeta.Container{
+			container: &workloadmeta.Container{
 				EntityID:   containerEntityID,
 				EntityMeta: containerEntityMeta,
 				Image:      basicImage,
@@ -329,7 +329,7 @@ func TestCreateContainerService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			newCh := make(chan Service)
 			delCh := make(chan Service)
-			listener := newListener(t, newCh, delCh)
+			listener := newKubeletListener(t, newCh, delCh)
 			actualServices, doneCh := consumeServiceCh(t, newCh, delCh)
 
 			listener.createContainerService(tt.pod, tt.container, false)
@@ -346,10 +346,10 @@ func TestCreateContainerService(t *testing.T) {
 func TestDuplicatedContainer(t *testing.T) {
 	newCh := make(chan Service)
 	delCh := make(chan Service)
-	listener := newListener(t, newCh, delCh)
+	listener := newKubeletListener(t, newCh, delCh)
 	actualServices, doneCh := consumeServiceCh(t, newCh, delCh)
 
-	basicContainer := workloadmeta.Container{
+	basicContainer := &workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
 			ID:   "foo",
@@ -357,7 +357,7 @@ func TestDuplicatedContainer(t *testing.T) {
 		Runtime: workloadmeta.ContainerRuntimeDocker,
 	}
 
-	pod := workloadmeta.KubernetesPod{
+	pod := &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
 			ID:   podID,
@@ -371,7 +371,7 @@ func TestDuplicatedContainer(t *testing.T) {
 
 	// Specify basicContainer more than once, expect a single service in
 	// the end
-	containers := []workloadmeta.Container{basicContainer, basicContainer}
+	containers := []*workloadmeta.Container{basicContainer, basicContainer}
 
 	for _, c := range containers {
 		listener.createContainerService(pod, c, false)
@@ -406,10 +406,10 @@ func TestDuplicatedContainer(t *testing.T) {
 func TestRemovePodService(t *testing.T) {
 	newCh := make(chan Service)
 	delCh := make(chan Service)
-	listener := newListener(t, newCh, delCh)
+	listener := newKubeletListener(t, newCh, delCh)
 	actualServices, doneCh := consumeServiceCh(t, newCh, delCh)
 
-	pod := workloadmeta.KubernetesPod{
+	pod := &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
 			ID:   podID,
@@ -422,7 +422,7 @@ func TestRemovePodService(t *testing.T) {
 		Containers: []string{"foo", "bar"},
 	}
 
-	containers := []workloadmeta.Container{
+	containers := []*workloadmeta.Container{
 		{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindContainer,
@@ -453,7 +453,7 @@ func TestRemovePodService(t *testing.T) {
 	assertExpectedServices(t, map[string]Service{}, actualServices)
 }
 
-func newListener(t *testing.T, newCh, deleteCh chan Service) *KubeletListener {
+func newKubeletListener(t *testing.T, newCh, delCh chan Service) *KubeletListener {
 	filters, err := newContainerFilters()
 	if err != nil {
 		t.Fatalf("cannot initialize container filters: %s", err)
@@ -463,7 +463,7 @@ func newListener(t *testing.T, newCh, deleteCh chan Service) *KubeletListener {
 		services:      make(map[string]Service),
 		podContainers: make(map[string][]string),
 		newService:    newCh,
-		delService:    deleteCh,
+		delService:    delCh,
 		filters:       filters,
 	}
 }
@@ -477,7 +477,6 @@ func consumeServiceCh(t *testing.T, newCh, deleteCh chan Service) (map[string]Se
 	wg.Add(2)
 
 	go func() {
-
 		for svc := range newCh {
 			if svc == nil {
 				break

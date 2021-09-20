@@ -26,6 +26,12 @@ const (
 	podStandardLabelPrefix           = "tags.datadoghq.com/"
 )
 
+var standardEnvKeys = map[string]string{
+	envVarEnv:     tagKeyEnv,
+	envVarVersion: tagKeyVersion,
+	envVarService: tagKeyService,
+}
+
 func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle) {
 	tagInfos := []*TagInfo{}
 
@@ -37,7 +43,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 		case workloadmeta.EventTypeSet:
 			switch entityID.Kind {
 			case workloadmeta.KindContainer:
-				// TODO
+				tagInfos = append(tagInfos, c.handleContainer(ev)...)
 			case workloadmeta.KindKubernetesPod:
 				tagInfos = append(tagInfos, c.handleKubePod(ev)...)
 			case workloadmeta.KindECSTask:
@@ -48,7 +54,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 
 		case workloadmeta.EventTypeUnset:
 			tagInfos = append(tagInfos, &TagInfo{
-				Source:       workloadmetaCollectorName,
+				Source:       fmt.Sprintf("%s-%s", workloadmetaCollectorName, string(entityID.Kind)),
 				Entity:       buildTaggerEntityID(entityID),
 				DeleteEntity: true,
 			})
@@ -68,11 +74,92 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 	close(evBundle.Ch)
 }
 
+func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInfo {
+	tagInfos := []*TagInfo{}
+	tags := utils.NewTagList()
+
+	container := ev.Entity.(*workloadmeta.Container)
+
+	tags.AddHigh("container_name", container.Name)
+	tags.AddHigh("container_id", container.ID)
+
+	image := container.Image
+	tags.AddLow("image_name", image.Name)
+	tags.AddLow("short_image", image.ShortName)
+	tags.AddLow("image_tag", image.Tag)
+
+	if container.Runtime == workloadmeta.ContainerRuntimeDocker {
+		tags.AddLow("docker_image", fmt.Sprintf("%s:%s", image.Name, image.Tag))
+	}
+
+	// standard tags from labels
+	c.extractFromMapWithFn(container.Labels, map[string]string{
+		dockerLabelEnv:     tagKeyEnv,
+		dockerLabelVersion: tagKeyVersion,
+		dockerLabelService: tagKeyService,
+	}, tags.AddStandard)
+
+	// orchestrator tags from labels
+	c.extractFromMapWithFn(container.Labels, map[string]string{
+		"com.docker.swarm.service.name": "swarm_service",
+		"com.docker.stack.namespace":    "swarm_namespace",
+
+		"io.rancher.stack.name":         "rancher_stack",
+		"io.rancher.stack_service.name": "rancher_service",
+	}, tags.AddLow)
+
+	c.extractFromMapWithFn(container.Labels, map[string]string{
+		"io.rancher.container.name": "rancher_container",
+	}, tags.AddHigh)
+
+	// extract labels as tags
+	c.extractFromMapNormalizedWithFn(container.Labels, c.containerLabelsAsTags, tags.AddAuto)
+
+	// custom tags from label
+	if lbl, ok := container.Labels[autodiscoveryLabelTagsKey]; ok {
+		parseContainerADTagsLabels(tags, lbl)
+	}
+
+	// standard tags from environment
+	c.extractFromMapWithFn(container.EnvVars, standardEnvKeys, tags.AddStandard)
+
+	// orchestrator tags from environment
+	c.extractFromMapWithFn(container.EnvVars, map[string]string{
+		"MARATHON_APP_ID": "marathon_app",
+
+		"CHRONOS_JOB_NAME":  "chronos_job",
+		"CHRONOS_JOB_OWNER": "chronos_job_owner",
+
+		"NOMAD_TASK_NAME":  "nomad_task",
+		"NOMAD_JOB_NAME":   "nomad_job",
+		"NOMAD_GROUP_NAME": "nomad_group",
+	}, tags.AddLow)
+
+	c.extractFromMapWithFn(container.EnvVars, map[string]string{
+		"MESOS_TASK_ID": "mesos_task",
+	}, tags.AddOrchestrator)
+
+	// extract env as tags
+	c.extractFromMapNormalizedWithFn(container.EnvVars, c.containerEnvAsTags, tags.AddAuto)
+
+	low, orch, high, standard := tags.Compute()
+	tagInfos = append(tagInfos, &TagInfo{
+		Source:               containerSource,
+		Entity:               buildTaggerEntityID(container.EntityID),
+		HighCardTags:         high,
+		OrchestratorCardTags: orch,
+		LowCardTags:          low,
+		StandardTags:         standard,
+	})
+
+	return tagInfos
+}
+
 func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo {
 	tagInfos := []*TagInfo{}
 	tags := utils.NewTagList()
 
-	pod := ev.Entity.(workloadmeta.KubernetesPod)
+	pod := ev.Entity.(*workloadmeta.KubernetesPod)
 
 	tags.AddOrchestrator(kubernetes.PodTagName, pod.Name)
 	tags.AddLow(kubernetes.NamespaceTagName, pod.Namespace)
@@ -85,13 +172,7 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 		utils.AddMetadataAsTags(name, value, c.annotationsAsTags, c.globAnnotations, tags)
 	}
 
-	if podTags, found := extractTagsFromMap(podTagsAnnotation, pod.Annotations); found {
-		for tagName, values := range podTags {
-			for _, val := range values {
-				tags.AddAuto(tagName, val)
-			}
-		}
-	}
+	c.extractTagsFromJSONInMap(podTagsAnnotation, pod.Annotations, tags)
 
 	// OpenShift pod annotations
 	if dcName, found := pod.Annotations["openshift.io/deployment-config.name"]; found {
@@ -110,7 +191,7 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 
 	low, orch, high, standard := tags.Compute()
 	tagInfos = append(tagInfos, &TagInfo{
-		Source:               workloadmetaCollectorName,
+		Source:               podSource,
 		Entity:               buildTaggerEntityID(pod.EntityID),
 		HighCardTags:         high,
 		OrchestratorCardTags: orch,
@@ -130,7 +211,9 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 
 		low, orch, high, standard := cTags.Compute()
 		tagInfos = append(tagInfos, &TagInfo{
-			Source:               workloadmetaCollectorName,
+			// podSource here is not a mistake. the source is
+			// always from the parent resource.
+			Source:               podSource,
 			Entity:               buildTaggerEntityID(container.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
@@ -142,7 +225,7 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 	return tagInfos
 }
 
-func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod workloadmeta.KubernetesPod, tags *utils.TagList) {
+func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.KubernetesPod, tags *utils.TagList) {
 	for name, value := range pod.Labels {
 		switch name {
 		case kubernetes.EnvTagLabelKey:
@@ -169,7 +252,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod workloadmeta.Kubern
 	}
 }
 
-func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod workloadmeta.KubernetesPod, owner workloadmeta.KubernetesPodOwner, tags *utils.TagList) {
+func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.KubernetesPod, owner workloadmeta.KubernetesPodOwner, tags *utils.TagList) {
 	switch owner.Kind {
 	case kubernetes.DeploymentKind:
 		tags.AddLow(kubernetes.DeploymentTagName, owner.Name)
@@ -211,52 +294,34 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod workloadmeta.Kuberne
 	}
 }
 
-func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod workloadmeta.KubernetesPod, container workloadmeta.Container, tags *utils.TagList) {
+func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.KubernetesPod, container *workloadmeta.Container, tags *utils.TagList) {
 	tags.AddLow("kube_container_name", container.Name)
-	tags.AddLow("image_id", container.Image.ID)
 	tags.AddHigh("container_id", container.ID)
+
 	if container.Name != "" && pod.Name != "" {
 		tags.AddHigh("display_container_name", fmt.Sprintf("%s_%s", container.Name, pod.Name))
-	}
-
-	// Enrich with standard tags from labels for this container if present
-	standardTagKeys := []string{tagKeyEnv, tagKeyVersion, tagKeyService}
-	for _, key := range standardTagKeys {
-		label := fmt.Sprintf(podStandardLabelPrefix+"%s.%s", container.Name, key)
-		if value, ok := pod.Labels[label]; ok {
-			tags.AddStandard(key, value)
-		}
-	}
-
-	// Enrich with standard tags from environment variables
-	standardEnvKeys := map[string]string{
-		envVarEnv:     tagKeyEnv,
-		envVarVersion: tagKeyVersion,
-		envVarService: tagKeyService,
-	}
-	for key, tag := range standardEnvKeys {
-		if value, ok := container.EnvVars[key]; ok && value != "" {
-			tags.AddStandard(tag, value)
-		}
-	}
-
-	// container-specific tags provided through pod annotation
-	containerTags, found := extractTagsFromMap(
-		fmt.Sprintf(podContainerTagsAnnotationFormat, container.Name),
-		pod.Annotations,
-	)
-	if found {
-		for tagName, values := range containerTags {
-			for _, val := range values {
-				tags.AddAuto(tagName, val)
-			}
-		}
 	}
 
 	image := container.Image
 	tags.AddLow("image_name", image.Name)
 	tags.AddLow("short_image", image.ShortName)
 	tags.AddLow("image_tag", image.Tag)
+	tags.AddLow("image_id", image.ID)
+
+	// enrich with standard tags from labels for this container if present
+	standardTagKeys := map[string]string{
+		fmt.Sprintf(podStandardLabelPrefix+"%s.%s", container.Name, tagKeyEnv):     tagKeyEnv,
+		fmt.Sprintf(podStandardLabelPrefix+"%s.%s", container.Name, tagKeyVersion): tagKeyVersion,
+		fmt.Sprintf(podStandardLabelPrefix+"%s.%s", container.Name, tagKeyService): tagKeyService,
+	}
+	c.extractFromMapWithFn(pod.Labels, standardTagKeys, tags.AddStandard)
+
+	// enrich with standard tags from environment variables
+	c.extractFromMapWithFn(container.EnvVars, standardEnvKeys, tags.AddStandard)
+
+	// container-specific tags provided through pod annotation
+	annotation := fmt.Sprintf(podContainerTagsAnnotationFormat, container.Name)
+	c.extractTagsFromJSONInMap(annotation, pod.Annotations, tags)
 }
 
 func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
@@ -265,33 +330,45 @@ func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 		return containers.BuildTaggerEntityName(entityID.ID)
 	case workloadmeta.KindKubernetesPod:
 		return kubelet.PodUIDToTaggerEntityName(entityID.ID)
-	case workloadmeta.KindECSTask:
-		// TODO
 	default:
 		log.Errorf("can't recognize entity %q with kind %q, but building a a tagger ID anyway", entityID.ID, entityID.Kind)
 		return containers.BuildEntityName(string(entityID.Kind), entityID.ID)
 	}
-
-	return ""
 }
 
-// extractTagsFromMap extracts tags contained in a JSON string stored at the
-// given key. If no valid tag definition is found at this key, it will return
-// false. Otherwise it returns a map containing extracted tags.
-// The map values are string slices to support tag keys with multiple values.
-func extractTagsFromMap(key string, input map[string]string) (map[string][]string, bool) {
+func (c *WorkloadMetaCollector) extractFromMapWithFn(input map[string]string, mapping map[string]string, fn func(string, string)) {
+	for key, tag := range mapping {
+		if value, ok := input[key]; ok {
+			fn(tag, value)
+		}
+	}
+}
+
+func (c *WorkloadMetaCollector) extractFromMapNormalizedWithFn(input map[string]string, mapping map[string]string, fn func(string, string)) {
+	for key, value := range input {
+		if tag, ok := mapping[strings.ToLower(key)]; ok {
+			fn(tag, value)
+		}
+	}
+}
+
+func (c *WorkloadMetaCollector) extractTagsFromJSONInMap(key string, input map[string]string, tags *utils.TagList) {
 	jsonTags, found := input[key]
 	if !found {
-		return nil, false
+		return
 	}
 
-	tags, err := parseJSONValue(jsonTags)
+	tagsFromJSON, err := parseJSONValue(jsonTags)
 	if err != nil {
 		log.Errorf("can't parse value for annotation %s: %s", key, err)
-		return nil, false
+		return
 	}
 
-	return tags, true
+	for tag, values := range tagsFromJSON {
+		for _, val := range values {
+			tags.AddAuto(tag, val)
+		}
+	}
 }
 
 // parseJSONValue returns a map from the given JSON string.
