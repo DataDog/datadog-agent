@@ -8,6 +8,7 @@ import datetime
 import glob
 import os
 import shutil
+import textwrap
 from pathlib import Path
 
 from invoke import task
@@ -341,7 +342,12 @@ def lint_licenses(ctx):
 
     if len(removed_licenses) + len(added_licenses) > 0:
         raise Exit(
-            message="Licenses are not up-to-date.\n\nPlease run 'inv generate-licenses' to update licenses file.",
+            message=textwrap.dedent(
+                """\
+                Licenses are not up-to-date.
+
+                Please run 'inv generate-licenses' to update {}."""
+            ).format(file),
             code=1,
         )
 
@@ -353,9 +359,30 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
     """
     Generates the LICENSE-3rdparty.csv file. Run this if `inv lint-licenses` fails.
     """
+    new_licenses = get_licenses_list(ctx)
+
+    # check that all licenses have a non-"UNKNOWN" copyright
+    unknown_licenses = False
+    for license in new_licenses:
+        if license.endswith(',UNKNOWN'):
+            unknown_licenses = True
+            print("! {}".format(license))
+
+    if unknown_licenses:
+        raise Exit(
+            message=textwrap.dedent(
+                """\
+                At least one dependency's copyright could not be determined.
+
+                Consult the dependency's source, update `.copyright-overrides.yml` accordingly, and
+                run `inv generate-licenses` to update {}."""
+            ).format(filename),
+            code=1,
+        )
+
     with open(filename, 'w') as f:
         f.write("Component,Origin,License,Copyright\n")
-        for license in get_licenses_list(ctx):
+        for license in new_licenses:
             if verbose:
                 print(license)
             f.write('{}\n'.format(license))

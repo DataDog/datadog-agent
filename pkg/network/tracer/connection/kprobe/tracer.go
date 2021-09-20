@@ -196,10 +196,14 @@ func (t *kprobeTracer) GetConnections(buffer []network.ConnectionStats, filter f
 	seen := make(map[netebpf.ConnTuple]struct{})
 	entries := t.conns.IterateFrom(unsafe.Pointer(&netebpf.ConnTuple{}))
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
-		conn := connStats(key, stats, t.getTCPStats(key, seen))
-		if filter != nil && filter(&conn) {
-			buffer = append(buffer, conn)
+		conn := connStats(key, stats)
+		if filter != nil && !filter(&conn) {
+			continue
 		}
+		if tcpStats := t.getTCPStats(key, seen); tcpStats != nil {
+			updateTCPStats(&conn, tcpStats)
+		}
+		buffer = append(buffer, conn)
 	}
 
 	if err := entries.Err(); err != nil {
@@ -382,17 +386,28 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 	return nil
 }
 
+func updateTCPStats(conn *network.ConnectionStats, tcpStats *netebpf.TCPStats) {
+	if conn.Type != network.TCP {
+		return
+	}
+	conn.MonotonicRetransmits = tcpStats.Retransmits
+	conn.MonotonicTCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
+	conn.MonotonicTCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
+	conn.RTT = tcpStats.Rtt
+	conn.RTTVar = tcpStats.Rtt_var
+}
+
 // getTCPStats reads tcp related stats for the given ConnTuple
 func (t *kprobeTracer) getTCPStats(tuple *netebpf.ConnTuple, seen map[netebpf.ConnTuple]struct{}) *netebpf.TCPStats {
-	stats := new(netebpf.TCPStats)
 	if tuple.Type() != netebpf.TCP {
-		return stats
+		return nil
 	}
 
 	// The PID isn't used as a key in the stats map, we will temporarily set it to 0 here and reset it when we're done
 	pid := tuple.Pid
 	tuple.Pid = 0
 
+	stats := new(netebpf.TCPStats)
 	err := t.tcpStats.Lookup(unsafe.Pointer(tuple), unsafe.Pointer(stats))
 	if err == nil {
 		// This is required to avoid (over)reporting retransmits for connections sharing the same socket.
@@ -416,7 +431,7 @@ func (t *kprobeTracer) getMap(name probes.BPFMapName) (*ebpf.Map, error) {
 	return mp, nil
 }
 
-func connStats(t *netebpf.ConnTuple, s *netebpf.ConnStats, tcpStats *netebpf.TCPStats) network.ConnectionStats {
+func connStats(t *netebpf.ConnTuple, s *netebpf.ConnStats) network.ConnectionStats {
 	stats := network.ConnectionStats{
 		Pid:                  t.Pid,
 		NetNS:                t.Netns,
@@ -435,11 +450,6 @@ func connStats(t *netebpf.ConnTuple, s *netebpf.ConnStats, tcpStats *netebpf.TCP
 
 	if t.Type() == netebpf.TCP {
 		stats.Type = network.TCP
-		stats.MonotonicRetransmits = tcpStats.Retransmits
-		stats.MonotonicTCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
-		stats.MonotonicTCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
-		stats.RTT = tcpStats.Rtt
-		stats.RTTVar = tcpStats.Rtt_var
 	} else {
 		stats.Type = network.UDP
 	}

@@ -10,7 +10,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -23,70 +23,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 )
 
-type mockSession struct {
-	mock.Mock
-	connectErr error
-	closeErr   error
-	version    gosnmp.SnmpVersion
-}
-
-func (s *mockSession) Configure(config snmpConfig) error {
-	return nil
-}
-
-func (s *mockSession) Connect() error {
-	return s.connectErr
-}
-
-func (s *mockSession) Close() error {
-	return s.closeErr
-}
-
-func (s *mockSession) Get(oids []string) (result *gosnmp.SnmpPacket, err error) {
-	args := s.Mock.Called(oids)
-	return args.Get(0).(*gosnmp.SnmpPacket), args.Error(1)
-}
-
-func (s *mockSession) GetBulk(oids []string, bulkMaxRepetitions uint32) (result *gosnmp.SnmpPacket, err error) {
-	args := s.Mock.Called(oids, bulkMaxRepetitions)
-	return args.Get(0).(*gosnmp.SnmpPacket), args.Error(1)
-}
-
-func (s *mockSession) GetNext(oids []string) (result *gosnmp.SnmpPacket, err error) {
-	args := s.Mock.Called(oids)
-	return args.Get(0).(*gosnmp.SnmpPacket), args.Error(1)
-}
-
-func (s *mockSession) GetVersion() gosnmp.SnmpVersion {
-	return s.version
-}
-
-func createMockSession() *mockSession {
-	session := &mockSession{}
-	session.version = gosnmp.Version2c
-	return session
-}
-
-func setConfdPathAndCleanProfiles() {
-	globalProfileConfigMap = nil // make sure from the new confd path will be reloaded
-	file, _ := filepath.Abs(filepath.Join(".", "test", "conf.d"))
-	config.Datadog.Set("confd_path", file)
-}
-
 func TestBasicSample(t *testing.T) {
-	setConfdPathAndCleanProfiles()
-	session := createMockSession()
-	check := Check{session: session}
+	checkconfig.SetConfdPathAndCleanProfiles()
+	sess := session.CreateMockSession()
+	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+	chk := Check{}
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
+community_string: public
 metrics:
 - symbol:
     OID: 1.3.6.1.2.1.2.1
@@ -122,10 +79,10 @@ tags:
   - "mytag:foo"
 `)
 
-	err := check.Configure(rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	sender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -211,19 +168,19 @@ tags:
 		},
 	}
 
-	session.On("Get", mock.Anything).Return(&packet, nil)
-	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.20"}, defaultBulkMaxRepetitions).Return(&bulkPacket, nil)
-	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14.2", "1.3.6.1.2.1.2.2.1.2.2", "1.3.6.1.2.1.2.2.1.20.2"}, defaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
+	sess.On("Get", mock.Anything).Return(&packet, nil)
+	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.20"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
+	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14.2", "1.3.6.1.2.1.2.2.1.2.2", "1.3.6.1.2.1.2.2.1.20.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket2, nil)
 
-	err = check.Run()
+	err = chk.Run()
 	assert.Nil(t, err)
 
 	snmpTags := []string{"snmp_device:1.2.3.4"}
-	snmpGlobalTags := append(copyStrings(snmpTags), "snmp_host:foo_sys_name")
-	snmpGlobalTagsWithLoader := append(copyStrings(snmpGlobalTags), "loader:core")
-	row1Tags := append(copyStrings(snmpGlobalTags), "if_index:1", "if_desc:desc1")
-	row2Tags := append(copyStrings(snmpGlobalTags), "if_index:2", "if_desc:desc2")
-	scalarTags := append(copyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
+	snmpGlobalTags := append(common.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
+	snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
+	row1Tags := append(common.CopyStrings(snmpGlobalTags), "if_index:1", "if_desc:desc1")
+	row2Tags := append(common.CopyStrings(snmpGlobalTags), "if_index:2", "if_desc:desc2")
+	scalarTags := append(common.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpGlobalTags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpGlobalTags)
@@ -240,12 +197,16 @@ tags:
 }
 
 func TestSupportedMetricTypes(t *testing.T) {
-	setConfdPathAndCleanProfiles()
-	session := createMockSession()
-	check := Check{session: session}
+	checkconfig.SetConfdPathAndCleanProfiles()
+	sess := session.CreateMockSession()
+	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+	chk := Check{}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
+community_string: public
 metrics:
 - symbol:
     OID: 1.2.3.4.5.0
@@ -258,10 +219,10 @@ metrics:
     name: SomeCounter64Metric
 `)
 
-	err := check.Configure(rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	sender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -293,9 +254,9 @@ metrics:
 		},
 	}
 
-	session.On("Get", mock.Anything).Return(&packet, nil)
+	sess.On("Get", mock.Anything).Return(&packet, nil)
 
-	err = check.Run()
+	err = chk.Run()
 	assert.Nil(t, err)
 
 	tags := []string{"snmp_device:1.2.3.4"}
@@ -307,15 +268,19 @@ metrics:
 }
 
 func TestProfile(t *testing.T) {
-	timeNow = mockTimeNow
+	timeNow = common.MockTimeNow
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
-	setConfdPathAndCleanProfiles()
+	checkconfig.SetConfdPathAndCleanProfiles()
 
-	session := createMockSession()
-	check := Check{session: session}
+	sess := session.CreateMockSession()
+	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+	chk := Check{}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
+community_string: public
 profile: f5-big-ip
 collect_device_metadata: true
 oid_batch_size: 10
@@ -331,10 +296,10 @@ profiles:
     definition_file: f5-big-ip.yaml
 `)
 
-	err := check.Configure(rawInstanceConfig, rawInitConfig, "test")
+	err := chk.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
 
-	sender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -496,7 +461,7 @@ profiles:
 		},
 	}
 
-	session.On("Get", []string{
+	sess.On("Get", []string{
 		"1.3.6.1.2.1.1.5.0",
 		"1.3.6.1.2.1.1.1.0",
 		"1.3.6.1.2.1.1.2.0",
@@ -505,7 +470,7 @@ profiles:
 		"1.2.3.4.5",
 		"1.3.6.1.2.1.1.3.0",
 	}).Return(&packet, nil)
-	session.On("GetBulk", []string{
+	sess.On("GetBulk", []string{
 		"1.3.6.1.2.1.2.2.1.13",
 		"1.3.6.1.2.1.2.2.1.14",
 		"1.3.6.1.2.1.2.2.1.2",
@@ -514,14 +479,14 @@ profiles:
 		"1.3.6.1.2.1.2.2.1.8",
 		"1.3.6.1.2.1.31.1.1.1.1",
 		"1.3.6.1.2.1.31.1.1.1.18",
-	}, defaultBulkMaxRepetitions).Return(&bulkPacket, nil)
+	}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
 
-	err = check.Run()
+	err = chk.Run()
 	assert.Nil(t, err)
 
 	snmpTags := []string{"snmp_device:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name"}
-	row1Tags := append(copyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1")
-	row2Tags := append(copyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2")
+	row1Tags := append(common.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1")
+	row2Tags := append(common.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2")
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpTags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
@@ -599,178 +564,31 @@ profiles:
 	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckOK, "", snmpTags, "")
 }
 
-func TestProfileWithSysObjectIdDetection(t *testing.T) {
-	setConfdPathAndCleanProfiles()
-	session := createMockSession()
-	check := Check{session: session}
-	// language=yaml
-	rawInstanceConfig := []byte(`
-ip_address: 1.2.3.4
-`)
-	// language=yaml
-	rawInitConfig := []byte(`
-profiles:
-  f5-big-ip:
-    definition_file: f5-big-ip.yaml
-`)
-
-	err := check.Configure(rawInstanceConfig, rawInitConfig, "test")
-	assert.Nil(t, err)
-
-	sender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
-	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	sender.On("Commit").Return()
-
-	sysObjectIDPacket := gosnmp.SnmpPacket{
-		Variables: []gosnmp.SnmpPDU{
-			{
-				Name:  "1.3.6.1.2.1.1.2.0",
-				Type:  gosnmp.ObjectIdentifier,
-				Value: "1.3.6.1.4.1.3375.2.1.3.4.1",
-			},
-		},
-	}
-
-	packet := gosnmp.SnmpPacket{
-		Variables: []gosnmp.SnmpPDU{
-			{
-				Name:  "1.3.6.1.2.1.1.3.0",
-				Type:  gosnmp.TimeTicks,
-				Value: 20,
-			},
-			{
-				Name:  "1.3.6.1.2.1.1.5.0",
-				Type:  gosnmp.OctetString,
-				Value: []byte("foo_sys_name"),
-			},
-			{
-				Name:  "1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
-				Type:  gosnmp.Integer,
-				Value: 30,
-			},
-		},
-	}
-
-	bulkPacket := gosnmp.SnmpPacket{
-		Variables: []gosnmp.SnmpPDU{
-			{
-				Name:  "1.3.6.1.2.1.2.2.1.13.1",
-				Type:  gosnmp.Integer,
-				Value: 131,
-			},
-			{
-				Name:  "1.3.6.1.2.1.2.2.1.14.1",
-				Type:  gosnmp.Integer,
-				Value: 141,
-			},
-			{
-				Name:  "1.3.6.1.2.1.31.1.1.1.1.1",
-				Type:  gosnmp.OctetString,
-				Value: []byte("nameRow1"),
-			},
-			{
-				Name:  "1.3.6.1.2.1.31.1.1.1.18.1",
-				Type:  gosnmp.OctetString,
-				Value: []byte("descRow1"),
-			},
-			{
-				Name:  "1.3.6.1.2.1.2.2.1.13.2",
-				Type:  gosnmp.Integer,
-				Value: 132,
-			},
-			{
-				Name:  "1.3.6.1.2.1.2.2.1.14.2",
-				Type:  gosnmp.Integer,
-				Value: 142,
-			},
-			{
-				Name:  "1.3.6.1.2.1.31.1.1.1.1.2",
-				Type:  gosnmp.OctetString,
-				Value: []byte("nameRow2"),
-			},
-			{
-				Name:  "1.3.6.1.2.1.31.1.1.1.18.2",
-				Type:  gosnmp.OctetString,
-				Value: []byte("descRow2"),
-			},
-			{
-				Name:  "9", // exit table
-				Type:  gosnmp.Integer,
-				Value: 999,
-			},
-			{
-				Name:  "9", // exit table
-				Type:  gosnmp.Integer,
-				Value: 999,
-			},
-			{
-				Name:  "9", // exit table
-				Type:  gosnmp.Integer,
-				Value: 999,
-			},
-			{
-				Name:  "9", // exit table
-				Type:  gosnmp.Integer,
-				Value: 999,
-			},
-		},
-	}
-
-	session.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&sysObjectIDPacket, nil)
-	session.On("Get", []string{"1.3.6.1.2.1.1.3.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0"}).Return(&packet, nil)
-	session.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}, defaultBulkMaxRepetitions).Return(&bulkPacket, nil)
-
-	err = check.Run()
-	assert.Nil(t, err)
-
-	snmpTags := []string{"snmp_device:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name",
-		"some_tag:some_tag_value", "prefix:f", "suffix:oo_sys_name"}
-	row1Tags := append(copyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1")
-	row2Tags := append(copyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2")
-
-	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpTags)
-	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
-	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(141), "", row1Tags)
-	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(142), "", row2Tags)
-	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(131), "", row1Tags)
-	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInDiscards", float64(132), "", row2Tags)
-	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(30), "", snmpTags)
-
-	assert.Equal(t, false, check.config.autodetectProfile)
-
-	// Make sure we don't auto detect and add metrics twice if we already did that previously
-	firstRunMetrics := check.config.metrics
-	firstRunMetricsTags := check.config.metricTags
-	err = check.Run()
-	assert.Nil(t, err)
-
-	assert.Len(t, check.config.metrics, len(firstRunMetrics))
-	assert.Len(t, check.config.metricTags, len(firstRunMetricsTags))
-}
-
 func TestServiceCheckFailures(t *testing.T) {
-	setConfdPathAndCleanProfiles()
-	session := createMockSession()
-	session.connectErr = fmt.Errorf("can't connect")
-	check := Check{session: session}
+	checkconfig.SetConfdPathAndCleanProfiles()
+	sess := session.CreateMockSession()
+	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+	sess.ConnectErr = fmt.Errorf("can't connect")
+	chk := Check{}
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
+community_string: public
 `)
 
-	err := check.Configure(rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	sender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
-	err = check.Run()
+	err = chk.Run()
 	assert.Error(t, err, "snmp connection error: can't connect")
 
 	snmpTags := []string{"snmp_device:1.2.3.4"}
@@ -782,7 +600,7 @@ ip_address: 1.2.3.4
 }
 
 func TestCheckID(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	checkconfig.SetConfdPathAndCleanProfiles()
 	check1 := snmpFactory()
 	check2 := snmpFactory()
 	// language=yaml
@@ -957,17 +775,21 @@ func TestCheck_Run(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			setConfdPathAndCleanProfiles()
-			session := createMockSession()
-			session.connectErr = tt.sessionConnError
-			check := Check{session: session}
+			checkconfig.SetConfdPathAndCleanProfiles()
+			sess := session.CreateMockSession()
+			session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+				return sess, nil
+			}
+			sess.ConnectErr = tt.sessionConnError
+			chk := Check{}
 
 			// language=yaml
 			rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
+community_string: public
 `)
 
-			err := check.Configure(rawInstanceConfig, []byte(``), "test")
+			err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 			assert.Nil(t, err)
 
 			sender := new(mocksender.MockSender)
@@ -976,11 +798,11 @@ ip_address: 1.2.3.4
 				aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 			}
 
-			mocksender.SetSender(sender, check.ID())
+			mocksender.SetSender(sender, chk.ID())
 
-			session.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&tt.sysObjectIDPacket, tt.sysObjectIDError)
-			session.On("Get", []string{"1.3.6.1.2.1.1.3.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0"}).Return(&tt.valuesPacket, tt.valuesError)
-			session.On("Get", []string{"1.3.6.1.2.1.1.3.0"}).Return(&tt.valuesPacket, tt.valuesError)
+			sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&tt.sysObjectIDPacket, tt.sysObjectIDError)
+			sess.On("Get", []string{"1.3.6.1.2.1.1.3.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0"}).Return(&tt.valuesPacket, tt.valuesError)
+			sess.On("Get", []string{"1.3.6.1.2.1.1.3.0"}).Return(&tt.valuesPacket, tt.valuesError)
 
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -988,7 +810,7 @@ ip_address: 1.2.3.4
 			sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			sender.On("Commit").Return()
 
-			err = check.Run()
+			err = chk.Run()
 			assert.EqualError(t, err, tt.expectedErr)
 
 			snmpTags := []string{"snmp_device:1.2.3.4"}
@@ -1003,7 +825,7 @@ ip_address: 1.2.3.4
 }
 
 func TestCheck_Run_sessionCloseError(t *testing.T) {
-	setConfdPathAndCleanProfiles()
+	checkconfig.SetConfdPathAndCleanProfiles()
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
@@ -1012,33 +834,37 @@ func TestCheck_Run_sessionCloseError(t *testing.T) {
 	assert.Nil(t, err)
 	log.SetupLogger(l, "debug")
 
-	session := createMockSession()
-	session.closeErr = fmt.Errorf("close error")
-	check := Check{session: session}
+	sess := session.CreateMockSession()
+	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+	sess.CloseErr = fmt.Errorf("close error")
+	chk := Check{}
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
+community_string: public
 metrics:
 - symbol:
     OID: 1.2.3
     name: myMetric
 `)
 
-	err = check.Configure(rawInstanceConfig, []byte(``), "test")
+	err = chk.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
-	sender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 
-	mocksender.SetSender(sender, check.ID())
+	mocksender.SetSender(sender, chk.ID())
 
 	packet := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{},
 	}
-	session.On("Get", []string{"1.2.3", "1.3.6.1.2.1.1.3.0"}).Return(&packet, nil)
+	sess.On("Get", []string{"1.2.3", "1.3.6.1.2.1.1.3.0"}).Return(&packet, nil)
 	sender.SetupAcceptAll()
 
-	err = check.Run()
+	err = chk.Run()
 	assert.Nil(t, err)
 
 	w.Flush()
@@ -1051,19 +877,23 @@ metrics:
 
 	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckOK, "", snmpTags, "")
 
-	assert.Equal(t, strings.Count(logs, "failed to close session"), 1, logs)
+	assert.Equal(t, strings.Count(logs, "failed to close sess"), 1, logs)
 }
 
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
-	timeNow = mockTimeNow
+	timeNow = common.MockTimeNow
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
-	setConfdPathAndCleanProfiles()
+	checkconfig.SetConfdPathAndCleanProfiles()
 
-	session := createMockSession()
-	check := Check{session: session}
+	sess := session.CreateMockSession()
+	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+	chk := Check{}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
+community_string: public
 collect_device_metadata: true
 oid_batch_size: 10
 tags:
@@ -1073,10 +903,10 @@ tags:
 	// language=yaml
 	rawInitConfig := []byte(``)
 
-	err := check.Configure(rawInstanceConfig, rawInitConfig, "test")
+	err := chk.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
 
-	sender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1203,15 +1033,15 @@ tags:
 		},
 	}
 	var sysObjectIDPacket *gosnmp.SnmpPacket
-	session.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(sysObjectIDPacket, fmt.Errorf("no value"))
+	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(sysObjectIDPacket, fmt.Errorf("no value"))
 
-	session.On("Get", []string{
+	sess.On("Get", []string{
 		"1.3.6.1.2.1.1.5.0",
 		"1.3.6.1.2.1.1.1.0",
 		"1.3.6.1.2.1.1.2.0",
 		"1.3.6.1.2.1.1.3.0",
 	}).Return(&packet, nil)
-	session.On("GetBulk", []string{
+	sess.On("GetBulk", []string{
 		//"1.3.6.1.2.1.2.2.1.13",
 		//"1.3.6.1.2.1.2.2.1.14",
 		"1.3.6.1.2.1.2.2.1.2",
@@ -1220,9 +1050,9 @@ tags:
 		"1.3.6.1.2.1.2.2.1.8",
 		"1.3.6.1.2.1.31.1.1.1.1",
 		"1.3.6.1.2.1.31.1.1.1.18",
-	}, defaultBulkMaxRepetitions).Return(&bulkPacket, nil)
+	}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
 
-	err = check.Run()
+	err = chk.Run()
 	assert.EqualError(t, err, "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value")
 
 	snmpTags := []string{"snmp_device:1.2.3.4"}
@@ -1293,15 +1123,19 @@ tags:
 }
 
 func TestReportDeviceMetadataWithFetchError(t *testing.T) {
-	timeNow = mockTimeNow
+	timeNow = common.MockTimeNow
 	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
-	setConfdPathAndCleanProfiles()
+	checkconfig.SetConfdPathAndCleanProfiles()
 
-	session := createMockSession()
-	check := Check{session: session}
+	sess := session.CreateMockSession()
+	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+	chk := Check{}
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.5
+community_string: public
 collect_device_metadata: true
 tags:
   - "mytag:val1"
@@ -1310,10 +1144,10 @@ tags:
 	// language=yaml
 	rawInitConfig := []byte(``)
 
-	err := check.Configure(rawInstanceConfig, rawInitConfig, "test")
+	err := chk.Configure(rawInstanceConfig, rawInitConfig, "test")
 	assert.Nil(t, err)
 
-	sender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1321,16 +1155,16 @@ tags:
 	sender.On("Commit").Return()
 
 	var nilPacket *gosnmp.SnmpPacket
-	session.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(nilPacket, fmt.Errorf("no value"))
+	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(nilPacket, fmt.Errorf("no value"))
 
-	session.On("Get", []string{
+	sess.On("Get", []string{
 		"1.3.6.1.2.1.1.5.0",
 		"1.3.6.1.2.1.1.1.0",
 		"1.3.6.1.2.1.1.2.0",
 		"1.3.6.1.2.1.1.3.0",
 	}).Return(nilPacket, fmt.Errorf("device failure"))
 
-	err = check.Run()
+	err = chk.Run()
 	assert.EqualError(t, err, "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.1.0 1.3.6.1.2.1.1.2.0 1.3.6.1.2.1.1.3.0]`: device failure")
 
 	snmpTags := []string{"snmp_device:1.2.3.5"}
@@ -1373,4 +1207,366 @@ tags:
 	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
 
 	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.1.0 1.3.6.1.2.1.1.2.0 1.3.6.1.2.1.1.3.0]`: device failure")
+}
+
+func TestDiscovery(t *testing.T) {
+	timeNow = common.MockTimeNow
+	checkconfig.SetConfdPathAndCleanProfiles()
+	sess := session.CreateMockSession()
+	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+	chk := Check{}
+	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+network_address: 10.10.0.0/30
+community_string: public
+collect_device_metadata: true
+oid_batch_size: 10
+metrics:
+- symbol:
+    OID: 1.3.6.1.2.1.2.1
+    name: ifNumber
+  metric_tags:
+  - symboltag1:1
+  - symboltag2:2
+metric_tags:
+  - OID: 1.3.6.1.2.1.1.5.0
+    symbol: sysName
+    tag: snmp_host
+`)
+
+	discoveryPacket := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.1.2.0",
+				Type:  gosnmp.ObjectIdentifier,
+				Value: "1.2.3",
+			},
+		},
+	}
+	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&discoveryPacket, nil)
+
+	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+	devices := chk.discovery.GetDiscoveredDeviceConfigs()
+	assert.Equal(t, 4, len(devices))
+
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	sender.On("Commit").Return()
+
+	packet := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.1.3.0",
+				Type:  gosnmp.TimeTicks,
+				Value: 20,
+			},
+			{
+				Name:  "1.3.6.1.2.1.1.5.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("foo_sys_name"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.1",
+				Type:  gosnmp.Integer,
+				Value: 30,
+			},
+		},
+	}
+
+	sess.On("Get", mock.Anything).Return(&packet, nil)
+
+	bulkPacket := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.2.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("ifDescRow1"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.6.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("00:00:00:00:00:01"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.7.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.8.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.1.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("nameRow1"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.18.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("descRow1"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.2.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("ifDescRow2"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.6.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("00:00:00:00:00:02"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.7.2",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.2.2.1.8.2",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.1.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("nameRow2"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.31.1.1.1.18.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("descRow2"),
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+		},
+	}
+
+	sess.On("GetBulk", []string{
+		//"1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7", "1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.31.1.1.1.1"
+		"1.3.6.1.2.1.2.2.1.2",
+		"1.3.6.1.2.1.2.2.1.6",
+		"1.3.6.1.2.1.2.2.1.7",
+		"1.3.6.1.2.1.2.2.1.8",
+		"1.3.6.1.2.1.31.1.1.1.1",
+		"1.3.6.1.2.1.31.1.1.1.18",
+	}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
+
+	deviceMap := []struct {
+		ipAddress string
+		deviceID  string
+	}{
+		{ipAddress: "10.10.0.0", deviceID: "e162c69954d2b408"},
+		{ipAddress: "10.10.0.1", deviceID: "e162c69954d2b409"},
+		{ipAddress: "10.10.0.2", deviceID: "e162c69954d2b40a"},
+		{ipAddress: "10.10.0.3", deviceID: "e162c69954d2b40b"},
+	}
+
+	err = chk.Run()
+	assert.Nil(t, err)
+
+	for _, deviceData := range deviceMap {
+		snmpTags := []string{"snmp_device:" + deviceData.ipAddress, "autodiscovery_subnet:10.10.0.0/30"}
+		snmpGlobalTags := append(common.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
+		snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
+		scalarTags := append(common.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
+
+		sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpGlobalTags)
+		sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpGlobalTags)
+		sender.AssertMetric(t, "Gauge", "snmp.ifNumber", float64(30), "", scalarTags)
+
+		sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpGlobalTagsWithLoader)
+		sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpGlobalTagsWithLoader)
+		sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 2, "", snmpGlobalTagsWithLoader)
+
+		// language=json
+		event := []byte(fmt.Sprintf(`
+{
+  "subnet": "10.10.0.0/30",
+  "devices": [
+    {
+      "id": "%s",
+      "id_tags": [
+        "snmp_device:%s"
+      ],
+      "name": "foo_sys_name",
+      "description": "",
+      "ip_address": "%s",
+      "sys_object_id": "",
+      "profile": "",
+      "vendor": "",
+      "subnet": "10.10.0.0/30",
+      "tags": [
+        "autodiscovery_subnet:10.10.0.0/30",
+        "snmp_device:%s",
+        "snmp_host:foo_sys_name"
+      ],
+      "status": 1
+    }
+  ],
+  "interfaces": [
+    {
+      "device_id": "%s",
+      "id_tags": ["interface:nameRow1"],
+      "index": 1,
+      "name": "nameRow1",
+      "alias": "descRow1",
+      "description": "ifDescRow1",
+      "mac_address": "00:00:00:00:00:01",
+      "admin_status": 1,
+      "oper_status": 1
+    },
+    {
+      "device_id": "%s",
+	  "id_tags": ["interface:nameRow2"],
+      "index": 2,
+      "name": "nameRow2",
+      "alias": "descRow2",
+      "description": "ifDescRow2",
+      "mac_address": "00:00:00:00:00:02",
+      "admin_status": 1,
+      "oper_status": 1
+    }
+  ],
+  "collect_timestamp":946684800
+}
+`, deviceData.deviceID, deviceData.ipAddress, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID))
+		compactEvent := new(bytes.Buffer)
+		err = json.Compact(compactEvent, event)
+		assert.NoError(t, err)
+
+		sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-metadata")
+	}
+	networkTags := []string{"network:10.10.0.0/30", "autodiscovery_subnet:10.10.0.0/30"}
+	sender.AssertMetric(t, "Gauge", "snmp.discovered_devices_count", 4, "", networkTags)
+}
+
+func TestDiscovery_CheckError(t *testing.T) {
+	checkconfig.SetConfdPathAndCleanProfiles()
+
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(l, "debug")
+
+	sess := session.CreateMockSession()
+	session.NewSession = func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+	chk := Check{}
+	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+network_address: 10.10.0.0/30
+community_string: public
+metrics:
+- symbol:
+    OID: 1.3.6.1.2.1.2.1
+    name: ifNumber
+  metric_tags:
+  - symboltag1:1
+  - symboltag2:2
+metric_tags:
+  - OID: 1.3.6.1.2.1.1.5.0
+    symbol: sysName
+    tag: snmp_host
+`)
+
+	discoveryPacket := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.1.2.0",
+				Type:  gosnmp.ObjectIdentifier,
+				Value: "1.2.3",
+			},
+		},
+	}
+	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&discoveryPacket, nil)
+
+	err = chk.Configure(rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+	devices := chk.discovery.GetDiscoveredDeviceConfigs()
+	assert.Equal(t, 4, len(devices))
+
+	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("Commit").Return()
+
+	sess.On("Get", mock.Anything).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("get error"))
+
+	err = chk.Run()
+	assert.Nil(t, err)
+
+	for i := 0; i < 4; i++ {
+		snmpTags := []string{fmt.Sprintf("snmp_device:10.10.0.%d", i)}
+		snmpGlobalTags := common.CopyStrings(snmpTags)
+		snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
+
+		sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpGlobalTags)
+		sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpGlobalTagsWithLoader)
+		sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpGlobalTagsWithLoader)
+		sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 0, "", snmpGlobalTagsWithLoader)
+	}
+
+	w.Flush()
+	logs := b.String()
+
+	assert.Equal(t, strings.Count(logs, "error collecting for device 10.10.0."), 4, logs)
+	for i := 0; i < 4; i++ {
+		assert.Equal(t, strings.Count(logs, "error collecting for device 10.10.0."+strconv.Itoa(i)), 1, logs)
+	}
 }

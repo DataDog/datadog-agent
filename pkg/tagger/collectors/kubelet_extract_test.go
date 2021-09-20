@@ -246,6 +246,16 @@ func TestParsePods(t *testing.T) {
 		},
 	}
 
+	dockerContainerSpecWithPriorityClass := kubelet.Spec{
+		Containers: []kubelet.ContainerSpec{
+			{
+				Name:  "dd-agent",
+				Image: "datadog/docker-dd-agent:latest5",
+			},
+		},
+		PriorityClassName: "my-priority-class",
+	}
+
 	containerStatusEmptyID := kubelet.Status{
 		Containers: []kubelet.ContainerStatus{
 			{
@@ -310,6 +320,41 @@ func TestParsePods(t *testing.T) {
 					"kube_app_component:dd-agent",
 					"kube_app_part_of:dd",
 					"kube_app_managed_by:spinnaker",
+					"image_id:docker://sha256:77e1fa12f59b01e7e23de95ae01aacc6f09027575ec23b340bb2d6004945f8d4",
+					"image_name:datadog/docker-dd-agent",
+					"short_image:docker-dd-agent",
+					"pod_phase:running",
+				},
+				OrchestratorCardTags: []string{
+					"pod_name:dd-agent-rc-qd876",
+				},
+				HighCardTags: []string{
+					"container_id:d0242fc32d53137526dc365e7c86ef43b5f50b6f72dfd53dcb948eff4560376f",
+					"display_container_name:dd-agent_dd-agent-rc-qd876",
+				},
+				StandardTags: []string{},
+			}},
+		},
+		{
+			desc: "pod with priority class + k8s recommended tags",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name:      "dd-agent-rc-qd876",
+					Namespace: "default",
+					Labels:    map[string]string{},
+				},
+				Status: dockerContainerStatus,
+				Spec:   dockerContainerSpecWithPriorityClass,
+			},
+			labelsAsTags: map[string]string{},
+			expectedInfo: []*TagInfo{{
+				Source: "kubelet",
+				Entity: dockerEntityID,
+				LowCardTags: []string{
+					"kube_namespace:default",
+					"kube_container_name:dd-agent",
+					"image_tag:latest5",
+					"kube_priority_class:my-priority-class",
 					"image_id:docker://sha256:77e1fa12f59b01e7e23de95ae01aacc6f09027575ec23b340bb2d6004945f8d4",
 					"image_name:datadog/docker-dd-agent",
 					"short_image:docker-dd-agent",

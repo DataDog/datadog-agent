@@ -148,7 +148,9 @@ func (p *perfBatchManager) extractBatchInto(buffer []network.ConnectionStats, b 
 			panic("batch size is out of sync")
 		}
 
-		buffer = append(buffer, connStats(&ct.Tup, &ct.Conn_stats, &ct.Tcp_stats))
+		conn := connStats(&ct.Tup, &ct.Conn_stats)
+		updateTCPStats(&conn, &ct.Tcp_stats)
+		buffer = append(buffer, conn)
 	}
 	return buffer
 }

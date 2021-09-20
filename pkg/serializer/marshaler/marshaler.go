@@ -33,7 +33,7 @@ type StreamJSONMarshaler interface {
 type BufferContext struct {
 	CompressorInput   *bytes.Buffer
 	CompressorOutput  *bytes.Buffer
-	PrecompressionBuf []byte
+	PrecompressionBuf *bytes.Buffer
 }
 
 // DefaultBufferContext initialize the default compression buffers
@@ -41,6 +41,6 @@ func DefaultBufferContext() *BufferContext {
 	return &BufferContext{
 		bytes.NewBuffer(make([]byte, 0, 1024)),
 		bytes.NewBuffer(make([]byte, 0, 1024)),
-		make([]byte, 1024),
+		bytes.NewBuffer(make([]byte, 0, 1024)),
 	}
 }

@@ -69,6 +69,12 @@ class Version:
     def is_devel(self):
         return self.devel
 
+    def branch(self):
+        """
+        Returns the name of the release branch associated to this version.
+        """
+        return "{}.{}.x".format(self._safe_value("major"), self._safe_value("minor"))
+
     def non_devel_version(self):
         new_version = deepcopy(self)
         new_version.devel = False
