@@ -126,6 +126,7 @@ require (
 	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/ianlancetaylor/cgosymbolizer v0.0.0-20201204192058-7acc97e53614 // indirect
 	github.com/iceber/iouring-go v0.0.0-20210726032807-b073cc83b2b8
+	github.com/imdario/mergo v0.3.11
 	github.com/iovisor/gobpf v0.0.0
 	github.com/itchyny/gojq v0.12.5
 	github.com/json-iterator/go v1.1.11
@@ -141,6 +142,7 @@ require (
 	github.com/miekg/dns v1.1.43
 	github.com/mitchellh/mapstructure v1.4.2
 	github.com/moby/sys/mountinfo v0.4.1
+	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852 // indirect

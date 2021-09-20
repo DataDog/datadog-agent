@@ -111,7 +111,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.Event {
 			})
 		}
 
-		entity := workloadmeta.KubernetesPod{
+		entity := &workloadmeta.KubernetesPod{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindKubernetesPod,
 				ID:   podMeta.UID,
@@ -133,9 +133,9 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.Event {
 
 		events = append(events, containerEvents...)
 		events = append(events, workloadmeta.Event{
-			Source: collectorID,
-			Type:   workloadmeta.EventTypeSet,
-			Entity: entity,
+			Sources: []string{collectorID},
+			Type:    workloadmeta.EventTypeSet,
+			Entity:  entity,
 		})
 	}
 
@@ -172,8 +172,9 @@ func (c *collector) parsePodContainers(
 			ports = make([]workloadmeta.ContainerPort, 0, len(containerSpec.Ports))
 			for _, port := range containerSpec.Ports {
 				ports = append(ports, workloadmeta.ContainerPort{
-					Name: port.Name,
-					Port: port.ContainerPort,
+					Name:     port.Name,
+					Port:     port.ContainerPort,
+					Protocol: port.Protocol,
 				})
 			}
 		} else {
@@ -193,9 +194,9 @@ func (c *collector) parsePodContainers(
 		}
 
 		events = append(events, workloadmeta.Event{
-			Source: collectorID,
-			Type:   workloadmeta.EventTypeSet,
-			Entity: workloadmeta.Container{
+			Sources: []string{collectorID},
+			Type:    workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.Container{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindContainer,
 					ID:   containerID,
@@ -285,8 +286,8 @@ func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.Event {
 		}
 
 		events = append(events, workloadmeta.Event{
-			Source: collectorID,
-			Type:   workloadmeta.EventTypeUnset,
+			Sources: []string{collectorID},
+			Type:    workloadmeta.EventTypeUnset,
 			Entity: workloadmeta.EntityID{
 				Kind: kind,
 				ID:   id,

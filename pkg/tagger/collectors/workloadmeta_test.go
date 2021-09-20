@@ -15,8 +15,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	sourcePod       = "workloadmeta-kubernetes_pod"
+	sourceContainer = "workloadmeta-container"
+)
+
 type store struct {
-	containers map[string]workloadmeta.Container
+	containers map[string]*workloadmeta.Container
 }
 
 func (s *store) Subscribe(string, *workloadmeta.Filter) chan workloadmeta.EventBundle {
@@ -25,7 +30,7 @@ func (s *store) Subscribe(string, *workloadmeta.Filter) chan workloadmeta.EventB
 
 func (s *store) Unsubscribe(chan workloadmeta.EventBundle) {}
 
-func (s *store) GetContainer(id string) (workloadmeta.Container, error) {
+func (s *store) GetContainer(id string) (*workloadmeta.Container, error) {
 	c, ok := s.containers[id]
 	if !ok {
 		return c, errors.NewNotFound(id)
@@ -62,7 +67,7 @@ func TestHandleKubePod(t *testing.T) {
 	noEnvContainerTaggerEntityID := fmt.Sprintf("container_id://%s", noEnvContainerID)
 
 	store := &store{
-		containers: map[string]workloadmeta.Container{
+		containers: map[string]*workloadmeta.Container{
 			fullyFleshedContainerID: {
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindContainer,
@@ -167,7 +172,7 @@ func TestHandleKubePod(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source: workloadmetaCollectorName,
+					Source: sourcePod,
 					Entity: podTaggerEntityID,
 					HighCardTags: []string{
 						"gitcommit:foobar",
@@ -208,7 +213,7 @@ func TestHandleKubePod(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source:       workloadmetaCollectorName,
+					Source:       sourcePod,
 					Entity:       podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
@@ -220,7 +225,7 @@ func TestHandleKubePod(t *testing.T) {
 					StandardTags: []string{},
 				},
 				{
-					Source: workloadmetaCollectorName,
+					Source: sourcePod,
 					Entity: fullyFleshedContainerTaggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_id:%s", fullyFleshedContainerID),
@@ -258,7 +263,7 @@ func TestHandleKubePod(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source:       workloadmetaCollectorName,
+					Source:       sourcePod,
 					Entity:       podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
@@ -270,7 +275,7 @@ func TestHandleKubePod(t *testing.T) {
 					StandardTags: []string{},
 				},
 				{
-					Source: workloadmetaCollectorName,
+					Source: sourcePod,
 					Entity: noEnvContainerTaggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_id:%s", noEnvContainerID),
@@ -303,7 +308,7 @@ func TestHandleKubePod(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source:       workloadmetaCollectorName,
+					Source:       sourcePod,
 					Entity:       podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
@@ -325,11 +330,311 @@ func TestHandleKubePod(t *testing.T) {
 			collector := &WorkloadMetaCollector{
 				store: store,
 			}
-			collector.init(tt.labelsAsTags, tt.annotationsAsTags)
+			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags)
 
 			actual := collector.handleKubePod(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
-				Entity: tt.pod,
+				Entity: &tt.pod,
+			})
+
+			assertTagInfoListEqual(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestHandleContainer(t *testing.T) {
+	const (
+		containerName = "foobar"
+		podNamespace  = "default"
+		env           = "production"
+		svc           = "datadog-agent"
+		version       = "7.32.0"
+	)
+
+	standardTags := []string{
+		fmt.Sprintf("env:%s", env),
+		fmt.Sprintf("service:%s", svc),
+		fmt.Sprintf("version:%s", version),
+	}
+
+	entityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindContainer,
+		ID:   "foobar",
+	}
+
+	taggerEntityID := fmt.Sprintf("container_id://%s", entityID.ID)
+
+	tests := []struct {
+		name         string
+		labelsAsTags map[string]string
+		envAsTags    map[string]string
+		container    workloadmeta.Container
+		expected     []*TagInfo
+	}{
+		{
+			name: "fully formed container",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+					Labels: map[string]string{
+						"com.datadoghq.tags.env":     env,
+						"com.datadoghq.tags.service": svc,
+						"com.datadoghq.tags.version": version,
+					},
+				},
+				Runtime: workloadmeta.ContainerRuntimeDocker,
+				Image: workloadmeta.ContainerImage{
+					ID:        "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+					RawName:   "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+					Name:      "datadog/agent",
+					ShortName: "agent",
+					Tag:       "latest",
+				},
+			},
+			expected: []*TagInfo{
+				{
+					Source: sourceContainer,
+					Entity: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: append([]string{
+						"docker_image:datadog/agent:latest",
+						"image_name:datadog/agent",
+						"image_tag:latest",
+						"short_image:agent",
+					}, standardTags...),
+					StandardTags: standardTags,
+				},
+			},
+		},
+		{
+			name: "tags from environment",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+				},
+				EnvVars: map[string]string{
+					// env as tags
+					"TEAM": "container-integrations",
+					"TIER": "node",
+
+					// standard tags
+					"DD_ENV":     env,
+					"DD_SERVICE": svc,
+					"DD_VERSION": version,
+				},
+			},
+			envAsTags: map[string]string{
+				"team": "owner_team",
+			},
+			expected: []*TagInfo{
+				{
+					Source: sourceContainer,
+					Entity: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: append([]string{
+						"owner_team:container-integrations",
+					}, standardTags...),
+					StandardTags: standardTags,
+				},
+			},
+		},
+		{
+			name: "tags from labels",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+					Labels: map[string]string{
+						// labels as tags
+						"team": "container-integrations",
+						"tier": "node",
+
+						// custom tags from label
+						"com.datadoghq.ad.tags": `["app_name:datadog-agent"]`,
+					},
+				},
+			},
+			labelsAsTags: map[string]string{
+				"team": "owner_team",
+			},
+			expected: []*TagInfo{
+				{
+					Source: sourceContainer,
+					Entity: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+						"app_name:datadog-agent",
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: append([]string{
+						"owner_team:container-integrations",
+					}),
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "nomad container",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+				},
+				EnvVars: map[string]string{
+					"NOMAD_TASK_NAME":  "test-task",
+					"NOMAD_JOB_NAME":   "test-job",
+					"NOMAD_GROUP_NAME": "test-group",
+				},
+			},
+			expected: []*TagInfo{
+				{
+					Source: sourceContainer,
+					Entity: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: append([]string{
+						"nomad_task:test-task",
+						"nomad_job:test-job",
+						"nomad_group:test-group",
+					}),
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "mesos dc/os container",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+				},
+				EnvVars: map[string]string{
+					"MARATHON_APP_ID":   "/system/dd-agent",
+					"CHRONOS_JOB_NAME":  "app1_process-orders",
+					"CHRONOS_JOB_OWNER": "qa",
+					"MESOS_TASK_ID":     "system_dd-agent.dcc75b42-4b87-11e7-9a62-70b3d5800001",
+				},
+			},
+			expected: []*TagInfo{
+				{
+					Source: sourceContainer,
+					Entity: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+					},
+					OrchestratorCardTags: []string{
+						"mesos_task:system_dd-agent.dcc75b42-4b87-11e7-9a62-70b3d5800001",
+					},
+					LowCardTags: append([]string{
+						"chronos_job:app1_process-orders",
+						"chronos_job_owner:qa",
+						"marathon_app:/system/dd-agent",
+					}),
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "rancher container",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+					Labels: map[string]string{
+						"io.rancher.cni.network":             "ipsec",
+						"io.rancher.cni.wait":                "true",
+						"io.rancher.container.ip":            "10.42.234.7/16",
+						"io.rancher.container.mac_address":   "02:f1:dd:48:4c:d9",
+						"io.rancher.container.name":          "testAD-redis-1",
+						"io.rancher.container.pull_image":    "always",
+						"io.rancher.container.uuid":          "8e969193-2bc7-4a58-9a54-9eed44b01bb2",
+						"io.rancher.environment.uuid":        "adminProject",
+						"io.rancher.project.name":            "testAD",
+						"io.rancher.project_service.name":    "testAD/redis",
+						"io.rancher.service.deployment.unit": "06c082fc-4b66-4b6c-b098-30dbf29ed204",
+						"io.rancher.service.launch.config":   "io.rancher.service.primary.launch.config",
+						"io.rancher.stack.name":              "testAD",
+						"io.rancher.stack_service.name":      "testAD/redis",
+					},
+				},
+			},
+			expected: []*TagInfo{
+				{
+					Source: sourceContainer,
+					Entity: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+						"rancher_container:testAD-redis-1",
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: append([]string{
+						"rancher_service:testAD/redis",
+						"rancher_stack:testAD",
+					}),
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "docker swarm container",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+					Labels: map[string]string{
+						"com.docker.swarm.node.id":      "zdtab51ei97djzrpa1y2tz8li",
+						"com.docker.swarm.service.id":   "tef96xrdmlj82c7nt57jdntl8",
+						"com.docker.swarm.service.name": "helloworld",
+						"com.docker.swarm.task":         "",
+						"com.docker.swarm.task.id":      "knk1rz1szius7pvyznn9zolld",
+						"com.docker.swarm.task.name":    "helloworld.1.knk1rz1szius7pvyznn9zolld",
+						"com.docker.stack.namespace":    "default",
+					},
+				},
+			},
+			expected: []*TagInfo{
+				{
+					Source: sourceContainer,
+					Entity: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: append([]string{
+						"swarm_namespace:default",
+						"swarm_service:helloworld",
+					}),
+					StandardTags: []string{},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			collector := &WorkloadMetaCollector{}
+			collector.initContainerMetaAsTags(tt.labelsAsTags, tt.envAsTags)
+
+			actual := collector.handleContainer(workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &tt.container,
 			})
 
 			assertTagInfoListEqual(t, tt.expected, actual)

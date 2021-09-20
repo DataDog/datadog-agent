@@ -69,7 +69,7 @@ func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	l.newService = newSvc
 	l.delService = delSvc
 
-	const name = "ad-workloadmeta-kubeletlistener"
+	const name = "ad-kubeletlistener"
 
 	ch := l.store.Subscribe(name, workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
@@ -123,7 +123,7 @@ func (l *KubeletListener) processEvents(evBundle workloadmeta.EventBundle, first
 
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
-			pod := entity.(workloadmeta.KubernetesPod)
+			pod := entity.(*workloadmeta.KubernetesPod)
 			l.processPod(pod, firstRun)
 
 		case workloadmeta.EventTypeUnset:
@@ -135,8 +135,8 @@ func (l *KubeletListener) processEvents(evBundle workloadmeta.EventBundle, first
 	}
 }
 
-func (l *KubeletListener) processPod(pod workloadmeta.KubernetesPod, firstRun bool) {
-	containers := make([]workloadmeta.Container, 0, len(pod.Containers))
+func (l *KubeletListener) processPod(pod *workloadmeta.KubernetesPod, firstRun bool) {
+	containers := make([]*workloadmeta.Container, 0, len(pod.Containers))
 
 	for _, containerID := range pod.Containers {
 		container, err := l.store.GetContainer(containerID)
@@ -153,7 +153,7 @@ func (l *KubeletListener) processPod(pod workloadmeta.KubernetesPod, firstRun bo
 	l.createPodService(pod, containers, firstRun)
 }
 
-func (l *KubeletListener) createPodService(pod workloadmeta.KubernetesPod, containers []workloadmeta.Container, firstRun bool) {
+func (l *KubeletListener) createPodService(pod *workloadmeta.KubernetesPod, containers []*workloadmeta.Container, firstRun bool) {
 	var crTime integration.CreationTime
 	if firstRun {
 		crTime = integration.Before
@@ -191,10 +191,15 @@ func (l *KubeletListener) createPodService(pod workloadmeta.KubernetesPod, conta
 	l.newService <- svc
 }
 
-func (l *KubeletListener) createContainerService(pod workloadmeta.KubernetesPod, container workloadmeta.Container, firstRun bool) {
+func (l *KubeletListener) createContainerService(pod *workloadmeta.KubernetesPod, container *workloadmeta.Container, firstRun bool) {
 	containerImg := container.Image
-	if l.filters.IsExcluded(containers.GlobalFilter, container.Name, containerImg.RawName, pod.Namespace) {
-		log.Debugf("container %s filtered out: name %q image %q namespace %q", container.ID, container.Name, container.Image.Name, pod.Namespace)
+	if l.filters.IsExcluded(
+		containers.GlobalFilter,
+		container.Name,
+		containerImg.RawName,
+		pod.Namespace,
+	) {
+		log.Debugf("container %s filtered out: name %q image %q namespace %q", container.ID, container.Name, container.Image.RawName, pod.Namespace)
 		return
 	}
 
