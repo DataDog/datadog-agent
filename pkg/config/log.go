@@ -350,10 +350,28 @@ func parseShortFilePath(params string) seelog.FormatterFunc {
 }
 
 func extractShortPathFromFullPath(fullPath string) string {
-	// We want to trim the part containing the path of the project
-	// ie DataDog/datadog-agent/ or DataDog/datadog-process-agent/
-	slices := strings.Split(fullPath, "-agent/")
-	return slices[len(slices)-1]
+	shortPath := ""
+	if strings.Contains(fullPath, "-agent/") {
+		// We want to trim the part containing the path of the project
+		// ie DataDog/datadog-agent/ or DataDog/datadog-process-agent/
+		slices := strings.Split(fullPath, "-agent/")
+		shortPath = slices[len(slices)-1]
+	} else {
+		// For logging from dependencies, we want to log e.g.
+		// "go.opentelemetry.io/collector@v0.35.0/service/collector.go"
+		slices := strings.Split(fullPath, "/")
+		pkgNameIndex := len(slices) - 1
+		for ; pkgNameIndex > 0; pkgNameIndex-- {
+			if strings.Contains(slices[pkgNameIndex], "@") {
+				if pkgNameIndex > 0 {
+					pkgNameIndex--
+				}
+				break
+			}
+		}
+		shortPath = strings.Join(slices[pkgNameIndex:], "/")
+	}
+	return shortPath
 }
 
 func createExtraJSONContext(params string) seelog.FormatterFunc {
