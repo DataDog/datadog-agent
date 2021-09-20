@@ -209,6 +209,10 @@ func TestUtilizationTrackerAccuracy(t *testing.T) {
 		t.Skip("Skipping flaky test on Darwin")
 	}
 
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping flaky test on Windows")
+	}
+
 	windowSize := 3000 * time.Millisecond
 	pollingInterval := 50 * time.Millisecond
 
