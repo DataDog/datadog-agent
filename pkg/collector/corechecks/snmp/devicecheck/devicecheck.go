@@ -24,6 +24,9 @@ import (
 const (
 	snmpLoaderTag    = "loader:core"
 	serviceCheckName = "snmp.can_check"
+
+	// 1.3 (iso.org) is the OID used for getNext call to check if the device is reachable
+	deviceReachableGetNextOid = "1.3"
 )
 
 // DeviceCheck hold info necessary to collect info for a single device
@@ -117,8 +120,8 @@ func (d *DeviceCheck) getValuesAndTags(staticTags []string) (bool, []string, *va
 		}
 	}()
 
-	// Get any value under 1.3 (iso.org) to check if the device is reachable
-	getNextValue, err := d.session.GetNext([]string{"1.3"})
+	// Check if the device is reachable
+	getNextValue, err := d.session.GetNext([]string{deviceReachableGetNextOid})
 	if err != nil {
 		deviceReachable = false
 		checkErrors = append(checkErrors, fmt.Sprintf("check device reachable: failed: %s", err))
