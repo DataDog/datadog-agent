@@ -82,6 +82,7 @@ const (
 	AgentInstallerVersion             AgentMetadataName = "install_method_installer_version"
 	AgentInstallTool                  AgentMetadataName = "install_method_tool"
 	AgentInstallToolVersion           AgentMetadataName = "install_method_tool_version"
+	AgentLogsTransport                AgentMetadataName = "logs_transport"
 )
 
 // SetAgentMetadata updates the agent metadata value in the cache

@@ -56,6 +56,8 @@ The payload is a JSON dict with the following fields
     version, ...). This defaults to `"undefined"` when not installed through a tool (like when installed with apt, source
     build, ...).
   - `install_method_installer_version` - **string**:  The version of Datadog module (ex: the Chef Datadog package, the Datadog Ansible playbook, ...).
+  - `logs_transport` - **string**:  The transport used to send logs to Datadog. Value is either `"HTTP"` or `"TCP"` when logs collection is
+    enabled, otherwise the field is omitted.
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 
