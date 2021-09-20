@@ -3,6 +3,10 @@
 
 #include "netns.h"
 
+#ifdef FEATURE_IPV6_ENABLED
+#include "ipv6.h"
+#endif
+
 #include <net/inet_sock.h>
 
 static __always_inline __u16 read_sport(struct sock* skp) {
