@@ -384,8 +384,8 @@ func (e *EntityTags) toEntity() types.Entity {
 	cachedLow := e.cachedLow.Get()
 
 	return types.Entity{
-		ID:                          e.entityID,
-		StandardTags:                e.getStandard(),
+		ID:           e.entityID,
+		StandardTags: e.getStandard(),
 		// cachedAll contains low, orchestrator and high cardinality tags, in this order.
 		// cachedOrchestrator and cachedLow are subslices of cachedAll, starting at index 0.
 		HighCardinalityTags:         cachedAll[len(cachedOrchestrator):],
