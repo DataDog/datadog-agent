@@ -1,6 +1,6 @@
 FROM golang:1.15-buster
 
-ARG DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND noninteractive
 ENV GOPATH /go
 
 RUN apt-get update && apt-get install -y --no-install-recommends apt-utils && apt-get dist-upgrade -y && apt-get install -y --no-install-recommends \
