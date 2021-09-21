@@ -74,7 +74,7 @@ type writeCounter struct {
 	n uint64
 }
 
-func NewWriteCounter(w io.Writer) *writeCounter {
+func newWriteCounter(w io.Writer) *writeCounter {
 	return &writeCounter{w: w}
 }
 
@@ -92,7 +92,7 @@ func httpRateByService(w http.ResponseWriter, dynConf *sampler.DynamicConfig) ui
 	response := traceResponse{
 		Rates: dynConf.RateByService.GetAll(), // this is thread-safe
 	}
-	wc := NewWriteCounter(w)
+	wc := newWriteCounter(w)
 	encoder := json.NewEncoder(wc)
 	if err := encoder.Encode(response); err != nil {
 		tags := []string{"error:response-error"}

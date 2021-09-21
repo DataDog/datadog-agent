@@ -10,7 +10,7 @@ import (
 func TestWriteCounter(t *testing.T) {
 	assert := assert.New(t)
 	var buf bytes.Buffer
-	wc := NewWriteCounter(&buf)
+	wc := newWriteCounter(&buf)
 	assert.Zero(wc.N())
 	wc.Write([]byte{1})
 	wc.Write([]byte{2})
