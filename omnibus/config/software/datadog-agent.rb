@@ -86,7 +86,6 @@ build do
   if windows?
     platform = windows_arch_i386? ? "x86" : "x64"
     debug_customaction = ""
-    package_version = env['PACKAGE_VERSION']
     if ENV['DEBUG_CUSTOMACTION'] and not ENV['DEBUG_CUSTOMACTION'].empty?
       debug_customaction = "--debug"
     end

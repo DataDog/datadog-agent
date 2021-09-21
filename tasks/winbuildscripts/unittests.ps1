@@ -21,7 +21,7 @@ if ($Env:TARGET_ARCH -eq "x86") {
 }
 
 mkdir  .\bin\agent
-& inv -e customaction.build --package-version=$(inv agent.version --url-safe) --arch=$archflag
+& inv -e customaction.build --arch=$archflag
 
 # Generate the datadog.yaml config file to be used in integration tests
 & inv -e generate-config --build-type="agent-py2py3" --output-file="./datadog.yaml"
