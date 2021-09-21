@@ -33,9 +33,6 @@ type perfBatchManager struct {
 	expiredStateInterval time.Duration
 
 	filter func(*network.ConnectionStats) bool
-
-	// cached object
-	ct *netebpf.Conn
 }
 
 // newPerfBatchManager returns a new `perfBatchManager` and initializes the
@@ -61,7 +58,6 @@ func newPerfBatchManager(batchMap *ebpf.Map, numCPUs int, filter func(*network.C
 		stateByCPU:           state,
 		expiredStateInterval: defaultExpiredStateInterval,
 		filter:               filter,
-		ct:                   new(netebpf.Conn),
 	}, nil
 }
 
@@ -132,26 +128,27 @@ func (p *perfBatchManager) extractBatchInto(buffer *network.Buffer, b *netebpf.B
 		return
 	}
 
+	var ct netebpf.Conn
 	for i := start; i < end; i++ {
 		switch i {
 		case 0:
-			*p.ct = b.C0
+			ct = b.C0
 			break
 		case 1:
-			*p.ct = b.C1
+			ct = b.C1
 			break
 		case 2:
-			*p.ct = b.C2
+			ct = b.C2
 			break
 		case 3:
-			*p.ct = b.C3
+			ct = b.C3
 			break
 		default:
 			panic("batch size is out of sync")
 		}
 
 		conn := buffer.Next()
-		*conn = connStats(&p.ct.Tup, &p.ct.Conn_stats, &p.ct.Tcp_stats)
+		*conn = connStats(&ct.Tup, &ct.Conn_stats, &ct.Tcp_stats)
 
 		// Run callback/filter and verify if the connection should be filtered out
 		if p.filter != nil && !p.filter(conn) {
