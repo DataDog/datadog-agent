@@ -32,6 +32,7 @@ func getOutOfMemorySubstrings() []string {
 	}
 }
 
+// GenerateRuntimeDurationMetric generates the runtime duration metric
 func GenerateRuntimeDurationMetric(start time.Time, end time.Time, status string, tags []string, metricsChan chan []metrics.MetricSample) {
 	// first check if both date are set
 	if start.IsZero() || end.IsZero() {
