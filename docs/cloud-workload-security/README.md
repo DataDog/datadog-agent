@@ -1,4 +1,4 @@
-How to work with and generate CWS documentation
+How to edit and generate CWS documentation
 ==========================================
 
 ## Global folder structure
@@ -21,33 +21,34 @@ docs/cloud-workload-security/
 --- backend.md # backend event part
 ```
 
-## Agent Expressions - SECL
+### Agent Expressions - SECL
 
-The agent expressions documentation is based on the following files:
+The Agent expressions documentation is based on the following files:
 
 - `pkg/security/model/model.go` - the source code of the SECL model containing the event types and fields documentation
-- `docs/cloud-workload-security/secl.json` - the json representing the SECL model extracted from the source code
+- `docs/cloud-workload-security/secl.json` - the JSON representing the SECL model extracted from the source code
 - `docs/cloud-workload-security/scripts/templates/agent_expressions.md` - the template used for the final generation
 
-### What file should I edit ?
+#### Editing files
 
-- First table (`Triggers`): comments on the `Event` struct in the `model.go` file
+For example, the first table, `Triggers`, comments on the `Event` struct in the `model.go` file:
 
-For example:
 ```go
 Capset CapsetEvent `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
 ```
-Will generate:
+
+These lines generate in the following table:
 
 | SECL Event | Type | Definition | Agent Version |
 | ---------- | ---- | ---------- | ------------- |
 | `capset` | Process | A process changed its capacity set | 7.27 |
 
-----
+To edit the definition for documentation, edit the comment. For example, `A process changed its capacity set`.
 
-- One of the `Event types` table: comments on the corresponding structure in the `model.go` file
+If you need to edit the type, edit `[Process]`. To edit the version, edit `[7.27]`.
 
-For example:
+As an additional example, the following `Event types` table comments on the corresponding structure in the `model.go` file:
+
 ```go
 type FileFields struct {
 	...
@@ -55,41 +56,42 @@ type FileFields struct {
 	...
 }
 ```
-Will generate this field for all event containing a File sub-event, for example:
+
+These lines generate this field for all events containing a File sub-event, for example:
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
 | `chmod.file.change_time` | int | Change time of the file |
 
-- The rest of the file is copied verbatim from the template file (modulo the `raw` tags, see [Jinja 2 templates](#jinja2-templates))
+The rest of the file is copied verbatim from the template file (modulo the `raw` tags, see [Jinja 2 templates](#jinja2-templates)).
 
-## Backend event
+### Backend event
 
-The CWS part of the agent sends event to the backend. Those events conform to a JSON schema (this is tested in functional tests of the agent). The documentation is based on the following files:
+The Cloud Workload Security (CWS) part of the Agent sends events to the backend. Those events conform to a JSON schema (this is tested in functional tests of the Agent). This documentation is based on the following files:
 
 - `pkg/security/probe/serializers.go` - the serializers used to output events
-- `docs/cloud-workload-security/backend.schema.json` - the json schema of the event
+- `docs/cloud-workload-security/backend.schema.json` - the JSON schema of the event
 - `docs/cloud-workload-security/scripts/templates/backend.md` - the template used for the final generation
 
-### Which file should I edit ?
+### Editing files
 
-- To change the documentation of one of the field in the schema, please edit the correct field in `pkg/security/probe/serializers.go`. The documentation of a field is added through the `jsonschema_description` tag of the field.
+To change the documentation of one of the fields in the schema, edit the correct field in `pkg/security/probe/serializers.go`. The documentation of a field is added through the `jsonschema_description` tag of the field.
 
 For example:
+
 ```go
 Path string `json:"path,omitempty" jsonschema_description:"File path"`
 ```
-The field `Path` (`path` in the json file) has a description/documentation of content "File Path".
 
----
+The field `Path` (`path` in the JSON file) has a description/documentation of content "File Path".
 
-- The rest of the file is copied verbatim from the template file (modulo the `raw` tags, see [Jinja 2 templates](#jinja2-templates))
+The rest of the file is copied verbatim from the template file (modulo the `raw` tags, see [Jinja 2 templates](#jinja2-templates)).
 
-## Jinja2 templates
+### Jinja2 templates
 
-The template are written in [Jinja2](https://jinja.palletsprojects.com/en/3.0.x/), a simple and well-known templating engine.
+The templates are written in [Jinja2](https://jinja.palletsprojects.com/en/3.0.x/), a simple and well-known templating engine.
 
-One point to keep in mind: the template is used to generate a file that is in itself a template for the hugo documentation site. This requires escaping `{`; for example, to start a code-block:
+**Note**: The template is used to generate a file that is in itself a template for the hugo documentation site. This requires escaping `{`. For example, to start a code-block:
 
 ```
 {% raw %}
@@ -97,17 +99,19 @@ One point to keep in mind: the template is used to generate a file that is in it
 {% endraw %}
 ```
 
-## How to generate the documentation ?
+## Generating the documentation
 
-### Using Docker
+### Using Docker (MacOS)
 
-From the root of the datadog-agent repository please run:
+If you're using MacOS, you will need to use [Docker](https://docs.docker.com/get-docker/) to run all documentation generation steps in a Docker container (thus skipping the requirement of setting up a development environment).
+
+Make an edit to any of the files mentioned above and then, from the root of the datadog-agent repository, run:
+
 ```sh
 ./docs/cloud-workload-security/scripts/generate_documentation_docker.sh
 ```
-To run all documentation generation steps in a docker container (thus skipping the requirement of setting up a development environment).
 
-### Manual steps
+### Manual steps (for Linux environments only)
 
 #### Requirements
 
