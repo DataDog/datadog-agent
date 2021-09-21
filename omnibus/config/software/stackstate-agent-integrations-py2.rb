@@ -139,6 +139,18 @@ build do
       "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
     }
 
+    # On Linux & Windows, specify the C99 standard explicitly to avoid issues while building some
+    # wheels (eg. ddtrace).
+    # Not explicitly setting that option has caused us problems in the past on SUSE, where the ddtrace
+    # wheel has to be manually built, as the C code in ddtrace doesn't follow the C89 standard (the default value of std).
+    # Note: We don't set this on MacOS, as on MacOS we need to build a bunch of packages & C extensions that
+    # don't have precompiled MacOS wheels. When building C extensions, the CFLAGS variable is added to
+    # the command-line parameters, even when compiling C++ code, where -std=c99 is invalid.
+    # See: https://github.com/python/cpython/blob/v2.7.18/Lib/distutils/sysconfig.py#L222
+    if linux? || windows?
+      nix_build_env["CFLAGS"] += " -std=c99"
+    end
+
     #
     # Prepare the requirements file containing ALL the dependencies needed by
     # any integration. This will provide the "static Python environment" of the Agent.
@@ -292,10 +304,8 @@ build do
     # Patch applies to only one file: set it explicitly as a target, no need for -p
     if windows?
       patch :source => "create-regex-at-runtime.patch", :target => "#{python_2_embedded}/Lib/site-packages/yaml/reader.py"
-      patch :source => "jpype_0_7.patch", :target => "#{python_2_embedded}/Lib/site-packages/jaydebeapi/__init__.py"
     else
       patch :source => "create-regex-at-runtime.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/yaml/reader.py"
-      patch :source => "jpype_0_7.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/jaydebeapi/__init__.py"
     end
 
   end
