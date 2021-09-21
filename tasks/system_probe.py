@@ -653,6 +653,7 @@ def generate_runtime_files(ctx):
         "./pkg/collector/corechecks/ebpf/probe/oom_kill.go",
         "./pkg/collector/corechecks/ebpf/probe/tcp_queue_length.go",
         "./pkg/network/tracer/compile.go",
+        "./pkg/network/http/compile.go",
         "./pkg/network/tracer/connection/kprobe/compile.go",
         "./pkg/security/probe/compile.go",
     ]
