@@ -9,6 +9,7 @@ package pdhutil
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -120,10 +121,16 @@ func (f *PdhFormatter) Enum(counterName string, hCounter PDH_HCOUNTER, format ui
 			instanceIdx++
 		}
 
-		instance := fmt.Sprintf("%s#%d", name, instanceIdx)
+		instance := name
+		if instanceIdx != 0 {
+			// To match same instance ID as in perfmon on Windows
+			instance += "#" + strconv.Itoa(instanceIdx)
+		}
 		if item.value.CStatus != PDH_CSTATUS_VALID_DATA &&
 			item.value.CStatus != PDH_CSTATUS_NEW_DATA {
-			log.Errorf("Counter error for %s[%s]: 0x%x", counterName, instance, item.value.CStatus)
+			// Does not necessarily indicate the problem, e.g. the process may have
+			// exited by the time the formatting of its counter values happened
+			log.Debugf("Counter value not valid for %s[%s]: 0x%x", counterName, instance, item.value.CStatus)
 			continue
 		}
 

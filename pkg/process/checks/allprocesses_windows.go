@@ -3,10 +3,8 @@
 package checks
 
 import (
-	"bytes"
 	"fmt"
 	"runtime"
-	"strings"
 	"time"
 	"unsafe"
 
@@ -138,7 +136,8 @@ func (p *legacyWindowsProbe) ProcessesByPID(now time.Time, collectStats bool) (m
 			}
 			p.cachedProcesses[pid] = cp
 		} else {
-			if err := cp.openProcHandle(pe32.Th32ProcessID); err != nil {
+			var err error
+			if cp.procHandle, err = procutil.OpenProcessHandle(int32(pe32.Th32ProcessID)); err != nil {
 				log.Debugf("Could not reopen process handle for pid %v %v", pid, err)
 				continue
 			}
@@ -222,68 +221,6 @@ func (p *legacyWindowsProbe) ProcessesByPID(now time.Time, collectStats bool) (m
 	return procs, nil
 }
 
-func getUsernameForProcess(h windows.Handle) (name string, err error) {
-	name = ""
-	err = nil
-	var t windows.Token
-	err = windows.OpenProcessToken(h, windows.TOKEN_QUERY, &t)
-	if err != nil {
-		log.Debugf("Failed to open process token %v", err)
-		return
-	}
-	defer t.Close()
-	tokenUser, err := t.GetTokenUser()
-
-	user, domain, _, err := tokenUser.User.Sid.LookupAccount("")
-	if nil != err {
-		return "", err
-	}
-	return domain + "\\" + user, err
-}
-
-func parseCmdLineArgs(cmdline string) (res []string) {
-	blocks := strings.Split(cmdline, " ")
-	findCloseQuote := false
-	donestring := false
-
-	var stringInProgress bytes.Buffer
-	for _, b := range blocks {
-		numquotes := strings.Count(b, "\"")
-		if numquotes == 0 {
-			stringInProgress.WriteString(b)
-			if !findCloseQuote {
-				donestring = true
-			} else {
-				stringInProgress.WriteString(" ")
-			}
-
-		} else if numquotes == 1 {
-			stringInProgress.WriteString(b)
-			if findCloseQuote {
-				donestring = true
-			} else {
-				findCloseQuote = true
-				stringInProgress.WriteString(" ")
-			}
-
-		} else if numquotes == 2 {
-			stringInProgress.WriteString(b)
-			donestring = true
-		} else {
-			log.Warnf("unexpected quotes in string, giving up (%v)", cmdline)
-			return res
-		}
-
-		if donestring {
-			res = append(res, stringInProgress.String())
-			stringInProgress.Reset()
-			findCloseQuote = false
-			donestring = false
-		}
-	}
-	return res
-}
-
 type cachedProcess struct {
 	userName       string
 	executablePath string
@@ -293,12 +230,12 @@ type cachedProcess struct {
 }
 
 func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error) {
-	err = cp.openProcHandle(pe32.Th32ProcessID)
+	cp.procHandle, err = procutil.OpenProcessHandle(int32(pe32.Th32ProcessID))
 	if err != nil {
 		return err
 	}
 	var usererr error
-	cp.userName, usererr = getUsernameForProcess(cp.procHandle)
+	cp.userName, usererr = procutil.GetUsernameForProcess(cp.procHandle)
 	if usererr != nil {
 		log.Debugf("Couldn't get process username %v %v", pe32.Th32ProcessID, err)
 	}
@@ -312,26 +249,10 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error)
 		cp.commandLine = commandParams.CmdLine
 	}
 
-	cp.parsedArgs = parseCmdLineArgs(cp.commandLine)
+	cp.parsedArgs = procutil.ParseCmdLineArgs(cp.commandLine)
 	return
 }
 
-func (cp *cachedProcess) openProcHandle(pid uint32) (err error) {
-	// 0x1000 is PROCESS_QUERY_LIMITED_INFORMATION, but that constant isn't
-	//        defined in x/sys/windows
-	// 0x10   is PROCESS_VM_READ
-
-	cp.procHandle, err = windows.OpenProcess(0x1010, false, uint32(pid))
-	if err != nil {
-		log.Debugf("Couldn't open process with PROCESS_VM_READ %v %v", pid, err)
-		cp.procHandle, err = windows.OpenProcess(0x1000, false, uint32(pid))
-		if err != nil {
-			log.Debugf("Couldn't open process %v %v", pid, err)
-			return err
-		}
-	}
-	return
-}
 func (cp *cachedProcess) close() {
 	if cp.procHandle != windows.Handle(0) {
 		windows.CloseHandle(cp.procHandle)

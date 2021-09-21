@@ -88,6 +88,7 @@ func (p *probe) init() {
 
 	p.procs = make(map[int32]*Process)
 	p.initEnumSpecs()
+	p.instanceToPID = make(map[string]int32)
 }
 
 type counterEnumSpec struct {
@@ -170,7 +171,7 @@ func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 	if err != nil {
 		return nil, err
 	}
-	statsToReturn := make(map[int32]*Stats)
+	statsToReturn := make(map[int32]*Stats, len(pids))
 	for _, pid := range pids {
 		if proc, ok := p.procs[pid]; ok {
 			statsToReturn[pid] = proc.Stats.DeepCopy()
@@ -180,12 +181,13 @@ func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 }
 
 func (p *probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
+	// TODO: reuse PIDs slice across runs
 	pids, err := getPIDs()
 	if err != nil {
 		return nil, err
 	}
 
-	knownPids := make(map[int32]struct{})
+	knownPids := make(map[int32]struct{}, len(p.procs))
 	for pid := range p.procs {
 		knownPids[pid] = struct{}{}
 	}
@@ -235,7 +237,7 @@ func (p *probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 		return nil, err
 	}
 
-	procsToReturn := make(map[int32]*Process)
+	procsToReturn := make(map[int32]*Process, len(p.procs))
 
 	for pid, proc := range p.procs {
 		procsToReturn[pid] = proc.DeepCopy()
@@ -244,7 +246,10 @@ func (p *probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 }
 
 func (p *probe) enumCounters(includeProcMeta bool) error {
-	p.instanceToPID = make(map[string]int32)
+	// Reuse map's capacity across runs
+	for k := range p.instanceToPID {
+		delete(p.instanceToPID, k)
+	}
 
 	status := pdhutil.PdhCollectQueryData(p.hQuery)
 	if status != 0 {
@@ -328,104 +333,129 @@ func (p *probe) mapPID(instance string, pid uint64) {
 	p.instanceToPID[instance] = int32(pid)
 }
 
-func setProcParentPID(proc *Process, instance string, pid int32) {
+func (p *probe) setProcParentPID(proc *Process, instance string, pid int32) {
 	proc.Ppid = pid
 }
 
 func (p *probe) mapParentPID(instance string, v uint64) {
 	p.mapToProc(instance, func(proc *Process) {
-		setProcParentPID(proc, instance, int32(v))
+		p.setProcParentPID(proc, instance, int32(v))
 	})
 }
 
-func setProcOpenFdCount(pid int32, stats *Stats, instance string, v uint64) {
-	log.Tracef("FdCount[%s,pid=%d] %d", instance, pid, v)
+func (p *probe) traceStats(pid int32) bool {
+	// TODO: in a future PR introduce an Option to configure tracing of stats for individual PIDs
+	return false
+}
+
+func (p *probe) setProcOpenFdCount(pid int32, stats *Stats, instance string, v uint64) {
+	if p.traceStats(pid) {
+		log.Tracef("FdCount[%s,pid=%d] %d", instance, pid, v)
+	}
 	stats.OpenFdCount = int32(v)
 }
 
 func (p *probe) mapHandleCount(instance string, v uint64) {
-	p.mapToStatUint64(instance, v, setProcOpenFdCount)
+	p.mapToStatUint64(instance, v, p.setProcOpenFdCount)
 }
 
-func setProcNumThreads(pid int32, stats *Stats, instance string, v uint64) {
-	log.Tracef("NumThreads[%s,pid=%d] %d", instance, pid, v)
+func (p *probe) setProcNumThreads(pid int32, stats *Stats, instance string, v uint64) {
+	if p.traceStats(pid) {
+		log.Tracef("NumThreads[%s,pid=%d] %d", instance, pid, v)
+	}
 	stats.NumThreads = int32(v)
 }
 
 func (p *probe) mapThreadCount(instance string, v uint64) {
-	p.mapToStatUint64(instance, v, setProcNumThreads)
+	p.mapToStatUint64(instance, v, p.setProcNumThreads)
 }
 
-func setProcCPUTimeUser(pid int32, stats *Stats, instance string, v float64) {
-	log.Tracef("CPU.User[%s,pid=%d] %f", instance, pid, v)
+func (p *probe) setProcCPUTimeUser(pid int32, stats *Stats, instance string, v float64) {
+	if p.traceStats(pid) {
+		log.Tracef("CPU.User[%s,pid=%d] %f", instance, pid, v)
+	}
 	stats.CPUPercent.UserPct = v
 }
 
 func (p *probe) mapPctUserTime(instance string, v float64) {
-	p.mapToStatFloat64(instance, v, setProcCPUTimeUser)
+	p.mapToStatFloat64(instance, v, p.setProcCPUTimeUser)
 }
 
-func setProcCPUTimeSystem(pid int32, stats *Stats, instance string, v float64) {
-	log.Tracef("CPU.System[%s,pid=%d] %f", instance, pid, v)
+func (p *probe) setProcCPUTimeSystem(pid int32, stats *Stats, instance string, v float64) {
+	if p.traceStats(pid) {
+		log.Tracef("CPU.System[%s,pid=%d] %f", instance, pid, v)
+	}
 	stats.CPUPercent.SystemPct = v
 }
 
 func (p *probe) mapPctPrivilegedTime(instance string, v float64) {
-	p.mapToStatFloat64(instance, v, setProcCPUTimeSystem)
+	p.mapToStatFloat64(instance, v, p.setProcCPUTimeSystem)
 }
 
-func setProcMemRSS(pid int32, stats *Stats, instance string, v uint64) {
-	log.Tracef("Mem.RSS[%s,pid=%d] %d", instance, pid, v)
+func (p *probe) setProcMemRSS(pid int32, stats *Stats, instance string, v uint64) {
+	if p.traceStats(pid) {
+		log.Tracef("Mem.RSS[%s,pid=%d] %d", instance, pid, v)
+	}
 	stats.MemInfo.RSS = v
 }
 
 func (p *probe) mapWorkingSet(instance string, v uint64) {
-	p.mapToStatUint64(instance, v, setProcMemRSS)
+	p.mapToStatUint64(instance, v, p.setProcMemRSS)
 }
 
-func setProcMemVMS(pid int32, stats *Stats, instance string, v uint64) {
-	log.Tracef("Mem.VMS[%s,pid=%d] %d", instance, pid, v)
+func (p *probe) setProcMemVMS(pid int32, stats *Stats, instance string, v uint64) {
+	if p.traceStats(pid) {
+		log.Tracef("Mem.VMS[%s,pid=%d] %d", instance, pid, v)
+	}
 	stats.MemInfo.VMS = v
 }
 
 func (p *probe) mapPoolPagedBytes(instance string, v uint64) {
-	p.mapToStatUint64(instance, v, setProcMemVMS)
+	p.mapToStatUint64(instance, v, p.setProcMemVMS)
 }
 
-func setProcIOReadOpsRate(pid int32, stats *Stats, instance string, v float64) {
-	log.Tracef("ReadRate[%s,pid=%d] %f", instance, pid, v)
+func (p *probe) setProcIOReadOpsRate(pid int32, stats *Stats, instance string, v float64) {
+	if p.traceStats(pid) {
+		log.Tracef("ReadRate[%s,pid=%d] %f", instance, pid, v)
+	}
 	stats.IORateStat.ReadRate = v
 }
 
 func (p *probe) mapIOReadOpsPerSec(instance string, v float64) {
-	p.mapToStatFloat64(instance, v, setProcIOReadOpsRate)
+	p.mapToStatFloat64(instance, v, p.setProcIOReadOpsRate)
 }
 
-func setProcIOWriteOpsRate(pid int32, stats *Stats, instance string, v float64) {
-	log.Tracef("WriteRate[%s,pid=%d] %f", instance, pid, v)
+func (p *probe) setProcIOWriteOpsRate(pid int32, stats *Stats, instance string, v float64) {
+	if p.traceStats(pid) {
+		log.Tracef("WriteRate[%s,pid=%d] %f", instance, pid, v)
+	}
 	stats.IORateStat.WriteRate = v
 }
 
 func (p *probe) mapIOWriteOpsPerSec(instance string, v float64) {
-	p.mapToStatFloat64(instance, v, setProcIOWriteOpsRate)
+	p.mapToStatFloat64(instance, v, p.setProcIOWriteOpsRate)
 }
 
-func setProcIOReadBytesRate(pid int32, stats *Stats, instance string, v float64) {
-	log.Tracef("ReadBytesRate[%s,pid=%d] %f", instance, pid, v)
+func (p *probe) setProcIOReadBytesRate(pid int32, stats *Stats, instance string, v float64) {
+	if p.traceStats(pid) {
+		log.Tracef("ReadBytesRate[%s,pid=%d] %f", instance, pid, v)
+	}
 	stats.IORateStat.ReadBytesRate = v
 }
 
 func (p *probe) mapIOReadBytesPerSec(instance string, v float64) {
-	p.mapToStatFloat64(instance, v, setProcIOReadBytesRate)
+	p.mapToStatFloat64(instance, v, p.setProcIOReadBytesRate)
 }
 
-func setProcIOWriteBytesRate(pid int32, stats *Stats, instance string, v float64) {
-	log.Tracef("WriteBytesRate[%s,pid=%d] %f", instance, pid, v)
+func (p *probe) setProcIOWriteBytesRate(pid int32, stats *Stats, instance string, v float64) {
+	if p.traceStats(pid) {
+		log.Tracef("WriteBytesRate[%s,pid=%d] %f", instance, pid, v)
+	}
 	stats.IORateStat.WriteBytesRate = v
 }
 
 func (p *probe) mapIOWriteBytesPerSec(instance string, v float64) {
-	p.mapToStatFloat64(instance, v, setProcIOWriteBytesRate)
+	p.mapToStatFloat64(instance, v, p.setProcIOWriteBytesRate)
 }
 
 func getPIDs() ([]int32, error) {
@@ -451,13 +481,13 @@ func getPIDs() ([]int32, error) {
 }
 
 func fillProcessDetails(pid int32, proc *Process) error {
-	procHandle, err := openProcHandle(pid)
+	procHandle, err := OpenProcessHandle(pid)
 	if err != nil {
 		return err
 	}
 	defer windows.Close(procHandle)
 
-	userName, usererr := getUsernameForProcess(procHandle)
+	userName, usererr := GetUsernameForProcess(procHandle)
 	if usererr != nil {
 		log.Debugf("Couldn't get process username %v %v", pid, err)
 	}
@@ -465,7 +495,7 @@ func fillProcessDetails(pid int32, proc *Process) error {
 
 	cmdParams := getProcessCommandParams(procHandle)
 
-	proc.Cmdline = parseCmdLineArgs(cmdParams.CmdLine)
+	proc.Cmdline = ParseCmdLineArgs(cmdParams.CmdLine)
 	proc.Exe = cmdParams.ImagePath
 
 	var CPU windows.Rusage
@@ -497,8 +527,8 @@ func getProcessCommandParams(procHandle windows.Handle) *winutil.ProcessCommandP
 	return &winutil.ProcessCommandParams{}
 }
 
-// TODO: deduplicate
-func openProcHandle(pid int32) (windows.Handle, error) {
+// OpenProcessHandle attempts to open process handle for reading process memory with fallback to query basic info
+func OpenProcessHandle(pid int32) (windows.Handle, error) {
 	// 0x1000 is PROCESS_QUERY_LIMITED_INFORMATION, but that constant isn't
 	//        defined in x/sys/windows
 	// 0x10   is PROCESS_VM_READ
@@ -514,8 +544,8 @@ func openProcHandle(pid int32) (windows.Handle, error) {
 	return procHandle, nil
 }
 
-// TODO: deduplicate
-func getUsernameForProcess(h windows.Handle) (name string, err error) {
+// GetUsernameForProcess returns username for a process
+func GetUsernameForProcess(h windows.Handle) (name string, err error) {
 	name = ""
 	err = nil
 	var t windows.Token
@@ -534,8 +564,8 @@ func getUsernameForProcess(h windows.Handle) (name string, err error) {
 	return domain + "\\" + user, err
 }
 
-// TODO: deduplicate
-func parseCmdLineArgs(cmdline string) (res []string) {
+// ParseCmdLineArgs parses command line arguments to a slice
+func ParseCmdLineArgs(cmdline string) (res []string) {
 	blocks := strings.Split(cmdline, " ")
 	findCloseQuote := false
 	donestring := false
