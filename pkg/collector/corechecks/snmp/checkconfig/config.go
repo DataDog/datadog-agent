@@ -54,6 +54,7 @@ type InitConfig struct {
 	OidBatchSize          Number           `yaml:"oid_batch_size"`
 	BulkMaxRepetitions    Number           `yaml:"bulk_max_repetitions"`
 	CollectDeviceMetadata Boolean          `yaml:"collect_device_metadata"`
+	UseDeviceIDAsHostname Boolean          `yaml:"use_device_id_as_hostname"`
 	MinCollectionInterval int              `yaml:"min_collection_interval"`
 }
 
@@ -76,6 +77,7 @@ type InstanceConfig struct {
 	Profile               string            `yaml:"profile"`
 	UseGlobalMetrics      bool              `yaml:"use_global_metrics"`
 	CollectDeviceMetadata *Boolean          `yaml:"collect_device_metadata"`
+	UseDeviceIDAsHostname *Boolean          `yaml:"use_device_id_as_hostname"`
 
 	// ExtraTags is a workaround to pass tags from snmp listener to snmp integration via AD template
 	// (see cmd/agent/dist/conf.d/snmp.d/auto_conf.yaml) that only works with strings.
@@ -132,6 +134,7 @@ type CheckConfig struct {
 	ExtraTags             []string
 	InstanceTags          []string
 	CollectDeviceMetadata bool
+	UseDeviceIDAsHostname bool
 	DeviceID              string
 	DeviceIDTags          []string
 	ResolvedSubnetName    string
@@ -273,6 +276,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.CollectDeviceMetadata = bool(*instance.CollectDeviceMetadata)
 	} else {
 		c.CollectDeviceMetadata = bool(initConfig.CollectDeviceMetadata)
+	}
+
+	if instance.UseDeviceIDAsHostname != nil {
+		c.UseDeviceIDAsHostname = bool(*instance.UseDeviceIDAsHostname)
+	} else {
+		c.UseDeviceIDAsHostname = bool(initConfig.UseDeviceIDAsHostname)
 	}
 
 	if instance.ExtraTags != "" {
@@ -524,6 +533,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.ExtraTags = common.CopyStrings(c.ExtraTags)
 	newConfig.InstanceTags = common.CopyStrings(c.InstanceTags)
 	newConfig.CollectDeviceMetadata = c.CollectDeviceMetadata
+	newConfig.UseDeviceIDAsHostname = c.UseDeviceIDAsHostname
 	newConfig.DeviceID = c.DeviceID
 
 	newConfig.DeviceIDTags = common.CopyStrings(c.DeviceIDTags)
