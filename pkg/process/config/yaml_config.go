@@ -99,6 +99,19 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	// and uses a different unit of time
 	a.initProcessDiscoveryCheck()
 
+	if a.CheckIntervals[ProcessCheckName]%a.CheckIntervals[RTProcessCheckName] != 0 {
+		// Process and RTProcess check intervals must be divisible to allow running on the same goroutine
+		log.Warnf(
+			"Invalid process check interval overrides [%s,%s], resetting to defaults [%s,%s]",
+			a.CheckIntervals[ProcessCheckName],
+			a.CheckIntervals[RTProcessCheckName],
+			ProcessCheckDefaultInterval,
+			RTProcessCheckDefaultInterval,
+		)
+		a.CheckIntervals[ProcessCheckName] = ProcessCheckDefaultInterval
+		a.CheckIntervals[RTProcessCheckName] = RTProcessCheckDefaultInterval
+	}
+
 	// A list of regex patterns that will exclude a process if matched.
 	if k := key(ns, "blacklist_patterns"); config.Datadog.IsSet(k) {
 		for _, b := range config.Datadog.GetStringSlice(k) {

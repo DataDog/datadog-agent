@@ -52,6 +52,13 @@ const (
 	OOMKillCheckName        = "OOM Kill"
 	TCPQueueLengthCheckName = "TCP queue length"
 	ProcessModuleCheckName  = "Process Module"
+
+	ProcessCheckDefaultInterval     = 10 * time.Second
+	RTProcessCheckDefaultInterval   = 2 * time.Second
+	ContainerCheckDefaultInterval   = 10 * time.Second
+	RTContainerCheckDefaultInterval = 2 * time.Second
+	ConnectionsCheckDefaultInterval = 30 * time.Second
+	PodCheckDefaultInterval         = 10 * time.Second
 )
 
 var (
@@ -222,12 +229,12 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		// Check config
 		EnabledChecks: enabledChecks,
 		CheckIntervals: map[string]time.Duration{
-			ProcessCheckName:     10 * time.Second,
-			RTProcessCheckName:   2 * time.Second,
-			ContainerCheckName:   10 * time.Second,
-			RTContainerCheckName: 2 * time.Second,
-			ConnectionsCheckName: 30 * time.Second,
-			PodCheckName:         10 * time.Second,
+			ProcessCheckName:     ProcessCheckDefaultInterval,
+			RTProcessCheckName:   RTProcessCheckDefaultInterval,
+			ContainerCheckName:   ContainerCheckDefaultInterval,
+			RTContainerCheckName: RTContainerCheckDefaultInterval,
+			ConnectionsCheckName: ConnectionsCheckDefaultInterval,
+			PodCheckName:         PodCheckDefaultInterval,
 			DiscoveryCheckName:   4 * time.Hour,
 		},
 
