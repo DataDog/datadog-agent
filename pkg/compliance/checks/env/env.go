@@ -26,7 +26,7 @@ type Clients interface {
 }
 
 type RegoConfiguration interface {
-	ProvidedInput() *map[string][]interface{}
+	ProvidedInput() map[string][]interface{}
 	DumpInputPath() string
 }
 

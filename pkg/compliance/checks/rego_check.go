@@ -153,7 +153,7 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 	providedInput := env.ProvidedInput()
 
 	if providedInput != nil {
-		input = *providedInput
+		input = providedInput
 
 		resultFinalizer = func(passed bool, denies []int) []*compliance.Report {
 			log.Infof("denies: %v", denies)
