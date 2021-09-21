@@ -294,7 +294,7 @@ type builder struct {
 	kubeClient   *kubeClient
 	isLeaderFunc func() bool
 
-	regoInput         map[string][]interface{}
+	regoInput         map[string]env.ProvidedInputMap
 	regoInputDumpPath string
 
 	status *status
@@ -725,8 +725,8 @@ func (b *builder) KubeClient() env.KubeClient {
 	return b.kubeClient
 }
 
-func (b *builder) ProvidedInput() map[string][]interface{} {
-	return b.regoInput
+func (b *builder) ProvidedInput(ruleID string) env.ProvidedInputMap {
+	return b.regoInput[ruleID]
 }
 
 func (b *builder) DumpInputPath() string {

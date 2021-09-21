@@ -25,8 +25,10 @@ type Clients interface {
 	KubeClient() KubeClient
 }
 
+type ProvidedInputMap map[string][]interface{}
+
 type RegoConfiguration interface {
-	ProvidedInput() map[string][]interface{}
+	ProvidedInput(ruleID string) ProvidedInputMap
 	DumpInputPath() string
 }
 
