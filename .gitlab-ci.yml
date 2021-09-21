@@ -222,6 +222,9 @@ variables:
 .if_testing_cleanup: &if_testing_cleanup
   if: $TESTING_CLEANUP == "true"
 
+.if_deploy_on_beta_repo_branch: &if_beta_repo_branch
+  if: $DEPLOY_AGENT == "true" && $DEB_RPM_BUCKET_BRANCH == "beta"
+
 # Rule to trigger jobs only when a tag matches a given pattern (for RCs)
 # on the beta branch.
 # Note: due to workflow rules, rc tag => deploy pipeline, so there's technically no
@@ -320,14 +323,14 @@ variables:
       AGENT_REPOSITORY: agent
       IMG_REGISTRIES: public
 
-# Same as on_deploy_a6_manual, except the job would not run
-# on RC pipelines, it would only run for the final release.
+# Same as on_deploy_a6_manual, except the job would not run on pipelines
+# using beta branch, it would only run for the final release.
 .on_deploy_a6_manual_final:
   - <<: *if_not_version_6
     when: never
   - <<: *if_not_deploy
     when: never
-  - <<: *if_rc_tag_on_beta_repo_branch
+  - <<: *if_beta_repo_branch
     when: never
   - <<: *if_not_stable_or_beta_repo_branch
     when: manual
@@ -393,14 +396,14 @@ variables:
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
-# Same as on_deploy_a7_manual, except the job would not run
-# on RC pipelines, it would only run for the final release.
+# Same as on_deploy_a7_manual, except the job would not run on pipelines
+# using beta branch, it would only run for the final release.
 .on_deploy_a7_manual_final:
   - <<: *if_not_version_7
     when: never
   - <<: *if_not_deploy
     when: never
-  - <<: *if_rc_tag_on_beta_repo_branch
+  - <<: *if_beta_repo_branch
     when: never
   - <<: *if_not_stable_or_beta_repo_branch
     when: manual
