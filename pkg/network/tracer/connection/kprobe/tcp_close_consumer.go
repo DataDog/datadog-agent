@@ -18,7 +18,7 @@ type tcpCloseConsumer struct {
 	batchManager *perfBatchManager
 	requests     chan requestPayload
 
-	closedBuffer  *network.Buffer
+	closedBuffer  *network.ConnectionBuffer
 	maxBufferSize int
 
 	// Telemetry
@@ -27,7 +27,7 @@ type tcpCloseConsumer struct {
 }
 
 type requestPayload struct {
-	buffer       *network.Buffer
+	buffer       *network.ConnectionBuffer
 	responseChan chan struct{}
 }
 
@@ -51,7 +51,7 @@ func newTCPCloseConsumer(cfg *config.Config, m *manager.Manager, perfHandler *dd
 		perfHandler:   perfHandler,
 		batchManager:  batchManager,
 		requests:      make(chan requestPayload),
-		closedBuffer:  network.NewBuffer(1024),
+		closedBuffer:  network.NewConnectionBuffer(1024),
 		maxBufferSize: cfg.MaxClosedConnectionsBuffered,
 	}
 	c.start()
@@ -59,7 +59,7 @@ func newTCPCloseConsumer(cfg *config.Config, m *manager.Manager, perfHandler *dd
 	return c, nil
 }
 
-func (c *tcpCloseConsumer) GetClosedConnections(buffer *network.Buffer) int {
+func (c *tcpCloseConsumer) GetClosedConnections(buffer *network.ConnectionBuffer) int {
 	if buffer == nil {
 		return 0
 	}

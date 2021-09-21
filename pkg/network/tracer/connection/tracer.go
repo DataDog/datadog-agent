@@ -13,7 +13,7 @@ type Tracer interface {
 	Stop()
 	// GetConnections returns the list of currently active connections, using the buffer provided.
 	// The optional filter function is used to prevent unwanted connections from being returned and consuming resources.
-	GetConnections(active, closed *network.Buffer, activeFilter func(*network.ConnectionStats) bool) (activeCount, closedCount int, err error)
+	GetConnections(active, closed *network.ConnectionBuffer, activeFilter func(*network.ConnectionStats) bool) (activeCount, closedCount int, err error)
 	// Remove deletes the connection from tracking state.
 	// It does not prevent the connection from re-appearing later, if additional traffic occurs.
 	Remove(conn *network.ConnectionStats) error

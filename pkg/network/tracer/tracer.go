@@ -61,8 +61,8 @@ type Tracer struct {
 	closedConns      int64
 	connStatsMapSize int64
 
-	activeBuffer *network.Buffer
-	closedBuffer *network.Buffer
+	activeBuffer *network.ConnectionBuffer
+	closedBuffer *network.ConnectionBuffer
 	bufferLock   sync.Mutex
 
 	// Internal buffer used to compute bytekeys
@@ -149,8 +149,8 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		state:                      state,
 		reverseDNS:                 newReverseDNS(!pre410Kernel, config),
 		httpMonitor:                newHTTPMonitor(!pre410Kernel, config, ebpfTracer, constantEditors),
-		activeBuffer:               network.NewBuffer(512),
-		closedBuffer:               network.NewBuffer(512),
+		activeBuffer:               network.NewConnectionBuffer(512),
+		closedBuffer:               network.NewConnectionBuffer(512),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:               network.ParseConnectionFilters(config.ExcludedDestinationConnections),
@@ -382,7 +382,7 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 
 // getConnections returns all the active connections in the ebpf maps along with the latest timestamp.  It takes
 // a reusable buffer for appending the active connections so that this doesn't continuously allocate
-func (t *Tracer) getConnections(activeBuffer, closedBuffer *network.Buffer) (latestUint uint64, active, closed int, err error) {
+func (t *Tracer) getConnections(activeBuffer, closedBuffer *network.ConnectionBuffer) (latestUint uint64, active, closed int, err error) {
 	cachedConntrack := newCachedConntrack(t.config.ProcRoot, netlink.NewConntrack, 128)
 	defer func() { _ = cachedConntrack.Close() }()
 
@@ -541,7 +541,7 @@ func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, err
 
 // DebugNetworkMaps returns all connections stored in the BPF maps without modifications from network state
 func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
-	activeBuffer := network.NewBuffer(512)
+	activeBuffer := network.NewConnectionBuffer(512)
 	_, _, _, err := t.getConnections(activeBuffer, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)

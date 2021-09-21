@@ -62,7 +62,7 @@ func newPerfBatchManager(batchMap *ebpf.Map, numCPUs int, filter func(*network.C
 }
 
 // Extract from the given batch all connections that haven't been processed yet.
-func (p *perfBatchManager) ExtractBatchInto(buffer *network.Buffer, b *netebpf.Batch, cpu int) {
+func (p *perfBatchManager) ExtractBatchInto(buffer *network.ConnectionBuffer, b *netebpf.Batch, cpu int) {
 	if cpu >= len(p.stateByCPU) {
 		return
 	}
@@ -81,7 +81,7 @@ func (p *perfBatchManager) ExtractBatchInto(buffer *network.Buffer, b *netebpf.B
 // GetPendingConns return all connections that are in batches that are not yet full.
 // It tracks which connections have been processed by this call, by batch id.
 // This prevents double-processing of connections between GetPendingConns and Extract.
-func (p *perfBatchManager) GetPendingConns(buffer *network.Buffer) {
+func (p *perfBatchManager) GetPendingConns(buffer *network.ConnectionBuffer) {
 	b := new(netebpf.Batch)
 	for cpu := 0; cpu < len(p.stateByCPU); cpu++ {
 		cpuState := &p.stateByCPU[cpu]
@@ -123,7 +123,7 @@ type batchState struct {
 
 // ExtractBatchInto extract network.ConnectionStats objects from the given `batch` into the supplied `buffer`.
 // The `start` (inclusive) and `end` (exclusive) arguments represent the offsets of the connections we're interested in.
-func (p *perfBatchManager) extractBatchInto(buffer *network.Buffer, b *netebpf.Batch, start, end uint16) {
+func (p *perfBatchManager) extractBatchInto(buffer *network.ConnectionBuffer, b *netebpf.Batch, start, end uint16) {
 	if start >= end || end > netebpf.BatchSize {
 		return
 	}
