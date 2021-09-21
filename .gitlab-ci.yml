@@ -222,7 +222,7 @@ variables:
 .if_testing_cleanup: &if_testing_cleanup
   if: $TESTING_CLEANUP == "true"
 
-.if_deploy_on_beta_repo_branch: &if_beta_repo_branch
+.if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $DEB_RPM_BUCKET_BRANCH == "beta"
 
 # Rule to trigger jobs only when a tag matches a given pattern (for RCs)
@@ -330,7 +330,7 @@ variables:
     when: never
   - <<: *if_not_deploy
     when: never
-  - <<: *if_beta_repo_branch
+  - <<: *if_deploy_on_beta_repo_branch
     when: never
   - <<: *if_not_stable_or_beta_repo_branch
     when: manual
@@ -403,7 +403,7 @@ variables:
     when: never
   - <<: *if_not_deploy
     when: never
-  - <<: *if_beta_repo_branch
+  - <<: *if_deploy_on_beta_repo_branch
     when: never
   - <<: *if_not_stable_or_beta_repo_branch
     when: manual
