@@ -7,7 +7,13 @@
 
 1) Make a new folder in `/etc/` to hold all the files required for this module in one place:
 
+    ```
+    ## Linux
     mkdir -p /etc/rapdev-datadog
+
+    ## Windows
+    mkdir 'C:\Program Files\rapdev-datadog\'
+    ```
 
 2) Download the most recent version of the secret backend module by hitting the latest release endpoint from the `rapdev-io` repo by running one of the commands below:
 
@@ -59,6 +65,11 @@ be used by the `dd-agent` user for Linux and `ddagentuser` for Windows.
     chown dd-agent:root /etc/rapdev-datadog/datadog-secret-backend
     chmod 500 /etc/rapdev-datadog/datadog-secret-backend
 
+    ## Windows
+    1) Right click on the "datadog-secret-backend.exe" and select "Properties".
+    2) Click on the Security tab.
+    3) Edit the permissions, disable permission inheritance, and then remove all existing permissions.
+    4) Add full access to the "ddagentuser" and save your permissions. 
     ```
 
 ## Configuring the secrets module
@@ -88,7 +99,7 @@ be used by the `dd-agent` user for Linux and `ddagentuser` for Windows.
 
 ## Configuring your secrets
 
-- <b>Local File</b>: If you are storing your secrets in a file (JSON or YAML), create the file in the appropriate format with key value pairs mapping to your secret values:
+- <b>Local File</b>: If you are storing your secrets in a file (JSON or YAML), create the file in the appropriate format with key value pairs mapping to your secret values. The path and name to this file should be passed in via the `file_path` in the example above accordingly:
 
     ```
     ## YAML
@@ -110,5 +121,32 @@ be used by the `dd-agent` user for Linux and `ddagentuser` for Windows.
 
 ## Configuring the Agent(s) to use the secrets module
 
+In the `datadog.yaml`, there is a flag called `secret_backend_command`. Additionally, if you used a different name for the secrets module configuration file (e.g. `datadog-secret-backend.yaml`), you can provide the name for the file via the config argument Please provide the path to your executable for that file:
+
+    ```
+    ## Linux
+    secret_backend_command: /etc/rapdev-datadog/datadog-secret-backend
+    
+    ### Only provide this flag if you changed the name of the configuration file
+    secret_backend_arguments:
+      - '-config'
+      - '/etc/rapdev-datadog/secret-backends.yaml'
+
+    ## Windows
+    secret_backend_command: 'C:\Program Files\rapdev-datadog\datadog-secret-backend.exe'
+    
+    ### Only provide this flag if you changed the name of the configuration file
+    secret_backend_arguments:
+      - '-config'
+      - 'C:\Program Files\rapdev-datadog\secret-backends.yaml'
+    ```
+
 
 ## Accessing your secret values
+
+To access your secret values, you should use the `"ENC[]"` notation along with the name provided for the main header of your configuration file (e.g. `datadog-secret-backend.yaml` or whatever other name was provided) along with the name of the secret in your secrets file, AWS SSM, or AWS SecretsManager. For example, to access the `dd_api_key` secret from the `datadog-secrets-yaml-file` backend's section, you would pass in the following value:
+
+    ```
+    "ENC[datadog-secrets-yaml-file:dd_api_key]"
+    ```
+
