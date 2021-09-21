@@ -28,6 +28,7 @@ core,github.com/DataDog/agent-payload/process,BSD-3-Clause,"Datadog, Inc."
 core,github.com/DataDog/datadog-go/statsd,MIT,"Datadog, Inc."
 core,github.com/DataDog/datadog-operator/api/v1alpha1,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/ebpf,MIT,"Datadog, Inc."
+core,github.com/DataDog/ebpf-manager,MIT,"Datadog, Inc."
 core,github.com/DataDog/ebpf/asm,MIT,"Datadog, Inc."
 core,github.com/DataDog/ebpf/internal,MIT,"Datadog, Inc."
 core,github.com/DataDog/ebpf/internal/btf,MIT,"Datadog, Inc."
@@ -181,6 +182,12 @@ core,github.com/cenkalti/backoff/v4,MIT,Cenk Altı
 core,github.com/cespare/xxhash,MIT,Caleb Spare
 core,github.com/cespare/xxhash/v2,MIT,Caleb Spare
 core,github.com/cihub/seelog,BSD-3-Clause,"Cloud Instruments Co., Ltd. <info@cin.io>"
+core,github.com/cilium/ebpf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/cilium/ebpf/asm,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/cilium/ebpf/internal,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/cilium/ebpf/internal/btf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/cilium/ebpf/internal/unix,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/cilium/ebpf/perf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
 core,github.com/clbanning/mxj,MIT,Charles Banning <clbanning@gmail.com> | The Go Authors
 core,github.com/cloudfoundry-community/go-cfclient,MIT,Long Nguyen
 core,github.com/cobaugh/osrelease,BSD-3-Clause,Andrew Cobaugh

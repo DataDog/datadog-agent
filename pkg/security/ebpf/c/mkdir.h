@@ -47,7 +47,7 @@ SYSCALL_KPROBE3(mkdirat, int, dirfd, const char*, filename, umode_t, mode)
 }
 
 SEC("kprobe/vfs_mkdir")
-int kprobe__vfs_mkdir(struct pt_regs *ctx) {
+int kprobe_vfs_mkdir(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
     if (!syscall)
         return 0;

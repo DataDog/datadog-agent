@@ -33,7 +33,7 @@ int __attribute__((always_inline)) rmdir_predicate(u64 type) {
 
 // security_inode_rmdir is shared between rmdir and unlink syscalls
 SEC("kprobe/security_inode_rmdir")
-int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
+int kprobe_security_inode_rmdir(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
     if (!syscall)
         return 0;
@@ -103,7 +103,7 @@ int kprobe__security_inode_rmdir(struct pt_regs *ctx) {
 }
 
 SEC("kprobe/dr_security_inode_rmdir_callback")
-int __attribute__((always_inline)) dr_security_inode_rmdir_callback(struct pt_regs *ctx) {
+int __attribute__((always_inline)) kprobe_dr_security_inode_rmdir_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
     if (!syscall)
         return 0;
