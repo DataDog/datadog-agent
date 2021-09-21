@@ -340,6 +340,8 @@ func (d *Daemon) ComputeGlobalTags(configTags []string) {
 	}
 }
 
+// setTraceTags tries to set extra tags to the Trace agent.
+// setTraceTags returns a boolean which indicate whether or not the operation succeed for testing purpose.
 func (d *Daemon) setTraceTags(tagMap map[string]string) bool {
 	if d.TraceAgent != nil && d.TraceAgent.Get() != nil {
 		d.TraceAgent.Get().SetGlobalTagsUnsafe(tags.BuildTracerTags(tagMap))
