@@ -475,7 +475,9 @@ def build_compatible_version_re(allowed_major_versions, minor_version):
 ##
 
 
-def _get_highest_repo_version(auth, repo, version_prefix, version_re, allowed_major_versions=None):
+def _get_highest_repo_version(
+    auth, repo, version_prefix, version_re, allowed_major_versions=None, max_version: Version = None
+):
     # If allowed_major_versions is not specified, search for all versions by using an empty
     # major version prefix.
     if not allowed_major_versions:
@@ -494,6 +496,13 @@ def _get_highest_repo_version(auth, repo, version_prefix, version_re, allowed_ma
             match = version_re.search(tag["ref"])
             if match:
                 this_version = _create_version_from_match(match)
+                if max_version:
+                    # Get the max version that corresponds to the major version
+                    # of the current tag
+                    this_max_version = max_version.clone()
+                    this_max_version.major = this_version.major
+                    if this_version > this_max_version:
+                        continue
                 if this_version > highest_version:
                     highest_version = this_version
 
@@ -594,8 +603,16 @@ def _fetch_dependency_repo_version(
     the constraints is an RC. User confirmation is then needed to check that this is desired.
     """
 
+    # Get the highest repo version that's not higher than the Agent version we're going to build
+    # We don't want to use a tag on dependent repositories that is supposed to be used in a future
+    # release of the Agent (eg. if 7.31.1-rc.1 is tagged on integrations-core while we're releasing 7.30.0).
     version = _get_highest_repo_version(
-        github_token, repo_name, new_agent_version.prefix, compatible_version_re, allowed_major_versions
+        github_token,
+        repo_name,
+        new_agent_version.prefix,
+        compatible_version_re,
+        allowed_major_versions,
+        max_version=new_agent_version,
     )
 
     if check_for_rc and version.is_rc():

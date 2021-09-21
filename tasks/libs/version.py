@@ -63,6 +63,9 @@ class Version:
             return other.rc is not None
         return self.rc > other.rc
 
+    def clone(self):
+        return deepcopy(self)
+
     def is_rc(self):
         return self._safe_value("rc") != 0
 
@@ -76,12 +79,12 @@ class Version:
         return "{}.{}.x".format(self._safe_value("major"), self._safe_value("minor"))
 
     def non_devel_version(self):
-        new_version = deepcopy(self)
+        new_version = self.clone()
         new_version.devel = False
         return new_version
 
     def next_version(self, bump_major=False, bump_minor=False, bump_patch=False, rc=False):
-        new_version = deepcopy(self)
+        new_version = self.clone()
 
         if bump_patch:
             new_version.patch = self._safe_value("patch") + 1
