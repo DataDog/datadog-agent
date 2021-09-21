@@ -76,7 +76,7 @@ class GithubWorkflows(RemoteAPI):
         """
         Gets latest workflow run for a given reference
         """
-        runs = self.workflow_runs(self.repository, workflow_name)
+        runs = self.workflow_runs(workflow_name)
         ref_runs = [run for run in runs["workflow_runs"] if run["head_branch"] == ref]
         return max(ref_runs, key=lambda run: run['created_at'], default=None)
 
