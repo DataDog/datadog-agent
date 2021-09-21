@@ -463,16 +463,10 @@ func fillProcessDetails(pid int32, proc *Process) error {
 	}
 	proc.Username = userName
 
-	var imagePath, cmdline string
-	if cmdParams, cmderr := winutil.GetCommandParamsForProcess(procHandle, true); cmderr != nil {
-		log.Debugf("Error retrieving command params %v", cmderr)
-	} else {
-		imagePath = cmdParams.ImagePath
-		cmdline = cmdParams.CmdLine
-	}
+	cmdParams := getProcessCommandParams(procHandle)
 
-	proc.Cmdline = parseCmdLineArgs(cmdline)
-	proc.Exe = imagePath
+	proc.Cmdline = parseCmdLineArgs(cmdParams.CmdLine)
+	proc.Exe = cmdParams.ImagePath
 
 	var CPU windows.Rusage
 	if err := windows.GetProcessTimes(procHandle, &CPU.CreationTime, &CPU.ExitTime, &CPU.KernelTime, &CPU.UserTime); err != nil {
@@ -483,6 +477,24 @@ func fillProcessDetails(pid int32, proc *Process) error {
 	ctime := CPU.CreationTime.Nanoseconds() / 1000000
 	proc.Stats.CreateTime = ctime
 	return nil
+}
+
+func getProcessCommandParams(procHandle windows.Handle) *winutil.ProcessCommandParams {
+	var err error
+	if cmdParams, err := winutil.GetCommandParamsForProcess(procHandle, true); err == nil {
+		return cmdParams
+	}
+
+	log.Debugf("Error retrieving command params %v", err)
+	if imagePath, err := winutil.GetImagePathForProcess(procHandle); err == nil {
+		return &winutil.ProcessCommandParams{
+			CmdLine:   imagePath,
+			ImagePath: imagePath,
+		}
+	}
+
+	log.Debugf("Error retrieving exe path %v", err)
+	return &winutil.ProcessCommandParams{}
 }
 
 // TODO: deduplicate

@@ -4,6 +4,7 @@ package winutil
 
 import (
 	"fmt"
+	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -12,11 +13,12 @@ import (
 )
 
 var (
-	modntdll                      = windows.NewLazyDLL("ntdll.dll")
-	modkernel                     = windows.NewLazyDLL("kernel32.dll")
-	procNtQueryInformationProcess = modntdll.NewProc("NtQueryInformationProcess")
-	procReadProcessMemory         = modkernel.NewProc("ReadProcessMemory")
-	procIsWow64Process            = modkernel.NewProc("IsWow64Process")
+	modntdll                       = windows.NewLazyDLL("ntdll.dll")
+	modkernel                      = windows.NewLazyDLL("kernel32.dll")
+	procNtQueryInformationProcess  = modntdll.NewProc("NtQueryInformationProcess")
+	procReadProcessMemory          = modkernel.NewProc("ReadProcessMemory")
+	procIsWow64Process             = modkernel.NewProc("IsWow64Process")
+	procQueryFullProcessImageNameW = modkernel.NewProc("QueryFullProcessImageNameW")
 )
 
 // C definition from winternl.h
@@ -319,4 +321,25 @@ func GetCommandParamsForPid(pid uint32, includeImagePath bool) (*ProcessCommandP
 	}
 	defer windows.CloseHandle(h)
 	return GetCommandParamsForProcess(h, includeImagePath)
+}
+
+// GetImagePathForProcess returns executable path name in the win32 format
+func GetImagePathForProcess(h windows.Handle) (string, error) {
+	const maxPath = 260
+	// Note that this isn't entirely accurate in all cases, the max can actually be 32K
+	// (requires a registry setting change)
+	// https://docs.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation?tabs=cmd
+	// In this particular case we are opting for MAX_PATH because 32k is a lot to allocate
+	// in most cases where this API will be used (process enumeration loop)
+	var buf [maxPath + 1]uint16
+	n := uint32(len(buf))
+	_, _, lastErr := procQueryFullProcessImageNameW.Call(
+		uintptr(h),
+		uintptr(0),
+		uintptr(unsafe.Pointer(&buf)),
+		uintptr(unsafe.Pointer(&n)))
+	if lastErr.(syscall.Errno) == 0 {
+		return syscall.UTF16ToString(buf[:n]), nil
+	}
+	return "", lastErr
 }
