@@ -12,7 +12,7 @@ int __attribute__((always_inline)) security_inode_predicate(u64 type) {
 }
 
 SEC("kprobe/security_inode_setattr")
-int kprobe__security_inode_setattr(struct pt_regs *ctx) {
+int kprobe_security_inode_setattr(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(security_inode_predicate);
     if (!syscall)
         return 0;
@@ -80,7 +80,7 @@ int kprobe__security_inode_setattr(struct pt_regs *ctx) {
 }
 
 SEC("kprobe/dr_setattr_callback")
-int __attribute__((always_inline)) dr_setattr_callback(struct pt_regs *ctx) {
+int __attribute__((always_inline)) kprobe_dr_setattr_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(security_inode_predicate);
     if (!syscall)
         return 0;

@@ -148,13 +148,15 @@ func (p *perfBatchManager) extractBatchInto(buffer *network.ConnectionBuffer, b 
 		}
 
 		conn := buffer.Next()
-		*conn = connStats(&ct.Tup, &ct.Conn_stats, &ct.Tcp_stats)
+		*conn = connStats(&ct.Tup, &ct.Conn_stats)
 
 		// Run callback/filter and verify if the connection should be filtered out
 		if p.filter != nil && !p.filter(conn) {
 			buffer.Reclaim(1)
 			continue
 		}
+
+		updateTCPStats(conn, &ct.Tcp_stats)
 	}
 }
 

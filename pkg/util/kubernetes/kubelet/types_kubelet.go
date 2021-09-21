@@ -43,11 +43,12 @@ type PodOwner struct {
 
 // Spec contains fields for unmarshalling a Pod.Spec
 type Spec struct {
-	HostNetwork    bool            `json:"hostNetwork,omitempty"`
-	NodeName       string          `json:"nodeName,omitempty"`
-	InitContainers []ContainerSpec `json:"initContainers,omitempty"`
-	Containers     []ContainerSpec `json:"containers,omitempty"`
-	Volumes        []VolumeSpec    `json:"volumes,omitempty"`
+	HostNetwork       bool            `json:"hostNetwork,omitempty"`
+	NodeName          string          `json:"nodeName,omitempty"`
+	InitContainers    []ContainerSpec `json:"initContainers,omitempty"`
+	Containers        []ContainerSpec `json:"containers,omitempty"`
+	Volumes           []VolumeSpec    `json:"volumes,omitempty"`
+	PriorityClassName string          `json:"priorityClassName,omitempty"`
 }
 
 // ContainerSpec contains fields for unmarshalling a Pod.Spec.Containers

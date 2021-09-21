@@ -41,7 +41,7 @@ SYSCALL_KPROBE0(renameat2) {
 }
 
 SEC("kprobe/vfs_rename")
-int kprobe__vfs_rename(struct pt_regs *ctx) {
+int kprobe_vfs_rename(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
     if (!syscall)
         return 0;

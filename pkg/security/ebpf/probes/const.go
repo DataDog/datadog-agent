@@ -15,6 +15,10 @@ const (
 const (
 	// DentryResolverERPCKey is the key to the eRPC dentry resolver tail call program
 	DentryResolverERPCKey uint32 = iota
+	// DentryResolverParentERPCKey is the key to the eRPC dentry parent resolver tail call program
+	DentryResolverParentERPCKey
+	// DentryResolverSegmentERPCKey is the key to the eRPC dentry segment resolver tail call program
+	DentryResolverSegmentERPCKey
 	// DentryResolverKernKprobeKey is the key to the kernel dentry resolver tail call program
 	DentryResolverKernKprobeKey
 )

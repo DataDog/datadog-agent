@@ -71,7 +71,7 @@ deploy_latest-a7:
   tags: ["runner:main"]
   stage: deploy7
   rules:
-    !reference [.on_deploy_a7_manual]
+    !reference [.on_deploy_a7_manual_final]
   dependencies: []
   script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
     - python3 -m pip install -r requirements.txt
@@ -93,7 +93,7 @@ deploy_latest-dogstatsd:
   tags: ["runner:main"]
   stage: deploy7
   rules:
-    !reference [.on_deploy_a7_manual]
+    !reference [.on_deploy_a7_manual_final]
   dependencies: []
   script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
     - python3 -m pip install -r requirements.txt

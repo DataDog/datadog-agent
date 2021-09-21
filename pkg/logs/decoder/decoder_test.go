@@ -41,7 +41,7 @@ const contentLenLimit = 100
 
 func TestDecodeIncomingData(t *testing.T) {
 	p := NewMockLineParser()
-	d := New(nil, nil, p, contentLenLimit, &NewLineMatcher{})
+	d := New(nil, nil, p, contentLenLimit, &NewLineMatcher{}, nil)
 
 	var line *DecodedInput
 
@@ -122,7 +122,7 @@ func TestDecodeIncomingData(t *testing.T) {
 
 func TestDecodeIncomingDataWithCustomSequence(t *testing.T) {
 	p := NewMockLineParser()
-	d := New(nil, nil, p, contentLenLimit, &BytesSequenceMatcher{[]byte("SEPARATOR")})
+	d := New(nil, nil, p, contentLenLimit, &BytesSequenceMatcher{[]byte("SEPARATOR")}, nil)
 
 	var line *DecodedInput
 
@@ -165,7 +165,7 @@ func TestDecodeIncomingDataWithCustomSequence(t *testing.T) {
 
 func TestDecodeIncomingDataWithSingleByteCustomSequence(t *testing.T) {
 	p := NewMockLineParser()
-	d := New(nil, nil, p, contentLenLimit, &BytesSequenceMatcher{[]byte("&")})
+	d := New(nil, nil, p, contentLenLimit, &BytesSequenceMatcher{[]byte("&")}, nil)
 
 	var line *DecodedInput
 
@@ -206,7 +206,7 @@ func TestDecodeIncomingDataWithSingleByteCustomSequence(t *testing.T) {
 
 func TestDecoderLifeCycle(t *testing.T) {
 	p := NewMockLineParser()
-	d := New(nil, nil, p, contentLenLimit, &NewLineMatcher{})
+	d := New(nil, nil, p, contentLenLimit, &NewLineMatcher{}, nil)
 
 	// LineParser should not receive any lines
 	d.Start()
@@ -230,7 +230,7 @@ func TestDecoderLifeCycle(t *testing.T) {
 func TestDecoderInputNotDockerHeader(t *testing.T) {
 	inputChan := make(chan *Input)
 	h := NewMockLineParser()
-	d := New(inputChan, nil, h, 100, &NewLineMatcher{})
+	d := New(inputChan, nil, h, 100, &NewLineMatcher{}, nil)
 	d.Start()
 
 	input := []byte("hello")
@@ -282,7 +282,7 @@ func TestDecoderWithDockerHeader(t *testing.T) {
 func TestDecoderWithDecodingParser(t *testing.T) {
 	source := config.NewLogSource("config", &config.LogsConfig{})
 
-	d := NewDecoderWithEndLineMatcher(source, parser.NewDecodingParser(parser.UTF16LE), NewBytesSequenceMatcher(Utf16leEOL))
+	d := NewDecoderWithEndLineMatcher(source, parser.NewDecodingParser(parser.UTF16LE), NewBytesSequenceMatcher(Utf16leEOL), nil)
 	d.Start()
 
 	input := []byte{'h', 0x0, 'e', 0x0, 'l', 0x0, 'l', 0x0, 'o', 0x0, '\n', 0x0}
