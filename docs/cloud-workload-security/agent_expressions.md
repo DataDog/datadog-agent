@@ -98,80 +98,80 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
-| `*.container.id` | string | ID of the container |
-| `*.container.tags` | string | Tags of the container |
-| `*.process.ancestors.cap_effective` | int | Effective capability set of the process |
-| `*.process.ancestors.cap_permitted` | int | Permitted capability set of the process |
-| `*.process.ancestors.comm` | string | Comm attribute of the process |
-| `*.process.ancestors.container.id` | string | Container ID |
-| `*.process.ancestors.cookie` | int | Cookie of the process |
-| `*.process.ancestors.created_at` | int | Timestamp of the creation of the process |
-| `*.process.ancestors.egid` | int | Effective GID of the process |
-| `*.process.ancestors.egroup` | string | Effective group of the process |
-| `*.process.ancestors.euid` | int | Effective UID of the process |
-| `*.process.ancestors.euser` | string | Effective user of the process |
-| `*.process.ancestors.file.change_time` | int | Change time of the file |
-| `*.process.ancestors.file.filesystem` | string | FileSystem of the process executable |
-| `*.process.ancestors.file.gid` | int | GID of the file's owner |
-| `*.process.ancestors.file.group` | string | Group of the file's owner |
-| `*.process.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
-| `*.process.ancestors.file.inode` | int | Inode of the file |
-| `*.process.ancestors.file.mode` | int | Mode/rights of the file |
-| `*.process.ancestors.file.modification_time` | int | Modification time of the file |
-| `*.process.ancestors.file.mount_id` | int | Mount ID of the file |
-| `*.process.ancestors.file.name` | string | Basename of the path of the process executable |
-| `*.process.ancestors.file.path` | string | Path of the process executable |
-| `*.process.ancestors.file.rights` | int | Mode/rights of the file |
-| `*.process.ancestors.file.uid` | int | UID of the file's owner |
-| `*.process.ancestors.file.user` | string | User of the file's owner |
-| `*.process.ancestors.fsgid` | int | FileSystem-gid of the process |
-| `*.process.ancestors.fsgroup` | string | FileSystem-group of the process |
-| `*.process.ancestors.fsuid` | int | FileSystem-uid of the process |
-| `*.process.ancestors.fsuser` | string | FileSystem-user of the process |
-| `*.process.ancestors.gid` | int | GID of the process |
-| `*.process.ancestors.group` | string | Group of the process |
-| `*.process.ancestors.pid` | int | Process ID of the process (also called thread group ID) |
-| `*.process.ancestors.ppid` | int | Parent process ID |
-| `*.process.ancestors.tid` | int | Thread ID of the thread |
-| `*.process.ancestors.tty_name` | string | Name of the TTY associated with the process |
-| `*.process.ancestors.uid` | int | UID of the process |
-| `*.process.ancestors.user` | string | User of the process |
-| `*.process.cap_effective` | int | Effective capability set of the process |
-| `*.process.cap_permitted` | int | Permitted capability set of the process |
-| `*.process.comm` | string | Comm attribute of the process |
-| `*.process.container.id` | string | Container ID |
-| `*.process.cookie` | int | Cookie of the process |
-| `*.process.created_at` | int | Timestamp of the creation of the process |
-| `*.process.egid` | int | Effective GID of the process |
-| `*.process.egroup` | string | Effective group of the process |
-| `*.process.euid` | int | Effective UID of the process |
-| `*.process.euser` | string | Effective user of the process |
-| `*.process.file.change_time` | int | Change time of the file |
-| `*.process.file.filesystem` | string | FileSystem of the process executable |
-| `*.process.file.gid` | int | GID of the file's owner |
-| `*.process.file.group` | string | Group of the file's owner |
-| `*.process.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
-| `*.process.file.inode` | int | Inode of the file |
-| `*.process.file.mode` | int | Mode/rights of the file |
-| `*.process.file.modification_time` | int | Modification time of the file |
-| `*.process.file.mount_id` | int | Mount ID of the file |
-| `*.process.file.name` | string | Basename of the path of the process executable |
-| `*.process.file.path` | string | Path of the process executable |
-| `*.process.file.rights` | int | Mode/rights of the file |
-| `*.process.file.uid` | int | UID of the file's owner |
-| `*.process.file.user` | string | User of the file's owner |
-| `*.process.fsgid` | int | FileSystem-gid of the process |
-| `*.process.fsgroup` | string | FileSystem-group of the process |
-| `*.process.fsuid` | int | FileSystem-uid of the process |
-| `*.process.fsuser` | string | FileSystem-user of the process |
-| `*.process.gid` | int | GID of the process |
-| `*.process.group` | string | Group of the process |
-| `*.process.pid` | int | Process ID of the process (also called thread group ID) |
-| `*.process.ppid` | int | Parent process ID |
-| `*.process.tid` | int | Thread ID of the thread |
-| `*.process.tty_name` | string | Name of the TTY associated with the process |
-| `*.process.uid` | int | UID of the process |
-| `*.process.user` | string | User of the process |
+| `container.id` | string | ID of the container |
+| `container.tags` | string | Tags of the container |
+| `process.ancestors.cap_effective` | int | Effective capability set of the process |
+| `process.ancestors.cap_permitted` | int | Permitted capability set of the process |
+| `process.ancestors.comm` | string | Comm attribute of the process |
+| `process.ancestors.container.id` | string | Container ID |
+| `process.ancestors.cookie` | int | Cookie of the process |
+| `process.ancestors.created_at` | int | Timestamp of the creation of the process |
+| `process.ancestors.egid` | int | Effective GID of the process |
+| `process.ancestors.egroup` | string | Effective group of the process |
+| `process.ancestors.euid` | int | Effective UID of the process |
+| `process.ancestors.euser` | string | Effective user of the process |
+| `process.ancestors.file.change_time` | int | Change time of the file |
+| `process.ancestors.file.filesystem` | string | FileSystem of the process executable |
+| `process.ancestors.file.gid` | int | GID of the file's owner |
+| `process.ancestors.file.group` | string | Group of the file's owner |
+| `process.ancestors.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `process.ancestors.file.inode` | int | Inode of the file |
+| `process.ancestors.file.mode` | int | Mode/rights of the file |
+| `process.ancestors.file.modification_time` | int | Modification time of the file |
+| `process.ancestors.file.mount_id` | int | Mount ID of the file |
+| `process.ancestors.file.name` | string | Basename of the path of the process executable |
+| `process.ancestors.file.path` | string | Path of the process executable |
+| `process.ancestors.file.rights` | int | Mode/rights of the file |
+| `process.ancestors.file.uid` | int | UID of the file's owner |
+| `process.ancestors.file.user` | string | User of the file's owner |
+| `process.ancestors.fsgid` | int | FileSystem-gid of the process |
+| `process.ancestors.fsgroup` | string | FileSystem-group of the process |
+| `process.ancestors.fsuid` | int | FileSystem-uid of the process |
+| `process.ancestors.fsuser` | string | FileSystem-user of the process |
+| `process.ancestors.gid` | int | GID of the process |
+| `process.ancestors.group` | string | Group of the process |
+| `process.ancestors.pid` | int | Process ID of the process (also called thread group ID) |
+| `process.ancestors.ppid` | int | Parent process ID |
+| `process.ancestors.tid` | int | Thread ID of the thread |
+| `process.ancestors.tty_name` | string | Name of the TTY associated with the process |
+| `process.ancestors.uid` | int | UID of the process |
+| `process.ancestors.user` | string | User of the process |
+| `process.cap_effective` | int | Effective capability set of the process |
+| `process.cap_permitted` | int | Permitted capability set of the process |
+| `process.comm` | string | Comm attribute of the process |
+| `process.container.id` | string | Container ID |
+| `process.cookie` | int | Cookie of the process |
+| `process.created_at` | int | Timestamp of the creation of the process |
+| `process.egid` | int | Effective GID of the process |
+| `process.egroup` | string | Effective group of the process |
+| `process.euid` | int | Effective UID of the process |
+| `process.euser` | string | Effective user of the process |
+| `process.file.change_time` | int | Change time of the file |
+| `process.file.filesystem` | string | FileSystem of the process executable |
+| `process.file.gid` | int | GID of the file's owner |
+| `process.file.group` | string | Group of the file's owner |
+| `process.file.in_upper_layer` | bool | Indicator of the file layer, in an OverlayFS for example |
+| `process.file.inode` | int | Inode of the file |
+| `process.file.mode` | int | Mode/rights of the file |
+| `process.file.modification_time` | int | Modification time of the file |
+| `process.file.mount_id` | int | Mount ID of the file |
+| `process.file.name` | string | Basename of the path of the process executable |
+| `process.file.path` | string | Path of the process executable |
+| `process.file.rights` | int | Mode/rights of the file |
+| `process.file.uid` | int | UID of the file's owner |
+| `process.file.user` | string | User of the file's owner |
+| `process.fsgid` | int | FileSystem-gid of the process |
+| `process.fsgroup` | string | FileSystem-group of the process |
+| `process.fsuid` | int | FileSystem-uid of the process |
+| `process.fsuser` | string | FileSystem-user of the process |
+| `process.gid` | int | GID of the process |
+| `process.group` | string | Group of the process |
+| `process.pid` | int | Process ID of the process (also called thread group ID) |
+| `process.ppid` | int | Parent process ID |
+| `process.tid` | int | Thread ID of the thread |
+| `process.tty_name` | string | Name of the TTY associated with the process |
+| `process.uid` | int | UID of the process |
+| `process.user` | string | User of the process |
 
 ### Event `capset`
 

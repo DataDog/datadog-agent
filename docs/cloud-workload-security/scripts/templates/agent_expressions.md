@@ -89,10 +89,8 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 
 {% for event_type in event_types %}
 {% if event_type.name == "*" %}
-{% set prefix = "*." %}
 ### Common to all event types
 {% else %}
-{% set prefix = "" %}
 ### Event `{{ event_type.name }}`
 
 {{ event_type.definition }}
@@ -101,7 +99,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
 {% for property in event_type.properties %}
-| `{{ prefix }}{{ property.name }}` | {{ property.datatype }} | {{ property.definition }} |
+| `{{ property.name }}` | {{ property.datatype }} | {{ property.definition }} |
 {% endfor %}
 
 {% endfor %}
