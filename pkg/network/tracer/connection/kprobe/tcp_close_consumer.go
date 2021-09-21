@@ -59,9 +59,9 @@ func newTCPCloseConsumer(cfg *config.Config, m *manager.Manager, perfHandler *dd
 	return c, nil
 }
 
-func (c *tcpCloseConsumer) GetClosedConnections(buffer *network.ConnectionBuffer) int {
+func (c *tcpCloseConsumer) GetClosedConnections(buffer *network.ConnectionBuffer) {
 	if buffer == nil {
-		return 0
+		return
 	}
 
 	request := requestPayload{
@@ -69,10 +69,8 @@ func (c *tcpCloseConsumer) GetClosedConnections(buffer *network.ConnectionBuffer
 		responseChan: make(chan struct{}),
 	}
 
-	before := buffer.Len()
 	c.requests <- request
 	<-request.responseChan
-	return buffer.Len() - before
 }
 
 func (c *tcpCloseConsumer) GetStats() map[string]int64 {
