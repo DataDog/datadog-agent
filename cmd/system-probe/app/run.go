@@ -212,15 +212,16 @@ func enableProfiling(cfg *config.Config) error {
 		}
 	}
 
-	return profiling.Start(
-		site,
-		cfg.ProfilingEnvironment,
-		"system-probe",
-		cfg.ProfilingPeriod,
-		cfg.ProfilingCPUDuration,
-		cfg.ProfilingMutexFraction,
-		cfg.ProfilingBlockRate,
-		cfg.ProfilingWithGoroutines,
-		fmt.Sprintf("version:%v", v),
-	)
+	settings := profiling.Settings{
+		Site:                 site,
+		Env:                  cfg.ProfilingEnvironment,
+		Service:              "system-probe",
+		Period:               cfg.ProfilingPeriod,
+		CPUDuration:          cfg.ProfilingCPUDuration,
+		MutexProfileFraction: cfg.ProfilingMutexFraction,
+		BlockProfileRate:     cfg.ProfilingBlockRate,
+		WithGoroutineProfile: cfg.ProfilingWithGoroutines,
+		Tags:                 []string{fmt.Sprintf("version:%v", v)},
+	}
+	return profiling.Start(settings)
 }

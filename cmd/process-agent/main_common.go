@@ -443,5 +443,16 @@ func enableProfiling(cfg *config.AgentConfig) error {
 
 	v, _ := version.Agent()
 
-	return profiling.Start(site, cfg.ProfilingEnvironment, "process-agent", cfg.ProfilingPeriod, cfg.ProfilingCPUDuration, cfg.ProfilingMutexFraction, cfg.ProfilingBlockRate, cfg.ProfilingWithGoroutines, fmt.Sprintf("version:%v", v))
+	settings := profiling.Settings{
+		Site:                 site,
+		Env:                  cfg.ProfilingEnvironment,
+		Service:              "process-agent",
+		Period:               cfg.ProfilingPeriod,
+		CPUDuration:          cfg.ProfilingCPUDuration,
+		MutexProfileFraction: cfg.ProfilingMutexFraction,
+		BlockProfileRate:     cfg.ProfilingBlockRate,
+		WithGoroutineProfile: cfg.ProfilingWithGoroutines,
+		Tags:                 []string{fmt.Sprintf("version:%v", v)},
+	}
+	return profiling.Start(settings)
 }
