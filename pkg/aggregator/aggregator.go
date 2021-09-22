@@ -701,6 +701,7 @@ func (agg *BufferedAggregator) Flush(start time.Time, waitForSerializer bool) {
 	agg.flushSeriesAndSketches(start, waitForSerializer)
 	agg.flushServiceChecks(start, waitForSerializer)
 	agg.flushEvents(start, waitForSerializer)
+	agg.updateChecksTelemetry()
 }
 
 // Stop stops the aggregator. Based on 'flushData' waiting metrics (from checks
@@ -852,4 +853,12 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 		return append(tags, "version:"+version.AgentVersion)
 	}
 	return tags
+}
+
+func (agg *BufferedAggregator) updateChecksTelemetry() {
+	t := metrics.CheckMetricsTelemetryAccumulator{}
+	for _, sampler := range agg.checkSamplers {
+		t.VisitCheckMetrics(&sampler.metrics)
+	}
+	t.Flush()
 }
