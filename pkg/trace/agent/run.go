@@ -164,8 +164,10 @@ func Run(ctx context.Context) {
 
 	agnt := NewAgent(ctx, cfg)
 	log.Infof("Trace agent running on host %s", cfg.Hostname)
-	if coreconfig.Datadog.GetBool("apm_config.internal_profiling.enabled") {
-		runProfiling(cfg)
+	if cfg.ProfilingSettings != nil {
+		cfg.ProfilingSettings.Tags = []string{fmt.Sprintf("version:%s", info.Version)}
+		profiling.Start(*cfg.ProfilingSettings)
+		log.Infof("Internal profiling enabled: %s.", cfg.ProfilingSettings)
 		defer profiling.Stop()
 	}
 	agnt.Run()
@@ -186,49 +188,4 @@ func Run(ctx context.Context) {
 		}
 		f.Close()
 	}
-}
-
-// runProfiling enables the profiler.
-func runProfiling(cfg *config.AgentConfig) {
-	if !coreconfig.Datadog.GetBool("apm_config.internal_profiling.enabled") {
-		// fail safe
-		return
-	}
-
-	site := "datadoghq.com"
-	if v := coreconfig.Datadog.GetString("site"); v != "" {
-		site = v
-	}
-
-	settings := profiling.Settings{
-		Site:                 fmt.Sprintf("https://intake.profile.%s/v1/input", site),
-		Period:               profiling.DefaultProfilingPeriod,
-		Tags:                 []string{fmt.Sprintf("version:%s", info.Version)},
-		MutexProfileFraction: coreconfig.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
-		BlockProfileRate:     coreconfig.Datadog.GetInt("internal_profiling.block_profile_rate"),
-		WithGoroutineProfile: coreconfig.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
-	}
-
-	if v := coreconfig.Datadog.GetString("internal_profiling.profile_dd_url"); v != "" {
-		settings.Site = v
-	}
-
-	if v := coreconfig.Datadog.GetDuration("internal_profiling.period"); v != 0 {
-		settings.Period = v
-	}
-	if v := coreconfig.Datadog.GetDuration("internal_profiling.cpu_duration"); v != 0 {
-		settings.CPUDuration = v
-	}
-
-	profiling.Start(settings)
-
-	log.Infof("Internal profiling enabled: [Target:%q][Env:%q][Period:%s][CPU:%s][Mutex:%d][Block:%d][Routines:%v].",
-		settings.Site,
-		settings.Env,
-		settings.Period,
-		settings.CPUDuration,
-		settings.MutexProfileFraction,
-		settings.BlockProfileRate,
-		settings.WithGoroutineProfile,
-	)
 }

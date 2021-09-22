@@ -1,6 +1,7 @@
 package profiling
 
 import (
+	"fmt"
 	"time"
 
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
@@ -30,9 +31,25 @@ type Settings struct {
 	Tags []string
 }
 
+func (settings *Settings) String() string {
+	return fmt.Sprintf("[Target:%q][Env:%q][Period:%s][CPU:%s][Mutex:%d][Block:%d][Routines:%v]",
+		settings.Site,
+		settings.Env,
+		settings.Period,
+		settings.CPUDuration,
+		settings.MutexProfileFraction,
+		settings.BlockProfileRate,
+		settings.WithGoroutineProfile,
+	)
+}
+
 // Apply default value for a struct created using struct-literal notation
 func (settings *Settings) applyDefaults() {
 	if settings.CPUDuration == 0 {
 		settings.CPUDuration = profiler.DefaultDuration
+	}
+
+	if settings.Tags == nil {
+		settings.Tags = []string{}
 	}
 }

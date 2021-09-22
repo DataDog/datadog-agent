@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/osutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 )
 
 // apiEndpointPrefix is the URL prefix prepended to the default site value from YamlAgentConfig.
@@ -381,6 +382,29 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		// set by the user, disable it
 		c.LogThrottling = false
 	}
+
+	if config.Datadog.GetBool("apm_config.internal_profiling.enabled") {
+		profilingSite := config.Datadog.GetString("internal_profiling.profile_dd_url")
+		if profilingSite == "" {
+			profilingSite = site
+		}
+
+		c.ProfilingSettings = &profiling.Settings{
+			Site: profilingSite,
+
+			// remaining configuration parameters use the top-level `internal_profiling` config
+			Period:               config.Datadog.GetDuration("internal_profiling.period"),
+			CPUDuration:          config.Datadog.GetDuration("internal_profiling.cpu_duration"),
+			MutexProfileFraction: config.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
+			BlockProfileRate:     config.Datadog.GetInt("internal_profiling.block_profile_rate"),
+			WithGoroutineProfile: config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
+
+			// NOTE: Tags cannot be set here, because it is based on
+			// info.Version and leads to a package reference loop. It is set
+			// from Run, instead.
+		}
+	}
+
 	return nil
 }
 
