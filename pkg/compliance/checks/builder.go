@@ -473,8 +473,11 @@ func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance
 		return nil, ErrRuleDoesNotApply
 	}
 
-	resourceReporter := b.getRuleResourceReporter(ruleScope, rule.ResourceType)
-	return b.newRegoCheck(meta, ruleScope, rule, resourceReporter)
+	return b.newRegoCheck(meta, ruleScope, rule, fallthroughReporter)
+}
+
+func fallthroughReporter(report *compliance.Report) compliance.ReportResource {
+	return report.Resource
 }
 
 func getRuleScope(meta *compliance.SuiteMeta, scopeList compliance.RuleScopeList) (compliance.RuleScope, error) {

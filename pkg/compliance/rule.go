@@ -28,8 +28,7 @@ type RegoRule struct {
 	RuleCommon `yaml:",inline"`
 	Resources  []RegoResource `yaml:"inputs,omitempty"`
 	Module     string         `yaml:"module,omitempty"`
-	Query      string         `yaml:"query,omitempty"`
-	Denies     string         `yaml:"denies,omitempty"`
+	Findings   string         `yaml:"findings,omitempty"`
 }
 
 // RuleScope defines scope for applicability of a rule

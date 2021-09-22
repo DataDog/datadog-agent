@@ -12,16 +12,14 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"strconv"
 	"strings"
 
-	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
-	"github.com/open-policy-agent/opa/types"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -34,26 +32,10 @@ type regoCheck struct {
 func (r *regoCheck) compileRule(rule *compliance.RegoRule) error {
 	ctx := context.TODO()
 
-	var query string
-	if rule.Denies != "" {
-		query = fmt.Sprintf(`
-			{
-				"result": %s,
-				"denies": %s
-			}
-		`, rule.Query, rule.Denies)
-	} else {
-		query = fmt.Sprintf(`
-			{
-				"result": %s,
-				"denies": []
-			}
-		`, rule.Query)
-	}
-	log.Debugf("rego query: %v", query)
+	log.Debugf("rego query: %v", rule.Findings)
 
 	moduleArgs := make([]func(*rego.Rego), 0, 2+len(regoBuiltins))
-	moduleArgs = append(moduleArgs, rego.Query(query),
+	moduleArgs = append(moduleArgs, rego.Query(rule.Findings),
 		rego.Module(fmt.Sprintf("rule_%s.rego", rule.ID), rule.Module))
 	moduleArgs = append(moduleArgs, regoBuiltins...)
 
@@ -147,7 +129,7 @@ func (r *regoCheck) buildNormalInput(env env.Env) (envInput, error) {
 func (r *regoCheck) check(env env.Env) []*compliance.Report {
 	log.Debugf("%s: rego check starting", r.ruleID)
 
-	var resultFinalizer func(bool, []int) []*compliance.Report
+	var resultFinalizer func([]regoFinding) []*compliance.Report
 
 	var input map[string][]interface{}
 	providedInput := env.ProvidedInput(r.ruleID)
@@ -155,8 +137,8 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 	if providedInput != nil {
 		input = providedInput
 
-		resultFinalizer = func(passed bool, denies []int) []*compliance.Report {
-			log.Infof("denies: %v", denies)
+		resultFinalizer = func(findings []regoFinding) []*compliance.Report {
+			log.Infof("findings: %v", findings)
 			return nil
 		}
 	} else {
@@ -167,21 +149,21 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 
 		input = envInput.input
 
-		resultFinalizer = func(passed bool, denies []int) []*compliance.Report {
+		resultFinalizer = func(findings []regoFinding) []*compliance.Report {
 			var reports []*compliance.Report
-			for resID, instanceFields := range envInput.resourceInstances {
-				specificPassed := !containsInt(denies, resID)
-				// if the global checked passed, the specific doesn't matter
-				resultPassed := passed || specificPassed
-
-				ri, ok := instanceFields.instance.(resolvedInstance)
-				if ok {
-					report := instanceToReport(ri, resultPassed, instanceFields.fields)
-					reports = append(reports, report)
-				} else {
-					report := evalInstanceToReport(instanceFields.instance, resultPassed, instanceFields.fields)
-					reports = append(reports, report)
+			for _, finding := range findings {
+				reportResource := compliance.ReportResource{
+					ID:   finding.resourceID,
+					Type: finding.resourceType,
 				}
+
+				report := &compliance.Report{
+					Resource: reportResource,
+					Passed:   finding.status,
+					Data:     finding.data,
+				}
+
+				reports = append(reports, report)
 			}
 			return reports
 		}
@@ -203,22 +185,12 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 
 	log.Debugf("%s: rego evaluation done => %+v\n", r.ruleID, results)
 
-	res, ok := results[0].Expressions[0].Value.(map[string]interface{})
-	if !ok {
-		return []*compliance.Report{compliance.BuildReportForError(errors.New("wrong result type"))}
-	}
-
-	passed, ok := res["result"].(bool)
-	if !ok {
-		return []*compliance.Report{compliance.BuildReportForError(errors.New("wrong result type"))}
-	}
-
-	denies, err := extractDeniesRIDs(res["denies"])
+	findings, err := parseFindings(results[0].Expressions[0].Value)
 	if err != nil {
 		return []*compliance.Report{compliance.BuildReportForError(err)}
 	}
 
-	reports := resultFinalizer(passed, denies)
+	reports := resultFinalizer(findings)
 
 	log.Debugf("reports: %v", reports)
 	return reports
@@ -260,72 +232,56 @@ func (r *regoCheck) appendInstance(resourceInstances map[int]instanceFields, inp
 	input[key] = append(vars, normalized)
 }
 
-var regoBuiltins = []func(*rego.Rego){
-	octalLiteralFunc,
-	denyInput,
+type regoFinding struct {
+	status       bool
+	resourceType string
+	resourceID   string
+	data         event.Data
 }
 
-var octalLiteralFunc = rego.Function1(
-	&rego.Function{
-		Name: "parseOctal",
-		Decl: types.NewFunction(types.Args(types.S), types.N),
-	},
-	func(_ rego.BuiltinContext, a *ast.Term) (*ast.Term, error) {
-		str, ok := a.Value.(ast.String)
-		if !ok {
-			return nil, errors.New("failed to parse octal literal")
-		}
-
-		value, err := strconv.ParseInt(string(str), 8, 0)
-		if err != nil {
-			return nil, err
-		}
-
-		return ast.IntNumberTerm(int(value)), err
-	},
-)
-
-var denyInput = rego.Function1(
-	&rego.Function{
-		Name: "deny_input",
-		Decl: types.NewFunction(types.Args(types.A), types.N),
-	},
-	func(_ rego.BuiltinContext, a *ast.Term) (*ast.Term, error) {
-		rid, err := a.Value.Find([]*ast.Term{ast.StringTerm("rid")})
-		if err != nil {
-			return nil, err
-		}
-		res := ast.NumberTerm(json.Number(rid.String()))
-		return res, nil
-	},
-)
-
-func containsInt(data []int, value int) bool {
-	for _, v := range data {
-		if v == value {
-			return true
-		}
-	}
-	return false
-}
-
-func extractDeniesRIDs(denies interface{}) ([]int, error) {
-	rids, ok := denies.([]interface{})
+func parseFindings(regoData interface{}) ([]regoFinding, error) {
+	arrayData, ok := regoData.([]interface{})
 	if !ok {
-		return nil, errors.New("wrong denies type")
+		return nil, errors.New("failed to parse array of findings")
 	}
 
-	res := make([]int, 0)
-	for _, rid := range rids {
-		id, ok := rid.(json.Number)
+	res := make([]regoFinding, 0)
+
+	for _, data := range arrayData {
+		m, ok := data.(map[string]interface{})
 		if !ok {
-			return nil, errors.New("wrond rid type")
+			return nil, errors.New("failed to parse finding")
 		}
-		finalRid, err := id.Int64()
-		if err != nil {
-			return nil, err
+
+		status, ok := m["status"].(bool)
+		if !ok {
+			return nil, errors.New("failed to parse resource status")
 		}
-		res = append(res, int(finalRid))
+
+		id, ok := m["resource_id"].(string)
+		if !ok {
+			return nil, errors.New("failed to parse resource_id")
+		}
+
+		rty, ok := m["resource_type"].(string)
+		if !ok {
+			return nil, errors.New("failed to parse resource_type")
+		}
+
+		data, ok := m["data"].(map[string]interface{})
+		if !ok {
+			return nil, errors.New("failed to parse resource data")
+		}
+
+		finding := regoFinding{
+			status:       status,
+			resourceID:   id,
+			resourceType: rty,
+			data:         data,
+		}
+
+		res = append(res, finding)
 	}
+
 	return res, nil
 }
