@@ -138,7 +138,7 @@ require (
 	github.com/mdlayher/netlink v1.4.1
 	github.com/mholt/archiver/v3 v3.5.0
 	github.com/miekg/dns v1.1.43
-	github.com/mitchellh/mapstructure v1.4.1
+	github.com/mitchellh/mapstructure v1.4.2
 	github.com/moby/sys/mountinfo v0.4.1
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/olekukonko/tablewriter v0.0.5
@@ -170,10 +170,10 @@ require (
 	github.com/vmihailenco/msgpack/v4 v4.3.12
 	github.com/xeipuuv/gojsonschema v0.0.0-20180618132009-1d523034197f
 	go.etcd.io/etcd/client/v2 v2.305.0
-	go.opentelemetry.io/collector v0.35.0
-	go.opentelemetry.io/collector/model v0.35.0
+	go.opentelemetry.io/collector v0.36.0
+	go.opentelemetry.io/collector/model v0.36.0
 	go.uber.org/automaxprocs v1.4.0
-	go.uber.org/zap v1.19.0
+	go.uber.org/zap v1.19.1
 	go4.org/intern v0.0.0-20210108033219-3eb7198706b2
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/net v0.0.0-20210614182718-04defd469f4e

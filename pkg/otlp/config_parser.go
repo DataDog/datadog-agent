@@ -6,6 +6,7 @@
 package otlp
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -16,13 +17,15 @@ import (
 // baseConfig is the base OTLP pipeline configuration.
 // This pipeline is extended through the datadog.yaml configuration values.
 // It is written in YAML because it is easier to read and write than a map.
+// TODO (AP-1254): Set service-level configuration when available.
 const baseConfig string = `
 receivers:
   otlp:
 
 exporters:
   otlp:
-    insecure: true
+    tls:
+      insecure: true
 
 service:
   pipelines:
@@ -38,7 +41,7 @@ func buildKey(keys ...string) string {
 
 // newParser creates a configparser.ConfigMap with the fixed configuration.
 func newParser(cfg PipelineConfig) (*configparser.ConfigMap, error) {
-	parser, err := configparser.NewParserFromBuffer(strings.NewReader(baseConfig))
+	parser, err := configparser.NewConfigMapFromBuffer(strings.NewReader(baseConfig))
 	if err != nil {
 		return nil, err
 	}
@@ -65,10 +68,15 @@ func newParser(cfg PipelineConfig) (*configparser.ConfigMap, error) {
 	return parser, nil
 }
 
+// TODO: Use a  InMemory provider instead of this.
 var _ parserprovider.ParserProvider = (*parserProvider)(nil)
 
 type parserProvider configparser.ConfigMap
 
-func (p parserProvider) Get() (*configparser.ConfigMap, error) {
+func (p parserProvider) Get(context.Context) (*configparser.ConfigMap, error) {
 	return (*configparser.ConfigMap)(&p), nil
+}
+
+func (p parserProvider) Close(context.Context) error {
+	return nil
 }
