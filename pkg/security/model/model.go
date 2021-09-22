@@ -291,6 +291,15 @@ type FileFields struct {
 	PathID       uint32 `field:"-"`
 	Flags        int32  `field:"-"`
 	InUpperLayer bool   `field:"in_upper_layer,ResolveFileFieldsInUpperLayer"` // Indicator of the file layer, in an OverlayFS for example
+
+	NLink  uint32 `field:"-"`
+	PathID uint32 `field:"-"`
+	Flags  int32  `field:"-"`
+}
+
+// HasHardLinks returns whether the file has hardlink
+func (f *FileFields) HasHardLinks() bool {
+	return f.NLink > 1
 }
 
 // GetInLowerLayer returns whether a file is in a lower layer

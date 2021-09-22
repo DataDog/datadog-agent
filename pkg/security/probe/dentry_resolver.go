@@ -404,7 +404,7 @@ func (dr *DentryResolver) ResolveFromCache(mountID uint32, inode uint64) (string
 }
 
 // ResolveFromMap resolves the path of the provided inode / mount id / path id
-func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID uint32) (string, error) {
+func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID uint32, cache bool) (string, error) {
 	var cacheKey PathKey
 	var cacheEntry *PathEntry
 	var err, resolutionErr error
@@ -419,7 +419,9 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 	}
 
 	depth := int64(0)
-	toAdd := make(map[PathKey]*PathEntry)
+
+	var keys []PathKey
+	var entries []PathEntry
 
 	// Fetch path recursively
 	for i := 0; i <= model.MaxPathDepth; i++ {
@@ -451,9 +453,11 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		}
 
 		// do not cache fake path keys in the case of rename events
-		if !IsFakeInode(key.Inode) {
+		if !IsFakeInode(key.Inode) && cache {
 			cacheEntry = dr.getPathEntryFromPool(path.Parent, name)
-			toAdd[cacheKey] = cacheEntry
+
+			keys = append(keys, cacheKey)
+			entries = append(entries, cacheEntry)
 		}
 
 		if path.Parent.Inode == 0 {
@@ -474,11 +478,8 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 	}
 
 	if err == nil {
-		for k, v := range toAdd {
-			if err := dr.cacheInode(k, v); err != nil {
-				dr.pathEntryPool.Put(v)
-			}
-		}
+		dr.cacheEntries(keys, entries)
+
 		if depth > 0 {
 			atomic.AddInt64(dr.hitsCounters[metrics.PathResolutionTag][metrics.KernelMapsTag], depth)
 		}
@@ -544,12 +545,35 @@ func (dr *DentryResolver) GetNameFromERPC(mountID uint32, inode uint64, pathID u
 	return seg, nil
 }
 
+func (dr *DentryResolver) cacheEntries(keys []PathKey, entries []PathEntry) {
+	var cacheEntry PathEntry
+
+	for i, k := range keys {
+		if IsFakeInode(k.Inode) {
+			continue
+		}
+
+		if len(entries) > i {
+			cacheEntry = entries[i]
+		} else {
+			continue
+		}
+
+		if len(keys) > i+1 {
+			cacheEntry.Parent = keys[i+1]
+		}
+
+		if err := dr.cacheInode(k, cacheEntry); err != nil {
+			dr.pathEntryPool.Put(cacheEntry)
+		}
+	}
+}
+
 // ResolveFromERPC resolves the path of the provided inode / mount id / path id
-func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID uint32) (string, error) {
+func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID uint32, cache bool) (string, error) {
 	var filename, segment string
 	var err, resolutionErr error
 	var cacheKey PathKey
-	var cacheEntry *PathEntry
 	depth := int64(0)
 	challenge := rand.Uint32()
 
@@ -612,7 +636,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 			break
 		}
 
-		if !IsFakeInode(cacheKey.Inode) {
+		if !IsFakeInode(cacheKey.Inode) && cache {
 			keys = append(keys, cacheKey)
 
 			entry := dr.getPathEntryFromPool(PathKey{}, segment)
@@ -625,21 +649,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 	}
 
 	if resolutionErr == nil {
-		for i, k := range keys {
-			if len(entries) > i {
-				cacheEntry = entries[i]
-			} else {
-				continue
-			}
-
-			if len(keys) > i+1 {
-				cacheEntry.Parent = keys[i+1]
-			}
-
-			if err := dr.cacheInode(k, cacheEntry); err != nil {
-				dr.pathEntryPool.Put(cacheEntry)
-			}
-		}
+		dr.cacheEntries(keys, entries)
 
 		if depth > 0 {
 			atomic.AddInt64(dr.hitsCounters[metrics.PathResolutionTag][metrics.ERPCTag], depth)
@@ -652,13 +662,13 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 }
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
-func (dr *DentryResolver) Resolve(mountID uint32, inode uint64, pathID uint32) (string, error) {
+func (dr *DentryResolver) Resolve(mountID uint32, inode uint64, pathID uint32, cache bool) (string, error) {
 	path, err := dr.ResolveFromCache(mountID, inode)
 	if err != nil && dr.erpcEnabled {
-		path, err = dr.ResolveFromERPC(mountID, inode, pathID)
+		path, err = dr.ResolveFromERPC(mountID, inode, pathID, cache)
 	}
 	if err != nil && err != errTruncatedParentsERPC && dr.mapEnabled {
-		path, err = dr.ResolveFromMap(mountID, inode, pathID)
+		path, err = dr.ResolveFromMap(mountID, inode, pathID, cache)
 	}
 	return path, err
 }
