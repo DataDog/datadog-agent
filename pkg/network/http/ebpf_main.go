@@ -21,16 +21,10 @@ const (
 	httpBatchesMap           = "http_batches"
 	httpBatchStateMap        = "http_batch_state"
 	httpNotificationsPerfMap = "http_notifications"
-	sslSockByCtxMap          = "ssl_sock_by_ctx"
-	sharedLibrariesPerfMap   = "shared_libraries"
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to inspect plain HTTP traffic
 	httpSocketFilter = "socket/http_filter"
-
-	// Probe used for streaming shared library events
-	doSysOpen    = "kprobe/do_sys_open"
-	doSysOpenRet = "kretprobe/do_sys_open"
 
 	// maxActive configures the maximum number of instances of the
 	// kretprobe-probed functions handled simultaneously.  This value should be
@@ -40,20 +34,23 @@ const (
 
 	// size of the channel containing completed http_notification_objects
 	batchNotificationsChanSize = 100
-
-	// UID used to create the base probes
-	baseUID = "base"
 )
 
 type ebpfProgram struct {
 	*manager.Manager
-	cfg       *config.Config
-	bytecode  bytecode.AssetReader
-	sockFDMap *ebpf.Map
-	offsets   []manager.ConstantEditor
+	cfg         *config.Config
+	bytecode    bytecode.AssetReader
+	offsets     []manager.ConstantEditor
+	subprograms []subprogram
 
 	batchCompletionHandler *ddebpf.PerfHandler
-	sharedLibrariesHandler *ddebpf.PerfHandler
+}
+
+type subprogram interface {
+	ConfigureManager(*manager.Manager)
+	ConfigureOptions(*manager.Options)
+	Start()
+	Stop()
 }
 
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*ebpfProgram, error) {
@@ -63,8 +60,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 	}
 
 	batchCompletionHandler := ddebpf.NewPerfHandler(batchNotificationsChanSize)
-	sharedLibrariesHandler := ddebpf.NewPerfHandler(batchNotificationsChanSize)
-
 	mgr := &manager.Manager{
 		PerfMaps: []*manager.PerfMap{
 			{
@@ -76,51 +71,31 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 					LostHandler:        batchCompletionHandler.LostHandler,
 				},
 			},
-			{
-				Map: manager.Map{Name: sharedLibrariesPerfMap},
-				PerfMapOptions: manager.PerfMapOptions{
-					PerfRingBufferSize: 8 * os.Getpagesize(),
-					Watermark:          1,
-					DataHandler:        sharedLibrariesHandler.DataHandler,
-					LostHandler:        sharedLibrariesHandler.LostHandler,
-				},
-			},
 		},
 		Probes: []*manager.Probe{
 			{Section: httpSocketFilter},
 			{Section: string(probes.TCPSendMsgReturn), KProbeMaxActive: maxActive},
-			{Section: doSysOpen, KProbeMaxActive: maxActive},
-			{Section: doSysOpenRet, KProbeMaxActive: maxActive},
 		},
 	}
 
-	// Load SSL & Crypto probes
-	var extraProbes []string
-	extraProbes = append(extraProbes, sslProbes...)
-	extraProbes = append(extraProbes, cryptoProbes...)
-	for _, sec := range extraProbes {
-		mgr.Probes = append(mgr.Probes, &manager.Probe{
-			Section: sec,
-			UID:     baseUID,
-		})
-	}
-
+	openSSLProgram, _ := newOpenSSLProgram(c, sockFD)
 	program := &ebpfProgram{
-		Manager:   mgr,
-		bytecode:  bytecode,
-		cfg:       c,
-		sockFDMap: sockFD,
-		offsets:   offsets,
-
-		// Perf Handlers
+		Manager:                mgr,
+		bytecode:               bytecode,
+		cfg:                    c,
+		offsets:                offsets,
 		batchCompletionHandler: batchCompletionHandler,
-		sharedLibrariesHandler: sharedLibrariesHandler,
+		subprograms:            []subprogram{openSSLProgram},
 	}
 
 	return program, nil
 }
 
 func (e *ebpfProgram) Init() error {
+	for _, s := range e.subprograms {
+		s.ConfigureManager(e.Manager)
+	}
+
 	options := manager.Options{
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
@@ -128,11 +103,6 @@ func (e *ebpfProgram) Init() error {
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			httpInFlightMap: {
-				Type:       ebpf.Hash,
-				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
-				EditorFlag: manager.EditMaxEntries,
-			},
-			sslSockByCtxMap: {
 				Type:       ebpf.Hash,
 				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
 				EditorFlag: manager.EditMaxEntries,
@@ -149,24 +119,12 @@ func (e *ebpfProgram) Init() error {
 					Section: string(probes.TCPSendMsgReturn),
 				},
 			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					Section: doSysOpen,
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					Section: doSysOpenRet,
-				},
-			},
 		},
 		ConstantEditors: e.offsets,
 	}
 
-	if e.sockFDMap != nil {
-		options.MapEditors = map[string]*ebpf.Map{
-			string(probes.SockByPidFDMap): e.sockFDMap,
-		}
+	for _, s := range e.subprograms {
+		s.ConfigureOptions(&options)
 	}
 
 	err := e.InitWithOptions(e.bytecode, options)
@@ -179,12 +137,22 @@ func (e *ebpfProgram) Init() error {
 
 func (e *ebpfProgram) Start() error {
 	err := e.Manager.Start()
-	initSSLTracing(e.cfg, e.Manager, e.sharedLibrariesHandler)
-	return err
+	if err != nil {
+		return err
+	}
+
+	for _, s := range e.subprograms {
+		s.Start()
+	}
+
+	return nil
 }
 
 func (e *ebpfProgram) Close() error {
 	err := e.Manager.Stop(manager.CleanAll)
-	e.sharedLibrariesHandler.Stop()
+	e.batchCompletionHandler.Stop()
+	for _, s := range e.subprograms {
+		s.Stop()
+	}
 	return err
 }

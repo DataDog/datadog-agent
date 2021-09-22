@@ -179,7 +179,6 @@ func (m *Monitor) Stop() {
 
 	m.ebpfProgram.Close()
 	m.closeFilterFn()
-	m.batchCompletionHandler.Stop()
 	close(m.pollRequests)
 	m.eventLoopWG.Wait()
 	m.stopped = true
