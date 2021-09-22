@@ -673,6 +673,7 @@ core,go.opentelemetry.io/collector/config/confighttp,Apache-2.0,Open Telemetry M
 core,go.opentelemetry.io/collector/config/confignet,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configparser,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configtelemetry,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/config/configtest,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configtls,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configunmarshaler,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/experimental/configsource,Apache-2.0,Open Telemetry Maintainers
@@ -684,6 +685,7 @@ core,go.opentelemetry.io/collector/exporter/exporterhelper/internal,Apache-2.0,O
 core,go.opentelemetry.io/collector/exporter/otlpexporter,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/extension/ballastextension,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/extension/extensionhelper,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/extension/storage,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/internal/cgroups,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/internal/collector/telemetry,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/internal/iruntime,Apache-2.0,Open Telemetry Maintainers
@@ -720,11 +722,13 @@ core,go.opentelemetry.io/collector/service/internal,Apache-2.0,Open Telemetry Ma
 core,go.opentelemetry.io/collector/service/internal/builder,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/service/internal/fanoutconsumer,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/service/internal/telemetry,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/service/internal/telemetrylogs,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/service/internal/zpages,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/service/internal/zpages/tmplgen,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/service/parserprovider,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/contrib,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/internal,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/contrib/zpages,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/contrib/zpages/internal,Apache-2.0,Open Telemetry Maintainers
@@ -740,6 +744,7 @@ core,go.opentelemetry.io/otel/metric,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/metric/global,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/metric/number,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/metric/registry,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/metric/sdkapi,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/metric/unit,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/propagation,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/instrumentation,Apache-2.0,Open Telemetry Maintainers

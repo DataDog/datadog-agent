@@ -131,11 +131,8 @@ func NewPipeline(cfg PipelineConfig) (*Pipeline, error) {
 }
 
 // Run the OTLP pipeline.
-func (p *Pipeline) Run(_ context.Context) error {
-	// TODO (AP-1254): Avoid this workaround
-	// See https://github.com/open-telemetry/opentelemetry-collector/issues/3957
-	cmd := p.col.Command()
-	return cmd.RunE(cmd, nil)
+func (p *Pipeline) Run(ctx context.Context) error {
+	return p.col.Run(ctx)
 }
 
 // Stop the OTLP pipeline.
