@@ -74,7 +74,7 @@ func processResourceTermsExtractor(process *ast.Term) (resourceTerms, error) {
 	}
 
 	return resourceTerms{
-		ID:   ast.StringTerm("$hostname_daemon"),
+		ID:   ast.StringTerm("$hostname$_daemon"),
 		Type: ast.StringTerm("docker_daemon"),
 		Data: ast.ObjectTerm(dataTerms...),
 	}, nil

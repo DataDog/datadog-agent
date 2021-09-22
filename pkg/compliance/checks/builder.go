@@ -477,12 +477,12 @@ func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance
 	return b.newRegoCheck(meta, ruleScope, rule, b.getReplaceReporter())
 }
 
-var replacerRegex = regexp.MustCompile(`\$[[:alnum:]]+`)
+var replacerRegex = regexp.MustCompile(`\$[[:alnum:]]+\$`)
 
 func (b *builder) getReplaceReporter() resourceReporter {
 	replacer := func(in string) string {
 		return replacerRegex.ReplaceAllStringFunc(in, func(ident string) string {
-			if ident == "$hostname" {
+			if ident == "$hostname$" {
 				return b.Hostname()
 			} else {
 				return ""
