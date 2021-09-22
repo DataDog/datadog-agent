@@ -17,7 +17,7 @@ class ICustomActionData
     virtual bool DoesUserExist() const = 0;
     virtual const std::wstring &UnqualifiedUsername() const = 0;
     virtual const std::wstring &Domain() const = 0;
-    virtual std::wstring Username() const = 0;
+    virtual const std::wstring &Username() const = 0;
     virtual PSID Sid() const = 0;
     virtual void Sid(sid_ptr &sid) = 0;
     virtual bool installSysprobe() const = 0;
@@ -53,7 +53,7 @@ class CustomActionData : ICustomActionData
     bool isUserLocalUser() const override;
     bool DoesUserExist() const override;
     const std::wstring &UnqualifiedUsername() const override;
-    std::wstring Username() const override;
+    const std::wstring &Username() const override;
     const std::wstring &Domain() const override;
     PSID Sid() const override;
     void Sid(sid_ptr &sid) override;
@@ -67,6 +67,7 @@ class CustomActionData : ICustomActionData
     bool _domainUser;
     std::map<std::wstring, std::wstring> values;
     User _user;
+    std::wstring _fullyQualifiedUsername;
     sid_ptr _sid;
     bool _doInstallSysprobe;
     bool _ddnpmPresent;

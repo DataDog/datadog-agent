@@ -101,9 +101,9 @@ const std::wstring &CustomActionData::UnqualifiedUsername() const
     return _user.Name;
 }
 
-std::wstring CustomActionData::Username() const
+const std::wstring &CustomActionData::Username() const
 {
-    return _user.Domain + L"\\" + _user.Name;
+    return _fullyQualifiedUsername;
 }
 
 const std::wstring &CustomActionData::Domain() const
@@ -299,9 +299,9 @@ bool CustomActionData::parseUsernameData()
         // use default value. Order of construction is Domain then Name
         _user = {L".", ddAgentUserName };
     }
+    _fullyQualifiedUsername = _user.Domain + L"\\" + _user.Name;
 
     ensureDomainHasCorrectFormat();
-    WcaLog(LOGMSG_STANDARD, "Proceeding with user %S from domain %S (%S)", UnqualifiedUsername(), Domain(), Username());
     auto sidResult = GetSidForUser(nullptr, Username().c_str());
 
     if (sidResult.Result == ERROR_NONE_MAPPED)
