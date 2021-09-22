@@ -5,10 +5,15 @@ description: JSON schema documentation of the CWS backend event
 disable_edit: true
 ---
 
-The CWS event sent to the backend by the Agent respects the following schema:
+After detecting suspicious activity matching the agent expressions, the Agent will send a log
+to the backend containing a `CWS event`.
+
+This event is used to build signals and its fields can be used to build filters in the web application.
+
+The CWS event sent to the backend by the Agent respects the following JSON schema:
 
 {% raw %}
-{{< code-block lang="json" collapsible="true" filename="BACKEND_EVENT_SCHEMA" >}}
+{{< code-block lang="json" collapsible="true" filename="BACKEND_EVENT_JSON_SCHEMA" >}}
 {% endraw %}
 {{ event_schema }}
 {% raw %}
