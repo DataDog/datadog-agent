@@ -31,7 +31,7 @@ var regoBuiltins = []func(*rego.Rego){
 
 var octalLiteralFunc = rego.Function1(
 	&rego.Function{
-		Name: "parseOctal",
+		Name: "parse_octal",
 		Decl: types.NewFunction(types.Args(types.S), types.N),
 	},
 	func(_ rego.BuiltinContext, a *ast.Term) (*ast.Term, error) {
