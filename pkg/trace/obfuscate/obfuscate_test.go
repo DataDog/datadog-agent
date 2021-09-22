@@ -55,11 +55,14 @@ func TestNewObfuscator(t *testing.T) {
 	o = NewObfuscator(nil)
 	assert.Nil(o.es)
 	assert.Nil(o.mongo)
+	assert.Nil(o.creditCards)
 
 	o = NewObfuscator(&config.ObfuscationConfig{
-		ES:    config.JSONObfuscationConfig{Enabled: true},
-		Mongo: config.JSONObfuscationConfig{Enabled: true},
+		ES:          config.JSONObfuscationConfig{Enabled: true},
+		Mongo:       config.JSONObfuscationConfig{Enabled: true},
+		CreditCards: config.CreditCardsConfig{Enabled: true},
 	})
+	assert.NotNil(o.creditCards)
 	assert.NotNil(o.es)
 	assert.NotNil(o.mongo)
 }

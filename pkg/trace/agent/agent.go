@@ -227,6 +227,18 @@ func (a *Agent) Process(p *api.Payload) {
 				traceutil.SetMeta(span, k, v)
 			}
 			a.obfuscator.Obfuscate(span)
+			if p.RunMetaHook {
+				// the payload decoder was not able to run the MetaHook (pkg/trace/pb/hook.go) at
+				// decode time, so we need to run it here. This should only happen in cases where
+				// the Content-Type is not Msgpack (e.g. deprecated JSON).
+				if hook, ok := pb.MetaHook(); ok {
+					for k, v := range span.Meta {
+						if newv := hook(k, v); newv != v {
+							span.Meta[k] = newv
+						}
+					}
+				}
+			}
 			Truncate(span)
 			if p.ClientComputedTopLevel {
 				traceutil.UpdateTracerTopLevel(span)
