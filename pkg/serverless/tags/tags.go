@@ -51,7 +51,7 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags = setIfNotEmpty(tags, versionKey, os.Getenv(versionEnvVar))
 	tags = setIfNotEmpty(tags, serviceKey, os.Getenv(serviceEnvVar))
 
-	cleanedRuntime := strings.Replace(os.Getenv(runtimeKey), "AWS_Lambda_", "", 1)
+	cleanedRuntime := strings.Replace(os.Getenv(runtimeVar), "AWS_Lambda_", "", 1)
 
 	tags = setIfNotEmpty(tags, runtimeKey, os.Getenv(cleanedRuntime))
 	tags = setIfNotEmpty(tags, serviceKey, os.Getenv(memorySizeVar))
