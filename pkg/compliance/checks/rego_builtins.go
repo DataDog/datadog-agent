@@ -26,6 +26,7 @@ var regoBuiltins = []func(*rego.Rego){
 	octalLiteralFunc,
 	findingBuilder("passed_process_finding", true, processResourceTermsExtractor),
 	findingBuilder("failed_process_finding", false, processResourceTermsExtractor),
+	rawFinding,
 }
 
 var octalLiteralFunc = rego.Function1(
@@ -85,6 +86,35 @@ func processResourceTermsExtractor(process *ast.Term) (resourceTerms, error) {
 	}, nil
 }
 
+var rawFinding = rego.Function4(
+	&rego.Function{
+		Name: "finding",
+		Decl: types.NewFunction(types.Args(types.B, types.S, types.S, types.A), types.A),
+	},
+	func(_ rego.BuiltinContext, status, resType, resID, data *ast.Term) (*ast.Term, error) {
+		terms := [][2]*ast.Term{
+			{
+				ast.StringTerm(ResourceIDFindingField),
+				resID,
+			},
+			{
+				ast.StringTerm(ResourceTypeFindingField),
+				resType,
+			},
+			{
+				ast.StringTerm(ResourceDataFindingField),
+				data,
+			},
+			{
+				ast.StringTerm(ResourceStatusFindingField),
+				status,
+			},
+		}
+
+		return ast.ObjectTerm(terms...), nil
+	},
+)
+
 func findingBuilder(name string, status bool, extractor termsExtractor) func(*rego.Rego) {
 	return rego.Function1(
 		&rego.Function{
@@ -92,31 +122,32 @@ func findingBuilder(name string, status bool, extractor termsExtractor) func(*re
 			Decl: types.NewFunction(types.Args(types.A), types.A),
 		},
 		func(_ rego.BuiltinContext, a *ast.Term) (*ast.Term, error) {
-			terms := make([][2]*ast.Term, 0)
 			resourceTerms, err := extractor(a)
 			if err != nil {
 				return nil, err
 			}
 
-			terms = append(terms, [2]*ast.Term{
-				ast.StringTerm(ResourceIDFindingField),
-				resourceTerms.ID,
-			})
+			terms := [][2]*ast.Term{
+				{
+					ast.StringTerm(ResourceIDFindingField),
+					resourceTerms.ID,
+				},
 
-			terms = append(terms, [2]*ast.Term{
-				ast.StringTerm(ResourceTypeFindingField),
-				resourceTerms.Type,
-			})
+				{
+					ast.StringTerm(ResourceTypeFindingField),
+					resourceTerms.Type,
+				},
 
-			terms = append(terms, [2]*ast.Term{
-				ast.StringTerm(ResourceDataFindingField),
-				resourceTerms.Data,
-			})
+				{
+					ast.StringTerm(ResourceDataFindingField),
+					resourceTerms.Data,
+				},
 
-			terms = append(terms, [2]*ast.Term{
-				ast.StringTerm(ResourceStatusFindingField),
-				ast.BooleanTerm(status),
-			})
+				{
+					ast.StringTerm(ResourceStatusFindingField),
+					ast.BooleanTerm(status),
+				},
+			}
 
 			return ast.ObjectTerm(terms...), nil
 		},
