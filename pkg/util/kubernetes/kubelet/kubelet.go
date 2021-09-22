@@ -812,16 +812,16 @@ func tryKubeletConnection(ku *KubeUtil, host string, httpsPort int, verifyTLS bo
 	ku.kubeletHost = host
 	err := ku.setupKubeletAPIClient(verifyTLS)
 	if err != nil {
-		log.Debugf("Cannot setup https kubelet api client for %s: %v. TLS verification: %v.", host, err, verifyTLS)
+		log.Debugf("Cannot setup https kubelet api client for %s:%d: %v. TLS verification: %v.", host, httpsPort, err, verifyTLS)
 		return err
 	}
 
 	err = checkKubeletHTTPSConnection(ku, httpsPort)
 	if err == nil {
-		log.Debugf("Can connect to kubelet using %s and HTTPS. TLS verification: %v.", host, verifyTLS)
+		log.Debugf("Can connect to kubelet using %s:%d and HTTPS. TLS verification: %v.", host, httpsPort, verifyTLS)
 		return nil
 	}
-	log.Debugf("Cannot connect to kubelet using %s and https: %v. TLS verification: %v.", host, err, verifyTLS)
+	log.Debugf("Cannot connect to kubelet using %s:%d and https: %v. TLS verification: %v.", host, httpsPort, err, verifyTLS)
 	return err
 }
 
