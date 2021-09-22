@@ -19,9 +19,8 @@ import (
 )
 
 const (
-	snmpLoaderTag        = "loader:core"
-	serviceCheckName     = "snmp.can_check"
-	deviceHostnamePrefix = "device:"
+	snmpLoaderTag    = "loader:core"
+	serviceCheckName = "snmp.can_check"
 )
 
 // DeviceCheck hold info necessary to collect info for a single device
@@ -61,14 +60,6 @@ func (d *DeviceCheck) GetIDTags() []string {
 	return d.config.DeviceIDTags
 }
 
-// GetHostname returns DeviceID as hostname if UseDeviceIDAsHostname is true
-func (d *DeviceCheck) GetHostname() string {
-	if d.config.UseDeviceIDAsHostname {
-		return deviceHostnamePrefix + d.config.DeviceID
-	}
-	return ""
-}
-
 // Run executes the check
 func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	startTime := time.Now()
@@ -79,9 +70,9 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	var deviceStatus metadata.DeviceStatus
 	tags, values, checkErr := d.getValuesAndTags(staticTags)
 	if checkErr != nil {
-		d.sender.ServiceCheck(serviceCheckName, metrics.ServiceCheckCritical, tags, checkErr.Error())
+		d.sender.ServiceCheck(serviceCheckName, metrics.ServiceCheckCritical, "", tags, checkErr.Error())
 	} else {
-		d.sender.ServiceCheck(serviceCheckName, metrics.ServiceCheckOK, tags, "")
+		d.sender.ServiceCheck(serviceCheckName, metrics.ServiceCheckOK, "", tags, "")
 	}
 	if values != nil {
 		d.sender.ReportMetrics(d.config.Metrics, values, tags)
@@ -170,10 +161,10 @@ func (d *DeviceCheck) doAutodetectProfile(sess session.Session) error {
 func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string) {
 	newTags := append(common.CopyStrings(tags), snmpLoaderTag)
 
-	d.sender.Gauge("snmp.devices_monitored", float64(1), newTags)
+	d.sender.Gauge("snmp.devices_monitored", float64(1), "", newTags)
 
 	// SNMP Performance metrics
-	d.sender.MonotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), newTags)
-	d.sender.Gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), newTags)
-	d.sender.Gauge("datadog.snmp.submitted_metrics", float64(d.sender.GetSubmittedMetrics()), newTags)
+	d.sender.MonotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), "", newTags)
+	d.sender.Gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), "", newTags)
+	d.sender.Gauge("datadog.snmp.submitted_metrics", float64(d.sender.GetSubmittedMetrics()), "", newTags)
 }
