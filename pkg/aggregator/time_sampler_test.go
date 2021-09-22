@@ -23,7 +23,7 @@ import (
 
 func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 	l := ckey.NewKeyGenerator()
-	return l.Generate(serie.Name, serie.Host, util.NewHashingTagsBuilderFromSlice(serie.Tags))
+	return l.Generate(serie.Name, serie.Host, util.NewHashingTagsBuilderWithTags(serie.Tags))
 }
 
 // TimeSampler

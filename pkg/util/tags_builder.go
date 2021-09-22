@@ -40,7 +40,7 @@ func (tb *TagsBuilder) Append(tags ...string) {
 }
 
 // AppendHashed appends tags and corresponding hashes to the builder
-func (tb *TagsBuilder) AppendHashed(src *HashedTags) {
+func (tb *TagsBuilder) AppendHashed(src HashedTags) {
 	tb.data = append(tb.data, src.data...)
 }
 
@@ -142,7 +142,7 @@ func (tb *HashingTagsBuilder) Append(tags ...string) {
 }
 
 // AppendHashed appends tags and corresponding hashes to the builder
-func (tb *HashingTagsBuilder) AppendHashed(src *HashedTags) {
+func (tb *HashingTagsBuilder) AppendHashed(src HashedTags) {
 	tb.data = append(tb.data, src.data...)
 	tb.hash = append(tb.hash, src.hash...)
 }

@@ -300,13 +300,13 @@ func (s *TagStore) Prune() {
 // LookupHashed gets tags from the store and returns them as a HashedTags instance. It
 // returns the source names in the second slice to allow the client to trigger manual
 // lookups on missing sources.
-func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardinality) (*util.HashedTags, []string) {
+func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardinality) (util.HashedTags, []string) {
 	s.RLock()
 	defer s.RUnlock()
 	storedTags, present := s.store[entity]
 
 	if present == false {
-		return nil, nil
+		return util.HashedTags{}, nil
 	}
 	return storedTags.getHashedTags(cardinality)
 }
@@ -316,9 +316,6 @@ func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardina
 // lookups on missing sources.
 func (s *TagStore) Lookup(entity string, cardinality collectors.TagCardinality) ([]string, []string) {
 	tags, sources := s.LookupHashed(entity, cardinality)
-	if tags == nil {
-		return nil, sources
-	}
 	return tags.Get(), sources
 }
 
@@ -365,15 +362,15 @@ func (e *EntityTags) get(cardinality collectors.TagCardinality) ([]string, []str
 	return tags.Get(), sources
 }
 
-func (e *EntityTags) getHashedTags(cardinality collectors.TagCardinality) (*util.HashedTags, []string) {
+func (e *EntityTags) getHashedTags(cardinality collectors.TagCardinality) (util.HashedTags, []string) {
 	e.computeCache()
 
 	if cardinality == collectors.HighCardinality {
-		return &e.cachedAll, e.cachedSource
+		return e.cachedAll, e.cachedSource
 	} else if cardinality == collectors.OrchestratorCardinality {
-		return &e.cachedOrchestrator, e.cachedSource
+		return e.cachedOrchestrator, e.cachedSource
 	}
-	return &e.cachedLow, e.cachedSource
+	return e.cachedLow, e.cachedSource
 }
 
 func (e *EntityTags) toEntity() types.Entity {

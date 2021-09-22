@@ -75,7 +75,7 @@ func (t *Tagger) Tag(entityID string, cardinality collectors.TagCardinality) ([]
 func (t *Tagger) TagBuilder(entityID string, cardinality collectors.TagCardinality, tb types.TagsBuilder) error {
 	tags, _ := t.store.LookupHashed(entityID, cardinality)
 
-	if tags == nil {
+	if tags.Len() == 0 {
 		telemetry.QueriesByCardinality(cardinality).EmptyTags.Inc()
 		return nil
 	}
