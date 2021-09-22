@@ -1,0 +1,270 @@
+---
+- name: Prepare Receiver and EKS cluster
+  hosts: kubernetes-cluster-agent
+  gather_facts: true
+  vars:
+    ssh_port: 22
+    security_group_name: molecule_kubernetes
+    security_group_description: Agent v2 Molecule testing running on kubernetes
+    security_group_rules:
+      - proto: tcp
+        from_port: "{{ ssh_port }}"
+        to_port: "{{ ssh_port }}"
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: 7070  # StackState Topic API port
+        to_port: 7070
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: 7077  # StackState Receiver API port
+        to_port: 7077
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: 443  # HTTPS Port
+        to_port: 443
+        cidr_ip: '0.0.0.0/0'
+      - proto: tcp
+        from_port: 8080
+        to_port: 8080
+        cidr_ip: '0.0.0.0/0'
+      - proto: icmp
+        from_port: 8
+        to_port: -1
+        cidr_ip: '0.0.0.0/0'
+    security_group_rules_egress:
+      - proto: -1
+        from_port: 0
+        to_port: 0
+        cidr_ip: '0.0.0.0/0'
+  tasks:
+    - name: Configure aws credentials
+      copy:
+        content: |
+          [default]
+          aws_access_key_id = {{ lookup("env", "AWS_ACCESS_KEY_ID")}}
+          aws_secret_access_key = {{ lookup("env", "AWS_SECRET_ACCESS_KEY")}}
+        dest: /home/ubuntu/.aws/credentials
+
+    - include_tasks: ../common/prepare/gather-facts.yml
+
+    - name: Docker login
+      docker_login:
+        registry: quay.io
+        username: "{{ quay_user }}"
+        password: "{{ quay_password }}"
+        reauthorize: yes
+
+    - name: Kubectl Version Get
+      shell:
+        cmd: kubectl version
+      ignore_errors: true
+      register: kubectl_version
+
+    - name: Kubectl Version Display
+      ignore_errors: true
+      debug:
+        msg: "{{kubectl_version}}"
+
+    - name: Copy Terraform Files and Manifests
+      copy:
+        src: "../../../../deployment/kubernetes/"
+        dest: "/home/ubuntu/deployment"
+
+    - name: Copy Receiver files
+      copy:
+        src: "files/receiver"
+        dest: "/home/ubuntu/"
+
+    - name: Copy Verify and Create Script file
+      copy:
+        src: ./../verify-or-create-topics.sh
+        dest: /home/ubuntu/receiver
+        mode: u+x
+
+    - name: Generate env token
+      shell: echo token=$(cat /dev/urandom | env LC_CTYPE=C tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1) > env.txt
+      args:
+        chdir: /home/ubuntu/deployment/agents/overlays
+
+    - name: Kustomization template
+      template:
+        src: files/template/kustomization.yaml
+        dest: /home/ubuntu/deployment/agents/overlays
+
+    - name: Configure .env file used by docker-compose
+      copy:
+        content: |
+          STACKSTATE_BRANCH={{ stackstate_branch }}
+          CLUSTER_NAME={{ cluster_name }}
+        dest: /home/ubuntu/receiver/.env
+
+    - name: Run Docker compose
+      command: docker-compose up -d
+      args:
+        chdir: /home/ubuntu/receiver
+
+    - import_tasks: ../common/prepare/wait-for-receiver.yml
+
+    - name: Removing existing config files if exists
+      file:
+        path: "/home/ubuntu/deployment/aws-eks/tf-cluster/{{ item }}"
+        state: absent
+      with_items:
+        - .terraform
+        - kubeconfig
+
+    - name: Run make plan
+      make:
+        chdir: /home/ubuntu/deployment/aws-eks/tf-cluster
+        target: plan
+      environment:
+        AWS_ACCESS_KEY_ID: '{{lookup("env", "AWS_ACCESS_KEY_ID")}}'
+        AWS_SECRET_ACCESS_KEY: '{{lookup("env", "AWS_SECRET_ACCESS_KEY")}}'
+        TF_VAR_AWS_SECRET_ACCESS_KEY: '{{lookup("env", "AWS_SECRET_ACCESS_KEY")}}'
+        TF_VAR_AWS_ACCESS_KEY_ID: '{{lookup("env", "AWS_ACCESS_KEY_ID")}}'
+        TF_VAR_SCALING_DESIRED_CAPACITY: 2
+        TF_VAR_AWS_REGION: eu-west-1
+        TF_VAR_CLUSTER_NAME: "{{ cluster_name }}"
+
+    - name: Run make apply
+      make:
+        chdir: /home/ubuntu/deployment/aws-eks/tf-cluster
+        target: apply
+
+    - name: Run make kubeconfig
+      make:
+        chdir: /home/ubuntu/deployment/aws-eks/tf-cluster
+        target: kubeconfig
+
+    - name: Run make config-map-aws-auth
+      make:
+        chdir: /home/ubuntu/deployment/aws-eks/tf-cluster
+        target: config-map-aws-auth
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
+    - name: Create secret to allow pulling from private docker registry
+      shell: kubectl get secret docker-registry-key || kubectl create secret generic docker-registry-key --from-file=.dockerconfigjson=/home/ubuntu/.docker/config.json --type=kubernetes.io/dockerconfigjson
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
+    - name: Delete namespace '{{namespace}}'
+      ignore_errors: true
+      shell: kubectl delete ns --ignore-not-found=true {{namespace}}
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
+    - name: Delete manifests for stackstate node agent and cluster agent
+      ignore_errors: true
+      command: kubectl delete -k overlays --ignore-not-found=true
+      args:
+        chdir: /home/ubuntu/deployment/agents
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
+    - name: Create test namespace '{{namespace}}'
+      shell: kubectl create ns {{ namespace }}
+      args:
+        chdir: /home/ubuntu/deployment
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
+    - name: Apply manifests for test workloads
+      command: kubectl -n={{ namespace }} apply -f test_workloads
+      args:
+        chdir: /home/ubuntu/deployment
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
+    - name: Apply manifests for stackstate node agent and cluster agent
+      command: kubectl apply -k overlays
+      args:
+        chdir: /home/ubuntu/deployment/agents
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
+    - name: Wait for the stackstate cluster agent to start doing it's thing
+      command: kubectl -n={{ namespace }} wait --all --for=condition=Ready --timeout=360s -l app=stackstate-cluster-agent pod
+      args:
+        chdir: /home/ubuntu/deployment/agents
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
+    - name: Wait for the stackstate node agents to start doing their thing (otherwise connections might occur after agent startup)
+      ignore_errors: true
+      command: kubectl -n={{ namespace }} wait --all --for=condition=Ready --timeout=360s -l app=stackstate-agent pod
+      args:
+        chdir: /home/ubuntu/deployment/agents
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
+    - name: Give the Test Workloads 5 minutes to start performing their actions
+      pause:
+        minutes: 5
+
+    - name: Apply the pod-to-service-cluster-ip scenario
+      command: kubectl -n={{ namespace }} apply -f pod-to-service-cluster-ip.yaml
+      args:
+        chdir: /home/ubuntu/deployment/test_connections
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
+    - name: Apply the pod-localhost scenario
+      command: kubectl -n={{ namespace }} apply -f pod-localhost.yaml
+      args:
+        chdir: /home/ubuntu/deployment/test_connections
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
+    - name: Apply the pod-to-pod-headless scenario
+      command: kubectl -n={{ namespace }} apply -f pod-to-pod-headless.yaml
+      args:
+        chdir: /home/ubuntu/deployment/test_connections
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
+    - name: Apply the pod-http-metrics scenario
+      command: kubectl -n={{ namespace }} apply -f pod-http-metrics.yaml
+      args:
+        chdir: /home/ubuntu/deployment/test_connections
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
+    - name: Wait for the pod-to-service-cluster-ip scenario to become ready
+      command: kubectl -n={{ namespace }} wait --all --for=condition=Ready --timeout=360s -l test=pod-to-service-cluster-ip pod
+      args:
+        chdir: /home/ubuntu/deployment/agents
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
+    - name: Wait for the pod-localhost scenario to become ready
+      command: kubectl -n={{ namespace }} wait --all --for=condition=Ready --timeout=360s -l test=pod-localhost pod
+      args:
+        chdir: /home/ubuntu/deployment/agents
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
+    - name: Wait for the pod-to-pod-headless scenario to become ready
+      command: kubectl -n={{ namespace }} wait --all --for=condition=Ready --timeout=360s -l test=pod-to-pod-headless pod
+      args:
+        chdir: /home/ubuntu/deployment/agents
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
+    - name: Wait for the pod-http-metrics scenario to become ready
+      command: kubectl -n={{ namespace }} wait --all --for=condition=Ready --timeout=360s -l test=pod-http-metrics pod
+      args:
+        chdir: /home/ubuntu/deployment/agents
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
+    - name: Pause for 2 minutes to perform some http requests
+      pause:
+        minutes: 2
+
+- name: Encryption
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  tasks:
+    - include_tasks: ../common/create/encrypt-ssh-key.yml

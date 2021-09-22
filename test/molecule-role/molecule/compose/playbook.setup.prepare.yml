@@ -1,0 +1,19 @@
+---
+- name: Prepare Trace Java
+  hosts: trace-java-demo
+  gather_facts: true
+  tasks:
+    - include_tasks: ../common/prepare/ubuntu18-automatic-updates.yml
+    - include_tasks: ../common/prepare/install-provisioning-dependencies.yml
+    - include_tasks: ../common/prepare/docker-login.yml
+    - include_tasks: ../common/prepare/copy-configuration-files.yml
+    - include_tasks: ../common/prepare/copy-verify-and-create-script-file.yml
+    - include_tasks: ../common/prepare/gather-facts.yml
+    - name: Configure .env file used by docker-compose
+      copy:
+        content: |
+          AGENT_DOCKER_REPO={{ agent_docker_repo }}
+          AGENT_VERSION={{ agent_current_branch }}
+          DOCKER_HOST_IP={{ ansible_docker0['ipv4']['address'] }}
+          STACKSTATE_BRANCH={{ stackstate_branch }}
+        dest: /home/ubuntu/.env

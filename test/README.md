@@ -7,6 +7,35 @@ Those are integration tests that spawn new VMs in AWS and do the following:
 * run a docker compose setup of the StackState receiver, correlate and topic API
 * verify assertion on the target VMs
 
+## ** Important Notes ** (Auto Cleanup, and unreachable machines)
+Gitlab CI Process:
+- Molecule instances spun up won't run for longer than 2 hours and 30 minutes. After the max time, a script will clean those instances to prevent EC2 costs from racking up from zombie instances
+- Only one instance per branch is allowed. What that means is if you push up another commit, the prepare stage will destroy the ec2 machine from your previous builds. If you get a message that says x-x-x-branch-name-lock, that means you have a prev branch still running and need to kill that branch to release the lock to allow your new branch to continue. This prevents a lot of useless EC2 instances from running and building up costs (We did include interrupt but GitLab seems to be broken on interrupts atm)
+- If a step in the "Cleanup" stage ran to destroy a molecule machine, or your acceptance step complains about "Unable to reach the ssh machine", then your molecule instance might have been destroyed or cleaned up. To recreate it, rerun the appropriate "Prepare" stage step to spin the machine back up
+
+Supported Commit Message Functionality (Target builds and reduce EC2 costs):
+
+** Default: Note these do not have to be defined, by default everything will be included except secrets and localinstall which falls on master and tags **
+
+The following will run a single molecule pipeline and ignore the rest
+this will reduce ec2 costs, possible wait times and clutter
+- "<commit message> [molecule-compose]"
+- "<commit message> [molecule-integrations]"
+- "<commit message> [molecule-secrets]"
+- "<commit message> [molecule-localinstall]"
+- "<commit message> [molecule-kubernetes]"
+- "<commit message> [molecule-swarm]"
+- "<commit message> [molecule-vms]"
+
+You can also reduce ec2 costs and clutter by defining the py version you want to build
+- "<commit message> [py2]"
+- "<commit message> [py3]"
+
+This would be ideal to reduce the pipeline build to only what's required
+You can combine tags from the top to stack filters for example:
+- "<commit message> [py2][molecule-compose]"
+- "<commit message> [py3][molecule-secrets][molecule-vms]"
+-
 ## Run
 
 Prerequisites:
@@ -28,48 +57,43 @@ The AWS credentials will be picked up from your ~/.aws/credentials file
 ### Test
 
 The molecule script executions has a few requirements:
- - Base config path
+- Base config path
    - **setup**: Used to spin up the instance and run the first prepare step
    - **run**: Executes the primary prepare step which includes the docker compose etc.
- - The molecule action to take
- - The molecule scenario name
+- The molecule action to take
+- The molecule scenario name
+
+https://miro.com/app/board/o9J_lzUC0FM=/
 
 Test are organized by scenarios, they are directories located under `molecule-role/molecule` and all molecule commands need to target a scenario, like:
 
+Example Charts of how this is used on the Gitlab CI: https://miro.com/app/board/o9J_lzUC0FM=/
 
-    # We target the setup script and run create to initiate the structure
-    # The create step will automatically run the prepare step in the create composition
+WARNING: If you create any instance from you local machine please delete it seeing that Lambda does not clean dev instances thus the EC2 costs will increase the longer that instances stays up
 
-    -  ./molecule3.sh --base-config ./molecule/<scenario>/provisioner.setup.yml create --scenario-name <scenario>
+    First step is to create the EC2 machine
+    -  ./molecule3.sh <scenario> create
 
-    # Next we execute another prepare step but with another base config to allow the primary execution to happen
-    # this exection will use the prev created molecule and force a secondary prepare on it
+    After that we copy over all the required files, install updates and deps, cache images etc.
+    - ./molecule3.sh <scenario> prepare
 
-    -  ./molecule3.sh --base-config ./molecule/<scenario>/provisioner.run.yml prepare --force --scenario-name <scenario>
+    Now you can either login into your machine with SSH or
+    -  ./molecule3.sh <scenario> login
 
-    # A test can be ran on the molecule that does not destroy itself when and if it fails (Will skip the prepare and create phase cause those already ran)
+    Run the docker-compose and the unit tests (Note that everytime you run this a docker-compose cleanup is also ran to cleanup your prev run)
+    -  ./molecule3.sh <scenario> test
 
-    -  ./molecule3.sh --base-config ./molecule/<scenario>/provisioner.run.yml test --scenario-name <scenario> --destroy=never
+    Destroy the EC2 machine and Keypair you created
+    -  ./molecule3.sh <scenario> destroy
 
-    # This is the funally step where we destroy everything. You can use the run or setup script here
-
-    -  ./molecule3.sh --base-config ./molecule/<scenario>/provisioner.setup.yml destroy --scenario-name <scenario>
-
-
-    ----- Example -----
-
-    # (Compose) - Setup machine and Requirements
-    -  ./molecule3.sh --base-config ./molecule/compose/provisioner.setup.yml create --scenario-name compose
-    -  ./molecule3.sh --base-config ./molecule/compose/provisioner.run.yml prepare --force --scenario-name compose
-
-    # (Compose) - Run Unit Tests
-    -  ./molecule3.sh --base-config ./molecule/compose/provisioner.run.yml test --scenario-name compose --destroy=never
-
-    # (Compose) - SSH Into the Machine
-    -  ./molecule3.sh --base-config ./molecule/compose/provisioner.run.yml login --scenario-name compose
-
-    # (Compose) - Destroy your dev instance (!!! Remember dev instances do not get cleaned up as they do not identify as zombie instances, please destroy your instance at the end)
-    -  ./molecule3.sh --base-config ./molecule/compose/provisioner.setup.yml destroy --scenario-name compose
+Available scenarios
+- compose
+- integrations
+- kubernetes
+- localinstall
+- secrets
+- swarm
+- vms
 
 ### Troubleshooting
 
@@ -134,12 +158,12 @@ molecule test -s vm --destroy=never
 
 - name: ami facts
   ec2_ami_info:
-    image_ids: "{{ ami_id }}"
+     image_ids: "{{ ami_id }}"
   register: ami_facts
 
 - name: set current ami
   set_fact:
-    ami: "{{ ami_facts.images | first }}"
+     ami: "{{ ami_facts.images | first }}"
 ```
 
 

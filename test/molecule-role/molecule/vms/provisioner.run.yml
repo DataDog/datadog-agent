@@ -1,11 +1,9 @@
 ---
 provisioner:
   name: ansible
-  options:
-    'vault-id': "${MOLECULE_SCENARIO_NAME}@${CI_PROJECT_DIR}${DEV_PATH}/test/molecule-role/molecule/vault-password.py"
   playbooks:
-    create: playbook.create.yml
-    prepare: playbook.run.yml
+    create: playbook.run.create.yml
+    prepare: playbook.run.prepare.yml
   lint:
     name: ansible-lint
   inventory:

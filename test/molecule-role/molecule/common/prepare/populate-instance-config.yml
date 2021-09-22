@@ -1,0 +1,53 @@
+---
+- name: "Gather existing EC2 instances for the branch '{{ agent_current_branch }}' for pipeline {{ ci_commit_sha }}"
+  ec2_instance_info:
+    filters:
+      instance-state-name: [ "running" ]
+      "tag:agent_current_branch": "{{ agent_current_branch }}"
+      "tag:molecule_scenario_name": "{{ molecule_scenario_name }}"
+      "tag:ci_sts_major_python_version": "{{ ci_sts_major_python_version }}"
+      "tag:ci_commit_sha": "{{ ci_commit_sha }}"
+      "tag:usage": "molecule-build"
+      "tag:dev": "{{ dev_mode }}"
+  with_items: "{{ molecule_yml.platforms }}"
+  register: ec2_instances
+
+- name: Content of ec2_instances
+  debug:
+    var: ec2_instances
+  when: ec2_instances is defined
+
+- name: If no EC2 instance is found
+  fail:
+    msg: "A EC2 instance was not found for this job {{ ci_commit_sha }} and scenario {{ molecule_scenario_name }}. Please rerun the first stage inside this job for {{ molecule_scenario_name }} to recreate the require EC2 instance"
+  when: ec2_instances is not defined or ec2_instances.results is not defined or ec2_instances.results|length == 0 or ec2_instances.results[0].instances|length == 0
+
+- name: Populate instance config dict
+  set_fact:
+    instance_conf_dict: {
+      'instance': "{{ item.tags.instance }}",
+      'address': "{{ item.public_ip_address }}",
+      'private_address': "{{ item.private_ip_address }}",
+      'user': "{{ item.tags.user }}",
+      'port': "{{ ssh_port }}",
+      'identity_file': "{{ keypair_path }}",
+      'instance_ids': [ "{{ item.instance_id }}" ], }
+  with_items: "{{ ec2_instances.results[0].instances }}"
+  register: "instance_config_dict"
+  when: ec2_instances is defined
+
+- name: Content of instance_config_dict
+  debug:
+    var: instance_config_dict
+  when: instance_config_dict is defined
+
+- name: Convert instance config dict to a list
+  set_fact:
+    instance_conf: "{{ instance_config_dict.results | map(attribute='ansible_facts.instance_conf_dict') | list }}"
+  when: instance_config_dict is defined
+
+- name: Dump instance config
+  copy:
+    content: "{{ instance_conf | to_json | from_json | molecule_to_yaml | molecule_header }}"
+    dest: "{{ molecule_instance_config }}"
+  when: instance_config_dict is defined

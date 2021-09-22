@@ -1,0 +1,32 @@
+---
+- name: Create
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    ssh_port: 22
+    security_group_name: molecule_kubernetes
+    security_group_description: Agent v2 Molecule testing running on kubernetes
+  tasks:
+    - include_tasks: ../common/prepare/decrypt-ssh-key.yml
+    - include_tasks: ../common/prepare/restore-molecule-cache.yml
+    - include_tasks: ../common/prepare/populate-instance-config.yml
+    - include_tasks: ../common/create/wait-for-ssh.yml
+
+- name: Cleanup EKS cluster
+  hosts: kubernetes-cluster-agent
+  ignore_errors: true
+  ignore_unreachable: true
+  gather_facts: false
+  tasks:
+    - name: Delete namespace '{{namespace}}'
+      shell: "kubectl delete ns {{ namespace }}"
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
+
+    - name: Delete manifests for stackstate node agent and cluster agent
+      command: kubectl delete -k overlays
+      args:
+        chdir: /home/ubuntu/deployment/agents
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig

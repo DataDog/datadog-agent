@@ -1,0 +1,7 @@
+---
+- name: Prepare Receiver and EKS cluster
+  hosts: kubernetes-cluster-agent
+  gather_facts: true
+  tasks:
+    - include_tasks: ../common/prepare/ubuntu18-automatic-updates.yml
+    - include_tasks: ../common/prepare/install-provisioning-dependencies.yml

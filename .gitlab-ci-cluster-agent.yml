@@ -235,10 +235,11 @@ pre_release_cluster_agent_image:
     - cp -r ./bin/stackstate-cluster-agent* ./Dockerfiles/cluster-agent
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent $CI_COMMIT_SHORT_SHA
 
-## acceptance stage
 
-.molecule_base: &molecule_base
-  stage: acceptance
+# Core Molecule Structure for all the molecule steps
+.molecule: &molecule
+  interruptible: true
+  resource_group: "$STS_VER-$MAJOR_VERSION-$PYTHON_RUNTIMES-$CI_COMMIT_BRANCH-$MOLECULE_SCENARIO-branch-lock"
   dependencies: []
   before_script:
     - export AWS_ACCESS_KEY_ID=${MOLECULE_AWS_ACCESS_KEY_ID}
@@ -248,34 +249,165 @@ pre_release_cluster_agent_image:
     - export LANG=en_US.UTF-8
   retry:
     max: 2
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
 
-molecule_tests_kubernetes:
-  <<: *molecule_base
-  needs:
-    - pre_release_cluster_agent_image
-    - pre_release_main_agent_image
+# Base artifacts for create and test steps
+.molecule_artifacts: &molecule_artifacts
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/$MOLECULE_SCENARIO/topic-*.json
+      - $CI_PROJECT_DIR/test/molecule-role/molecule/$MOLECULE_SCENARIO/*.log
+      - $CI_PROJECT_DIR/.cache
+      - $MOLECULE_EPHEMERAL_DIRECTORY
+    expire_in: 1 week
+
+# Primary create steps for all the molecule builds
+.molecule_create: &molecule_create
+  <<: *molecule_artifacts
+  stage: prepare
   script:
-    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s kubernetes
+    - cd $CI_PROJECT_DIR/test
+    - ./molecule3.sh $MOLECULE_SCENARIO create
+
+# Primary test steps for all the molecule builds
+.molecule_test: &molecule_test
+  <<: *molecule_artifacts
+  stage: acceptance
+  timeout: 50 minutes
+  script:
+    - cd $CI_PROJECT_DIR/test
+    - ./molecule3.sh $MOLECULE_SCENARIO test
+
+# Primary destroy steps for all the molecule builds
+.molecule_destroy: &molecule_destroy
+  stage: cleanup
+  script:
+    - cd $CI_PROJECT_DIR/test
+    - ./molecule3.sh $MOLECULE_SCENARIO destroy
+
+
+# Job Seq: Molecule
+# Type: kubernetes
+
+.molecule_kubernetes_rule:
+  - &kubernetes_ignore_rule
+    if: $MAJOR_VERSION == "3" && $CI_COMMIT_MESSAGE =~ /\[molecule\-/ && $CI_COMMIT_MESSAGE !~ /\[molecule\-kubernetes]/
+    when: never
+
+molecule_kubernetes_create:
+  <<: *molecule
+  <<: *molecule_create
   resource_group: eks_test_cluster
-  artifacts:
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/topic-*.json
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/kubernetes/*.log
-    expire_in: 1 week
+  rules:
+    - *kubernetes_ignore_rule
+    - when: always
+  variables:
+    MOLECULE_SCENARIO: kubernetes
 
-molecule_tests_swarm:
-  <<: *molecule_base
+molecule_kubernetes_test:
+  <<: *molecule
+  <<: *molecule_test
+  resource_group: eks_test_cluster
+  rules:
+    - *kubernetes_ignore_rule
+    - when: always
+  variables:
+    MOLECULE_SCENARIO: kubernetes
+  dependencies:
+    - molecule_kubernetes_create
+  needs:
+    - molecule_kubernetes_create
+    - pre_release_cluster_agent_image
+    - pre_release_main_agent_image
+
+molecule_kubernetes_failure_cleanup:
+  <<: *molecule
+  <<: *molecule_artifacts
+  <<: *molecule_destroy
+  resource_group: eks_test_cluster
+  rules:
+    - *kubernetes_ignore_rule
+    - when: always
+  variables:
+    MOLECULE_SCENARIO: kubernetes
+  dependencies:
+    - molecule_kubernetes_test
+  needs:
+    - molecule_kubernetes_test
+    - molecule_kubernetes_create
+
+molecule_kubernetes_success_cleanup:
+  <<: *molecule
+  <<: *molecule_artifacts
+  <<: *molecule_destroy
+  resource_group: eks_test_cluster
+  rules:
+    - *kubernetes_ignore_rule
+    - when: always
+  variables:
+    MOLECULE_SCENARIO: kubernetes
+  dependencies:
+    - molecule_kubernetes_test
+  needs:
+    - molecule_kubernetes_test
+    - molecule_kubernetes_create
+
+
+# Job Seq: Molecule
+# Type: swarm
+
+.molecule_swarm_rule:
+  - &swarm_ignore_rule
+    if: $MAJOR_VERSION == "3" && $CI_COMMIT_MESSAGE =~ /\[molecule\-/ && $CI_COMMIT_MESSAGE !~ /\[molecule\-swarm]/
+    when: never
+
+molecule_swarm_create:
+  <<: *molecule
+  <<: *molecule_create
+  rules:
+    - *swarm_ignore_rule
+    - when: always
+  variables:
+    MOLECULE_SCENARIO: swarm
+
+molecule_swarm_test:
+  <<: *molecule
+  <<: *molecule_test
+  rules:
+    - *swarm_ignore_rule
+    - when: always
+  dependencies:
+    - molecule_swarm_create
+  variables:
+    MOLECULE_SCENARIO: swarm
   needs:
     - pre_release_cluster_agent_image
     - pre_release_main_agent_image
-  script:
-    - cd $CI_PROJECT_DIR/test && ./molecule3.sh test -s swarm
-  artifacts:
-    when: always
-    paths:
-      - $CI_PROJECT_DIR/test/molecule-role/molecule/swarm/topic-*.json
-    expire_in: 1 week
+    - molecule_swarm_create
+
+molecule_swarm_failure_cleanup:
+  variables:
+    MOLECULE_SCENARIO: swarm
+  <<: *molecule
+  <<: *molecule_destroy
+  rules:
+    - *swarm_ignore_rule
+    - when: always
+  needs:
+    - molecule_swarm_create
+    - molecule_swarm_test
+
+molecule_swarm_success_cleanup:
+  variables:
+    MOLECULE_SCENARIO: swarm
+  <<: *molecule
+  <<: *molecule_destroy
+  rules:
+    - *swarm_ignore_rule
+    - when: always
+  dependencies:
+    - molecule_swarm_create
+    - molecule_swarm_test
+  needs:
+    - molecule_swarm_create
+    - molecule_swarm_test

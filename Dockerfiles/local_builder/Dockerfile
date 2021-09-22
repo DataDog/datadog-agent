@@ -1,4 +1,4 @@
-FROM docker.io/stackstate/stackstate-agent-runner-gitlab:latest7
+FROM artifactory.stackstate.io/docker-virtual/stackstate/stackstate-agent-runner-gitlab:latest7
 
 COPY scripts/entry_point.sh /entry_point.sh
 COPY scripts/shell.sh /shell.sh

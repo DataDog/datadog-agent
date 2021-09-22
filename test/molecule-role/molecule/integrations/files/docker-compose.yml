@@ -58,7 +58,7 @@ services:
     container_name: nginx-1
 
   stackstate-agent:
-    image: artifactory.stackstate.io/docker-virtual/stackstate/${AGENT_DOCKER_REPO}:${AGENT_VERSION}
+    image: docker.io/stackstate/${AGENT_DOCKER_REPO}:${AGENT_VERSION}
     network_mode: "host"
     pid: "host"
     privileged: true

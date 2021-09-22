@@ -71,7 +71,7 @@ services:
           memory: 1G
 
   stackstate-agent:
-    image: artifactory.stackstate.io/docker-virtual/stackstate/stackstate-cluster-agent-test:${AGENT_VERSION}
+    image: docker.io/stackstate/stackstate-cluster-agent-test:${AGENT_VERSION}
     deploy:
       placement:
         constraints: [ node.role == manager ]

@@ -184,8 +184,8 @@
                         },
                         "ready": true,
                         "restartCount": 4,
-                        "image": "docker.io/coredns/coredns:1.1.1",
-                        "imageID": "docker.io/coredns/coredns@sha256:399cc5b2e2f0d599ef22f43aab52492e88b4f0fd69da9b10545e95a4253c86ce",
+                        "image": "artifactory.stackstate.io/docker-virtual/coredns/coredns:1.1.1",
+                        "imageID": "artifactory.stackstate.io/docker-virtual/coredns/coredns@sha256:399cc5b2e2f0d599ef22f43aab52492e88b4f0fd69da9b10545e95a4253c86ce",
                         "containerID": "containerd://509057eef9c66fcae1627a278216e29a0504d9b2e85ccc79c09b316dba7554e2"
                     }
                 ],
@@ -292,8 +292,8 @@
                         "lastState": {},
                         "ready": false,
                         "restartCount": 0,
-                        "image": "docker.io/library/busybox:latest",
-                        "imageID": "docker.io/library/busybox@sha256:954e1f01e80ce09d0887ff6ea10b13a812cb01932a0781d6b0cc23f743a874fd",
+                        "image": "artifactory.stackstate.io/docker-virtual/library/busybox:latest",
+                        "imageID": "artifactory.stackstate.io/docker-virtual/library/busybox@sha256:954e1f01e80ce09d0887ff6ea10b13a812cb01932a0781d6b0cc23f743a874fd",
                         "containerID": "containerd://45dbe6934f4a07b2f8418ee345cb0904b726dfa0d0729b0cabc0f5fb56d4f8e6"
                     }
                 ],
