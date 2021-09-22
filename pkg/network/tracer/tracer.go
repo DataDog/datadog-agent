@@ -163,6 +163,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 
 	err = ebpfTracer.Start(tr.closedCB)
 	if err != nil {
+		tr.Stop()
 		return nil, fmt.Errorf("could not start ebpf manager: %s", err)
 	}
 

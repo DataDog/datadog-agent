@@ -146,7 +146,14 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	return tr, nil
 }
 
-func (t *kprobeTracer) Start(closeFilter func(*network.ConnectionStats) bool) error {
+func (t *kprobeTracer) Start(closeFilter func(*network.ConnectionStats) bool) (err error) {
+	// this is to ensure that it is safe to call Stop() on a kprobeTracer that fails to Start()
+	defer func() {
+		if err != nil {
+			t = nil
+		}
+	}()
+
 	closeConsumer, err := newTCPCloseConsumer(t.config, t.m, t.closeHandler, closeFilter)
 	if err != nil {
 		t.Stop()
@@ -167,6 +174,10 @@ func (t *kprobeTracer) Start(closeFilter func(*network.ConnectionStats) bool) er
 }
 
 func (t *kprobeTracer) Stop() {
+	if t == nil {
+		return
+	}
+
 	t.closeConsumer.Stop()
 	_ = t.m.Stop(manager.CleanAll)
 }
