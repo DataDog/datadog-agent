@@ -5,9 +5,11 @@ description: JSON schema documentation of the CWS backend event
 disable_edit: true
 ---
 
-For [Cloud Workload Security][1] (CWS), the Agent detects suspicious activity matching [Agent expressions][2] and sends a log to the backend containing a `CWS event`. This event is used to build signals and its fields can be used to build filters in Datadog.
+When activity matches a [Cloud Workload Security][1] (CWS) [Agent expression][2], a CWS log will be collected from the system containing all the relevant context about the activity.
 
-The CWS event sent to the backend by the Agent respects the following JSON schema:
+This log is sent to Datadog, where it is analyzed. Based on analysis, CWS logs can trigger Security Signals or they can be stored as logs for audit, threat investigation purposes.
+
+CWS logs have the following JSON schema:
 
 
 {{< code-block lang="json" collapsible="true" filename="BACKEND_EVENT_JSON_SCHEMA" >}}
@@ -889,6 +891,8 @@ The CWS event sent to the backend by the Agent respects the following JSON schem
 | ----- | ----------- |
 | `id` | User name |
 | `group` | Group name |
+
+
 
 [1]: /security_platform/cloud_workload_security/
 [2]: /security_platform/cloud_workload_security/agent_expressions
