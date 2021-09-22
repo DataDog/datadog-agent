@@ -590,7 +590,7 @@ TAG_FOUND_TEMPLATE = "The {} tag is {}"
 
 
 def _fetch_dependency_repo_version(
-    repo_name, new_agent_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
+    ctx, repo_name, new_agent_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
 ):
     """
     Fetches the latest tag on a given repository whose version scheme matches the one used for the Agent,
@@ -606,13 +606,14 @@ def _fetch_dependency_repo_version(
     # Get the highest repo version that's not higher than the Agent version we're going to build
     # We don't want to use a tag on dependent repositories that is supposed to be used in a future
     # release of the Agent (eg. if 7.31.1-rc.1 is tagged on integrations-core while we're releasing 7.30.0).
+    max_allowed_version = next_final_version(ctx, new_agent_version.major)
     version = _get_highest_repo_version(
         github_token,
         repo_name,
         new_agent_version.prefix,
         compatible_version_re,
         allowed_major_versions,
-        max_version=new_agent_version,
+        max_version=max_allowed_version,
     )
 
     if check_for_rc and version.is_rc():
@@ -760,7 +761,7 @@ def _update_release_json_entry(
 ##
 
 
-def _update_release_json(release_json, release_entry, new_version: Version, github_token):
+def _update_release_json(ctx, release_json, release_entry, new_version: Version, github_token):
     """
     Updates the provided release.json object by fetching compatible versions for all dependencies
     of the provided Agent version, constructing the new entry, adding it to the release.json object
@@ -781,18 +782,19 @@ def _update_release_json(release_json, release_entry, new_version: Version, gith
     check_for_rc = not new_version.is_rc()
 
     integrations_version = _fetch_dependency_repo_version(
-        "integrations-core", new_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
+        ctx, "integrations-core", new_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
     )
 
     omnibus_software_version = _fetch_dependency_repo_version(
-        "omnibus-software", new_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
+        ctx, "omnibus-software", new_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
     )
 
     omnibus_ruby_version = _fetch_dependency_repo_version(
-        "omnibus-ruby", new_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
+        ctx, "omnibus-ruby", new_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
     )
 
     macos_build_version = _fetch_dependency_repo_version(
+        ctx,
         "datadog-agent-macos-build",
         new_version,
         allowed_major_versions,
@@ -830,7 +832,7 @@ def _update_release_json(release_json, release_entry, new_version: Version, gith
     )
 
 
-def update_release_json(github_token, new_version: Version):
+def update_release_json(ctx, github_token, new_version: Version):
     """
     Updates the release entries in release.json to prepare the next RC or final build.
     """
@@ -840,7 +842,7 @@ def update_release_json(github_token, new_version: Version):
     print("Updating {} for {}".format(release_entry, new_version))
 
     # Update release.json object with the entry for the new version
-    release_json = _update_release_json(release_json, release_entry, new_version, github_token)
+    release_json = _update_release_json(ctx, release_json, release_entry, new_version, github_token)
 
     _save_release_json(release_json)
 
@@ -1146,7 +1148,7 @@ Make sure that milestone is open before trying again.""".format(
     print(color_message("Updating release entries", "bold"))
     for major_version in list_major_versions:
         new_version = next_rc_version(ctx, major_version, patch_version)
-        update_release_json(github.api_token, new_version)
+        update_release_json(ctx, github.api_token, new_version)
 
     # Step 2: Update internal module dependencies
 

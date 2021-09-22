@@ -58,9 +58,9 @@ class Version:
         if self.devel != other.devel:
             return not self.devel and other.devel
 
-        if self.rc is None or other.rc is None:
-            # Everything else being equal, self can only be higher than other if other is not a released version
-            return other.rc is not None
+        if self._safe_value("rc") == 0 or other._safe_value("rc") == 0:
+            # Everything else being equal, self can only be higher than other if other is an rc
+            return other.is_rc()
         return self.rc > other.rc
 
     def clone(self):
