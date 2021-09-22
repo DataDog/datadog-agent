@@ -320,7 +320,7 @@ func TestSketch(t *testing.T) {
 					Ts:     0,
 				},
 			},
-			ContextKey: keyGen.Generate(ctx.Name, ctx.Host, util.NewHashingTagsBuilderFromSlice(ctx.Tags)),
+			ContextKey: keyGen.Generate(ctx.Name, ctx.Host, util.NewHashingTagsBuilderWithTags(ctx.Tags)),
 		}, flushed[0])
 
 		_, flushed = sampler.flush(now)

@@ -105,6 +105,14 @@ func (h hashedTags) Hashes() []uint64 {
 	return h.hash
 }
 
+// dup returns a full copy of hashedTags
+func (h hashedTags) dup() hashedTags {
+	return hashedTags{
+		data: append([]string{}, h.data...),
+		hash: append([]uint64{}, h.hash...),
+	}
+}
+
 // HashingTagsBuilder allows to build a slice of tags to generate the context while
 // reusing the same internal slice.
 type HashingTagsBuilder struct {
@@ -118,10 +126,11 @@ func NewHashingTagsBuilder() *HashingTagsBuilder {
 	}
 }
 
-// NewHashingTagsBuilderFromSlice return a new TagsBuilder with the input slice for
-// it's internal buffer.
-func NewHashingTagsBuilderFromSlice(tags []string) *HashingTagsBuilder {
-	return &HashingTagsBuilder{newHashedTagsFromSlice(tags)}
+// NewHashingTagsBuilderWithTags return a new HashingTagsBuilder, initialized with tags.
+func NewHashingTagsBuilderWithTags(tags []string) *HashingTagsBuilder {
+	tb := NewHashingTagsBuilder()
+	tb.Append(tags...)
+	return tb
 }
 
 // Append appends tags to the builder
@@ -183,6 +192,11 @@ func (tb *HashingTagsBuilder) Less(i, j int) bool {
 func (tb *HashingTagsBuilder) Swap(i, j int) {
 	tb.hash[i], tb.hash[j] = tb.hash[j], tb.hash[i]
 	tb.data[i], tb.data[j] = tb.data[j], tb.data[i]
+}
+
+// Dup returns a complete copy of HashingTagsBuilder
+func (tb *HashingTagsBuilder) Dup() *HashingTagsBuilder {
+	return &HashingTagsBuilder{tb.dup()}
 }
 
 // HashedTags is an immutable slice of pre-hashed tags.

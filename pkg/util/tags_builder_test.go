@@ -63,9 +63,9 @@ func TestNewHashingTagsBuilder(t *testing.T) {
 	assert.Equal(t, []string{}, tb.data)
 }
 
-func TestNewHashingTagsBuilderFromSlice(t *testing.T) {
+func TestNewHashingTagsBuilderWithTags(t *testing.T) {
 	test := []string{"a", "b", "c"}
-	tb := NewHashingTagsBuilderFromSlice(test)
+	tb := NewHashingTagsBuilderWithTags(test)
 	assert.NotNil(t, tb)
 	assert.Equal(t, test, tb.data)
 }
