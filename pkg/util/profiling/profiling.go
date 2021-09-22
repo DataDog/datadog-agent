@@ -22,8 +22,6 @@ var (
 const (
 	// ProfileURLTemplate constant template for expected profiling endpoint URL.
 	ProfileURLTemplate = "https://intake.profile.%s/v1/input"
-	// ProfileCoreService default service for the core agent profiler.
-	ProfileCoreService = "datadog-agent"
 	// ProfilingLocalURLTemplate is the constant used to compute the URL of the local trace agent
 	ProfilingLocalURLTemplate = "http://%v/profiling/v1/input"
 	// DefaultProfilingPeriod defines the default profiling period
@@ -38,6 +36,8 @@ func Start(settings Settings) error {
 	if running {
 		return nil
 	}
+
+	settings.applyDefaults()
 
 	types := []profiler.ProfileType{profiler.CPUProfile, profiler.HeapProfile}
 	if settings.WithGoroutineProfile {

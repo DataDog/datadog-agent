@@ -16,7 +16,7 @@ func TestProfiling(t *testing.T) {
 	settings := Settings{
 		Site:                 "https://nowhere.testing.dev",
 		Env:                  "testing",
-		Service:              ProfileCoreService,
+		Service:              "test-agent",
 		Period:               time.Minute,
 		CPUDuration:          15 * time.Second,
 		MutexProfileFraction: 0,

@@ -8,7 +8,6 @@ package settings
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
@@ -73,9 +72,8 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 		settings := profiling.Settings{
 			Site:                 site,
 			Env:                  config.Datadog.GetString("env"),
-			Service:              profiling.ProfileCoreService,
+			Service:              "datadog-agent",
 			Period:               profiling.DefaultProfilingPeriod,
-			CPUDuration:          15 * time.Second,
 			MutexProfileFraction: profiling.GetMutexProfileFraction(),
 			BlockProfileRate:     profiling.GetBlockProfileRate(),
 			WithGoroutineProfile: config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),

@@ -1,6 +1,10 @@
 package profiling
 
-import "time"
+import (
+	"time"
+
+	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
+)
 
 // Settings contains the settings for internal profiling, to be passed to Start().
 type Settings struct {
@@ -24,4 +28,11 @@ type Settings struct {
 	WithGoroutineProfile bool
 	// Tags are the additional tags to attach to profiles.
 	Tags []string
+}
+
+// Apply default value for a struct created using struct-literal notation
+func (settings *Settings) applyDefaults() {
+	if settings.CPUDuration == 0 {
+		settings.CPUDuration = profiler.DefaultDuration
+	}
 }

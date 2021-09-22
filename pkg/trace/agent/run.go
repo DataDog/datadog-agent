@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
@@ -204,7 +203,6 @@ func runProfiling(cfg *config.AgentConfig) {
 	settings := profiling.Settings{
 		Site:                 fmt.Sprintf("https://intake.profile.%s/v1/input", site),
 		Period:               profiling.DefaultProfilingPeriod,
-		CPUDuration:          profiler.DefaultDuration,
 		Tags:                 []string{fmt.Sprintf("version:%s", info.Version)},
 		MutexProfileFraction: coreconfig.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
 		BlockProfileRate:     coreconfig.Datadog.GetInt("internal_profiling.block_profile_rate"),
