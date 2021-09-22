@@ -1,11 +1,9 @@
 ---
-title: Cloud Workload Security Events
+title: Cloud Workload Security (CWS) Events
 kind: documentation
 description: JSON schema documentation of the CWS backend event
 disable_edit: true
 ---
-
-# Cloud Workload Security (CWS) Events
 
 The CWS event sent to the backend by the Agent respects the following schema:
 
