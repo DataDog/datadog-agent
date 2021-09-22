@@ -73,6 +73,10 @@ IOT_AGENT_CORECHECKS = [
     "jetson",
 ]
 
+CACHED_WHEEL_FILENAME_PATTERN = "{integration}-{python_version}.whl"
+CACHED_WHEEL_FULL_PATH_PATTERN = "integration-wheels/{hash}/" + CACHED_WHEEL_FILENAME_PATTERN
+LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} log -n 1 --pretty='format:%H' {integration}"
+
 
 @task
 def build(
@@ -684,3 +688,93 @@ def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_v
         version = re.sub('-', '~', version)
         version = re.sub(r'[^a-zA-Z0-9\.\+\:\~]+', '_', version)
     print(version)
+
+
+@task
+def get_integrations_from_cache(ctx, python, bucket, integrations_dir, target_dir, integrations):
+    """
+    Get cached integration wheels for given integrations.
+    python: Python version to retrieve integrations for
+    bucket: S3 bucket to retrieve integration wheels from
+    integrations_dir: directory with Git repository of integrations
+    target_dir: local directory to put integration wheels to
+    integrations: comma-separated names of the integrations to try to retrieve from cache
+    """
+    integrations_hashes = {}
+    for integration in integrations.strip().split(","):
+        integration_path = os.path.join(integrations_dir, integration)
+        if not os.path.exists(integration_path):
+            raise Exit("Integration {} given, but doesn't exist in {}".format(integration, integrations_dir), code=2)
+        last_commit = ctx.run(
+            LAST_DIRECTORY_COMMIT_PATTERN.format(integrations_dir=integrations_dir, integration=integration),
+            hide="both",
+            echo=False,
+        )
+        integrations_hashes[integration] = last_commit.stdout.strip()
+
+    print("Trying to retrieve {} integration wheels from cache".format(len(integrations_hashes)))
+    sync_command = ["aws s3 sync s3://{} {} --exclude '*'".format(bucket, target_dir)]
+    sync_command.extend(
+        [
+            "--include "
+            + CACHED_WHEEL_FULL_PATH_PATTERN.format(hash=hash, integration=integration, python_version=python)
+            for integration, hash in integrations_hashes.items()
+        ]
+    )
+    ctx.run(" ".join(sync_command))
+
+    found = 0
+    for integration in sorted(integrations_hashes):
+        hash = integrations_hashes[integration]
+        original_path = os.path.join(
+            target_dir,
+            CACHED_WHEEL_FULL_PATH_PATTERN.format(hash=hash, integration=integration, python_version=python),
+        )
+        # move all wheel files directly to the target_dir, so they're easy to find/work with in Omnibus
+        target_path = os.path.join(
+            target_dir, CACHED_WHEEL_FILENAME_PATTERN.format(integration=integration, python_version=python)
+        )
+        print(original_path)
+        if os.path.exists(original_path):
+            print("Found cached wheel for integration {}".format(integration))
+            os.rename(original_path, target_path)
+            found += 1
+
+    print("Found {} cached integration wheels".format(found))
+
+
+@task
+def upload_integration_to_cache(ctx, python, bucket, integrations_dir, build_dir, integration):
+    """
+    Upload a built integration wheel for given integration.
+    python: Python version the integration is built for
+    bucket: S3 bucket to upload the integration wheel to
+    integrations_dir: directory with Git repository of integrations
+    build_dir: directory containing the built integration wheel
+    integration: name of the integration being cached
+    """
+    built_wheel_re = re.compile(r"datadog_{}-.*.whl".format(integration))
+    filename = ""
+    for f in os.listdir(build_dir):
+        if built_wheel_re.match(f):
+            if filename:
+                raise Exit(
+                    "More than 1 wheel for integration {} in {}: {} and {}".format(integration, build_dir, filename, f)
+                )
+            else:
+                filename = f
+
+    if not filename:
+        raise Exit("No wheel for integration {} found in {}".format(integration, build_dir))
+    wheel_path = os.path.join(build_dir, filename)
+
+    last_commit = ctx.run(
+        LAST_DIRECTORY_COMMIT_PATTERN.format(integrations_dir=integrations_dir, integration=integration),
+        hide="both",
+        echo=False,
+    )
+    hash = last_commit.stdout.strip()
+
+    target_name = CACHED_WHEEL_FULL_PATH_PATTERN.format(hash=hash, integration=integration, python_version=python)
+    print("Caching wheel {}".format(target_name))
+    ctx.run("aws s3 cp {} s3://{}/{}".format(wheel_path, bucket, target_name))

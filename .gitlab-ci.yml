@@ -123,6 +123,7 @@ variables:
   ## comment out both lines below (S3_OMNIBUS_CACHE_BUCKET and USE_S3_CACHING) to allow
   ## build to succeed with S3 caching disabled.
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
+  INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   USE_S3_CACHING: --omnibus-s3-cache
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
