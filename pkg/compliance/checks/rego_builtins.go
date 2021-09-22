@@ -9,9 +9,17 @@ import (
 	"errors"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/types"
+)
+
+const (
+	ResourceIDFindingField     = "resource_id"
+	ResourceTypeFindingField   = "resource_type"
+	ResourceStatusFindingField = "status"
+	ResourceDataFindingField   = "data"
 )
 
 var regoBuiltins = []func(*rego.Rego){
@@ -46,14 +54,35 @@ type resourceTerms struct {
 	Data *ast.Term
 }
 
-type termsExtractor func(*ast.Term) resourceTerms
+type termsExtractor func(*ast.Term) (resourceTerms, error)
 
-func processResourceTermsExtractor(process *ast.Term) resourceTerms {
+type NilResolver struct{}
+
+func (*NilResolver) Resolve(ref ast.Ref) (interface{}, error) {
+	return nil, nil
+}
+
+func processResourceTermsExtractor(process *ast.Term) (resourceTerms, error) {
+	dataTerms := [][2]*ast.Term{
+		{
+			ast.StringTerm(compliance.ProcessFieldName),
+			process.Get(ast.StringTerm("name")),
+		},
+		{
+			ast.StringTerm(compliance.ProcessFieldExe),
+			process.Get(ast.StringTerm("exe")),
+		},
+		{
+			ast.StringTerm(compliance.ProcessFieldCmdLine),
+			process.Get(ast.StringTerm("cmdLine")),
+		},
+	}
+
 	return resourceTerms{
 		ID:   ast.StringTerm("$hostname_daemon"),
 		Type: ast.StringTerm("docker_daemon"),
-		Data: ast.ObjectTerm(),
-	}
+		Data: ast.ObjectTerm(dataTerms...),
+	}, nil
 }
 
 func findingBuilder(name string, status bool, extractor termsExtractor) func(*rego.Rego) {
@@ -64,25 +93,28 @@ func findingBuilder(name string, status bool, extractor termsExtractor) func(*re
 		},
 		func(_ rego.BuiltinContext, a *ast.Term) (*ast.Term, error) {
 			terms := make([][2]*ast.Term, 0)
-			resourceTerms := extractor(a)
+			resourceTerms, err := extractor(a)
+			if err != nil {
+				return nil, err
+			}
 
 			terms = append(terms, [2]*ast.Term{
-				ast.StringTerm("resource_id"),
+				ast.StringTerm(ResourceIDFindingField),
 				resourceTerms.ID,
 			})
 
 			terms = append(terms, [2]*ast.Term{
-				ast.StringTerm("resource_type"),
+				ast.StringTerm(ResourceTypeFindingField),
 				resourceTerms.Type,
 			})
 
 			terms = append(terms, [2]*ast.Term{
-				ast.StringTerm("data"),
+				ast.StringTerm(ResourceDataFindingField),
 				resourceTerms.Data,
 			})
 
 			terms = append(terms, [2]*ast.Term{
-				ast.StringTerm("status"),
+				ast.StringTerm(ResourceStatusFindingField),
 				ast.BooleanTerm(status),
 			})
 

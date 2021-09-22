@@ -253,22 +253,22 @@ func parseFindings(regoData interface{}) ([]regoFinding, error) {
 			return nil, errors.New("failed to parse finding")
 		}
 
-		status, ok := m["status"].(bool)
+		status, ok := m[ResourceStatusFindingField].(bool)
 		if !ok {
 			return nil, errors.New("failed to parse resource status")
 		}
 
-		id, ok := m["resource_id"].(string)
+		id, ok := m[ResourceIDFindingField].(string)
 		if !ok {
 			return nil, errors.New("failed to parse resource_id")
 		}
 
-		rty, ok := m["resource_type"].(string)
+		rty, ok := m[ResourceTypeFindingField].(string)
 		if !ok {
 			return nil, errors.New("failed to parse resource_type")
 		}
 
-		data, ok := m["data"].(map[string]interface{})
+		data, ok := m[ResourceDataFindingField].(map[string]interface{})
 		if !ok {
 			return nil, errors.New("failed to parse resource data")
 		}
