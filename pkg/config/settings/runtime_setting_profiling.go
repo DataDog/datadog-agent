@@ -68,6 +68,8 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 			site = config.Datadog.GetString("internal_profiling.profile_dd_url")
 		}
 
+		// Note that we must derive a new profiling.Settings on every
+		// invocation, as many of these settings may have changed at runtime.
 		v, _ := version.Agent()
 		settings := profiling.Settings{
 			Site:                 site,
