@@ -103,7 +103,7 @@ func chunkProcessDiscoveries(procs []*model.ProcessDiscovery, size int) [][]*mod
 // Needed to calculate the correct normalized cpu metric value
 // On linux, the cpu array contains an entry per logical core.
 // On windows, the cpu array contains an entry per physical core, with correct logical core counts.
-func calculateNumCores(info *model.SystemInfo) int32 {
+func calculateNumCores(info *model.SystemInfo) (numCores int32) {
 	var numCores int32
 	for _, cpu := range info.Cpus {
 		numCores += cpu.Cores
