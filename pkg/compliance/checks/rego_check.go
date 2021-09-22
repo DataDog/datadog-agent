@@ -76,21 +76,13 @@ func resourcePluralizer(resource compliance.ResourceCommon) string {
 	return str + "s"
 }
 
-type envInput struct {
-	input             map[string][]interface{}
-	resourceInstances map[int]instanceFields
-}
-
-func (r *regoCheck) buildNormalInput(env env.Env) (envInput, error) {
+func (r *regoCheck) buildNormalInput(env env.Env) (map[string][]interface{}, error) {
 	input := make(map[string][]interface{})
 
-	currentIDCounter := 0
-	resourceInstances := make(map[int]instanceFields)
 	for _, resource := range r.resources {
-		resolve, reportedFields, err := resourceKindToResolverAndFields(env, r.ruleID, resource.Kind())
+		resolve, _, err := resourceKindToResolverAndFields(env, r.ruleID, resource.Kind())
 		if err != nil {
-			return envInput{}, err
-			// return []*compliance.Report{compliance.BuildReportForError(err)}
+			return nil, err
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
@@ -106,24 +98,21 @@ func (r *regoCheck) buildNormalInput(env env.Env) (envInput, error) {
 
 		switch res := resolved.(type) {
 		case resolvedInstance:
-			r.appendInstance(resourceInstances, input, key, res, &currentIDCounter, reportedFields)
+			r.appendInstance(input, key, res)
 		case eval.Iterator:
 			it := res
 			for !it.Done() {
 				instance, err := it.Next()
 				if err != nil {
-					return envInput{}, err
+					return nil, err
 				}
 
-				r.appendInstance(resourceInstances, input, key, instance, &currentIDCounter, reportedFields)
+				r.appendInstance(input, key, instance)
 			}
 		}
 	}
 
-	return envInput{
-		input:             input,
-		resourceInstances: resourceInstances,
-	}, nil
+	return input, nil
 }
 
 func (r *regoCheck) check(env env.Env) []*compliance.Report {
@@ -142,12 +131,12 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 			return nil
 		}
 	} else {
-		envInput, err := r.buildNormalInput(env)
+		normalInput, err := r.buildNormalInput(env)
 		if err != nil {
 			return []*compliance.Report{compliance.BuildReportForError(err)}
 		}
 
-		input = envInput.input
+		input = normalInput
 
 		resultFinalizer = func(findings []regoFinding) []*compliance.Report {
 			var reports []*compliance.Report
@@ -216,19 +205,12 @@ func dumpInputToFile(ruleID, path string, input interface{}) error {
 	return ioutil.WriteFile(path, buffer.Bytes(), 0644)
 }
 
-func (r *regoCheck) appendInstance(resourceInstances map[int]instanceFields, input map[string][]interface{}, key string, instance eval.Instance, idCounter *int, reportedFields []string) {
+func (r *regoCheck) appendInstance(input map[string][]interface{}, key string, instance eval.Instance) {
 	vars, exists := input[key]
 	if !exists {
 		vars = []interface{}{}
 	}
 	normalized := r.normalizeInputMap(instance.Vars().GoMap())
-	normalized["rid"] = *idCounter
-	resourceInstances[*idCounter] = instanceFields{
-		instance: instance,
-		fields:   reportedFields,
-	}
-	*idCounter++
-
 	input[key] = append(vars, normalized)
 }
 
