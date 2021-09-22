@@ -250,14 +250,14 @@ func (d *Daemon) TriggerFlush(isLastFlushBeforeShutdown bool) {
 // flushMetrics flushes aggregated metrics to the intake.
 // It is protected by a mutex to ensure only one metrics flush can be in progress at any given time.
 func (d *Daemon) flushMetrics(wg *sync.WaitGroup) {
-	correlationID := generateCorrelationID()
+	flushStartTime := time.Now().Unix()
 
 	d.metricsFlushMutex.Lock()
-	log.Debugf("Beginning metrics flush #%d", correlationID)
+	log.Debugf("Beginning metrics flush at time %d", flushStartTime)
 	if d.MetricAgent != nil {
 		d.MetricAgent.Flush()
 	}
-	log.Debugf("Finished metrics flush #%d", correlationID)
+	log.Debugf("Finished metrics flush that was started at time %d", flushStartTime)
 	wg.Done()
 	d.metricsFlushMutex.Unlock()
 }
@@ -265,14 +265,14 @@ func (d *Daemon) flushMetrics(wg *sync.WaitGroup) {
 // flushTraces flushes aggregated traces to the intake.
 // It is protected by a mutex to ensure only one traces flush can be in progress at any given time.
 func (d *Daemon) flushTraces(wg *sync.WaitGroup) {
-	correlationID := generateCorrelationID()
+	flushStartTime := time.Now().Unix()
 
 	d.tracesFlushMutex.Lock()
-	log.Debugf("Beginning traces flush #%d", correlationID)
+	log.Debugf("Beginning traces flush at time %d", flushStartTime)
 	if d.TraceAgent != nil {
 		d.TraceAgent.Get().FlushSync()
 	}
-	log.Debugf("Finished traces flush #%d", correlationID)
+	log.Debugf("Finished traces flush that was started at time %d", flushStartTime)
 	wg.Done()
 	d.tracesFlushMutex.Unlock()
 }
@@ -280,12 +280,12 @@ func (d *Daemon) flushTraces(wg *sync.WaitGroup) {
 // flushLogs flushes aggregated logs to the intake.
 // It is protected by a mutex to ensure only one logs flush can be in progress at any given time.
 func (d *Daemon) flushLogs(ctx context.Context, wg *sync.WaitGroup) {
-	correlationID := generateCorrelationID()
+	flushStartTime := time.Now().Unix()
 
 	d.logsFlushMutex.Lock()
-	log.Debugf("Beginning logs flush #%d", correlationID)
+	log.Debugf("Beginning logs flush at time %d", flushStartTime)
 	logs.Flush(ctx)
-	log.Debugf("Finished logs flush #%d", correlationID)
+	log.Debugf("Finished logs flush that was started at time %d", flushStartTime)
 	wg.Done()
 	d.logsFlushMutex.Unlock()
 }
