@@ -1539,7 +1539,6 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTPSMonitoring = true
-	cfg.BPFDebug = true
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	defer tr.Stop()
@@ -1559,9 +1558,7 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 	const targetURL = "https://127.0.0.1:443/200/foobar"
 	requestCmd := exec.Command(wget, "--no-check-certificate", "-O/dev/null", targetURL)
 	err = requestCmd.Run()
-	if err != nil {
-		t.Skip("failed to issue request command; skipping test.")
-	}
+	require.NoErrorf(t, err, "failed to issue request via wget: %s", err)
 
 	require.Eventuallyf(t, func() bool {
 		payload, err := tr.GetActiveConnections("1")

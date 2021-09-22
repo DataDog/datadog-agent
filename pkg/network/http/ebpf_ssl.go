@@ -47,7 +47,7 @@ func initSSLTracing(c *config.Config, m *manager.Manager, perfHandler *ddebpf.Pe
 
 func addHooks(m *manager.Manager, probes []string) func(string) error {
 	return func(libPath string) error {
-		uid := generateUID(libPath)
+		uid := libPath
 		for _, sec := range probes {
 			p, found := m.GetProbe(manager.ProbeIdentificationPair{uid, sec})
 			if found {
@@ -79,7 +79,7 @@ func addHooks(m *manager.Manager, probes []string) func(string) error {
 
 func removeHooks(m *manager.Manager, probes []string) func(string) error {
 	return func(libPath string) error {
-		uid := generateUID(libPath)
+		uid := libPath
 		for _, sec := range probes {
 			p, found := m.GetProbe(manager.ProbeIdentificationPair{uid, sec})
 			if !found {
@@ -90,8 +90,4 @@ func removeHooks(m *manager.Manager, probes []string) func(string) error {
 
 		return nil
 	}
-}
-
-func generateUID(s string) string {
-	return s
 }

@@ -5,7 +5,7 @@ package http
 import (
 	"fmt"
 	"os"
-	fp "path/filepath"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -13,7 +13,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/gopsutil/process/filepath"
+	psfilepath "github.com/DataDog/gopsutil/process/filepath"
 	"github.com/DataDog/gopsutil/process/so"
 )
 
@@ -35,7 +35,7 @@ func (l *libPath) Bytes() []byte {
 	return b[:l.len]
 }
 
-// syncInterval controls the frenquency at which /proc/<PID>/maps are inspected.
+// syncInterval controls the frequency at which /proc/<PID>/maps are inspected.
 // this is to ensure that we remove/deregister the shared libraries that are no
 // longer mapped into memory.
 const soSyncInterval = 5 * time.Minute
@@ -49,7 +49,7 @@ type soRule struct {
 // soWatcher provides a way to tie callback functions to the lifecycle of shared libraries
 type soWatcher struct {
 	procRoot     string
-	pathResolver *filepath.Resolver
+	pathResolver *psfilepath.Resolver
 	all          *regexp.Regexp
 	rules        []soRule
 	registered   map[string]func(string) error
@@ -65,7 +65,7 @@ func newSOWatcher(procRoot string, perfHandler *ddebpf.PerfHandler, rules ...soR
 	all := regexp.MustCompile(fmt.Sprintf("(%s)", strings.Join(allFilters, "|")))
 	return &soWatcher{
 		procRoot:     procRoot,
-		pathResolver: filepath.NewResolver(procRoot),
+		pathResolver: psfilepath.NewResolver(procRoot),
 		all:          all,
 		rules:        rules,
 		loadEvents:   perfHandler,
@@ -137,7 +137,8 @@ OuterLoop:
 		for _, r := range w.rules {
 			path := lib.HostPath
 
-			if _, registered := old[path]; registered {
+			if callback, ok := old[path]; ok {
+				w.registered[path] = callback
 				delete(old, path)
 				continue OuterLoop
 			}
@@ -188,7 +189,7 @@ func getSharedLibraries(procRoot string, filter *regexp.Regexp) []so.Library {
 	// host file system is mounted. This is intended for internal testing only.
 	if hostFS := os.Getenv("HOST_FS"); hostFS != "" {
 		for i, lib := range libraries {
-			libraries[i].HostPath = fp.Join(hostFS, lib.HostPath)
+			libraries[i].HostPath = filepath.Join(hostFS, lib.HostPath)
 		}
 	}
 
