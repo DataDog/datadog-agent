@@ -50,8 +50,8 @@ type termsExtractor func(*ast.Term) resourceTerms
 
 func processResourceTermsExtractor(process *ast.Term) resourceTerms {
 	return resourceTerms{
-		ID:   ast.StringTerm("hostname"),
-		Type: ast.StringTerm("process"),
+		ID:   ast.StringTerm("$hostname_daemon"),
+		Type: ast.StringTerm("docker_daemon"),
 		Data: ast.ObjectTerm(),
 	}
 }
