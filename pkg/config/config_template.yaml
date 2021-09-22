@@ -1111,8 +1111,7 @@ api_key:
   ## Specifies custom settings for the `process_discovery` object.
   # process_discovery
       ## @param enabled - boolean - optional - default: true
-      ## Toggles the `process_discovery` check. This check gathers information about possible integrations
-      ## for the user to enable.
+      ## Toggles the `process_discovery` check. If enabled, this check gathers information about possible running integrations.
       # enabled: true
 
       ## @param interval - duration - optional - default: 4h
