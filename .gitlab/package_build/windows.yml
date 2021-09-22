@@ -2,7 +2,6 @@
 .windows_msi_base:
   stage: package_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
-  needs: ["go_mod_tidy_check"]
   script:
     - $ErrorActionPreference = 'Stop'
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
@@ -25,8 +24,6 @@
 
 windows_msi_and_bosh_zip_x64-a7:
   extends: .windows_main_agent_base
-  rules:
-    !reference [.on_a7]
   variables:
     ARCH: "x64"
     AGENT_MAJOR_VERSION: 7

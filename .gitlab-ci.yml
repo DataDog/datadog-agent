@@ -1,39 +1,7 @@
 ---
 include:
-  - /.gitlab/maintenance_jobs.yml
-  - /.gitlab/deps_build.yml
-  - /.gitlab/windows_python_build.yml
-  - /.gitlab/deps_fetch.yml
-  - /.gitlab/source_test.yml
-  - /.gitlab/binary_build.yml
-  - /.gitlab/integration_test.yml
-  - /.gitlab/package_build.yml
-  - /.gitlab/internal_deploy.yml
-  - /.gitlab/kitchen_deploy.yml
-  - /.gitlab/kitchen_testing.yml
-  - /.gitlab/pkg_metrics.yml
-  - /.gitlab/image_build.yml
-  - /.gitlab/image_scan.yml
-  - /.gitlab/check_deploy.yml
-  - /.gitlab/image_deploy.yml
-  - /.gitlab/deploy_6.yml
-  - /.gitlab/deploy_7.yml
-  - /.gitlab/choco_build.yml
-  - /.gitlab/choco_deploy.yml
-  - /.gitlab/deploy_invalidate.yml
-  - /.gitlab/internal_image_deploy.yml
-  - /.gitlab/trigger_release.yml
-  - /.gitlab/e2e.yml
-  - /.gitlab/kitchen_cleanup.yml
-  - /.gitlab/functional_test.yml
-  - /.gitlab/functional_test_cleanup.yml
-  - /.gitlab/notify.yml
-  # FIXME: our current Gitlab version doesn't support importing a file more than once
-  # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
-  # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
-  - /.gitlab/kitchen_common/cleanup.yml
-  - /.gitlab/kitchen_common/testing.yml
-  - /.gitlab/docker_common/tag_job_templates.yml
+  - /.gitlab/package_build/windows.yml
+
 
 default:
   retry:
