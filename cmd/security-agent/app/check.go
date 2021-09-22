@@ -47,8 +47,8 @@ func setupCheckCmd(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&checkArgs.report, "report", "r", false, "Send report")
 }
 
-// checkCmd returns a cobra command to run security agent checks
-func checkCmd(confPathArray []string) *cobra.Command {
+// CheckCmd returns a cobra command to run security agent checks
+func CheckCmd(confPathArray []string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "check",
 		Short: "Run compliance check(s)",
@@ -170,12 +170,12 @@ func configureLogger() error {
 	return nil
 }
 
-type runCheckReporter struct {
+type RunCheckReporter struct {
 	reporter event.Reporter
 }
 
-func NewCheckReporter(stopper restart.Stopper, report bool) (*runCheckReporter, error) {
-	r := &runCheckReporter{}
+func NewCheckReporter(stopper restart.Stopper, report bool) (*RunCheckReporter, error) {
+	r := &RunCheckReporter{}
 
 	if report {
 		endpoints, dstContext, err := newLogContextCompliance()
@@ -195,7 +195,7 @@ func NewCheckReporter(stopper restart.Stopper, report bool) (*runCheckReporter, 
 	return r, nil
 }
 
-func (r *runCheckReporter) Report(event *event.Event) {
+func (r *RunCheckReporter) Report(event *event.Event) {
 	data, err := json.Marshal(event)
 	if err != nil {
 		log.Errorf("Failed to marshal rule event: %v", err)
@@ -211,10 +211,10 @@ func (r *runCheckReporter) Report(event *event.Event) {
 	}
 }
 
-func (r *runCheckReporter) ReportRaw(content []byte, service string, tags ...string) {
+func (r *RunCheckReporter) ReportRaw(content []byte, service string, tags ...string) {
 	fmt.Println(string(content))
 }
 
 func init() {
-	complianceCmd.AddCommand(checkCmd(confPathArray))
+	complianceCmd.AddCommand(CheckCmd(confPathArray))
 }
