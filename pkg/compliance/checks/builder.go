@@ -295,7 +295,7 @@ type builder struct {
 	kubeClient   *kubeClient
 	isLeaderFunc func() bool
 
-	regoInput         map[string]env.ProvidedInputMap
+	regoInput         map[string]map[string]interface{}
 	regoInputDumpPath string
 
 	status *status

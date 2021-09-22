@@ -57,12 +57,6 @@ type resourceTerms struct {
 
 type termsExtractor func(*ast.Term) (resourceTerms, error)
 
-type NilResolver struct{}
-
-func (*NilResolver) Resolve(ref ast.Ref) (interface{}, error) {
-	return nil, nil
-}
-
 func processResourceTermsExtractor(process *ast.Term) (resourceTerms, error) {
 	dataTerms := [][2]*ast.Term{
 		{

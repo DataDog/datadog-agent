@@ -62,11 +62,6 @@ func (r *regoCheck) normalizeInputMap(vars map[string]interface{}) map[string]in
 	return normalized
 }
 
-type instanceFields struct {
-	instance eval.Instance
-	fields   []string
-}
-
 func resourcePluralizer(resource compliance.ResourceCommon) string {
 	str := string(resource.Kind())
 
@@ -76,8 +71,8 @@ func resourcePluralizer(resource compliance.ResourceCommon) string {
 	return str + "s"
 }
 
-func (r *regoCheck) buildNormalInput(env env.Env) (map[string][]interface{}, error) {
-	input := make(map[string][]interface{})
+func (r *regoCheck) buildNormalInput(env env.Env) (map[string]interface{}, error) {
+	inputPerResources := make(map[string][]interface{})
 
 	for _, resource := range r.resources {
 		resolve, _, err := resourceKindToResolverAndFields(env, r.ruleID, resource.Kind())
@@ -98,7 +93,7 @@ func (r *regoCheck) buildNormalInput(env env.Env) (map[string][]interface{}, err
 
 		switch res := resolved.(type) {
 		case resolvedInstance:
-			r.appendInstance(input, key, res)
+			r.appendInstance(inputPerResources, key, res)
 		case eval.Iterator:
 			it := res
 			for !it.Done() {
@@ -107,10 +102,19 @@ func (r *regoCheck) buildNormalInput(env env.Env) (map[string][]interface{}, err
 					return nil, err
 				}
 
-				r.appendInstance(input, key, instance)
+				r.appendInstance(inputPerResources, key, instance)
 			}
 		}
 	}
+
+	context := make(map[string]interface{})
+	context["hostname"] = env.Hostname()
+
+	input := make(map[string]interface{})
+	for k, v := range inputPerResources {
+		input[k] = v
+	}
+	input["context"] = context
 
 	return input, nil
 }
@@ -120,7 +124,7 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 
 	var resultFinalizer func([]regoFinding) []*compliance.Report
 
-	var input map[string][]interface{}
+	var input map[string]interface{}
 	providedInput := env.ProvidedInput(r.ruleID)
 
 	if providedInput != nil {
