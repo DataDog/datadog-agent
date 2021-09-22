@@ -301,6 +301,7 @@ bool CustomActionData::parseUsernameData()
     }
 
     ensureDomainHasCorrectFormat();
+    WcaLog(LOGMSG_STANDARD, "Proceeding with user %S from domain %S (%S)", UnqualifiedUsername(), Domain(), Username());
     auto sidResult = GetSidForUser(nullptr, Username().c_str());
 
     if (sidResult.Result == ERROR_NONE_MAPPED)
