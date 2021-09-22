@@ -216,5 +216,5 @@ func (r *runCheckReporter) ReportRaw(content []byte, service string, tags ...str
 }
 
 func init() {
-	SecurityAgentCmd.AddCommand(checkCmd(confPathArray))
+	complianceCmd.AddCommand(checkCmd(confPathArray))
 }
