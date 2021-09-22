@@ -279,14 +279,16 @@ build do
       checks_to_install.push(check)
     end
 
+    tasks_dir_in = windows_safe_path(Dir.pwd)
     cache_bucket = ENV['INTEGRATION_WHEELS_CACHE_BUCKET']
     if cache_bucket
       mkdir cached_wheels_dir
-      command "inv agent.get-integrations-from-cache " \
+      command "inv -e agent.get-integrations-from-cache " \
         "--python 3 --bucket #{cache_bucket} " \
         "--integrations-dir #{windows_safe_path(project_dir)} " \
         "--target-dir #{cached_wheels_dir} " \
-        "--integrations #{checks_to_install.join(',')}"
+        "--integrations #{checks_to_install.join(',')}",
+        :cwd => tasks_dir_in
     end
 
     block do
@@ -349,7 +351,8 @@ build do
             "--python 3 --bucket #{cache_bucket} " \
             "--integrations-dir #{windows_safe_path(project_dir)} " \
             "--build-dir #{wheel_build_dir} " \
-            "--integration #{check}"
+            "--integration #{check}",
+            :cwd => tasks_dir_in
         end
       end
     end
