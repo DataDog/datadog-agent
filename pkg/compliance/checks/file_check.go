@@ -38,7 +38,7 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 		return nil, err
 	}
 
-	paths, err := filepath.Glob(e.NormalizeToHostRoot(path))
+	paths, err := filepath.Glob(path)
 	if err != nil {
 		return nil, err
 	}
@@ -46,21 +46,20 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 	var instances []resolvedInstance
 
 	for _, path := range paths {
-		// Re-computing relative after glob filtering
-		relPath := e.RelativeToHostRoot(path)
+		normalizedPath := e.NormalizeToHostRoot(path)
 		fi, err := os.Stat(path)
 		if err != nil {
 			// This is not a failure unless we don't have any paths to act on
-			log.Debugf("%s: file check failed to stat %s [%s]", ruleID, path, relPath)
+			log.Debugf("%s: file check failed to stat %s [%s]", ruleID, normalizedPath, path)
 			continue
 		}
 
 		vars := eval.VarMap{
-			compliance.FileFieldPath:        relPath,
+			compliance.FileFieldPath:        path,
 			compliance.FileFieldPermissions: uint64(fi.Mode() & os.ModePerm),
 		}
 
-		content, err := readContent(path)
+		content, err := readContent(normalizedPath)
 		if err == nil {
 			vars[compliance.FileFieldContent] = content
 		}
@@ -76,14 +75,14 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 		}
 
 		functions := eval.FunctionMap{
-			compliance.FileFuncJQ:     fileJQ(path),
-			compliance.FileFuncYAML:   fileYAML(path),
-			compliance.FileFuncRegexp: fileRegexp(path),
+			compliance.FileFuncJQ:     fileJQ(normalizedPath),
+			compliance.FileFuncYAML:   fileYAML(normalizedPath),
+			compliance.FileFuncRegexp: fileRegexp(normalizedPath),
 		}
 
 		instance := eval.NewInstance(vars, functions)
 
-		instances = append(instances, newResolvedInstance(instance, path, "file"))
+		instances = append(instances, newResolvedInstance(instance, normalizedPath, "file"))
 	}
 
 	if len(instances) == 0 {
