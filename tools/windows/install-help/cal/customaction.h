@@ -118,7 +118,7 @@ UINT doUninstallAs(UNINSTALL_TYPE t);
 
 // see https://stackoverflow.com/a/45565001/425565
 // Template ErrType can be HRESULT (long) or DWORD (unsigned long)
-template<class ErrType> std::wstring GetErrorMessageStr(ErrType errCode)
+template<class ErrType> std::wstring GetErrorMessageStrW(ErrType errCode)
 {
     const int buffsize = 4096;
     wchar_t buffer[buffsize];
@@ -130,5 +130,7 @@ template<class ErrType> std::wstring GetErrorMessageStr(ErrType errCode)
     {
         return std::wstring(buffer, len);
     }
-    return L"Failed to retrieve error message string.";
+    std::wstringstream wsstr;
+    wsstr << L"Failed to retrieve error message string for code " << errCode;
+    return  wsstr.str();
 }

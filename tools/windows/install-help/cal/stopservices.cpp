@@ -881,7 +881,7 @@ int uninstallServices(CustomActionData &data)
         DWORD rbret = services[i].destroy(hScManager);
         if (rbret != 0)
         {
-            auto lastErrStr = GetErrorMessageStr(rbret);
+            auto lastErrStr = GetErrorMessageStrW(rbret);
             WcaLog(LOGMSG_STANDARD, "Failed to uninstall service %S (%d)", lastErrStr.c_str(), rbret);
         }
     }

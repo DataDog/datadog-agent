@@ -368,7 +368,7 @@ UINT doFinalizeInstall(CustomActionData &data)
         if (!bRet)
         {
             DWORD lastErr = GetLastError();
-            auto lastErrStr = GetErrorMessageStr(lastErr);
+            auto lastErrStr = GetErrorMessageStrW(lastErr);
             WcaLog(LOGMSG_STANDARD, "CreateSymbolicLink: %S (%d)", lastErrStr.c_str(), lastErr);
         }
         else
