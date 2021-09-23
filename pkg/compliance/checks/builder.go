@@ -703,7 +703,7 @@ func (b *builder) newRegoCheck(meta *compliance.SuiteMeta, ruleScope compliance.
 		resources: rule.Resources,
 	}
 
-	if err := regoCheck.compileRule(rule); err != nil {
+	if err := regoCheck.compileRule(rule, ruleScope); err != nil {
 		return nil, err
 	}
 
@@ -785,6 +785,10 @@ func (b *builder) IsLeader() bool {
 		return b.isLeaderFunc()
 	}
 	return true
+}
+
+func (b *builder) NodeLabels() map[string]string {
+	return b.nodeLabels
 }
 
 func (b *builder) EvaluateFromCache(ev eval.Evaluatable) (interface{}, error) {

@@ -25,11 +25,12 @@ import (
 
 type regoCheck struct {
 	ruleID            string
+	ruleScope         compliance.RuleScope
 	resources         []compliance.RegoResource
 	preparedEvalQuery rego.PreparedEvalQuery
 }
 
-func (r *regoCheck) compileRule(rule *compliance.RegoRule) error {
+func (r *regoCheck) compileRule(rule *compliance.RegoRule, ruleScope compliance.RuleScope) error {
 	ctx := context.TODO()
 
 	log.Debugf("rego query: %v", rule.Findings)
@@ -49,6 +50,7 @@ func (r *regoCheck) compileRule(rule *compliance.RegoRule) error {
 	}
 
 	r.preparedEvalQuery = preparedEvalQuery
+	r.ruleScope = ruleScope
 
 	return nil
 }
@@ -100,8 +102,7 @@ func (r *regoCheck) buildNormalInput(env env.Env) (map[string]interface{}, error
 		}
 	}
 
-	context := make(map[string]interface{})
-	context["hostname"] = env.Hostname()
+	context := r.buildContextInput(env)
 
 	input := make(map[string]interface{})
 	for k, v := range inputPerTags {
@@ -110,6 +111,17 @@ func (r *regoCheck) buildNormalInput(env env.Env) (map[string]interface{}, error
 	input["context"] = context
 
 	return input, nil
+}
+
+func (r *regoCheck) buildContextInput(env env.Env) map[string]interface{} {
+	context := make(map[string]interface{})
+	context["hostname"] = env.Hostname()
+
+	if r.ruleScope == compliance.KubernetesNodeScope {
+		context["kubernetes_node_labels"] = env.NodeLabels()
+	}
+
+	return context
 }
 
 func (r *regoCheck) check(env env.Env) []*compliance.Report {
