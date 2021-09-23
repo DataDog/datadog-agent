@@ -36,7 +36,8 @@ func (r *regoCheck) compileRule(rule *compliance.RegoRule) error {
 
 	moduleArgs := make([]func(*rego.Rego), 0, 2+len(regoBuiltins))
 	moduleArgs = append(moduleArgs, rego.Query(rule.Findings),
-		rego.Module(fmt.Sprintf("rule_%s.rego", rule.ID), rule.Module))
+		rego.Module(fmt.Sprintf("rule_%s.rego", rule.ID), rule.Module),
+		rego.Module("helpers.rego", helpers))
 	moduleArgs = append(moduleArgs, regoBuiltins...)
 
 	preparedEvalQuery, err := rego.New(
