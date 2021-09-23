@@ -81,13 +81,12 @@ func (r *regoCheck) buildNormalInput(env env.Env) (map[string]interface{}, error
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+		defer cancel()
 
 		resolved, err := resolve(ctx, env, r.ruleID, resource.ResourceCommon)
 		if err != nil {
-			cancel()
 			continue
 		}
-		cancel()
 
 		key := resourcePluralizer(resource.ResourceCommon)
 
