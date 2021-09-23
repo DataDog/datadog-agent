@@ -55,17 +55,18 @@ int kprobe_vfs_link(struct pt_regs *ctx) {
 
     syscall->link.src_dentry = src_dentry;
     syscall->link.target_dentry = (struct dentry *)PT_REGS_PARM3(ctx);
-    if (filter_syscall(syscall, link_approvers)) {
-        return discard_syscall(syscall);
-    }
-
-    fill_file_metadata(src_dentry, &syscall->link.src_file.metadata);
-    syscall->link.target_file.metadata = syscall->link.src_file.metadata;
 
     // this is a hard link, source and target dentries are on the same filesystem & mount point
     // target_path was set by kprobe/filename_create before we reach this point.
     syscall->link.src_file.path_key.mount_id = get_path_mount_id(syscall->link.target_path);
     set_file_inode(src_dentry, &syscall->link.src_file, 0);
+
+    if (filter_syscall(syscall, link_approvers)) {
+        return mark_as_discarded(syscall);
+    }
+
+    fill_file_metadata(src_dentry, &syscall->link.src_file.metadata);
+    syscall->link.target_file.metadata = syscall->link.src_file.metadata;
 
     // we generate a fake target key as the inode is the same
     syscall->link.target_file.path_key.ino = FAKE_INODE_MSW<<32 | bpf_get_prandom_u32();
@@ -91,7 +92,7 @@ int __attribute__((always_inline)) kprobe_dr_link_src_callback(struct pt_regs *c
         return 0;
 
     if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        return discard_syscall(syscall);
+        return mark_as_discarded(syscall);
     }
 
     return 0;
@@ -105,14 +106,22 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_ty
     if (!syscall)
         return 0;
 
-    syscall->resolver.dentry = syscall->link.target_dentry;
-    syscall->resolver.key = syscall->link.target_file.path_key;
-    syscall->resolver.discarder_type = 0;
-    syscall->resolver.callback = dr_type == DR_KPROBE ? DR_LINK_DST_CALLBACK_KPROBE_KEY : DR_LINK_DST_CALLBACK_TRACEPOINT_KEY;
-    syscall->resolver.iteration = 0;
-    syscall->resolver.ret = 0;
+    // invalidate user face inode, so no need to bump the discarder revision in the event
+    if (retval >= 0) {
+        // for hardlink we need to invalidate the cache as the nlink counter in now > 1
+        invalidate_inode(ctx, syscall->link.src_file.path_key.mount_id, syscall->link.src_file.path_key.ino, !is_event_enabled(EVENT_RENAME));
+    }
 
-    resolve_dentry(ctx, dr_type);
+    if (!syscall->discarded && is_event_enabled(EVENT_RENAME)) {
+        syscall->resolver.dentry = syscall->link.target_dentry;
+        syscall->resolver.key = syscall->link.target_file.path_key;
+        syscall->resolver.discarder_type = 0;
+        syscall->resolver.callback = dr_type == DR_KPROBE ? DR_LINK_DST_CALLBACK_KPROBE_KEY : DR_LINK_DST_CALLBACK_TRACEPOINT_KEY;
+        syscall->resolver.iteration = 0;
+        syscall->resolver.ret = 0;
+
+        resolve_dentry(ctx, dr_type);
+    }
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_LINK);

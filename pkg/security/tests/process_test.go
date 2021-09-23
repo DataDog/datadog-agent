@@ -121,18 +121,6 @@ func TestProcessContext(t *testing.T) {
 	}
 	defer test.Close()
 
-	which := func(name string) string {
-		executable := "/usr/bin/" + name
-		if resolved, err := os.Readlink(executable); err == nil {
-			executable = resolved
-		} else {
-			if os.IsNotExist(err) {
-				executable = "/bin/" + name
-			}
-		}
-		return executable
-	}
-
 	t.Run("exec-time", func(t *testing.T) {
 		testFile, _, err := test.Path("test-exec-time")
 		if err != nil {

@@ -245,6 +245,18 @@ func getInode(t *testing.T, path string) uint64 {
 	return stats.Ino
 }
 
+func which(name string) string {
+	executable := "/usr/bin/" + name
+	if resolved, err := os.Readlink(executable); err == nil {
+		executable = resolved
+	} else {
+		if os.IsNotExist(err) {
+			executable = "/bin/" + name
+		}
+	}
+	return executable
+}
+
 func assertMode(t *testing.T, actualMode, expectedMode uint32, msgAndArgs ...interface{}) {
 	t.Helper()
 	if len(msgAndArgs) == 0 {
