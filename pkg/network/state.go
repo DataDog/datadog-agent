@@ -62,6 +62,7 @@ type State interface {
 type Delta struct {
 	Connections []ConnectionStats
 	HTTP        map[http.Key]http.RequestStats
+	Buffer      *ClientBuffer
 }
 
 type telemetry struct {
@@ -186,16 +187,19 @@ func (ns *networkState) GetDelta(
 		}
 
 		// copy to ensure return value doesn't get clobbered
-		conns := make([]ConnectionStats, len(active))
-		copy(conns, active)
+		clientBuffer := clientPool.Get(id)
+		clientBuffer.Append(active)
 		return Delta{
-			Connections: conns,
+			Connections: clientBuffer.Connections(),
 			HTTP:        ns.getHTTPDelta(id),
+			Buffer:      clientBuffer,
 		}
 	}
 
 	// Update all connections with relevant up-to-date stats for client
-	conns := ns.mergeConnections(id, connsByKey)
+	clientBuffer := clientPool.Get(id)
+	ns.mergeConnections(id, connsByKey, clientBuffer)
+	conns := clientBuffer.Connections()
 
 	// XXX: we should change the way we clean this map once
 	// https://github.com/golang/go/issues/20135 is solved
@@ -221,6 +225,7 @@ func (ns *networkState) GetDelta(
 	return Delta{
 		Connections: conns,
 		HTTP:        ns.getHTTPDelta(id),
+		Buffer:      clientBuffer,
 	}
 }
 
@@ -430,7 +435,7 @@ func (ns *networkState) newClient(clientID string) (*client, bool) {
 }
 
 // mergeConnections return the connections and takes care of updating their last stat counters
-func (ns *networkState) mergeConnections(id string, active map[string]*ConnectionStats) []ConnectionStats {
+func (ns *networkState) mergeConnections(id string, active map[string]*ConnectionStats, buffer *ClientBuffer) {
 	now := time.Now()
 
 	client := ns.clients[id]
@@ -458,9 +463,6 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 
 	// Remove the closed connections that were merged
 	closed = closed[j:]
-
-	// TODO: Pool this slice?
-	conns := make([]ConnectionStats, 0, len(active)+len(closed))
 
 	// Closed connections
 	for i := range closed {
@@ -503,7 +505,7 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 			ns.updateConnWithStats(client, key, closedConn)
 		}
 	}
-	conns = append(conns, closed...)
+	buffer.Append(closed)
 
 	// Active connections
 	for key, c := range active {
@@ -515,10 +517,8 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 		ns.createStatsForKey(client, key)
 		ns.updateConnWithStats(client, key, c)
 
-		conns = append(conns, *c)
+		*buffer.Next() = *c
 	}
-
-	return conns
 }
 
 // This is used to update the stats when we process a closed connection that became active again
@@ -615,6 +615,7 @@ func (ns *networkState) RemoveClient(clientID string) {
 	ns.Lock()
 	defer ns.Unlock()
 	delete(ns.clients, clientID)
+	clientPool.RemoveExpiredClient(clientID)
 }
 
 func (ns *networkState) RemoveExpiredClients(now time.Time) {
@@ -625,6 +626,7 @@ func (ns *networkState) RemoveExpiredClients(now time.Time) {
 		if c.lastFetch.Add(ns.clientExpiry).Before(now) {
 			log.Debugf("expiring client: %s, had %d stats and %d closed connections", id, len(c.stats), len(c.closedConnections))
 			delete(ns.clients, id)
+			clientPool.RemoveExpiredClient(id)
 		}
 	}
 }

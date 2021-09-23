@@ -311,6 +311,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		HTTP:                        delta.HTTP,
 		ConnTelemetry:               ctm,
 		CompilationTelemetryByAsset: rctm,
+		Buffer:                      delta.Buffer,
 	}, nil
 }
 

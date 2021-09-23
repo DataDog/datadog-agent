@@ -111,6 +111,8 @@ type Connections struct {
 	ConnTelemetry               *ConnectionsTelemetry
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
 	HTTP                        map[http.Key]http.RequestStats
+
+	Buffer *ClientBuffer
 }
 
 // ConnectionsTelemetry stores telemetry from the system probe related to connections collection
