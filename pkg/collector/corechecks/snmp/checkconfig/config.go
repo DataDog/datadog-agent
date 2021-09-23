@@ -206,6 +206,10 @@ func (c *CheckConfig) GetNetworkTags() []string {
 func (c *CheckConfig) getDeviceIDTags() []string {
 	tags := []string{deviceNamespaceTagKey + ":" + c.Namespace}
 	if c.IPAddress != "" {
+		// TODO: refactor to use getDeviceIDTags only for CheckConfig with IPAddress
+		// IPAddress should be always present for ndm device metadata
+		// the if condition is needed since getDeviceIDTags is also called by GetStaticTags and
+		// it might be called for network/subnet configs (without IP address)
 		tags = append(tags, deviceIPTagKey+":"+c.IPAddress)
 	}
 	sort.Strings(tags)
