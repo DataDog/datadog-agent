@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"regexp"
 	"strings"
 	"time"
 
@@ -474,28 +473,11 @@ func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance
 		return nil, ErrRuleDoesNotApply
 	}
 
-	return b.newRegoCheck(meta, ruleScope, rule, b.getReplaceReporter())
+	return b.newRegoCheck(meta, ruleScope, rule, fallthroughReporter)
 }
 
-var replacerRegex = regexp.MustCompile(`\$[[:alnum:]]+\$`)
-
-func (b *builder) getReplaceReporter() resourceReporter {
-	replacer := func(in string) string {
-		return replacerRegex.ReplaceAllStringFunc(in, func(ident string) string {
-			if ident == "$hostname$" {
-				return b.Hostname()
-			} else {
-				return ""
-			}
-		})
-	}
-
-	return func(report *compliance.Report) compliance.ReportResource {
-		return compliance.ReportResource{
-			ID:   replacer(report.Resource.ID),
-			Type: replacer(report.Resource.Type),
-		}
-	}
+func fallthroughReporter(report *compliance.Report) compliance.ReportResource {
+	return report.Resource
 }
 
 func getRuleScope(meta *compliance.SuiteMeta, scopeList compliance.RuleScopeList) (compliance.RuleScope, error) {

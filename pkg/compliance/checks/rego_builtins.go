@@ -25,7 +25,7 @@ const helpers = `
 package datadog
 
 docker_container_finding(status, c) = f {
-	resid := sprintf("$hostname$_%s", [cast_string(c.id)])
+	resid := sprintf("%s_%s", [input.context.hostname, cast_string(c.id)])
 	f := finding(status, "docker_container", resid, {
 		"container.id": c.id,
 		"container.image": c.image,
@@ -34,7 +34,7 @@ docker_container_finding(status, c) = f {
 }
 
 process_finding(status, p) = f {
-	resid := "$hostname$_daemon"
+	resid := sprintf("%s_daemon", [input.context.hostname])
 	f := finding(status, "docker_daemon", resid, {
 		"process.name": p.name,
 		"process.exe": p.exe,
