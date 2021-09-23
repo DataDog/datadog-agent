@@ -57,6 +57,24 @@ passed_process_finding(p) = f {
 failing_process_finding(p) = f {
 	f := process_finding(false, p)
 }
+
+file_finding(status, file) = fg {
+	resid := sprintf("%s_daemon", [input.context.hostname])
+	fg := finding(status, "docker_daemon", resid, {
+		"file.group": file.group,
+		"file.path": file.path,
+		"file.permissions": file.permissions,
+		"file.user": file.user,
+	})
+}
+
+passed_file_finding(file) = fg {
+	fg := file_finding(true, file)
+}
+
+failing_file_finding(file) = fg {
+	fg := file_finding(false, file)
+}
 `
 
 var regoBuiltins = []func(*rego.Rego){
