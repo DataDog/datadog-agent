@@ -185,8 +185,6 @@ func (c *CheckConfig) addUptimeMetric() {
 }
 
 // GetStaticTags return static tags built from configuration
-// warning: changing GetStaticTags logic might lead to different deviceID
-// GetStaticTags does not contain tags from instance[].tags config
 func (c *CheckConfig) GetStaticTags() []string {
 	tags := append(common.CopyStrings(c.ExtraTags), c.getDeviceIDTags()...)
 	return tags
