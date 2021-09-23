@@ -377,6 +377,10 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	} else {
 		c.Namespace = config.Datadog.GetString("network_devices.namespace")
 	}
+	if c.Namespace == "" {
+		// Can only happen if set network_devices.namespace to empty string in `datadog.yaml`
+		return nil, fmt.Errorf("namespace cannot be empty")
+	}
 
 	// metrics Configs
 	if instance.UseGlobalMetrics {

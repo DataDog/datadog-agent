@@ -999,6 +999,8 @@ collect_device_metadata: true
 }
 
 func Test_buildConfig_namespace(t *testing.T) {
+	defer config.Datadog.Set("network_devices.namespace", "default")
+
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -1029,6 +1031,15 @@ community_string: "abc"
 	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, "ns-from-datadog-conf", conf.Namespace)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	config.Datadog.Set("network_devices.namespace", "")
+	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.EqualError(t, err, "namespace cannot be empty")
 }
 
 func Test_buildConfig_minCollectionInterval(t *testing.T) {
