@@ -33,6 +33,14 @@ docker_container_finding(status, c) = f {
 	})
 }
 
+passed_docker_container_finding(c) = f {
+	f := docker_container_finding(true, c)
+}
+
+failing_docker_container_finding(c) = f {
+	f := docker_container_finding(false, c)
+}
+
 process_finding(status, p) = f {
 	resid := sprintf("%s_daemon", [input.context.hostname])
 	f := finding(status, "docker_daemon", resid, {
@@ -40,6 +48,14 @@ process_finding(status, p) = f {
 		"process.exe": p.exe,
 		"process.cmdLine": p.cmdLine
 	})
+}
+
+passed_process_finding(p) = f {
+	f := process_finding(true, p)
+}
+
+failing_process_finding(p) = f {
+	f := process_finding(false, p)
 }
 `
 
