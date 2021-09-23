@@ -953,7 +953,7 @@ oid_batch_size: 10
 `)
 	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, false, config.CollectDeviceMetadata)
+	assert.Equal(t, true, config.CollectDeviceMetadata)
 
 	// language=yaml
 	rawInstanceConfig = []byte(`

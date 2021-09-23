@@ -240,6 +240,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	// Set defaults before unmarshalling
 	instance.UseGlobalMetrics = true
+	initConfig.CollectDeviceMetadata = true
 
 	err := yaml.Unmarshal(rawInitConfig, &initConfig)
 	if err != nil {
