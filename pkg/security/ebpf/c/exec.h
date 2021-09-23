@@ -154,7 +154,7 @@ void __attribute__((always_inline)) parse_str_array(struct pt_regs *ctx, struct 
 
 
 SEC("kprobe/parse_args_envs")
-int parse_args_envs(struct pt_regs *ctx) {
+int kprobe_parse_args_envs(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
     if (!syscall) {
         return 0;
@@ -311,7 +311,7 @@ int kprobe_kernel_clone(struct pt_regs *ctx) {
 }
 
 SEC("kprobe/do_fork")
-int krpobe_do_fork(struct pt_regs *ctx) {
+int kprobe_do_fork(struct pt_regs *ctx) {
     return handle_do_fork(ctx);
 }
 
