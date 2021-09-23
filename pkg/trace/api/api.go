@@ -158,7 +158,6 @@ func (r *HTTPReceiver) Start() {
 	go func() {
 		defer watchdog.LogOnPanic()
 		r.server.Serve(ln)
-		ln.Close()
 	}()
 	log.Infof("Listening for traces at http://%s", addr)
 
@@ -170,7 +169,6 @@ func (r *HTTPReceiver) Start() {
 		go func() {
 			defer watchdog.LogOnPanic()
 			r.server.Serve(ln)
-			ln.Close()
 		}()
 		log.Infof("Listening for traces at unix://%s", path)
 	}
@@ -186,7 +184,6 @@ func (r *HTTPReceiver) Start() {
 		go func() {
 			defer watchdog.LogOnPanic()
 			r.server.Serve(ln)
-			ln.Close()
 		}()
 		log.Infof("Listening for traces on Windowes pipe %q. Security descriptor is %q", pipepath, secdec)
 	}
@@ -255,7 +252,7 @@ func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
 	if err := os.Chmod(path, 0722); err != nil {
 		return nil, fmt.Errorf("error setting socket permissions: %v", err)
 	}
-	return ln, err
+	return NewMeasuredListener(ln, "uds_connections"), err
 }
 
 // listenTCP creates a new net.Listener on the provided TCP address.
@@ -272,7 +269,7 @@ func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
 		}()
 		return ln, err
 	}
-	return tcpln, err
+	return NewMeasuredListener(tcpln, "tcp_connections"), err
 }
 
 // Stop stops the receiver and shuts down the HTTP server.

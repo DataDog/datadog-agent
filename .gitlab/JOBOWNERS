@@ -1,7 +1,6 @@
 *                                    @DataDog/agent-platform
 
 # Deps build
-build_libbcc*                        @DataDog/agent-network
 build_clang*                         @DataDog/agent-network
 
 # Source test

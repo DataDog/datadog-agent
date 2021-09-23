@@ -25,6 +25,7 @@ UINT WINAPI MsiGetPropertyW(MSIHANDLE hInstall,
 {
     return ERROR_INVALID_FUNCTION;
 }
+
 int wmain(int argc, wchar_t **argv)
 {
     hDllModule = GetModuleHandle(NULL);

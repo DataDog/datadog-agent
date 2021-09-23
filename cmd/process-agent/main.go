@@ -5,8 +5,17 @@ package main
 import (
 	"os"
 
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
 )
+
+func rootCmdRun(cmd *cobra.Command, args []string) {
+	exit := make(chan struct{})
+
+	// Invoke the Agent
+	runAgent(exit)
+}
 
 func main() {
 	ignore := ""

@@ -10,13 +10,12 @@ experimental:
   notify:
     branches:
       only:
-        - master
         - main
 
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go11511
+      - image: datadog/datadog-agent-runner-circle:go1167
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -33,7 +32,6 @@ templates:
           - gen18-godeps-{{ .Branch }}-{{ .Revision }}
           - gen18-godeps-{{ .Branch }}-
           - gen18-godeps-main-
-          - gen18-godeps-master-
     - save_cache: &save_deps
         key: gen18-godeps-{{ .Branch }}-{{ .Revision }}
     - restore_cache: &restore_source
@@ -65,7 +63,7 @@ jobs:
           command: |
             python3 -m pip install wheel
             python3 -m pip install -r requirements.txt
-            python3 -m pip install codecov~=2.1.11 flake8~=3.8.3 flake8-bugbear~=20.1.4 flake8-unused-arguments==0.0.6 black~=19.10b0 isort~=5.2.2
+            python3 -m pip install codecov~=2.1.11 flake8~=3.9.2 flake8-bugbear~=21.4.3 flake8-unused-arguments==0.0.6 black~=21.8b0 isort~=5.9.3
       - run:
           name: grab go deps
           command: |
@@ -262,7 +260,6 @@ jobs:
             - v5-macosdeps-{{ .Branch }}-{{ .Revision }}
             - v5-macosdeps-{{ .Branch }}-
             - v5-macosdeps-main-
-            - v5-macosdeps-master-
       - run:
           name: Setup runner
           command: |
@@ -326,7 +323,6 @@ workflows:
           filters:
             branches:
               ignore:
-                - master
                 - main
           requires:
             - dependencies
@@ -334,7 +330,6 @@ workflows:
           filters:
             branches:
               ignore:
-                - master
                 - main
           requires:
             - dependencies
@@ -342,7 +337,6 @@ workflows:
           filters:
             branches:
               ignore:
-                - master
                 - main
           requires:
             - dependencies

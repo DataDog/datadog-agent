@@ -95,7 +95,7 @@ COPY test.bin /test.bin
         test_image.id,
         detach=True,
         pid_mode="host",  # For origin detection
-        environment=["SCRATCH_VOLUME_NAME=" + scratch_volume.name, "SCRATCH_VOLUME_PATH=/tmp/scratch",],
+        environment=["SCRATCH_VOLUME_NAME=" + scratch_volume.name, "SCRATCH_VOLUME_PATH=/tmp/scratch"],
         volumes={
             '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'ro'},
             '/proc': {'bind': '/host/proc', 'mode': 'ro'},

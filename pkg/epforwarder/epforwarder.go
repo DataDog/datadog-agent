@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	eventTypeDBMSamples = "dbm-samples"
-	eventTypeDBMMetrics = "dbm-metrics"
+	eventTypeDBMSamples  = "dbm-samples"
+	eventTypeDBMMetrics  = "dbm-metrics"
+	eventTypeDBMActivity = "dbm-activity"
 
 	// EventTypeNetworkDevicesMetadata is the event type for network devices metadata
 	EventTypeNetworkDevicesMetadata = "network-devices-metadata"
@@ -30,7 +31,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	{
 		eventType:              eventTypeDBMSamples,
 		endpointsConfigPrefix:  "database_monitoring.samples.",
-		hostnameEndpointPrefix: "dbquery-http-intake.logs.",
+		hostnameEndpointPrefix: "dbquery-intake.",
 		intakeTrackType:        "databasequery",
 		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 		defaultBatchMaxConcurrentSend: 10,
@@ -42,6 +43,16 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		endpointsConfigPrefix:  "database_monitoring.metrics.",
 		hostnameEndpointPrefix: "dbm-metrics-intake.",
 		intakeTrackType:        "dbmmetrics",
+		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    20e6,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+	},
+	{
+		eventType:              eventTypeDBMActivity,
+		endpointsConfigPrefix:  "database_monitoring.activity.",
+		hostnameEndpointPrefix: "dbm-metrics-intake.",
+		intakeTrackType:        "dbmactivity",
 		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    20e6,
