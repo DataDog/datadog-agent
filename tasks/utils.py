@@ -415,3 +415,18 @@ def bundle_files(ctx, bindata_files, dir_prefix, go_dir, pkg, tag, split=True):
         )
     )
     ctx.run("gofmt -w -s {go_dir}".format(go_dir=go_dir))
+
+
+##
+## release.json entry mapping functions
+##
+
+
+def nightly_entry_for(agent_major_version):
+    if agent_major_version == 6:
+        return "nightly"
+    return "nightly-a{}".format(agent_major_version)
+
+
+def release_entry_for(agent_major_version):
+    return "release-a{}".format(agent_major_version)

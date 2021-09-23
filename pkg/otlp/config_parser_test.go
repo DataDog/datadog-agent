@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configparser"
+	"go.opentelemetry.io/collector/config/configunmarshaler"
 )
 
 func TestNewParser(t *testing.T) {
@@ -36,7 +37,8 @@ receivers:
         endpoint: bindhost:1234
 exporters:
   otlp:
-    insecure: true
+    tls:
+      insecure: true
     endpoint: localhost:5003
 service:
   pipelines:
@@ -60,7 +62,8 @@ receivers:
         endpoint: bindhost:1234
 exporters:
   otlp:
-    insecure: true
+    tls:
+      insecure: true
     endpoint: localhost:5003
 service:
   pipelines:
@@ -87,7 +90,8 @@ receivers:
         endpoint: bindhost:5678
 exporters:
   otlp:
-    insecure: true
+    tls:
+      insecure: true
     endpoint: localhost:5003
 service:
   pipelines:
@@ -102,9 +106,26 @@ service:
 		t.Run(testInstance.name, func(t *testing.T) {
 			cfg, err := newParser(testInstance.pcfg)
 			require.NoError(t, err)
-			tcfg, err := configparser.NewParserFromBuffer(strings.NewReader(testInstance.ocfg))
+			tcfg, err := configparser.NewConfigMapFromBuffer(strings.NewReader(testInstance.ocfg))
 			require.NoError(t, err)
 			assert.Equal(t, tcfg.ToStringMap(), cfg.ToStringMap())
 		})
 	}
+}
+
+func TestUnmarshal(t *testing.T) {
+	configMap, err := newParser(PipelineConfig{
+		GRPCPort:  4317,
+		HTTPPort:  4318,
+		TracePort: 5001,
+		BindHost:  "localhost",
+	})
+	require.NoError(t, err)
+
+	components, err := getComponents()
+	require.NoError(t, err)
+
+	cu := configunmarshaler.NewDefault()
+	_, err = cu.Unmarshal(configMap, components)
+	require.NoError(t, err)
 }

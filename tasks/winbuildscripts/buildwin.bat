@@ -7,6 +7,8 @@ if not exist \dev\go\src\github.com\DataDog\datadog-agent exit /b 2
 cd \dev\go\src\github.com\DataDog\datadog-agent || exit /b 3
 xcopy /e/s/h/q c:\mnt\*.* || exit /b 4
 
+call %~p0extract-modcache.bat
+
 REM
 REM after copying files in from the host, execute the build
 REM using `dobuild.bat`
