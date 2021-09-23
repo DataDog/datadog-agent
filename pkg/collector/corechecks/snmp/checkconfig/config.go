@@ -186,7 +186,11 @@ func (c *CheckConfig) addUptimeMetric() {
 
 // GetStaticTags return static tags built from configuration
 func (c *CheckConfig) GetStaticTags() []string {
-	tags := append(common.CopyStrings(c.ExtraTags), c.getDeviceIDTags()...)
+	tags := common.CopyStrings(c.ExtraTags)
+	tags = append(tags, deviceNamespaceTagKey + ":" + c.Namespace)
+	if c.IPAddress != "" {
+		tags = append(tags, deviceIPTagKey+":"+c.IPAddress)
+	}
 	return tags
 }
 
@@ -204,14 +208,7 @@ func (c *CheckConfig) GetNetworkTags() []string {
 // getDeviceIDTags return sorted tags used for generating device id
 // warning: changing getDeviceIDTags logic might lead to different deviceID
 func (c *CheckConfig) getDeviceIDTags() []string {
-	tags := []string{deviceNamespaceTagKey + ":" + c.Namespace}
-	if c.IPAddress != "" {
-		// TODO: refactor to use getDeviceIDTags only for CheckConfig with IPAddress
-		// IPAddress should be always present for ndm device metadata
-		// the if condition is needed since getDeviceIDTags is also called by GetStaticTags and
-		// it might be called for network/subnet configs (without IP address)
-		tags = append(tags, deviceIPTagKey+":"+c.IPAddress)
-	}
+	tags := []string{deviceNamespaceTagKey + ":" + c.Namespace, deviceIPTagKey+":"+c.IPAddress}
 	sort.Strings(tags)
 	return tags
 }
