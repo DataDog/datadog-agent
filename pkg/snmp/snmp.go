@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/DataDog/viper"
 	"github.com/gosnmp/gosnmp"
@@ -97,7 +97,7 @@ func NewListenerConfig() (ListenerConfig, error) {
 		},
 	)
 
-	if err := config.Datadog.UnmarshalKey("snmp_listener", &snmpConfig, opt); err != nil {
+	if err := coreconfig.Datadog.UnmarshalKey("snmp_listener", &snmpConfig, opt); err != nil {
 		return snmpConfig, err
 	}
 
@@ -108,37 +108,37 @@ func NewListenerConfig() (ListenerConfig, error) {
 	// Set the default values, we can't otherwise on an array
 	for i := range snmpConfig.Configs {
 		// We need to modify the struct in place
-		conf := &snmpConfig.Configs[i]
-		if conf.Port == 0 {
-			conf.Port = defaultPort
+		config := &snmpConfig.Configs[i]
+		if config.Port == 0 {
+			config.Port = defaultPort
 		}
-		if conf.Timeout == 0 {
-			conf.Timeout = defaultTimeout
+		if config.Timeout == 0 {
+			config.Timeout = defaultTimeout
 		}
-		if conf.Retries == 0 {
-			conf.Retries = defaultRetries
+		if config.Retries == 0 {
+			config.Retries = defaultRetries
 		}
-		if conf.CollectDeviceMetadataConfig != nil {
-			conf.CollectDeviceMetadata = *conf.CollectDeviceMetadataConfig
+		if config.CollectDeviceMetadataConfig != nil {
+			config.CollectDeviceMetadata = *config.CollectDeviceMetadataConfig
 		} else {
-			conf.CollectDeviceMetadata = snmpConfig.CollectDeviceMetadata
+			config.CollectDeviceMetadata = snmpConfig.CollectDeviceMetadata
 		}
-		if conf.Loader == "" {
-			conf.Loader = snmpConfig.Loader
+		if config.Loader == "" {
+			config.Loader = snmpConfig.Loader
 		}
-		if conf.Namespace == "" {
-			conf.Namespace = config.Datadog.GetString("network_devices.namespace")
+		if config.Namespace == "" {
+			config.Namespace = coreconfig.Datadog.GetString("network_devices.namespace")
 		}
-		if conf.MinCollectionInterval == 0 {
-			conf.MinCollectionInterval = snmpConfig.MinCollectionInterval
+		if config.MinCollectionInterval == 0 {
+			config.MinCollectionInterval = snmpConfig.MinCollectionInterval
 		}
-		conf.Community = firstNonEmpty(conf.Community, conf.CommunityLegacy)
-		conf.AuthKey = firstNonEmpty(conf.AuthKey, conf.AuthKeyLegacy)
-		conf.AuthProtocol = firstNonEmpty(conf.AuthProtocol, conf.AuthProtocolLegacy)
-		conf.PrivKey = firstNonEmpty(conf.PrivKey, conf.PrivKeyLegacy)
-		conf.PrivProtocol = firstNonEmpty(conf.PrivProtocol, conf.PrivProtocolLegacy)
-		conf.Network = firstNonEmpty(conf.Network, conf.NetworkLegacy)
-		conf.Version = firstNonEmpty(conf.Version, conf.VersionLegacy)
+		config.Community = firstNonEmpty(config.Community, config.CommunityLegacy)
+		config.AuthKey = firstNonEmpty(config.AuthKey, config.AuthKeyLegacy)
+		config.AuthProtocol = firstNonEmpty(config.AuthProtocol, config.AuthProtocolLegacy)
+		config.PrivKey = firstNonEmpty(config.PrivKey, config.PrivKeyLegacy)
+		config.PrivProtocol = firstNonEmpty(config.PrivProtocol, config.PrivProtocolLegacy)
+		config.Network = firstNonEmpty(config.Network, config.NetworkLegacy)
+		config.Version = firstNonEmpty(config.Version, config.VersionLegacy)
 	}
 	return snmpConfig, nil
 }
