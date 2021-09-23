@@ -281,6 +281,7 @@ build do
 
     tasks_dir_in = windows_safe_path(Dir.pwd)
     cache_bucket = ENV['INTEGRATION_WHEELS_CACHE_BUCKET']
+    cache_bucket = nil if cache_bucket == ""
     if cache_bucket
       mkdir cached_wheels_dir
       command "inv -e agent.get-integrations-from-cache " \
