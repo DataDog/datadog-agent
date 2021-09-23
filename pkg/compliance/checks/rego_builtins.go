@@ -24,56 +24,45 @@ const (
 const helpers = `
 package datadog
 
-docker_container_finding(status, c) = f {
-	resid := sprintf("%s_%s", [input.context.hostname, cast_string(c.id)])
-	f := finding(status, "docker_container", resid, {
+docker_container_resource_id(c) = id {
+	id := sprintf("%s_%s", [input.context.hostname, cast_string(c.id)])
+}
+
+docker_daemon_resource_id = id {
+	id := sprintf("%s_daemon", [input.context.hostname])
+}
+
+passed_finding(resource_type, resource_id, event_data) = f {
+	f := raw_finding(true, resource_type, resource_id, event_data)
+}
+
+failing_finding(resource_type, resource_id, event_data) = f {
+	f := raw_finding(false, resource_type, resource_id, event_data)
+}
+
+docker_container_data(c) = d {
+	d := {
 		"container.id": c.id,
 		"container.image": c.image,
 		"container.name": c.name
-	})
+	}
 }
 
-passed_docker_container_finding(c) = f {
-	f := docker_container_finding(true, c)
-}
-
-failing_docker_container_finding(c) = f {
-	f := docker_container_finding(false, c)
-}
-
-process_finding(status, p) = f {
-	resid := sprintf("%s_daemon", [input.context.hostname])
-	f := finding(status, "docker_daemon", resid, {
+process_data(p) = d {
+	d := {
 		"process.name": p.name,
 		"process.exe": p.exe,
 		"process.cmdLine": p.cmdLine
-	})
+	}
 }
 
-passed_process_finding(p) = f {
-	f := process_finding(true, p)
-}
-
-failing_process_finding(p) = f {
-	f := process_finding(false, p)
-}
-
-file_finding(status, file) = fg {
-	resid := sprintf("%s_daemon", [input.context.hostname])
-	fg := finding(status, "docker_daemon", resid, {
+file_data(file) = d {
+	d := {
 		"file.group": file.group,
 		"file.path": file.path,
 		"file.permissions": file.permissions,
 		"file.user": file.user,
-	})
-}
-
-passed_file_finding(file) = fg {
-	fg := file_finding(true, file)
-}
-
-failing_file_finding(file) = fg {
-	fg := file_finding(false, file)
+	}
 }
 `
 
@@ -104,7 +93,7 @@ var octalLiteralFunc = rego.Function1(
 
 var rawFinding = rego.Function4(
 	&rego.Function{
-		Name: "finding",
+		Name: "raw_finding",
 		Decl: types.NewFunction(types.Args(types.B, types.S, types.S, types.A), types.A),
 	},
 	func(_ rego.BuiltinContext, status, resType, resID, data *ast.Term) (*ast.Term, error) {

@@ -23,13 +23,21 @@ regos:
       findings[f] {
         p := input.kubelet_processes[_]
         valid_process[p]
-        f := dd.passed_process_finding(p)
+        f := dd.passed_finding(
+          "docker_daemon",
+          dd.docker_daemon_resource_id,
+          dd.process_data(p)
+        )
       }
 
       findings[f] {
         p := input.kubelet_processes[_]
         not valid_process[p]
-        f := dd.failing_process_finding(p)
+        f := dd.failing_finding(
+          "docker_daemon",
+          dd.docker_daemon_resource_id,
+          dd.process_data(p)
+        )
       }
 
       valid_process[p] {

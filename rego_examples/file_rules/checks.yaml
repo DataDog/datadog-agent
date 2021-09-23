@@ -39,13 +39,21 @@ regos:
       findings[f] {
         file := input.docker_sockets[_]
         valid_file[file]
-        f := dd.passed_file_finding(file)
+        f := dd.passed_finding(
+          "docker_daemon",
+          dd.docker_daemon_resource_id,
+          dd.file_data(file)
+        )
       }
 
       findings[f] {
         file := input.docker_sockets[_]
         not valid_file[file]
-        f := dd.failing_file_finding(file)
+        f := dd.failing_finding(
+          "docker_daemon",
+          dd.docker_daemon_resource_id,
+          dd.file_data(file)
+        )
       }
 
       valid_file[file] {
@@ -71,13 +79,21 @@ regos:
       findings[f] {
         file := input.docker_sockets[_]
         valid_file[file]
-        f := dd.passed_file_finding(file)
+        f := dd.passed_finding(
+          "docker_daemon",
+          dd.docker_daemon_resource_id,
+          dd.file_data(file)
+        )
       }
 
       findings[f] {
         file := input.docker_sockets[_]
         not valid_file[file]
-        f := dd.failing_file_finding(file)
+        f := dd.failing_finding(
+          "docker_daemon",
+          dd.docker_daemon_resource_id,
+          dd.file_data(file)
+        )
       }
 
       valid_file[file] {
