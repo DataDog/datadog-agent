@@ -56,6 +56,7 @@ type Resource struct {
 // RegoResource describes supported resource types observed by a Rego Rule
 type RegoResource struct {
 	ResourceCommon `yaml:",inline"`
+	TagName        string `yaml:"tag"`
 }
 
 // Kind returns ResourceKind of the resource

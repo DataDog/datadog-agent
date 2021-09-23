@@ -63,17 +63,8 @@ func (r *regoCheck) normalizeInputMap(vars map[string]interface{}) map[string]in
 	return normalized
 }
 
-func resourcePluralizer(resource compliance.ResourceCommon) string {
-	str := string(resource.Kind())
-
-	if strings.HasSuffix(str, "s") {
-		return str + "es"
-	}
-	return str + "s"
-}
-
 func (r *regoCheck) buildNormalInput(env env.Env) (map[string]interface{}, error) {
-	inputPerResources := make(map[string][]interface{})
+	inputPerTags := make(map[string][]interface{})
 
 	for _, resource := range r.resources {
 		resolve, _, err := resourceKindToResolverAndFields(env, r.ruleID, resource.Kind())
@@ -89,11 +80,13 @@ func (r *regoCheck) buildNormalInput(env env.Env) (map[string]interface{}, error
 			continue
 		}
 
-		key := resourcePluralizer(resource.ResourceCommon)
+		if resource.TagName == "" {
+			return nil, errors.New("no tag name found for resource")
+		}
 
 		switch res := resolved.(type) {
 		case resolvedInstance:
-			r.appendInstance(inputPerResources, key, res)
+			r.appendInstance(inputPerTags, resource.TagName, res)
 		case eval.Iterator:
 			it := res
 			for !it.Done() {
@@ -102,7 +95,7 @@ func (r *regoCheck) buildNormalInput(env env.Env) (map[string]interface{}, error
 					return nil, err
 				}
 
-				r.appendInstance(inputPerResources, key, instance)
+				r.appendInstance(inputPerTags, resource.TagName, instance)
 			}
 		}
 	}
@@ -111,7 +104,7 @@ func (r *regoCheck) buildNormalInput(env env.Env) (map[string]interface{}, error
 	context["hostname"] = env.Hostname()
 
 	input := make(map[string]interface{})
-	for k, v := range inputPerResources {
+	for k, v := range inputPerTags {
 		input[k] = v
 	}
 	input["context"] = context
