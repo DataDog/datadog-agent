@@ -1090,6 +1090,64 @@ community_string: "abc"
 	assert.EqualError(t, err, "namespace cannot be empty")
 }
 
+func Test_buildConfig_UseDeviceIDAsHostname(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+oid_batch_size: 10
+`)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, false, config.UseDeviceIDAsHostname)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+use_device_id_as_hostname: true
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, true, config.UseDeviceIDAsHostname)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+use_device_id_as_hostname: true
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, true, config.UseDeviceIDAsHostname)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+use_device_id_as_hostname: false
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+use_device_id_as_hostname: true
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, false, config.UseDeviceIDAsHostname)
+}
+
 func Test_buildConfig_minCollectionInterval(t *testing.T) {
 	tests := []struct {
 		name              string
@@ -1461,6 +1519,7 @@ func TestCheckConfig_Copy(t *testing.T) {
 		ExtraTags:             []string{"ExtraTags:tag"},
 		InstanceTags:          []string{"InstanceTags:tag"},
 		CollectDeviceMetadata: true,
+		UseDeviceIDAsHostname: true,
 		DeviceID:              "123",
 		DeviceIDTags:          []string{"DeviceIDTags:tag"},
 		ResolvedSubnetName:    "1.2.3.4/28",
@@ -1498,6 +1557,7 @@ func TestCheckConfig_Copy(t *testing.T) {
 	assertNotSameButEqualElements(t, config.ExtraTags, configCopy.ExtraTags)
 	assertNotSameButEqualElements(t, config.InstanceTags, configCopy.InstanceTags)
 	assert.Equal(t, config.CollectDeviceMetadata, configCopy.CollectDeviceMetadata)
+	assert.Equal(t, config.UseDeviceIDAsHostname, configCopy.UseDeviceIDAsHostname)
 	assert.Equal(t, config.DeviceID, configCopy.DeviceID)
 	assertNotSameButEqualElements(t, config.DeviceIDTags, configCopy.DeviceIDTags)
 	assert.Equal(t, config.ResolvedSubnetName, configCopy.ResolvedSubnetName)

@@ -49,7 +49,7 @@ profiles:
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
-	deviceCk.SetSender(report.NewMetricSender(sender))
+	deviceCk.SetSender(report.NewMetricSender(sender, ""))
 
 	sysObjectIDPacket := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
@@ -266,4 +266,36 @@ profiles:
 
 	assert.Len(t, deviceCk.config.Metrics, len(firstRunMetrics))
 	assert.Len(t, deviceCk.config.MetricTags, len(firstRunMetricsTags))
+}
+
+func TestDeviceCheck_GetHostname(t *testing.T) {
+	checkconfig.SetConfdPathAndCleanProfiles()
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+`)
+
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4")
+	assert.Nil(t, err)
+
+	sender := mocksender.NewMockSender("123") // required to initiate aggregator
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+	// without hostname
+	deviceCk.SetSender(report.NewMetricSender(sender, ""))
+	deviceCk.sender.Gauge("snmp.devices_monitored", float64(1), []string{"snmp_device:1.2.3.4"})
+	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", []string{"snmp_device:1.2.3.4"})
+
+	// with hostname
+	deviceCk.config.UseDeviceIDAsHostname = true
+	deviceCk.SetSender(report.NewMetricSender(sender, "device:123"))
+	deviceCk.sender.Gauge("snmp.devices_monitored", float64(1), []string{"snmp_device:1.2.3.4"})
+	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "device:123", []string{"snmp_device:1.2.3.4"})
 }
