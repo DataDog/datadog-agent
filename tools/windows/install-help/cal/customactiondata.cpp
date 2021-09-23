@@ -299,9 +299,10 @@ bool CustomActionData::parseUsernameData()
         // use default value. Order of construction is Domain then Name
         _user = {L".", ddAgentUserName };
     }
-    _fullyQualifiedUsername = _user.Domain + L"\\" + _user.Name;
 
     ensureDomainHasCorrectFormat();
+
+    _fullyQualifiedUsername = _user.Domain + L"\\" + _user.Name;
     auto sidResult = GetSidForUser(nullptr, Username().c_str());
 
     if (sidResult.Result == ERROR_NONE_MAPPED)
