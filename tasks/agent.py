@@ -726,8 +726,7 @@ def get_integrations_from_cache(ctx, python, bucket, integrations_dir, target_di
         sync_commands[-1][1] += len(include_arg)
 
     for sync_command in sync_commands:
-        #ctx.run("".join(sync_command[0]))
-        print("".join(sync_command[0]))
+        ctx.run("".join(sync_command[0]))
 
     found = 0
     for integration in sorted(integrations_hashes):
