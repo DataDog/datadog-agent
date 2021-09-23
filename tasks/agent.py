@@ -75,7 +75,7 @@ IOT_AGENT_CORECHECKS = [
 
 CACHED_WHEEL_FILENAME_PATTERN = "{integration}-{python_version}.whl"
 CACHED_WHEEL_FULL_PATH_PATTERN = "integration-wheels/{hash}/" + CACHED_WHEEL_FILENAME_PATTERN
-LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} log -n 1 --pretty='format:%H' {integration}"
+LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} log -n 1 --pretty=%H {integration}"
 
 
 @task
@@ -713,15 +713,21 @@ def get_integrations_from_cache(ctx, python, bucket, integrations_dir, target_di
         integrations_hashes[integration] = last_commit.stdout.strip()
 
     print("Trying to retrieve {} integration wheels from cache".format(len(integrations_hashes)))
-    sync_command = ["aws s3 sync s3://{} {} --exclude '*'".format(bucket, target_dir)]
-    sync_command.extend(
-        [
-            "--include "
-            + CACHED_WHEEL_FULL_PATH_PATTERN.format(hash=hash, integration=integration, python_version=python)
-            for integration, hash in integrations_hashes.items()
-        ]
-    )
-    ctx.run(" ".join(sync_command))
+    # On windows, maximum length of a command line call is 8191 characters, therefore
+    # we do multiple syncs that fit within that limit (we use 8100 as a nice round number
+    # and just to make sure we don't do any of-by-one errors that would break this).
+    sync_command_prefix = "aws s3 sync s3://{} {} --exclude '*'".format(bucket, target_dir)
+    sync_commands = [[[sync_command_prefix], len(sync_command_prefix)]]
+    for integration, hash in integrations_hashes.items():
+        include_arg = " --include " + CACHED_WHEEL_FULL_PATH_PATTERN.format(hash=hash, integration=integration, python_version=python)
+        if len(include_arg) + sync_commands[-1][1] > 8100:
+            sync_commands.append([[sync_command_prefix], len(sync_command_prefix)])
+        sync_commands[-1][0].append(include_arg)
+        sync_commands[-1][1] += len(include_arg)
+
+    for sync_command in sync_commands:
+        #ctx.run("".join(sync_command[0]))
+        print("".join(sync_command[0]))
 
     found = 0
     for integration in sorted(integrations_hashes):
@@ -734,7 +740,6 @@ def get_integrations_from_cache(ctx, python, bucket, integrations_dir, target_di
         target_path = os.path.join(
             target_dir, CACHED_WHEEL_FILENAME_PATTERN.format(integration=integration, python_version=python)
         )
-        print(original_path)
         if os.path.exists(original_path):
             print("Found cached wheel for integration {}".format(integration))
             os.rename(original_path, target_path)
