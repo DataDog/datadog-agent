@@ -1,0 +1,87 @@
+schema:
+  version: 1.0.0
+name: CIS Docker Generic
+framework: cis-docker
+version: 1.2.0
+rules:
+  - id: cis-docker-1.2.0-3.3
+    description: '[CIS Docker] Ensure that docker.socket file ownership is set to root:root'
+    scope:
+      - docker
+    resources:
+      - file:
+          path: /usr/lib/systemd/system/docker.socket
+        condition: file.user == "root" && file.group == "root"
+
+  - id: cis-docker-1.2.0-3.4
+    description: '[CIS Docker] Ensure that docker.socket file permissions are set to 644 or more restrictive'
+    scope:
+      - docker
+    resources:
+      - file:
+          path: /usr/lib/systemd/system/docker.socket
+        condition: (file.permissions & 0644) == file.permissions
+
+regos:
+  - id: cis-docker-1.2.0-3.3
+    description: '[CIS Docker] Ensure that docker.socket file ownership is set to root:root'
+    scope:
+      - docker
+    inputs:
+      - tag: docker_sockets
+        file:
+          path: /usr/lib/systemd/system/docker.socket
+    module: |
+      package docker_socket
+
+      import data.datadog as dd
+
+      findings[f] {
+        file := input.docker_sockets[_]
+        valid_file[file]
+        f := dd.passed_file_finding(file)
+      }
+
+      findings[f] {
+        file := input.docker_sockets[_]
+        not valid_file[file]
+        f := dd.failing_file_finding(file)
+      }
+
+      valid_file[file] {
+        file := input.docker_sockets[_]
+        file.user == "root"
+        file.group == "root"
+      }
+    findings: data.docker_socket.findings
+
+  - id: cis-docker-1.2.0-3.4
+    description: '[CIS Docker] Ensure that docker.socket file permissions are set to 644 or more restrictive'
+    scope:
+      - docker
+    inputs:
+      - tag: docker_sockets
+        file:
+          path: /usr/lib/systemd/system/docker.socket
+    module: |
+      package docker_socket
+
+      import data.datadog as dd
+
+      findings[f] {
+        file := input.docker_sockets[_]
+        valid_file[file]
+        f := dd.passed_file_finding(file)
+      }
+
+      findings[f] {
+        file := input.docker_sockets[_]
+        not valid_file[file]
+        f := dd.failing_file_finding(file)
+      }
+
+      valid_file[file] {
+        file := input.docker_sockets[_]
+        file.permissions == bits.and(file.permissions, parse_octal("644"))
+      }
+    findings: data.docker_socket.findings
