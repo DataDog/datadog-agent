@@ -553,9 +553,7 @@ func (ku *KubeUtil) setupKubeletAPIEndpoint() error {
 			}
 			log.Warnf("Failed to securely reach the kubelet over HTTPS, received a status %d. Trying a non secure connection over HTTP. We highly recommend configuring TLS to access the kubelet", code)
 		}
-		log.Debugf("Cannot query %s%s: %s", ku.kubeletAPIEndpoint, kubeletPodPath, httpsURLErr)
-
-		return httpsURLErr
+		log.Debugf("Cannot query %s%s without TLS verify: %s", ku.kubeletAPIEndpoint, kubeletPodPath, httpsURLErr)
 	}
 	// sts end
 
