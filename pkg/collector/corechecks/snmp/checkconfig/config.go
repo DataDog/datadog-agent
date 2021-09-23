@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
@@ -104,6 +105,7 @@ type InstanceConfig struct {
 	DiscoveryAllowedFailures int      `yaml:"discovery_allowed_failures"`
 	DiscoveryWorkers         int      `yaml:"discovery_workers"`
 	Workers                  int      `yaml:"workers"`
+	Namespace                string   `yaml:"namespace"`
 }
 
 // CheckConfig holds config needed for an integration instance to run
@@ -135,6 +137,7 @@ type CheckConfig struct {
 	DeviceID              string
 	DeviceIDTags          []string
 	ResolvedSubnetName    string
+	Namespace             string
 	AutodetectProfile     bool
 	MinCollectionInterval time.Duration
 
@@ -369,6 +372,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	}
 	c.BulkMaxRepetitions = uint32(bulkMaxRepetitions)
 
+	if instance.Namespace != "" {
+		c.Namespace = instance.Namespace
+	} else {
+		c.Namespace = config.Datadog.GetString("network_devices.namespace")
+	}
+
 	// metrics Configs
 	if instance.UseGlobalMetrics {
 		c.Metrics = append(c.Metrics, initConfig.GlobalMetrics...)
@@ -528,6 +537,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 
 	newConfig.DeviceIDTags = common.CopyStrings(c.DeviceIDTags)
 	newConfig.ResolvedSubnetName = c.ResolvedSubnetName
+	newConfig.Namespace = c.Namespace
 	newConfig.AutodetectProfile = c.AutodetectProfile
 	newConfig.MinCollectionInterval = c.MinCollectionInterval
 

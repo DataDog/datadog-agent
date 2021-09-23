@@ -500,6 +500,7 @@ profiles:
 	event := []byte(`
 {
   "subnet": "127.0.0.0/30",
+  "namespace":"default",
   "devices": [
     {
       "id": "173b2077d0770b8",
@@ -1064,6 +1065,7 @@ tags:
 	event := []byte(`
 {
   "subnet": "127.0.0.0/30",
+  "namespace":"default",
   "devices": [
     {
       "id": "173b2077d0770b8",
@@ -1175,6 +1177,7 @@ tags:
 	event := []byte(`
 {
   "subnet": "127.0.0.0/30",
+  "namespace":"default",
   "devices": [
     {
       "id": "173b2077d0770b9",
@@ -1431,6 +1434,7 @@ metric_tags:
 		event := []byte(fmt.Sprintf(`
 {
   "subnet": "10.10.0.0/30",
+  "namespace":"default",
   "devices": [
     {
       "id": "%s",

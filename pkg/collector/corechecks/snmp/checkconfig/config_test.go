@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestConfigurations(t *testing.T) {
@@ -315,21 +316,22 @@ community_string: abc
 `)
 	// language=yaml
 	rawInitConfig := []byte(``)
-	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	conf, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
 
 	assert.Nil(t, err)
-	assert.Equal(t, "1.2.3.4", config.IPAddress)
-	assert.Equal(t, uint16(161), config.Port)
-	assert.Equal(t, 2, config.Timeout)
-	assert.Equal(t, 3, config.Retries)
+	assert.Equal(t, "default", conf.Namespace)
+	assert.Equal(t, "1.2.3.4", conf.IPAddress)
+	assert.Equal(t, uint16(161), conf.Port)
+	assert.Equal(t, 2, conf.Timeout)
+	assert.Equal(t, 3, conf.Retries)
 	metrics := []MetricsConfig{{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}}}
 
 	var metricsTags []MetricTagConfig
 
-	assert.Equal(t, metrics, config.Metrics)
-	assert.Equal(t, metricsTags, config.MetricTags)
-	assert.Equal(t, 1, len(config.Profiles))
-	assert.Equal(t, mockProfilesDefinitions()["f5-big-ip"].Metrics, config.Profiles["f5-big-ip"].Metrics)
+	assert.Equal(t, metrics, conf.Metrics)
+	assert.Equal(t, metricsTags, conf.MetricTags)
+	assert.Equal(t, 1, len(conf.Profiles))
+	assert.Equal(t, mockProfilesDefinitions()["f5-big-ip"].Metrics, conf.Profiles["f5-big-ip"].Metrics)
 }
 
 func TestPortConfiguration(t *testing.T) {
@@ -994,6 +996,39 @@ collect_device_metadata: true
 	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, false, config.CollectDeviceMetadata)
+}
+
+func Test_buildConfig_namespace(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+namespace: my-ns
+`)
+	// language=yaml
+	rawInitConfig := []byte(``)
+	conf, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, "my-ns", conf.Namespace)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, "default", conf.Namespace)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	config.Datadog.Set("network_devices.namespace", "ns-from-datadog-conf")
+	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, "ns-from-datadog-conf", conf.Namespace)
 }
 
 func Test_buildConfig_minCollectionInterval(t *testing.T) {
