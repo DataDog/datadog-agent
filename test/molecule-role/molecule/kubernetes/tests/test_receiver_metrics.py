@@ -61,3 +61,27 @@ def test_agent_http_metrics(host):
         assert get_keys().pop() in expected
 
     util.wait_until(wait_for_metrics, 30, 3)
+
+
+def test_agent_kubernetes_metrics(host):
+    url = "http://localhost:7070/api/topic/sts_multi_metrics?limit=1000"
+
+    def wait_for_metrics():
+        data = host.check_output("curl \"%s\"" % url)
+        json_data = json.loads(data)
+        with open("./topic-multi-metrics-kubernetes.json", 'w') as f:
+            json.dump(json_data, f, indent=4)
+
+        def get_keys():
+            return next(set(message["message"]["MultiMetric"]["values"].keys())
+                        for message in json_data["messages"]
+                        if message["message"]["MultiMetric"]["name"] == "convertedMetric" and
+                        "cluster_name" in message["message"]["MultiMetric"]["tags"]
+                        )
+
+        expected = {"kubernetes.pods.running", "kubernetes.containers.running",
+                    "kubernetes.containers.restarts", "kubernetes.memory.limits"}
+
+        assert get_keys().pop() in expected
+
+    util.wait_until(wait_for_metrics, 30, 3)
