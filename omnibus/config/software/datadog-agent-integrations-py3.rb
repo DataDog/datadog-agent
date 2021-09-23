@@ -300,12 +300,6 @@ build do
       # inv agent.get-integrations-from-cache command
       checks_to_install.each do |check|
         check_dir = File.join(project_dir, "check")
-        cached_wheel_path = File.join(cached_wheels_dir, "#{check}-3.whl")
-        # TODO: maybe we could install all in one batch to be even more efficient?
-        if File.exist? cached_wheel_path
-          command "#{pip} install --no-deps --no-index #{cached_wheel_path}"
-          next
-        end
         # For each conf file, if it already exists, that means the `datadog-agent` software def
         # wrote it first. In that case, since the agent's confs take precedence, skip the conf
 
@@ -341,6 +335,14 @@ build do
         profiles = "#{check_dir}/datadog_checks/#{check}/data/profiles"
         if File.exist? profiles
           copy profiles, "#{check_conf_dir}/"
+        end
+
+        cached_wheel_glob = Dir.glob("#{cached_wheels_dir}/datadog_{check}-*.whl")
+        if cached_wheel_glob.length == 1
+          command "#{pip} install --no-deps --no-index #{cached_wheel_glob[0]}"
+          next
+        elsif cached_wheel_glob.length > 1
+            TODOraiseexception
         end
 
         if windows?

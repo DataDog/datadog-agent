@@ -74,8 +74,9 @@ IOT_AGENT_CORECHECKS = [
     "jetson",
 ]
 
-CACHED_WHEEL_FILENAME_PATTERN = "{integration}-{python_version}.whl"
-CACHED_WHEEL_FULL_PATH_PATTERN = "integration-wheels/{hash}/" + CACHED_WHEEL_FILENAME_PATTERN
+CACHED_WHEEL_FILENAME_PATTERN = "datadog_{integration}-*.whl"
+CACHED_WHEEL_DIRECTORY_PATTERN = "integration-wheels/{hash}/{python_version}/"
+CACHED_WHEEL_FULL_PATH_PATTERN = CACHED_WHEEL_DIRECTORY_PATTERN + CACHED_WHEEL_FILENAME_PATTERN
 LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} log -n 1 --pretty=%H {integration}"
 
 
@@ -737,20 +738,24 @@ def get_integrations_from_cache(ctx, python, bucket, integrations_dir, target_di
         ctx.run("".join(sync_command[0]))
 
     found = 0
+    # move all wheel files directly to the target_dir, so they're easy to find/work with in Omnibus
     for integration in sorted(integrations_hashes):
         hash = integrations_hashes[integration]
-        original_path = os.path.join(
+        original_path_glob = os.path.join(
             target_dir,
             CACHED_WHEEL_FULL_PATH_PATTERN.format(hash=hash, integration=integration, python_version=python),
         )
-        # move all wheel files directly to the target_dir, so they're easy to find/work with in Omnibus
-        target_path = os.path.join(
-            target_dir, CACHED_WHEEL_FILENAME_PATTERN.format(integration=integration, python_version=python)
-        )
-        if os.path.exists(original_path):
-            print("Found cached wheel for integration {}".format(integration))
-            os.rename(original_path, target_path)
-            found += 1
+        files_matched = glob.glob(original_path_glob)
+        if len(files_matched) == 0:
+            continue
+        elif len(files_matched) > 1:
+            raise Exit(
+                "More than 1 wheel for integration {} matched by {}: {}".format(integration, original_path_glob, files_matched)
+            )
+        wheel_path = files_matched[0]
+        print("Found cached wheel for integration {}".format(integration))
+        shutil.move(wheel_path, target_dir)
+        found += 1
 
     print("Found {} cached integration wheels".format(found))
 
@@ -766,20 +771,16 @@ def upload_integration_to_cache(ctx, python, bucket, integrations_dir, build_dir
     integration: name of the integration being cached
     awscli: AWS CLI executable to call
     """
-    built_wheel_re = re.compile(r"datadog_{}-.*.whl".format(integration))
-    filename = ""
-    for f in os.listdir(build_dir):
-        if built_wheel_re.match(f):
-            if filename:
-                raise Exit(
-                    "More than 1 wheel for integration {} in {}: {} and {}".format(integration, build_dir, filename, f)
-                )
-            else:
-                filename = f
-
-    if not filename:
+    matching_glob = os.path.join(build_dir, CACHED_WHEEL_FILENAME_PATTERN.format(integration=integration))
+    files_matched = glob.glob(matching_glob)
+    if len(files_matched) == 0:
         raise Exit("No wheel for integration {} found in {}".format(integration, build_dir))
-    wheel_path = os.path.join(build_dir, filename)
+    elif len(files_matched) > 1:
+        raise Exit(
+            "More than 1 wheel for integration {} matched by {}: {}".format(integration, matching_glob, files_matched)
+        )
+
+    wheel_path = files_matched[0]
 
     last_commit = ctx.run(
         LAST_DIRECTORY_COMMIT_PATTERN.format(integrations_dir=integrations_dir, integration=integration),
@@ -788,7 +789,7 @@ def upload_integration_to_cache(ctx, python, bucket, integrations_dir, build_dir
     )
     hash = last_commit.stdout.strip()
 
-    target_name = CACHED_WHEEL_FULL_PATH_PATTERN.format(hash=hash, integration=integration, python_version=python)
+    target_name = CACHED_WHEEL_DIRECTORY_PATTERN.format(hash=hash, python_version=python) + os.path.basename(wheel_path)
     print("Caching wheel {}".format(target_name))
     # NOTE: on Windows, the awscli is usually in program files, so we have the executable
     ctx.run("\"{}\" s3 cp {} s3://{}/{}".format(awscli, wheel_path, bucket, target_name))
