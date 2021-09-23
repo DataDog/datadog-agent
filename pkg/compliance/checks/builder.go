@@ -334,8 +334,6 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 
 	matchedCount := 0
 	for _, r := range suite.Rules {
-		fmt.Printf("Rule: %+v\n", r)
-
 		if b.ruleMatcher != nil {
 			if b.ruleMatcher(&r.RuleCommon) {
 				log.Infof("%s/%s: matched rule %s in %s", suite.Meta.Name, suite.Meta.Version, r.ID, file)
