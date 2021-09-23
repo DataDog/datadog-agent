@@ -2385,9 +2385,20 @@ api_key:
 {{ end -}}
 {{- if .SNMP }}
 
-########################
-## SNMP Configuration ##
-########################
+###################################
+## Network Devices Configuration ##
+###################################
+
+## @param network_devices - custom object - optional
+## Configuration related to Network Devices.
+#
+# network_devices:
+
+  ## @param namespace - string - optional - default: default
+  ## Namespace can be used to disambiguate devices
+  ## when multiple agents are used to monitor devices with the same IPs.
+  #
+  # namespace: default
 
 ## @param snmp_traps_enabled - boolean - optional - default: false
 ## Set to true to enable collection of traps.
