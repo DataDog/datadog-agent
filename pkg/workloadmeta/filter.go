@@ -35,7 +35,8 @@ func NewFilter(kinds []Kind, sources []string) *Filter {
 	}
 }
 
-// MatchKind returns true if the filter matches the passed Kind.
+// MatchKind returns true if the filter matches the passed Kind. If the filter
+// is nil, or has no kinds, it always matches.
 func (f *Filter) MatchKind(k Kind) bool {
 	if f == nil || len(f.kinds) == 0 {
 		return true
@@ -46,7 +47,8 @@ func (f *Filter) MatchKind(k Kind) bool {
 	return ok
 }
 
-// MatchSource returns true if the filter matches the passed source.
+// MatchSource returns true if the filter matches the passed source. If the
+// filter is nil, or has no sources, it always matches.
 func (f *Filter) MatchSource(s string) bool {
 	if f == nil || len(f.sources) == 0 {
 		return true

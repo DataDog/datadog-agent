@@ -35,6 +35,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+
+	// register all workloadmeta collectors
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 
 	"github.com/spf13/cobra"
 )
@@ -192,6 +196,9 @@ func runAgent(exit chan struct{}) {
 	hostInfo := host.GetStatusInformation()
 	log.Infof("running on platform: %s", hostInfo.Platform)
 	log.Infof("running version: %s", versionString(", "))
+
+	// Start workload metadata store before tagger
+	workloadmeta.GetGlobalStore().Start(context.Background())
 
 	// Tagger must be initialized after agent config has been setup
 	var t tagger.Tagger

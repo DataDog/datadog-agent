@@ -17,14 +17,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+
+	// register all workloadmeta collectors
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
 func LoadComponents(confdPath string) {
-	// TODO(juliogreff): pass a local store to tagger and AD maybe? Also,
-	// other agents may need to initialize this as well.
-	workloadmeta.GetGlobalStore().Run(context.Background())
+	workloadmeta.GetGlobalStore().Start(context.Background())
 
 	// start the tagger. must be done before autodiscovery, as it needs to
 	// be the first subscribed to metadata store to avoid race conditions.

@@ -16,7 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
-var globalStore *Store
+var (
+	globalStore *Store
+	initOnce    sync.Once
+)
 
 const (
 	retryCollectorInterval = 30 * time.Second
@@ -31,7 +34,9 @@ type subscriber struct {
 	filter *Filter
 }
 
-// Store contains metadata for workloads.
+// Store is a central storage of metadata about workloads. A workload is any
+// unit of work being done by a piece of software, like a process, a container,
+// a kubernetes pod, or a task in any cloud provider.
 type Store struct {
 	storeMut sync.RWMutex
 	store    map[Kind]map[string]Entity
@@ -45,7 +50,8 @@ type Store struct {
 	eventCh chan []Event
 }
 
-// NewStore creates a new workload metadata store. Call Run to start it.
+// NewStore creates a new workload metadata store, building a new instance of
+// each registered collector. Call Start to start the store and its collectors.
 func NewStore() *Store {
 	candidates := make(map[string]Collector)
 	for id, c := range collectorCatalog {
@@ -62,8 +68,8 @@ func NewStore() *Store {
 	}
 }
 
-// Run starts the workload metadata store.
-func (s *Store) Run(ctx context.Context) {
+// Start starts the workload metadata store.
+func (s *Store) Start(ctx context.Context) {
 	retryTicker := time.NewTicker(retryCollectorInterval)
 	pullTicker := time.NewTicker(pullCollectorInterval)
 	health := health.RegisterLiveness("workloadmeta-store")
@@ -118,7 +124,8 @@ func (s *Store) Run(ctx context.Context) {
 }
 
 // Subscribe returns a channel where workload metadata events will be streamed
-// as they happen.
+// as they happen. On first subscription, it will also generate an EventTypeSet
+// event for each entity present in the store that matches filter.
 func (s *Store) Subscribe(name string, filter *Filter) chan EventBundle {
 	// ch needs to be buffered since we'll send it events before the
 	// subscriber has the chance to start receiving from it. if it's
@@ -136,26 +143,24 @@ func (s *Store) Subscribe(name string, filter *Filter) chan EventBundle {
 	var events []Event
 
 	s.storeMut.RLock()
-	if len(s.store) > 0 {
-		for kind, entitiesOfKind := range s.store {
-			if !sub.filter.MatchKind(kind) {
-				continue
-			}
+	for kind, entitiesOfKind := range s.store {
+		if !sub.filter.MatchKind(kind) {
+			continue
+		}
 
-			// TODO(juliogreff): implement filtering by source once
-			// each source has its own separate store. since at the
-			// time of writing there's a single source, this should
-			// not matter.
+		// TODO(juliogreff): implement filtering by source once
+		// each source has its own separate store. since at the
+		// time of writing there's a single source, this should
+		// not matter.
 
-			for _, entity := range entitiesOfKind {
-				events = append(events, Event{
-					// TODO(juliogreff): insert Source here
-					// after the above TODO has been
-					// addressed.
-					Type:   EventTypeSet,
-					Entity: entity,
-				})
-			}
+		for _, entity := range entitiesOfKind {
+			events = append(events, Event{
+				// TODO(juliogreff): insert Source here
+				// after the above TODO has been
+				// addressed.
+				Type:   EventTypeSet,
+				Entity: entity,
+			})
 		}
 	}
 	s.storeMut.RUnlock()
@@ -364,12 +369,14 @@ func notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) 
 }
 
 // GetGlobalStore returns a global instance of the workloadmeta store,
-// creating one if it doesn't exist. Run() needs to be called before any data
+// creating one if it doesn't exist. Start() needs to be called before any data
 // collection happens.
 func GetGlobalStore() *Store {
-	if globalStore == nil {
-		globalStore = NewStore()
-	}
+	initOnce.Do(func() {
+		if globalStore == nil {
+			globalStore = NewStore()
+		}
+	})
 
 	return globalStore
 }
