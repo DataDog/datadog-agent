@@ -170,7 +170,8 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 	log.Debugf("rego eval input: %+v", input)
 
 	if path := env.DumpInputPath(); path != "" {
-		dumpInputToFile(r.ruleID, path, input)
+		// if the dump failed we pass
+		_ = dumpInputToFile(r.ruleID, path, input)
 	}
 
 	ctx := context.TODO()
@@ -198,7 +199,9 @@ func dumpInputToFile(ruleID, path string, input interface{}) error {
 	currentData := make(map[string]interface{})
 	currentContent, err := ioutil.ReadFile(path)
 	if err == nil {
-		json.Unmarshal(currentContent, &currentData)
+		if err := json.Unmarshal(currentContent, &currentData); err != nil {
+			return err
+		}
 	}
 
 	currentData[ruleID] = input
@@ -209,7 +212,9 @@ func dumpInputToFile(ruleID, path string, input interface{}) error {
 	}
 
 	var buffer bytes.Buffer
-	json.Indent(&buffer, jsonInputDump, "", "\t")
+	if err := json.Indent(&buffer, jsonInputDump, "", "\t"); err != nil {
+		return err
+	}
 
 	return ioutil.WriteFile(path, buffer.Bytes(), 0644)
 }

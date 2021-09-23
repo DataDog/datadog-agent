@@ -19,7 +19,8 @@ type regoFixture struct {
 	name      string
 	resources []compliance.RegoResource
 	module    string
-	query     string
+	findings  string
+	scope     compliance.RuleScope
 
 	processes     processes
 	useCache      bool
@@ -33,8 +34,8 @@ func (f *regoFixture) newRegoCheck() (*regoCheck, error) {
 		RuleCommon: compliance.RuleCommon{
 			ID: ruleID,
 		},
-		Module: f.module,
-		Query:  f.query,
+		Module:   f.module,
+		Findings: f.findings,
 	}
 
 	regoCheck := &regoCheck{
@@ -42,7 +43,7 @@ func (f *regoFixture) newRegoCheck() (*regoCheck, error) {
 		resources: f.resources,
 	}
 
-	if err := regoCheck.compileRule(rule); err != nil {
+	if err := regoCheck.compileRule(rule, f.scope); err != nil {
 		return nil, err
 	}
 
@@ -87,80 +88,27 @@ func TestRegoProcessCheck(t *testing.T) {
 							Name: "proc1",
 						},
 					},
+					TagName: "processes",
 				},
 			},
 			module: `
 				package test
+
+				import data.datadog as dd
 
 				default valid = false
 
-				valid {
-					input.processes[_].flags["--path"] == "foo"
-				}
-			`,
-			query: "data.test.valid",
-			processes: processes{
-				42: {
-					Name:    "proc1",
-					Cmdline: []string{"arg1", "--path=foo"},
-				},
-			},
-			expectReports: []*compliance.Report{
-				{
-					Passed: true,
-					Data: event.Data{
-						"process.name":    "proc1",
-						"process.exe":     "",
-						"process.cmdLine": []string{"arg1", "--path=foo"},
-					},
-					Resource: compliance.ReportResource{
-						ID:   "42",
-						Type: "process",
-					},
-				},
-			},
-		},
-		{
-			name: "all cases",
-			resources: []compliance.RegoResource{
-				{
-					ResourceCommon: compliance.ResourceCommon{
-						Process: &compliance.Process{
-							Name: "proc1",
-						},
-					},
-				},
-				{
-					ResourceCommon: compliance.ResourceCommon{
-						Process: &compliance.Process{
-							Name: "proc2",
-						},
-					},
-				},
-			},
-			module: `
-				package test
-
-				invalid[p] {
+				finding[f] {
 					p := input.processes[_]
-					p.flags["--path"] != "foo"
-				}
-
-				default valid = false
-
-				valid {
-					count(invalid) == 0
+					p.flags["--path"] == "foo"
+					f := dd.passed_finding("process", "42", dd.process_data(p))
 				}
 			`,
-			query: "data.test.valid",
+			findings: "data.test.findings",
 			processes: processes{
 				42: {
 					Name:    "proc1",
 					Cmdline: []string{"arg1", "--path=foo"},
-				},
-				43: {
-					Name:    "proc2",
-					Cmdline: []string{"arg2", "--path=foo"},
 				},
 			},
 			expectReports: []*compliance.Report{
@@ -173,18 +121,6 @@ func TestRegoProcessCheck(t *testing.T) {
 					},
 					Resource: compliance.ReportResource{
 						ID:   "42",
-						Type: "process",
-					},
-				},
-				{
-					Passed: true,
-					Data: event.Data{
-						"process.name":    "proc2",
-						"process.exe":     "",
-						"process.cmdLine": []string{"arg2", "--path=foo"},
-					},
-					Resource: compliance.ReportResource{
-						ID:   "43",
 						Type: "process",
 					},
 				},
