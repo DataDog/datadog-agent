@@ -7,6 +7,7 @@ import ast
 import datetime
 import glob
 import os
+import platform
 import re
 import shutil
 import sys
@@ -717,8 +718,11 @@ def get_integrations_from_cache(ctx, python, bucket, integrations_dir, target_di
     # On windows, maximum length of a command line call is 8191 characters, therefore
     # we do multiple syncs that fit within that limit (we use 8100 as a nice round number
     # and just to make sure we don't do any of-by-one errors that would break this).
-    # NOTE: on Windows, the awscli is usually in program files, so we have the executable
-    sync_command_prefix = "\"{}\" s3 sync s3://{} {} --exclude '*'".format(awscli, bucket, target_dir)
+    # WINDOWS NOTES: on Windows, the awscli is usually in program files, so we have to wrap the
+    # executable in parentheses; also we have to not put the * in parentheses, as there's no
+    # expansion on it, unlike on Linux
+    exclude_wildcard = "*" if platform.system().lower() == "windows" else "'*'"
+    sync_command_prefix = "\"{}\" s3 sync s3://{} {} --exclude {}".format(awscli, bucket, target_dir, exclude_wildcard)
     sync_commands = [[[sync_command_prefix], len(sync_command_prefix)]]
     for integration, hash in integrations_hashes.items():
         include_arg = " --include " + CACHED_WHEEL_FULL_PATH_PATTERN.format(

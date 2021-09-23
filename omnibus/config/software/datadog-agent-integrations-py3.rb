@@ -282,6 +282,7 @@ build do
     tasks_dir_in = windows_safe_path(Dir.pwd)
     cache_bucket = ENV['INTEGRATION_WHEELS_CACHE_BUCKET']
     cache_bucket = nil if cache_bucket == ""
+    # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
     awscli = if windows? then '"c:\program files\amazon\awscli\bin\aws"' else 'aws' end
     if cache_bucket
       mkdir cached_wheels_dir
