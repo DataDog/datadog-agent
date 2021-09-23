@@ -61,6 +61,10 @@ type Collector struct {
 
 	// Controls the real-time interval, can change live.
 	realTimeInterval time.Duration
+
+	processResults   *api.WeightedQueue
+	rtProcessResults *api.WeightedQueue
+	podResults       *api.WeightedQueue
 }
 
 // NewCollector creates a new Collector
@@ -95,44 +99,61 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check) Coll
 	}
 }
 
-func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue, options checks.RunOptions) {
-	runCounter := int32(1)
-	if rc, ok := l.runCounters.Load(c.Name()); ok {
-		runCounter = rc.(int32) + 1
-	}
-	l.runCounters.Store(c.Name(), runCounter)
-
+func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
+	runCounter := l.nextRunCounter(c.Name())
 	start := time.Now()
 	// update the last collected timestamp for info
 	updateLastCollectTime(start)
 
-	if withRealTime, ok := c.(checks.CheckWithRealTime); ok {
-		run, err := withRealTime.RunWithOptions(l.cfg, l.nextGroupID, options)
-		if err != nil {
-			log.Errorf("Unable to run check '%s': %s", c.Name(), err)
-			return
-		}
-		l.messagesToResults(start, withRealTime.Name(), run.Standard, results)
-		l.messagesToResults(start, withRealTime.RealTimeName(), run.RealTime, results)
-	} else {
-		messages, err := c.Run(l.cfg, l.nextGroupID())
-		if err != nil {
-			log.Errorf("Unable to run check '%s': %s", c.Name(), err)
-			return
-		}
-		l.messagesToResults(start, c.Name(), messages, results)
+	messages, err := c.Run(l.cfg, l.nextGroupID())
+	if err != nil {
+		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
+		return
 	}
+	l.messagesToResults(start, c.Name(), messages, results)
 
-	if !c.RealTime() || options.RunStandard {
-		d := time.Since(start)
-		switch {
-		case runCounter < 5:
-			log.Infof("Finished %s check #%d in %s", c.Name(), runCounter, d)
-		case runCounter == 5:
-			log.Infof("Finished %s check #%d in %s. First 5 check runs finished, next runs will be logged every 20 runs.", c.Name(), runCounter, d)
-		case runCounter%20 == 0:
-			log.Infof("Finish %s check #%d in %s", c.Name(), runCounter, d)
-		}
+	if !c.RealTime() {
+		logCheckDuration(c.Name(), start, runCounter)
+	}
+}
+
+func (l *Collector) runCheckWithRealTime(c checks.CheckWithRealTime, results, rtResults *api.WeightedQueue, options checks.RunOptions) {
+	runCounter := l.nextRunCounter(c.Name())
+	start := time.Now()
+	// update the last collected timestamp for info
+	updateLastCollectTime(start)
+
+	run, err := c.RunWithOptions(l.cfg, l.nextGroupID, options)
+	if err != nil {
+		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
+		return
+	}
+	l.messagesToResults(start, c.Name(), run.Standard, results)
+	l.messagesToResults(start, c.RealTimeName(), run.RealTime, rtResults)
+
+	if options.RunStandard {
+		logCheckDuration(c.Name(), start, runCounter)
+	}
+}
+
+func (l *Collector) nextRunCounter(name string) int32 {
+	runCounter := int32(1)
+	if rc, ok := l.runCounters.Load(name); ok {
+		runCounter = rc.(int32) + 1
+	}
+	l.runCounters.Store(name, runCounter)
+	return runCounter
+}
+
+func logCheckDuration(name string, start time.Time, runCounter int32) {
+	d := time.Since(start)
+	switch {
+	case runCounter < 5:
+		log.Infof("Finished %s check #%d in %s", name, runCounter, d)
+	case runCounter == 5:
+		log.Infof("Finished %s check #%d in %s. First 5 check runs finished, next runs will be logged every 20 runs.", name, runCounter, d)
+	case runCounter%20 == 0:
+		log.Infof("Finish %s check #%d in %s", name, runCounter, d)
 	}
 }
 
@@ -198,10 +219,10 @@ func (l *Collector) run(exit chan struct{}) error {
 
 	go util.HandleSignals(exit)
 
-	processResults := api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.ProcessQueueBytes))
+	l.processResults = api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.ProcessQueueBytes))
 	// reuse main queue's ProcessQueueBytes because it's unlikely that it'll reach to that size in bytes, so we don't need a separate config for it
-	rtProcessResults := api.NewWeightedQueue(l.cfg.RTQueueSize, int64(l.cfg.ProcessQueueBytes))
-	podResults := api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.Orchestrator.PodQueueBytes))
+	l.rtProcessResults = api.NewWeightedQueue(l.cfg.RTQueueSize, int64(l.cfg.ProcessQueueBytes))
+	l.podResults = api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.Orchestrator.PodQueueBytes))
 
 	var wg sync.WaitGroup
 
@@ -227,14 +248,14 @@ func (l *Collector) run(exit chan struct{}) error {
 			case <-heartbeat.C:
 				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
 			case <-queueSizeTicker.C:
-				updateQueueBytes(processResults.Weight(), rtProcessResults.Weight(), podResults.Weight())
-				updateQueueSize(processResults.Len(), rtProcessResults.Len(), podResults.Len())
+				updateQueueBytes(l.processResults.Weight(), l.rtProcessResults.Weight(), l.podResults.Weight())
+				updateQueueSize(l.processResults.Len(), l.rtProcessResults.Len(), l.podResults.Len())
 			case <-queueLogTicker.C:
-				processSize, rtProcessSize, podSize := processResults.Len(), rtProcessResults.Len(), podResults.Len()
+				processSize, rtProcessSize, podSize := l.processResults.Len(), l.rtProcessResults.Len(), l.podResults.Len()
 				if processSize > 0 || rtProcessSize > 0 || podSize > 0 {
 					log.Infof(
 						"Delivery queues: process[size=%d, weight=%d], rtprocess [size=%d, weight=%d], pod[size=%d, weight=%d]",
-						processSize, processResults.Weight(), rtProcessSize, rtProcessResults.Weight(), podSize, podResults.Weight(),
+						processSize, l.processResults.Weight(), rtProcessSize, l.rtProcessResults.Weight(), podSize, l.podResults.Weight(),
 					)
 				}
 			case <-exit:
@@ -271,30 +292,23 @@ func (l *Collector) run(exit chan struct{}) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		l.consumePayloads(processResults, processForwarder, exit)
+		l.consumePayloads(l.processResults, processForwarder, exit)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		l.consumePayloads(rtProcessResults, rtProcessForwarder, exit)
+		l.consumePayloads(l.rtProcessResults, rtProcessForwarder, exit)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		l.consumePayloads(podResults, podForwarder, exit)
+		l.consumePayloads(l.podResults, podForwarder, exit)
 	}()
 
 	for _, c := range l.enabledChecks {
-		results := processResults
-		if c.Name() == checks.Pod.Name() {
-			results = podResults
-		} else if c.RealTime() {
-			results = rtProcessResults
-		}
-
-		runner, err := l.runnerForCheck(c, results, exit)
+		runner, err := l.runnerForCheck(c, exit)
 		if err != nil {
 			return fmt.Errorf("error starting check %s: %s", c.Name(), err)
 		}
@@ -315,8 +329,22 @@ func (l *Collector) run(exit chan struct{}) error {
 	return nil
 }
 
-func (l *Collector) runnerForCheck(c checks.Check, results *api.WeightedQueue, exit chan struct{}) (func(), error) {
+func (l *Collector) resultsQueueForCheck(name string) *api.WeightedQueue {
+	switch name {
+	case checks.Pod.Name():
+		return l.podResults
+	case checks.Process.RealTimeName(), checks.RTContainer.Name():
+		return l.rtProcessResults
+	}
+	return l.processResults
+}
+
+func (l *Collector) runnerForCheck(c checks.Check, exit chan struct{}) (func(), error) {
+	results := l.resultsQueueForCheck(c.Name())
+
 	if withRealTime, ok := c.(checks.CheckWithRealTime); ok {
+		rtResults := l.resultsQueueForCheck(withRealTime.RealTimeName())
+
 		return checks.NewRunnerWithRealTime(
 			checks.RunnerConfig{
 				CheckInterval: l.cfg.CheckInterval(withRealTime.Name()),
@@ -328,7 +356,7 @@ func (l *Collector) runnerForCheck(c checks.Check, results *api.WeightedQueue, e
 					return atomic.LoadInt32(&l.realTimeEnabled) == 1
 				},
 				RunCheck: func(options checks.RunOptions) {
-					l.runCheck(c, results, options)
+					l.runCheckWithRealTime(withRealTime, results, rtResults, options)
 				},
 			},
 		)
@@ -340,7 +368,7 @@ func (l *Collector) basicRunner(c checks.Check, results *api.WeightedQueue, exit
 	return func() {
 		// Run the check the first time to prime the caches.
 		if !c.RealTime() {
-			l.runCheck(c, results, checks.RunOptions{})
+			l.runCheck(c, results)
 		}
 
 		ticker := time.NewTicker(l.cfg.CheckInterval(c.Name()))
@@ -349,7 +377,7 @@ func (l *Collector) basicRunner(c checks.Check, results *api.WeightedQueue, exit
 			case <-ticker.C:
 				realTimeEnabled := atomic.LoadInt32(&l.realTimeEnabled) == 1
 				if !c.RealTime() || realTimeEnabled {
-					l.runCheck(c, results, checks.RunOptions{})
+					l.runCheck(c, results)
 				}
 			case d := <-l.rtIntervalCh:
 				// Live-update the ticker.
