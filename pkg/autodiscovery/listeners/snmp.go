@@ -416,6 +416,8 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 		return []byte(s.config.Network), nil
 	case "loader":
 		return []byte(s.config.Loader), nil
+	case "namespace":
+		return []byte(s.config.Namespace), nil
 	case "collect_device_metadata":
 		return []byte(strconv.FormatBool(s.config.CollectDeviceMetadata)), nil
 	case "tags":

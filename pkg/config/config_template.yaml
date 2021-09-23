@@ -2395,8 +2395,8 @@ api_key:
 # network_devices:
 
   ## @param namespace - string - optional - default: default
-  ## Namespace can be used to disambiguate devices
-  ## when multiple agents are used to monitor devices with the same IPs.
+  ## Namespace can be used to disambiguate devices with the same IP.
+  ## Changing namespace will cause devices being recreated in NDM app.
   #
   # namespace: default
 
