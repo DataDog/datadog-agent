@@ -643,12 +643,12 @@ func TestProcessDiscoveryConfig(t *testing.T) {
 		for _, procDiscoveryEnabled := range procDiscoveryEnabledValues {
 			config.Datadog.Set("process_config.enabled", procConfigEnabled)
 			config.Datadog.Set("process_config.process_discovery.enabled", procDiscoveryEnabled)
-			config.Datadog.Set("process_config.process_discovery.interval", time.Second)
+			config.Datadog.Set("process_config.process_discovery.interval", time.Hour)
 			cfg := AgentConfig{EnabledChecks: []string{}, CheckIntervals: map[string]time.Duration{}}
 			cfg.initProcessDiscoveryCheck()
 
 			// Make sure that the discovery check interval can be overridden
-			assert.Equal(time.Second, cfg.CheckIntervals[DiscoveryCheckName])
+			assert.Equal(time.Hour, cfg.CheckIntervals[DiscoveryCheckName])
 
 			// Make sure that the process discovery check is only enabled when both the process-agent is set to false,
 			// and procDiscoveryEnabled isn't overridden.
