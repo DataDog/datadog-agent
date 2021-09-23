@@ -549,9 +549,9 @@ func (p *ProcessCheck) storeCreateTimes() {
 }
 
 func (p *ProcessCheck) createTimesforPIDs(pids []int32) map[int32]int64 {
+	createTimeForPID := make(map[int32]int64)
 	if result := p.createTimes.Load(); result != nil {
 		createTimesAllPIDs := result.(map[int32]int64)
-		createTimeForPID := make(map[int32]int64)
 		for _, pid := range pids {
 			if ctime, ok := createTimesAllPIDs[pid]; ok {
 				createTimeForPID[pid] = ctime
@@ -559,7 +559,7 @@ func (p *ProcessCheck) createTimesforPIDs(pids []int32) map[int32]int64 {
 		}
 		return createTimeForPID
 	}
-	return nil
+	return createTimeForPID
 }
 
 // mergeProcWithSysprobeStats takes a process by PID map and fill the stats from system probe into the processes in the map
