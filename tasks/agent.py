@@ -691,7 +691,7 @@ def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_v
 
 
 @task
-def get_integrations_from_cache(ctx, python, bucket, integrations_dir, target_dir, integrations):
+def get_integrations_from_cache(ctx, python, bucket, integrations_dir, target_dir, integrations, awscli="aws"):
     """
     Get cached integration wheels for given integrations.
     python: Python version to retrieve integrations for
@@ -699,6 +699,7 @@ def get_integrations_from_cache(ctx, python, bucket, integrations_dir, target_di
     integrations_dir: directory with Git repository of integrations
     target_dir: local directory to put integration wheels to
     integrations: comma-separated names of the integrations to try to retrieve from cache
+    awscli: AWS CLI executable to call
     """
     integrations_hashes = {}
     for integration in integrations.strip().split(","):
@@ -716,10 +717,13 @@ def get_integrations_from_cache(ctx, python, bucket, integrations_dir, target_di
     # On windows, maximum length of a command line call is 8191 characters, therefore
     # we do multiple syncs that fit within that limit (we use 8100 as a nice round number
     # and just to make sure we don't do any of-by-one errors that would break this).
-    sync_command_prefix = "aws s3 sync s3://{} {} --exclude '*'".format(bucket, target_dir)
+    # NOTE: on Windows, the awscli is usually in program files, so we have the executable
+    sync_command_prefix = "\"{}\" s3 sync s3://{} {} --exclude '*'".format(awscli, bucket, target_dir)
     sync_commands = [[[sync_command_prefix], len(sync_command_prefix)]]
     for integration, hash in integrations_hashes.items():
-        include_arg = " --include " + CACHED_WHEEL_FULL_PATH_PATTERN.format(hash=hash, integration=integration, python_version=python)
+        include_arg = " --include " + CACHED_WHEEL_FULL_PATH_PATTERN.format(
+            hash=hash, integration=integration, python_version=python
+        )
         if len(include_arg) + sync_commands[-1][1] > 8100:
             sync_commands.append([[sync_command_prefix], len(sync_command_prefix)])
         sync_commands[-1][0].append(include_arg)
@@ -748,7 +752,7 @@ def get_integrations_from_cache(ctx, python, bucket, integrations_dir, target_di
 
 
 @task
-def upload_integration_to_cache(ctx, python, bucket, integrations_dir, build_dir, integration):
+def upload_integration_to_cache(ctx, python, bucket, integrations_dir, build_dir, integration, awscli="aws"):
     """
     Upload a built integration wheel for given integration.
     python: Python version the integration is built for
@@ -756,6 +760,7 @@ def upload_integration_to_cache(ctx, python, bucket, integrations_dir, build_dir
     integrations_dir: directory with Git repository of integrations
     build_dir: directory containing the built integration wheel
     integration: name of the integration being cached
+    awscli: AWS CLI executable to call
     """
     built_wheel_re = re.compile(r"datadog_{}-.*.whl".format(integration))
     filename = ""
@@ -781,4 +786,5 @@ def upload_integration_to_cache(ctx, python, bucket, integrations_dir, build_dir
 
     target_name = CACHED_WHEEL_FULL_PATH_PATTERN.format(hash=hash, integration=integration, python_version=python)
     print("Caching wheel {}".format(target_name))
-    ctx.run("aws s3 cp {} s3://{}/{}".format(wheel_path, bucket, target_name))
+    # NOTE: on Windows, the awscli is usually in program files, so we have the executable
+    ctx.run("\"{}\" s3 cp {} s3://{}/{}".format(awscli, wheel_path, bucket, target_name))
