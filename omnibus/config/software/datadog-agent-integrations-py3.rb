@@ -304,7 +304,7 @@ build do
         # TODO: maybe we could install all in one batch to be even more efficient?
         if File.exist? cached_wheel_path
           command "#{pip} install --no-deps --no-index #{cached_wheel_path}"
-          continue
+          next
         end
         # For each conf file, if it already exists, that means the `datadog-agent` software def
         # wrote it first. In that case, since the agent's confs take precedence, skip the conf
