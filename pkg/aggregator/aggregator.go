@@ -370,6 +370,7 @@ func (agg *BufferedAggregator) registerSender(id check.ID) error {
 	}
 	agg.checkSamplers[id] = newCheckSampler(
 		config.Datadog.GetInt("check_sampler_bucket_commits_count_expiry"),
+		config.Datadog.GetBool("check_sampler_expire_metrics"),
 		config.Datadog.GetDuration("check_sampler_stateful_metric_expiration_time"),
 	)
 	return nil

@@ -233,6 +233,7 @@ func InitConfig(config Config) {
 	// context. Default is 25h, to minimise problems for checks that emit metircs
 	// only occasionally.
 	config.BindEnvAndSetDefault("check_sampler_stateful_metric_expiration_time", 25*time.Hour)
+	config.BindEnvAndSetDefault("check_sampler_expire_metrics", true)
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 
 	// overridden in IoT Agent main

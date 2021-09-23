@@ -32,6 +32,7 @@ var (
 //
 // This is similar to ContextMetrics, but provides additional facility to remove metrics.
 type CheckMetrics struct {
+	expireMetrics bool
 	// additional time to keep stateful metrics in memory, after the context key has expired
 	statefulTimeout float64
 	metrics         ContextMetrics
@@ -39,8 +40,9 @@ type CheckMetrics struct {
 }
 
 // NewCheckMetrics returns new CheckMetrics instance.
-func NewCheckMetrics(statefulTimeout time.Duration) CheckMetrics {
+func NewCheckMetrics(expireMetrics bool, statefulTimeout time.Duration) CheckMetrics {
 	return CheckMetrics{
+		expireMetrics:   expireMetrics,
 		statefulTimeout: statefulTimeout.Seconds(),
 		metrics:         MakeContextMetrics(),
 		deadlines:       nil,
@@ -66,9 +68,12 @@ func (cm *CheckMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSamp
 // time after this call, before ultimately removed. Call to AddSample will cancel delayed
 // removal.
 func (cm *CheckMetrics) Remove(contextKeys []ckey.ContextKey, timestamp float64) {
+	if !cm.expireMetrics {
+		return
+	}
+
 	expiredStateless := 0.0
 	expiredStateful := 0.0
-
 	for _, key := range contextKeys {
 		if m, ok := cm.metrics[key]; ok {
 			if m.isStateful() {
