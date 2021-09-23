@@ -18,6 +18,7 @@ import (
 )
 
 var fileReportedFields = []string{
+	compliance.FileFieldGlob,
 	compliance.FileFieldPath,
 	compliance.FileFieldPermissions,
 	compliance.FileFieldUser,
@@ -56,6 +57,7 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 		}
 
 		vars := eval.VarMap{
+			compliance.FileFieldGlob:        path,
 			compliance.FileFieldPath:        relPath,
 			compliance.FileFieldPermissions: uint64(fi.Mode() & os.ModePerm),
 		}

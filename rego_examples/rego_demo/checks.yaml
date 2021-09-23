@@ -49,7 +49,7 @@ regos:
       valid_process[p] {
         p := input.kubelet_processes[_]
         f := input.kubelet_config_files[_]
-        p.flags["--config"] == f.path
+        p.flags["--config"] == f.glob
         f.content.tlsCertFile != ""
         f.content.tlsPrivateKeyFile != ""
       }
@@ -57,7 +57,7 @@ regos:
       valid_process[p] {
         p := input.kubelet_processes[_]
         f := input.kubelet_config_files[_]
-        p.flags["--config"] == f.path
+        p.flags["--config"] == f.glob
         f.content.serverTLSBootstrap != ""
         f.content.featureGates.RotateKubeletServerCertificate != ""
       }

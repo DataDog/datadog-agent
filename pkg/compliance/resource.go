@@ -91,6 +91,7 @@ type Fallback struct {
 
 // Fields & functions available for File
 const (
+	FileFieldGlob        = "file.glob"
 	FileFieldPath        = "file.path"
 	FileFieldPermissions = "file.permissions"
 	FileFieldUser        = "file.user"
