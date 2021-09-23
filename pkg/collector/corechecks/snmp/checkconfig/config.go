@@ -187,7 +187,7 @@ func (c *CheckConfig) addUptimeMetric() {
 // GetStaticTags return static tags built from configuration
 func (c *CheckConfig) GetStaticTags() []string {
 	tags := common.CopyStrings(c.ExtraTags)
-	tags = append(tags, deviceNamespaceTagKey + ":" + c.Namespace)
+	tags = append(tags, deviceNamespaceTagKey+":"+c.Namespace)
 	if c.IPAddress != "" {
 		tags = append(tags, deviceIPTagKey+":"+c.IPAddress)
 	}
@@ -208,7 +208,7 @@ func (c *CheckConfig) GetNetworkTags() []string {
 // getDeviceIDTags return sorted tags used for generating device id
 // warning: changing getDeviceIDTags logic might lead to different deviceID
 func (c *CheckConfig) getDeviceIDTags() []string {
-	tags := []string{deviceNamespaceTagKey + ":" + c.Namespace, deviceIPTagKey+":"+c.IPAddress}
+	tags := []string{deviceNamespaceTagKey + ":" + c.Namespace, deviceIPTagKey + ":" + c.IPAddress}
 	sort.Strings(tags)
 	return tags
 }

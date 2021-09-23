@@ -130,7 +130,7 @@ bulk_max_repetitions: 20
 	assert.Equal(t, "aes", config.PrivProtocol)
 	assert.Equal(t, "my-privKey", config.PrivKey)
 	assert.Equal(t, "my-contextName", config.ContextName)
-	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, config.GetStaticTags())
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.GetStaticTags())
 	metrics := []MetricsConfig{
 		{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.2.1", Name: "ifNumber"}},
 		{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.2.2", Name: "ifNumber2"}, MetricTags: MetricTagConfigList{
@@ -212,8 +212,8 @@ bulk_max_repetitions: 20
 	assert.Equal(t, metrics, config.Metrics)
 	assert.Equal(t, metricsTags, config.MetricTags)
 	assert.Equal(t, 1, len(config.Profiles))
-	assert.Equal(t, "780a58c96c908df8", config.DeviceID)
-	assert.Equal(t, []string{"snmp_device:1.2.3.4", "tag1", "tag2:val2"}, config.DeviceIDTags)
+	assert.Equal(t, "5eb4b5284574c173", config.DeviceID)
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.DeviceIDTags)
 	assert.Equal(t, "127.0.0.0/30", config.ResolvedSubnetName)
 	assert.Equal(t, false, config.AutodetectProfile)
 }
@@ -282,7 +282,7 @@ profiles:
 	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
 
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, config.GetStaticTags())
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.GetStaticTags())
 	metrics := []MetricsConfig{
 		{Symbol: SymbolConfig{OID: "1.4.5", Name: "myMetric"}, ForcedType: "gauge"},
 	}
@@ -297,8 +297,8 @@ profiles:
 	assert.Equal(t, metrics, config.Metrics)
 	assert.Equal(t, metricsTags, config.MetricTags)
 	assert.Equal(t, 2, len(config.Profiles))
-	assert.Equal(t, "74f22f3320d2d692", config.DeviceID)
-	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, config.DeviceIDTags)
+	assert.Equal(t, "5eb4b5284574c173", config.DeviceID)
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.DeviceIDTags)
 	assert.Equal(t, false, config.AutodetectProfile)
 	assert.Equal(t, 3600, config.DiscoveryInterval)
 	assert.Equal(t, 3, config.DiscoveryAllowedFailures)
@@ -828,7 +828,7 @@ community_string: abc
 `)
 	config, err := NewCheckConfig(rawInstanceConfig, []byte(``))
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, config.GetStaticTags())
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.GetStaticTags())
 
 	// language=yaml
 	rawInstanceConfigWithExtraTags := []byte(`
@@ -838,7 +838,7 @@ extra_tags: "extratag1:val1,extratag2:val2"
 `)
 	config, err = NewCheckConfig(rawInstanceConfigWithExtraTags, []byte(``))
 	assert.Nil(t, err)
-	assert.ElementsMatch(t, []string{"snmp_device:1.2.3.4", "extratag1:val1", "extratag2:val2"}, config.GetStaticTags())
+	assert.ElementsMatch(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "extratag1:val1", "extratag2:val2"}, config.GetStaticTags())
 }
 
 func Test_snmpConfig_getDeviceIDTags(t *testing.T) {
@@ -846,10 +846,11 @@ func Test_snmpConfig_getDeviceIDTags(t *testing.T) {
 		IPAddress:    "1.2.3.4",
 		ExtraTags:    []string{"extratag1:val1", "extratag2"},
 		InstanceTags: []string{"instancetag1:val1", "instancetag2"},
+		Namespace:    "hey",
 	}
 	actualTags := c.getDeviceIDTags()
 
-	expectedTags := []string{"extratag1:val1", "extratag2", "instancetag1:val1", "instancetag2", "snmp_device:1.2.3.4"}
+	expectedTags := []string{"device_namespace:hey", "snmp_device:1.2.3.4"}
 	assert.Equal(t, expectedTags, actualTags)
 }
 
