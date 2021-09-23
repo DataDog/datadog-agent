@@ -1,0 +1,3 @@
+serverTLSBootstrap: enabled
+featureGates:
+  RotateKubeletServerCertificate: enabled

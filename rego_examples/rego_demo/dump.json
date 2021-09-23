@@ -1,0 +1,36 @@
+{
+	"cis-docker-rego": {
+		"context": {
+			"hostname": "ubuntu-focal"
+		},
+		"kubelet_config_files": [
+			{
+				"content": {
+					"featureGates": {
+						"RotateKubeletServerCertificate": "enabled"
+					},
+					"serverTLSBootstrap": "enabled"
+				},
+				"group": "dialout",
+				"path": "./dev/dist/rego_demo/kubelet_config.yaml",
+				"permissions": 436,
+				"user": "501"
+			}
+		],
+		"kubelet_processes": [
+			{
+				"cmdLine": [
+					"./dev/dist/rego_demo/kubelet",
+					"--config",
+					"./dev/dist/rego_demo/kubelet_config.yaml"
+				],
+				"exe": "/home/vagrant/go/src/github.com/DataDog/datadog-agent/dev/dist/rego_demo/kubelet",
+				"flags": {
+					"--config": "./dev/dist/rego_demo/kubelet_config.yaml",
+					"./dev/dist/rego_demo/kubelet": ""
+				},
+				"name": "kubelet"
+			}
+		]
+	}
+}
