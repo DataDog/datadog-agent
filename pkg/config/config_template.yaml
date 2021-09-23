@@ -1114,7 +1114,7 @@ api_key:
       ## Toggles the `process_discovery` check. If enabled, this check gathers information about possible running integrations.
       # enabled: true
 
-      ## @param interval - duration - optional - default: 4h
+      ## @param interval - duration - optional - default: 4h - minimum: 10m
       ## An interval in hours that specifies how often the process discovery check should run.
       # interval: 4h
 
