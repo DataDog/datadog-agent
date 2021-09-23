@@ -1037,7 +1037,7 @@ community_string: "abc"
 ip_address: 1.2.3.4
 community_string: "abc"
 `)
-	config.Datadog.Set("network_devices.namespace", "")
+	coreconfig.Datadog.Set("network_devices.namespace", "")
 	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.EqualError(t, err, "namespace cannot be empty")
 }
