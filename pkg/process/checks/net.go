@@ -187,13 +187,15 @@ func getConnectionsByPID(conns *model.Connections) map[int32][]*model.Connection
 func convertDNSEntry(dnstable map[string]*model.DNSDatabaseEntry, namemap map[string]int32, namedb *[]string, ip string, entry *model.DNSEntry) {
 	dbentry := &model.DNSDatabaseEntry{}
 	for _, name := range entry.Names {
+		// at this point, the NameOffsets slice is actually a slice of indices into
+		// the name slice.  It will be converted prior to encoding.
 		if idx, ok := namemap[name]; ok {
-			dbentry.NameIndexes = append(dbentry.NameIndexes, idx)
+			dbentry.NameOffsets = append(dbentry.NameOffsets, idx)
 		} else {
 			dblen := int32(len(*namedb))
 			*namedb = append(*namedb, name)
 			namemap[name] = dblen
-			dbentry.NameIndexes = append(dbentry.NameIndexes, dblen)
+			dbentry.NameOffsets = append(dbentry.NameOffsets, dblen)
 		}
 
 	}
@@ -270,11 +272,11 @@ func batchConnections(
 		namemap := make(map[string]int32)
 		namedb := make([]string, 0)
 
-		domainIndices := make(map[int32]struct{})
-
 		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
 			if entries, ok := dns[c.Raddr.Ip]; ok {
 				if _, present := batchDNS[c.Raddr.Ip]; !present {
+					// first, walks through and converts entries of type DNSEntry to DNSDatabaseEntry,
+					// so that we're always sending the same (newer) type.
 					convertDNSEntry(batchDNS, namemap, &namedb, c.Raddr.Ip, entries)
 				}
 			}
@@ -283,16 +285,11 @@ func batchConnections(
 				ctrIDForPID[c.Pid] = c.Laddr.ContainerId
 			}
 
+			// remap functions create a new map; the map is by string _index_ (not offset)
+			// in the namedb.  Each unique string should only occur once.
 			remapDNSStatsByDomain(c, namemap, &namedb, domains)
 			remapDNSStatsByDomainByQueryType(c, namemap, &namedb, domains)
 
-			for d := range c.DnsStatsByDomain {
-				domainIndices[d] = struct{}{}
-			}
-
-			for d := range c.DnsStatsByDomainByQueryType {
-				domainIndices[d] = struct{}{}
-			}
 		}
 
 		// remap route indices
@@ -314,11 +311,18 @@ func batchConnections(
 			c.RouteIdx = new
 		}
 
-		encodedNameDb, err := dnsEncoder.EncodeDomainDatabase(namedb)
+		// EncodeDomainDatabase will take the namedb (a simple slice of strings with each unique
+		// domain string) and convert it into a buffer of all of the strings.
+		// indexToOffset contains the map from the string index to where it occurs in the encodedNameDb
+		encodedNameDb, indexToOffset, err := dnsEncoder.EncodeDomainDatabase(namedb)
 		if err != nil {
 			encodedNameDb = nil
 		}
-		mappedDNSLookups, err := dnsEncoder.EncodeMapped(batchDNS)
+
+		// Now we have all available information.  EncodeMapped with take the string indices
+		// that are used, and encode (using the indexToOffset array) the offset into the buffer
+		// this way individual strings can be directly accessed on decode.
+		mappedDNSLookups, err := dnsEncoder.EncodeMapped(batchDNS, indexToOffset)
 		if err != nil {
 			mappedDNSLookups = nil
 		}
