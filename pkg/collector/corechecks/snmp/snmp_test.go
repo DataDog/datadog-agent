@@ -484,7 +484,7 @@ profiles:
 	err = chk.Run()
 	assert.Nil(t, err)
 
-	snmpTags := []string{"snmp_device:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name"}
+	snmpTags := []string{"device_namespace:default", "snmp_device:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name"}
 	row1Tags := append(common.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1")
 	row2Tags := append(common.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2")
 
@@ -503,9 +503,9 @@ profiles:
   "namespace":"default",
   "devices": [
     {
-      "id": "173b2077d0770b8",
+      "id": "5eb4b5284574c173",
       "id_tags": [
-        "mytag:val1",
+        "device_namespace:default",
         "snmp_device:1.2.3.4"
       ],
       "name": "foo_sys_name",
@@ -517,6 +517,7 @@ profiles:
       "subnet": "127.0.0.0/30",
       "tags": [
         "autodiscovery_subnet:127.0.0.0/30",
+        "device_namespace:default",
         "device_vendor:f5",
         "mytag:val1",
         "prefix:f",
@@ -531,7 +532,7 @@ profiles:
   ],
   "interfaces": [
     {
-      "device_id": "173b2077d0770b8",
+      "device_id": "5eb4b5284574c173",
       "id_tags": ["interface:nameRow1"],
       "index": 1,
       "name": "nameRow1",
@@ -542,7 +543,7 @@ profiles:
       "oper_status": 1
     },
     {
-      "device_id": "173b2077d0770b8",
+      "device_id": "5eb4b5284574c173",
 	  "id_tags": ["interface:nameRow2"],
       "index": 2,
       "name": "nameRow2",
@@ -1056,7 +1057,7 @@ tags:
 	err = chk.Run()
 	assert.EqualError(t, err, "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value")
 
-	snmpTags := []string{"snmp_device:1.2.3.4"}
+	snmpTags := []string{"device_namespace:default", "snmp_device:1.2.3.4"}
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpTags)
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
@@ -1068,9 +1069,9 @@ tags:
   "namespace":"default",
   "devices": [
     {
-      "id": "173b2077d0770b8",
+      "id": "5eb4b5284574c173",
       "id_tags": [
-        "mytag:val1",
+        "device_namespace:default",
         "snmp_device:1.2.3.4"
       ],
       "name": "foo_sys_name",
@@ -1082,6 +1083,7 @@ tags:
       "subnet": "127.0.0.0/30",
       "tags": [
         "autodiscovery_subnet:127.0.0.0/30",
+        "device_namespace:default",
         "mytag:val1",
         "snmp_device:1.2.3.4"
       ],
@@ -1090,7 +1092,7 @@ tags:
   ],
   "interfaces": [
     {
-      "device_id": "173b2077d0770b8",
+      "device_id": "5eb4b5284574c173",
       "id_tags": ["interface:nameRow1"],
       "index": 1,
       "name": "nameRow1",
@@ -1101,7 +1103,7 @@ tags:
       "oper_status": 1
     },
     {
-      "device_id": "173b2077d0770b8",
+      "device_id": "5eb4b5284574c173",
       "id_tags": ["interface:nameRow2"],
       "index": 2,
       "name": "nameRow2",
@@ -1169,7 +1171,7 @@ tags:
 	err = chk.Run()
 	assert.EqualError(t, err, "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.1.0 1.3.6.1.2.1.1.2.0 1.3.6.1.2.1.1.3.0]`: device failure")
 
-	snmpTags := []string{"snmp_device:1.2.3.5"}
+	snmpTags := []string{"device_namespace:default", "snmp_device:1.2.3.5"}
 
 	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", snmpTags)
 
@@ -1180,9 +1182,9 @@ tags:
   "namespace":"default",
   "devices": [
     {
-      "id": "173b2077d0770b9",
+      "id": "5eb4b5284574c172",
       "id_tags": [
-        "mytag:val1",
+        "device_namespace:default",
         "snmp_device:1.2.3.5"
       ],
       "name": "",
@@ -1194,6 +1196,7 @@ tags:
       "subnet": "127.0.0.0/30",
       "tags": [
         "autodiscovery_subnet:127.0.0.0/30",
+        "device_namespace:default",
         "mytag:val1",
         "snmp_device:1.2.3.5"
       ],
@@ -1407,17 +1410,17 @@ metric_tags:
 		ipAddress string
 		deviceID  string
 	}{
-		{ipAddress: "10.10.0.0", deviceID: "e162c69954d2b408"},
-		{ipAddress: "10.10.0.1", deviceID: "e162c69954d2b409"},
-		{ipAddress: "10.10.0.2", deviceID: "e162c69954d2b40a"},
-		{ipAddress: "10.10.0.3", deviceID: "e162c69954d2b40b"},
+		{ipAddress: "10.10.0.0", deviceID: "fb83a12c4a90c1d1"},
+		{ipAddress: "10.10.0.1", deviceID: "fb83a12c4a90c1d0"},
+		{ipAddress: "10.10.0.2", deviceID: "fb83a12c4a90c1d3"},
+		{ipAddress: "10.10.0.3", deviceID: "fb83a12c4a90c1d2"},
 	}
 
 	err = chk.Run()
 	assert.Nil(t, err)
 
 	for _, deviceData := range deviceMap {
-		snmpTags := []string{"snmp_device:" + deviceData.ipAddress, "autodiscovery_subnet:10.10.0.0/30"}
+		snmpTags := []string{"device_namespace:default", "snmp_device:" + deviceData.ipAddress, "autodiscovery_subnet:10.10.0.0/30"}
 		snmpGlobalTags := append(common.CopyStrings(snmpTags), "snmp_host:foo_sys_name")
 		snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
 		scalarTags := append(common.CopyStrings(snmpGlobalTags), "symboltag1:1", "symboltag2:2")
@@ -1439,6 +1442,7 @@ metric_tags:
     {
       "id": "%s",
       "id_tags": [
+        "device_namespace:default",
         "snmp_device:%s"
       ],
       "name": "foo_sys_name",
@@ -1450,6 +1454,7 @@ metric_tags:
       "subnet": "10.10.0.0/30",
       "tags": [
         "autodiscovery_subnet:10.10.0.0/30",
+        "device_namespace:default",
         "snmp_device:%s",
         "snmp_host:foo_sys_name"
       ],

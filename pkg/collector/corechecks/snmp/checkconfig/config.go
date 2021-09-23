@@ -34,8 +34,10 @@ const defaultDiscoveryWorkers = 5
 const defaultDiscoveryAllowedFailures = 3
 const defaultDiscoveryInterval = 3600
 
-// subnetTagPrefix is the prefix used for subnet tag
-const subnetTagPrefix = "autodiscovery_subnet"
+// subnetTagKey is the prefix used for subnet tag
+const subnetTagKey = "autodiscovery_subnet"
+const deviceNamespaceTagKey = "device_namespace"
+const deviceIPTagKey = "snmp_device"
 
 // DefaultBulkMaxRepetitions is the default max rep
 // Using too high max repetitions might lead to tooBig SNMP error messages.
@@ -186,10 +188,7 @@ func (c *CheckConfig) addUptimeMetric() {
 // warning: changing GetStaticTags logic might lead to different deviceID
 // GetStaticTags does not contain tags from instance[].tags config
 func (c *CheckConfig) GetStaticTags() []string {
-	tags := common.CopyStrings(c.ExtraTags)
-	if c.IPAddress != "" {
-		tags = append(tags, "snmp_device:"+c.IPAddress)
-	}
+	tags := append(common.CopyStrings(c.ExtraTags), c.getDeviceIDTags()...)
 	return tags
 }
 
@@ -199,7 +198,7 @@ func (c *CheckConfig) GetStaticTags() []string {
 func (c *CheckConfig) GetNetworkTags() []string {
 	var tags []string
 	if c.Network != "" {
-		tags = append(tags, subnetTagPrefix+":"+c.Network)
+		tags = append(tags, subnetTagKey+":"+c.Network)
 	}
 	return tags
 }
@@ -207,8 +206,10 @@ func (c *CheckConfig) GetNetworkTags() []string {
 // getDeviceIDTags return sorted tags used for generating device id
 // warning: changing getDeviceIDTags logic might lead to different deviceID
 func (c *CheckConfig) getDeviceIDTags() []string {
-	tags := c.GetStaticTags()
-	tags = append(tags, c.InstanceTags...)
+	tags := []string{deviceNamespaceTagKey + ":" + c.Namespace}
+	if c.IPAddress != "" {
+		tags = append(tags, deviceIPTagKey+":"+c.IPAddress)
+	}
 	sort.Strings(tags)
 	return tags
 }
@@ -624,7 +625,7 @@ func getSubnetFromTags(tags []string) (string, error) {
 	for _, tag := range tags {
 		// `autodiscovery_subnet` is set as tags in AD Template
 		// e.g. cmd/agent/dist/conf.d/snmp.d/auto_conf.yaml
-		prefix := subnetTagPrefix + ":"
+		prefix := subnetTagKey + ":"
 		if strings.HasPrefix(tag, prefix) {
 			return tag[len(prefix):], nil
 		}
