@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 
+	"github.com/stretchr/testify/mock"
 	assert "github.com/stretchr/testify/require"
 )
 
@@ -66,6 +67,9 @@ func (f *regoFixture) run(t *testing.T) {
 
 	env := &mocks.Env{}
 	env.On("MaxEventsPerRun").Return(30).Maybe()
+	env.On("ProvidedInput", mock.Anything).Return(nil).Once()
+	env.On("Hostname").Return("hostname_test").Once()
+	env.On("DumpInputPath").Return("").Once()
 
 	defer env.AssertExpectations(t)
 
@@ -98,7 +102,7 @@ func TestRegoProcessCheck(t *testing.T) {
 
 				default valid = false
 
-				finding[f] {
+				findings[f] {
 					p := input.processes[_]
 					p.flags["--path"] == "foo"
 					f := dd.passed_finding("process", "42", dd.process_data(p))
@@ -117,7 +121,7 @@ func TestRegoProcessCheck(t *testing.T) {
 					Data: event.Data{
 						"process.name":    "proc1",
 						"process.exe":     "",
-						"process.cmdLine": []string{"arg1", "--path=foo"},
+						"process.cmdLine": []interface{}{"arg1", "--path=foo"},
 					},
 					Resource: compliance.ReportResource{
 						ID:   "42",
