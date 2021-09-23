@@ -48,7 +48,7 @@ docker_container_data(c) = d {
 	d := {
 		"container.id": c.id,
 		"container.image": c.image,
-		"container.name": c.name
+		"container.name": c.name,
 	}
 }
 
@@ -56,7 +56,7 @@ process_data(p) = d {
 	d := {
 		"process.name": p.name,
 		"process.exe": p.exe,
-		"process.cmdLine": p.cmdLine
+		"process.cmdLine": p.cmdLine,
 	}
 }
 
@@ -66,6 +66,14 @@ file_data(file) = d {
 		"file.path": file.path,
 		"file.permissions": file.permissions,
 		"file.user": file.user,
+	}
+}
+
+group_data(group) = d {
+	d := {
+		"group.id": group.id,
+		"group.name": group.name,
+		"group.users": group.users,
 	}
 }
 `
