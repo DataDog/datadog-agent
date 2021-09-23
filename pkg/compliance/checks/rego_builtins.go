@@ -76,6 +76,14 @@ group_data(group) = d {
 		"group.users": group.users,
 	}
 }
+
+audit_data(audit) = d {
+	d := {
+		"audit.enabled": audit.enabled,
+		"audit.path": audit.path,
+		"audit.permissions": audit.permissions,
+	}
+}
 `
 
 var regoBuiltins = []func(*rego.Rego){
