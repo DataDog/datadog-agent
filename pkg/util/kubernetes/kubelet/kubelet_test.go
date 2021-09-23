@@ -327,6 +327,7 @@ func (suite *KubeletTestSuite) TestPodlistCache() {
 	mockConfig.Set("kubernetes_kubelet_host", "localhost")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
 	mockConfig.Set("kubernetes_https_kubelet_port", -1)
+	mockConfig.Set("kubelet_fallback_to_unverified_tls", false)
 
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
@@ -366,6 +367,7 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 	mockConfig.Set("kubernetes_kubelet_host", "localhost")
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
 	mockConfig.Set("kubernetes_https_kubelet_port", -1)
+	mockConfig.Set("kubelet_fallback_to_unverified_tls", false)
 
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
@@ -405,6 +407,7 @@ func (suite *KubeletTestSuite) TestGetPodWaitForContainer() {
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
 	mockConfig.Set("kubernetes_https_kubelet_port", -1)
 	mockConfig.Set("kubelet_wait_on_missing_container", 1)
+	mockConfig.Set("kubelet_fallback_to_unverified_tls", false)
 
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
@@ -449,6 +452,7 @@ func (suite *KubeletTestSuite) TestGetPodDontWaitForContainer() {
 	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
 	mockConfig.Set("kubernetes_https_kubelet_port", -1)
 	mockConfig.Set("kubelet_wait_on_missing_container", 0)
+	mockConfig.Set("kubelet_fallback_to_unverified_tls", false)
 
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
