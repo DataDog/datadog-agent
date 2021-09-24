@@ -1,20 +1,4 @@
 ---
-- name: (CI) Restore artifact ssh key
-  when: ci_project_dir is defined and ci_project_dir != ""
-  ignore_errors: true
-  copy:
-    src: "{{ci_project_dir}}/.molecule/{{ molecule_scenario_name }}/ssh_key"
-    dest: "{{ keypair_path }}"
-    mode: preserve
-
-- name: (LOCAL) Restore artifact ssh key
-  when: ci_project_dir is undefined or ci_project_dir == ""
-  ignore_errors: true
-  copy:
-    src: ".molecule/{{ molecule_scenario_name }}/ssh_key"
-    dest: "{{ keypair_path }}"
-    mode: preserve
-
 - name: Wait (SSH Key Restore)
   pause:
-    seconds: 3
+    seconds: 15

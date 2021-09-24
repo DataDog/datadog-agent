@@ -1,8 +1,8 @@
 # Build and distribute Stackstate Agent in linux using Docker
 
-Using our builder image clone and checkout the public repo and th <<branch>> you are interested of: 
+Using our builder image clone and checkout the public repo and th <<branch>> you are interested of:
 ```bash
-$ docker run --rm -ti docker.io/stackstate/stackstate-agent-runner-gitlab:latest7 bash
+$ docker run --rm -ti artifactory.stackstate.io/docker-virtual/stackstate/stackstate-agent-runner-gitlab:latest7 bash
 
 $ export CI_PROJECT_DIR=/go/src/github.com/StackVista/stackstate-agent && \
   mkdir -p /go/src/github.com/StackVista && \
@@ -44,12 +44,12 @@ $ conda activate ddpy2 && \
 
 Instead of cloning the repo you could use directly your local one:
 ```bash
-$ docker run --rm -it --name stackstate-agent-builder --mount type=bind,source="${PWD}",target=/root/stackstate-agent,readonly docker.io/stackstate/stackstate-agent-runner-gitlab:latest7 bash
+$ docker run --rm -it --name stackstate-agent-builder --mount type=bind,source="${PWD}",target=/root/stackstate-agent,readonly artifactory.stackstate.io/docker-virtual/stackstate/stackstate-agent-runner-gitlab:latest7 bash
 
 $ export CI_PROJECT_DIR=/go/src/github.com/StackVista/stackstate-agent && \
   mkdir -p /go/src/github.com/StackVista && \
   cd src/github.com/StackVista
-  
+
 $ cp -r /root/stackstate-agent /go/src/github.com/StackVista
 ```
 

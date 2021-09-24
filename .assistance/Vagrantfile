@@ -1,0 +1,132 @@
+# -version*- mode: ruby -*-
+# vi: set ft=ruby :
+Vagrant.configure("2") do |config|
+  # VM Instance to run the code in
+  config.vm.box = "ubuntu/bionic64"
+  config.vm.hostname = 'stackstate-agent-t'
+
+  # The settings for this vagrant box
+  # We attempt to use all your available resources dynamically
+  config.vm.provider "virtualbox" do |v|
+    host = RbConfig::CONFIG['host_os']
+    if host =~ /darwin/
+      v.cpus = `sysctl -n hw.ncpu`.to_i
+      v.memory = `sysctl -n hw.memsize`.to_i / 1024 / 1024
+
+    elsif host =~ /linux/
+      v.cpus = `nproc`.to_i
+      v.memory = `grep 'MemTotal' /proc/meminfo | sed -e 's/MemTotal://' -e 's/ kB//'`.to_i / 1024
+
+    else
+      v.cpus = 4
+      v.memory = 8192
+    end
+  end
+
+  config.vm.synced_folder "./../", "/home/vagrant/stackstate-agent"
+  config.vm.network :public_network
+
+
+  # Update the machine and pull all the requirements (vagrant provision --provision-with req-update)
+  config.vm.provision "machine-update", type: "shell", inline: <<-SCRIPT
+    apt-get update -y
+    apt-get upgrade -y
+    cd /home/vagrant
+    apt-get install -y build-essential curl git mercurial make binutils bison gcc build-essential
+  SCRIPT
+
+
+  # Rerun this provision to update `CMake` to the x.x.x env specified version (vagrant provision --provision-with cmake-update)
+  config.vm.provision "cmake-update", type: "shell", inline: <<-SCRIPT
+    cd /home/vagrant
+    wget https://github.com/Kitware/CMake/releases/download/v#{ENV['CMAKE_VERSION']}/cmake-#{ENV['CMAKE_VERSION']}.tar.gz
+    tar -xvzf cmake-#{ENV['CMAKE_VERSION']}.tar.gz
+    cd cmake-#{ENV['CMAKE_VERSION']}
+    ./configure
+    make
+    export PATH="$PATH:/home/vagrant/cmake-#{ENV['CMAKE_VERSION']}/bin"
+    cmake --version
+  SCRIPT
+
+
+  # Rerun this provision to update `conda mini` (vagrant provision --provision-with conda-update)
+  config.vm.provision "conda-update", type: "shell", inline: <<-SCRIPT
+    cd /home/vagrant
+    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
+    chmod 777 ~/miniconda.sh
+    bash ~/miniconda.sh -b
+    . /root/miniconda3/etc/profile.d/conda.sh
+    conda create -n ddpy2 python=#{ENV['PY2_VERSION']}"
+    conda create -n ddpy3 python=#{ENV['PY3_VERSION']}"
+    conda activate "ddpy#{ENV['CONDA_VERSION']}"
+  SCRIPT
+
+
+  # Rerun this provision to update `golang` (vagrant provision --provision-with golang-update)
+  config.vm.provision "golang-update", type: "shell", inline: <<-SCRIPT
+    cd /home/vagrant
+    bash < <(curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/master/binscripts/gvm-installer)
+    source /root/.gvm/scripts/gvm
+    # Pre install 1.4, Just a backup if any version 1.5>= is installed
+    gvm install go1.4 -B
+    gvm use go1.4
+    gvm install go#{ENV['GOLANG_VERSION']}
+    gvm use go#{ENV['GOLANG_VERSION']}
+    go version
+  SCRIPT
+
+
+  # Rerun this provision to update `setup` (vagrant provision --provision-with setup)
+  config.vm.provision "deps-and-version", type: "shell", inline: <<-SCRIPT
+    # Re initialize the env variable for the installed resources
+    source /root/.gvm/scripts/gvm
+    gvm use go#{ENV['GOLANG_VERSION']}
+    export PATH="$PATH:/home/vagrant/cmake-#{ENV['CMAKE_VERSION']}/bin"
+    . /root/miniconda3/etc/profile.d/conda.sh
+    cd /home/vagrant/stackstate-agent
+    conda activate "ddpy#{ENV['CONDA_VERSION']}"
+
+    # Project Root, Similar to CI_PROJECT_DIR
+    cd /home/vagrant/stackstate-agent
+
+    # Pip
+    pip install -r requirements.txt
+
+    # Golang
+    invoke deps
+    invoke -e deps --verbose --dep-vendor-only
+    invoke agent.version --major-version "#{ENV['CONDA_VERSION']}" -u > version.txt
+    cd $GOPATH/pkg && tar czf /home/vagrant/go-pkg.tar.gz .
+    cd $GOPATH/bin && tar czf /home/vagrant/go-bin.tar.gz .
+    cd /home/vagrant/stackstate-agent/vendor && tar czf /home/vagrant/vendor.tar.gz .
+  SCRIPT
+
+
+  # Rerun golang rtloader.test (vagrant provision --provision-with rtloader.test)
+  config.vm.provision "rtloader.test", type: "shell", inline: <<-SCRIPT
+    # Re initialize the env variable for the installed resources
+    source /root/.gvm/scripts/gvm
+    gvm use go#{ENV['GOLANG_VERSION']}
+    export PATH="$PATH:/home/vagrant/cmake-#{ENV['CMAKE_VERSION']}/bin"
+    . /root/miniconda3/etc/profile.d/conda.sh
+    cd /home/vagrant/stackstate-agent
+    conda activate "ddpy#{ENV['CONDA_VERSION']}"
+
+    # Golang Invoke Agent Build
+    inv -e rtloader.clean
+    invoke -e rtloader.make --python-runtimes "#{ENV['CONDA_VERSION']}"
+    inv -e rtloader.test
+    # inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version #{ENV['MAJOR_VERSION']} --python-runtimes #{ENV['PYTHON_RUNTIMES']}
+  SCRIPT
+end
+
+
+
+
+
+
+
+
+
+
+

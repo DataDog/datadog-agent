@@ -22,13 +22,20 @@ docker login -u "${quay_user}" -p "${quay_password}" "${REGISTRY_QUAY}"
 docker build -t "${BUILD_TAG}" "${DOCKERFILE_PATH}"
 
 for REGISTRY in "${REGISTRY_DOCKERHUB}" "${REGISTRY_QUAY}"; do
-    docker tag "${BUILD_TAG}" "${REGISTRY}/${ORGANIZATION}/${IMAGE_REPO}:${IMAGE_TAG}"
-    docker push "${REGISTRY}/${ORGANIZATION}/${IMAGE_REPO}:${IMAGE_TAG}"
+    DOCKER_TAG="${REGISTRY}/${ORGANIZATION}/${IMAGE_REPO}:${IMAGE_TAG}"
+
+    docker tag "${BUILD_TAG}" "${DOCKER_TAG}"
+    docker push "${DOCKER_TAG}"
 
     if [ -n "$EXTRA_TAG" ]; then
-        docker tag "${BUILD_TAG}" "${REGISTRY}/${ORGANIZATION}/${IMAGE_REPO}:${EXTRA_TAG}"
+        DOCKER_EXTRA_TAG="${REGISTRY}/${ORGANIZATION}/${IMAGE_REPO}:${EXTRA_TAG}"
+        docker tag "${DOCKER_TAG}" "${DOCKER_EXTRA_TAG}"
         echo "Pushing release to ${EXTRA_TAG}"
+        docker push "${DOCKER_EXTRA_TAG}"
+    fi
 
-        docker push "${REGISTRY}/${ORGANIZATION}/${IMAGE_REPO}:${EXTRA_TAG}"
+    if [ ! -z "${CI_COMMIT_TAG}" ] || [ "${CI_COMMIT_BRANCH}" = "master" ]; then
+        echo "Scanning image ${DOCKER_TAG} for vulnerabilities"
+        ./anchore.sh -n 0 -i "${DOCKER_TAG}"
     fi
 done

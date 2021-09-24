@@ -3,7 +3,7 @@ version: '2.4'
 
 services:
   stackstate-agent:
-    image: docker.io/stackstate/${STS_DOCKER_TEST_REPO:-stackstate-agent-test}:${AGENT_VERSION-master}
+    image: artifactory.stackstate.io/docker-virtual/stackstate/${STS_DOCKER_TEST_REPO:-stackstate-agent-test}:${AGENT_VERSION-master}
     network_mode: "host"
     pid: "host"
     privileged: true

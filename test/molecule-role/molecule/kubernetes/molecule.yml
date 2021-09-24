@@ -1,11 +1,14 @@
 ---
 dependency:
   name: galaxy
+
 driver:
   name: ec2
+
 lint: |
   set -e
   yamllint -c .yamllint .
+
 platforms:
   - name: kubernetes-cluster-agent
     image: ami-09ae46ee3ab46c423    # Our Packer image based on Ubuntu 18.04 (EBS-Backed x86_64)
@@ -15,20 +18,30 @@ platforms:
     groups:
       - kubernetes_linux_vm
     ssh_user: ubuntu
-provisioner:
-  name: ansible
-  playbooks:
-    create: playbook.create.yml
-    prepare: playbook.prepare.yml
-    cleanup: playbook.cleanup.yml
-    destroy: playbook.destroy.yml
-  lint:
-    name: ansible-lint
-  inventory:
-    links:
-      group_vars: group_vars/
+
 scenario:
   name: kubernetes
+  create_sequence:
+    - dependency
+    - destroy
+    - syntax
+    - create
+    - prepare
+  test_sequence:
+    - dependency
+    - syntax
+    - create
+    - prepare
+    - converge
+    - idempotence
+    - lint
+    - side_effect
+    - verify
+    - cleanup
+  destroy_sequence:
+    - dependency
+    - destroy
+
 verifier:
   name: testinfra
   lint:
