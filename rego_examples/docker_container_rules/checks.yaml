@@ -50,5 +50,4 @@ regos:
         c := input.containers[_]
         c.inspect.HostConfig.UsernsMode != "host"
       }
-
     findings: data.demo.findings
