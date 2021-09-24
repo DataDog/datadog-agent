@@ -11,7 +11,7 @@ import (
 // ProcessDiscovery is a ProcessDiscoveryCheck singleton. ProcessDiscovery should not be instantiated elsewhere.
 var ProcessDiscovery = &ProcessDiscoveryCheck{probe: procutil.NewProcessProbe()}
 
-// ProcessDiscoveryCheck is a check that gathers basic process metadata and sends it to the process discovery service.
+// ProcessDiscoveryCheck is a check that gathers basic process metadata.
 // It uses its own ProcessDiscovery payload.
 // The goal of this check is to collect information about possible integrations that may be enabled by the end user.
 type ProcessDiscoveryCheck struct {
