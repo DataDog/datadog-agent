@@ -39,6 +39,7 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 		return nil, err
 	}
 
+	initialGlob := path
 	paths, err := filepath.Glob(e.NormalizeToHostRoot(path))
 	if err != nil {
 		return nil, err
@@ -57,7 +58,7 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 		}
 
 		vars := eval.VarMap{
-			compliance.FileFieldGlob:        path,
+			compliance.FileFieldGlob:        initialGlob,
 			compliance.FileFieldPath:        relPath,
 			compliance.FileFieldPermissions: uint64(fi.Mode() & os.ModePerm),
 		}
