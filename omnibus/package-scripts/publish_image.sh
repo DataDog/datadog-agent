@@ -33,9 +33,11 @@ for REGISTRY in "${REGISTRY_DOCKERHUB}" "${REGISTRY_QUAY}"; do
         echo "Pushing release to ${EXTRA_TAG}"
         docker push "${DOCKER_EXTRA_TAG}"
     fi
-
-    if [ ! -z "${CI_COMMIT_TAG}" ] || [ "${CI_COMMIT_BRANCH}" = "master" ]; then
-        echo "Scanning image ${DOCKER_TAG} for vulnerabilities"
-        ./anchore.sh -n 0 -i "${DOCKER_TAG}"
-    fi
 done
+
+if [ ! -z "${CI_COMMIT_TAG}" ] || [ "${CI_COMMIT_BRANCH}" = "master" ]; then
+    # for Anchore use publicly accessible image tag
+    DOCKER_TAG="${REGISTRY}/${ORGANIZATION}/${REGISTRY_DOCKERHUB}:${IMAGE_TAG}"
+    echo "Scanning image ${DOCKER_TAG} for vulnerabilities"
+    ./anchore.sh -n 0 -i "${DOCKER_TAG}"
+fi
