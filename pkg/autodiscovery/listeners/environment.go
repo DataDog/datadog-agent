@@ -7,6 +7,7 @@ package listeners
 
 import (
 	"context"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -64,6 +65,21 @@ func (l *EnvironmentListener) createServices() {
 		if config.IsFeaturePresent(feature) {
 			log.Infof("Listener created %s service from environment", name)
 			l.newService <- &EnvironmentService{adIdentifier: "_" + name}
+		}
+	}
+
+	// Handle generic container check auto-activation.
+	// Currently only on Linux.
+	// We're limited by the collectors in Metadata server on Linux.
+	// We're limited by the runtimes on Windows.
+	if runtime.GOOS == "linux" {
+		containerFeatures := []config.Feature{config.Docker, config.Containerd, config.Kubernetes}
+		for _, f := range containerFeatures {
+			if config.IsFeaturePresent(f) {
+				log.Infof("Listener created container service from environment")
+				l.newService <- &EnvironmentService{adIdentifier: "_container"}
+				break
+			}
 		}
 	}
 }
