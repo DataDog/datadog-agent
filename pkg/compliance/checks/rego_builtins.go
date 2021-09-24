@@ -41,6 +41,10 @@ docker_daemon_resource_id = id {
 	id := sprintf("%s_daemon", [input.context.hostname])
 }
 
+docker_network_resource_id(n) = id {
+	id := sprintf("%s_%s", [input.context.hostname, cast_string(n.id)])
+}
+
 passed_finding(resource_type, resource_id, event_data) = f {
 	f := raw_finding(true, resource_type, resource_id, event_data)
 }
@@ -61,6 +65,12 @@ docker_image_data(img) = d {
 	d := {
 		"image.id": img.id,
 		"image.tags": img.tags,
+	}
+}
+
+docker_network_data(network) = d {
+	d := {
+		"network.name": network.name,
 	}
 }
 
