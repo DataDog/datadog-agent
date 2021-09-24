@@ -872,6 +872,10 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.internal_profiling.enabled")
 	config.SetKnown("process_config.remote_tagger")
 
+	// Process Discovery Check
+	config.BindEnvAndSetDefault("process_config.process_discovery.enabled", false)
+	config.BindEnvAndSetDefault("process_config.process_discovery.interval", 4*time.Hour)
+
 	// Network
 	config.BindEnv("network.id")
 

@@ -1114,6 +1114,19 @@ api_key:
   #   process: 10
   #   process_realtime: 2
 
+  ## @param process_discovery - custom object - optional
+  ## Specifies custom settings for the `process_discovery` object.
+  # process_discovery
+      ## @param enabled - boolean - optional - default: false
+      ## Toggles the `process_discovery` check. If enabled, this check gathers information about possible running integrations.
+      ## This check is experimental.
+      # enabled: false
+
+      ## @param interval - duration - optional - default: 4h - minimum: 10m
+      ## An interval in hours that specifies how often the process discovery check should run.
+      # interval: 4h
+
+
   ## @param blacklist_patterns - list of strings - optional
   ## @env DD_PROCESS_CONFIG_BLACKLIST_PATTERNS - space separated list of strings - optional
   ## A list of regex patterns that exclude processes if matched.

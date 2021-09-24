@@ -28,7 +28,11 @@ func WithPermission(enabled bool) Option {
 
 // NewProcessProbe returns a Probe object
 func NewProcessProbe(options ...Option) *Probe {
-	return &Probe{}
+	probe := &Probe{}
+	for _, option := range options {
+		option(probe)
+	}
+	return probe
 }
 
 // Probe is an unimplemented struct for unsupported platforms

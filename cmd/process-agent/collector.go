@@ -346,6 +346,8 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 				// Orchestrator intake response does not change RT checks enablement or interval
 				updateRTStatus = false
 				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
+			case checks.ProcessDiscovery.Name():
+				responses, err = fwd.SubmitProcessDiscoveryChecks(forwarderPayload, payload.headers)
 			default:
 				err = fmt.Errorf("unsupported payload type: %s", result.name)
 			}
