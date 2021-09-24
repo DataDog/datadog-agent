@@ -339,10 +339,11 @@ build do
 
         cached_wheel_glob = Dir.glob(File.join(cached_wheels_dir, "datadog_#{check}-*.whl"))
         if cached_wheel_glob.length == 1
-          command "#{pip} install --no-deps --no-index #{cached_wheel_glob[0]}"
+          wheel_path = windows_safe_path(cached_wheel_glob[0])
+          command "#{pip} install --no-deps --no-index #{wheel_path}"
           next
         elsif cached_wheel_glob.length > 1
-            TODOraiseexception
+            raise "Found multiple wheels for #{check}: #{cached_wheel_glob}"
         end
 
         if windows?
