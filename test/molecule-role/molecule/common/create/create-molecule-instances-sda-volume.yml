@@ -16,10 +16,12 @@
     tags:
       Name: "{{ item.name }}"
       instance: "{{ item.name }}"
+      user: "{{ item.ssh_user }}"
       molecule_run_id: "{{ molecule_run_id }}"
       agent_current_branch: "{{ agent_current_branch }}"
       molecule_scenario_name: "{{ molecule_scenario_name }}"
       ci_sts_major_python_version: "{{ ci_sts_major_python_version }}"
+      ci_commit_sha: "{{ ci_commit_sha }}"
       usage: "molecule-build"
       dev: "{{ dev_mode }}"
       molecule: yes

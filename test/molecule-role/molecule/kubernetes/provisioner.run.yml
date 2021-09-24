@@ -1,0 +1,12 @@
+---
+provisioner:
+  name: ansible
+  playbooks:
+    cleanup: playbook.setup.cleanup.yml
+    create: playbook.run.create.yml
+    prepare: playbook.run.prepare.yml
+  lint:
+    name: ansible-lint
+  inventory:
+    links:
+      group_vars: group_vars/

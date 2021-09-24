@@ -1,0 +1,8 @@
+---
+- name: Destroy
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - include_tasks: ../common/destroy/destroy-molecule-instances.yml
+    - include_tasks: ../common/destroy/delete-remote-keypair.yml

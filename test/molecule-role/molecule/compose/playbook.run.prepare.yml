@@ -1,0 +1,17 @@
+---
+- name: Prepare Trace Java
+  hosts: trace-java-demo
+  gather_facts: true
+  tasks:
+    - include_tasks: ../common/prepare/gather-facts.yml
+    - include_tasks: ../common/prepare/docker-compose-cleanup.yml
+    - include_tasks: ../common/prepare/run-docker-compose.yml
+    - include_tasks: ../common/prepare/wait-for-receiver.yml
+    - include_tasks: ../common/prepare/wait-for-agent.yml
+
+- name: Encryption
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  tasks:
+    - include_tasks: ../common/create/encrypt-ssh-key.yml
