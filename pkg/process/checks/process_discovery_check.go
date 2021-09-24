@@ -8,7 +8,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-// ProcessDiscovery is a ProcessDiscoveryCheck singleton. ProcessDiscoveryCheck should not be instantiated elsewhere.
+// ProcessDiscovery is a ProcessDiscoveryCheck singleton. ProcessDiscovery should not be instantiated elsewhere.
 var ProcessDiscovery = &ProcessDiscoveryCheck{probe: procutil.NewProcessProbe()}
 
 // ProcessDiscoveryCheck is a check that gathers basic process metadata and sends it to the process discovery service.
@@ -69,11 +69,12 @@ func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process, host *model.Hos
 	pd := make([]*model.ProcessDiscovery, 0, len(pidMap))
 	for _, proc := range pidMap {
 		pd = append(pd, &model.ProcessDiscovery{
-			Pid:     proc.Pid,
-			NsPid:   proc.NsPid,
-			Host:    host,
-			Command: formatCommand(proc),
-			User:    formatUser(proc),
+			Pid:        proc.Pid,
+			NsPid:      proc.NsPid,
+			Host:       host,
+			Command:    formatCommand(proc),
+			User:       formatUser(proc),
+			CreateTime: proc.Stats.CreateTime,
 		})
 	}
 

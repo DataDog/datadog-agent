@@ -230,6 +230,10 @@ func (p *Probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 				CtxSwitches: statusInfo.ctxSwitches,   // /proc/[pid]/status
 				NumThreads:  statusInfo.numThreads,    // /proc/[pid]/status
 			}
+		} else {
+			stats = &Stats{
+				CreateTime: p.getProcStartTime(pathForPID),
+			}
 		}
 		proc := &Process{
 			Pid:     pid,                                       // /proc/[pid]
@@ -541,6 +545,51 @@ func (p *Probe) parseStat(pidPath string, pid int32, now time.Time) *statInfo {
 
 	sInfo = p.parseStatContent(contents, sInfo, pid, now)
 	return sInfo
+}
+
+func (p *Probe) getProcStartTime(pidPath string) int64 {
+	contents, err := ioutil.ReadFile(filepath.Join(pidPath, "stat"))
+	if err != nil {
+		return 0
+	}
+
+	// We want to skip past the executable name, which is wrapped in one or more parenthesis
+	startIndex := bytes.LastIndexByte(contents, byte(')'))
+	if startIndex == -1 || startIndex+1 >= len(contents) {
+		return 0
+	}
+
+	content := contents[startIndex+1:]
+	// use spaces and prevCharIsSpace to simulate strings.Fields() to avoid allocation
+	spaces := 0
+	prevCharIsSpace := false
+	var startTimeStr string
+
+	for _, c := range content {
+		if unicode.IsSpace(rune(c)) {
+			if !prevCharIsSpace {
+				spaces++
+			}
+			prevCharIsSpace = true
+			continue
+		} else {
+			prevCharIsSpace = false
+		}
+
+		if spaces == 20 {
+			startTimeStr += string(c)
+		}
+	}
+
+	var createTime int64
+	t, err := strconv.ParseUint(startTimeStr, 10, 64)
+	if err == nil {
+		ctime := (t / uint64(p.clockTicks)) + atomic.LoadUint64(&p.bootTime)
+		// convert create time into milliseconds
+		createTime = int64(ctime * 1000)
+	}
+
+	return createTime
 }
 
 // parseStatContent takes the content of "stat" file and parses the values we care about

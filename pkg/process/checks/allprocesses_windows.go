@@ -151,14 +151,16 @@ func getAllProcesses(probe *procutil.Probe, collectStats bool) (map[int32]*procu
 
 		procHandle := cp.procHandle
 
-		stats := &procutil.Stats{}
-		if collectStats {
-			var CPU windows.Rusage
-			if err := windows.GetProcessTimes(procHandle, &CPU.CreationTime, &CPU.ExitTime, &CPU.KernelTime, &CPU.UserTime); err != nil {
-				log.Debugf("Could not get process times for %v %v", pid, err)
-				continue
-			}
+		// Collect start time
+		var CPU windows.Rusage
+		if err := windows.GetProcessTimes(procHandle, &CPU.CreationTime, &CPU.ExitTime, &CPU.KernelTime, &CPU.UserTime); err != nil {
+			log.Debugf("Could not get process times for %v %v", pid, err)
+			continue
+		}
+		ctime := CPU.CreationTime.Nanoseconds() / 1000000
 
+		stats := &procutil.Stats{CreateTime: ctime}
+		if collectStats {
 			var handleCount uint32
 			if err := getProcessHandleCount(procHandle, &handleCount); err != nil {
 				log.Debugf("could not get handle count for %v %v", pid, err)
@@ -177,7 +179,6 @@ func getAllProcesses(probe *procutil.Probe, collectStats bool) (map[int32]*procu
 				log.Debugf("could not get IO Counters for %v %v", pid, err)
 				continue
 			}
-			ctime := CPU.CreationTime.Nanoseconds() / 1000000
 
 			utime := float64((int64(CPU.UserTime.HighDateTime) << 32) | int64(CPU.UserTime.LowDateTime))
 			stime := float64((int64(CPU.KernelTime.HighDateTime) << 32) | int64(CPU.KernelTime.LowDateTime))
