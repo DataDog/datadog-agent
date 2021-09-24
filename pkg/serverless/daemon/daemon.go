@@ -250,9 +250,8 @@ func (d *Daemon) TriggerFlush(isLastFlushBeforeShutdown bool) {
 // flushMetrics flushes aggregated metrics to the intake.
 // It is protected by a mutex to ensure only one metrics flush can be in progress at any given time.
 func (d *Daemon) flushMetrics(wg *sync.WaitGroup) {
-	flushStartTime := time.Now().Unix()
-
 	d.metricsFlushMutex.Lock()
+	flushStartTime := time.Now().Unix()
 	log.Debugf("Beginning metrics flush at time %d", flushStartTime)
 	if d.MetricAgent != nil {
 		d.MetricAgent.Flush()
@@ -265,11 +264,10 @@ func (d *Daemon) flushMetrics(wg *sync.WaitGroup) {
 // flushTraces flushes aggregated traces to the intake.
 // It is protected by a mutex to ensure only one traces flush can be in progress at any given time.
 func (d *Daemon) flushTraces(wg *sync.WaitGroup) {
-	flushStartTime := time.Now().Unix()
-
 	d.tracesFlushMutex.Lock()
+	flushStartTime := time.Now().Unix()
 	log.Debugf("Beginning traces flush at time %d", flushStartTime)
-	if d.TraceAgent != nil {
+	if d.TraceAgent != nil && d.TraceAgent.Get() != nil {
 		d.TraceAgent.Get().FlushSync()
 	}
 	log.Debugf("Finished traces flush that was started at time %d", flushStartTime)
@@ -280,9 +278,8 @@ func (d *Daemon) flushTraces(wg *sync.WaitGroup) {
 // flushLogs flushes aggregated logs to the intake.
 // It is protected by a mutex to ensure only one logs flush can be in progress at any given time.
 func (d *Daemon) flushLogs(ctx context.Context, wg *sync.WaitGroup) {
-	flushStartTime := time.Now().Unix()
-
 	d.logsFlushMutex.Lock()
+	flushStartTime := time.Now().Unix()
 	log.Debugf("Beginning logs flush at time %d", flushStartTime)
 	logs.Flush(ctx)
 	log.Debugf("Finished logs flush that was started at time %d", flushStartTime)
