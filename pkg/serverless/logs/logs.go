@@ -96,7 +96,7 @@ const (
 	logTypePlatformLogsSubscription = "platform.logsSubscription"
 	// logTypePlatformExtension is used for the log messages about Extension API registration
 	logTypePlatformExtension = "platform.extension"
-	//lLogTypePlatformRuntimeDone is received when the runtime (customer's code) has returned (success or error)
+	// logTypePlatformRuntimeDone is received when the runtime (customer's code) has returned (success or error)
 	logTypePlatformRuntimeDone = "platform.runtimeDone"
 )
 
