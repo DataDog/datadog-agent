@@ -3,6 +3,7 @@
 package procutil
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io/ioutil"
@@ -361,19 +362,16 @@ func (p *Probe) parseIO(pidPath string) *IOCountersStat {
 		return io
 	}
 
-	content, err := ioutil.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
 		return io
 	}
+	defer f.Close()
 
-	lineStart := 0
-	for i, r := range content {
-		if r == '\n' {
-			p.parseIOLine(content[lineStart:i], io)
-			lineStart = i + 1
-		}
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		p.parseIOLine(scanner.Bytes(), io)
 	}
-
 	return io
 }
 
