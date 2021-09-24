@@ -27,7 +27,6 @@ scenario:
     - syntax
     - create
     - prepare
-    - cleanup
   test_sequence:
     - dependency
     - syntax
@@ -38,9 +37,9 @@ scenario:
     - lint
     - side_effect
     - verify
+    - cleanup
   destroy_sequence:
     - dependency
-    - cleanup
     - destroy
 
 verifier:
