@@ -11,13 +11,6 @@ name 'datadog-agent-integrations-py2'
 dependency 'datadog-agent'
 dependency 'pip2'
 
-unless osx?
-  # Exclude snowflake-connector-python as it makes MacOS notarization fail.
-  # It pulls the ijson package, which contains a _yajl2.so binary that was built with a
-  # MacOS SDK lower than 10.9. The Python 3 counterpart of the same package is not affected (it
-  # doesn't ship this file).
-  dependency 'snowflake-connector-python-py2'
-end
 
 if arm?
   # psycopg2 doesn't come with pre-built wheel on the arm architecture.
@@ -64,20 +57,12 @@ blacklist_folders = [
   'datadog_checks_base',           # namespacing package for wheels (NOT AN INTEGRATION)
   'datadog_checks_dev',            # Development package, (NOT AN INTEGRATION)
   'datadog_checks_tests_helper',   # Testing and Development package, (NOT AN INTEGRATION)
-  'agent_metrics',
-  'docker_daemon',
-  'kubernetes',
-  'ntp',                           # provided as a go check by the core agent
+  'docker_daemon',                 # Agent v5 only
 ]
 
 # package names of dependencies that won't be added to the Agent Python environment
 blacklist_packages = Array.new
 
-# We build these manually
-blacklist_packages.push(/^snowflake-connector-python==/)
-
-# Avi Vantage is py3 only
-blacklist_folders.push('avi_vantage')
 
 if suse?
   # Temporarily blacklist Aerospike until builder supports new dependency
@@ -93,9 +78,6 @@ if osx?
 
   # Blacklist ibm_was, which depends on lxml
   blacklist_folders.push('ibm_was')
-
-  # Exclude snowflake, which depends on snowflake-connector-python (which we don't build on MacOS, see above)
-  blacklist_folders.push('snowflake')
 
   # Blacklist aerospike, new version 3.10 is not supported on MacOS yet
   blacklist_folders.push('aerospike')
@@ -275,6 +257,15 @@ build do
 
       check_conf_dir = "#{conf_dir}/#{check}.d"
 
+      setup_file_path = "#{check_dir}/setup.py"
+      File.file?(setup_file_path) || next
+      # Check if it supports Python 2.
+      support = `inv agent.check-supports-python-version #{setup_file_path} 2`
+      if support == "False"
+        log.info(log_key) { "Skipping '#{check}' since it does not support Python 2." }
+        next
+      end
+
       # For each conf file, if it already exists, that means the `datadog-agent` software def
       # wrote it first. In that case, since the agent's confs take precedence, skip the conf
 
@@ -312,7 +303,6 @@ build do
         copy profiles, "#{check_conf_dir}/"
       end
 
-      File.file?("#{check_dir}/setup.py") || next
       if windows?
         command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
         command "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"

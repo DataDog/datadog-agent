@@ -196,7 +196,7 @@ int __attribute__((always_inline)) kprobe_dr_selinux_callback(struct pt_regs *ct
 
 #define PROBE_SEL_WRITE_FUNC(func_name, source_event)                       \
     SEC("kprobe/" #func_name)                                               \
-    int kprobe__##func_name(struct pt_regs *ctx) {                          \
+    int kprobe_##func_name(struct pt_regs *ctx) {                           \
         struct file *file = (struct file *)PT_REGS_PARM1(ctx);              \
         const char *buf = (const char *)PT_REGS_PARM2(ctx);                 \
         size_t count = (size_t)PT_REGS_PARM3(ctx);                          \

@@ -118,6 +118,34 @@ func TestConnStatsByteKey(t *testing.T) {
 	}
 }
 
+func TestIsExpired(t *testing.T) {
+	// 10mn
+	var timeout uint64 = 600000000000
+	for _, tc := range []struct {
+		stats      ConnectionStats
+		latestTime uint64
+		expected   bool
+	}{
+		{
+			ConnectionStats{LastUpdateEpoch: 101},
+			100,
+			false,
+		},
+		{
+			ConnectionStats{LastUpdateEpoch: 100},
+			101,
+			false,
+		},
+		{
+			ConnectionStats{LastUpdateEpoch: 100},
+			101 + timeout,
+			true,
+		},
+	} {
+		assert.Equal(t, tc.expected, tc.stats.IsExpired(tc.latestTime, timeout))
+	}
+}
+
 func BenchmarkByteKey(b *testing.B) {
 	buf := make([]byte, ConnectionByteKeyMaxLen)
 	addrA := util.AddressFromString("127.0.0.1")

@@ -194,6 +194,8 @@ type ConnectionStats struct {
 	DNSStatsByDomainByQueryType map[*intern.Value]map[dns.QueryType]dns.Stats
 
 	Via *Via
+
+	IsAssured bool
 }
 
 // Via has info about the routing decision for a flow
@@ -216,6 +218,11 @@ type IPTranslation struct {
 
 func (c ConnectionStats) String() string {
 	return ConnectionSummary(&c, nil)
+}
+
+// IsExpired returns whether the connection is expired according to the provided time and timeout.
+func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
+	return c.LastUpdateEpoch+timeout <= now
 }
 
 // ByteKey returns a unique key for this connection represented as a byte array

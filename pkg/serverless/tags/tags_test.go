@@ -106,17 +106,20 @@ func TestBuildTagMapFromArnComplete(t *testing.T) {
 	assert.Equal(t, "value1", tagMap["tag1"])
 }
 
-func TestBuildTagMapFromArnCompleteWithEnvAndVersion(t *testing.T) {
+func TestBuildTagMapFromArnCompleteWithEnvAndVersionAndService(t *testing.T) {
 	os.Setenv("DD_VERSION", "myTestVersion")
 	defer os.Unsetenv("DD_VERSION")
 	os.Setenv("DD_ENV", "myTestEnv")
 	defer os.Unsetenv("DD_ENV")
+	os.Setenv("DD_SERVICE", "myTestService")
+	defer os.Unsetenv("DD_SERVICE")
 
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
 	tagMap := BuildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
-	assert.Equal(t, 13, len(tagMap))
+	assert.Equal(t, 14, len(tagMap))
 	assert.Equal(t, "mytestenv", tagMap["env"])
 	assert.Equal(t, "mytestversion", tagMap["version"])
+	assert.Equal(t, "mytestservice", tagMap["service"])
 	assert.Equal(t, "lambda", tagMap["_dd.origin"])
 	assert.Equal(t, "1", tagMap["_dd.compute_stats"])
 	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-function", tagMap["function_arn"])

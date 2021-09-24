@@ -21,9 +21,9 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 var (
@@ -87,7 +87,7 @@ func (mr *MountResolver) SyncCache(proc *process.Process) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mnts, err := utils.ParseMountInfoFile(proc.Pid)
+	mnts, err := kernel.ParseMountInfoFile(proc.Pid)
 	if err != nil {
 		pErr, ok := err.(*os.PathError)
 		if !ok {
@@ -370,9 +370,9 @@ func getMountIDOffset(probe *Probe) uint64 {
 	offset := uint64(284)
 
 	switch {
-	case probe.kernelVersion.IsSuseKernel():
+	case probe.kernelVersion.IsSuseKernel() || probe.kernelVersion.Code >= skernel.Kernel5_12:
 		offset = 292
-	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < kernel.Kernel4_13:
+	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < skernel.Kernel4_13:
 		offset = 268
 	}
 
@@ -393,7 +393,7 @@ func getSizeOfStructInode(probe *Probe) uint64 {
 		sizeOf = 592
 	case probe.kernelVersion.IsOracleUEKKernel():
 		sizeOf = 632
-	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < kernel.Kernel4_16:
+	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < skernel.Kernel4_16:
 		sizeOf = 608
 	}
 

@@ -57,14 +57,15 @@ Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Gola
 
 # Workaround for go 1.15.13 since it does not exist in Chocolatey
 # taken from https://github.com/DataDog/datadog-agent-buildimages/blob/master/windows/install_go.ps1
+# (workaround kept for later versions)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
-Write-Host -ForegroundColor Green "Installing go 1.15.13"
+Write-Host -ForegroundColor Green "Installing go 1.16.7"
 
-$gozip = "https://dl.google.com/go/go1.15.13.windows-amd64.zip"
+$gozip = "https://dl.google.com/go/go1.16.7.windows-amd64.zip"
 if ($Env:TARGET_ARCH -eq "x86") {
-    $gozip = "https://dl.google.com/go/go1.15.13.windows-386.zip"
+    $gozip = "https://dl.google.com/go/go1.16.7.windows-386.zip"
 }
 
 $out = 'c:\go.zip'

@@ -1,5 +1,4 @@
 import hashlib
-import re
 import unittest
 from typing import OrderedDict
 from unittest import mock
@@ -134,13 +133,13 @@ def mocked_jmxfetch_requests_get(*_args, **_kwargs):
     return MockResponse(MOCK_JMXFETCH_CONTENT, 200)
 
 
-class TestAddReleaseJsonEntry(unittest.TestCase):
+class TestUpdateReleaseJsonEntry(unittest.TestCase):
     @mock.patch('requests.get', side_effect=mocked_jmxfetch_requests_get)
-    def test_add_release_json_entry(self, _):
+    def test_update_release_json_entry(self, _):
         self.maxDiff = None
         initial_release_json = OrderedDict(
             {
-                "nightly": {
+                release.nightly_entry_for(6): {
                     "INTEGRATIONS_CORE_VERSION": "master",
                     "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
@@ -152,7 +151,31 @@ class TestAddReleaseJsonEntry(unittest.TestCase):
                     "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                     "SECURITY_AGENT_POLICIES_VERSION": "master",
                 },
-                "nightly-a7": {
+                release.nightly_entry_for(7): {
+                    "INTEGRATIONS_CORE_VERSION": "master",
+                    "OMNIBUS_SOFTWARE_VERSION": "master",
+                    "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
+                    "JMXFETCH_VERSION": "0.44.1",
+                    "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
+                    "MACOS_BUILD_VERSION": "master",
+                    "WINDOWS_DDNPM_DRIVER": "release-signed",
+                    "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
+                    "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
+                    "SECURITY_AGENT_POLICIES_VERSION": "master",
+                },
+                release.release_entry_for(6): {
+                    "INTEGRATIONS_CORE_VERSION": "master",
+                    "OMNIBUS_SOFTWARE_VERSION": "master",
+                    "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
+                    "JMXFETCH_VERSION": "0.44.1",
+                    "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
+                    "MACOS_BUILD_VERSION": "master",
+                    "WINDOWS_DDNPM_DRIVER": "release-signed",
+                    "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
+                    "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
+                    "SECURITY_AGENT_POLICIES_VERSION": "master",
+                },
+                release.release_entry_for(7): {
                     "INTEGRATIONS_CORE_VERSION": "master",
                     "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
@@ -167,7 +190,6 @@ class TestAddReleaseJsonEntry(unittest.TestCase):
             }
         )
 
-        new_version = Version(major=7, minor=30, patch=1, rc=12)
         integrations_version = Version(major=7, minor=30, patch=1, rc=2)
         omnibus_ruby_version = Version(major=7, minor=30, patch=1, rc=1)
         omnibus_software_version = Version(major=7, minor=30, patch=0)
@@ -175,12 +197,12 @@ class TestAddReleaseJsonEntry(unittest.TestCase):
         jmxfetch_version = Version(major=0, minor=45, patch=0)
         security_agent_policies_version = Version(prefix="v", major="0", minor="15")
         windows_ddnpm_driver = "release-signed"
-        windows_ddnpm_version = "0.98.2.git.86.53d1ee4"
+        windows_ddnpm_version = "1.2.1"
         windows_ddnpm_shasum = "windowsddnpmshasum"
 
-        release_json = release._add_release_json_entry(
+        release_json = release._update_release_json_entry(
             release_json=initial_release_json,
-            new_version=new_version,
+            release_entry=release.release_entry_for(7),
             integrations_version=integrations_version,
             omnibus_ruby_version=omnibus_ruby_version,
             omnibus_software_version=omnibus_software_version,
@@ -194,7 +216,7 @@ class TestAddReleaseJsonEntry(unittest.TestCase):
 
         expected_release_json = OrderedDict(
             {
-                "nightly": {
+                release.nightly_entry_for(6): {
                     "INTEGRATIONS_CORE_VERSION": "master",
                     "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
@@ -206,7 +228,7 @@ class TestAddReleaseJsonEntry(unittest.TestCase):
                     "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                     "SECURITY_AGENT_POLICIES_VERSION": "master",
                 },
-                "nightly-a7": {
+                release.nightly_entry_for(7): {
                     "INTEGRATIONS_CORE_VERSION": "master",
                     "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
@@ -218,7 +240,19 @@ class TestAddReleaseJsonEntry(unittest.TestCase):
                     "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
                     "SECURITY_AGENT_POLICIES_VERSION": "master",
                 },
-                str(new_version): {
+                release.release_entry_for(6): {
+                    "INTEGRATIONS_CORE_VERSION": "master",
+                    "OMNIBUS_SOFTWARE_VERSION": "master",
+                    "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
+                    "JMXFETCH_VERSION": "0.44.1",
+                    "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
+                    "MACOS_BUILD_VERSION": "master",
+                    "WINDOWS_DDNPM_DRIVER": "release-signed",
+                    "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
+                    "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
+                    "SECURITY_AGENT_POLICIES_VERSION": "master",
+                },
+                release.release_entry_for(7): {
                     "INTEGRATIONS_CORE_VERSION": str(integrations_version),
                     "OMNIBUS_SOFTWARE_VERSION": str(omnibus_software_version),
                     "OMNIBUS_RUBY_VERSION": str(omnibus_ruby_version),
@@ -236,70 +270,65 @@ class TestAddReleaseJsonEntry(unittest.TestCase):
         self.assertDictEqual(release_json, expected_release_json)
 
 
-class TestGetHighestVersionFromReleaseJson(unittest.TestCase):
+class TestGetReleaseVersionFromReleaseJson(unittest.TestCase):
     test_release_json = {
-        "nightly": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master",},
-        "nightly-a7": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master",},
-        "6.28.1": {"JMXFETCH_VERSION": "0.43.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.10",},
-        "7.28.1": {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "v0.10",},
-        "6.28.0": {"JMXFETCH_VERSION": "0.42.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.9",},
-        "7.28.0": {"JMXFETCH_VERSION": "0.42.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.9",},
-        "6.27.0": {"JMXFETCH_VERSION": "0.42.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.8",},
-        "7.27.0": {"JMXFETCH_VERSION": "0.42.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.8",},
+        release.nightly_entry_for(6): {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master"},
+        release.nightly_entry_for(7): {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master"},
+        release.release_entry_for(6): {"JMXFETCH_VERSION": "0.43.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.10"},
+        release.release_entry_for(7): {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "v0.10"},
     }
 
-    def test_highest_release_version_6(self):
-        version = release._get_highest_version_from_release_json(self.test_release_json, 6, release.VERSION_RE)
-        self.assertEqual(version, Version(major=6, minor=28, patch=1))
+    def test_release_version_6(self):
+        version = release._get_release_version_from_release_json(self.test_release_json, 6, release.VERSION_RE)
+        self.assertEqual(version, release.release_entry_for(6))
 
-    def test_highest_release_version_7(self):
-        version = release._get_highest_version_from_release_json(self.test_release_json, 7, release.VERSION_RE)
-        self.assertEqual(version, Version(major=7, minor=28, patch=1))
+    def test_release_version_7(self):
+        version = release._get_release_version_from_release_json(self.test_release_json, 7, release.VERSION_RE)
+        self.assertEqual(version, release.release_entry_for(7))
 
-    def test_highest_jmxfetch_version_6(self):
-        version = release._get_highest_version_from_release_json(
+    def test_release_jmxfetch_version_6(self):
+        version = release._get_release_version_from_release_json(
             self.test_release_json, 6, release.VERSION_RE, release_json_key="JMXFETCH_VERSION"
         )
         self.assertEqual(version, Version(major=0, minor=43, patch=0))
 
-    def test_highest_jmxfetch_version_7(self):
-        version = release._get_highest_version_from_release_json(
+    def test_release_jmxfetch_version_7(self):
+        version = release._get_release_version_from_release_json(
             self.test_release_json, 7, release.VERSION_RE, release_json_key="JMXFETCH_VERSION"
         )
         self.assertEqual(version, Version(major=0, minor=44, patch=1))
 
-    def test_highest_security_version_6(self):
-        version = release._get_highest_version_from_release_json(
+    def test_release_security_version_6(self):
+        version = release._get_release_version_from_release_json(
             self.test_release_json, 6, release.VERSION_RE, release_json_key="SECURITY_AGENT_POLICIES_VERSION"
         )
         self.assertEqual(version, Version(prefix="v", major=0, minor=10))
 
-    def test_highest_security_version_7(self):
-        version = release._get_highest_version_from_release_json(
+    def test_release_security_version_7(self):
+        version = release._get_release_version_from_release_json(
             self.test_release_json, 7, release.VERSION_RE, release_json_key="SECURITY_AGENT_POLICIES_VERSION"
         )
         self.assertEqual(version, Version(prefix="v", major=0, minor=10))
 
 
 class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
-    test_version_re = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-rc\.(\d+))?')
     test_release_json = {
-        "nightly": {
+        release.nightly_entry_for(6): {
             "WINDOWS_DDNPM_DRIVER": "attestation-signed",
             "WINDOWS_DDNPM_VERSION": "nightly-ddnpm-version",
             "WINDOWS_DDNPM_SHASUM": "nightly-ddnpm-sha",
         },
-        "nightly-a7": {
+        release.nightly_entry_for(7): {
             "WINDOWS_DDNPM_DRIVER": "attestation-signed",
             "WINDOWS_DDNPM_VERSION": "nightly-ddnpm-version",
             "WINDOWS_DDNPM_SHASUM": "nightly-ddnpm-sha",
         },
-        "6.28.0-rc.3": {
+        release.release_entry_for(6): {
             "WINDOWS_DDNPM_DRIVER": "release-signed",
             "WINDOWS_DDNPM_VERSION": "rc3-ddnpm-version",
             "WINDOWS_DDNPM_SHASUM": "rc3-ddnpm-sha",
         },
-        "7.28.0-rc.3": {
+        release.release_entry_for(7): {
             "WINDOWS_DDNPM_DRIVER": "release-signed",
             "WINDOWS_DDNPM_VERSION": "rc3-ddnpm-version",
             "WINDOWS_DDNPM_SHASUM": "rc3-ddnpm-sha",
@@ -307,18 +336,14 @@ class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
     }
 
     def test_ddnpm_info_is_taken_from_nightly_on_first_rc(self):
-        driver, version, shasum = release._get_windows_ddnpm_release_json_info(
-            self.test_release_json, 7, self.test_version_re, True
-        )
+        driver, version, shasum = release._get_windows_ddnpm_release_json_info(self.test_release_json, 7, True)
 
         self.assertEqual(driver, 'attestation-signed')
         self.assertEqual(version, 'nightly-ddnpm-version')
         self.assertEqual(shasum, 'nightly-ddnpm-sha')
 
     def test_ddnpm_info_is_taken_from_previous_rc_on_subsequent_rcs(self):
-        driver, version, shasum = release._get_windows_ddnpm_release_json_info(
-            self.test_release_json, 7, self.test_version_re, False
-        )
+        driver, version, shasum = release._get_windows_ddnpm_release_json_info(self.test_release_json, 7, False)
 
         self.assertEqual(driver, 'release-signed')
         self.assertEqual(version, 'rc3-ddnpm-version')

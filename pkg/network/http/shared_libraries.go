@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/network/so"
+	"github.com/DataDog/gopsutil/process/so"
 )
 
 const (
@@ -23,7 +23,7 @@ var openSSLLibs = regexp.MustCompile(
 
 func findOpenSSLLibraries(procRoot string) []so.Library {
 	// libraries will include all host-resolved openSSL library paths mapped into memory
-	libraries := so.Find(procRoot, openSSLLibs)
+	libraries := so.FindProc(procRoot, openSSLLibs)
 
 	// TODO: should we ensure all entries are unique in the `so` package instead?
 	seen := make(map[string]struct{}, len(libraries))
