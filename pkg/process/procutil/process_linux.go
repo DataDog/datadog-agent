@@ -215,7 +215,7 @@ func (p *Probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 		var (
 			statusInfo = p.parseStatus(pathForPID)
 			statInfo   = &statInfo{}
-			stats      = &Stats{}
+			stats      *Stats
 		)
 
 		if collectStats {
