@@ -374,6 +374,8 @@ func runCheckAsRealTime(cfg *config.AgentConfig, ch checks.CheckWithRealTime) er
 		}
 	)
 
+	// We need to run the check twice in order to initialize the stats
+	// Rate calculations rely on having two datapoints
 	if _, err := ch.RunWithOptions(cfg, nextGroupID, options); err != nil {
 		return fmt.Errorf("collection error: %s", err)
 	}

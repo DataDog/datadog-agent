@@ -171,17 +171,17 @@ type IOCountersStat struct {
 	WriteBytes int64
 }
 
+// IsZeroValue checks whether all fields are 0 in value for IOCountersStat
+func (i *IOCountersStat) IsZeroValue() bool {
+	return i.ReadCount == 0 && i.WriteCount == 0 && i.ReadBytes == 0 && i.WriteBytes == 0
+}
+
 // IOCountersRateStat holds IO metrics for a process represented as rates (/sec)
 type IOCountersRateStat struct {
 	ReadRate       float64
 	WriteRate      float64
 	ReadBytesRate  float64
 	WriteBytesRate float64
-}
-
-// IsZeroValue checks whether all fields are 0 in value for IOCountersStat
-func (i *IOCountersStat) IsZeroValue() bool {
-	return i.ReadCount == 0 && i.WriteCount == 0 && i.ReadBytes == 0 && i.WriteBytes == 0
 }
 
 // NumCtxSwitchesStat holds context switch metrics for a process

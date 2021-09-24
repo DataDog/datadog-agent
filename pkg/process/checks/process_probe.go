@@ -10,9 +10,9 @@ import (
 )
 
 var (
-	processProbe     procutil.Probe
-	processProbeOnce sync.Once
-	legacyProbe      procutil.Probe
+	processProbe        procutil.Probe
+	processProbeOnce    sync.Once
+	defaultWindowsProbe procutil.Probe
 )
 
 func getProcessProbe(cfg *config.AgentConfig) procutil.Probe {
@@ -20,7 +20,7 @@ func getProcessProbe(cfg *config.AgentConfig) procutil.Probe {
 		if runtime.GOOS == "windows" {
 			if !cfg.Windows.UsePerfCounters {
 				log.Info("Using toolhelp API probe for process data collection")
-				processProbe = legacyProbe
+				processProbe = defaultWindowsProbe
 				return
 			}
 			log.Info("Using perf counters probe for process data collection")

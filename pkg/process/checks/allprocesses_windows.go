@@ -66,19 +66,19 @@ func getProcessIoCounters(h windows.Handle, counters *IO_COUNTERS) (err error) {
 	return nil
 }
 
-type legacyWindowsProbe struct {
+type windowsToolhelpProbe struct {
 	cachedProcesses map[uint32]*cachedProcess
 }
 
-func newLegacyWindowsProbe() procutil.Probe {
-	return &legacyWindowsProbe{
+func newWindowsToolhelpProbe() procutil.Probe {
+	return &windowsToolhelpProbe{
 		cachedProcesses: map[uint32]*cachedProcess{},
 	}
 }
 
-func (p *legacyWindowsProbe) Close() {}
+func (p *windowsToolhelpProbe) Close() {}
 
-func (p *legacyWindowsProbe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*procutil.Stats, error) {
+func (p *windowsToolhelpProbe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*procutil.Stats, error) {
 	procs, err := p.ProcessesByPID(now)
 	if err != nil {
 		return nil, err
@@ -91,11 +91,11 @@ func (p *legacyWindowsProbe) StatsForPIDs(pids []int32, now time.Time) (map[int3
 }
 
 // StatsWithPermByPID is currently not implemented in non-linux environments
-func (p *legacyWindowsProbe) StatsWithPermByPID(pids []int32) (map[int32]*procutil.StatsWithPerm, error) {
-	return nil, fmt.Errorf("legacyWindowsProbe: StatsWithPermByPID is not implemented")
+func (p *windowsToolhelpProbe) StatsWithPermByPID(pids []int32) (map[int32]*procutil.StatsWithPerm, error) {
+	return nil, fmt.Errorf("windowsToolhelpProbe: StatsWithPermByPID is not implemented")
 }
 
-func (p *legacyWindowsProbe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*procutil.Process, error) {
+func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*procutil.Process, error) {
 	// make sure we get the consistent snapshot by using the same OS thread
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
