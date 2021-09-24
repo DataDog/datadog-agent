@@ -337,7 +337,7 @@ build do
           copy profiles, "#{check_conf_dir}/"
         end
 
-        cached_wheel_glob = Dir.glob(File.join(cached_wheels_dir, "datadog_#{check}-*.whl"))
+        cached_wheel_glob = Dir.glob(File.join(cached_wheels_dir.gsub("\\", "/"), "datadog_#{check}-*.whl"))
         if cached_wheel_glob.length == 1
           wheel_path = windows_safe_path(cached_wheel_glob[0])
           command "#{pip} install --no-deps --no-index #{wheel_path}"
