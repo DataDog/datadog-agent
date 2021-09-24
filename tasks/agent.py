@@ -750,7 +750,9 @@ def get_integrations_from_cache(ctx, python, bucket, integrations_dir, target_di
             continue
         elif len(files_matched) > 1:
             raise Exit(
-                "More than 1 wheel for integration {} matched by {}: {}".format(integration, original_path_glob, files_matched)
+                "More than 1 wheel for integration {} matched by {}: {}".format(
+                    integration, original_path_glob, files_matched
+                )
             )
         wheel_path = files_matched[0]
         print("Found cached wheel for integration {}".format(integration))
