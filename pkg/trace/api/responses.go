@@ -64,9 +64,11 @@ func httpDecodingError(err error, tags []string, w http.ResponseWriter) {
 	http.Error(w, msg, status)
 }
 
-// httpOK is a dumb response for when things are a OK
-func httpOK(w http.ResponseWriter) {
-	io.WriteString(w, "OK\n")
+// httpOK is a dumb response for when things are a OK. It returns the number
+// of bytes written along with a boolean specifying if the response was successful.
+func httpOK(w http.ResponseWriter) (n uint64, ok bool) {
+	nn, err := io.WriteString(w, "OK\n")
+	return uint64(nn), err == nil
 }
 
 type writeCounter struct {
@@ -86,17 +88,20 @@ func (wc *writeCounter) Write(p []byte) (n int, err error) {
 func (wc *writeCounter) N() uint64 { return atomic.LoadUint64(&wc.n) }
 
 // httpRateByService outputs, as a JSON, the recommended sampling rates for all services.
-// It returns the number of bytes written
-func httpRateByService(w http.ResponseWriter, dynConf *sampler.DynamicConfig) uint64 {
+// It returns the number of bytes written and a boolean specifying whether the write was
+// successful.
+func httpRateByService(w http.ResponseWriter, dynConf *sampler.DynamicConfig) (n uint64, ok bool) {
 	w.Header().Set("Content-Type", "application/json")
 	response := traceResponse{
 		Rates: dynConf.RateByService.GetAll(), // this is thread-safe
 	}
 	wc := newWriteCounter(w)
+	ok = true
 	encoder := json.NewEncoder(wc)
 	if err := encoder.Encode(response); err != nil {
 		tags := []string{"error:response-error"}
 		metrics.Count(receiverErrorKey, 1, tags, 1)
+		ok = false
 	}
-	return wc.N()
+	return wc.N(), ok
 }

@@ -403,13 +403,15 @@ func decodeTraces(v Version, req *http.Request) (pb.Traces, error) {
 	}
 }
 
-func (r *HTTPReceiver) replyOK(v Version, w http.ResponseWriter) {
+// replyOK replies to the given http.ReponseWriter w based on the endpoint version, with either status 200/OK
+// or with a list of rates by service. It returns the number of bytes written along with reporting if the operation
+// was successful.
+func (r *HTTPReceiver) replyOK(v Version, w http.ResponseWriter) (n uint64, ok bool) {
 	switch v {
 	case v01, v02, v03:
-		httpOK(w)
+		return httpOK(w)
 	default:
-		n := httpRateByService(w, r.dynConf)
-		metrics.Histogram("datadog.trace_agent.receiver.rate_response_bytes", float64(n), []string{"endpoint:traces_" + string(v)}, 1)
+		return httpRateByService(w, r.dynConf)
 	}
 }
 
@@ -464,9 +466,12 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		atomic.AddInt64(&ts.PayloadRefused, 1)
 		return
 	}
-
-	defer timing.Since("datadog.trace_agent.receiver.serve_traces_ms", time.Now())
+	start := time.Now()
 	traces, err := decodeTraces(v, req)
+	defer func(err error) {
+		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
+		metrics.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
+	}(err)
 	if err != nil {
 		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
 		switch err {
@@ -484,7 +489,10 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		log.Errorf("Cannot decode %s traces payload: %v", v, err)
 		return
 	}
-	r.replyOK(v, w)
+	if n, ok := r.replyOK(v, w); ok {
+		tags := append(ts.AsTags(), "endpoint:traces_"+string(v))
+		metrics.Histogram("datadog.trace_agent.receiver.rate_response_bytes", float64(n), tags, 1)
+	}
 
 	atomic.AddInt64(&ts.TracesReceived, int64(len(traces)))
 	atomic.AddInt64(&ts.TracesBytes, req.Body.(*apiutil.LimitedReader).Count)
