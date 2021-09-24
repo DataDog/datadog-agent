@@ -73,6 +73,7 @@ const (
 	AgentFlavor                       AgentMetadataName = "flavor"
 	AgentConfigApmDDURL               AgentMetadataName = "config_apm_dd_url"
 	AgentConfigDDURL                  AgentMetadataName = "config_dd_url"
+	AgentConfigSite                   AgentMetadataName = "config_site"
 	AgentConfigLogsDDURL              AgentMetadataName = "config_logs_dd_url"
 	AgentConfigLogsSocks5ProxyAddress AgentMetadataName = "config_logs_socks5_proxy_address"
 	AgentConfigNoProxy                AgentMetadataName = "config_no_proxy"
@@ -256,6 +257,7 @@ func initializeConfig(cfg config.Config) {
 
 	SetAgentMetadata(AgentConfigApmDDURL, clean(cfg.GetString("apm_config.apm_dd_url")))
 	SetAgentMetadata(AgentConfigDDURL, clean(cfg.GetString("dd_url")))
+	SetAgentMetadata(AgentConfigSite, clean(cfg.GetString("dd_site")))
 	SetAgentMetadata(AgentConfigLogsDDURL, clean(cfg.GetString("logs_config.logs_dd_url")))
 	SetAgentMetadata(AgentConfigLogsSocks5ProxyAddress, clean(cfg.GetString("logs_config.socks5_proxy_address")))
 	SetAgentMetadata(AgentConfigNoProxy, cleanSlice(cfg.GetStringSlice("proxy.no_proxy")))

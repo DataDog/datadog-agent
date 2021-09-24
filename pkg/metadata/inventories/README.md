@@ -45,6 +45,7 @@ The payload is a JSON dict with the following fields
     dogstatsd, iot, serverless ... (see `pkg/util/flavor` package).
   - `config_apm_dd_url` - **string**: the configuration value `apm_config.dd_url` (scrubbed)
   - `config_dd_url` - **string**: the configuration value `dd_url` (scrubbed)
+  - `config_site` - **string**: the configuration value `site` (scrubbed)
   - `config_logs_dd_url` - **string**: the configuration value `logs_config.logs_dd_url` (scrubbed)
   - `config_logs_socks5_proxy_address` - **string**: the configuration value `logs_config.socks5_proxy_address` (scrubbed)
   - `config_no_proxy` - **array of strings**: the configuration value `proxy.no_proxy` (scrubbed)
@@ -77,9 +78,32 @@ Here an example of an inventory payload:
 
 ```
 {
-    "agent_metadata": {
-        "hostname_source": "os"
-    },
+   "agent_metadata": {
+      "agent_version": "7.32.0-devel+git.146.7bd17a1",
+      "config_apm_dd_url": "",
+      "config_dd_url": "",
+      "config_logs_dd_url": "",
+      "config_logs_socks5_proxy_address": "",
+      "config_no_proxy": [
+        "http://some-no-proxy"
+      ],
+      "config_process_dd_url": "",
+      "config_proxy_http": "",
+      "config_proxy_https": "http://localhost:9999",
+      "config_site": "",
+      "feature_apm_enabled": true,
+      "feature_cspm_enabled": false,
+      "feature_cws_enabled": false,
+      "feature_logs_enabled": true,
+      "feature_networks_enabled": false,
+      "feature_process_enabled": false,
+      "flavor": "agent",
+      "hostname_source": "os",
+      "install_method_installer_version": "",
+      "install_method_tool": "undefined",
+      "install_method_tool_version": "",
+      "logs_transport": "HTTP",
+    }
     "check_metadata": {
         "cpu": [
             {
