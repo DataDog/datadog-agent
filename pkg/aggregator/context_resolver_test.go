@@ -138,6 +138,7 @@ func TestCountBasedExpireContexts(t *testing.T) {
 	mSample2 := metrics.MetricSample{Name: "my.metric.name2"}
 	mSample3 := metrics.MetricSample{Name: "my.metric.name3"}
 	contextResolver := newCountBasedContextResolver(2)
+	defer contextResolver.close()
 
 	contextKey1 := contextResolver.trackContext(&mSample1)
 	contextKey2 := contextResolver.trackContext(&mSample2)

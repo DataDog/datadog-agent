@@ -374,6 +374,7 @@ func (agg *BufferedAggregator) registerSender(id check.ID) error {
 
 func (agg *BufferedAggregator) deregisterSender(id check.ID) {
 	agg.mu.Lock()
+	agg.checkSamplers[id].close()
 	delete(agg.checkSamplers, id)
 	agg.mu.Unlock()
 }
@@ -703,6 +704,7 @@ func (agg *BufferedAggregator) Flush(start time.Time, waitForSerializer bool) {
 // Stop stops the aggregator. Based on 'flushData' waiting metrics (from checks
 // or closed dogstatsd buckets) will be sent to the serializer before stopping.
 func (agg *BufferedAggregator) Stop() {
+	agg.statsdSampler.Close()
 	agg.stopChan <- struct{}{}
 
 	timeout := config.Datadog.GetDuration("aggregator_stop_timeout") * time.Second

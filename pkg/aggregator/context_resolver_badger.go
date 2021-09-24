@@ -13,8 +13,8 @@ import (
 
 // contextResolver allows tracking and expiring contexts
 type contextResolverBadger struct {
-	db *badger.DB
-	ticker *time.Ticker
+	db            *badger.DB
+	ticker        *time.Ticker
 	contextsByKey map[ckey.ContextKey]*Context
 	keyGenerator  *ckey.KeyGenerator
 	// buffer slice allocated once per contextResolver to combine and sort
@@ -35,7 +35,10 @@ func (cr *contextResolverBadger) serializeContextKey(key ckey.ContextKey) []byte
 func (cr *contextResolverBadger) serializeContext(c *Context) []byte {
 	var buffer bytes.Buffer
 	enc := gob.NewEncoder(&buffer)
-	enc.Encode(*c)
+	err := enc.Encode(*c)
+	if err != nil {
+		log.Fatal(err)
+	}
 	return buffer.Bytes()
 }
 
@@ -43,7 +46,10 @@ func (cr *contextResolverBadger) deserializeContext(b []byte) *Context {
 	buffer := bytes.NewBuffer(b)
 	dec := gob.NewDecoder(buffer)
 	c := &Context{}
-	dec.Decode(&c)
+	err := dec.Decode(&c)
+	if err != nil {
+		log.Fatal(err)
+	}
 	return c
 }
 
@@ -58,8 +64,8 @@ func newContextResolverBadger() *contextResolverBadger {
 	ticker := time.NewTicker(1 * time.Minute)
 
 	cr := &contextResolverBadger{
-		db: db,
-		ticker: ticker,
+		db:            db,
+		ticker:        ticker,
 		contextsByKey: make(map[ckey.ContextKey]*Context),
 		keyGenerator:  ckey.NewKeyGenerator(),
 		tagsBuffer:    util.NewTagsBuilder(),
@@ -96,7 +102,7 @@ func (cr *contextResolverBadger) trackContext(metricSampleContext metrics.Metric
 }
 
 func (cr *contextResolverBadger) get(key ckey.ContextKey) (*Context, bool) {
-	var context *Context = nil
+	var context *Context
 
 	// FIXME: review error handling.
 	err := cr.db.View(func(txn *badger.Txn) error {

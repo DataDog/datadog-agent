@@ -235,3 +235,7 @@ func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics me
 		}
 	}
 }
+
+func (s *TimeSampler) Close() {
+	s.contextResolver.close()
+}

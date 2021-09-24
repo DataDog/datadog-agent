@@ -29,6 +29,7 @@ func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 // TimeSampler
 func TestCalculateBucketStart(t *testing.T) {
 	sampler := NewTimeSampler(10)
+	defer sampler.Close()
 
 	assert.Equal(t, int64(123450), sampler.calculateBucketStart(123456.5))
 	assert.Equal(t, int64(123460), sampler.calculateBucketStart(123460.5))
@@ -36,6 +37,7 @@ func TestCalculateBucketStart(t *testing.T) {
 
 func TestBucketSampling(t *testing.T) {
 	sampler := NewTimeSampler(10)
+	defer sampler.Close()
 
 	mSample := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -67,6 +69,7 @@ func TestBucketSampling(t *testing.T) {
 
 func TestContextSampling(t *testing.T) {
 	sampler := NewTimeSampler(10)
+	defer sampler.Close()
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name1",
@@ -131,6 +134,8 @@ func TestContextSampling(t *testing.T) {
 
 func TestCounterExpirySeconds(t *testing.T) {
 	sampler := NewTimeSampler(10)
+	defer sampler.Close()
+
 	math.Abs(1)
 	sampleCounter1 := &metrics.MetricSample{
 		Name:       "my.counter1",
@@ -283,6 +288,7 @@ func TestSketch(t *testing.T) {
 			}
 		}
 	)
+	defer sampler.Close()
 
 	assert.EqualValues(t, defaultBucketSize, sampler.interval,
 		"interval should default to 10")
@@ -332,6 +338,7 @@ func TestSketch(t *testing.T) {
 func TestSketchBucketSampling(t *testing.T) {
 
 	sampler := NewTimeSampler(10)
+	defer sampler.Close()
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name",
@@ -375,6 +382,7 @@ func TestSketchBucketSampling(t *testing.T) {
 
 func TestSketchContextSampling(t *testing.T) {
 	sampler := NewTimeSampler(10)
+	defer sampler.Close()
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name1",
@@ -425,6 +433,7 @@ func TestSketchContextSampling(t *testing.T) {
 
 func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 	sampler := NewTimeSampler(10)
+	defer sampler.Close()
 
 	dSample1 := metrics.MetricSample{
 		Name:       "distribution.metric.name1",
@@ -481,6 +490,8 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 
 func BenchmarkTimeSampler(b *testing.B) {
 	sampler := NewTimeSampler(10)
+	defer sampler.Close()
+
 	sample := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,

@@ -179,3 +179,7 @@ func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 
 	return series, sketches
 }
+
+func (cs *CheckSampler) close() {
+	cs.contextResolver.close()
+}

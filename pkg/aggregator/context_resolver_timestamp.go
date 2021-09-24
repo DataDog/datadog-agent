@@ -66,3 +66,7 @@ func (cr *timestampContextResolver) expireContexts(expireTimestamp float64) []ck
 
 	return expiredContextKeys
 }
+
+func (cr *timestampContextResolver) close() {
+	cr.resolver.close()
+}

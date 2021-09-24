@@ -33,7 +33,6 @@ type contextResolver interface {
 func newContextResolver() contextResolver {
 	if UseBadger {
 		return newContextResolverBadger()
-	} else {
-		return newContextResolverInMemory()
 	}
+	return newContextResolverInMemory()
 }
