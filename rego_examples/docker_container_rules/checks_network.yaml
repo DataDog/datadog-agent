@@ -1,3 +1,18 @@
+schema:
+  version: 1.0.0
+name: CIS Docker Generic
+framework: cis-docker
+version: 1.2.0
+rules:
+  - id: cis-docker-1.2.0-2.1
+    description: '[CIS Docker] Ensure network traffic is restricted between containers on the default bridge'
+    scope:
+      - docker
+    resources:
+      - docker:
+          kind: network
+        condition: docker.template("{{- index $.Options \"com.docker.network.bridge.default_bridge\" -}}") != "true" || docker.template("{{- index $.Options \"com.docker.network.bridge.enable_icc\" -}}") == "true"
+regos:
   - id: cis-docker-1.2.0-2.1
     description: '[CIS Docker] Ensure network traffic is restricted between containers on the default bridge'
     scope:
@@ -6,4 +21,33 @@
       - tag: networks
         docker:
           kind: network
-        condition: docker.template("{{- index $.Options \"com.docker.network.bridge.default_bridge\" -}}") != "true" || docker.template("{{- index $.Options \"com.docker.network.bridge.enable_icc\" -}}") == "true"
+    module: |
+      package cis
+
+      import data.datadog as dd
+
+      findings[f] {
+        network := input.networks[_]
+        not failing_network(network)
+        f := dd.passed_finding(
+          "docker_network",
+          dd.docker_network_resource_id(network),
+          dd.docker_network_data(network)
+        )
+      }
+
+      findings[f] {
+        network := input.networks[_]
+        failing_network(network)
+        f := dd.failing_finding(
+          "docker_network",
+          dd.docker_network_resource_id(network),
+          dd.docker_network_data(network)
+        )
+      }
+
+      failing_network(network) {
+        network.inspect.Options["com.docker.network.bridge.default_bridge"] == "true"
+        network.inspect.Options["com.docker.network.bridge.enable_icc"] == "true"
+      }
+    findings: data.cis.findings
