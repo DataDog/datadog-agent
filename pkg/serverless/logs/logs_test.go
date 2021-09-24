@@ -556,7 +556,7 @@ func TestUnmarshalPlatformRuntimeDoneLog(t *testing.T) {
 
 func TestUnmarshalPlatformRuntimeDoneLogNotFatal(t *testing.T) {
 	logMessage := &logMessage{}
-	raw, errReadFile := ioutil.ReadFile("./testdata/platform_incorrect_runtime_done_log_valid.json")
+	raw, errReadFile := ioutil.ReadFile("./testdata/platform_incorrect_runtime_done_log.json")
 	if errReadFile != nil {
 		assert.Fail(t, "should be able to read the file")
 	}

@@ -39,7 +39,6 @@ func GenerateRuntimeDurationMetric(start time.Time, end time.Time, status string
 		log.Debug("Impossible to compute aws.lambda.enhanced.runtime_duration due to an invalid interval")
 	} else {
 		duration := end.Sub(start).Milliseconds()
-		// TODO do we want to do something with status (success/error/timeout) here ?
 		metricsChan <- []metrics.MetricSample{{
 			Name:       "aws.lambda.enhanced.runtime_duration",
 			Value:      float64(duration),
