@@ -22,7 +22,7 @@ regos:
 
       findings[f] {
         p := input.kubelet_processes[_]
-        valid_process[p]
+        valid_process(p)
         f := dd.passed_finding(
           "docker_daemon",
           dd.docker_daemon_resource_id,
@@ -32,7 +32,7 @@ regos:
 
       findings[f] {
         p := input.kubelet_processes[_]
-        not valid_process[p]
+        not valid_process(p)
         f := dd.failing_finding(
           "docker_daemon",
           dd.docker_daemon_resource_id,
@@ -40,22 +40,19 @@ regos:
         )
       }
 
-      valid_process[p] {
-        p := input.kubelet_processes[_]
+      valid_process(p) {
         p.flags["--tls-cert-file"] != ""
         p.flags["--tls-private-key-file"] != ""
       }
 
-      valid_process[p] {
-        p := input.kubelet_processes[_]
+      valid_process(p) {
         f := input.kubelet_config_files[_]
         p.flags["--config"] == f.glob
         f.content.tlsCertFile != ""
         f.content.tlsPrivateKeyFile != ""
       }
 
-      valid_process[p] {
-        p := input.kubelet_processes[_]
+      valid_process(p) {
         f := input.kubelet_config_files[_]
         p.flags["--config"] == f.glob
         f.content.serverTLSBootstrap != ""
