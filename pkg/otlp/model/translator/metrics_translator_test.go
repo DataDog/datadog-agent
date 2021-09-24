@@ -29,7 +29,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter/internal/attributes"
+	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
 )
 
 func TestGetTags(t *testing.T) {

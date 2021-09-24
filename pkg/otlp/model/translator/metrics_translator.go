@@ -24,17 +24,19 @@ import (
 	"go.opentelemetry.io/collector/model/pdata"
 	"go.uber.org/zap"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter/internal/attributes"
+	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
 )
 
 const metricName string = "metric name"
 
+// Translator is a metrics translator.
 type Translator struct {
 	prevPts *ttlCache
 	logger  *zap.Logger
 	cfg     translatorConfig
 }
 
+// New creates a new translator with given options.
 func New(logger *zap.Logger, options ...Option) (*Translator, error) {
 	cfg := translatorConfig{
 		HistMode:                 HistogramModeNoBuckets,
