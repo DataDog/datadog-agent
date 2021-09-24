@@ -32,6 +32,11 @@ docker_container_resource_id(c) = id {
 	id := sprintf("%s_%s", [input.context.hostname, cast_string(c.id)])
 }
 
+docker_image_resource_id(img) = id {
+	hash := split(cast_string(img.id), ":")[1]
+	id := sprintf("%s_%s", [input.context.hostname, hash])
+}
+
 docker_daemon_resource_id = id {
 	id := sprintf("%s_daemon", [input.context.hostname])
 }
@@ -49,6 +54,13 @@ docker_container_data(c) = d {
 		"container.id": c.id,
 		"container.image": c.image,
 		"container.name": c.name,
+	}
+}
+
+docker_image_data(img) = d {
+	d := {
+		"image.id": img.id,
+		"image.tags": img.tags,
 	}
 }
 
