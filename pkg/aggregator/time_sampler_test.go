@@ -252,13 +252,13 @@ func TestCounterExpirySeconds(t *testing.T) {
 	// Counter2 should still report
 	assert.Equal(t, 1, len(series))
 	assert.Equal(t, 1, len(sampler.counterLastSampledByContext))
-	assert.Equal(t, 2, len(sampler.contextResolver.resolver.contextsByKey))
+	assert.Equal(t, 2, sampler.contextResolver.resolver.length())
 
 	series, _ = sampler.flush(1800.0)
 	// Everything stopped reporting and is expired
 	assert.Equal(t, 0, len(series))
 	assert.Equal(t, 0, len(sampler.counterLastSampledByContext))
-	assert.Equal(t, 0, len(sampler.contextResolver.resolver.contextsByKey))
+	assert.Equal(t, 0, sampler.contextResolver.resolver.length())
 }
 
 func TestSketch(t *testing.T) {

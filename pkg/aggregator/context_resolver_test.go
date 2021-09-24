@@ -78,17 +78,17 @@ func TestTrackContext(t *testing.T) {
 	contextKey3 := contextResolver.trackContext(&mSample3)
 
 	// When we look up the 2 keys, they return the correct contexts
-	context1 := contextResolver.contextsByKey[contextKey1]
+	context1, ok := contextResolver.get(contextKey1)
 	assert.Equal(t, expectedContext1, *context1)
 
-	context2 := contextResolver.contextsByKey[contextKey2]
+	context2, ok := contextResolver.get(contextKey2)
 	assert.Equal(t, expectedContext2, *context2)
 
-	context3 := contextResolver.contextsByKey[contextKey3]
+	context3, ok := contextResolver.get(contextKey3)
 	assert.Equal(t, expectedContext3, *context3)
 
 	unknownContextKey := ckey.ContextKey(0xffffffffffffffff)
-	_, ok := contextResolver.contextsByKey[unknownContextKey]
+	_, ok = contextResolver.get(unknownContextKey)
 	assert.False(t, ok)
 }
 
@@ -115,8 +115,8 @@ func TestExpireContexts(t *testing.T) {
 
 	// With an expireTimestap of 3, both contexts are still valid
 	assert.Len(t, contextResolver.expireContexts(3), 0)
-	_, ok1 := contextResolver.resolver.contextsByKey[contextKey1]
-	_, ok2 := contextResolver.resolver.contextsByKey[contextKey2]
+	_, ok1 := contextResolver.resolver.get(contextKey1)
+	_, ok2 := contextResolver.resolver.get(contextKey2)
 	assert.True(t, ok1)
 	assert.True(t, ok2)
 
@@ -127,9 +127,9 @@ func TestExpireContexts(t *testing.T) {
 	}
 
 	// context 1 is not tracked anymore, but context 2 still is
-	_, ok := contextResolver.resolver.contextsByKey[contextKey1]
+	_, ok := contextResolver.resolver.get(contextKey1)
 	assert.False(t, ok)
-	_, ok = contextResolver.resolver.contextsByKey[contextKey2]
+	_, ok = contextResolver.resolver.get(contextKey2)
 	assert.True(t, ok)
 }
 
@@ -154,7 +154,7 @@ func TestCountBasedExpireContexts(t *testing.T) {
 	require.ElementsMatch(t, expiredContextKeys, []ckey.ContextKey{contextKey2, contextKey3})
 
 	require.Len(t, contextResolver.expireContexts(), 0)
-	require.Len(t, contextResolver.resolver.contextsByKey, 0)
+	require.Equal(t, 0, contextResolver.resolver.length())
 }
 
 func TestTagDeduplication(t *testing.T) {
@@ -165,6 +165,7 @@ func TestTagDeduplication(t *testing.T) {
 		Tags: []string{"bar", "bar"},
 	})
 
-	assert.Equal(t, len(resolver.contextsByKey[ckey].Tags), 1)
-	assert.Equal(t, resolver.contextsByKey[ckey].Tags, []string{"bar"})
+	context, _ := resolver.get(ckey)
+	assert.Equal(t, len(context.Tags), 1)
+	assert.Equal(t, context.Tags, []string{"bar"})
 }

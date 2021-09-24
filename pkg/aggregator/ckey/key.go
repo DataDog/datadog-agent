@@ -168,3 +168,12 @@ func Equals(a, b ContextKey) bool {
 func (k ContextKey) IsZero() bool {
 	return k == 0
 }
+
+// ToBytes returns the bytes of the key
+func (k ContextKey) ToBytes() []byte {
+	r := make([]byte, 8)
+	for i := 0; i < 8; i++ {
+		r[i] = byte((k >> (i * 8)) & 0xff)
+	}
+	return r
+}
