@@ -5,7 +5,6 @@ package procutil
 import (
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -170,13 +169,16 @@ func testProcessesByPID(t *testing.T) {
 	// Test processesByPID with collectStats == false
 	procByPID, err = probe.ProcessesByPID(time.Now(), false)
 	assert.NoError(t, err)
-	for pid, proc := range procByPID {
-		assert.Equal(t, &Stats{
-			CreateTime: expectedProcs[pid].CreateTime,
-			IOStat:     &IOCountersStat{-1, -1, -1, -1}}, proc.Stats)
+	for _, proc := range procByPID {
+		// Make sure that the createTime is there
+		assert.NotEmpty(t, proc.Stats.CreateTime)
+
 		assert.NotEmpty(t, proc.Pid)
 		assert.NotEmpty(t, proc.Name)
 		assert.NotEmpty(t, proc.Cmdline)
+
+		// Make sure that the memory stats are not collected
+		assert.Empty(t, proc.Stats.MemInfoEx)
 	}
 }
 
@@ -709,57 +711,6 @@ func TestParseStatContent(t *testing.T) {
 		tc.expected.nice = actual.nice
 		assert.EqualValues(t, tc.expected, actual)
 	}
-}
-
-func TestParseStartTime(t *testing.T) {
-	probe := getProbeWithPermission()
-	defer probe.Close()
-
-	// hard code the bootTime so we get consistent calculation for createTime
-	atomic.StoreUint64(&probe.bootTime, 1606181252)
-
-	tests := []struct {
-		line     []byte
-		expected int64
-	}{
-		// standard content
-		{
-			line:     []byte("1 (systemd) S 0 1 1 0 -1 4194560 425768 306165945 70 4299 4890 2184 563120 375308 20 0 1 0 15 189849600 1541 18446744073709551615 94223912931328 94223914360080 140733806473072 140733806469312 140053573122579 0 671173123 4096 1260 1 0 0 17 0 0 0 155 0 0 94223914368000 942\n23914514184 94223918080000 140733806477086 140733806477133 140733806477133 140733806477283 0"),
-			expected: 1606181252000,
-		},
-		// command line has brackets around
-		{
-			line:     []byte("1 ((sd-pam)) S 0 1 1 0 -1 4194560 425768 306165945 70 4299 4890 2184 563120 375308 20 0 1 0 15 189849600 1541 18446744073709551615 94223912931328 94223914360080 140733806473072 140733806469312 140053573122579 0 671173123 4096 1260 1 0 0 17 0 0 0 155 0 0 94223914368000 942\n23914514184 94223918080000 140733806477086 140733806477133 140733806477133 140733806477283 0"),
-			expected: 1606181252000,
-		},
-		// fields are separated by multiple white spaces
-		{
-			line:     []byte("5  (kworker/0:0H)   S 2 0 0 0 -1   69238880 0 0  0 0  0 0 0 0 0  -20 1 0 17 0 0 18446744073709551615 0 0 0 0 0 0 0 2147483647 0 0 0 0 17 0 0 0 0 0 0 0 0 0 0 0 0 0 0"),
-			expected: 1606181252000,
-		},
-	}
-
-	for _, test := range tests {
-		// Create a test pid path
-		tempdirPath, err := ioutil.TempDir("", "test-pid")
-		assert.NoError(t, err)
-
-		// Put a stat file in it, so that getProcStartTime has something to read from
-		file, err := os.Create(path.Join(tempdirPath, "stat"))
-		assert.NoError(t, err)
-
-		// Write the line into the file, so that getProcStartTime can read the stat
-		_, err = file.Write(test.line)
-		assert.NoError(t, err)
-
-		startTime := probe.getProcStartTime(tempdirPath)
-		assert.Equal(t, test.expected, startTime)
-
-		// Clean up the temp dir
-		err = os.RemoveAll(tempdirPath)
-		assert.NoError(t, err)
-	}
-
 }
 
 func TestParseStatTestFS(t *testing.T) {
