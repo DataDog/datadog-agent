@@ -53,12 +53,13 @@ const (
 	TCPQueueLengthCheckName = "TCP queue length"
 	ProcessModuleCheckName  = "Process Module"
 
-	ProcessCheckDefaultInterval     = 10 * time.Second
-	RTProcessCheckDefaultInterval   = 2 * time.Second
-	ContainerCheckDefaultInterval   = 10 * time.Second
-	RTContainerCheckDefaultInterval = 2 * time.Second
-	ConnectionsCheckDefaultInterval = 30 * time.Second
-	PodCheckDefaultInterval         = 10 * time.Second
+	ProcessCheckDefaultInterval          = 10 * time.Second
+	RTProcessCheckDefaultInterval        = 2 * time.Second
+	ContainerCheckDefaultInterval        = 10 * time.Second
+	RTContainerCheckDefaultInterval      = 2 * time.Second
+	ConnectionsCheckDefaultInterval      = 30 * time.Second
+	PodCheckDefaultInterval              = 10 * time.Second
+	ProcessDiscoveryCheckDefaultInterval = 4 * time.Hour
 )
 
 var (
@@ -235,7 +236,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 			RTContainerCheckName: RTContainerCheckDefaultInterval,
 			ConnectionsCheckName: ConnectionsCheckDefaultInterval,
 			PodCheckName:         PodCheckDefaultInterval,
-			DiscoveryCheckName:   4 * time.Hour,
+			DiscoveryCheckName:   ProcessDiscoveryCheckDefaultInterval,
 		},
 
 		// DataScrubber to hide command line sensitive words
