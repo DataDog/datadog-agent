@@ -167,7 +167,7 @@ func (p *probe) Close() {
 }
 
 func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, error) {
-	err := p.enumCounters(false)
+	err := p.enumCounters(false, true)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +180,7 @@ func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 	return statsToReturn, nil
 }
 
-func (p *probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
+func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Process, error) {
 	// TODO: reuse PIDs slice across runs
 	pids, err := getPIDs()
 	if err != nil {
@@ -232,7 +232,7 @@ func (p *probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 		delete(p.procs, pid)
 	}
 
-	err = p.enumCounters(true)
+	err = p.enumCounters(true, collectStats)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +245,7 @@ func (p *probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 	return procsToReturn, nil
 }
 
-func (p *probe) enumCounters(includeProcMeta bool) error {
+func (p *probe) enumCounters(collectMeta bool, collectStats bool) error {
 	// Reuse map's capacity across runs
 	for k := range p.instanceToPID {
 		delete(p.instanceToPID, k)
@@ -280,7 +280,8 @@ func (p *probe) enumCounters(includeProcMeta bool) error {
 	}
 
 	for counter, spec := range p.enumSpecs {
-		if spec.processMeta && !includeProcMeta {
+		if spec.processMeta && !collectMeta ||
+			!spec.processMeta && !collectStats {
 			continue
 		}
 		err := p.formatter.Enum(counter, p.counters[counter], spec.format, ignored, spec.enumFunc)

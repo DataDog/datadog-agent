@@ -79,7 +79,7 @@ func newWindowsToolhelpProbe() procutil.Probe {
 func (p *windowsToolhelpProbe) Close() {}
 
 func (p *windowsToolhelpProbe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*procutil.Stats, error) {
-	procs, err := p.ProcessesByPID(now)
+	procs, err := p.ProcessesByPID(now, true)
 	if err != nil {
 		return nil, err
 	}
