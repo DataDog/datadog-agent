@@ -76,6 +76,7 @@ type HTTPReceiver struct {
 	server         *http.Server
 	statsProcessor StatsProcessor
 	appsecHandler  http.Handler
+	remoteStore    *config.Store
 
 	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
@@ -85,7 +86,7 @@ type HTTPReceiver struct {
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver
-func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, statsProcessor StatsProcessor) *HTTPReceiver {
+func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, out chan *Payload, statsProcessor StatsProcessor, remoteStore *config.Store) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
 	if features.Has("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
@@ -100,6 +101,7 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 
 		out:            out,
 		statsProcessor: statsProcessor,
+		remoteStore:    remoteStore,
 		conf:           conf,
 		dynConf:        dynConf,
 		appsecHandler:  appsecHandler,
@@ -364,6 +366,9 @@ const (
 	// headderDroppedP0Spans contains the number of P0 spans dropped by the client.
 	// This value is used for metrics and could be used in the future to adjust priority rates.
 	headerDroppedP0Spans = "Datadog-Client-Dropped-P0-Spans"
+
+	// headerConfigProduct specifies which product requests a config
+	headerConfigProduct = "Datadog-Client-Config-Product"
 )
 
 func (r *HTTPReceiver) tagStats(v Version, header http.Header) *info.TagStats {
@@ -452,6 +457,42 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	metrics.Count("datadog.trace_agent.receiver.stats_buckets", int64(len(in.Stats)), ts.AsTags(), 1)
 
 	r.statsProcessor.ProcessStats(in, req.Header.Get(headerLang), req.Header.Get(headerTracerVersion))
+}
+
+// handleConfig handles config request.
+func (r *HTTPReceiver) handleConfig(w http.ResponseWriter, req *http.Request) {
+	defer timing.Since("datadog.trace_agent.receiver.config_process_ms", time.Now())
+	ts := r.tagStats(v06, req.Header)
+	tags := ts.AsTags()
+	statusCode := http.StatusOK
+	defer func() {
+		tags = append(tags, fmt.Sprintf("status_code:%d", statusCode))
+		metrics.Count("datadog.trace_agent.receiver.config", 1, tags, 1)
+	}()
+
+	product := req.Header.Get(headerConfigProduct)
+	tags = append(tags, fmt.Sprintf("product:%s", product))
+
+	// todo: version handling, quick response when no new version available
+	cfg, ok, err := r.remoteStore.Get(0, product)
+	if !ok {
+		if err != nil {
+			statusCode = http.StatusInternalServerError
+			http.Error(w, err.Error(), statusCode)
+			return
+		}
+		statusCode = http.StatusCreated
+		w.WriteHeader(statusCode)
+		return
+	}
+
+	content, err := json.Marshal(cfg)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Write(content)
 }
 
 // handleTraces knows how to handle a bunch of traces

@@ -120,6 +120,7 @@ func TestInfoHandler(t *testing.T) {
 		"/v0.6/stats",
 		"/appsec/proxy/",
 		"/debugger/v1/input"
+		"/v0.6/config"
 	],
 	"feature_flags": [
 		"feature_flag"
