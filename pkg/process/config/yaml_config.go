@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -93,6 +94,10 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	a.setCheckInterval(ns, "process", ProcessCheckName)
 	a.setCheckInterval(ns, "process_realtime", RTProcessCheckName)
 	a.setCheckInterval(ns, "connections", ConnectionsCheckName)
+
+	// We need another method to read in process discovery check configs because it is in its own object,
+	// and uses a different unit of time
+	a.initProcessDiscoveryCheck()
 
 	// A list of regex patterns that will exclude a process if matched.
 	if k := key(ns, "blacklist_patterns"); config.Datadog.IsSet(k) {
@@ -268,5 +273,26 @@ func (a *AgentConfig) setCheckInterval(ns, check, checkKey string) {
 	if interval := config.Datadog.GetInt(k); interval != 0 {
 		log.Infof("Overriding container check interval to %ds", interval)
 		a.CheckIntervals[checkKey] = time.Duration(interval) * time.Second
+	}
+}
+
+// Separate handler for initializing the process discovery check.
+// Since it has its own unique object, we need to handle loading in the check config differently separately
+// from the other checks.
+func (a *AgentConfig) initProcessDiscoveryCheck() {
+	root := key(ns, "process_discovery")
+
+	// We don't need to check if the key exists since we already bound it to a default in InitConfig.
+	// We use a minimum of 10 minutes for this value.
+	a.CheckIntervals[DiscoveryCheckName] =
+		time.Duration(math.Max(float64(config.Datadog.GetDuration(key(root, "interval"))), float64(10*time.Minute)))
+
+	// Discovery check should be only enabled when process_config.process_discovery.enabled = true and
+	// process_config.enabled is set to "false". This effectively makes sure the check only runs when the process check is
+	// disabled, while also respecting the users wishes when they want to disable either the check or the process agent completely.
+	processAgentEnabled := strings.ToLower(config.Datadog.GetString(key(ns, "enabled")))
+	checkEnabled := config.Datadog.GetBool(key(root, "enabled"))
+	if checkEnabled && processAgentEnabled == "false" {
+		a.EnabledChecks = append(a.EnabledChecks, DiscoveryCheckName)
 	}
 }

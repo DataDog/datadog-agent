@@ -30,12 +30,13 @@ var (
 	hostMetadataEndpoint  = transaction.Endpoint{Route: "/api/v2/host_metadata", Name: "host_metadata_v2"}
 	metadataEndpoint      = transaction.Endpoint{Route: "/api/v2/metadata", Name: "metadata_v2"}
 
-	processesEndpoint    = transaction.Endpoint{Route: "/api/v1/collector", Name: "process"}
-	rtProcessesEndpoint  = transaction.Endpoint{Route: "/api/v1/collector", Name: "rtprocess"}
-	containerEndpoint    = transaction.Endpoint{Route: "/api/v1/container", Name: "container"}
-	rtContainerEndpoint  = transaction.Endpoint{Route: "/api/v1/container", Name: "rtcontainer"}
-	connectionsEndpoint  = transaction.Endpoint{Route: "/api/v1/collector", Name: "connections"}
-	orchestratorEndpoint = transaction.Endpoint{Route: "/api/v1/orchestrator", Name: "orchestrator"}
+	processesEndpoint        = transaction.Endpoint{Route: "/api/v1/collector", Name: "process"}
+	processDiscoveryEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "process_discovery"}
+	rtProcessesEndpoint      = transaction.Endpoint{Route: "/api/v1/collector", Name: "rtprocess"}
+	containerEndpoint        = transaction.Endpoint{Route: "/api/v1/container", Name: "container"}
+	rtContainerEndpoint      = transaction.Endpoint{Route: "/api/v1/container", Name: "rtcontainer"}
+	connectionsEndpoint      = transaction.Endpoint{Route: "/api/v1/collector", Name: "connections"}
+	orchestratorEndpoint     = transaction.Endpoint{Route: "/api/v1/orchestrator", Name: "orchestrator"}
 
 	highPriorityQueueFull            = expvar.Int{}
 	transactionsInputBytesByEndpoint = expvar.Map{}

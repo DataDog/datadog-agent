@@ -104,7 +104,7 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 		}
 	}
 
-	procs, err := getAllProcesses(p.probe)
+	procs, err := getAllProcesses(p.probe, true)
 	if err != nil {
 		return nil, err
 	}

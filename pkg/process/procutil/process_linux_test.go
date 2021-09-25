@@ -152,7 +152,7 @@ func testProcessesByPID(t *testing.T) {
 	expectedProcs, err := process.AllProcesses()
 	assert.NoError(t, err)
 
-	procByPID, err := probe.ProcessesByPID(time.Now())
+	procByPID, err := probe.ProcessesByPID(time.Now(), true)
 	assert.NoError(t, err)
 
 	// make sure the process that has no command line doesn't get included in the output
@@ -164,6 +164,21 @@ func testProcessesByPID(t *testing.T) {
 			assert.Contains(t, procByPID, pid)
 			compareProcess(t, ConvertFromFilledProcess(expectProc), procByPID[pid])
 		}
+	}
+
+	// Test processesByPID with collectStats == false
+	procByPID, err = probe.ProcessesByPID(time.Now(), false)
+	assert.NoError(t, err)
+	for _, proc := range procByPID {
+		// Make sure that the createTime is there
+		assert.NotEmpty(t, proc.Stats.CreateTime)
+
+		assert.NotEmpty(t, proc.Pid)
+		assert.NotEmpty(t, proc.Name)
+		assert.NotEmpty(t, proc.Cmdline)
+
+		// Make sure that the memory stats are not collected
+		assert.Empty(t, proc.Stats.MemInfoEx)
 	}
 }
 
@@ -261,17 +276,17 @@ func TestMultipleProbes(t *testing.T) {
 
 	now := time.Now()
 
-	procByPID1, err := probe1.ProcessesByPID(now)
+	procByPID1, err := probe1.ProcessesByPID(now, true)
 	assert.NoError(t, err)
 	resetNiceValues(procByPID1)
-	procByPID2, err := probe2.ProcessesByPID(now)
+	procByPID2, err := probe2.ProcessesByPID(now, true)
 	assert.NoError(t, err)
 	resetNiceValues(procByPID2)
 	for i := 0; i < 10; i++ {
-		currProcByPID1, err := probe1.ProcessesByPID(now)
+		currProcByPID1, err := probe1.ProcessesByPID(now, true)
 		assert.NoError(t, err)
 		resetNiceValues(currProcByPID1)
-		currProcByPID2, err := probe2.ProcessesByPID(now)
+		currProcByPID2, err := probe2.ProcessesByPID(now, true)
 		assert.NoError(t, err)
 		resetNiceValues(currProcByPID2)
 		assert.EqualValues(t, currProcByPID1, currProcByPID2)
@@ -291,7 +306,7 @@ func TestProcfsChange(t *testing.T) {
 
 	now := time.Now()
 
-	procByPID, err := probe.ProcessesByPID(now)
+	procByPID, err := probe.ProcessesByPID(now, true)
 	assert.NoError(t, err)
 
 	// update the procfs file structure to add a pid, make sure next time it reads in the updates
@@ -301,7 +316,7 @@ func TestProcfsChange(t *testing.T) {
 		err = os.Rename("resources/test_procfs/proc/10389", "resources/10389")
 		assert.NoError(t, err)
 	}()
-	newProcByPID1, err := probe.ProcessesByPID(now)
+	newProcByPID1, err := probe.ProcessesByPID(now, true)
 	assert.NoError(t, err)
 	assert.Contains(t, newProcByPID1, int32(10389))
 	assert.NotContains(t, procByPID, int32(10389))
@@ -313,7 +328,7 @@ func TestProcfsChange(t *testing.T) {
 		err = os.Rename("resources/29613", "resources/test_procfs/proc/29613")
 		assert.NoError(t, err)
 	}()
-	newProcByPID2, err := probe.ProcessesByPID(now)
+	newProcByPID2, err := probe.ProcessesByPID(now, true)
 	assert.NoError(t, err)
 	assert.NotContains(t, newProcByPID2, int32(29613))
 	assert.Contains(t, procByPID, int32(29613))
@@ -960,14 +975,14 @@ func TestProcessesByPIDsAndPerm(t *testing.T) {
 
 	probe := getProbeWithPermission()
 	defer probe.Close()
-	procs, err := probe.ProcessesByPID(time.Now())
+	procs, err := probe.ProcessesByPID(time.Now(), true)
 	require.NoError(t, err)
 	for _, p := range procs {
 		assert.False(t, p.Stats.IOStat.IsZeroValue())
 	}
 
 	WithPermission(false)(probe)
-	procs, err = probe.ProcessesByPID(time.Now())
+	procs, err = probe.ProcessesByPID(time.Now(), true)
 	require.NoError(t, err)
 	for _, p := range procs {
 		assert.EqualValues(t, &IOCountersStat{
@@ -1197,7 +1212,7 @@ func benchmarkGetProcsProcutil(b *testing.B) {
 	now := time.Now()
 	for i := 0; i < b.N; i++ {
 		// ignore errors for benchmarking
-		_, _ = probe.ProcessesByPID(now)
+		_, _ = probe.ProcessesByPID(now, true)
 	}
 }
 
