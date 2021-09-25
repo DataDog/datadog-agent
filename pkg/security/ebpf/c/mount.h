@@ -31,7 +31,7 @@ SYSCALL_COMPAT_KPROBE3(mount, const char*, source, const char*, target, const ch
 }
 
 SEC("kprobe/attach_recursive_mnt")
-int kprobe__attach_recursive_mnt(struct pt_regs *ctx) {
+int kprobe_attach_recursive_mnt(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
     if (!syscall)
         return 0;
@@ -61,7 +61,7 @@ int kprobe__attach_recursive_mnt(struct pt_regs *ctx) {
 }
 
 SEC("kprobe/propagate_mnt")
-int kprobe__propagate_mnt(struct pt_regs *ctx) {
+int kprobe_propagate_mnt(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
     if (!syscall)
         return 0;

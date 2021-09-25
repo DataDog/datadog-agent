@@ -4,7 +4,7 @@
 #include "syscalls.h"
 
 SEC("kprobe/filename_create")
-int kprobe__filename_create(struct pt_regs *ctx) {
+int kprobe_filename_create(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
     if (!syscall)
         return 0;

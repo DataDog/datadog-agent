@@ -11,13 +11,6 @@ name 'datadog-agent-integrations-py2'
 dependency 'datadog-agent'
 dependency 'pip2'
 
-unless osx?
-  # Exclude snowflake-connector-python as it makes MacOS notarization fail.
-  # It pulls the ijson package, which contains a _yajl2.so binary that was built with a
-  # MacOS SDK lower than 10.9. The Python 3 counterpart of the same package is not affected (it
-  # doesn't ship this file).
-  dependency 'snowflake-connector-python-py2'
-end
 
 if arm?
   # psycopg2 doesn't come with pre-built wheel on the arm architecture.
@@ -70,8 +63,6 @@ blacklist_folders = [
 # package names of dependencies that won't be added to the Agent Python environment
 blacklist_packages = Array.new
 
-# We build these manually
-blacklist_packages.push(/^snowflake-connector-python==/)
 
 if suse?
   # Temporarily blacklist Aerospike until builder supports new dependency
@@ -87,9 +78,6 @@ if osx?
 
   # Blacklist ibm_was, which depends on lxml
   blacklist_folders.push('ibm_was')
-
-  # Exclude snowflake, which depends on snowflake-connector-python (which we don't build on MacOS, see above)
-  blacklist_folders.push('snowflake')
 
   # Blacklist aerospike, new version 3.10 is not supported on MacOS yet
   blacklist_folders.push('aerospike')

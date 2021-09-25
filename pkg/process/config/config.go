@@ -46,6 +46,7 @@ const (
 	RTContainerCheckName = "rtcontainer"
 	ConnectionsCheckName = "connections"
 	PodCheckName         = "pod"
+	DiscoveryCheckName   = "process_discovery"
 
 	NetworkCheckName        = "Network"
 	OOMKillCheckName        = "OOM Kill"
@@ -225,6 +226,7 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 			RTContainerCheckName: 2 * time.Second,
 			ConnectionsCheckName: 30 * time.Second,
 			PodCheckName:         10 * time.Second,
+			DiscoveryCheckName:   4 * time.Hour,
 		},
 
 		// DataScrubber to hide command line sensitive words

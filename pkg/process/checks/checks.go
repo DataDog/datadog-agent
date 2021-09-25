@@ -16,7 +16,9 @@ type Check interface {
 	Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error)
 }
 
-// All is all the singleton check instances.
+// All is a list of all runnable checks. Putting a check in here does not guarantee it will be run,
+// it just guarantees that the collector will be able to find the check.
+// If you want to add a check you MUST register it here.
 var All = []Check{
 	Process,
 	RTProcess,
@@ -24,4 +26,5 @@ var All = []Check{
 	RTContainer,
 	Connections,
 	Pod,
+	ProcessDiscovery,
 }

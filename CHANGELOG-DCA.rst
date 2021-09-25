@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_dca-1.15.0_dca-1.15.X:
+
+dca-1.15.0
+==========
+
+.. _Release Notes_dca-1.15.0_dca-1.15.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2021-09-13
+Pinned to datadog-agent v7.31.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7310>`_.
+
+.. _Release Notes_dca-1.15.0_dca-1.15.X_New Features:
+
+New Features
+------------
+
+- Enable ``StatefulSet`` collection by default in the orchestrator check.
+- Add ``PV`` and ``PVC`` collection in the orchestrator check.
+- Added possibility to use the `maxAge` attribute defined in the datadogMetric CRD overriding the global `maxAge`.
+
+
 .. _Release Notes_dca-1.14.0_dca-1.14.X:
 
 dca-1.14.0

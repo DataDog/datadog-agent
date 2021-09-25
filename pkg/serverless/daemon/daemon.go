@@ -331,15 +331,23 @@ func (d *Daemon) ComputeGlobalTags(configTags []string) {
 		if d.MetricAgent != nil {
 			d.MetricAgent.SetExtraTags(tagArray)
 		}
-		if d.TraceAgent != nil {
-			d.TraceAgent.Get().SetGlobalTagsUnsafe(tags.BuildTracerTags(tagMap))
-		}
+		d.setTraceTags(tagMap)
 		d.ExtraTags.Tags = tagArray
 		source := serverlessLog.GetLambdaSource()
 		if source != nil {
 			source.Config.Tags = tagArray
 		}
 	}
+}
+
+// setTraceTags tries to set extra tags to the Trace agent.
+// setTraceTags returns a boolean which indicate whether or not the operation succeed for testing purpose.
+func (d *Daemon) setTraceTags(tagMap map[string]string) bool {
+	if d.TraceAgent != nil && d.TraceAgent.Get() != nil {
+		d.TraceAgent.Get().SetGlobalTagsUnsafe(tags.BuildTracerTags(tagMap))
+		return true
+	}
+	return false
 }
 
 // SetExecutionContext sets the current context to the daemon

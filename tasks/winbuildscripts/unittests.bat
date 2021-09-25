@@ -7,6 +7,8 @@ if not exist c:\mnt\ goto nomntdir
 
 if NOT DEFINED PY_RUNTIMES set PY_RUNTIMES=%~1
 
+call %~p0extract-modcache.bat
+
 mkdir \dev\go\src\github.com\DataDog\datadog-agent
 cd \dev\go\src\github.com\DataDog\datadog-agent
 xcopy /e/s/h/q c:\mnt\*.*

@@ -3,6 +3,7 @@
 package procutil
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io/ioutil"
@@ -191,7 +192,7 @@ func (p *Probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 }
 
 // ProcessesByPID returns a map of process info indexed by PID
-func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
+func (p *Probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Process, error) {
 	pids, err := p.getActivePIDs()
 	if err != nil {
 		return nil, err
@@ -214,7 +215,14 @@ func (p *Probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
 
 		statusInfo := p.parseStatus(pathForPID)
 		statInfo := p.parseStat(pathForPID, pid, now)
-		memInfoEx := p.parseStatm(pathForPID)
+		memInfoEx := &MemoryInfoExStat{}
+
+		// On linux, setting the `collectStats` parameter to false will only prevent collection of memory stats.
+		// It does not prevent collection of stats from the /proc/(pid)/stat file, since we need to read the
+		// createTime to make a bytekey
+		if collectStats {
+			memInfoEx = p.parseStatm(pathForPID)
+		}
 
 		proc := &Process{
 			Pid:     pid,                                       // /proc/[pid]
@@ -354,19 +362,16 @@ func (p *Probe) parseIO(pidPath string) *IOCountersStat {
 		return io
 	}
 
-	content, err := ioutil.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
 		return io
 	}
+	defer f.Close()
 
-	lineStart := 0
-	for i, r := range content {
-		if r == '\n' {
-			p.parseIOLine(content[lineStart:i], io)
-			lineStart = i + 1
-		}
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		p.parseIOLine(scanner.Bytes(), io)
 	}
-
 	return io
 }
 

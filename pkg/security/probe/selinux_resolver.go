@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	sebpf "github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	"github.com/DataDog/ebpf"
+	"github.com/cilium/ebpf"
 )
 
 const (
