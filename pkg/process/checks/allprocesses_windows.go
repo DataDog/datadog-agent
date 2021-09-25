@@ -34,8 +34,8 @@ type IO_COUNTERS struct {
 	OtherTransferCount  uint64
 }
 
-func getAllProcesses(probe procutil.Probe) (map[int32]*procutil.Process, error) {
-	return probe.ProcessesByPID(time.Now())
+func getAllProcesses(probe procutil.Probe, collectStats bool) (map[int32]*procutil.Process, error) {
+	return probe.ProcessesByPID(time.Now(), collectStats)
 }
 
 func getAllProcStats(probe procutil.Probe, pids []int32) (map[int32]*procutil.Stats, error) {

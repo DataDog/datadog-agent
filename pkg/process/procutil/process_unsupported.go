@@ -26,7 +26,7 @@ func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 	return nil, fmt.Errorf("StatsForPIDs is not implemented in this environment")
 }
 
-func (p *probe) ProcessesByPID(now time.Time) (map[int32]*Process, error) {
+func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Process, error) {
 	return nil, fmt.Errorf("ProcessesByPID is not implemented in this environment")
 }
 

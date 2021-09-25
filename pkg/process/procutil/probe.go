@@ -8,7 +8,7 @@ import (
 type Probe interface {
 	Close()
 	StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, error)
-	ProcessesByPID(now time.Time) (map[int32]*Process, error)
+	ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Process, error)
 	StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, error)
 }
 
