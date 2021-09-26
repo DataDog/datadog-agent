@@ -14,6 +14,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -24,6 +25,9 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/service/tuf"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -172,6 +176,28 @@ func (m *Module) Start() error {
 			}
 		}
 	}()
+
+	if m.config.EnableRemoteConfig {
+		err := service.NewGRPCSubscriber(pbgo.Product_RUNTIME_SECURITY, func(config *pbgo.ConfigResponse) error {
+			log.Infof("Fetched config version %d from remote config management", config.DirectoryTargets.Version)
+
+			for _, targetFile := range config.TargetFiles {
+				policyFile, err := os.Create(filepath.Join(m.config.PoliciesDir, filepath.Base(tuf.TrimHash(targetFile.Path))))
+				if err != nil {
+					return err
+				}
+
+				if _, err := policyFile.Write(targetFile.Raw); err != nil {
+					return err
+				}
+			}
+
+			return m.Reload()
+		})
+		if err != nil {
+			return errors.Wrap(err, "failed to subscribe to remote config management")
+		}
+	}
 
 	return nil
 }

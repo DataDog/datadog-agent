@@ -221,6 +221,12 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 
+	// Remote config
+	config.BindEnvAndSetDefault("enable_remote_configuration", false)
+	config.BindEnvAndSetDefault("remote_configuration_key", "")
+	config.BindEnvAndSetDefault("remote_configuration_config_root", "")
+	config.BindEnvAndSetDefault("remote_configuration_director_root", "")
+
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
 	config.BindEnvAndSetDefault("auto_exit.noprocess.enabled", false)
@@ -934,6 +940,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.log_patterns", []string{})
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	config.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
+	config.BindEnvAndSetDefault("runtime_security_config.enable_remote_configuration", false)
 
 	// Serverless Agent
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
@@ -1506,4 +1513,9 @@ func GetConfiguredTags(includeDogstatsd bool) []string {
 	combined = append(combined, dsdTags...)
 
 	return combined
+}
+
+// GetDefaultRunPath returns the default run path
+func GetDefaultRunPath() string {
+	return defaultRunPath
 }
