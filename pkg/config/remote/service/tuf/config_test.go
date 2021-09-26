@@ -25,7 +25,7 @@ func readMeta(remote *configRemoteStore, name string) ([]byte, error) {
 
 func TestConfigRemoteStore(t *testing.T) {
 	remote := &configRemoteStore{
-		configMetas: *&pbgo.ConfigMetas{
+		configMetas: pbgo.ConfigMetas{
 			Roots: []*pbgo.TopMeta{
 				{
 					Version: 1,
@@ -91,13 +91,13 @@ func TestConfigRemoteStore(t *testing.T) {
 
 	assert.Equal(t, []byte("test2"), content)
 
-	content, err = readMeta(remote, "100.root.json")
+	_, err = readMeta(remote, "100.root.json")
 	if err == nil {
 		t.Fatal("should not find 1.root.json")
 	}
 
 	// snapshot checks
-	content, err = readMeta(remote, "snapshot.json")
+	_, err = readMeta(remote, "snapshot.json")
 	if err == nil {
 		t.Fatal("should not find snapshot.json")
 	}
@@ -127,14 +127,14 @@ func TestConfigRemoteStore(t *testing.T) {
 	assert.Equal(t, []byte("timestamp"), content)
 
 	// targets checks
-	content, err = readMeta(remote, "targets.json")
+	_, err = readMeta(remote, "targets.json")
 	if err == nil {
 		t.Fatal("should not find targets.json")
 	}
 
 	assert.ErrorAs(t, err, &client.ErrNotFound{})
 
-	content, err = readMeta(remote, "4.targets.json")
+	_, err = readMeta(remote, "4.targets.json")
 	if err == nil {
 		t.Fatal("should not find 4.targets.json")
 	}
@@ -149,17 +149,17 @@ func TestConfigRemoteStore(t *testing.T) {
 	assert.Equal(t, []byte("top-targets"), content)
 
 	// delegated targets check
-	content, err = readMeta(remote, "my-wrong-product.json")
+	_, err = readMeta(remote, "my-wrong-product.json")
 	if err == nil {
 		t.Fatal("should not find my-wrong-product.json")
 	}
 
-	content, err = readMeta(remote, "my-product.json")
+	_, err = readMeta(remote, "my-product.json")
 	if err == nil {
 		t.Fatal("should not find my-product.json")
 	}
 
-	content, err = readMeta(remote, "6.my-product.json")
+	_, err = readMeta(remote, "6.my-product.json")
 	if err != nil {
 		t.Fatal(err)
 	}
