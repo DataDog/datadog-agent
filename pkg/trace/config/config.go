@@ -131,6 +131,9 @@ type AgentConfig struct {
 
 	// OTLPReceiver holds the configuration for OpenTelemetry receiver.
 	OTLPReceiver *OTLP
+
+	// RemoteRates reports whether priority rates should be fetched remotely.
+	RemoteRates bool
 }
 
 // Tag represents a key/value pair.

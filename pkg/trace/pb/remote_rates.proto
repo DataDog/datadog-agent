@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package pb;
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+message TargetTPS {
+    string service = 1;
+    string env = 2;
+    double value = 3;
+}
+
+message APMSampling {
+    repeated TargetTPS target_tps = 1 [(gogoproto.nullable) = false];
+}
