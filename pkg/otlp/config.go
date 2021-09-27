@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"go.opentelemetry.io/collector/consumer/consumererror"
+	"go.uber.org/multierr"
 )
 
 const (
@@ -75,7 +75,7 @@ func fromExperimentalConfig(cfg config.Config) (PipelineConfig, error) {
 		HTTPPort:  httpPort,
 		GRPCPort:  gRPCPort,
 		TracePort: tracePort,
-	}, consumererror.Combine(errs)
+	}, multierr.Combine(errs...)
 }
 
 // IsEnabled checks if OTLP pipeline is enabled in a given config.
