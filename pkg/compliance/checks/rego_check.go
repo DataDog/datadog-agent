@@ -137,7 +137,7 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 
 		resultFinalizer = func(findings []regoFinding) []*compliance.Report {
 			for _, finding := range findings {
-				jsonData, err := prettyPrintJSON(finding)
+				jsonData, err := prettyPrintJSON(finding.asMap())
 				if err != nil {
 					log.Warnf("failed to pretty-print finding %v", finding)
 					continue
@@ -245,10 +245,25 @@ func (r *regoCheck) appendInstance(input map[string][]interface{}, key string, i
 }
 
 type regoFinding struct {
-	Status       bool       `json:"status"`
-	ResourceType string     `json:"resource_type"`
-	ResourceID   string     `json:"resource_id"`
-	Data         event.Data `json:"data"`
+	Status       bool
+	ResourceType string
+	ResourceID   string
+	Data         event.Data
+}
+
+func (f *regoFinding) asMap() map[string]interface{} {
+	res := map[string]interface{}{
+		"resource_type": f.ResourceType,
+		"resource_id":   f.ResourceID,
+		"data":          f.Data,
+	}
+	if f.Status {
+		res["status"] = "passed"
+	} else {
+		res["status"] = "failing"
+	}
+
+	return res
 }
 
 func parseFindings(regoData interface{}) ([]regoFinding, error) {
