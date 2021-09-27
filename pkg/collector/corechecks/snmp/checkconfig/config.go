@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
@@ -33,8 +34,10 @@ const defaultDiscoveryWorkers = 5
 const defaultDiscoveryAllowedFailures = 3
 const defaultDiscoveryInterval = 3600
 
-// subnetTagPrefix is the prefix used for subnet tag
-const subnetTagPrefix = "autodiscovery_subnet"
+// subnetTagKey is the prefix used for subnet tag
+const subnetTagKey = "autodiscovery_subnet"
+const deviceNamespaceTagKey = "device_namespace"
+const deviceIPTagKey = "snmp_device"
 
 // DefaultBulkMaxRepetitions is the default max rep
 // Using too high max repetitions might lead to tooBig SNMP error messages.
@@ -104,6 +107,7 @@ type InstanceConfig struct {
 	DiscoveryAllowedFailures int      `yaml:"discovery_allowed_failures"`
 	DiscoveryWorkers         int      `yaml:"discovery_workers"`
 	Workers                  int      `yaml:"workers"`
+	Namespace                string   `yaml:"namespace"`
 }
 
 // CheckConfig holds config needed for an integration instance to run
@@ -135,6 +139,7 @@ type CheckConfig struct {
 	DeviceID              string
 	DeviceIDTags          []string
 	ResolvedSubnetName    string
+	Namespace             string
 	AutodetectProfile     bool
 	MinCollectionInterval time.Duration
 
@@ -180,12 +185,11 @@ func (c *CheckConfig) addUptimeMetric() {
 }
 
 // GetStaticTags return static tags built from configuration
-// warning: changing GetStaticTags logic might lead to different deviceID
-// GetStaticTags does not contain tags from instance[].tags config
 func (c *CheckConfig) GetStaticTags() []string {
 	tags := common.CopyStrings(c.ExtraTags)
+	tags = append(tags, deviceNamespaceTagKey+":"+c.Namespace)
 	if c.IPAddress != "" {
-		tags = append(tags, "snmp_device:"+c.IPAddress)
+		tags = append(tags, deviceIPTagKey+":"+c.IPAddress)
 	}
 	return tags
 }
@@ -196,7 +200,7 @@ func (c *CheckConfig) GetStaticTags() []string {
 func (c *CheckConfig) GetNetworkTags() []string {
 	var tags []string
 	if c.Network != "" {
-		tags = append(tags, subnetTagPrefix+":"+c.Network)
+		tags = append(tags, subnetTagKey+":"+c.Network)
 	}
 	return tags
 }
@@ -204,8 +208,7 @@ func (c *CheckConfig) GetNetworkTags() []string {
 // getDeviceIDTags return sorted tags used for generating device id
 // warning: changing getDeviceIDTags logic might lead to different deviceID
 func (c *CheckConfig) getDeviceIDTags() []string {
-	tags := c.GetStaticTags()
-	tags = append(tags, c.InstanceTags...)
+	tags := []string{deviceNamespaceTagKey + ":" + c.Namespace, deviceIPTagKey + ":" + c.IPAddress}
 	sort.Strings(tags)
 	return tags
 }
@@ -369,6 +372,16 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	}
 	c.BulkMaxRepetitions = uint32(bulkMaxRepetitions)
 
+	if instance.Namespace != "" {
+		c.Namespace = instance.Namespace
+	} else {
+		c.Namespace = config.Datadog.GetString("network_devices.namespace")
+	}
+	if c.Namespace == "" {
+		// Can only happen if network_devices.namespace config is set to empty string in `datadog.yaml`
+		return nil, fmt.Errorf("namespace cannot be empty")
+	}
+
 	// metrics Configs
 	if instance.UseGlobalMetrics {
 		c.Metrics = append(c.Metrics, initConfig.GlobalMetrics...)
@@ -528,6 +541,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 
 	newConfig.DeviceIDTags = common.CopyStrings(c.DeviceIDTags)
 	newConfig.ResolvedSubnetName = c.ResolvedSubnetName
+	newConfig.Namespace = c.Namespace
 	newConfig.AutodetectProfile = c.AutodetectProfile
 	newConfig.MinCollectionInterval = c.MinCollectionInterval
 
@@ -610,7 +624,7 @@ func getSubnetFromTags(tags []string) (string, error) {
 	for _, tag := range tags {
 		// `autodiscovery_subnet` is set as tags in AD Template
 		// e.g. cmd/agent/dist/conf.d/snmp.d/auto_conf.yaml
-		prefix := subnetTagPrefix + ":"
+		prefix := subnetTagKey + ":"
 		if strings.HasPrefix(tag, prefix) {
 			return tag[len(prefix):], nil
 		}

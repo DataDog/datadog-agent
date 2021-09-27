@@ -214,3 +214,34 @@ snmp_listener:
 	assert.Equal(t, "legacySnmpVersion", legacyConfig.Version)
 	assert.Equal(t, "127.2.0.0/30", legacyConfig.Network)
 }
+
+func Test_NamespaceConfig(t *testing.T) {
+	// Default Namespace
+	config.Datadog.SetConfigType("yaml")
+	err := config.Datadog.ReadConfig(strings.NewReader(`
+snmp_listener:
+  configs:
+   - community_string: someCommunityString
+     network_address: 127.1.0.0/30
+`))
+	assert.NoError(t, err)
+	conf, err := NewListenerConfig()
+	assert.NoError(t, err)
+	networkConf := conf.Configs[0]
+	assert.Equal(t, "default", networkConf.Namespace)
+
+	// Custom Namespace
+	config.Datadog.SetConfigType("yaml")
+	err = config.Datadog.ReadConfig(strings.NewReader(`
+snmp_listener:
+  configs:
+   - community_string: someCommunityString
+     network_address: 127.1.0.0/30
+     namespace: hello
+`))
+	assert.NoError(t, err)
+	conf, err = NewListenerConfig()
+	assert.NoError(t, err)
+	networkConf = conf.Configs[0]
+	assert.Equal(t, "hello", networkConf.Namespace)
+}
