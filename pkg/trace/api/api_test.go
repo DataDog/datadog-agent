@@ -16,11 +16,13 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -51,7 +53,7 @@ func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig("none")
 
 	rawTraceChan := make(chan *Payload, 5000)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, nil)
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{})
 
 	return receiver
 }
@@ -787,6 +789,56 @@ func TestClientComputedTopLevel(t *testing.T) {
 	t.Run("off", run(false))
 }
 
+func TestConfigEndpoint(t *testing.T) {
+	var tcs = []struct {
+		name               string
+		reqBody            string
+		expectedStatusCode int
+		enabled            bool
+		response           string
+	}{
+		{
+			name:               "disabled",
+			expectedStatusCode: http.StatusNotFound,
+			response:           "404 page not found\n",
+		},
+		{
+			name:               "bad",
+			enabled:            true,
+			expectedStatusCode: http.StatusBadRequest,
+			response:           "unexpected end of JSON input\n",
+		},
+		{
+			name:               "stale",
+			reqBody:            `{"Product":1}`,
+			enabled:            true,
+			expectedStatusCode: http.StatusNoContent,
+			response:           "",
+		},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+			if tc.enabled {
+				features.Set("config_endpoint")
+			}
+			conf := newTestReceiverConfig()
+			rcv := newTestReceiverFromConfig(conf)
+			mux := rcv.buildMux()
+			server := httptest.NewServer(mux)
+
+			req, _ := http.NewRequest("POST", server.URL+"/v0.6/config", strings.NewReader(tc.reqBody))
+			req.Header.Set("Content-Type", "application/msgpack")
+			resp, err := http.DefaultClient.Do(req)
+			assert.Nil(err)
+			body, err := ioutil.ReadAll(resp.Body)
+			assert.Nil(err)
+			assert.Equal(tc.expectedStatusCode, resp.StatusCode)
+			assert.Equal(tc.response, string(body))
+		})
+	}
+}
+
 func TestClientDropP0s(t *testing.T) {
 	conf := newTestReceiverConfig()
 	rcv := newTestReceiverFromConfig(conf)
@@ -990,7 +1042,7 @@ func BenchmarkWatchdog(b *testing.B) {
 	now := time.Now()
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "apikey_2"
-	r := NewHTTPReceiver(conf, nil, nil, nil, nil)
+	r := NewHTTPReceiver(conf, nil, nil, nil)
 
 	b.ResetTimer()
 	b.ReportAllocs()

@@ -49,7 +49,6 @@ type Agent struct {
 	EventProcessor        *event.Processor
 	TraceWriter           *writer.TraceWriter
 	StatsWriter           *writer.StatsWriter
-	ConfigStore           *config.Store
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -85,12 +84,11 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		TraceWriter:           writer.NewTraceWriter(conf),
 		StatsWriter:           writer.NewStatsWriter(conf, statsChan),
 		obfuscator:            obfuscate.NewObfuscator(conf.Obfuscation),
-		ConfigStore:           config.NewStore(),
 		In:                    in,
 		conf:                  conf,
 		ctx:                   ctx,
 	}
-	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt, agnt.ConfigStore)
+	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf.OTLPReceiver)
 	return agnt
 }
