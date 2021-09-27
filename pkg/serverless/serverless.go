@@ -172,9 +172,6 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, daemon.ExecutionContext.Coldstart)
 			metricsChan := daemon.MetricAgent.GetMetricChannel()
 			metrics.SendTimeoutEnhancedMetric(metricTags, metricsChan)
-			if err != nil {
-				log.Error("Unable to persist current state to file while shutting down")
-			}
 		}
 		daemon.Stop()
 		stopCh <- struct{}{}
