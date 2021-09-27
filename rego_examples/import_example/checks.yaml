@@ -1,0 +1,46 @@
+schema:
+  version: 1.0.0
+name: CIS Docker Generic
+framework: cis-docker
+version: 1.2.0
+regos:
+  - id: cis-docker-1.2.0-5.10
+    description: '[CIS Docker] Ensure that the memory usage for containers is limited'
+    scope:
+      - docker
+    inputs:
+      - tag: containers
+        docker:
+          kind: container
+    imports:
+      - valid_helper.rego
+    module: |
+      package demo
+
+      import data.datadog as dd
+      import data.demo_import as di
+
+      findings[f] {
+        c := input.containers[_]
+        di.valid_container(c)
+
+        f := dd.passed_finding(
+          "docker_container",
+          dd.docker_container_resource_id(c),
+          dd.docker_container_data(c)
+        )
+      }
+
+      findings[f] {
+        c := input.containers[_]
+        not di.valid_container(c)
+
+        f := dd.failing_finding(
+          "docker_container",
+          dd.docker_container_resource_id(c),
+          dd.docker_container_data(c)
+        )
+      }
+
+
+    findings: data.demo.findings
