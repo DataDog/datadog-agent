@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package local
+package tagstore
 
 import (
 	"sync"
@@ -27,15 +27,15 @@ func (f fakeClock) Now() time.Time {
 
 type StoreTestSuite struct {
 	suite.Suite
-	store *tagStore
+	store *TagStore
 }
 
 func (s *StoreTestSuite) SetupTest() {
-	s.store = newTagStore()
+	s.store = NewTagStore()
 }
 
 func (s *StoreTestSuite) TestIngest() {
-	s.store.processTagInfo([]*collectors.TagInfo{
+	s.store.ProcessTagInfo([]*collectors.TagInfo{
 		{
 			Source:               "source1",
 			Entity:               "test",
@@ -55,7 +55,7 @@ func (s *StoreTestSuite) TestIngest() {
 }
 
 func (s *StoreTestSuite) TestLookup() {
-	s.store.processTagInfo([]*collectors.TagInfo{
+	s.store.ProcessTagInfo([]*collectors.TagInfo{
 		{
 			Source:       "source1",
 			Entity:       "test",
@@ -74,9 +74,9 @@ func (s *StoreTestSuite) TestLookup() {
 		},
 	})
 
-	tagsHigh, sourcesHigh := s.store.lookup("test", collectors.HighCardinality)
-	tagsOrch, sourcesOrch := s.store.lookup("test", collectors.OrchestratorCardinality)
-	tagsLow, sourcesLow := s.store.lookup("test", collectors.LowCardinality)
+	tagsHigh, sourcesHigh := s.store.Lookup("test", collectors.HighCardinality)
+	tagsOrch, sourcesOrch := s.store.Lookup("test", collectors.OrchestratorCardinality)
+	tagsLow, sourcesLow := s.store.Lookup("test", collectors.LowCardinality)
 
 	assert.Len(s.T(), tagsHigh, 4)
 	assert.Len(s.T(), tagsLow, 2)
@@ -99,7 +99,7 @@ func (s *StoreTestSuite) TestLookup() {
 }
 
 func (s *StoreTestSuite) TestLookupStandard() {
-	s.store.processTagInfo([]*collectors.TagInfo{
+	s.store.ProcessTagInfo([]*collectors.TagInfo{
 		{
 			Source:       "source1",
 			Entity:       "test",
@@ -114,18 +114,18 @@ func (s *StoreTestSuite) TestLookupStandard() {
 		},
 	})
 
-	standard, err := s.store.lookupStandard("test")
+	standard, err := s.store.LookupStandard("test")
 	assert.Nil(s.T(), err)
 	assert.Len(s.T(), standard, 2)
 	assert.Contains(s.T(), standard, "env:dev")
 	assert.Contains(s.T(), standard, "service:foo")
 
-	_, err = s.store.lookupStandard("not found")
+	_, err = s.store.LookupStandard("not found")
 	assert.NotNil(s.T(), err)
 }
 
 func (s *StoreTestSuite) TestLookupNotPresent() {
-	tags, sources := s.store.lookup("test", collectors.LowCardinality)
+	tags, sources := s.store.Lookup("test", collectors.LowCardinality)
 	assert.Nil(s.T(), tags)
 	assert.Nil(s.T(), sources)
 }
@@ -133,7 +133,7 @@ func (s *StoreTestSuite) TestLookupNotPresent() {
 func (s *StoreTestSuite) TestPrune__deletedEntities() {
 	clock := &fakeClock{now: time.Now()}
 	s.store.clock = clock
-	s.store.processTagInfo([]*collectors.TagInfo{
+	s.store.ProcessTagInfo([]*collectors.TagInfo{
 		// Adds
 		{
 			Source:               "source1",
@@ -163,33 +163,33 @@ func (s *StoreTestSuite) TestPrune__deletedEntities() {
 	})
 
 	// Data should still be in the store
-	tagsHigh, sourcesHigh := s.store.lookup("test1", collectors.HighCardinality)
+	tagsHigh, sourcesHigh := s.store.Lookup("test1", collectors.HighCardinality)
 	assert.Len(s.T(), tagsHigh, 4)
 	assert.Len(s.T(), sourcesHigh, 2)
-	tagsOrch, sourcesOrch := s.store.lookup("test1", collectors.OrchestratorCardinality)
+	tagsOrch, sourcesOrch := s.store.Lookup("test1", collectors.OrchestratorCardinality)
 	assert.Len(s.T(), tagsOrch, 2)
 	assert.Len(s.T(), sourcesOrch, 2)
-	tagsHigh, sourcesHigh = s.store.lookup("test2", collectors.HighCardinality)
+	tagsHigh, sourcesHigh = s.store.Lookup("test2", collectors.HighCardinality)
 	assert.Len(s.T(), tagsHigh, 2)
 	assert.Len(s.T(), sourcesHigh, 1)
 
 	clock.now = clock.now.Add(10 * time.Minute)
-	s.store.prune()
+	s.store.Prune()
 
 	// test1 should only have tags from source2, source1 should be removed
-	tagsHigh, sourcesHigh = s.store.lookup("test1", collectors.HighCardinality)
+	tagsHigh, sourcesHigh = s.store.Lookup("test1", collectors.HighCardinality)
 	assert.Len(s.T(), tagsHigh, 1)
 	assert.Len(s.T(), sourcesHigh, 1)
-	tagsOrch, sourcesOrch = s.store.lookup("test1", collectors.OrchestratorCardinality)
+	tagsOrch, sourcesOrch = s.store.Lookup("test1", collectors.OrchestratorCardinality)
 	assert.Len(s.T(), tagsOrch, 0)
 	assert.Len(s.T(), sourcesOrch, 1)
 
 	// test2 should still be present
-	tagsHigh, sourcesHigh = s.store.lookup("test2", collectors.HighCardinality)
+	tagsHigh, sourcesHigh = s.store.Lookup("test2", collectors.HighCardinality)
 	assert.Len(s.T(), tagsHigh, 2)
 	assert.Len(s.T(), sourcesHigh, 1)
 
-	s.store.processTagInfo([]*collectors.TagInfo{
+	s.store.ProcessTagInfo([]*collectors.TagInfo{
 		// re-add tags from removed source, then remove another one
 		{
 			Source:      "source1",
@@ -205,18 +205,18 @@ func (s *StoreTestSuite) TestPrune__deletedEntities() {
 	})
 
 	clock.now = clock.now.Add(10 * time.Minute)
-	s.store.prune()
+	s.store.Prune()
 
-	tagsHigh, sourcesHigh = s.store.lookup("test1", collectors.HighCardinality)
+	tagsHigh, sourcesHigh = s.store.Lookup("test1", collectors.HighCardinality)
 	assert.Len(s.T(), tagsHigh, 1)
 	assert.Len(s.T(), sourcesHigh, 1)
-	tagsHigh, sourcesHigh = s.store.lookup("test2", collectors.HighCardinality)
+	tagsHigh, sourcesHigh = s.store.Lookup("test2", collectors.HighCardinality)
 	assert.Len(s.T(), tagsHigh, 2)
 	assert.Len(s.T(), sourcesHigh, 1)
 }
 
 func (s *StoreTestSuite) TestPrune__emptyEntries() {
-	s.store.processTagInfo([]*collectors.TagInfo{
+	s.store.ProcessTagInfo([]*collectors.TagInfo{
 		{
 			Source:               "source1",
 			Entity:               "test1",
@@ -252,28 +252,28 @@ func (s *StoreTestSuite) TestPrune__emptyEntries() {
 	})
 
 	assert.Len(s.T(), s.store.store, 5)
-	s.store.prune()
+	s.store.Prune()
 	assert.Len(s.T(), s.store.store, 3)
 
 	// Assert non-empty tags aren't deleted
-	tagsHigh, sourcesHigh := s.store.lookup("test1", collectors.HighCardinality)
+	tagsHigh, sourcesHigh := s.store.Lookup("test1", collectors.HighCardinality)
 	assert.Len(s.T(), tagsHigh, 3)
 	assert.Len(s.T(), sourcesHigh, 1)
-	tagsOrch, sourcesOrch := s.store.lookup("test1", collectors.OrchestratorCardinality)
+	tagsOrch, sourcesOrch := s.store.Lookup("test1", collectors.OrchestratorCardinality)
 	assert.Len(s.T(), tagsOrch, 2)
 	assert.Len(s.T(), sourcesOrch, 1)
-	tagsHigh, sourcesHigh = s.store.lookup("test2", collectors.HighCardinality)
+	tagsHigh, sourcesHigh = s.store.Lookup("test2", collectors.HighCardinality)
 	assert.Len(s.T(), tagsHigh, 1)
 	assert.Len(s.T(), sourcesHigh, 1)
-	tagsLow, sourcesLow := s.store.lookup("test3", collectors.LowCardinality)
+	tagsLow, sourcesLow := s.store.Lookup("test3", collectors.LowCardinality)
 	assert.Len(s.T(), tagsLow, 1)
 	assert.Len(s.T(), sourcesLow, 2)
 
 	// Assert empty entities are deleted
-	emptyTags1, emptySource1 := s.store.lookup("emptyEntity1", collectors.HighCardinality)
+	emptyTags1, emptySource1 := s.store.Lookup("emptyEntity1", collectors.HighCardinality)
 	assert.Len(s.T(), emptyTags1, 0)
 	assert.Len(s.T(), emptySource1, 0)
-	emptyTags2, emptySource2 := s.store.lookup("emptyEntity2", collectors.HighCardinality)
+	emptyTags2, emptySource2 := s.store.Lookup("emptyEntity2", collectors.HighCardinality)
 	assert.Len(s.T(), emptyTags2, 0)
 	assert.Len(s.T(), emptySource2, 0)
 }
@@ -315,7 +315,7 @@ func TestGetEntityTags(t *testing.T) {
 }
 
 func (s *StoreTestSuite) TestGetExpiredTags() {
-	s.store.processTagInfo([]*collectors.TagInfo{
+	s.store.ProcessTagInfo([]*collectors.TagInfo{
 		{
 			Source:       "source",
 			Entity:       "entityA",
@@ -330,12 +330,12 @@ func (s *StoreTestSuite) TestGetExpiredTags() {
 		},
 	})
 
-	s.store.prune()
+	s.store.Prune()
 
-	tagsHigh, _ := s.store.lookup("entityB", collectors.HighCardinality)
+	tagsHigh, _ := s.store.Lookup("entityB", collectors.HighCardinality)
 	assert.Contains(s.T(), tagsHigh, "expiresSoon")
 
-	tagsHigh, _ = s.store.lookup("entityA", collectors.HighCardinality)
+	tagsHigh, _ = s.store.Lookup("entityA", collectors.HighCardinality)
 	assert.NotContains(s.T(), tagsHigh, "expired")
 }
 
@@ -399,7 +399,7 @@ type entityEventExpectation struct {
 
 func TestSubscribe(t *testing.T) {
 	clock := &fakeClock{now: time.Now()}
-	store := newTagStore()
+	store := NewTagStore()
 	store.clock = clock
 
 	collectors.CollectorPriorities["source2"] = collectors.ClusterOrchestrator
@@ -412,7 +412,7 @@ func TestSubscribe(t *testing.T) {
 		{types.EventTypeDeleted, "test1", nil, nil, nil},
 	}
 
-	store.processTagInfo([]*collectors.TagInfo{
+	store.ProcessTagInfo([]*collectors.TagInfo{
 		{
 			Source:       "source",
 			Entity:       "test1",
@@ -424,10 +424,10 @@ func TestSubscribe(t *testing.T) {
 	highCardEvents := []types.EntityEvent{}
 	lowCardEvents := []types.EntityEvent{}
 
-	highCardCh := store.subscribe(collectors.HighCardinality)
-	lowCardCh := store.subscribe(collectors.LowCardinality)
+	highCardCh := store.Subscribe(collectors.HighCardinality)
+	lowCardCh := store.Subscribe(collectors.LowCardinality)
 
-	store.processTagInfo([]*collectors.TagInfo{
+	store.ProcessTagInfo([]*collectors.TagInfo{
 		{
 			Source:               "source2",
 			Entity:               "test1",
@@ -449,9 +449,9 @@ func TestSubscribe(t *testing.T) {
 	})
 
 	clock.now = clock.now.Add(10 * time.Minute)
-	store.prune()
+	store.Prune()
 
-	store.processTagInfo([]*collectors.TagInfo{
+	store.ProcessTagInfo([]*collectors.TagInfo{
 		{
 			Source:       "source",
 			Entity:       "test1",
@@ -460,7 +460,7 @@ func TestSubscribe(t *testing.T) {
 	})
 
 	clock.now = clock.now.Add(10 * time.Minute)
-	store.prune()
+	store.Prune()
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -468,8 +468,8 @@ func TestSubscribe(t *testing.T) {
 	go collectEvents(&wg, &highCardEvents, highCardCh)
 	go collectEvents(&wg, &lowCardEvents, lowCardCh)
 
-	store.unsubscribe(highCardCh)
-	store.unsubscribe(lowCardCh)
+	store.Unsubscribe(highCardCh)
+	store.Unsubscribe(lowCardCh)
 
 	wg.Wait()
 

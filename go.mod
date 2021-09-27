@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.15
+go 1.16
 
 // NOTE: Prefer using simple `require` directives instead of using `replace` if possible.
 // See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
@@ -47,7 +47,7 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
-	github.com/DataDog/agent-payload v4.80.0+incompatible
+	github.com/DataDog/agent-payload v4.84.0+incompatible
 	github.com/DataDog/datadog-agent/pkg/quantile v0.31.0-rc.8
 	github.com/DataDog/datadog-agent/pkg/util/log v0.31.0-rc.8
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.31.0-rc.8
@@ -59,7 +59,7 @@ require (
 	github.com/DataDog/gopsutil v0.0.0-20210826200402-bbfc5b0ae6e9
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
 	github.com/DataDog/nikos v1.2.1-0.20210908154039-72372ae79f70
-	github.com/DataDog/sketches-go v1.1.0
+	github.com/DataDog/sketches-go v1.2.0
 	github.com/DataDog/viper v1.9.0
 	github.com/DataDog/watermarkpodautoscaler v0.2.1-0.20210323121426-cfb2caa5613f
 	github.com/DataDog/zstd v1.4.8
@@ -126,7 +126,7 @@ require (
 	github.com/ianlancetaylor/cgosymbolizer v0.0.0-20201204192058-7acc97e53614 // indirect
 	github.com/iceber/iouring-go v0.0.0-20210726032807-b073cc83b2b8
 	github.com/iovisor/gobpf v0.0.0
-	github.com/itchyny/gojq v0.12.4
+	github.com/itchyny/gojq v0.12.5
 	github.com/json-iterator/go v1.1.11
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/klauspost/pgzip v1.2.5 // indirect
@@ -138,7 +138,7 @@ require (
 	github.com/mdlayher/netlink v1.4.1
 	github.com/mholt/archiver/v3 v3.5.0
 	github.com/miekg/dns v1.1.43
-	github.com/mitchellh/mapstructure v1.4.1
+	github.com/mitchellh/mapstructure v1.4.2
 	github.com/moby/sys/mountinfo v0.4.1
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/olekukonko/tablewriter v0.0.5
@@ -170,10 +170,11 @@ require (
 	github.com/vmihailenco/msgpack/v4 v4.3.12
 	github.com/xeipuuv/gojsonschema v0.0.0-20180618132009-1d523034197f
 	go.etcd.io/etcd/client/v2 v2.305.0
-	go.opentelemetry.io/collector v0.35.0
-	go.opentelemetry.io/collector/model v0.35.0
+	go.opentelemetry.io/collector v0.36.0
+	go.opentelemetry.io/collector/model v0.36.0
 	go.uber.org/automaxprocs v1.4.0
-	go.uber.org/zap v1.19.0
+	go.uber.org/multierr v1.6.0
+	go.uber.org/zap v1.19.1
 	go4.org/intern v0.0.0-20210108033219-3eb7198706b2
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/net v0.0.0-20210614182718-04defd469f4e

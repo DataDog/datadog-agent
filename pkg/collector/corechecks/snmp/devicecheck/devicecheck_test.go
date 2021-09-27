@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
 )
@@ -47,7 +48,7 @@ profiles:
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
-	deviceCk.SetSender(report.NewMetricSender(sender, ""))
+	deviceCk.SetSender(report.NewMetricSender(sender))
 
 	sysObjectIDPacket := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
@@ -144,6 +145,7 @@ profiles:
 		},
 	}
 
+	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&sysObjectIDPacket, nil)
 	sess.On("Get", []string{"1.3.6.1.2.1.1.3.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0"}).Return(&packet, nil)
 	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
@@ -174,36 +176,4 @@ profiles:
 
 	assert.Len(t, deviceCk.config.Metrics, len(firstRunMetrics))
 	assert.Len(t, deviceCk.config.MetricTags, len(firstRunMetricsTags))
-}
-
-func TestDeviceCheck_GetHostname(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
-	// language=yaml
-	rawInstanceConfig := []byte(`
-ip_address: 1.2.3.4
-community_string: public
-`)
-	// language=yaml
-	rawInitConfig := []byte(`
-`)
-
-	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
-	assert.Nil(t, err)
-
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4")
-	assert.Nil(t, err)
-
-	sender := mocksender.NewMockSender("123") // required to initiate aggregator
-	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-
-	// without hostname
-	deviceCk.SetSender(report.NewMetricSender(sender, ""))
-	deviceCk.sender.Gauge("snmp.devices_monitored", float64(1), []string{"snmp_device:1.2.3.4"})
-	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", []string{"snmp_device:1.2.3.4"})
-
-	// with hostname
-	deviceCk.config.UseDeviceIDAsHostname = true
-	deviceCk.SetSender(report.NewMetricSender(sender, "device:123"))
-	deviceCk.sender.Gauge("snmp.devices_monitored", float64(1), []string{"snmp_device:1.2.3.4"})
-	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "device:123", []string{"snmp_device:1.2.3.4"})
 }

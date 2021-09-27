@@ -28,6 +28,7 @@ MODULE_ALLOWLIST = [
     "pdh.go",
     "pdh_amd64.go",
     "pdh_386.go",
+    "pdhformatter.go",
     "pdhhelper.go",
     "shutil.go",
     "tailer_windows.go",
@@ -111,7 +112,7 @@ def lint(ctx, targets):
 
         if skipped_files:
             for skipped in skipped_files:
-                print("Allowed errors in whitelisted file {}".format(skipped))
+                print("Allowed errors in allowlisted file {}".format(skipped))
 
         # add whitespace for readability
         print()

@@ -54,7 +54,7 @@ func (c *Check) Run() error {
 
 		for i := range discoveredDevices {
 			deviceCk := discoveredDevices[i]
-			deviceCk.SetSender(report.NewMetricSender(sender, deviceCk.GetHostname()))
+			deviceCk.SetSender(report.NewMetricSender(sender))
 			jobs <- deviceCk
 		}
 		close(jobs)
@@ -64,7 +64,7 @@ func (c *Check) Run() error {
 		tags = append(tags, c.config.GetNetworkTags()...)
 		sender.Gauge("snmp.discovered_devices_count", float64(len(discoveredDevices)), "", tags)
 	} else {
-		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, c.singleDeviceCk.GetHostname()))
+		c.singleDeviceCk.SetSender(report.NewMetricSender(sender))
 		checkErr = c.runCheckDevice(c.singleDeviceCk)
 	}
 

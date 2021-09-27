@@ -19,11 +19,3 @@ tests_windows-x64:
   variables:
     PYTHON_RUNTIMES: 3
     ARCH: "x64"
-
-tests_windows-x86:
-  rules:
-    !reference [.except_deploy]
-  extends: .tests_windows_base
-  variables:
-    PYTHON_RUNTIMES: 3
-    ARCH: "x86"
