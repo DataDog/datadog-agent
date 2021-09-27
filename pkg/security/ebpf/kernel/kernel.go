@@ -9,6 +9,7 @@ package kernel
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -62,6 +63,13 @@ func NewKernelVersion() (*Version, error) {
 		osReleasePaths = append([]string{
 			filepath.Join("/host", osrelease.EtcOsRelease),
 			filepath.Join("/host", osrelease.UsrLibOsRelease),
+		}, osReleasePaths...)
+	}
+
+	if hostRoot := os.Getenv("HOST_ROOT"); hostRoot != "" {
+		osReleasePaths = append([]string{
+			filepath.Join(hostRoot, osrelease.EtcOsRelease),
+			filepath.Join(hostRoot, osrelease.UsrLibOsRelease),
 		}, osReleasePaths...)
 	}
 

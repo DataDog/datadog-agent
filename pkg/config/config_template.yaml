@@ -2409,9 +2409,20 @@ api_key:
 {{ end -}}
 {{- if .SNMP }}
 
-########################
-## SNMP Configuration ##
-########################
+###################################
+## Network Devices Configuration ##
+###################################
+
+## @param network_devices - custom object - optional
+## Configuration related to Network Devices.
+#
+# network_devices:
+
+  ## @param namespace - string - optional - default: default
+  ## Namespace can be used to disambiguate devices with the same IP.
+  ## Changing namespace will cause devices being recreated in NDM app.
+  #
+  # namespace: default
 
 ## @param snmp_traps_enabled - boolean - optional - default: false
 ## Set to true to enable collection of traps.
