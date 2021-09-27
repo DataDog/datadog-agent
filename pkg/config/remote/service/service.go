@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	defaultRefreshInterval = time.Second * 5
+	minimalRefreshInterval = time.Second * 3
 	defaultMaxBucketSize   = 10
 	defaultURL             = ""
 )
@@ -408,7 +408,11 @@ func (s *Service) GetStore() *store.Store {
 // NewService instantiates a new remote configuration management service
 func NewService(opts Opts) (*Service, error) {
 	if opts.RefreshInterval <= 0 {
-		opts.RefreshInterval = defaultRefreshInterval
+		opts.RefreshInterval = config.Datadog.GetDuration("remote_configuration_refresh_interval")
+	}
+
+	if opts.RefreshInterval < minimalRefreshInterval {
+		opts.RefreshInterval = minimalRefreshInterval
 	}
 
 	if opts.DBPath == "" {

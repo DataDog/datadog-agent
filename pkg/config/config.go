@@ -226,6 +226,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("remote_configuration_key", "")
 	config.BindEnvAndSetDefault("remote_configuration_config_root", "")
 	config.BindEnvAndSetDefault("remote_configuration_director_root", "")
+	config.BindEnvAndSetDefault("remote_configuration_refresh_interval", 60) // in seconds
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
