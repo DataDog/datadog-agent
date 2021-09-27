@@ -390,5 +390,6 @@ func (d *Daemon) RestoreCurrentStateFromFile() error {
 	d.ExecutionContext.LastRequestID = restoredExecutionContext.LastRequestID
 	d.ExecutionContext.LastLogRequestID = restoredExecutionContext.LastLogRequestID
 	d.ExecutionContext.ColdstartRequestID = restoredExecutionContext.ColdstartRequestID
+	d.ExecutionContext.StartTime = restoredExecutionContext.StartTime
 	return nil
 }
