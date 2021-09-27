@@ -94,7 +94,7 @@ func WithHistogramMode(mode HistogramMode) Option {
 	return func(t *translatorConfig) error {
 
 		switch mode {
-		case HistogramModeNoBuckets, HistogramModeCounters:
+		case HistogramModeNoBuckets, HistogramModeCounters, HistogramModeDistributions:
 			t.HistMode = mode
 		default:
 			return fmt.Errorf("unknown histogram mode: %q", mode)
