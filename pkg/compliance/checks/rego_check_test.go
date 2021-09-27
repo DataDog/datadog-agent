@@ -44,7 +44,7 @@ func (f *regoFixture) newRegoCheck() (*regoCheck, error) {
 		resources: f.resources,
 	}
 
-	if err := regoCheck.compileRule(rule, f.scope); err != nil {
+	if err := regoCheck.compileRule(rule, f.scope, &compliance.SuiteMeta{}); err != nil {
 		return nil, err
 	}
 
