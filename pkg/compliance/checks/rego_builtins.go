@@ -28,6 +28,15 @@ const (
 const helpers = `
 package datadog
 
+raw_finding(status, resource_type, resource_id, event_data) = f {
+	f := {
+		"status": status,
+		"resource_type": resource_type,
+		"resource_id": resource_id,
+		"data": event_data,
+	}
+}
+
 docker_container_resource_id(c) = id {
 	id := sprintf("%s_%s", [input.context.hostname, cast_string(c.id)])
 }
@@ -110,7 +119,6 @@ audit_data(audit) = d {
 
 var regoBuiltins = []func(*rego.Rego){
 	octalLiteralFunc,
-	rawFinding,
 }
 
 var octalLiteralFunc = rego.Function1(
@@ -130,34 +138,5 @@ var octalLiteralFunc = rego.Function1(
 		}
 
 		return ast.IntNumberTerm(int(value)), err
-	},
-)
-
-var rawFinding = rego.Function4(
-	&rego.Function{
-		Name: "raw_finding",
-		Decl: types.NewFunction(types.Args(types.B, types.S, types.S, types.A), types.A),
-	},
-	func(_ rego.BuiltinContext, status, resType, resID, data *ast.Term) (*ast.Term, error) {
-		terms := [][2]*ast.Term{
-			{
-				ast.StringTerm(ResourceIDFindingField),
-				resID,
-			},
-			{
-				ast.StringTerm(ResourceTypeFindingField),
-				resType,
-			},
-			{
-				ast.StringTerm(ResourceDataFindingField),
-				data,
-			},
-			{
-				ast.StringTerm(ResourceStatusFindingField),
-				status,
-			},
-		}
-
-		return ast.ObjectTerm(terms...), nil
 	},
 )
