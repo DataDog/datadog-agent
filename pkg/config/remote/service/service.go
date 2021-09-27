@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	minimalRefreshInterval = time.Second * 3
+	minimalRefreshInterval = time.Second * 5
 	defaultMaxBucketSize   = 10
 	defaultURL             = ""
 )
@@ -291,12 +291,16 @@ func (s *Service) verifyTargetFiles(targetFiles []*pbgo.File) error {
 		path := tuf.TrimHash(targetFile.Path)
 		buffer := &bufferDestination{}
 		if err := s.config.Download(path, buffer); err != nil {
-			return fmt.Errorf("failed to download target file: %s", targetFile.Path)
+			return fmt.Errorf("failed to download target file %s: %w", targetFile.Path, err)
 		}
 
 		targetMeta, err := s.config.Target(path)
 		if err != nil {
 			return err
+		}
+
+		if len(targetMeta.HashAlgorithms()) == 0 {
+			return fmt.Errorf("target file %s has no hash", path)
 		}
 
 		for _, algorithm := range targetMeta.HashAlgorithms() {
