@@ -265,8 +265,6 @@ build do
       manifest = JSON.parse(File.read(manifest_file_path))
       manifest['supported_os'].include?(os) || next
 
-      check_conf_dir = "#{conf_dir}/#{check}.d"
-
       setup_file_path = "#{check_dir}/setup.py"
       File.file?(setup_file_path) || next
       # Check if it supports Python 3.
@@ -298,7 +296,8 @@ build do
       # we have to do this operation in block, so that it can access files created by the
       # inv agent.get-integrations-from-cache command
       checks_to_install.each do |check|
-        check_dir = File.join(project_dir, "check")
+        check_dir = File.join(project_dir, check)
+        check_conf_dir = "#{conf_dir}/#{check}.d"
         # For each conf file, if it already exists, that means the `datadog-agent` software def
         # wrote it first. In that case, since the agent's confs take precedence, skip the conf
 
