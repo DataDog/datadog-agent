@@ -45,27 +45,30 @@ func NewSubscriber(product pbgo.Product, refreshRate time.Duration, callback Sub
 }
 
 // NewGRPCSubscriber returns a new gRPC stream based subscriber.
-func NewGRPCSubscriber(product pbgo.Product, callback SubscriberCallback) error {
+func NewGRPCSubscriber(product pbgo.Product, callback SubscriberCallback) (context.CancelFunc, error) {
 	creds := credentials.NewTLS(&tls.Config{
 		InsecureSkipVerify: true,
 	})
 
+	ctx, cancel := context.WithCancel(context.Background())
 	conn, err := grpc.DialContext(
-		context.Background(),
+		ctx,
 		fmt.Sprintf(":%v", config.Datadog.GetInt("cmd_port")),
 		grpc.WithTransportCredentials(creds),
 	)
 	if err != nil {
-		return err
+		cancel()
+		return nil, err
 	}
 
 	agentClient := pbgo.NewAgentSecureClient(conn)
 
 	token, err := security.FetchAuthToken()
 	if err != nil {
+		cancel()
 		err = fmt.Errorf("unable to fetch authentication token: %w", err)
 		log.Infof("unable to establish stream, will possibly retry: %s", err)
-		return err
+		return nil, err
 	}
 
 	currentConfigSnapshotVersion := uint64(0)
@@ -75,7 +78,7 @@ func NewGRPCSubscriber(product pbgo.Product, callback SubscriberCallback) error 
 		log.Debug("Waiting for configuration from remote config management")
 
 		streamCtx, streamCancel := context.WithCancel(
-			metadata.NewOutgoingContext(context.Background(), metadata.MD{
+			metadata.NewOutgoingContext(ctx, metadata.MD{
 				"authorization": []string{fmt.Sprintf("Bearer %s", token)},
 			}),
 		)
@@ -118,5 +121,5 @@ func NewGRPCSubscriber(product pbgo.Product, callback SubscriberCallback) error 
 		}
 	}()
 
-	return nil
+	return cancel, nil
 }

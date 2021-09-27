@@ -60,6 +60,7 @@ type Module struct {
 	sigupChan        chan os.Signal
 	ctx              context.Context
 	cancelFnc        context.CancelFunc
+	cancelSubscriber context.CancelFunc
 	rulesLoaded      func(rs *rules.RuleSet)
 	policiesVersions []string
 
@@ -178,7 +179,7 @@ func (m *Module) Start() error {
 	}()
 
 	if m.config.EnableRemoteConfig {
-		err := service.NewGRPCSubscriber(pbgo.Product_RUNTIME_SECURITY, func(config *pbgo.ConfigResponse) error {
+		cancelSubscriber, err := service.NewGRPCSubscriber(pbgo.Product_RUNTIME_SECURITY, func(config *pbgo.ConfigResponse) error {
 			log.Infof("Fetched config version %d from remote config management", config.DirectoryTargets.Version)
 
 			for _, targetFile := range config.TargetFiles {
@@ -197,6 +198,7 @@ func (m *Module) Start() error {
 		if err != nil {
 			return errors.Wrap(err, "failed to subscribe to remote config management")
 		}
+		m.cancelSubscriber = cancelSubscriber
 	}
 
 	return nil
@@ -351,6 +353,9 @@ func (m *Module) Reload() error {
 // Close the module
 func (m *Module) Close() {
 	close(m.sigupChan)
+	if m.cancelSubscriber != nil {
+		m.cancelSubscriber()
+	}
 	m.cancelFnc()
 
 	if m.grpcServer != nil {
