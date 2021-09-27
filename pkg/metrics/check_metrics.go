@@ -31,6 +31,11 @@ var (
 // CheckMetrics stores metrics for the check sampler.
 //
 // This is similar to ContextMetrics, but provides additional facility to remove metrics.
+//
+// Metrics can be requested to be removed by calling Expire(). Metrics that keep state
+// between flushes (see Metric.isStateful) are kept for additional statefulTimeout seconds
+// after expiration, as a precaution against checks that send metrics intermittently.
+// Older stateful metrics need to be cleaned up by calling RemoveExpired().
 type CheckMetrics struct {
 	expireMetrics bool
 	// additional time to keep stateful metrics in memory, after the context key has expired
@@ -46,13 +51,13 @@ func NewCheckMetrics(expireMetrics bool, statefulTimeout time.Duration) CheckMet
 		statefulTimeout: statefulTimeout.Seconds(),
 		metrics:         MakeContextMetrics(),
 		// many checks do not have stateful metrics, so avoid allocating `deadlines` unless required
-		deadlines:       nil,
+		deadlines: nil,
 	}
 }
 
 // AddSample adds a new sample to the metric with contextKey, initializing a new metric as necessary.
 //
-// If contextKey is scheduled for removal (see Remove), it will be unscheduled.
+// If contextKey is scheduled for removal (see Expire), it will be unscheduled.
 //
 // See also ContextMetrics.AddSample().
 func (cm *CheckMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSample, timestamp float64, interval int64) error {
@@ -62,13 +67,14 @@ func (cm *CheckMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSamp
 	return cm.metrics.AddSample(contextKey, sample, timestamp, interval, checkMetricsAddSampleTelemetry)
 }
 
-// Remove deletes metrics associated with the given contextKeys.
+// Expire enables metric data for given context keys to be removed.
 //
-// Some metrics can not be removed as soon as we stop receiving them (see
-// Metric.isStateful()). Stateful metrics will be kept around additional `cm.statefulTimeout`
-// time after this call, before ultimately removed. Call to AddSample will cancel delayed
-// removal.
-func (cm *CheckMetrics) Remove(contextKeys []ckey.ContextKey, timestamp float64) {
+// Metrics that do not keep state between flushes, will be removed immediately.
+//
+// Metrics that do keep state, will be kept around for additional `cm.statefulTimeout`
+// time after timestamp, before ultimately removed (See RemoveExpired). Call to AddSample
+// will cancel delayed removal.
+func (cm *CheckMetrics) Expire(contextKeys []ckey.ContextKey, timestamp float64) {
 	if !cm.expireMetrics {
 		return
 	}
@@ -103,8 +109,8 @@ func (cm *CheckMetrics) Flush(timestamp float64) ([]*Serie, map[ckey.ContextKey]
 	return cm.metrics.Flush(timestamp)
 }
 
-// Cleanup removes stateful metrics that have expired before the given timestamp.
-func (cm *CheckMetrics) Cleanup(timestamp float64) {
+// RemoveExpired removes stateful metrics that have expired before the given timestamp.
+func (cm *CheckMetrics) RemoveExpired(timestamp float64) {
 	removed := 0.0
 	for key, deadline := range cm.deadlines {
 		if deadline < timestamp {

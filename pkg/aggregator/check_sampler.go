@@ -162,8 +162,7 @@ func (cs *CheckSampler) commit(timestamp float64) {
 	cs.commitSeries(timestamp)
 	cs.commitSketches(timestamp)
 
-	// Remove previously expired contextKeys that we removed during previous commits.
-	cs.metrics.Cleanup(timestamp)
+	cs.metrics.RemoveExpired(timestamp)
 
 	expiredContextKeys := cs.contextResolver.expireContexts()
 
@@ -172,7 +171,7 @@ func (cs *CheckSampler) commit(timestamp float64) {
 		delete(cs.lastBucketValue, ctxKey)
 	}
 
-	cs.metrics.Remove(expiredContextKeys, timestamp)
+	cs.metrics.Expire(expiredContextKeys, timestamp)
 }
 
 func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
