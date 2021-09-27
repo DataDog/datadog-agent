@@ -123,7 +123,7 @@ func (s *Store) GetLastConfig(product string) (config *pbgo.ConfigResponse, err 
 
 // GetConfigs returns all the stored configurations for a product
 func (s *Store) GetConfigs(product string) (configs []*pbgo.ConfigResponse, err error) {
-	return s.getConfigs(product, math.MaxInt64)
+	return s.getConfigs(product, math.MaxInt32)
 }
 
 // GetProducts returns all the product
