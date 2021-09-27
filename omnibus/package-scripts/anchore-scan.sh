@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 usage()
 {
@@ -8,6 +8,9 @@ usage()
     exit 1
 }
 
+IMAGE=""
+NOTIFY=0
+
 while getopts ":i:n:" o; do
     case "${o}" in
         i)
@@ -15,7 +18,6 @@ while getopts ":i:n:" o; do
             ;;
         n)
             NOTIFY=${OPTARG}
-            ((NOTIFY == 0 || NOTIFY == 1)) || usage
             ;;
         *)
             usage
@@ -27,16 +29,22 @@ shift $((OPTIND-1))
 if [ -z "${IMAGE}" ] || [ -z "${NOTIFY}" ]; then
     usage
 fi
+if [ ! $NOTIFY = 0 ] && [ ! $NOTIFY = 1 ]; then
+    usage
+fi
 
 START="false"
 FILE="anchore-scan.txt"
 ANCHORE="anchore/engine-cli:v0.9.2"
-ANCHORE_DOCKER_INVOKE="docker run --rm -it -e ANCHORE_CLI_USER=${ANCHORE_CLI_USER} -e ANCHORE_CLI_PASS=${ANCHORE_CLI_PASS} -e ANCHORE_CLI_URL=${ANCHORE_CLI_URL} ${ANCHORE}"
+ANCHORE_DOCKER_INVOKE="docker run --rm -a stdout -e ANCHORE_CLI_USER=${ANCHORE_CLI_USER} -e ANCHORE_CLI_PASS=${ANCHORE_CLI_PASS} -e ANCHORE_CLI_URL=${ANCHORE_CLI_URL} ${ANCHORE}"
+CURL="curlimages/curl:7.79.1"
+CURL_DOCKER_INVOKE="docker run --rm -a stdout ${CURL}"
 
 ${ANCHORE_DOCKER_INVOKE} anchore-cli image add "$IMAGE" > /dev/null
 ${ANCHORE_DOCKER_INVOKE} anchore-cli image wait "$IMAGE" > /dev/null
 ${ANCHORE_DOCKER_INVOKE} anchore-cli image vuln --vendor-only false "$IMAGE" all > $FILE
-${ANCHORE_DOCKER_INVOKE} anchore-cli evaluate check "$IMAGE" --policy "stackstate-default" --detail
+${ANCHORE_DOCKER_INVOKE} anchore-cli evaluate check "$IMAGE" --policy "cluster-agent-04x" --detail
+# --policy "stackstate-default"
 
 if [ ! -f ${FILE} ]; then
     echo "File ${FILE} not found!"
@@ -44,7 +52,7 @@ if [ ! -f ${FILE} ]; then
 fi
 
 MESSAGE=""
-while IFS= read -r line || [[ -n "$line" ]]; do
+while IFS= read -r line || [ ! -z "$line" ]; do
 
     if [ "${START}" = "true" ]; then
         # Here we parse the vulns
@@ -64,7 +72,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
 done < $FILE
 
 if [ ! -z "${MESSAGE}" ]; then
-    curl -X POST -H 'Content-type: application/json' --data '{"text":"'"${MESSAGE}"'"}' https://hooks.slack.com/services/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
+    ${CURL_DOCKER_INVOKE} -X POST -H 'Content-type: application/json' --data '{"text":"'"${MESSAGE}"'"}' ${ANCHORE_WEBHOOK}
     # echo ${MESSAGE}
 fi
 
