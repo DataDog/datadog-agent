@@ -127,6 +127,10 @@ func NewPipeline(cfg PipelineConfig) (*Pipeline, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// HACK: ensure flags are not-nil
+	// TODO: fix this upstream.
+	_ = service.NewCommand(col)
 	return &Pipeline{col}, nil
 }
 
