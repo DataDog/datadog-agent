@@ -529,7 +529,11 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 				},
 				tags: []string{"job_name:foo-1509998340", "namespace:default"},
 			},
-			expected: nil,
+			expected: &metricsExpected{
+				name: "kubernetes_state.job.failed",
+				val:  0,
+				tags: []string{"job:foo", "namespace:default"},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -1447,7 +1451,7 @@ func Test_validateJob(t *testing.T) {
 			name:  "invalid",
 			val:   0.0,
 			tags:  []string{"foo:bar", "job_name:foo"},
-			want:  nil,
+			want:  []string{"foo:bar", "job_name:foo"},
 			want1: false,
 		},
 	}
