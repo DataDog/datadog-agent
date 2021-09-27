@@ -10,7 +10,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"syscall"
 	"time"
 
 	"google.golang.org/grpc"
@@ -43,14 +42,6 @@ func NewSubscriber(product pbgo.Product, refreshRate time.Duration, callback Sub
 		refreshRate: refreshRate,
 		callback:    callback,
 	}
-}
-
-// NewSIGHUPSubscriber returns a new subscriber with the specified PID. A SIGHUP signal
-// will be sent to this PID when a new configuration was fetched.
-func NewSIGHUPSubscriber(product pbgo.Product, refreshRate time.Duration, pid int) *Subscriber {
-	return NewSubscriber(product, refreshRate, func(config *pbgo.ConfigResponse) error {
-		return syscall.Kill(pid, syscall.SIGHUP)
-	})
 }
 
 // NewGRPCSubscriber returns a new gRPC stream based subscriber.
