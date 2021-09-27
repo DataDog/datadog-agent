@@ -278,8 +278,8 @@ void CustomActionData::ensureDomainHasCorrectFormat()
 
 bool CustomActionData::parseUsernameData()
 {
-    auto userFromPreviousInstall= findPreviousUserInfo();
-    auto userFromCommandLine = findSuppliedUserInfo();
+    std::optional<User> userFromPreviousInstall = findPreviousUserInfo();
+    std::optional<User> userFromCommandLine = findSuppliedUserInfo();
 
     // if this is an upgrade (we found a previously recorded username in the registry)
     // and nothing was supplied on the command line, don't bother computing that.  Just use
