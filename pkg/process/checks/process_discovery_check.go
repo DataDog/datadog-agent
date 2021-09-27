@@ -15,7 +15,7 @@ var ProcessDiscovery = &ProcessDiscoveryCheck{probe: procutil.NewProcessProbe()}
 // It uses its own ProcessDiscovery payload.
 // The goal of this check is to collect information about possible integrations that may be enabled by the end user.
 type ProcessDiscoveryCheck struct {
-	probe      *procutil.Probe
+	probe      procutil.Probe
 	info       *model.SystemInfo
 	initCalled bool
 }

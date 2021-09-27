@@ -1,12 +1,13 @@
 // +build windows
 
-package checks
+package procutil
 
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 func TestCommandLineSplitting(t *testing.T) {
@@ -55,7 +56,7 @@ func TestCommandLineSplitting(t *testing.T) {
 			},
 		},
 	} {
-		assert.Equal(t, tc.expected, parseCmdLineArgs(tc.input))
+		assert.Equal(t, tc.expected, ParseCmdLineArgs(tc.input))
 	}
 }
 
@@ -77,5 +78,4 @@ func TestWindowsStringConversion(t *testing.T) {
 	} {
 		assert.Equal(t, tc.expected, winutil.ConvertWindowsString16(tc.input))
 	}
-
 }

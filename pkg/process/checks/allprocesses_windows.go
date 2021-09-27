@@ -3,10 +3,8 @@
 package checks
 
 import (
-	"bytes"
+	"fmt"
 	"runtime"
-	"strings"
-	"sync"
 	"time"
 	"unsafe"
 
@@ -25,31 +23,7 @@ var (
 	procGetProcessMemoryInfo  = modpsapi.NewProc("GetProcessMemoryInfo")
 	procGetProcessHandleCount = modkernel.NewProc("GetProcessHandleCount")
 	procGetProcessIoCounters  = modkernel.NewProc("GetProcessIoCounters")
-
-	// XXX: Cross-check state is stored globally so the checks are not thread-safe.
-	cachedProcesses = map[uint32]*cachedProcess{}
-	// cacheProcessesMutex is a mutex to protect cachedProcesses from being accessed concurrently.
-	// So far this is the case for Process check and RTProcess check
-	// TODO: revisit cacheProcesses usage so that we don't need to lock the whole getAllProcesses()
-	cacheProcessesMutex sync.Mutex
-	checkCount          = 0
-	haveWarnedNoArgs    = false
 )
-
-type SystemProcessInformation struct {
-	NextEntryOffset   uint64
-	NumberOfThreads   uint64
-	Reserved1         [48]byte
-	Reserved2         [3]byte
-	UniqueProcessID   uintptr
-	Reserved3         uintptr
-	HandleCount       uint64
-	Reserved4         [4]byte
-	Reserved5         [11]byte
-	PeakPagefileUsage uint64
-	PrivatePageCount  uint64
-	Reserved6         [6]uint64
-}
 
 type IO_COUNTERS struct {
 	ReadOperationCount  uint64
@@ -58,6 +32,14 @@ type IO_COUNTERS struct {
 	ReadTransferCount   uint64
 	WriteTransferCount  uint64
 	OtherTransferCount  uint64
+}
+
+func getAllProcesses(probe procutil.Probe, collectStats bool) (map[int32]*procutil.Process, error) {
+	return probe.ProcessesByPID(time.Now(), collectStats)
+}
+
+func getAllProcStats(probe procutil.Probe, pids []int32) (map[int32]*procutil.Stats, error) {
+	return probe.StatsForPIDs(pids, time.Now())
 }
 
 func getProcessMemoryInfo(h windows.Handle, mem *process.PROCESS_MEMORY_COUNTERS) (err error) {
@@ -84,8 +66,20 @@ func getProcessIoCounters(h windows.Handle, counters *IO_COUNTERS) (err error) {
 	return nil
 }
 
-func getAllProcStats(probe *procutil.Probe, pids []int32) (map[int32]*procutil.Stats, error) {
-	procs, err := getAllProcesses(probe, true)
+type windowsToolhelpProbe struct {
+	cachedProcesses map[uint32]*cachedProcess
+}
+
+func newWindowsToolhelpProbe() procutil.Probe {
+	return &windowsToolhelpProbe{
+		cachedProcesses: map[uint32]*cachedProcess{},
+	}
+}
+
+func (p *windowsToolhelpProbe) Close() {}
+
+func (p *windowsToolhelpProbe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*procutil.Stats, error) {
+	procs, err := p.ProcessesByPID(now, true)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +90,12 @@ func getAllProcStats(probe *procutil.Probe, pids []int32) (map[int32]*procutil.S
 	return stats, nil
 }
 
-func getAllProcesses(probe *procutil.Probe, collectStats bool) (map[int32]*procutil.Process, error) {
+// StatsWithPermByPID is currently not implemented in non-linux environments
+func (p *windowsToolhelpProbe) StatsWithPermByPID(pids []int32) (map[int32]*procutil.StatsWithPerm, error) {
+	return nil, fmt.Errorf("windowsToolhelpProbe: StatsWithPermByPID is not implemented")
+}
+
+func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*procutil.Process, error) {
 	// make sure we get the consistent snapshot by using the same OS thread
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -111,13 +110,8 @@ func getAllProcesses(probe *procutil.Probe, collectStats bool) (map[int32]*procu
 	var pe32 w32.PROCESSENTRY32
 	pe32.DwSize = uint32(unsafe.Sizeof(pe32))
 
-	checkCount++
-
-	cacheProcessesMutex.Lock()
-	defer cacheProcessesMutex.Unlock()
-
 	knownPids := make(map[uint32]struct{})
-	for pid := range cachedProcesses {
+	for pid := range p.cachedProcesses {
 		knownPids[pid] = struct{}{}
 	}
 
@@ -131,7 +125,7 @@ func getAllProcesses(probe *procutil.Probe, collectStats bool) (map[int32]*procu
 			// want to do.
 			continue
 		}
-		cp, ok := cachedProcesses[pid]
+		cp, ok := p.cachedProcesses[pid]
 		if !ok {
 			// wasn't already in the map.
 			cp = &cachedProcess{}
@@ -140,9 +134,10 @@ func getAllProcesses(probe *procutil.Probe, collectStats bool) (map[int32]*procu
 				log.Debugf("could not fill Win32 process information for pid %v %v", pid, err)
 				continue
 			}
-			cachedProcesses[pid] = cp
+			p.cachedProcesses[pid] = cp
 		} else {
-			if err := cp.openProcHandle(pe32.Th32ProcessID); err != nil {
+			var err error
+			if cp.procHandle, err = procutil.OpenProcessHandle(int32(pe32.Th32ProcessID)); err != nil {
 				log.Debugf("Could not reopen process handle for pid %v %v", pid, err)
 				continue
 			}
@@ -218,74 +213,12 @@ func getAllProcesses(probe *procutil.Probe, collectStats bool) (map[int32]*procu
 		}
 	}
 	for pid := range knownPids {
-		cp := cachedProcesses[pid]
+		cp := p.cachedProcesses[pid]
 		log.Debugf("removing process %v %v", pid, cp.executablePath)
-		delete(cachedProcesses, pid)
+		delete(p.cachedProcesses, pid)
 	}
 
 	return procs, nil
-}
-
-func getUsernameForProcess(h windows.Handle) (name string, err error) {
-	name = ""
-	err = nil
-	var t windows.Token
-	err = windows.OpenProcessToken(h, windows.TOKEN_QUERY, &t)
-	if err != nil {
-		log.Debugf("Failed to open process token %v", err)
-		return
-	}
-	defer t.Close()
-	tokenUser, err := t.GetTokenUser()
-
-	user, domain, _, err := tokenUser.User.Sid.LookupAccount("")
-	if nil != err {
-		return "", err
-	}
-	return domain + "\\" + user, err
-}
-
-func parseCmdLineArgs(cmdline string) (res []string) {
-	blocks := strings.Split(cmdline, " ")
-	findCloseQuote := false
-	donestring := false
-
-	var stringInProgress bytes.Buffer
-	for _, b := range blocks {
-		numquotes := strings.Count(b, "\"")
-		if numquotes == 0 {
-			stringInProgress.WriteString(b)
-			if !findCloseQuote {
-				donestring = true
-			} else {
-				stringInProgress.WriteString(" ")
-			}
-
-		} else if numquotes == 1 {
-			stringInProgress.WriteString(b)
-			if findCloseQuote {
-				donestring = true
-			} else {
-				findCloseQuote = true
-				stringInProgress.WriteString(" ")
-			}
-
-		} else if numquotes == 2 {
-			stringInProgress.WriteString(b)
-			donestring = true
-		} else {
-			log.Warnf("unexpected quotes in string, giving up (%v)", cmdline)
-			return res
-		}
-
-		if donestring {
-			res = append(res, stringInProgress.String())
-			stringInProgress.Reset()
-			findCloseQuote = false
-			donestring = false
-		}
-	}
-	return res
 }
 
 type cachedProcess struct {
@@ -297,43 +230,29 @@ type cachedProcess struct {
 }
 
 func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error) {
-	err = cp.openProcHandle(pe32.Th32ProcessID)
+	cp.procHandle, err = procutil.OpenProcessHandle(int32(pe32.Th32ProcessID))
 	if err != nil {
 		return err
 	}
 	var usererr error
-	cp.userName, usererr = getUsernameForProcess(cp.procHandle)
+	cp.userName, usererr = procutil.GetUsernameForProcess(cp.procHandle)
 	if usererr != nil {
 		log.Debugf("Couldn't get process username %v %v", pe32.Th32ProcessID, err)
 	}
 	var cmderr error
 	cp.executablePath = winutil.ConvertWindowsString16(pe32.SzExeFile[:])
-	cp.commandLine, cmderr = winutil.GetCommandLineForProcess(cp.procHandle)
+	commandParams, cmderr := winutil.GetCommandParamsForProcess(cp.procHandle, false)
 	if cmderr != nil {
 		log.Debugf("Error retrieving full command line %v", cmderr)
 		cp.commandLine = cp.executablePath
+	} else {
+		cp.commandLine = commandParams.CmdLine
 	}
 
-	cp.parsedArgs = parseCmdLineArgs(cp.commandLine)
+	cp.parsedArgs = procutil.ParseCmdLineArgs(cp.commandLine)
 	return
 }
 
-func (cp *cachedProcess) openProcHandle(pid uint32) (err error) {
-	// 0x1000 is PROCESS_QUERY_LIMITED_INFORMATION, but that constant isn't
-	//        defined in x/sys/windows
-	// 0x10   is PROCESS_VM_READ
-
-	cp.procHandle, err = windows.OpenProcess(0x1010, false, uint32(pid))
-	if err != nil {
-		log.Debugf("Couldn't open process with PROCESS_VM_READ %v %v", pid, err)
-		cp.procHandle, err = windows.OpenProcess(0x1000, false, uint32(pid))
-		if err != nil {
-			log.Debugf("Couldn't open process %v %v", pid, err)
-			return err
-		}
-	}
-	return
-}
 func (cp *cachedProcess) close() {
 	if cp.procHandle != windows.Handle(0) {
 		windows.CloseHandle(cp.procHandle)

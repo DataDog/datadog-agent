@@ -99,6 +99,20 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	// and uses a different unit of time
 	a.initProcessDiscoveryCheck()
 
+	if a.CheckIntervals[ProcessCheckName] <= a.CheckIntervals[RTProcessCheckName] || a.CheckIntervals[ProcessCheckName]%a.CheckIntervals[RTProcessCheckName] != 0 {
+		// Process check interval must be greater than RTProcess check interval and the intervals must be divisible
+		// in order to be run on the same goroutine
+		log.Warnf(
+			"Invalid process check interval overrides [%s,%s], resetting to defaults [%s,%s]",
+			a.CheckIntervals[ProcessCheckName],
+			a.CheckIntervals[RTProcessCheckName],
+			ProcessCheckDefaultInterval,
+			RTProcessCheckDefaultInterval,
+		)
+		a.CheckIntervals[ProcessCheckName] = ProcessCheckDefaultInterval
+		a.CheckIntervals[RTProcessCheckName] = RTProcessCheckDefaultInterval
+	}
+
 	// A list of regex patterns that will exclude a process if matched.
 	if k := key(ns, "blacklist_patterns"); config.Datadog.IsSet(k) {
 		for _, b := range config.Datadog.GetStringSlice(k) {
@@ -197,6 +211,11 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	// Windows: Controls getting process arguments immediately when a new process is discovered
 	if addArgsKey := key(ns, "windows", "add_new_args"); config.Datadog.IsSet(addArgsKey) {
 		a.Windows.AddNewArgs = config.Datadog.GetBool(addArgsKey)
+	}
+
+	// Windows: Controls using the new check based on performance counters PDH APIs
+	if usePerfCountersKey := key(ns, "windows", "use_perf_counters"); config.Datadog.IsSet(usePerfCountersKey) {
+		a.Windows.UsePerfCounters = config.Datadog.GetBool(usePerfCountersKey)
 	}
 
 	// Optional additional pairs of endpoint_url => []apiKeys to submit to other locations.
