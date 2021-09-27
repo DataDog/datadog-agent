@@ -101,7 +101,7 @@ const std::wstring &CustomActionData::UnqualifiedUsername() const
     return _user.Name;
 }
 
-const std::wstring &CustomActionData::Username() const
+const std::wstring &CustomActionData::FullyQualifiedUsername() const
 {
     return _fullyQualifiedUsername;
 }
@@ -303,18 +303,18 @@ bool CustomActionData::parseUsernameData()
     ensureDomainHasCorrectFormat();
 
     _fullyQualifiedUsername = _user.Domain + L"\\" + _user.Name;
-    auto sidResult = GetSidForUser(nullptr, Username().c_str());
+    auto sidResult = GetSidForUser(nullptr, FullyQualifiedUsername().c_str());
 
     if (sidResult.Result == ERROR_NONE_MAPPED)
     {
-        WcaLog(LOGMSG_STANDARD, "No account \"%S\" found.", Username().c_str());
+        WcaLog(LOGMSG_STANDARD, "No account \"%S\" found.", FullyQualifiedUsername().c_str());
         _ddUserExists = false;
     }
     else
     {
         if (sidResult.Result == ERROR_SUCCESS && sidResult.Sid != nullptr)
         {
-            WcaLog(LOGMSG_STANDARD, R"(Found SID for "%S" in "%S")", Username().c_str(), sidResult.Domain.c_str());
+            WcaLog(LOGMSG_STANDARD, R"(Found SID for "%S" in "%S")", FullyQualifiedUsername().c_str(), sidResult.Domain.c_str());
             _ddUserExists = true;
             _sid = std::move(sidResult.Sid);
 
@@ -324,7 +324,7 @@ bool CustomActionData::parseUsernameData()
         }
         else
         {
-            WcaLog(LOGMSG_STANDARD, "Looking up SID for \"%S\": %S", Username().c_str(),
+            WcaLog(LOGMSG_STANDARD, "Looking up SID for \"%S\": %S", FullyQualifiedUsername().c_str(),
                    FormatErrorMessage(sidResult.Result).c_str());
             return false;
         }
