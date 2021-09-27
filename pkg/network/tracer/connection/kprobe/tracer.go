@@ -145,23 +145,20 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 }
 
 func (t *kprobeTracer) Start(closeFilter func(*network.ConnectionStats) bool) (err error) {
-	// this is to ensure that it is safe to call Stop() on a kprobeTracer that fails to Start()
 	defer func() {
 		if err != nil {
-			t = nil
+			t.Stop()
 		}
 	}()
 
 	closeConsumer, err := newTCPCloseConsumer(t.config, t.m, t.closeHandler, closeFilter)
 	if err != nil {
-		t.Stop()
 		return fmt.Errorf("could not create tcpCloseConsumer: %s", err)
 	}
 	t.closeConsumer = closeConsumer
 
 	err = initializePortBindingMaps(t.config, t.m)
 	if err != nil {
-		t.Stop()
 		return fmt.Errorf("error initializing port binding maps: %s", err)
 	}
 
@@ -172,12 +169,8 @@ func (t *kprobeTracer) Start(closeFilter func(*network.ConnectionStats) bool) (e
 }
 
 func (t *kprobeTracer) Stop() {
-	if t == nil {
-		return
-	}
-
-	t.closeConsumer.Stop()
 	_ = t.m.Stop(manager.CleanAll)
+	t.closeConsumer.Stop()
 }
 
 func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
