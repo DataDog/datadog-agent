@@ -1,4 +1,0 @@
-enhancements:
-  - |
-    Check sampler will now forget metrics that were not sent for a while. This should
-    reduce memory usage on systems with high rate of metrics churn.
