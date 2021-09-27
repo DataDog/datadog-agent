@@ -41,6 +41,7 @@ type RegoRule struct {
 	RuleCommon `yaml:",inline"`
 	Resources  []RegoResource `yaml:"inputs,omitempty"`
 	Module     string         `yaml:"module,omitempty"`
+	Imports    []string       `yaml:"imports,omitempty"`
 	Findings   string         `yaml:"findings,omitempty"`
 }
 

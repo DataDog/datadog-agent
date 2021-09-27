@@ -660,7 +660,7 @@ func (b *builder) newRegoCheck(meta *compliance.SuiteMeta, ruleScope compliance.
 		resources: rule.Resources,
 	}
 
-	if err := regoCheck.compileRule(rule, ruleScope); err != nil {
+	if err := regoCheck.compileRule(rule, ruleScope, meta); err != nil {
 		return nil, err
 	}
 

@@ -12,6 +12,8 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/open-policy-agent/opa/rego"
@@ -30,16 +32,58 @@ type regoCheck struct {
 	preparedEvalQuery rego.PreparedEvalQuery
 }
 
-func (r *regoCheck) compileRule(rule *compliance.RegoRule, ruleScope compliance.RuleScope) error {
+func computeRuleModules(rule *compliance.RegoRule, meta *compliance.SuiteMeta) ([]func(*rego.Rego), error) {
+	modules := make([]func(*rego.Rego), 0)
+
+	modules = append(modules,
+		rego.Module(fmt.Sprintf("__gen__rule_%s.rego", rule.ID), rule.Module),
+		rego.Module("datadog_helpers.rego", helpers),
+	)
+
+	var parentDir string
+	if meta.Source != "" {
+		parentDir = filepath.Dir(meta.Source)
+	}
+
+	for _, imp := range rule.Imports {
+		if imp == "" {
+			continue
+		}
+
+		// look for relative file if we have a source
+		if parentDir != "" {
+			imp = filepath.Join(parentDir, imp)
+		}
+
+		mod, err := os.ReadFile(imp)
+		if err != nil {
+			return nil, err
+		}
+		modules = append(modules, rego.Module(imp, string(mod)))
+	}
+
+	return modules, nil
+}
+
+func (r *regoCheck) compileRule(rule *compliance.RegoRule, ruleScope compliance.RuleScope, meta *compliance.SuiteMeta) error {
 	ctx := context.TODO()
 
 	log.Debugf("rego query: %v", rule.Findings)
 
 	moduleArgs := make([]func(*rego.Rego), 0, 2+len(regoBuiltins))
-	moduleArgs = append(moduleArgs, rego.Query(rule.Findings),
-		rego.Module(fmt.Sprintf("rule_%s.rego", rule.ID), rule.Module),
-		rego.Module("helpers.rego", helpers))
+
+	// rego modules
+	ruleModules, err := computeRuleModules(rule, meta)
+	if err != nil {
+		return err
+	}
+	moduleArgs = append(moduleArgs, ruleModules...)
+
+	// rego builtins
 	moduleArgs = append(moduleArgs, regoBuiltins...)
+
+	// rego query
+	moduleArgs = append(moduleArgs, rego.Query(rule.Findings))
 
 	preparedEvalQuery, err := rego.New(
 		moduleArgs...,
