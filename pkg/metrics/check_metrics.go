@@ -45,6 +45,7 @@ func NewCheckMetrics(expireMetrics bool, statefulTimeout time.Duration) CheckMet
 		expireMetrics:   expireMetrics,
 		statefulTimeout: statefulTimeout.Seconds(),
 		metrics:         MakeContextMetrics(),
+		// many checks do not have stateful metrics, so avoid allocating `deadlines` unless required
 		deadlines:       nil,
 	}
 }
@@ -102,7 +103,7 @@ func (cm *CheckMetrics) Flush(timestamp float64) ([]*Serie, map[ckey.ContextKey]
 	return cm.metrics.Flush(timestamp)
 }
 
-// Cleanup removes expired stateful metrics.
+// Cleanup removes stateful metrics that have expired before the given timestamp.
 func (cm *CheckMetrics) Cleanup(timestamp float64) {
 	removed := 0.0
 	for key, deadline := range cm.deadlines {
