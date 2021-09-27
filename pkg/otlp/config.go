@@ -16,6 +16,8 @@ const (
 	experimentalHTTPPortSetting  = "experimental.otlp.http_port"
 	experimentalgRPCPortSetting  = "experimental.otlp.grpc_port"
 	experimentalTracePortSetting = "experimental.otlp.internal_traces_port"
+	experimentalMetricsEnabled   = "experimental.otlp.metrics_enabled"
+	experimentalTracesEnabled    = "experimental.otlp.traces_enabled"
 )
 
 // getReceiverHost gets the receiver host for the OTLP endpoint in a given config.
@@ -70,11 +72,19 @@ func fromExperimentalConfig(cfg config.Config) (PipelineConfig, error) {
 		errs = append(errs, fmt.Errorf("internal trace port is invalid: %w", err))
 	}
 
+	metricsEnabled := cfg.GetBool(experimentalMetricsEnabled)
+	tracesEnabled := cfg.GetBool(experimentalTracesEnabled)
+	if !metricsEnabled && !tracesEnabled {
+		errs = append(errs, fmt.Errorf("at least one OTLP signal needs to be enabled"))
+	}
+
 	return PipelineConfig{
-		BindHost:  getReceiverHost(cfg),
-		HTTPPort:  httpPort,
-		GRPCPort:  gRPCPort,
-		TracePort: tracePort,
+		BindHost:       getReceiverHost(cfg),
+		HTTPPort:       httpPort,
+		GRPCPort:       gRPCPort,
+		TracePort:      tracePort,
+		MetricsEnabled: metricsEnabled,
+		TracesEnabled:  tracesEnabled,
 	}, multierr.Combine(errs...)
 }
 

@@ -16,8 +16,11 @@ import (
 
 func loadConfig(path string) (config.Config, error) {
 	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	cfg.BindEnvAndSetDefault(experimentalMetricsEnabled, true)
+	cfg.BindEnvAndSetDefault(experimentalTracesEnabled, true)
 	cfg.BindEnv(experimentalHTTPPortSetting, "DD_OTLP_HTTP_PORT")
 	cfg.BindEnv(experimentalgRPCPortSetting, "DD_OTLP_GRPC_PORT")
+
 	cfg.BindEnvAndSetDefault(experimentalTracePortSetting, 5003)
 	cfg.BindEnv("apm_config.apm_non_local_traffic", "DD_APM_NON_LOCAL_TRAFFIC")
 
@@ -83,20 +86,24 @@ func TestFromAgentConfig(t *testing.T) {
 			name: "bind_host",
 			path: "./testdata/bindhost.yaml",
 			cfg: PipelineConfig{
-				BindHost:  "bindhost",
-				HTTPPort:  1234,
-				GRPCPort:  5678,
-				TracePort: 5003,
+				BindHost:       "bindhost",
+				HTTPPort:       1234,
+				GRPCPort:       5678,
+				TracePort:      5003,
+				MetricsEnabled: true,
+				TracesEnabled:  true,
 			},
 		},
 		{
 			name: "no bind_host",
 			path: "./testdata/nobindhost.yaml",
 			cfg: PipelineConfig{
-				BindHost:  "localhost",
-				HTTPPort:  1234,
-				GRPCPort:  5678,
-				TracePort: 5003,
+				BindHost:       "localhost",
+				HTTPPort:       1234,
+				GRPCPort:       5678,
+				TracePort:      5003,
+				MetricsEnabled: true,
+				TracesEnabled:  true,
 			},
 		},
 		{
@@ -110,16 +117,22 @@ func TestFromAgentConfig(t *testing.T) {
 				"; ",
 			),
 		},
-
 		{
 			name: "nonlocal",
 			path: "./testdata/nonlocal.yaml",
 			cfg: PipelineConfig{
-				BindHost:  "0.0.0.0",
-				HTTPPort:  1234,
-				GRPCPort:  5678,
-				TracePort: 5003,
+				BindHost:       "0.0.0.0",
+				HTTPPort:       1234,
+				GRPCPort:       5678,
+				TracePort:      5003,
+				MetricsEnabled: true,
+				TracesEnabled:  true,
 			},
+		},
+		{
+			name: "all disabled",
+			path: "./testdata/alldisabled.yaml",
+			err:  "at least one OTLP signal needs to be enabled",
 		},
 	}
 
