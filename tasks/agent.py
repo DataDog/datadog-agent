@@ -77,7 +77,7 @@ IOT_AGENT_CORECHECKS = [
 CACHED_WHEEL_FILENAME_PATTERN = "datadog_{integration}-*.whl"
 CACHED_WHEEL_DIRECTORY_PATTERN = "integration-wheels/{hash}/{python_version}/"
 CACHED_WHEEL_FULL_PATH_PATTERN = CACHED_WHEEL_DIRECTORY_PATTERN + CACHED_WHEEL_FILENAME_PATTERN
-LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} log -n 1 --pretty=%H {integration}"
+LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} rev-list -1 HEAD {integration}"
 
 
 @task
@@ -720,7 +720,7 @@ def get_integrations_from_cache(ctx, python, bucket, integrations_dir, target_di
     # we do multiple syncs that fit within that limit (we use 8100 as a nice round number
     # and just to make sure we don't do any of-by-one errors that would break this).
     # WINDOWS NOTES: on Windows, the awscli is usually in program files, so we have to wrap the
-    # executable in parentheses; also we have to not put the * in parentheses, as there's no
+    # executable in quotes; also we have to not put the * in quotes, as there's no
     # expansion on it, unlike on Linux
     exclude_wildcard = "*" if platform.system().lower() == "windows" else "'*'"
     sync_command_prefix = "\"{}\" s3 sync s3://{} {} --exclude {}".format(awscli, bucket, target_dir, exclude_wildcard)
