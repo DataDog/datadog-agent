@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix CSPM not sending intake protocol causing lack of host tags.
