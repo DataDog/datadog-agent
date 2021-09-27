@@ -1090,6 +1090,12 @@ func (z *ConfigResponse) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "ConfigSnapshotVersion")
 				return
 			}
+		case "ConfigDelegatedTargetVersion":
+			z.ConfigDelegatedTargetVersion, err = dc.ReadUint64()
+			if err != nil {
+				err = msgp.WrapError(err, "ConfigDelegatedTargetVersion")
+				return
+			}
 		case "DirectoryRoots":
 			var zb0002 uint32
 			zb0002, err = dc.ReadArrayHeader()
@@ -1218,15 +1224,25 @@ func (z *ConfigResponse) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *ConfigResponse) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 7
+	// map header, size 8
 	// write "ConfigSnapshotVersion"
-	err = en.Append(0x87, 0xb5, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x53, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	err = en.Append(0x88, 0xb5, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x53, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
 	if err != nil {
 		return
 	}
 	err = en.WriteUint64(z.ConfigSnapshotVersion)
 	if err != nil {
 		err = msgp.WrapError(err, "ConfigSnapshotVersion")
+		return
+	}
+	// write "ConfigDelegatedTargetVersion"
+	err = en.Append(0xbc, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x44, 0x65, 0x6c, 0x65, 0x67, 0x61, 0x74, 0x65, 0x64, 0x54, 0x61, 0x72, 0x67, 0x65, 0x74, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	if err != nil {
+		return
+	}
+	err = en.WriteUint64(z.ConfigDelegatedTargetVersion)
+	if err != nil {
+		err = msgp.WrapError(err, "ConfigDelegatedTargetVersion")
 		return
 	}
 	// write "DirectoryRoots"
@@ -1330,10 +1346,13 @@ func (z *ConfigResponse) EncodeMsg(en *msgp.Writer) (err error) {
 // MarshalMsg implements msgp.Marshaler
 func (z *ConfigResponse) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 7
+	// map header, size 8
 	// string "ConfigSnapshotVersion"
-	o = append(o, 0x87, 0xb5, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x53, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	o = append(o, 0x88, 0xb5, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x53, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
 	o = msgp.AppendUint64(o, z.ConfigSnapshotVersion)
+	// string "ConfigDelegatedTargetVersion"
+	o = append(o, 0xbc, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x44, 0x65, 0x6c, 0x65, 0x67, 0x61, 0x74, 0x65, 0x64, 0x54, 0x61, 0x72, 0x67, 0x65, 0x74, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	o = msgp.AppendUint64(o, z.ConfigDelegatedTargetVersion)
 	// string "DirectoryRoots"
 	o = append(o, 0xae, 0x44, 0x69, 0x72, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x79, 0x52, 0x6f, 0x6f, 0x74, 0x73)
 	o = msgp.AppendArrayHeader(o, uint32(len(z.DirectoryRoots)))
@@ -1408,6 +1427,12 @@ func (z *ConfigResponse) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			z.ConfigSnapshotVersion, bts, err = msgp.ReadUint64Bytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "ConfigSnapshotVersion")
+				return
+			}
+		case "ConfigDelegatedTargetVersion":
+			z.ConfigDelegatedTargetVersion, bts, err = msgp.ReadUint64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "ConfigDelegatedTargetVersion")
 				return
 			}
 		case "DirectoryRoots":
@@ -1536,7 +1561,7 @@ func (z *ConfigResponse) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *ConfigResponse) Msgsize() (s int) {
-	s = 1 + 22 + msgp.Uint64Size + 15 + msgp.ArrayHeaderSize
+	s = 1 + 22 + msgp.Uint64Size + 29 + msgp.Uint64Size + 15 + msgp.ArrayHeaderSize
 	for za0001 := range z.DirectoryRoots {
 		if z.DirectoryRoots[za0001] == nil {
 			s += msgp.NilSize

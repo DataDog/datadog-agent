@@ -130,8 +130,9 @@ func (s *Service) refresh() {
 		return
 	}
 
-	refreshedProducts := make(map[string][]*pbgo.File)
+	refreshedProducts := make(map[*pbgo.DelegatedMeta][]*pbgo.File)
 
+TARGETFILE:
 	for _, targetFile := range response.TargetFiles {
 		product, err := getTargetProduct(targetFile.Path)
 		if err != nil {
@@ -139,19 +140,29 @@ func (s *Service) refresh() {
 			continue
 		}
 
-		log.Debugf("Received configuration for product %s", product)
-		refreshedProducts[product] = append(refreshedProducts[product], targetFile)
+		for _, delegatedTarget := range response.ConfigMetas.DelegatedTargets {
+			if delegatedTarget.Role == product {
+				log.Debugf("Received configuration for product %s", product)
+				refreshedProducts[delegatedTarget] = append(refreshedProducts[delegatedTarget], targetFile)
+				continue TARGETFILE
+			}
+		}
+
+		log.Errorf("Failed to find delegated target for %s", product)
+		return
 	}
 
 	log.Debugf("Possibly notify subscribers")
-	for product, targetFiles := range refreshedProducts {
+	for delegatedTarget, targetFiles := range refreshedProducts {
 		configResponse := &pbgo.ConfigResponse{
-			ConfigSnapshotVersion: response.DirectorMetas.Snapshot.Version,
-			DirectoryRoots:        response.DirectorMetas.Roots,
-			DirectoryTargets:      response.DirectorMetas.Targets,
-			TargetFiles:           targetFiles,
+			ConfigSnapshotVersion:        response.DirectorMetas.Snapshot.Version,
+			ConfigDelegatedTargetVersion: delegatedTarget.Version,
+			DirectoryRoots:               response.DirectorMetas.Roots,
+			DirectoryTargets:             response.DirectorMetas.Targets,
+			TargetFiles:                  targetFiles,
 		}
 
+		product := delegatedTarget.GetRole()
 	SUBSCRIBER:
 		for _, subscriber := range refreshSubscribers[product] {
 			if response.DirectorMetas.Snapshot.Version <= subscriber.lastVersion {

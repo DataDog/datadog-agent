@@ -65,9 +65,10 @@ enum Product {
 
 message ConfigResponse {
   uint64 config_snapshot_version = 1;
-  repeated TopMeta directoryRoots = 2;
-  TopMeta directoryTargets = 3;
-  repeated File target_files = 4;
+  uint64 config_delegated_target_version = 2;
+  repeated TopMeta directoryRoots = 3;
+  TopMeta directoryTargets = 4;
+  repeated File target_files = 5;
 }
 
 message SubscribeConfigRequest {
