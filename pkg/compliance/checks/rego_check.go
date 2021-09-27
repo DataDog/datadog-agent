@@ -136,7 +136,14 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 		input = providedInput
 
 		resultFinalizer = func(findings []regoFinding) []*compliance.Report {
-			log.Infof("findings: %v", findings)
+			for _, finding := range findings {
+				jsonData, err := prettyPrintJSON(finding)
+				if err != nil {
+					log.Warnf("failed to pretty-print finding %v", finding)
+					continue
+				}
+				log.Infof("finding: %v", string(jsonData))
+			}
 			return nil
 		}
 	} else {
@@ -151,14 +158,14 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 			var reports []*compliance.Report
 			for _, finding := range findings {
 				reportResource := compliance.ReportResource{
-					ID:   finding.resourceID,
-					Type: finding.resourceType,
+					ID:   finding.ResourceID,
+					Type: finding.ResourceType,
 				}
 
 				report := &compliance.Report{
 					Resource: reportResource,
-					Passed:   finding.status,
-					Data:     finding.data,
+					Passed:   finding.Status,
+					Data:     finding.Data,
 				}
 
 				reports = append(reports, report)
@@ -195,6 +202,20 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 	return reports
 }
 
+func prettyPrintJSON(data interface{}) ([]byte, error) {
+	unformatted, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+
+	var buffer bytes.Buffer
+	if err := json.Indent(&buffer, unformatted, "", "\t"); err != nil {
+		return nil, err
+	}
+
+	return buffer.Bytes(), nil
+}
+
 func dumpInputToFile(ruleID, path string, input interface{}) error {
 	currentData := make(map[string]interface{})
 	currentContent, err := ioutil.ReadFile(path)
@@ -206,17 +227,12 @@ func dumpInputToFile(ruleID, path string, input interface{}) error {
 
 	currentData[ruleID] = input
 
-	jsonInputDump, err := json.Marshal(currentData)
+	jsonData, err := prettyPrintJSON(currentData)
 	if err != nil {
 		return err
 	}
 
-	var buffer bytes.Buffer
-	if err := json.Indent(&buffer, jsonInputDump, "", "\t"); err != nil {
-		return err
-	}
-
-	return ioutil.WriteFile(path, buffer.Bytes(), 0644)
+	return ioutil.WriteFile(path, jsonData, 0644)
 }
 
 func (r *regoCheck) appendInstance(input map[string][]interface{}, key string, instance eval.Instance) {
@@ -229,10 +245,10 @@ func (r *regoCheck) appendInstance(input map[string][]interface{}, key string, i
 }
 
 type regoFinding struct {
-	status       bool
-	resourceType string
-	resourceID   string
-	data         event.Data
+	Status       bool       `json:"status"`
+	ResourceType string     `json:"resource_type"`
+	ResourceID   string     `json:"resource_id"`
+	Data         event.Data `json:"data"`
 }
 
 func parseFindings(regoData interface{}) ([]regoFinding, error) {
@@ -270,10 +286,10 @@ func parseFindings(regoData interface{}) ([]regoFinding, error) {
 		}
 
 		finding := regoFinding{
-			status:       status,
-			resourceID:   id,
-			resourceType: rty,
-			data:         data,
+			Status:       status,
+			ResourceID:   id,
+			ResourceType: rty,
+			Data:         data,
 		}
 
 		res = append(res, finding)
