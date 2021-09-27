@@ -374,18 +374,23 @@ build do
       end
     end
 
-    # Patch applies to only one file: set it explicitly as a target, no need for -p
-    if windows?
-      patch :source => "create-regex-at-runtime.patch", :target => "#{python_2_embedded}/Lib/site-packages/yaml/reader.py"
-    else
-      patch :source => "create-regex-at-runtime.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/yaml/reader.py"
-    end
+    block do
+      # We have to run these operations in block, so they get applied after operations
+      # from the last block
 
-    # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
-    if windows?
-      command "#{python} -m pip check"
-    else
-      command "#{pip} check"
+      # Patch applies to only one file: set it explicitly as a target, no need for -p
+      if windows?
+        patch :source => "create-regex-at-runtime.patch", :target => "#{python_2_embedded}/Lib/site-packages/yaml/reader.py"
+      else
+        patch :source => "create-regex-at-runtime.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/yaml/reader.py"
+      end
+
+      # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
+      if windows?
+        command "#{python} -m pip check"
+      else
+        command "#{pip} check"
+      end
     end
   end
 
