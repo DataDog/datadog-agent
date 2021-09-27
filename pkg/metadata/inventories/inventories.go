@@ -19,9 +19,9 @@ type schedulerInterface interface {
 	TriggerAndResetCollectorTimer(name string, delay time.Duration)
 }
 
-// AutoConfigInterface is an interface for the GetLoadedConfigs method of autodiscovery
+// AutoConfigInterface is an interface for the MapOverLoadedConfigs method of autodiscovery
 type AutoConfigInterface interface {
-	GetLoadedConfigs() map[string]integration.Config
+	MapOverLoadedConfigs(func(map[string]integration.Config))
 }
 
 // CollectorInterface is an interface for the GetAllInstanceIDs method of the collector
@@ -135,16 +135,17 @@ func CreatePayload(ctx context.Context, hostname string, ac AutoConfigInterface,
 
 	foundInCollector := map[string]struct{}{}
 	if ac != nil {
-		configs := ac.GetLoadedConfigs()
-		for _, config := range configs {
-			checkMetadata[config.Name] = make([]*CheckInstanceMetadata, 0)
-			instanceIDs := coll.GetAllInstanceIDs(config.Name)
-			for _, id := range instanceIDs {
-				checkInstanceMetadata := createCheckInstanceMetadata(string(id), config.Provider)
-				checkMetadata[config.Name] = append(checkMetadata[config.Name], checkInstanceMetadata)
-				foundInCollector[string(id)] = struct{}{}
+		ac.MapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
+			for _, config := range loadedConfigs {
+				checkMetadata[config.Name] = make([]*CheckInstanceMetadata, 0)
+				instanceIDs := coll.GetAllInstanceIDs(config.Name)
+				for _, id := range instanceIDs {
+					checkInstanceMetadata := createCheckInstanceMetadata(string(id), config.Provider)
+					checkMetadata[config.Name] = append(checkMetadata[config.Name], checkInstanceMetadata)
+					foundInCollector[string(id)] = struct{}{}
+				}
 			}
-		}
+		})
 	}
 	// if metadata where added for check not in the collector we still need
 	// to add them to the checkMetadata (this happens when using the
