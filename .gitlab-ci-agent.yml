@@ -818,7 +818,6 @@ molecule_integrations_success_cleanup:
 molecule_kubernetes_create:
   <<: *molecule
   <<: *molecule_create
-  resource_group: eks_test_cluster
   rules:
     - *kubernetes_ignore_rule
     - *only_agent_3
@@ -846,7 +845,6 @@ molecule_kubernetes_test:
 molecule_kubernetes_failure_cleanup:
   <<: *molecule
   <<: *molecule_destroy
-  resource_group: eks_test_cluster
   rules:
     - *kubernetes_ignore_rule
     - *only_agent_3_on_failure
@@ -860,7 +858,6 @@ molecule_kubernetes_failure_cleanup:
 molecule_kubernetes_success_cleanup:
   <<: *molecule
   <<: *molecule_destroy
-  resource_group: eks_test_cluster
   rules:
     - *kubernetes_ignore_rule
     - *only_agent_3_on_success
