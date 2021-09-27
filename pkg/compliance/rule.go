@@ -8,6 +8,11 @@ package compliance
 
 import "fmt"
 
+type ComplianceRule interface {
+	ResourceCount() int
+	Common() *RuleCommon
+}
+
 // RuleCommon defines the base fields of a rule in a compliance config
 type RuleCommon struct {
 	ID           string        `yaml:"id"`
@@ -23,12 +28,28 @@ type Rule struct {
 	Resources  []Resource `yaml:"resources,omitempty"`
 }
 
+func (r *Rule) ResourceCount() int {
+	return len(r.Resources)
+}
+
+func (r *Rule) Common() *RuleCommon {
+	return &r.RuleCommon
+}
+
 // RegoRule defines a rule in a compliance config
 type RegoRule struct {
 	RuleCommon `yaml:",inline"`
 	Resources  []RegoResource `yaml:"inputs,omitempty"`
 	Module     string         `yaml:"module,omitempty"`
 	Findings   string         `yaml:"findings,omitempty"`
+}
+
+func (r *RegoRule) ResourceCount() int {
+	return len(r.Resources)
+}
+
+func (r *RegoRule) Common() *RuleCommon {
+	return &r.RuleCommon
 }
 
 // RuleScope defines scope for applicability of a rule
