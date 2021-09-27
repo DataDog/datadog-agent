@@ -308,6 +308,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	return &network.Connections{
 		Conns:                       delta.Connections,
 		DNS:                         names,
+		DNSStats:                    delta.DNSStats,
 		HTTP:                        delta.HTTP,
 		ConnTelemetry:               ctm,
 		CompilationTelemetryByAsset: rctm,
