@@ -206,7 +206,7 @@ std::optional<CustomActionData::User> CustomActionData::findPreviousUserInfo()
         WcaLog(LOGMSG_STANDARD, "previous user registration not found in registry");
         return std::nullopt;
     }
-    WcaLog(LOGMSG_STANDARD, "found previous user (%S) registration in registry", user.Name.c_str());
+    WcaLog(LOGMSG_STANDARD, "found previous user (%S\\%S) registration in registry", user.Domain.c_str(), user.Name.c_str());
     return std::optional<User>(user);
 }
 
