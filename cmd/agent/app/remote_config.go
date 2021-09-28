@@ -64,16 +64,15 @@ func replaceRaw(obj interface{}) interface{} {
 				decoded, _ := base64.RawStdEncoding.DecodeString(bytes)
 				obj[k] = string(decoded)
 			} else {
-				obj[k] = replaceRaw(v)
+				replaceRaw(v)
 			}
 		}
 		return obj
 	case []interface{}:
-		objs := make([]interface{}, len(obj))
-		for i, v := range obj {
-			objs[i] = replaceRaw(v)
+		for _, v := range obj {
+			replaceRaw(v)
 		}
-		return objs
+		return obj
 	default:
 		return obj
 	}
