@@ -73,7 +73,10 @@ func parseMeta(name string) (version int, role string, _ error) {
 
 // GetMeta downloads the given metadata from remote storage.
 //
-// `name` is the filename of the metadata (e.g. "root.json")
+// `name` is the filename of the metadata. It can be either
+//        the name of a role ending with .json such as "root.json" when asking for
+//        the current version, or <VERSION>.<ROLE>.json to request a
+//        particular version 3.root.json
 //
 // `err` is ErrNotFound if the given file does not exist.
 //
