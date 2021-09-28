@@ -296,13 +296,25 @@ func cronJobLastScheduleTransformer(s aggregator.Sender, name string, metric ksm
 	s.Gauge(ksmMetricPrefix+"cronjob.duration_since_last_schedule", float64(now().Unix())-metric.Val, hostname, tags)
 }
 
-// jobCompleteTransformer sends a service check based on kube_job_complete
+// jobCompleteTransformer sends a metric and a service check based on kube_job_complete
 func jobCompleteTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+	for i, tag := range tags {
+		if tag == "condition:true" {
+			jobMetric(s, metric, ksmMetricPrefix+"job.completion.succeeded", hostname, append(tags[:i], tags[i+1:]...))
+			break
+		}
+	}
 	jobServiceCheck(s, metric, metrics.ServiceCheckOK, hostname, tags)
 }
 
-// jobFailedTransformer sends a service check based on kube_job_failed
+// jobFailedTransformer sends a metric and a service check based on kube_job_failed
 func jobFailedTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+	for i, tag := range tags {
+		if tag == "condition:true" {
+			jobMetric(s, metric, ksmMetricPrefix+"job.completion.failed", hostname, append(tags[:i], tags[i+1:]...))
+			break
+		}
+	}
 	jobServiceCheck(s, metric, metrics.ServiceCheckCritical, hostname, tags)
 }
 
