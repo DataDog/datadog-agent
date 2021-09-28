@@ -106,13 +106,15 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_ty
     if (!syscall)
         return 0;
 
+    int pass_to_userspace = !syscall->discarded && is_event_enabled(EVENT_LINK);
+
     // invalidate user face inode, so no need to bump the discarder revision in the event
     if (retval >= 0) {
         // for hardlink we need to invalidate the cache as the nlink counter in now > 1
-        invalidate_inode(ctx, syscall->link.src_file.path_key.mount_id, syscall->link.src_file.path_key.ino, !is_event_enabled(EVENT_LINK));
+        invalidate_inode(ctx, syscall->link.src_file.path_key.mount_id, syscall->link.src_file.path_key.ino, !pass_to_userspace);
     }
 
-    if (!syscall->discarded && is_event_enabled(EVENT_LINK)) {
+    if (pass_to_userspace) {
         syscall->resolver.dentry = syscall->link.target_dentry;
         syscall->resolver.key = syscall->link.target_file.path_key;
         syscall->resolver.discarder_type = 0;

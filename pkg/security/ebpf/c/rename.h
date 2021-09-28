@@ -114,12 +114,14 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
         invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, inode, 1);
     }
 
+    int pass_to_userspace = !syscall->discarded && is_event_enabled(EVENT_RENAME);
+
     // invalidate user face inode, so no need to bump the discarder revision in the event
     if (retval >= 0) {
-        invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, syscall->rename.target_file.path_key.ino, !is_event_enabled(EVENT_RENAME));
+        invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, syscall->rename.target_file.path_key.ino, !pass_to_userspace);
     }
 
-    if (!syscall->discarded && is_event_enabled(EVENT_RENAME)) {
+    if (pass_to_userspace) {
         // for centos7, use src dentry for target resolution as the pointers have been swapped
         syscall->resolver.key = syscall->rename.target_file.path_key;
         syscall->resolver.dentry = syscall->rename.src_dentry;
