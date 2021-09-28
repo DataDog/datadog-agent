@@ -236,6 +236,9 @@ func (dr *DentryResolver) DelCacheEntry(mountID uint32, inode uint64) {
 			}
 			entries.Remove(key.Inode)
 
+			// place the entry to the pool
+			dr.pathEntryPool.Put(path)
+
 			parent := path.(*PathEntry).Parent
 			if parent.Inode == 0 {
 				break
@@ -243,9 +246,6 @@ func (dr *DentryResolver) DelCacheEntry(mountID uint32, inode uint64) {
 
 			// Prepare next key
 			key = parent
-
-			// place the entry to the pool
-			dr.pathEntryPool.Put(path)
 		}
 	}
 }
@@ -338,7 +338,9 @@ func (dr *DentryResolver) GetNameFromMap(mountID uint32, inode uint64, pathID ui
 
 	cacheKey := PathKey{MountID: mountID, Inode: inode}
 	cacheEntry := dr.getPathEntryFromPool(pathLeaf.Parent, pathLeaf.GetName())
-	_ = dr.cacheInode(cacheKey, cacheEntry)
+	if err := dr.cacheInode(cacheKey, cacheEntry); err != nil {
+		dr.pathEntryPool.Put(cacheEntry)
+	}
 	return cacheEntry.Name, nil
 }
 
@@ -404,6 +406,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 	var cacheEntry *PathEntry
 	var err, resolutionErr error
 	var filename string
+	var name string
 	var path PathLeaf
 	key := PathKey{MountID: mountID, Inode: inode, PathID: pathID}
 
@@ -426,7 +429,6 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		depth++
 
 		cacheKey = PathKey{MountID: key.MountID, Inode: key.Inode}
-		cacheEntry = dr.getPathEntryFromPool(path.Parent, "")
 
 		if path.Name[0] == '\x00' {
 			if depth >= model.MaxPathDepth {
@@ -439,13 +441,18 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
 		if path.Name[0] == '/' {
-			cacheEntry.Name = "/"
+			name = "/"
 		} else {
-			cacheEntry.Name = C.GoString((*C.char)(unsafe.Pointer(&path.Name)))
-			filename = "/" + cacheEntry.Name + filename
+			name = C.GoString((*C.char)(unsafe.Pointer(&path.Name)))
+			filename = "/" + name + filename
 		}
 
-		toAdd[cacheKey] = cacheEntry
+		// do not cache fake path keys in the case of rename events
+		if key.Inode>>32 != fakeInodeMSW {
+			cacheEntry.Name = name
+			cacheEntry = dr.getPathEntryFromPool(path.Parent, "")
+			toAdd[cacheKey] = cacheEntry
+		}
 
 		if path.Parent.Inode == 0 {
 			break
@@ -466,15 +473,19 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 
 	if err == nil {
 		for k, v := range toAdd {
-			// do not cache fake path keys in the case of rename events
-			if !IsFakeInode(k.Inode) {
-				_ = dr.cacheInode(k, v)
+			if err := dr.cacheInode(k, v); err != nil {
+				dr.pathEntryPool.Put(v)
 			}
 		}
 		if depth > 0 {
 			atomic.AddInt64(dr.hitsCounters[metrics.PathResolutionTag][metrics.KernelMapsTag], depth)
 		}
 	} else {
+		// nothing inserted in cache, release everything
+		for _, v := range toAdd {
+			dr.pathEntryPool.Put(v)
+		}
+
 		atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.KernelMapsTag], 1)
 	}
 
@@ -625,7 +636,9 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 				cacheEntry.Parent = keys[i+1]
 			}
 
-			_ = dr.cacheInode(k, cacheEntry)
+			if err := dr.cacheInode(k, cacheEntry); err != nil {
+				dr.pathEntryPool.Put(cacheEntry)
+			}
 		}
 
 		if depth > 0 {
