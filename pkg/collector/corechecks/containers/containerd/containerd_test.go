@@ -8,16 +8,12 @@
 package containerd
 
 import (
-	"encoding/json"
 	"sort"
 	"testing"
 	"time"
 
 	v1 "github.com/containerd/cgroups/stats/v1"
-	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/containers"
-	"github.com/containerd/typeurl"
-	prototypes "github.com/gogo/protobuf/types"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -389,62 +385,6 @@ func TestComputeUptime(t *testing.T) {
 			computeUptime(mocked, test.ctn, currentTime, []string{})
 			for name, val := range test.expected {
 				mocked.AssertMetric(t, "Gauge", name, val, "", []string{})
-			}
-		})
-	}
-}
-
-// TestConvertTaskToMetrics checks the convertTasktoMetrics
-func TestConvertTaskToMetrics(t *testing.T) {
-	typeurl.Register(&v1.Metrics{}, "io.containerd.cgroups.v1.Metrics") // Need to register the type to be used in UnmarshalAny later on.
-
-	tests := []struct {
-		name     string
-		typeURL  string
-		values   v1.Metrics
-		error    string
-		expected *v1.Metrics
-	}{
-		{
-			"unregistered type",
-			"io.containerd.cgroups.v1.Doge",
-			v1.Metrics{},
-			"type with url io.containerd.cgroups.v1.Doge: not found",
-			nil,
-		},
-		{
-			"missing values",
-			"io.containerd.cgroups.v1.Metrics",
-			v1.Metrics{},
-			"",
-			&v1.Metrics{},
-		},
-		{
-			"fully functional",
-			"io.containerd.cgroups.v1.Metrics",
-			v1.Metrics{Memory: &v1.MemoryStat{Cache: 100}},
-			"",
-			&v1.Metrics{
-				Memory: &v1.MemoryStat{
-					Cache: 100,
-				},
-			},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			typeURL := test.typeURL
-			jsonValue, _ := json.Marshal(test.values)
-			metric := &types.Metric{
-				Data: &prototypes.Any{
-					TypeUrl: typeURL,
-					Value:   jsonValue,
-				},
-			}
-			m, e := convertTasktoMetrics(metric)
-			require.Equal(t, test.expected, m)
-			if e != nil {
-				require.Equal(t, e.Error(), test.error)
 			}
 		})
 	}
