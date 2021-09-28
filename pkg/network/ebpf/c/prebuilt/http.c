@@ -175,6 +175,7 @@ int uretprobe__SSL_read(struct pt_regs* ctx) {
     }
 
     void *ssl_ctx = args->ctx;
+    log_debug("CANONICAL-GNUTLS-DEBUG-LINE uretprobe/uretprobe__SSL_read ssl_ctx=0x%x\n", ssl_ctx);
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_ctx, pid_tgid);
     if (t == NULL) {
         goto cleanup;
@@ -237,6 +238,157 @@ int uprobe__SSL_shutdown(struct pt_regs* ctx) {
     skb_info.tcp_flags |= TCPHDR_FIN;
     http_process(buffer, &skb_info, skb_info.tup.sport);
     bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
+    return 0;
+}
+
+// void gnutls_transport_set_int (gnutls_session_t session, int fd)
+// Note: this function is implemented as a macro in gnutls
+// that calls gnutls_transport_set_int2, so no uprobe is needed
+
+// void gnutls_transport_set_int2 (gnutls_session_t session, int recv_fd, int send_fd)
+SEC("uprobe/gnutls_transport_set_int2")
+int uprobe__gnutls_transport_set_int2(struct pt_regs* ctx) {
+    void *ssl_session = (void *)PT_REGS_PARM1(ctx);
+    // Use the recv_fd and ignore the send_fd;
+    // in most real-world scenarios, they are the same.
+    int recv_fd = (int)PT_REGS_PARM2(ctx);
+
+    log_debug("CANONICAL-GNUTLS-DEBUG-LINE uprobe/gnutls_transport_set_int2 ssl_session=0x%x recv_fd=%d\n", ssl_session, recv_fd);
+    init_ssl_sock(ssl_session, (u32)recv_fd);
+    return 0;
+}
+
+// void gnutls_transport_set_ptr (gnutls_session_t session, gnutls_transport_ptr_t ptr)
+// "In berkeley style sockets this function will set the connection descriptor."
+SEC("uprobe/gnutls_transport_set_ptr")
+int uprobe__gnutls_transport_set_ptr(struct pt_regs* ctx) {
+    void *ssl_session = (void *)PT_REGS_PARM1(ctx);
+    // This should include the file descriptor cast as a pointer
+    void *fd_as_ptr = (void *)PT_REGS_PARM2(ctx);
+
+    int fd = (int)(uintptr_t)fd_as_ptr;
+    log_debug("CANONICAL-GNUTLS-DEBUG-LINE uprobe/gnutls_transport_set_ptr ssl_session=0x%x fd_as_ptr=0x%x fd=%d\n", ssl_session, fd_as_ptr, fd);
+    init_ssl_sock(ssl_session, (u32)fd);
+    return 0;
+}
+
+// void gnutls_transport_set_ptr2 (gnutls_session_t session, gnutls_transport_ptr_t recv_ptr, gnutls_transport_ptr_t send_ptr)
+// "In berkeley style sockets this function will set the connection descriptor."
+SEC("uprobe/gnutls_transport_set_ptr2")
+int uprobe__gnutls_transport_set_ptr2(struct pt_regs* ctx) {
+    void *ssl_session = (void *)PT_REGS_PARM1(ctx);
+    // Use the recv_ptr and ignore the send_ptr;
+    // in most real-world scenarios, they are the same.
+    // This should include the file descriptor cast as a pointer
+    void *recv_fd_as_ptr = (void *)PT_REGS_PARM2(ctx);
+
+    int recv_fd = (int)(uintptr_t)recv_fd_as_ptr;
+    log_debug("CANONICAL-GNUTLS-DEBUG-LINE uprobe/gnutls_transport_set_ptr2 ssl_session=0x%x recv_fd_as_ptr=0x%x recv_fd=%d\n", ssl_session, recv_fd_as_ptr, recv_fd);
+    init_ssl_sock(ssl_session, (u32)recv_fd);
+    return 0;
+}
+
+// ssize_t gnutls_record_recv (gnutls_session_t session, void * data, size_t data_size)
+SEC("uprobe/gnutls_record_recv")
+int uprobe__gnutls_record_recv(struct pt_regs* ctx) {
+    void *ssl_session = (void *)PT_REGS_PARM1(ctx);
+    void *data = (void *)PT_REGS_PARM2(ctx);
+
+    // Re-use the map for SSL_read
+    ssl_read_args_t args = {
+        .ctx = ssl_session,
+        .buf = data,
+    };
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("CANONICAL-GNUTLS-DEBUG-LINE uprobe/gnutls_record_recv ssl_session=0x%x data=0x%x data_size=%d\n", ssl_session, data, (size_t)PT_REGS_PARM2(ctx));
+    bpf_map_update_elem(&ssl_read_args, &pid_tgid, &args, BPF_ANY);
+    return 0;
+}
+
+// ssize_t gnutls_record_recv (gnutls_session_t session, void * data, size_t data_size)
+SEC("uretprobe/gnutls_record_recv")
+int uretprobe__gnutls_record_recv(struct pt_regs* ctx) {
+    ssize_t read_len = (ssize_t)PT_REGS_RC(ctx);
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    // Re-use the map for SSL_read
+    ssl_read_args_t *args = bpf_map_lookup_elem(&ssl_read_args, &pid_tgid);
+    if (args == NULL) {
+        log_debug("CANONICAL-GNUTLS-DEBUG-LINE uretprobe/gnutls_record_recv no args in map\n");
+        return 0;
+    }
+    log_debug("CANONICAL-GNUTLS-DEBUG-LINE uretprobe/gnutls_record_recv args.ctx=0x%x args.buf=0x%x read_len=%d\n", args->ctx, args->buf, read_len);
+
+    void *ssl_session = args->ctx;
+    conn_tuple_t *t = tup_from_ssl_ctx(ssl_session, pid_tgid);
+    if (t == NULL) {
+        goto cleanup;
+    }
+
+    char buffer[HTTP_BUFFER_SIZE];
+    __builtin_memset(buffer, 0, sizeof(buffer));
+    if (read_len >= HTTP_BUFFER_SIZE) {
+        bpf_probe_read(buffer, sizeof(buffer), args->buf);
+    }
+
+    skb_info_t skb_info = {0};
+    __builtin_memcpy(&skb_info.tup, t, sizeof(conn_tuple_t));
+    http_process(buffer, &skb_info, skb_info.tup.sport);
+ cleanup:
+    bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
+    return 0;
+}
+
+// ssize_t gnutls_record_send (gnutls_session_t session, const void * data, size_t data_size)
+SEC("uprobe/gnutls_record_send")
+int uprobe__gnutls_record_send(struct pt_regs* ctx) {
+    void *ssl_session = (void *)PT_REGS_PARM1(ctx);
+    void *data = (void *)PT_REGS_PARM2(ctx);
+    size_t data_size = (size_t)PT_REGS_PARM2(ctx);
+
+    log_debug("CANONICAL-GNUTLS-DEBUG-LINE uretprobe/gnutls_record_send ssl_session=0x%x data=0x%x data_size=%d\n\n", ssl_session, data, data_size);
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    conn_tuple_t *t = tup_from_ssl_ctx(ssl_session, pid_tgid);
+    if (t == NULL) {
+        return 0;
+    }
+
+    char buffer[HTTP_BUFFER_SIZE];
+    __builtin_memset(buffer, 0, sizeof(buffer));
+    if (data_size >= HTTP_BUFFER_SIZE) {
+        bpf_probe_read(buffer, sizeof(buffer), data);
+    }
+
+    skb_info_t skb_info = {0};
+    __builtin_memcpy(&skb_info.tup, t, sizeof(conn_tuple_t));
+    http_process(buffer, &skb_info, skb_info.tup.sport);
+    return 0;
+}
+
+// int gnutls_bye (gnutls_session_t session, gnutls_close_request_t how)
+SEC("uprobe/gnutls_bye")
+int uprobe__gnutls_bye(struct pt_regs* ctx) {
+    void *ssl_session = (void *)PT_REGS_PARM1(ctx);
+
+    log_debug("CANONICAL-GNUTLS-DEBUG-LINE uprobe/gnutls_bye ssl_session=0x%x\n", ssl_session);
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    conn_tuple_t *t = tup_from_ssl_ctx(ssl_session, pid_tgid);
+    if (t == NULL) {
+        return 0;
+    }
+
+    char buffer[HTTP_BUFFER_SIZE];
+    __builtin_memset(buffer, 0, sizeof(buffer));
+
+    skb_info_t skb_info = {0};
+    __builtin_memcpy(&skb_info.tup, t, sizeof(conn_tuple_t));
+
+    // TODO: this is just a hack. Let's get rid of this skb_info argument altogether
+    skb_info.tcp_flags |= TCPHDR_FIN;
+    http_process(buffer, &skb_info, skb_info.tup.sport);
+    bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_session);
     return 0;
 }
 
