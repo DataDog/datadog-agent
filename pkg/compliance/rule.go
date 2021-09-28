@@ -8,6 +8,7 @@ package compliance
 
 import "fmt"
 
+// Rule defines an interface for rego and condition-fallback rules
 type Rule interface {
 	ResourceCount() int
 	Common() *RuleCommon
@@ -22,16 +23,18 @@ type RuleCommon struct {
 	ResourceType string        `yaml:"resourceType,omitempty"`
 }
 
-// Rule defines a rule in a compliance config
+// CFRule defines a rule in a compliance config
 type CFRule struct {
 	RuleCommon `yaml:",inline"`
 	Resources  []Resource `yaml:"resources,omitempty"`
 }
 
+// ResourceCount returns the count of resources
 func (r *CFRule) ResourceCount() int {
 	return len(r.Resources)
 }
 
+// Common returns the common field between all rules
 func (r *CFRule) Common() *RuleCommon {
 	return &r.RuleCommon
 }
@@ -45,10 +48,12 @@ type RegoRule struct {
 	Findings   string         `yaml:"findings,omitempty"`
 }
 
+// ResourceCount returns the count of resources
 func (r *RegoRule) ResourceCount() int {
 	return len(r.Resources)
 }
 
+// Common returns the common field between all rules
 func (r *RegoRule) Common() *RuleCommon {
 	return &r.RuleCommon
 }
