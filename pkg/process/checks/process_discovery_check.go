@@ -2,6 +2,7 @@ package checks
 
 import (
 	"fmt"
+	"time"
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
@@ -9,7 +10,7 @@ import (
 )
 
 // ProcessDiscovery is a ProcessDiscoveryCheck singleton. ProcessDiscovery should not be instantiated elsewhere.
-var ProcessDiscovery = &ProcessDiscoveryCheck{probe: procutil.NewProcessProbe()}
+var ProcessDiscovery = &ProcessDiscoveryCheck{}
 
 // ProcessDiscoveryCheck is a check that gathers basic process metadata.
 // It uses its own ProcessDiscovery payload.
@@ -21,9 +22,10 @@ type ProcessDiscoveryCheck struct {
 }
 
 // Init initializes the ProcessDiscoveryCheck. It is a runtime error to call Run without first having called Init.
-func (d *ProcessDiscoveryCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
+func (d *ProcessDiscoveryCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 	d.info = info
 	d.initCalled = true
+	d.probe = getProcessProbe(cfg)
 }
 
 // Name returns the name of the ProcessDiscoveryCheck.
@@ -40,7 +42,7 @@ func (d *ProcessDiscoveryCheck) Run(cfg *config.AgentConfig, groupID int32) ([]m
 	}
 
 	// Does not need to collect process stats, only metadata
-	procs, err := getAllProcesses(d.probe, false)
+	procs, err := d.probe.ProcessesByPID(time.Now(), false)
 	if err != nil {
 		return nil, err
 	}

@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	defaultWindowsProbe = newWindowsToolhelpProbe()
+	defaultWindowsProbe = procutil.NewWindowsToolhelpProbe()
 }
 
 func formatUser(fp *procutil.Process) *model.ProcessUser {

@@ -123,7 +123,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 		}
 	}
 
-	procs, err := getAllProcesses(p.probe, true)
+	procs, err := p.probe.ProcessesByPID(time.Now(), true)
 	if err != nil {
 		return nil, err
 	}
