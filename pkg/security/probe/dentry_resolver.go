@@ -292,6 +292,11 @@ func (dr *DentryResolver) cacheInode(key PathKey, path *PathEntry) error {
 		path.Generation = atomic.LoadUint64(&dr.cacheGeneration)
 	}
 
+	// release before in case of override
+	if _, exists := entries.Get(key.Inode); exists {
+		dr.pathEntryPool.Put(path)
+	}
+
 	entries.Add(key.Inode, path)
 
 	return nil
@@ -448,9 +453,8 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		}
 
 		// do not cache fake path keys in the case of rename events
-		if key.Inode>>32 != fakeInodeMSW {
-			cacheEntry.Name = name
-			cacheEntry = dr.getPathEntryFromPool(path.Parent, "")
+		if !IsFakeInode(key.Inode) {
+			cacheEntry = dr.getPathEntryFromPool(path.Parent, name)
 			toAdd[cacheKey] = cacheEntry
 		}
 
@@ -610,10 +614,12 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 			break
 		}
 
-		keys = append(keys, cacheKey)
+		if !IsFakeInode(cacheKey.Inode) {
+			keys = append(keys, cacheKey)
 
-		entry := dr.getPathEntryFromPool(PathKey{}, segment)
-		entries = append(entries, entry)
+			entry := dr.getPathEntryFromPool(PathKey{}, segment)
+			entries = append(entries, entry)
+		}
 	}
 
 	if len(filename) == 0 {
@@ -622,10 +628,6 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 
 	if resolutionErr == nil {
 		for i, k := range keys {
-			if IsFakeInode(k.Inode) {
-				continue
-			}
-
 			if len(entries) > i {
 				cacheEntry = entries[i]
 			} else {
