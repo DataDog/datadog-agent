@@ -39,8 +39,8 @@ type Translator struct {
 // New creates a new translator with given options.
 func New(logger *zap.Logger, options ...Option) (*Translator, error) {
 	cfg := translatorConfig{
-		HistMode:                 HistogramModeNoBuckets,
-		SendCountSum:             true,
+		HistMode:                 HistogramModeDistributions,
+		SendCountSum:             false,
 		Quantiles:                false,
 		SendMonotonic:            true,
 		ResourceAttributesAsTags: false,
@@ -54,6 +54,10 @@ func New(logger *zap.Logger, options ...Option) (*Translator, error) {
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	if cfg.HistMode == HistogramModeNoBuckets && !cfg.SendCountSum {
+		return nil, fmt.Errorf("no buckets mode and no send count sum are incompatible")
 	}
 
 	cache := newTTLCache(cfg.sweepInterval, cfg.deltaTTL)
