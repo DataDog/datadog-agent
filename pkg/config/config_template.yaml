@@ -1661,6 +1661,7 @@ api_key:
 ###########################
 
 ## @param log_level - string - optional - default: info
+## @env DD_LOG_LEVEL - string - optional - default: info
 ## Minimum log level of the Datadog Agent.
 ## Valid log levels are: trace, debug, info, warn, error, critical, and off.
 ## Note: When using the 'off' log level, quotes are mandatory.
@@ -1668,39 +1669,46 @@ api_key:
 # log_level: 'info'
 
 ## @param log_file - string - optional
+## @env DD_LOG_FILE - string - optional
 ## Path of the log file for the Datadog Agent.
 ## See https://docs.datadoghq.com/agent/guide/agent-log-files/
 #
 # log_file: <AGENT_LOG_FILE_PATH>
 
 ## @param log_format_json - boolean - optional - default: false
+## @env DD_LOG_FORMAT_JSON - boolean - optional - default: false
 ## Set to 'true' to output Agent logs in JSON format.
 #
 # log_format_json: false
 
 ## @param log_to_console - boolean - optional - default: true
+## @env DD_LOG_TO_CONSOLE - boolean - optional - default: true
 ## Set to 'false' to disable Agent logging to stdout.
 #
 # log_to_console: true
 
 ## @param disable_file_logging - boolean - optional - default: false
+## @env DD_DISABLE_FILE_LOGGING - boolean - optional - default: false
 ## Set to 'true' to disable logging to the log file.
 #
 # disable_file_logging: false
 
 ## @param log_file_max_size - custom - optional - default: 10MB
+## @env DD_LOG_FILE_MAX_SIZE - custom - optional - default: 10MB
 ## Maximum size of one log file. Use either a size (e.g. 10MB) or
 ## provide value in bytes: 10485760
 #
 # log_file_max_size: 10MB
 
 ## @param log_file_max_rolls - integer - optional - default: 1
+## @env DD_LOG_FILE_MAX_ROLLS - integer - optional - default: 1
 ## Maximum amount of "old" log files to keep.
 ## Set to 0 to not limit the number of files to create.
 #
 # log_file_max_rolls: 1
 
 ## @param log_to_syslog - boolean - optional - default: false
+## @env DD_LOG_TO_SYSLOG - boolean - optional - default: false
 ## Set to 'true' to enable logging to syslog.
 ## Note: Even if this option is set to 'false', the service launcher of your environment
 ## may redirect the Agent process' stdout/stderr to syslog. In that case, if you wish
@@ -1709,27 +1717,32 @@ api_key:
 # log_to_syslog: false
 
 ## @param syslog_uri - string - optional
+## @env DD_SYSLOG_URI - string - optional
 ## Define a custom remote syslog uri if needed. If 'syslog_uri' is left undefined/empty,
 ## a local domain socket connection is attempted.
 #
 # syslog_uri: <SYSLOG_URI>
 
 ## @param syslog_rfc - boolean - optional - default: false
+## @env DD_SYSLOG_RFC - boolean - optional - default: false
 ## Set to 'true' to output in an RFC 5424-compliant format for Agent logs.
 #
 # syslog_rfc: false
 
 ## @param syslog_pem - string - optional
+## @env DD_SYSLOG_PEM - string - optional
 ## If TLS enabled, you must specify a path to a PEM certificate here.
 #
 # syslog_pem: <PEM_CERTIFICATE_PATH>
 
 ## @param syslog_key - string - optional
+## @env DD_SYSLOG_KEY - string - optional
 ## If TLS enabled, you must specify a path to a private key here.
 #
 # syslog_key: <PEM_KEY_PATH>
 
 ## @param syslog_tls_verify - boolean - optional - default: true
+## @env DD_SYSLOG_TLS_VERIFY - boolean - optional - default: true
 ## If TLS enabled, you may enforce TLS verification here.
 #
 # syslog_tls_verify: true
