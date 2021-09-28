@@ -78,6 +78,8 @@ message SubscribeConfigRequest {
 
 message GetConfigsRequest {
   Product product = 1;
+  uint64 current_config_product_version = 2;
+  uint64 current_director_root_version = 3;
 }
 
 message GetConfigsResponse {

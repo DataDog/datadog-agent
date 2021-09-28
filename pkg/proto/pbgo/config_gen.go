@@ -2618,6 +2618,18 @@ func (z *GetConfigsRequest) DecodeMsg(dc *msgp.Reader) (err error) {
 				}
 				z.Product = Product(zb0002)
 			}
+		case "CurrentConfigProductVersion":
+			z.CurrentConfigProductVersion, err = dc.ReadUint64()
+			if err != nil {
+				err = msgp.WrapError(err, "CurrentConfigProductVersion")
+				return
+			}
+		case "CurrentDirectorRootVersion":
+			z.CurrentDirectorRootVersion, err = dc.ReadUint64()
+			if err != nil {
+				err = msgp.WrapError(err, "CurrentDirectorRootVersion")
+				return
+			}
 		case "XXX_NoUnkeyedLiteral":
 			var zb0003 uint32
 			zb0003, err = dc.ReadMapHeader()
@@ -2666,15 +2678,35 @@ func (z *GetConfigsRequest) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *GetConfigsRequest) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 4
+	// map header, size 6
 	// write "Product"
-	err = en.Append(0x84, 0xa7, 0x50, 0x72, 0x6f, 0x64, 0x75, 0x63, 0x74)
+	err = en.Append(0x86, 0xa7, 0x50, 0x72, 0x6f, 0x64, 0x75, 0x63, 0x74)
 	if err != nil {
 		return
 	}
 	err = en.WriteInt32(int32(z.Product))
 	if err != nil {
 		err = msgp.WrapError(err, "Product")
+		return
+	}
+	// write "CurrentConfigProductVersion"
+	err = en.Append(0xbb, 0x43, 0x75, 0x72, 0x72, 0x65, 0x6e, 0x74, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x50, 0x72, 0x6f, 0x64, 0x75, 0x63, 0x74, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	if err != nil {
+		return
+	}
+	err = en.WriteUint64(z.CurrentConfigProductVersion)
+	if err != nil {
+		err = msgp.WrapError(err, "CurrentConfigProductVersion")
+		return
+	}
+	// write "CurrentDirectorRootVersion"
+	err = en.Append(0xba, 0x43, 0x75, 0x72, 0x72, 0x65, 0x6e, 0x74, 0x44, 0x69, 0x72, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x52, 0x6f, 0x6f, 0x74, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	if err != nil {
+		return
+	}
+	err = en.WriteUint64(z.CurrentDirectorRootVersion)
+	if err != nil {
+		err = msgp.WrapError(err, "CurrentDirectorRootVersion")
 		return
 	}
 	// write "XXX_NoUnkeyedLiteral"
@@ -2713,10 +2745,16 @@ func (z *GetConfigsRequest) EncodeMsg(en *msgp.Writer) (err error) {
 // MarshalMsg implements msgp.Marshaler
 func (z *GetConfigsRequest) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 4
+	// map header, size 6
 	// string "Product"
-	o = append(o, 0x84, 0xa7, 0x50, 0x72, 0x6f, 0x64, 0x75, 0x63, 0x74)
+	o = append(o, 0x86, 0xa7, 0x50, 0x72, 0x6f, 0x64, 0x75, 0x63, 0x74)
 	o = msgp.AppendInt32(o, int32(z.Product))
+	// string "CurrentConfigProductVersion"
+	o = append(o, 0xbb, 0x43, 0x75, 0x72, 0x72, 0x65, 0x6e, 0x74, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x50, 0x72, 0x6f, 0x64, 0x75, 0x63, 0x74, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	o = msgp.AppendUint64(o, z.CurrentConfigProductVersion)
+	// string "CurrentDirectorRootVersion"
+	o = append(o, 0xba, 0x43, 0x75, 0x72, 0x72, 0x65, 0x6e, 0x74, 0x44, 0x69, 0x72, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x52, 0x6f, 0x6f, 0x74, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	o = msgp.AppendUint64(o, z.CurrentDirectorRootVersion)
 	// string "XXX_NoUnkeyedLiteral"
 	o = append(o, 0xb4, 0x58, 0x58, 0x58, 0x5f, 0x4e, 0x6f, 0x55, 0x6e, 0x6b, 0x65, 0x79, 0x65, 0x64, 0x4c, 0x69, 0x74, 0x65, 0x72, 0x61, 0x6c)
 	// map header, size 0
@@ -2757,6 +2795,18 @@ func (z *GetConfigsRequest) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					return
 				}
 				z.Product = Product(zb0002)
+			}
+		case "CurrentConfigProductVersion":
+			z.CurrentConfigProductVersion, bts, err = msgp.ReadUint64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "CurrentConfigProductVersion")
+				return
+			}
+		case "CurrentDirectorRootVersion":
+			z.CurrentDirectorRootVersion, bts, err = msgp.ReadUint64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "CurrentDirectorRootVersion")
+				return
 			}
 		case "XXX_NoUnkeyedLiteral":
 			var zb0003 uint32
@@ -2807,7 +2857,7 @@ func (z *GetConfigsRequest) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *GetConfigsRequest) Msgsize() (s int) {
-	s = 1 + 8 + msgp.Int32Size + 21 + 1 + 17 + msgp.BytesPrefixSize + len(z.XXX_unrecognized) + 14 + msgp.Int32Size
+	s = 1 + 8 + msgp.Int32Size + 28 + msgp.Uint64Size + 27 + msgp.Uint64Size + 21 + 1 + 17 + msgp.BytesPrefixSize + len(z.XXX_unrecognized) + 14 + msgp.Int32Size
 	return
 }
 
