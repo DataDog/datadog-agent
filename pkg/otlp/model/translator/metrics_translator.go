@@ -55,7 +55,7 @@ func New(logger *zap.Logger, options ...Option) (*Translator, error) {
 			return nil, err
 		}
 	}
-	
+
 	if cfg.HistMode == HistogramModeNoBuckets && !cfg.SendCountSum {
 		return nil, fmt.Errorf("no buckets mode and no send count sum are incompatible")
 	}
