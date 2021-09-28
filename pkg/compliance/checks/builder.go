@@ -315,7 +315,7 @@ func (b *builder) Close() error {
 	return nil
 }
 
-func (b *builder) checkMatchingRule(file string, suite *compliance.Suite, rule compliance.ComplianceRule) bool {
+func (b *builder) checkMatchingRule(file string, suite *compliance.Suite, rule compliance.Rule) bool {
 	ruleCommon := rule.Common()
 	if b.ruleMatcher != nil {
 		if b.ruleMatcher(ruleCommon) {
@@ -412,7 +412,7 @@ func (b *builder) GetCheckStatus() compliance.CheckStatusList {
 	return compliance.CheckStatusList{}
 }
 
-func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.Rule) (compliance.Check, error) {
+func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.CFRule) (compliance.Check, error) {
 	ruleScope, err := getRuleScope(meta, rule.Scope)
 	if err != nil {
 		return nil, err
@@ -625,7 +625,7 @@ func (b *builder) nodeLabelKeys() []string {
 	return keys
 }
 
-func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.Rule, handler resourceReporter) (compliance.Check, error) {
+func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.CFRule, handler resourceReporter) (compliance.Check, error) {
 	checkable, err := newResourceCheckList(b, rule.ID, rule.Resources)
 	if err != nil {
 		return nil, err

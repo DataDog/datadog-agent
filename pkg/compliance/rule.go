@@ -8,7 +8,7 @@ package compliance
 
 import "fmt"
 
-type ComplianceRule interface {
+type Rule interface {
 	ResourceCount() int
 	Common() *RuleCommon
 }
@@ -23,16 +23,16 @@ type RuleCommon struct {
 }
 
 // Rule defines a rule in a compliance config
-type Rule struct {
+type CFRule struct {
 	RuleCommon `yaml:",inline"`
 	Resources  []Resource `yaml:"resources,omitempty"`
 }
 
-func (r *Rule) ResourceCount() int {
+func (r *CFRule) ResourceCount() int {
 	return len(r.Resources)
 }
 
-func (r *Rule) Common() *RuleCommon {
+func (r *CFRule) Common() *RuleCommon {
 	return &r.RuleCommon
 }
 

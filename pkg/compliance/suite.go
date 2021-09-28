@@ -36,7 +36,7 @@ type SuiteMeta struct {
 // Suite represents a set of compliance checks reporting events
 type Suite struct {
 	Meta      SuiteMeta  `yaml:",inline"`
-	Rules     []Rule     `yaml:"rules,omitempty"`
+	Rules     []CFRule   `yaml:"rules,omitempty"`
 	RegoRules []RegoRule `yaml:"regos,omitempty"`
 }
 
