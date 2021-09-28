@@ -18,3 +18,4 @@ golang_deps_generate:
   artifacts:
     paths:
       - dependency_tree.tgz
+    expire_in: never
