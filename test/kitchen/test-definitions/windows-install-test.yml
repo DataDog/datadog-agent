@@ -192,7 +192,7 @@ suites:
           WIXFAILWHENDEFERRED=1
       dd-agent-upgrade-rspec:
         # Used by the rspec test to know the version to which the agent should be upgraded
-        agent_expected_version: &agent_expected_version <%= ENV['DD_AGENT_EXPECTED_VERSION'] || "5.99.0" %>
+        agent_expected_version: 7.30.0
       dd-agent-rspec:
         skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 

@@ -268,7 +268,7 @@ def is_windows_service_installed(service)
   raise "is_windows_service_installed is only for windows" unless os == :windows
   return windows_service_status(service) != "NOTINSTALLED"
 end
-  
+
 def is_flavor_running?(flavor)
   is_service_running?(get_service_name(flavor))
 end
@@ -848,7 +848,7 @@ shared_examples_for 'an Agent with process enabled' do
   end
 end
 
-shared_examples_for 'an upgraded Agent with the expected version' do
+shared_examples_for 'an Agent with the expected version' do
   # We retrieve the value defined in kitchen.yml because there is no simple way
   # to set env variables on the target machine or via parameters in Kitchen/Busser
   # See https://github.com/test-kitchen/test-kitchen/issues/662 for reference
@@ -876,7 +876,7 @@ shared_examples_for 'an upgraded Agent with the expected version' do
     # Match the first line of the manifest file
     expect(File.open(version_manifest_file) {|f| f.readline.strip}).to match "agent #{agent_expected_version}"
   end
-end 
+end
 
 def get_user_sid(uname)
   output = `powershell -command "(New-Object System.Security.Principal.NTAccount('#{uname}')).Translate([System.Security.Principal.SecurityIdentifier]).value"`.strip
