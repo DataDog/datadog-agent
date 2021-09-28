@@ -210,7 +210,7 @@ func (s *serverSecure) GetConfigUpdates(in *pb.SubscribeConfigRequest, out pb.Ag
 	}
 
 	ctx := out.Context()
-	configs := make(chan *pb.ConfigResponse, 10)
+	configs := make(chan *pb.ConfigResponse, 1)
 
 	log.Debugf("New remote configuration subscriber request for product %s", in.Product)
 	subscriber := remoteconfig.NewSubscriber(in.Product, time.Second, func(config *pb.ConfigResponse) error {
@@ -226,23 +226,22 @@ func (s *serverSecure) GetConfigUpdates(in *pb.SubscribeConfigRequest, out pb.Ag
 
 	log.Debugf("New remote configuration subscriber for product %s", in.Product)
 	s.configService.RegisterSubscriber(subscriber)
+	defer s.configService.UnregisterSubscriber(subscriber)
 
-LOOP:
 	for {
 		log.Debug("Streaming config to gRPC client")
 		select {
 		case config := <-configs:
 			log.Debugf("Sending configuration for product %s", in.Product)
 			if err := out.Send(config); err != nil {
-				log.Warnf("error sending config event: %s", err)
+				log.Errorf("error sending config event: %s", err)
+				return nil
 			}
 		case <-ctx.Done():
-			s.configService.UnregisterSubscriber(subscriber)
-			break LOOP
+			log.Infof("Unsubscribing gRPC client for product %s", in.Product)
+			return nil
 		}
 	}
-
-	return nil
 }
 
 func init() {
