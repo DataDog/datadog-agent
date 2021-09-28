@@ -184,9 +184,14 @@ func getConfigs(product string) ([]*pbgo.ConfigResponse, error) {
 		InsecureSkipVerify: true,
 	})
 
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return nil, err
+	}
+
 	conn, err := grpc.DialContext(
 		context.Background(),
-		fmt.Sprintf(":%v", config.Datadog.GetInt("cmd_port")),
+		fmt.Sprintf("%s:%v", ipcAddress, config.Datadog.GetInt("cmd_port")),
 		grpc.WithTransportCredentials(creds),
 	)
 	if err != nil {
