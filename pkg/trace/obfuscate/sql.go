@@ -20,7 +20,7 @@ import (
 )
 
 const sqlQueryTag = "sql.query"
-const nonParsableResource = "Non-parsable SQL query"
+const nonParsableResource = "Cannot obfuscate: Non-parsable SQL query"
 
 var questionMark = []byte("?")
 
