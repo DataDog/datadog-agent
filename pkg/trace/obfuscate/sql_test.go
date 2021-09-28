@@ -178,8 +178,8 @@ func TestSQLResourceWithError(t *testing.T) {
 
 	for _, tc := range testCases {
 		NewObfuscator(nil).Obfuscate(&tc.span)
-		assert.Equal("Non-parsable SQL query", tc.span.Resource)
-		assert.Equal("Non-parsable SQL query", tc.span.Meta["sql.query"])
+		assert.Equal("Cannot obfuscate: Non-parsable SQL query", tc.span.Resource)
+		assert.Equal("Cannot obfuscate: Non-parsable SQL query", tc.span.Meta["sql.query"])
 	}
 }
 
