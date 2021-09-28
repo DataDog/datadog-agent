@@ -1516,8 +1516,3 @@ func GetConfiguredTags(includeDogstatsd bool) []string {
 
 	return combined
 }
-
-// GetDefaultRunPath returns the default run path
-func GetDefaultRunPath() string {
-	return defaultRunPath
-}

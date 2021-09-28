@@ -431,7 +431,7 @@ func NewService(opts Opts) (*Service, error) {
 	}
 
 	if opts.DBPath == "" {
-		opts.DBPath = path.Join(config.GetDefaultRunPath(), "remote-config.db")
+		opts.DBPath = path.Join(config.Datadog.GetString("run_path"), "remote-config.db")
 	}
 
 	if opts.APIKey == "" {
