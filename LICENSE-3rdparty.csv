@@ -28,6 +28,7 @@ core,github.com/DataDog/agent-payload/process,BSD-3-Clause,"Datadog, Inc."
 core,github.com/DataDog/datadog-go/statsd,MIT,"Datadog, Inc."
 core,github.com/DataDog/datadog-operator/api/v1alpha1,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/ebpf,MIT,"Datadog, Inc."
+core,github.com/DataDog/ebpf-manager,MIT,"Datadog, Inc."
 core,github.com/DataDog/ebpf/asm,MIT,"Datadog, Inc."
 core,github.com/DataDog/ebpf/internal,MIT,"Datadog, Inc."
 core,github.com/DataDog/ebpf/internal/btf,MIT,"Datadog, Inc."
@@ -62,6 +63,7 @@ core,github.com/DataDog/sketches-go/ddsketch,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/sketches-go/ddsketch/encoding,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/sketches-go/ddsketch/mapping,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/sketches-go/ddsketch/pb/sketchpb,Apache-2.0,"Datadog, Inc."
+core,github.com/DataDog/sketches-go/ddsketch/stat,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/sketches-go/ddsketch/store,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/viper,MIT,"Datadog, Inc."
 core,github.com/DataDog/watermarkpodautoscaler/api/v1alpha1,Apache-2.0,"Datadog, Inc."
@@ -101,6 +103,7 @@ core,github.com/NYTimes/gziphandler,Apache-2.0,The New York Times Company
 core,github.com/PuerkitoBio/purell,BSD-3-Clause,Martin Angers
 core,github.com/PuerkitoBio/urlesc,BSD-3-Clause,The Go Authors
 core,github.com/StackExchange/wmi,MIT,Stack Exchange
+core,github.com/alecthomas/jsonschema,MIT,Alec Thomas
 core,github.com/alecthomas/participle,MIT,Alec Thomas
 core,github.com/alecthomas/participle/lexer,MIT,Alec Thomas
 core,github.com/alecthomas/participle/lexer/ebnf,MIT,Alec Thomas
@@ -181,6 +184,12 @@ core,github.com/cenkalti/backoff/v4,MIT,Cenk Altı
 core,github.com/cespare/xxhash,MIT,Caleb Spare
 core,github.com/cespare/xxhash/v2,MIT,Caleb Spare
 core,github.com/cihub/seelog,BSD-3-Clause,"Cloud Instruments Co., Ltd. <info@cin.io>"
+core,github.com/cilium/ebpf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/cilium/ebpf/asm,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/cilium/ebpf/internal,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/cilium/ebpf/internal/btf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/cilium/ebpf/internal/unix,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/cilium/ebpf/perf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
 core,github.com/clbanning/mxj,MIT,Charles Banning <clbanning@gmail.com> | The Go Authors
 core,github.com/cloudfoundry-community/go-cfclient,MIT,Long Nguyen
 core,github.com/cobaugh/osrelease,BSD-3-Clause,Andrew Cobaugh
@@ -425,6 +434,7 @@ core,github.com/hashicorp/serf/coordinate,MPL-2.0,HashiCorp Inc.
 core,github.com/hectane/go-acl,MIT,Nathan Osman
 core,github.com/hectane/go-acl/api,MIT,Nathan Osman
 core,github.com/huandu/xstrings,MIT,Huan Du
+core,github.com/iancoleman/orderedmap,MIT,Ian Coleman
 core,github.com/ianlancetaylor/cgosymbolizer,BSD-3-Clause,"Free Software Foundation, Inc | The Go Authors"
 core,github.com/imdario/mergo,BSD-3-Clause,Dario Castañé | The Go Authors
 core,github.com/inconshreveable/mousetrap,Apache-2.0,Alan Shreve
@@ -666,6 +676,7 @@ core,go.opentelemetry.io/collector/config/confighttp,Apache-2.0,Open Telemetry M
 core,go.opentelemetry.io/collector/config/confignet,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configparser,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configtelemetry,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/config/configtest,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configtls,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configunmarshaler,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/experimental/configsource,Apache-2.0,Open Telemetry Maintainers
@@ -677,6 +688,7 @@ core,go.opentelemetry.io/collector/exporter/exporterhelper/internal,Apache-2.0,O
 core,go.opentelemetry.io/collector/exporter/otlpexporter,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/extension/ballastextension,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/extension/extensionhelper,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/extension/storage,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/internal/cgroups,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/internal/collector/telemetry,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/internal/iruntime,Apache-2.0,Open Telemetry Maintainers
@@ -713,11 +725,13 @@ core,go.opentelemetry.io/collector/service/internal,Apache-2.0,Open Telemetry Ma
 core,go.opentelemetry.io/collector/service/internal/builder,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/service/internal/fanoutconsumer,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/service/internal/telemetry,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/service/internal/telemetrylogs,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/service/internal/zpages,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/service/internal/zpages/tmplgen,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/service/parserprovider,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/contrib,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/internal,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/contrib/zpages,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/contrib/zpages/internal,Apache-2.0,Open Telemetry Maintainers
@@ -733,6 +747,7 @@ core,go.opentelemetry.io/otel/metric,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/metric/global,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/metric/number,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/metric/registry,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/metric/sdkapi,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/metric/unit,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/propagation,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/instrumentation,Apache-2.0,Open Telemetry Maintainers

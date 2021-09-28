@@ -10,10 +10,10 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/collector/service"
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -61,7 +61,7 @@ func getComponents() (
 		Exporters:  exporters,
 	}
 
-	return factories, consumererror.Combine(errs)
+	return factories, multierr.Combine(errs...)
 }
 
 func getBuildInfo() (component.BuildInfo, error) {
@@ -127,15 +127,16 @@ func NewPipeline(cfg PipelineConfig) (*Pipeline, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// HACK: ensure flags are not-nil
+	// TODO: fix this upstream.
+	_ = service.NewCommand(col)
 	return &Pipeline{col}, nil
 }
 
 // Run the OTLP pipeline.
-func (p *Pipeline) Run(_ context.Context) error {
-	// TODO (AP-1254): Avoid this workaround
-	// See https://github.com/open-telemetry/opentelemetry-collector/issues/3957
-	cmd := p.col.Command()
-	return cmd.RunE(cmd, nil)
+func (p *Pipeline) Run(ctx context.Context) error {
+	return p.col.Run(ctx)
 }
 
 // Stop the OTLP pipeline.

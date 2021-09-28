@@ -6,7 +6,6 @@
 package otlp
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
@@ -78,7 +77,7 @@ func TestFromAgentConfig(t *testing.T) {
 		name string
 		path string
 		cfg  PipelineConfig
-		err  error
+		err  string
 	}{
 		{
 			name: "bind_host",
@@ -103,11 +102,13 @@ func TestFromAgentConfig(t *testing.T) {
 		{
 			name: "invalid",
 			path: "./testdata/invalid.yaml",
-			err: fmt.Errorf("[" +
-				"http port is invalid: -1 is out of [0, 65535] range; " +
-				"gRPC port is invalid: -1 is out of [0, 65535] range; " +
-				"internal trace port is invalid: -1 is out of [0, 65535] range" +
-				"]"),
+			err: strings.Join([]string{
+				"http port is invalid: -1 is out of [0, 65535] range",
+				"gRPC port is invalid: -1 is out of [0, 65535] range",
+				"internal trace port is invalid: -1 is out of [0, 65535] range",
+			},
+				"; ",
+			),
 		},
 
 		{
@@ -127,8 +128,8 @@ func TestFromAgentConfig(t *testing.T) {
 			cfg, err := loadConfig(testInstance.path)
 			require.NoError(t, err)
 			pcfg, err := FromAgentConfig(cfg)
-			if err != nil || testInstance.err != nil {
-				assert.Equal(t, testInstance.err, err)
+			if err != nil || testInstance.err != "" {
+				assert.Equal(t, testInstance.err, err.Error())
 			} else {
 				assert.Equal(t, testInstance.cfg, pcfg)
 			}

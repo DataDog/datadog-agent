@@ -26,12 +26,14 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/statsd"
@@ -69,8 +71,37 @@ func (m *Module) Register(_ *module.Router) error {
 	return m.Start()
 }
 
+func (m *Module) sanityChecks() error {
+	// make sure debugfs is mounted
+	if mounted, err := kernel.IsDebugFSMounted(); !mounted {
+		return err
+	}
+
+	version, err := skernel.NewKernelVersion()
+	if err != nil {
+		return err
+	}
+
+	if version.Code >= skernel.Kernel5_13 && kernel.GetLockdownMode() == kernel.Confidentiality {
+		return errors.New("eBPF not supported in lockdown `confidentiality` mode")
+	}
+
+	isWriteUserNotSupported := version.Code >= skernel.Kernel5_13 && kernel.GetLockdownMode() == kernel.Integrity
+
+	if m.config.ERPCDentryResolutionEnabled && isWriteUserNotSupported {
+		log.Warn("eRPC path resolution is not supported in lockdown `integrity` mode")
+		m.config.ERPCDentryResolutionEnabled = false
+	}
+
+	return nil
+}
+
 // Init initializes the module
 func (m *Module) Init() error {
+	if err := m.sanityChecks(); err != nil {
+		return err
+	}
+
 	// force socket cleanup of previous socket not cleanup
 	os.Remove(m.config.SocketPath)
 

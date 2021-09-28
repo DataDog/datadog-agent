@@ -113,3 +113,9 @@ instances:
     ## Enable device metadata collection
     #
     collect_device_metadata: "%%extra_collect_device_metadata%%"
+
+    ## @param namespace - string - optional - default: default
+    ## Namespace can be used to disambiguate devices with same IPs.
+    ## Changing namespace will cause devices being recreated in NDM app.
+    #
+    namespace: "%%extra_namespace%%"

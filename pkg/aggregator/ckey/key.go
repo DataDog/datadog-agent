@@ -75,7 +75,7 @@ type KeyGenerator struct {
 
 // Generate returns the ContextKey hash for the given parameters.
 // tagsBuf is re-arranged in place and truncated to only contain unique tags.
-func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder) ContextKey {
+func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.HashingTagsBuilder) ContextKey {
 	// between two generations, we have to set the hash to something neutral, let's
 	// use this big value seed from the murmur3 implementations
 	g.intb = 0xc6a4a7935bd1e995
@@ -90,15 +90,15 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 	//                          	the hashset when there is less than 16 tags
 	//   - n > hashSetSize:         sort
 
-	tags := tagsBuf.Get()
-
-	if len(tags) > hashSetSize {
+	if tagsBuf.Len() > hashSetSize {
 		tagsBuf.SortUniq()
-		for _, tag := range tagsBuf.Get() {
-			h := murmur3.StringSum64(tag)
+		for _, h := range tagsBuf.Hashes() {
 			g.intb = g.intb ^ h
 		}
-	} else if len(tags) > bruteforceSize {
+	} else if tagsBuf.Len() > bruteforceSize {
+		tags := tagsBuf.Get()
+		hashes := tagsBuf.Hashes()
+
 		// reset the `seen` hashset.
 		// it copies `g.empty` instead of using make because it's faster
 
@@ -113,7 +113,7 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 
 		ntags := len(tags)
 		for i := 0; i < ntags; {
-			h := murmur3.StringSum64(tags[i])
+			h := hashes[i]
 			j := h & mask // address this hash into the hashset
 			for {
 				if g.seenIdx[j] == blank {
@@ -126,6 +126,7 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 				} else if g.seen[j] == h && tags[g.seenIdx[j]] == tags[i] {
 					// already seen, we do not want to xor multiple times the same tag
 					tags[i] = tags[ntags-1]
+					hashes[i] = hashes[ntags-1]
 					ntags--
 					break
 				} else {
@@ -138,13 +139,16 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 		}
 		tagsBuf.Truncate(ntags)
 	} else {
-		ntags := len(tags)
+		tags := tagsBuf.Get()
+		hashes := tagsBuf.Hashes()
+		ntags := tagsBuf.Len()
 	OUTER:
 		for i := 0; i < ntags; {
-			h := murmur3.StringSum64(tags[i])
+			h := hashes[i]
 			for j := 0; j < i; j++ {
 				if g.seen[j] == h && tags[j] == tags[i] {
 					tags[i] = tags[ntags-1]
+					hashes[i] = hashes[ntags-1]
 					ntags--
 					continue OUTER // we do not want to xor multiple times the same tag
 				}
