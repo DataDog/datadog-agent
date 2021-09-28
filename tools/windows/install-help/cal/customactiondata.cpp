@@ -284,14 +284,14 @@ bool CustomActionData::parseUsernameData()
     // if this is an upgrade (we found a previously recorded username in the registry)
     // and nothing was supplied on the command line, don't bother computing that.  Just use
     // the existing
-    if (userFromPreviousInstall && !userFromCommandLine)
+    if (userFromCommandLine)
+    {
+        _user = userFromCommandLine.value();
+    }
+    else if (userFromPreviousInstall)
     {
         WcaLog(LOGMSG_STANDARD, "Using username from previous install");
         _user = userFromPreviousInstall.value();
-    }
-    else if (userFromCommandLine)
-    {
-        _user = userFromCommandLine.value();
     }
     else
     {
