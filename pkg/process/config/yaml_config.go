@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"math"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -303,8 +302,13 @@ func (a *AgentConfig) initProcessDiscoveryCheck() {
 
 	// We don't need to check if the key exists since we already bound it to a default in InitConfig.
 	// We use a minimum of 10 minutes for this value.
-	a.CheckIntervals[DiscoveryCheckName] =
-		time.Duration(math.Max(float64(config.Datadog.GetDuration(key(root, "interval"))), float64(10*time.Minute)))
+	const discoveryMinInterval = 10 * time.Minute
+	if configuredInterval := config.Datadog.GetDuration(key(root, "interval")); configuredInterval >= discoveryMinInterval {
+		a.CheckIntervals[DiscoveryCheckName] = configuredInterval
+	} else {
+		a.CheckIntervals[DiscoveryCheckName] = discoveryMinInterval
+		log.Infof("Invalid interval for process discovery (<= %dm) using default value of %[1]d", discoveryMinInterval.Minutes())
+	}
 
 	// Discovery check should be only enabled when process_config.process_discovery.enabled = true and
 	// process_config.enabled is set to "false". This effectively makes sure the check only runs when the process check is
