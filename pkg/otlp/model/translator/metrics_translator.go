@@ -40,7 +40,7 @@ type Translator struct {
 func New(logger *zap.Logger, options ...Option) (*Translator, error) {
 	cfg := translatorConfig{
 		HistMode:                 HistogramModeNoBuckets,
-		SendCountSum:             true,
+		SendCountSum:             false,
 		Quantiles:                false,
 		SendMonotonic:            true,
 		ResourceAttributesAsTags: false,
