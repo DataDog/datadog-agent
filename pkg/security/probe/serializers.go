@@ -228,13 +228,18 @@ func getInUpperLayer(r *Resolvers, f *model.FileFields) *bool {
 	return &upperLayer
 }
 
-func newFileSerializer(fe *model.FileEvent, e *Event) *FileSerializer {
+func newFileSerializer(fe *model.FileEvent, e *Event, forceInode ...uint64) *FileSerializer {
+	inode := fe.Inode
+	if len(forceInode) > 0 {
+		inode = forceInode[0]
+	}
+
 	mode := uint32(fe.FileFields.Mode)
 	return &FileSerializer{
 		Path:                e.ResolveFilePath(fe),
 		PathResolutionError: fe.GetPathResolutionError(),
 		Name:                e.ResolveFileBasename(fe),
-		Inode:               getUint64Pointer(&fe.Inode),
+		Inode:               getUint64Pointer(&inode),
 		MountID:             getUint32Pointer(&fe.MountID),
 		Filesystem:          e.ResolveFileFilesystem(fe),
 		Mode:                getUint32Pointer(&mode),
@@ -503,9 +508,10 @@ func NewEventSerializer(event *Event) *EventSerializer {
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Chown.Retval)
 	case model.FileLinkEventType:
+		// use the source inode as the target one is a fake inode
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Link.Source, event),
-			Destination:    newFileSerializer(&event.Link.Target, event),
+			Destination:    newFileSerializer(&event.Link.Target, event, event.Link.Source.Inode),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Link.Retval)
 	case model.FileOpenEventType:
@@ -541,8 +547,9 @@ func NewEventSerializer(event *Event) *EventSerializer {
 		s.FileSerializer.Flags = model.UnlinkFlags(event.Unlink.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Unlink.Retval)
 	case model.FileRenameEventType:
+		// use the new inode as the old one is a fake inode
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Rename.Old, event),
+			FileSerializer: *newFileSerializer(&event.Rename.Old, event, event.Rename.New.Inode),
 			Destination:    newFileSerializer(&event.Rename.New, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Rename.Retval)

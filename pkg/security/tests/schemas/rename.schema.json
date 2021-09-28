@@ -20,10 +20,7 @@
                     ],
                     "properties": {
                         "destination": {
-                            "type": "object",
-                            "required": [
-                                "mode"
-                            ]
+                            "$ref": "file:///file.json"
                         }
                     }
                 }
