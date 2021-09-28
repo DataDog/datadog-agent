@@ -32,7 +32,7 @@ func newConfigLocalStore(store *store.Store) *configLocalStore {
 }
 
 func getConfigRoot() ([]byte, error) {
-	if configRoot := config.Datadog.GetString("remote_configuration_config_root"); configRoot != "" {
+	if configRoot := config.Datadog.GetString("remote_configuration.config_root"); configRoot != "" {
 		return ioutil.ReadFile(configRoot)
 	}
 	return meta.Asset("config.json")

@@ -222,11 +222,12 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 
 	// Remote config
-	config.BindEnvAndSetDefault("enable_remote_configuration", false)
-	config.BindEnvAndSetDefault("remote_configuration_key", "")
-	config.BindEnvAndSetDefault("remote_configuration_config_root", "")
-	config.BindEnvAndSetDefault("remote_configuration_director_root", "")
-	config.BindEnvAndSetDefault("remote_configuration_refresh_interval", 60) // in seconds
+	config.BindEnvAndSetDefault("remote_configuration.enabled", false)
+	config.BindEnvAndSetDefault("remote_configuration.endpoint", "")
+	config.BindEnvAndSetDefault("remote_configuration.key", "")
+	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
+	config.BindEnvAndSetDefault("remote_configuration.director_root", "")
+	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", 60) // in seconds
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)

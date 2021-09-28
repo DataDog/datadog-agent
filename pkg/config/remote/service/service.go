@@ -423,7 +423,7 @@ func (s *Service) GetStore() *store.Store {
 // NewService instantiates a new remote configuration management service
 func NewService(opts Opts) (*Service, error) {
 	if opts.RefreshInterval <= 0 {
-		opts.RefreshInterval = config.Datadog.GetDuration("remote_configuration_refresh_interval")
+		opts.RefreshInterval = config.Datadog.GetDuration("remote_configuration.refresh_interval")
 	}
 
 	if opts.RefreshInterval < minimalRefreshInterval {
@@ -439,11 +439,11 @@ func NewService(opts Opts) (*Service, error) {
 	}
 
 	if opts.RemoteConfigurationKey == "" {
-		opts.RemoteConfigurationKey = config.Datadog.GetString("remote_configuration_key")
+		opts.RemoteConfigurationKey = config.Datadog.GetString("remote_configuration.key")
 	}
 
 	if opts.URL == "" {
-		opts.URL = config.Datadog.GetString("remote_configuration_endpoint")
+		opts.URL = config.Datadog.GetString("remote_configuration.endpoint")
 	}
 
 	if opts.Hostname == "" {

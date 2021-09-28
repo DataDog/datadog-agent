@@ -324,7 +324,7 @@ func StartAgent() error {
 	}
 
 	// start remote configuration management
-	if config.Datadog.GetBool("enable_remote_configuration") {
+	if config.Datadog.GetBool("remote_configuration.enabled") {
 		opts := remoteconfig.Opts{}
 		configService, err = remoteconfig.NewService(opts)
 		if err != nil {

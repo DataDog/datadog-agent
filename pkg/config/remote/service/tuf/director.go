@@ -37,7 +37,7 @@ func newDirectorLocalStore(store *store.Store) *directorLocalStore {
 }
 
 func getDirectorRoot() ([]byte, error) {
-	if directorRoot := config.Datadog.GetString("remote_configuration_director_root"); directorRoot != "" {
+	if directorRoot := config.Datadog.GetString("remote_configuration.director_root"); directorRoot != "" {
 		return ioutil.ReadFile(directorRoot)
 	}
 	return meta.Asset("director.json")
