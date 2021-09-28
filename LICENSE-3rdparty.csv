@@ -683,6 +683,7 @@ core,go.opentelemetry.io/collector/config/experimental/configsource,Apache-2.0,O
 core,go.opentelemetry.io/collector/consumer,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/consumer/consumererror,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/consumer/consumerhelper,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/consumer/consumertest,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/exporter/exporterhelper,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/exporter/exporterhelper/internal,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/exporter/otlpexporter,Apache-2.0,Open Telemetry Maintainers
@@ -696,6 +697,7 @@ core,go.opentelemetry.io/collector/internal/middleware,Apache-2.0,Open Telemetry
 core,go.opentelemetry.io/collector/internal/obsreportconfig,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/internal/obsreportconfig/obsmetrics,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/internal/sharedcomponent,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/internal/testdata,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/internal/version,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/model/internal,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/model/internal/data,Apache-2.0,Open Telemetry Maintainers
