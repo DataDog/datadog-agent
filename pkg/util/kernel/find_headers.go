@@ -80,7 +80,7 @@ func GetKernelHeaders(headerDirs []string, headerDownloadDir, aptConfigDir, yumR
 
 	d := headerDownloader{aptConfigDir, yumReposDir, zypperReposDir}
 	if err = d.downloadHeaders(headerDownloadDir); err == nil {
-		log.Infof("successfully downloaded kernel headers to %s", dirs)
+		log.Infof("successfully downloaded kernel headers to %s", headerDownloadDir)
 		if err = validateHeaderDirs(hv, dirs); err == nil {
 			return dirs, downloadSuccess, nil
 		}
