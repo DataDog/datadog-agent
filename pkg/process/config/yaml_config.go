@@ -305,9 +305,10 @@ func (a *AgentConfig) initProcessDiscoveryCheck() {
 	// We use a minimum of 10 minutes for this value.
 	discoveryInterval := config.Datadog.GetDuration(key(root, "interval"))
 	if discoveryInterval < discoveryMinInterval {
-		a.CheckIntervals[DiscoveryCheckName] = discoveryMinInterval
+		discoveryInterval = discoveryMinInterval
 		_ = log.Warnf("Invalid interval for process discovery (<= %sm) using default value of %[1]s", discoveryMinInterval.String())
 	}
+	a.CheckIntervals[DiscoveryCheckName] = discoveryInterval
 
 	// Discovery check should be only enabled when process_config.process_discovery.enabled = true and
 	// process_config.enabled is set to "false". This effectively makes sure the check only runs when the process check is
