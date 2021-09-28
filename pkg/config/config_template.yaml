@@ -1771,6 +1771,7 @@ api_key:
 # autoconf_template_dir: /datadog/check_configs
 
 ## @param config_providers - List of custom object - optional
+## @env DD_CONFIG_PROVIDERS - List of custom object - optional
 ## The providers the Agent should call to collect checks configurations. Available providers are:
 ##   * kubelet - The kubelet provider handles templates embedded in pod annotations.
 ##   * docker -  The Docker provider handles templates embedded in container labels.
@@ -1815,6 +1816,7 @@ api_key:
 #    password:
 
 ## @param extra_config_providers - list of strings - optional
+## @env DD_EXTRA_CONFIG_PROVIDERS - space separated list of strings - optional
 ## Add additional config providers by name using their default settings, and pooling enabled.
 ## This list is available as an environment variable binding.
 #
@@ -1857,6 +1859,7 @@ api_key:
 ###########################################
 
 ## @param container_cgroup_root - string - optional - default: /host/sys/fs/cgroup/
+## @env DD_CONTAINER_CGROUP_ROOT - string - optional - default: /host/sys/fs/cgroup/
 ## Change the root directory to look at to get cgroup statistics.
 ## Default if environment variable "DOCKER_DD_AGENT" is set to "/host/sys/fs/cgroup"
 ## and "/sys/fs/cgroup" if not.
@@ -1864,12 +1867,14 @@ api_key:
 # container_cgroup_root: /host/sys/fs/cgroup/
 
 ## @param container_proc_root - string - optional - default: /host/proc
+## @env DD_CONTAINER_PROC_ROOT - string - optional - default: /host/proc
 ## Change the root directory to look at to get proc statistics.
 ## Default if environment variable "DOCKER_DD_AGENT" is set "/host/proc" and "/proc" if not.
 #
 # container_proc_root: /host/proc
 
 ## @param listeners - list of key:value elements - optional
+## @env DD_LISTENERS - list of key:value elements - optional
 ## Choose "auto" if you want to let the Agent find any relevant listener on your host
 ## At the moment, the only auto listener supported is Docker
 ## If you have already set Docker anywhere in the listeners, the auto listener is ignored
@@ -1879,6 +1884,7 @@ api_key:
 #   - name: docker
 
 ## @param extra_listeners - list of strings - optional
+## @env DD_EXTRA_LISTENERS - space separated list of strings - optional
 ## You can also add additional listeners by name using their default settings.
 ## This list is available as an environment variable binding.
 #
@@ -1886,6 +1892,7 @@ api_key:
 #   - kubelet
 
 ## @param ac_exclude - list of comma separated strings - optional
+## @env DD_AC_EXCLUDE - list of space separated strings - optional
 ## Exclude containers from metrics and AD based on their name or image.
 ## If a container matches an exclude rule, it won't be included unless it first matches an include rule.
 ## An excluded container won't get any individual container metric reported for it.
@@ -1894,12 +1901,14 @@ api_key:
 # ac_exclude: []
 
 ## @param ac_include - list of comma separated strings - optional
+## @env DD_AC_INCLUDE - list of space separated strings - optional
 ## Include containers from metrics and AD based on their name or image:
 ## See: https://docs.datadoghq.com/agent/autodiscovery/#include-or-exclude-containers
 #
 # ac_include: []
 
 ## @param exclude_pause_container - boolean - optional - default: true
+## @env DD_EXCLUDE_PAUSE_CONTAINER - boolean - optional - default: true
 ## Exclude default pause containers from orchestrators.
 ## By default the Agent doesn't monitor kubernetes/openshift pause container.
 ## They are still counted in the container count (just like excluded containers).
@@ -1907,11 +1916,13 @@ api_key:
 # exclude_pause_container: true
 
 ## @param docker_query_timeout - integer - optional - default: 5
+## @env DD_DOCKER_QUERY_TIMEOUT - integer - optional - default: 5
 ## Set the default timeout value when connecting to the Docker daemon.
 #
 # docker_query_timeout: 5
 
 ## @param ad_config_poll_interval - integer - optional - default: 10
+## @env DD_AD_CONFIG_POLL_INTERVAL - integer - optional - default: 10
 ## The default interval in second to check for new autodiscovery configurations
 ## on all registered configuration providers.
 #
