@@ -1,0 +1,622 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "properties": {
+    "evt": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/EventContext"
+    },
+    "file": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/FileEvent"
+    },
+    "selinux": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/SELinuxEvent"
+    },
+    "usr": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/UserContext"
+    },
+    "process": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/ProcessContext"
+    },
+    "container": {
+      "$ref": "#/definitions/ContainerContext"
+    },
+    "date": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "definitions": {
+    "ContainerContext": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Container ID"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "EventContext": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Event name"
+        },
+        "category": {
+          "type": "string",
+          "description": "Event category"
+        },
+        "outcome": {
+          "type": "string",
+          "description": "Event outcome"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "File": {
+      "required": [
+        "uid",
+        "gid"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "File path"
+        },
+        "name": {
+          "type": "string",
+          "description": "File basename"
+        },
+        "path_resolution_error": {
+          "type": "string",
+          "description": "Error message from path resolution"
+        },
+        "inode": {
+          "type": "integer",
+          "description": "File inode number"
+        },
+        "mode": {
+          "type": "integer",
+          "description": "File mode"
+        },
+        "in_upper_layer": {
+          "type": "boolean",
+          "description": "Indicator of file OverlayFS layer"
+        },
+        "mount_id": {
+          "type": "integer",
+          "description": "File mount ID"
+        },
+        "filesystem": {
+          "type": "string",
+          "description": "File filesystem name"
+        },
+        "uid": {
+          "type": "integer",
+          "description": "File User ID"
+        },
+        "gid": {
+          "type": "integer",
+          "description": "File Group ID"
+        },
+        "user": {
+          "type": "string",
+          "description": "File user"
+        },
+        "group": {
+          "type": "string",
+          "description": "File group"
+        },
+        "attribute_name": {
+          "type": "string",
+          "description": "File extended attribute name"
+        },
+        "attribute_namespace": {
+          "type": "string",
+          "description": "File extended attribute namespace"
+        },
+        "flags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "File flags"
+        },
+        "access_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "modification_time": {
+          "type": "string",
+          "description": "File modified time",
+          "format": "date-time"
+        },
+        "change_time": {
+          "type": "string",
+          "description": "File change time",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "FileEvent": {
+      "required": [
+        "uid",
+        "gid"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "File path"
+        },
+        "name": {
+          "type": "string",
+          "description": "File basename"
+        },
+        "path_resolution_error": {
+          "type": "string",
+          "description": "Error message from path resolution"
+        },
+        "inode": {
+          "type": "integer",
+          "description": "File inode number"
+        },
+        "mode": {
+          "type": "integer",
+          "description": "File mode"
+        },
+        "in_upper_layer": {
+          "type": "boolean",
+          "description": "Indicator of file OverlayFS layer"
+        },
+        "mount_id": {
+          "type": "integer",
+          "description": "File mount ID"
+        },
+        "filesystem": {
+          "type": "string",
+          "description": "File filesystem name"
+        },
+        "uid": {
+          "type": "integer",
+          "description": "File User ID"
+        },
+        "gid": {
+          "type": "integer",
+          "description": "File Group ID"
+        },
+        "user": {
+          "type": "string",
+          "description": "File user"
+        },
+        "group": {
+          "type": "string",
+          "description": "File group"
+        },
+        "attribute_name": {
+          "type": "string",
+          "description": "File extended attribute name"
+        },
+        "attribute_namespace": {
+          "type": "string",
+          "description": "File extended attribute namespace"
+        },
+        "flags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "File flags"
+        },
+        "access_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "modification_time": {
+          "type": "string",
+          "description": "File modified time",
+          "format": "date-time"
+        },
+        "change_time": {
+          "type": "string",
+          "description": "File change time",
+          "format": "date-time"
+        },
+        "destination": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/File",
+          "description": "Target file information"
+        },
+        "new_mount_id": {
+          "type": "integer",
+          "description": "New Mount ID"
+        },
+        "group_id": {
+          "type": "integer",
+          "description": "Group ID"
+        },
+        "device": {
+          "type": "integer",
+          "description": "Device associated with the file"
+        },
+        "fstype": {
+          "type": "string",
+          "description": "Filesystem type"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ProcessCacheEntry": {
+      "required": [
+        "uid",
+        "gid"
+      ],
+      "properties": {
+        "pid": {
+          "type": "integer",
+          "description": "Process ID"
+        },
+        "ppid": {
+          "type": "integer",
+          "description": "Parent Process ID"
+        },
+        "tid": {
+          "type": "integer",
+          "description": "Thread ID"
+        },
+        "uid": {
+          "type": "integer",
+          "description": "User ID"
+        },
+        "gid": {
+          "type": "integer",
+          "description": "Group ID"
+        },
+        "user": {
+          "type": "string",
+          "description": "User name"
+        },
+        "group": {
+          "type": "string",
+          "description": "Group name"
+        },
+        "path_resolution_error": {
+          "type": "string",
+          "description": "Description of an error in the path resolution"
+        },
+        "comm": {
+          "type": "string",
+          "description": "Command name"
+        },
+        "tty": {
+          "type": "string",
+          "description": "TTY associated with the process"
+        },
+        "fork_time": {
+          "type": "string",
+          "description": "Fork time of the process",
+          "format": "date-time"
+        },
+        "exec_time": {
+          "type": "string",
+          "description": "Exec time of the process",
+          "format": "date-time"
+        },
+        "exit_time": {
+          "type": "string",
+          "description": "Exit time of the process",
+          "format": "date-time"
+        },
+        "credentials": {
+          "$ref": "#/definitions/ProcessCredentials",
+          "description": "Credentials associated with the process"
+        },
+        "executable": {
+          "$ref": "#/definitions/File",
+          "description": "File information of the executable"
+        },
+        "container": {
+          "$ref": "#/definitions/ContainerContext",
+          "description": "Container context"
+        },
+        "args": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Command line arguments"
+        },
+        "args_truncated": {
+          "type": "boolean",
+          "description": "Indicator of arguments truncation"
+        },
+        "envs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Environment variables of the process"
+        },
+        "envs_truncated": {
+          "type": "boolean",
+          "description": "Indicator of environments variable truncation"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ProcessContext": {
+      "required": [
+        "uid",
+        "gid"
+      ],
+      "properties": {
+        "pid": {
+          "type": "integer",
+          "description": "Process ID"
+        },
+        "ppid": {
+          "type": "integer",
+          "description": "Parent Process ID"
+        },
+        "tid": {
+          "type": "integer",
+          "description": "Thread ID"
+        },
+        "uid": {
+          "type": "integer",
+          "description": "User ID"
+        },
+        "gid": {
+          "type": "integer",
+          "description": "Group ID"
+        },
+        "user": {
+          "type": "string",
+          "description": "User name"
+        },
+        "group": {
+          "type": "string",
+          "description": "Group name"
+        },
+        "path_resolution_error": {
+          "type": "string",
+          "description": "Description of an error in the path resolution"
+        },
+        "comm": {
+          "type": "string",
+          "description": "Command name"
+        },
+        "tty": {
+          "type": "string",
+          "description": "TTY associated with the process"
+        },
+        "fork_time": {
+          "type": "string",
+          "description": "Fork time of the process",
+          "format": "date-time"
+        },
+        "exec_time": {
+          "type": "string",
+          "description": "Exec time of the process",
+          "format": "date-time"
+        },
+        "exit_time": {
+          "type": "string",
+          "description": "Exit time of the process",
+          "format": "date-time"
+        },
+        "credentials": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/ProcessCredentials",
+          "description": "Credentials associated with the process"
+        },
+        "executable": {
+          "$ref": "#/definitions/File",
+          "description": "File information of the executable"
+        },
+        "container": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/ContainerContext",
+          "description": "Container context"
+        },
+        "args": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Command line arguments"
+        },
+        "args_truncated": {
+          "type": "boolean",
+          "description": "Indicator of arguments truncation"
+        },
+        "envs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Environment variables of the process"
+        },
+        "envs_truncated": {
+          "type": "boolean",
+          "description": "Indicator of environments variable truncation"
+        },
+        "parent": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/ProcessCacheEntry",
+          "description": "Parent process"
+        },
+        "ancestors": {
+          "items": {
+            "$ref": "#/definitions/ProcessCacheEntry"
+          },
+          "type": "array",
+          "description": "Ancestor processes"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ProcessCredentials": {
+      "required": [
+        "uid",
+        "gid",
+        "euid",
+        "egid",
+        "fsuid",
+        "fsgid",
+        "cap_effective",
+        "cap_permitted"
+      ],
+      "properties": {
+        "uid": {
+          "type": "integer",
+          "description": "User ID"
+        },
+        "user": {
+          "type": "string",
+          "description": "User name"
+        },
+        "gid": {
+          "type": "integer",
+          "description": "Group ID"
+        },
+        "group": {
+          "type": "string",
+          "description": "Group name"
+        },
+        "euid": {
+          "type": "integer",
+          "description": "Effective User ID"
+        },
+        "euser": {
+          "type": "string",
+          "description": "Effective User name"
+        },
+        "egid": {
+          "type": "integer",
+          "description": "Effective Group ID"
+        },
+        "egroup": {
+          "type": "string",
+          "description": "Effective Group name"
+        },
+        "fsuid": {
+          "type": "integer",
+          "description": "Filesystem User ID"
+        },
+        "fsuser": {
+          "type": "string",
+          "description": "Filesystem User name"
+        },
+        "fsgid": {
+          "type": "integer",
+          "description": "Filesystem Group ID"
+        },
+        "fsgroup": {
+          "type": "string",
+          "description": "Filesystem Group name"
+        },
+        "cap_effective": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Effective Capacity set"
+        },
+        "cap_permitted": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Permitted Capacity set"
+        },
+        "destination": {
+          "additionalProperties": true,
+          "description": "Credentials after the operation"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SELinuxBoolChange": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "SELinux boolean name"
+        },
+        "state": {
+          "type": "string",
+          "description": "SELinux boolean state ('on' or 'off')"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SELinuxBoolCommit": {
+      "properties": {
+        "state": {
+          "type": "boolean",
+          "description": "SELinux boolean commit operation"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SELinuxEnforceStatus": {
+      "properties": {
+        "status": {
+          "type": "string",
+          "description": "SELinux enforcement status (one of 'enforcing', 'permissive' or 'disabled')"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SELinuxEvent": {
+      "properties": {
+        "bool": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/SELinuxBoolChange",
+          "description": "SELinux boolean operation"
+        },
+        "enforce": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/SELinuxEnforceStatus",
+          "description": "SELinux enforcement change"
+        },
+        "bool_commit": {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "$ref": "#/definitions/SELinuxBoolCommit",
+          "description": "SELinux boolean commit"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "UserContext": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "User name"
+        },
+        "group": {
+          "type": "string",
+          "description": "Group name"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    }
+  }
+}

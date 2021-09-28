@@ -7,3 +7,4 @@ docker-squash==1.0.8
 requests==2.23.0
 PyYAML==5.4
 toml==0.9.4
+jinja2==3.0.1
