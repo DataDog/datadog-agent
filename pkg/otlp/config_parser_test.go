@@ -119,6 +119,35 @@ service:
       exporters: [otlp]
 `,
 		},
+		{
+			name: "only HTTP, only metrics",
+			pcfg: PipelineConfig{
+				HTTPPort:       1234,
+				TracePort:      5003,
+				BindHost:       "bindhost",
+				MetricsEnabled: true,
+			},
+			ocfg: `
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: bindhost:1234
+
+processors:
+  batch:
+
+exporters:
+  serializer:
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [serializer]
+`,
+		},
 	}
 
 	for _, testInstance := range tests {
