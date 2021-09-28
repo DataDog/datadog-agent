@@ -23,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const errorRetryInterval = 3 * time.Second
+
 // SubscriberCallback defines the function called when a new configuration was fetched
 type SubscriberCallback func(config *pbgo.ConfigResponse) error
 
@@ -93,8 +95,8 @@ func NewGRPCSubscriber(product pbgo.Product, callback SubscriberCallback) (conte
 			}
 			stream, err := agentClient.GetConfigUpdates(streamCtx, &request)
 			if err != nil {
-				log.Error("Failed to request configuration, retrying in 3 seconds...")
-				time.Sleep(3 * time.Second)
+				log.Errorf("Failed to request configuration, retrying in %s...", errorRetryInterval)
+				time.Sleep(errorRetryInterval)
 				continue
 			}
 
@@ -105,6 +107,7 @@ func NewGRPCSubscriber(product pbgo.Product, callback SubscriberCallback) (conte
 					continue
 				} else if err != nil {
 					log.Warnf("Stopped listening for configuration from remote config management: %s", err)
+					time.Sleep(errorRetryInterval)
 					break
 				}
 
