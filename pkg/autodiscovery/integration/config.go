@@ -125,7 +125,7 @@ func (c *Config) IsCheckConfig() bool {
 
 // IsLogConfig returns true if config contains a logs config.
 func (c *Config) IsLogConfig() bool {
-	return c.LogsConfig != nil
+	return len(c.LogsConfig) > 0
 }
 
 // HasFilter returns true if metrics or logs collection must be disabled for this config.
