@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -94,8 +95,13 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 					// try the next cloud provider
 					continue
 				}
+				// if the clustername is valid but contains a "_" in the middle of it, we will replace it later such that
+				// to make it valid to RFC1123.
 				if clusterName != "" {
 					log.Infof("Using cluster name %s auto discovered from the %s API", clusterName, cloudProvider)
+					if strings.HasSuffix(clusterName, "-") || strings.HasSuffix(clusterName, "_") {
+						log.Errorf("Registering an invalid clusterName as they are not allowed to end with `_` or `-`")
+					}
 					data.clusterName = clusterName
 					break
 				}
@@ -118,6 +124,17 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 // GetClusterName returns a k8s cluster name if it exists, either directly specified or autodiscovered
 func GetClusterName(ctx context.Context, hostname string) string {
 	return getClusterName(ctx, defaultClusterNameData, hostname)
+}
+
+// GetRFC1123CompliantClusterName returns a k8s cluster name if it exists, either directly specified or autodiscovered
+// Some kubernetes cluster-names (EKS,AKS) are not RFC1123 compliant, mostly due to an `_`.
+// This function replaces the invalid `_` with a valid `-`.
+func GetRFC1123CompliantClusterName(ctx context.Context, hostname string) string {
+	clusterName := getClusterName(ctx, defaultClusterNameData, hostname)
+	if strings.Contains(clusterName, "_") {
+		log.Warnf("clustername: %s contains `_`, replacing it with `-` to be hostName compliant", clusterName)
+	}
+	return strings.ReplaceAll(clusterName, "_", "-")
 }
 
 func resetClusterName(data *clusterNameData) {

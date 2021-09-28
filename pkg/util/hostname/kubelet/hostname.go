@@ -36,10 +36,10 @@ func HostnameProvider(ctx context.Context, options map[string]interface{}) (stri
 		return "", fmt.Errorf("couldn't fetch the host nodename from the kubelet: %s", err)
 	}
 
-	clusterName := clustername.GetClusterName(ctx, nodeName)
+	clusterName := clustername.GetRFC1123CompliantClusterName(ctx, nodeName)
 	if clusterName == "" {
 		log.Debugf("Now using plain kubernetes nodename as an alias: no cluster name was set and none could be autodiscovered")
 		return nodeName, nil
 	}
-	return (nodeName + "-" + clusterName), nil
+	return nodeName + "-" + clusterName, nil
 }
