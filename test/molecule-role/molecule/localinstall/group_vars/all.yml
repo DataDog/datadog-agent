@@ -3,7 +3,7 @@ molecule_run_id: "{{ lookup('env', 'MOLECULE_RUN_ID') or lookup('env', 'USER') }
 molecule_scenario_name: "{{ lookup('env', 'MOLECULE_SCENARIO_NAME') }}"
 molecule_ephemeral_directory: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}"
 
-keypair_name: "molecule_key_{{ lookup('env', 'MOLECULE_SCENARIO_NAME') }}_{{ lookup('env', 'AGENT_CURRENT_BRANCH') or AGENT_CURRENT_BRANCH }}"
+keypair_name: "molecule_key_{{ lookup('env', 'MOLECULE_SCENARIO_NAME') }}_{{ lookup('env', 'AGENT_CURRENT_BRANCH') or AGENT_CURRENT_BRANCH }}_{{ lookup('env', 'STS_VER') }}_{{ lookup('env', 'MAJOR_VERSION') }}_{{ lookup('env', 'PYTHON_RUNTIMES') }}"
 keypair_path: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/ssh_key"
 
 agent_current_branch: "{{ lookup('env', 'AGENT_CURRENT_BRANCH') or AGENT_CURRENT_BRANCH }}"
