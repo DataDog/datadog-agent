@@ -12,7 +12,7 @@ Release Notes
 Prelude
 -------
 
-Release on: 2021-09-27
+Release on: 2021-09-28
 
 .. _Release Notes_7.31.1_Bug Fixes:
 
