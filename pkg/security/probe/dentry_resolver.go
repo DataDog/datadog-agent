@@ -234,10 +234,8 @@ func (dr *DentryResolver) DelCacheEntry(mountID uint32, inode uint64) {
 			if !exists {
 				break
 			}
+			// this is also call the onEvict function of LRU thus releasing the entry from the pool
 			entries.Remove(key.Inode)
-
-			// place the entry to the pool
-			dr.pathEntryPool.Put(path)
 
 			parent := path.(*PathEntry).Parent
 			if parent.Inode == 0 {
@@ -293,8 +291,8 @@ func (dr *DentryResolver) cacheInode(key PathKey, path *PathEntry) error {
 	}
 
 	// release before in case of override
-	if _, exists := entries.Get(key.Inode); exists {
-		dr.pathEntryPool.Put(path)
+	if prev, exists := entries.Get(key.Inode); exists {
+		dr.pathEntryPool.Put(prev)
 	}
 
 	entries.Add(key.Inode, path)
