@@ -1896,14 +1896,14 @@ api_key:
 ## Exclude containers from metrics and AD based on their name or image.
 ## If a container matches an exclude rule, it won't be included unless it first matches an include rule.
 ## An excluded container won't get any individual container metric reported for it.
-## See: https://docs.datadoghq.com/agent/autodiscovery/#include-or-exclude-containers
+## See: https://docs.datadoghq.com/agent/guide/autodiscovery-management/
 #
 # ac_exclude: []
 
 ## @param ac_include - list of comma separated strings - optional
 ## @env DD_AC_INCLUDE - list of space separated strings - optional
 ## Include containers from metrics and AD based on their name or image:
-## See: https://docs.datadoghq.com/agent/autodiscovery/#include-or-exclude-containers
+## See: https://docs.datadoghq.com/agent/guide/autodiscovery-management/
 #
 # ac_include: []
 
