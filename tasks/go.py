@@ -33,8 +33,7 @@ MODULE_ALLOWLIST = [
     "shutil.go",
     "tailer_windows.go",
     "winsec.go",
-    "allprocesses_windows.go",
-    "allprocesses_windows_test.go",
+    "process_windows_toolhelp.go",
     "adapters.go",  # pkg/util/winutil/iphelper
     "routes.go",  # pkg/util/winutil/iphelper
     # All

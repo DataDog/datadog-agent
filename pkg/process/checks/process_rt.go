@@ -43,7 +43,7 @@ func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) (*Run
 		}
 	}
 
-	procs, err := getAllProcStats(p.probe, p.lastPIDs)
+	procs, err := p.probe.StatsForPIDs(p.lastPIDs, time.Now())
 
 	if err != nil {
 		return nil, err

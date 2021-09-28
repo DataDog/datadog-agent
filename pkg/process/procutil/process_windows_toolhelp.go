@@ -1,6 +1,6 @@
 // +build windows
 
-package checks
+package procutil
 
 import (
 	"fmt"
@@ -11,7 +11,6 @@ import (
 	"github.com/shirou/w32"
 	"golang.org/x/sys/windows"
 
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	process "github.com/DataDog/gopsutil/process"
@@ -32,14 +31,6 @@ type IO_COUNTERS struct {
 	ReadTransferCount   uint64
 	WriteTransferCount  uint64
 	OtherTransferCount  uint64
-}
-
-func getAllProcesses(probe procutil.Probe, collectStats bool) (map[int32]*procutil.Process, error) {
-	return probe.ProcessesByPID(time.Now(), collectStats)
-}
-
-func getAllProcStats(probe procutil.Probe, pids []int32) (map[int32]*procutil.Stats, error) {
-	return probe.StatsForPIDs(pids, time.Now())
 }
 
 func getProcessMemoryInfo(h windows.Handle, mem *process.PROCESS_MEMORY_COUNTERS) (err error) {
@@ -70,7 +61,8 @@ type windowsToolhelpProbe struct {
 	cachedProcesses map[uint32]*cachedProcess
 }
 
-func newWindowsToolhelpProbe() procutil.Probe {
+// NewWindowsToolhelpProbe provides an implementation of a process probe based on Toolhelp API
+func NewWindowsToolhelpProbe() Probe {
 	return &windowsToolhelpProbe{
 		cachedProcesses: map[uint32]*cachedProcess{},
 	}
@@ -78,12 +70,12 @@ func newWindowsToolhelpProbe() procutil.Probe {
 
 func (p *windowsToolhelpProbe) Close() {}
 
-func (p *windowsToolhelpProbe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*procutil.Stats, error) {
+func (p *windowsToolhelpProbe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, error) {
 	procs, err := p.ProcessesByPID(now, true)
 	if err != nil {
 		return nil, err
 	}
-	stats := make(map[int32]*procutil.Stats, len(procs))
+	stats := make(map[int32]*Stats, len(procs))
 	for pid, proc := range procs {
 		stats[pid] = proc.Stats
 	}
@@ -91,11 +83,11 @@ func (p *windowsToolhelpProbe) StatsForPIDs(pids []int32, now time.Time) (map[in
 }
 
 // StatsWithPermByPID is currently not implemented in non-linux environments
-func (p *windowsToolhelpProbe) StatsWithPermByPID(pids []int32) (map[int32]*procutil.StatsWithPerm, error) {
+func (p *windowsToolhelpProbe) StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, error) {
 	return nil, fmt.Errorf("windowsToolhelpProbe: StatsWithPermByPID is not implemented")
 }
 
-func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*procutil.Process, error) {
+func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Process, error) {
 	// make sure we get the consistent snapshot by using the same OS thread
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -104,7 +96,7 @@ func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) 
 	if allProcsSnap == 0 {
 		return nil, windows.GetLastError()
 	}
-	procs := make(map[int32]*procutil.Process)
+	procs := make(map[int32]*Process)
 
 	defer w32.CloseHandle(allProcsSnap)
 	var pe32 w32.PROCESSENTRY32
@@ -137,7 +129,7 @@ func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) 
 			p.cachedProcesses[pid] = cp
 		} else {
 			var err error
-			if cp.procHandle, err = procutil.OpenProcessHandle(int32(pe32.Th32ProcessID)); err != nil {
+			if cp.procHandle, err = OpenProcessHandle(int32(pe32.Th32ProcessID)); err != nil {
 				log.Debugf("Could not reopen process handle for pid %v %v", pid, err)
 				continue
 			}
@@ -154,7 +146,7 @@ func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) 
 		}
 		ctime := CPU.CreationTime.Nanoseconds() / 1000000
 
-		stats := &procutil.Stats{CreateTime: ctime}
+		stats := &Stats{CreateTime: ctime}
 		if collectStats {
 			var handleCount uint32
 			if err := getProcessHandleCount(procHandle, &handleCount); err != nil {
@@ -178,32 +170,32 @@ func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) 
 			utime := float64((int64(CPU.UserTime.HighDateTime) << 32) | int64(CPU.UserTime.LowDateTime))
 			stime := float64((int64(CPU.KernelTime.HighDateTime) << 32) | int64(CPU.KernelTime.LowDateTime))
 
-			stats = &procutil.Stats{
+			stats = &Stats{
 				CreateTime:  ctime,
 				OpenFdCount: int32(handleCount),
 				NumThreads:  int32(pe32.CntThreads),
-				CPUTime: &procutil.CPUTimesStat{
+				CPUTime: &CPUTimesStat{
 					User:      utime,
 					System:    stime,
 					Timestamp: time.Now().UnixNano(),
 				},
-				MemInfo: &procutil.MemoryInfoStat{
+				MemInfo: &MemoryInfoStat{
 					RSS:  uint64(pmemcounter.WorkingSetSize),
 					VMS:  uint64(pmemcounter.QuotaPagedPoolUsage),
 					Swap: 0,
 				},
-				IOStat: &procutil.IOCountersStat{
+				IOStat: &IOCountersStat{
 					ReadCount:  int64(ioCounters.ReadOperationCount),
 					WriteCount: int64(ioCounters.WriteOperationCount),
 					ReadBytes:  int64(ioCounters.ReadTransferCount),
 					WriteBytes: int64(ioCounters.WriteTransferCount),
 				},
-				CtxSwitches: &procutil.NumCtxSwitchesStat{},
+				CtxSwitches: &NumCtxSwitchesStat{},
 			}
 		}
 
 		delete(knownPids, pid)
-		procs[int32(pid)] = &procutil.Process{
+		procs[int32(pid)] = &Process{
 			Pid:      int32(pid),
 			Ppid:     int32(ppid),
 			Cmdline:  cp.parsedArgs,
@@ -230,12 +222,12 @@ type cachedProcess struct {
 }
 
 func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error) {
-	cp.procHandle, err = procutil.OpenProcessHandle(int32(pe32.Th32ProcessID))
+	cp.procHandle, err = OpenProcessHandle(int32(pe32.Th32ProcessID))
 	if err != nil {
 		return err
 	}
 	var usererr error
-	cp.userName, usererr = procutil.GetUsernameForProcess(cp.procHandle)
+	cp.userName, usererr = GetUsernameForProcess(cp.procHandle)
 	if usererr != nil {
 		log.Debugf("Couldn't get process username %v %v", pe32.Th32ProcessID, err)
 	}
@@ -249,7 +241,7 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error)
 		cp.commandLine = commandParams.CmdLine
 	}
 
-	cp.parsedArgs = procutil.ParseCmdLineArgs(cp.commandLine)
+	cp.parsedArgs = ParseCmdLineArgs(cp.commandLine)
 	return
 }
 
