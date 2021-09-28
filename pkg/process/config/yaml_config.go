@@ -19,7 +19,8 @@ import (
 )
 
 const (
-	ns = "process_config"
+	ns                   = "process_config"
+	discoveryMinInterval = 10 * time.Minute
 )
 
 func key(pieces ...string) string {
@@ -302,12 +303,10 @@ func (a *AgentConfig) initProcessDiscoveryCheck() {
 
 	// We don't need to check if the key exists since we already bound it to a default in InitConfig.
 	// We use a minimum of 10 minutes for this value.
-	const discoveryMinInterval = 10 * time.Minute
-	if configuredInterval := config.Datadog.GetDuration(key(root, "interval")); configuredInterval >= discoveryMinInterval {
-		a.CheckIntervals[DiscoveryCheckName] = configuredInterval
-	} else {
+	discoveryInterval := config.Datadog.GetDuration(key(root, "interval"))
+	if discoveryInterval < discoveryMinInterval {
 		a.CheckIntervals[DiscoveryCheckName] = discoveryMinInterval
-		log.Infof("Invalid interval for process discovery (<= %dm) using default value of %[1]d", discoveryMinInterval.Minutes())
+		_ = log.Warnf("Invalid interval for process discovery (<= %sm) using default value of %[1]s", discoveryMinInterval.String())
 	}
 
 	// Discovery check should be only enabled when process_config.process_discovery.enabled = true and
