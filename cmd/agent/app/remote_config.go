@@ -29,9 +29,10 @@ import (
 
 var (
 	remoteConfigCommand = &cobra.Command{
-		Use:   "remote-config",
-		Short: "Remote configuration management command line",
-		Long:  ``,
+		Use:    "remote-config",
+		Short:  "Remote configuration management command line",
+		Long:   ``,
+		Hidden: true,
 	}
 
 	remoteConfigGetCommand = &cobra.Command{
