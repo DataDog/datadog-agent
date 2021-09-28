@@ -8,7 +8,7 @@
 package tests
 
 import (
-	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"testing"
@@ -17,29 +17,46 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
 
-func TestHardLink(t *testing.T) {
-	executable := which("touch")
-
+func runHardlinkTests(t *testing.T, opts testOpts) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_orig",
-			Expression: fmt.Sprintf(`exec.file.path == "%s"`, executable),
+			Expression: `exec.file.path == "{{.Root}}/orig-touch"`,
 		},
 		{
 			ID:         "test_rule_link",
-			Expression: `exec.file.path == "{{.Root}}/mytouch"`,
+			Expression: `exec.file.path == "{{.Root}}/my-touch"`,
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
+	// copy touch to make sure it is place on the same fs, hard link constraint
+	executable := which("touch")
+
+	testOrigExecutable, _, err := test.Path("orig-touch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testOrigExecutable)
+
+	input, err := ioutil.ReadFile(executable)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = ioutil.WriteFile(testOrigExecutable, input, 0755)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	t.Run("hardlink-creation", ifSyscallSupported("SYS_LINK", func(t *testing.T, syscallNB uintptr) {
-		err = test.GetSignal(t, func() error {
-			cmd := exec.Command(executable, "/tmp/test1")
+		err := test.GetSignal(t, func() error {
+			cmd := exec.Command(testOrigExecutable, "/tmp/test1")
 			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_orig")
@@ -48,13 +65,13 @@ func TestHardLink(t *testing.T) {
 			t.Error(err)
 		}
 
-		testNewExecutable, _, err := test.Path("mytouch")
+		testNewExecutable, _, err := test.Path("my-touch")
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer os.Remove(testNewExecutable)
 
-		err = os.Link(executable, testNewExecutable)
+		err = os.Link(testOrigExecutable, testNewExecutable)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -71,19 +88,19 @@ func TestHardLink(t *testing.T) {
 	}))
 
 	t.Run("hardlink-created", ifSyscallSupported("SYS_LINK", func(t *testing.T, syscallNB uintptr) {
-		testNewExecutable, _, err := test.Path("mytouch")
+		testNewExecutable, _, err := test.Path("my-touch")
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer os.Remove(testNewExecutable)
 
-		err = os.Link(executable, testNewExecutable)
+		err = os.Link(testOrigExecutable, testNewExecutable)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		err = test.GetSignal(t, func() error {
-			cmd := exec.Command(executable, "/tmp/test1")
+			cmd := exec.Command(testOrigExecutable, "/tmp/test1")
 			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_orig")
@@ -102,4 +119,12 @@ func TestHardLink(t *testing.T) {
 			t.Error(err)
 		}
 	}))
+}
+
+func TestHardLinkWithERPC(t *testing.T) {
+	runHardlinkTests(t, testOpts{disableMapDentryResolution: true})
+}
+
+func TestHardLinkWithMaps(t *testing.T) {
+	runHardlinkTests(t, testOpts{disableERPCDentryResolution: true})
 }

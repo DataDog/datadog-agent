@@ -549,16 +549,15 @@ func (dr *DentryResolver) cacheEntries(keys []PathKey, entries []PathEntry) {
 	var cacheEntry PathEntry
 
 	for i, k := range keys {
+		if i >= len(entries) {
+			break
+		}
+
 		if IsFakeInode(k.Inode) {
 			continue
 		}
 
-		if len(entries) > i {
-			cacheEntry = entries[i]
-		} else {
-			continue
-		}
-
+		cacheEntry = entries[i]
 		if len(keys) > i+1 {
 			cacheEntry.Parent = keys[i+1]
 		}

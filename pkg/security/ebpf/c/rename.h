@@ -116,7 +116,7 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
 
     int pass_to_userspace = !syscall->discarded && is_event_enabled(EVENT_RENAME);
 
-    // invalidate user face inode, so no need to bump the discarder revision in the event
+    // invalidate user space inode, so no need to bump the discarder revision in the event
     if (retval >= 0) {
         invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, syscall->rename.target_file.path_key.ino, !pass_to_userspace);
     }
