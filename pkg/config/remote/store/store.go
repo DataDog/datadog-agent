@@ -13,6 +13,7 @@ import (
 	"math"
 	"os"
 
+	"github.com/hashicorp/go-multierror"
 	"go.etcd.io/bbolt"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
@@ -101,11 +102,16 @@ func (s *Store) pruneBucket(bucket *bbolt.Bucket) {
 	stats := bucket.Stats()
 	size := stats.KeyN
 	cursor := bucket.Cursor()
+	var errs *multierror.Error
 	for k, _ := cursor.First(); k != nil && size > s.maxBucketSize; k, _ = cursor.Next() {
 		if err := cursor.Delete(); err != nil {
-			log.Errorf("failed to prune key %d: %s", k, err)
+			errs = multierror.Append(errs, fmt.Errorf("failed to prune key %d: %w", k, err))
 		}
 		size--
+	}
+
+	if errs.ErrorOrNil() != nil {
+		log.Errorf("failed to prune bucket: %w", errs)
 	}
 }
 
