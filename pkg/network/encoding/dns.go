@@ -20,6 +20,7 @@ type dnsFormatter struct {
 	conns     *network.Connections
 	ipc       ipCache
 	domainSet map[string]int
+	seen      map[dns.Key]struct{}
 
 	// Configuration flags
 	queryTypeEnabled  bool
@@ -31,6 +32,7 @@ func newDNSFormatter(conns *network.Connections, ipc ipCache) *dnsFormatter {
 		conns:             conns,
 		ipc:               ipc,
 		domainSet:         make(map[string]int),
+		seen:              make(map[dns.Key]struct{}),
 		queryTypeEnabled:  config.Datadog.GetBool("network_config.enable_dns_by_querytype"),
 		dnsDomainsEnabled: config.Datadog.GetBool("network_config.collect_dns_domains"),
 	}
@@ -42,11 +44,17 @@ func (f *dnsFormatter) FormatConnectionDNS(nc network.ConnectionStats, mc *model
 		return
 	}
 
+	// Avoid overcounting stats in the context of PID collisions
+	if _, seen := f.seen[key]; seen {
+		return
+	}
+
 	// Retrieve DNS information for this particular connection
 	stats, ok := f.conns.DNSStats[key]
 	if !ok {
 		return
 	}
+	f.seen[key] = struct{}{}
 
 	if !f.dnsDomainsEnabled {
 		var total uint32
