@@ -20,5 +20,5 @@ func GetHostAlias(ctx context.Context) (string, error) {
 	if err == nil && validate.ValidHostname(name) == nil {
 		return name, nil
 	}
-	return "", fmt.Errorf("Couldn't extract a host alias from the kubelet: %s", err)
+	return "", fmt.Errorf("couldn't extract a host alias from the kubelet: %s", err)
 }

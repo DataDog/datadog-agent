@@ -93,3 +93,37 @@ func TestHostnameProviderInvalid(t *testing.T) {
 	// We won't use the clustername if its invalid RFC, we log an error and continue without the clustername and only hostname
 	assert.Equal(t, "node-name", hostName)
 }
+
+func Test_makeClusterNameRFC1123Compliant(t *testing.T) {
+	tests := []struct {
+		name        string
+		clusterName string
+		want        string
+	}{
+		{
+			name:        "valid clustername",
+			clusterName: "cluster-name",
+			want:        "cluster-name",
+		}, {
+			name:        "invalid clustername underscore",
+			clusterName: "cluster_name",
+			want:        "cluster-name",
+		},
+		{
+			name:        "invalid clustername underscore at the end and middle",
+			clusterName: "cluster_name_",
+			want:        "cluster-name",
+		}, {
+			name:        "invalid clustername underscore at the end",
+			clusterName: "cluster__",
+			want:        "cluster",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := makeClusterNameRFC1123Compliant(tt.clusterName); got != tt.want {
+				t.Errorf("makeClusterNameRFC1123Compliant() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

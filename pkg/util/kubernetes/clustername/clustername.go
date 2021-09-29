@@ -126,17 +126,6 @@ func GetClusterName(ctx context.Context, hostname string) string {
 	return getClusterName(ctx, defaultClusterNameData, hostname)
 }
 
-// GetRFC1123CompliantClusterName returns a k8s cluster name if it exists, either directly specified or autodiscovered
-// Some kubernetes cluster-names (EKS,AKS) are not RFC1123 compliant, mostly due to an `_`.
-// This function replaces the invalid `_` with a valid `-`.
-func GetRFC1123CompliantClusterName(ctx context.Context, hostname string) string {
-	clusterName := getClusterName(ctx, defaultClusterNameData, hostname)
-	if strings.Contains(clusterName, "_") {
-		log.Warnf("clustername: %s contains `_`, replacing it with `-` to be hostName compliant", clusterName)
-	}
-	return strings.ReplaceAll(clusterName, "_", "-")
-}
-
 func resetClusterName(data *clusterNameData) {
 	data.mutex.Lock()
 	defer data.mutex.Unlock()
