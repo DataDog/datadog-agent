@@ -34,6 +34,7 @@ type batchStrategy struct {
 	pendingSends     sync.WaitGroup // waitgroup for concurrent sends
 	syncFlushTrigger chan struct{}  // trigger a synchronous flush
 	syncFlushDone    chan struct{}  // wait for a synchronous flush to finish
+	lastTime         time.Time
 }
 
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
@@ -51,6 +52,7 @@ func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurr
 		syncFlushTrigger: make(chan struct{}),
 		syncFlushDone:    make(chan struct{}),
 		pipelineName:     pipelineName,
+		lastTime:         time.Now(),
 	}
 
 }
@@ -148,7 +150,9 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Message, send func(
 		return
 	}
 	s.climit <- struct{}{}
-	reportElapsed()
+	elapsed := time.Since(s.lastTime)
+	tlmSenderWaitTime.Set(float64(elapsed / time.Millisecond))
+	s.lastTime = time.Now()
 	s.pendingSends.Add(1)
 	go func() {
 		s.sendMessages(messages, outputChan, send)
