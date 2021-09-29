@@ -316,8 +316,8 @@ build do
           installed = JSON.parse(installed_out)
           installed.each do |package|
             package.each do |key, value|
-              if key == "name" && value.start_with?("datadog_")
-                installed_list.push(value["datadog_".length..-1])
+              if key == "name" && value.start_with?("datadog-")
+                installed_list.push(value["datadog-".length..-1])
               end
             end
           end
