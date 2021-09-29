@@ -10,7 +10,7 @@ ci_sts_major_python_version: "{{ lookup('env', 'STS_VER') }}.{{ lookup('env', 'M
 dev_mode: "{{ lookup('env', 'DEV_MODE') }}"
 
 molecule_run_id: "{{ lookup('env', 'MOLECULE_RUN_ID') or lookup('env', 'USER') }}"
-keypair_name: "molecule_key_{{ lookup('env', 'MOLECULE_SCENARIO_NAME') }}_{{ lookup('env', 'AGENT_CURRENT_BRANCH') or AGENT_CURRENT_BRANCH }}"
+keypair_name: "molecule_key_{{ lookup('env', 'MOLECULE_SCENARIO_NAME') }}_{{ lookup('env', 'AGENT_CURRENT_BRANCH') or AGENT_CURRENT_BRANCH }}_{{ lookup('env', 'STS_VER') }}_{{ lookup('env', 'MAJOR_VERSION') }}_{{ lookup('env', 'PYTHON_RUNTIMES') }}"
 keypair_path: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/ssh_key"
 
 agent_current_branch: "{{ lookup('env', 'AGENT_CURRENT_BRANCH') or AGENT_CURRENT_BRANCH }}"
