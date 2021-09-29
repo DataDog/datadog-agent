@@ -46,7 +46,7 @@ func newFakeBackend(channelSize int) *fakeBackend {
 		out: make(chan interface{}, size),
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v0.2/traces", fb.handleTraces)
+	mux.HandleFunc("/api/v2/spans", fb.handleTraces)
 	mux.HandleFunc("/api/v0.2/stats", fb.handleStats)
 	mux.HandleFunc("/_health", fb.handleHealth)
 

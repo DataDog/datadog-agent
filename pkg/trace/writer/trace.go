@@ -26,7 +26,7 @@ import (
 )
 
 // pathTraces is the target host API path for delivering traces.
-const pathTraces = "/api/v0.2/traces"
+const pathTraces = "/api/v2/spans"
 
 // MaxPayloadSize specifies the maximum accumulated payload size that is allowed before
 // a flush is triggered; replaced in tests.
