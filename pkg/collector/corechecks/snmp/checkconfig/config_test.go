@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestConfigurations(t *testing.T) {
@@ -1000,7 +999,9 @@ collect_device_metadata: true
 }
 
 func Test_buildConfig_namespace(t *testing.T) {
-	defer coreconfig.Datadog.Set("network_devices.namespace", "default")
+	// language=yaml
+	rawInitConfig := []byte(`
+namespace: default`)
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -1008,8 +1009,7 @@ ip_address: 1.2.3.4
 community_string: "abc"
 namespace: my-ns
 `)
-	// language=yaml
-	rawInitConfig := []byte(``)
+
 	conf, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, "my-ns", conf.Namespace)
@@ -1028,7 +1028,8 @@ community_string: "abc"
 ip_address: 1.2.3.4
 community_string: "abc"
 `)
-	coreconfig.Datadog.Set("network_devices.namespace", "ns-from-datadog-conf")
+	rawInitConfig = []byte(`
+namespace: ns-from-datadog-conf`)
 	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, "ns-from-datadog-conf", conf.Namespace)
@@ -1038,7 +1039,8 @@ community_string: "abc"
 ip_address: 1.2.3.4
 community_string: "abc"
 `)
-	coreconfig.Datadog.Set("network_devices.namespace", "")
+	rawInitConfig = []byte(`
+namespace: `)
 	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.EqualError(t, err, "namespace cannot be empty")
 }

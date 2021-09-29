@@ -281,9 +281,8 @@ snmp_listener:
 	// Custom Namespace
 	config.Datadog.SetConfigType("yaml")
 	err = config.Datadog.ReadConfig(strings.NewReader(`
-network_devices:
-  namespace: totoro
 snmp_listener:
+  namespace: totoro
   configs:
   - community_string: someCommunityString
     network_address: 127.1.0.0/30

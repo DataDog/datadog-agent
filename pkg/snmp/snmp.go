@@ -36,6 +36,7 @@ type ListenerConfig struct {
 	Loader                string   `mapstructure:"loader"`
 	CollectDeviceMetadata bool     `mapstructure:"collect_device_metadata"`
 	MinCollectionInterval uint     `mapstructure:"min_collection_interval"`
+	Namespace             string   `mapstructure:"namespace"`
 	Configs               []Config `mapstructure:"configs"`
 
 	// legacy
@@ -98,6 +99,7 @@ func NewListenerConfig() (ListenerConfig, error) {
 	)
 	// Set defaults before unmarshalling
 	snmpConfig.CollectDeviceMetadata = true
+	snmpConfig.Namespace = "default"
 	if err := coreconfig.Datadog.UnmarshalKey("snmp_listener", &snmpConfig, opt); err != nil {
 		return snmpConfig, err
 	}
@@ -128,7 +130,7 @@ func NewListenerConfig() (ListenerConfig, error) {
 			config.Loader = snmpConfig.Loader
 		}
 		if config.Namespace == "" {
-			config.Namespace = coreconfig.Datadog.GetString("network_devices.namespace")
+			config.Namespace = snmpConfig.Namespace
 		}
 		if config.MinCollectionInterval == 0 {
 			config.MinCollectionInterval = snmpConfig.MinCollectionInterval
