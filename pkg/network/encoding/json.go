@@ -42,12 +42,11 @@ var _ Marshaler = jsonSerializer{}
 var _ Unmarshaler = jsonSerializer{}
 
 // this code is a hack to fix the way zero value maps are handled during a
-// roundtrip (eg. marshaling/unmarshaling) by the JSON marshaler as we use
-// the `EmitDefaults` option.  please note this function is executed *only for
-// debugging purposes* since the JSON marshaller is not used for communication
-// between system-probe and the process-agent.
-// TODO: Make this more future-proof using reflection (we don't care about they
-// perfomance penalty of doing so because this only runs during tests)
+// roundtrip (eg. marshaling/unmarshaling) by the JSON marshaler as we use the
+// `EmitDefaults` option. please note this function is executed *only in
+// tests* since the JSON unmarshaller is not used in the communication between
+// system-probe and the process-agent.
+// TODO: Make this more future-proof using reflection
 func handleZeroValues(conns *model.Connections) {
 	if conns == nil {
 		return
