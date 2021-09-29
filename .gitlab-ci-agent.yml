@@ -51,21 +51,23 @@ stages:
   New-Item -ItemType SymbolicLink -Path "$Env:GOPATH\\src\\github.com\\StackVista\\stackstate-agent" -Target $current_dir -Force
 
 .rules:
-  - &only_agent_3
-    if: $MAJOR_VERSION == "3"
-  - &only_agent_3_always
-    if: $MAJOR_VERSION == "3"
+  # rules specific to the cluster agent, kubernetes, docker swarm. Currently we default to only running them on Python2
+  # build so that we can release the cluster agent as part of a V2 release.
+  # TODO: Change this when V3 releases are finalized and the default.
+  - &cluster_agent
+    if: $MAJOR_VERSION == "2"
+  - &cluster_agent_always
+    if: $MAJOR_VERSION == "2"
     when: always
-  - &only_agent_3_on_success
-    if: $MAJOR_VERSION == "3"
+  - &cluster_agent_on_success
+    if: $MAJOR_VERSION == "2"
     when: on_success
-  - &only_agent_3_on_failure
-    if: $MAJOR_VERSION == "3"
+  - &cluster_agent_on_failure
+    if: $MAJOR_VERSION == "2"
     when: on_failure
-  - &only_agent_3_release
-    if: $MAJOR_VERSION == "3" && ($CI_COMMIT_TAG || $CI_JOB_TRIGGERED == "true")
+  - &cluster_agent_release
+    if: $MAJOR_VERSION == "2" && ($CI_COMMIT_TAG || $CI_JOB_TRIGGERED == "true")
     when: manual
-
 ######################### /pipeline bricks
 
 
@@ -250,7 +252,7 @@ unit_tests_cluster_agent:
   tags:
     - sts-aws
   rules:
-    - *only_agent_3
+    - *cluster_agent
   retry:
     max: 2
 
@@ -313,7 +315,7 @@ build_cluster_agent:
       - $CI_PROJECT_DIR/Dockerfiles/cluster-agent/stackstate-cluster.yaml
       - $CI_PROJECT_DIR/version.txt
   rules:
-    - *only_agent_3
+    - *cluster_agent
   retry:
     max: 2
     when:
@@ -628,7 +630,7 @@ pre_release_trace_agent_image:
     - cp ./outcomes/binary/trace-agent Dockerfiles/trace-agent
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent $CI_COMMIT_SHORT_SHA
   rules:
-    - *only_agent_3
+    - *cluster_agent
 
 pre_release_cluster_agent_image:
   <<: *pre_release_image
@@ -641,7 +643,7 @@ pre_release_cluster_agent_image:
     - cp -r ./bin/stackstate-cluster-agent* ./Dockerfiles/cluster-agent
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent $CI_COMMIT_SHORT_SHA
   rules:
-    - *only_agent_3
+    - *cluster_agent
 
 # Core Molecule Structure for all the molecule steps
 .molecule: &molecule
@@ -811,8 +813,10 @@ molecule_integrations_success_cleanup:
 # Type: kubernetes
 
 .molecule_kubernetes_rule:
+  # Currently we default to only running on Python2 build.
+  # TODO: Change this when V3 releases are finalized and the default.
   - &kubernetes_ignore_rule
-    if: $MAJOR_VERSION == "3" && $CI_COMMIT_MESSAGE =~ /\[molecule\-/ && $CI_COMMIT_MESSAGE !~ /\[molecule\-kubernetes]/
+    if: $MAJOR_VERSION == "2" && $CI_COMMIT_MESSAGE =~ /\[molecule\-/ && $CI_COMMIT_MESSAGE !~ /\[molecule\-kubernetes]/
     when: never
 
 molecule_kubernetes_create:
@@ -820,7 +824,7 @@ molecule_kubernetes_create:
   <<: *molecule_create
   rules:
     - *kubernetes_ignore_rule
-    - *only_agent_3
+    - *cluster_agent
     - when: never
   variables:
     MOLECULE_SCENARIO: kubernetes
@@ -831,7 +835,7 @@ molecule_kubernetes_test:
   resource_group: eks_test_cluster
   rules:
     - *kubernetes_ignore_rule
-    - *only_agent_3
+    - *cluster_agent
     - when: never
   variables:
     MOLECULE_SCENARIO: kubernetes
@@ -847,7 +851,7 @@ molecule_kubernetes_failure_cleanup:
   <<: *molecule_destroy
   rules:
     - *kubernetes_ignore_rule
-    - *only_agent_3_on_failure
+    - *cluster_agent_on_failure
     - when: never
   variables:
     MOLECULE_SCENARIO: kubernetes
@@ -860,7 +864,7 @@ molecule_kubernetes_success_cleanup:
   <<: *molecule_destroy
   rules:
     - *kubernetes_ignore_rule
-    - *only_agent_3_on_success
+    - *cluster_agent_on_success
     - when: never
   variables:
     MOLECULE_SCENARIO: kubernetes
@@ -1035,8 +1039,10 @@ molecule_secrets_success_cleanup:
 # Type: swarm
 
 .molecule_swarm_rule:
+  # Currently we default to only running on Python2 build.
+  # TODO: Change this when V3 releases are finalized and the default.
   - &swarm_ignore_rule
-    if: $MAJOR_VERSION == "3" && $CI_COMMIT_MESSAGE =~ /\[molecule\-/ && $CI_COMMIT_MESSAGE !~ /\[molecule\-swarm]/
+    if: $MAJOR_VERSION == "2" && $CI_COMMIT_MESSAGE =~ /\[molecule\-/ && $CI_COMMIT_MESSAGE !~ /\[molecule\-swarm]/
     when: never
 
 molecule_swarm_create:
@@ -1044,7 +1050,7 @@ molecule_swarm_create:
   <<: *molecule_create
   rules:
     - *swarm_ignore_rule
-    - *only_agent_3_always
+    - *cluster_agent_always
   variables:
     MOLECULE_SCENARIO: swarm
 
@@ -1053,7 +1059,7 @@ molecule_swarm_test:
   <<: *molecule_test
   rules:
     - *swarm_ignore_rule
-    - *only_agent_3_on_success
+    - *cluster_agent_on_success
   dependencies:
     - molecule_swarm_create
   variables:
@@ -1070,7 +1076,7 @@ molecule_swarm_failure_cleanup:
   <<: *molecule_destroy
   rules:
     - *swarm_ignore_rule
-    - *only_agent_3_on_failure
+    - *cluster_agent_on_failure
   needs:
     - molecule_swarm_create
     - molecule_swarm_test
@@ -1082,7 +1088,7 @@ molecule_swarm_success_cleanup:
   <<: *molecule_destroy
   rules:
     - *swarm_ignore_rule
-    - *only_agent_3_on_success
+    - *cluster_agent_on_success
   dependencies:
     - molecule_swarm_create
     - molecule_swarm_test
@@ -1270,7 +1276,7 @@ release_trace_agent_image:
     - cp ./outcomes/binary/trace-agent Dockerfiles/trace-agent
     - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_TRACE $CI_PROJECT_DIR/Dockerfiles/trace-agent latest
   rules:
-    - *only_agent_3_release
+    - *cluster_agent_release
 
 release_cluster_agent_image:
   <<: *base_release_image
@@ -1283,4 +1289,4 @@ release_cluster_agent_image:
     - cp -r ./bin/stackstate-cluster-agent/* ./Dockerfiles/cluster-agent
     - ./omnibus/package-scripts/publish_image.sh $VERSION $STS_DOCKER_RELEASE_REPO_CLUSTER $CI_PROJECT_DIR/Dockerfiles/cluster-agent latest
   rules:
-    - *only_agent_3_release
+    - *cluster_agent_release
