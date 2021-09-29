@@ -593,9 +593,10 @@ def make_kitchen_gitlab_yml(_):
         'testkitchen_testing',
         'testkitchen_cleanup',
     ]
+    toremove = []
     for name, job in data.items():
         if isinstance(job, dict) and job.get('stage', None) not in ([None] + data['stages']):
-            del data[name]
+            toremove = data[name]
             continue
         if (
             isinstance(job, dict)
@@ -603,7 +604,7 @@ def make_kitchen_gitlab_yml(_):
             and name != 'build_system-probe-arm64'
             and name != 'build_system-probe-x64'
         ):
-            del data[name]
+            toremove = data[name]
             continue
         if 'except' in job:
             del job['except']
@@ -612,8 +613,12 @@ def make_kitchen_gitlab_yml(_):
         if 'rules' in job:
             del job['rules']
         if len(job) == 0:
-            del data[name]
+            toremove = data[name]
             continue
+
+    for name, _ in toremove:
+        data.remove(name)
+    toremove = []
 
     for name, job in data.items():
         if 'extends' in job:
@@ -622,7 +627,7 @@ def make_kitchen_gitlab_yml(_):
                 extended = [extended]
             for job in extended:
                 if job not in data:
-                    del data[name]
+                    toremove = data[name]
 
     for _, job in data.items():
         if 'needs' in job:
@@ -632,6 +637,9 @@ def make_kitchen_gitlab_yml(_):
                 if n in data:
                     new_needed.append(n)
             job['needs'] = new_needed
+
+    for name, _ in toremove:
+        data.remove(name)
 
     with open('.gitlab-ci.yml', 'w') as f:
         yaml.dump(data, f, default_style='"')
