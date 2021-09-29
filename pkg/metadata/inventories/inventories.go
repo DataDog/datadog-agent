@@ -67,29 +67,29 @@ type AgentMetadataName string
 // pkg/metadata/inventories/README.md and any additions should
 // be updated there as well.
 const (
-	AgentCloudProvider                AgentMetadataName = "cloud_provider"
-	AgentHostnameSource               AgentMetadataName = "hostname_source"
-	AgentVersion                      AgentMetadataName = "agent_version"
-	AgentFlavor                       AgentMetadataName = "flavor"
-	AgentConfigApmDDURL               AgentMetadataName = "config_apm_dd_url"
-	AgentConfigDDURL                  AgentMetadataName = "config_dd_url"
-	AgentConfigSite                   AgentMetadataName = "config_site"
-	AgentConfigLogsDDURL              AgentMetadataName = "config_logs_dd_url"
-	AgentConfigLogsSocks5ProxyAddress AgentMetadataName = "config_logs_socks5_proxy_address"
-	AgentConfigNoProxy                AgentMetadataName = "config_no_proxy"
-	AgentConfigProcessDDURL           AgentMetadataName = "config_process_dd_url"
-	AgentConfigProxyHTTP              AgentMetadataName = "config_proxy_http"
-	AgentConfigProxyHTTPS             AgentMetadataName = "config_proxy_https"
-	AgentInstallerVersion             AgentMetadataName = "install_method_installer_version"
-	AgentInstallTool                  AgentMetadataName = "install_method_tool"
-	AgentInstallToolVersion           AgentMetadataName = "install_method_tool_version"
-	AgentLogsTransport                AgentMetadataName = "logs_transport"
-	AgentSecurityEnabled              AgentMetadataName = "feature_cws_enabled"
-	AgentProcessEnabled               AgentMetadataName = "feature_process_enabled"
-	AgentNetworksEnabled              AgentMetadataName = "feature_networks_enabled"
-	AgentLogsEnabled                  AgentMetadataName = "feature_logs_enabled"
-	AgentComplianceEnabled            AgentMetadataName = "feature_cspm_enabled"
-	AgentAPMEnabled                   AgentMetadataName = "feature_apm_enabled"
+	AgentCloudProvider                 AgentMetadataName = "cloud_provider"
+	AgentHostnameSource                AgentMetadataName = "hostname_source"
+	AgentVersion                       AgentMetadataName = "agent_version"
+	AgentFlavor                        AgentMetadataName = "flavor"
+	AgentConfigAPMDDURL                AgentMetadataName = "config_apm_dd_url"
+	AgentConfigDDURL                   AgentMetadataName = "config_dd_url"
+	AgentConfigSite                    AgentMetadataName = "config_site"
+	AgentConfigLogsDDURL               AgentMetadataName = "config_logs_dd_url"
+	AgentConfigLogsSocks5ProxyAddress  AgentMetadataName = "config_logs_socks5_proxy_address"
+	AgentConfigNoProxy                 AgentMetadataName = "config_no_proxy"
+	AgentConfigProcessDDURL            AgentMetadataName = "config_process_dd_url"
+	AgentConfigProxyHTTP               AgentMetadataName = "config_proxy_http"
+	AgentConfigProxyHTTPS              AgentMetadataName = "config_proxy_https"
+	AgentInstallMethodInstallerVersion AgentMetadataName = "install_method_installer_version"
+	AgentInstallMethodTool             AgentMetadataName = "install_method_tool"
+	AgentInstallMethodToolVersion      AgentMetadataName = "install_method_tool_version"
+	AgentLogsTransport                 AgentMetadataName = "logs_transport"
+	AgentCWSEnabled                    AgentMetadataName = "feature_cws_enabled"
+	AgentProcessEnabled                AgentMetadataName = "feature_process_enabled"
+	AgentNetworksEnabled               AgentMetadataName = "feature_networks_enabled"
+	AgentLogsEnabled                   AgentMetadataName = "feature_logs_enabled"
+	AgentCSPMEnabled                   AgentMetadataName = "feature_cspm_enabled"
+	AgentAPMEnabled                    AgentMetadataName = "feature_apm_enabled"
 )
 
 // SetAgentMetadata updates the agent metadata value in the cache
@@ -256,7 +256,7 @@ func initializeConfig(cfg config.Config) {
 		return rv
 	}
 
-	SetAgentMetadata(AgentConfigApmDDURL, clean(cfg.GetString("apm_config.apm_dd_url")))
+	SetAgentMetadata(AgentConfigAPMDDURL, clean(cfg.GetString("apm_config.apm_dd_url")))
 	SetAgentMetadata(AgentConfigDDURL, clean(cfg.GetString("dd_url")))
 	SetAgentMetadata(AgentConfigSite, clean(cfg.GetString("dd_site")))
 	SetAgentMetadata(AgentConfigLogsDDURL, clean(cfg.GetString("logs_config.logs_dd_url")))
@@ -265,10 +265,10 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentConfigProcessDDURL, clean(cfg.GetString("process_config.process_dd_url")))
 	SetAgentMetadata(AgentConfigProxyHTTP, clean(cfg.GetString("proxy.http")))
 	SetAgentMetadata(AgentConfigProxyHTTPS, clean(cfg.GetString("proxy.https")))
-	SetAgentMetadata(AgentSecurityEnabled, config.Datadog.GetBool("runtime_security_config.enabled"))
+	SetAgentMetadata(AgentCWSEnabled, config.Datadog.GetBool("runtime_security_config.enabled"))
 	SetAgentMetadata(AgentProcessEnabled, config.Datadog.GetBool("process_config.enabled"))
 	SetAgentMetadata(AgentNetworksEnabled, config.Datadog.GetBool("network_config.enabled"))
 	SetAgentMetadata(AgentLogsEnabled, config.Datadog.GetBool("logs_enabled"))
-	SetAgentMetadata(AgentComplianceEnabled, config.Datadog.GetBool("compliance_config.enabled"))
+	SetAgentMetadata(AgentCSPMEnabled, config.Datadog.GetBool("compliance_config.enabled"))
 	SetAgentMetadata(AgentAPMEnabled, config.Datadog.GetBool("apm_config.enabled"))
 }
