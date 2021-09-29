@@ -300,7 +300,7 @@ def image_build(ctx, arch='amd64', skip_build=False):
 
     client = docker.from_env()
 
-    src = os.path.join(STATIC_BIN_PATH, bin_name("dogstatsd"))
+    src = os.path.join(DOGSTATSD_BIN_PATH, bin_name("dogstatsd"))
     dst = os.path.join("Dockerfiles", "dogstatsd", "alpine", "static")
 
     if not skip_build:
