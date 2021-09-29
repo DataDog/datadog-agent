@@ -52,18 +52,11 @@ func dummyFractionalPollingFunc() float64 {
 	return randBusy
 }
 
-func useMockClock(sw SlidingWindow) *clock.Mock {
-	mock := clock.NewMock()
-	swObj := sw.(*slidingWindow)
-	swObj.clock = mock
-	return mock
-}
-
 func TestSlidingWindow(t *testing.T) {
-	sw, err := NewSlidingWindow(2*time.Second, 100*time.Millisecond)
+	clk := clock.NewMock()
+	sw, err := newSlidingWindowWithClock(2*time.Second, 100*time.Millisecond, clk)
 	require.Nil(t, err)
 	require.NotNil(t, sw)
-	clk := useMockClock(sw)
 
 	err = sw.Start(dummyTogglingPollingFunc, dummyStatsUpdateFunc)
 	require.Nil(t, err)
@@ -92,9 +85,9 @@ func TestSlidingWindowAccuracy(t *testing.T) {
 		lastAverage = sw.Average()
 	}
 
-	sw, err := NewSlidingWindow(1*time.Second, 10*time.Millisecond)
+	clk := clock.NewMock()
+	sw, err := newSlidingWindowWithClock(1*time.Second, 10*time.Millisecond, clk)
 	require.Nil(t, err)
-	clk := useMockClock(sw)
 
 	err = sw.Start(dummyFractionalPollingFunc, statsUpdateFunc)
 	require.Nil(t, err)
@@ -116,9 +109,9 @@ func TestSlidingWindowAverage(t *testing.T) {
 		t.Skip("Skipping flaky test on Windows")
 	}
 
-	sw, err := NewSlidingWindow(1*time.Second, 100*time.Millisecond)
+	clk := clock.NewMock()
+	sw, err := newSlidingWindowWithClock(1*time.Second, 100*time.Millisecond, clk)
 	require.Nil(t, err)
-	clk := useMockClock(sw)
 
 	err = sw.Start(dummyFractionalPollingFunc, nil)
 	require.Nil(t, err)
@@ -137,9 +130,9 @@ func TestSlidingWindowCallback(t *testing.T) {
 	atomic.StoreInt64(&statsUpdateFuncInvocationCount, 0)
 	atomic.StoreInt64(&pollingFuncInvocationCount, 0)
 
-	sw, err := NewSlidingWindow(100*time.Millisecond, 10*time.Millisecond)
+	clk := clock.NewMock()
+	sw, err := newSlidingWindowWithClock(100*time.Millisecond, 10*time.Millisecond, clk)
 	require.Nil(t, err)
-	clk := useMockClock(sw)
 
 	pollingFunc := func() float64 {
 		atomic.StoreInt64(&pollingFuncInvocationCount, 1)
@@ -173,9 +166,9 @@ func TestSlidingWindowFuncInvocationCounts(t *testing.T) {
 	windowSize := 2000 * time.Millisecond
 	pollingInterval := 100 * time.Millisecond
 
-	sw, err := NewSlidingWindow(windowSize, pollingInterval)
+	clk := clock.NewMock()
+	sw, err := newSlidingWindowWithClock(windowSize, pollingInterval, clk)
 	require.Nil(t, err)
-	clk := useMockClock(sw)
 
 	err = sw.Start(dummyFractionalPollingFunc, dummyStatsUpdateFunc)
 	require.Nil(t, err)

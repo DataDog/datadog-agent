@@ -65,6 +65,10 @@ type SlidingWindow interface {
 
 // NewSlidingWindow creates a new instance of a slidingWindow
 func NewSlidingWindow(windowSize time.Duration, pollingInterval time.Duration) (SlidingWindow, error) {
+	return newSlidingWindowWithClock(windowSize, pollingInterval, clock.New())
+}
+
+func newSlidingWindowWithClock(windowSize time.Duration, pollingInterval time.Duration, clock clock.Clock) (SlidingWindow, error) {
 	if windowSize == 0 {
 		return nil, fmt.Errorf("SlidingWindow windowSize cannot be 0")
 	}
@@ -86,7 +90,7 @@ func NewSlidingWindow(windowSize time.Duration, pollingInterval time.Duration) (
 		numBuckets:      int(windowSize / pollingInterval),
 		pollingInterval: pollingInterval,
 		windowSize:      windowSize,
-		clock:           clock.New(),
+		clock:           clock,
 	}, nil
 }
 
