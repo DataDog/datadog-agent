@@ -68,7 +68,7 @@ func (c *ECSCollector) Detect(ctx context.Context, out chan<- []*TagInfo) (Colle
 
 	c.clusterName = instance.Cluster
 
-	return FetchOnlyCollection, nil
+	return PullCollection, nil
 }
 
 // Fetch fetches ECS tags
@@ -86,20 +86,15 @@ func (c *ECSCollector) Fetch(ctx context.Context, entity string) ([]string, []st
 	var updates []*TagInfo
 
 	if config.Datadog.GetBool("ecs_collect_resource_tags_ec2") && ecsutil.HasEC2ResourceTags() {
-		updates, err = c.parseTasks(ctx, tasks, cID, addTagsForContainer)
+		updates, err = c.parseTasks(ctx, tasks, addTagsForContainer)
 	} else {
-		updates, err = c.parseTasks(ctx, tasks, cID)
+		updates, err = c.parseTasks(ctx, tasks)
 	}
 	if err != nil {
 		return []string{}, []string{}, []string{}, err
 	}
 
 	c.infoOut <- updates
-
-	expires := c.expire.ComputeExpires()
-	if len(expires) > 0 {
-		c.infoOut <- expires
-	}
 
 	for _, info := range updates {
 		if info.Entity == entity {
@@ -120,6 +115,34 @@ func (c *ECSCollector) Fetch(ctx context.Context, entity string) ([]string, []st
 
 	// container not found in updates
 	return []string{}, []string{}, []string{}, errors.NewNotFound(entity)
+}
+
+// Pull fetches ECS tags for all tasks in the current node
+func (c *ECSCollector) Pull(ctx context.Context) error {
+	tasks, err := c.metaV1.GetTasks(ctx)
+	if err != nil {
+		return err
+	}
+
+	var updates []*TagInfo
+
+	if config.Datadog.GetBool("ecs_collect_resource_tags_ec2") && ecsutil.HasEC2ResourceTags() {
+		updates, err = c.parseTasks(ctx, tasks, addTagsForContainer)
+	} else {
+		updates, err = c.parseTasks(ctx, tasks)
+	}
+	if err != nil {
+		return err
+	}
+
+	c.infoOut <- updates
+
+	expires := c.expire.ComputeExpires()
+	if len(expires) > 0 {
+		c.infoOut <- expires
+	}
+
+	return nil
 }
 
 func addTagsForContainer(ctx context.Context, containerID string, tags *utils.TagList) error {
