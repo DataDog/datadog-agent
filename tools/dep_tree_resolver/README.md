@@ -6,10 +6,21 @@ ones specified) when the code is being run. While no method is perfect at this
 task, we can use this helper script to generate our best-guess at the resulting
 dependency tree.
 
-_Note that this program only calculates the output based on the content of the main
-`go.mod` and its dependencies and it does not handle depndencies declared in a
+
+## Caveats
+
+### Isolated module dependencies
+
+This program only calculates the output based on the content of the main
+`go.mod` and its dependencies and it does not handle dependencies declared in a
 other isolated modules (e.g.
-[`tools.go`](https://github.com/DataDog/datadog-agent/blob/main/internal/tools/tools.go)._
+[`tools.go`](https://github.com/DataDog/datadog-agent/blob/main/internal/tools/tools.go).
+
+### Partial module dependencies
+
+This program does not exclude modules that are in the explicitly-defined dependency
+tree but do not effectively end up being used by the agent due to either build flag
+constraints or by not using the packages that require a downstream dependency.
 
 ## Usage
 
