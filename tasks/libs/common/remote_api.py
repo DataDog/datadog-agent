@@ -69,7 +69,7 @@ class RemoteAPI(object):
             if r.status_code == 401:
                 print(self.authorization_error_message)
 
-                print("{} says: {}".format(self.api_name, r.json()["error_description"]))
+                print("{} says: {}".format(self.api_name, r.json()))
                 raise Exit(code=1)
         except requests.exceptions.Timeout:
             print("Connection to {} ({}) timed out.".format(self.api_name, url))
