@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	wstats "github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/stats"
 	v1 "github.com/containerd/cgroups/stats/v1"
 	"github.com/containerd/containerd/containers"
 	"github.com/opencontainers/runtime-spec/specs-go"
@@ -179,7 +180,7 @@ func TestComputeEvents(t *testing.T) {
 	}
 }
 
-func TestComputeCPU(t *testing.T) {
+func TestComputeCPULinux(t *testing.T) {
 	containerdCheck := &ContainerdCheck{
 		instance:  &ContainerdConfig{},
 		CheckBase: corechecks.NewCheckBase("containerd"),
@@ -245,7 +246,7 @@ func TestComputeCPU(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			computeCPU(mocked, test.cpu, test.cpuLimit, test.startTime, test.currentTime, []string{})
+			computeCPULinux(mocked, test.cpu, test.cpuLimit, test.startTime, test.currentTime, []string{})
 			for name, val := range test.expected {
 				mocked.AssertMetric(t, "Rate", name, val, "", []string{})
 			}
@@ -253,7 +254,58 @@ func TestComputeCPU(t *testing.T) {
 	}
 }
 
-func TestComputeMem(t *testing.T) {
+func TestComputeCPUWindows(t *testing.T) {
+	containerdCheck := &ContainerdCheck{
+		instance:  &ContainerdConfig{},
+		CheckBase: corechecks.NewCheckBase("containerd"),
+	}
+	mocked := mocksender.NewMockSender(containerdCheck.ID())
+	mocked.SetupAcceptAll()
+
+	tests := []struct {
+		name                    string
+		cpuStats                *wstats.WindowsContainerProcessorStatistics
+		tags                    []string
+		expectedMetricsReported map[string]float64
+	}{
+		{
+			name: "CPU stats not nil",
+			cpuStats: &wstats.WindowsContainerProcessorStatistics{
+				TotalRuntimeNS:  50,
+				RuntimeUserNS:   10,
+				RuntimeKernelNS: 40,
+			},
+			tags: []string{"foo:bar"},
+			expectedMetricsReported: map[string]float64{
+				"containerd.cpu.total":  50,
+				"containerd.cpu.user":   10,
+				"containerd.cpu.system": 40,
+			},
+		},
+		{
+			name:                    "CPU stats is nil",
+			cpuStats:                nil,
+			tags:                    []string{"foo:bar"},
+			expectedMetricsReported: nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			computeCPUWindows(mocked, test.cpuStats, test.tags)
+
+			if test.cpuStats == nil {
+				mocked.AssertNotCalled(t, "Rate")
+			} else {
+				for metricName, metricVal := range test.expectedMetricsReported {
+					mocked.AssertMetric(t, "Rate", metricName, metricVal, "", test.tags)
+				}
+			}
+		})
+	}
+}
+
+func TestComputeMemLinux(t *testing.T) {
 	containerdCheck := &ContainerdCheck{
 		instance:  &ContainerdConfig{},
 		CheckBase: corechecks.NewCheckBase("containerd"),
@@ -340,9 +392,109 @@ func TestComputeMem(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			computeMem(mocked, test.mem, []string{})
+			computeMemLinux(mocked, test.mem, []string{})
 			for name, val := range test.expected {
 				mocked.AssertMetric(t, "Gauge", name, val, "", []string{})
+			}
+		})
+	}
+}
+
+func TestComputeMemWindows(t *testing.T) {
+	containerdCheck := &ContainerdCheck{
+		instance:  &ContainerdConfig{},
+		CheckBase: corechecks.NewCheckBase("containerd"),
+	}
+	mocked := mocksender.NewMockSender(containerdCheck.ID())
+	mocked.SetupAcceptAll()
+
+	tests := []struct {
+		name                    string
+		memStats                *wstats.WindowsContainerMemoryStatistics
+		tags                    []string
+		expectedMetricsReported map[string]float64
+	}{
+		{
+			name: "Memory stats not nil",
+			memStats: &wstats.WindowsContainerMemoryStatistics{
+				MemoryUsageCommitBytes:            1024,
+				MemoryUsageCommitPeakBytes:        2048,
+				MemoryUsagePrivateWorkingSetBytes: 512,
+			},
+			tags: []string{"foo:bar"},
+			expectedMetricsReported: map[string]float64{
+				"containerd.mem.commit":              1024,
+				"containerd.mem.commit_peak":         2048,
+				"containerd.mem.private_working_set": 512,
+			},
+		},
+		{
+			name:                    "Memory stats is nil",
+			memStats:                nil,
+			tags:                    []string{"foo:bar"},
+			expectedMetricsReported: nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			computeMemWindows(mocked, test.memStats, test.tags)
+
+			if test.memStats == nil {
+				mocked.AssertNotCalled(t, "Gauge")
+			} else {
+				for metricName, metricVal := range test.expectedMetricsReported {
+					mocked.AssertMetric(t, "Gauge", metricName, metricVal, "", test.tags)
+				}
+			}
+		})
+	}
+}
+
+func TestComputeStorageWindows(t *testing.T) {
+	containerdCheck := &ContainerdCheck{
+		instance:  &ContainerdConfig{},
+		CheckBase: corechecks.NewCheckBase("containerd"),
+	}
+	mocked := mocksender.NewMockSender(containerdCheck.ID())
+	mocked.SetupAcceptAll()
+
+	tests := []struct {
+		name                    string
+		storageStats            *wstats.WindowsContainerStorageStatistics
+		tags                    []string
+		expectedMetricsReported map[string]float64
+	}{
+		{
+			name: "Storage stats not nil",
+			storageStats: &wstats.WindowsContainerStorageStatistics{
+				ReadSizeBytes:  256,
+				WriteSizeBytes: 128,
+			},
+			tags: []string{"foo:bar"},
+			expectedMetricsReported: map[string]float64{
+				"containerd.storage.read":  256,
+				"containerd.storage.write": 128,
+			},
+		},
+		{
+			name:                    "Storage stats is nil",
+			storageStats:            nil,
+			tags:                    []string{"foo:bar"},
+			expectedMetricsReported: nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			computeStorageWindows(mocked, test.storageStats, test.tags)
+
+			if test.storageStats == nil {
+				mocked.AssertNotCalled(t, "Rate")
+			} else {
+				for metricName, metricVal := range test.expectedMetricsReported {
+					mocked.AssertMetric(t, "Rate", metricName, metricVal, "", test.tags)
+				}
 			}
 		})
 	}

@@ -229,8 +229,8 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 
 		if linuxMetrics != nil {
 			computeLinuxSpecificMetrics(linuxMetrics, sender, cu, ctn, info.CreatedAt, currentTime, tags)
-		} else {
-			computeWindowsSpecificMetrics(windowsStats)
+		} else if windowsMetrics := windowsStats.GetWindows(); windowsMetrics != nil {
+			computeWindowsSpecificMetrics(windowsMetrics, sender, tags)
 		}
 
 		size, err := cu.ImageSize(ctn)
@@ -269,7 +269,7 @@ func isExcluded(ctn containers.Container, fil *ddContainers.Filter) bool {
 }
 
 func computeLinuxSpecificMetrics(metrics *v1.Metrics, sender aggregator.Sender, cu cutil.ContainerdItf, ctn containerd.Container, createdAt time.Time, currentTime time.Time, tags []string) {
-	computeMem(sender, metrics.Memory, tags)
+	computeMemLinux(sender, metrics.Memory, tags)
 
 	ociSpec, err := cu.Spec(ctn)
 	if err != nil {
@@ -280,7 +280,7 @@ func computeLinuxSpecificMetrics(metrics *v1.Metrics, sender aggregator.Sender, 
 	if ociSpec != nil && ociSpec.Linux != nil && ociSpec.Linux.Resources != nil {
 		cpuLimits = ociSpec.Linux.Resources.CPU
 	}
-	computeCPU(sender, metrics.CPU, cpuLimits, createdAt, currentTime, tags)
+	computeCPULinux(sender, metrics.CPU, cpuLimits, createdAt, currentTime, tags)
 
 	if metrics.Blkio.Size() > 0 {
 		computeBlkio(sender, metrics.Blkio, tags)
@@ -291,8 +291,10 @@ func computeLinuxSpecificMetrics(metrics *v1.Metrics, sender aggregator.Sender, 
 	}
 }
 
-func computeWindowsSpecificMetrics(windowsStats *wstats.Statistics) {
-	// TODO: Should report similar information to computeLinuxSpecificMetrics().
+func computeWindowsSpecificMetrics(windowsStats *wstats.WindowsContainerStatistics, sender aggregator.Sender, tags []string) {
+	computeCPUWindows(sender, windowsStats.Processor, tags)
+	computeMemWindows(sender, windowsStats.Memory, tags)
+	computeStorageWindows(sender, windowsStats.Storage, tags)
 }
 
 // TODO when creating a dedicated collector for the tagger, unify the local tagging logic and the Tagger.
@@ -329,7 +331,7 @@ func computeUptime(sender aggregator.Sender, ctn containers.Container, currentTi
 	}
 }
 
-func computeMem(sender aggregator.Sender, mem *v1.MemoryStat, tags []string) {
+func computeMemLinux(sender aggregator.Sender, mem *v1.MemoryStat, tags []string) {
 	if mem == nil {
 		return
 	}
@@ -359,7 +361,17 @@ func parseAndSubmitMem(metricName string, sender aggregator.Sender, stat *v1.Mem
 	sender.Gauge(fmt.Sprintf("%s.max", metricName), float64(stat.Max), "", tags)
 }
 
-func computeCPU(sender aggregator.Sender, cpu *v1.CPUStat, cpuLimits *specs.LinuxCPU, startTime, currentTime time.Time, tags []string) {
+func computeMemWindows(sender aggregator.Sender, memStats *wstats.WindowsContainerMemoryStatistics, tags []string) {
+	if memStats == nil {
+		return
+	}
+
+	sender.Gauge("containerd.mem.commit", float64(memStats.MemoryUsageCommitBytes), "", tags)
+	sender.Gauge("containerd.mem.commit_peak", float64(memStats.MemoryUsageCommitPeakBytes), "", tags)
+	sender.Gauge("containerd.mem.private_working_set", float64(memStats.MemoryUsagePrivateWorkingSetBytes), "", tags)
+}
+
+func computeCPULinux(sender aggregator.Sender, cpu *v1.CPUStat, cpuLimits *specs.LinuxCPU, startTime, currentTime time.Time, tags []string) {
 	if cpu == nil || cpu.Usage == nil {
 		return
 	}
@@ -381,6 +393,16 @@ func computeCPU(sender aggregator.Sender, cpu *v1.CPUStat, cpuLimits *specs.Linu
 		}
 		sender.Rate("containerd.cpu.limit", cpuLimitPct*timeDiff, "", tags)
 	}
+}
+
+func computeCPUWindows(sender aggregator.Sender, cpuStats *wstats.WindowsContainerProcessorStatistics, tags []string) {
+	if cpuStats == nil {
+		return
+	}
+
+	sender.Rate("containerd.cpu.total", float64(cpuStats.TotalRuntimeNS), "", tags)
+	sender.Rate("containerd.cpu.system", float64(cpuStats.RuntimeKernelNS), "", tags)
+	sender.Rate("containerd.cpu.user", float64(cpuStats.RuntimeUserNS), "", tags)
 }
 
 func computeBlkio(sender aggregator.Sender, blkio *v1.BlkIOStat, tags []string) {
@@ -417,4 +439,13 @@ func parseAndSubmitBlkio(metricName string, sender aggregator.Sender, list []*v1
 
 		sender.Rate(metricName, float64(m.Value), "", deviceTags)
 	}
+}
+
+func computeStorageWindows(sender aggregator.Sender, storageStats *wstats.WindowsContainerStorageStatistics, tags []string) {
+	if storageStats == nil {
+		return
+	}
+
+	sender.Rate("containerd.storage.read", float64(storageStats.ReadSizeBytes), "", tags)
+	sender.Rate("containerd.storage.write", float64(storageStats.WriteSizeBytes), "", tags)
 }
