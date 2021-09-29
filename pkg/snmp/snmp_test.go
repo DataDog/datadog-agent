@@ -281,15 +281,19 @@ snmp_listener:
 	// Custom Namespace
 	config.Datadog.SetConfigType("yaml")
 	err = config.Datadog.ReadConfig(strings.NewReader(`
+network_devices:
+  namespace: totoro
 snmp_listener:
   configs:
-   - community_string: someCommunityString
-     network_address: 127.1.0.0/30
-     namespace: hello
+  - community_string: someCommunityString
+    network_address: 127.1.0.0/30
+  - community_string: someCommunityString
+    network_address: 127.2.0.0/30
+    namespace: mononoke
 `))
 	assert.NoError(t, err)
 	conf, err = NewListenerConfig()
 	assert.NoError(t, err)
-	networkConf = conf.Configs[0]
-	assert.Equal(t, "hello", networkConf.Namespace)
+	assert.Equal(t, "totoro", conf.Configs[0].Namespace)
+	assert.Equal(t, "mononoke", conf.Configs[1].Namespace)
 }
