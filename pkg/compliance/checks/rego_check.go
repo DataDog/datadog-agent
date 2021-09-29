@@ -35,10 +35,11 @@ type regoCheck struct {
 func computeRuleModules(rule *compliance.RegoRule, meta *compliance.SuiteMeta) ([]func(*rego.Rego), error) {
 	modules := make([]func(*rego.Rego), 0)
 
-	modules = append(modules,
-		rego.Module(fmt.Sprintf("__gen__rule_%s.rego", rule.ID), rule.Module),
-		rego.Module("datadog_helpers.rego", helpers),
-	)
+	modules = append(modules, rego.Module("datadog_helpers.rego", helpers))
+
+	if rule.Module != "" {
+		modules = append(modules, rego.Module(fmt.Sprintf("__gen__rule_%s.rego", rule.ID), rule.Module))
+	}
 
 	var parentDir string
 	if meta.Source != "" {
