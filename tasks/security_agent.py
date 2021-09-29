@@ -428,3 +428,18 @@ RUN apt-get update -y \
     finally:
         cmd = 'docker rm -f {container_name}'
         ctx.run(cmd.format(**args))
+
+
+@task
+def generate_documentation(ctx, go_generate=False):
+    if go_generate:
+        ctx.run("go generate ./pkg/security/...")
+
+    # secl docs
+    ctx.run(
+        "python3 ./docs/cloud-workload-security/scripts/secl-doc-gen.py --input ./docs/cloud-workload-security/secl.json --output ./docs/cloud-workload-security/agent_expressions.md"
+    )
+    # backend event docs
+    ctx.run(
+        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend.schema.json --output ./docs/cloud-workload-security/backend.md"
+    )

@@ -16,7 +16,7 @@ SYSCALL_KPROBE0(umount) {
 }
 
 SEC("kprobe/security_sb_umount")
-int kprobe__security_sb_umount(struct pt_regs *ctx) {
+int kprobe_security_sb_umount(struct pt_regs *ctx) {
     struct syscall_cache_t syscall = {
         .type = EVENT_UMOUNT,
         .umount = {
@@ -54,7 +54,7 @@ int __attribute__((always_inline)) sys_umount_ret(void *ctx, int retval) {
 }
 
 SEC("tracepoint/syscalls/sys_exit_umount")
-int handle_sys_umount_exit(struct tracepoint_syscalls_sys_exit_t *args) {
+int tracepoint_syscalls_sys_exit_umount(struct tracepoint_syscalls_sys_exit_t *args) {
     return sys_umount_ret(args, args->ret);
 }
 

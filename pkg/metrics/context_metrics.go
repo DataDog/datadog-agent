@@ -10,6 +10,7 @@ import (
 	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -21,8 +22,27 @@ func MakeContextMetrics() ContextMetrics {
 	return ContextMetrics(make(map[ckey.ContextKey]Metric))
 }
 
+// AddSampleTelemetry counts number of new metrics added.
+type AddSampleTelemetry struct {
+	Total     telemetry.SimpleCounter
+	Stateful  telemetry.SimpleCounter
+	Stateless telemetry.SimpleCounter
+}
+
+// Inc should be called once for each new metric added to the map.
+//
+// isStateful should be the value returned by isStateful method for the new metric.
+func (a *AddSampleTelemetry) Inc(isStateful bool) {
+	a.Total.Inc()
+	if isStateful {
+		a.Stateful.Inc()
+	} else {
+		a.Stateless.Inc()
+	}
+}
+
 // AddSample add a sample to the current ContextMetrics and initialize a new metrics if needed.
-func (m ContextMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSample, timestamp float64, interval int64) error {
+func (m ContextMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSample, timestamp float64, interval int64, t *AddSampleTelemetry) error {
 	if math.IsInf(sample.Value, 0) || math.IsNaN(sample.Value) {
 		return fmt.Errorf("sample with value '%v'", sample.Value)
 	}
@@ -48,6 +68,9 @@ func (m ContextMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSamp
 			err := fmt.Errorf("unknown sample metric type: %v", sample.Mtype)
 			log.Error(err)
 			return err
+		}
+		if t != nil {
+			t.Inc(m[contextKey].isStateful())
 		}
 	}
 	m[contextKey].addSample(sample, timestamp)

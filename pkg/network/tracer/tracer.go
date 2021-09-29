@@ -43,8 +43,6 @@ type Tracer struct {
 	httpMonitor *http.Monitor
 	ebpfTracer  connection.Tracer
 
-	closedConnsCh <-chan network.ConnectionStats
-
 	// Telemetry
 	skippedConns int64
 	// Will track the count of expired TCP connections
@@ -63,8 +61,9 @@ type Tracer struct {
 	closedConns      int64
 	connStatsMapSize int64
 
-	buffer     []network.ConnectionStats
-	bufferLock sync.Mutex
+	activeBuffer *network.ConnectionBuffer
+	closedBuffer *network.ConnectionBuffer
+	bufferLock   sync.Mutex
 
 	// Internal buffer used to compute bytekeys
 	buf []byte
@@ -145,17 +144,13 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.CollectDNSDomains,
 	)
 
-	closedConnsCh, err := ebpfTracer.Start()
-	if err != nil {
-		return nil, fmt.Errorf("could not start ebpf manager: %s", err)
-	}
-
 	tr := &Tracer{
 		config:                     config,
 		state:                      state,
 		reverseDNS:                 newReverseDNS(!pre410Kernel, config),
 		httpMonitor:                newHTTPMonitor(!pre410Kernel, config, ebpfTracer, constantEditors),
-		buffer:                     make([]network.ConnectionStats, 0, 512),
+		activeBuffer:               network.NewConnectionBuffer(512),
+		closedBuffer:               network.NewConnectionBuffer(512),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:               network.ParseConnectionFilters(config.ExcludedDestinationConnections),
@@ -164,25 +159,15 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		sysctlUDPConnStreamTimeout: sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout_stream", time.Minute),
 		gwLookup:                   newGatewayLookup(config),
 		ebpfTracer:                 ebpfTracer,
-		closedConnsCh:              closedConnsCh,
 	}
-	tr.initClosedPolling()
+
+	err = ebpfTracer.Start(tr.closedCB)
+	if err != nil {
+		tr.Stop()
+		return nil, fmt.Errorf("could not start ebpf manager: %s", err)
+	}
 
 	return tr, nil
-}
-
-func (t *Tracer) initClosedPolling() {
-	go func() {
-		for {
-			select {
-			case conn, ok := <-t.closedConnsCh:
-				if !ok {
-					return
-				}
-				t.storeClosedConn(&conn)
-			}
-		}
-	}()
 }
 
 func newConntracker(cfg *config.Config, conntrackerCreator func(*config.Config) (netlink.Conntracker, error)) (netlink.Conntracker, error) {
@@ -273,7 +258,7 @@ func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manag
 	return editors, nil
 }
 
-func (t *Tracer) storeClosedConn(cs *network.ConnectionStats) {
+func (t *Tracer) closedCB(cs *network.ConnectionStats) (keep bool) {
 	if t.shouldSkipConnection(cs) {
 		atomic.AddInt64(&t.skippedConns, 1)
 		return
@@ -282,10 +267,11 @@ func (t *Tracer) storeClosedConn(cs *network.ConnectionStats) {
 	atomic.AddInt64(&t.closedConns, 1)
 	cs.IPTranslation = t.conntracker.GetTranslationForConn(*cs)
 	t.connVia(cs)
-	t.state.StoreClosedConnection(cs)
 	if cs.IPTranslation != nil {
 		t.conntracker.DeleteTranslation(*cs)
 	}
+
+	return true
 }
 
 func (t *Tracer) Stop() {
@@ -300,33 +286,23 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	defer t.bufferLock.Unlock()
 	log.Tracef("GetActiveConnections clientID=%s", clientID)
 
-	latestConns, latestTime, err := t.getConnections(t.buffer[:0])
+	latestTime, err := t.getConnections(t.activeBuffer, t.closedBuffer)
+	active := t.activeBuffer.Connections()
+	closed := t.closedBuffer.Connections()
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
 
-	// Grow or shrink buffer depending on the usage
-	if len(latestConns) >= cap(t.buffer)*2 {
-		t.buffer = make([]network.ConnectionStats, 0, cap(t.buffer)*2)
-	} else if len(latestConns) <= cap(t.buffer)/2 {
-		t.buffer = make([]network.ConnectionStats, 0, cap(t.buffer)/2)
-	}
+	delta := t.state.GetDelta(clientID, latestTime, active, closed, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
+	t.activeBuffer.Reset()
+	t.closedBuffer.Reset()
 
-	// Ensure that TCP closed connections are flushed
-	// process the idle connections in-band to ensure they are all processed
-	// using the async channel has no way to guarantee this
-	pendingConns := t.ebpfTracer.FlushPending()
-	for _, c := range pendingConns {
-		t.storeClosedConn(&c)
-	}
-
-	delta := t.state.GetDelta(clientID, latestTime, latestConns, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
 	ips := make([]util.Address, 0, len(delta.Connections)*2)
 	for _, conn := range delta.Connections {
 		ips = append(ips, conn.Source, conn.Dest)
 	}
 	names := t.reverseDNS.Resolve(ips)
-	ctm := t.getConnTelemetry(len(latestConns))
+	ctm := t.getConnTelemetry(len(active))
 	rctm := t.getRuntimeCompilationTelemetry()
 
 	return &network.Connections{
@@ -380,8 +356,11 @@ func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
 
 func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeCompilationTelemetry {
 	telemetryByAsset := map[string]map[string]int64{
-		"tracer":    runtime.Tracer.GetTelemetry(),
-		"conntrack": runtime.Conntrack.GetTelemetry(),
+		"tracer":          runtime.Tracer.GetTelemetry(),
+		"conntrack":       runtime.Conntrack.GetTelemetry(),
+		"oomKill":         runtime.OomKill.GetTelemetry(),
+		"runtimeSecurity": runtime.RuntimeSecurity.GetTelemetry(),
+		"tcpQueueLength":  runtime.TcpQueueLength.GetTelemetry(),
 	}
 
 	result := make(map[string]network.RuntimeCompilationTelemetry)
@@ -407,17 +386,17 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 
 // getConnections returns all the active connections in the ebpf maps along with the latest timestamp.  It takes
 // a reusable buffer for appending the active connections so that this doesn't continuously allocate
-func (t *Tracer) getConnections(buffer []network.ConnectionStats) ([]network.ConnectionStats, uint64, error) {
+func (t *Tracer) getConnections(activeBuffer, closedBuffer *network.ConnectionBuffer) (latestUint uint64, err error) {
 	cachedConntrack := newCachedConntrack(t.config.ProcRoot, netlink.NewConntrack, 128)
 	defer func() { _ = cachedConntrack.Close() }()
 
 	latestTime, err := ddebpf.NowNanoseconds()
 	if err != nil {
-		return nil, 0, fmt.Errorf("error retrieving latest timestamp: %s", err)
+		return 0, fmt.Errorf("error retrieving latest timestamp: %s", err)
 	}
 
 	var expired []*network.ConnectionStats
-	active, err := t.ebpfTracer.GetConnections(buffer, func(c *network.ConnectionStats) bool {
+	err = t.ebpfTracer.GetConnections(activeBuffer, closedBuffer, func(c *network.ConnectionStats) bool {
 		if t.connectionExpired(c, uint64(latestTime), cachedConntrack) {
 			expired = append(expired, c)
 			if c.Type == network.TCP {
@@ -434,29 +413,27 @@ func (t *Tracer) getConnections(buffer []network.ConnectionStats) ([]network.Con
 		return true
 	})
 	if err != nil {
-		return nil, 0, err
+		return 0, err
 	}
 
-	for _, conn := range active {
-		conn.IPTranslation = t.conntracker.GetTranslationForConn(conn)
+	active := activeBuffer.Connections()
+	for i := range active {
+		active[i].IPTranslation = t.conntracker.GetTranslationForConn(active[i])
+		// do gateway resolution only on active connections outside
+		// the map iteration loop to not add to connections while
+		// iterating (leads to ever-increasing connections in the map,
+		// since gateway resolution connects to the ec2 metadata
+		// endpoint)
+		t.connVia(&active[i])
 	}
 
-	entryCount := uint(len(active))
-	if entryCount >= t.config.MaxTrackedConnections {
+	entryCount := len(active)
+	if entryCount >= int(t.config.MaxTrackedConnections) {
 		log.Errorf("connection tracking map size has reached the limit of %d. Accurate connection count and data volume metrics will be affected. Increase config value `system_probe_config.max_tracked_connections` to correct this.", t.config.MaxTrackedConnections)
 	} else if (float64(entryCount) / float64(t.config.MaxTrackedConnections)) >= 0.9 {
 		log.Warnf("connection tracking map size of %d is approaching the limit of %d. The config value `system_probe_config.max_tracked_connections` may be increased to avoid any accuracy problems.", entryCount, t.config.MaxTrackedConnections)
 	}
 	atomic.SwapInt64(&t.connStatsMapSize, int64(entryCount))
-
-	// do gateway resolution only on active connections outside
-	// the map iteration loop to not add to connections while
-	// iterating (leads to ever-increasing connections in the map,
-	// since gateway resolution connects to the ec2 metadata
-	// endpoint)
-	for i := range active {
-		t.connVia(&active[i])
-	}
 
 	// Remove expired entries
 	t.removeEntries(expired)
@@ -466,9 +443,9 @@ func (t *Tracer) getConnections(buffer []network.ConnectionStats) ([]network.Con
 
 	latestTime, err = ddebpf.NowNanoseconds()
 	if err != nil {
-		return nil, 0, fmt.Errorf("error retrieving latest timestamp: %s", err)
+		return 0, fmt.Errorf("error retrieving latest timestamp: %s", err)
 	}
-	return active, uint64(latestTime), nil
+	return uint64(latestTime), nil
 }
 
 func (t *Tracer) removeEntries(entries []*network.ConnectionStats) {
@@ -569,11 +546,12 @@ func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, err
 
 // DebugNetworkMaps returns all connections stored in the BPF maps without modifications from network state
 func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
-	latestConns, _, err := t.getConnections(make([]network.ConnectionStats, 0))
+	activeBuffer := network.NewConnectionBuffer(512)
+	_, err := t.getConnections(activeBuffer, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
-	return &network.Connections{Conns: latestConns}, nil
+	return &network.Connections{Conns: activeBuffer.Connections()}, nil
 }
 
 // connectionExpired returns true if the passed in connection has expired

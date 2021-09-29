@@ -6,11 +6,13 @@
 package daemon
 
 import (
+	"os"
 	"reflect"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -82,4 +84,39 @@ func TestFinishInvocationOnceStartAndEndAndTimeout(t *testing.T) {
 	d.FinishInvocation()
 
 	assert.Equal(uint64(1), GetValueSyncOnce(&d.finishInvocationOnce))
+}
+
+func TestSetTraceTagNoop(t *testing.T) {
+	tagsMap := map[string]string{
+		"key0": "value0",
+	}
+	d := Daemon{
+		TraceAgent: nil,
+	}
+	assert.False(t, d.setTraceTags(tagsMap))
+}
+
+func TestSetTraceTagNoopTraceGetNil(t *testing.T) {
+	tagsMap := map[string]string{
+		"key0": "value0",
+	}
+	d := Daemon{
+		TraceAgent: &trace.ServerlessTraceAgent{},
+	}
+	assert.False(t, d.setTraceTags(tagsMap))
+}
+
+func TestSetTraceTagOk(t *testing.T) {
+	tagsMap := map[string]string{
+		"key0": "value0",
+	}
+	var agent = &trace.ServerlessTraceAgent{}
+	os.Setenv("DD_API_KEY", "x")
+	defer os.Unsetenv("DD_API_KEY")
+	agent.Start(true, &trace.LoadConfig{Path: "/does-not-exist.yml"})
+	defer agent.Stop()
+	d := Daemon{
+		TraceAgent: agent,
+	}
+	assert.True(t, d.setTraceTags(tagsMap))
 }

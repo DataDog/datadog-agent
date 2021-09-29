@@ -5,7 +5,6 @@ from time import sleep, time
 from tasks.utils import DEFAULT_BRANCH
 
 from .common.color import color_message
-from .common.gitlab import Gitlab
 from .common.user_interactions import yes_no_question
 
 PIPELINE_FINISH_TIMEOUT_SEC = 3600 * 5
@@ -15,8 +14,8 @@ class FilteredOutException(Exception):
     pass
 
 
-def get_running_pipelines_on_same_ref(gitlab, project, ref, sha=None):
-    pipelines = gitlab.all_pipelines_for_ref(project, ref, sha=sha)
+def get_running_pipelines_on_same_ref(gitlab, ref, sha=None):
+    pipelines = gitlab.all_pipelines_for_ref(ref, sha=sha)
 
     RUNNING_STATUSES = ["created", "pending", "running"]
     running_pipelines = [pipeline for pipeline in pipelines if pipeline["status"] in RUNNING_STATUSES]
@@ -24,14 +23,16 @@ def get_running_pipelines_on_same_ref(gitlab, project, ref, sha=None):
     return running_pipelines
 
 
-def cancel_pipelines_with_confirmation(gitlab, project, pipelines):
+def cancel_pipelines_with_confirmation(gitlab, pipelines):
     for pipeline in pipelines:
-        commit_author, commit_short_sha, commit_title = get_commit_for_pipeline(gitlab, project, pipeline['id'])
+        commit_author, commit_short_sha, commit_title = get_commit_for_pipeline(gitlab, pipeline['id'])
 
         print(
             color_message("Pipeline", "blue"),
             color_message(pipeline['id'], "bold"),
-            color_message("(https://gitlab.ddbuild.io/{}/pipelines/{})".format(project, pipeline['id']), "green"),
+            color_message(
+                "(https://gitlab.ddbuild.io/{}/pipelines/{})".format(gitlab.project_name, pipeline['id']), "green"
+            ),
         )
 
         print(color_message("Started at", "blue"), pipeline['created_at'])
@@ -45,7 +46,7 @@ def cancel_pipelines_with_confirmation(gitlab, project, pipelines):
         )
 
         if yes_no_question("Do you want to cancel this pipeline?", color="orange", default=True):
-            gitlab.cancel_pipeline(project, pipeline['id'])
+            gitlab.cancel_pipeline(pipeline['id'])
             print("Pipeline {} has been cancelled.\n".format(color_message(pipeline['id'], "bold")))
         else:
             print("Pipeline {} will keep running.\n".format(color_message(pipeline['id'], "bold")))
@@ -53,7 +54,6 @@ def cancel_pipelines_with_confirmation(gitlab, project, pipelines):
 
 def trigger_agent_pipeline(
     gitlab,
-    project,
     ref=DEFAULT_BRANCH,
     release_version_6="nightly",
     release_version_7="nightly-a7",
@@ -68,10 +68,6 @@ def trigger_agent_pipeline(
     - run a pipeline with all kitchen tests,
     - run a deploy pipeline (includes all builds & kitchen tests + uploads artifacts to staging repositories);
     """
-
-    if gitlab is None:
-        gitlab = Gitlab()
-
     args = {}
 
     if deploy:
@@ -105,7 +101,7 @@ def trigger_agent_pipeline(
             ref, "\n".join(["  - {}: {}".format(k, args[k]) for k in args])
         )
     )
-    result = gitlab.create_pipeline(project, ref, args)
+    result = gitlab.create_pipeline(ref, args)
 
     if result and "id" in result:
         return result["id"]
@@ -116,16 +112,12 @@ def trigger_agent_pipeline(
     raise RuntimeError("Invalid response from Gitlab: {}".format(result))
 
 
-def wait_for_pipeline(gitlab, project, pipeline_id, pipeline_finish_timeout_sec=PIPELINE_FINISH_TIMEOUT_SEC):
+def wait_for_pipeline(gitlab, pipeline_id, pipeline_finish_timeout_sec=PIPELINE_FINISH_TIMEOUT_SEC):
     """
     Follow a given pipeline, periodically checking the pipeline status
     and printing changes to the job statuses.
     """
-
-    if gitlab is None:
-        gitlab = Gitlab()
-
-    commit_author, commit_short_sha, commit_title = get_commit_for_pipeline(gitlab, project, pipeline_id)
+    commit_author, commit_short_sha, commit_title = get_commit_for_pipeline(gitlab, pipeline_id)
 
     print(
         color_message(
@@ -140,24 +132,26 @@ def wait_for_pipeline(gitlab, project, pipeline_id, pipeline_finish_timeout_sec=
     print(
         color_message(
             "Pipeline Link: "
-            + color_message("https://gitlab.ddbuild.io/{}/pipelines/{}".format(project, pipeline_id), "green"),
+            + color_message(
+                "https://gitlab.ddbuild.io/{}/pipelines/{}".format(gitlab.project_name, pipeline_id), "green"
+            ),
             "blue",
         )
     )
 
     print(color_message("Waiting for pipeline to finish. Exiting won't cancel it.", "blue"))
 
-    f = functools.partial(pipeline_status, gitlab, project, pipeline_id)
+    f = functools.partial(pipeline_status, gitlab, pipeline_id)
 
     loop_status(f, pipeline_finish_timeout_sec)
 
     return pipeline_id
 
 
-def get_commit_for_pipeline(gitlab, project, pipeline_id):
-    pipeline = gitlab.pipeline(project, pipeline_id)
+def get_commit_for_pipeline(gitlab, pipeline_id):
+    pipeline = gitlab.pipeline(pipeline_id)
     sha = pipeline['sha']
-    commit = gitlab.commit(project, sha)
+    commit = gitlab.commit(sha)
     return commit['author_name'], commit['short_id'], commit['title']
 
 
@@ -176,23 +170,25 @@ def loop_status(callable, timeout_sec):
         sleep(10)
 
 
-def pipeline_status(gitlab, proj, pipeline_id, job_status):
+def pipeline_status(gitlab, pipeline_id, job_status):
     """
     Checks the pipeline status and updates job statuses.
     """
-    jobs = gitlab.all_jobs(proj, pipeline_id)
+    jobs = gitlab.all_jobs(pipeline_id)
 
     job_status = update_job_status(jobs, job_status)
 
     # Check pipeline status
-    pipeline = gitlab.pipeline(proj, pipeline_id)
+    pipeline = gitlab.pipeline(pipeline_id)
     pipestatus = pipeline["status"].lower().strip()
     ref = pipeline["ref"]
 
     if pipestatus == "success":
         print(
             color_message(
-                "Pipeline https://gitlab.ddbuild.io/{}/pipelines/{} for {} succeeded".format(proj, pipeline_id, ref),
+                "Pipeline https://gitlab.ddbuild.io/{}/pipelines/{} for {} succeeded".format(
+                    gitlab.project_name, pipeline_id, ref
+                ),
                 "green",
             )
         )
@@ -202,7 +198,10 @@ def pipeline_status(gitlab, proj, pipeline_id, job_status):
     if pipestatus == "failed":
         print(
             color_message(
-                "Pipeline https://gitlab.ddbuild.io/{}/pipelines/{} for {} failed".format(proj, pipeline_id, ref), "red"
+                "Pipeline https://gitlab.ddbuild.io/{}/pipelines/{} for {} failed".format(
+                    gitlab.project_name, pipeline_id, ref
+                ),
+                "red",
             )
         )
         notify("Pipeline failure", "Pipeline {} for {} failed.".format(pipeline_id, ref))
@@ -211,7 +210,9 @@ def pipeline_status(gitlab, proj, pipeline_id, job_status):
     if pipestatus == "canceled":
         print(
             color_message(
-                "Pipeline https://gitlab.ddbuild.io/{}/pipelines/{} for {} was canceled".format(proj, pipeline_id, ref),
+                "Pipeline https://gitlab.ddbuild.io/{}/pipelines/{} for {} was canceled".format(
+                    gitlab.project_name, pipeline_id, ref
+                ),
                 "grey",
             )
         )

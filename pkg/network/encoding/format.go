@@ -8,7 +8,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
-	"github.com/DataDog/datadog-agent/pkg/network/nat"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/gogo/protobuf/proto"
 	"go4.org/intern"
@@ -34,12 +33,31 @@ type RouteIdx struct {
 	Route model.Route
 }
 
+type ipCache map[util.Address]string
+
+func (ipc ipCache) Get(addr util.Address) string {
+	if v, ok := ipc[addr]; ok {
+		return v
+	}
+
+	v := addr.String()
+	ipc[addr] = v
+	return v
+}
+
 // FormatConnection converts a ConnectionStats into an model.Connection
-func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, routes map[string]RouteIdx, httpStats *model.HTTPAggregations, dnsWithQueryType bool) *model.Connection {
+func FormatConnection(
+	conn network.ConnectionStats,
+	domainSet map[string]int,
+	routes map[string]RouteIdx,
+	httpStats *model.HTTPAggregations,
+	dnsWithQueryType bool,
+	ipc ipCache,
+) *model.Connection {
 	c := connPool.Get().(*model.Connection)
 	c.Pid = int32(conn.Pid)
-	c.Laddr = formatAddr(conn.Source, conn.SPort)
-	c.Raddr = formatAddr(conn.Dest, conn.DPort)
+	c.Laddr = formatAddr(conn.Source, conn.SPort, ipc)
+	c.Raddr = formatAddr(conn.Dest, conn.DPort, ipc)
 	c.Family = formatFamily(conn.Family)
 	c.Type = formatType(conn.Type)
 	c.IsLocalPortEphemeral = formatEphemeralType(conn.SPortIsEphemeral)
@@ -52,7 +70,7 @@ func FormatConnection(conn network.ConnectionStats, domainSet map[string]int, ro
 	c.Direction = formatDirection(conn.Direction)
 	c.NetNS = conn.NetNS
 	c.RemoteNetworkId = ""
-	c.IpTranslation = formatIPTranslation(conn.IPTranslation)
+	c.IpTranslation = formatIPTranslation(conn.IPTranslation, ipc)
 	c.Rtt = conn.RTT
 	c.RttVar = conn.RTTVar
 	c.IntraHost = conn.IntraHost
@@ -89,7 +107,7 @@ var dnsPool = sync.Pool{
 }
 
 // FormatDNS converts a map[util.Address][]string to a map using IPs string representation
-func FormatDNS(dns map[util.Address][]string) map[string]*model.DNSEntry {
+func FormatDNS(dns map[util.Address][]string, ipc ipCache) map[string]*model.DNSEntry {
 	if dns == nil {
 		return nil
 	}
@@ -98,7 +116,7 @@ func FormatDNS(dns map[util.Address][]string) map[string]*model.DNSEntry {
 	for addr, names := range dns {
 		entry := dnsPool.Get().(*model.DNSEntry)
 		entry.Names = names
-		ipToNames[addr.String()] = entry
+		ipToNames[ipc.Get(addr)] = entry
 	}
 
 	return ipToNames
@@ -204,8 +222,8 @@ func FormatHTTPStats(httpData map[http.Key]http.RequestStats) map[http.Key]*mode
 // Build the key for the http map based on whether the local or remote side is http.
 func httpKeyFromConn(c network.ConnectionStats) http.Key {
 	// Retrieve translated addresses
-	laddr, lport := nat.GetLocalAddress(c)
-	raddr, rport := nat.GetRemoteAddress(c)
+	laddr, lport := network.GetNATLocalAddress(c)
+	raddr, rport := network.GetNATRemoteAddress(c)
 
 	// HTTP data is always indexed as (client, server), so we flip
 	// the lookup key if necessary using the port range heuristic
@@ -232,12 +250,12 @@ func returnToPool(c *model.Connections) {
 	connsPool.Put(c)
 }
 
-func formatAddr(addr util.Address, port uint16) *model.Addr {
+func formatAddr(addr util.Address, port uint16, ipc ipCache) *model.Addr {
 	if addr == nil {
 		return nil
 	}
 
-	return &model.Addr{Ip: addr.String(), Port: int32(port)}
+	return &model.Addr{Ip: ipc.Get(addr), Port: int32(port)}
 }
 
 func formatFamily(f network.ConnectionFamily) model.ConnectionFamily {
@@ -345,14 +363,14 @@ func formatDNSStatsByDomain(stats map[*intern.Value]map[dns.QueryType]dns.Stats,
 	return m
 }
 
-func formatIPTranslation(ct *network.IPTranslation) *model.IPTranslation {
+func formatIPTranslation(ct *network.IPTranslation, ipc ipCache) *model.IPTranslation {
 	if ct == nil {
 		return nil
 	}
 
 	return &model.IPTranslation{
-		ReplSrcIP:   ct.ReplSrcIP.String(),
-		ReplDstIP:   ct.ReplDstIP.String(),
+		ReplSrcIP:   ipc.Get(ct.ReplSrcIP),
+		ReplDstIP:   ipc.Get(ct.ReplDstIP),
 		ReplSrcPort: int32(ct.ReplSrcPort),
 		ReplDstPort: int32(ct.ReplDstPort),
 	}

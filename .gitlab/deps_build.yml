@@ -76,4 +76,11 @@ build_omnibus-nikos_x64:
   tags: ["runner:main"]
   variables:
     ARCH: amd64
+
+build_omnibus-nikos_arm64:
+  extends: .build_omnibus-nikos_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/omnibus-nikos_arm64:$DATADOG_AGENT_NIKOS_BUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+  variables:
+    ARCH: arm64
   

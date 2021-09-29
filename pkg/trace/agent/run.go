@@ -31,7 +31,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
+
+	// register all workloadmeta collectors
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
 const messageAgentDisabled = `trace-agent not enabled. Set the environment variable
@@ -140,6 +144,9 @@ func Run(ctx context.Context) {
 	metrics.Count("datadog.trace_agent.started", 1, nil, 1)
 
 	rand.Seed(time.Now().UTC().UnixNano())
+
+	// Start workload metadata store before tagger
+	workloadmeta.GetGlobalStore().Start(context.Background())
 
 	var t tagger.Tagger
 	if coreconfig.Datadog.GetBool("apm_config.remote_tagger") {

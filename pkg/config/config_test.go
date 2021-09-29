@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 
@@ -69,6 +70,12 @@ func TestDefaults(t *testing.T) {
 	assert.Equal(t, "", config.GetString("site"))
 	assert.Equal(t, "", config.GetString("dd_url"))
 	assert.Equal(t, []string{"aws", "gcp", "azure", "alibaba"}, config.GetStringSlice("cloud_provider_metadata"))
+
+	// Testing process-agent defaults
+	assert.Equal(t, map[string]interface{}{
+		"enabled":  false,
+		"interval": 4 * time.Hour,
+	}, config.GetStringMap("process_config.process_discovery"))
 }
 
 func TestDefaultSite(t *testing.T) {
@@ -1003,4 +1010,19 @@ func TestPrometheusScrapeChecksEnv(t *testing.T) {
 func TestGetValidHostAliasesWithConfig(t *testing.T) {
 	config := setupConfFromYAML(`host_aliases: ["foo", "-bar"]`)
 	assert.EqualValues(t, getValidHostAliasesWithConfig(config), []string{"foo"})
+}
+
+func TestNetworkDevicesNamespace(t *testing.T) {
+	datadogYaml := `
+network_devices:
+`
+	config := setupConfFromYAML(datadogYaml)
+	assert.Equal(t, "default", config.GetString("network_devices.namespace"))
+
+	datadogYaml = `
+network_devices:
+  namespace: dev
+`
+	config = setupConfFromYAML(datadogYaml)
+	assert.Equal(t, "dev", config.GetString("network_devices.namespace"))
 }

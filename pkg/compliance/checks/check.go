@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // eventNotify is a callback invoked when a compliance check reported an event
@@ -113,6 +114,7 @@ func (c *complianceCheck) Run() error {
 		e := &event.Event{
 			AgentRuleID:      c.ruleID,
 			AgentFrameworkID: c.suiteMeta.Framework,
+			AgentVersion:     version.AgentVersion,
 			ResourceID:       resource.ID,
 			ResourceType:     resource.Type,
 			Result:           result,

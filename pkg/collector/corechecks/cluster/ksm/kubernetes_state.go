@@ -69,6 +69,16 @@ type KSMConfig struct {
 	//       - label_addonmanager_kubernetes_io_mode
 	LabelJoins map[string]*JoinsConfig `yaml:"label_joins"`
 
+	// LabelsAsTags
+	// Example:
+	// labels_as_tags:
+	//   pod:
+	//     - "app_*"
+	//   node:
+	//     - "zone"
+	//     - "team_*"
+	LabelsAsTags map[string]map[string]string `yaml:"labels_as_tags"`
+
 	// LabelsMapper can be used to translate kube-state-metrics labels to other tags.
 	// Example: Adding kube_namespace tag instead of namespace.
 	// labels_mapper:
@@ -170,6 +180,8 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 	}
 
 	k.mergeLabelJoins(defaultLabelJoins)
+
+	k.processLabelsAsTags()
 
 	// Prepare labels mapper
 	k.mergeLabelsMapper(defaultLabelsMapper)
@@ -470,6 +482,32 @@ func (k *KSMCheck) mergeLabelJoins(extra map[string]*JoinsConfig) {
 	for key, value := range extra {
 		if _, found := k.instance.LabelJoins[key]; !found {
 			k.instance.LabelJoins[key] = value
+		}
+	}
+}
+
+func (k *KSMCheck) processLabelsAsTags() {
+	for resourceKind, labelsMapper := range k.instance.LabelsAsTags {
+		labels := make([]string, 0, len(labelsMapper))
+		for label, tag := range labelsMapper {
+			label = "label_" + label
+			if _, ok := k.instance.LabelsMapper[label]; !ok {
+				k.instance.LabelsMapper[label] = tag
+			}
+			labels = append(labels, label)
+		}
+
+		if joinsConfig, ok := k.instance.LabelJoins["kube_"+resourceKind+"_labels"]; ok {
+			joinsConfig.LabelsToGet = append(joinsConfig.LabelsToGet, labels...)
+		} else {
+			joinsConfig := &JoinsConfig{
+				LabelsToMatch: []string{resourceKind, "namespace"},
+				LabelsToGet:   labels,
+			}
+			if resourceKind == "node" {
+				joinsConfig.LabelsToMatch = []string{"node"}
+			}
+			k.instance.LabelJoins["kube_"+resourceKind+"_labels"] = joinsConfig
 		}
 	}
 }
