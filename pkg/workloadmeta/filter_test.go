@@ -14,7 +14,7 @@ const (
 
 func TestFilterMatch(t *testing.T) {
 	ev := Event{
-		Sources: []string{fooSource},
+		Source: fooSource,
 		Entity: EntityID{
 			Kind: KindContainer,
 		},

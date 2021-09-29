@@ -25,10 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
-
-	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
 type DockerListenerTestSuite struct {
@@ -47,8 +44,6 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 	config.Datadog.SetDefault("ac_exclude", []string{"image:datadog/docker-library:redis.*"})
 	config.DetectFeatures()
 	containers.ResetSharedFilter()
-
-	workloadmeta.GetGlobalStore().Start(context.Background())
 
 	tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
 	tagger.Init()

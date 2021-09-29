@@ -6,7 +6,6 @@
 package docker
 
 import (
-	"context"
 	"flag"
 	"os"
 	"strings"
@@ -22,10 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
-
-	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
 var (
@@ -106,8 +102,6 @@ func setup() error {
 		return err
 	}
 	config.DetectFeatures()
-
-	workloadmeta.GetGlobalStore().Start(context.Background())
 
 	// Setup tagger
 	tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))

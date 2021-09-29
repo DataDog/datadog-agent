@@ -7,7 +7,6 @@ package collectors
 
 import (
 	"context"
-	"strings"
 
 	"github.com/gobwas/glob"
 
@@ -20,15 +19,12 @@ import (
 
 const (
 	workloadmetaCollectorName = "workloadmeta"
-
-	podSource       = workloadmetaCollectorName + "-kubernetes_pod"
-	containerSource = workloadmetaCollectorName + "-container"
 )
 
 type metaStore interface {
 	Subscribe(string, *workloadmeta.Filter) chan workloadmeta.EventBundle
 	Unsubscribe(chan workloadmeta.EventBundle)
-	GetContainer(string) (*workloadmeta.Container, error)
+	GetContainer(string) (workloadmeta.Container, error)
 }
 
 // WorkloadMetaCollector collects tags from the metadata in the workloadmeta
@@ -37,9 +33,6 @@ type WorkloadMetaCollector struct {
 	store metaStore
 	out   chan<- []*TagInfo
 	stop  chan struct{}
-
-	containerEnvAsTags    map[string]string
-	containerLabelsAsTags map[string]string
 
 	labelsAsTags      map[string]string
 	annotationsAsTags map[string]string
@@ -52,33 +45,14 @@ func (c *WorkloadMetaCollector) Detect(ctx context.Context, out chan<- []*TagInf
 	c.out = out
 	c.stop = make(chan struct{})
 
-	containerLabelsAsTags := retrieveMappingFromConfig("docker_labels_as_tags")
-	containerEnvAsTags := mergeMaps(
-		retrieveMappingFromConfig("docker_env_as_tags"),
-		retrieveMappingFromConfig("container_env_as_tags"),
-	)
-	c.initContainerMetaAsTags(containerLabelsAsTags, containerEnvAsTags)
-
 	labelsAsTags := config.Datadog.GetStringMapString("kubernetes_pod_labels_as_tags")
 	annotationsAsTags := config.Datadog.GetStringMapString("kubernetes_pod_annotations_as_tags")
-	c.initPodMetaAsTags(labelsAsTags, annotationsAsTags)
+	c.init(labelsAsTags, annotationsAsTags)
 
 	return StreamCollection, nil
 }
 
-func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags map[string]string) {
-	c.containerLabelsAsTags = make(map[string]string)
-	for label, tag := range labelsAsTags {
-		c.containerLabelsAsTags[strings.ToLower(label)] = tag
-	}
-
-	c.containerEnvAsTags = make(map[string]string)
-	for label, tag := range envAsTags {
-		c.containerEnvAsTags[strings.ToLower(label)] = tag
-	}
-}
-
-func (c *WorkloadMetaCollector) initPodMetaAsTags(labelsAsTags, annotationsAsTags map[string]string) {
+func (c *WorkloadMetaCollector) init(labelsAsTags, annotationsAsTags map[string]string) {
 	c.labelsAsTags, c.globLabels = utils.InitMetadataAsTags(labelsAsTags)
 	c.annotationsAsTags, c.globAnnotations = utils.InitMetadataAsTags(annotationsAsTags)
 }
@@ -133,14 +107,7 @@ func workloadmetaFactory() Collector {
 
 func init() {
 	// NOTE: WorkloadMetaCollector is meant to be used as the single
-	// collector, while emitting TagInfos with different sources. This is
-	// different from the way older collectors work, where they have a
-	// single priority. Until they all go away, we need to register the
-	// collector with a dummy priority, then set the priority for the
-	// actual sources we emit manually
-
+	// collector, so priority doesn't matter and should be removed entirely
+	// after migration is done.
 	registerCollector(workloadmetaCollectorName, workloadmetaFactory, NodeRuntime)
-
-	CollectorPriorities[podSource] = NodeOrchestrator
-	CollectorPriorities[containerSource] = NodeRuntime
 }
