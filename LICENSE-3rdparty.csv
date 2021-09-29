@@ -79,6 +79,7 @@ core,github.com/Microsoft/go-winio/pkg/guid,MIT,Microsoft
 core,github.com/Microsoft/go-winio/pkg/security,MIT,Microsoft
 core,github.com/Microsoft/go-winio/vhd,MIT,Microsoft
 core,github.com/Microsoft/hcsshim,MIT,Microsoft | Microsoft Corp
+core,github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/stats,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/computestorage,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/internal/cow,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/internal/hcs,MIT,Microsoft | Microsoft Corp
