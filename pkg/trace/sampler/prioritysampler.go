@@ -160,7 +160,7 @@ func (s *PrioritySampler) CountSampled(root *pb.Span, clientDroppedP0s bool, sig
 
 	// remoteRates only considers root spans
 	if s.remoteRates != nil && root.ParentID == 0 {
-		s.remoteRates.CountSample(signature)
+		s.remoteRates.CountSample(root, signature)
 		if clientDroppedP0s && rate > 0 && rate < 1 {
 			// removing 1 to not count twice the P1 chunk
 			weight := 1/rate - 1

@@ -165,7 +165,6 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 	testCases := []testCase{
 		{targetTPS: 5.0, generatedTPS: 50.0, expectedTPS: 5.0, relativeError: 0.2, service: "bim"},
 	}
-
 	if !testing.Short() {
 		testCases = append(testCases,
 			testCase{targetTPS: 3.0, generatedTPS: 200.0, expectedTPS: 3.0, relativeError: 0.2, service: "2"},
@@ -174,7 +173,6 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 			testCase{targetTPS: 0.5, generatedTPS: 100.0, expectedTPS: 0.5, relativeError: 0.5, service: "0.5"},
 		)
 	}
-
 	// Duplicate each testcases and use local rates instead of remote rates
 	for i := len(testCases) - 1; i >= 0; i-- {
 		tc := testCases[i]
@@ -199,7 +197,8 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 		testCasesRates.TargetTps = append(testCasesRates.TargetTps, pb.TargetTPS{Service: tc.service, Value: tc.targetTPS, Env: defaultEnv})
 	}
 	s.remoteRates = newTestRemoteRates()
-	s.remoteRates.loadNewConfig(configGenerator(testCasesRates))
+	generatedConfigVersion := uint64(120)
+	s.remoteRates.loadNewConfig(configGenerator(generatedConfigVersion, testCasesRates))
 
 	for _, tc := range testCases {
 		t.Logf("testing targetTPS=%0.1f generatedTPS=%0.1f localRate=%v clientDrop=%v", tc.targetTPS, tc.generatedTPS, tc.localRate, tc.clientDrop)
@@ -228,9 +227,22 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 				} else {
 					if prio, _ := GetSamplingPriority(root); prio == 1 {
 						sampled = s.Sample(trace, root, defaultEnv, true)
+
 					} else {
 						s.CountClientDroppedP0s(1)
 					}
+				}
+
+				tpsTag, okTPS := root.Metrics[tagRemoteTPS]
+				versionTag, okVersion := root.Metrics[tagRemoteVersion]
+				if !tc.localRate && sampled {
+					assert.True(okTPS)
+					assert.Equal(tc.targetTPS, tpsTag)
+					assert.True(okVersion)
+					assert.Equal(float64(generatedConfigVersion), versionTag)
+				} else {
+					assert.False(okTPS)
+					assert.False(okVersion)
 				}
 
 				if timeElapsed < warmUpDuration {

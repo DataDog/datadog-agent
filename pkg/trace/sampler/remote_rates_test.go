@@ -28,10 +28,11 @@ func newTestRemoteRates() *RemoteRates {
 	}
 }
 
-func configGenerator(rates pb.APMSampling) *pbgo.ConfigResponse {
+func configGenerator(version uint64, rates pb.APMSampling) *pbgo.ConfigResponse {
 	raw, _ := rates.MarshalMsg(nil)
 	return &pbgo.ConfigResponse{
-		TargetFiles: []*pbgo.File{{Raw: raw}},
+		ConfigDelegatedTargetVersion: version,
+		TargetFiles:                  []*pbgo.File{{Raw: raw}},
 	}
 }
 
@@ -49,6 +50,7 @@ func TestRemoteTPSUpdate(t *testing.T) {
 		ratesToApply     pb.APMSampling
 		countServices    []ServiceSignature
 		expectedSamplers []sampler
+		version          uint64
 	}{
 		{
 			name: "first rates received",
@@ -69,6 +71,7 @@ func TestRemoteTPSUpdate(t *testing.T) {
 					},
 				},
 			},
+			version: 30,
 		},
 		{
 			name: "enable a sampler after counting a matching service",
@@ -83,6 +86,7 @@ func TestRemoteTPSUpdate(t *testing.T) {
 					targetTPS: 3.2,
 				},
 			},
+			version: 30,
 		},
 		{
 			name: "nothing happens when counting a service not set remotely",
@@ -97,6 +101,7 @@ func TestRemoteTPSUpdate(t *testing.T) {
 					targetTPS: 3.2,
 				},
 			},
+			version: 30,
 		},
 		{
 			name: "add 2 more samplers",
@@ -124,6 +129,7 @@ func TestRemoteTPSUpdate(t *testing.T) {
 					targetTPS: 1,
 				},
 			},
+			version: 30,
 		},
 		{
 			name: "receive new remote rates, non matching samplers are trimmed",
@@ -141,13 +147,14 @@ func TestRemoteTPSUpdate(t *testing.T) {
 					targetTPS: 27,
 				},
 			},
+			version: 35,
 		},
 	}
 	r := newTestRemoteRates()
 	for _, step := range testSteps {
 		t.Log(step.name)
 		if step.ratesToApply.TargetTps != nil {
-			r.loadNewConfig(configGenerator(step.ratesToApply))
+			r.loadNewConfig(configGenerator(step.version, step.ratesToApply))
 		}
 		for _, s := range step.countServices {
 			r.CountSignature(s.Hash())
@@ -156,9 +163,19 @@ func TestRemoteTPSUpdate(t *testing.T) {
 		assert.Len(r.samplers, len(step.expectedSamplers))
 
 		for _, expectedS := range step.expectedSamplers {
-			s, ok := r.samplers[ServiceSignature{Name: expectedS.service, Env: expectedS.env}.Hash()]
+			sig := ServiceSignature{Name: expectedS.service, Env: expectedS.env}.Hash()
+			s, ok := r.samplers[sig]
 			require.True(t, ok)
+			root := &pb.Span{Metrics: map[string]float64{}}
 			assert.Equal(expectedS.targetTPS, s.targetTPS.Load())
+			r.CountSample(root, sig)
+
+			tpsTag, ok := root.Metrics[tagRemoteTPS]
+			assert.True(ok)
+			assert.Equal(expectedS.targetTPS, tpsTag)
+			versionTag, ok := root.Metrics[tagRemoteVersion]
+			assert.True(ok)
+			assert.Equal(float64(step.version), versionTag)
 		}
 	}
 }

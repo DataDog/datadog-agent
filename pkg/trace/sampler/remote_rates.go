@@ -3,6 +3,7 @@ package sampler
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -12,6 +13,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	tagRemoteTPS     = "_dd.remote.tps"
+	tagRemoteVersion = "_dd.remote.version"
 )
 
 // RemoteRates computes rates per (env, service) to apply in trace-agent clients.
@@ -26,6 +32,7 @@ type RemoteRates struct {
 	// this map may include signatures (env, service) not seen by this agent.
 	tpsTargets map[Signature]float64
 	mu         sync.RWMutex // protects concurrent access to samplers and tpsTargets
+	tpsVersion uint64       // version of the loaded tpsTargets
 
 	stopSubscriber context.CancelFunc
 	exit           chan struct{}
@@ -65,6 +72,7 @@ func (r *RemoteRates) loadNewConfig(new *pbgo.ConfigResponse) error {
 		}
 	}
 	r.updateTPS(tpsTargets)
+	atomic.StoreUint64(&r.tpsVersion, new.ConfigDelegatedTargetVersion)
 	return nil
 }
 
@@ -177,12 +185,15 @@ func (r *RemoteRates) CountSignature(sig Signature) {
 }
 
 // CountSample counts the number of sampled root span matching a signature.
-func (r *RemoteRates) CountSample(sig Signature) {
+func (r *RemoteRates) CountSample(root *pb.Span, sig Signature) {
 	s, ok := r.getSampler(sig)
 	if !ok {
 		return
 	}
 	s.Backend.CountSample()
+	root.Metrics[tagRemoteTPS] = s.targetTPS.Load()
+	root.Metrics[tagRemoteVersion] = float64(atomic.LoadUint64(&r.tpsVersion))
+	return
 }
 
 // CountWeightedSig counts weighted root span seen for a signature.
