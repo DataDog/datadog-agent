@@ -737,7 +737,7 @@ def get_integrations_from_cache(ctx, python, bucket, integrations_dir, target_di
     for sync_command in sync_commands:
         ctx.run("".join(sync_command[0]))
 
-    found = 0
+    found = []
     # move all wheel files directly to the target_dir, so they're easy to find/work with in Omnibus
     for integration in sorted(integrations_hashes):
         hash = integrations_hashes[integration]
@@ -757,9 +757,11 @@ def get_integrations_from_cache(ctx, python, bucket, integrations_dir, target_di
         wheel_path = files_matched[0]
         print("Found cached wheel for integration {}".format(integration))
         shutil.move(wheel_path, target_dir)
-        found += 1
+        found.append(wheel_path)
 
-    print("Found {} cached integration wheels".format(found))
+    print("Found {} cached integration wheels".format(len(found)))
+    with open(os.path.join(target_dir, "found.txt"), "w") as f:
+        f.write('\n'.join(found))
 
 
 @task
