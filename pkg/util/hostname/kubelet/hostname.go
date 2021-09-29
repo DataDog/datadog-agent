@@ -59,13 +59,5 @@ func makeClusterNameRFC1123Compliant(clusterName string) string {
 		log.Warnf("hostAlias: cluster name: '%s' contains `_`, replacing it with `-` to be RFC1123 compliant", clusterName)
 		finalName = strings.ReplaceAll(clusterName, "_", "-")
 	}
-	hasChanged := false
-	for strings.HasSuffix(finalName, "-") {
-		finalName = strings.TrimSuffix(finalName, "-")
-		hasChanged = true
-	}
-	if hasChanged {
-		log.Warnf("hostAlias: cluster name: '%s' ends with `-` or `_` trimming it to be RFC1123 compliant", clusterName)
-	}
 	return finalName
 }

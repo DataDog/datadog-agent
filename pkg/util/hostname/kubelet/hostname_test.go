@@ -112,11 +112,7 @@ func Test_makeClusterNameRFC1123Compliant(t *testing.T) {
 		{
 			name:        "invalid clustername underscore at the end and middle",
 			clusterName: "cluster_name_",
-			want:        "cluster-name",
-		}, {
-			name:        "invalid clustername underscore at the end",
-			clusterName: "cluster__",
-			want:        "cluster",
+			want:        "cluster-name-",
 		},
 	}
 	for _, tt := range tests {
