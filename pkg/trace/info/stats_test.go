@@ -85,3 +85,57 @@ func TestStatsTags(t *testing.T) {
 		"endpoint_version:v0.4",
 	})
 }
+
+func TestSamplingPriorityStats(t *testing.T) {
+	s := SamplingPriorityStats{
+		[21]int64{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3},
+	}
+
+	t.Run("TagValues", func(t *testing.T) {
+		assert.Equal(t, map[string]int64{
+			"-10": 1,
+			"0":   2,
+			"10":  3,
+		}, s.TagValues())
+	})
+
+	t.Run("reset", func(t *testing.T) {
+		s.reset()
+		assert.Equal(t, map[string]int64{}, s.TagValues())
+	})
+
+	s2 := SamplingPriorityStats{}
+	t.Run("CountSamplingPriority", func(t *testing.T) {
+		s2.CountSamplingPriority(1)
+		s2.CountSamplingPriority(2)
+		s2.CountSamplingPriority(2)
+		s2.CountSamplingPriority(3)
+		s2.CountSamplingPriority(3)
+		s2.CountSamplingPriority(3)
+		s2.CountSamplingPriority(-1)
+		s2.CountSamplingPriority(-1)
+		s2.CountSamplingPriority(-1)
+		s2.CountSamplingPriority(-1)
+		assert.Equal(t, map[string]int64{
+			"1":  1,
+			"2":  2,
+			"3":  3,
+			"-1": 4,
+		}, s2.TagValues())
+	})
+
+	s3 := SamplingPriorityStats{
+		[21]int64{0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0},
+	}
+	t.Run("update", func(t *testing.T) {
+		s.update(&s3)
+		assert.Equal(t, map[string]int64{
+			"-10": 1,
+			"-9":  1,
+			"0":   7,
+			"9":   10,
+			"10":  3,
+		}, s.TagValues())
+	})
+
+}

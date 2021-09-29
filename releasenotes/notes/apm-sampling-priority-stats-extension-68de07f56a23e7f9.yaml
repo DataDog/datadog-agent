@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Now we report counts of how many traces per priority we receive for all priority codes between -10 and 10.
+fixes:
+  - |
+    Count of traces with priority 2 (PriorityUserKeep) were not being updated correctly.

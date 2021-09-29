@@ -7,6 +7,7 @@ package info
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"sort"
 	"strings"
 	"sync"
@@ -134,10 +135,6 @@ func (ts *TagStats) publish() {
 	tracesReceived := atomic.LoadInt64(&ts.TracesReceived)
 	tracesFiltered := atomic.LoadInt64(&ts.TracesFiltered)
 	tracesPriorityNone := atomic.LoadInt64(&ts.TracesPriorityNone)
-	tracesPriorityNeg := atomic.LoadInt64(&ts.TracesPriorityNeg)
-	tracesPriority0 := atomic.LoadInt64(&ts.TracesPriority0)
-	tracesPriority1 := atomic.LoadInt64(&ts.TracesPriority1)
-	tracesPriority2 := atomic.LoadInt64(&ts.TracesPriority2)
 	clientDroppedP0Spans := atomic.LoadInt64(&ts.ClientDroppedP0Spans)
 	clientDroppedP0Traces := atomic.LoadInt64(&ts.ClientDroppedP0Traces)
 	tracesBytes := atomic.LoadInt64(&ts.TracesBytes)
@@ -156,10 +153,6 @@ func (ts *TagStats) publish() {
 	metrics.Count("datadog.trace_agent.receiver.traces_received", tracesReceived, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.traces_filtered", tracesFiltered, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.traces_priority", tracesPriorityNone, append(tags, "priority:none"), 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_priority", tracesPriorityNeg, append(tags, "priority:neg"), 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_priority", tracesPriority0, append(tags, "priority:0"), 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_priority", tracesPriority1, append(tags, "priority:1"), 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_priority", tracesPriority2, append(tags, "priority:2"), 1)
 	metrics.Count("datadog.trace_agent.receiver.traces_bytes", tracesBytes, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.spans_received", spansReceived, tags, 1)
 	metrics.Count("datadog.trace_agent.receiver.spans_dropped", spansDropped, tags, 1)
@@ -176,6 +169,9 @@ func (ts *TagStats) publish() {
 	}
 	for reason, count := range ts.SpansMalformed.tagValues() {
 		metrics.Count("datadog.trace_agent.normalizer.spans_malformed", count, append(tags, "reason:"+reason), 1)
+	}
+	for priority, count := range ts.TracesPerSamplingPriority.TagValues() {
+		metrics.Count("datadog.trace_agent.receiver.traces_priority", count, append(tags, "priority:"+priority), 1)
 	}
 }
 
@@ -288,6 +284,46 @@ func (s *SpansMalformed) String() string {
 	return mapToString(s.tagValues())
 }
 
+const (
+	maxAbsSamplingPriority = 10
+	numPriorityCounters    = maxAbsSamplingPriority*2 + 1
+)
+
+type SamplingPriorityStats struct {
+	// TracesPerPriority holds counters for each priority in position MaxAbsPriorityValue + priority.
+	tracesPerSamplingPriority [numPriorityCounters]int64
+}
+
+func (s *SamplingPriorityStats) CountSamplingPriority(priority sampler.SamplingPriority) {
+	if priority < maxAbsSamplingPriority && priority > (-1*maxAbsSamplingPriority) {
+		atomic.AddInt64(&s.tracesPerSamplingPriority[maxAbsSamplingPriority+priority], 1)
+	}
+}
+
+func (s *SamplingPriorityStats) reset() {
+	for i := 0; i < numPriorityCounters; i++ {
+		atomic.StoreInt64(&s.tracesPerSamplingPriority[i], 0)
+	}
+}
+
+func (s *SamplingPriorityStats) update(recent *SamplingPriorityStats) {
+	for i := 0; i < numPriorityCounters; i++ {
+		atomic.AddInt64(&s.tracesPerSamplingPriority[i], atomic.LoadInt64(&recent.tracesPerSamplingPriority[i]))
+	}
+}
+
+func (s *SamplingPriorityStats) TagValues() map[string]int64 {
+	statsPerTag := make(map[string]int64)
+	for i := 0; i < numPriorityCounters; i++ {
+		count := atomic.LoadInt64(&s.tracesPerSamplingPriority[i])
+		priorityTag := fmt.Sprint(i - maxAbsSamplingPriority)
+		if count > 0 {
+			statsPerTag[priorityTag] = count
+		}
+	}
+	return statsPerTag
+}
+
 // Stats holds the metrics that will be reported every 10s by the agent.
 // Its fields require to be accessed in an atomic way.
 type Stats struct {
@@ -301,14 +337,8 @@ type Stats struct {
 	TracesFiltered int64
 	// TracesPriorityNone is the number of traces with no sampling priority.
 	TracesPriorityNone int64
-	// TracesPriorityNeg is the number of traces with a negative sampling priority.
-	TracesPriorityNeg int64
-	// TracesPriority0 is the number of traces with sampling priority set to zero.
-	TracesPriority0 int64
-	// TracesPriority1 is the number of traces with sampling priority automatically set to 1.
-	TracesPriority1 int64
-	// TracesPriority2 is the number of traces with sampling priority manually set to 2 or more.
-	TracesPriority2 int64
+	// TracesPerPriority holds counters for each priority in position MaxAbsPriorityValue + priority.
+	TracesPerSamplingPriority SamplingPriorityStats
 	// ClientDroppedP0Traces number of P0 traces dropped by client.
 	ClientDroppedP0Traces int64
 	// ClientDroppedP0Spans number of P0 spans dropped by client.
@@ -333,7 +363,6 @@ type Stats struct {
 
 func (s *Stats) update(recent *Stats) {
 	atomic.AddInt64(&s.TracesReceived, atomic.LoadInt64(&recent.TracesReceived))
-
 	atomic.AddInt64(&s.TracesDropped.DecodingError, atomic.LoadInt64(&recent.TracesDropped.DecodingError))
 	atomic.AddInt64(&s.TracesDropped.EmptyTrace, atomic.LoadInt64(&recent.TracesDropped.EmptyTrace))
 	atomic.AddInt64(&s.TracesDropped.TraceIDZero, atomic.LoadInt64(&recent.TracesDropped.TraceIDZero))
@@ -351,12 +380,7 @@ func (s *Stats) update(recent *Stats) {
 	atomic.AddInt64(&s.SpansMalformed.InvalidStartDate, atomic.LoadInt64(&recent.SpansMalformed.InvalidStartDate))
 	atomic.AddInt64(&s.SpansMalformed.InvalidDuration, atomic.LoadInt64(&recent.SpansMalformed.InvalidDuration))
 	atomic.AddInt64(&s.SpansMalformed.InvalidHTTPStatusCode, atomic.LoadInt64(&recent.SpansMalformed.InvalidHTTPStatusCode))
-
 	atomic.AddInt64(&s.TracesFiltered, atomic.LoadInt64(&recent.TracesFiltered))
-	atomic.AddInt64(&s.TracesPriorityNone, atomic.LoadInt64(&recent.TracesPriorityNone))
-	atomic.AddInt64(&s.TracesPriorityNeg, atomic.LoadInt64(&recent.TracesPriorityNeg))
-	atomic.AddInt64(&s.TracesPriority0, atomic.LoadInt64(&recent.TracesPriority0))
-	atomic.AddInt64(&s.TracesPriority1, atomic.LoadInt64(&recent.TracesPriority1))
 	atomic.AddInt64(&s.ClientDroppedP0Traces, atomic.LoadInt64(&recent.ClientDroppedP0Traces))
 	atomic.AddInt64(&s.ClientDroppedP0Spans, atomic.LoadInt64(&recent.ClientDroppedP0Spans))
 	atomic.AddInt64(&s.TracesBytes, atomic.LoadInt64(&recent.TracesBytes))
@@ -367,6 +391,7 @@ func (s *Stats) update(recent *Stats) {
 	atomic.AddInt64(&s.EventsSampled, atomic.LoadInt64(&recent.EventsSampled))
 	atomic.AddInt64(&s.PayloadAccepted, atomic.LoadInt64(&recent.PayloadAccepted))
 	atomic.AddInt64(&s.PayloadRefused, atomic.LoadInt64(&recent.PayloadRefused))
+	s.TracesPerSamplingPriority.update(&recent.TracesPerSamplingPriority)
 }
 
 func (s *Stats) reset() {
@@ -393,10 +418,6 @@ func (s *Stats) reset() {
 	atomic.StoreInt64(&s.SpansMalformed.InvalidHTTPStatusCode, 0)
 	atomic.StoreInt64(&s.TracesFiltered, 0)
 	atomic.StoreInt64(&s.TracesPriorityNone, 0)
-	atomic.StoreInt64(&s.TracesPriorityNeg, 0)
-	atomic.StoreInt64(&s.TracesPriority0, 0)
-	atomic.StoreInt64(&s.TracesPriority1, 0)
-	atomic.StoreInt64(&s.TracesPriority2, 0)
 	atomic.StoreInt64(&s.ClientDroppedP0Traces, 0)
 	atomic.StoreInt64(&s.ClientDroppedP0Spans, 0)
 	atomic.StoreInt64(&s.TracesBytes, 0)
@@ -407,6 +428,7 @@ func (s *Stats) reset() {
 	atomic.StoreInt64(&s.EventsSampled, 0)
 	atomic.StoreInt64(&s.PayloadAccepted, 0)
 	atomic.StoreInt64(&s.PayloadRefused, 0)
+	s.TracesPerSamplingPriority.reset()
 }
 
 func (s *Stats) isEmpty() bool {
