@@ -351,7 +351,7 @@ build do
           command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
           command "#{pip} install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
         end
-        if cache_bucket
+        if cache_bucket != ''
           command "inv -e agent.upload-integration-to-cache " \
             "--python 3 --bucket #{cache_bucket} " \
             "--integrations-dir #{windows_safe_path(project_dir)} " \
