@@ -366,7 +366,10 @@ build do
           copy profiles, "#{check_conf_dir}/"
         end
 
-        if installed_list.include? check
+        # pip < 21.2 replace underscores by dashes in package names per https://pip.pypa.io/en/stable/news/#v21-2
+        # whether or not this might switch back in the future is not guaranteed, so we check for both name
+        # with dashes and underscores
+        if installed_list.include?(check) || installed_list.include?(check.gsub('_', '-'))
           next
         end
 
