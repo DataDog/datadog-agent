@@ -21,7 +21,6 @@ regos:
       - tag: containers
         docker:
           kind: container
-    module_path: rule1.rego
     module: |
       package demo
 

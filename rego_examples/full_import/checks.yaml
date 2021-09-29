@@ -1,0 +1,18 @@
+schema:
+  version: 1.0.0
+name: CIS Docker Generic
+framework: cis-docker
+version: 1.2.0
+regos:
+  - id: cis-docker-1.2.0-5.10
+    description: '[CIS Docker] Ensure that the memory usage for containers is limited'
+    scope:
+      - docker
+    inputs:
+      - tag: containers
+        docker:
+          kind: container
+    imports:
+      - valid_helper.rego
+      - findings.rego
+    findings: data.demo.findings
