@@ -14,11 +14,11 @@ import (
 	"go.opentelemetry.io/collector/service/parserprovider"
 )
 
-// tracesConfig is the base traces OTLP pipeline configuration.
+// defaultTracesConfig is the base traces OTLP pipeline configuration.
 // This pipeline is extended through the datadog.yaml configuration values.
 // It is written in YAML because it is easier to read and write than a map.
 // TODO (AP-1254): Set service-level configuration when available.
-const tracesConfig string = `
+const defaultTracesConfig string = `
 receivers:
   otlp:
 
@@ -34,9 +34,9 @@ service:
       exporters: [otlp]
 `
 
-// metricsConfig is the metrics OTLP pipeline configuration.
+// defaultMetricsConfig is the metrics OTLP pipeline configuration.
 // TODO (AP-1254): Set service-level configuration when available.
-const metricsConfig string = `
+const defaultMetricsConfig string = `
 receivers:
   otlp:
 
@@ -65,7 +65,7 @@ func newMap(cfg PipelineConfig) (*configparser.ConfigMap, error) {
 	configMap := configparser.NewConfigMap()
 
 	if cfg.TracesEnabled {
-		tracesMap, err := configparser.NewConfigMapFromBuffer(strings.NewReader(tracesConfig))
+		tracesMap, err := configparser.NewConfigMapFromBuffer(strings.NewReader(defaultTracesConfig))
 		if err != nil {
 			return nil, err
 		}
@@ -82,7 +82,7 @@ func newMap(cfg PipelineConfig) (*configparser.ConfigMap, error) {
 	}
 
 	if cfg.MetricsEnabled {
-		metricsMap, err := configparser.NewConfigMapFromBuffer(strings.NewReader(metricsConfig))
+		metricsMap, err := configparser.NewConfigMapFromBuffer(strings.NewReader(defaultMetricsConfig))
 		if err != nil {
 			return nil, err
 		}
