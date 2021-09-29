@@ -224,6 +224,7 @@ snmp_listener:
 	assert.Equal(t, 11, conf.DiscoveryInterval)
 	assert.Equal(t, 5, conf.AllowedFailures)
 	assert.Equal(t, true, conf.CollectDeviceMetadata)
+	assert.Equal(t, false, conf.UseDeviceISAsHostname)
 	assert.Equal(t, "core", conf.Loader)
 	assert.Equal(t, "someAuthProtocol", networkConf.AuthProtocol)
 	assert.Equal(t, "someAuthKey", networkConf.AuthKey)
@@ -320,4 +321,23 @@ func TestFirstNonEmpty(t *testing.T) {
 	assert.Equal(t, firstNonEmpty("", "mononoke", "ponyo"), "mononoke")
 	assert.Equal(t, firstNonEmpty("", "", "ponyo"), "ponyo")
 	assert.Equal(t, firstNonEmpty("", "", ""), "")
+}
+
+func Test_UseDeviceIDAsHostname(t *testing.T) {
+	config.Datadog.SetConfigType("yaml")
+	err := config.Datadog.ReadConfig(strings.NewReader(`
+snmp_listener:
+  use_device_id_as_hostname: true
+  configs:
+   - network: 127.1.0.0/30
+     use_device_id_as_hostname: false
+   - network: 127.2.0.0/30
+`))
+	assert.NoError(t, err)
+
+	conf, err := NewListenerConfig()
+	assert.NoError(t, err)
+
+	assert.Equal(t, false, conf.Configs[0].UseDeviceIDAsHostname)
+	assert.Equal(t, true, conf.Configs[1].UseDeviceIDAsHostname)
 }
