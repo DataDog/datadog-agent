@@ -80,6 +80,7 @@ Here an example of an inventory payload:
 {
    "agent_metadata": {
       "agent_version": "7.32.0-devel+git.146.7bd17a1",
+      "cloud_provider": "AWS",
       "config_apm_dd_url": "",
       "config_dd_url": "",
       "config_logs_dd_url": "",
