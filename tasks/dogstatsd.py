@@ -304,7 +304,7 @@ def image_build(ctx, arch='amd64', skip_build=False):
     dst = os.path.join("Dockerfiles", "dogstatsd", "alpine", "static")
 
     if not skip_build:
-        build(ctx, rebuild=True, static=True)
+        build(ctx, rebuild=True)
     if not os.path.exists(src):
         print("Could not find dogstatsd static binary at {} ".format(src))
         raise Exit(code=1)
