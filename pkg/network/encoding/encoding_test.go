@@ -102,6 +102,10 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 			},
 		},
 		CompilationTelemetryByAsset: map[string]*model.RuntimeCompilationTelemetry{},
+		AgentConfiguration: &model.AgentConfiguration{
+			NpmEnabled: false,
+			TsmEnabled: false,
+		},
 	}
 	return out
 }
@@ -481,6 +485,10 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
 			},
+		},
+		AgentConfiguration: &model.AgentConfiguration{
+			NpmEnabled: false,
+			TsmEnabled: false,
 		},
 	}
 
