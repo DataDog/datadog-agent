@@ -105,26 +105,24 @@ type networkState struct {
 	latestTimeEpoch uint64
 
 	// Network state configuration
-	clientExpiry      time.Duration
-	maxClosedConns    int
-	maxClientStats    int
-	maxDNSStats       int
-	maxHTTPStats      int
-	collectDNSDomains bool
+	clientExpiry   time.Duration
+	maxClosedConns int
+	maxClientStats int
+	maxDNSStats    int
+	maxHTTPStats   int
 }
 
 // NewState creates a new network state
-func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, maxDNSStats int, maxHTTPStats int, collectDNSDomains bool) State {
+func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, maxDNSStats int, maxHTTPStats int) State {
 	return &networkState{
-		clients:           map[string]*client{},
-		telemetry:         telemetry{},
-		clientExpiry:      clientExpiry,
-		maxClosedConns:    maxClosedConns,
-		maxClientStats:    maxClientStats,
-		maxDNSStats:       maxDNSStats,
-		maxHTTPStats:      maxHTTPStats,
-		collectDNSDomains: collectDNSDomains,
-		buf:               make([]byte, ConnectionByteKeyMaxLen),
+		clients:        map[string]*client{},
+		telemetry:      telemetry{},
+		clientExpiry:   clientExpiry,
+		maxClosedConns: maxClosedConns,
+		maxClientStats: maxClientStats,
+		maxDNSStats:    maxDNSStats,
+		maxHTTPStats:   maxHTTPStats,
+		buf:            make([]byte, ConnectionByteKeyMaxLen),
 	}
 }
 
