@@ -203,10 +203,10 @@ std::optional<CustomActionData::User> CustomActionData::findPreviousUserInfo()
         !regkeybase.getStringValue(keyInstalledDomain.c_str(), user.Domain) || user.Name.length() == 0 ||
         user.Domain.length() == 0)
     {
-        WcaLog(LOGMSG_STANDARD, "previous user registration not found in registry");
+        WcaLog(LOGMSG_STANDARD, "previous user information not found in registry");
         return std::nullopt;
     }
-    WcaLog(LOGMSG_STANDARD, "found previous user (%S\\%S) registration in registry", user.Domain.c_str(), user.Name.c_str());
+    WcaLog(LOGMSG_STANDARD, "found previous user \"%S\\%S\" information in registry", user.Domain.c_str(), user.Name.c_str());
     return std::optional<User>(user);
 }
 
@@ -216,12 +216,13 @@ std::optional<CustomActionData::User> CustomActionData::findSuppliedUserInfo()
     std::wstring tmpName;
     if (!value(propertyDDAgentUserName, tmpName) || tmpName.length() == 0)
     {
+        WcaLog(LOGMSG_STANDARD, "no username information detected from command line");
         return std::nullopt;
     }
 
     if (std::wstring::npos == tmpName.find(L'\\'))
     {
-        WcaLog(LOGMSG_STANDARD, "loaded username doesn't have domain specifier, assuming local");
+        WcaLog(LOGMSG_STANDARD, "supplied username \"%S\" doesn't have domain specifier, assuming local", tmpName.c_str());
         tmpName = L".\\" + tmpName;
     }
 
@@ -230,7 +231,8 @@ std::optional<CustomActionData::User> CustomActionData::findSuppliedUserInfo()
     // if the <domain> is ".", then just do local machine
     getline(asStream, user.Domain, L'\\');
     getline(asStream, user.Name, L'\\');
-
+    WcaLog(LOGMSG_STANDARD, "detected user \"%S\\%S\" information from command line", user.Domain.c_str(),
+           user.Name.c_str());
     return std::optional<User>(user);
 }
 
@@ -264,12 +266,12 @@ void CustomActionData::ensureDomainHasCorrectFormat()
         }
         else if (0 == _wcsicmp(_user.Domain.c_str(), _targetMachine->DnsDomainName().c_str()))
         {
-            WcaLog(LOGMSG_STANDARD, "Supplied domain name %S", _user.Domain.c_str());
+            WcaLog(LOGMSG_STANDARD, "Supplied domain name \"%S\"", _user.Domain.c_str());
             _domainUser = true;
         }
         else
         {
-            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (%S != %S)", _user.Domain.c_str(),
+            WcaLog(LOGMSG_STANDARD, "Warning: Supplied user in different domain (\"%S\" != \"%S\")", _user.Domain.c_str(),
                    _targetMachine->DnsDomainName().c_str());
             _domainUser = true;
         }
@@ -286,6 +288,7 @@ bool CustomActionData::parseUsernameData()
     // the existing
     if (userFromCommandLine)
     {
+        WcaLog(LOGMSG_STANDARD, "Using username from command line");
         _user = userFromCommandLine.value();
     }
     else if (userFromPreviousInstall)
@@ -295,6 +298,7 @@ bool CustomActionData::parseUsernameData()
     }
     else
     {
+        WcaLog(LOGMSG_STANDARD, "Using default username");
         // Didn't find a user in the registry nor from the command line
         // use default value. Order of construction is Domain then Name
         _user = {L".", ddAgentUserName };
