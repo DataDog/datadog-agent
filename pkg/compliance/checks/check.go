@@ -123,7 +123,6 @@ func (c *complianceCheck) Run() error {
 		quadID := resourceQuadID{
 			AgentRuleID:      c.ruleID,
 			AgentFrameworkID: c.suiteMeta.Framework,
-			AgentVersion:     version.AgentVersion,
 			ResourceID:       resource.ID,
 			ResourceType:     resource.Type,
 		}
@@ -137,6 +136,7 @@ func (c *complianceCheck) Run() error {
 		e := &event.Event{
 			AgentRuleID:      quadID.AgentRuleID,
 			AgentFrameworkID: quadID.AgentFrameworkID,
+			AgentVersion:     version.AgentVersion,
 			ResourceID:       quadID.ResourceID,
 			ResourceType:     quadID.ResourceType,
 			Result:           result,

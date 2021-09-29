@@ -33,10 +33,12 @@ import (
 
 var (
 	checkArgs = struct {
-		framework string
-		file      string
-		verbose   bool
-		report    bool
+		framework     string
+		file          string
+		verbose       bool
+		report        bool
+		regoInput     string
+		dumpRegoInput string
 	}{}
 )
 
