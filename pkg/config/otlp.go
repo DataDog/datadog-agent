@@ -7,6 +7,8 @@ package config
 
 func setupOTLP(config Config) {
 	config.BindEnvAndSetDefault("experimental.otlp.internal_traces_port", 5003)
+	config.BindEnvAndSetDefault("experimental.otlp.metrics_enabled", true)
+	config.BindEnvAndSetDefault("experimental.otlp.traces_enabled", true)
 	config.BindEnv("experimental.otlp.http_port", "DD_OTLP_HTTP_PORT")
 	config.BindEnv("experimental.otlp.grpc_port", "DD_OTLP_GRPC_PORT")
 }
