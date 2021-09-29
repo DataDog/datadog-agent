@@ -304,7 +304,6 @@ build do
       # inv agent.get-integrations-from-cache command
 
       # get list of integration wheels already installed from cache
-      puts File.readlines("#{cached_wheels_dir}/found.txt")
       installed_list = Array.new
       if cache_bucket != ''
         if windows?
