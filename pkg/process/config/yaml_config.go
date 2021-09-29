@@ -306,7 +306,7 @@ func (a *AgentConfig) initProcessDiscoveryCheck() {
 	discoveryInterval := config.Datadog.GetDuration(key(root, "interval"))
 	if discoveryInterval < discoveryMinInterval {
 		discoveryInterval = discoveryMinInterval
-		_ = log.Warnf("Invalid interval for process discovery (<= %sm) using default value of %[1]s", discoveryMinInterval.String())
+		_ = log.Warnf("Invalid interval for process discovery (<= %s) using default value of %[1]s", discoveryMinInterval.String())
 	}
 	a.CheckIntervals[DiscoveryCheckName] = discoveryInterval
 
