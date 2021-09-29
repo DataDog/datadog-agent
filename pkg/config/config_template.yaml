@@ -633,7 +633,7 @@ api_key:
   #
   # min_collection_interval: 15
 
-  ## @param collect_device_metadata - boolean - optional - default: false
+  ## @param collect_device_metadata - boolean - optional - default: true
   ## Enable device metadata collection
   ## Only available using corecheck SNMP integration with `loader: core` config.
   #
