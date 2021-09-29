@@ -39,13 +39,13 @@ const (
 	K8sPersistentVolume
 	// K8sPersistentVolumeClaim represents a Kubernetes PersistentVolumeClaim
 	K8sPersistentVolumeClaim
-	// K8sRole represents a Kubernetes K8sRole
+	// K8sRole represents a Kubernetes Role
 	K8sRole
-	// K8sRoleBinding represents a Kubernetes Role
+	// K8sRoleBinding represents a Kubernetes RoleBinding
 	K8sRoleBinding
-	// K8sClusterRole represents a Kubernetes RoleBinding
+	// K8sClusterRole represents a Kubernetes ClusterRole
 	K8sClusterRole
-	// K8sClusterRoleBinding represents a Kubernetes ClusterRole
+	// K8sClusterRoleBinding represents a Kubernetes ClusterRoleBinding
 	K8sClusterRoleBinding
 	// K8sServiceAccount represents a Kubernetes ServiceAccount
 	K8sServiceAccount
