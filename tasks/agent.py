@@ -757,7 +757,7 @@ def get_integrations_from_cache(ctx, python, bucket, integrations_dir, target_di
         wheel_path = files_matched[0]
         print("Found cached wheel for integration {}".format(integration))
         shutil.move(wheel_path, target_dir)
-        found.append(wheel_path)
+        found.append(os.path.join(target_dir, os.path.basename(wheel_path)))
 
     print("Found {} cached integration wheels".format(len(found)))
     with open(os.path.join(target_dir, "found.txt"), "w") as f:
