@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -38,7 +40,8 @@ type slidingWindow struct {
 	statsUpdateFunc StatsUpdateFunc
 	stopChan        chan struct{}
 	stopped         bool
-	ticker          *time.Ticker
+	clock           clock.Clock
+	ticker          *clock.Ticker
 	windowSize      time.Duration
 }
 
@@ -62,6 +65,10 @@ type SlidingWindow interface {
 
 // NewSlidingWindow creates a new instance of a slidingWindow
 func NewSlidingWindow(windowSize time.Duration, pollingInterval time.Duration) (SlidingWindow, error) {
+	return newSlidingWindowWithClock(windowSize, pollingInterval, clock.New())
+}
+
+func newSlidingWindowWithClock(windowSize time.Duration, pollingInterval time.Duration, clock clock.Clock) (SlidingWindow, error) {
 	if windowSize == 0 {
 		return nil, fmt.Errorf("SlidingWindow windowSize cannot be 0")
 	}
@@ -83,6 +90,7 @@ func NewSlidingWindow(windowSize time.Duration, pollingInterval time.Duration) (
 		numBuckets:      int(windowSize / pollingInterval),
 		pollingInterval: pollingInterval,
 		windowSize:      windowSize,
+		clock:           clock,
 	}, nil
 }
 
@@ -121,7 +129,7 @@ func (sw *slidingWindow) Start(
 }
 
 func (sw *slidingWindow) newTicker() {
-	sw.ticker = time.NewTicker(sw.pollingInterval)
+	sw.ticker = sw.clock.Ticker(sw.pollingInterval)
 
 	go func() {
 		for {

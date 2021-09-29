@@ -172,6 +172,7 @@ core,github.com/aws/aws-sdk-go/service/sso/ssoiface,Apache-2.0,"Amazon.com, Inc.
 core,github.com/aws/aws-sdk-go/service/sts,Apache-2.0,"Amazon.com, Inc. or its affiliates | Stripe, Inc."
 core,github.com/aws/aws-sdk-go/service/sts/stsiface,Apache-2.0,"Amazon.com, Inc. or its affiliates | Stripe, Inc."
 core,github.com/beevik/ntp,BSD-2-Clause,Anton Tolchanov (knyar) | Ask Bjørn Hansen (abh) | Brett Vickers | Brett Vickers (beevik) | Christopher Batey (chbatey) | Leonid Evdokimov (darkk) | Meng Zhuo (mengzhuo) | Mikhail Salosin (AlphaB)
+core,github.com/benbjohnson/clock,MIT,Ben Johnson
 core,github.com/benesch/cgosymbolizer,BSD-3-Clause,Cockroach Labs
 core,github.com/beorn7/perks/quantile,MIT,Blake Mizerany
 core,github.com/bhmj/jsonslice,MIT,bhmj
