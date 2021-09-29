@@ -7,6 +7,7 @@ package inventories
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
 	"strings"
 	"sync"
@@ -47,6 +48,7 @@ var (
 
 	agentStartupTime = timeNow()
 
+	lastPayload         *Payload
 	lastGetPayload      = timeNow()
 	lastGetPayloadMutex = &sync.Mutex{}
 
@@ -211,7 +213,19 @@ func GetPayload(ctx context.Context, hostname string, ac AutoConfigInterface, co
 	defer lastGetPayloadMutex.Unlock()
 	lastGetPayload = timeNow()
 
-	return CreatePayload(ctx, hostname, ac, coll)
+	lastPayload = CreatePayload(ctx, hostname, ac, coll)
+	return lastPayload
+}
+
+// GetLastPayload returns the last payload created by the inventories metadata collector as JSON.
+func GetLastPayload() ([]byte, error) {
+	lastGetPayloadMutex.Lock()
+	defer lastGetPayloadMutex.Unlock()
+
+	if lastPayload == nil {
+		return []byte("no inventories metadata payload was created yet"), nil
+	}
+	return json.MarshalIndent(lastPayload, "", "    ")
 }
 
 // StartMetadataUpdatedGoroutine starts a routine that listens to the metadataUpdatedC

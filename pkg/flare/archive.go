@@ -255,6 +255,16 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 		log.Errorf("Could not zip env vars: %s", err)
 	}
 
+	err = zipMetadataInventories(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not zip inventories metadata payload: %s", err)
+	}
+
+	err = zipMetadataV5(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not zip v5 metadata payload: %s", err)
+	}
+
 	err = zipHealth(tempDir, hostname)
 	if err != nil {
 		log.Errorf("Could not zip health check: %s", err)
