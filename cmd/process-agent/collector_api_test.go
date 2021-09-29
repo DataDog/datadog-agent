@@ -163,7 +163,7 @@ func TestRTProcMessageNotRetried(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.RTProcess.Name(),
+		name: checks.Process.RealTimeName(),
 		data: [][]process.MessageBody{{m}},
 	}
 
@@ -236,7 +236,7 @@ func TestQueueSpaceNotAvailable(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.RTProcess.Name(),
+		name: checks.Process.RealTimeName(),
 		data: [][]process.MessageBody{{m}},
 	}
 
@@ -266,7 +266,7 @@ func TestQueueSpaceReleased(t *testing.T) {
 	}
 
 	check := &testCheck{
-		name: checks.RTProcess.Name(),
+		name: checks.Process.RealTimeName(),
 		data: [][]process.MessageBody{{m1}, {m2}},
 	}
 

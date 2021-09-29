@@ -50,7 +50,7 @@ deploy_latest-a6:
   tags: ["runner:main"]
   stage: deploy6
   rules:
-    !reference [.on_deploy_a6_manual]
+    !reference [.on_deploy_a6_manual_final]
   dependencies: []
   script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
     - python3 -m pip install -r requirements.txt

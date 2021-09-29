@@ -33,6 +33,7 @@ go.opentelemetry.io/*: Open Telemetry Maintainers
 gopkg.in/DataDog/*: Datadog, Inc.
 k8s.io/*: Cloud Native Computing Foundation (CNCF)
 sigs.k8s.io/*: The Kubernetes Authors
+contrib.go.opencensus.io/exporter/prometheus: OpenCensus Authors
 
 # https://raw.githubusercontent.com/golang/go/master/LICENSE
 golang/go: The Go Authors

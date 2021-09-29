@@ -28,12 +28,12 @@ MODULE_ALLOWLIST = [
     "pdh.go",
     "pdh_amd64.go",
     "pdh_386.go",
+    "pdhformatter.go",
     "pdhhelper.go",
     "shutil.go",
     "tailer_windows.go",
     "winsec.go",
-    "allprocesses_windows.go",
-    "allprocesses_windows_test.go",
+    "process_windows_toolhelp.go",
     "adapters.go",  # pkg/util/winutil/iphelper
     "routes.go",  # pkg/util/winutil/iphelper
     # All
@@ -111,7 +111,7 @@ def lint(ctx, targets):
 
         if skipped_files:
             for skipped in skipped_files:
-                print("Allowed errors in whitelisted file {}".format(skipped))
+                print("Allowed errors in allowlisted file {}".format(skipped))
 
         # add whitespace for readability
         print()

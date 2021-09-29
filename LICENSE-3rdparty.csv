@@ -21,12 +21,14 @@ core,code.cloudfoundry.org/garden/transport,Apache-2.0,"CloudFoundry.org Foundat
 core,code.cloudfoundry.org/gofileutils/fileutils,Apache-2.0,"CloudFoundry.org Foundation, Inc"
 core,code.cloudfoundry.org/lager,Apache-2.0,"CloudFoundry.org Foundation, Inc"
 core,code.cloudfoundry.org/tlsconfig,Apache-2.0,"CloudFoundry.org Foundation, Inc"
+core,contrib.go.opencensus.io/exporter/prometheus,Apache-2.0,OpenCensus Authors
 core,github.com/AlekSi/pointer,MIT,Alexey Palazhchenko
 core,github.com/DataDog/agent-payload/gogen,BSD-3-Clause,"Datadog, Inc."
 core,github.com/DataDog/agent-payload/process,BSD-3-Clause,"Datadog, Inc."
 core,github.com/DataDog/datadog-go/statsd,MIT,"Datadog, Inc."
 core,github.com/DataDog/datadog-operator/api/v1alpha1,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/ebpf,MIT,"Datadog, Inc."
+core,github.com/DataDog/ebpf-manager,MIT,"Datadog, Inc."
 core,github.com/DataDog/ebpf/asm,MIT,"Datadog, Inc."
 core,github.com/DataDog/ebpf/internal,MIT,"Datadog, Inc."
 core,github.com/DataDog/ebpf/internal/btf,MIT,"Datadog, Inc."
@@ -61,6 +63,7 @@ core,github.com/DataDog/sketches-go/ddsketch,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/sketches-go/ddsketch/encoding,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/sketches-go/ddsketch/mapping,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/sketches-go/ddsketch/pb/sketchpb,Apache-2.0,"Datadog, Inc."
+core,github.com/DataDog/sketches-go/ddsketch/stat,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/sketches-go/ddsketch/store,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/viper,MIT,"Datadog, Inc."
 core,github.com/DataDog/watermarkpodautoscaler/api/v1alpha1,Apache-2.0,"Datadog, Inc."
@@ -100,6 +103,7 @@ core,github.com/NYTimes/gziphandler,Apache-2.0,The New York Times Company
 core,github.com/PuerkitoBio/purell,BSD-3-Clause,Martin Angers
 core,github.com/PuerkitoBio/urlesc,BSD-3-Clause,The Go Authors
 core,github.com/StackExchange/wmi,MIT,Stack Exchange
+core,github.com/alecthomas/jsonschema,MIT,Alec Thomas
 core,github.com/alecthomas/participle,MIT,Alec Thomas
 core,github.com/alecthomas/participle/lexer,MIT,Alec Thomas
 core,github.com/alecthomas/participle/lexer/ebnf,MIT,Alec Thomas
@@ -168,6 +172,7 @@ core,github.com/aws/aws-sdk-go/service/sso/ssoiface,Apache-2.0,"Amazon.com, Inc.
 core,github.com/aws/aws-sdk-go/service/sts,Apache-2.0,"Amazon.com, Inc. or its affiliates | Stripe, Inc."
 core,github.com/aws/aws-sdk-go/service/sts/stsiface,Apache-2.0,"Amazon.com, Inc. or its affiliates | Stripe, Inc."
 core,github.com/beevik/ntp,BSD-2-Clause,Anton Tolchanov (knyar) | Ask Bjørn Hansen (abh) | Brett Vickers | Brett Vickers (beevik) | Christopher Batey (chbatey) | Leonid Evdokimov (darkk) | Meng Zhuo (mengzhuo) | Mikhail Salosin (AlphaB)
+core,github.com/benbjohnson/clock,MIT,Ben Johnson
 core,github.com/benesch/cgosymbolizer,BSD-3-Clause,Cockroach Labs
 core,github.com/beorn7/perks/quantile,MIT,Blake Mizerany
 core,github.com/bhmj/jsonslice,MIT,bhmj
@@ -176,9 +181,16 @@ core,github.com/blabber/go-freebsd-sysctl/sysctl,0BSD,Tobias Rehbein <tobias.reh
 core,github.com/blang/semver,MIT,Benedikt Lang <github at benediktlang.de>
 core,github.com/bmizerany/pat,UNKNOWN,"Keith Rarick, Blake Mizerany"
 core,github.com/cenkalti/backoff,MIT,Cenk Altı
+core,github.com/cenkalti/backoff/v4,MIT,Cenk Altı
 core,github.com/cespare/xxhash,MIT,Caleb Spare
 core,github.com/cespare/xxhash/v2,MIT,Caleb Spare
 core,github.com/cihub/seelog,BSD-3-Clause,"Cloud Instruments Co., Ltd. <info@cin.io>"
+core,github.com/cilium/ebpf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/cilium/ebpf/asm,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/cilium/ebpf/internal,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/cilium/ebpf/internal/btf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/cilium/ebpf/internal/unix,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/cilium/ebpf/perf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
 core,github.com/clbanning/mxj,MIT,Charles Banning <clbanning@gmail.com> | The Go Authors
 core,github.com/cloudfoundry-community/go-cfclient,MIT,Long Nguyen
 core,github.com/cobaugh/osrelease,BSD-3-Clause,Andrew Cobaugh
@@ -306,6 +318,7 @@ core,github.com/emicklei/go-restful/log,MIT,Ernest Micklei
 core,github.com/evanphx/json-patch,BSD-3-Clause,Evan Phoenix
 core,github.com/fatih/color,MIT,Fatih Arslan
 core,github.com/fatih/structtag,BSD-3-Clause,Fatih Arslan | The Go Authors
+core,github.com/felixge/httpsnoop,MIT,Felix Geisendörfer (felix@debuggable.com)
 core,github.com/florianl/go-conntrack,MIT,Florian Lehner <dev@der-flo.net>
 core,github.com/florianl/go-conntrack/internal/unix,MIT,Florian Lehner <dev@der-flo.net>
 core,github.com/florianl/go-tc,MIT,Florian Lehner <dev@der-flo.net>
@@ -315,6 +328,9 @@ core,github.com/freddierice/go-losetup,MIT,Freddie Rice
 core,github.com/fsnotify/fsnotify,BSD-3-Clause,The fsnotify authors
 core,github.com/ghodss/yaml,MIT,Sam Ghods | The Go Authors
 core,github.com/go-ini/ini,Apache-2.0,Unknwon
+core,github.com/go-kit/log,MIT,Go kit
+core,github.com/go-kit/log/level,MIT,Go kit
+core,github.com/go-logfmt/logfmt,MIT,go-logfmt
 core,github.com/go-logr/logr,Apache-2.0,The logr Authors
 core,github.com/go-ole/go-ole,MIT,"Yasuhiro Matsumoto, <mattn.jp@gmail.com>"
 core,github.com/go-ole/go-ole/oleutil,MIT,"Yasuhiro Matsumoto, <mattn.jp@gmail.com>"
@@ -419,6 +435,7 @@ core,github.com/hashicorp/serf/coordinate,MPL-2.0,HashiCorp Inc.
 core,github.com/hectane/go-acl,MIT,Nathan Osman
 core,github.com/hectane/go-acl/api,MIT,Nathan Osman
 core,github.com/huandu/xstrings,MIT,Huan Du
+core,github.com/iancoleman/orderedmap,MIT,Ian Coleman
 core,github.com/ianlancetaylor/cgosymbolizer,BSD-3-Clause,"Free Software Foundation, Inc | The Go Authors"
 core,github.com/imdario/mergo,BSD-3-Clause,Dario Castañé | The Go Authors
 core,github.com/inconshreveable/mousetrap,Apache-2.0,Alan Shreve
@@ -444,6 +461,12 @@ core,github.com/klauspost/compress/snappy,BSD-3-Clause,The Snappy-Go Authors
 core,github.com/klauspost/compress/zstd,BSD-3-Clause,Caleb Spare | Klaus Post | The Go Authors
 core,github.com/klauspost/compress/zstd/internal/xxhash,MIT,Caleb Spare | Klaus Post | The Go Authors
 core,github.com/klauspost/pgzip,MIT,Klaus Post
+core,github.com/knadh/koanf,MIT,Kailash Nadh. https://github.com/knadh
+core,github.com/knadh/koanf/maps,MIT,Kailash Nadh. https://github.com/knadh
+core,github.com/knadh/koanf/parsers/yaml,MIT,Kailash Nadh. https://github.com/knadh
+core,github.com/knadh/koanf/providers/confmap,MIT,Kailash Nadh. https://github.com/knadh
+core,github.com/knadh/koanf/providers/file,MIT,Kailash Nadh. https://github.com/knadh
+core,github.com/knadh/koanf/providers/rawbytes,MIT,Kailash Nadh. https://github.com/knadh
 core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/apiserver,Apache-2.0,The Kubernetes Authors
 core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/apiserver/endpoints/handlers,Apache-2.0,The Kubernetes Authors
 core,github.com/kubernetes-sigs/custom-metrics-apiserver/pkg/apiserver/installer,Apache-2.0,The Kubernetes Authors
@@ -524,10 +547,13 @@ core,github.com/prometheus/common/model,Apache-2.0,The Prometheus Authors
 core,github.com/prometheus/procfs,Apache-2.0,The Prometheus Authors
 core,github.com/prometheus/procfs/internal/fs,Apache-2.0,The Prometheus Authors
 core,github.com/prometheus/procfs/internal/util,Apache-2.0,The Prometheus Authors
+core,github.com/prometheus/statsd_exporter/pkg/mapper,Apache-2.0,The Prometheus Authors
+core,github.com/prometheus/statsd_exporter/pkg/mapper/fsm,Apache-2.0,The Prometheus Authors
 core,github.com/richardartoul/molecule,MIT,Richard Artoul
 core,github.com/richardartoul/molecule/src/codec,Apache-2.0,Richard Artoul
 core,github.com/richardartoul/molecule/src/protowire,BSD-3-Clause,Richard Artoul | The Go Authors
 core,github.com/robfig/cron/v3,MIT,Rob Figueiredo
+core,github.com/rs/cors,MIT,Olivier Poitrey <rs@dailymotion.com>
 core,github.com/samuel/go-zookeeper/zk,BSD-3-Clause,Samuel Stauffer <samuel@descolada.com>
 core,github.com/sassoftware/go-rpmutils,Apache-2.0,"SAS Institute, Inc."
 core,github.com/sassoftware/go-rpmutils/cpio,Apache-2.0,"SAS Institute, Inc."
@@ -624,7 +650,9 @@ core,go.etcd.io/etcd/version,Apache-2.0,the etcd maintainers
 core,go.opencensus.io,Apache-2.0,Google Inc.
 core,go.opencensus.io/internal,Apache-2.0,Google Inc.
 core,go.opencensus.io/internal/tagencoding,Apache-2.0,Google Inc.
+core,go.opencensus.io/metric,Apache-2.0,Google Inc.
 core,go.opencensus.io/metric/metricdata,Apache-2.0,Google Inc.
+core,go.opencensus.io/metric/metricexport,Apache-2.0,Google Inc.
 core,go.opencensus.io/metric/metricproducer,Apache-2.0,Google Inc.
 core,go.opencensus.io/plugin/ochttp,Apache-2.0,Google Inc.
 core,go.opencensus.io/plugin/ochttp/propagation/b3,Apache-2.0,Google Inc.
@@ -637,7 +665,100 @@ core,go.opencensus.io/trace,Apache-2.0,Google Inc.
 core,go.opencensus.io/trace/internal,Apache-2.0,Google Inc.
 core,go.opencensus.io/trace/propagation,Apache-2.0,Google Inc.
 core,go.opencensus.io/trace/tracestate,Apache-2.0,Google Inc.
+core,go.opentelemetry.io/collector/client,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/component,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/component/componenterror,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/component/componenthelper,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/config,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/config/configauth,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/config/configcheck,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/config/configgrpc,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/config/confighttp,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/config/confignet,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/config/configparser,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/config/configtelemetry,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/config/configtest,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/config/configtls,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/config/configunmarshaler,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/config/experimental/configsource,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/consumer,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/consumer/consumererror,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/consumer/consumerhelper,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/consumer/consumertest,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/exporter/exporterhelper,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/exporter/exporterhelper/internal,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/exporter/otlpexporter,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/extension/ballastextension,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/extension/extensionhelper,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/extension/storage,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/internal/cgroups,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/internal/collector/telemetry,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/internal/iruntime,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/internal/middleware,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/internal/obsreportconfig,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/internal/obsreportconfig/obsmetrics,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/internal/sharedcomponent,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/internal/testdata,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/internal/version,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/model/internal,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/model/internal/data,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/model/internal/data/protogen/collector/logs/v1,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/model/internal/data/protogen/collector/metrics/v1,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/model/internal/data/protogen/collector/trace/v1,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/model/internal/data/protogen/common/v1,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/model/internal/data/protogen/logs/v1,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/model/internal/data/protogen/metrics/v1,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/model/internal/data/protogen/resource/v1,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/model/internal/data/protogen/trace/v1,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/model/otlp,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/model/otlpgrpc,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/model/pdata,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/model/semconv/v1.5.0,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/obsreport,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/processor/batchprocessor,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/processor/processorhelper,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/receiver/otlpreceiver,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/receiver/otlpreceiver/internal/logs,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/receiver/otlpreceiver/internal/metrics,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/receiver/otlpreceiver/internal/trace,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/receiver/receiverhelper,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/receiver/scrapererror,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/service,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/service/internal,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/service/internal/builder,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/service/internal/fanoutconsumer,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/service/internal/telemetry,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/service/internal/telemetrylogs,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/service/internal/zpages,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/service/internal/zpages/tmplgen,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/service/parserprovider,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/contrib,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/internal,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/contrib/zpages,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/contrib/zpages/internal,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/attribute,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/baggage,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/codes,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/internal,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/internal/baggage,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/internal/global,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/internal/metric/global,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/metric,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/metric/global,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/metric/number,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/metric/registry,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/metric/sdkapi,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/metric/unit,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/propagation,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/sdk/instrumentation,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/sdk/internal,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/sdk/resource,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/sdk/trace,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/semconv/v1.4.0,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/trace,Apache-2.0,Open Telemetry Maintainers
 core,go.uber.org/atomic,MIT,"Uber Technologies, Inc"
 core,go.uber.org/automaxprocs/internal/cgroups,MIT,"Uber Technologies, Inc"
 core,go.uber.org/automaxprocs/internal/runtime,MIT,"Uber Technologies, Inc"
@@ -687,6 +808,7 @@ core,golang.org/x/net/proxy,BSD-3-Clause,The Go Authors
 core,golang.org/x/net/trace,BSD-3-Clause,The Go Authors
 core,golang.org/x/net/websocket,BSD-3-Clause,The Go Authors
 core,golang.org/x/oauth2,BSD-3-Clause,The Go Authors
+core,golang.org/x/oauth2/authhandler,BSD-3-Clause,The Go Authors
 core,golang.org/x/oauth2/clientcredentials,BSD-3-Clause,The Go Authors
 core,golang.org/x/oauth2/google,BSD-3-Clause,The Go Authors
 core,golang.org/x/oauth2/google/internal/externalaccount,BSD-3-Clause,The Go Authors
@@ -753,6 +875,7 @@ core,google.golang.org/genproto/googleapis/api/annotations,Apache-2.0,The Go Gen
 core,google.golang.org/genproto/googleapis/api/httpbody,Apache-2.0,The Go Generated Proto Package Maintainers
 core,google.golang.org/genproto/googleapis/iam/v1,Apache-2.0,The Go Generated Proto Package Maintainers
 core,google.golang.org/genproto/googleapis/rpc/code,Apache-2.0,The Go Generated Proto Package Maintainers
+core,google.golang.org/genproto/googleapis/rpc/errdetails,Apache-2.0,The Go Generated Proto Package Maintainers
 core,google.golang.org/genproto/googleapis/rpc/status,Apache-2.0,The Go Generated Proto Package Maintainers
 core,google.golang.org/genproto/googleapis/type/expr,Apache-2.0,The Go Generated Proto Package Maintainers
 core,google.golang.org/genproto/protobuf/field_mask,Apache-2.0,The Go Generated Proto Package Maintainers
@@ -768,6 +891,7 @@ core,google.golang.org/grpc/connectivity,Apache-2.0,Google Inc.
 core,google.golang.org/grpc/credentials,Apache-2.0,Google Inc.
 core,google.golang.org/grpc/credentials/internal,Apache-2.0,Google Inc.
 core,google.golang.org/grpc/encoding,Apache-2.0,Google Inc.
+core,google.golang.org/grpc/encoding/gzip,Apache-2.0,Google Inc.
 core,google.golang.org/grpc/encoding/proto,Apache-2.0,Google Inc.
 core,google.golang.org/grpc/grpclog,Apache-2.0,Google Inc.
 core,google.golang.org/grpc/health/grpc_health_v1,Apache-2.0,Google Inc.
@@ -778,8 +902,10 @@ core,google.golang.org/grpc/internal/binarylog,Apache-2.0,Google Inc.
 core,google.golang.org/grpc/internal/buffer,Apache-2.0,Google Inc.
 core,google.golang.org/grpc/internal/channelz,Apache-2.0,Google Inc.
 core,google.golang.org/grpc/internal/envconfig,Apache-2.0,Google Inc.
+core,google.golang.org/grpc/internal/grpclog,Apache-2.0,Google Inc.
 core,google.golang.org/grpc/internal/grpcrand,Apache-2.0,Google Inc.
 core,google.golang.org/grpc/internal/grpcsync,Apache-2.0,Google Inc.
+core,google.golang.org/grpc/internal/grpcutil,Apache-2.0,Google Inc.
 core,google.golang.org/grpc/internal/resolver/dns,Apache-2.0,Google Inc.
 core,google.golang.org/grpc/internal/resolver/passthrough,Apache-2.0,Google Inc.
 core,google.golang.org/grpc/internal/syscall,Apache-2.0,Google Inc.
@@ -943,9 +1069,9 @@ core,k8s.io/apimachinery/pkg/util/waitgroup,Apache-2.0,Cloud Native Computing Fo
 core,k8s.io/apimachinery/pkg/util/yaml,Apache-2.0,Cloud Native Computing Foundation (CNCF)
 core,k8s.io/apimachinery/pkg/version,Apache-2.0,Cloud Native Computing Foundation (CNCF)
 core,k8s.io/apimachinery/pkg/watch,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/third_party/forked/golang/json,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/third_party/forked/golang/netutil,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/third_party/forked/golang/reflect,Apache-2.0,Cloud Native Computing Foundation (CNCF)
+core,k8s.io/apimachinery/third_party/forked/golang/json,BSD-3-Clause,Cloud Native Computing Foundation (CNCF)
+core,k8s.io/apimachinery/third_party/forked/golang/netutil,BSD-3-Clause,Cloud Native Computing Foundation (CNCF)
+core,k8s.io/apimachinery/third_party/forked/golang/reflect,BSD-3-Clause,Cloud Native Computing Foundation (CNCF)
 core,k8s.io/apiserver/pkg/admission,Apache-2.0,Cloud Native Computing Foundation (CNCF)
 core,k8s.io/apiserver/pkg/admission/configuration,Apache-2.0,Cloud Native Computing Foundation (CNCF)
 core,k8s.io/apiserver/pkg/admission/initializer,Apache-2.0,Cloud Native Computing Foundation (CNCF)

@@ -163,6 +163,7 @@ func TestExtraConfig(t *testing.T) {
 		Timeout:      5,
 		Retries:      2,
 		OidBatchSize: 10,
+		Namespace:    "my-ns",
 	}
 
 	svc := SNMPService{
@@ -219,6 +220,10 @@ func TestExtraConfig(t *testing.T) {
 	info, err = svc.GetExtraConfig([]byte("min_collection_interval"))
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "60", string(info))
+
+	info, err = svc.GetExtraConfig([]byte("namespace"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "my-ns", string(info))
 }
 
 func TestExtraConfigExtraTags(t *testing.T) {

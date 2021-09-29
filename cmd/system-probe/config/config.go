@@ -176,6 +176,13 @@ func load(configPath string) (*Config, error) {
 		// enable the connections/network check.
 		log.Info("network_config not found, but system-probe was enabled, enabling network module by default")
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
+		// ensure others can key off of this single config value for NPM status
+		cfg.Set("network_config.enabled", true)
+	}
+
+	if !cfg.GetBool("network_config.enabled") && cfg.GetBool("service_monitoring_config.enabled") {
+		log.Info("service_monitoring.enabled detected: enabling system-probe with network module running.")
+		c.EnabledModules[NetworkTracerModule] = struct{}{}
 	}
 
 	if cfg.GetBool(key(spNS, "enable_tcp_queue_length")) {

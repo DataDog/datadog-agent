@@ -18,9 +18,9 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-go/statsd"
-	lib "github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cihub/seelog"
+	lib "github.com/cilium/ebpf"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -910,7 +910,11 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	}
 
 	// tail calls
-	p.managerOptions.TailCallRouter = probes.AllTailRoutes()
+	p.managerOptions.TailCallRouter = probes.AllTailRoutes(p.config.ERPCDentryResolutionEnabled)
+	if !p.config.ERPCDentryResolutionEnabled {
+		// exclude the programs that use the bpf_probe_write_user helper
+		p.managerOptions.ExcludedSections = probes.AllBPFProbeWriteUserSections()
+	}
 
 	resolvers, err := NewResolvers(config, p)
 	if err != nil {

@@ -6,7 +6,7 @@
             "$ref": "file:///event.json"
         },
         {
-            "$ref": "file:///file.json"
+            "file": { "$ref": "file:///file.json" }
         },
         {
             "$ref": "file:///usr.json"

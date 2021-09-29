@@ -7,6 +7,7 @@ import ast
 import datetime
 import glob
 import os
+import platform
 import re
 import shutil
 import sys
@@ -72,6 +73,11 @@ IOT_AGENT_CORECHECKS = [
     "systemd",
     "jetson",
 ]
+
+CACHED_WHEEL_FILENAME_PATTERN = "datadog_{integration}-*.whl"
+CACHED_WHEEL_DIRECTORY_PATTERN = "integration-wheels/{hash}/{python_version}/"
+CACHED_WHEEL_FULL_PATH_PATTERN = CACHED_WHEEL_DIRECTORY_PATTERN + CACHED_WHEEL_FILENAME_PATTERN
+LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} rev-list -1 HEAD {integration}"
 
 
 @task
@@ -684,3 +690,108 @@ def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_v
         version = re.sub('-', '~', version)
         version = re.sub(r'[^a-zA-Z0-9\.\+\:\~]+', '_', version)
     print(version)
+
+
+@task
+def get_integrations_from_cache(ctx, python, bucket, integrations_dir, target_dir, integrations, awscli="aws"):
+    """
+    Get cached integration wheels for given integrations.
+    python: Python version to retrieve integrations for
+    bucket: S3 bucket to retrieve integration wheels from
+    integrations_dir: directory with Git repository of integrations
+    target_dir: local directory to put integration wheels to
+    integrations: comma-separated names of the integrations to try to retrieve from cache
+    awscli: AWS CLI executable to call
+    """
+    integrations_hashes = {}
+    for integration in integrations.strip().split(","):
+        integration_path = os.path.join(integrations_dir, integration)
+        if not os.path.exists(integration_path):
+            raise Exit("Integration {} given, but doesn't exist in {}".format(integration, integrations_dir), code=2)
+        last_commit = ctx.run(
+            LAST_DIRECTORY_COMMIT_PATTERN.format(integrations_dir=integrations_dir, integration=integration),
+            hide="both",
+            echo=False,
+        )
+        integrations_hashes[integration] = last_commit.stdout.strip()
+
+    print("Trying to retrieve {} integration wheels from cache".format(len(integrations_hashes)))
+    # On windows, maximum length of a command line call is 8191 characters, therefore
+    # we do multiple syncs that fit within that limit (we use 8100 as a nice round number
+    # and just to make sure we don't do any of-by-one errors that would break this).
+    # WINDOWS NOTES: on Windows, the awscli is usually in program files, so we have to wrap the
+    # executable in quotes; also we have to not put the * in quotes, as there's no
+    # expansion on it, unlike on Linux
+    exclude_wildcard = "*" if platform.system().lower() == "windows" else "'*'"
+    sync_command_prefix = "\"{}\" s3 sync s3://{} {} --exclude {}".format(awscli, bucket, target_dir, exclude_wildcard)
+    sync_commands = [[[sync_command_prefix], len(sync_command_prefix)]]
+    for integration, hash in integrations_hashes.items():
+        include_arg = " --include " + CACHED_WHEEL_FULL_PATH_PATTERN.format(
+            hash=hash, integration=integration, python_version=python
+        )
+        if len(include_arg) + sync_commands[-1][1] > 8100:
+            sync_commands.append([[sync_command_prefix], len(sync_command_prefix)])
+        sync_commands[-1][0].append(include_arg)
+        sync_commands[-1][1] += len(include_arg)
+
+    for sync_command in sync_commands:
+        ctx.run("".join(sync_command[0]))
+
+    found = 0
+    # move all wheel files directly to the target_dir, so they're easy to find/work with in Omnibus
+    for integration in sorted(integrations_hashes):
+        hash = integrations_hashes[integration]
+        original_path_glob = os.path.join(
+            target_dir,
+            CACHED_WHEEL_FULL_PATH_PATTERN.format(hash=hash, integration=integration, python_version=python),
+        )
+        files_matched = glob.glob(original_path_glob)
+        if len(files_matched) == 0:
+            continue
+        elif len(files_matched) > 1:
+            raise Exit(
+                "More than 1 wheel for integration {} matched by {}: {}".format(
+                    integration, original_path_glob, files_matched
+                )
+            )
+        wheel_path = files_matched[0]
+        print("Found cached wheel for integration {}".format(integration))
+        shutil.move(wheel_path, target_dir)
+        found += 1
+
+    print("Found {} cached integration wheels".format(found))
+
+
+@task
+def upload_integration_to_cache(ctx, python, bucket, integrations_dir, build_dir, integration, awscli="aws"):
+    """
+    Upload a built integration wheel for given integration.
+    python: Python version the integration is built for
+    bucket: S3 bucket to upload the integration wheel to
+    integrations_dir: directory with Git repository of integrations
+    build_dir: directory containing the built integration wheel
+    integration: name of the integration being cached
+    awscli: AWS CLI executable to call
+    """
+    matching_glob = os.path.join(build_dir, CACHED_WHEEL_FILENAME_PATTERN.format(integration=integration))
+    files_matched = glob.glob(matching_glob)
+    if len(files_matched) == 0:
+        raise Exit("No wheel for integration {} found in {}".format(integration, build_dir))
+    elif len(files_matched) > 1:
+        raise Exit(
+            "More than 1 wheel for integration {} matched by {}: {}".format(integration, matching_glob, files_matched)
+        )
+
+    wheel_path = files_matched[0]
+
+    last_commit = ctx.run(
+        LAST_DIRECTORY_COMMIT_PATTERN.format(integrations_dir=integrations_dir, integration=integration),
+        hide="both",
+        echo=False,
+    )
+    hash = last_commit.stdout.strip()
+
+    target_name = CACHED_WHEEL_DIRECTORY_PATTERN.format(hash=hash, python_version=python) + os.path.basename(wheel_path)
+    print("Caching wheel {}".format(target_name))
+    # NOTE: on Windows, the awscli is usually in program files, so we have the executable
+    ctx.run("\"{}\" s3 cp {} s3://{}/{}".format(awscli, wheel_path, bucket, target_name))
