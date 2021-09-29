@@ -41,7 +41,8 @@ if ohai["platform"] != "windows"
   }
 
   python_configure = ["./configure",
-                      "--prefix=#{install_dir}/embedded"]
+                      "--prefix=#{install_dir}/embedded",
+                      "--with-ensurepip=no"] # pip is installed separately by its own software def
 
   if mac_os_x?
     python_configure.push("--enable-ipv6",
@@ -59,6 +60,11 @@ if ohai["platform"] != "windows"
 
     patch :source => "avoid-allocating-thunks-in-ctypes.patch" if linux?
     patch :source => "fix-platform-ubuntu.diff" if linux?
+    # security patches backported by the debian community
+    # see: http://deb.debian.org/debian/pool/main/p/python2.7/python2.7_2.7.18-6.diff.gz
+    patch :source => "python2.7_2.7.18-cve-2019-20907.diff" unless windows?
+    patch :source => "python2.7_2.7.18-cve-2020-8492.diff" unless windows?
+    patch :source => "python2.7_2.7.18-cve-2021-3177.diff" unless windows?
 
     command python_configure.join(" "), :env => env
     command "make -j #{workers}", :env => env
