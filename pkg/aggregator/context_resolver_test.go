@@ -10,7 +10,9 @@ package aggregator
 import (
 	// stdlib
 
+	"fmt"
 	"testing"
+	"time"
 
 	// 3p
 	"github.com/stretchr/testify/assert"
@@ -167,4 +169,50 @@ func TestTagDeduplication(t *testing.T) {
 
 	assert.Equal(t, len(resolver.contextsByKey[ckey].Tags), 1)
 	assert.Equal(t, resolver.contextsByKey[ckey].Tags, []string{"bar"})
+}
+
+// TODO(remy): dedup this method which has been stolen in ckey pkg
+func genTags(count int, div int) ([]string, []string) {
+	var tags []string
+	uniqMap := make(map[string]struct{})
+	for i := 0; i < count; i++ {
+		tag := fmt.Sprintf("tag%d:value%d", i/div, i/div)
+		tags = append(tags, tag)
+		uniqMap[tag] = struct{}{}
+	}
+
+	uniq := []string{}
+	for tag := range uniqMap {
+		uniq = append(uniq, tag)
+	}
+
+	return tags, uniq
+}
+
+func BenchmarkContextResolverGet(b *testing.B) {
+	InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+
+	// track 10k contexts with 30 tags
+	for contextsCount := 1; contextsCount < 2<<15; contextsCount *= 2 {
+		tags, _ := genTags(30, 1)
+		resolver := newContextResolver()
+		ckeys := make([]ckey.ContextKey, 0)
+		for i := 0; i < contextsCount; i++ {
+			ckeys = append(ckeys, resolver.trackContext(&metrics.MetricSample{
+				Name: fmt.Sprintf("metric.name%d", i),
+				Tags: tags,
+			}))
+		}
+
+		b.Run(fmt.Sprintf("with-%d-contexts", contextsCount), func(b *testing.B) {
+			j := 0
+			for n := 0; n < b.N; n++ {
+				resolver.get(ckeys[j])
+				j++
+				if j >= contextsCount {
+					j = 0
+				}
+			}
+		})
+	}
 }
