@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -56,7 +57,8 @@ func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 		return nil
 	}
 
-	strategy := NewBatchStrategy(LineSerializer, timerInterval, 0, 100, 100, "test", 0)
+	clk := clock.NewMock()
+	strategy := newBatchStrategyWithClock(LineSerializer, timerInterval, 0, 100, 100, "test", 0, clk)
 	done := make(chan bool)
 	go func() {
 		strategy.Send(input, output, send)
@@ -67,10 +69,13 @@ func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 		m := message.NewMessage([]byte("a"), nil, "", 0)
 		input <- m
 
+		// it should have flushed in this time
+		clk.Add(2 * timerInterval)
+
 		select {
 		case mOut := <-output:
 			assert.EqualValues(t, m, mOut)
-		case <-time.After(5 * timerInterval):
+		default:
 			assert.Fail(t, "the output channel should not be empty")
 		}
 	}
@@ -89,9 +94,10 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 		return nil
 	}
 
+	clk := clock.NewMock()
 	done := make(chan bool)
 	go func() {
-		NewBatchStrategy(LineSerializer, 100*time.Millisecond, 0, 2, 2, "test", 0).Send(input, output, success)
+		newBatchStrategyWithClock(LineSerializer, 100*time.Millisecond, 0, 2, 2, "test", 0, clk).Send(input, output, success)
 		close(done)
 	}()
 
@@ -100,14 +106,11 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 	message := message.NewMessage(content, nil, "", 0)
 	input <- message
 
-	start := time.Now()
 	close(input)
 
-	// expect payload to be sent before timer
+	// expect payload to be sent before timer, so we never advance the clock; if this
+	// doesn't work, the test will hang
 	assert.Equal(t, message, <-output)
-	end := start.Add(100 * time.Millisecond)
-	now := time.Now()
-	assert.True(t, now.Before(end) || now.Equal(end))
 	<-done
 }
 
