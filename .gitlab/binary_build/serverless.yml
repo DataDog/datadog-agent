@@ -3,14 +3,17 @@ build_serverless-deb_x64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
+  variables:
+    - BASELINE_SIZE_IN_BYTES: 29717784
+    - MAX_ALLOWED_DELTA_IN_PERCENT: 3
   needs: ["linux_x64_go_deps"]
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
     - cd cmd/serverless && go build -ldflags="-w -s" -a -v -tags serverless
-    - ls -lh serverless
-    - ls -l serverless
-
+    - export CURRENT_SIZE_IN_BYTES=$(ls -l serverless | awk '{print $5}')
+    - export DELTA=$(echo "100 * (($CURRENT_SIZE_IN_BYTES - $BASELINE_SIZE_IN_BYTES) / $BASELINE_SIZE_IN_BYTES)" | bc -l)
+    - echo $DELTA
 build_serverless-deb_arm64:
   rules:
     !reference [.on_all_builds]
@@ -22,5 +25,6 @@ build_serverless-deb_arm64:
     - !reference [.retrieve_linux_go_deps]
   script:
     - cd cmd/serverless && go build -ldflags="-w -s" -a -v -tags serverless
-    - ls -lh serverless
-    - ls -l serverless
+    - export CURRENT_SIZE_IN_BYTES=$(ls -l serverless | awk '{print $5}')
+    - export DELTA=$(echo "100 * (($CURRENT_SIZE_IN_BYTES - $BASELINE_SIZE_IN_BYTES) / $BASELINE_SIZE_IN_BYTES)" | bc -l)
+    - echo $DELTA
