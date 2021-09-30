@@ -20,12 +20,14 @@ import (
 )
 
 func TestSpan(t *testing.T) {
-	ruleDef := &rules.RuleDefinition{
-		ID:         "test_span_rule",
-		Expression: `open.file.path == "{{.Root}}/test-span"`,
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_span_rule_open",
+			Expression: `open.file.path == "{{.Root}}/test-span"`,
+		},
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,25 +55,27 @@ func TestSpan(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	offset := (syscall.Gettid() % (len(tls) / 2)) * 2
-	tls[offset] = 123
-	tls[offset+1] = 456
+	t.Run("open", func(t *testing.T) {
+		offset := (syscall.Gettid() % (len(tls) / 2)) * 2
+		tls[offset] = 123
+		tls[offset+1] = 456
 
-	err = test.GetSignal(t, func() error {
-		testFile, _, err := test.Create("test-span")
-		os.Remove(testFile)
-		return err
-	}, func(event *sprobe.Event, rule *rules.Rule) {
-		assertTriggeredRule(t, rule, "test_span_rule")
+		err = test.GetSignal(t, func() error {
+			testFile, _, err := test.Create("test-span")
+			os.Remove(testFile)
+			return err
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_span_rule_open")
 
-		if !validateSpanSchema(t, event) {
-			t.Fatal(event.String())
+			if !validateSpanSchema(t, event) {
+				t.Fatal(event.String())
+			}
+
+			assert.Equal(t, uint64(123), event.SpanContext.SpanID)
+			assert.Equal(t, uint64(456), event.SpanContext.TraceID)
+		})
+		if err != nil {
+			t.Error(err)
 		}
-
-		assert.Equal(t, uint64(123), event.SpanContext.SpanID)
-		assert.Equal(t, uint64(456), event.SpanContext.TraceID)
 	})
-	if err != nil {
-		t.Error(err)
-	}
 }

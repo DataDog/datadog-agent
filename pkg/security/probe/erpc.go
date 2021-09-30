@@ -10,8 +10,6 @@ package probe
 import (
 	"syscall"
 	"unsafe"
-
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (

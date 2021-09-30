@@ -94,3 +94,7 @@ func validateSELinuxSchema(t *testing.T, event *sprobe.Event) bool {
 func validateLinkSchema(t *testing.T, event *sprobe.Event) bool {
 	return validateSchema(t, event, "file:///schemas/link.schema.json")
 }
+
+func validateSpanSchema(t *testing.T, event *sprobe.Event) bool {
+	return validateSchema(t, event, "file:///span.schema.json")
+}
