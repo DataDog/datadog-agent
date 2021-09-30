@@ -487,14 +487,15 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 					Labels: map[string]string{
 						"job_name":  "foo-1509998340",
 						"namespace": "default",
+						"reason":    "BackoffLimitExceeded",
 					},
 				},
-				tags: []string{"job_name:foo-1509998340", "namespace:default"},
+				tags: []string{"job_name:foo-1509998340", "namespace:default", "reason:BackoffLimitExceeded"},
 			},
 			expected: &metricsExpected{
 				name: "kubernetes_state.job.failed",
 				val:  1,
-				tags: []string{"job_name:foo", "namespace:default"},
+				tags: []string{"kube_cronjob:foo", "namespace:default"},
 			},
 		},
 		{
@@ -506,15 +507,32 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 					Labels: map[string]string{
 						"job":       "foo-1509998340",
 						"namespace": "default",
+						"reason":    "BackoffLimitExceeded",
 					},
 				},
-				tags: []string{"job:foo-1509998340", "namespace:default"},
+				tags: []string{"job:foo-1509998340", "namespace:default", "reason:BackoffLimitExceeded"},
 			},
 			expected: &metricsExpected{
 				name: "kubernetes_state.job.failed",
 				val:  1,
-				tags: []string{"job:foo", "namespace:default"},
+				tags: []string{"kube_cronjob:foo", "namespace:default"},
 			},
+		},
+		{
+			name: "irrelevant reason",
+			args: args{
+				name: "kube_job_status_failed",
+				metric: ksmstore.DDMetric{
+					Val: 0,
+					Labels: map[string]string{
+						"job":       "foo-1509998340",
+						"namespace": "default",
+						"reason":    "Evicted",
+					},
+				},
+				tags: []string{"job:foo-1509998340", "namespace:default", "reason:Evicted"},
+			},
+			expected: nil,
 		},
 		{
 			name: "inactive",
@@ -532,7 +550,7 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 			expected: &metricsExpected{
 				name: "kubernetes_state.job.failed",
 				val:  0,
-				tags: []string{"job:foo", "namespace:default"},
+				tags: []string{"kube_cronjob:foo", "namespace:default"},
 			},
 		},
 	}
@@ -542,7 +560,7 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			jobStatusFailedTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags)
 			if tt.expected != nil {
-				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.args.tags)
+				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.expected.tags)
 				s.AssertNumberOfCalls(t, "Gauge", 1)
 			} else {
 				s.AssertNotCalled(t, "Gauge")
