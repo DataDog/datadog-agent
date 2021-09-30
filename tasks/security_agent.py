@@ -1,5 +1,4 @@
 import datetime
-import glob
 import os
 import shutil
 import sys
@@ -219,17 +218,6 @@ def build_functional_tests(
     if static:
         ldflags += '-extldflags "-static"'
         build_tags += ',osusergo,netgo'
-
-    bindata_files = glob.glob("pkg/security/tests/schemas/*.json")
-    bundle_files(
-        ctx,
-        bindata_files,
-        "pkg/security/tests/schemas",
-        "pkg/security/tests/schemas/schemas.go",
-        "schemas",
-        "functionaltests",
-        False,
-    )
 
     cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
     cmd += '{build_flags} {repo_path}/pkg/security/tests'

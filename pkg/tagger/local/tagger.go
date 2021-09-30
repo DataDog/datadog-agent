@@ -224,13 +224,6 @@ func (t *Tagger) registerCollectors(replies []collectorReply) {
 			} else {
 				log.Errorf("error initializing collector %s: does not implement stream", c.name)
 			}
-		case collectors.FetchOnlyCollection:
-			fetch, ok := c.instance.(collectors.Fetcher)
-			if ok {
-				t.addFetcher(c.name, fetch)
-			} else {
-				log.Errorf("error initializing collector %s: does not implement fetch", c.name)
-			}
 		}
 	}
 	t.Unlock()

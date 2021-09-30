@@ -36,6 +36,7 @@ type ListenerConfig struct {
 	Loader                string   `mapstructure:"loader"`
 	CollectDeviceMetadata bool     `mapstructure:"collect_device_metadata"`
 	MinCollectionInterval uint     `mapstructure:"min_collection_interval"`
+	Namespace             string   `mapstructure:"namespace"`
 	Configs               []Config `mapstructure:"configs"`
 
 	// legacy
@@ -127,12 +128,11 @@ func NewListenerConfig() (ListenerConfig, error) {
 		if config.Loader == "" {
 			config.Loader = snmpConfig.Loader
 		}
-		if config.Namespace == "" {
-			config.Namespace = coreconfig.Datadog.GetString("network_devices.namespace")
-		}
 		if config.MinCollectionInterval == 0 {
 			config.MinCollectionInterval = snmpConfig.MinCollectionInterval
 		}
+
+		config.Namespace = firstNonEmpty(config.Namespace, snmpConfig.Namespace, coreconfig.Datadog.GetString("network_devices.namespace"))
 		config.Community = firstNonEmpty(config.Community, config.CommunityLegacy)
 		config.AuthKey = firstNonEmpty(config.AuthKey, config.AuthKeyLegacy)
 		config.AuthProtocol = firstNonEmpty(config.AuthProtocol, config.AuthProtocolLegacy)
@@ -259,9 +259,11 @@ func (c *Config) IsIPIgnored(ip net.IP) bool {
 	return present
 }
 
-func firstNonEmpty(a, b string) string {
-	if a != "" {
-		return a
+func firstNonEmpty(strings ...string) string {
+	for index, s := range strings {
+		if s != "" || index == len(strings)-1 {
+			return s
+		}
 	}
-	return b
+	return ""
 }

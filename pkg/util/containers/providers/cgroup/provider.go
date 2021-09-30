@@ -202,6 +202,12 @@ func (mp *provider) GetDefaultHostIPs() ([]string, error) {
 	return defaultHostIPs()
 }
 
+// GetNumFileDescriptors returns the number of open file descriptors for a given
+// pid
+func (mp *provider) GetNumFileDescriptors(pid int) (int, error) {
+	return GetFileDescriptorLen(pid)
+}
+
 func (mp *provider) getCgroup(containerID string) (*ContainerCgroup, error) {
 	mp.lock.RLock()
 	defer mp.lock.RUnlock()

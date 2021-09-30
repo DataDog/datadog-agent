@@ -16,14 +16,7 @@ import (
 
 func loadConfig(path string) (config.Config, error) {
 	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	cfg.BindEnvAndSetDefault(experimentalMetricsEnabled, true)
-	cfg.BindEnvAndSetDefault(experimentalTracesEnabled, true)
-	cfg.BindEnv(experimentalHTTPPortSetting, "DD_OTLP_HTTP_PORT")
-	cfg.BindEnv(experimentalgRPCPortSetting, "DD_OTLP_GRPC_PORT")
-
-	cfg.BindEnvAndSetDefault(experimentalTracePortSetting, 5003)
-	cfg.BindEnv("apm_config.apm_non_local_traffic", "DD_APM_NON_LOCAL_TRAFFIC")
-
+	config.SetupOTLP(cfg)
 	cfg.SetConfigFile(path)
 	err := cfg.ReadInConfig()
 	if err != nil {

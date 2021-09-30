@@ -3,20 +3,20 @@
     "$id": "host_event.json",
     "allOf": [
         {
-            "$ref": "file:///event.json"
+            "$ref": "/schemas/event.json"
         },
         {
-            "file": { "$ref": "file:///file.json" }
+            "file": { "$ref": "/schemas/file.json" }
         },
         {
-            "$ref": "file:///usr.json"
+            "$ref": "/schemas/usr.json"
         },
         {
-            "$ref": "file:///process_context.json"
+            "$ref": "/schemas/process_context.json"
         },
         {
             "date": {
-                "$ref": "file:///datetime.json"
+                "$ref": "/schemas/datetime.json"
             }
         }
     ]

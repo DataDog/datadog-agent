@@ -29,10 +29,10 @@
             "type": "string"
         },
         "modification_time": {
-            "$ref": "file:///datetime.json"
+            "$ref": "/schemas/datetime.json"
         },
         "change_time": {
-            "$ref": "file:///datetime.json"
+            "$ref": "/schemas/datetime.json"
         },
         "flags": {
             "type": "array",

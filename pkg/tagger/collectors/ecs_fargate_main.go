@@ -70,7 +70,7 @@ func (c *ECSFargateCollector) Pull(ctx context.Context) error {
 		return err
 	}
 	// Only parse new containers
-	updates, err := c.parseMetadata(taskMeta, false)
+	updates, err := c.parseMetadata(taskMeta)
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func (c *ECSFargateCollector) Fetch(ctx context.Context, container string) ([]st
 		return []string{}, []string{}, []string{}, err
 	}
 	// Force a full parse to avoid missing the container in a race with Pull
-	updates, err := c.parseMetadata(taskMeta, true)
+	updates, err := c.parseMetadata(taskMeta)
 	if err != nil {
 		return []string{}, []string{}, []string{}, err
 	}

@@ -14,11 +14,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/metadata"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // Using high oid batch size might lead to snmp calls timing out.
@@ -58,6 +58,7 @@ type InitConfig struct {
 	BulkMaxRepetitions    Number           `yaml:"bulk_max_repetitions"`
 	CollectDeviceMetadata Boolean          `yaml:"collect_device_metadata"`
 	MinCollectionInterval int              `yaml:"min_collection_interval"`
+	Namespace             string           `yaml:"namespace"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -375,11 +376,14 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	if instance.Namespace != "" {
 		c.Namespace = instance.Namespace
+	} else if initConfig.Namespace != "" {
+		c.Namespace = initConfig.Namespace
 	} else {
-		c.Namespace = config.Datadog.GetString("network_devices.namespace")
+		c.Namespace = coreconfig.Datadog.GetString("network_devices.namespace")
 	}
+
 	if c.Namespace == "" {
-		// Can only happen if network_devices.namespace config is set to empty string in `datadog.yaml`
+		// Can only happen if snmp_listener.namespace config is set to empty string in `datadog.yaml`
 		return nil, fmt.Errorf("namespace cannot be empty")
 	}
 
