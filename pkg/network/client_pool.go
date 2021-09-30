@@ -57,6 +57,7 @@ func Reclaim(c *Connections) {
 	}
 
 	clientPool.Put(b)
+	c.buffer = nil
 }
 
 func init() {

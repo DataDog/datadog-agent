@@ -225,7 +225,7 @@ func (ns *networkState) GetDelta(
 
 	return Delta{
 		BufferedData: BufferedData{
-			Conns:  clientBuffer.Connections(),
+			Conns:  conns,
 			buffer: clientBuffer,
 		},
 		HTTP: ns.getHTTPDelta(id),

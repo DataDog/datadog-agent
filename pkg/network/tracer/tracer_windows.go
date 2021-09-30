@@ -121,7 +121,6 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.state.RemoveExpiredClients(time.Now())
 
 	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, closedConnStats, t.reverseDNS.GetDNSStats(), nil)
-	conns := delta.Conns
 	var ips []util.Address
 	for _, conn := range delta.Conns {
 		ips = append(ips, conn.Source, conn.Dest)

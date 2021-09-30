@@ -385,6 +385,8 @@ func TestConnectionExpirationRegression(t *testing.T) {
 }
 
 func TestConntrackExpiration(t *testing.T) {
+	t.Skip("flaky test")
+
 	setupDNAT(t)
 	defer teardownDNAT(t)
 
