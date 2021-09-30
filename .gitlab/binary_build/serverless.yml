@@ -3,7 +3,7 @@
   stage: binary_build
   variables:
     # this baseline is the current binary size + 3%
-    BASELINE_SIZE_IN_BYTES: 20609317
+    BASELINE_SIZE_IN_BYTES: 30609317
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
