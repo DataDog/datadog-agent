@@ -47,16 +47,6 @@ type ERPCRequest struct {
 	Data [ERPCMaxDataSize]byte
 }
 
-// GetConstants returns the ebpf constants
-func (k *ERPC) GetConstants() []manager.ConstantEditor {
-	return []manager.ConstantEditor{
-		{
-			Name:  "erpc_fd",
-			Value: uint64(k.fd),
-		},
-	}
-}
-
 // Request generates an ioctl syscall with the required request
 func (k *ERPC) Request(req *ERPCRequest) error {
 	if _, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(k.fd), rpcCmd, uintptr(unsafe.Pointer(req))); errno != 0 {
