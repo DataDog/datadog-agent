@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/mitchellh/mapstructure"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 
@@ -308,10 +309,10 @@ func (r *regoCheck) appendInstance(input map[string][]interface{}, key string, i
 }
 
 type regoFinding struct {
-	Status       bool
-	ResourceType string
-	ResourceID   string
-	Data         event.Data
+	Status       bool       `mapstructure:"status"`
+	ResourceType string     `mapstructure:"resource_type"`
+	ResourceID   string     `mapstructure:"resource_id"`
+	Data         event.Data `mapstructure:"data"`
 }
 
 func (f *regoFinding) asMap() map[string]interface{} {
@@ -343,33 +344,8 @@ func parseFindings(regoData interface{}) ([]regoFinding, error) {
 			return nil, errors.New("failed to parse finding")
 		}
 
-		status, ok := m[ResourceStatusFindingField].(bool)
-		if !ok {
-			return nil, errors.New("failed to parse resource status")
-		}
-
-		id, ok := m[ResourceIDFindingField].(string)
-		if !ok {
-			return nil, errors.New("failed to parse resource_id")
-		}
-
-		rty, ok := m[ResourceTypeFindingField].(string)
-		if !ok {
-			return nil, errors.New("failed to parse resource_type")
-		}
-
-		data, ok := m[ResourceDataFindingField].(map[string]interface{})
-		if !ok {
-			return nil, errors.New("failed to parse resource data")
-		}
-
-		finding := regoFinding{
-			Status:       status,
-			ResourceID:   id,
-			ResourceType: rty,
-			Data:         data,
-		}
-
+		var finding regoFinding
+		mapstructure.Decode(m, &finding)
 		res = append(res, finding)
 	}
 

@@ -16,17 +16,6 @@ import (
 	"github.com/open-policy-agent/opa/types"
 )
 
-const (
-	// ResourceIDFindingField represents the resource id field name in finding document
-	ResourceIDFindingField = "resource_id"
-	// ResourceTypeFindingField represents the resource type field name in finding document
-	ResourceTypeFindingField = "resource_type"
-	// ResourceStatusFindingField represents the resource status field name in finding document
-	ResourceStatusFindingField = "status"
-	// ResourceDataFindingField represents the resource data field name in finding document
-	ResourceDataFindingField = "data"
-)
-
 //go:embed rego_helpers/datadog.rego
 var helpers string
 
