@@ -3,10 +3,10 @@
 # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
 # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
 # include:
-#   - /.gitlab/docker_common/tag_job_templates.yml
+#   - /.gitlab/docker_common/publish_job_templates.yml
 
 dev_branch-a7-windows:
-  extends: .docker_job_definition
+  extends: .docker_publish_job_definition
   stage: image_deploy
   rules:
     !reference [.on_a7_manual]
@@ -23,10 +23,6 @@ dev_branch-a7-windows:
     - docker_build_agent7_windows2004_jmx
     - docker_build_agent7_windows2004_core
     - docker_build_agent7_windows2004_core_jmx
-  trigger:
-    project: DataDog/public-images
-    branch: main
-    strategy: depend
   variables:
     IMG_REGISTRIES: dev
   parallel:
@@ -41,7 +37,7 @@ dev_branch-a7-windows:
         IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-py3-jmx-win-servercore
 
 dev_branch-a6-windows:
-  extends: .docker_job_definition
+  extends: .docker_publish_job_definition
   stage: image_deploy
   rules:
     !reference [.on_a6_manual]
@@ -49,10 +45,6 @@ dev_branch-a6-windows:
     - docker_build_agent6_windows1809_core
     - docker_build_agent6_windows1909_core
     - docker_build_agent6_windows2004_core
-  trigger:
-    project: DataDog/public-images
-    branch: main
-    strategy: depend
   variables:
     IMG_REGISTRIES: dev
   parallel:
@@ -61,7 +53,7 @@ dev_branch-a6-windows:
         IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-py2-win-servercore
 
 dev_master-a7-windows:
-  extends: .docker_job_definition
+  extends: .docker_publish_job_definition
   stage: image_deploy
   rules:
     !reference [.on_main_a7]
@@ -78,10 +70,6 @@ dev_master-a7-windows:
     - docker_build_agent7_windows2004_jmx
     - docker_build_agent7_windows2004_core
     - docker_build_agent7_windows2004_core_jmx
-  trigger:
-    project: DataDog/public-images
-    branch: main
-    strategy: depend
   variables:
     IMG_REGISTRIES: dev
   parallel:
@@ -96,7 +84,7 @@ dev_master-a7-windows:
         IMG_DESTINATIONS: agent-dev:master-py3-jmx-win-servercore
 
 dev_master-a6-windows:
-  extends: .docker_job_definition
+  extends: .docker_publish_job_definition
   stage: image_deploy
   rules:
     !reference [.on_main_a6]
@@ -104,10 +92,6 @@ dev_master-a6-windows:
     - docker_build_agent6_windows1809_core
     - docker_build_agent6_windows1909_core
     - docker_build_agent6_windows2004_core
-  trigger:
-    project: DataDog/public-images
-    branch: main
-    strategy: depend
   variables:
     IMG_REGISTRIES: dev
   parallel:
@@ -116,7 +100,7 @@ dev_master-a6-windows:
         IMG_DESTINATIONS: agent-dev:master-py2-win-servercore
 
 dev_nightly-a7-windows:
-  extends: .docker_job_definition
+  extends: .docker_publish_job_definition
   stage: image_deploy
   rules:
     !reference [.on_deploy_nightly_repo_branch_a7]
@@ -133,10 +117,6 @@ dev_nightly-a7-windows:
     - docker_build_agent7_windows1909_core_jmx
     - docker_build_agent7_windows2004_core
     - docker_build_agent7_windows2004_core_jmx
-  trigger:
-    project: DataDog/public-images
-    branch: main
-    strategy: depend
   variables:
     IMG_REGISTRIES: dev
   parallel:
@@ -151,7 +131,7 @@ dev_nightly-a7-windows:
         IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_SHORT_SHA}-py3-jmx-win-servercore
 
 dev_nightly-a6-windows:
-  extends: .docker_job_definition
+  extends: .docker_publish_job_definition
   stage: image_deploy
   rules:
     !reference [.on_deploy_nightly_repo_branch_a6]
@@ -159,10 +139,6 @@ dev_nightly-a6-windows:
     - docker_build_agent6_windows1809_core
     - docker_build_agent6_windows1909_core
     - docker_build_agent6_windows2004_core
-  trigger:
-    project: DataDog/public-images
-    branch: main
-    strategy: depend
   variables:
     IMG_REGISTRIES: dev
   parallel:

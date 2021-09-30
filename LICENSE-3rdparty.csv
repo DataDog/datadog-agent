@@ -49,6 +49,7 @@ core,github.com/DataDog/gopsutil/internal/common,BSD-3-Clause,"Datadog, Inc."
 core,github.com/DataDog/gopsutil/mem,BSD-3-Clause,"Datadog, Inc."
 core,github.com/DataDog/gopsutil/net,BSD-3-Clause,"Datadog, Inc."
 core,github.com/DataDog/gopsutil/process,BSD-3-Clause,"Datadog, Inc."
+core,github.com/DataDog/gopsutil/process/filepath,BSD-3-Clause,"Datadog, Inc."
 core,github.com/DataDog/gopsutil/process/so,BSD-3-Clause,"Datadog, Inc."
 core,github.com/DataDog/gostackparse,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/mmh3,UNKNOWN,"Datadog, Inc."
@@ -79,6 +80,7 @@ core,github.com/Microsoft/go-winio/pkg/guid,MIT,Microsoft
 core,github.com/Microsoft/go-winio/pkg/security,MIT,Microsoft
 core,github.com/Microsoft/go-winio/vhd,MIT,Microsoft
 core,github.com/Microsoft/hcsshim,MIT,Microsoft | Microsoft Corp
+core,github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/stats,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/computestorage,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/internal/cow,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/internal/hcs,MIT,Microsoft | Microsoft Corp
@@ -452,6 +454,7 @@ core,github.com/jstemmer/go-junit-report,MIT,Joel Stemmer
 core,github.com/jstemmer/go-junit-report/formatter,MIT,Joel Stemmer
 core,github.com/jstemmer/go-junit-report/parser,MIT,Joel Stemmer
 core,github.com/kardianos/osext,BSD-3-Clause,The Go Authors
+core,github.com/karrick/godirwalk,BSD-2-Clause,Karrick McDermott
 core,github.com/kjk/lzma,BSD-3-Clause,Andrei Vieru
 core,github.com/klauspost/compress/flate,BSD-3-Clause,Klaus Post | The Go Authors
 core,github.com/klauspost/compress/fse,BSD-3-Clause,Klaus Post | The Go Authors
@@ -596,6 +599,12 @@ core,github.com/syndtr/goleveldb/leveldb/storage,BSD-2-Clause,Suryandaru Trianda
 core,github.com/syndtr/goleveldb/leveldb/table,BSD-2-Clause,Suryandaru Triandana <syndtr@gmail.com>
 core,github.com/syndtr/goleveldb/leveldb/util,BSD-2-Clause,Suryandaru Triandana <syndtr@gmail.com>
 core,github.com/tedsuo/rata,MIT,Ted Young
+core,github.com/tent/canonical-json-go,BSD-3-Clause,The Go Authors
+core,github.com/theupdateframework/go-tuf/client,BSD-3-Clause,"Prime Directive, Inc"
+core,github.com/theupdateframework/go-tuf/data,BSD-3-Clause,"Prime Directive, Inc"
+core,github.com/theupdateframework/go-tuf/internal/targets,BSD-3-Clause,"Prime Directive, Inc"
+core,github.com/theupdateframework/go-tuf/util,BSD-3-Clause,"Prime Directive, Inc"
+core,github.com/theupdateframework/go-tuf/verify,BSD-3-Clause,"Prime Directive, Inc"
 core,github.com/tinylib/msgp,MIT,Philip Hofer | The Go Authors
 core,github.com/tinylib/msgp/gen,MIT,Philip Hofer | The Go Authors
 core,github.com/tinylib/msgp/msgp,MIT,Philip Hofer | The Go Authors
@@ -620,6 +629,7 @@ core,github.com/xeipuuv/gojsonreference,Apache-2.0,xeipuuv ( https://github.com/
 core,github.com/xeipuuv/gojsonschema,Apache-2.0,xeipuuv ( https://github.com/xeipuuv )
 core,github.com/xi2/xz,UNKNOWN,Igor Pavlov <http://7-zip.org/> | Lasse Collin <lasse.collin@tukaani.org> | Michael Cross <https://github.com/xi2>
 core,github.com/xor-gate/ar,MIT,Blake Smith <blakesmith0@gmail.com>
+core,go.etcd.io/bbolt,MIT,the etcd maintainers
 core,go.etcd.io/etcd/api/v3/version,Apache-2.0,the etcd maintainers
 core,go.etcd.io/etcd/auth/authpb,Apache-2.0,the etcd maintainers
 core,go.etcd.io/etcd/client/pkg/v3/pathutil,Apache-2.0,the etcd maintainers
@@ -775,6 +785,8 @@ core,go4.org/unsafe/assume-no-moving-gc,BSD-3-Clause,Brad Fitzpatrick
 core,golang.org/x/crypto/cast5,BSD-3-Clause,The Go Authors
 core,golang.org/x/crypto/cryptobyte,BSD-3-Clause,The Go Authors
 core,golang.org/x/crypto/cryptobyte/asn1,BSD-3-Clause,The Go Authors
+core,golang.org/x/crypto/ed25519,BSD-3-Clause,The Go Authors
+core,golang.org/x/crypto/ed25519/internal/edwards25519,BSD-3-Clause,The Go Authors
 core,golang.org/x/crypto/internal/subtle,BSD-3-Clause,The Go Authors
 core,golang.org/x/crypto/nacl/secretbox,BSD-3-Clause,The Go Authors
 core,golang.org/x/crypto/openpgp,BSD-3-Clause,The Go Authors

@@ -51,11 +51,6 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
     //     if the service is not present
     //       (8) install service, create user
     //       use password if provided, otherwise generate
-    if (data.UserParamMismatch())
-    {
-        WcaLog(LOGMSG_STANDARD, "Supplied domain/username doesn't match previously used domain/username. ");
-        bRet = false;
-    }
     if (isDC)
     {
         if (!ddUserExists && data.GetTargetMachine()->IsReadOnlyDomainController())
@@ -125,7 +120,7 @@ bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomAc
                 if (!ddServiceExists)
                 {
                     // case (6)
-                    WcaLog(LOGMSG_STANDARD, "dd user exists %S, but not service.  Continuing", data.Username().c_str());
+                    WcaLog(LOGMSG_STANDARD, "dd user exists %S, but not service.  Continuing", data.FullyQualifiedUsername().c_str());
                     bResetPassword = true;
                 }
             }

@@ -65,10 +65,12 @@ type SlidingWindow interface {
 
 // NewSlidingWindow creates a new instance of a slidingWindow
 func NewSlidingWindow(windowSize time.Duration, pollingInterval time.Duration) (SlidingWindow, error) {
-	return newSlidingWindowWithClock(windowSize, pollingInterval, clock.New())
+	return NewSlidingWindowWithClock(windowSize, pollingInterval, clock.New())
 }
 
-func newSlidingWindowWithClock(windowSize time.Duration, pollingInterval time.Duration, clock clock.Clock) (SlidingWindow, error) {
+// NewSlidingWindowWithClock creates a new instance of a slidingWindow but with
+// a custom clock implementation
+func NewSlidingWindowWithClock(windowSize time.Duration, pollingInterval time.Duration, clock clock.Clock) (SlidingWindow, error) {
 	if windowSize == 0 {
 		return nil, fmt.Errorf("SlidingWindow windowSize cannot be 0")
 	}
@@ -140,14 +142,13 @@ func (sw *slidingWindow) newTicker() {
 				// Invoke the polling function
 
 				sw.stateChangeLock.RLock()
-
 				if sw.stopped {
 					sw.stateChangeLock.RUnlock()
 					return
 				}
+				sw.stateChangeLock.RUnlock()
 
 				value := sw.pollingFunc()
-				sw.stateChangeLock.RUnlock()
 
 				// Store the data and update any needed variables
 

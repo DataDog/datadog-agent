@@ -80,7 +80,7 @@ func GetKernelHeaders(headerDirs []string, headerDownloadDir, aptConfigDir, yumR
 
 	d := headerDownloader{aptConfigDir, yumReposDir, zypperReposDir}
 	if err = d.downloadHeaders(headerDownloadDir); err == nil {
-		log.Infof("successfully downloaded kernel headers to %s", dirs)
+		log.Infof("successfully downloaded kernel headers to %s", headerDownloadDir)
 		if err = validateHeaderDirs(hv, dirs); err == nil {
 			return dirs, downloadSuccess, nil
 		}
@@ -147,12 +147,8 @@ func getDefaultHeaderDirs() []string {
 
 	dirs := []string{
 		fmt.Sprintf(kernelModulesPath, hi.KernelVersion),
-	}
-	switch hi.Platform {
-	case "debian":
-		dirs = append(dirs, fmt.Sprintf(debKernelModulesPath, hi.KernelVersion))
-	case "cos":
-		dirs = append(dirs, fmt.Sprintf(cosKernelModulesPath, hi.KernelVersion))
+		fmt.Sprintf(debKernelModulesPath, hi.KernelVersion),
+		fmt.Sprintf(cosKernelModulesPath, hi.KernelVersion),
 	}
 	return dirs
 }
