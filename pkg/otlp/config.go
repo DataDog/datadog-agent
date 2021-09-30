@@ -12,14 +12,6 @@ import (
 	"go.uber.org/multierr"
 )
 
-const (
-	experimentalHTTPPortSetting  = "experimental.otlp.http_port"
-	experimentalgRPCPortSetting  = "experimental.otlp.grpc_port"
-	experimentalTracePortSetting = "experimental.otlp.internal_traces_port"
-	experimentalMetricsEnabled   = "experimental.otlp.metrics_enabled"
-	experimentalTracesEnabled    = "experimental.otlp.traces_enabled"
-)
-
 // getReceiverHost gets the receiver host for the OTLP endpoint in a given config.
 func getReceiverHost(cfg config.Config) (receiverHost string) {
 	// The default value for the trace Agent
@@ -42,7 +34,7 @@ func getReceiverHost(cfg config.Config) (receiverHost string) {
 
 // isSetExperimental checks if the experimental config is set.
 func isSetExperimental(cfg config.Config) bool {
-	return cfg.IsSet(experimentalHTTPPortSetting) || cfg.IsSet(experimentalgRPCPortSetting)
+	return cfg.IsSet(config.ExperimentalOTLPHTTPPort) || cfg.IsSet(config.ExperimentalOTLPgRPCPort)
 }
 
 func portToUint(v int) (port uint, err error) {
@@ -57,23 +49,23 @@ func portToUint(v int) (port uint, err error) {
 func fromExperimentalConfig(cfg config.Config) (PipelineConfig, error) {
 	var errs []error
 
-	httpPort, err := portToUint(cfg.GetInt(experimentalHTTPPortSetting))
+	httpPort, err := portToUint(cfg.GetInt(config.ExperimentalOTLPHTTPPort))
 	if err != nil {
 		errs = append(errs, fmt.Errorf("http port is invalid: %w", err))
 	}
 
-	gRPCPort, err := portToUint(cfg.GetInt(experimentalgRPCPortSetting))
+	gRPCPort, err := portToUint(cfg.GetInt(config.ExperimentalOTLPgRPCPort))
 	if err != nil {
 		errs = append(errs, fmt.Errorf("gRPC port is invalid: %w", err))
 	}
 
-	tracePort, err := portToUint(cfg.GetInt(experimentalTracePortSetting))
+	tracePort, err := portToUint(cfg.GetInt(config.ExperimentalOTLPTracePort))
 	if err != nil {
 		errs = append(errs, fmt.Errorf("internal trace port is invalid: %w", err))
 	}
 
-	metricsEnabled := cfg.GetBool(experimentalMetricsEnabled)
-	tracesEnabled := cfg.GetBool(experimentalTracesEnabled)
+	metricsEnabled := cfg.GetBool(config.ExperimentalOTLPMetricsEnabled)
+	tracesEnabled := cfg.GetBool(config.ExperimentalOTLPTracesEnabled)
 	if !metricsEnabled && !tracesEnabled {
 		errs = append(errs, fmt.Errorf("at least one OTLP signal needs to be enabled"))
 	}
