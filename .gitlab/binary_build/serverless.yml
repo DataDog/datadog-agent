@@ -1,8 +1,6 @@
 ---
-build_serverless-deb_x64:
+.build_serverless_common:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
   variables:
     BASELINE_SIZE_IN_BYTES: 29717784
     MAX_ALLOWED_DELTA_IN_PERCENT: 3
@@ -18,9 +16,17 @@ build_serverless-deb_x64:
     - export RESULT=$(awk -v delta=$DELTA -v allowed_delta=$MAX_ALLOWED_DELTA_IN_PERCENT 'BEGIN { print  (delta - allowed_delta) }')
     - if [[ $RESULT == -* ]] ; then exit 0; echo "Extension binary size is too big, please investigate/reach #serverless" && exit 1; fi
 
+
+build_serverless-deb_x64:
+  extends: .build_serverless_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main"]
+  needs: ["linux_x64_go_deps"]
+
 build_serverless-deb_arm64:
+  extends: .build_serverless_common
   rules:
     !reference [.on_all_builds]
-  extends: .build_serverless-deb_x64ps
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
+  needs: ["linux_arm64_go_deps"]
