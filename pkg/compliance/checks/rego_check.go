@@ -246,6 +246,14 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 
 	log.Debugf("%s: rego evaluation done => %+v\n", r.ruleID, results)
 
+	if len(results) == 0 || len(results[0].Expressions) == 0 {
+		return []*compliance.Report{
+			compliance.BuildReportForError(
+				errors.New("failed to collect result expression"),
+			),
+		}
+	}
+
 	findings, err := parseFindings(results[0].Expressions[0].Value)
 	if err != nil {
 		return []*compliance.Report{compliance.BuildReportForError(err)}
