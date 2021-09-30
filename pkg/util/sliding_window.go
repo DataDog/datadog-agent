@@ -140,14 +140,13 @@ func (sw *slidingWindow) newTicker() {
 				// Invoke the polling function
 
 				sw.stateChangeLock.RLock()
-
 				if sw.stopped {
 					sw.stateChangeLock.RUnlock()
 					return
 				}
+				sw.stateChangeLock.RUnlock()
 
 				value := sw.pollingFunc()
-				sw.stateChangeLock.RUnlock()
 
 				// Store the data and update any needed variables
 
