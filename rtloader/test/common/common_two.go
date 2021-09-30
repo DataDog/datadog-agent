@@ -1,3 +1,4 @@
+//go:build two
 // +build two
 
 package testcommon

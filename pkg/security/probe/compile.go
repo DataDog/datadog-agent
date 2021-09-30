@@ -1,3 +1,4 @@
+//go:build linux_bpf && !ebpf_bindata
 // +build linux_bpf,!ebpf_bindata
 
 package probe

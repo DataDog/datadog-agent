@@ -5,6 +5,7 @@
 
 // Copyright 2016 The Go Authors. All rights reserved.
 
+//go:build (linux && 386) || (linux && amd64) || (linux && arm) || (linux && arm64) || (linux && ppc64le) || (linux && mips64le) || (linux && mipsle) || (linux && riscv64) || (linux && wasm)
 // +build linux,386 linux,amd64 linux,arm linux,arm64 linux,ppc64le linux,mips64le linux,mipsle linux,riscv64 linux,wasm
 
 package procutil

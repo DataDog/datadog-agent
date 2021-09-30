@@ -1,5 +1,5 @@
-// +build linux
-// +build !android
+//go:build linux && !android
+// +build linux,!android
 
 package netlink
 

@@ -3,9 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build apm
-// +build !windows
-// +build !linux
+//go:build apm && !windows && !linux
+// +build apm,!windows,!linux
 
 // linux handled by systemd/upstart
 

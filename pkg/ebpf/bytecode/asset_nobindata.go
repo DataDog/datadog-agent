@@ -1,3 +1,4 @@
+//go:build !ebpf_bindata
 // +build !ebpf_bindata
 
 package bytecode

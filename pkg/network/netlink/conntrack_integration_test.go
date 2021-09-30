@@ -1,5 +1,5 @@
-// +build linux_bpf
-// +build !android
+//go:build linux_bpf && !android
+// +build linux_bpf,!android
 
 package netlink
 

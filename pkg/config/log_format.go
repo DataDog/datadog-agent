@@ -1,3 +1,4 @@
+//go:build !serverless
 // +build !serverless
 
 package config

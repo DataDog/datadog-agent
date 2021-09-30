@@ -1,3 +1,4 @@
+//go:build linux_bpf
 // +build linux_bpf
 
 //go:generate go run ../../../../ebpf/include_headers.go ../c/runtime/tcp-queue-length-kern.c ../../../../ebpf/bytecode/build/runtime/tcp-queue-length.c ../../../../ebpf/c

@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 // Unless explicitly stated otherwise all files in this repository are licensed

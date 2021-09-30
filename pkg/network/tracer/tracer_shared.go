@@ -1,3 +1,4 @@
+//go:build linux_bpf || (windows && npm)
 // +build linux_bpf windows,npm
 
 package tracer

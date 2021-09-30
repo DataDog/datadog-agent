@@ -1,3 +1,4 @@
+//go:build !kubelet
 // +build !kubelet
 
 package util

@@ -1,3 +1,4 @@
+//go:build !docker
 // +build !docker
 
 package util

@@ -1,4 +1,5 @@
-//+build windows linux_bpf
+//go:build windows || linux_bpf
+// +build windows linux_bpf
 
 package dns
 

@@ -1,3 +1,4 @@
+//go:build three
 // +build three
 
 package testinit

@@ -17,6 +17,7 @@
 // pkg/security/tests/schemas/rename.schema.json
 // pkg/security/tests/schemas/selinux.schema.json
 // pkg/security/tests/schemas/usr.json
+//go:build functionaltests
 // +build functionaltests
 
 package schemas

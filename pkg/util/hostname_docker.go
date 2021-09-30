@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux || windows || darwin
 // +build linux windows darwin
+
 // I don't think windows and darwin can actually be docker hosts
 // but keeping it this way for build consistency (for now)
 
