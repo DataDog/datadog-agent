@@ -1011,3 +1011,18 @@ func TestGetValidHostAliasesWithConfig(t *testing.T) {
 	config := setupConfFromYAML(`host_aliases: ["foo", "-bar"]`)
 	assert.EqualValues(t, getValidHostAliasesWithConfig(config), []string{"foo"})
 }
+
+func TestNetworkDevicesNamespace(t *testing.T) {
+	datadogYaml := `
+network_devices:
+`
+	config := setupConfFromYAML(datadogYaml)
+	assert.Equal(t, "default", config.GetString("network_devices.namespace"))
+
+	datadogYaml = `
+network_devices:
+  namespace: dev
+`
+	config = setupConfFromYAML(datadogYaml)
+	assert.Equal(t, "dev", config.GetString("network_devices.namespace"))
+}

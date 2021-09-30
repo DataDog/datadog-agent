@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestConfigurations(t *testing.T) {
@@ -999,30 +1000,33 @@ collect_device_metadata: true
 }
 
 func Test_buildConfig_namespace(t *testing.T) {
-	// language=yaml
-	rawInitConfig := []byte(`
-namespace: default`)
+	defer coreconfig.Datadog.Set("network_devices.namespace", "default")
 
+	// Should use namespace defined in instance config
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
 community_string: "abc"
 namespace: my-ns
 `)
+	rawInitConfig := []byte(``)
 
 	conf, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, "my-ns", conf.Namespace)
 
+	// Should use namespace defined in datadog.yaml network_devices
 	// language=yaml
 	rawInstanceConfig = []byte(`
 ip_address: 1.2.3.4
 community_string: "abc"
 `)
+	rawInitConfig = []byte(``)
 	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, "default", conf.Namespace)
 
+	// Should use namespace defined in init config
 	// language=yaml
 	rawInstanceConfig = []byte(`
 ip_address: 1.2.3.4
@@ -1034,6 +1038,34 @@ namespace: ns-from-datadog-conf`)
 	assert.Nil(t, err)
 	assert.Equal(t, "ns-from-datadog-conf", conf.Namespace)
 
+	// Should use namespace defined in datadog.yaml network_devices
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	rawInitConfig = []byte(``)
+	coreconfig.Datadog.Set("network_devices.namespace", "totoro")
+	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, "totoro", conf.Namespace)
+
+	// Should use namespace defined in init config
+	// when namespace is empty in instance config
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+namespace: ""
+`)
+	rawInitConfig = []byte(`
+namespace: ponyo`)
+	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, "ponyo", conf.Namespace)
+
+	// Should use namespace defined in datadog.yaml network_devices
+	// when namespace is empty in init config
 	// language=yaml
 	rawInstanceConfig = []byte(`
 ip_address: 1.2.3.4
@@ -1041,6 +1073,19 @@ community_string: "abc"
 `)
 	rawInitConfig = []byte(`
 namespace: `)
+	coreconfig.Datadog.Set("network_devices.namespace", "mononoke")
+	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, "mononoke", conf.Namespace)
+
+	// Should throw error when namespace is empty in datadog.yaml network_devices
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	rawInitConfig = []byte(``)
+	coreconfig.Datadog.Set("network_devices.namespace", "")
 	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.EqualError(t, err, "namespace cannot be empty")
 }

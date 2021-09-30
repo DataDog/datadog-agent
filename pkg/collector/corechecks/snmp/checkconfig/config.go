@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/metadata"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // Using high oid batch size might lead to snmp calls timing out.
@@ -241,7 +242,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	// Set defaults before unmarshalling
 	instance.UseGlobalMetrics = true
 	initConfig.CollectDeviceMetadata = true
-	initConfig.Namespace = "default"
 
 	err := yaml.Unmarshal(rawInitConfig, &initConfig)
 	if err != nil {
@@ -376,9 +376,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	if instance.Namespace != "" {
 		c.Namespace = instance.Namespace
-	} else {
+	} else if initConfig.Namespace != "" {
 		c.Namespace = initConfig.Namespace
+	} else {
+		c.Namespace = coreconfig.Datadog.GetString("network_devices.namespace")
 	}
+
 	if c.Namespace == "" {
 		// Can only happen if snmp_listener.namespace config is set to empty string in `datadog.yaml`
 		return nil, fmt.Errorf("namespace cannot be empty")
