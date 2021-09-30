@@ -57,11 +57,15 @@ func (ys *yamlSuite) toSuite() (*Suite, error) {
 
 		if _, ok := rule["inputs"]; ok {
 			var regoRule RegoRule
-			yaml.Unmarshal(buffer, &regoRule)
+			if err := yaml.Unmarshal(buffer, &regoRule); err != nil {
+				return nil, err
+			}
 			s.RegoRules = append(s.RegoRules, regoRule)
 		} else {
 			var cfRule ConditionFallbackRule
-			yaml.Unmarshal(buffer, &cfRule)
+			if err := yaml.Unmarshal(buffer, &cfRule); err != nil {
+				return nil, err
+			}
 			s.Rules = append(s.Rules, cfRule)
 		}
 	}

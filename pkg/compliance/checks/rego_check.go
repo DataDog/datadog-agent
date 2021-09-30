@@ -345,7 +345,9 @@ func parseFindings(regoData interface{}) ([]regoFinding, error) {
 		}
 
 		var finding regoFinding
-		mapstructure.Decode(m, &finding)
+		if err := mapstructure.Decode(m, &finding); err != nil {
+			return nil, err
+		}
 		res = append(res, finding)
 	}
 
