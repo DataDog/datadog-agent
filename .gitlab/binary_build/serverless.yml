@@ -2,7 +2,7 @@
 .build_serverless_common:
   stage: binary_build
   variables:
-    BASELINE_SIZE_IN_BYTES: 5717784
+    BASELINE_SIZE_IN_BYTES: 29717784
     MAX_ALLOWED_DELTA_IN_PERCENT: 3
   needs: ["linux_x64_go_deps"]
   before_script:
