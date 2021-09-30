@@ -279,12 +279,14 @@ build do
 
     tasks_dir_in = windows_safe_path(Dir.pwd)
     cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
+    cache_branch = /^(7\.\d+\.x|main)$/.match(ENV.fetch('CI_COMMIT_BRANCH', ''))
     # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
     awscli = if windows? then '"c:\program files\amazon\awscli\bin\aws"' else 'aws' end
     if cache_bucket != ''
       mkdir cached_wheels_dir
       command "inv -e agent.get-integrations-from-cache " \
         "--python 3 --bucket #{cache_bucket} " \
+        "--branch #{cache_branch || 'main'} " \
         "--integrations-dir #{windows_safe_path(project_dir)} " \
         "--target-dir #{cached_wheels_dir} " \
         "--integrations #{checks_to_install.join(',')} " \
@@ -379,9 +381,10 @@ build do
           command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
           command "#{pip} install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
         end
-        if cache_bucket != '' && ENV.fetch('INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD', '') == ''
+        if cache_bucket != '' && ENV.fetch('INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD', '') == '' && cache_branch != nil
           command "inv -e agent.upload-integration-to-cache " \
             "--python 3 --bucket #{cache_bucket} " \
+            "--branch #{cache_branch} " \
             "--integrations-dir #{windows_safe_path(project_dir)} " \
             "--build-dir #{wheel_build_dir} " \
             "--integration #{check} " \
