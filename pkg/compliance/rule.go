@@ -20,13 +20,13 @@ type RuleCommon struct {
 	Description  string        `yaml:"description,omitempty"`
 	Scope        RuleScopeList `yaml:"scope,omitempty"`
 	HostSelector string        `yaml:"hostSelector,omitempty"`
-	ResourceType string        `yaml:"resourceType,omitempty"`
 }
 
 // CFRule defines a rule in a compliance config
 type CFRule struct {
-	RuleCommon `yaml:",inline"`
-	Resources  []Resource `yaml:"resources,omitempty"`
+	RuleCommon   `yaml:",inline"`
+	ResourceType string     `yaml:"resourceType,omitempty"`
+	Resources    []Resource `yaml:"resources,omitempty"`
 }
 
 // ResourceCount returns the count of resources
