@@ -68,5 +68,5 @@ Write-Output @"
 install_method:
   tool: docker
   tool_version: docker-win-$env:VARIANT
-  installer_version: docker
+  installer_version: docker-win-$env:VARIANT
 "@ > C:/ProgramData/Datadog/install_info

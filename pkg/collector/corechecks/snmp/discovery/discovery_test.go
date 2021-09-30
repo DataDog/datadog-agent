@@ -285,6 +285,7 @@ func TestDiscovery_createDevice(t *testing.T) {
 		DiscoveryInterval:        1,
 		DiscoveryWorkers:         1,
 		DiscoveryAllowedFailures: 3,
+		Namespace:                "default",
 	}
 	discovery := NewDiscovery(checkConfig)
 	ipAddr, ipNet, err := net.ParseCIDR(checkConfig.Network)
@@ -312,7 +313,7 @@ func TestDiscovery_createDevice(t *testing.T) {
 	assert.Equal(t, device1Digest, discovery.discoveredDevices[device1Digest].deviceDigest)
 	assert.Equal(t, "192.168.0.1", discovery.discoveredDevices[device1Digest].deviceIP)
 	assert.Equal(t, "192.168.0.1", discovery.discoveredDevices[device1Digest].deviceCheck.GetIPAddress())
-	assert.Equal(t, []string{"snmp_device:192.168.0.1"}, discovery.discoveredDevices[device1Digest].deviceCheck.GetIDTags())
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:192.168.0.1"}, discovery.discoveredDevices[device1Digest].deviceCheck.GetIDTags())
 
 	assert.Equal(t, device2Digest, discovery.discoveredDevices[device2Digest].deviceDigest)
 	assert.Equal(t, "192.168.0.2", discovery.discoveredDevices[device2Digest].deviceIP)

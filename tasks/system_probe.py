@@ -98,7 +98,7 @@ def build(
     build_tags = get_default_build_tags(build="system-probe", arch=arch)
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
-    if nikos_embedded_path and nikos_embedded_path != 'None':
+    if nikos_embedded_path:
         build_tags.append(DNF_TAG)
 
     cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '

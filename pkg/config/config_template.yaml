@@ -15,6 +15,7 @@ api_key:
 ## The site of the Datadog intake to send Agent data to.
 ## Set to 'datadoghq.eu' to send data to the EU site.
 ## Set to 'us3.datadoghq.com' to send data to the US3 site.
+## Set to 'us5.datadoghq.com' to send data to the US5 site.
 ## Set to 'ddog-gov.com' to send data to the US1-FED site.
 #
 # site: datadoghq.com
@@ -1075,6 +1076,7 @@ api_key:
 # process_config:
 
   ## @param enabled - string - optional - default: "false"
+  ## @env DD_PROCESS_CONFIG_ENABLED - string - optional - default: "false"
   ##  A string indicating the enabled state of the Process Agent:
   ##    * "false"    : The Agent collects only containers information.
   ##    * "true"     : The Agent collects containers and processes information.
@@ -1083,21 +1085,27 @@ api_key:
   # enabled: "true"
 
   ## @param expvar_port - string - optional - default: 6062
+  ## @env DD_PROCESS_CONFIG_EXPVAR_PORT - string - optional - default: 6062
   ## Port for the debug endpoints for the process Agent.
   #
   # expvar_port: 6062
 
-  ## @param config_port - string - optional - default: 6162
+  ## @param cmd_port - string - optional - default: 6162
   ## Port for configuring runtime settings for the process Agent.
   #
   # cmd_port: 6162
 
   ## @param log_file - string - optional
+  ## @env DD_PROCESS_CONFIG_LOG_FILE - string - optional
   ## The full path to the file where process Agent logs are written.
   #
   # log_file: <PROCESS_LOG_FILE_PATH>
 
   ## @param intervals - custom object - optional - default: 10s for normal checks and 2s for others.
+  ## @env DD_PROCESS_CONFIG_INTERVALS_CONTAINER - integer - optional - default: 10
+  ## @env DD_PROCESS_CONFIG_INTERVALS_CONTAINER_REALTIME - integer - optional - default: 2
+  ## @env DD_PROCESS_CONFIG_INTERVALS_PROCESS - integer - optional - default: 10
+  ## @env DD_PROCESS_CONFIG_INTERVALS_PROCESS_REALTIME - integer - optional - default: 2
   ## The interval, in seconds, at which the Agent runs each check. If you want consistent
   ## behavior between real-time, set the `container_realtime` and `process_realtime` intervals to 10.
   #
@@ -1107,23 +1115,40 @@ api_key:
   #   process: 10
   #   process_realtime: 2
 
+  ## @param process_discovery - custom object - optional
+  ## Specifies custom settings for the `process_discovery` object.
+  # process_discovery
+      ## @param enabled - boolean - optional - default: false
+      ## Toggles the `process_discovery` check. If enabled, this check gathers information about possible running integrations.
+      ## This check is experimental.
+      # enabled: false
+
+      ## @param interval - duration - optional - default: 4h - minimum: 10m
+      ## An interval in hours that specifies how often the process discovery check should run.
+      # interval: 4h
+
+
   ## @param blacklist_patterns - list of strings - optional
+  ## @env DD_PROCESS_CONFIG_BLACKLIST_PATTERNS - space separated list of strings - optional
   ## A list of regex patterns that exclude processes if matched.
   #
   # blacklist_patterns:
   #   - <REGEX>
 
   ## @param queue_size - integer - optional - default: 20
+  ## @env DD_PROCESS_CONFIG_QUEUE_SIZE - integer - optional - default: 20
   ## How many check results to buffer in memory when POST fails.
   #
   # queue_size: 20
 
   ## @param max_per_message - integer - optional - default: 100
+  ## @env DD_PROCESS_CONFIG_MAX_PER_MESSAGE - integer - optional - default: 100
   ## The maximum number of processes or containers per message.
   #
   # max_per_message: 100
 
   ## @param dd_agent_bin - string - optional
+  ## @env DD_PROCESS_CONFIG_DD_AGENT_BIN - string - optional
   ## Overrides the path to the Agent bin used for getting the hostname. Defaults are:
   ##   * Windows: <AGENT_DIRECTORY>\embedded\\agent.exe
   ##   * Unix: /opt/datadog-agent/bin/agent/agent
@@ -1131,16 +1156,19 @@ api_key:
   # dd_agent_bin: <AGENT_BIN_PATH>
 
   ## @param dd_agent_env - string - optional - default: ""
+  ## @env DD_PROCESS_CONFIG_DD_AGENT_ENV - string - optional - default: ""
   ## Overrides of the environment we pass to fetch the hostname.
   #
   # dd_agent_env: ""
 
   ## @param scrub_args - boolean - optional - default: true
+  ## @env DD_PROCESS_CONFIG_SCRUB_ARGS - boolean - optional - default: true
   ## Hide sensitive data on the Live Processes page.
   #
   # scrub_args: true
 
   ## @param custom_sensitive_words - list of strings - optional
+  ## @env DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS - space separated list of strings - optional
   ## Define your own list of sensitive data to be merged with the default one.
   ## Read more on Datadog documentation:
   ## https://docs.datadoghq.com/graphing/infrastructure/process/#process-arguments-scrubbing
@@ -1215,16 +1243,19 @@ api_key:
 # system_probe_config:
 {{- if (eq .OS "windows")}}
   ## @param sysprobe_socket - string - optional - default: localhost:3333
+  ## @env DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET - string - optional - default: localhost:3333
   ## The TCP address where system probes are accessed.
   #
   # sysprobe_socket: localhost:3333
 {{else}}
   ## @param sysprobe_socket - string - optional - default: /opt/datadog-agent/run/sysprobe.sock
+  ## @env DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET - string - optional - default: /opt/datadog-agent/run/sysprobe.sock
   ## The full path to the location of the unix socket where system probes are accessed.
   #
   # sysprobe_socket: /opt/datadog-agent/run/sysprobe.sock
 {{ end }}
   ## @param log_file - string - optional - default: /var/log/datadog/system-probe.log
+  ## @env DD_SYSTEM_PROBE_CONFIG_LOG_FILE - string - optional - default: /var/log/datadog/system-probe.log
   ## The full path to the file where system-probe logs are written.
   #
   # log_file: /var/log/datadog/system-probe.log
@@ -1351,17 +1382,20 @@ api_key:
 #############################
 
 ## @param use_dogstatsd - boolean - optional - default: true
+## @env DD_USE_DOGSTATSD - boolean - optional - default: true
 ## Set this option to false to disable the Agent DogStatsD server.
 #
 # use_dogstatsd: true
 
 ## @param dogstatsd_port - integer - optional - default: 8125
+## @env DD_DOGSTATSD_PORT - integer - optional - default: 8125
 ## Override the Agent DogStatsD port.
 ## Note: Make sure your client is sending to the same UDP port.
 #
 # dogstatsd_port: 8125
 
 ## @param bind_host - string - optional - default: localhost
+## @env DD_BIND_HOST - string - optional - default: localhost
 ## The host to listen on for Dogstatsd and traces. This is ignored by APM when
 ## `apm_config.apm_non_local_traffic` is enabled and ignored by DogStatsD when `dogstatsd_non_local_traffic`
 ## is enabled. The trace-agent uses this host to send metrics to.
@@ -1371,32 +1405,38 @@ api_key:
 # bind_host: localhost
 
 ## @param dogstatsd_socket - string - optional - default: ""
+## @env DD_DOGSTATSD_SOCKET - string - optional - default: ""
 ## Listen for Dogstatsd metrics on a Unix Socket (*nix only). Set to a valid filesystem path to enable.
 #
 # dogstatsd_socket: ""
 
 ## @param dogstatsd_origin_detection - boolean - optional - default: false
+## @env DD_DOGSTATSD_ORIGIN_DETECTION - boolean - optional - default: false
 ## When using Unix Socket, DogStatsD can tag metrics with container metadata.
 ## If running DogStatsD in a container, host PID mode (e.g. with --pid=host) is required.
 #
 # dogstatsd_origin_detection: false
 
 ## @param dogstatsd_buffer_size - integer - optional - default: 8192
+## @env DD_DOGSTATSD_BUFFER_SIZE - integer - optional - default: 8192
 ## The buffer size use to receive statsd packets, in bytes.
 #
 # dogstatsd_buffer_size: 8192
 
 ## @param dogstatsd_non_local_traffic - boolean - optional - default: false
+## @env DD_DOGSTATSD_NON_LOCAL_TRAFFIC - boolean - optional - default: false
 ## Set to true to make DogStatsD listen to non local UDP traffic.
 #
 # dogstatsd_non_local_traffic: false
 
 ## @param dogstatsd_stats_enable - boolean - optional - default: false
+## @env DD_DOGSTATSD_STATS_ENABLE - boolean - optional - default: false
 ## Publish DogStatsD's internal stats as Go expvars.
 #
 # dogstatsd_stats_enable: false
 
 ## @param dogstatsd_queue_size - integer - optional - default: 1024
+## @env DD_DOGSTATSD_QUEUE_SIZE - integer - optional - default: 1024
 ## Configure the internal queue size of the Dogstatsd server.
 ## Reducing the size of this queue will reduce the maximum memory usage of the
 ## Dogstatsd server but as a trade-off, it could increase the number of packet drops.
@@ -1404,16 +1444,19 @@ api_key:
 # dogstatsd_queue_size: 1024
 
 ## @param dogstatsd_stats_buffer - integer - optional - default: 10
+## @env DD_DOGSTATSD_STATS_BUFFER - integer - optional - default: 10
 ## Set how many items should be in the DogStatsD's stats circular buffer.
 #
 # dogstatsd_stats_buffer: 10
 
 ## @param dogstatsd_stats_port - integer - optional - default: 5000
+## @env DD_DOGSTATSD_STATS_PORT - integer - optional - default: 5000
 ## The port for the go_expvar server.
 #
 # dogstatsd_stats_port: 5000
 
 ## @param dogstatsd_so_rcvbuf - integer - optional - default: 0
+## @env DD_DOGSTATSD_SO_RCVBUF - integer - optional - default: 0
 ## The number of bytes allocated to DogStatsD's socket receive buffer (POSIX system only).
 ## By default, the system sets this value. If you need to increase the size of this buffer
 ## but keep the OS default value the same, you can set DogStatsD's receive buffer size here.
@@ -1422,13 +1465,15 @@ api_key:
 # dogstatsd_so_rcvbuf: 0
 
 ## @param dogstatsd_metrics_stats_enable - boolean - optional - default: false
+## @env DD_DOGSTATSD_METRICS_STATS_ENABLE - boolean - optional - default: false
 ## Set this parameter to true to have DogStatsD collects basic statistics (count/last seen)
-## about the metrics it processsed. Use the Agent command "dogstatsd-stats" to visualize
+## about the metrics it processed. Use the Agent command "dogstatsd-stats" to visualize
 ## those statistics.
 #
 # dogstatsd_metrics_stats_enable: false
 
 ## @param dogstatsd_tags - list of key:value elements - optional
+## @env DD_DOGSTATSD_TAGS - list of key:value elements - optional
 ## Additional tags to append to all metrics, events and service checks received by
 ## this DogStatsD server.
 #
@@ -1436,6 +1481,7 @@ api_key:
 #   - <TAG_KEY>:<TAG_VALUE>
 #
 ## @param dogstatsd_mapper_profiles - list of custom object - optional
+## @env DD_DOGSTATSD_MAPPER_PROFILES - list of custom object - optional
 ## The profiles will be used to convert parts of metrics names into tags.
 ## If a profile prefix is matched, other profiles won't be tried even if that profile matching rules doesn't match.
 ## The profiles and matching rules are processed in the order defined in this configuration.
@@ -1474,16 +1520,19 @@ api_key:
 #           task_name: '$2'
 
 ## @param dogstatsd_mapper_cache_size - integer - optional - default: 1000
+## @env DD_DOGSTATSD_MAPPER_CACHE_SIZE - integer - optional - default: 1000
 ## Size of the cache (max number of mapping results) used by Dogstatsd mapping feature.
 #
 # dogstatsd_mapper_cache_size: 1000
 
 ## @param dogstatsd_entity_id_precedence - boolean - optional - default: false
+## @env DD_DOGSTATSD_ENTITY_ID_PRECEDENCE - boolean - optional - default: false
 ## Disable enriching Dogstatsd metrics with tags from "origin detection" when Entity-ID is set.
 #
 # dogstatsd_entity_id_precedence: false
 
 ## @param statsd_forward_host - string - optional - default: ""
+## @env DD_STATSD_FORWARD_HOST - string - optional - default: ""
 ## Forward every packet received by the DogStatsD server to another statsd server.
 ## WARNING: Make sure that forwarded packets are regular statsd packets and not "DogStatsD" packets,
 ## as your other statsd server might not be able to handle them.
@@ -1491,11 +1540,13 @@ api_key:
 # statsd_forward_host: ""
 
 ## @param statsd_forward_port - integer - optional - default: 0
+## @env DD_STATSD_FORWARD_PORT - integer - optional - default: 0
 ## Port or the "statsd_forward_host" to forward StatsD packet to.
 #
 # statsd_forward_port: 0
 
 ## @param statsd_metric_namespace - string - optional - default: ""
+## @env DD_STATSD_METRIC_NAMESPACE - string - optional - default: ""
 ## Set a namespace for all StatsD metrics coming from this host.
 ## Each metric received is prefixed with the namespace before it's sent to Datadog.
 #
@@ -1505,6 +1556,7 @@ api_key:
 {{- if .Metadata }}
 
 ## @param metadata_providers - list of custom object - optional
+## @env DD_METADATA_PROVIDERS - list of custom object - optional
 ## Metadata providers, add or remove from the list to enable or disable collection.
 ## Intervals are expressed in seconds. You can also set a provider's interval to 0
 ## to disable it.
@@ -1521,6 +1573,7 @@ api_key:
 #######################
 
 ## @param jmx_custom_jars - list of strings - optional
+## @env DD_JMX_CUSTOM_JARS - space separated list of strings - optional
 ## If you only run Autodiscovery tests, jmxfetch might fail to pick up custom_jar_paths
 ## set in the check templates. If that is the case, force custom jars here.
 #
@@ -1528,6 +1581,7 @@ api_key:
 #   - /jmx-jars/jboss-cli-client.jar
 
 ## @param jmx_use_cgroup_memory_limit - boolean - optional - default: false
+## @env DD_JMX_USE_CGROUP_MEMORY_LIMIT - boolean - optional - default: false
 ## When running in a memory cgroup, openjdk 8u131 and higher can automatically adjust
 ## its heap memory usage in accordance to the cgroup/container's memory limit.
 ## The Agent set a Xmx of 200MB if none is configured.
@@ -1537,6 +1591,7 @@ api_key:
 # jmx_use_cgroup_memory_limit: false
 
 ## @param jmx_use_container_support - boolean - optional - default: false
+## @env DD_JMX_USE_CONTAINER_SUPPORT - boolean - optional - default: false
 ## When running in a container, openjdk 10 and higher can automatically detect
 ## container specific configuration instead of querying the operating system
 ## to adjust resources allotted to the JVM.
@@ -1551,21 +1606,25 @@ api_key:
 # jmx_log_file: <JMXFETCH_LOG_FILE_PATH>
 
 ## @param jmx_max_restarts - integer - optional - default: 3
+## @env DD_JMX_MAX_RESTARTS - integer - optional - default: 3
 ## Number of JMX restarts allowed in the restart-interval before giving up.
 #
 # jmx_max_restarts: 3
 
 ## @param jmx_restart_interval - integer - optional - default: 5
+## @env DD_JMX_RESTART_INTERVAL - integer - optional - default: 5
 ## Duration of the restart interval in seconds.
 #
 # jmx_restart_interval: 5
 
 ## @param jmx_check_period - integer - optional - default: 15000
+## @env DD_JMX_CHECK_PERIOD - integer - optional - default: 15000
 ## Duration of the period for check collections in milliseconds.
 #
 # jmx_check_period: 15000
 
 ## @param jmx_thread_pool_size - integer - optional - default: 3
+## @env DD_JMX_THREAD_POOL_SIZE - integer - optional - default: 3
 ## JMXFetch collects multiples instances concurrently. Defines the maximum level of concurrency:
 ##   * Higher concurrency increases CPU utilization during metric collection.
 ##   * Lower concurrency results in lower CPU usage but may increase the total collection time.
@@ -1574,11 +1633,13 @@ api_key:
 # jmx_thread_pool_size: 3
 
 ## @param jmx_collection_timeout - integer - optional - default: 60
+## @env DD_JMX_COLLECTION_TIMEOUT - integer - optional - default: 60
 ## Defines the maximum waiting period in seconds before timing up on metric collection.
 #
 # jmx_collection_timeout: 60
 
 ## @param jmx_reconnection_thread_pool_size - integer - optional - default: 3
+## @env DD_JMX_RECONNECTION_THREAD_POOL_SIZE - integer - optional - default: 3
 ## JMXFetch reconnects to multiples instances concurrently. Defines the maximum level of concurrency:
 ##   * Higher concurrency increases CPU utilization during reconnection.
 ##   * Lower concurrency results in lower CPU usage but may increase the total reconnection time
@@ -1587,6 +1648,7 @@ api_key:
 # jmx_reconnection_thread_pool_size: 3
 
 ## @param jmx_reconnection_timeout - integer - optional - default: 60
+## @env DD_JMX_RECONNECTION_TIMEOUT - integer - optional - default: 60
 ## Determines the maximum waiting period in seconds before timing up on instance reconnection.
 #
 # jmx_reconnection_timeout: 60
@@ -1599,6 +1661,7 @@ api_key:
 ###########################
 
 ## @param log_level - string - optional - default: info
+## @env DD_LOG_LEVEL - string - optional - default: info
 ## Minimum log level of the Datadog Agent.
 ## Valid log levels are: trace, debug, info, warn, error, critical, and off.
 ## Note: When using the 'off' log level, quotes are mandatory.
@@ -1606,39 +1669,46 @@ api_key:
 # log_level: 'info'
 
 ## @param log_file - string - optional
+## @env DD_LOG_FILE - string - optional
 ## Path of the log file for the Datadog Agent.
 ## See https://docs.datadoghq.com/agent/guide/agent-log-files/
 #
 # log_file: <AGENT_LOG_FILE_PATH>
 
 ## @param log_format_json - boolean - optional - default: false
+## @env DD_LOG_FORMAT_JSON - boolean - optional - default: false
 ## Set to 'true' to output Agent logs in JSON format.
 #
 # log_format_json: false
 
 ## @param log_to_console - boolean - optional - default: true
+## @env DD_LOG_TO_CONSOLE - boolean - optional - default: true
 ## Set to 'false' to disable Agent logging to stdout.
 #
 # log_to_console: true
 
 ## @param disable_file_logging - boolean - optional - default: false
+## @env DD_DISABLE_FILE_LOGGING - boolean - optional - default: false
 ## Set to 'true' to disable logging to the log file.
 #
 # disable_file_logging: false
 
 ## @param log_file_max_size - custom - optional - default: 10MB
+## @env DD_LOG_FILE_MAX_SIZE - custom - optional - default: 10MB
 ## Maximum size of one log file. Use either a size (e.g. 10MB) or
 ## provide value in bytes: 10485760
 #
 # log_file_max_size: 10MB
 
 ## @param log_file_max_rolls - integer - optional - default: 1
+## @env DD_LOG_FILE_MAX_ROLLS - integer - optional - default: 1
 ## Maximum amount of "old" log files to keep.
 ## Set to 0 to not limit the number of files to create.
 #
 # log_file_max_rolls: 1
 
 ## @param log_to_syslog - boolean - optional - default: false
+## @env DD_LOG_TO_SYSLOG - boolean - optional - default: false
 ## Set to 'true' to enable logging to syslog.
 ## Note: Even if this option is set to 'false', the service launcher of your environment
 ## may redirect the Agent process' stdout/stderr to syslog. In that case, if you wish
@@ -1647,27 +1717,32 @@ api_key:
 # log_to_syslog: false
 
 ## @param syslog_uri - string - optional
+## @env DD_SYSLOG_URI - string - optional
 ## Define a custom remote syslog uri if needed. If 'syslog_uri' is left undefined/empty,
 ## a local domain socket connection is attempted.
 #
 # syslog_uri: <SYSLOG_URI>
 
 ## @param syslog_rfc - boolean - optional - default: false
+## @env DD_SYSLOG_RFC - boolean - optional - default: false
 ## Set to 'true' to output in an RFC 5424-compliant format for Agent logs.
 #
 # syslog_rfc: false
 
 ## @param syslog_pem - string - optional
+## @env DD_SYSLOG_PEM - string - optional
 ## If TLS enabled, you must specify a path to a PEM certificate here.
 #
 # syslog_pem: <PEM_CERTIFICATE_PATH>
 
 ## @param syslog_key - string - optional
+## @env DD_SYSLOG_KEY - string - optional
 ## If TLS enabled, you must specify a path to a private key here.
 #
 # syslog_key: <PEM_KEY_PATH>
 
 ## @param syslog_tls_verify - boolean - optional - default: true
+## @env DD_SYSLOG_TLS_VERIFY - boolean - optional - default: true
 ## If TLS enabled, you may enforce TLS verification here.
 #
 # syslog_tls_verify: true
@@ -2348,9 +2423,20 @@ api_key:
 {{ end -}}
 {{- if .SNMP }}
 
-########################
-## SNMP Configuration ##
-########################
+###################################
+## Network Devices Configuration ##
+###################################
+
+## @param network_devices - custom object - optional
+## Configuration related to Network Devices.
+#
+# network_devices:
+
+  ## @param namespace - string - optional - default: default
+  ## Namespace can be used to disambiguate devices with the same IP.
+  ## Changing namespace will cause devices being recreated in NDM app.
+  #
+  # namespace: default
 
 ## @param snmp_traps_enabled - boolean - optional - default: false
 ## Set to true to enable collection of traps.

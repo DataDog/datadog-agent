@@ -9,6 +9,7 @@ package kernel
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -35,6 +36,10 @@ var (
 	Kernel5_3 = kernel.VersionCode(5, 3, 0) //nolint:deadcode,unused
 	// Kernel5_4 is the KernelVersion representation of kernel version 5.4
 	Kernel5_4 = kernel.VersionCode(5, 4, 0) //nolint:deadcode,unused
+	// Kernel5_12 is the KernelVersion representation of kernel version 5.12
+	Kernel5_12 = kernel.VersionCode(5, 12, 0) //nolint:deadcode,unused
+	// Kernel5_13 is the KernelVersion representation of kernel version 5.13
+	Kernel5_13 = kernel.VersionCode(5, 13, 0) //nolint:deadcode,unused
 )
 
 // Version defines a kernel version helper
@@ -58,6 +63,13 @@ func NewKernelVersion() (*Version, error) {
 		osReleasePaths = append([]string{
 			filepath.Join("/host", osrelease.EtcOsRelease),
 			filepath.Join("/host", osrelease.UsrLibOsRelease),
+		}, osReleasePaths...)
+	}
+
+	if hostRoot := os.Getenv("HOST_ROOT"); hostRoot != "" {
+		osReleasePaths = append([]string{
+			filepath.Join(hostRoot, osrelease.EtcOsRelease),
+			filepath.Join(hostRoot, osrelease.UsrLibOsRelease),
 		}, osReleasePaths...)
 	}
 

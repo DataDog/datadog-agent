@@ -89,16 +89,14 @@ func TestDomainForwarderSendHTTPTransactions(t *testing.T) {
 	tr := newTestTransactionDomainForwarder()
 
 	// fw is stopped, we should get an error
-	err := forwarder.sendHTTPTransactions(tr)
-	assert.NotNil(t, err)
+	forwarder.sendHTTPTransactions(tr)
 
 	defer forwarder.Stop(false)
 	forwarder.Start()
 	// Stopping the worker for the TestRequeueTransaction
 	forwarder.workers[0].Stop(false)
 
-	err = forwarder.sendHTTPTransactions(tr)
-	assert.Nil(t, err)
+	forwarder.sendHTTPTransactions(tr)
 	transactionToProcess := <-forwarder.highPrio
 	assert.Equal(t, tr, transactionToProcess)
 

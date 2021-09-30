@@ -23,6 +23,8 @@ import (
 	"text/template"
 	"unicode"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors/common"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors/doc"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/structtag"
 	"golang.org/x/tools/go/loader"
@@ -39,39 +41,13 @@ var (
 	strict    bool
 	verbose   bool
 	mock      bool
+	genDoc    bool
 	program   *loader.Program
 	packages  map[string]*types.Package
 	buildTags string
 )
 
-type Module struct {
-	Name            string
-	SourcePkgPrefix string
-	SourcePkg       string
-	TargetPkg       string
-	BuildTags       []string
-	Fields          map[string]*structField
-	Iterators       map[string]*structField
-	EventTypes      map[string]bool
-	Mock            bool
-}
-
-var module *Module
-
-type structField struct {
-	Name          string
-	Prefix        string
-	Struct        string
-	BasicType     string
-	ReturnType    string
-	IsArray       bool
-	Event         string
-	Handler       string
-	OrigType      string
-	IsOrigTypePtr bool
-	Iterator      *structField
-	Weight        int64
-}
+var module *common.Module
 
 func resolveSymbol(pkg, symbol string) (types.Object, error) {
 	if typePackage, found := packages[pkg]; found {
@@ -89,24 +65,25 @@ func origTypeToBasicType(kind string) string {
 	return kind
 }
 
-func handleBasic(name, alias, kind, event string, iterator *structField, isArray bool) {
+func handleBasic(name, alias, kind, event string, iterator *common.StructField, isArray bool, commentText string) {
 	fmt.Printf("handleBasic %s %s\n", name, kind)
 
 	basicType := origTypeToBasicType(kind)
-	module.Fields[alias] = &structField{
-		Name:       name,
-		BasicType:  basicType,
-		ReturnType: basicType,
-		IsArray:    strings.HasPrefix(kind, "[]") || isArray,
-		Event:      event,
-		OrigType:   kind,
-		Iterator:   iterator,
+	module.Fields[alias] = &common.StructField{
+		Name:        name,
+		BasicType:   basicType,
+		ReturnType:  basicType,
+		IsArray:     strings.HasPrefix(kind, "[]") || isArray,
+		Event:       event,
+		OrigType:    kind,
+		Iterator:    iterator,
+		CommentText: commentText,
 	}
 
 	module.EventTypes[event] = true
 }
 
-func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, event string, iterator *structField, dejavu map[string]bool, isArray bool) error {
+func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool, commentText string) error {
 	fmt.Printf("handleField fieldName %s, alias %s, prefix %s, aliasPrefix %s, pkgName %s, fieldType, %s\n", name, alias, prefix, aliasPrefix, pkgName, fieldType)
 
 	switch fieldType.Name {
@@ -115,7 +92,7 @@ func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName st
 			name = prefix + "." + name
 			alias = aliasPrefix + "." + alias
 		}
-		handleBasic(name, alias, fieldType.Name, event, iterator, isArray)
+		handleBasic(name, alias, fieldType.Name, event, iterator, isArray, commentText)
 
 	default:
 		symbol, err := resolveSymbol(pkgName, fieldType.Name)
@@ -178,13 +155,15 @@ func parseHandler(handler string) (string, int64) {
 	return handler, weight
 }
 
-func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event string, iterator *structField, dejavu map[string]bool) {
+func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event string, iterator *common.StructField, dejavu map[string]bool) {
 	fmt.Printf("handleSpec spec: %+v, prefix: %s, aliasPrefix %s, event %s, iterator %+v\n", spec, prefix, aliasPrefix, event, iterator)
 
 	if typeSpec, ok := spec.(*ast.TypeSpec); ok {
 		if structType, ok := typeSpec.Type.(*ast.StructType); ok {
 		FIELD:
 			for _, field := range structType.Fields.List {
+				fieldCommentText := field.Comment.Text()
+
 				fieldIterator := iterator
 
 				var tag reflect.StructTag
@@ -194,6 +173,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 
 				if e, ok := tag.Lookup("event"); ok {
 					event = e
+					module.EventTypeDocs[e] = fieldCommentText
 				}
 
 				if isEmbedded := len(field.Names) == 0; !isEmbedded {
@@ -251,7 +231,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 								}
 							}
 
-							module.Iterators[alias] = &structField{
+							module.Iterators[alias] = &common.StructField{
 								Name:          fmt.Sprintf("%s.%s", prefix, fieldName),
 								ReturnType:    qualifiedType(iterator),
 								Event:         event,
@@ -259,6 +239,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 								IsOrigTypePtr: isPointer,
 								IsArray:       isArray,
 								Weight:        weight,
+								CommentText:   fieldCommentText,
 							}
 
 							fieldIterator = module.Iterators[alias]
@@ -269,18 +250,19 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 								fieldAlias = aliasPrefix + "." + fieldAlias
 							}
 
-							module.Fields[fieldAlias] = &structField{
-								Prefix:     prefix,
-								Name:       fmt.Sprintf("%s.%s", prefix, fieldName),
-								BasicType:  origTypeToBasicType(fieldType.Name),
-								Struct:     typeSpec.Name.Name,
-								Handler:    handler,
-								ReturnType: origTypeToBasicType(fieldType.Name),
-								Event:      event,
-								OrigType:   fieldType.Name,
-								Iterator:   fieldIterator,
-								IsArray:    isArray,
-								Weight:     weight,
+							module.Fields[fieldAlias] = &common.StructField{
+								Prefix:      prefix,
+								Name:        fmt.Sprintf("%s.%s", prefix, fieldName),
+								BasicType:   origTypeToBasicType(fieldType.Name),
+								Struct:      typeSpec.Name.Name,
+								Handler:     handler,
+								ReturnType:  origTypeToBasicType(fieldType.Name),
+								Event:       event,
+								OrigType:    fieldType.Name,
+								Iterator:    fieldIterator,
+								IsArray:     isArray,
+								Weight:      weight,
+								CommentText: fieldCommentText,
 							}
 
 							module.EventTypes[event] = true
@@ -292,7 +274,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 						dejavu[fieldName] = true
 
 						if fieldType != nil {
-							if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false); err != nil {
+							if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false, fieldCommentText); err != nil {
 								log.Print(err)
 							}
 
@@ -332,7 +314,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 	}
 }
 
-func parseFile(filename string, pkgName string) (*Module, error) {
+func parseFile(filename string, pkgName string) (*common.Module, error) {
 	buildContext := build.Default
 	buildContext.BuildTags = append(buildContext.BuildTags, strings.Split(buildTags, ",")...)
 
@@ -378,15 +360,16 @@ func parseFile(filename string, pkgName string) (*Module, error) {
 		moduleName = path.Base(pkgName)
 	}
 
-	module = &Module{
-		Name:       moduleName,
-		SourcePkg:  pkgName,
-		TargetPkg:  pkgName,
-		BuildTags:  buildTags,
-		Fields:     make(map[string]*structField),
-		Iterators:  make(map[string]*structField),
-		EventTypes: make(map[string]bool),
-		Mock:       mock,
+	module = &common.Module{
+		Name:          moduleName,
+		SourcePkg:     pkgName,
+		TargetPkg:     pkgName,
+		BuildTags:     buildTags,
+		Fields:        make(map[string]*common.StructField),
+		Iterators:     make(map[string]*common.StructField),
+		EventTypes:    make(map[string]bool),
+		EventTypeDocs: make(map[string]string),
+		Mock:          mock,
 	}
 
 	// If the target package is different from the model package
@@ -754,6 +737,13 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		panic(err)
 	}
 
+	if genDoc {
+		if err := doc.GenerateDocJSON(module, output); err != nil {
+			panic(err)
+		}
+		return
+	}
+
 	tmpfile, err := ioutil.TempFile(path.Dir(output), "accessors")
 	if err != nil {
 		log.Fatal(err)
@@ -780,6 +770,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 func init() {
 	flag.BoolVar(&verbose, "verbose", false, "Be verbose")
 	flag.BoolVar(&mock, "mock", false, "Mock accessors")
+	flag.BoolVar(&genDoc, "doc", false, "Generate documentation JSON")
 	flag.StringVar(&filename, "input", os.Getenv("GOFILE"), "Go file to generate decoders from")
 	flag.StringVar(&pkgname, "package", pkgPrefix+"/"+os.Getenv("GOPACKAGE"), "Go package name")
 	flag.StringVar(&buildTags, "tags", "", "build tags used for parsing")

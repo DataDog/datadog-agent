@@ -44,7 +44,7 @@ deploy_latest-a6:
   extends: .docker_publish_job_definition
   stage: deploy6
   rules:
-    !reference [.on_deploy_a6_manual]
+    !reference [.on_deploy_a6_manual_final]
   dependencies: []
   parallel:
     matrix:

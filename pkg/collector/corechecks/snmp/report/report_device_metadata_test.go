@@ -42,6 +42,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 		DeviceID:           "1234",
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
+		Namespace:          "my-ns",
 	}
 	layout := "2006-01-02 15:04:05"
 	str := "2014-11-12 11:45:26"
@@ -54,6 +55,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 	event := []byte(`
 {
     "subnet": "127.0.0.0/29",
+    "namespace": "my-ns",
     "devices": [
         {
             "id": "1234",
@@ -109,6 +111,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 		DeviceID:           "1234",
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
+		Namespace:          "my-ns",
 	}
 
 	layout := "2006-01-02 15:04:05"
@@ -121,6 +124,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 	event := []byte(`
 {
     "subnet": "127.0.0.0/29",
+    "namespace": "my-ns",
     "devices": [
         {
             "id": "1234",
@@ -188,10 +192,11 @@ func Test_batchPayloads(t *testing.T) {
 	for i := 0; i < 350; i++ {
 		interfaces = append(interfaces, metadata.InterfaceMetadata{DeviceID: deviceID, Index: int32(i)})
 	}
-	payloads := batchPayloads("127.0.0.0/30", collectTime, 100, device, interfaces)
+	payloads := batchPayloads("my-ns", "127.0.0.0/30", collectTime, 100, device, interfaces)
 
 	assert.Equal(t, 4, len(payloads))
 
+	assert.Equal(t, "my-ns", payloads[0].Namespace)
 	assert.Equal(t, "127.0.0.0/30", payloads[0].Subnet)
 	assert.Equal(t, int64(946684800), payloads[0].CollectTimestamp)
 	assert.Equal(t, []metadata.DeviceMetadata{device}, payloads[0].Devices)

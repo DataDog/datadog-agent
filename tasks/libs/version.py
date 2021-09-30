@@ -58,10 +58,13 @@ class Version:
         if self.devel != other.devel:
             return not self.devel and other.devel
 
-        if self.rc is None or other.rc is None:
-            # Everything else being equal, self can only be higher than other if other is not a released version
-            return other.rc is not None
+        if self._safe_value("rc") == 0 or other._safe_value("rc") == 0:
+            # Everything else being equal, self can only be higher than other if other is an rc
+            return other.is_rc()
         return self.rc > other.rc
+
+    def clone(self):
+        return deepcopy(self)
 
     def is_rc(self):
         return self._safe_value("rc") != 0
@@ -69,13 +72,19 @@ class Version:
     def is_devel(self):
         return self.devel
 
+    def branch(self):
+        """
+        Returns the name of the release branch associated to this version.
+        """
+        return "{}.{}.x".format(self._safe_value("major"), self._safe_value("minor"))
+
     def non_devel_version(self):
-        new_version = deepcopy(self)
+        new_version = self.clone()
         new_version.devel = False
         return new_version
 
     def next_version(self, bump_major=False, bump_minor=False, bump_patch=False, rc=False):
-        new_version = deepcopy(self)
+        new_version = self.clone()
 
         if bump_patch:
             new_version.patch = self._safe_value("patch") + 1

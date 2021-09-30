@@ -1,7 +1,7 @@
 import sys
 import tempfile
 import zipfile
-from datetime import datetime
+from datetime import datetime, timedelta
 from time import sleep
 
 from invoke.exceptions import Exit
@@ -9,7 +9,20 @@ from invoke.exceptions import Exit
 from tasks.utils import DEFAULT_BRANCH
 
 from .common.color import color_message
-from .common.github import Github, GithubException
+from .common.github_workflows import GithubException, GithubWorkflows, get_github_app_token
+
+
+def create_or_refresh_macos_build_github_workflows(github_workflows=None):
+    # If no token or token is going to expire, refresh token
+    if (
+        github_workflows is None
+        or datetime.utcnow() + timedelta(minutes=5) > github_workflows.api_token_expiration_date
+    ):
+        token, expiration_date = get_github_app_token()
+        return GithubWorkflows(
+            repository="DataDog/datadog-agent-macos-build", api_token=token, api_token_expiration_date=expiration_date
+        )
+    return github_workflows
 
 
 def trigger_macos_workflow(
@@ -47,7 +60,7 @@ def trigger_macos_workflow(
 
     # The workflow trigger endpoint doesn't return anything. You need to fetch the workflow run id
     # by yourself.
-    Github().trigger_workflow("DataDog/datadog-agent-macos-build", "macos.yaml", github_action_ref, inputs)
+    create_or_refresh_macos_build_github_workflows().trigger_workflow("macos.yaml", github_action_ref, inputs)
 
     # Thus the following hack: query the latest run for ref, wait until we get a non-completed run
     # that started after we triggered the workflow.
@@ -71,7 +84,7 @@ def get_macos_workflow_run_for_ref(github_action_ref="master"):
     """
     Get the latest workflow for the given ref.
     """
-    return Github().latest_workflow_run_for_ref("DataDog/datadog-agent-macos-build", "macos.yaml", github_action_ref)
+    return create_or_refresh_macos_build_github_workflows().latest_workflow_run_for_ref("macos.yaml", github_action_ref)
 
 
 def follow_workflow_run(run_id):
@@ -80,7 +93,8 @@ def follow_workflow_run(run_id):
     """
 
     try:
-        run = Github().workflow_run("DataDog/datadog-agent-macos-build", run_id)
+        github_workflows = create_or_refresh_macos_build_github_workflows()
+        run = github_workflows.workflow_run(run_id)
     except GithubException:
         raise Exit(code=1)
 
@@ -96,7 +110,8 @@ def follow_workflow_run(run_id):
     while True:
         # Do not fail outright for temporary failures
         try:
-            run = Github().workflow_run("DataDog/datadog-agent-macos-build", run_id)
+            github_workflows = create_or_refresh_macos_build_github_workflows(github_workflows)
+            run = github_workflows.workflow_run(run_id)
         except GithubException:
             failures += 1
             print("Workflow run not found, retrying in 15 seconds (failure {}/{})".format(failures, MAX_FAILURES))
@@ -129,10 +144,10 @@ def download_artifacts(run_id, destination="."):
     """
     Download all artifacts for a given job in the specified location.
     """
-
     print(color_message("Downloading artifacts for run {} to {}".format(run_id, destination), "blue"))
 
-    run_artifacts = Github().workflow_run_artifacts("DataDog/datadog-agent-macos-build", run_id)
+    github_workflows = create_or_refresh_macos_build_github_workflows()
+    run_artifacts = github_workflows.workflow_run_artifacts(run_id)
     if run_artifacts is None:
         print("Workflow run not found.")
         raise Exit(code=1)
@@ -141,7 +156,8 @@ def download_artifacts(run_id, destination="."):
     with tempfile.TemporaryDirectory() as tmpdir:
         for artifact in run_artifacts["artifacts"]:
             # Download artifact
-            zip_path = Github().download_artifact("DataDog/datadog-agent-macos-build", artifact["id"], tmpdir)
+            github_workflows = create_or_refresh_macos_build_github_workflows(github_workflows)
+            zip_path = github_workflows.download_artifact(artifact["id"], tmpdir)
 
             # Unzip it in the target destination
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
