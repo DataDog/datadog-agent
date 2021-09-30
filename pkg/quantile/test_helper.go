@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
 // +build test
 
 package quantile
@@ -34,7 +35,7 @@ func SketchesApproxEqual(exp, act *Sketch, e float64) bool {
 		return false
 	}
 
-	if exp.Basic.Cnt != exp.Basic.Cnt {
+	if exp.Basic.Cnt != act.Basic.Cnt {
 		return false
 	}
 
@@ -57,8 +58,4 @@ func SketchesApproxEqual(exp, act *Sketch, e float64) bool {
 	}
 
 	return true
-}
-
-type tHelper interface {
-	Helper()
 }
