@@ -8,6 +8,8 @@ build_serverless-deb_x64:
     - !reference [.retrieve_linux_go_deps]
   script:
     - cd cmd/serverless && go build -mod=mod -a -v -tags serverless
+    - ls -lh
+    - ls -l
 
 build_serverless-deb_arm64:
   rules:
@@ -20,3 +22,5 @@ build_serverless-deb_arm64:
     - !reference [.retrieve_linux_go_deps]
   script:
     - cd cmd/serverless && go build -mod=mod -a -v -tags serverless
+    - ls -lh
+    - ls -l
