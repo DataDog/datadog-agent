@@ -105,6 +105,7 @@ func init() {
 }
 
 func run(cmd *cobra.Command, args []string) error {
+	fmt.Println("to be removed, just a fake log to make the binary build a bit bigger")
 	stopCh := make(chan struct{})
 
 	// run the agent
