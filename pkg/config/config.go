@@ -546,6 +546,7 @@ func InitConfig(config Config) {
 	config.SetKnown("snmp_listener.configs")
 	config.SetKnown("snmp_listener.loader")
 	config.SetKnown("snmp_listener.min_collection_interval")
+	config.SetKnown("snmp_listener.namespace")
 
 	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
 	config.BindEnvAndSetDefault("snmp_traps_config.port", 162)
