@@ -12,8 +12,7 @@ rules:
       - docker:
           kind: network
         condition: docker.template("{{- index $.Options \"com.docker.network.bridge.default_bridge\" -}}") != "true" || docker.template("{{- index $.Options \"com.docker.network.bridge.enable_icc\" -}}") == "true"
-regos:
-  - id: cis-docker-1.2.0-2.1
+  - id: cis-docker-1.2.0-2.1-rego
     description: '[CIS Docker] Ensure network traffic is restricted between containers on the default bridge'
     scope:
       - docker

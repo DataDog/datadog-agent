@@ -12,8 +12,7 @@ rules:
       - docker:
           kind: image
         condition: docker.template("{{- $.Config.Healthcheck.Test -}}") != ""
-regos:
-  - id: cis-docker-1.2.0-4.6
+  - id: cis-docker-1.2.0-4.6-rego
     description: '[CIS Docker] Ensure that HEALTHCHECK instructions have been added to container images'
     scope:
       - docker

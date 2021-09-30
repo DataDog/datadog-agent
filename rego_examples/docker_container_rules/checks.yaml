@@ -12,8 +12,7 @@ rules:
       - docker:
           kind: container
         condition: docker.template("{{- $.HostConfig.UsernsMode -}}") != "host"
-regos:
-  - id: cis-docker-1.2.0-5.30
+  - id: cis-docker-1.2.0-5.30-rego
     description: '[CIS Docker] Ensure that the host''s user namespaces are not shared'
     scope:
       - docker

@@ -12,8 +12,7 @@ rules:
       - docker:
           kind: container
         condition: docker.template("{{- $.HostConfig.Memory -}}") != "0"
-regos:
-  - id: cis-docker-1.2.0-5.10
+  - id: cis-docker-1.2.0-5.10-rego
     description: '[CIS Docker] Ensure that the memory usage for containers is limited'
     scope:
       - docker

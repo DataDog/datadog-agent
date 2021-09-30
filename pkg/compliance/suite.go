@@ -40,6 +40,35 @@ type Suite struct {
 	RegoRules []RegoRule `yaml:"regos,omitempty"`
 }
 
+type yamlSuite struct {
+	Meta  SuiteMeta                `yaml:",inline"`
+	Rules []map[string]interface{} `yaml:"rules,omitempty"`
+}
+
+func (ys *yamlSuite) toSuite() (*Suite, error) {
+	s := &Suite{}
+	s.Meta = ys.Meta
+
+	for _, rule := range ys.Rules {
+		buffer, err := yaml.Marshal(rule)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, ok := rule["inputs"]; ok {
+			var regoRule RegoRule
+			yaml.Unmarshal(buffer, &regoRule)
+			s.RegoRules = append(s.RegoRules, regoRule)
+		} else {
+			var cfRule CFRule
+			yaml.Unmarshal(buffer, &cfRule)
+			s.Rules = append(s.Rules, cfRule)
+		}
+	}
+
+	return s, nil
+}
+
 // ParseSuite loads a single compliance suite
 func ParseSuite(config string) (*Suite, error) {
 	c, err := semver.NewConstraint(versionConstraint)
@@ -52,8 +81,13 @@ func ParseSuite(config string) (*Suite, error) {
 		return nil, err
 	}
 
-	s := &Suite{}
-	err = yaml.Unmarshal(f, s)
+	ys := &yamlSuite{}
+	err = yaml.Unmarshal(f, ys)
+	if err != nil {
+		return nil, err
+	}
+
+	s, err := ys.toSuite()
 	if err != nil {
 		return nil, err
 	}

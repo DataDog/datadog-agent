@@ -22,8 +22,7 @@ rules:
           path: /usr/lib/systemd/system/docker.socket
         condition: (file.permissions & 0644) == file.permissions
 
-regos:
-  - id: cis-docker-1.2.0-3.3
+  - id: cis-docker-1.2.0-3.3-rego
     description: '[CIS Docker] Ensure that docker.socket file ownership is set to root:root'
     scope:
       - docker
@@ -63,7 +62,7 @@ regos:
       }
     findings: data.docker_socket.findings
 
-  - id: cis-docker-1.2.0-3.4
+  - id: cis-docker-1.2.0-3.4-rego
     description: '[CIS Docker] Ensure that docker.socket file permissions are set to 644 or more restrictive'
     scope:
       - docker
