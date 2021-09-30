@@ -1,6 +1,20 @@
-# Guidelines For Testing
+# Testing Best Practices
 
-TBD
+This document describes some best-practices for unit testing in the agent.
+Please feel invited to:
+ * Refer to this document in pull requests where these practices might be helpful
+ * Add best practices to this document
+ * Refactor tests to follow these best practices
+ * Change practices if they are no longer the best
+
+Note that the code will never completely reflect these practices, although we hope to get continually closer.
+
+## Prefer `require` over `assert`
+
+Test code should prefer to use `github.com/stretchr/testify/require` to make assertions.
+The functions in this package automatically abort the test when an assertion fails, which is usually what is expected.
+For example, given an error, `assert.NoError(t, err)` will cause the test to be marked as a failure, but will continue on to the next statement, possibly leading to a nil dereference or other such failure.
+In contrast, `require.NoError(t, err)` will abort the test when an error is encountered.
 
 ## Testing Timing-Related Functionality
 
@@ -15,3 +29,29 @@ For example, if you are testing the functionality of a poller, factor the code s
 Where this is not possible, refactor the code to use a Clock from https://pkg.go.dev/github.com/benbjohnson/clock.
 In production, create a `clock.Clock`, and in tests, inject a `clock.Mock`.
 When time should pass in your test execution, call `clock.Add(..)` to deterministically advance the clock.
+
+A common pattern for objects that embed a timer is as follows:
+
+```go
+func NewThing(arg1, arg2) *Thing {
+    return newThingWithClock(arg1, arg2, clock.New())
+}
+
+func newThingWithClock(arg1, arg2, clock clock.Clock) *Thing {
+    return &Thing{
+        ...,
+        clock: clock,
+    }
+}
+
+func TestThingFunctionality(t *testing.T) {
+    clk := clock.NewMock()
+    thing := newThingWithClock(..., clk)
+
+    // ...
+
+    clk.Add(100 * time.Millisecond)
+
+    // ...
+}
+```
