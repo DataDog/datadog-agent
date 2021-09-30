@@ -2,6 +2,7 @@ package encoding
 
 import (
 	"strings"
+	"sync"
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -18,6 +19,9 @@ var (
 			EmitDefaults: true,
 		},
 	}
+
+	cfgOnce  = sync.Once{}
+	agentCfg *model.AgentConfiguration
 )
 
 // Marshaler is an interface implemented by all Connections serializers
@@ -50,6 +54,13 @@ func GetUnmarshaler(ctype string) Unmarshaler {
 }
 
 func modelConnections(conns *network.Connections) *model.Connections {
+	cfgOnce.Do(func() {
+		agentCfg = &model.AgentConfiguration{
+			NpmEnabled: config.Datadog.GetBool("network_config.enabled"),
+			TsmEnabled: config.Datadog.GetBool("service_monitoring_config.enabled"),
+		}
+	})
+
 	agentConns := make([]*model.Connection, len(conns.Conns))
 	domainSet := make(map[string]int)
 	routeIndex := make(map[string]RouteIdx)
@@ -87,6 +98,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	}
 
 	payload := connsPool.Get().(*model.Connections)
+	payload.AgentConfiguration = agentCfg
 	payload.Conns = agentConns
 	payload.Domains = domains
 	payload.Dns = FormatDNS(conns.DNS, ipc)

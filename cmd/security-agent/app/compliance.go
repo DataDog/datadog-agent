@@ -60,7 +60,7 @@ func init() {
 
 func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, error) {
 	logsConfigComplianceKeys := config.NewLogsConfigKeys("compliance_config.endpoints.", coreconfig.Datadog)
-	return newLogContext(logsConfigComplianceKeys, "compliance-http-intake.logs.", "compliance", config.DefaultIntakeOrigin, logs.AgentJSONIntakeProtocol)
+	return newLogContext(logsConfigComplianceKeys, "cspm-intake.", "compliance", config.DefaultIntakeOrigin, logs.AgentJSONIntakeProtocol)
 }
 
 func eventRun(cmd *cobra.Command, args []string) error {

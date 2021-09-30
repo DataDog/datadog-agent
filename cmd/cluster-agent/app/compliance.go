@@ -65,7 +65,7 @@ func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*c
 
 func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, error) {
 	logsConfigComplianceKeys := config.NewLogsConfigKeys("compliance_config.endpoints.", coreconfig.Datadog)
-	return newLogContext(logsConfigComplianceKeys, "compliance-http-intake.logs.")
+	return newLogContext(logsConfigComplianceKeys, "cspm-intake.")
 }
 
 func startCompliance(stopper restart.Stopper, apiCl *apiserver.APIClient, isLeader func() bool) error {
