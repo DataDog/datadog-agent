@@ -9,3 +9,4 @@ resources:
   - agent-integrations-config-map.yaml
   - agent-config-map.yaml
   - agent.yaml
+  - kube-state-metrics.yaml
