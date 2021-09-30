@@ -23,9 +23,9 @@ configMapGenerator:
       - STS_CLUSTER_NAME={{ cluster_name }}
 
 images:
-  - name: quay.io/stackstate/stackstate-agent-test
+  - name: docker.io/stackstate/stackstate-agent-test
     newTag: {{ agent_current_branch }}
-  - name: quay.io/stackstate/stackstate-cluster-agent-test
+  - name: docker.io/stackstate/stackstate-cluster-agent-test
     newTag: {{ agent_current_branch }}
   - name: docker.io/bitnami/kube-state-metrics
     newTag: 1.9.8
