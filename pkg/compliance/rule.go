@@ -22,20 +22,20 @@ type RuleCommon struct {
 	HostSelector string        `yaml:"hostSelector,omitempty"`
 }
 
-// CFRule defines a rule in a compliance config
-type CFRule struct {
+// ConditionFallbackRule defines a rule in a compliance config
+type ConditionFallbackRule struct {
 	RuleCommon   `yaml:",inline"`
 	ResourceType string     `yaml:"resourceType,omitempty"`
 	Resources    []Resource `yaml:"resources,omitempty"`
 }
 
 // ResourceCount returns the count of resources
-func (r *CFRule) ResourceCount() int {
+func (r *ConditionFallbackRule) ResourceCount() int {
 	return len(r.Resources)
 }
 
 // Common returns the common field between all rules
-func (r *CFRule) Common() *RuleCommon {
+func (r *ConditionFallbackRule) Common() *RuleCommon {
 	return &r.RuleCommon
 }
 

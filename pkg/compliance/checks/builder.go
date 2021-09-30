@@ -412,7 +412,7 @@ func (b *builder) GetCheckStatus() compliance.CheckStatusList {
 	return compliance.CheckStatusList{}
 }
 
-func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.CFRule) (compliance.Check, error) {
+func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.ConditionFallbackRule) (compliance.Check, error) {
 	ruleScope, err := getRuleScope(meta, rule.Scope)
 	if err != nil {
 		return nil, err
@@ -625,7 +625,7 @@ func (b *builder) nodeLabelKeys() []string {
 	return keys
 }
 
-func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.CFRule, handler resourceReporter) (compliance.Check, error) {
+func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.ConditionFallbackRule, handler resourceReporter) (compliance.Check, error) {
 	checkable, err := newResourceCheckList(b, rule.ID, rule.Resources)
 	if err != nil {
 		return nil, err

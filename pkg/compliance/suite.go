@@ -35,9 +35,9 @@ type SuiteMeta struct {
 
 // Suite represents a set of compliance checks reporting events
 type Suite struct {
-	Meta      SuiteMeta  `yaml:",inline"`
-	Rules     []CFRule   `yaml:"rules,omitempty"`
-	RegoRules []RegoRule `yaml:"regos,omitempty"`
+	Meta      SuiteMeta               `yaml:",inline"`
+	Rules     []ConditionFallbackRule `yaml:"rules,omitempty"`
+	RegoRules []RegoRule              `yaml:"regos,omitempty"`
 }
 
 type yamlSuite struct {
@@ -60,7 +60,7 @@ func (ys *yamlSuite) toSuite() (*Suite, error) {
 			yaml.Unmarshal(buffer, &regoRule)
 			s.RegoRules = append(s.RegoRules, regoRule)
 		} else {
-			var cfRule CFRule
+			var cfRule ConditionFallbackRule
 			yaml.Unmarshal(buffer, &cfRule)
 			s.Rules = append(s.Rules, cfRule)
 		}

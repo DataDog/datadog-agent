@@ -31,7 +31,7 @@ func TestParseSuite(t *testing.T) {
 					Version:   "1.2.0",
 					Source:    "./testdata/cis-docker.yaml",
 				},
-				Rules: []CFRule{
+				Rules: []ConditionFallbackRule{
 					{
 						RuleCommon: RuleCommon{
 							ID:           "cis-docker-1",
