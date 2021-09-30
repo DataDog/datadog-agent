@@ -12,7 +12,6 @@ import (
 
 	"fmt"
 	"testing"
-	"time"
 
 	// 3p
 	"github.com/stretchr/testify/assert"
@@ -189,11 +188,39 @@ func genTags(count int, div int) ([]string, []string) {
 	return tags, uniq
 }
 
-func BenchmarkContextResolverGet(b *testing.B) {
-	InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
+func BenchmarkContextResolverTrackContext(b *testing.B) {
+	resetAggregator()
+	agg := NewBufferedAggregator(nil, nil, "hostname", 0)
+	SetDefaultAggregator(agg)
 
-	// track 10k contexts with 30 tags
-	for contextsCount := 1; contextsCount < 2<<15; contextsCount *= 2 {
+	// track 1M contexts with 30 tags
+	for contextsCount := 1; contextsCount < 2<<20; contextsCount *= 2 {
+		tags, _ := genTags(30, 1)
+		resolver := newContextResolver()
+		b.Run(fmt.Sprintf("with-%d-contexts", contextsCount), func(b *testing.B) {
+			b.ReportAllocs()
+			j := 0
+			for n := 0; n < b.N; n++ {
+				resolver.trackContext(&metrics.MetricSample{
+					Name: fmt.Sprintf("metric.name%d", j),
+					Tags: tags,
+				})
+				j++
+				if j >= contextsCount {
+					j = 0
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkContextResolverGetWorstCase(b *testing.B) {
+	resetAggregator()
+	agg := NewBufferedAggregator(nil, nil, "hostname", 0)
+	SetDefaultAggregator(agg)
+
+	// track 1M contexts with 30 tags
+	for contextsCount := 1; contextsCount < 2<<20; contextsCount *= 2 {
 		tags, _ := genTags(30, 1)
 		resolver := newContextResolver()
 		ckeys := make([]ckey.ContextKey, 0)
@@ -205,6 +232,7 @@ func BenchmarkContextResolverGet(b *testing.B) {
 		}
 
 		b.Run(fmt.Sprintf("with-%d-contexts", contextsCount), func(b *testing.B) {
+			b.ReportAllocs()
 			j := 0
 			for n := 0; n < b.N; n++ {
 				resolver.get(ckeys[j])
