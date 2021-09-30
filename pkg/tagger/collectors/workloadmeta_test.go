@@ -337,6 +337,39 @@ func TestHandleKubePod(t *testing.T) {
 	}
 }
 
+func TestHandleContainerStaticTags(t *testing.T) {
+	collector := &WorkloadMetaCollector{
+		staticTags: map[string]string{
+			"eks_fargate_node": "foobar",
+		},
+	}
+
+	container := workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "foo",
+		},
+	}
+
+	expected := []*TagInfo{
+		{
+			Source:               workloadmetaCollectorName,
+			Entity:               fmt.Sprintf("container_id://%s", container.ID),
+			HighCardTags:         []string{},
+			OrchestratorCardTags: []string{},
+			LowCardTags:          []string{"eks_fargate_node:foobar"},
+			StandardTags:         []string{},
+		},
+	}
+
+	actual := collector.handleContainer(workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: &container,
+	})
+
+	assertTagInfoListEqual(t, expected, actual)
+}
+
 func TestParseJSONValue(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -79,19 +79,45 @@ func TestParseMetadata(t *testing.T) {
 		},
 		{
 			Source: "ecs_fargate",
-			Entity: "container_id://1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
+			Entity: "container_id://3827da9d51f12276b4ed2d2a2dfb624b96b239b20d052b859e26c13853071e7c",
 			LowCardTags: []string{
-				"docker_image:datadog/agent-dev:xvello-process-kubelet",
-				"image_name:datadog/agent-dev",
-				"short_image:agent-dev",
-				"image_tag:xvello-process-kubelet",
+				"availability_zone:eu-central-1a",
 				"cluster_name:xvello-fargate",
+				"docker_image:fg-proxy:tinyproxy",
 				"ecs_cluster_name:xvello-fargate",
+				"ecs_container_name:~internal~ecs~pause",
+				"image_name:fg-proxy",
+				"image_tag:tinyproxy",
+				"region:eu-central-1",
+				"short_image:fg-proxy",
 				"task_family:redis-datadog",
 				"task_version:3",
-				"ecs_container_name:datadog-agent",
-				"region:eu-central-1",
+			},
+			OrchestratorCardTags: []string{
+				"task_arn:arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
+			},
+			HighCardTags: []string{
+				"container_id:3827da9d51f12276b4ed2d2a2dfb624b96b239b20d052b859e26c13853071e7c",
+				"container_name:ecs-redis-datadog-3-internalecspause-da86ad89d2bee7ba8501",
+			},
+			StandardTags: []string{},
+			DeleteEntity: false,
+		},
+		{
+			Source: "ecs_fargate",
+			Entity: "container_id://1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
+			LowCardTags: []string{
 				"availability_zone:eu-central-1a",
+				"cluster_name:xvello-fargate",
+				"docker_image:datadog/agent-dev:xvello-process-kubelet",
+				"ecs_cluster_name:xvello-fargate",
+				"ecs_container_name:datadog-agent",
+				"image_name:datadog/agent-dev",
+				"image_tag:xvello-process-kubelet",
+				"region:eu-central-1",
+				"short_image:agent-dev",
+				"task_family:redis-datadog",
+				"task_version:3",
 			},
 			OrchestratorCardTags: []string{
 				"task_arn:arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
@@ -142,8 +168,7 @@ func TestParseMetadata(t *testing.T) {
 		},
 	}
 
-	// Diff parsing should show 2 containers
-	updates, err := collector.parseMetadata(&meta, false)
+	updates, err := collector.parseMetadata(&meta)
 	assert.NoError(t, err)
 	assertTagInfoListEqual(t, expectedUpdates, updates)
 
@@ -156,16 +181,6 @@ func TestParseMetadata(t *testing.T) {
 			DeleteEntity: true,
 		},
 	}, expires)
-
-	// Diff parsing should show 0 containers + 1 tag for task_arn
-	updates, err = collector.parseMetadata(&meta, false)
-	assert.NoError(t, err)
-	assert.Len(t, updates, 1)
-
-	// Full parsing should show 3 containers + 1 tag for task_arn
-	updates, err = collector.parseMetadata(&meta, true)
-	assert.NoError(t, err)
-	assert.Len(t, updates, 4)
 }
 
 func TestParseMetadataV10(t *testing.T) {
@@ -273,7 +288,7 @@ func TestParseMetadataV10(t *testing.T) {
 		},
 	}
 
-	updates, err := collector.parseMetadata(&meta, false)
+	updates, err := collector.parseMetadata(&meta)
 	assert.NoError(t, err)
 	assertTagInfoListEqual(t, expectedUpdates, updates)
 }
