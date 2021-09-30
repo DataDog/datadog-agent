@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -32,13 +33,24 @@ type regoCheck struct {
 	preparedEvalQuery rego.PreparedEvalQuery
 }
 
-func computeRuleModules(rule *compliance.RegoRule, meta *compliance.SuiteMeta) ([]func(*rego.Rego), error) {
-	modules := make([]func(*rego.Rego), 0)
+func computeRuleModulesAndQuery(rule *compliance.RegoRule, meta *compliance.SuiteMeta) ([]func(*rego.Rego), string, error) {
+	options := make([]func(*rego.Rego), 0)
 
-	modules = append(modules, rego.Module("datadog_helpers.rego", helpers))
+	options = append(options, rego.Module("datadog_helpers.rego", helpers))
+
+	query := rule.Findings
 
 	if rule.Module != "" {
-		modules = append(modules, rego.Module(fmt.Sprintf("__gen__rule_%s.rego", rule.ID), rule.Module))
+		mod, err := ast.ParseModule(fmt.Sprintf("__gen__rule_%s.rego", rule.ID), rule.Module)
+		if err != nil {
+			return nil, "", err
+		}
+
+		options = append(options, rego.ParsedModule(mod))
+
+		if query == "" {
+			query = fmt.Sprintf("%v.findings", mod.Package.Path)
+		}
 	}
 
 	var parentDir string
@@ -58,33 +70,31 @@ func computeRuleModules(rule *compliance.RegoRule, meta *compliance.SuiteMeta) (
 
 		mod, err := os.ReadFile(imp)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
-		modules = append(modules, rego.Module(imp, string(mod)))
+		options = append(options, rego.Module(imp, string(mod)))
 	}
 
-	return modules, nil
+	return options, query, nil
 }
 
 func (r *regoCheck) compileRule(rule *compliance.RegoRule, ruleScope compliance.RuleScope, meta *compliance.SuiteMeta) error {
 	ctx := context.TODO()
 
-	log.Debugf("rego query: %v", rule.Findings)
-
 	moduleArgs := make([]func(*rego.Rego), 0, 2+len(regoBuiltins))
 
-	// rego modules
-	ruleModules, err := computeRuleModules(rule, meta)
+	// rego modules and query
+	ruleModules, query, err := computeRuleModulesAndQuery(rule, meta)
 	if err != nil {
 		return err
 	}
 	moduleArgs = append(moduleArgs, ruleModules...)
+	moduleArgs = append(moduleArgs, rego.Query(query))
+
+	log.Debugf("rego query: %v", query)
 
 	// rego builtins
 	moduleArgs = append(moduleArgs, regoBuiltins...)
-
-	// rego query
-	moduleArgs = append(moduleArgs, rego.Query(rule.Findings))
 
 	preparedEvalQuery, err := rego.New(
 		moduleArgs...,
