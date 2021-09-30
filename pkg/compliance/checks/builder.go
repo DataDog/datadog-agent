@@ -428,7 +428,7 @@ func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.Con
 		return nil, ErrRuleDoesNotApply
 	}
 
-	resourceReporter := b.getRuleResourceReporter(ruleScope, rule.ResourceType)
+	resourceReporter := b.getRuleResourceReporter(ruleScope, *rule)
 	return b.newCheck(meta, ruleScope, rule, resourceReporter)
 }
 
@@ -468,7 +468,7 @@ func getRuleScope(meta *compliance.SuiteMeta, scopeList compliance.RuleScopeList
 	}
 }
 
-func (b *builder) kubeResourceReporter(resourceType string) resourceReporter {
+func (b *builder) kubeResourceReporter(rule compliance.ConditionFallbackRule, resourceType string) resourceReporter {
 	return func(report *compliance.Report) compliance.ReportResource {
 		var clusterID string
 		var err error
@@ -484,11 +484,15 @@ func (b *builder) kubeResourceReporter(resourceType string) resourceReporter {
 			clusterID = b.Hostname()
 		}
 
-		if !report.Aggregated && resourceType == "" && strings.HasPrefix(report.Resource.Type, "kube_") {
+		if !report.Aggregated && rule.ResourceType == "" && strings.HasPrefix(report.Resource.Type, "kube_") {
 			return compliance.ReportResource{
 				ID:   clusterID + "_" + report.Resource.ID,
 				Type: report.Resource.Type,
 			}
+		}
+
+		if rule.ResourceType != "" {
+			resourceType = rule.ResourceType
 		}
 
 		return compliance.ReportResource{
@@ -498,18 +502,18 @@ func (b *builder) kubeResourceReporter(resourceType string) resourceReporter {
 	}
 }
 
-func (b *builder) getRuleResourceReporter(scope compliance.RuleScope, resourceType string) resourceReporter {
+func (b *builder) getRuleResourceReporter(scope compliance.RuleScope, rule compliance.ConditionFallbackRule) resourceReporter {
 	switch scope {
 	case compliance.DockerScope:
 		return func(report *compliance.Report) compliance.ReportResource {
-			if !report.Aggregated && resourceType == "" && strings.HasPrefix(report.Resource.Type, "docker_") {
+			if !report.Aggregated && rule.ResourceType == "" && strings.HasPrefix(report.Resource.Type, "docker_") {
 				return compliance.ReportResource{
 					ID:   b.Hostname() + "_" + report.Resource.ID,
 					Type: report.Resource.Type,
 				}
 			}
 
-			resourceType := resourceType
+			resourceType := rule.ResourceType
 			if resourceType == "" {
 				resourceType = "docker_daemon"
 			}
@@ -521,10 +525,10 @@ func (b *builder) getRuleResourceReporter(scope compliance.RuleScope, resourceTy
 		}
 
 	case compliance.KubernetesNodeScope:
-		return b.kubeResourceReporter("kubernetes_node")
+		return b.kubeResourceReporter(rule, "kubernetes_node")
 
 	case compliance.KubernetesClusterScope:
-		return b.kubeResourceReporter("kubernetes_cluster")
+		return b.kubeResourceReporter(rule, "kubernetes_cluster")
 
 	default:
 		return func(report *compliance.Report) compliance.ReportResource {
