@@ -1974,23 +1974,27 @@ api_key:
 # cluster_checks:
 
   ## @param enabled - boolean - optional - default: false
+  ## @env DD_CLUSTER_CHECKS_ENABLED - boolean - optional - default: false
   ## Set to true to enable the dispatching logic on the leader cluster-agent.
   #
   # enabled: false
 
   ## @param node_expiration_timeout - integer - optional - default: 30
+  ## @env DD_CLUSTER_CHECKS_NODE_EXPIRATION_TIMEOUT - integer - optional - default: 30
   ## Set "node_expiration_timeout" time in second after which Node-agents that have not
   ## queried the cluster-agent are deleted, and their checks re-dispatched to other nodes.
   #
   # node_expiration_timeout: 30
 
   ## @param warmup_duration - integer - optional - default: 30
+  ## @env DD_CLUSTER_CHECKS_WARMUP_DURATION - integer - optional - default: 30
   ## Set the "warmup_duration" duration in second for the cluster-agent to wait for all
   ## node-agents to report to it before dispatching configurations.
   #
   # warmup_duration: 30
 
   ## @param cluster_tag_name - string - optional - default: cluster_name
+  ## @env DD_CLUSTER_CHECKS_CLUSTER_TAG_NAME - string - optional - default: cluster_name
   ## If a cluster_name value is set or autodetected, a "<CLUSTER_NAME>" tag is added
   ## to all cluster-check configurations sent to the node-agents.
   ## Set a custom tag name here, or disable it by setting an empty name.
@@ -1998,18 +2002,21 @@ api_key:
   # cluster_tag_name: cluster_name
 
   ## @param extra_tags - list of key:value elements - optional
+  ## @env DD_CLUSTER_CHECKS_EXTRA_TAGS - list of key:value elements - optional
   ## Set a list of additionnal tags can to be added to every cluster-check configuration.
   #
   # extra_tags:
   #   - <TAG_KEY>:<TAG_VALUE>
 
   ## @param advanced_dispatching_enabled - boolean - optional - default: false
+  ## @env DD_CLUSTER_CHECKS_ADVANCED_DISPATCHING_ENABLED - boolean - optional - default: false
   ## If advanced_dispatching_enabled is true the leader cluster-agent collects stats
   ## from the cluster level check runners to optimize the check dispatching logic.
   #
   # advanced_dispatching_enabled: false
 
   ## @param clc_runners_port - integer - optional - default: 5005
+  ## @env DD_CLUSTER_CHECKS_CLC_RUNNERS_PORT - integer - optional - default: 5005
   ## Set the "clc_runners_port" used by the cluster-agent client to reach cluster level
   ## check runners and collect their stats.
   #
@@ -2023,6 +2030,7 @@ api_key:
 #########################
 
 ## @param container_cgroup_prefix - string - optional - default: /docker/
+## @env DD_CONTAINER_CGROUP_PREFIX - string - optional - default: /docker/
 ## On hosts with mixed workloads, non-containernized processes can
 ## mistakenly be detected as containerized. Use this parameter to
 ## tune the detection logic to your system and avoid false-positives.
@@ -2034,19 +2042,25 @@ api_key:
 ###########################
 
 ## @param docker_labels_as_tags - map - optional
+## @env DD_DOCKER_LABELS_AS_TAGS - json - optional
 ## The Agent can extract container label values and set them as metric tags values associated to a <TAG_KEY>.
 ## If you prefix your tag name with `+`, it will only be added to high cardinality metrics (Docker check).
 #
 # docker_labels_as_tags:
 #   <LABEL_NAME>: <TAG_KEY>
 #   <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
+#
+# DD_DOCKER_LABELS_AS_TAGS='{"LABEL_NAME":"tag_key"}'
 
 ## @param docker_env_as_tags - map - optional
+## @env DD_DOCKER_ENV_AS_TAGS - json - optional
 ## The Agent can extract environment variables values and set them as metric tags values associated to a <TAG_KEY>.
 ## If you prefix your tag name with `+`, it will only be added to high cardinality metrics (Docker check).
 #
 # docker_env_as_tags:
 #   <ENVVAR_NAME>: <TAG_KEY>
+#
+# DD_DOCKER_ENV_AS_TAGS='{"ENVVAR_NAME": "tag_key"}'
 
 {{ end -}}
 {{- if .KubernetesTagging }}
@@ -2056,20 +2070,26 @@ api_key:
 ###############################
 
 ## @param kubernetes_pod_labels_as_tags - map - optional
+## @env DD_KUBERNETES_POD_LABELS_AS_TAGS - json - optional
 ## The Agent can extract pod labels values and set them as metric tags values associated to a <TAG_KEY>.
 ## If you prefix your tag name with +, it will only be added to high cardinality metrics.
 #
 # kubernetes_pod_labels_as_tags:
 #   <POD_LABEL>: <TAG_KEY>
 #   <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
+#
+# DD_KUBERNETES_POD_LABELS_AS_TAGS='{"LABEL_NAME":"tag_key"}'
 
 ## @param kubernetes_pod_annotations_as_tags - map - optional
+## @env DD_KUBERNETES_POD_ANNOTATIONS_AS_TAGS - json - optional
 ## The Agent can extract annotations values and set them as metric tags values associated to a <TAG_KEY>.
 ## If you prefix your tag name with +, it will only be added to high cardinality metrics.
 #
 # kubernetes_pod_annotations_as_tags:
 #   <ANNOTATION>: <TAG_KEY>
 #   <HIGH_CARDINALITY_ANNOTATION>: +<TAG_KEY>
+#
+# DD_KUBERNETES_POD_ANNOTATIONS_AS_TAGS='{"ANNOTATION_NAME":"tag_key"}'
 
 ## @param kubernetes_namespace_labels_as_tags - map - optional
 ## The Agent can extract namespace label values and set them as metric tags values associated to a <TAG_KEY>.
