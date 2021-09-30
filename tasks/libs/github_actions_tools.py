@@ -91,10 +91,9 @@ def follow_workflow_run(run_id):
     """
     Follow the workflow run until completion.
     """
-    github_workflows = None
 
     try:
-        github_workflows = create_or_refresh_macos_build_github_workflows(github_workflows)
+        github_workflows = create_or_refresh_macos_build_github_workflows()
         run = github_workflows.workflow_run(run_id)
     except GithubException:
         raise Exit(code=1)
