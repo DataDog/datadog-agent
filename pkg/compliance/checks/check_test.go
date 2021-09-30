@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	assert "github.com/stretchr/testify/require"
 )
 
@@ -44,6 +45,7 @@ func TestCheckRun(t *testing.T) {
 			expectEvent: &event.Event{
 				AgentRuleID:      ruleID,
 				AgentFrameworkID: frameworkID,
+				AgentVersion:     version.AgentVersion,
 				ResourceType:     resourceType,
 				ResourceID:       resourceID,
 				Result:           "passed",
@@ -65,6 +67,7 @@ func TestCheckRun(t *testing.T) {
 			expectEvent: &event.Event{
 				AgentRuleID:      ruleID,
 				AgentFrameworkID: frameworkID,
+				AgentVersion:     version.AgentVersion,
 				ResourceType:     resourceType,
 				ResourceID:       resourceID,
 				Result:           "failed",
@@ -84,6 +87,7 @@ func TestCheckRun(t *testing.T) {
 			expectEvent: &event.Event{
 				AgentRuleID:      ruleID,
 				AgentFrameworkID: frameworkID,
+				AgentVersion:     version.AgentVersion,
 				ResourceType:     resourceType,
 				ResourceID:       resourceID,
 				Result:           "error",

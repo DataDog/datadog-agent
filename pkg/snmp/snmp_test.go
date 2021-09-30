@@ -6,9 +6,10 @@
 package snmp
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
@@ -65,7 +66,54 @@ func TestBuildSNMPParams(t *testing.T) {
 
 func TestNewListenerConfig(t *testing.T) {
 	config.Datadog.SetConfigType("yaml")
+
+	// default collect_device_metadata should be true
 	err := config.Datadog.ReadConfig(strings.NewReader(`
+snmp_listener:
+  configs:
+   - network: 127.0.0.1/30
+   - network: 127.0.0.2/30
+     collect_device_metadata: true
+   - network: 127.0.0.3/30
+     collect_device_metadata: false
+`))
+	assert.NoError(t, err)
+
+	conf, err := NewListenerConfig()
+	assert.NoError(t, err)
+
+	assert.Equal(t, "127.0.0.1/30", conf.Configs[0].Network)
+	assert.Equal(t, true, conf.Configs[0].CollectDeviceMetadata)
+	assert.Equal(t, "127.0.0.2/30", conf.Configs[1].Network)
+	assert.Equal(t, true, conf.Configs[1].CollectDeviceMetadata)
+	assert.Equal(t, "127.0.0.3/30", conf.Configs[2].Network)
+	assert.Equal(t, false, conf.Configs[2].CollectDeviceMetadata)
+
+	// collect_device_metadata: false
+	err = config.Datadog.ReadConfig(strings.NewReader(`
+snmp_listener:
+  collect_device_metadata: false
+  configs:
+   - network: 127.0.0.1/30
+   - network: 127.0.0.2/30
+     collect_device_metadata: true
+   - network: 127.0.0.3/30
+     collect_device_metadata: false
+`))
+	assert.NoError(t, err)
+
+	conf, err = NewListenerConfig()
+	assert.NoError(t, err)
+
+	assert.Equal(t, "127.0.0.1/30", conf.Configs[0].Network)
+	assert.Equal(t, false, conf.Configs[0].CollectDeviceMetadata)
+	assert.Equal(t, "127.0.0.2/30", conf.Configs[1].Network)
+	assert.Equal(t, true, conf.Configs[1].CollectDeviceMetadata)
+	assert.Equal(t, "127.0.0.3/30", conf.Configs[2].Network)
+	assert.Equal(t, false, conf.Configs[2].CollectDeviceMetadata)
+
+	// collect_device_metadata: true
+	err = config.Datadog.ReadConfig(strings.NewReader(`
 snmp_listener:
   collect_device_metadata: true
   configs:
@@ -77,7 +125,7 @@ snmp_listener:
 `))
 	assert.NoError(t, err)
 
-	conf, err := NewListenerConfig()
+	conf, err = NewListenerConfig()
 	assert.NoError(t, err)
 
 	assert.Equal(t, "127.0.0.1/30", conf.Configs[0].Network)
@@ -213,4 +261,35 @@ snmp_listener:
 	assert.Equal(t, "legacyCommunityString", legacyConfig.Community)
 	assert.Equal(t, "legacySnmpVersion", legacyConfig.Version)
 	assert.Equal(t, "127.2.0.0/30", legacyConfig.Network)
+}
+
+func Test_NamespaceConfig(t *testing.T) {
+	// Default Namespace
+	config.Datadog.SetConfigType("yaml")
+	err := config.Datadog.ReadConfig(strings.NewReader(`
+snmp_listener:
+  configs:
+   - community_string: someCommunityString
+     network_address: 127.1.0.0/30
+`))
+	assert.NoError(t, err)
+	conf, err := NewListenerConfig()
+	assert.NoError(t, err)
+	networkConf := conf.Configs[0]
+	assert.Equal(t, "default", networkConf.Namespace)
+
+	// Custom Namespace
+	config.Datadog.SetConfigType("yaml")
+	err = config.Datadog.ReadConfig(strings.NewReader(`
+snmp_listener:
+  configs:
+   - community_string: someCommunityString
+     network_address: 127.1.0.0/30
+     namespace: hello
+`))
+	assert.NoError(t, err)
+	conf, err = NewListenerConfig()
+	assert.NoError(t, err)
+	networkConf = conf.Configs[0]
+	assert.Equal(t, "hello", networkConf.Namespace)
 }

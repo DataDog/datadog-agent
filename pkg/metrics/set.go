@@ -36,3 +36,7 @@ func (s *Set) flush(timestamp float64) ([]*Serie, error) {
 	s.values = make(map[string]bool)
 	return res, nil
 }
+
+func (s *Set) isStateful() bool {
+	return false
+}

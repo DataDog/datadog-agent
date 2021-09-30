@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.15
+go 1.16
 
 // NOTE: Prefer using simple `require` directives instead of using `replace` if possible.
 // See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
@@ -47,7 +47,7 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
-	github.com/DataDog/agent-payload v4.80.0+incompatible
+	github.com/DataDog/agent-payload v4.85.0+incompatible
 	github.com/DataDog/datadog-agent/pkg/quantile v0.31.0-rc.8
 	github.com/DataDog/datadog-agent/pkg/util/log v0.31.0-rc.8
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.31.0-rc.8
@@ -68,12 +68,14 @@ require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/Microsoft/go-winio v0.4.17
+	github.com/alecthomas/jsonschema v0.0.0-20210526225647-edb03dcab7bc
 	github.com/alecthomas/participle v0.7.1
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
 	github.com/andybalholm/brotli v1.0.1 // indirect
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/aws/aws-sdk-go v1.40.38
 	github.com/beevik/ntp v0.3.0
+	github.com/benbjohnson/clock v1.1.0
 	github.com/benesch/cgosymbolizer v0.0.0-20190515212042-bec6fe6e597b
 	github.com/bhmj/jsonslice v0.0.0-20200323023432-92c3edaad8e2
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
@@ -173,6 +175,7 @@ require (
 	go.opentelemetry.io/collector v0.36.0
 	go.opentelemetry.io/collector/model v0.36.0
 	go.uber.org/automaxprocs v1.4.0
+	go.uber.org/multierr v1.6.0
 	go.uber.org/zap v1.19.1
 	go4.org/intern v0.0.0-20210108033219-3eb7198706b2
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
@@ -191,52 +194,55 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	gotest.tools v2.2.0+incompatible
-	k8s.io/api v0.21.1
-	k8s.io/apimachinery v0.21.1
-	k8s.io/apiserver v0.20.6
+	k8s.io/api v0.21.2
+	k8s.io/apimachinery v0.21.2
+	k8s.io/apiserver v0.20.11
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.9.2
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/cri-api v0.20.6
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
 	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
-	k8s.io/kube-state-metrics/v2 v2.0.1-0.20210419063836-dfab196f138a
+	k8s.io/kube-state-metrics/v2 v2.1.1
 	k8s.io/kubernetes v1.20.5
-	k8s.io/metrics v0.20.5
+	k8s.io/metrics v0.20.11
 )
 
-// Pinned to kubernetes-v0.20.5
+// Pinned to kubernetes-v0.20.11
 replace (
-	k8s.io/api => k8s.io/api v0.20.5
-	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.20.5
-	k8s.io/apimachinery => k8s.io/apimachinery v0.20.5
-	k8s.io/apiserver => k8s.io/apiserver v0.20.5
-	k8s.io/cli-runtime => k8s.io/cli-runtime v0.20.5
-	k8s.io/client-go => k8s.io/client-go v0.20.5
-	k8s.io/cloud-provider => k8s.io/cloud-provider v0.20.5
-	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.20.5
-	k8s.io/code-generator => k8s.io/code-generator v0.20.5
-	k8s.io/component-base => k8s.io/component-base v0.20.5
-	k8s.io/component-helpers => k8s.io/component-helpers v0.20.5
-	k8s.io/controller-manager => k8s.io/controller-manager v0.20.5
-	k8s.io/cri-api => k8s.io/cri-api v0.20.5
-	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.20.5
-	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.20.5
-	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.20.5
-	k8s.io/kube-proxy => k8s.io/kube-proxy v0.20.5
-	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.20.5
-	k8s.io/kubectl => k8s.io/kubectl v0.20.5
-	k8s.io/kubelet => k8s.io/kubelet v0.20.5
-	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.20.5
-	k8s.io/metrics => k8s.io/metrics v0.20.5
-	k8s.io/mount-utils => k8s.io/mount-utils v0.20.3-rc.0
-	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.20.5
-	k8s.io/sample-cli-plugin => k8s.io/sample-cli-plugin v0.20.5
-	k8s.io/sample-controller => k8s.io/sample-controller v0.20.5
+	k8s.io/api => k8s.io/api v0.20.11
+	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.20.11
+	k8s.io/apimachinery => k8s.io/apimachinery v0.20.11
+	k8s.io/apiserver => k8s.io/apiserver v0.20.11
+	k8s.io/cli-runtime => k8s.io/cli-runtime v0.20.11
+	k8s.io/client-go => k8s.io/client-go v0.20.11
+	k8s.io/cloud-provider => k8s.io/cloud-provider v0.20.11
+	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.20.11
+	k8s.io/code-generator => k8s.io/code-generator v0.20.11
+	k8s.io/component-base => k8s.io/component-base v0.20.11
+	k8s.io/component-helpers => k8s.io/component-helpers v0.20.11
+	k8s.io/controller-manager => k8s.io/controller-manager v0.20.11
+	k8s.io/cri-api => k8s.io/cri-api v0.20.11
+	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.20.11
+	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.20.11
+	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.20.11
+	k8s.io/kube-proxy => k8s.io/kube-proxy v0.20.11
+	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.20.11
+	k8s.io/kubectl => k8s.io/kubectl v0.20.11
+	k8s.io/kubelet => k8s.io/kubelet v0.20.11
+	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.20.11
+	k8s.io/metrics => k8s.io/metrics v0.20.11
+	k8s.io/mount-utils => k8s.io/mount-utils v0.20.11
+	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.20.11
+	k8s.io/sample-cli-plugin => k8s.io/sample-cli-plugin v0.20.11
+	k8s.io/sample-controller => k8s.io/sample-controller v0.20.11
 )
+
+// Fixing a CVE indirectly linked to k8s/etcd, will be cleaned-up when K8S Apiserver deps is removed
+replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
 
 replace gopkg.in/DataDog/dd-trace-go.v1 => gopkg.in/DataDog/dd-trace-go.v1 v1.30.0
 
-// Remove once the PR kubernetes/kube-state-metrics#1516 is merged and released.
+// Internal code requires adaptation to support changes introduced in https://github.com/kubernetes/kube-state-metrics/commit/83887f16116cbf9ecc34a32e4ad8b4d8e782348d
 replace k8s.io/kube-state-metrics/v2 => github.com/ahmed-mez/kube-state-metrics/v2 v2.1.0-rc.0.0.20210629115837-e46f17606d22
 
 // Remove once the PR aptly-dev/aptly#967 is merged and released.

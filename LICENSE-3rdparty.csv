@@ -63,8 +63,8 @@ core,github.com/DataDog/sketches-go/ddsketch,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/sketches-go/ddsketch/encoding,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/sketches-go/ddsketch/mapping,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/sketches-go/ddsketch/pb/sketchpb,Apache-2.0,"Datadog, Inc."
-core,github.com/DataDog/sketches-go/ddsketch/store,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/sketches-go/ddsketch/stat,Apache-2.0,"Datadog, Inc."
+core,github.com/DataDog/sketches-go/ddsketch/store,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/viper,MIT,"Datadog, Inc."
 core,github.com/DataDog/watermarkpodautoscaler/api/v1alpha1,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/zstd,BSD-3-Clause,"Datadog, Inc."
@@ -103,6 +103,7 @@ core,github.com/NYTimes/gziphandler,Apache-2.0,The New York Times Company
 core,github.com/PuerkitoBio/purell,BSD-3-Clause,Martin Angers
 core,github.com/PuerkitoBio/urlesc,BSD-3-Clause,The Go Authors
 core,github.com/StackExchange/wmi,MIT,Stack Exchange
+core,github.com/alecthomas/jsonschema,MIT,Alec Thomas
 core,github.com/alecthomas/participle,MIT,Alec Thomas
 core,github.com/alecthomas/participle/lexer,MIT,Alec Thomas
 core,github.com/alecthomas/participle/lexer/ebnf,MIT,Alec Thomas
@@ -171,6 +172,7 @@ core,github.com/aws/aws-sdk-go/service/sso/ssoiface,Apache-2.0,"Amazon.com, Inc.
 core,github.com/aws/aws-sdk-go/service/sts,Apache-2.0,"Amazon.com, Inc. or its affiliates | Stripe, Inc."
 core,github.com/aws/aws-sdk-go/service/sts/stsiface,Apache-2.0,"Amazon.com, Inc. or its affiliates | Stripe, Inc."
 core,github.com/beevik/ntp,BSD-2-Clause,Anton Tolchanov (knyar) | Ask Bjørn Hansen (abh) | Brett Vickers | Brett Vickers (beevik) | Christopher Batey (chbatey) | Leonid Evdokimov (darkk) | Meng Zhuo (mengzhuo) | Mikhail Salosin (AlphaB)
+core,github.com/benbjohnson/clock,MIT,Ben Johnson
 core,github.com/benesch/cgosymbolizer,BSD-3-Clause,Cockroach Labs
 core,github.com/beorn7/perks/quantile,MIT,Blake Mizerany
 core,github.com/bhmj/jsonslice,MIT,bhmj
@@ -433,6 +435,7 @@ core,github.com/hashicorp/serf/coordinate,MPL-2.0,HashiCorp Inc.
 core,github.com/hectane/go-acl,MIT,Nathan Osman
 core,github.com/hectane/go-acl/api,MIT,Nathan Osman
 core,github.com/huandu/xstrings,MIT,Huan Du
+core,github.com/iancoleman/orderedmap,MIT,Ian Coleman
 core,github.com/ianlancetaylor/cgosymbolizer,BSD-3-Clause,"Free Software Foundation, Inc | The Go Authors"
 core,github.com/imdario/mergo,BSD-3-Clause,Dario Castañé | The Go Authors
 core,github.com/inconshreveable/mousetrap,Apache-2.0,Alan Shreve
@@ -681,6 +684,7 @@ core,go.opentelemetry.io/collector/config/experimental/configsource,Apache-2.0,O
 core,go.opentelemetry.io/collector/consumer,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/consumer/consumererror,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/consumer/consumerhelper,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/consumer/consumertest,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/exporter/exporterhelper,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/exporter/exporterhelper/internal,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/exporter/otlpexporter,Apache-2.0,Open Telemetry Maintainers
@@ -694,6 +698,7 @@ core,go.opentelemetry.io/collector/internal/middleware,Apache-2.0,Open Telemetry
 core,go.opentelemetry.io/collector/internal/obsreportconfig,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/internal/obsreportconfig/obsmetrics,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/internal/sharedcomponent,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/internal/testdata,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/internal/version,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/model/internal,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/model/internal/data,Apache-2.0,Open Telemetry Maintainers
@@ -1064,9 +1069,9 @@ core,k8s.io/apimachinery/pkg/util/waitgroup,Apache-2.0,Cloud Native Computing Fo
 core,k8s.io/apimachinery/pkg/util/yaml,Apache-2.0,Cloud Native Computing Foundation (CNCF)
 core,k8s.io/apimachinery/pkg/version,Apache-2.0,Cloud Native Computing Foundation (CNCF)
 core,k8s.io/apimachinery/pkg/watch,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/third_party/forked/golang/json,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/third_party/forked/golang/netutil,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/third_party/forked/golang/reflect,Apache-2.0,Cloud Native Computing Foundation (CNCF)
+core,k8s.io/apimachinery/third_party/forked/golang/json,BSD-3-Clause,Cloud Native Computing Foundation (CNCF)
+core,k8s.io/apimachinery/third_party/forked/golang/netutil,BSD-3-Clause,Cloud Native Computing Foundation (CNCF)
+core,k8s.io/apimachinery/third_party/forked/golang/reflect,BSD-3-Clause,Cloud Native Computing Foundation (CNCF)
 core,k8s.io/apiserver/pkg/admission,Apache-2.0,Cloud Native Computing Foundation (CNCF)
 core,k8s.io/apiserver/pkg/admission/configuration,Apache-2.0,Cloud Native Computing Foundation (CNCF)
 core,k8s.io/apiserver/pkg/admission/initializer,Apache-2.0,Cloud Native Computing Foundation (CNCF)

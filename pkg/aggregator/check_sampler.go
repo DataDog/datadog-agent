@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	"math"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -20,18 +21,18 @@ type CheckSampler struct {
 	series          []*metrics.Serie
 	sketches        metrics.SketchSeriesList
 	contextResolver *countBasedContextResolver
-	metrics         metrics.ContextMetrics
+	metrics         metrics.CheckMetrics
 	sketchMap       sketchMap
 	lastBucketValue map[ckey.ContextKey]int64
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
-func newCheckSampler(expirationCount int) *CheckSampler {
+func newCheckSampler(expirationCount int, expireMetrics bool, statefulTimeout time.Duration) *CheckSampler {
 	return &CheckSampler{
 		series:          make([]*metrics.Serie, 0),
 		sketches:        make(metrics.SketchSeriesList, 0),
 		contextResolver: newCountBasedContextResolver(expirationCount),
-		metrics:         metrics.MakeContextMetrics(),
+		metrics:         metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
 		sketchMap:       make(sketchMap),
 		lastBucketValue: make(map[ckey.ContextKey]int64),
 	}
@@ -160,12 +161,17 @@ func (cs *CheckSampler) commitSketches(timestamp float64) {
 func (cs *CheckSampler) commit(timestamp float64) {
 	cs.commitSeries(timestamp)
 	cs.commitSketches(timestamp)
+
+	cs.metrics.RemoveExpired(timestamp)
+
 	expiredContextKeys := cs.contextResolver.expireContexts()
 
 	// garbage collect unused buckets
 	for _, ctxKey := range expiredContextKeys {
 		delete(cs.lastBucketValue, ctxKey)
 	}
+
+	cs.metrics.Expire(expiredContextKeys, timestamp)
 }
 
 func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {

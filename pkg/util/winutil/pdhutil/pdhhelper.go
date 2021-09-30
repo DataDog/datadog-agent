@@ -29,6 +29,7 @@ var (
 	procPdhCloseQuery               = modPdhDll.NewProc("PdhCloseQuery")
 	procPdhOpenQuery                = modPdhDll.NewProc("PdhOpenQuery")
 	procPdhRemoveCounter            = modPdhDll.NewProc("PdhRemoveCounter")
+	procPdhGetFormattedCounterArray = modPdhDll.NewProc("PdhGetFormattedCounterArrayW")
 )
 
 var (

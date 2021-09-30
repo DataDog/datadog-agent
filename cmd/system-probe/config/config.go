@@ -180,6 +180,11 @@ func load(configPath string) (*Config, error) {
 		cfg.Set("network_config.enabled", true)
 	}
 
+	if !cfg.GetBool("network_config.enabled") && cfg.GetBool("service_monitoring_config.enabled") {
+		log.Info("service_monitoring.enabled detected: enabling system-probe with network module running.")
+		c.EnabledModules[NetworkTracerModule] = struct{}{}
+	}
+
 	if cfg.GetBool(key(spNS, "enable_tcp_queue_length")) {
 		log.Info("system_probe_config.enable_tcp_queue_length detected, will enable system-probe with TCP queue length check")
 		c.EnabledModules[TCPQueueLengthTracerModule] = struct{}{}

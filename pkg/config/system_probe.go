@@ -8,6 +8,7 @@ import (
 const (
 	spNS  = "system_probe_config"
 	netNS = "network_config"
+	smNS  = "service_monitoring_config"
 
 	defaultConnsMessageBatchSize = 600
 
@@ -138,6 +139,8 @@ func InitSystemProbeConfig(cfg Config) {
 	// nested within system_probe_config to not conflict with process-agent's process_config
 	cfg.BindEnvAndSetDefault(join(spNS, "process_config.enabled"), false, "DD_SYSTEM_PROBE_PROCESS_ENABLED")
 
+	// service monitoring
+	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
 }
 
 func join(pieces ...string) string {

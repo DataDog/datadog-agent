@@ -368,8 +368,8 @@ UINT doFinalizeInstall(CustomActionData &data)
         if (!bRet)
         {
             DWORD lastErr = GetLastError();
-            std::string lastErrStr = GetErrorMessageStr(lastErr);
-            WcaLog(LOGMSG_STANDARD, "CreateSymbolicLink: %s (%d)", lastErrStr.c_str(), lastErr);
+            auto lastErrStr = GetErrorMessageStrW(lastErr);
+            WcaLog(LOGMSG_STANDARD, "CreateSymbolicLink: %S (%d)", lastErrStr.c_str(), lastErr);
         }
         else
         {

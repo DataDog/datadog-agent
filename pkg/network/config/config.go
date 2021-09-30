@@ -13,6 +13,7 @@ import (
 const (
 	spNS  = "system_probe_config"
 	netNS = "network_config"
+	smNS  = "service_monitoring_config"
 
 	defaultUDPTimeoutSeconds       = 30
 	defaultUDPStreamTimeoutSeconds = 120
@@ -24,6 +25,9 @@ const (
 // Config stores all flags used by the network eBPF tracer
 type Config struct {
 	ebpf.Config
+
+	// ServiceMonitoringEnabled is whether the service monitoring feature is enabled or not
+	ServiceMonitoringEnabled bool
 
 	// CollectTCPConns specifies whether the tracer should collect traffic statistics for TCP connections
 	CollectTCPConns bool
@@ -162,6 +166,8 @@ func New() *Config {
 
 	c := &Config{
 		Config: *ebpf.NewConfig(),
+
+		ServiceMonitoringEnabled: cfg.GetBool(join(smNS, "enabled")),
 
 		CollectTCPConns:  !cfg.GetBool(join(spNS, "disable_tcp")),
 		TCPConnTimeout:   2 * time.Minute,

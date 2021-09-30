@@ -110,6 +110,7 @@
 /docs/trace-agent/                      @DataDog/documentation @DataDog/agent-apm
 /docs/cluster-agent/                    @DataDog/documentation @DataDog/container-integrations
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-core
+/docs/cloud-workload-security/          @DataDog/documentation @DataDog/agent-security
 
 /google-marketplace/                    @DataDog/container-integrations
 
@@ -196,6 +197,7 @@
 /pkg/snmp/                              @DataDog/infrastructure-integrations
 /pkg/appsec/                            @DataDog/agent-appsec
 /pkg/config/appsec.go                   @DataDog/agent-appsec
+/pkg/workloadmeta/                      @DataDog/container-integrations
 
 /pkg-config/                            @DataDog/agent-platform
 
