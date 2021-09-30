@@ -794,4 +794,4 @@ def upload_integration_to_cache(ctx, python, bucket, integrations_dir, build_dir
     target_name = CACHED_WHEEL_DIRECTORY_PATTERN.format(hash=hash, python_version=python) + os.path.basename(wheel_path)
     print("Caching wheel {}".format(target_name))
     # NOTE: on Windows, the awscli is usually in program files, so we have the executable
-    ctx.run("\"{}\" s3 cp {} s3://{}/{}".format(awscli, wheel_path, bucket, target_name))
+    ctx.run("\"{}\" s3 cp {} s3://{}/{} --acl public-read".format(awscli, wheel_path, bucket, target_name))
