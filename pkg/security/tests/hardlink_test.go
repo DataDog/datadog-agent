@@ -8,7 +8,6 @@
 package tests
 
 import (
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"testing"
@@ -44,13 +43,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 	}
 	defer os.Remove(testOrigExecutable)
 
-	input, err := ioutil.ReadFile(executable)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = ioutil.WriteFile(testOrigExecutable, input, 0755)
-	if err != nil {
+	if err := copyFile(executable, testOrigExecutable, 0755); err != nil {
 		t.Fatal(err)
 	}
 

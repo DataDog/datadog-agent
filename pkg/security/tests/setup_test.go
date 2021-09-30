@@ -13,6 +13,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"net"
 	"os"
@@ -255,6 +256,20 @@ func which(name string) string {
 		}
 	}
 	return executable
+}
+
+func copyFile(src string, dst string, mode fs.FileMode) error {
+	input, err := ioutil.ReadFile(src)
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(dst, input, mode)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func assertMode(t *testing.T, actualMode, expectedMode uint32, msgAndArgs ...interface{}) {

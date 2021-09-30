@@ -339,12 +339,17 @@ func (dr *DentryResolver) GetNameFromMap(mountID uint32, inode uint64, pathID ui
 
 	atomic.AddInt64(dr.hitsCounters[metrics.SegmentResolutionTag][metrics.KernelMapsTag], 1)
 
-	cacheKey := PathKey{MountID: mountID, Inode: inode}
-	cacheEntry := dr.getPathEntryFromPool(pathLeaf.Parent, pathLeaf.GetName())
-	if err := dr.cacheInode(cacheKey, cacheEntry); err != nil {
-		dr.pathEntryPool.Put(cacheEntry)
+	name := pathLeaf.GetName()
+
+	if !IsFakeInode(inode) {
+		cacheKey := PathKey{MountID: mountID, Inode: inode}
+		cacheEntry := dr.getPathEntryFromPool(pathLeaf.Parent, name)
+		if err := dr.cacheInode(cacheKey, cacheEntry); err != nil {
+			dr.pathEntryPool.Put(cacheEntry)
+		}
 	}
-	return cacheEntry.Name, nil
+
+	return name, nil
 }
 
 // GetName resolves a couple of mountID/inode to a path
@@ -421,7 +426,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 	depth := int64(0)
 
 	var keys []PathKey
-	var entries []PathEntry
+	var entries []*PathEntry
 
 	// Fetch path recursively
 	for i := 0; i <= model.MaxPathDepth; i++ {
@@ -485,8 +490,8 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		}
 	} else {
 		// nothing inserted in cache, release everything
-		for _, v := range toAdd {
-			dr.pathEntryPool.Put(v)
+		for _, entry := range entries {
+			dr.pathEntryPool.Put(entry)
 		}
 
 		atomic.AddInt64(dr.missCounters[metrics.PathResolutionTag][metrics.KernelMapsTag], 1)
@@ -545,16 +550,12 @@ func (dr *DentryResolver) GetNameFromERPC(mountID uint32, inode uint64, pathID u
 	return seg, nil
 }
 
-func (dr *DentryResolver) cacheEntries(keys []PathKey, entries []PathEntry) {
-	var cacheEntry PathEntry
+func (dr *DentryResolver) cacheEntries(keys []PathKey, entries []*PathEntry) {
+	var cacheEntry *PathEntry
 
 	for i, k := range keys {
 		if i >= len(entries) {
 			break
-		}
-
-		if IsFakeInode(k.Inode) {
-			continue
 		}
 
 		cacheEntry = entries[i]
