@@ -454,6 +454,7 @@ core,github.com/jstemmer/go-junit-report,MIT,Joel Stemmer
 core,github.com/jstemmer/go-junit-report/formatter,MIT,Joel Stemmer
 core,github.com/jstemmer/go-junit-report/parser,MIT,Joel Stemmer
 core,github.com/kardianos/osext,BSD-3-Clause,The Go Authors
+core,github.com/karrick/godirwalk,BSD-2-Clause,Karrick McDermott
 core,github.com/kjk/lzma,BSD-3-Clause,Andrei Vieru
 core,github.com/klauspost/compress/flate,BSD-3-Clause,Klaus Post | The Go Authors
 core,github.com/klauspost/compress/fse,BSD-3-Clause,Klaus Post | The Go Authors
