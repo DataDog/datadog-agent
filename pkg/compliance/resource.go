@@ -253,6 +253,8 @@ const (
 	DockerNetworkFieldName    = "network.name"
 	DockerNetworkFieldInspect = "network.inspect"
 
+	DockerInfoInspect = "info.inspect"
+
 	DockerVersionFieldVersion       = "docker.version"
 	DockerVersionFieldAPIVersion    = "docker.apiVersion"
 	DockerVersionFieldPlatform      = "docker.platform"
