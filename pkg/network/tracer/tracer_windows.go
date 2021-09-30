@@ -121,13 +121,13 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.state.RemoveExpiredClients(time.Now())
 
 	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, closedConnStats, t.reverseDNS.GetDNSStats(), nil)
-	conns := delta.Connections
+	conns := delta.Conns
 	var ips []util.Address
-	for _, conn := range delta.Connections {
+	for _, conn := range delta.Conns {
 		ips = append(ips, conn.Source, conn.Dest)
 	}
 	names := t.reverseDNS.Resolve(ips)
-	return &network.Connections{Conns: conns, DNS: names}, nil
+	return &network.Connections{BufferedData: delta.BufferedData, DNS: names}, nil
 }
 
 // GetStats returns a map of statistics about the current tracer's internal state

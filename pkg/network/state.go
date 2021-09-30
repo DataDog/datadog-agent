@@ -60,9 +60,8 @@ type State interface {
 
 // Delta represents a delta of network data compared to the last call to State.
 type Delta struct {
-	Connections []ConnectionStats
-	HTTP        map[http.Key]http.RequestStats
-	Buffer      *ClientBuffer
+	BufferedData
+	HTTP map[http.Key]http.RequestStats
 }
 
 type telemetry struct {
@@ -190,9 +189,11 @@ func (ns *networkState) GetDelta(
 		clientBuffer := clientPool.Get(id)
 		clientBuffer.Append(active)
 		return Delta{
-			Connections: clientBuffer.Connections(),
-			HTTP:        ns.getHTTPDelta(id),
-			Buffer:      clientBuffer,
+			BufferedData: BufferedData{
+				Conns:  clientBuffer.Connections(),
+				buffer: clientBuffer,
+			},
+			HTTP: ns.getHTTPDelta(id),
 		}
 	}
 
@@ -223,9 +224,11 @@ func (ns *networkState) GetDelta(
 	}
 
 	return Delta{
-		Connections: conns,
-		HTTP:        ns.getHTTPDelta(id),
-		Buffer:      clientBuffer,
+		BufferedData: BufferedData{
+			Conns:  clientBuffer.Connections(),
+			buffer: clientBuffer,
+		},
+		HTTP: ns.getHTTPDelta(id),
 	}
 }
 
@@ -435,7 +438,7 @@ func (ns *networkState) newClient(clientID string) (*client, bool) {
 }
 
 // mergeConnections return the connections and takes care of updating their last stat counters
-func (ns *networkState) mergeConnections(id string, active map[string]*ConnectionStats, buffer *ClientBuffer) {
+func (ns *networkState) mergeConnections(id string, active map[string]*ConnectionStats, buffer *clientBuffer) {
 	now := time.Now()
 
 	client := ns.clients[id]

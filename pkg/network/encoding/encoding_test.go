@@ -112,48 +112,50 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 func TestSerialization(t *testing.T) {
 	var httpReqStats http.RequestStats
 	in := &network.Connections{
-		Conns: []network.ConnectionStats{
-			{
-				Source:               util.AddressFromString("10.1.1.1"),
-				Dest:                 util.AddressFromString("10.2.2.2"),
-				MonotonicSentBytes:   1,
-				LastSentBytes:        2,
-				MonotonicRecvBytes:   100,
-				LastRecvBytes:        101,
-				LastUpdateEpoch:      50,
-				LastTCPEstablished:   1,
-				LastTCPClosed:        1,
-				MonotonicRetransmits: 201,
-				LastRetransmits:      201,
-				Pid:                  6000,
-				NetNS:                7,
-				SPort:                1000,
-				DPort:                9000,
-				IPTranslation: &network.IPTranslation{
-					ReplSrcIP:   util.AddressFromString("20.1.1.1"),
-					ReplDstIP:   util.AddressFromString("20.1.1.1"),
-					ReplSrcPort: 40,
-					ReplDstPort: 80,
-				},
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{
+					Source:               util.AddressFromString("10.1.1.1"),
+					Dest:                 util.AddressFromString("10.2.2.2"),
+					MonotonicSentBytes:   1,
+					LastSentBytes:        2,
+					MonotonicRecvBytes:   100,
+					LastRecvBytes:        101,
+					LastUpdateEpoch:      50,
+					LastTCPEstablished:   1,
+					LastTCPClosed:        1,
+					MonotonicRetransmits: 201,
+					LastRetransmits:      201,
+					Pid:                  6000,
+					NetNS:                7,
+					SPort:                1000,
+					DPort:                9000,
+					IPTranslation: &network.IPTranslation{
+						ReplSrcIP:   util.AddressFromString("20.1.1.1"),
+						ReplDstIP:   util.AddressFromString("20.1.1.1"),
+						ReplSrcPort: 40,
+						ReplDstPort: 80,
+					},
 
-				Type:      network.UDP,
-				Family:    network.AFINET6,
-				Direction: network.LOCAL,
+					Type:      network.UDP,
+					Family:    network.AFINET6,
+					Direction: network.LOCAL,
 
-				DNSCountByRcode: map[uint32]uint32{0: 1},
-				DNSStatsByDomainByQueryType: map[*intern.Value]map[dns.QueryType]dns.Stats{
-					intern.GetByString("foo.com"): {
-						dns.TypeA: {
-							Timeouts:          0,
-							SuccessLatencySum: 0,
-							FailureLatencySum: 0,
-							CountByRcode:      map[uint32]uint32{0: 1},
+					DNSCountByRcode: map[uint32]uint32{0: 1},
+					DNSStatsByDomainByQueryType: map[*intern.Value]map[dns.QueryType]dns.Stats{
+						intern.GetByString("foo.com"): {
+							dns.TypeA: {
+								Timeouts:          0,
+								SuccessLatencySum: 0,
+								FailureLatencySum: 0,
+								CountByRcode:      map[uint32]uint32{0: 1},
+							},
 						},
 					},
-				},
-				Via: &network.Via{
-					Subnet: network.Subnet{
-						Alias: "subnet-foo",
+					Via: &network.Via{
+						Subnet: network.Subnet{
+							Alias: "subnet-foo",
+						},
 					},
 				},
 			},
@@ -285,7 +287,11 @@ func TestSerialization(t *testing.T) {
 		assert.Equal("application/json", marshaler.ContentType())
 
 		// Empty connection batch
-		blob, err := marshaler.Marshal(&network.Connections{Conns: []network.ConnectionStats{{}}})
+		blob, err := marshaler.Marshal(&network.Connections{
+			BufferedData: network.BufferedData{
+				Conns: []network.ConnectionStats{{}},
+			},
+		})
 		require.NoError(t, err)
 
 		res := struct {
@@ -426,18 +432,20 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 
 	var httpReqStats http.RequestStats
 	in := &network.Connections{
-		Conns: []network.ConnectionStats{
-			{
-				Source: localhost,
-				Dest:   localhost,
-				SPort:  clientPort,
-				DPort:  serverPort,
-			},
-			{
-				Source: localhost,
-				Dest:   localhost,
-				SPort:  serverPort,
-				DPort:  clientPort,
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{
+					Source: localhost,
+					Dest:   localhost,
+					SPort:  clientPort,
+					DPort:  serverPort,
+				},
+				{
+					Source: localhost,
+					Dest:   localhost,
+					SPort:  serverPort,
+					DPort:  clientPort,
+				},
 			},
 		},
 		HTTP: map[http.Key]http.RequestStats{
@@ -516,12 +524,14 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 	)
 
 	in := &network.Connections{
-		Conns: []network.ConnectionStats{
-			{
-				Source: util.AddressFromString("10.0.15.1"),
-				SPort:  uint16(60000),
-				Dest:   util.AddressFromString("172.217.10.45"),
-				DPort:  uint16(8080),
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{
+					Source: util.AddressFromString("10.0.15.1"),
+					SPort:  uint16(60000),
+					Dest:   util.AddressFromString("172.217.10.45"),
+					DPort:  uint16(8080),
+				},
 			},
 		},
 	}

@@ -6,9 +6,9 @@ var clientPool *clientBufferPool
 
 const defaultClientBufferSize = 1024
 
-// ClientBuffer amortizes the allocations of objects generated when a client
+// clientBuffer amortizes the allocations of objects generated when a client
 // calls `GetConnections`.
-type ClientBuffer struct {
+type clientBuffer struct {
 	clientID string
 	*ConnectionBuffer
 	// TODO: consider recycling objects for HTTP and DNS data as well
@@ -16,10 +16,10 @@ type ClientBuffer struct {
 
 type clientBufferPool struct {
 	mux            sync.Mutex
-	bufferByClient map[string]*ClientBuffer
+	bufferByClient map[string]*clientBuffer
 }
 
-func (p *clientBufferPool) Get(clientID string) *ClientBuffer {
+func (p *clientBufferPool) Get(clientID string) *clientBuffer {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 
@@ -29,13 +29,13 @@ func (p *clientBufferPool) Get(clientID string) *ClientBuffer {
 		return buffer
 	}
 
-	return &ClientBuffer{
+	return &clientBuffer{
 		clientID:         clientID,
 		ConnectionBuffer: NewConnectionBuffer(defaultClientBufferSize),
 	}
 }
 
-func (p *clientBufferPool) Put(b *ClientBuffer) {
+func (p *clientBufferPool) Put(b *clientBuffer) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 
@@ -51,7 +51,7 @@ func (p *clientBufferPool) RemoveExpiredClient(clientID string) {
 
 // Reclaim memory from the `Connections` underlying buffer
 func Reclaim(c *Connections) {
-	b := c.Buffer
+	b := c.buffer
 	if b == nil {
 		return
 	}
@@ -61,6 +61,6 @@ func Reclaim(c *Connections) {
 
 func init() {
 	clientPool = &clientBufferPool{
-		bufferByClient: make(map[string]*ClientBuffer),
+		bufferByClient: make(map[string]*clientBuffer),
 	}
 }

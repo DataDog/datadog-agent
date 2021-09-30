@@ -297,8 +297,8 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.activeBuffer.Reset()
 	t.closedBuffer.Reset()
 
-	ips := make([]util.Address, 0, len(delta.Connections)*2)
-	for _, conn := range delta.Connections {
+	ips := make([]util.Address, 0, len(delta.Conns)*2)
+	for _, conn := range delta.Conns {
 		ips = append(ips, conn.Source, conn.Dest)
 	}
 	names := t.reverseDNS.Resolve(ips)
@@ -306,12 +306,11 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	rctm := t.getRuntimeCompilationTelemetry()
 
 	return &network.Connections{
-		Conns:                       delta.Connections,
+		BufferedData:                delta.BufferedData,
 		DNS:                         names,
 		HTTP:                        delta.HTTP,
 		ConnTelemetry:               ctm,
 		CompilationTelemetryByAsset: rctm,
-		Buffer:                      delta.Buffer,
 	}, nil
 }
 
@@ -552,7 +551,12 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
-	return &network.Connections{Conns: activeBuffer.Connections()}, nil
+	return &network.Connections{
+		BufferedData: network.BufferedData{
+			Conns: activeBuffer.Connections(),
+		},
+	}, nil
+
 }
 
 // connectionExpired returns true if the passed in connection has expired

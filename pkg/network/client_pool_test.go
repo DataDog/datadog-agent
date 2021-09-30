@@ -8,7 +8,7 @@ import (
 
 func TestClientBufferPool(t *testing.T) {
 	pool := &clientBufferPool{
-		bufferByClient: make(map[string]*ClientBuffer),
+		bufferByClient: make(map[string]*clientBuffer),
 	}
 
 	buffer := pool.Get("client_id")
