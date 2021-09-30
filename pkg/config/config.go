@@ -229,6 +229,11 @@ func InitConfig(config Config) {
 	// The number of commits before expiring a context. The value is 2 to handle
 	// the case where a check miss to send a metric.
 	config.BindEnvAndSetDefault("check_sampler_bucket_commits_count_expiry", 2)
+	// The number of seconds before removing stateful metric data after expiring a
+	// context. Default is 25h, to minimise problems for checks that emit metircs
+	// only occasionally.
+	config.BindEnvAndSetDefault("check_sampler_stateful_metric_expiration_time", 25*time.Hour)
+	config.BindEnvAndSetDefault("check_sampler_expire_metrics", true)
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 
 	// overridden in IoT Agent main
@@ -865,6 +870,7 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.strip_proc_arguments")
 	config.SetKnown("process_config.windows.args_refresh_interval")
 	config.SetKnown("process_config.windows.add_new_args")
+	config.SetKnown("process_config.windows.use_perf_counters")
 	config.SetKnown("process_config.additional_endpoints.*")
 	config.SetKnown("process_config.container_source")
 	config.SetKnown("process_config.intervals.connections")

@@ -43,3 +43,7 @@ func (c *Counter) flush(timestamp float64) ([]*Serie, error) {
 		},
 	}, nil
 }
+
+func (c *Counter) isStateful() bool {
+	return false
+}

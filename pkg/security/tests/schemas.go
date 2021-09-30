@@ -9,6 +9,7 @@ package tests
 
 import (
 	"bytes"
+	"math/big"
 	"net/http"
 	"os"
 	"testing"
@@ -56,8 +57,33 @@ func (f *AssetFile) Stat() (os.FileInfo, error) {
 	return nil, nil
 }
 
+// Define the format inode checker
+type ValidInodeFormatChecker struct{}
+
+// IsFormat check inode format
+func (v ValidInodeFormatChecker) IsFormat(input interface{}) bool {
+
+	var inode uint64
+	switch t := input.(type) {
+	case float64:
+		inode = uint64(t)
+	case *big.Float:
+		inode, _ = t.Uint64()
+	default:
+		return false
+	}
+
+	if sprobe.IsFakeInode(inode) {
+		return false
+	}
+
+	return true
+}
+
 func validateSchema(t *testing.T, event *sprobe.Event, path string) bool {
 	fs := NewAssetFileSystem()
+
+	gojsonschema.FormatCheckers.Add("ValidInode", ValidInodeFormatChecker{})
 
 	documentLoader := gojsonschema.NewStringLoader(event.String())
 	schemaLoader := gojsonschema.NewReferenceLoaderFileSystem(path, fs)
@@ -99,4 +125,8 @@ func validateChownSchema(t *testing.T, event *sprobe.Event) bool {
 
 func validateSELinuxSchema(t *testing.T, event *sprobe.Event) bool {
 	return validateSchema(t, event, "file:///selinux.schema.json")
+}
+
+func validateLinkSchema(t *testing.T, event *sprobe.Event) bool {
+	return validateSchema(t, event, "file:///link.schema.json")
 }

@@ -161,6 +161,11 @@ func allERPCRet() []eRPCRet {
 	return []eRPCRet{eRPCok, eRPCCacheMiss, eRPCBufferSize, eRPCWritePageFault, eRPCTailCallError, eRPCReadPageFault, eRPCUnknownError}
 }
 
+// IsFakeInode returns whether the given inode is a fake inode
+func IsFakeInode(inode uint64) bool {
+	return inode>>32 == fakeInodeMSW
+}
+
 // SendStats sends the dentry resolver metrics
 func (dr *DentryResolver) SendStats() error {
 	for resolution, hitsCounters := range dr.hitsCounters {
@@ -445,7 +450,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 	if err == nil {
 		for k, v := range toAdd {
 			// do not cache fake path keys in the case of rename events
-			if k.Inode>>32 != fakeInodeMSW {
+			if !IsFakeInode(k.Inode) {
 				_ = dr.cacheInode(k, v)
 			}
 		}
@@ -587,7 +592,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 
 	if resolutionErr == nil {
 		for i, k := range keys {
-			if k.Inode>>32 == fakeInodeMSW {
+			if IsFakeInode(k.Inode) {
 				continue
 			}
 

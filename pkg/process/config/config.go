@@ -52,6 +52,14 @@ const (
 	OOMKillCheckName        = "OOM Kill"
 	TCPQueueLengthCheckName = "TCP queue length"
 	ProcessModuleCheckName  = "Process Module"
+
+	ProcessCheckDefaultInterval          = 10 * time.Second
+	RTProcessCheckDefaultInterval        = 2 * time.Second
+	ContainerCheckDefaultInterval        = 10 * time.Second
+	RTContainerCheckDefaultInterval      = 2 * time.Second
+	ConnectionsCheckDefaultInterval      = 30 * time.Second
+	PodCheckDefaultInterval              = 10 * time.Second
+	ProcessDiscoveryCheckDefaultInterval = 4 * time.Hour
 )
 
 var (
@@ -76,6 +84,8 @@ type WindowsConfig struct {
 	ArgsRefreshInterval int
 	// Controls getting process arguments immediately when a new process is discovered
 	AddNewArgs bool
+	// UsePerfCounters enables new process check using performance counters for process collection
+	UsePerfCounters bool
 }
 
 // AgentConfig is the global config for the process-agent. This information
@@ -220,13 +230,13 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		// Check config
 		EnabledChecks: enabledChecks,
 		CheckIntervals: map[string]time.Duration{
-			ProcessCheckName:     10 * time.Second,
-			RTProcessCheckName:   2 * time.Second,
-			ContainerCheckName:   10 * time.Second,
-			RTContainerCheckName: 2 * time.Second,
-			ConnectionsCheckName: 30 * time.Second,
-			PodCheckName:         10 * time.Second,
-			DiscoveryCheckName:   4 * time.Hour,
+			ProcessCheckName:     ProcessCheckDefaultInterval,
+			RTProcessCheckName:   RTProcessCheckDefaultInterval,
+			ContainerCheckName:   ContainerCheckDefaultInterval,
+			RTContainerCheckName: RTContainerCheckDefaultInterval,
+			ConnectionsCheckName: ConnectionsCheckDefaultInterval,
+			PodCheckName:         PodCheckDefaultInterval,
+			DiscoveryCheckName:   ProcessDiscoveryCheckDefaultInterval,
 		},
 
 		// DataScrubber to hide command line sensitive words
@@ -418,6 +428,7 @@ func loadEnvVariables() {
 		{"DD_PROCESS_AGENT_MAX_PER_MESSAGE", "process_config.max_per_message"},
 		{"DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "process_config.max_ctr_procs_per_message"},
 		{"DD_PROCESS_AGENT_CMD_PORT", "process_config.cmd_port"},
+		{"DD_PROCESS_AGENT_WINDOWS_USE_PERF_COUNTERS", "process_config.windows.use_perf_counters"},
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},

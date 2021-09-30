@@ -252,9 +252,8 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	logChannel := make(chan *logConfig.ChannelMessage)
 
-	forwarderTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
 	metricAgent := &metrics.ServerlessMetricAgent{}
-	metricAgent.Start(forwarderTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
+	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	serverlessDaemon.SetStatsdServer(metricAgent)
 	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"))
 

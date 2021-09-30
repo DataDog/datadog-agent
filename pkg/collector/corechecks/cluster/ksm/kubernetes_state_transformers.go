@@ -320,11 +320,6 @@ func trimJobTag(tag string) (string, bool) {
 
 // validateJob detects active jobs and strips the timestamp from the job_name tag
 func validateJob(val float64, tags []string) ([]string, bool) {
-	if val != 1.0 {
-		// Only consider active metrics
-		return nil, false
-	}
-
 	for i, tag := range tags {
 		split := strings.Split(tag, ":")
 		if len(split) == 2 && split[0] == "kube_job" || split[0] == "job" || split[0] == "job_name" {
@@ -337,7 +332,7 @@ func validateJob(val float64, tags []string) ([]string, bool) {
 		}
 	}
 
-	return tags, true
+	return tags, val == 1.0
 }
 
 // jobServiceCheck sends a service check for jobs
@@ -359,9 +354,8 @@ func jobStatusFailedTransformer(s aggregator.Sender, name string, metric ksmstor
 
 // jobMetric sends a gauge for job status
 func jobMetric(s aggregator.Sender, metric ksmstore.DDMetric, metricName string, hostname string, tags []string) {
-	if strippedTags, valid := validateJob(metric.Val, tags); valid {
-		s.Gauge(metricName, 1, hostname, strippedTags)
-	}
+	strippedTags, _ := validateJob(metric.Val, tags)
+	s.Gauge(metricName, metric.Val, hostname, strippedTags)
 }
 
 // resourcequotaTransformer generates dedicated metrics per resource per type from the kube_resourcequota metric

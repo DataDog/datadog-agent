@@ -1,4 +1,4 @@
-go.sum -diff -merge
+go.sum -diff -merge linguist-generated=true
 *.pb.go -diff -merge
 *.pb.go linguist-generated=true
 *.pb.gw.go -diff -merge

@@ -388,7 +388,7 @@ func StartAgent() error {
 	// Start OTLP intake
 	if otlp.IsEnabled(config.Datadog) {
 		var err error
-		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, config.Datadog)
+		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, config.Datadog, s)
 		if err != nil {
 			log.Errorf("Could not start OTLP: %s", err)
 		}

@@ -129,7 +129,7 @@ func TestTagBuilder(t *testing.T) {
 	tagger.Init()
 	defer tagger.Stop()
 
-	tagger.store.processTagInfo([]*collectors.TagInfo{
+	tagger.store.ProcessTagInfo([]*collectors.TagInfo{
 		{
 			Entity:       "entity_name",
 			Source:       "stream",
@@ -155,7 +155,7 @@ func TestFetchAllCached(t *testing.T) {
 	tagger.Init()
 	defer tagger.Stop()
 
-	tagger.store.processTagInfo([]*collectors.TagInfo{
+	tagger.store.ProcessTagInfo([]*collectors.TagInfo{
 		{
 			Entity:       "entity_name",
 			Source:       "stream",
@@ -202,7 +202,7 @@ func TestFetchOneCached(t *testing.T) {
 	tagger.Init()
 	defer tagger.Stop()
 
-	tagger.store.processTagInfo([]*collectors.TagInfo{
+	tagger.store.ProcessTagInfo([]*collectors.TagInfo{
 		{
 			Entity:      "entity_name",
 			Source:      "stream",
@@ -239,7 +239,7 @@ func TestEmptyEntity(t *testing.T) {
 	tagger.Init()
 	defer tagger.Stop()
 
-	tagger.store.processTagInfo([]*collectors.TagInfo{
+	tagger.store.ProcessTagInfo([]*collectors.TagInfo{
 		{
 			Entity:      "entity_name",
 			Source:      "stream",
@@ -326,7 +326,7 @@ func TestSafeCache(t *testing.T) {
 	tagger.Init()
 	defer tagger.Stop()
 
-	tagger.store.processTagInfo([]*collectors.TagInfo{
+	tagger.store.ProcessTagInfo([]*collectors.TagInfo{
 		{
 			Entity:      "entity_name",
 			Source:      "pull",

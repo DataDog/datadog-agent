@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"go.opentelemetry.io/collector/consumer/consumererror"
+	"go.uber.org/multierr"
 )
 
 // getReceiverHost gets the receiver host for the OTLP endpoint in a given config.
@@ -64,12 +64,20 @@ func fromExperimentalConfig(cfg config.Config) (PipelineConfig, error) {
 		errs = append(errs, fmt.Errorf("internal trace port is invalid: %w", err))
 	}
 
+	metricsEnabled := cfg.GetBool(config.ExperimentalOTLPMetricsEnabled)
+	tracesEnabled := cfg.GetBool(config.ExperimentalOTLPTracesEnabled)
+	if !metricsEnabled && !tracesEnabled {
+		errs = append(errs, fmt.Errorf("at least one OTLP signal needs to be enabled"))
+	}
+
 	return PipelineConfig{
-		BindHost:  getReceiverHost(cfg),
-		HTTPPort:  httpPort,
-		GRPCPort:  gRPCPort,
-		TracePort: tracePort,
-	}, consumererror.Combine(errs)
+		BindHost:       getReceiverHost(cfg),
+		HTTPPort:       httpPort,
+		GRPCPort:       gRPCPort,
+		TracePort:      tracePort,
+		MetricsEnabled: metricsEnabled,
+		TracesEnabled:  tracesEnabled,
+	}, multierr.Combine(errs...)
 }
 
 // IsEnabled checks if OTLP pipeline is enabled in a given config.
