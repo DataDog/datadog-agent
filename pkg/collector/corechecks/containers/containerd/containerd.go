@@ -187,30 +187,6 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 			continue
 		}
 
-		metricTask, errTask := cu.TaskMetrics(ctn)
-		if errTask != nil {
-			log.Tracef("Could not retrieve metrics from task %s: %s", ctn.ID()[:12], errTask.Error())
-			continue
-		}
-
-		anyMetrics, err := typeurl.UnmarshalAny(metricTask.Data)
-		if err != nil {
-			log.Errorf("Can't convert the metrics data from %s", ctn.ID())
-			continue
-		}
-
-		var linuxMetrics *v1.Metrics
-		var windowsStats *wstats.Statistics
-		switch metricsVal := anyMetrics.(type) {
-		case *v1.Metrics:
-			linuxMetrics = metricsVal
-		case *wstats.Statistics:
-			windowsStats = metricsVal
-		default:
-			log.Errorf("Can't convert the metrics data from %s", ctn.ID())
-			continue
-		}
-
 		tags, err := collectTags(info)
 		if err != nil {
 			log.Errorf("Could not collect tags for container %s: %s", ctn.ID()[:12], err)
@@ -227,10 +203,28 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 		currentTime := time.Now()
 		computeUptime(sender, info, currentTime, tags)
 
-		if linuxMetrics != nil {
-			computeLinuxSpecificMetrics(linuxMetrics, sender, cu, ctn, info.CreatedAt, currentTime, tags)
-		} else if windowsMetrics := windowsStats.GetWindows(); windowsMetrics != nil {
-			computeWindowsSpecificMetrics(windowsMetrics, sender, tags)
+		metricTask, errTask := cu.TaskMetrics(ctn)
+		if errTask != nil {
+			log.Tracef("Could not retrieve metrics from task %s: %s", ctn.ID()[:12], errTask.Error())
+			continue
+		}
+
+		anyMetrics, err := typeurl.UnmarshalAny(metricTask.Data)
+		if err != nil {
+			log.Errorf("Can't convert the metrics data from %s", ctn.ID())
+			continue
+		}
+
+		switch metricsVal := anyMetrics.(type) {
+		case *v1.Metrics:
+			computeLinuxSpecificMetrics(metricsVal, sender, cu, ctn, info.CreatedAt, currentTime, tags)
+		case *wstats.Statistics:
+			if windowsMetrics := metricsVal.GetWindows(); windowsMetrics != nil {
+				computeWindowsSpecificMetrics(windowsMetrics, sender, tags)
+			}
+		default:
+			log.Errorf("Can't convert the metrics data from %s", ctn.ID())
+			continue
 		}
 
 		size, err := cu.ImageSize(ctn)
