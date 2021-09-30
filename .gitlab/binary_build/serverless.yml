@@ -16,24 +16,11 @@ build_serverless-deb_x64:
     - export DELTA=$(awk -v current_size=$CURRENT_SIZE_IN_BYTES -v baseline=$BASELINE_SIZE_IN_BYTES 'BEGIN { print  100 * ((current_size - baseline) / baseline) }')
     - echo $DELTA
     - export RESULT=$(awk -v delta=$DELTA -v allowed_delta=$MAX_ALLOWED_DELTA_IN_PERCENT 'BEGIN { print  (delta - allowed_delta) }')
-    - (($RESULT < 0)) && exit 0 || (echo "Extension binary size is too big, please investigate/reach \#serverless" && exit 1)
+    - [[ $RESULT == -* ]] && exit 0 || (echo "Extension binary size is too big, please investigate/reach \#serverless" && exit 1)
+
 build_serverless-deb_arm64:
   rules:
     !reference [.on_all_builds]
-  stage: binary_build
+  extends: .build_serverless-deb_x64ps
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  variables:
-    BASELINE_SIZE_IN_BYTES: 29717784
-    MAX_ALLOWED_DELTA_IN_PERCENT: 3
-  needs: ["linux_arm64_go_deps"]
-  before_script:
-    - !reference [.retrieve_linux_go_deps]
-  script:
-    - cd cmd/serverless && go build -ldflags="-w -s" -a -v -tags serverless
-    - export CURRENT_SIZE_IN_BYTES=$(ls -l serverless | awk '{print $5}')
-    - echo "Current extension size $CURRENT_SIZE_IN_BYTES bytes"
-    - export DELTA=$(awk -v current_size=$CURRENT_SIZE_IN_BYTES -v baseline=$BASELINE_SIZE_IN_BYTES 'BEGIN { print  100 * ((current_size - baseline) / baseline) }')
-    - echo $DELTA
-    - export RESULT=$(awk -v delta=$DELTA -v allowed_delta=$MAX_ALLOWED_DELTA_IN_PERCENT 'BEGIN { print  (delta - allowed_delta) }')
-    - (($RESULT < 0)) && exit 0 || (echo "Extension binary size is too big, please investigate/reach \#serverless" && exit 1)
