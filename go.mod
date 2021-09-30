@@ -206,7 +206,7 @@ require (
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
 	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
 	k8s.io/kube-state-metrics/v2 v2.1.1
-	k8s.io/kubernetes v1.20.5
+	k8s.io/kubernetes v1.20.11
 	k8s.io/metrics v0.20.11
 )
 
@@ -232,6 +232,7 @@ replace (
 	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.20.11
 	k8s.io/kubectl => k8s.io/kubectl v0.20.11
 	k8s.io/kubelet => k8s.io/kubelet v0.20.11
+	k8s.io/kubernetes => k8s.io/kubernetes v1.20.11
 	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.20.11
 	k8s.io/metrics => k8s.io/metrics v0.20.11
 	k8s.io/mount-utils => k8s.io/mount-utils v0.20.11
