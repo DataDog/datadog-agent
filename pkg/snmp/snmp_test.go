@@ -278,18 +278,46 @@ snmp_listener:
 	networkConf := conf.Configs[0]
 	assert.Equal(t, "default", networkConf.Namespace)
 
-	// Custom Namespace
+	// Custom Namespace in network_devices
 	config.Datadog.SetConfigType("yaml")
 	err = config.Datadog.ReadConfig(strings.NewReader(`
+network_devices:
+  namespace: ponyo
 snmp_listener:
   configs:
-   - community_string: someCommunityString
-     network_address: 127.1.0.0/30
-     namespace: hello
+  - community_string: someCommunityString
+    network_address: 127.1.0.0/30
 `))
 	assert.NoError(t, err)
 	conf, err = NewListenerConfig()
 	assert.NoError(t, err)
 	networkConf = conf.Configs[0]
-	assert.Equal(t, "hello", networkConf.Namespace)
+	assert.Equal(t, "ponyo", networkConf.Namespace)
+
+	// Custom Namespace in snmp_listener
+	config.Datadog.SetConfigType("yaml")
+	err = config.Datadog.ReadConfig(strings.NewReader(`
+snmp_listener:
+  namespace: totoro
+  configs:
+  - community_string: someCommunityString
+    network_address: 127.1.0.0/30
+  - community_string: someCommunityString
+    network_address: 127.2.0.0/30
+    namespace: mononoke
+`))
+	assert.NoError(t, err)
+	conf, err = NewListenerConfig()
+	assert.NoError(t, err)
+	assert.Equal(t, "totoro", conf.Configs[0].Namespace)
+	assert.Equal(t, "mononoke", conf.Configs[1].Namespace)
+}
+
+func TestFirstNonEmpty(t *testing.T) {
+	assert.Equal(t, firstNonEmpty(), "")
+	assert.Equal(t, firstNonEmpty("totoro"), "totoro")
+	assert.Equal(t, firstNonEmpty("", "mononoke"), "mononoke")
+	assert.Equal(t, firstNonEmpty("", "mononoke", "ponyo"), "mononoke")
+	assert.Equal(t, firstNonEmpty("", "", "ponyo"), "ponyo")
+	assert.Equal(t, firstNonEmpty("", "", ""), "")
 }

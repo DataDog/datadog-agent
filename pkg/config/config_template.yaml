@@ -633,6 +633,13 @@ api_key:
   #
   # min_collection_interval: 15
 
+  ## @param namespace - string - optional - default: default
+  ## Namespace can be used to disambiguate devices with same IPs.
+  ## Changing namespace will cause devices being recreated in NDM app.
+  ## Only available using corecheck SNMP integration with `loader: core` config.
+  #
+  # namespace: default
+
   ## @param configs - list - required
   ## The actual list of configurations used to discover SNMP devices in various subnets.
   ## Example:
@@ -753,6 +760,13 @@ api_key:
     ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
     #
     # min_collection_interval: 15
+
+    ## @param namespace - string - optional - default: default
+    ## Namespace can be used to disambiguate devices with same IPs.
+    ## Changing namespace will cause devices being recreated in NDM app.
+    ## Only available using corecheck SNMP integration with `loader: core` config.
+    #
+    # namespace: default
 
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
@@ -2437,17 +2451,6 @@ api_key:
 ###################################
 ## Network Devices Configuration ##
 ###################################
-
-## @param network_devices - custom object - optional
-## Configuration related to Network Devices.
-#
-# network_devices:
-
-  ## @param namespace - string - optional - default: default
-  ## Namespace can be used to disambiguate devices with the same IP.
-  ## Changing namespace will cause devices being recreated in NDM app.
-  #
-  # namespace: default
 
 ## @param snmp_traps_enabled - boolean - optional - default: false
 ## Set to true to enable collection of traps.
