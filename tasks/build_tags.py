@@ -98,7 +98,7 @@ TEST_TAGS = AGENT_TAGS.union(set(["clusterchecks"]))
 ### Tag exclusion lists
 
 # List of tags to always remove when not building on Linux
-LINUX_ONLY_TAGS = set(["containerd", "cri", "netcgo", "systemd", "jetson", "linux_bpf"])
+LINUX_ONLY_TAGS = set(["cri", "netcgo", "systemd", "jetson", "linux_bpf"])
 
 # List of tags to always remove when building on Windows
 WINDOWS_EXCLUDE_TAGS = set(["linux_bpf"])
