@@ -35,10 +35,10 @@ type TrafficCaptureReader struct {
 }
 
 // NewTrafficCaptureReader creates a TrafficCaptureReader instance
-func NewTrafficCaptureReader(path string, depth int) (*TrafficCaptureReader, error) {
+func NewTrafficCaptureReader(path string, depth int, mmap bool) (*TrafficCaptureReader, error) {
 
 	// MMap file so that we can have reasonable performance with very large files
-	c, err := getFileMap(path)
+	c, err := getFileMap(path, mmap)
 	if err != nil {
 		fmt.Printf("Unable to map file: %v\n", err)
 		return nil, err

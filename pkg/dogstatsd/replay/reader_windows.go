@@ -9,6 +9,7 @@ package replay
 
 import (
 	"errors"
+	"io/ioutil"
 	"os"
 	"reflect"
 	"sync"
@@ -33,7 +34,11 @@ func (m *memoryMap) header() *reflect.SliceHeader {
 	return (*reflect.SliceHeader)(unsafe.Pointer(m))
 }
 
-func getFileMap(path string) ([]byte, error) {
+func getFileMap(path string, mmap bool) ([]byte, error) {
+
+	if !mmap {
+		return ioutil.ReadFile(path)
+	}
 
 	f, err := os.Open(path)
 	if err != nil {

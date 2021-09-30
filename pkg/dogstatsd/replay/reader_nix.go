@@ -8,12 +8,17 @@
 package replay
 
 import (
+	"io/ioutil"
 	"os"
 
 	"golang.org/x/sys/unix"
 )
 
-func getFileMap(path string) ([]byte, error) {
+func getFileMap(path string, mmap bool) ([]byte, error) {
+
+	if !mmap {
+		return ioutil.ReadFile(path)
+	}
 
 	f, err := os.Open(path)
 	if err != nil {
