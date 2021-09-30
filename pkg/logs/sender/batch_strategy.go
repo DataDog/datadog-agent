@@ -21,6 +21,7 @@ import (
 var (
 	tlmDroppedTooLarge = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
 	tlmSenderWaitTime  = telemetry.NewGauge("logs_sender_batch_strategy_gauge", "sender_wait", nil, "Time spent waiting for a sender")
+	tlmInputSize       = telemetry.NewGauge("logs_sender_batch_strategy", "input_buffer", nil, "Input buffer size")
 )
 
 // batchStrategy contains all the logic to send logs in batch.
@@ -96,10 +97,13 @@ func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *m
 	for {
 		select {
 		case m, isOpen := <-inputChan:
+
 			if !isOpen {
 				// inputChan has been closed, no more payloads are expected
 				return
 			}
+			bufferLen := len(inputChan)
+			tlmInputSize.Set(float64(bufferLen))
 			s.processMessage(m, outputChan, send)
 		case <-flushTicker.C:
 			// the first message that was added to the buffer has been here for too long, send the payload now
