@@ -38,7 +38,7 @@ done
 # Comment out the if and fi lines to test anchore scanning on any branch.
 if [ ! -z "${CI_COMMIT_TAG}" ] || [ "${CI_COMMIT_BRANCH}" = "master" ]; then
     # for Anchore use publicly accessible image tag
-    DOCKER_TAG="${REGISTRY}/${ORGANIZATION}/${REGISTRY_DOCKERHUB}:${IMAGE_TAG}"
+    DOCKER_TAG="${REGISTRY_DOCKERHUB}/${ORGANIZATION}/${IMAGE_REPO}:${IMAGE_TAG}"
     echo "Scanning image ${DOCKER_TAG} for vulnerabilities"
     omnibus/package-scripts/anchore-scan.sh -i "${DOCKER_TAG}" -n 0
  fi
