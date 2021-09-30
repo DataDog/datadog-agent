@@ -63,7 +63,7 @@ func (p *FileRemovalPolicy) RegisterDomain(domainName string) (string, error) {
 	}
 
 	p.knownDomainFolders[folder] = struct{}{}
-	p.telemetry.setRegisteredDomainCount(len(p.knownDomainFolders))
+	p.telemetry.setRegisteredDomainCount(len(p.knownDomainFolders), domainName)
 	return folder, nil
 }
 
