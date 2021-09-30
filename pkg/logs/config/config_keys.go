@@ -15,18 +15,24 @@ import (
 
 // LogsConfigKeys stores logs configuration keys stored in YAML configuration files
 type LogsConfigKeys struct {
-	prefix string
-	config coreConfig.Config
+	prefix       string
+	vectorPrefix string
+	config       coreConfig.Config
 }
 
 // defaultLogsConfigKeys defines the default YAML keys used to retrieve logs configuration
 func defaultLogsConfigKeys() *LogsConfigKeys {
-	return NewLogsConfigKeys("logs_config.", coreConfig.Datadog)
+	return NewLogsConfigKeysWithVector("logs_config.", "logs.", coreConfig.Datadog)
+}
+
+// NewLogsConfigKeysWithVector returns a new logs configuration keys set
+func NewLogsConfigKeysWithVector(configPrefix, vectorPrefix string, config coreConfig.Config) *LogsConfigKeys {
+	return &LogsConfigKeys{prefix: configPrefix, vectorPrefix: vectorPrefix, config: config}
 }
 
 // NewLogsConfigKeys returns a new logs configuration keys set
 func NewLogsConfigKeys(configPrefix string, config coreConfig.Config) *LogsConfigKeys {
-	return &LogsConfigKeys{prefix: configPrefix, config: config}
+	return &LogsConfigKeys{prefix: configPrefix, vectorPrefix: "", config: config}
 }
 
 func (l *LogsConfigKeys) getConfig() coreConfig.Config {
@@ -238,4 +244,23 @@ func (l *LogsConfigKeys) aggregationTimeout() time.Duration {
 
 func (l *LogsConfigKeys) useV2API() bool {
 	return l.getConfig().GetBool(l.getConfigKey("use_v2_api"))
+}
+
+func (l *LogsConfigKeys) getVectorConfigKey(key string) string {
+	return "vector." + l.vectorPrefix + key
+}
+
+func (l *LogsConfigKeys) vectorEnabled() bool {
+	if l.vectorPrefix == "" {
+		return false
+	}
+	return l.getConfig().GetBool(l.getVectorConfigKey("enabled"))
+}
+
+func (l *LogsConfigKeys) getVectorUrl() (string, bool) {
+	configKey := l.getVectorConfigKey("url")
+	if l.isSetAndNotEmpty(configKey) {
+		return l.getConfig().GetString(configKey), true
+	}
+	return "", false
 }
