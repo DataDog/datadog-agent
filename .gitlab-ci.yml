@@ -32,7 +32,7 @@ include:
   # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
   - /.gitlab/kitchen_common/cleanup.yml
   - /.gitlab/kitchen_common/testing.yml
-  - /.gitlab/docker_common/tag_job_templates.yml
+  - /.gitlab/docker_common/publish_job_templates.yml
 
 default:
   retry:
