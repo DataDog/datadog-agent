@@ -167,11 +167,11 @@ func CreatePayload(ctx context.Context, hostname string, ac AutoConfigInterface,
 	if ac != nil {
 		ac.MapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
 			for _, config := range loadedConfigs {
-				checkMetadata[config.Name] = make([]*CheckInstanceMetadata, 0)
+				payloadCheckMeta[config.Name] = make([]*CheckInstanceMetadata, 0)
 				instanceIDs := coll.GetAllInstanceIDs(config.Name)
 				for _, id := range instanceIDs {
 					checkInstanceMetadata := createCheckInstanceMetadata(string(id), config.Provider)
-					checkMetadata[config.Name] = append(checkMetadata[config.Name], checkInstanceMetadata)
+					payloadCheckMeta[config.Name] = append(payloadCheckMeta[config.Name], checkInstanceMetadata)
 					foundInCollector[string(id)] = struct{}{}
 				}
 			}
