@@ -102,6 +102,7 @@ core,github.com/Microsoft/hcsshim/internal/winapi,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/osversion,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/pkg/ociwclayer,MIT,Microsoft | Microsoft Corp
 core,github.com/NYTimes/gziphandler,Apache-2.0,The New York Times Company
+core,github.com/OneOfOne/xxhash,Apache-2.0,OneOfOne (https://github.com/OneOfOne)
 core,github.com/PuerkitoBio/purell,BSD-3-Clause,Martin Angers
 core,github.com/PuerkitoBio/urlesc,BSD-3-Clause,The Go Authors
 core,github.com/StackExchange/wmi,MIT,Stack Exchange
@@ -182,6 +183,12 @@ core,github.com/bits-and-blooms/bitset,BSD-3-Clause,Will Fitzgerald
 core,github.com/blabber/go-freebsd-sysctl/sysctl,0BSD,Tobias Rehbein <tobias.rehbein@web.de>
 core,github.com/blang/semver,MIT,Benedikt Lang <github at benediktlang.de>
 core,github.com/bmizerany/pat,UNKNOWN,"Keith Rarick, Blake Mizerany"
+core,github.com/bytecodealliance/wasmtime-go,Apache-2.0,Bytecode Alliance
+core,github.com/bytecodealliance/wasmtime-go/build/include,Apache-2.0,Bytecode Alliance
+core,github.com/bytecodealliance/wasmtime-go/build/include/wasmtime,Apache-2.0,Bytecode Alliance
+core,github.com/bytecodealliance/wasmtime-go/build/linux-x86_64,Apache-2.0,Bytecode Alliance
+core,github.com/bytecodealliance/wasmtime-go/build/macos-x86_64,Apache-2.0,Bytecode Alliance
+core,github.com/bytecodealliance/wasmtime-go/build/windows-x86_64,Apache-2.0,Bytecode Alliance
 core,github.com/cenkalti/backoff,MIT,Cenk Altı
 core,github.com/cenkalti/backoff/v4,MIT,Cenk Altı
 core,github.com/cespare/xxhash,MIT,Caleb Spare
@@ -512,6 +519,61 @@ core,github.com/munnerz/goautoneg,BSD-3-Clause,Open Knowledge Foundation Ltd
 core,github.com/mxk/go-flowrate/flowrate,BSD-3-Clause,The Go-FlowRate Authors
 core,github.com/nwaples/rardecode,BSD-2-Clause,Nicholas Waples
 core,github.com/olekukonko/tablewriter,MIT,Oleku Konko
+core,github.com/open-policy-agent/opa/ast,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/ast/internal/scanner,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/ast/internal/tokens,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/ast/location,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/bundle,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/format,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/bundle,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/cidr/merge,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/compiler/wasm,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/compiler/wasm/opa,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/debug,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/deepcopy,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/file/archive,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/file/url,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/gojsonschema,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/ir,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/jwx/buffer,MIT,The OPA Authors | lestrrat
+core,github.com/open-policy-agent/opa/internal/jwx/jwa,MIT,The OPA Authors | lestrrat
+core,github.com/open-policy-agent/opa/internal/jwx/jwk,MIT,The OPA Authors | lestrrat
+core,github.com/open-policy-agent/opa/internal/jwx/jws,MIT,The OPA Authors | lestrrat
+core,github.com/open-policy-agent/opa/internal/jwx/jws/sign,MIT,The OPA Authors | lestrrat
+core,github.com/open-policy-agent/opa/internal/jwx/jws/verify,MIT,The OPA Authors | lestrrat
+core,github.com/open-policy-agent/opa/internal/lcss,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/leb128,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/merge,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/planner,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/rego/opa,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/semver,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/uuid,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/version,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/wasm/constant,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/wasm/encoding,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/wasm/instruction,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/wasm/module,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/wasm/opcode,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/wasm/sdk/internal/wasm,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/wasm/sdk/opa,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/wasm/sdk/opa/capabilities,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/wasm/sdk/opa/errors,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/wasm/types,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/keys,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/loader,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/metrics,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/rego,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/resolver,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/resolver/wasm,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/storage,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/storage/inmem,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/topdown,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/topdown/builtins,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/topdown/cache,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/topdown/copypropagation,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/types,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/util,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/version,Apache-2.0,The OPA Authors
 core,github.com/opencontainers/go-digest,Apache-2.0,"Docker, Inc | OCI Contributors"
 core,github.com/opencontainers/image-spec/identity,Apache-2.0,The Linux Foundation
 core,github.com/opencontainers/image-spec/specs-go,Apache-2.0,The Linux Foundation
@@ -552,6 +614,7 @@ core,github.com/prometheus/procfs/internal/fs,Apache-2.0,The Prometheus Authors
 core,github.com/prometheus/procfs/internal/util,Apache-2.0,The Prometheus Authors
 core,github.com/prometheus/statsd_exporter/pkg/mapper,Apache-2.0,The Prometheus Authors
 core,github.com/prometheus/statsd_exporter/pkg/mapper/fsm,Apache-2.0,The Prometheus Authors
+core,github.com/rcrowley/go-metrics,BSD-2-Clause-Views,Richard Crowley
 core,github.com/richardartoul/molecule,MIT,Richard Artoul
 core,github.com/richardartoul/molecule/src/codec,Apache-2.0,Richard Artoul
 core,github.com/richardartoul/molecule/src/protowire,BSD-3-Clause,Richard Artoul | The Go Authors
@@ -629,6 +692,7 @@ core,github.com/xeipuuv/gojsonreference,Apache-2.0,xeipuuv ( https://github.com/
 core,github.com/xeipuuv/gojsonschema,Apache-2.0,xeipuuv ( https://github.com/xeipuuv )
 core,github.com/xi2/xz,UNKNOWN,Igor Pavlov <http://7-zip.org/> | Lasse Collin <lasse.collin@tukaani.org> | Michael Cross <https://github.com/xi2>
 core,github.com/xor-gate/ar,MIT,Blake Smith <blakesmith0@gmail.com>
+core,github.com/yashtewari/glob-intersection,Apache-2.0,yashtewari (https://github.com/yashtewari)
 core,go.etcd.io/bbolt,MIT,the etcd maintainers
 core,go.etcd.io/etcd/api/v3/version,Apache-2.0,the etcd maintainers
 core,go.etcd.io/etcd/auth/authpb,Apache-2.0,the etcd maintainers
