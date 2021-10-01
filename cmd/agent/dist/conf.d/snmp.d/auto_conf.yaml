@@ -119,3 +119,9 @@ instances:
     ## Changing namespace will cause devices being recreated in NDM app.
     #
     namespace: "%%extra_namespace%%"
+
+    ## @param use_device_id_as_hostname - boolean - optional - default: false
+    ## Use an hash of a device ip address and the namespace as `hostname` for metrics and
+    ## service checks. This enables custom tags. It overrides any `hostname` tag.
+    #
+    use_device_id_as_hostname: "%%extra_use_device_id_as_hostname%%"
