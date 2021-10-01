@@ -35,7 +35,7 @@ type kubeUnstructureResolvedResource struct {
 	eval.Instance
 }
 
-func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res compliance.Resource) (resolved, error) {
+func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res compliance.ResourceCommon) (resolved, error) {
 	if res.KubeApiserver == nil {
 		return nil, fmt.Errorf("expecting Kubeapiserver resource in Kubeapiserver check")
 	}
@@ -105,6 +105,7 @@ func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res com
 					compliance.KubeResourceFieldVersion:   resource.GetObjectKind().GroupVersionKind().Version,
 					compliance.KubeResourceFieldNamespace: resource.GetNamespace(),
 					compliance.KubeResourceFieldName:      resource.GetName(),
+					compliance.KubeResourceFieldResource:  resource,
 				},
 				eval.FunctionMap{
 					compliance.KubeResourceFuncJQ: kubeResourceJQ(resource),

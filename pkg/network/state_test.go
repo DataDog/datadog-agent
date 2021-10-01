@@ -179,7 +179,7 @@ func TestRetrieveClosedConnection(t *testing.T) {
 func TestCleanupClient(t *testing.T) {
 	clientID := "1"
 
-	state := NewState(100*time.Millisecond, 50000, 75000, 75000, 75000, false)
+	state := NewState(100*time.Millisecond, 50000, 75000, 75000, 75000)
 	clients := state.(*networkState).getClients()
 	assert.Equal(t, 0, len(clients))
 
@@ -1098,56 +1098,19 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 	client3 := "client3"
 	state := newDefaultState()
 
-	// Register the first two clients
-	assert.Len(t, state.GetDelta(client1, latestEpochTime(), nil, nil, nil, nil).Connections, 0)
-	assert.Len(t, state.GetDelta(client2, latestEpochTime(), nil, nil, nil, nil).Connections, 0)
+	getRCodeFrom := func(delta Delta, c ConnectionStats, domain string, qtype dns.QueryType, code int) uint32 {
+		key, _ := DNSKey(&c)
+		stats, ok := delta.DNSStats[key]
+		require.Truef(t, ok, "couldn't find DNSStats for connection: %+v", c)
 
-	c.LastUpdateEpoch = latestEpochTime()
+		domainStats, ok := stats[intern.GetByString(domain)]
+		require.Truef(t, ok, "couldn't find DNSStats for domain: %s", domain)
 
-	conns := state.GetDelta(client1, latestEpochTime(), nil, []ConnectionStats{c}, getStats(), nil).Connections
-	require.Len(t, conns, 1)
-	assert.EqualValues(t, 1, conns[0].DNSSuccessfulResponses)
+		queryTypeStats, ok := domainStats[qtype]
+		require.Truef(t, ok, "couldn't find DNSStats for query type: %s", qtype)
 
-	// Register the third client but also pass in dns stats
-	conns = state.GetDelta(client3, latestEpochTime(), []ConnectionStats{c}, nil, getStats(), nil).Connections
-	require.Len(t, conns, 1)
-	// DNS stats should be available for the new client
-	assert.EqualValues(t, 1, conns[0].DNSSuccessfulResponses)
-
-	conns = state.GetDelta(client2, latestEpochTime(), []ConnectionStats{c}, nil, getStats(), nil).Connections
-	require.Len(t, conns, 1)
-	// 2nd client should get accumulated stats
-	assert.EqualValues(t, 3, conns[0].DNSSuccessfulResponses)
-}
-
-func TestDNSStatsWithMultipleClientsWithDomainCollectionEnabled(t *testing.T) {
-	c := ConnectionStats{
-		Pid:    123,
-		Type:   TCP,
-		Family: AFINET,
-		Source: util.AddressFromString("127.0.0.1"),
-		Dest:   util.AddressFromString("127.0.0.1"),
-		SPort:  1000,
-		DPort:  53,
+		return queryTypeStats.CountByRcode[uint32(code)]
 	}
-
-	dKey := dns.Key{ClientIP: c.Source, ClientPort: c.SPort, ServerIP: c.Dest, Protocol: getIPProtocol(c.Type)}
-	var d = intern.GetByString("foo.com")
-	getStats := func() dns.StatsByKeyByNameByType {
-		statsByDomain := make(dns.StatsByKeyByNameByType)
-		stats := make(map[dns.QueryType]dns.Stats)
-		countByRcode := make(map[uint32]uint32)
-		countByRcode[uint32(DNSResponseCodeNoError)] = 1
-		stats[dns.TypeA] = dns.Stats{CountByRcode: countByRcode}
-		statsByDomain[dKey] = make(map[*intern.Value]map[dns.QueryType]dns.Stats)
-		statsByDomain[dKey][d] = stats
-		return statsByDomain
-	}
-
-	client1 := "client1"
-	client2 := "client2"
-	client3 := "client3"
-	state := NewState(2*time.Minute, 50000, 75000, 75000, 7500, true)
 
 	// Register the first two clients
 	assert.Len(t, state.GetDelta(client1, latestEpochTime(), nil, nil, nil, nil).Connections, 0)
@@ -1155,71 +1118,26 @@ func TestDNSStatsWithMultipleClientsWithDomainCollectionEnabled(t *testing.T) {
 
 	c.LastUpdateEpoch = latestEpochTime()
 
-	conns := state.GetDelta(client1, latestEpochTime(), nil, []ConnectionStats{c}, getStats(), nil).Connections
-	require.Len(t, conns, 1)
-	assert.EqualValues(t, 1, conns[0].DNSStatsByDomainByQueryType[d][dns.TypeA].CountByRcode[DNSResponseCodeNoError])
-	// domain agnostic stats should be 0
-	assert.EqualValues(t, 0, conns[0].DNSSuccessfulResponses)
+	delta := state.GetDelta(client1, latestEpochTime(), nil, []ConnectionStats{c}, getStats(), nil)
+	require.Len(t, delta.Connections, 1)
+
+	rcode := getRCodeFrom(delta, delta.Connections[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
+	assert.EqualValues(t, 1, rcode)
 
 	// Register the third client but also pass in dns stats
-	conns = state.GetDelta(client3, latestEpochTime(), []ConnectionStats{c}, nil, getStats(), nil).Connections
-	require.Len(t, conns, 1)
+	delta = state.GetDelta(client3, latestEpochTime(), []ConnectionStats{c}, nil, getStats(), nil)
+	require.Len(t, delta.Connections, 1)
+
 	// DNS stats should be available for the new client
-	assert.EqualValues(t, 1, conns[0].DNSStatsByDomainByQueryType[d][dns.TypeA].CountByRcode[DNSResponseCodeNoError])
-	// domain agnostic stats should be 0
-	assert.EqualValues(t, 0, conns[0].DNSSuccessfulResponses)
+	rcode = getRCodeFrom(delta, delta.Connections[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
+	assert.EqualValues(t, 1, rcode)
 
-	conns = state.GetDelta(client2, latestEpochTime(), []ConnectionStats{c}, nil, getStats(), nil).Connections
-	require.Len(t, conns, 1)
+	delta = state.GetDelta(client2, latestEpochTime(), []ConnectionStats{c}, nil, getStats(), nil)
+	require.Len(t, delta.Connections, 1)
+
 	// 2nd client should get accumulated stats
-	assert.EqualValues(t, 3, conns[0].DNSStatsByDomainByQueryType[d][dns.TypeA].CountByRcode[DNSResponseCodeNoError])
-	// domain agnostic stats should be 0
-	assert.EqualValues(t, 0, conns[0].DNSSuccessfulResponses)
-}
-
-func TestDNSStatsPIDCollisions(t *testing.T) {
-	c := ConnectionStats{
-		Pid:    123,
-		Type:   TCP,
-		Family: AFINET,
-		Source: util.AddressFromString("127.0.0.1"),
-		Dest:   util.AddressFromString("127.0.0.1"),
-		SPort:  1000,
-		DPort:  53,
-	}
-
-	var d = intern.GetByString("foo.com")
-	dKey := dns.Key{ClientIP: c.Source, ClientPort: c.SPort, ServerIP: c.Dest, Protocol: syscall.IPPROTO_TCP}
-	statsByDomain := make(dns.StatsByKeyByNameByType)
-	stats := make(map[dns.QueryType]dns.Stats)
-	countByRcode := make(map[uint32]uint32)
-	countByRcode[uint32(DNSResponseCodeNoError)] = 1
-	stats[dns.TypeA] = dns.Stats{CountByRcode: countByRcode}
-	statsByDomain[dKey] = make(map[*intern.Value]map[dns.QueryType]dns.Stats)
-	statsByDomain[dKey][d] = stats
-
-	client := "client"
-	state := newDefaultState()
-
-	// Register the client
-	assert.Len(t, state.GetDelta(client, latestEpochTime(), nil, nil, nil, nil).Connections, 0)
-
-	c.LastUpdateEpoch = latestEpochTime()
-	var closed []ConnectionStats
-	closed = append(closed, c)
-
-	// Store another connection with same DNSKey but different PID
-	c.Pid++
-	closed = append(closed, c)
-
-	conns := state.GetDelta(client, latestEpochTime(), nil, closed, statsByDomain, nil).Connections
-	require.Len(t, conns, 2)
-	successes := 0
-	for _, conn := range conns {
-		successes += int(conn.DNSSuccessfulResponses)
-	}
-	assert.Equal(t, 1, successes)
-	assert.Equal(t, int64(1), state.(*networkState).telemetry.dnsPidCollisions)
+	rcode = getRCodeFrom(delta, delta.Connections[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
+	assert.EqualValues(t, 3, rcode)
 }
 
 func TestHTTPStats(t *testing.T) {
@@ -1510,7 +1428,7 @@ func latestEpochTime() uint64 {
 
 func newDefaultState() State {
 	// Using values from ebpf.NewConfig()
-	return NewState(2*time.Minute, 50000, 75000, 75000, 7500, false)
+	return NewState(2*time.Minute, 50000, 75000, 75000, 7500)
 }
 
 func getIPProtocol(nt ConnectionType) uint8 {

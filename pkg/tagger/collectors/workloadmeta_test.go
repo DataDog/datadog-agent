@@ -364,7 +364,7 @@ func TestHandleContainerStaticTags(t *testing.T) {
 
 	actual := collector.handleContainer(workloadmeta.Event{
 		Type:   workloadmeta.EventTypeSet,
-		Entity: &container,
+		Entity: container,
 	})
 
 	assertTagInfoListEqual(t, expected, actual)

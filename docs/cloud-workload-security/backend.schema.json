@@ -21,6 +21,10 @@
       "$schema": "http://json-schema.org/draft-04/schema#",
       "$ref": "#/definitions/ProcessContext"
     },
+    "dd": {
+      "$schema": "http://json-schema.org/draft-04/schema#",
+      "$ref": "#/definitions/DDContext"
+    },
     "container": {
       "$ref": "#/definitions/ContainerContext"
     },
@@ -37,6 +41,20 @@
         "id": {
           "type": "string",
           "description": "Container ID"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "DDContext": {
+      "properties": {
+        "span_id": {
+          "type": "integer",
+          "description": "Span ID used for APM correlation"
+        },
+        "trace_id": {
+          "type": "integer",
+          "description": "Trace ID used for APM correlation"
         }
       },
       "additionalProperties": false,

@@ -24,6 +24,7 @@ enum selinux_event_kind_t
 struct selinux_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     struct file_t file;
     u32 event_kind;
@@ -183,6 +184,7 @@ int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
+    fill_span_context(&event.span);
 
     send_event(ctx, EVENT_SELINUX, event);
     return 0;

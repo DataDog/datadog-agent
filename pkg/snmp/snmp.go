@@ -37,6 +37,7 @@ type ListenerConfig struct {
 	CollectDeviceMetadata bool     `mapstructure:"collect_device_metadata"`
 	MinCollectionInterval uint     `mapstructure:"min_collection_interval"`
 	Namespace             string   `mapstructure:"namespace"`
+	UseDeviceISAsHostname bool     `mapstructure:"use_device_id_as_hostname"`
 	Configs               []Config `mapstructure:"configs"`
 
 	// legacy
@@ -64,6 +65,8 @@ type Config struct {
 	Loader                      string          `mapstructure:"loader"`
 	CollectDeviceMetadataConfig *bool           `mapstructure:"collect_device_metadata"`
 	CollectDeviceMetadata       bool
+	UseDeviceIDAsHostnameConfig *bool `mapstructure:"use_device_id_as_hostname"`
+	UseDeviceIDAsHostname       bool
 	Namespace                   string   `mapstructure:"namespace"`
 	Tags                        []string `mapstructure:"tags"`
 	MinCollectionInterval       uint     `mapstructure:"min_collection_interval"`
@@ -125,9 +128,17 @@ func NewListenerConfig() (ListenerConfig, error) {
 		} else {
 			config.CollectDeviceMetadata = snmpConfig.CollectDeviceMetadata
 		}
+
+		if config.UseDeviceIDAsHostnameConfig != nil {
+			config.UseDeviceIDAsHostname = *config.UseDeviceIDAsHostnameConfig
+		} else {
+			config.UseDeviceIDAsHostname = snmpConfig.UseDeviceISAsHostname
+		}
+
 		if config.Loader == "" {
 			config.Loader = snmpConfig.Loader
 		}
+
 		if config.MinCollectionInterval == 0 {
 			config.MinCollectionInterval = snmpConfig.MinCollectionInterval
 		}

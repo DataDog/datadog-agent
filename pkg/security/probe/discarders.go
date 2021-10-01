@@ -31,19 +31,6 @@ import (
 )
 
 const (
-	// DiscardInodeOp discards an inode
-	DiscardInodeOp = iota + 1
-	// DiscardPidOp discards a pid
-	DiscardPidOp
-	// ResolveSegmentOp resolves the requested segment
-	ResolveSegmentOp
-	// ResolvePathOp resolves the requested path
-	ResolvePathOp
-	// ResolveParentOp resolves the parent of the provide path key
-	ResolveParentOp
-)
-
-const (
 	// discarderRevisionSize array size used to store discarder revisions
 	discarderRevisionSize = 4096
 
