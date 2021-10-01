@@ -724,7 +724,9 @@ def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, t
     # executable in quotes; also we have to not put the * in quotes, as there's no
     # expansion on it, unlike on Linux
     exclude_wildcard = "*" if platform.system().lower() == "windows" else "'*'"
-    sync_command_prefix = "\"{}\" s3 sync s3://{} {} --exclude {}".format(awscli, bucket, target_dir, exclude_wildcard)
+    sync_command_prefix = "\"{}\" s3 sync s3://{} {} --no-sign-request --exclude {}".format(
+        awscli, bucket, target_dir, exclude_wildcard
+    )
     sync_commands = [[[sync_command_prefix], len(sync_command_prefix)]]
     for integration, hash in integrations_hashes.items():
         include_arg = " --include " + CACHED_WHEEL_FULL_PATH_PATTERN.format(

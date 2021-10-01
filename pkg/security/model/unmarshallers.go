@@ -316,6 +316,18 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
+func (s *SpanContext) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+
+	s.SpanID = ByteOrder.Uint64(data[0:8])
+	s.TraceID = ByteOrder.Uint64(data[8:16])
+
+	return 16, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
 func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 	n, err := UnmarshalBinary(data, &e.File)
 	if err != nil {

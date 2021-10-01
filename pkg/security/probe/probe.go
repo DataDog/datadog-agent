@@ -161,8 +161,8 @@ func (p *Probe) Init(client *statsd.Client) error {
 
 	if os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true" {
 		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
-			Name:  "system_probe_pid",
-			Value: uint64(utils.Getpid()),
+			Name:  "runtime_discarded",
+			Value: uint64(1),
 		})
 	}
 
@@ -270,8 +270,8 @@ func (p *Probe) zeroEvent() *Event {
 	return p.event
 }
 
-func (p *Probe) unmarshalProcessContainer(data []byte, event *Event) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.ProcessContext, &event.ContainerContext)
+func (p *Probe) unmarshalContexts(data []byte, event *Event) (int, error) {
+	read, err := model.UnmarshalBinary(data, &event.ProcessContext, &event.SpanContext, &event.ContainerContext)
 	if err != nil {
 		return 0, err
 	}
@@ -345,7 +345,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		return
 	}
 
-	read, err = p.unmarshalProcessContainer(data[offset:], event)
+	read, err = p.unmarshalContexts(data[offset:], event)
 	if err != nil {
 		log.Errorf("failed to decode event `%s`: %s", eventType, err)
 		return
@@ -525,7 +525,7 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 	if eventType != model.ExitEventType {
 		event.ResolveProcessCacheEntry()
 
-		// in case of exec event we take the parent a process context as this
+		// in case of exec event we take the parent a process context as this is
 		// the parent which generated the exec
 		if eventType == model.ExecEventType {
 			if ancestor := event.processCacheEntry.ProcessContext.Ancestor; ancestor != nil {
@@ -891,7 +891,6 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		},
 	)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, TTYConstants(p)...)
-	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, erpc.GetConstants()...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, getCGroupWriteConstants())
 

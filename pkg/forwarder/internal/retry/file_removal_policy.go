@@ -45,7 +45,7 @@ func NewFileRemovalPolicy(
 		return nil, err
 	}
 
-	telemetry.addNewRemovalPolicyCount()
+	telemetry.setNewRemovalPolicyCount(1)
 
 	return &FileRemovalPolicy{
 		rootPath:           rootPath,
@@ -62,31 +62,29 @@ func (p *FileRemovalPolicy) RegisterDomain(domainName string) (string, error) {
 		return "", err
 	}
 
-	p.telemetry.addRegisteredDomainCount()
 	p.knownDomainFolders[folder] = struct{}{}
+	p.telemetry.setRegisteredDomainCount(len(p.knownDomainFolders), domainName)
 	return folder, nil
 }
 
 // RemoveOutdatedFiles removes the outdated files when a file is
 // older than outDatedFileDayCount days.
 func (p *FileRemovalPolicy) RemoveOutdatedFiles() ([]string, error) {
-	return p.forEachDomainPath(func(folderPath string) ([]string, error) {
-		files, err := p.removeOutdatedRetryFiles(folderPath)
-		p.telemetry.addOutdatedFilesCount(len(files))
-		return files, err
-	})
+	outdatedFiles, err := p.forEachDomainPath(p.removeOutdatedRetryFiles)
+	p.telemetry.setOutdatedFilesCount(len(outdatedFiles))
+	return outdatedFiles, err
 }
 
 // RemoveUnknownDomains remove unknown domains.
 func (p *FileRemovalPolicy) RemoveUnknownDomains() ([]string, error) {
-	return p.forEachDomainPath(func(folderPath string) ([]string, error) {
+	files, err := p.forEachDomainPath(func(folderPath string) ([]string, error) {
 		if _, found := p.knownDomainFolders[folderPath]; !found {
-			files, err := p.removeUnknownDomain(folderPath)
-			p.telemetry.addFilesFromUnknownDomainCount(len(files))
-			return files, err
+			return p.removeUnknownDomain(folderPath)
 		}
 		return nil, nil
 	})
+	p.telemetry.setFilesFromUnknownDomainCount(len(files))
+	return files, err
 }
 
 func (p *FileRemovalPolicy) forEachDomainPath(callback func(folderPath string) ([]string, error)) ([]string, error) {
