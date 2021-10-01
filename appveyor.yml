@@ -36,7 +36,8 @@ install:
 cache:
   - '%GOPATH%\bin'
   - '%LOCALAPPDATA%\pip\Cache'
-  - '%GOPATH%\pkg\mod'
+  # note: we don't cache go mod's directory ($GOPATH/pkg/mod):
+  # it's much slower for appveyor to download and unzip it than for go mod to re-download all deps from scratch
 
 build: off
 
