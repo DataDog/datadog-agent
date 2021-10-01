@@ -123,7 +123,9 @@ func newDockerInfoInstance(ctx context.Context, client env.DockerClient) (eval.I
 	}
 
 	return eval.NewInstance(
-		nil,
+		eval.VarMap{
+			compliance.DockerInfoInspect: info,
+		},
 		eval.FunctionMap{
 			compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, info),
 		},
