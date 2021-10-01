@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
@@ -39,7 +38,8 @@ func debugRuntime(_ *cobra.Command, args []string) error {
 		return err
 	}
 
-	r, err := util.DoGet(c, "http://localhost/debug/"+url.PathEscape(args[0]))
+	// TODO rather than allowing arbitrary query params, use cobra flags
+	r, err := util.DoGet(c, "http://localhost/debug/"+args[0])
 	if err != nil {
 		var errMap = make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)
