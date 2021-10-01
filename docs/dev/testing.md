@@ -1,20 +1,20 @@
 # Testing Best Practices
 
-This document describes some best-practices for unit testing in the agent.
+This document describes some best-practices for unit testing in the Agent.
 Please feel invited to:
  * Refer to this document in pull requests where these practices might be helpful
  * Add best practices to this document
  * Refactor tests to follow these best practices
  * Change practices if they are no longer the best
 
-Note that the code will never completely reflect these practices, although we hope to get continually closer.
+**Note**: The code will never completely reflect these practices, although we hope to get continually closer.
 
 ## Prefer `require` over `assert`
 
 Test code should prefer to use `github.com/stretchr/testify/require` to make assertions.
 The functions in this package automatically abort the test when an assertion fails, which is usually what is expected.
-For example, given an error, `assert.NoError(t, err)` will cause the test to be marked as a failure, but will continue on to the next statement, possibly leading to a nil dereference or other such failure.
-In contrast, `require.NoError(t, err)` will abort the test when an error is encountered.
+For example, given an error, `assert.NoError(t, err)` causes the test to be marked as a failure, but continues to the next statement, possibly leading to a nil dereference or other such failure.
+In contrast, `require.NoError(t, err)` aborts the test when an error is encountered.
 
 ## Testing Timing-Related Functionality
 
