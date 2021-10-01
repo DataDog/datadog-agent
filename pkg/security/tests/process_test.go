@@ -156,6 +156,9 @@ func TestProcessContext(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("inode", func(t *testing.T) {
@@ -180,6 +183,9 @@ func TestProcessContext(t *testing.T) {
 			assertFieldEqual(t, event, "process.file.path", executable)
 			assert.Equal(t, getInode(t, executable), event.ResolveProcessCacheEntry().FileFields.Inode, "wrong inode")
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	test.Run(t, "args-envs", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -244,6 +250,9 @@ func TestProcessContext(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("argv", func(t *testing.T) {
@@ -351,6 +360,9 @@ func TestProcessContext(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("tty", func(t *testing.T) {
@@ -447,6 +459,9 @@ func TestProcessContext(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	test.Run(t, "pid1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
