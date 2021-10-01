@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
@@ -24,24 +25,21 @@ func init() {
 
 var (
 	debugCommand = &cobra.Command{
-		Use:   "debug",
+		Use:   "debug [state]",
 		Short: "Print the runtime state of a running system-probe",
 		Long:  ``,
+		Args:  cobra.MinimumNArgs(1),
 		RunE:  debugRuntime,
 	}
 )
 
 func debugRuntime(_ *cobra.Command, args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("debug command must have an argument")
-	}
-
 	c, err := getSystemProbeClient()
 	if err != nil {
 		return err
 	}
 
-	r, err := util.DoGet(c, "http://localhost/debug/"+args[0])
+	r, err := util.DoGet(c, "http://localhost/debug/"+url.PathEscape(args[0]))
 	if err != nil {
 		var errMap = make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)
