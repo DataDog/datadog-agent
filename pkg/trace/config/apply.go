@@ -381,12 +381,6 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		// set by the user, disable it
 		c.LogThrottling = false
 	}
-
-	// undocumented
-	if config.Datadog.IsSet("apm_config.remote_rates") {
-		c.RemoteRates = config.Datadog.GetBool("apm_config.remote_rates")
-	}
-
 	return nil
 }
 

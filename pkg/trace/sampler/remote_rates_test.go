@@ -1,10 +1,10 @@
 package sampler
 
 import (
+	"os"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,9 +13,12 @@ import (
 func TestRemoteConfInit(t *testing.T) {
 	assert := assert.New(t)
 	// disabled by default
-	assert.Nil(newRemoteRates(&config.AgentConfig{}))
+	assert.Nil(newRemoteRates())
 	// subscription to subscriber fails
-	assert.Nil(newRemoteRates(&config.AgentConfig{RemoteRates: true}))
+	old := os.Getenv("DD_APM_FEATURES")
+	os.Setenv("DD_APM_FEATURES", "remote_rates")
+	assert.Nil(newRemoteRates())
+	os.Setenv("DD_APM_FEATURES", old)
 	// todo:raphael mock grpc server
 }
 

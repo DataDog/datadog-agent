@@ -8,7 +8,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
@@ -39,8 +39,8 @@ type RemoteRates struct {
 	stopped        chan struct{}
 }
 
-func newRemoteRates(conf *config.AgentConfig) *RemoteRates {
-	if !conf.RemoteRates {
+func newRemoteRates() *RemoteRates {
+	if !features.Has("remote_rates") {
 		return nil
 	}
 	remoteRates := &RemoteRates{
