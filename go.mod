@@ -253,4 +253,4 @@ replace gopkg.in/DataDog/dd-trace-go.v1 => gopkg.in/DataDog/dd-trace-go.v1 v1.30
 replace k8s.io/kube-state-metrics/v2 => github.com/ahmed-mez/kube-state-metrics/v2 v2.1.0-rc.0.0.20210629115837-e46f17606d22
 
 // Remove once the PR aptly-dev/aptly#967 is merged and released.
-replace github.com/aptly-dev/aptly => github.com/lebauce/aptly v0.7.2-0.20210723103859-345a32860f4d
+replace github.com/aptly-dev/aptly => github.com/lebauce/aptly v0.7.2-0.20210927125351-710eda859941
