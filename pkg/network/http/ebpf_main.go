@@ -9,7 +9,6 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -60,7 +59,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 	var bytecode bytecode.AssetReader
 	var err error
 	if c.EnableRuntimeCompiler {
-		runtime.RuntimeCompilationEnabled = true
 		bytecode, err = getRuntimeCompiledHTTP(c)
 		if err != nil {
 			if !c.AllowPrecompiledFallback {
