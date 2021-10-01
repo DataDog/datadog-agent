@@ -441,6 +441,12 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 			log.Errorf("failed to decode link event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
+
+		// need to invalidate as now nlink > 1
+		if event.Link.Retval >= 0 {
+			// defer it do ensure that it will be done after the dispatch that could re-add it
+			defer p.invalidateDentry(event.Link.Source.MountID, event.Link.Source.Inode)
+		}
 	case model.FileSetXAttrEventType:
 		if _, err = event.SetXAttr.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode setxattr event: %s (offset %d, len %d)", err, offset, dataLen)

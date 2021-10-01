@@ -405,7 +405,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 	if err := resolver.Start(test.probe); err != nil {
 		b.Fatal(err)
 	}
-	f, err := resolver.ResolveFromERPC(mountID, inode, pathID)
+	f, err := resolver.ResolveFromERPC(mountID, inode, pathID, true)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -413,7 +413,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		f, err := resolver.ResolveFromERPC(mountID, inode, pathID)
+		f, err := resolver.ResolveFromERPC(mountID, inode, pathID, true)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -537,7 +537,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 	if err := resolver.Start(test.probe); err != nil {
 		b.Fatal(err)
 	}
-	f, err := resolver.ResolveFromMap(mountID, inode, pathID)
+	f, err := resolver.ResolveFromMap(mountID, inode, pathID, true)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -545,7 +545,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		f, err := resolver.ResolveFromMap(mountID, inode, pathID)
+		f, err := resolver.ResolveFromMap(mountID, inode, pathID, true)
 		if err != nil {
 			b.Fatal(err)
 		}
