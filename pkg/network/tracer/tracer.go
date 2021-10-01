@@ -395,10 +395,10 @@ func (t *Tracer) getConnections(activeBuffer, closedBuffer *network.ConnectionBu
 		return 0, fmt.Errorf("error retrieving latest timestamp: %s", err)
 	}
 
-	var expired []*network.ConnectionStats
+	var expired []network.ConnectionStats
 	err = t.ebpfTracer.GetConnections(activeBuffer, closedBuffer, func(c *network.ConnectionStats) bool {
 		if t.connectionExpired(c, uint64(latestTime), cachedConntrack) {
-			expired = append(expired, c)
+			expired = append(expired, *c)
 			if c.Type == network.TCP {
 				atomic.AddInt64(&t.expiredTCPConns, 1)
 			}
@@ -448,12 +448,13 @@ func (t *Tracer) getConnections(activeBuffer, closedBuffer *network.ConnectionBu
 	return uint64(latestTime), nil
 }
 
-func (t *Tracer) removeEntries(entries []*network.ConnectionStats) {
+func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 	now := time.Now()
 	// Byte keys of the connections to remove
 	keys := make([]string, 0, len(entries))
 	// Remove the entries from the eBPF Map
-	for _, entry := range entries {
+	for i := range entries {
+		entry := &entries[i]
 		err := t.ebpfTracer.Remove(entry)
 		if err != nil {
 			if !errors.Is(err, ebpf.ErrKeyNotExist) {
