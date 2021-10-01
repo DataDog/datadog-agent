@@ -9,14 +9,14 @@ Please feel invited to:
 
 **Note**: The code will never completely reflect these practices, although we hope to get continually closer.
 
-## Prefer `require` over `assert`
+## [Go] Prefer `require` over `assert`
 
 Test code should prefer to use `github.com/stretchr/testify/require` to make assertions.
 The functions in this package automatically abort the test when an assertion fails, which is usually what is expected.
 For example, given an error, `assert.NoError(t, err)` causes the test to be marked as a failure, but continues to the next statement, possibly leading to a nil dereference or other such failure.
 In contrast, `require.NoError(t, err)` aborts the test when an error is encountered.
 
-## Testing Timing-Related Functionality
+## [Go] Testing Timing-Related Functionality
 
 Tests based on time are a major source of intermittents.
 If you find yourself thinking something like "the ticker should run three times in 500ms", you will be disappointed at how often that is not true in CI.
