@@ -22,7 +22,7 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 	}
 
 	switch mapName {
-	case "http_in_flight": // maps/http_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX
+	case httpInFlightMap: // maps/http_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX
 		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
 		iter := currentMap.Iterate()
 		var key ebpf.ConnTuple
@@ -31,7 +31,7 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 			output.WriteString(spew.Sdump(key, value))
 		}
 
-	case "http_batches": // maps/http_batches (BPF_MAP_TYPE_HASH), key httpBatchKey, value httpBatch
+	case httpBatchesMap: // maps/http_batches (BPF_MAP_TYPE_HASH), key httpBatchKey, value httpBatch
 		output.WriteString("Map: '" + mapName + "', key: 'httpBatchKey', value: 'httpBatch'\n")
 		iter := currentMap.Iterate()
 		var key httpBatchKey
@@ -40,7 +40,7 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 			output.WriteString(spew.Sdump(key, value))
 		}
 
-	case "http_batch_state": // maps/http_batch_state (BPF_MAP_TYPE_HASH), key C.__u32, value C.http_batch_state_t
+	case httpBatchStateMap: // maps/http_batch_state (BPF_MAP_TYPE_HASH), key C.__u32, value C.http_batch_state_t
 		output.WriteString("Map: '" + mapName + "', key: 'C.__u32', value: 'C.http_batch_state_t'\n")
 		iter := currentMap.Iterate()
 		var key uint32
@@ -49,7 +49,7 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 			output.WriteString(spew.Sdump(key, value))
 		}
 
-	case "ssl_sock_by_ctx": // maps/ssl_sock_by_ctx (BPF_MAP_TYPE_HASH), key uintptr // C.void *, value C.ssl_sock_t
+	case sslSockByCtxMap: // maps/ssl_sock_by_ctx (BPF_MAP_TYPE_HASH), key uintptr // C.void *, value C.ssl_sock_t
 		output.WriteString("Map: '" + mapName + "', key: 'uintptr // C.void *', value: 'C.ssl_sock_t'\n")
 		iter := currentMap.Iterate()
 		var key uintptr // C.void *
