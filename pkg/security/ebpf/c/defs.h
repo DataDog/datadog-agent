@@ -225,6 +225,11 @@ struct syscall_t {
     s64 retval;
 };
 
+struct span_context_t {
+   u64 span_id;
+   u64 trace_id;
+};
+
 struct process_context_t {
     u32 pid;
     u32 tid;

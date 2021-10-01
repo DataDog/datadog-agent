@@ -7,6 +7,7 @@
 struct unlink_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
     struct file_t file;
@@ -111,6 +112,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
 
             struct proc_cache_t *entry = fill_process_context(&event.process);
             fill_container_context(entry, &event.container);
+            fill_span_context(&event.span);
 
             send_event(ctx, EVENT_RMDIR, event);
         } else {
@@ -122,6 +124,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
 
             struct proc_cache_t *entry = fill_process_context(&event.process);
             fill_container_context(entry, &event.container);
+            fill_span_context(&event.span);
 
             send_event(ctx, EVENT_UNLINK, event);
         }

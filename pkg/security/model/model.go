@@ -115,6 +115,7 @@ type Event struct {
 	Timestamp    time.Time `field:"timestamp"` // Timestamp of the event
 
 	ProcessContext   ProcessContext   `field:"process" event:"*"`
+	SpanContext      SpanContext      `field:"-"`
 	ContainerContext ContainerContext `field:"container"`
 
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
@@ -262,6 +263,12 @@ type Process struct {
 	EnvsEntry     *EnvsEntry `field:"-"`
 	EnvsTruncated bool       `field:"-"`
 	ArgsTruncated bool       `field:"-"`
+}
+
+// SpanContext describes a span context
+type SpanContext struct {
+	SpanID  uint64 `field:"_"`
+	TraceID uint64 `field:"_"`
 }
 
 // ExecEvent represents a exec event
