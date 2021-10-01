@@ -1,4 +1,4 @@
-//+build linux_bpf
+// +build linux_bpf
 
 package kprobe
 
@@ -101,6 +101,7 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
 	m := newManager(perfHandlerTCP, runtimeTracer)
+	setupDumpHandler(m)
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
@@ -280,6 +281,11 @@ func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 		"udp_sends_missed":           int64(telemetry.Udp_sends_missed),
 		"conn_stats_max_entries_hit": int64(telemetry.Conn_stats_max_entries_hit),
 	}
+}
+
+// DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
+func (t *kprobeTracer) DumpMaps(maps ...string) (string, error) {
+	return t.m.DumpMaps(maps...)
 }
 
 func initializePortBindingMaps(config *config.Config, m *manager.Manager) error {

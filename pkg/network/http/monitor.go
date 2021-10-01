@@ -191,3 +191,7 @@ func (m *Monitor) process(transactions []httpTX, err error) {
 		m.handler(transactions)
 	}
 }
+
+func (m *Monitor) DumpMaps(maps ...string) (string, error) {
+	return m.ebpfProgram.Manager.DumpMaps(maps...)
+}

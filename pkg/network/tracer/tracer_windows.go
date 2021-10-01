@@ -158,3 +158,8 @@ func (t *Tracer) DebugNetworkState(_ string) (map[string]interface{}, error) {
 func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 	return nil, ebpf.ErrNotImplemented
 }
+
+// DebugEBPFMaps is not implemented on this OS for Tracer
+func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
+	return "", ebpf.ErrNotImplemented
+}

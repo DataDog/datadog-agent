@@ -61,6 +61,15 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 
 	batchCompletionHandler := ddebpf.NewPerfHandler(batchNotificationsChanSize)
 	mgr := &manager.Manager{
+		Maps: []*manager.Map{
+			{Name: httpInFlightMap},
+			{Name: httpBatchesMap},
+			{Name: httpBatchStateMap},
+			{Name: sslSockByCtxMap},
+			{Name: "ssl_read_args"},
+			{Name: "bio_new_socket_args"},
+			{Name: "fd_by_ssl_bio"},
+		},
 		PerfMaps: []*manager.PerfMap{
 			{
 				Map: manager.Map{Name: httpNotificationsPerfMap},
@@ -95,6 +104,7 @@ func (e *ebpfProgram) Init() error {
 	for _, s := range e.subprograms {
 		s.ConfigureManager(e.Manager)
 	}
+	setupDumpHandler(e.Manager)
 
 	options := manager.Options{
 		RLimit: &unix.Rlimit{
