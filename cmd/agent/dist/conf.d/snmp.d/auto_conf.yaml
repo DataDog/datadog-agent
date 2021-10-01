@@ -109,7 +109,7 @@ instances:
     #
     oid_batch_size: "%%extra_oid_batch_size%%"
 
-    ## @param collect_device_metadata - bool - optional - default: false
+    ## @param collect_device_metadata - bool - optional - default: true
     ## Enable device metadata collection
     #
     collect_device_metadata: "%%extra_collect_device_metadata%%"
