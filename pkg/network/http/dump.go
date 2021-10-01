@@ -2,14 +2,11 @@
 
 package http
 
-/*
-#include "../ebpf/c/http-types.h"
-*/
-import "C"
 import (
 	"strings"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/ebpf/manager"
 
 	"github.com/davecgh/go-spew/spew"
@@ -28,7 +25,7 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 	case "http_in_flight": // maps/http_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX
 		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
 		iter := currentMap.Iterate()
-		var key C.conn_tuple_t //tracer.ConnTuple
+		var key ebpf.ConnTuple
 		var value httpTX
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
@@ -46,8 +43,8 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 	case "http_batch_state": // maps/http_batch_state (BPF_MAP_TYPE_HASH), key C.__u32, value C.http_batch_state_t
 		output.WriteString("Map: '" + mapName + "', key: 'C.__u32', value: 'C.http_batch_state_t'\n")
 		iter := currentMap.Iterate()
-		var key C.__u32
-		var value C.http_batch_state_t
+		var key uint32
+		var value ebpf.HTTPBatchState
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
@@ -56,7 +53,7 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 		output.WriteString("Map: '" + mapName + "', key: 'uintptr // C.void *', value: 'C.ssl_sock_t'\n")
 		iter := currentMap.Iterate()
 		var key uintptr // C.void *
-		var value C.ssl_sock_t
+		var value ebpf.SSLSock
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
@@ -64,8 +61,8 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 	case "ssl_read_args": // maps/ssl_read_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_read_args_t
 		output.WriteString("Map: '" + mapName + "', key: 'C.__u64', value: 'C.ssl_read_args_t'\n")
 		iter := currentMap.Iterate()
-		var key C.__u64
-		var value C.ssl_read_args_t
+		var key uint64
+		var value ebpf.SSLReadArgs
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
@@ -73,8 +70,8 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 	case "bio_new_socket_args": // maps/bio_new_socket_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.__u32
 		output.WriteString("Map: '" + mapName + "', key: 'C.__u64', value: 'C.__u32'\n")
 		iter := currentMap.Iterate()
-		var key C.__u64
-		var value C.__u32
+		var key uint64
+		var value uint32
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
@@ -82,7 +79,7 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 	case "fd_by_ssl_bio": // maps/fd_by_ssl_bio (BPF_MAP_TYPE_HASH), key C.__u32, value uintptr // C.void *
 		output.WriteString("Map: '" + mapName + "', key: 'C.__u32', value: 'uintptr // C.void *'\n")
 		iter := currentMap.Iterate()
-		var key C.__u32
+		var key uint32
 		var value uintptr // C.void *
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
