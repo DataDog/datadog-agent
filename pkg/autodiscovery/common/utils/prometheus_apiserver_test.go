@@ -44,7 +44,7 @@ func TestConfigsForService(t *testing.T) {
 				{
 					Name:          "openmetrics",
 					InitConfig:    integration.Data("{}"),
-					Instances:     []integration.Data{integration.Data(`{"prometheus_url":"http://%%host%%:%%port%%/metrics","namespace":"","metrics":["*"]}`)},
+					Instances:     []integration.Data{integration.Data(`{"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics","namespace":"","metrics":[".*"]}`)},
 					ClusterCheck:  true,
 					Provider:      names.PrometheusServices,
 					Source:        "prometheus_services:kube_service://ns/svc-foo",
@@ -58,7 +58,7 @@ func TestConfigsForService(t *testing.T) {
 				Instances: []*types.OpenmetricsInstance{
 					{
 						URL:       "foo/bar",
-						Metrics:   []string{"*"},
+						Metrics:   []string{".*"},
 						Namespace: "",
 					},
 				},
@@ -75,7 +75,7 @@ func TestConfigsForService(t *testing.T) {
 				{
 					Name:          "openmetrics",
 					InitConfig:    integration.Data("{}"),
-					Instances:     []integration.Data{integration.Data(`{"prometheus_url":"foo/bar","namespace":"","metrics":["*"]}`)},
+					Instances:     []integration.Data{integration.Data(`{"openmetrics_endpoint":"foo/bar","namespace":"","metrics":[".*"]}`)},
 					ClusterCheck:  true,
 					Provider:      names.PrometheusServices,
 					Source:        "prometheus_services:kube_service://ns/svc-foo",

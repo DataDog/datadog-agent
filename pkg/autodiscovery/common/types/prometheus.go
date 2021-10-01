@@ -35,7 +35,7 @@ var (
 		PrometheusPathAnnotation,
 		PrometheusPortAnnotation,
 	}
-	openmetricsDefaultMetrics = []string{"*"}
+	openmetricsDefaultMetrics = []string{".*"}
 )
 
 // PrometheusCheck represents the openmetrics check instances and the corresponding autodiscovery rules
@@ -46,7 +46,7 @@ type PrometheusCheck struct {
 
 // OpenmetricsInstance contains the openmetrics check instance fields
 type OpenmetricsInstance struct {
-	URL                           string                      `mapstructure:"prometheus_url" yaml:"prometheus_url,omitempty" json:"prometheus_url,omitempty"`
+	URL                           string                      `mapstructure:"openmetrics_endpoint" yaml:"openmetrics_endpoint,omitempty" json:"openmetrics_endpoint,omitempty"`
 	Namespace                     string                      `mapstructure:"namespace" yaml:"namespace,omitempty" json:"namespace"`
 	Metrics                       []string                    `mapstructure:"metrics" yaml:"metrics,omitempty" json:"metrics,omitempty"`
 	Prefix                        string                      `mapstructure:"prometheus_metrics_prefix" yaml:"prometheus_metrics_prefix,omitempty" json:"prometheus_metrics_prefix,omitempty"`
