@@ -1217,10 +1217,23 @@ func TestConnectedUDPSendIPv6(t *testing.T) {
 }
 
 func TestConnectionClobber(t *testing.T) {
-	tr, err := NewTracer(testConfig())
-	if err != nil {
-		t.Fatal(err)
+	cfg := testConfig()
+	cfg.ExcludedDestinationConnections = map[string][]string{
+		"*":           {"udp *"},
+		"0.0.0.0/2":   {"*"},
+		"64.0.0.0/3":  {"*"},
+		"96.0.0.0/4":  {"*"},
+		"112.0.0.0/5": {"*"},
+		"120.0.0.0/6": {"*"},
+		"124.0.0.0/7": {"*"},
+		"126.0.0.0/8": {"*"},
+		"128.0.0.0/1": {"*"},
 	}
+	cfg.ExcludedSourceConnections = map[string][]string{
+		"*": {"udp *"},
+	}
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
 	defer tr.Stop()
 
 	// Create TCP Server which, for every line, sends back a message with size=serverMessageSize
