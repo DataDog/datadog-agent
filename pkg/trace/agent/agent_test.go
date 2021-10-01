@@ -258,11 +258,12 @@ func TestProcess(t *testing.T) {
 			})
 		}
 
+		samplingPriorityTagValues := want.TracesPerSamplingPriority.TagValues()
 		assert.EqualValues(t, 1, want.TracesPriorityNone)
-		assert.EqualValues(t, 2, want.TracesPriorityNeg)
-		assert.EqualValues(t, 3, want.TracesPriority0)
-		assert.EqualValues(t, 4, want.TracesPriority1)
-		assert.EqualValues(t, 5, want.TracesPriority2)
+		assert.EqualValues(t, 2, samplingPriorityTagValues["-1"])
+		assert.EqualValues(t, 3, samplingPriorityTagValues["0"])
+		assert.EqualValues(t, 4, samplingPriorityTagValues["1"])
+		assert.EqualValues(t, 5, samplingPriorityTagValues["2"])
 	})
 
 	t.Run("GlobalTags", func(t *testing.T) {
