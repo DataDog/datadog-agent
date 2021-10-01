@@ -374,8 +374,11 @@ func (agg *BufferedAggregator) registerSender(id check.ID) error {
 
 func (agg *BufferedAggregator) deregisterSender(id check.ID) {
 	agg.mu.Lock()
-	agg.checkSamplers[id].close()
-	delete(agg.checkSamplers, id)
+	sampler, ok := agg.checkSamplers[id]
+	if ok {
+		sampler.close()
+		delete(agg.checkSamplers, id)
+	}
 	agg.mu.Unlock()
 }
 

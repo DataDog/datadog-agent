@@ -8,9 +8,6 @@
 package aggregator
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/util"
-
 	// stdlib
 	"math"
 	"testing"
@@ -20,8 +17,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
@@ -30,6 +29,7 @@ func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
 	sample.GetTags(tb)
 	return k.Generate(sample.GetName(), sample.GetHost(), tb)
 }
+
 
 func TestCheckGaugeSampling(t *testing.T) {
 	checkSampler := newCheckSampler(1)
@@ -172,7 +172,7 @@ func TestHistogramCountSampling(t *testing.T) {
 	checkSampler.addSample(&mSample3)
 
 	checkSampler.commit(12349.0)
-	require.Len(t, checkSampler.contextResolver.expireCountByKey, 1)
+	require.Equal(t, 1, checkSampler.contextResolver.Size())
 	series, _ := checkSampler.flush()
 
 	// Check that the `.count` metric returns a raw count of the samples, with no interval normalization
@@ -197,7 +197,7 @@ func TestHistogramCountSampling(t *testing.T) {
 
 	assert.True(t, foundCount)
 	checkSampler.commit(12349.0)
-	require.Len(t, checkSampler.contextResolver.expireCountByKey, 0)
+	require.Equal(t, 0, checkSampler.contextResolver.Size())
 }
 
 func TestCheckHistogramBucketSampling(t *testing.T) {

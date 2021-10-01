@@ -1,4 +1,4 @@
-package aggregator
+package context_resolver
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -6,30 +6,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
-// contextResolver allows tracking and expiring contexts
+// ContextResolver allows tracking and expiring contexts
 type contextResolverInMemory struct {
+	contextResolverBase
 	contextsByKey map[ckey.ContextKey]*Context
-	keyGenerator  *ckey.KeyGenerator
-	// buffer slice allocated once per contextResolver to combine and sort
-	// tags, origin detection tags and k8s tags.
-	tagsBuffer *util.TagsBuilder
 }
 
-// generateContextKey generates the contextKey associated with the context of the metricSample
-func (cr *contextResolverInMemory) generateContextKey(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
-	return cr.keyGenerator.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), cr.tagsBuffer)
-}
-
-func newContextResolverInMemory() *contextResolverInMemory {
+// NewContextResolverInMemory creates a new context resolver storing everything in memory
+func NewContextResolverInMemory() *contextResolverInMemory {
 	return &contextResolverInMemory{
+		contextResolverBase: contextResolverBase{
+			keyGenerator: ckey.NewKeyGenerator(),
+			tagsBuffer:   util.NewTagsBuilder(),
+		},
 		contextsByKey: make(map[ckey.ContextKey]*Context),
-		keyGenerator:  ckey.NewKeyGenerator(),
-		tagsBuffer:    util.NewTagsBuilder(),
 	}
 }
 
-// trackContext returns the contextKey associated with the context of the metricSample and tracks that context
-func (cr *contextResolverInMemory) trackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
+// TrackContext returns the contextKey associated with the context of the metricSample and tracks that context
+func (cr *contextResolverInMemory) TrackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
 	metricSampleContext.GetTags(cr.tagsBuffer)               // tags here are not sorted and can contain duplicates
 	contextKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates from cr.tagsBuffer (and doesn't mind the order)
 
@@ -48,12 +43,14 @@ func (cr *contextResolverInMemory) trackContext(metricSampleContext metrics.Metr
 	return contextKey
 }
 
-func (cr *contextResolverInMemory) get(key ckey.ContextKey) (*Context, bool) {
+// Get gets a context from its key
+func (cr *contextResolverInMemory) Get(key ckey.ContextKey) (*Context, bool) {
 	ctx, found := cr.contextsByKey[key]
 	return ctx, found
 }
 
-func (cr *contextResolverInMemory) length() int {
+// Size return the number of objects in the resolver
+func (cr *contextResolverInMemory) Size() int {
 	return len(cr.contextsByKey)
 }
 
@@ -63,5 +60,12 @@ func (cr *contextResolverInMemory) removeKeys(expiredContextKeys []ckey.ContextK
 	}
 }
 
-func (cr *contextResolverInMemory) close() {
+// Clear drops all contexts
+func (cr *contextResolverInMemory) Clear() {
+	cr.contextsByKey = make(map[ckey.ContextKey]*Context)
+}
+
+// Close frees up resources
+func (cr *contextResolverInMemory) Close() {
+	cr.Clear()
 }

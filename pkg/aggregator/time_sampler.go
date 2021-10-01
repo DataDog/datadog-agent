@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/context_resolver"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -23,7 +24,7 @@ type SerieSignature struct {
 // TimeSampler aggregates metrics by buckets of 'interval' seconds
 type TimeSampler struct {
 	interval                    int64
-	contextResolver             *timestampContextResolver
+	contextResolver             *context_resolver.TimestampContextResolver
 	metricsByTimestamp          map[int64]metrics.ContextMetrics
 	counterLastSampledByContext map[ckey.ContextKey]float64
 	lastCutOffTime              int64
@@ -37,7 +38,7 @@ func NewTimeSampler(interval int64) *TimeSampler {
 	}
 	return &TimeSampler{
 		interval:                    interval,
-		contextResolver:             newTimestampContextResolver(),
+		contextResolver:             context_resolver.NewTimestampContextResolver(),
 		metricsByTimestamp:          map[int64]metrics.ContextMetrics{},
 		counterLastSampledByContext: map[ckey.ContextKey]float64{},
 		sketchMap:                   make(sketchMap),
@@ -55,7 +56,7 @@ func (s *TimeSampler) isBucketStillOpen(bucketStartTimestamp, timestamp int64) b
 // Add the metricSample to the correct bucket
 func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp float64) {
 	// Keep track of the context
-	contextKey := s.contextResolver.trackContext(metricSample, timestamp)
+	contextKey := s.contextResolver.TrackContext(metricSample, timestamp)
 	bucketStart := s.calculateBucketStart(timestamp)
 
 	switch metricSample.Mtype {
@@ -81,7 +82,7 @@ func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp fl
 }
 
 func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) metrics.SketchSeries {
-	ctx, _ := s.contextResolver.get(ck)
+	ctx, _ := s.contextResolver.Get(ck)
 	ss := metrics.SketchSeries{
 		Name:       ctx.Name,
 		Tags:       ctx.Tags,
@@ -140,7 +141,7 @@ func (s *TimeSampler) flushSeries(cutoffTime int64) metrics.Series {
 			existingSerie.Points = append(existingSerie.Points, serie.Points[0])
 		} else {
 			// Resolve context and populate new Serie
-			context, ok := s.contextResolver.get(serie.ContextKey)
+			context, ok := s.contextResolver.Get(serie.ContextKey)
 			if !ok {
 				log.Errorf("Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", serie.ContextKey)
 				continue
@@ -183,11 +184,11 @@ func (s *TimeSampler) flush(timestamp float64) (metrics.Series, metrics.SketchSe
 	sketches := s.flushSketches(cutoffTime)
 
 	// expiring contexts
-	s.contextResolver.expireContexts(timestamp - config.Datadog.GetFloat64("dogstatsd_context_expiry_seconds"))
+	s.contextResolver.ExpireContexts(timestamp - config.Datadog.GetFloat64("dogstatsd_context_expiry_seconds"))
 	s.lastCutOffTime = cutoffTime
 
-	aggregatorDogstatsdContexts.Set(int64(s.contextResolver.length()))
-	tlmDogstatsdContexts.Set(float64(s.contextResolver.length()))
+	aggregatorDogstatsdContexts.Set(int64(s.contextResolver.Size()))
+	tlmDogstatsdContexts.Set(float64(s.contextResolver.Size()))
 	return series, sketches
 }
 
@@ -195,7 +196,7 @@ func (s *TimeSampler) flush(timestamp float64) (metrics.Series, metrics.SketchSe
 func (s *TimeSampler) flushContextMetrics(timestamp int64, contextMetrics metrics.ContextMetrics) []*metrics.Serie {
 	series, errors := contextMetrics.Flush(float64(timestamp))
 	for ckey, err := range errors {
-		context, ok := s.contextResolver.get(ckey)
+		context, ok := s.contextResolver.Get(ckey)
 		if !ok {
 			log.Errorf("Can't resolve context of error '%s': inconsistent context resolver state: context with key '%v' is not tracked", err, ckey)
 			continue
@@ -225,7 +226,7 @@ func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics me
 
 			// Update the tracked context so that the contextResolver doesn't expire counter contexts too early
 			// i.e. while we are still sending zeros for them
-			err := s.contextResolver.updateTrackedContext(counterContext, float64(timestamp))
+			err := s.contextResolver.UpdateTrackedContext(counterContext, float64(timestamp))
 			if err != nil {
 				log.Errorf("Error updating context: %s", err)
 			}
@@ -237,5 +238,5 @@ func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics me
 }
 
 func (s *TimeSampler) Close() {
-	s.contextResolver.close()
+	s.contextResolver.Close()
 }

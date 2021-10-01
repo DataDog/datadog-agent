@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/aggregator/context_resolver"
 	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -19,7 +20,7 @@ const checksSourceTypeName = "System"
 type CheckSampler struct {
 	series          []*metrics.Serie
 	sketches        metrics.SketchSeriesList
-	contextResolver *countBasedContextResolver
+	contextResolver *context_resolver.CountBasedContextResolver
 	metrics         metrics.ContextMetrics
 	sketchMap       sketchMap
 	lastBucketValue map[ckey.ContextKey]int64
@@ -30,7 +31,7 @@ func newCheckSampler(expirationCount int) *CheckSampler {
 	return &CheckSampler{
 		series:          make([]*metrics.Serie, 0),
 		sketches:        make(metrics.SketchSeriesList, 0),
-		contextResolver: newCountBasedContextResolver(expirationCount),
+		contextResolver: context_resolver.NewCountBasedContextResolver(expirationCount),
 		metrics:         metrics.MakeContextMetrics(),
 		sketchMap:       make(sketchMap),
 		lastBucketValue: make(map[ckey.ContextKey]int64),
@@ -38,7 +39,7 @@ func newCheckSampler(expirationCount int) *CheckSampler {
 }
 
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
-	contextKey := cs.contextResolver.trackContext(metricSample)
+	contextKey := cs.contextResolver.TrackContext(metricSample)
 
 	if err := cs.metrics.AddSample(contextKey, metricSample, metricSample.Timestamp, 1); err != nil {
 		log.Debugf("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Host, metricSample.Tags, err)
@@ -46,7 +47,7 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
 }
 
 func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) metrics.SketchSeries {
-	ctx, _ := cs.contextResolver.get(ck)
+	ctx, _ := cs.contextResolver.Get(ck)
 	ss := metrics.SketchSeries{
 		Name: ctx.Name,
 		Tags: ctx.Tags,
@@ -78,7 +79,7 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 		return
 	}
 
-	contextKey := cs.contextResolver.trackContext(bucket)
+	contextKey := cs.contextResolver.TrackContext(bucket)
 
 	// if the bucket is monotonic and we have already seen the bucket we only send the delta
 	if bucket.Monotonic {
@@ -120,7 +121,7 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 func (cs *CheckSampler) commitSeries(timestamp float64) {
 	series, errors := cs.metrics.Flush(timestamp)
 	for ckey, err := range errors {
-		context, ok := cs.contextResolver.get(ckey)
+		context, ok := cs.contextResolver.Get(ckey)
 		if !ok {
 			log.Errorf("Can't resolve context of error '%s': inconsistent context resolver state: context with key '%v' is not tracked", err, ckey)
 			continue
@@ -129,7 +130,7 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 	}
 	for _, serie := range series {
 		// Resolve context and populate new []Serie
-		context, ok := cs.contextResolver.get(serie.ContextKey)
+		context, ok := cs.contextResolver.Get(serie.ContextKey)
 		if !ok {
 			log.Errorf("Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", serie.ContextKey)
 			continue
@@ -160,7 +161,7 @@ func (cs *CheckSampler) commitSketches(timestamp float64) {
 func (cs *CheckSampler) commit(timestamp float64) {
 	cs.commitSeries(timestamp)
 	cs.commitSketches(timestamp)
-	expiredContextKeys := cs.contextResolver.expireContexts()
+	expiredContextKeys := cs.contextResolver.ExpireContexts()
 
 	// garbage collect unused buckets
 	for _, ctxKey := range expiredContextKeys {
@@ -181,5 +182,5 @@ func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 }
 
 func (cs *CheckSampler) close() {
-	cs.contextResolver.close()
+	cs.contextResolver.Close()
 }

@@ -1,4 +1,4 @@
-package aggregator
+package context_resolver
 
 import (
 	"bytes"
@@ -8,23 +8,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/dgraph-io/badger/v3"
 	"log"
+	"os"
 	"time"
 )
 
-// contextResolver allows tracking and expiring contexts
+// ContextResolver allows tracking and expiring contexts
 type contextResolverBadger struct {
+	contextResolverBase
+
 	db            *badger.DB
 	ticker        *time.Ticker
 	contextsByKey map[ckey.ContextKey]*Context
-	keyGenerator  *ckey.KeyGenerator
-	// buffer slice allocated once per contextResolver to combine and sort
-	// tags, origin detection tags and k8s tags.
-	tagsBuffer *util.TagsBuilder
-}
-
-// generateContextKey generates the contextKey associated with the context of the metricSample
-func (cr *contextResolverBadger) generateContextKey(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
-	return cr.keyGenerator.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), cr.tagsBuffer)
 }
 
 func (cr *contextResolverBadger) serializeContextKey(key ckey.ContextKey) []byte {
@@ -53,10 +47,23 @@ func (cr *contextResolverBadger) deserializeContext(b []byte) *Context {
 	return c
 }
 
-func newContextResolverBadger() *contextResolverBadger {
-	// TODO: Also try ondisk with the proper options, this would reduce memory usage at almost
-	//   no cost since we can disable fsync()
-	opt := badger.DefaultOptions("").WithInMemory(true)
+// NewContextResolverBadger creates a new context resolver using badger to store contexts
+func NewContextResolverBadger(inMemory bool, path string) *contextResolverBadger {
+	opt := badger.DefaultOptions(path).WithInMemory(inMemory).WithCompactL0OnClose(false)
+	opt = opt.WithLevelSizeMultiplier(10).WithMaxLevels(5)
+	opt = opt.WithNumMemtables(1).WithMemTableSize(10 << 20).WithBaseLevelSize(5 << 20)
+	opt = opt.WithValueLogMaxEntries(100000)
+	opt = opt.WithBlockCacheSize(32 << 20)
+	opt = opt.WithValueLogFileSize(2 << 20)
+
+	if !inMemory {
+		// We never want to re-use existing files.
+		e := os.Remove(path)
+		if e != nil {
+			log.Print(e)
+		}
+		opt.WithSyncWrites(false).WithDetectConflicts(false)
+	}
 	db, err := badger.Open(opt)
 	if err != nil {
 		log.Fatal(err)
@@ -64,18 +71,20 @@ func newContextResolverBadger() *contextResolverBadger {
 	ticker := time.NewTicker(1 * time.Minute)
 
 	cr := &contextResolverBadger{
+		contextResolverBase: contextResolverBase {
+			keyGenerator:  ckey.NewKeyGenerator(),
+			tagsBuffer:    util.NewTagsBuilder(),
+		},
 		db:            db,
 		ticker:        ticker,
 		contextsByKey: make(map[ckey.ContextKey]*Context),
-		keyGenerator:  ckey.NewKeyGenerator(),
-		tagsBuffer:    util.NewTagsBuilder(),
 	}
 	go cr.runGC()
 	return cr
 }
 
-// trackContext returns the contextKey associated with the context of the metricSample and tracks that context
-func (cr *contextResolverBadger) trackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
+// TrackContext returns the contextKey associated with the context of the metricSample and tracks that context
+func (cr *contextResolverBadger) TrackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
 	metricSampleContext.GetTags(cr.tagsBuffer)               // tags here are not sorted and can contain duplicates
 	contextKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates from cr.tagsBuffer (and doesn't mind the order)
 
@@ -101,7 +110,8 @@ func (cr *contextResolverBadger) trackContext(metricSampleContext metrics.Metric
 	return contextKey
 }
 
-func (cr *contextResolverBadger) get(key ckey.ContextKey) (*Context, bool) {
+// Get gets a context resolver for a given key
+func (cr *contextResolverBadger) Get(key ckey.ContextKey) (*Context, bool) {
 	var context *Context
 
 	// FIXME: review error handling.
@@ -129,7 +139,8 @@ func (cr *contextResolverBadger) get(key ckey.ContextKey) (*Context, bool) {
 	return context, context != nil
 }
 
-func (cr *contextResolverBadger) length() int {
+// Size returns the number of contexts stored
+func (cr *contextResolverBadger) Size() int {
 	count := 0
 	err := cr.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
@@ -151,6 +162,7 @@ func (cr *contextResolverBadger) length() int {
 	return count
 }
 
+// removeKeys remove all the contexts matching the keys
 func (cr *contextResolverBadger) removeKeys(expiredContextKeys []ckey.ContextKey) {
 	err := cr.db.Update(func(txn *badger.Txn) error {
 		for _, expiredContextKey := range expiredContextKeys {
@@ -176,7 +188,16 @@ func (cr *contextResolverBadger) runGC() {
 	}
 }
 
-func (cr *contextResolverBadger) close() {
+// Clear drops all contexts
+func (cr *contextResolverBadger) Clear() {
+	err := cr.db.DropAll()
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+// Close frees up resources
+func (cr *contextResolverBadger) Close() {
 	cr.ticker.Stop()
 	err := cr.db.Close()
 	if err != nil {
