@@ -381,7 +381,6 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		// set by the user, disable it
 		c.LogThrottling = false
 	}
-
 	return nil
 }
 

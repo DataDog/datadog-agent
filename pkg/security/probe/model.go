@@ -128,7 +128,7 @@ func (ev *Event) ResolveXAttrNamespace(e *model.SetXAttrEvent) string {
 
 // SetMountPoint set the mount point information
 func (ev *Event) SetMountPoint(e *model.MountEvent) {
-	e.MountPointStr, e.MountPointPathResolutionError = ev.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0)
+	e.MountPointStr, e.MountPointPathResolutionError = ev.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0, true)
 }
 
 // ResolveMountPoint resolves the mountpoint to a full path
@@ -141,7 +141,7 @@ func (ev *Event) ResolveMountPoint(e *model.MountEvent) string {
 
 // SetMountRoot set the mount point information
 func (ev *Event) SetMountRoot(e *model.MountEvent) {
-	e.RootStr, e.RootPathResolutionError = ev.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0)
+	e.RootStr, e.RootPathResolutionError = ev.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0, true)
 }
 
 // ResolveMountRoot resolves the mountpoint to a full path

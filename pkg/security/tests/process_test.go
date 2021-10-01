@@ -9,7 +9,6 @@ package tests
 
 import (
 	"fmt"
-	"io"
 	"math"
 	"os"
 	"os/exec"
@@ -121,18 +120,6 @@ func TestProcessContext(t *testing.T) {
 	}
 	defer test.Close()
 
-	which := func(name string) string {
-		executable := "/usr/bin/" + name
-		if resolved, err := os.Readlink(executable); err == nil {
-			executable = resolved
-		} else {
-			if os.IsNotExist(err) {
-				executable = "/bin/" + name
-			}
-		}
-		return executable
-	}
-
 	t.Run("exec-time", func(t *testing.T) {
 		testFile, _, err := test.Path("test-exec-time")
 		if err != nil {
@@ -169,6 +156,9 @@ func TestProcessContext(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("inode", func(t *testing.T) {
@@ -193,6 +183,9 @@ func TestProcessContext(t *testing.T) {
 			assertFieldEqual(t, event, "process.file.path", executable)
 			assert.Equal(t, getInode(t, executable), event.ResolveProcessCacheEntry().FileFields.Inode, "wrong inode")
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	test.Run(t, "args-envs", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -257,6 +250,9 @@ func TestProcessContext(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("argv", func(t *testing.T) {
@@ -364,6 +360,9 @@ func TestProcessContext(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("tty", func(t *testing.T) {
@@ -460,6 +459,9 @@ func TestProcessContext(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	test.Run(t, "pid1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -534,29 +536,6 @@ func TestProcessExecCTime(t *testing.T) {
 		}
 	}
 
-	copy := func(src string, dst string) error {
-		in, err := os.Open(src)
-		if err != nil {
-			return err
-		}
-		defer in.Close()
-
-		out, err := os.Create(dst)
-		if err != nil {
-			return err
-		}
-		defer out.Close()
-
-		if _, err = io.Copy(out, in); err != nil {
-			return err
-		}
-		if err := os.Chmod(dst, 0o755); err != nil {
-			return err
-		}
-
-		return nil
-	}
-
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_exec_ctime",
 		Expression: "exec.file.change_time < 5s",
@@ -573,7 +552,7 @@ func TestProcessExecCTime(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		copy(executable, testFile)
+		copyFile(executable, testFile, 0755)
 
 		cmd := exec.Command(testFile, "/tmp/test")
 		return cmd.Run()

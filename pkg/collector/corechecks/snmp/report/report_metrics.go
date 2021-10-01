@@ -16,12 +16,13 @@ import (
 // MetricSender is a wrapper around aggregator.Sender
 type MetricSender struct {
 	sender           aggregator.Sender
+	hostname         string
 	submittedMetrics int
 }
 
 // NewMetricSender create a new MetricSender
-func NewMetricSender(sender aggregator.Sender) *MetricSender {
-	return &MetricSender{sender: sender}
+func NewMetricSender(sender aggregator.Sender, hostname string) *MetricSender {
+	return &MetricSender{sender: sender, hostname: hostname}
 }
 
 // ReportMetrics reports metrics using Sender
@@ -129,20 +130,20 @@ func (ms *MetricSender) sendMetric(metricName string, value valuestore.ResultVal
 
 	switch forcedType {
 	case "gauge":
-		ms.Gauge(metricFullName, floatValue, "", tags)
+		ms.Gauge(metricFullName, floatValue, tags)
 		ms.submittedMetrics++
 	case "counter":
-		ms.Rate(metricFullName, floatValue, "", tags)
+		ms.Rate(metricFullName, floatValue, tags)
 		ms.submittedMetrics++
 	case "percent":
-		ms.Rate(metricFullName, floatValue*100, "", tags)
+		ms.Rate(metricFullName, floatValue*100, tags)
 		ms.submittedMetrics++
 	case "monotonic_count":
-		ms.MonotonicCount(metricFullName, floatValue, "", tags)
+		ms.MonotonicCount(metricFullName, floatValue, tags)
 		ms.submittedMetrics++
 	case "monotonic_count_and_rate":
-		ms.MonotonicCount(metricFullName, floatValue, "", tags)
-		ms.Rate(metricFullName+".rate", floatValue, "", tags)
+		ms.MonotonicCount(metricFullName, floatValue, tags)
+		ms.Rate(metricFullName+".rate", floatValue, tags)
 		ms.submittedMetrics += 2
 	default:
 		log.Debugf("metric `%s`: unsupported forcedType: %s", metricFullName, forcedType)
@@ -151,27 +152,27 @@ func (ms *MetricSender) sendMetric(metricName string, value valuestore.ResultVal
 }
 
 // Gauge wraps Sender.Gauge
-func (ms *MetricSender) Gauge(metric string, value float64, hostname string, tags []string) {
+func (ms *MetricSender) Gauge(metric string, value float64, tags []string) {
 	// we need copy tags before using Sender due to https://github.com/DataDog/datadog-agent/issues/7159
-	ms.sender.Gauge(metric, value, hostname, common.CopyStrings(tags))
+	ms.sender.Gauge(metric, value, ms.hostname, common.CopyStrings(tags))
 }
 
 // Rate wraps Sender.Rate
-func (ms *MetricSender) Rate(metric string, value float64, hostname string, tags []string) {
+func (ms *MetricSender) Rate(metric string, value float64, tags []string) {
 	// we need copy tags before using Sender due to https://github.com/DataDog/datadog-agent/issues/7159
-	ms.sender.Rate(metric, value, hostname, common.CopyStrings(tags))
+	ms.sender.Rate(metric, value, ms.hostname, common.CopyStrings(tags))
 }
 
 // MonotonicCount wraps Sender.MonotonicCount
-func (ms *MetricSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
+func (ms *MetricSender) MonotonicCount(metric string, value float64, tags []string) {
 	// we need copy tags before using Sender due to https://github.com/DataDog/datadog-agent/issues/7159
-	ms.sender.MonotonicCount(metric, value, hostname, common.CopyStrings(tags))
+	ms.sender.MonotonicCount(metric, value, ms.hostname, common.CopyStrings(tags))
 }
 
 // ServiceCheck wraps Sender.ServiceCheck
-func (ms *MetricSender) ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string) {
+func (ms *MetricSender) ServiceCheck(checkName string, status metrics.ServiceCheckStatus, tags []string, message string) {
 	// we need copy tags before using Sender due to https://github.com/DataDog/datadog-agent/issues/7159
-	ms.sender.ServiceCheck(checkName, status, hostname, common.CopyStrings(tags), message)
+	ms.sender.ServiceCheck(checkName, status, ms.hostname, common.CopyStrings(tags), message)
 }
 
 // GetSubmittedMetrics returns submitted metrics count

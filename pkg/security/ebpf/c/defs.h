@@ -253,8 +253,9 @@ struct ktimeval {
 struct file_metadata_t {
     u32 uid;
     u32 gid;
+    u32 nlink;
     u16 mode;
-    char padding[6];
+    char padding[2];
 
     struct ktimeval ctime;
     struct ktimeval mtime;

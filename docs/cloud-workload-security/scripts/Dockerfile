@@ -21,4 +21,6 @@ ENV PATH "${GOPATH}/bin:${PATH}"
 WORKDIR $GOPATH/src/github.com/DataDog/datadog-agent
 
 COPY requirements.txt requirements.txt
+COPY docs/cloud-workload-security/scripts/requirements-docs.txt requirements-docs.txt
 RUN python3 -m pip install -r requirements.txt
+RUN python3 -m pip install -r requirements-docs.txt
