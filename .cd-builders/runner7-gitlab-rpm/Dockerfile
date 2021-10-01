@@ -10,6 +10,7 @@ RUN sed -i -e 's/^mirrorlist/#mirrorlist/g' -e 's/^#baseurl=http:\/\/mirror.cent
 
 # force update root certificates
 RUN yum -y update ca-certificates
+RUN update-ca-trust extract
 
 # validate we are able to manage with https:// cert
 RUN curl https://curl.se/ca/cacert.pem
