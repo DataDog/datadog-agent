@@ -198,14 +198,14 @@ func runAgent(exit chan struct{}) {
 	log.Infof("running on platform: %s", hostInfo.Platform)
 	log.Infof("running version: %s", versionString(", "))
 
-	// Start workload metadata store before tagger
-	workloadmeta.GetGlobalStore().Start(context.Background())
-
 	// Tagger must be initialized after agent config has been setup
 	var t tagger.Tagger
 	if ddconfig.Datadog.GetBool("process_config.remote_tagger") {
 		t = remote.NewTagger()
 	} else {
+		// Start workload metadata store before tagger
+		workloadmeta.GetGlobalStore().Start(context.Background())
+
 		t = local.NewTagger(collectors.DefaultCatalog)
 	}
 	tagger.SetDefaultTagger(t)
