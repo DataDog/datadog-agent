@@ -70,6 +70,7 @@ require (
 	github.com/Microsoft/go-winio v0.4.17
 	github.com/alecthomas/participle v0.7.1
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
+	github.com/alexflint/go-memdump v0.0.0-20160830180315-750db99b78d6 // indirect
 	github.com/andybalholm/brotli v1.0.1 // indirect
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/aws/aws-sdk-go v1.40.38

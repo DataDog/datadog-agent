@@ -6,11 +6,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/alexflint/go-memdump"
 	"github.com/dgraph-io/badger/v3"
 	"log"
 	"os"
 	"time"
 )
+
+const UseGob = true
 
 // ContextResolver allows tracking and expiring contexts
 type contextResolverBadger struct {
@@ -18,7 +21,6 @@ type contextResolverBadger struct {
 
 	db            *badger.DB
 	ticker        *time.Ticker
-	contextsByKey map[ckey.ContextKey]*Context
 }
 
 func (cr *contextResolverBadger) serializeContextKey(key ckey.ContextKey) []byte {
@@ -28,21 +30,29 @@ func (cr *contextResolverBadger) serializeContextKey(key ckey.ContextKey) []byte
 // TODO: we probably want to encode it manually to be a bit more efficient here.
 func (cr *contextResolverBadger) serializeContext(c *Context) []byte {
 	var buffer bytes.Buffer
-	enc := gob.NewEncoder(&buffer)
-	err := enc.Encode(*c)
-	if err != nil {
-		log.Fatal(err)
+	if UseGob {
+		enc := gob.NewEncoder(&buffer)
+		err := enc.Encode(*c)
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		memdump.Encode(&buffer, c)
 	}
 	return buffer.Bytes()
 }
 
 func (cr *contextResolverBadger) deserializeContext(b []byte) *Context {
 	buffer := bytes.NewBuffer(b)
-	dec := gob.NewDecoder(buffer)
 	c := &Context{}
-	err := dec.Decode(&c)
-	if err != nil {
-		log.Fatal(err)
+	if UseGob {
+		dec := gob.NewDecoder(buffer)
+		err := dec.Decode(&c)
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		memdump.Decode(buffer, &c)
 	}
 	return c
 }
@@ -77,7 +87,6 @@ func NewContextResolverBadger(inMemory bool, path string) *contextResolverBadger
 		},
 		db:            db,
 		ticker:        ticker,
-		contextsByKey: make(map[ckey.ContextKey]*Context),
 	}
 	go cr.runGC()
 	return cr
@@ -88,7 +97,7 @@ func (cr *contextResolverBadger) TrackContext(metricSampleContext metrics.Metric
 	metricSampleContext.GetTags(cr.tagsBuffer)               // tags here are not sorted and can contain duplicates
 	contextKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates from cr.tagsBuffer (and doesn't mind the order)
 
-	if _, ok := cr.contextsByKey[contextKey]; !ok {
+	if _, ok := cr.Get(contextKey); !ok {
 		// making a copy of tags for the context since tagsBuffer
 		// will be reused later. This allows us to allocate one slice
 		// per context instead of one per sample.
@@ -97,17 +106,21 @@ func (cr *contextResolverBadger) TrackContext(metricSampleContext metrics.Metric
 			Tags: cr.tagsBuffer.Copy(),
 			Host: metricSampleContext.GetHost(),
 		}
-		err := cr.db.Update(func(txn *badger.Txn) error {
-			err := txn.Set(cr.serializeContextKey(contextKey), cr.serializeContext(c))
-			return err
-		})
-		if err != nil {
-			log.Fatal(err)
-		}
+		cr.Add(contextKey, c)
 	}
 
 	cr.tagsBuffer.Reset()
 	return contextKey
+}
+
+func (cr *contextResolverBadger) Add(key ckey.ContextKey, context *Context) {
+	err := cr.db.Update(func(txn *badger.Txn) error {
+		err := txn.Set(cr.serializeContextKey(key), cr.serializeContext(context))
+		return err
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 // Get gets a context resolver for a given key

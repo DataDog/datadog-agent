@@ -3,6 +3,7 @@ package context_resolver
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/golang/groupcache/lru"
 )
 
 // ContextResolver allows tracking and expiring contexts
@@ -13,9 +14,15 @@ type contextResolverWithLRU struct {
 }
 
 func NewcontextResolverWithLRU(resolver ContextResolver, cacheSize int) *contextResolverWithLRU {
+	cache := NewContextResolverLru(cacheSize)
+	cache.cache.OnEvicted = func(key lru.Key, value interface{}) {
+		v := value.(*Context)
+		k := key.(ckey.ContextKey)
+		resolver.Add(k, v)
+	}
 	return &contextResolverWithLRU{
 		contextResolverBase: newContextResolverBase(),
-		cache: NewContextResolverLru(cacheSize),
+		cache: cache,
 		resolver: resolver,
 	}
 }
@@ -23,12 +30,11 @@ func NewcontextResolverWithLRU(resolver ContextResolver, cacheSize int) *context
 // TrackContext returns the contextKey associated with the context of the metricSample and tracks that context
 func (cr *contextResolverWithLRU) TrackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
 	// There is room for optimization here are both methods are doing similar things.
-	var keyCache = cr.cache.TrackContext(metricSampleContext)
-	var keyResolver = cr.resolver.TrackContext(metricSampleContext)
-	if keyCache != keyResolver {
-		panic("Misconfigured resolvers are returning different keys")
-	}
-	return keyResolver
+	return cr.cache.TrackContext(metricSampleContext)
+}
+
+func (cr *contextResolverWithLRU) Add(key ckey.ContextKey, context *Context) {
+	cr.cache.Add(key, context)
 }
 
 // Get gets a context from its key

@@ -25,6 +25,7 @@ const UseBadger = true
 type ContextResolver interface {
 	generateContextKey(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey
 	TrackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey
+	Add(key ckey.ContextKey, context *Context)
 	Get(key ckey.ContextKey) (*Context, bool)
 	Size() int
 	removeKeys(expiredContextKeys []ckey.ContextKey)

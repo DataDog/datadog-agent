@@ -33,15 +33,20 @@ func (cr *contextResolverLru) TrackContext(metricSampleContext metrics.MetricSam
 		// making a copy of tags for the context since tagsBuffer
 		// will be reused later. This allows us to allocate one slice
 		// per context instead of one per sample.
-		cr.cache.Add(contextKey, &Context{
+		context := &Context{
 			Name: metricSampleContext.GetName(),
 			Tags: cr.tagsBuffer.Copy(),
 			Host: metricSampleContext.GetHost(),
-		})
+		}
+		cr.cache.Add(contextKey, context)
 	}
 
 	cr.tagsBuffer.Reset()
 	return contextKey
+}
+
+func (cr *contextResolverLru) Add(key ckey.ContextKey, context *Context) {
+	cr.cache.Add(key, context)
 }
 
 // Get gets a context matching a key
