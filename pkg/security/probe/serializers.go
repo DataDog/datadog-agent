@@ -210,8 +210,8 @@ type SELinuxEventSerializer struct {
 // DDContextSerializer serializes a span context to JSON
 // easyjson:json
 type DDContextSerializer struct {
-	SpanID  uint64 `json:"span_id,omitempty"`
-	TraceID uint64 `json:"trace_id,omitempty"`
+	SpanID  uint64 `json:"span_id,omitempty" jsonschema_description:"Span ID used for APM correlation"`
+	TraceID uint64 `json:"trace_id,omitempty" jsonschema_description:"Trace ID used for APM correlation"`
 }
 
 // EventSerializer serializes an event to JSON
