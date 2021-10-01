@@ -47,10 +47,6 @@ func httpSupported(t *testing.T) bool {
 	return currKernelVersion >= kernel.VersionCode(4, 1, 0)
 }
 
-func connectionBufferCapacity(t *Tracer) int {
-	return cap(t.buffer)
-}
-
 func TestTCPRemoveEntries(t *testing.T) {
 	config := testConfig()
 	config.TCPConnTimeout = 100 * time.Millisecond

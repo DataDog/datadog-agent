@@ -3,14 +3,12 @@ High level testing tasks
 """
 
 
-import copy
 import operator
 import os
 import re
 import sys
 from contextlib import contextmanager
 
-import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
@@ -64,6 +62,7 @@ TOOL_LIST_PROTO = [
     'github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway',
     'github.com/golang/protobuf/protoc-gen-go',
     'github.com/golang/mock/mockgen',
+    'github.com/tinylib/msgp',
 ]
 
 TOOLS = {
@@ -519,144 +518,6 @@ class TestProfiler:
                 sorted_times = sorted_times[:limit]
             for pkg, time in sorted_times:
                 print("{}s\t{}".format(time, pkg))
-
-
-@task
-def make_simple_gitlab_yml(
-    _, jobs_to_process, yml_file_src='.gitlab-ci.yml', yml_file_dest='.gitlab-ci.yml', dont_include_deps=False
-):
-    """
-    Replaces .gitlab-ci.yml with one containing only the steps needed to run the given jobs.
-
-    Keyword arguments:
-        jobs_to_run -- a comma separated list of jobs to execute, for example "iot_agent_rpm-arm64,iot_agent_rpm-armhf"
-        yml_file_src -- the source YAML file
-        yml_file_dest -- the destination YAML file
-        dont_include_deps -- this flag controls whether or not dependent jobs will be included in the final job list. Specify it if you only want to run the jobs listed in 'jobs_to_run'
-    """
-    with open(yml_file_src) as f:
-        data = yaml.load(f, Loader=yaml.FullLoader)
-
-    jobs_processed = set(['stages', 'variables', 'include', 'default'])
-    jobs_to_process = set(jobs_to_process.split(','))
-    while jobs_to_process:
-        job_name = jobs_to_process.pop()
-        if job_name in data:
-            job = data[job_name]
-            jobs_processed.add(job_name)
-
-            # Process dependencies
-            if not dont_include_deps:
-                needs = job.get("needs", None)
-                if needs is not None:
-                    jobs_to_process.update(needs)
-
-            # Process base jobs
-            extends = job.get("extends", None)
-            if extends is not None:
-                if isinstance(extends, str):
-                    extends = [extends]
-                jobs_to_process.update(extends)
-
-            # Delete rules that may prevent our job from running
-            if 'rules' in job:
-                del job['rules']
-            if 'except' in job:
-                del job['except']
-            if 'only' in job:
-                del job['only']
-
-    out = copy.deepcopy(data)
-    for k, _ in data.items():
-        if k not in jobs_processed:
-            del out[k]
-            continue
-
-    with open(yml_file_dest, 'w') as f:
-        yaml.dump(out, f)
-
-
-@task
-def make_kitchen_gitlab_yml(_):
-    """
-    Replaces .gitlab-ci.yml with one containing only the steps needed to run kitchen-tests
-    """
-    with open('.gitlab-ci.yml') as f:
-        data = yaml.load(f, Loader=yaml.FullLoader)
-
-    data['stages'] = [
-        'deps_build',
-        'deps_fetch',
-        'binary_build',
-        'package_build',
-        'testkitchen_deploy',
-        'testkitchen_testing',
-        'testkitchen_cleanup',
-    ]
-    for name, job in data.items():
-        if isinstance(job, dict) and job.get('stage', None) not in ([None] + data['stages']):
-            del data[name]
-            continue
-        if (
-            isinstance(job, dict)
-            and job.get('stage', None) == 'binary_build'
-            and name != 'build_system-probe-arm64'
-            and name != 'build_system-probe-x64'
-        ):
-            del data[name]
-            continue
-        if 'except' in job:
-            del job['except']
-        if 'only' in job:
-            del job['only']
-        if 'rules' in job:
-            del job['rules']
-        if len(job) == 0:
-            del data[name]
-            continue
-
-    for name, job in data.items():
-        if 'extends' in job:
-            extended = job['extends']
-            if not isinstance(extended, list):
-                extended = [extended]
-            for job in extended:
-                if job not in data:
-                    del data[name]
-
-    for _, job in data.items():
-        if 'needs' in job:
-            needed = job['needs']
-            new_needed = []
-            for n in needed:
-                if n in data:
-                    new_needed.append(n)
-            job['needs'] = new_needed
-
-    with open('.gitlab-ci.yml', 'w') as f:
-        yaml.dump(data, f, default_style='"')
-
-
-@task
-def check_gitlab_broken_dependencies(_):
-    """
-    Checks that a gitlab job doesn't depend on (need) other jobs that will be excluded from the build,
-    since this would make gitlab fail when triggering a pipeline with those jobs excluded.
-    """
-    with open('.gitlab-ci.yml') as f:
-        data = yaml.load(f, Loader=yaml.FullLoader)
-
-    def is_unwanted(job, version):
-        e = job.get('except', {})
-        return isinstance(e, dict) and '$RELEASE_VERSION_{} == ""'.format(version) in e.get('variables', {})
-
-    for version in [6, 7]:
-        for k, v in data.items():
-            if isinstance(v, dict) and not is_unwanted(v, version) and "needs" in v:
-                needed = v['needs']
-                for need in needed:
-                    if is_unwanted(data[need], version):
-                        print("{} needs on {} but it won't be built for A{}".format(k, need, version))
 
 
 @task

@@ -1215,7 +1215,7 @@ func TestConnectionClobber(t *testing.T) {
 	defer close(doneChan)
 
 	// we only need 1/4 since both send and recv sides will be registered
-	sendCount := connectionBufferCapacity(tr)/4 + 1
+	sendCount := tr.activeBuffer.Capacity()/4 + 1
 	sendAndRecv := func() []net.Conn {
 		connsCh := make(chan net.Conn, sendCount)
 		var conns []net.Conn
@@ -1260,14 +1260,14 @@ func TestConnectionClobber(t *testing.T) {
 	// affect the tr.buffer length
 	time.Sleep(2 * time.Second)
 
-	preCap := connectionBufferCapacity(tr)
+	preCap := tr.activeBuffer.Capacity()
 	connections := getConnections(t, tr)
 	require.NotEmpty(t, connections)
 	src := connections.Conns[0].SPort
 	dst := connections.Conns[0].DPort
 	t.Logf("got %d connections", len(connections.Conns))
 	// ensure we didn't grow or shrink the buffer
-	require.Equal(t, preCap, connectionBufferCapacity(tr))
+	require.Equal(t, preCap, tr.activeBuffer.Capacity())
 
 	for _, c := range append(conns, serverConns...) {
 		c.Close()
@@ -1287,7 +1287,7 @@ func TestConnectionClobber(t *testing.T) {
 	t.Logf("got %d connections", len(getConnections(t, tr).Conns))
 	require.Equal(t, src, connections.Conns[0].SPort, "source port should not change")
 	require.Equal(t, dst, connections.Conns[0].DPort, "dest port should not change")
-	require.Equal(t, preCap, connectionBufferCapacity(tr))
+	require.Equal(t, preCap, tr.activeBuffer.Capacity())
 }
 
 func TestTCPDirection(t *testing.T) {

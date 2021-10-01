@@ -18,9 +18,9 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-go/statsd"
-	lib "github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cihub/seelog"
+	lib "github.com/cilium/ebpf"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -440,6 +440,12 @@ func (p *Probe) handleEvent(CPU uint64, data []byte) {
 		if _, err = event.Link.UnmarshalBinary(data[offset:]); err != nil {
 			log.Errorf("failed to decode link event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
+		}
+
+		// need to invalidate as now nlink > 1
+		if event.Link.Retval >= 0 {
+			// defer it do ensure that it will be done after the dispatch that could re-add it
+			defer p.invalidateDentry(event.Link.Source.MountID, event.Link.Source.Inode)
 		}
 	case model.FileSetXAttrEventType:
 		if _, err = event.SetXAttr.UnmarshalBinary(data[offset:]); err != nil {

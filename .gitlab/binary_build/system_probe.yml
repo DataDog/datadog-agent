@@ -58,4 +58,3 @@ build_system-probe-arm64:
   extends: .system-probe_build_common
   variables:
     ARCH: arm64
-    NIKOS_EMBEDDED_PATH: None

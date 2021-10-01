@@ -31,7 +31,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 		log.Debugf("Unable to build interfaces metadata: %s", err)
 	}
 
-	metadataPayloads := batchPayloads(config.ResolvedSubnetName, collectTime, metadata.PayloadMetadataBatchSize, device, interfaces)
+	metadataPayloads := batchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, metadata.PayloadMetadataBatchSize, device, interfaces)
 
 	for _, payload := range metadataPayloads {
 		payloadBytes, err := json.Marshal(payload)
@@ -106,7 +106,7 @@ func buildNetworkInterfacesMetadata(deviceID string, store *valuestore.ResultVal
 	return interfaces, err
 }
 
-func batchPayloads(subnet string, collectTime time.Time, batchSize int, device metadata.DeviceMetadata, interfaces []metadata.InterfaceMetadata) []metadata.NetworkDevicesMetadata {
+func batchPayloads(namespace string, subnet string, collectTime time.Time, batchSize int, device metadata.DeviceMetadata, interfaces []metadata.InterfaceMetadata) []metadata.NetworkDevicesMetadata {
 	var payloads []metadata.NetworkDevicesMetadata
 	var resourceCount int
 	payload := metadata.NetworkDevicesMetadata{
@@ -114,6 +114,7 @@ func batchPayloads(subnet string, collectTime time.Time, batchSize int, device m
 			device,
 		},
 		Subnet:           subnet,
+		Namespace:        namespace,
 		CollectTimestamp: collectTime.Unix(),
 	}
 	resourceCount++
@@ -123,6 +124,7 @@ func batchPayloads(subnet string, collectTime time.Time, batchSize int, device m
 			payloads = append(payloads, payload)
 			payload = metadata.NetworkDevicesMetadata{
 				Subnet:           subnet,
+				Namespace:        namespace,
 				CollectTimestamp: collectTime.Unix(),
 			}
 			resourceCount = 0

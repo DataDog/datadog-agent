@@ -174,7 +174,7 @@ def get_build_flags(
     )
 
     # adding nikos libs to the env
-    if nikos_embedded_path and nikos_embedded_path != 'None':
+    if nikos_embedded_path:
         env['PKG_CONFIG_PATH'] = env.get('PKG_CONFIG_PATH', '') + ':' + nikos_embedded_path + '/lib/pkgconfig'
         env["CGO_LDFLAGS"] = env.get('CGO_LDFLAGS', '') + get_nikos_linker_flags(nikos_embedded_path + '/lib')
 
@@ -415,3 +415,18 @@ def bundle_files(ctx, bindata_files, dir_prefix, go_dir, pkg, tag, split=True):
         )
     )
     ctx.run("gofmt -w -s {go_dir}".format(go_dir=go_dir))
+
+
+##
+## release.json entry mapping functions
+##
+
+
+def nightly_entry_for(agent_major_version):
+    if agent_major_version == 6:
+        return "nightly"
+    return "nightly-a{}".format(agent_major_version)
+
+
+def release_entry_for(agent_major_version):
+    return "release-a{}".format(agent_major_version)

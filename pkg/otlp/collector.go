@@ -10,21 +10,24 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
+	"go.opentelemetry.io/collector/processor/batchprocessor"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/collector/service"
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/otlp/internal/serializerexporter"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-func getComponents() (
+func getComponents(s serializer.MetricSerializer) (
 	component.Factories,
 	error,
 ) {
@@ -44,12 +47,15 @@ func getComponents() (
 
 	exporters, err := component.MakeExporterFactoryMap(
 		otlpexporter.NewFactory(),
+		serializerexporter.NewFactory(s),
 	)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
-	processors, err := component.MakeProcessorFactoryMap()
+	processors, err := component.MakeProcessorFactoryMap(
+		batchprocessor.NewFactory(),
+	)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -61,7 +67,7 @@ func getComponents() (
 		Exporters:  exporters,
 	}
 
-	return factories, consumererror.Combine(errs)
+	return factories, multierr.Combine(errs...)
 }
 
 func getBuildInfo() (component.BuildInfo, error) {
@@ -87,6 +93,10 @@ type PipelineConfig struct {
 	HTTPPort uint
 	// TracePort is the trace Agent OTLP port.
 	TracePort uint
+	// MetricsEnabled states whether OTLP metrics support is enabled.
+	MetricsEnabled bool
+	// TracesEnabled states whether OTLP traces support is enabled.
+	TracesEnabled bool
 }
 
 // Pipeline is an OTLP pipeline.
@@ -95,13 +105,13 @@ type Pipeline struct {
 }
 
 // NewPipeline defines a new OTLP pipeline.
-func NewPipeline(cfg PipelineConfig) (*Pipeline, error) {
+func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer) (*Pipeline, error) {
 	buildInfo, err := getBuildInfo()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get build info: %w", err)
 	}
 
-	factories, err := getComponents()
+	factories, err := getComponents(s)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get components: %w", err)
 	}
@@ -112,7 +122,7 @@ func NewPipeline(cfg PipelineConfig) (*Pipeline, error) {
 	}),
 	}
 
-	parser, err := newParser(cfg)
+	parser, err := newMap(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build parser: %w", err)
 	}
@@ -127,15 +137,16 @@ func NewPipeline(cfg PipelineConfig) (*Pipeline, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// HACK: ensure flags are not-nil
+	// TODO: fix this upstream.
+	_ = service.NewCommand(col)
 	return &Pipeline{col}, nil
 }
 
 // Run the OTLP pipeline.
-func (p *Pipeline) Run(_ context.Context) error {
-	// TODO (AP-1254): Avoid this workaround
-	// See https://github.com/open-telemetry/opentelemetry-collector/issues/3957
-	cmd := p.col.Command()
-	return cmd.RunE(cmd, nil)
+func (p *Pipeline) Run(ctx context.Context) error {
+	return p.col.Run(ctx)
 }
 
 // Stop the OTLP pipeline.
@@ -144,13 +155,13 @@ func (p *Pipeline) Stop() {
 }
 
 // BuildAndStart builds and starts an OTLP pipeline
-func BuildAndStart(ctx context.Context, cfg config.Config) (*Pipeline, error) {
+func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSerializer) (*Pipeline, error) {
 	pcfg, err := FromAgentConfig(config.Datadog)
 	if err != nil {
 		return nil, fmt.Errorf("config error: %w", err)
 	}
 
-	p, err := NewPipeline(pcfg)
+	p, err := NewPipeline(pcfg, s)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build pipeline: %w", err)
 	}

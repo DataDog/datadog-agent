@@ -28,6 +28,7 @@ core,github.com/DataDog/agent-payload/process,BSD-3-Clause,"Datadog, Inc."
 core,github.com/DataDog/datadog-go/statsd,MIT,"Datadog, Inc."
 core,github.com/DataDog/datadog-operator/api/v1alpha1,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/ebpf,MIT,"Datadog, Inc."
+core,github.com/DataDog/ebpf-manager,MIT,"Datadog, Inc."
 core,github.com/DataDog/ebpf/asm,MIT,"Datadog, Inc."
 core,github.com/DataDog/ebpf/internal,MIT,"Datadog, Inc."
 core,github.com/DataDog/ebpf/internal/btf,MIT,"Datadog, Inc."
@@ -48,6 +49,7 @@ core,github.com/DataDog/gopsutil/internal/common,BSD-3-Clause,"Datadog, Inc."
 core,github.com/DataDog/gopsutil/mem,BSD-3-Clause,"Datadog, Inc."
 core,github.com/DataDog/gopsutil/net,BSD-3-Clause,"Datadog, Inc."
 core,github.com/DataDog/gopsutil/process,BSD-3-Clause,"Datadog, Inc."
+core,github.com/DataDog/gopsutil/process/filepath,BSD-3-Clause,"Datadog, Inc."
 core,github.com/DataDog/gopsutil/process/so,BSD-3-Clause,"Datadog, Inc."
 core,github.com/DataDog/gostackparse,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/mmh3,UNKNOWN,"Datadog, Inc."
@@ -62,6 +64,7 @@ core,github.com/DataDog/sketches-go/ddsketch,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/sketches-go/ddsketch/encoding,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/sketches-go/ddsketch/mapping,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/sketches-go/ddsketch/pb/sketchpb,Apache-2.0,"Datadog, Inc."
+core,github.com/DataDog/sketches-go/ddsketch/stat,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/sketches-go/ddsketch/store,Apache-2.0,"Datadog, Inc."
 core,github.com/DataDog/viper,MIT,"Datadog, Inc."
 core,github.com/DataDog/watermarkpodautoscaler/api/v1alpha1,Apache-2.0,"Datadog, Inc."
@@ -77,6 +80,7 @@ core,github.com/Microsoft/go-winio/pkg/guid,MIT,Microsoft
 core,github.com/Microsoft/go-winio/pkg/security,MIT,Microsoft
 core,github.com/Microsoft/go-winio/vhd,MIT,Microsoft
 core,github.com/Microsoft/hcsshim,MIT,Microsoft | Microsoft Corp
+core,github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/stats,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/computestorage,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/internal/cow,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/internal/hcs,MIT,Microsoft | Microsoft Corp
@@ -98,9 +102,11 @@ core,github.com/Microsoft/hcsshim/internal/winapi,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/osversion,MIT,Microsoft | Microsoft Corp
 core,github.com/Microsoft/hcsshim/pkg/ociwclayer,MIT,Microsoft | Microsoft Corp
 core,github.com/NYTimes/gziphandler,Apache-2.0,The New York Times Company
+core,github.com/OneOfOne/xxhash,Apache-2.0,OneOfOne (https://github.com/OneOfOne)
 core,github.com/PuerkitoBio/purell,BSD-3-Clause,Martin Angers
 core,github.com/PuerkitoBio/urlesc,BSD-3-Clause,The Go Authors
 core,github.com/StackExchange/wmi,MIT,Stack Exchange
+core,github.com/alecthomas/jsonschema,MIT,Alec Thomas
 core,github.com/alecthomas/participle,MIT,Alec Thomas
 core,github.com/alecthomas/participle/lexer,MIT,Alec Thomas
 core,github.com/alecthomas/participle/lexer/ebnf,MIT,Alec Thomas
@@ -169,6 +175,7 @@ core,github.com/aws/aws-sdk-go/service/sso/ssoiface,Apache-2.0,"Amazon.com, Inc.
 core,github.com/aws/aws-sdk-go/service/sts,Apache-2.0,"Amazon.com, Inc. or its affiliates | Stripe, Inc."
 core,github.com/aws/aws-sdk-go/service/sts/stsiface,Apache-2.0,"Amazon.com, Inc. or its affiliates | Stripe, Inc."
 core,github.com/beevik/ntp,BSD-2-Clause,Anton Tolchanov (knyar) | Ask Bjørn Hansen (abh) | Brett Vickers | Brett Vickers (beevik) | Christopher Batey (chbatey) | Leonid Evdokimov (darkk) | Meng Zhuo (mengzhuo) | Mikhail Salosin (AlphaB)
+core,github.com/benbjohnson/clock,MIT,Ben Johnson
 core,github.com/benesch/cgosymbolizer,BSD-3-Clause,Cockroach Labs
 core,github.com/beorn7/perks/quantile,MIT,Blake Mizerany
 core,github.com/bhmj/jsonslice,MIT,bhmj
@@ -176,11 +183,23 @@ core,github.com/bits-and-blooms/bitset,BSD-3-Clause,Will Fitzgerald
 core,github.com/blabber/go-freebsd-sysctl/sysctl,0BSD,Tobias Rehbein <tobias.rehbein@web.de>
 core,github.com/blang/semver,MIT,Benedikt Lang <github at benediktlang.de>
 core,github.com/bmizerany/pat,UNKNOWN,"Keith Rarick, Blake Mizerany"
+core,github.com/bytecodealliance/wasmtime-go,Apache-2.0,Bytecode Alliance
+core,github.com/bytecodealliance/wasmtime-go/build/include,Apache-2.0,Bytecode Alliance
+core,github.com/bytecodealliance/wasmtime-go/build/include/wasmtime,Apache-2.0,Bytecode Alliance
+core,github.com/bytecodealliance/wasmtime-go/build/linux-x86_64,Apache-2.0,Bytecode Alliance
+core,github.com/bytecodealliance/wasmtime-go/build/macos-x86_64,Apache-2.0,Bytecode Alliance
+core,github.com/bytecodealliance/wasmtime-go/build/windows-x86_64,Apache-2.0,Bytecode Alliance
 core,github.com/cenkalti/backoff,MIT,Cenk Altı
 core,github.com/cenkalti/backoff/v4,MIT,Cenk Altı
 core,github.com/cespare/xxhash,MIT,Caleb Spare
 core,github.com/cespare/xxhash/v2,MIT,Caleb Spare
 core,github.com/cihub/seelog,BSD-3-Clause,"Cloud Instruments Co., Ltd. <info@cin.io>"
+core,github.com/cilium/ebpf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/cilium/ebpf/asm,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/cilium/ebpf/internal,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/cilium/ebpf/internal/btf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/cilium/ebpf/internal/unix,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
+core,github.com/cilium/ebpf/perf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
 core,github.com/clbanning/mxj,MIT,Charles Banning <clbanning@gmail.com> | The Go Authors
 core,github.com/cloudfoundry-community/go-cfclient,MIT,Long Nguyen
 core,github.com/cobaugh/osrelease,BSD-3-Clause,Andrew Cobaugh
@@ -425,6 +444,7 @@ core,github.com/hashicorp/serf/coordinate,MPL-2.0,HashiCorp Inc.
 core,github.com/hectane/go-acl,MIT,Nathan Osman
 core,github.com/hectane/go-acl/api,MIT,Nathan Osman
 core,github.com/huandu/xstrings,MIT,Huan Du
+core,github.com/iancoleman/orderedmap,MIT,Ian Coleman
 core,github.com/ianlancetaylor/cgosymbolizer,BSD-3-Clause,"Free Software Foundation, Inc | The Go Authors"
 core,github.com/imdario/mergo,BSD-3-Clause,Dario Castañé | The Go Authors
 core,github.com/inconshreveable/mousetrap,Apache-2.0,Alan Shreve
@@ -441,6 +461,7 @@ core,github.com/jstemmer/go-junit-report,MIT,Joel Stemmer
 core,github.com/jstemmer/go-junit-report/formatter,MIT,Joel Stemmer
 core,github.com/jstemmer/go-junit-report/parser,MIT,Joel Stemmer
 core,github.com/kardianos/osext,BSD-3-Clause,The Go Authors
+core,github.com/karrick/godirwalk,BSD-2-Clause,Karrick McDermott
 core,github.com/kjk/lzma,BSD-3-Clause,Andrei Vieru
 core,github.com/klauspost/compress/flate,BSD-3-Clause,Klaus Post | The Go Authors
 core,github.com/klauspost/compress/fse,BSD-3-Clause,Klaus Post | The Go Authors
@@ -498,6 +519,61 @@ core,github.com/munnerz/goautoneg,BSD-3-Clause,Open Knowledge Foundation Ltd
 core,github.com/mxk/go-flowrate/flowrate,BSD-3-Clause,The Go-FlowRate Authors
 core,github.com/nwaples/rardecode,BSD-2-Clause,Nicholas Waples
 core,github.com/olekukonko/tablewriter,MIT,Oleku Konko
+core,github.com/open-policy-agent/opa/ast,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/ast/internal/scanner,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/ast/internal/tokens,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/ast/location,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/bundle,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/format,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/bundle,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/cidr/merge,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/compiler/wasm,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/compiler/wasm/opa,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/debug,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/deepcopy,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/file/archive,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/file/url,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/gojsonschema,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/ir,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/jwx/buffer,MIT,The OPA Authors | lestrrat
+core,github.com/open-policy-agent/opa/internal/jwx/jwa,MIT,The OPA Authors | lestrrat
+core,github.com/open-policy-agent/opa/internal/jwx/jwk,MIT,The OPA Authors | lestrrat
+core,github.com/open-policy-agent/opa/internal/jwx/jws,MIT,The OPA Authors | lestrrat
+core,github.com/open-policy-agent/opa/internal/jwx/jws/sign,MIT,The OPA Authors | lestrrat
+core,github.com/open-policy-agent/opa/internal/jwx/jws/verify,MIT,The OPA Authors | lestrrat
+core,github.com/open-policy-agent/opa/internal/lcss,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/leb128,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/merge,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/planner,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/rego/opa,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/semver,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/uuid,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/version,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/wasm/constant,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/wasm/encoding,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/wasm/instruction,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/wasm/module,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/wasm/opcode,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/wasm/sdk/internal/wasm,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/wasm/sdk/opa,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/wasm/sdk/opa/capabilities,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/wasm/sdk/opa/errors,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/internal/wasm/types,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/keys,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/loader,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/metrics,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/rego,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/resolver,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/resolver/wasm,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/storage,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/storage/inmem,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/topdown,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/topdown/builtins,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/topdown/cache,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/topdown/copypropagation,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/types,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/util,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/version,Apache-2.0,The OPA Authors
 core,github.com/opencontainers/go-digest,Apache-2.0,"Docker, Inc | OCI Contributors"
 core,github.com/opencontainers/image-spec/identity,Apache-2.0,The Linux Foundation
 core,github.com/opencontainers/image-spec/specs-go,Apache-2.0,The Linux Foundation
@@ -538,6 +614,7 @@ core,github.com/prometheus/procfs/internal/fs,Apache-2.0,The Prometheus Authors
 core,github.com/prometheus/procfs/internal/util,Apache-2.0,The Prometheus Authors
 core,github.com/prometheus/statsd_exporter/pkg/mapper,Apache-2.0,The Prometheus Authors
 core,github.com/prometheus/statsd_exporter/pkg/mapper/fsm,Apache-2.0,The Prometheus Authors
+core,github.com/rcrowley/go-metrics,BSD-2-Clause-Views,Richard Crowley
 core,github.com/richardartoul/molecule,MIT,Richard Artoul
 core,github.com/richardartoul/molecule/src/codec,Apache-2.0,Richard Artoul
 core,github.com/richardartoul/molecule/src/protowire,BSD-3-Clause,Richard Artoul | The Go Authors
@@ -585,6 +662,12 @@ core,github.com/syndtr/goleveldb/leveldb/storage,BSD-2-Clause,Suryandaru Trianda
 core,github.com/syndtr/goleveldb/leveldb/table,BSD-2-Clause,Suryandaru Triandana <syndtr@gmail.com>
 core,github.com/syndtr/goleveldb/leveldb/util,BSD-2-Clause,Suryandaru Triandana <syndtr@gmail.com>
 core,github.com/tedsuo/rata,MIT,Ted Young
+core,github.com/tent/canonical-json-go,BSD-3-Clause,The Go Authors
+core,github.com/theupdateframework/go-tuf/client,BSD-3-Clause,"Prime Directive, Inc"
+core,github.com/theupdateframework/go-tuf/data,BSD-3-Clause,"Prime Directive, Inc"
+core,github.com/theupdateframework/go-tuf/internal/targets,BSD-3-Clause,"Prime Directive, Inc"
+core,github.com/theupdateframework/go-tuf/util,BSD-3-Clause,"Prime Directive, Inc"
+core,github.com/theupdateframework/go-tuf/verify,BSD-3-Clause,"Prime Directive, Inc"
 core,github.com/tinylib/msgp,MIT,Philip Hofer | The Go Authors
 core,github.com/tinylib/msgp/gen,MIT,Philip Hofer | The Go Authors
 core,github.com/tinylib/msgp/msgp,MIT,Philip Hofer | The Go Authors
@@ -609,6 +692,8 @@ core,github.com/xeipuuv/gojsonreference,Apache-2.0,xeipuuv ( https://github.com/
 core,github.com/xeipuuv/gojsonschema,Apache-2.0,xeipuuv ( https://github.com/xeipuuv )
 core,github.com/xi2/xz,UNKNOWN,Igor Pavlov <http://7-zip.org/> | Lasse Collin <lasse.collin@tukaani.org> | Michael Cross <https://github.com/xi2>
 core,github.com/xor-gate/ar,MIT,Blake Smith <blakesmith0@gmail.com>
+core,github.com/yashtewari/glob-intersection,Apache-2.0,yashtewari (https://github.com/yashtewari)
+core,go.etcd.io/bbolt,MIT,the etcd maintainers
 core,go.etcd.io/etcd/api/v3/version,Apache-2.0,the etcd maintainers
 core,go.etcd.io/etcd/auth/authpb,Apache-2.0,the etcd maintainers
 core,go.etcd.io/etcd/client/pkg/v3/pathutil,Apache-2.0,the etcd maintainers
@@ -666,17 +751,20 @@ core,go.opentelemetry.io/collector/config/confighttp,Apache-2.0,Open Telemetry M
 core,go.opentelemetry.io/collector/config/confignet,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configparser,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configtelemetry,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/config/configtest,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configtls,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/configunmarshaler,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/config/experimental/configsource,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/consumer,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/consumer/consumererror,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/consumer/consumerhelper,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/consumer/consumertest,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/exporter/exporterhelper,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/exporter/exporterhelper/internal,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/exporter/otlpexporter,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/extension/ballastextension,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/extension/extensionhelper,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/extension/storage,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/internal/cgroups,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/internal/collector/telemetry,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/internal/iruntime,Apache-2.0,Open Telemetry Maintainers
@@ -684,6 +772,7 @@ core,go.opentelemetry.io/collector/internal/middleware,Apache-2.0,Open Telemetry
 core,go.opentelemetry.io/collector/internal/obsreportconfig,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/internal/obsreportconfig/obsmetrics,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/internal/sharedcomponent,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/internal/testdata,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/internal/version,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/model/internal,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/model/internal/data,Apache-2.0,Open Telemetry Maintainers
@@ -713,11 +802,13 @@ core,go.opentelemetry.io/collector/service/internal,Apache-2.0,Open Telemetry Ma
 core,go.opentelemetry.io/collector/service/internal/builder,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/service/internal/fanoutconsumer,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/service/internal/telemetry,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/collector/service/internal/telemetrylogs,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/service/internal/zpages,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/service/internal/zpages/tmplgen,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/service/parserprovider,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/contrib,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/internal,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/contrib/zpages,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/contrib/zpages/internal,Apache-2.0,Open Telemetry Maintainers
@@ -733,6 +824,7 @@ core,go.opentelemetry.io/otel/metric,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/metric/global,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/metric/number,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/metric/registry,Apache-2.0,Open Telemetry Maintainers
+core,go.opentelemetry.io/otel/metric/sdkapi,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/metric/unit,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/propagation,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/otel/sdk/instrumentation,Apache-2.0,Open Telemetry Maintainers
@@ -757,6 +849,8 @@ core,go4.org/unsafe/assume-no-moving-gc,BSD-3-Clause,Brad Fitzpatrick
 core,golang.org/x/crypto/cast5,BSD-3-Clause,The Go Authors
 core,golang.org/x/crypto/cryptobyte,BSD-3-Clause,The Go Authors
 core,golang.org/x/crypto/cryptobyte/asn1,BSD-3-Clause,The Go Authors
+core,golang.org/x/crypto/ed25519,BSD-3-Clause,The Go Authors
+core,golang.org/x/crypto/ed25519/internal/edwards25519,BSD-3-Clause,The Go Authors
 core,golang.org/x/crypto/internal/subtle,BSD-3-Clause,The Go Authors
 core,golang.org/x/crypto/nacl/secretbox,BSD-3-Clause,The Go Authors
 core,golang.org/x/crypto/openpgp,BSD-3-Clause,The Go Authors
@@ -1051,9 +1145,9 @@ core,k8s.io/apimachinery/pkg/util/waitgroup,Apache-2.0,Cloud Native Computing Fo
 core,k8s.io/apimachinery/pkg/util/yaml,Apache-2.0,Cloud Native Computing Foundation (CNCF)
 core,k8s.io/apimachinery/pkg/version,Apache-2.0,Cloud Native Computing Foundation (CNCF)
 core,k8s.io/apimachinery/pkg/watch,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/third_party/forked/golang/json,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/third_party/forked/golang/netutil,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/third_party/forked/golang/reflect,Apache-2.0,Cloud Native Computing Foundation (CNCF)
+core,k8s.io/apimachinery/third_party/forked/golang/json,BSD-3-Clause,Cloud Native Computing Foundation (CNCF)
+core,k8s.io/apimachinery/third_party/forked/golang/netutil,BSD-3-Clause,Cloud Native Computing Foundation (CNCF)
+core,k8s.io/apimachinery/third_party/forked/golang/reflect,BSD-3-Clause,Cloud Native Computing Foundation (CNCF)
 core,k8s.io/apiserver/pkg/admission,Apache-2.0,Cloud Native Computing Foundation (CNCF)
 core,k8s.io/apiserver/pkg/admission/configuration,Apache-2.0,Cloud Native Computing Foundation (CNCF)
 core,k8s.io/apiserver/pkg/admission/initializer,Apache-2.0,Cloud Native Computing Foundation (CNCF)

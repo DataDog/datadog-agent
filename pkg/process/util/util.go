@@ -110,6 +110,19 @@ func GetProcRoot() string {
 	return "/proc"
 }
 
+// GetSysRoot retrieves the current sysfs dir we should use
+func GetSysRoot() string {
+	if v := os.Getenv("HOST_SYS"); v != "" {
+		return v
+	}
+
+	if config.IsContainerized() && PathExists("/host") {
+		return "/host/sys"
+	}
+
+	return "/sys"
+}
+
 // WithAllProcs will execute `fn` for every pid under procRoot. `fn` is
 // passed the `pid`. If `fn` returns an error the iteration aborts,
 // returning the last error returned from `fn`.

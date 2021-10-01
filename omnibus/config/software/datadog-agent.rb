@@ -89,7 +89,7 @@ build do
     if ENV['DEBUG_CUSTOMACTION'] and not ENV['DEBUG_CUSTOMACTION'].empty?
       debug_customaction = "--debug"
     end
-    command "invoke customaction.build --major-version #{major_version_arg} #{debug_customaction} --arch=" + platform
+    command "invoke -e customaction.build --major-version #{major_version_arg} #{debug_customaction} --arch=" + platform
     unless windows_arch_i386?
       command "invoke installcmd.build --major-version #{major_version_arg} --arch=" + platform
       command "invoke uninstallcmd.build --major-version #{major_version_arg} --arch=" + platform
@@ -109,7 +109,7 @@ build do
     copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
     copy 'bin/agent/dist', "#{install_dir}/bin/agent"
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
-    copy 'bin/agent/customaction.pdb', "#{Omnibus::Config.package_dir()}/"
+    copy 'bin/agent/customaction*.pdb', "#{Omnibus::Config.package_dir()}/"
   end
 
   block do

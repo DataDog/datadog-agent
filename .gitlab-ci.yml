@@ -2,7 +2,6 @@
 include:
   - /.gitlab/maintenance_jobs.yml
   - /.gitlab/deps_build.yml
-  - /.gitlab/windows_python_build.yml
   - /.gitlab/deps_fetch.yml
   - /.gitlab/source_test.yml
   - /.gitlab/binary_build.yml
@@ -33,7 +32,7 @@ include:
   # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
   - /.gitlab/kitchen_common/cleanup.yml
   - /.gitlab/kitchen_common/testing.yml
-  - /.gitlab/docker_common/tag_job_templates.yml
+  - /.gitlab/docker_common/publish_job_templates.yml
 
 default:
   retry:
@@ -125,15 +124,17 @@ variables:
   ## build to succeed with S3 caching disabled.
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
   USE_S3_CACHING: --omnibus-s3-cache
+  ## comment out the line below to disable integration wheels cache
+  INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
-  DATADOG_AGENT_BUILDIMAGES: v4907599-0f65dfe
-  DATADOG_AGENT_BUILDERS: v4907602-55e258b
-  DATADOG_AGENT_WINBUILDIMAGES: v4907599-0f65dfe
-  DATADOG_AGENT_ARMBUILDIMAGES: v4907599-0f65dfe
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v4907599-0f65dfe
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v4913888-696161a
+  DATADOG_AGENT_BUILDIMAGES: v5625208-b647c82
+  DATADOG_AGENT_BUILDERS: v5542410-24683e3
+  DATADOG_AGENT_WINBUILDIMAGES: v5542215-1cd74cc
+  DATADOG_AGENT_ARMBUILDIMAGES: v5625208-b647c82
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v5468915-49c94bc
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v5468736-1e37f9c
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   NIKOS_INSTALL_DIR: /opt/datadog-agent/embedded/nikos
   NIKOS_EMBEDDED_PATH: /opt/datadog-agent/embedded/nikos/embedded
@@ -222,6 +223,9 @@ variables:
 
 .if_testing_cleanup: &if_testing_cleanup
   if: $TESTING_CLEANUP == "true"
+
+.if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
+  if: $DEPLOY_AGENT == "true" && $DEB_RPM_BUCKET_BRANCH == "beta"
 
 # Rule to trigger jobs only when a tag matches a given pattern (for RCs)
 # on the beta branch.
@@ -321,6 +325,27 @@ variables:
       AGENT_REPOSITORY: agent
       IMG_REGISTRIES: public
 
+# Same as on_deploy_a6_manual, except the job would not run on pipelines
+# using beta branch, it would only run for the final release.
+.on_deploy_a6_manual_final:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_deploy_on_beta_repo_branch
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent-dev
+      IMG_REGISTRIES: dev
+  - when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent
+      IMG_REGISTRIES: public
+
 # This rule is a variation of on_deploy_a6_manual where
 # the job is usually run manually, except when the pipeline
 # builds an RC: in this case, the job is run automatically.
@@ -358,6 +383,29 @@ variables:
   - <<: *if_not_version_7
     when: never
   - <<: *if_not_deploy
+    when: never
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent-dev
+      DSD_REPOSITORY: dogstatsd-dev
+      IMG_REGISTRIES: dev
+  - when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent
+      DSD_REPOSITORY: dogstatsd
+      IMG_REGISTRIES: public
+
+# Same as on_deploy_a7_manual, except the job would not run on pipelines
+# using beta branch, it would only run for the final release.
+.on_deploy_a7_manual_final:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_deploy_on_beta_repo_branch
     when: never
   - <<: *if_not_stable_or_beta_repo_branch
     when: manual

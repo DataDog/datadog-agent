@@ -14,7 +14,7 @@ TEST_F(CustomActionDataTest, With_DomainUser_Parse_Correctly)
     DDAGENTUSER_NAME=TEST\username
 )");
 
-    EXPECT_EQ(customActionCtx.Username(), L"TEST\\username");
+    EXPECT_EQ(customActionCtx.FullyQualifiedUsername(), L"TEST\\username");
     EXPECT_EQ(customActionCtx.UnqualifiedUsername(), L"username");
     EXPECT_EQ(customActionCtx.Domain(), L"TEST");
     EXPECT_TRUE(customActionCtx.isUserDomainUser());
