@@ -131,6 +131,7 @@ const (
 	KubeResourceFieldVersion   = "kube.resource.version"
 	KubeResourceFieldNamespace = "kube.resource.namespace"
 	KubeResourceFieldKind      = "kube.resource.kind"
+	KubeResourceFieldResource  = "kube.resource.resource"
 
 	KubeResourceFuncJQ = "kube.resource.jq"
 )

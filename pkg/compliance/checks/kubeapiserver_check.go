@@ -105,6 +105,7 @@ func resolveKubeapiserver(ctx context.Context, e env.Env, ruleID string, res com
 					compliance.KubeResourceFieldVersion:   resource.GetObjectKind().GroupVersionKind().Version,
 					compliance.KubeResourceFieldNamespace: resource.GetNamespace(),
 					compliance.KubeResourceFieldName:      resource.GetName(),
+					compliance.KubeResourceFieldResource:  resource,
 				},
 				eval.FunctionMap{
 					compliance.KubeResourceFuncJQ: kubeResourceJQ(resource),
