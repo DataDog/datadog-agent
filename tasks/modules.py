@@ -67,13 +67,18 @@ class GoModule:
 
 
 DEFAULT_MODULES = {
-    ".": GoModule(".", targets=["./pkg", "./cmd"], dependencies=["pkg/util/log", "pkg/util/winutil", "pkg/quantile"]),
+    ".": GoModule(
+        ".",
+        targets=["./pkg", "./cmd"],
+        dependencies=["pkg/util/log", "pkg/util/winutil", "pkg/quantile", "pkg/otlp/model"],
+    ),
     "pkg/util/log": GoModule("pkg/util/log"),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "pkg/util/winutil": GoModule(
         "pkg/util/winutil", condition=lambda: sys.platform == 'win32', dependencies=["pkg/util/log"]
     ),
     "pkg/quantile": GoModule("pkg/quantile"),
+    "pkg/otlp/model": GoModule("pkg/otlp/model", dependencies=["pkg/quantile"]),
 }
 
 MAIN_TEMPLATE = """package main

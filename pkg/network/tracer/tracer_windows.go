@@ -62,7 +62,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.MaxConnectionsStateBuffered,
 		config.MaxDNSStatsBuffered,
 		config.MaxHTTPStatsBuffered,
-		config.CollectDNSDomains,
 	)
 
 	reverseDNS := dns.NewNullReverseDNS()
@@ -123,11 +122,11 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, closedConnStats, t.reverseDNS.GetDNSStats(), nil)
 	conns := delta.Connections
 	var ips []util.Address
-	for _, conn := range delta.Connections {
+	for _, conn := range conns {
 		ips = append(ips, conn.Source, conn.Dest)
 	}
 	names := t.reverseDNS.Resolve(ips)
-	return &network.Connections{Conns: conns, DNS: names}, nil
+	return &network.Connections{Conns: conns, DNS: names, DNSStats: delta.DNSStats}, nil
 }
 
 // GetStats returns a map of statistics about the current tracer's internal state

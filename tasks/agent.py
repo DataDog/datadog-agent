@@ -75,7 +75,7 @@ IOT_AGENT_CORECHECKS = [
 ]
 
 CACHED_WHEEL_FILENAME_PATTERN = "datadog_{integration}-*.whl"
-CACHED_WHEEL_DIRECTORY_PATTERN = "integration-wheels/{hash}/{python_version}/"
+CACHED_WHEEL_DIRECTORY_PATTERN = "integration-wheels/{branch}/{hash}/{python_version}/"
 CACHED_WHEEL_FULL_PATH_PATTERN = CACHED_WHEEL_DIRECTORY_PATTERN + CACHED_WHEEL_FILENAME_PATTERN
 LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} rev-list -1 HEAD {integration}"
 
@@ -693,11 +693,12 @@ def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_v
 
 
 @task
-def get_integrations_from_cache(ctx, python, bucket, integrations_dir, target_dir, integrations, awscli="aws"):
+def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, target_dir, integrations, awscli="aws"):
     """
     Get cached integration wheels for given integrations.
     python: Python version to retrieve integrations for
     bucket: S3 bucket to retrieve integration wheels from
+    branch: namespace in the bucket to get the integration wheels from
     integrations_dir: directory with Git repository of integrations
     target_dir: local directory to put integration wheels to
     integrations: comma-separated names of the integrations to try to retrieve from cache
@@ -727,7 +728,10 @@ def get_integrations_from_cache(ctx, python, bucket, integrations_dir, target_di
     sync_commands = [[[sync_command_prefix], len(sync_command_prefix)]]
     for integration, hash in integrations_hashes.items():
         include_arg = " --include " + CACHED_WHEEL_FULL_PATH_PATTERN.format(
-            hash=hash, integration=integration, python_version=python
+            hash=hash,
+            integration=integration,
+            python_version=python,
+            branch=branch,
         )
         if len(include_arg) + sync_commands[-1][1] > 8100:
             sync_commands.append([[sync_command_prefix], len(sync_command_prefix)])
@@ -743,7 +747,12 @@ def get_integrations_from_cache(ctx, python, bucket, integrations_dir, target_di
         hash = integrations_hashes[integration]
         original_path_glob = os.path.join(
             target_dir,
-            CACHED_WHEEL_FULL_PATH_PATTERN.format(hash=hash, integration=integration, python_version=python),
+            CACHED_WHEEL_FULL_PATH_PATTERN.format(
+                hash=hash,
+                integration=integration,
+                python_version=python,
+                branch=branch,
+            ),
         )
         files_matched = glob.glob(original_path_glob)
         if len(files_matched) == 0:
@@ -765,11 +774,12 @@ def get_integrations_from_cache(ctx, python, bucket, integrations_dir, target_di
 
 
 @task
-def upload_integration_to_cache(ctx, python, bucket, integrations_dir, build_dir, integration, awscli="aws"):
+def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, build_dir, integration, awscli="aws"):
     """
     Upload a built integration wheel for given integration.
     python: Python version the integration is built for
     bucket: S3 bucket to upload the integration wheel to
+    branch: namespace in the bucket to upload the integration wheels to
     integrations_dir: directory with Git repository of integrations
     build_dir: directory containing the built integration wheel
     integration: name of the integration being cached
@@ -793,7 +803,9 @@ def upload_integration_to_cache(ctx, python, bucket, integrations_dir, build_dir
     )
     hash = last_commit.stdout.strip()
 
-    target_name = CACHED_WHEEL_DIRECTORY_PATTERN.format(hash=hash, python_version=python) + os.path.basename(wheel_path)
+    target_name = CACHED_WHEEL_DIRECTORY_PATTERN.format(
+        hash=hash, python_version=python, branch=branch
+    ) + os.path.basename(wheel_path)
     print("Caching wheel {}".format(target_name))
     # NOTE: on Windows, the awscli is usually in program files, so we have the executable
     ctx.run("\"{}\" s3 cp {} s3://{}/{} --acl public-read".format(awscli, wheel_path, bucket, target_name))

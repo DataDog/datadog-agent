@@ -72,7 +72,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInf
 	tagInfos := []*TagInfo{}
 	tags := utils.NewTagList()
 
-	container := ev.Entity.(*workloadmeta.Container)
+	container := ev.Entity.(workloadmeta.Container)
 
 	for tag, value := range c.staticTags {
 		tags.AddLow(tag, value)

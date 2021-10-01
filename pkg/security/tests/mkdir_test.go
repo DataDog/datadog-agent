@@ -62,6 +62,9 @@ func TestMkdir(t *testing.T) {
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	}))
 
 	t.Run("mkdirat", func(t *testing.T) {
@@ -87,6 +90,9 @@ func TestMkdir(t *testing.T) {
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 }
 
