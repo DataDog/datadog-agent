@@ -9,12 +9,15 @@ Please feel invited to:
 
 **Note**: The code will never completely reflect these practices, although we hope to get continually closer.
 
-## [Go] Prefer `require` over `assert`
+## [Go] Use `require` Instead of `assert` When Necessary
 
-Test code should prefer to use `github.com/stretchr/testify/require` to make assertions.
-The functions in this package automatically abort the test when an assertion fails, which is usually what is expected.
+The functions in `github.com/stretchr/testify/require` automatically abort the test when an assertion fails, whereas `github.com/stretchr/testify/assert` does not.
+
 For example, given an error, `assert.NoError(t, err)` causes the test to be marked as a failure, but continues to the next statement, possibly leading to a nil dereference or other such failure.
 In contrast, `require.NoError(t, err)` aborts the test when an error is encountered.
+
+Where a test makes a sequence of independent assertions, `assert` is a good choice.
+When each assertion depends on the previous having been successful, use `require`.
 
 ## [Go] Testing Timing-Related Functionality
 
