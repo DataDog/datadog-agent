@@ -8,6 +8,7 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"syscall"
 	"testing"
@@ -20,10 +21,16 @@ import (
 )
 
 func TestSpan(t *testing.T) {
+	executable := which("touch")
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_span_rule_open",
 			Expression: `open.file.path == "{{.Root}}/test-span"`,
+		},
+		{
+			ID:         "test_span_rule_exec",
+			Expression: fmt.Sprintf(`exec.file.path == "%s"`, executable),
 		},
 	}
 
@@ -73,6 +80,29 @@ func TestSpan(t *testing.T) {
 
 			assert.Equal(t, uint64(123), event.SpanContext.SpanID)
 			assert.Equal(t, uint64(456), event.SpanContext.TraceID)
+		})
+		if err != nil {
+			t.Error(err)
+		}
+	})
+
+	t.Run("exec", func(t *testing.T) {
+		syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = test.GetSignal(t, func() error {
+			return runSyscallTesterFunc(t, syscallTester, "span-exec", "104", "204", executable, "/tmp/test_span_rule_exec")
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_span_rule_exec")
+
+			if !validateSpanSchema(t, event) {
+				t.Fatal(event.String())
+			}
+
+			assert.Equal(t, uint64(204), event.SpanContext.SpanID)
+			assert.Equal(t, uint64(104), event.SpanContext.TraceID)
 		})
 		if err != nil {
 			t.Error(err)

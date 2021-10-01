@@ -96,5 +96,5 @@ func validateLinkSchema(t *testing.T, event *sprobe.Event) bool {
 }
 
 func validateSpanSchema(t *testing.T, event *sprobe.Event) bool {
-	return validateSchema(t, event, "file:///span.schema.json")
+	return validateSchema(t, event, "file:///schemas/span.schema.json")
 }

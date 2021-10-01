@@ -434,6 +434,9 @@ int __attribute__((always_inline)) parse_args_and_env(struct pt_regs *ctx) {
         return 0;
     }
 
+    // call it here before the memory get replaced
+    fill_span_context(&syscall->exec.span_context);
+
     bpf_tail_call(ctx, &args_envs_progs, syscall->exec.next_tail);
     return 0;
 }
@@ -487,7 +490,7 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
             // add pid / tid context
             fill_process_context(&event.process);
 
-            fill_span_context(&event.span);
+            copy_span_context(&syscall->exec.span_context, &event.span);
             fill_args_envs(&event, syscall);
 
             // send the entry to maintain userspace cache

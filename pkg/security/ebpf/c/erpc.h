@@ -53,7 +53,6 @@ int __attribute__((always_inline)) is_runtime_request() {
     return pid_tgid >> 32 == pid;
 }
 
-
 int __attribute__((always_inline)) handle_discard_inode(void *data) {
     if (!is_runtime_request()) {
         return 0;
