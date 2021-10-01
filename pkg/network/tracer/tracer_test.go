@@ -1519,6 +1519,10 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 		t.Skip("HTTPS feature not available on pre 4.1.0 kernels")
 	}
 
+	if strings.HasPrefix(runtime.GOARCH, "arm") {
+		t.Skip("this feature is not yet support on arm")
+	}
+
 	wget, err := exec.LookPath("wget")
 	if err != nil {
 		t.Skip("wget not found; skipping test.")

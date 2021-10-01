@@ -5,6 +5,8 @@ package http
 import (
 	"os"
 	"regexp"
+	"runtime"
+	"strings"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -67,20 +69,23 @@ func (o *openSSLProgram) ConfigureManager(m *manager.Manager) {
 	}
 
 	o.manager = m
-	m.PerfMaps = append(m.PerfMaps, &manager.PerfMap{
-		Map: manager.Map{Name: sharedLibrariesPerfMap},
-		PerfMapOptions: manager.PerfMapOptions{
-			PerfRingBufferSize: 8 * os.Getpagesize(),
-			Watermark:          1,
-			DataHandler:        o.perfHandler.DataHandler,
-			LostHandler:        o.perfHandler.LostHandler,
-		},
-	})
 
-	m.Probes = append(m.Probes,
-		&manager.Probe{Section: doSysOpen, KProbeMaxActive: maxActive},
-		&manager.Probe{Section: doSysOpenRet, KProbeMaxActive: maxActive},
-	)
+	if !runningOnARM() {
+		m.PerfMaps = append(m.PerfMaps, &manager.PerfMap{
+			Map: manager.Map{Name: sharedLibrariesPerfMap},
+			PerfMapOptions: manager.PerfMapOptions{
+				PerfRingBufferSize: 8 * os.Getpagesize(),
+				Watermark:          1,
+				DataHandler:        o.perfHandler.DataHandler,
+				LostHandler:        o.perfHandler.LostHandler,
+			},
+		})
+
+		m.Probes = append(m.Probes,
+			&manager.Probe{Section: doSysOpen, KProbeMaxActive: maxActive},
+			&manager.Probe{Section: doSysOpenRet, KProbeMaxActive: maxActive},
+		)
+	}
 
 	// Load SSL & Crypto "base" probes
 	var extraProbes []string
@@ -105,18 +110,20 @@ func (o *openSSLProgram) ConfigureOptions(options *manager.Options) {
 		EditorFlag: manager.EditMaxEntries,
 	}
 
-	options.ActivatedProbes = append(options.ActivatedProbes,
-		&manager.ProbeSelector{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: doSysOpen,
+	if !runningOnARM() {
+		options.ActivatedProbes = append(options.ActivatedProbes,
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					Section: doSysOpen,
+				},
 			},
-		},
-		&manager.ProbeSelector{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: doSysOpenRet,
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					Section: doSysOpenRet,
+				},
 			},
-		},
-	)
+		)
+	}
 
 	if options.MapEditors == nil {
 		options.MapEditors = make(map[string]*ebpf.Map)
@@ -200,4 +207,8 @@ func removeHooks(m *manager.Manager, probes []string) func(string) error {
 
 		return nil
 	}
+}
+
+func runningOnARM() bool {
+	return strings.HasPrefix(runtime.GOARCH, "arm")
 }
