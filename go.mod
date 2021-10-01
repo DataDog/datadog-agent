@@ -117,6 +117,7 @@ require (
 	github.com/google/gofuzz v1.2.0
 	github.com/google/gopacket v1.1.19
 	github.com/google/pprof v0.0.0-20210226084205-cbba55b83ad5
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/mux v1.8.0
 	github.com/gosnmp/gosnmp v1.32.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
