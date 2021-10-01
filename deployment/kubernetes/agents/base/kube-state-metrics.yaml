@@ -1,13 +1,13 @@
 ---
-# Source: kube-state-metrics/templates/psp.yaml
+# Source: cluster-agent/charts/kube-state-metrics/templates/psp.yaml
 apiVersion: policy/v1beta1
 kind: PodSecurityPolicy
 metadata:
-  name: kube-state-metrics
+  name: stackstate-cluster-agent-kube-state-metrics
   labels:
     app.kubernetes.io/name: kube-state-metrics
-    helm.sh/chart: kube-state-metrics-2.1.10
-    app.kubernetes.io/instance: kube-state-metrics
+    helm.sh/chart: kube-state-metrics-1.1.2
+    app.kubernetes.io/instance: stackstate-cluster-agent
     app.kubernetes.io/managed-by: Helm
 spec:
   privileged: false
@@ -35,27 +35,26 @@ spec:
         max: 1001
   readOnlyRootFilesystem: false
 ---
-# Source: kube-state-metrics/templates/serviceaccount.yaml
+# Source: cluster-agent/charts/kube-state-metrics/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: kube-state-metrics
-  namespace: dev-juliano
+  name: stackstate-cluster-agent-kube-state-metrics
   labels:
     app.kubernetes.io/name: kube-state-metrics
-    helm.sh/chart: kube-state-metrics-2.1.10
-    app.kubernetes.io/instance: kube-state-metrics
+    helm.sh/chart: kube-state-metrics-1.1.2
+    app.kubernetes.io/instance: stackstate-cluster-agent
     app.kubernetes.io/managed-by: Helm
 ---
-# Source: kube-state-metrics/templates/clusterrole.yaml
+# Source: cluster-agent/charts/kube-state-metrics/templates/clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: kube-state-metrics
+  name: stackstate-cluster-agent-kube-state-metrics
   labels:
     app.kubernetes.io/name: kube-state-metrics
-    helm.sh/chart: kube-state-metrics-2.1.10
-    app.kubernetes.io/instance: kube-state-metrics
+    helm.sh/chart: kube-state-metrics-1.1.2
+    app.kubernetes.io/instance: stackstate-cluster-agent
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups: ["certificates.k8s.io"]
@@ -167,69 +166,69 @@ rules:
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: kube-state-metrics-psp
+  name: stackstate-cluster-agent-kube-state-metrics-psp
   labels:
     app.kubernetes.io/name: kube-state-metrics
-    helm.sh/chart: kube-state-metrics-2.1.10
-    app.kubernetes.io/instance: kube-state-metrics
+    helm.sh/chart: kube-state-metrics-1.1.2
+    app.kubernetes.io/instance: stackstate-cluster-agent
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups: ['extensions']
     resources: ['podsecuritypolicies']
     verbs: ['use']
     resourceNames:
-      - kube-state-metrics
+      - stackstate-cluster-agent-kube-state-metrics
 ---
-# Source: kube-state-metrics/templates/clusterrolebinding.yaml
+# Source: cluster-agent/charts/kube-state-metrics/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: kube-state-metrics
+  name: stackstate-cluster-agent-kube-state-metrics
   labels:
     app.kubernetes.io/name: kube-state-metrics
-    helm.sh/chart: kube-state-metrics-2.1.10
-    app.kubernetes.io/instance: kube-state-metrics
+    helm.sh/chart: kube-state-metrics-1.1.2
+    app.kubernetes.io/instance: stackstate-cluster-agent
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: kube-state-metrics
+  name: stackstate-cluster-agent-kube-state-metrics
 subjects:
   - kind: ServiceAccount
-    name: kube-state-metrics
-    namespace: dev-juliano
+    name: stackstate-cluster-agent-kube-state-metrics
+    namespace: monitoring
 ---
-# Source: kube-state-metrics/templates/psp-clusterrolebinding.yaml
+# Source: cluster-agent/charts/kube-state-metrics/templates/psp-clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: kube-state-metrics-psp
+  name: stackstate-cluster-agent-kube-state-metrics-psp
   labels:
     app.kubernetes.io/name: kube-state-metrics
-    helm.sh/chart: kube-state-metrics-2.1.10
-    app.kubernetes.io/instance: kube-state-metrics
+    helm.sh/chart: kube-state-metrics-1.1.2
+    app.kubernetes.io/instance: stackstate-cluster-agent
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: kube-state-metrics-psp
+  name: stackstate-cluster-agent-kube-state-metrics-psp
 subjects:
   - kind: ServiceAccount
-    name: kube-state-metrics
-    namespace: dev-juliano
+    name: stackstate-cluster-agent-kube-state-metrics
+    namespace: monitoring
 ---
-# Source: kube-state-metrics/templates/service.yaml
+# Source: cluster-agent/charts/kube-state-metrics/templates/service.yaml
 apiVersion: v1
 kind: Service
 metadata:
-  name: kube-state-metrics
-  namespace: dev-juliano
+  name: stackstate-cluster-agent-kube-state-metrics
+  namespace: monitoring
   annotations:
     prometheus.io/scrape: "true"
   labels:
     app.kubernetes.io/name: kube-state-metrics
-    helm.sh/chart: kube-state-metrics-2.1.10
-    app.kubernetes.io/instance: kube-state-metrics
+    helm.sh/chart: kube-state-metrics-1.1.2
+    app.kubernetes.io/instance: stackstate-cluster-agent
     app.kubernetes.io/managed-by: Helm
 spec:
   type: ClusterIP
@@ -240,24 +239,24 @@ spec:
       nodePort: null
   selector:
     app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/instance: kube-state-metrics
+    app.kubernetes.io/instance: stackstate-cluster-agent
 ---
-# Source: kube-state-metrics/templates/deployment.yaml
+# Source: cluster-agent/charts/kube-state-metrics/templates/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: kube-state-metrics
-  namespace: dev-juliano
+  name: stackstate-cluster-agent-kube-state-metrics
+  namespace: monitoring
   labels:
     app.kubernetes.io/name: kube-state-metrics
-    helm.sh/chart: kube-state-metrics-2.1.10
-    app.kubernetes.io/instance: kube-state-metrics
+    helm.sh/chart: kube-state-metrics-1.1.2
+    app.kubernetes.io/instance: stackstate-cluster-agent
     app.kubernetes.io/managed-by: Helm
 spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: kube-state-metrics
-      app.kubernetes.io/instance: kube-state-metrics
+      app.kubernetes.io/instance: stackstate-cluster-agent
   replicas: 1
   strategy:
     {}
@@ -266,8 +265,8 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: kube-state-metrics
-        helm.sh/chart: kube-state-metrics-2.1.10
-        app.kubernetes.io/instance: kube-state-metrics
+        helm.sh/chart: kube-state-metrics-1.1.2
+        app.kubernetes.io/instance: stackstate-cluster-agent
         app.kubernetes.io/managed-by: Helm
     spec:
 
@@ -275,7 +274,7 @@ spec:
         runAsUser: 1001
         fsGroup: 1001
       hostNetwork: false
-      serviceAccountName: kube-state-metrics
+      serviceAccountName: stackstate-cluster-agent-kube-state-metrics
       affinity:
         podAffinity:
 
@@ -285,44 +284,44 @@ spec:
                 labelSelector:
                   matchLabels:
                     app.kubernetes.io/name: kube-state-metrics
-                    app.kubernetes.io/instance: kube-state-metrics
+                    app.kubernetes.io/instance: stackstate-cluster-agent
                 namespaces:
-                  - "dev-juliano"
+                  - monitoring
                 topologyKey: kubernetes.io/hostname
               weight: 1
         nodeAffinity:
 
       containers:
         - name: kube-state-metrics
-          image: docker.io/bitnami/kube-state-metrics:1.9.8
+          image: docker.io/bitnami/kube-state-metrics:1.9.7-debian-10-r143
           imagePullPolicy: IfNotPresent
           args:
-            - --resources=certificatesigningrequests
-            - --resources=configmaps
-            - --resources=cronjobs
-            - --resources=daemonsets
-            - --resources=deployments
-            - --resources=endpoints
-            - --resources=horizontalpodautoscalers
-            - --resources=ingresses
-            - --resources=jobs
-            - --resources=limitranges
-            - --resources=mutatingwebhookconfigurations
-            - --resources=namespaces
-            - --resources=networkpolicies
-            - --resources=nodes
-            - --resources=persistentvolumeclaims
-            - --resources=persistentvolumes
-            - --resources=poddisruptionbudgets
-            - --resources=pods
-            - --resources=replicasets
-            - --resources=replicationcontrollers
-            - --resources=resourcequotas
-            - --resources=secrets
-            - --resources=services
-            - --resources=statefulsets
-            - --resources=storageclasses
-            - --resources=volumeattachments
+            - --collectors=certificatesigningrequests
+            - --collectors=configmaps
+            - --collectors=cronjobs
+            - --collectors=daemonsets
+            - --collectors=deployments
+            - --collectors=endpoints
+            - --collectors=horizontalpodautoscalers
+            - --collectors=ingresses
+            - --collectors=jobs
+            - --collectors=limitranges
+            - --collectors=mutatingwebhookconfigurations
+            - --collectors=namespaces
+            - --collectors=networkpolicies
+            - --collectors=nodes
+            - --collectors=persistentvolumeclaims
+            - --collectors=persistentvolumes
+            - --collectors=poddisruptionbudgets
+            - --collectors=pods
+            - --collectors=replicasets
+            - --collectors=replicationcontrollers
+            - --collectors=resourcequotas
+            - --collectors=secrets
+            - --collectors=services
+            - --collectors=statefulsets
+            - --collectors=storageclasses
+            - --collectors=volumeattachments
           ports:
             - name: http
               containerPort: 8080
