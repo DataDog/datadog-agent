@@ -1288,10 +1288,10 @@ func TestConnectionClobber(t *testing.T) {
 
 	// wait for tracer to pick up all connections
 	//
-	// there is not good way do this other than a sleep since we
-	// can't call getConnections in a require.Eventually call
+	// there is not a good way do this other than a sleep since we
+	// can't call getConnections in a `require.Eventually` call
 	// to the get the number of connections as that could
-	// affect the tr.buffer length
+	// affect the `activeBuffer` length
 	time.Sleep(2 * time.Second)
 
 	preCap := tr.activeBuffer.Capacity()
@@ -1301,7 +1301,7 @@ func TestConnectionClobber(t *testing.T) {
 	dst := connections.Conns[0].DPort
 	t.Logf("got %d connections", len(connections.Conns))
 	// ensure we didn't grow or shrink the buffer
-	require.Equal(t, preCap, tr.activeBuffer.Capacity())
+	assert.Equal(t, preCap, tr.activeBuffer.Capacity())
 
 	for _, c := range append(conns, serverConns...) {
 		c.Close()
@@ -1319,9 +1319,9 @@ func TestConnectionClobber(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	t.Logf("got %d connections", len(getConnections(t, tr).Conns))
-	require.Equal(t, src, connections.Conns[0].SPort, "source port should not change")
-	require.Equal(t, dst, connections.Conns[0].DPort, "dest port should not change")
-	require.Equal(t, preCap, tr.activeBuffer.Capacity())
+	assert.Equal(t, src, connections.Conns[0].SPort, "source port should not change")
+	assert.Equal(t, dst, connections.Conns[0].DPort, "dest port should not change")
+	assert.Equal(t, preCap, tr.activeBuffer.Capacity())
 }
 
 func TestTCPDirection(t *testing.T) {

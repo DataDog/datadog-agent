@@ -286,11 +286,11 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	log.Tracef("GetActiveConnections clientID=%s", clientID)
 
 	latestTime, err := t.getConnections(t.activeBuffer, t.closedBuffer)
-	active := t.activeBuffer.Connections()
-	closed := t.closedBuffer.Connections()
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
+	active := t.activeBuffer.Connections()
+	closed := t.closedBuffer.Connections()
 
 	delta := t.state.GetDelta(clientID, latestTime, active, closed, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
 	t.activeBuffer.Reset()
