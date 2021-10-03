@@ -141,7 +141,7 @@ func newTestBatchManager(t *testing.T) (*perfBatchManager, func()) {
 	require.NoError(t, err)
 
 	tr := ctr.(*kprobeTracer)
-	tr.Start(nil)
+	tr.Start()
 	manager := tr.closeConsumer.batchManager
 	doneFn := func() { tr.Stop() }
 	return manager, doneFn
