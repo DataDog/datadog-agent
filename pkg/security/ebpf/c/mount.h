@@ -8,6 +8,7 @@
 struct mount_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
     u32 mount_id;
@@ -31,7 +32,7 @@ SYSCALL_COMPAT_KPROBE3(mount, const char*, source, const char*, target, const ch
 }
 
 SEC("kprobe/attach_recursive_mnt")
-int kprobe__attach_recursive_mnt(struct pt_regs *ctx) {
+int kprobe_attach_recursive_mnt(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
     if (!syscall)
         return 0;
@@ -61,7 +62,7 @@ int kprobe__attach_recursive_mnt(struct pt_regs *ctx) {
 }
 
 SEC("kprobe/propagate_mnt")
-int kprobe__propagate_mnt(struct pt_regs *ctx) {
+int kprobe_propagate_mnt(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
     if (!syscall)
         return 0;
@@ -157,6 +158,7 @@ int __attribute__((always_inline)) dr_mount_callback(void *ctx, int retval) {
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
+    fill_span_context(&event.span);
 
     send_event(ctx, EVENT_MOUNT, event);
 

@@ -30,9 +30,9 @@ type Tracer struct {
 	state           network.State
 	reverseDNS      dns.ReverseDNS
 
-	connStatsActive *network.DriverBuffer
-	connStatsClosed *network.DriverBuffer
-	connLock        sync.Mutex
+	activeBuffer *network.ConnectionBuffer
+	closedBuffer *network.ConnectionBuffer
+	connLock     sync.Mutex
 
 	timerInterval int
 
@@ -62,7 +62,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.MaxConnectionsStateBuffered,
 		config.MaxDNSStatsBuffered,
 		config.MaxHTTPStatsBuffered,
-		config.CollectDNSDomains,
 	)
 
 	reverseDNS := dns.NewNullReverseDNS()
@@ -79,8 +78,8 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		stopChan:        make(chan struct{}),
 		timerInterval:   defaultPollInterval,
 		state:           state,
-		connStatsActive: network.NewDriverBuffer(defaultBufferSize),
-		connStatsClosed: network.NewDriverBuffer(defaultBufferSize),
+		activeBuffer:    network.NewConnectionBuffer(defaultBufferSize),
+		closedBuffer:    network.NewConnectionBuffer(defaultBufferSize),
 		reverseDNS:      reverseDNS,
 		sourceExcludes:  network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:    network.ParseConnectionFilters(config.ExcludedDestinationConnections),
@@ -104,34 +103,33 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.connLock.Lock()
 	defer t.connLock.Unlock()
 
-	t.connStatsActive.Reset()
-	t.connStatsClosed.Reset()
+	t.activeBuffer.Reset()
+	t.closedBuffer.Reset()
 
-	_, _, err := t.driverInterface.GetConnectionStats(t.connStatsActive, t.connStatsClosed, func(c *network.ConnectionStats) bool {
+	_, _, err := t.driverInterface.GetConnectionStats(t.activeBuffer, t.closedBuffer, func(c *network.ConnectionStats) bool {
 		return !t.shouldSkipConnection(c)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections from driver: %w", err)
 	}
 
-	activeConnStats := t.connStatsActive.Connections()
-	closedConnStats := t.connStatsClosed.Connections()
-
-	for _, connStat := range closedConnStats {
-		t.state.StoreClosedConnection(&connStat)
-	}
+	activeConnStats := t.activeBuffer.Connections()
+	closedConnStats := t.closedBuffer.Connections()
 
 	// check for expired clients in the state
 	t.state.RemoveExpiredClients(time.Now())
 
-	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
-	conns := delta.Connections
+	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, closedConnStats, t.reverseDNS.GetDNSStats(), nil)
 	var ips []util.Address
-	for _, conn := range delta.Connections {
+	for _, conn := range delta.Conns {
 		ips = append(ips, conn.Source, conn.Dest)
 	}
 	names := t.reverseDNS.Resolve(ips)
-	return &network.Connections{Conns: conns, DNS: names}, nil
+	return &network.Connections{
+		BufferedData: delta.BufferedData,
+		DNS:          names,
+		DNSStats:     delta.DNSStats,
+	}, nil
 }
 
 // GetStats returns a map of statistics about the current tracer's internal state
@@ -159,4 +157,9 @@ func (t *Tracer) DebugNetworkState(_ string) (map[string]interface{}, error) {
 // DebugNetworkMaps returns all connections stored in the maps without modifications from network state
 func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 	return nil, ebpf.ErrNotImplemented
+}
+
+// DebugEBPFMaps is not implemented on this OS for Tracer
+func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
+	return "", ebpf.ErrNotImplemented
 }

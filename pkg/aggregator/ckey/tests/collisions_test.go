@@ -31,7 +31,7 @@ func TestCollisions(t *testing.T) {
 		metricName := parts[0]
 		tagList := parts[1]
 		tags := strings.Split(tagList, " ")
-		ck := generator.Generate(metricName, host, util.NewTagsBuilderFromSlice(tags))
+		ck := generator.Generate(metricName, host, util.NewHashingTagsBuilderWithTags(tags))
 		if v, exists := cache[ck]; exists {
 			assert.Fail("A collision happened:", v, "and", line)
 		} else {

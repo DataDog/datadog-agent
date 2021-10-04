@@ -68,8 +68,8 @@ func TestIsParentDiscarder(t *testing.T) {
 	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil, enabled, nil, model.SECLLegacyAttributes, &log.PatternLogger{}))
 	addRuleExpr(t, rs, `unlink.file.path =~ "/var/log/*" && unlink.file.name =~ ".*"`)
 
-	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileUnlinkEventType, "unlink.file.path", "/var/lib/.runc/1234"); !is {
-		t.Error("should be a parent discarder")
+	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileUnlinkEventType, "unlink.file.path", "/var/lib/.runc/1234"); is {
+		t.Error("shouldn't be able to find a parent discarder, due to partial evaluation: true && unlink.file.name =~ '.*'")
 	}
 
 	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil, enabled, nil, model.SECLLegacyAttributes, &log.PatternLogger{}))
@@ -147,6 +147,13 @@ func TestIsParentDiscarder(t *testing.T) {
 	addRuleExpr(t, rs, `unlink.file.path =~ "/etc/*"`)
 
 	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileUnlinkEventType, "unlink.file.path", "/etc/cron.d/log"); is {
+		t.Error("shouldn't be a parent discarder")
+	}
+
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil, enabled, nil, model.SECLLegacyAttributes, &log.PatternLogger{}))
+	addRuleExpr(t, rs, `open.file.path == "/tmp/passwd"`, `open.file.path == "/tmp/secret"`)
+
+	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileOpenEventType, "open.file.path", "/tmp/runc"); is {
 		t.Error("shouldn't be a parent discarder")
 	}
 }

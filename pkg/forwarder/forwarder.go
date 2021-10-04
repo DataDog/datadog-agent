@@ -66,6 +66,7 @@ type Forwarder interface {
 	SubmitAgentChecksMetadata(payload Payloads, extra http.Header) error
 	SubmitMetadata(payload Payloads, extra http.Header) error
 	SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error)
+	SubmitProcessDiscoveryChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
@@ -418,9 +419,7 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 	}
 
 	for _, t := range transactions {
-		if err := f.domainForwarders[t.Domain].sendHTTPTransactions(t); err != nil {
-			log.Errorf(err.Error())
-		}
+		f.domainForwarders[t.Domain].sendHTTPTransactions(t)
 	}
 	return nil
 }
@@ -504,6 +503,11 @@ func (f *DefaultForwarder) submitV1IntakeWithTransactionsFactory(
 // SubmitProcessChecks sends process checks
 func (f *DefaultForwarder) SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
 	return f.submitProcessLikePayload(processesEndpoint, payload, extra, true)
+}
+
+// SubmitProcessDiscoveryChecks sends process discovery checks
+func (f *DefaultForwarder) SubmitProcessDiscoveryChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	return f.submitProcessLikePayload(processDiscoveryEndpoint, payload, extra, true)
 }
 
 // SubmitRTProcessChecks sends real time process checks

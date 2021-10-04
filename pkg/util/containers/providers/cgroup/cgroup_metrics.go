@@ -192,6 +192,7 @@ func (c ContainerCgroup) CPU() (*metrics.ContainerCPUStats, error) {
 		ret.User = -1
 		ret.System = -1
 		ret.Shares = -1
+		ret.UsageTotal = -1
 		return ret, nil
 	} else if err != nil {
 		return nil, err
@@ -222,6 +223,7 @@ func (c ContainerCgroup) CPU() (*metrics.ContainerCPUStats, error) {
 	if err == nil {
 		ret.UsageTotal = float64(usage) / NanoToUserHZDivisor
 	} else {
+		ret.UsageTotal = -1
 		log.Debugf("Missing total cpu usage stat for %s: %s", c.ContainerID, err.Error())
 	}
 
@@ -229,6 +231,7 @@ func (c ContainerCgroup) CPU() (*metrics.ContainerCPUStats, error) {
 	if err == nil {
 		ret.Shares = float64(shares)
 	} else {
+		// Shares cannot be 0, so not required to set to -1
 		log.Debugf("Missing cpu shares stat for %s: %s", c.ContainerID, err.Error())
 	}
 

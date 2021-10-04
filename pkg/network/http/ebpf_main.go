@@ -11,57 +11,46 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
 	"golang.org/x/sys/unix"
 )
 
 const (
-	// HTTP maps used by the main eBPFProgram
-	httpInFlightMap      = "http_in_flight"
-	httpBatchesMap       = "http_batches"
-	httpBatchStateMap    = "http_batch_state"
-	httpNotificationsMap = "http_notifications"
+	httpInFlightMap          = "http_in_flight"
+	httpBatchesMap           = "http_batches"
+	httpBatchStateMap        = "http_batch_state"
+	httpNotificationsPerfMap = "http_notifications"
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to inspect plain HTTP traffic
 	httpSocketFilter = "socket/http_filter"
 
-	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
-	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the accept syscall).
-	maxActive                = 128
-	defaultClosedChannelSize = 500
+	// maxActive configures the maximum number of instances of the
+	// kretprobe-probed functions handled simultaneously.  This value should be
+	// enough for typical workloads (e.g. some amount of processes blocked on
+	// the accept syscall).
+	maxActive = 128
+
+	// size of the channel containing completed http_notification_objects
+	batchNotificationsChanSize = 100
 )
-
-var mainHTTPMaps = []string{
-	httpInFlightMap,
-	httpBatchesMap,
-	httpBatchStateMap,
-
-	// SSL
-	string(probes.SockByPidFDMap),
-	sslSockByCtxMap,
-	sslReadArgsMap,
-	sslFDByBioMap,
-
-	// Crypto (BIO)
-	cryptoNewSocketArgsMap,
-}
-
-type subprogram interface {
-	Start() error
-	Init() error
-	Close() error
-}
 
 type ebpfProgram struct {
 	*manager.Manager
 	cfg         *config.Config
-	perfHandler *ddebpf.PerfHandler
 	bytecode    bytecode.AssetReader
+	offsets     []manager.ConstantEditor
 	subprograms []subprogram
-	sockFDMap   *ebpf.Map
+
+	batchCompletionHandler *ddebpf.PerfHandler
+}
+
+type subprogram interface {
+	ConfigureManager(*manager.Manager)
+	ConfigureOptions(*manager.Options)
+	Start()
+	Stop()
 }
 
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*ebpfProgram, error) {
@@ -70,54 +59,53 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		return nil, err
 	}
 
-	closedChannelSize := defaultClosedChannelSize
-	if c.ClosedChannelSize > 0 {
-		closedChannelSize = c.ClosedChannelSize
-	}
-	perfHandler := ddebpf.NewPerfHandler(closedChannelSize)
-
+	batchCompletionHandler := ddebpf.NewPerfHandler(batchNotificationsChanSize)
 	mgr := &manager.Manager{
+		Maps: []*manager.Map{
+			{Name: httpInFlightMap},
+			{Name: httpBatchesMap},
+			{Name: httpBatchStateMap},
+			{Name: sslSockByCtxMap},
+			{Name: "ssl_read_args"},
+			{Name: "bio_new_socket_args"},
+			{Name: "fd_by_ssl_bio"},
+		},
 		PerfMaps: []*manager.PerfMap{
 			{
-				Map: manager.Map{Name: httpNotificationsMap},
+				Map: manager.Map{Name: httpNotificationsPerfMap},
 				PerfMapOptions: manager.PerfMapOptions{
 					PerfRingBufferSize: 8 * os.Getpagesize(),
 					Watermark:          1,
-					DataHandler:        perfHandler.DataHandler,
-					LostHandler:        perfHandler.LostHandler,
+					DataHandler:        batchCompletionHandler.DataHandler,
+					LostHandler:        batchCompletionHandler.LostHandler,
 				},
 			},
 		},
 		Probes: []*manager.Probe{
-			{Section: string(probes.TCPSendMsgReturn), KProbeMaxActive: maxActive},
 			{Section: httpSocketFilter},
+			{Section: string(probes.TCPSendMsgReturn), KProbeMaxActive: maxActive},
 		},
 	}
 
-	for _, m := range mainHTTPMaps {
-		mgr.Maps = append(mgr.Maps, &manager.Map{Name: m})
-	}
-
+	openSSLProgram, _ := newOpenSSLProgram(c, sockFD)
 	program := &ebpfProgram{
-		Manager:     mgr,
-		perfHandler: perfHandler,
-		bytecode:    bytecode,
-		cfg:         c,
-		sockFDMap:   sockFD,
-	}
-
-	if c.EnableHTTPSMonitoring {
-		sharedLibraries := findOpenSSLLibraries(c.ProcRoot)
-		var subprograms []subprogram
-		subprograms = append(subprograms, createSSLPrograms(program, offsets, sharedLibraries)...)
-		subprograms = append(subprograms, createCryptoPrograms(program, sharedLibraries)...)
-		program.subprograms = subprograms
+		Manager:                mgr,
+		bytecode:               bytecode,
+		cfg:                    c,
+		offsets:                offsets,
+		batchCompletionHandler: batchCompletionHandler,
+		subprograms:            []subprogram{openSSLProgram},
 	}
 
 	return program, nil
 }
 
 func (e *ebpfProgram) Init() error {
+	for _, s := range e.subprograms {
+		s.ConfigureManager(e.Manager)
+	}
+	setupDumpHandler(e.Manager)
+
 	options := manager.Options{
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
@@ -125,11 +113,6 @@ func (e *ebpfProgram) Init() error {
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			httpInFlightMap: {
-				Type:       ebpf.Hash,
-				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
-				EditorFlag: manager.EditMaxEntries,
-			},
-			sslSockByCtxMap: {
 				Type:       ebpf.Hash,
 				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
 				EditorFlag: manager.EditMaxEntries,
@@ -147,24 +130,16 @@ func (e *ebpfProgram) Init() error {
 				},
 			},
 		},
+		ConstantEditors: e.offsets,
 	}
 
-	if e.sockFDMap != nil {
-		options.MapEditors = map[string]*ebpf.Map{
-			string(probes.SockByPidFDMap): e.sockFDMap,
-		}
+	for _, s := range e.subprograms {
+		s.ConfigureOptions(&options)
 	}
 
 	err := e.InitWithOptions(e.bytecode, options)
 	if err != nil {
 		return err
-	}
-
-	for _, subprogram := range e.subprograms {
-		err := subprogram.Init()
-		if err != nil {
-			log.Errorf("error initializing http subprogram: %s. ignoring it.", err)
-		}
 	}
 
 	return nil
@@ -176,38 +151,18 @@ func (e *ebpfProgram) Start() error {
 		return err
 	}
 
-	for _, subprogram := range e.subprograms {
-		err := subprogram.Start()
-		if err != nil {
-			log.Errorf("error starting http subprogram: %s. ignoring it.", err)
-		}
+	for _, s := range e.subprograms {
+		s.Start()
 	}
 
 	return nil
 }
 
 func (e *ebpfProgram) Close() error {
-	for _, p := range e.subprograms {
-		p.Close()
+	err := e.Manager.Stop(manager.CleanAll)
+	e.batchCompletionHandler.Stop()
+	for _, s := range e.subprograms {
+		s.Stop()
 	}
-
-	return e.Manager.Stop(manager.CleanAll)
-}
-
-func setupSharedMaps(mainProgram *ebpfProgram, toShare ...string) map[string]*ebpf.Map {
-	if mainProgram == nil || len(toShare) == 0 {
-		return nil
-	}
-
-	sharedMaps := make(map[string]*ebpf.Map)
-	for _, m := range toShare {
-		emap, _, _ := mainProgram.GetMap(m)
-		if emap == nil {
-			log.Errorf("couldn't retrieve map: %s", m)
-			continue
-		}
-		sharedMaps[m] = emap
-	}
-
-	return sharedMaps
+	return err
 }

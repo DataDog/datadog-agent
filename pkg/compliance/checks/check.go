@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // eventNotify is a callback invoked when a compliance check reported an event
@@ -92,6 +93,13 @@ func (c *complianceCheck) reportToResource(report *compliance.Report) compliance
 	}
 }
 
+type resourceQuadID struct {
+	AgentRuleID      string
+	AgentFrameworkID string
+	ResourceID       string
+	ResourceType     string
+}
+
 func (c *complianceCheck) Run() error {
 	if !c.IsLeader() {
 		return nil
@@ -100,6 +108,8 @@ func (c *complianceCheck) Run() error {
 	var err error
 
 	reports := c.checkable.check(c)
+	resourceQuadIDs := make(map[resourceQuadID]bool)
+
 	for _, report := range reports {
 		if report.Error != nil {
 			log.Debugf("%s: check run failed: %v", c.ruleID, report.Error)
@@ -110,11 +120,25 @@ func (c *complianceCheck) Run() error {
 
 		resource := c.reportToResource(report)
 
-		e := &event.Event{
+		quadID := resourceQuadID{
 			AgentRuleID:      c.ruleID,
 			AgentFrameworkID: c.suiteMeta.Framework,
 			ResourceID:       resource.ID,
 			ResourceType:     resource.Type,
+		}
+
+		// skip if we already sent an event with this quad ID
+		if _, present := resourceQuadIDs[quadID]; present {
+			continue
+		}
+		resourceQuadIDs[quadID] = true
+
+		e := &event.Event{
+			AgentRuleID:      quadID.AgentRuleID,
+			AgentFrameworkID: quadID.AgentFrameworkID,
+			AgentVersion:     version.AgentVersion,
+			ResourceID:       quadID.ResourceID,
+			ResourceType:     quadID.ResourceType,
 			Result:           result,
 			Data:             data,
 		}

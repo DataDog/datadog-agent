@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
@@ -29,7 +28,10 @@ const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"
 // shutdownDelay is the amount of time we wait before shutting down the HTTP server
 // after we receive a Shutdown event. This allows time for the final log messages
 // to arrive from the Logs API.
-const shutdownDelay time.Duration = 1000 * time.Millisecond
+const shutdownDelay time.Duration = 1 * time.Second
+
+// FlushTimeout is the amount of time to wait for a flush to complete.
+const FlushTimeout time.Duration = 5 * time.Second
 
 // Daemon is the communcation server for between the runtime and the serverless Agent.
 // The name "daemon" is just in order to avoid serverless.StartServer ...
@@ -60,8 +62,8 @@ type Daemon struct {
 	// stopped represents whether the Daemon has been stopped
 	stopped bool
 
-	// Wait on this WaitGroup to be sure that the daemon isn't doing any pending
-	// work before finishing an invocation
+	// InvcWg is used to keep track of whether the daemon is doing any pending work
+	// before finishing an invocation
 	InvcWg *sync.WaitGroup
 
 	ExtraTags *serverlessLog.Tags
@@ -71,6 +73,51 @@ type Daemon struct {
 	// finishInvocationOnce assert that FinishedInvocation will be called only once (at the end of the function OR after a timeout)
 	// this should be reset before each invocation
 	finishInvocationOnce sync.Once
+
+	// metricsFlushMutex ensures that only one metrics flush can be underway at a given time
+	metricsFlushMutex sync.Mutex
+
+	// tracesFlushMutex ensures that only one traces flush can be underway at a given time
+	tracesFlushMutex sync.Mutex
+
+	// logsFlushMutex ensures that only one logs flush can be underway at a given time
+	logsFlushMutex sync.Mutex
+}
+
+// StartDaemon starts an HTTP server to receive messages from the runtime.
+// The DogStatsD server is provided when ready (slightly later), to have the
+// hello route available as soon as possible. However, the HELLO route is blocking
+// to have a way for the runtime function to know when the Serverless Agent is ready.
+// If the Flush route is called before the statsd server has been set, a 503
+// is returned by the HTTP route.
+func StartDaemon(addr string) *Daemon {
+	log.Debug("Starting daemon to receive messages from runtime...")
+	mux := http.NewServeMux()
+
+	daemon := &Daemon{
+		httpServer:        &http.Server{Addr: addr, Handler: mux},
+		mux:               mux,
+		InvcWg:            &sync.WaitGroup{},
+		lastInvocations:   make([]time.Time, 0),
+		useAdaptiveFlush:  true,
+		clientLibReady:    false,
+		flushStrategy:     &flush.AtTheEnd{},
+		ExtraTags:         &serverlessLog.Tags{},
+		ExecutionContext:  &serverlessLog.ExecutionContext{},
+		metricsFlushMutex: sync.Mutex{},
+		tracesFlushMutex:  sync.Mutex{},
+		logsFlushMutex:    sync.Mutex{},
+	}
+
+	mux.Handle("/lambda/hello", &Hello{daemon})
+	mux.Handle("/lambda/flush", &Flush{daemon})
+
+	// start the HTTP server used to communicate with the clients
+	go func() {
+		_ = daemon.httpServer.ListenAndServe()
+	}()
+
+	return daemon
 }
 
 // Hello implements the basic Hello route, creating a way for the Datadog Lambda Library
@@ -96,12 +143,12 @@ type Flush struct {
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Flush route.")
 	if !f.daemon.ShouldFlush(flush.Stopping, time.Now()) {
-		log.Debug("The flush strategy", f.daemon.LogFlushStategy(), " has decided to not flush in moment:", flush.Stopping)
+		log.Debugf("The flush strategy %s has decided to not flush at moment: %s", f.daemon.LogFlushStategy(), flush.Stopping)
 		f.daemon.FinishInvocation()
 		return
 	}
 
-	log.Debug("The flush strategy", f.daemon.LogFlushStategy(), " has decided to flush in moment:", flush.Stopping)
+	log.Debugf("The flush strategy %s has decided to flush at moment: %s", f.daemon.LogFlushStategy(), flush.Stopping)
 
 	// if the DogStatsD daemon isn't ready, wait for it.
 	if !f.daemon.MetricAgent.IsReady() {
@@ -114,11 +161,8 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// note that I am not using the request context because I think that we don't
 	// want the flush to be canceled if the client is closing the request.
 	go func() {
-		flushTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
-		ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
-		f.daemon.TriggerFlush(ctx, false)
+		f.daemon.TriggerFlush(false)
 		f.daemon.FinishInvocation()
-		cancel()
 	}()
 
 }
@@ -174,47 +218,73 @@ func (d *Daemon) UseAdaptiveFlush(enabled bool) {
 }
 
 // TriggerFlush triggers a flush of the aggregated metrics, traces and logs.
-// They are flushed concurrently.
+// If the flush times out, the daemon will stop waiting for the flush to complete, but the
+// flush may be continued on the next invocation.
 // In some circumstances, it may switch to another flush strategy after the flush.
-// isLastFlush indicates whether this is the last flush before the shutdown or not.
-func (d *Daemon) TriggerFlush(ctx context.Context, isLastFlush bool) {
-	// Increment the invocation wait group which tracks whether work is in progress for the daemon
+func (d *Daemon) TriggerFlush(isLastFlushBeforeShutdown bool) {
 	d.InvcWg.Add(1)
 	defer d.InvcWg.Done()
+
+	ctx, cancel := context.WithTimeout(context.Background(), FlushTimeout)
+
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	wg.Add(1)
-	wg.Add(1)
+	wg.Add(3)
 
-	// metrics
-	go func() {
-		if d.MetricAgent != nil {
-			d.MetricAgent.Flush()
-		}
-		wg.Done()
-	}()
+	go d.flushMetrics(&wg)
+	go d.flushTraces(&wg)
+	go d.flushLogs(ctx, &wg)
 
-	// traces
-	go func() {
-		if d.TraceAgent != nil {
-			d.TraceAgent.Get().FlushSync()
-		}
-		wg.Done()
-	}()
+	timedOut := waitWithTimeout(&wg, FlushTimeout)
+	if timedOut {
+		log.Debug("Timed out while flushing, flush may be continued on next invocation")
+	} else {
+		log.Debug("Finished flushing")
+	}
+	cancel()
 
-	// logs
-	go func() {
-		logs.Flush(ctx)
-		wg.Done()
-	}()
-
-	wg.Wait()
-	log.Debug("Flush done")
-
-	// After flushing, re-evaluate flush strategy (if applicable)
-	if !isLastFlush {
+	if !isLastFlushBeforeShutdown {
 		d.UpdateStrategy()
 	}
+}
+
+// flushMetrics flushes aggregated metrics to the intake.
+// It is protected by a mutex to ensure only one metrics flush can be in progress at any given time.
+func (d *Daemon) flushMetrics(wg *sync.WaitGroup) {
+	d.metricsFlushMutex.Lock()
+	flushStartTime := time.Now().Unix()
+	log.Debugf("Beginning metrics flush at time %d", flushStartTime)
+	if d.MetricAgent != nil {
+		d.MetricAgent.Flush()
+	}
+	log.Debugf("Finished metrics flush that was started at time %d", flushStartTime)
+	wg.Done()
+	d.metricsFlushMutex.Unlock()
+}
+
+// flushTraces flushes aggregated traces to the intake.
+// It is protected by a mutex to ensure only one traces flush can be in progress at any given time.
+func (d *Daemon) flushTraces(wg *sync.WaitGroup) {
+	d.tracesFlushMutex.Lock()
+	flushStartTime := time.Now().Unix()
+	log.Debugf("Beginning traces flush at time %d", flushStartTime)
+	if d.TraceAgent != nil && d.TraceAgent.Get() != nil {
+		d.TraceAgent.Get().FlushSync()
+	}
+	log.Debugf("Finished traces flush that was started at time %d", flushStartTime)
+	wg.Done()
+	d.tracesFlushMutex.Unlock()
+}
+
+// flushLogs flushes aggregated logs to the intake.
+// It is protected by a mutex to ensure only one logs flush can be in progress at any given time.
+func (d *Daemon) flushLogs(ctx context.Context, wg *sync.WaitGroup) {
+	d.logsFlushMutex.Lock()
+	flushStartTime := time.Now().Unix()
+	log.Debugf("Beginning logs flush at time %d", flushStartTime)
+	logs.Flush(ctx)
+	log.Debugf("Finished logs flush that was started at time %d", flushStartTime)
+	wg.Done()
+	d.logsFlushMutex.Unlock()
 }
 
 // Stop causes the Daemon to gracefully shut down. After a delay, the HTTP server
@@ -241,7 +311,7 @@ func (d *Daemon) Stop() {
 
 	// Once the HTTP server is shut down, it is safe to shut down the agents
 	// Otherwise, we might try to handle API calls after the agent has already been shut down
-	d.TriggerFlush(context.Background(), true)
+	d.TriggerFlush(true)
 
 	log.Debug("Shutting down agents")
 
@@ -254,39 +324,6 @@ func (d *Daemon) Stop() {
 	}
 	logs.Stop()
 	log.Debug("Serverless agent shutdown complete")
-}
-
-// StartDaemon starts an HTTP server to receive messages from the runtime.
-// The DogStatsD server is provided when ready (slightly later), to have the
-// hello route available as soon as possible. However, the HELLO route is blocking
-// to have a way for the runtime function to know when the Serverless Agent is ready.
-// If the Flush route is called before the statsd server has been set, a 503
-// is returned by the HTTP route.
-func StartDaemon(addr string) *Daemon {
-	log.Debug("Starting daemon to receive messages from runtime...")
-	mux := http.NewServeMux()
-	daemon := &Daemon{
-		httpServer:       &http.Server{Addr: addr, Handler: mux},
-		mux:              mux,
-		InvcWg:           &sync.WaitGroup{},
-		lastInvocations:  make([]time.Time, 0),
-		useAdaptiveFlush: true,
-		clientLibReady:   false,
-		flushStrategy:    &flush.AtTheEnd{},
-		ExtraTags:        &serverlessLog.Tags{},
-		ExecutionContext: &serverlessLog.ExecutionContext{},
-	}
-	log.Debug("Adaptive flush is enabled")
-
-	mux.Handle("/lambda/hello", &Hello{daemon})
-	mux.Handle("/lambda/flush", &Flush{daemon})
-
-	// start the HTTP server used to communicate with the clients
-	go func() {
-		_ = daemon.httpServer.ListenAndServe()
-	}()
-
-	return daemon
 }
 
 // StartInvocation tells the daemon the invocation began
@@ -331,15 +368,23 @@ func (d *Daemon) ComputeGlobalTags(configTags []string) {
 		if d.MetricAgent != nil {
 			d.MetricAgent.SetExtraTags(tagArray)
 		}
-		if d.TraceAgent != nil {
-			d.TraceAgent.Get().SetGlobalTagsUnsafe(tags.BuildTracerTags(tagMap))
-		}
+		d.setTraceTags(tagMap)
 		d.ExtraTags.Tags = tagArray
 		source := serverlessLog.GetLambdaSource()
 		if source != nil {
 			source.Config.Tags = tagArray
 		}
 	}
+}
+
+// setTraceTags tries to set extra tags to the Trace agent.
+// setTraceTags returns a boolean which indicate whether or not the operation succeed for testing purpose.
+func (d *Daemon) setTraceTags(tagMap map[string]string) bool {
+	if d.TraceAgent != nil && d.TraceAgent.Get() != nil {
+		d.TraceAgent.Get().SetGlobalTagsUnsafe(tags.BuildTracerTags(tagMap))
+		return true
+	}
+	return false
 }
 
 // SetExecutionContext sets the current context to the daemon
@@ -382,5 +427,6 @@ func (d *Daemon) RestoreCurrentStateFromFile() error {
 	d.ExecutionContext.LastRequestID = restoredExecutionContext.LastRequestID
 	d.ExecutionContext.LastLogRequestID = restoredExecutionContext.LastLogRequestID
 	d.ExecutionContext.ColdstartRequestID = restoredExecutionContext.ColdstartRequestID
+	d.ExecutionContext.StartTime = restoredExecutionContext.StartTime
 	return nil
 }

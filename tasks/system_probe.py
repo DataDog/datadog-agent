@@ -18,9 +18,9 @@ BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe", android=False))
 
 BPF_TAG = "linux_bpf"
 BUNDLE_TAG = "ebpf_bindata"
-BCC_TAG = "bcc"
 NPM_TAG = "npm"
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
+DNF_TAG = "dnf"
 
 CLANG_CMD = "clang {flags} -c '{c_file}' -o '{bc_file}'"
 LLC_CMD = "llc -march=bpf -filetype=obj -o '{obj_file}' '{bc_file}'"
@@ -29,7 +29,7 @@ DATADOG_AGENT_EMBEDDED_PATH = '/opt/datadog-agent/embedded'
 
 KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
-TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/..."]
+TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/...", "./pkg/collector/corechecks/ebpf/..."]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 
 is_windows = sys.platform == "win32"
@@ -42,12 +42,12 @@ def build(
     incremental_build=False,
     major_version='7',
     python_runtimes='3',
-    with_bcc=True,
     go_mod="mod",
     windows=is_windows,
     arch="x64",
     embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
     compile_ebpf=True,
+    nikos_embedded_path=None,
     bundle_ebpf=False,
 ):
     """
@@ -88,16 +88,19 @@ def build(
 
     generate_cgo_types(ctx, windows=windows)
     ldflags, gcflags, env = get_build_flags(
-        ctx, major_version=major_version, python_runtimes=python_runtimes, embedded_path=embedded_path
+        ctx,
+        major_version=major_version,
+        python_runtimes=python_runtimes,
+        embedded_path=embedded_path,
+        nikos_embedded_path=nikos_embedded_path,
     )
 
     build_tags = get_default_build_tags(build="system-probe", arch=arch)
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
-    if with_bcc:
-        build_tags.append(BCC_TAG)
+    if nikos_embedded_path:
+        build_tags.append(DNF_TAG)
 
-    # TODO static option
     cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
 
@@ -166,7 +169,7 @@ def test(
         env['DD_TESTS_RUNTIME_COMPILED'] = "1"
 
     cmd = 'go test -mod=mod -v -tags "{build_tags}" {output_params} {pkgs} {run}'
-    if not windows and not is_root():
+    if not windows and not output_path and not is_root():
         cmd = 'sudo -E ' + cmd
 
     ctx.run(cmd.format(**args), env=env)
@@ -411,6 +414,13 @@ def get_linux_header_dirs():
                 os.path.join(debian_headers_dir, d) for d in os.listdir(debian_headers_dir) if d.startswith("linux-")
             ]
 
+    # fallback to the running kernel/build headers via /lib/modules/$(uname -r)/build/
+    if len(linux_headers) == 0:
+        uname_r = check_output('''uname -r''', shell=True).decode('utf-8').strip()
+        build_dir = "/lib/modules/{}/build".format(uname_r)
+        if os.path.isdir(build_dir):
+            linux_headers = [build_dir]
+
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
     arch = (
         check_output(
@@ -544,23 +554,8 @@ def build_security_ebpf_files(ctx, build_dir):
     return [security_agent_obj_file, security_agent_syscall_wrapper_obj_file]
 
 
-def build_bcc_files(ctx, build_dir):
-    corechecks_c_dir = os.path.join(".", "pkg", "collector", "corechecks", "ebpf", "c")
-    corechecks_bcc_dir = os.path.join(corechecks_c_dir, "bcc")
-    bcc_files = [
-        os.path.join(corechecks_bcc_dir, "tcp-queue-length-kern.c"),
-        os.path.join(corechecks_c_dir, "tcp-queue-length-kern-user.h"),
-        os.path.join(corechecks_bcc_dir, "oom-kill-kern.c"),
-        os.path.join(corechecks_c_dir, "oom-kill-kern-user.h"),
-        os.path.join(corechecks_bcc_dir, "bpf-common.h"),
-    ]
-    for f in bcc_files:
-        ctx.run("cp {file} {dest}".format(file=f, dest=build_dir))
-
-
 def build_object_files(ctx):
-    """build_object_files builds only the eBPF object
-    """
+    """build_object_files builds only the eBPF object"""
 
     # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
     print("checking for clang executable...")
@@ -574,7 +569,6 @@ def build_object_files(ctx):
     ctx.run("mkdir -p {build_runtime_dir}".format(build_runtime_dir=build_runtime_dir))
 
     bindata_files = []
-    build_bcc_files(ctx, build_dir=build_dir)
     build_network_ebpf_files(ctx, build_dir=build_dir)
     bindata_files.extend(build_security_ebpf_files(ctx, build_dir=build_dir))
 
@@ -587,7 +581,10 @@ def build_object_files(ctx):
 @task
 def generate_runtime_files(ctx):
     runtime_compiler_files = [
+        "./pkg/collector/corechecks/ebpf/probe/oom_kill.go",
+        "./pkg/collector/corechecks/ebpf/probe/tcp_queue_length.go",
         "./pkg/network/tracer/compile.go",
+        "./pkg/network/tracer/connection/kprobe/compile.go",
         "./pkg/security/probe/compile.go",
     ]
     for f in runtime_compiler_files:
@@ -603,14 +600,21 @@ def generate_cgo_types(ctx, windows=is_windows):
         ]
     else:
         platform = "linux"
-        def_files = []
+        def_files = [
+            "./pkg/network/ebpf/offsetguess_types.go",
+            "./pkg/network/ebpf/conntrack_types.go",
+            "./pkg/network/ebpf/tuple_types.go",
+            "./pkg/network/ebpf/kprobe_types.go",
+        ]
 
     for f in def_files:
         fdir, file = os.path.split(f)
         base, _ = os.path.splitext(file)
         with ctx.cd(fdir):
             ctx.run(
-                "go tool cgo -godefs -- {file} > {base}_{platform}.go".format(file=file, base=base, platform=platform)
+                "go tool cgo -godefs -- -fsigned-char {file} > {base}_{platform}.go".format(
+                    file=file, base=base, platform=platform
+                )
             )
             ctx.run("gofmt -w -s {base}_{platform}.go".format(base=base, platform=platform))
 

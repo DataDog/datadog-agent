@@ -5,16 +5,12 @@
 
 # push every night to docker hub agent-scan repo
 scan_nightly-dogstatsd:
-  extends: .docker_job_definition
+  extends: .docker_publish_job_definition
   stage: image_scan
   rules:
     !reference [.on_deploy_nightly_repo_branch_a7]
   needs:
     - docker_build_dogstatsd_amd64
-  trigger:
-    project: DataDog/public-images
-    branch: main
-    strategy: depend
   variables:
     IMG_REGISTRIES: dev
     IMG_SIGNING: "false"
@@ -22,17 +18,13 @@ scan_nightly-dogstatsd:
     IMG_DESTINATIONS: dogstatsd-scan:${DEB_RPM_BUCKET_BRANCH}
 
 scan_nightly-a6:
-  extends: .docker_job_definition
+  extends: .docker_publish_job_definition
   stage: image_scan
   rules:
     !reference [.on_deploy_nightly_repo_branch_a6]
   needs:
     - docker_build_agent6
     - docker_build_agent6_jmx
-  trigger:
-    project: DataDog/public-images
-    branch: main
-    strategy: depend
   variables:
     IMG_REGISTRIES: dev
     IMG_SIGNING: "false"
@@ -44,17 +36,13 @@ scan_nightly-a6:
         IMG_DESTINATIONS: agent-scan:${DEB_RPM_BUCKET_BRANCH}-py2-jmx
 
 scan_nightly-a7:
-  extends: .docker_job_definition
+  extends: .docker_publish_job_definition
   stage: image_scan
   rules:
     !reference [.on_deploy_nightly_repo_branch_a7]
   needs:
     - docker_build_agent7
     - docker_build_agent7_jmx
-  trigger:
-    project: DataDog/public-images
-    branch: main
-    strategy: depend
   variables:
     IMG_REGISTRIES: dev
     IMG_SIGNING: "false"
@@ -66,15 +54,11 @@ scan_nightly-a7:
         IMG_DESTINATIONS: agent-scan:${DEB_RPM_BUCKET_BRANCH}-py3-jmx
 
 dca_scan_nightly:
-  extends: .docker_job_definition
+  extends: .docker_publish_job_definition
   stage: image_scan
   rules:
     !reference [.on_deploy_nightly_repo_branch_a7]
   needs: ["docker_build_cluster_agent_amd64"]
-  trigger:
-    project: DataDog/public-images
-    branch: main
-    strategy: depend
   variables:
     IMG_REGISTRIES: dev
     IMG_SIGNING: "false"
@@ -83,16 +67,12 @@ dca_scan_nightly:
 
 # push on master to docker hub agent-scan repo
 scan_master-dogstatsd:
-  extends: .docker_job_definition
+  extends: .docker_publish_job_definition
   stage: image_scan
   rules:
     !reference [.on_main_a7]
   needs:
     - docker_build_dogstatsd_amd64
-  trigger:
-    project: DataDog/public-images
-    branch: main
-    strategy: depend
   variables:
     IMG_REGISTRIES: dev
     IMG_SIGNING: "false"
@@ -100,17 +80,13 @@ scan_master-dogstatsd:
     IMG_DESTINATIONS: dogstatsd-scan:master
 
 scan_master-a6:
-  extends: .docker_job_definition
+  extends: .docker_publish_job_definition
   stage: image_scan
   rules:
     !reference [.on_main_a6]
   needs:
     - docker_build_agent6
     - docker_build_agent6_jmx
-  trigger:
-    project: DataDog/public-images
-    branch: main
-    strategy: depend
   variables:
     IMG_REGISTRIES: dev
     IMG_SIGNING: "false"
@@ -122,17 +98,13 @@ scan_master-a6:
         IMG_DESTINATIONS: agent-scan:master-py2-jmx
 
 scan_master-a7:
-  extends: .docker_job_definition
+  extends: .docker_publish_job_definition
   stage: image_scan
   rules:
     !reference [.on_main_a7]
   needs:
     - docker_build_agent7
     - docker_build_agent7_jmx
-  trigger:
-    project: DataDog/public-images
-    branch: main
-    strategy: depend
   variables:
     IMG_REGISTRIES: dev
     IMG_SIGNING: "false"
@@ -144,15 +116,11 @@ scan_master-a7:
         IMG_DESTINATIONS: agent-scan:master-py3-jmx
 
 dca_scan_master:
-  extends: .docker_job_definition
+  extends: .docker_publish_job_definition
   stage: image_scan
   rules:
     !reference [.on_main_a7]
   needs: ["docker_build_cluster_agent_amd64"]
-  trigger:
-    project: DataDog/public-images
-    branch: main
-    strategy: depend
   variables:
     IMG_REGISTRIES: dev
     IMG_SIGNING: "false"

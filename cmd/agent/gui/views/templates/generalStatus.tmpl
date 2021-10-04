@@ -6,7 +6,7 @@
       <br>Flavor: {{.flavor}}
       <br>PID: {{.pid}}
       {{- if .runnerStats.Workers}}
-        <br>Check Workers: {{.runnerStats.Workers}}
+        <br>Check Workers: {{.runnerStats.Workers.Count}}
       {{end}}
       <br>Agent start: {{ formatUnixTime .agent_start_nano }}
       {{- if .config.log_file}}

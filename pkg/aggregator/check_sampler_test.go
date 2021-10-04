@@ -26,13 +26,13 @@ import (
 
 func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
 	k := ckey.NewKeyGenerator()
-	tb := util.NewTagsBuilder()
+	tb := util.NewHashingTagsBuilder()
 	sample.GetTags(tb)
 	return k.Generate(sample.GetName(), sample.GetHost(), tb)
 }
 
 func TestCheckGaugeSampling(t *testing.T) {
-	checkSampler := newCheckSampler(1)
+	checkSampler := newCheckSampler(1, true, 1*time.Second)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -91,7 +91,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 }
 
 func TestCheckRateSampling(t *testing.T) {
-	checkSampler := newCheckSampler(1)
+	checkSampler := newCheckSampler(1, true, 1*time.Second)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -140,7 +140,7 @@ func TestCheckRateSampling(t *testing.T) {
 }
 
 func TestHistogramCountSampling(t *testing.T) {
-	checkSampler := newCheckSampler(1)
+	checkSampler := newCheckSampler(1, true, 1*time.Second)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -201,7 +201,7 @@ func TestHistogramCountSampling(t *testing.T) {
 }
 
 func TestCheckHistogramBucketSampling(t *testing.T) {
-	checkSampler := newCheckSampler(1)
+	checkSampler := newCheckSampler(1, true, 1*time.Second)
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:            "my.histogram",
@@ -274,7 +274,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 }
 
 func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
-	checkSampler := newCheckSampler(1)
+	checkSampler := newCheckSampler(1, true, 1*time.Second)
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:            "my.histogram",
@@ -326,7 +326,7 @@ func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
 }
 
 func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
-	checkSampler := newCheckSampler(1)
+	checkSampler := newCheckSampler(1, true, 1*time.Second)
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:       "my.histogram",

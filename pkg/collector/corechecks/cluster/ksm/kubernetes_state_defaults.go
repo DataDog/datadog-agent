@@ -24,6 +24,7 @@ var (
 		"cronjob":                             "kube_cronjob",
 		"pod":                                 "pod_name",
 		"phase":                               "pod_phase",
+		"priority_class":                      "kube_priority_class",
 		"daemonset":                           "kube_daemon_set",
 		"replicationcontroller":               "kube_replication_controller",
 		"replicaset":                          "kube_replica_set",
@@ -158,7 +159,7 @@ var (
 		},
 		"kube_pod_info": {
 			LabelsToMatch: []string{"pod", "namespace"},
-			LabelsToGet:   []string{"node", "created_by_kind", "created_by_name"},
+			LabelsToGet:   []string{"node", "created_by_kind", "created_by_name", "priority_class"},
 		},
 		"kube_persistentvolume_info": {
 			LabelsToMatch: []string{"persistentvolume"}, // persistent volumes are not namespaced

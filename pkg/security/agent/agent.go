@@ -8,10 +8,12 @@ package agent
 import (
 	"context"
 	"io"
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/cenkalti/backoff"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
@@ -41,8 +43,9 @@ func NewRuntimeSecurityAgent(hostname string, reporter event.Reporter) (*Runtime
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}
 
-	path := "unix://" + socketPath
-	conn, err := grpc.Dial(path, grpc.WithInsecure())
+	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
+		return net.Dial("unix", url)
+	}))
 	if err != nil {
 		return nil, err
 	}
@@ -87,13 +90,20 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 
 	rsa.connected.Store(false)
 
+	logTicker := newLogBackoffTicker()
+
 	rsa.running.Store(true)
 	for rsa.running.Load() == true {
 		stream, err := apiClient.GetEvents(context.Background(), &api.GetEventParams{})
 		if err != nil {
 			rsa.connected.Store(false)
 
-			log.Warnf("Error while connecting to the runtime security module: %v", err)
+			select {
+			case <-logTicker.C:
+				log.Warnf("Error while connecting to the runtime security module: %v", err)
+			default:
+				// do nothing
+			}
 
 			// retry in 2 seconds
 			time.Sleep(2 * time.Second)
@@ -134,4 +144,14 @@ func (rsa *RuntimeSecurityAgent) GetStatus() map[string]interface{} {
 		"connected":     rsa.connected.Load(),
 		"eventReceived": atomic.LoadUint64(&rsa.eventReceived),
 	}
+}
+
+// newLogBackoffTicker returns a ticker based on an exponential backoff, used to trigger connect error logs
+func newLogBackoffTicker() *backoff.Ticker {
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = 2 * time.Second
+	expBackoff.MaxInterval = 60 * time.Second
+	expBackoff.MaxElapsedTime = 0
+	expBackoff.Reset()
+	return backoff.NewTicker(expBackoff)
 }

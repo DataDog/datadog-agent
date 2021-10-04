@@ -7,6 +7,7 @@
 struct unlink_event_t {
     struct kevent_t event;
     struct process_context_t process;
+    struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
     struct file_t file;
@@ -41,7 +42,7 @@ SYSCALL_KPROBE3(unlinkat, int, dirfd, const char*, filename, int, flags) {
 }
 
 SEC("kprobe/vfs_unlink")
-int kprobe__vfs_unlink(struct pt_regs *ctx) {
+int kprobe_vfs_unlink(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
     if (!syscall)
         return 0;
@@ -77,7 +78,7 @@ int kprobe__vfs_unlink(struct pt_regs *ctx) {
 }
 
 SEC("kprobe/dr_unlink_callback")
-int __attribute__((always_inline)) dr_unlink_callback(struct pt_regs *ctx) {
+int __attribute__((always_inline)) kprobe_dr_unlink_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
     if (!syscall)
         return 0;
@@ -111,6 +112,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
 
             struct proc_cache_t *entry = fill_process_context(&event.process);
             fill_container_context(entry, &event.container);
+            fill_span_context(&event.span);
 
             send_event(ctx, EVENT_RMDIR, event);
         } else {
@@ -122,6 +124,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
 
             struct proc_cache_t *entry = fill_process_context(&event.process);
             fill_container_context(entry, &event.container);
+            fill_span_context(&event.span);
 
             send_event(ctx, EVENT_UNLINK, event);
         }

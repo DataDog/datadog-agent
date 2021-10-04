@@ -8,6 +8,7 @@ package expvars
 import (
 	"expvar"
 	"fmt"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -34,7 +35,7 @@ func getRunnerExpvarMap(t require.TestingT) *expvar.Map {
 func getRunningChecksExpvarMap(t require.TestingT) *expvar.Map {
 	runnerMap := getRunnerExpvarMap(t)
 
-	runningChecksExpvar := runnerMap.Get("running")
+	runningChecksExpvar := runnerMap.Get("Running")
 	require.NotNil(t, runningChecksExpvar)
 
 	return runningChecksExpvar.(*expvar.Map)
@@ -59,6 +60,8 @@ func getExpvarMapKeys(m *expvar.Map) []string {
 	m.Do(func(kv expvar.KeyValue) {
 		keys = append(keys, kv.Key)
 	})
+
+	sort.Strings(keys)
 
 	return keys
 }
@@ -139,6 +142,9 @@ func TestExpvarsInitialState(t *testing.T) {
 	checks := runnerMap.Get("Checks")
 	require.NotNil(t, checks)
 	assert.Equal(t, "{}", checks.String())
+
+	workers := runnerMap.Get("Workers")
+	require.NotNil(t, workers)
 }
 
 func TestExpvarsInitialInternalState(t *testing.T) {
@@ -170,7 +176,6 @@ func TestExpvarsReset(t *testing.T) {
 	AddRunsCount(2)
 	AddRunningCheckCount(3)
 	AddWarningsCount(4)
-	AddWorkerCount(5)
 
 	assert.Equal(t, numCheckNames, len(GetCheckStats()))
 	assert.Equal(t, numCheckNames, len(getCheckStatsExpvarMap(t)))
@@ -189,7 +194,7 @@ func TestExpvarsReset(t *testing.T) {
 	assert.Nil(t, getRunnerExpvarMap(t).Get(runsExpvarKey))
 	assert.Nil(t, getRunnerExpvarMap(t).Get(runningChecksExpvarKey))
 	assert.Nil(t, getRunnerExpvarMap(t).Get(warningsExpvarKey))
-	assert.Nil(t, getRunnerExpvarMap(t).Get(workersExpvarKey))
+	assert.NotNil(t, getRunnerExpvarMap(t).Get(workersExpvarKey))
 }
 
 // TestExpvarsCheckStats includes tests of `AddCheckStats()`, `RemoveCheckStats()`, and
@@ -374,7 +379,6 @@ func TestExpvarsToplevelKeys(t *testing.T) {
 		"Runs":          GetRunsCount,
 		"RunningChecks": GetRunningCheckCount,
 		"Warnings":      GetWarningsCount,
-		"Workers":       GetWorkerCount,
 	}
 
 	for keyName, setter := range map[string]func(int){
@@ -382,7 +386,6 @@ func TestExpvarsToplevelKeys(t *testing.T) {
 		"Runs":          AddRunsCount,
 		"RunningChecks": AddRunningCheckCount,
 		"Warnings":      AddWarningsCount,
-		"Workers":       AddWorkerCount,
 	} {
 
 		assertKeyNotSet(t, keyName)

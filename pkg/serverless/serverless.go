@@ -172,9 +172,6 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, daemon.ExecutionContext.Coldstart)
 			metricsChan := daemon.MetricAgent.GetMetricChannel()
 			metrics.SendTimeoutEnhancedMetric(metricTags, metricsChan)
-			if err != nil {
-				log.Error("Unable to persist current state to file while shutting down")
-			}
 		}
 		daemon.Stop()
 		stopCh <- struct{}{}
@@ -219,20 +216,11 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 	}
 
 	// immediately check if we should flush data
-	// note that since we're flushing synchronously here, there is a scenario
-	// where this could be blocking the function if the flush is slow (if the
-	// extension is not quickly going back to listen on the "wait next event"
-	// route). That's why we use a context.Context with a timeout `flushTimeout``
-	// to avoid blocking for too long.
-	// This flushTimeout is re-using the forwarder_timeout value.
 	if daemon.ShouldFlush(flush.Starting, time.Now()) {
-		log.Debugf("The flush strategy %s has decided to flush the data in the moment: %s", daemon.LogFlushStategy(), flush.Starting)
-		flushTimeout := config.Datadog.GetDuration("forwarder_timeout") * time.Second
-		ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
-		daemon.TriggerFlush(ctx, false)
-		cancel() // free the resource of the context
+		log.Debugf("The flush strategy %s has decided to flush at moment: %s", daemon.LogFlushStategy(), flush.Starting)
+		daemon.TriggerFlush(false)
 	} else {
-		log.Debugf("The flush strategy %s has decided to not flush in the moment: %s", daemon.LogFlushStategy(), flush.Starting)
+		log.Debugf("The flush strategy %s has decided to not flush at moment: %s", daemon.LogFlushStategy(), flush.Starting)
 	}
 	daemon.WaitForDaemon()
 	doneChannel <- true
