@@ -20,6 +20,7 @@ import (
 const (
 	defaultPollInterval = int(15)
 	defaultBufferSize   = 512
+	minBufferSize       = 256
 )
 
 // Tracer struct for tracking network state and connections
@@ -78,8 +79,8 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		stopChan:        make(chan struct{}),
 		timerInterval:   defaultPollInterval,
 		state:           state,
-		activeBuffer:    network.NewConnectionBuffer(defaultBufferSize),
-		closedBuffer:    network.NewConnectionBuffer(defaultBufferSize),
+		activeBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
+		closedBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		reverseDNS:      reverseDNS,
 		sourceExcludes:  network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:    network.ParseConnectionFilters(config.ExcludedDestinationConnections),
@@ -115,7 +116,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	// check for expired clients in the state
 	t.state.RemoveExpiredClients(time.Now())
 
-	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, closedConnStats, t.reverseDNS.GetDNSStats(), nil)
+	t.state.StoreClosedConnections(closedConnStats)
+	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
+
 	t.activeBuffer.Reset()
 	t.closedBuffer.Reset()
 

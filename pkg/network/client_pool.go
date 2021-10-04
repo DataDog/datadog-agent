@@ -31,7 +31,7 @@ func (p *clientBufferPool) Get(clientID string) *clientBuffer {
 
 	return &clientBuffer{
 		clientID:         clientID,
-		ConnectionBuffer: NewConnectionBuffer(defaultClientBufferSize),
+		ConnectionBuffer: NewConnectionBuffer(defaultClientBufferSize, 256),
 	}
 }
 
