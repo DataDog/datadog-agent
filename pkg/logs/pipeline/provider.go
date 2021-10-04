@@ -37,7 +37,7 @@ type provider struct {
 	endpoints                 *config.Endpoints
 
 	pipelines            []*Pipeline
-	currentPipelineIndex uint32
+	currentPipelineIndex int32
 	destinationsContext  *client.DestinationsContext
 
 	serverless bool
@@ -96,7 +96,8 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 	if pipelinesLen == 0 {
 		return nil
 	}
-	index := atomic.AddUint32(&p.currentPipelineIndex, uint32(1)) % uint32(pipelinesLen)
+	index := int(p.currentPipelineIndex+1) % pipelinesLen
+	defer atomic.StoreInt32(&p.currentPipelineIndex, int32(index))
 	nextPipeline := p.pipelines[index]
 	return nextPipeline.InputChan
 }
