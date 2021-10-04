@@ -48,6 +48,7 @@ func main() {
 	if err := filepath.Walk(input, func(filepath string, info os.FileInfo, err error) error {
 		opts := newEmbedFileOptions(filepath, input, output)
 		if shouldKeepVerbatim(filepath) {
+			fmt.Printf("KEEPING VERBATIM: %v\n", filepath)
 			if err := embedVerbatimFile(opts, pkgName); err != nil {
 				return err
 			}
@@ -246,7 +247,7 @@ func typeToStr(fset *token.FileSet, ty ast.Expr) string {
 	return buf.String()
 }
 
-var filesToKeep = []string{
+var filesToKeepBase = []string{
 	"setup_test.go",
 	"syscalls_amd64_test.go",
 	"syscalls_arm64_test.go",
@@ -255,13 +256,24 @@ var filesToKeep = []string{
 	"schemas.go", // little hack, this works for ./schemas.go and ./schemas/schemas.go
 }
 
+var filesToKeepRegexp = []*regexp.Regexp{
+	regexp.MustCompile(`.*\/schemas\/.*\.json`),
+}
+
 func shouldKeepVerbatim(filePath string) bool {
 	base := path.Base(filePath)
-	for _, file := range filesToKeep {
+	for _, file := range filesToKeepBase {
 		if file == base {
 			return true
 		}
 	}
+
+	for _, reg := range filesToKeepRegexp {
+		if reg.MatchString(filePath) {
+			return true
+		}
+	}
+
 	return false
 }
 
@@ -274,6 +286,9 @@ func writeOutputFile(inputDir, outputDir, outputPath string, content []byte, ski
 		return err
 	}
 
+	isGoFile := strings.HasSuffix(outputPath, ".go")
+
+	// create temporary working file
 	tmp, err := ioutil.TempFile(dirPath, "temp-pre-fmt")
 	if err != nil {
 		return err
@@ -281,13 +296,21 @@ func writeOutputFile(inputDir, outputDir, outputPath string, content []byte, ski
 	defer os.Remove(tmp.Name())
 	defer tmp.Close()
 
-	inputPackage := path.Join("github.com/DataDog/datadog-agent", inputDir)
-	outputPackage := path.Join("github.com/DataDog/datadog-agent", outputDir)
+	// replace package name and add edit protector
+	var prefixedContent []byte
+	if isGoFile {
+		inputPackage := path.Join("github.com/DataDog/datadog-agent", inputDir)
+		outputPackage := path.Join("github.com/DataDog/datadog-agent", outputDir)
 
-	prefixedContent := append([]byte(editProtector), content...)
-	prefixedContent = bytes.Replace(prefixedContent, []byte(inputPackage), []byte(outputPackage), -1)
+		prefixedContent = append([]byte(editProtector), content...)
+		prefixedContent = bytes.Replace(prefixedContent, []byte(inputPackage), []byte(outputPackage), -1)
+	} else {
+		prefixedContent = content
+	}
+
+	// convert build tags
 	var finalContent []byte
-	if skipBuildConstraintConversion {
+	if skipBuildConstraintConversion || !isGoFile {
 		finalContent = prefixedContent
 	} else {
 		buildEditedContent, err := convertBuildTags(string(prefixedContent))
@@ -305,9 +328,12 @@ func writeOutputFile(inputDir, outputDir, outputPath string, content []byte, ski
 		return err
 	}
 
-	cmd := exec.Command("go", "run", "golang.org/x/tools/cmd/goimports", "-w", tmp.Name())
-	if err := cmd.Run(); err != nil {
-		return err
+	// go format
+	if isGoFile {
+		cmd := exec.Command("go", "run", "golang.org/x/tools/cmd/goimports", "-w", tmp.Name())
+		if err := cmd.Run(); err != nil {
+			return err
+		}
 	}
 
 	return os.Rename(tmp.Name(), outputPath)
