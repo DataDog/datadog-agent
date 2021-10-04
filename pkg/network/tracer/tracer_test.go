@@ -1218,8 +1218,8 @@ func TestConnectedUDPSendIPv6(t *testing.T) {
 
 func TestConnectionClobber(t *testing.T) {
 	cfg := testConfig()
+	cfg.CollectUDPConns = false
 	cfg.ExcludedDestinationConnections = map[string][]string{
-		"*":           {"udp *"},
 		"0.0.0.0/2":   {"*"},
 		"64.0.0.0/3":  {"*"},
 		"96.0.0.0/4":  {"*"},
@@ -1228,9 +1228,6 @@ func TestConnectionClobber(t *testing.T) {
 		"124.0.0.0/7": {"*"},
 		"126.0.0.0/8": {"*"},
 		"128.0.0.0/1": {"*"},
-	}
-	cfg.ExcludedSourceConnections = map[string][]string{
-		"*": {"udp *"},
 	}
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)

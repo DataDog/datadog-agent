@@ -62,7 +62,7 @@ func ParseConnectionFilters(filters map[string][]string) (excludelist []*Connect
 
 			// Port filter for is a wildcard
 			if lowerPort == 0 && upperPort == 0 {
-				if subnet == nil && transportFilter.UDP && transportFilter.TCP { // Check that theres no wildcard filter above, or we'd just skip everything which is invalid
+				if subnet == nil { // Check that theres no wildcard filter above, or we'd just skip everything which is invalid
 					err = log.Errorf("Given rule will not be respected. Invalid filter with IP/CIDR as * and port as *")
 					break
 				}
