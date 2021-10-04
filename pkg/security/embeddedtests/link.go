@@ -62,6 +62,10 @@ func TestLink(t *testing.T) {
 			assertNearTime(t, event.Link.Source.CTime)
 			assertNearTime(t, event.Link.Target.MTime)
 			assertNearTime(t, event.Link.Target.CTime)
+
+			if !validateLinkSchema(t, event) {
+				t.Error(event.String())
+			}
 		})
 		if err != nil {
 			t.Error(err)
@@ -90,6 +94,10 @@ func TestLink(t *testing.T) {
 			assertNearTime(t, event.Link.Source.CTime)
 			assertNearTime(t, event.Link.Target.MTime)
 			assertNearTime(t, event.Link.Target.CTime)
+
+			if !validateLinkSchema(t, event) {
+				t.Error(event.String())
+			}
 		})
 		if err != nil {
 			t.Error(err)

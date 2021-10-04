@@ -62,6 +62,9 @@ func TestRmdir(t *testing.T) {
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	}))
 
 	t.Run("unlinkat-at_removedir", func(t *testing.T) {
@@ -90,6 +93,9 @@ func TestRmdir(t *testing.T) {
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 }
 
