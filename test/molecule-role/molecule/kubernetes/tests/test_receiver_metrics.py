@@ -72,19 +72,18 @@ def test_agent_kubernetes_metrics(host):
         with open("./topic-multi-metrics-kubernetes.json", 'w') as f:
             json.dump(json_data, f, indent=4)
 
-        def get_keys():
-            return next(set(message["message"]["MultiMetric"]["values"].keys())
-                        for message in json_data["messages"]
-                        if message["message"]["MultiMetric"]["name"] == "convertedMetric" and
-                        "cluster_name" in message["message"]["MultiMetric"]["tags"]
-                        )
+        def contains_key():
+            for message in json_data["messages"]:
+                if (message["message"]["MultiMetric"]["name"] == "convertedMetric" and
+                    "cluster_name" in message["message"]["MultiMetric"]["tags"] and
+                    ("kubernetes_state.container.running" in message["message"]["MultiMetric"]["values"].keys() or
+                     "kubernetes_state.pod.scheduled" in message["message"]["MultiMetric"]["values"].keys())):
+                    return True
+            return False
 
-        expected = {"kubernetes.pods.running", "kubernetes.containers.running",
-                    "kubernetes.containers.restarts", "kubernetes.memory.limits"}
+        assert contains_key(), 'No kubernetes metrics found'
 
-        assert get_keys().pop() in expected
-
-    util.wait_until(wait_for_metrics, 30, 3)
+    util.wait_until(wait_for_metrics, 60, 3)
 
 
 def test_agent_kubernetes_state_metrics(host):
@@ -96,18 +95,18 @@ def test_agent_kubernetes_state_metrics(host):
         with open("./topic-multi-metrics-kubernetes_state.json", 'w') as f:
             json.dump(json_data, f, indent=4)
 
-        def get_keys():
-            return next(set(message["message"]["MultiMetric"]["values"].keys())
-                        for message in json_data["messages"]
-                        if message["message"]["MultiMetric"]["name"] == "convertedMetric" and
-                        "cluster_name" in message["message"]["MultiMetric"]["tags"]
-                        )
+        def contains_key():
+            for message in json_data["messages"]:
+                if (message["message"]["MultiMetric"]["name"] == "convertedMetric" and
+                    "cluster_name" in message["message"]["MultiMetric"]["tags"] and
+                    ("kubernetes_state.container.running" in message["message"]["MultiMetric"]["values"] or
+                     "kubernetes_state.pod.scheduled" in message["message"]["MultiMetric"]["values"])):
+                    return True
+            return False
 
-        expected = {"kubernetes_state.container.running", "kubernetes_state.pod.scheduled"}
+        assert contains_key(), 'No kubernetes_state metrics found'
 
-        assert get_keys().pop() in expected
-
-    util.wait_until(wait_for_metrics, 30, 3)
+    util.wait_until(wait_for_metrics, 60, 3)
 
 
 def test_agent_kubelet_metrics(host):
@@ -119,15 +118,15 @@ def test_agent_kubelet_metrics(host):
         with open("./topic-multi-metrics-kubelet.json", 'w') as f:
             json.dump(json_data, f, indent=4)
 
-        def get_keys():
-            return next(set(message["message"]["MultiMetric"]["values"].keys())
-                        for message in json_data["messages"]
-                        if message["message"]["MultiMetric"]["name"] == "convertedMetric" and
-                        "cluster_name" in message["message"]["MultiMetric"]["tags"]
-                        )
+        def contains_key():
+            for message in json_data["messages"]:
+                if (message["message"]["MultiMetric"]["name"] == "convertedMetric" and
+                    "namespace" in message["message"]["MultiMetric"]["tags"] and
+                    ("kubernetes.kubelet.volume.stats.available_bytes" in message["message"]["MultiMetric"]["values"] or
+                     "kubernetes.kubelet.volume.stats.used_bytes" in message["message"]["MultiMetric"]["values"])):
+                    return True
+            return False
 
-        expected = {"kubernetes.kubelet.volume.stats.available_bytes", "kubernetes.kubelet.volume.stats.used_bytes"}
+        assert contains_key(), 'No kubelet metrics found'
 
-        assert get_keys().pop() in expected
-
-    util.wait_until(wait_for_metrics, 30, 3)
+    util.wait_until(wait_for_metrics, 60, 3)
