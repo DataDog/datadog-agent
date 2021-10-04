@@ -119,7 +119,8 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	// check for expired clients in the state
 	t.state.RemoveExpiredClients(time.Now())
 
-	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, closedConnStats, t.reverseDNS.GetDNSStats(), nil)
+	t.state.StoreClosedConnections(closedConnStats)
+	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
 	var ips []util.Address
 	for _, conn := range delta.Conns {
 		ips = append(ips, conn.Source, conn.Dest)
