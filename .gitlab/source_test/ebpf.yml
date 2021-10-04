@@ -1,9 +1,7 @@
 ---
 .retrieve_sysprobe_deps:
-  - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/libbcc-$ARCH-$BCC_VERSION.tar.xz /tmp/libbcc.tar.xz
   - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-$ARCH-11.0.1.tar.xz /tmp/clang.tar.xz
   - mkdir -p $DATADOG_AGENT_EMBEDDED_PATH
-  - tar -xvf /tmp/libbcc.tar.xz -C $DATADOG_AGENT_EMBEDDED_PATH
   - tar -xvf /tmp/clang.tar.xz -C $DATADOG_AGENT_EMBEDDED_PATH
 
 .build_sysprobe_artifacts:
@@ -20,6 +18,8 @@
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/tracer.c $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.c
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/runtime-security.c $CI_PROJECT_DIR/.tmp/binary-ebpf/runtime-security.c
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/conntrack.c $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack.c
+  - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/oom-kill.c $CI_PROJECT_DIR/.tmp/binary-ebpf/oom-kill.c
+  - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/tcp-queue-length.c $CI_PROJECT_DIR/.tmp/binary-ebpf/tcp-queue-length.c
 
 # Run tests for eBPF code
 .tests_linux_ebpf:
@@ -33,12 +33,12 @@
 
 .tests_windows_sysprobe:
   stage: source_test
-  needs: []
+  needs: ["windows_x64_go_deps"]
   tags: [ "runner:windows-docker", "windowsversion:1809" ]
   script:
     - $ErrorActionPreference = "Stop"
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
-    - docker run --rm -m 8192M -v "$(Get-Location):c:\mnt" -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -e PY_RUNTIMES="$PYTHON_RUNTIMES" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\sysprobe.bat
+    - docker run --rm -m 8192M -v "$(Get-Location):c:\mnt" -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -e PY_RUNTIMES="$PYTHON_RUNTIMES" -e GOMODCACHE="c:\gomodcache" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\sysprobe.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
   artifacts:
     when: always
@@ -64,13 +64,13 @@ tests_ebpf_x64:
     # Compile runtime security stress tests to be executed in kitchen tests
     - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite
     # Compile main version for comparison, uncomment following lines when merged
-    - git checkout -f main || git checkout -f master
-    - git pull
-    - inv -e deps
-    - inv -e system-probe.build --bundle-ebpf --incremental-build
-    - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite-master
-    - git reset --hard
-    - git checkout -
+    # - git checkout -f main
+    # - git pull
+    # - inv -e deps
+    # - inv -e system-probe.build --bundle-ebpf --incremental-build
+    # - inv -e security-agent.build-stress-tests --output=$DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/stresssuite-master
+    # - git reset --hard
+    # - git checkout -
 
 
 tests_ebpf_arm64:

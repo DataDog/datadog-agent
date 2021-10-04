@@ -10,7 +10,7 @@ import sys
 from invoke import task
 from invoke.exceptions import Exit
 
-from .utils import get_version_numeric_only
+from .utils import get_version, get_version_numeric_only
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
@@ -28,6 +28,7 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
         print("Custom action library is only for Win32")
         raise Exit(code=1)
 
+    package_version = get_version(ctx, url_safe=True, major_version=major_version)
     ver = get_version_numeric_only(ctx, major_version=major_version)
     build_maj, build_min, build_patch = ver.split(".")
     verprops = " /p:MAJ_VER={build_maj} /p:MIN_VER={build_min} /p:PATCH_VER={build_patch} ".format(
@@ -60,9 +61,16 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
     print("Build Command: %s" % cmd)
 
     ctx.run(cmd)
-    artefacts = ["customaction.dll", "customaction.pdb", "customaction-tests.exe"]
+    artefacts = [
+        {"source": "customaction.dll", "target": "customaction.dll"},
+        {"source": "customaction.pdb", "target": "customaction-{}.pdb".format(package_version)},
+        {"source": "customaction-tests.exe", "target": "customaction-tests.exe"},
+    ]
     for artefact in artefacts:
-        shutil.copy2("{}\\cal\\{}\\{}\\{}".format(CUSTOM_ACTION_ROOT_DIR, arch, configuration, artefact), BIN_PATH)
+        shutil.copy2(
+            "{}\\cal\\{}\\{}\\{}".format(CUSTOM_ACTION_ROOT_DIR, arch, configuration, artefact["source"]),
+            BIN_PATH + "\\{}".format(artefact["target"]),
+        )
 
 
 @task

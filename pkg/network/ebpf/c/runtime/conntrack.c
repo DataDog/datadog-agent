@@ -39,8 +39,8 @@ int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
     u32 netns = get_netns(&ct->ct_net);
     log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u, status: %x\n", netns, status);
 
-    conn_tuple_t orig_conn = {};
-    if (!conntrack_tuple_to_conn_tuple(&orig_conn, &orig)) {
+    conntrack_tuple_t orig_conn = {};
+    if (!nf_conntrack_tuple_to_conntrack_tuple(&orig_conn, &orig)) {
         return 0;
     }
     orig_conn.netns = netns;
@@ -48,8 +48,8 @@ int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
     log_debug("orig\n");
     print_translation(&orig_conn);
 
-    conn_tuple_t reply_conn = {};
-    if (!conntrack_tuple_to_conn_tuple(&reply_conn, &reply)) {
+    conntrack_tuple_t reply_conn = {};
+    if (!nf_conntrack_tuple_to_conntrack_tuple(&reply_conn, &reply)) {
         return 0;
     }
     reply_conn.netns = netns;

@@ -89,16 +89,14 @@ func TestDomainForwarderSendHTTPTransactions(t *testing.T) {
 	tr := newTestTransactionDomainForwarder()
 
 	// fw is stopped, we should get an error
-	err := forwarder.sendHTTPTransactions(tr)
-	assert.NotNil(t, err)
+	forwarder.sendHTTPTransactions(tr)
 
 	defer forwarder.Stop(false)
 	forwarder.Start()
 	// Stopping the worker for the TestRequeueTransaction
 	forwarder.workers[0].Stop(false)
 
-	err = forwarder.sendHTTPTransactions(tr)
-	assert.Nil(t, err)
+	forwarder.sendHTTPTransactions(tr)
 	transactionToProcess := <-forwarder.highPrio
 	assert.Equal(t, tr, transactionToProcess)
 
@@ -247,7 +245,7 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 	defer func() { flushInterval = oldFlushInterval }()
 	flushInterval = 1 * time.Minute
 
-	telemetry := retry.TransactionRetryQueueTelemetry{}
+	telemetry := retry.NewTransactionRetryQueueTelemetry("domain")
 	transactionRetryQueue := retry.NewTransactionRetryQueue(transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}, nil, 1+2, 0, telemetry)
 	forwarder := newDomainForwarder("test", transactionRetryQueue, 0, 10, transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true})
 	forwarder.blockedList.close("blocked")
@@ -300,7 +298,7 @@ forwarder_requeue_buffer_size: 1300
 
 func newDomainForwarderForTest(connectionResetInterval time.Duration) *domainForwarder {
 	sorter := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
-	telemetry := retry.TransactionRetryQueueTelemetry{}
+	telemetry := retry.NewTransactionRetryQueueTelemetry("domain")
 	transactionRetryQueue := retry.NewTransactionRetryQueue(transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}, nil, 2, 0, telemetry)
 
 	return newDomainForwarder("test", transactionRetryQueue, 1, connectionResetInterval, sorter)

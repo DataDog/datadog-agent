@@ -267,7 +267,7 @@ func TestSubmitV1Intake(t *testing.T) {
 // per component.
 func TestForwarderEndtoEnd(t *testing.T) {
 	// reseting DroppedOnInput
-	transactionsDroppedOnInput.Set(0)
+	highPriorityQueueFull.Set(0)
 
 	requests := int64(0)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -576,7 +576,7 @@ func TestHighPriorityTransaction(t *testing.T) {
 }
 
 func TestCustomCompletionHandler(t *testing.T) {
-	transactionsDroppedOnInput.Set(0)
+	highPriorityQueueFull.Set(0)
 
 	// Setup a test HTTP server
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

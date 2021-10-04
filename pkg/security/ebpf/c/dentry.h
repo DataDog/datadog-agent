@@ -143,6 +143,7 @@ void __attribute__((always_inline)) fill_file_metadata(struct dentry* dentry, st
     struct inode *d_inode;
     bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
 
+    bpf_probe_read(&file->nlink, sizeof(file->nlink), (void *)&d_inode->i_nlink);
     bpf_probe_read(&file->mode, sizeof(file->mode), &d_inode->i_mode);
     bpf_probe_read(&file->uid, sizeof(file->uid), &d_inode->i_uid);
     bpf_probe_read(&file->gid, sizeof(file->gid), &d_inode->i_gid);

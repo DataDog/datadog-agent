@@ -12,12 +12,14 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/process"
+	"github.com/DataDog/datadog-agent/pkg/util/orchestrator"
 	orchutil "github.com/DataDog/datadog-agent/pkg/util/orchestrator"
 
 	v1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
@@ -226,6 +228,105 @@ func extractReplicaSet(rs *v1.ReplicaSet) *model.ReplicaSet {
 	replicaSet.AvailableReplicas = rs.Status.AvailableReplicas
 
 	return &replicaSet
+}
+
+func extractRole(r *rbacv1.Role) *model.Role {
+	return &model.Role{
+		Metadata: orchestrator.ExtractMetadata(&r.ObjectMeta),
+		Rules:    extractPolicyRules(r.Rules),
+	}
+}
+
+func extractPolicyRules(r []rbacv1.PolicyRule) []*model.PolicyRule {
+	rules := make([]*model.PolicyRule, 0, len(r))
+	for _, rule := range r {
+		rules = append(rules, &model.PolicyRule{
+			ApiGroups:       rule.APIGroups,
+			NonResourceURLs: rule.NonResourceURLs,
+			Resources:       rule.Resources,
+			ResourceNames:   rule.ResourceNames,
+			Verbs:           rule.Verbs,
+		})
+	}
+	return rules
+}
+
+func extractRoleBinding(rb *rbacv1.RoleBinding) *model.RoleBinding {
+	return &model.RoleBinding{
+		Metadata: orchestrator.ExtractMetadata(&rb.ObjectMeta),
+		RoleRef:  extractRoleRef(&rb.RoleRef),
+		Subjects: extractSubjects(rb.Subjects),
+	}
+}
+
+func extractRoleRef(r *rbacv1.RoleRef) *model.TypedLocalObjectReference {
+	return &model.TypedLocalObjectReference{
+		ApiGroup: r.APIGroup,
+		Kind:     r.Kind,
+		Name:     r.Name,
+	}
+}
+
+func extractSubjects(s []rbacv1.Subject) []*model.Subject {
+	subjects := make([]*model.Subject, 0, len(s))
+	for _, subject := range s {
+		subjects = append(subjects, &model.Subject{
+			ApiGroup:  subject.APIGroup,
+			Kind:      subject.Kind,
+			Name:      subject.Name,
+			Namespace: subject.Namespace,
+		})
+	}
+	return subjects
+}
+
+func extractClusterRole(cr *rbacv1.ClusterRole) *model.ClusterRole {
+	clusterRole := &model.ClusterRole{
+		Metadata: orchestrator.ExtractMetadata(&cr.ObjectMeta),
+		Rules:    extractPolicyRules(cr.Rules),
+	}
+	if cr.AggregationRule != nil {
+		for _, rule := range cr.AggregationRule.ClusterRoleSelectors {
+			clusterRole.AggregationRules = append(clusterRole.AggregationRules, extractLabelSelector(&rule)...)
+		}
+	}
+	return clusterRole
+}
+
+func extractClusterRoleBinding(crb *rbacv1.ClusterRoleBinding) *model.ClusterRoleBinding {
+	return &model.ClusterRoleBinding{
+		Metadata: orchestrator.ExtractMetadata(&crb.ObjectMeta),
+		RoleRef:  extractRoleRef(&crb.RoleRef),
+		Subjects: extractSubjects(crb.Subjects),
+	}
+}
+
+func extractServiceAccount(sa *corev1.ServiceAccount) *model.ServiceAccount {
+	serviceAccount := &model.ServiceAccount{
+		Metadata: orchestrator.ExtractMetadata(&sa.ObjectMeta),
+	}
+	if sa.AutomountServiceAccountToken != nil {
+		serviceAccount.AutomountServiceAccountToken = *sa.AutomountServiceAccountToken
+	}
+	// Extract secret references.
+	for _, secret := range sa.Secrets {
+		serviceAccount.Secrets = append(serviceAccount.Secrets, &model.ObjectReference{
+			ApiVersion:      secret.APIVersion,
+			FieldPath:       secret.FieldPath,
+			Kind:            secret.Kind,
+			Name:            secret.Name,
+			Namespace:       secret.Namespace,
+			ResourceVersion: secret.ResourceVersion,
+			Uid:             string(secret.UID),
+		})
+	}
+	// Extract secret references for pulling images.
+	for _, imgPullSecret := range sa.ImagePullSecrets {
+		serviceAccount.ImagePullSecrets = append(serviceAccount.ImagePullSecrets, &model.TypedLocalObjectReference{
+			Name: imgPullSecret.Name,
+		})
+	}
+	return serviceAccount
 }
 
 // extractService returns the protobuf Service message corresponding to

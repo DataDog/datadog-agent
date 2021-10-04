@@ -71,24 +71,17 @@ type KeyGenerator struct {
 	seenIdx [hashSetSize]int16
 	// empty is an empty hashset with all values set to `blank`, to reset `seenIdx`
 	empty [hashSetSize]int16
-
-	// idx is used to deduplicate tags when there is less than 16 tags (faster than the
-	// hashset) or more than 512 tags (hashset has been allocated with 512 values max)
-	idx int
 }
 
 // Generate returns the ContextKey hash for the given parameters.
 // tagsBuf is re-arranged in place and truncated to only contain unique tags.
-func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder) ContextKey {
+func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.HashingTagsBuilder) ContextKey {
 	// between two generations, we have to set the hash to something neutral, let's
 	// use this big value seed from the murmur3 implementations
 	g.intb = 0xc6a4a7935bd1e995
 
 	g.intb = g.intb ^ murmur3.StringSum64(name)
 	g.intb = g.intb ^ murmur3.StringSum64(hostname)
-
-	// This is used to track number of unique tags seen so far in both versions of the algorithm.
-	g.idx = 0
 
 	// There are three implementations used here to deduplicate the tags depending on how
 	// many tags we have to process:
@@ -97,15 +90,15 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 	//                          	the hashset when there is less than 16 tags
 	//   - n > hashSetSize:         sort
 
-	tags := tagsBuf.Get()
-
-	if len(tags) > hashSetSize {
+	if tagsBuf.Len() > hashSetSize {
 		tagsBuf.SortUniq()
-		for _, tag := range tagsBuf.Get() {
-			h := murmur3.StringSum64(tag)
+		for _, h := range tagsBuf.Hashes() {
 			g.intb = g.intb ^ h
 		}
-	} else if len(tags) > bruteforceSize {
+	} else if tagsBuf.Len() > bruteforceSize {
+		tags := tagsBuf.Get()
+		hashes := tagsBuf.Hashes()
+
 		// reset the `seen` hashset.
 		// it copies `g.empty` instead of using make because it's faster
 
@@ -118,20 +111,23 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 		mask := uint64(size - 1)
 		copy(g.seenIdx[:size], g.empty[:size])
 
-		for i := range tags {
-			h := murmur3.StringSum64(tags[i])
+		ntags := len(tags)
+		for i := 0; i < ntags; {
+			h := hashes[i]
 			j := h & mask // address this hash into the hashset
 			for {
 				if g.seenIdx[j] == blank {
 					// not seen, we will add it to the hash
 					g.seen[j] = h
-					g.seenIdx[j] = int16(g.idx)
+					g.seenIdx[j] = int16(i)
 					g.intb = g.intb ^ h // add this tag into the hash
-					tags[g.idx] = tags[i]
-					g.idx++
+					i++
 					break
 				} else if g.seen[j] == h && tags[g.seenIdx[j]] == tags[i] {
 					// already seen, we do not want to xor multiple times the same tag
+					tags[i] = tags[ntags-1]
+					hashes[i] = hashes[ntags-1]
+					ntags--
 					break
 				} else {
 					// move 'right' in the hashset because there is already a value,
@@ -141,22 +137,27 @@ func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *util.TagsBuilder
 				}
 			}
 		}
-		tagsBuf.Truncate(g.idx)
+		tagsBuf.Truncate(ntags)
 	} else {
+		tags := tagsBuf.Get()
+		hashes := tagsBuf.Hashes()
+		ntags := tagsBuf.Len()
 	OUTER:
-		for i := range tags {
-			h := murmur3.StringSum64(tags[i])
-			for j := 0; j < g.idx; j++ {
+		for i := 0; i < ntags; {
+			h := hashes[i]
+			for j := 0; j < i; j++ {
 				if g.seen[j] == h && tags[j] == tags[i] {
+					tags[i] = tags[ntags-1]
+					hashes[i] = hashes[ntags-1]
+					ntags--
 					continue OUTER // we do not want to xor multiple times the same tag
 				}
 			}
 			g.intb = g.intb ^ h
-			g.seen[g.idx] = h
-			tags[g.idx] = tags[i]
-			g.idx++
+			g.seen[i] = h
+			i++
 		}
-		tagsBuf.Truncate(g.idx)
+		tagsBuf.Truncate(ntags)
 	}
 
 	return ContextKey(g.intb)

@@ -30,14 +30,15 @@ var (
 	hostMetadataEndpoint  = transaction.Endpoint{Route: "/api/v2/host_metadata", Name: "host_metadata_v2"}
 	metadataEndpoint      = transaction.Endpoint{Route: "/api/v2/metadata", Name: "metadata_v2"}
 
-	processesEndpoint    = transaction.Endpoint{Route: "/api/v1/collector", Name: "process"}
-	rtProcessesEndpoint  = transaction.Endpoint{Route: "/api/v1/collector", Name: "rtprocess"}
-	containerEndpoint    = transaction.Endpoint{Route: "/api/v1/container", Name: "container"}
-	rtContainerEndpoint  = transaction.Endpoint{Route: "/api/v1/container", Name: "rtcontainer"}
-	connectionsEndpoint  = transaction.Endpoint{Route: "/api/v1/collector", Name: "connections"}
-	orchestratorEndpoint = transaction.Endpoint{Route: "/api/v1/orchestrator", Name: "orchestrator"}
+	processesEndpoint        = transaction.Endpoint{Route: "/api/v1/collector", Name: "process"}
+	processDiscoveryEndpoint = transaction.Endpoint{Route: "/api/v1/discovery", Name: "process_discovery"}
+	rtProcessesEndpoint      = transaction.Endpoint{Route: "/api/v1/collector", Name: "rtprocess"}
+	containerEndpoint        = transaction.Endpoint{Route: "/api/v1/container", Name: "container"}
+	rtContainerEndpoint      = transaction.Endpoint{Route: "/api/v1/container", Name: "rtcontainer"}
+	connectionsEndpoint      = transaction.Endpoint{Route: "/api/v1/collector", Name: "connections"}
+	orchestratorEndpoint     = transaction.Endpoint{Route: "/api/v1/orchestrator", Name: "orchestrator"}
 
-	transactionsDroppedOnInput       = expvar.Int{}
+	highPriorityQueueFull            = expvar.Int{}
 	transactionsInputBytesByEndpoint = expvar.Map{}
 	transactionsInputCountByEndpoint = expvar.Map{}
 	transactionsRequeued             = expvar.Int{}
@@ -50,8 +51,8 @@ var (
 		[]string{"domain", "endpoint"}, "Incoming transaction sizes in bytes")
 	tlmTxInputCount = telemetry.NewCounter("transactions", "input_count",
 		[]string{"domain", "endpoint"}, "Incoming transaction count")
-	tlmTxDroppedOnInput = telemetry.NewCounter("transactions", "dropped_on_input",
-		[]string{"domain", "endpoint"}, "Count of transactions dropped on input")
+	tlmTxHighPriorityQueueFull = telemetry.NewCounter("transactions", "high_priority_queue_full",
+		[]string{"domain", "endpoint"}, "Count of transactions added to the retry queue because the high priority queue is full")
 	tlmTxRequeued = telemetry.NewCounter("transactions", "requeued",
 		[]string{"domain", "endpoint"}, "Transaction requeue count")
 	tlmTxRetried = telemetry.NewCounter("transactions", "retries",
@@ -116,7 +117,7 @@ func initTransactionsExpvars() {
 	transactionsRetriedByEndpoint.Init()
 	transaction.TransactionsExpvars.Set("InputCountByEndpoint", &transactionsInputCountByEndpoint)
 	transaction.TransactionsExpvars.Set("InputBytesByEndpoint", &transactionsInputBytesByEndpoint)
-	transaction.TransactionsExpvars.Set("DroppedOnInput", &transactionsDroppedOnInput)
+	transaction.TransactionsExpvars.Set("HighPriorityQueueFull", &highPriorityQueueFull)
 	transaction.TransactionsExpvars.Set("Requeued", &transactionsRequeued)
 	transaction.TransactionsExpvars.Set("RequeuedByEndpoint", &transactionsRequeuedByEndpoint)
 	transaction.TransactionsExpvars.Set("Retried", &transactionsRetried)

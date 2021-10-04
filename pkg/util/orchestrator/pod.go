@@ -151,6 +151,7 @@ func extractPodMessage(p *v1.Pod) *model.Pod {
 	podModel.IP = p.Status.PodIP
 	podModel.RestartCount = 0
 	podModel.QOSClass = string(p.Status.QOSClass)
+	podModel.PriorityClass = p.Spec.PriorityClassName
 	for _, cs := range p.Status.ContainerStatuses {
 		podModel.RestartCount += cs.RestartCount
 		cStatus := convertContainerStatus(cs)

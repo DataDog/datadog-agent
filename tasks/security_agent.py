@@ -1,5 +1,4 @@
 import datetime
-import glob
 import os
 import shutil
 import sys
@@ -150,9 +149,7 @@ def gen_mocks(ctx):
 
 
 @task
-def run_functional_tests(
-    ctx, testsuite, verbose=False, testflags='',
-):
+def run_functional_tests(ctx, testsuite, verbose=False, testflags=''):
     cmd = '{testsuite} {verbose_opt} {testflags}'
     if os.getuid() != 0:
         cmd = 'sudo -E PATH={path} ' + cmd
@@ -167,7 +164,7 @@ def run_functional_tests(
     ctx.run(cmd.format(**args))
 
 
-def build_syscall_tester(ctx, build_dir, static=True):
+def build_syscall_x86_tester(ctx, build_dir, static=True):
     syscall_tester_c_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "c")
     syscall_tester_c_file = os.path.join(syscall_tester_c_dir, "syscall_x86_tester.c")
     syscall_tester_exe_file = os.path.join(build_dir, "syscall_x86_tester")
@@ -175,20 +172,33 @@ def build_syscall_tester(ctx, build_dir, static=True):
     flags = '-m32'
     if static:
         flags += ' -static'
-    ctx.run(CLANG_EXE_CMD.format(flags=flags, c_file=syscall_tester_c_file, out_file=syscall_tester_exe_file,))
+    ctx.run(CLANG_EXE_CMD.format(flags=flags, c_file=syscall_tester_c_file, out_file=syscall_tester_exe_file))
+    return syscall_tester_exe_file
+
+
+def build_syscall_tester(ctx, build_dir, static=True):
+    syscall_tester_c_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "c")
+    syscall_tester_c_file = os.path.join(syscall_tester_c_dir, "syscall_tester.c")
+    syscall_tester_exe_file = os.path.join(build_dir, "syscall_tester")
+
+    flags = ''
+    if static:
+        flags += ' -static'
+    ctx.run(CLANG_EXE_CMD.format(flags=flags, c_file=syscall_tester_c_file, out_file=syscall_tester_exe_file))
     return syscall_tester_exe_file
 
 
 @task
 def build_embed_syscall_tester(ctx, static=True):
     syscall_tester_bin = build_syscall_tester(ctx, os.path.join(".", "bin"), static=static)
+    syscall_x86_tester_bin = build_syscall_x86_tester(ctx, os.path.join(".", "bin"), static=static)
     bundle_files(
         ctx,
-        [syscall_tester_bin],
+        [syscall_tester_bin, syscall_x86_tester_bin],
         "bin",
         "pkg/security/tests/syscall_tester/bindata.go",
         "syscall_tester",
-        "functionaltests,amd64",
+        "functionaltests",
         False,
     )
 
@@ -222,17 +232,6 @@ def build_functional_tests(
         ldflags += '-extldflags "-static"'
         build_tags += ',osusergo,netgo'
 
-    bindata_files = glob.glob("pkg/security/tests/schemas/*.json")
-    bundle_files(
-        ctx,
-        bindata_files,
-        "pkg/security/tests/schemas",
-        "pkg/security/tests/schemas/schemas.go",
-        "schemas",
-        "functionaltests",
-        False,
-    )
-
     cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
     cmd += '{build_flags} {repo_path}/pkg/security/tests'
 
@@ -249,7 +248,12 @@ def build_functional_tests(
 
 @task
 def build_stress_tests(
-    ctx, output='pkg/security/tests/stresssuite', go_version=None, arch="x64", major_version='7', bundle_ebpf=True,
+    ctx,
+    output='pkg/security/tests/stresssuite',
+    go_version=None,
+    arch="x64",
+    major_version='7',
+    bundle_ebpf=True,
 ):
     build_functional_tests(
         ctx,
@@ -274,11 +278,19 @@ def stress_tests(
     testflags='',
 ):
     build_stress_tests(
-        ctx, go_version=go_version, arch=arch, major_version=major_version, output=output, bundle_ebpf=bundle_ebpf,
+        ctx,
+        go_version=go_version,
+        arch=arch,
+        major_version=major_version,
+        output=output,
+        bundle_ebpf=bundle_ebpf,
     )
 
     run_functional_tests(
-        ctx, testsuite=output, verbose=verbose, testflags=testflags,
+        ctx,
+        testsuite=output,
+        verbose=verbose,
+        testflags=testflags,
     )
 
 
@@ -294,17 +306,30 @@ def functional_tests(
     testflags='',
 ):
     build_functional_tests(
-        ctx, go_version=go_version, arch=arch, major_version=major_version, output=output, bundle_ebpf=bundle_ebpf,
+        ctx,
+        go_version=go_version,
+        arch=arch,
+        major_version=major_version,
+        output=output,
+        bundle_ebpf=bundle_ebpf,
     )
 
     run_functional_tests(
-        ctx, testsuite=output, verbose=verbose, testflags=testflags,
+        ctx,
+        testsuite=output,
+        verbose=verbose,
+        testflags=testflags,
     )
 
 
 @task
 def kitchen_functional_tests(
-    ctx, verbose=False, go_version=None, major_version='7', build_tests=False, testflags='',
+    ctx,
+    verbose=False,
+    go_version=None,
+    major_version='7',
+    build_tests=False,
+    testflags='',
 ):
     if build_tests:
         functional_tests(
@@ -338,7 +363,12 @@ def kitchen_functional_tests(
 
 @task
 def docker_functional_tests(
-    ctx, verbose=False, go_version=None, arch="x64", major_version='7', testflags='',
+    ctx,
+    verbose=False,
+    go_version=None,
+    arch="x64",
+    major_version='7',
+    testflags='',
 ):
     build_functional_tests(
         ctx,
@@ -368,7 +398,7 @@ RUN apt-get update -y \
             f.write(dockerfile)
 
         cmd = 'docker build {docker_file_ctx} --tag {image_tag}'
-        ctx.run(cmd.format(**{"docker_file_ctx": temp_dir, "image_tag": docker_image_tag_name,}))
+        ctx.run(cmd.format(**{"docker_file_ctx": temp_dir, "image_tag": docker_image_tag_name}))
 
     container_name = 'security-agent-tests'
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
@@ -399,3 +429,18 @@ RUN apt-get update -y \
     finally:
         cmd = 'docker rm -f {container_name}'
         ctx.run(cmd.format(**args))
+
+
+@task
+def generate_documentation(ctx, go_generate=False):
+    if go_generate:
+        ctx.run("go generate ./pkg/security/...")
+
+    # secl docs
+    ctx.run(
+        "python3 ./docs/cloud-workload-security/scripts/secl-doc-gen.py --input ./docs/cloud-workload-security/secl.json --output ./docs/cloud-workload-security/agent_expressions.md"
+    )
+    # backend event docs
+    ctx.run(
+        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend.schema.json --output ./docs/cloud-workload-security/backend.md"
+    )

@@ -1,7 +1,6 @@
 *                                    @DataDog/agent-platform
 
 # Deps build
-build_libbcc*                        @DataDog/agent-network
 build_clang*                         @DataDog/agent-network
 
 # Source test
@@ -9,6 +8,9 @@ build_clang*                         @DataDog/agent-network
 tests_*                              @DataDog/multiple
 tests_ebpf                           @DataDog/agent-network
 security_go_generate_check           @DataDog/agent-security
+
+# Golang dependency list generation
+golang_deps_generate                 @DataDog/agent-core
 
 # Binary build
 build_system-probe*                  @DataDog/agent-network
@@ -38,7 +40,7 @@ deploy_*docker_hub*                  @DataDog/container-integrations
 deploy_*google_container_repository* @DataDog/container-integrations
 
 # Functional test
-kitchen_*_sysprobe*                  @DataDog/agent-network
+kitchen_*_system_probe*              @DataDog/agent-network
 kitchen_*_security_agent*            @DataDog/agent-security
 cleanup_kitchen_functional_test      @DataDog/agent-network @DataDog/agent-security
 
