@@ -16,10 +16,11 @@ docker_trigger_internal:
     branch: master
     strategy: depend
   variables:
-    IMAGE_VERSION: tmpl-v3
+    IMAGE_VERSION: tmpl-v4
     IMAGE_NAME: datadog-agent
     RELEASE_TAG: ${CI_COMMIT_REF_SLUG}-jmx
     BUILD_TAG: ${CI_COMMIT_REF_SLUG}-jmx
     TMPL_AGENT_SRC_IMAGE: v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx
+    TMPL_AGENT_SRC_REPO: ci/datadog-agent/agent-release
     RELEASE_STAGING: "true"
     RELEASE_PROD: "true"

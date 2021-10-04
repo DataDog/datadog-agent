@@ -22,4 +22,6 @@ type Tracer interface {
 	// GetMap returns the underlying named map. This is useful if any maps are shared with other eBPF components.
 	// An individual tracer implementation may choose which maps to expose via this function.
 	GetMap(string) *ebpf.Map
+	// DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
+	DumpMaps(maps ...string) (string, error)
 }

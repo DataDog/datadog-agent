@@ -146,7 +146,7 @@ func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) 
 		}
 		ctime := CPU.CreationTime.Nanoseconds() / 1000000
 
-		stats := &Stats{CreateTime: ctime}
+		var stats *Stats
 		if collectStats {
 			var handleCount uint32
 			if err := getProcessHandleCount(procHandle, &handleCount); err != nil {
@@ -192,6 +192,8 @@ func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) 
 				},
 				CtxSwitches: &NumCtxSwitchesStat{},
 			}
+		} else {
+			stats = &Stats{CreateTime: ctime}
 		}
 
 		delete(knownPids, pid)

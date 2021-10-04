@@ -120,13 +120,16 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.state.RemoveExpiredClients(time.Now())
 
 	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, closedConnStats, t.reverseDNS.GetDNSStats(), nil)
-	conns := delta.Connections
 	var ips []util.Address
-	for _, conn := range conns {
+	for _, conn := range delta.Conns {
 		ips = append(ips, conn.Source, conn.Dest)
 	}
 	names := t.reverseDNS.Resolve(ips)
-	return &network.Connections{Conns: conns, DNS: names, DNSStats: delta.DNSStats}, nil
+	return &network.Connections{
+		BufferedData: delta.BufferedData,
+		DNS:          names,
+		DNSStats:     delta.DNSStats,
+	}, nil
 }
 
 // GetStats returns a map of statistics about the current tracer's internal state
@@ -154,4 +157,9 @@ func (t *Tracer) DebugNetworkState(_ string) (map[string]interface{}, error) {
 // DebugNetworkMaps returns all connections stored in the maps without modifications from network state
 func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 	return nil, ebpf.ErrNotImplemented
+}
+
+// DebugEBPFMaps is not implemented on this OS for Tracer
+func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
+	return "", ebpf.ErrNotImplemented
 }
