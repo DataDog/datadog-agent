@@ -47,7 +47,7 @@ var currentExtensionVersion = "xxx"
 func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags := make(map[string]string)
 
-	architecture := resolveRuntimeArch()
+	architecture := ResolveRuntimeArch()
 	tags = setIfNotEmpty(tags, architectureKey, architecture)
 
 	tags = setIfNotEmpty(tags, envKey, os.Getenv(envEnvVar))
@@ -139,7 +139,8 @@ func addTag(tagMap map[string]string, tag string) map[string]string {
 	return tagMap
 }
 
-func resolveRuntimeArch() string {
+// ResolveRuntimeArch determines the architecture of the lambda at runtime
+func ResolveRuntimeArch() string {
 	var uname unix.Utsname
 	if err := unix.Uname(&uname); err != nil {
 		return "amd64"
