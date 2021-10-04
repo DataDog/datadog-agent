@@ -28,13 +28,27 @@ RUN yum -y install \
   curl-devel expat-devel gettext-devel openssl-devel zlib-devel bzip2 \
   glibc-static tar libtool
 
+# # openssl 1.1.1
+
+# RUN cd tmp && \
+#     wget https://ftp.openssl.org/source/old/1.1.1/openssl-1.1.1.tar.gz --no-check-certificate && \
+#     tar xvf openssl-1.1.1.tar.gz && \
+#     cd openssl-1.1.1/ && \
+#     ./config --prefix=/usr --openssldir=/etc/ssl --libdir=lib no-shared zlib-dynamic && \
+#     make && \
+#     make install && \
+#     rm -rf /tmp/openssl*
+
+# ENV LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64
+
+# # /openssl 1.1.1
+
 # Git
-RUN curl -OL https://www.kernel.org/pub/software/scm/git/git-2.10.1.tar.gz
-# --no-same-owner: git tarball has a file with UID 110493 which makes pulling this image fail, because we use docker user namespacing and we can't have >65K UIDs.
-RUN tar xzf git-2.10.1.tar.gz --no-same-owner
-RUN cd git-2.10.1 && make prefix=/usr/local all
-RUN cd git-2.10.1 && make prefix=/usr/local install
-RUN rm -rf git-2.10.1 git-2.10.1.tar.gz
+RUN cd tmp/ && curl -OL https://www.kernel.org/pub/software/scm/git/git-2.10.1.tar.gz && \
+    tar xzf git-2.10.1.tar.gz --no-same-owner && \
+    cd git-2.10.1 && make prefix=/usr/local all && \
+    make prefix=/usr/local install && \
+    rm -rf /tmp/git-2.10.1 /tmp/git-2.10.1.tar.gz
 
 RUN git config --global user.email "gitlab@stackstate" && git config --global user.name "Gitlab Stackstate"
 
@@ -44,7 +58,7 @@ RUN gpg --import /gpg-keys/*
 RUN rm -rf /gpg-keys
 RUN curl -sSL https://get.rvm.io | bash -s stable --version latest-1.29
 RUN /bin/bash -l -c "rvm requirements"
-RUN /bin/bash -l -c "rvm install 2.3 && rvm cleanup all"
+RUN /bin/bash -l -c "rvm install 2.4.2 && rvm cleanup all"
 RUN /bin/bash -l -c "gem install bundler --no-document"
 
 # Gimme
