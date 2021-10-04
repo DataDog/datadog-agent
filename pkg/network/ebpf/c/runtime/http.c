@@ -281,11 +281,11 @@ int kretprobe__do_sys_open(struct pt_regs* ctx) {
     }
 
     // Detect whether the file being opened is a shared library
-    int is_shared_library = 0;
+    bool is_shared_library = false;
 #pragma unroll
     for (int i = 0; i < LIB_PATH_MAX_SIZE - SO_SUFFIX_SIZE; i++) {
         if (path->buf[i] == '.' && path->buf[i+1] == 's' && path->buf[i+2] == 'o') {
-            is_shared_library = 1;
+            is_shared_library = true;
             break;
         }
     }
