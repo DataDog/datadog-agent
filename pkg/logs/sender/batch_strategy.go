@@ -20,8 +20,9 @@ import (
 
 var (
 	tlmDroppedTooLarge = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
-	tlmSenderWaitTime  = telemetry.NewGauge("logs_sender_batch_strategy_gauge", "sender_wait", nil, "Time spent waiting for a sender")
-	tlmSenderWaitTimeC = telemetry.NewCounter("logs_sender_batch_strategy_count", "sender_wait", nil, "Time spent waiting for a sender")
+	// tlmSenderWaitTime  = telemetry.NewGauge("logs_sender_batch_strategy_gauge", "sender_wait", nil, "Time spent waiting for a sender")
+	tlmSenderWaitTimeC    = telemetry.NewCounter("logs_sender_batch_strategy_count", "sender_wait", nil, "Time spent waiting for a sender")
+	tlmSenderWaitTimeIdle = telemetry.NewCounter("logs_sender_batch_strategy_count", "sender_idle", nil, "Time spent waiting for a sender")
 	// tlmInputSize       = telemetry.NewGauge("logs_sender_batch_strategy", "input_buffer", nil, "Input buffer size")
 )
 
@@ -95,6 +96,7 @@ func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *m
 		flushTicker.Stop()
 		s.pendingSends.Wait()
 	}()
+	var idle = time.Now()
 	for {
 		select {
 		case m, isOpen := <-inputChan:
@@ -104,10 +106,11 @@ func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *m
 				return
 			}
 			var start = time.Now()
+			tlmSenderWaitTimeIdle.Add(float64(time.Since(idle) / time.Millisecond))
 			s.processMessage(m, outputChan, send)
 			elapsed := time.Since(start)
-			tlmSenderWaitTime.Set(float64(elapsed / time.Millisecond))
 			tlmSenderWaitTimeC.Add(float64(elapsed / time.Millisecond))
+			idle = time.Now()
 		case <-flushTicker.C:
 			// the first message that was added to the buffer has been here for too long, send the payload now
 			s.flushBuffer(outputChan, send)
