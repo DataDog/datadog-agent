@@ -1040,10 +1040,31 @@ func testDNSStats(t *testing.T, domain string, success int, failure int, timeout
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, dnsServerAddr.Port, int(conn.DPort))
 
+	dnsKey, ok := network.DNSKey(conn)
+	require.True(t, ok)
+
+	dnsStats, ok := connections.DNSStats[dnsKey]
+	require.True(t, ok)
+
+	var total uint32
+	var successfulResponses uint32
+	var timeouts uint32
+	for _, byDomain := range dnsStats {
+		for _, byQueryType := range byDomain {
+			successfulResponses += byQueryType.CountByRcode[uint32(0)]
+			timeouts += byQueryType.Timeouts
+			for _, count := range byQueryType.CountByRcode {
+				total += count
+			}
+		}
+	}
+
+	failedResponses := total - successfulResponses
+
 	// DNS Stats
-	assert.Equal(t, uint32(success), conn.DNSSuccessfulResponses)
-	assert.Equal(t, uint32(failure), conn.DNSFailedResponses)
-	assert.Equal(t, uint32(timeout), conn.DNSTimeouts)
+	assert.Equal(t, uint32(success), successfulResponses)
+	assert.Equal(t, uint32(failure), failedResponses)
+	assert.Equal(t, uint32(timeout), timeouts)
 }
 
 func TestDNSStatsForValidDomain(t *testing.T) {
@@ -1498,6 +1519,10 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 		t.Skip("HTTPS feature not available on pre 4.1.0 kernels")
 	}
 
+	if strings.HasPrefix(runtime.GOARCH, "arm") {
+		t.Skip("this feature is not yet support on arm")
+	}
+
 	wget, err := exec.LookPath("wget")
 	if err != nil {
 		t.Skip("wget not found; skipping test.")
@@ -1514,8 +1539,6 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 		t.Skip("libssl.so not found; skipping test.")
 	}
 
-	os.Setenv("SSL_LIB_PATHS", libSSLPath)
-
 	// Start tracer with HTTPS support
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
@@ -1529,16 +1552,17 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 	serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", enableTLS)
 	defer serverDoneFn()
 
+	// Run wget once to make sure the OpenSSL is detected and uprobes are attached
+	exec.Command(wget).Run()
+	time.Sleep(time.Second)
+
 	// Issue request using `wget`
 	// This is necessary (as opposed to using net/http) because we want to
 	// test a HTTP client linked to OpenSSL
 	const targetURL = "https://127.0.0.1:443/200/foobar"
 	requestCmd := exec.Command(wget, "--no-check-certificate", "-O/dev/null", targetURL)
-	err1 := requestCmd.Start()
-	err2 := requestCmd.Wait()
-	if err1 != nil || err2 != nil {
-		t.Skip("failed to issue request command; skipping test.")
-	}
+	err = requestCmd.Run()
+	require.NoErrorf(t, err, "failed to issue request via wget: %s", err)
 
 	require.Eventuallyf(t, func() bool {
 		payload, err := tr.GetActiveConnections("1")

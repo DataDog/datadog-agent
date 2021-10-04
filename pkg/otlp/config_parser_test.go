@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
+//go:build test
+// +build test
+
 package otlp
 
 import (
@@ -13,9 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configparser"
 	"go.opentelemetry.io/collector/config/configunmarshaler"
+
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
-func TestNewParser(t *testing.T) {
+func TestNewMap(t *testing.T) {
 	tests := []struct {
 		name string
 		pcfg PipelineConfig
@@ -23,11 +28,12 @@ func TestNewParser(t *testing.T) {
 		cfg  map[string]interface{}
 	}{
 		{
-			name: "only gRPC",
+			name: "only gRPC, only Traces",
 			pcfg: PipelineConfig{
-				GRPCPort:  1234,
-				TracePort: 5003,
-				BindHost:  "bindhost",
+				GRPCPort:      1234,
+				TracePort:     5003,
+				BindHost:      "bindhost",
+				TracesEnabled: true,
 			},
 			ocfg: `
 receivers:
@@ -48,11 +54,13 @@ service:
 `,
 		},
 		{
-			name: "only HTTP",
+			name: "only HTTP, metrics and traces",
 			pcfg: PipelineConfig{
-				HTTPPort:  1234,
-				TracePort: 5003,
-				BindHost:  "bindhost",
+				HTTPPort:       1234,
+				TracePort:      5003,
+				BindHost:       "bindhost",
+				TracesEnabled:  true,
+				MetricsEnabled: true,
 			},
 			ocfg: `
 receivers:
@@ -60,25 +68,36 @@ receivers:
     protocols:
       http:
         endpoint: bindhost:1234
+
+processors:
+  batch:
+
 exporters:
   otlp:
     tls:
       insecure: true
     endpoint: localhost:5003
+  serializer:
+
 service:
   pipelines:
     traces:
       receivers: [otlp]
       exporters: [otlp]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [serializer]
 `,
 		},
 		{
 			name: "with both",
 			pcfg: PipelineConfig{
-				GRPCPort:  1234,
-				HTTPPort:  5678,
-				TracePort: 5003,
-				BindHost:  "bindhost",
+				GRPCPort:      1234,
+				HTTPPort:      5678,
+				TracePort:     5003,
+				BindHost:      "bindhost",
+				TracesEnabled: true,
 			},
 			ocfg: `
 receivers:
@@ -100,11 +119,40 @@ service:
       exporters: [otlp]
 `,
 		},
+		{
+			name: "only HTTP, only metrics",
+			pcfg: PipelineConfig{
+				HTTPPort:       1234,
+				TracePort:      5003,
+				BindHost:       "bindhost",
+				MetricsEnabled: true,
+			},
+			ocfg: `
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: bindhost:1234
+
+processors:
+  batch:
+
+exporters:
+  serializer:
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [serializer]
+`,
+		},
 	}
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
-			cfg, err := newParser(testInstance.pcfg)
+			cfg, err := newMap(testInstance.pcfg)
 			require.NoError(t, err)
 			tcfg, err := configparser.NewConfigMapFromBuffer(strings.NewReader(testInstance.ocfg))
 			require.NoError(t, err)
@@ -114,15 +162,17 @@ service:
 }
 
 func TestUnmarshal(t *testing.T) {
-	configMap, err := newParser(PipelineConfig{
-		GRPCPort:  4317,
-		HTTPPort:  4318,
-		TracePort: 5001,
-		BindHost:  "localhost",
+	configMap, err := newMap(PipelineConfig{
+		GRPCPort:       4317,
+		HTTPPort:       4318,
+		TracePort:      5001,
+		BindHost:       "localhost",
+		MetricsEnabled: true,
+		TracesEnabled:  true,
 	})
 	require.NoError(t, err)
 
-	components, err := getComponents()
+	components, err := getComponents(&serializer.MockSerializer{})
 	require.NoError(t, err)
 
 	cu := configunmarshaler.NewDefault()

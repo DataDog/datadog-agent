@@ -141,7 +141,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.MaxConnectionsStateBuffered,
 		config.MaxDNSStatsBuffered,
 		config.MaxHTTPStatsBuffered,
-		config.CollectDNSDomains,
 	)
 
 	tr := &Tracer{
@@ -297,8 +296,8 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.activeBuffer.Reset()
 	t.closedBuffer.Reset()
 
-	ips := make([]util.Address, 0, len(delta.Connections)*2)
-	for _, conn := range delta.Connections {
+	ips := make([]util.Address, 0, len(delta.Conns)*2)
+	for _, conn := range delta.Conns {
 		ips = append(ips, conn.Source, conn.Dest)
 	}
 	names := t.reverseDNS.Resolve(ips)
@@ -306,8 +305,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	rctm := t.getRuntimeCompilationTelemetry()
 
 	return &network.Connections{
-		Conns:                       delta.Connections,
+		BufferedData:                delta.BufferedData,
 		DNS:                         names,
+		DNSStats:                    delta.DNSStats,
 		HTTP:                        delta.HTTP,
 		ConnTelemetry:               ctm,
 		CompilationTelemetryByAsset: rctm,
@@ -356,8 +356,11 @@ func (t *Tracer) getConnTelemetry(mapSize int) *network.ConnectionsTelemetry {
 
 func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeCompilationTelemetry {
 	telemetryByAsset := map[string]map[string]int64{
-		"tracer":    runtime.Tracer.GetTelemetry(),
-		"conntrack": runtime.Conntrack.GetTelemetry(),
+		"tracer":          runtime.Tracer.GetTelemetry(),
+		"conntrack":       runtime.Conntrack.GetTelemetry(),
+		"oomKill":         runtime.OomKill.GetTelemetry(),
+		"runtimeSecurity": runtime.RuntimeSecurity.GetTelemetry(),
+		"tcpQueueLength":  runtime.TcpQueueLength.GetTelemetry(),
 	}
 
 	result := make(map[string]network.RuntimeCompilationTelemetry)
@@ -392,10 +395,10 @@ func (t *Tracer) getConnections(activeBuffer, closedBuffer *network.ConnectionBu
 		return 0, fmt.Errorf("error retrieving latest timestamp: %s", err)
 	}
 
-	var expired []*network.ConnectionStats
+	var expired []network.ConnectionStats
 	err = t.ebpfTracer.GetConnections(activeBuffer, closedBuffer, func(c *network.ConnectionStats) bool {
 		if t.connectionExpired(c, uint64(latestTime), cachedConntrack) {
-			expired = append(expired, c)
+			expired = append(expired, *c)
 			if c.Type == network.TCP {
 				atomic.AddInt64(&t.expiredTCPConns, 1)
 			}
@@ -445,12 +448,13 @@ func (t *Tracer) getConnections(activeBuffer, closedBuffer *network.ConnectionBu
 	return uint64(latestTime), nil
 }
 
-func (t *Tracer) removeEntries(entries []*network.ConnectionStats) {
+func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 	now := time.Now()
 	// Byte keys of the connections to remove
 	keys := make([]string, 0, len(entries))
 	// Remove the entries from the eBPF Map
-	for _, entry := range entries {
+	for i := range entries {
+		entry := &entries[i]
 		err := t.ebpfTracer.Remove(entry)
 		if err != nil {
 			if !errors.Is(err, ebpf.ErrKeyNotExist) {
@@ -548,7 +552,29 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
-	return &network.Connections{Conns: activeBuffer.Connections()}, nil
+	return &network.Connections{
+		BufferedData: network.BufferedData{
+			Conns: activeBuffer.Connections(),
+		},
+	}, nil
+
+}
+
+// DebugEBPFMaps returns all maps registred in the eBPF manager
+func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
+	tracerMaps, err := t.ebpfTracer.DumpMaps(maps...)
+	if err != nil {
+		return "", err
+	}
+	if t.httpMonitor == nil {
+		return "tracer:\n" + tracerMaps, nil
+	}
+
+	httpMaps, err := t.httpMonitor.DumpMaps(maps...)
+	if err != nil {
+		return "", err
+	}
+	return "tracer:\n" + tracerMaps + "\nhttp_monitor:\n" + httpMaps, nil
 }
 
 // connectionExpired returns true if the passed in connection has expired

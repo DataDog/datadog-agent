@@ -50,7 +50,7 @@ type Sampler struct {
 	// Extra sampling rate to combine to the existing sampling
 	extraRate float64
 	// Maximum limit to the total number of traces per second to sample
-	targetTPS float64
+	targetTPS *atomic.Float64
 	// rateThresholdTo1 is the value above which all computed sampling rates will be set to 1
 	rateThresholdTo1 float64
 
@@ -72,7 +72,7 @@ func newSampler(extraRate float64, targetTPS float64, tags []string) *Sampler {
 	s := &Sampler{
 		Backend:              NewMemoryBackend(defaultDecayPeriod, defaultDecayFactor),
 		extraRate:            extraRate,
-		targetTPS:            targetTPS,
+		targetTPS:            atomic.NewFloat(targetTPS),
 		rateThresholdTo1:     defaultSamplingRateThresholdTo1,
 		signatureScoreOffset: atomic.NewFloat(0),
 		signatureScoreSlope:  atomic.NewFloat(0),
@@ -102,7 +102,7 @@ func (s *Sampler) UpdateExtraRate(extraRate float64) {
 
 // UpdateTargetTPS updates the max TPS limit
 func (s *Sampler) UpdateTargetTPS(targetTPS float64) {
-	s.targetTPS = targetTPS
+	s.targetTPS.Store(targetTPS)
 }
 
 // Start runs and the Sampler main loop
@@ -152,10 +152,11 @@ func (s *Sampler) GetSampleRate(trace pb.Trace, root *pb.Span, signature Signatu
 func (s *Sampler) GetTargetTPSSampleRate() float64 {
 	// When above targetTPS, apply an additional sample rate to statistically respect the limit
 	targetTPSrate := 1.0
-	if s.targetTPS > 0 {
+	configuredTargetTPS := s.targetTPS.Load()
+	if configuredTargetTPS > 0 {
 		currentTPS := s.Backend.GetUpperSampledScore()
-		if currentTPS > s.targetTPS {
-			targetTPSrate = s.targetTPS / currentTPS
+		if currentTPS > configuredTargetTPS {
+			targetTPSrate = configuredTargetTPS / currentTPS
 		}
 	}
 

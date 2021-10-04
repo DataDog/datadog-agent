@@ -4,7 +4,7 @@
     "type": "object",
     "properties": {
         "container": {
-            "$ref": "file:///container.json"
+            "$ref": "/schemas/container.json"
         }
     },
     "required": [

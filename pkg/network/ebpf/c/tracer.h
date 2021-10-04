@@ -141,4 +141,14 @@ typedef struct {
     __u16 port;
 } port_binding_t;
 
+typedef struct {
+    struct sock *sk;
+    struct msghdr *msg;
+} udp_recv_sock_t;
+
+typedef struct {
+    __u32 pid;
+    __u32 fd;
+} pid_fd_t;
+
 #endif

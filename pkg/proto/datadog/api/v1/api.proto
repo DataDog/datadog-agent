@@ -3,6 +3,7 @@ syntax = "proto3";
 package datadog.api.v1;
 
 import "datadog/model/v1/model.proto";
+import "datadog/config/config.proto";
 import "google/api/annotations.proto";
 
 option go_package = "pkg/proto/pbgo"; // golang
@@ -87,6 +88,21 @@ service AgentSecure {
     rpc DogstatsdSetTaggerState(datadog.model.v1.TaggerState) returns (datadog.model.v1.TaggerStateResponse) {
         option (google.api.http) = {
             post: "/v1/grpc/dogstatsd/capture/state"
+            body: "*"
+        };
+    };
+
+    rpc GetConfigUpdates(datadog.config.SubscribeConfigRequest) returns (stream datadog.config.ConfigResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/config/updates"
+            body: "*"
+        };
+    };
+
+    // Fetch config of the given product
+    rpc GetConfigs(datadog.config.GetConfigsRequest) returns (datadog.config.GetConfigsResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/config/fetch"
             body: "*"
         };
     };

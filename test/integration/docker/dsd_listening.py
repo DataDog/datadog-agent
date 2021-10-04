@@ -1,4 +1,5 @@
 import os
+import time
 import unittest
 
 import docker
@@ -50,6 +51,7 @@ def waitUntilListening(container, retries=20):
         out = container.exec_run(cmd="netstat -a").output
         if b":8125" in out or SOCKET_PATH in out:
             return True
+        time.sleep(0.5)
     return False
 
 

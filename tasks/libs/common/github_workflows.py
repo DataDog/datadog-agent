@@ -18,8 +18,9 @@ class GithubWorkflows(RemoteAPI):
 
     BASE_URL = "https://api.github.com"
 
-    def __init__(self, repository="", api_token=""):
+    def __init__(self, repository="", api_token="", api_token_expiration_date=""):
         self.api_token = api_token
+        self.api_token_expiration_date = api_token_expiration_date
         self.repository = repository
         self.api_name = "GitHub Workflows"
         self.authorization_error_message = (
