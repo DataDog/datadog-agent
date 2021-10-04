@@ -38,7 +38,7 @@ ENV MSYS_VERSION "20190524.0.0.20191030"
 ENV EMBEDDED_PYTHON_2_VERSION "2.7.17"
 ENV EMBEDDED_PYTHON_3_VERSION "3.8.1"
 
-ENV CACERTS_HASH "a3b534269c6974631db35f952e8d7c7dbf3d81ab329a232df575c2661de1214a"
+ENV CACERTS_HASH "f524fc21859b776e18df01a87880efa198112214e13494275dbcbd9bcb71d976"
 
 LABEL target_agent="Agent 6/7"
 LABEL target_arch=${TARGET_ARCH}
@@ -59,7 +59,7 @@ LABEL embedded_py3_version=${EMBEDDED_PYTHON_3_VERSION}
 # Add certificates needed for build & check certificates file hash
 # We need to trust the DigiCert High Assurance EV Root CA certificate, which signs python.org,
 # to be able to download some Python components during the Agent build.
-RUN (New-Object System.Net.WebClient).DownloadFile(\"https://curl.haxx.se/ca/cacert.pem\", \"cacert.pem\")
+RUN (New-Object System.Net.WebClient).DownloadFile(\"https://curl.se/ca/cacert.pem\", \"cacert.pem\")
 RUN if ((Get-FileHash .\cacert.pem).Hash -ne \"$ENV:CACERTS_HASH\") { Write-Host \"Wrong hashsum for cacert.pem: got '$((Get-FileHash .\cacert.pem).Hash)', expected '$ENV:CACERTS_HASH'.\"; exit 1 }
 RUN setx SSL_CERT_FILE \"C:\cacert.pem\"
 

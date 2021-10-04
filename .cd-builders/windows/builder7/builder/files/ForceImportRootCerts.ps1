@@ -2,7 +2,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $PSDefaultParameterValues['*:ErrorAction'] = 'Stop'
 
-$url = "https://curl.haxx.se/ca/cacert.pem"
+$url = "https://curl.se/ca/cacert.pem"
 $output = "$PSScriptRoot\cacert.pem"
 $certlocation = "Cert:\LocalMachine\Root"
 
@@ -21,6 +21,6 @@ Write-Host "Import-PfxCertificate –FilePath $PSScriptRoot\cacert.pfx Cert:\Loc
 Import-PfxCertificate –FilePath $PSScriptRoot\cacert.pfx $certlocation -Password (ConvertTo-SecureString -String "export" -Force –AsPlainText)
 
 Set-Location $certlocation
- 
+
 #Get the installed certificates in that location
 Get-ChildItem | Format-Table Subject, FriendlyName, Thumbprint -AutoSize
