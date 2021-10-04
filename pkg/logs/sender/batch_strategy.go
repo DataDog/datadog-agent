@@ -21,6 +21,7 @@ import (
 var (
 	tlmDroppedTooLarge = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
 	tlmSenderWaitTime  = telemetry.NewGauge("logs_sender_batch_strategy_gauge", "sender_wait", nil, "Time spent waiting for a sender")
+	tlmSenderWaitTimeC = telemetry.NewCounter("logs_sender_batch_strategy_count", "sender_wait", nil, "Time spent waiting for a sender")
 	tlmInputSize       = telemetry.NewGauge("logs_sender_batch_strategy", "input_buffer", nil, "Input buffer size")
 )
 
@@ -102,9 +103,11 @@ func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *m
 				// inputChan has been closed, no more payloads are expected
 				return
 			}
-			bufferLen := len(inputChan)
-			tlmInputSize.Set(float64(bufferLen))
+			var start = time.Now()
 			s.processMessage(m, outputChan, send)
+			elapsed := time.Since(start)
+			tlmSenderWaitTime.Set(float64(elapsed / time.Millisecond))
+			tlmSenderWaitTimeC.Add(float64(elapsed / time.Millisecond))
 		case <-flushTicker.C:
 			// the first message that was added to the buffer has been here for too long, send the payload now
 			s.flushBuffer(outputChan, send)
@@ -136,11 +139,11 @@ func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *mess
 // flushBuffer sends all the messages that are stored in the buffer and forwards them
 // to the next stage of the pipeline.
 func (s *batchStrategy) flushBuffer(outputChan chan *message.Message, send func([]byte) error) {
-	start := time.Now()
-	reportElapsed := func() {
-		elapsed := time.Since(start)
-		tlmSenderWaitTime.Set(float64(elapsed / time.Millisecond))
-	}
+	// start := time.Now()
+	// reportElapsed := func() {
+	// 	elapsed := time.Since(start)
+	// 	tlmSenderWaitTime.Set(float64(elapsed / time.Millisecond))
+	// }
 
 	if s.buffer.IsEmpty() {
 		return
@@ -150,13 +153,13 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Message, send func(
 	// if the channel is non-buffered then there is no concurrency and we block on sending each payload
 	if cap(s.climit) == 0 {
 		s.sendMessages(messages, outputChan, send)
-		reportElapsed()
+		// reportElapsed()
 		return
 	}
 	s.climit <- struct{}{}
-	elapsed := time.Since(s.lastTime)
-	tlmSenderWaitTime.Set(float64(elapsed / time.Millisecond))
-	s.lastTime = time.Now()
+	// elapsed := time.Since(s.lastTime)
+	// tlmSenderWaitTime.Set(float64(elapsed / time.Millisecond))
+	// s.lastTime = time.Now()
 	s.pendingSends.Add(1)
 	go func() {
 		s.sendMessages(messages, outputChan, send)
