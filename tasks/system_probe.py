@@ -676,14 +676,22 @@ def generate_cgo_types(ctx, windows=is_windows):
 
     for f in def_files:
         fdir, file = os.path.split(f)
+        absolute_input_file = os.path.abspath(f)
         base, _ = os.path.splitext(file)
         with ctx.cd(fdir):
+            output_file = "{base}_{platform}.go".format(base=base, platform=platform)
             ctx.run(
-                "go tool cgo -godefs -- -fsigned-char {file} > {base}_{platform}.go".format(
-                    file=file, base=base, platform=platform
+                "go tool cgo -godefs -- -fsigned-char {file} > {output_file}".format(
+                    file=file, output_file=output_file
                 )
             )
-            ctx.run("gofmt -w -s {base}_{platform}.go".format(base=base, platform=platform))
+            ctx.run("gofmt -w -s {output_file}".format(output_file=output_file))
+            # replace absolute path with relative ones in generated file
+            ctx.run("sed -i 's={abs}={rel}=gi' {working_file}".format(
+                abs=absolute_input_file,
+                rel=file,
+                working_file=output_file
+            ))
 
 
 def is_root():
