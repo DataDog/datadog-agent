@@ -1220,7 +1220,7 @@ Make sure that milestone is open before trying again.""".format(
 
     updated_pr = github.update_pr(
         pull_number=pr["number"],
-        milestone=milestone["number"],
+        milestone_number=milestone["number"],
         labels=["changelog/no-changelog", "team/agent-platform", "team/agent-core"],
     )
 
