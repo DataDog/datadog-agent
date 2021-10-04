@@ -7,7 +7,7 @@ package aggregator
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/context_resolver"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/contextresolver"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,7 +24,7 @@ type SerieSignature struct {
 // TimeSampler aggregates metrics by buckets of 'interval' seconds
 type TimeSampler struct {
 	interval                    int64
-	contextResolver             *context_resolver.TimestampContextResolver
+	contextResolver             *contextresolver.TimestampContextResolver
 	metricsByTimestamp          map[int64]metrics.ContextMetrics
 	counterLastSampledByContext map[ckey.ContextKey]float64
 	lastCutOffTime              int64
@@ -38,7 +38,7 @@ func NewTimeSampler(interval int64) *TimeSampler {
 	}
 	return &TimeSampler{
 		interval:                    interval,
-		contextResolver:             context_resolver.NewTimestampContextResolver(),
+		contextResolver:             contextresolver.NewTimestampContextResolver(),
 		metricsByTimestamp:          map[int64]metrics.ContextMetrics{},
 		counterLastSampledByContext: map[ckey.ContextKey]float64{},
 		sketchMap:                   make(sketchMap),
@@ -237,6 +237,7 @@ func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics me
 	}
 }
 
+// Close closes resources used by the TimeSampler.
 func (s *TimeSampler) Close() {
 	s.contextResolver.Close()
 }

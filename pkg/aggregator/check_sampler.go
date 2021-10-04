@@ -6,8 +6,9 @@
 package aggregator
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/aggregator/context_resolver"
 	"math"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/contextresolver"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -20,7 +21,7 @@ const checksSourceTypeName = "System"
 type CheckSampler struct {
 	series          []*metrics.Serie
 	sketches        metrics.SketchSeriesList
-	contextResolver *context_resolver.CountBasedContextResolver
+	contextResolver *contextresolver.CountBasedContextResolver
 	metrics         metrics.ContextMetrics
 	sketchMap       sketchMap
 	lastBucketValue map[ckey.ContextKey]int64
@@ -31,7 +32,7 @@ func newCheckSampler(expirationCount int) *CheckSampler {
 	return &CheckSampler{
 		series:          make([]*metrics.Serie, 0),
 		sketches:        make(metrics.SketchSeriesList, 0),
-		contextResolver: context_resolver.NewCountBasedContextResolver(expirationCount),
+		contextResolver: contextresolver.NewCountBasedContextResolver(expirationCount),
 		metrics:         metrics.MakeContextMetrics(),
 		sketchMap:       make(sketchMap),
 		lastBucketValue: make(map[ckey.ContextKey]int64),

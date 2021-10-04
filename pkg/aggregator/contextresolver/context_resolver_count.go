@@ -1,4 +1,4 @@
-package context_resolver
+package contextresolver
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -8,8 +8,8 @@ import (
 // CountBasedContextResolver allows tracking and expiring contexts based on the number
 // of calls of `expireContexts`.
 type CountBasedContextResolver struct {
-	resolver         ContextResolver
-	expireCountByKey map[ckey.ContextKey]int64
+	resolver            ContextResolver
+	expireCountByKey    map[ckey.ContextKey]int64
 	expireCount         int64
 	expireCountInterval int64
 }
@@ -31,6 +31,7 @@ func (cr *CountBasedContextResolver) TrackContext(metricSampleContext metrics.Me
 	return contextKey
 }
 
+// Get returns the Context for the given ContextKey.
 func (cr *CountBasedContextResolver) Get(key ckey.ContextKey) (*Context, bool) {
 	return cr.resolver.Get(key)
 }
@@ -45,14 +46,14 @@ func (cr *CountBasedContextResolver) ExpireContexts() []ckey.ContextKey {
 			delete(cr.expireCountByKey, key)
 		}
 	}
-	cr.resolver.removeKeys(keys)
+	cr.removeKeys(keys)
 	cr.expireCount++
 	return keys
 }
 
-func (cr *CountBasedContextResolver) generateContextKey(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
-	return cr.resolver.generateContextKey(metricSampleContext)
-}
+// func (cr *CountBasedContextResolver) generateContextKey(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
+// 	return cr.resolver.generateContextKey(metricSampleContext)
+// }
 
 func (cr *CountBasedContextResolver) removeKeys(expiredContextKeys []ckey.ContextKey) {
 	cr.resolver.removeKeys(expiredContextKeys)

@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/context_resolver"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/contextresolver"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -275,7 +275,7 @@ func TestSketch(t *testing.T) {
 	var (
 		sampler = NewTimeSampler(0)
 
-		insert = func(t *testing.T, ts float64, ctx context_resolver.Context, values ...float64) {
+		insert = func(t *testing.T, ts float64, ctx contextresolver.Context, values ...float64) {
 			t.Helper()
 			for _, v := range values {
 				sampler.addSample(&metrics.MetricSample{
@@ -302,7 +302,7 @@ func TestSketch(t *testing.T) {
 	t.Run("single bucket", func(t *testing.T) {
 		var (
 			now    float64
-			ctx    = context_resolver.Context{Name: "m.0", Tags: []string{"a"}, Host: "host"}
+			ctx    = contextresolver.Context{Name: "m.0", Tags: []string{"a"}, Host: "host"}
 			exp    = &quantile.Sketch{}
 			keyGen = ckey.NewKeyGenerator()
 		)

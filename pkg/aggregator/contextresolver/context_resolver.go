@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package context_resolver
+package contextresolver
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -18,6 +18,7 @@ type Context struct {
 	Host string
 }
 
+// UseBadger forces the use of ContextResolverBadger
 // FIXME: make this an option.
 const UseBadger = true
 
@@ -43,13 +44,13 @@ func newContextResolverBase() contextResolverBase {
 func newContextResolver() ContextResolver {
 	if UseBadger {
 		// FIXME: add options to be able to use files.
-		return NewContextResolverBadger(true, "")
+		return NewBadger(true, "")
 	}
-	return NewContextResolverInMemory()
+	return NewInMemory()
 }
 
 type contextResolverBase struct {
-	keyGenerator  *ckey.KeyGenerator
+	keyGenerator *ckey.KeyGenerator
 	// buffer slice allocated once per ContextResolver to combine and sort
 	// tags, origin detection tags and k8s tags.
 	tagsBuffer *util.TagsBuilder
@@ -59,4 +60,3 @@ type contextResolverBase struct {
 func (cr *contextResolverBase) generateContextKey(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
 	return cr.keyGenerator.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), cr.tagsBuffer)
 }
-

@@ -1,7 +1,8 @@
-package context_resolver
+package contextresolver
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -12,6 +13,7 @@ type TimestampContextResolver struct {
 	lastSeenByKey map[ckey.ContextKey]float64
 }
 
+// NewTimestampContextResolver returns a new ContextResolver based on timestamp.
 func NewTimestampContextResolver() *TimestampContextResolver {
 	return &TimestampContextResolver{
 		resolver:      newContextResolver(),
@@ -59,7 +61,7 @@ func (cr *TimestampContextResolver) ExpireContexts(expireTimestamp float64) []ck
 		}
 	}
 
-	cr.resolver.removeKeys(expiredContextKeys)
+	cr.removeKeys(expiredContextKeys)
 
 	// Delete expired context keys
 	for _, expiredContextKey := range expiredContextKeys {
@@ -69,9 +71,9 @@ func (cr *TimestampContextResolver) ExpireContexts(expireTimestamp float64) []ck
 	return expiredContextKeys
 }
 
-func (cr *TimestampContextResolver) generateContextKey(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
-	return cr.resolver.generateContextKey(metricSampleContext)
-}
+// func (cr *TimestampContextResolver) generateContextKey(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
+// 	return cr.resolver.generateContextKey(metricSampleContext)
+// }
 
 func (cr *TimestampContextResolver) removeKeys(expiredContextKeys []ckey.ContextKey) {
 	cr.resolver.removeKeys(expiredContextKeys)

@@ -5,7 +5,7 @@
 
 // +build test
 
-package context_resolver
+package contextresolver
 
 import (
 	"encoding/json"
@@ -203,7 +203,7 @@ func genTags(count int, div int) ([]string, []string) {
 
 func benchmarkContextResolverTrackContext(resolver ContextResolver, b *testing.B) {
 	// track 2M contexts with 30 tags
-	for contextsCount := 1<<15; contextsCount < 2<<21; contextsCount *= 2 {
+	for contextsCount := 1 << 15; contextsCount < 2<<21; contextsCount *= 2 {
 		resolver.Clear()
 		tags, _ := genTags(30, 1)
 
@@ -233,7 +233,7 @@ func benchmarkContextResolverTrackContext(resolver ContextResolver, b *testing.B
 
 func benchmarkContextResolverGetWorstCase(resolver ContextResolver, b *testing.B) {
 	// track 2M contexts with 30 tags
-	for contextsCount := 1<<15; contextsCount < 2<<21; contextsCount *= 2 {
+	for contextsCount := 1 << 15; contextsCount < 2<<21; contextsCount *= 2 {
 		resolver.Clear()
 		tags, _ := genTags(30, 1)
 
@@ -279,7 +279,6 @@ type MemReport struct {
 	NumGoroutine int
 }
 
-
 func ReportMemStats() {
 	var m MemReport
 	var rtm runtime.MemStats
@@ -312,11 +311,11 @@ func ReportMemStats() {
 }
 
 func BenchmarkContextResolverTrackContextInMemory(b *testing.B) {
-	benchmarkContextResolverTrackContext(NewContextResolverInMemory(), b)
+	benchmarkContextResolverTrackContext(NewInMemory(), b)
 }
 
 func BenchmarkContextResolverTrackContextBadgerInMemory(b *testing.B) {
-	resolver := NewContextResolverBadger(true, "")
+	resolver := NewBadger(true, "")
 	benchmarkContextResolverTrackContext(resolver, b)
 }
 
@@ -325,21 +324,21 @@ func BenchmarkContextResolverTrackContextBadgerOnDisk(b *testing.B) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	resolver := NewContextResolverBadger(false, path + "/db")
+	resolver := NewBadger(false, path+"/db")
 	benchmarkContextResolverTrackContext(resolver, b)
 }
 
 func BenchmarkContextResolverTrackContextBadgerInMemoryAndLRU(b *testing.B) {
-	resolver := NewcontextResolverWithLRU(NewContextResolverBadger(true, ""), 1024)
+	resolver := NewWithLRU(NewBadger(true, ""), 1024)
 	benchmarkContextResolverTrackContext(resolver, b)
 }
 
 func BenchmarkContextResolverGetWorstCaseInMemory(b *testing.B) {
-	benchmarkContextResolverTrackContext(NewContextResolverInMemory(), b)
+	benchmarkContextResolverTrackContext(NewInMemory(), b)
 }
 
 func BenchmarkContextResolverGetWorstCaseBadgerInMemory(b *testing.B) {
-	resolver := NewContextResolverBadger(true, "")
+	resolver := NewBadger(true, "")
 	benchmarkContextResolverTrackContext(resolver, b)
 }
 
@@ -348,11 +347,11 @@ func BenchmarkContextResolverGetWorstCaseBadgerOnDisk(b *testing.B) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	resolver := NewContextResolverBadger(false, path + "/db")
+	resolver := NewBadger(false, path+"/db")
 	benchmarkContextResolverTrackContext(resolver, b)
 }
 
 func BenchmarkContextResolverGetWorstCaseBadgerInMemoryAndLRU(b *testing.B) {
-	resolver := NewcontextResolverWithLRU(NewContextResolverBadger(true, ""), 1024)
+	resolver := NewWithLRU(NewBadger(true, ""), 1024)
 	benchmarkContextResolverTrackContext(resolver, b)
 }

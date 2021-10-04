@@ -30,7 +30,6 @@ func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
 	return k.Generate(sample.GetName(), sample.GetHost(), tb)
 }
 
-
 func TestCheckGaugeSampling(t *testing.T) {
 	checkSampler := newCheckSampler(1)
 

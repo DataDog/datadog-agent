@@ -1,4 +1,4 @@
-package context_resolver
+package contextresolver
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -6,39 +6,41 @@ import (
 	"github.com/golang/groupcache/lru"
 )
 
-// ContextResolver allows tracking and expiring contexts
-type contextResolverWithLRU struct {
+// WithLRU allows tracking and expiring contexts
+type WithLRU struct {
 	contextResolverBase
-	cache *contextResolverLru
+	cache    *LRU
 	resolver ContextResolver
 }
 
-func NewcontextResolverWithLRU(resolver ContextResolver, cacheSize int) *contextResolverWithLRU {
-	cache := NewContextResolverLru(cacheSize)
+// NewWithLRU creates a new ContextResolver using an LRU.
+func NewWithLRU(resolver ContextResolver, cacheSize int) *WithLRU {
+	cache := NewContextResolverLRU(cacheSize)
 	cache.cache.OnEvicted = func(key lru.Key, value interface{}) {
 		v := value.(*Context)
 		k := key.(ckey.ContextKey)
 		resolver.Add(k, v)
 	}
-	return &contextResolverWithLRU{
+	return &WithLRU{
 		contextResolverBase: newContextResolverBase(),
-		cache: cache,
-		resolver: resolver,
+		cache:               cache,
+		resolver:            resolver,
 	}
 }
 
 // TrackContext returns the contextKey associated with the context of the metricSample and tracks that context
-func (cr *contextResolverWithLRU) TrackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
+func (cr *WithLRU) TrackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
 	// There is room for optimization here are both methods are doing similar things.
 	return cr.cache.TrackContext(metricSampleContext)
 }
 
-func (cr *contextResolverWithLRU) Add(key ckey.ContextKey, context *Context) {
+// Add tracks a context key in the ContextResolver.
+func (cr *WithLRU) Add(key ckey.ContextKey, context *Context) {
 	cr.cache.Add(key, context)
 }
 
 // Get gets a context from its key
-func (cr *contextResolverWithLRU) Get(key ckey.ContextKey) (*Context, bool) {
+func (cr *WithLRU) Get(key ckey.ContextKey) (*Context, bool) {
 	ctx, found := cr.cache.Get(key)
 	if !found {
 		ctx, found = cr.resolver.Get(key)
@@ -47,22 +49,23 @@ func (cr *contextResolverWithLRU) Get(key ckey.ContextKey) (*Context, bool) {
 }
 
 // Size returns the number of contexts in the resolver
-func (cr *contextResolverWithLRU) Size() int {
+func (cr *WithLRU) Size() int {
 	return cr.resolver.Size()
 }
 
-func (cr *contextResolverWithLRU) removeKeys(expiredContextKeys []ckey.ContextKey) {
+func (cr *WithLRU) removeKeys(expiredContextKeys []ckey.ContextKey) {
 	cr.cache.removeKeys(expiredContextKeys)
 	cr.resolver.removeKeys(expiredContextKeys)
 }
 
-
-func (cr *contextResolverWithLRU) Clear() {
+// Clear clears the context resolver data, dropping all contexts.
+func (cr *WithLRU) Clear() {
 	cr.cache.Clear()
 	cr.resolver.Clear()
 }
 
-func (cr *contextResolverWithLRU) Close() {
+// Close frees resources used by the context resolver.
+func (cr *WithLRU) Close() {
 	cr.cache.Close()
 	cr.resolver.Close()
 }

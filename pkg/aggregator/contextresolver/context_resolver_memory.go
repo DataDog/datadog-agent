@@ -1,4 +1,4 @@
-package context_resolver
+package contextresolver
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -6,15 +6,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
-// ContextResolver allows tracking and expiring contexts
-type contextResolverInMemory struct {
+// InMemory allows tracking and expiring contexts
+type InMemory struct {
 	contextResolverBase
 	contextsByKey map[ckey.ContextKey]*Context
 }
 
-// NewContextResolverInMemory creates a new context resolver storing everything in memory
-func NewContextResolverInMemory() *contextResolverInMemory {
-	return &contextResolverInMemory{
+// NewInMemory creates a new context resolver storing everything in memory
+func NewInMemory() *InMemory {
+	return &InMemory{
 		contextResolverBase: contextResolverBase{
 			keyGenerator: ckey.NewKeyGenerator(),
 			tagsBuffer:   util.NewTagsBuilder(),
@@ -24,7 +24,7 @@ func NewContextResolverInMemory() *contextResolverInMemory {
 }
 
 // TrackContext returns the contextKey associated with the context of the metricSample and tracks that context
-func (cr *contextResolverInMemory) TrackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
+func (cr *InMemory) TrackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
 	metricSampleContext.GetTags(cr.tagsBuffer)               // tags here are not sorted and can contain duplicates
 	contextKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates from cr.tagsBuffer (and doesn't mind the order)
 
@@ -44,33 +44,34 @@ func (cr *contextResolverInMemory) TrackContext(metricSampleContext metrics.Metr
 	return contextKey
 }
 
-func (cr *contextResolverInMemory) Add(key ckey.ContextKey, context *Context) {
+// Add tracks a context key in the ContextResolver.
+func (cr *InMemory) Add(key ckey.ContextKey, context *Context) {
 	cr.contextsByKey[key] = context
 }
 
 // Get gets a context from its key
-func (cr *contextResolverInMemory) Get(key ckey.ContextKey) (*Context, bool) {
+func (cr *InMemory) Get(key ckey.ContextKey) (*Context, bool) {
 	ctx, found := cr.contextsByKey[key]
 	return ctx, found
 }
 
 // Size return the number of objects in the resolver
-func (cr *contextResolverInMemory) Size() int {
+func (cr *InMemory) Size() int {
 	return len(cr.contextsByKey)
 }
 
-func (cr *contextResolverInMemory) removeKeys(expiredContextKeys []ckey.ContextKey) {
+func (cr *InMemory) removeKeys(expiredContextKeys []ckey.ContextKey) {
 	for _, expiredContextKey := range expiredContextKeys {
 		delete(cr.contextsByKey, expiredContextKey)
 	}
 }
 
-// Clear drops all contexts
-func (cr *contextResolverInMemory) Clear() {
+// Clear clears the context resolver data, dropping all contexts.
+func (cr *InMemory) Clear() {
 	cr.contextsByKey = make(map[ckey.ContextKey]*Context)
 }
 
-// Close frees up resources
-func (cr *contextResolverInMemory) Close() {
+// Close frees resources used by the context resolver.
+func (cr *InMemory) Close() {
 	cr.Clear()
 }
