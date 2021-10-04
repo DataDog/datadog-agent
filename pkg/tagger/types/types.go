@@ -3,7 +3,7 @@ package types
 import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // Entity is an entity ID + tags.
@@ -82,5 +82,5 @@ type EntityEvent struct {
 // TagsBuilder represents a consumer for tags stored in the tagger.
 type TagsBuilder interface {
 	Append(...string)
-	AppendHashed(util.HashedTags)
+	AppendHashed(tagset.HashedTags)
 }

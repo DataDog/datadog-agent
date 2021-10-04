@@ -10,7 +10,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,7 +22,7 @@ func TestIsZero(t *testing.T) {
 func TestGenerateReproductible(t *testing.T) {
 	name := "metric.name"
 	hostname := "hostname"
-	tags := util.NewHashingTagsBuilderWithTags([]string{"bar", "foo", "key:value", "key:value2"})
+	tags := tagset.NewHashingTagsBuilderWithTags([]string{"bar", "foo", "key:value", "key:value2"})
 
 	generator := NewKeyGenerator()
 
@@ -59,25 +59,25 @@ func TestTagsOrderAndDupsDontMatter(t *testing.T) {
 	tags := []string{"bar", "foo", "key:value", "key:value2"}
 
 	generator := NewKeyGenerator()
-	tagsBuf := util.NewHashingTagsBuilderWithTags(tags)
+	tagsBuf := tagset.NewHashingTagsBuilderWithTags(tags)
 	key := generator.Generate(name, hostname, tagsBuf)
 
 	// change tags order, the generated key should be the same
 	tags[0], tags[1], tags[2], tags[3] = tags[3], tags[0], tags[1], tags[2]
-	tagsBuf2 := util.NewHashingTagsBuilderWithTags(tags)
+	tagsBuf2 := tagset.NewHashingTagsBuilderWithTags(tags)
 	key2 := generator.Generate(name, hostname, tagsBuf2)
 	assert.Equal(key, key2, "order of tags should not matter")
 
 	// add a duplicated tag
 	tags = append(tags, "key:value", "foo")
-	tagsBuf3 := util.NewHashingTagsBuilderWithTags(tags)
+	tagsBuf3 := tagset.NewHashingTagsBuilderWithTags(tags)
 	key3 := generator.Generate(name, hostname, tagsBuf3)
 	assert.Equal(key, key3, "duplicated tags should not matter")
 	assert.Equal(tagsBuf2.Get(), tagsBuf3.Get(), "duplicated tags should be removed from the buffer")
 
 	// and now, completely change of the tag, the generated key should NOT be the same
 	tags[2] = "another:tag"
-	key4 := generator.Generate(name, hostname, util.NewHashingTagsBuilderWithTags(tags))
+	key4 := generator.Generate(name, hostname, tagset.NewHashingTagsBuilderWithTags(tags))
 	assert.NotEqual(key, key4, "tags content should matter")
 }
 
@@ -106,14 +106,14 @@ func TestTagsAreDedupedWhileGeneratingCKey(t *testing.T) {
 			name := "metrics.to.test.hashing"
 			hostname := "hostname.localhost"
 			tags, expUniq := genTags(size, 2)
-			tagsBuf := util.NewHashingTagsBuilderWithTags(tags)
+			tagsBuf := tagset.NewHashingTagsBuilderWithTags(tags)
 
 			generator := NewKeyGenerator()
 			expKey := generator.Generate(name, hostname, tagsBuf.Dup())
 			for i := 0; i < iterations; i++ {
 				tags := tagsBuf.Copy()
 				r.Shuffle(size, func(i, j int) { tags[i], tags[j] = tags[j], tags[i] })
-				tagsBuf := util.NewHashingTagsBuilderWithTags(tags)
+				tagsBuf := tagset.NewHashingTagsBuilderWithTags(tags)
 				key := generator.Generate(name, hostname, tagsBuf)
 				assert.Equal(expKey, key, "order of tags should not matter")
 
@@ -141,7 +141,7 @@ func BenchmarkKeyGeneration(b *testing.B) {
 	host := "myhost"
 	for i := 1; i < 4096; i *= 2 {
 		tags, _ := genTags(i, 1)
-		tagsBuf := util.NewHashingTagsBuilderWithTags(tags)
+		tagsBuf := tagset.NewHashingTagsBuilderWithTags(tags)
 		b.Run(fmt.Sprintf("%d-tags", i), func(b *testing.B) {
 			generator := NewKeyGenerator()
 			tags := tagsBuf.Dup()

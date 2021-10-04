@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/subscriber"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -39,9 +39,9 @@ type EntityTags struct {
 	sourceTags         map[string]sourceTags
 	cacheValid         bool
 	cachedSource       []string
-	cachedAll          util.HashedTags // Low + orchestrator + high
-	cachedOrchestrator util.HashedTags // Low + orchestrator (subslice of cachedAll)
-	cachedLow          util.HashedTags // Sub-slice of cachedAll
+	cachedAll          tagset.HashedTags // Low + orchestrator + high
+	cachedOrchestrator tagset.HashedTags // Low + orchestrator (subslice of cachedAll)
+	cachedLow          tagset.HashedTags // Sub-slice of cachedAll
 }
 
 func newEntityTags(entityID string) *EntityTags {
@@ -300,13 +300,13 @@ func (s *TagStore) Prune() {
 // LookupHashed gets tags from the store and returns them as a HashedTags instance. It
 // returns the source names in the second slice to allow the client to trigger manual
 // lookups on missing sources.
-func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardinality) (util.HashedTags, []string) {
+func (s *TagStore) LookupHashed(entity string, cardinality collectors.TagCardinality) (tagset.HashedTags, []string) {
 	s.RLock()
 	defer s.RUnlock()
 	storedTags, present := s.store[entity]
 
 	if present == false {
-		return util.HashedTags{}, nil
+		return tagset.HashedTags{}, nil
 	}
 	return storedTags.getHashedTags(cardinality)
 }
@@ -362,7 +362,7 @@ func (e *EntityTags) get(cardinality collectors.TagCardinality) ([]string, []str
 	return tags.Get(), sources
 }
 
-func (e *EntityTags) getHashedTags(cardinality collectors.TagCardinality) (util.HashedTags, []string) {
+func (e *EntityTags) getHashedTags(cardinality collectors.TagCardinality) (tagset.HashedTags, []string) {
 	e.computeCache()
 
 	if cardinality == collectors.HighCardinality {
@@ -463,7 +463,7 @@ func (e *EntityTags) computeCache() {
 	tags := append(lowCardTags, orchestratorCardTags...)
 	tags = append(tags, highCardTags...)
 
-	cached := util.NewHashedTagsFromSlice(tags)
+	cached := tagset.NewHashedTagsFromSlice(tags)
 
 	// Write cache
 	e.cacheValid = true

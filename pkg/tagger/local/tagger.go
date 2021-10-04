@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
@@ -254,10 +254,10 @@ func (t *Tagger) Stop() error {
 }
 
 // getTags returns a read only list of tags for a given entity.
-func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) (util.HashedTags, error) {
+func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) (tagset.HashedTags, error) {
 	if entity == "" {
 		telemetry.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
-		return util.HashedTags{}, fmt.Errorf("empty entity ID")
+		return tagset.HashedTags{}, fmt.Errorf("empty entity ID")
 	}
 
 	cachedTags, sources := t.store.LookupHashed(entity, cardinality)

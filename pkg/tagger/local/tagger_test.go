@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
@@ -131,7 +131,7 @@ func TestTagBuilder(t *testing.T) {
 		},
 	})
 
-	tb := util.NewTagsBuilder()
+	tb := tagset.NewTagsBuilder()
 	err := tagger.TagBuilder("entity_name", collectors.HighCardinality, tb)
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []string{"high", "low1", "low2"}, tb.Get())
