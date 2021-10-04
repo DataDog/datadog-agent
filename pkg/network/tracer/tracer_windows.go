@@ -104,16 +104,12 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.connLock.Lock()
 	defer t.connLock.Unlock()
 
-	t.activeBuffer.Reset()
-	t.closedBuffer.Reset()
-
 	_, _, err := t.driverInterface.GetConnectionStats(t.activeBuffer, t.closedBuffer, func(c *network.ConnectionStats) bool {
 		return !t.shouldSkipConnection(c)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections from driver: %w", err)
 	}
-
 	activeConnStats := t.activeBuffer.Connections()
 	closedConnStats := t.closedBuffer.Connections()
 
@@ -122,7 +118,11 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	t.state.StoreClosedConnections(closedConnStats)
 	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
-	var ips []util.Address
+
+	t.activeBuffer.Reset()
+	t.closedBuffer.Reset()
+
+	ips := make([]util.Address, 0, len(delta.Conns)*2)
 	for _, conn := range delta.Conns {
 		ips = append(ips, conn.Source, conn.Dest)
 	}
@@ -159,4 +159,9 @@ func (t *Tracer) DebugNetworkState(_ string) (map[string]interface{}, error) {
 // DebugNetworkMaps returns all connections stored in the maps without modifications from network state
 func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 	return nil, ebpf.ErrNotImplemented
+}
+
+// DebugEBPFMaps is not implemented on this OS for Tracer
+func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
+	return "", ebpf.ErrNotImplemented
 }

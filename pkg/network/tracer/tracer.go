@@ -305,10 +305,10 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.storeClosedConnections(closedConns.Buffer.Connections())
 
 	latestTime, err := t.getConnections(t.activeBuffer)
-	active := t.activeBuffer.Connections()
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
+	active := t.activeBuffer.Connections()
 
 	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
 	t.activeBuffer.Reset()
@@ -575,6 +575,23 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 		},
 	}, nil
 
+}
+
+// DebugEBPFMaps returns all maps registred in the eBPF manager
+func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
+	tracerMaps, err := t.ebpfTracer.DumpMaps(maps...)
+	if err != nil {
+		return "", err
+	}
+	if t.httpMonitor == nil {
+		return "tracer:\n" + tracerMaps, nil
+	}
+
+	httpMaps, err := t.httpMonitor.DumpMaps(maps...)
+	if err != nil {
+		return "", err
+	}
+	return "tracer:\n" + tracerMaps + "\nhttp_monitor:\n" + httpMaps, nil
 }
 
 // connectionExpired returns true if the passed in connection has expired
