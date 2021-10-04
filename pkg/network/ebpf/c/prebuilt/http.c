@@ -70,10 +70,15 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
 static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgid) {
     ssl_sock_t *ssl_sock = bpf_map_lookup_elem(&ssl_sock_by_ctx, &ssl_ctx);
     if (ssl_sock == NULL) {
+        log_debug("CANONICAL-GNUTLS-DEBUG-LINE tup_from_ssl_ctx ssl_ctx=0x%llx pid_tgid=%llu\n", ssl_ctx, pid_tgid);
+        log_debug("CANONICAL-GNUTLS-DEBUG-LINE                  > no element in ssl_sock_by_ctx\n");
         return NULL;
     }
 
     if (ssl_sock->tup.sport != 0 && ssl_sock->tup.dport != 0) {
+        log_debug("CANONICAL-GNUTLS-DEBUG-LINE tup_from_ssl_ctx ssl_ctx=0x%llx pid_tgid=%llu\n", ssl_ctx, pid_tgid);
+        log_debug("CANONICAL-GNUTLS-DEBUG-LINE tup_from_ssl_ctx sport=%u dport=%u\n", ssl_sock->tup.sport, ssl_sock->tup.dport);
+        log_debug("CANONICAL-GNUTLS-DEBUG-LINE                  > got conn tuple; already initialized\n");
         return &ssl_sock->tup;
     }
 
@@ -85,11 +90,15 @@ static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgi
 
     struct sock **sock = bpf_map_lookup_elem(&sock_by_pid_fd, &pid_fd);
     if (sock == NULL)  {
+        log_debug("CANONICAL-GNUTLS-DEBUG-LINE tup_from_ssl_ctx ssl_ctx=0x%llx pid_tgid=%llu fd=%lu\n", ssl_ctx, pid_tgid, ssl_sock->fd);
+        log_debug("CANONICAL-GNUTLS-DEBUG-LINE                  > no element in sock_by_pid_fd\n");
         return NULL;
     }
 
     conn_tuple_t t;
     if (!read_conn_tuple(&t, *sock, pid_tgid, CONN_TYPE_TCP)) {
+        log_debug("CANONICAL-GNUTLS-DEBUG-LINE tup_from_ssl_ctx ssl_ctx=0x%llx pid_tgid=%llu fd=%lu\n", ssl_ctx, pid_tgid, ssl_sock->fd);
+        log_debug("CANONICAL-GNUTLS-DEBUG-LINE                  > could not read conn tuple from sock\n");
         return NULL;
     }
     __builtin_memcpy(&ssl_sock->tup, &t, sizeof(conn_tuple_t));
@@ -98,12 +107,16 @@ static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgi
         flip_tuple(&ssl_sock->tup);
     }
 
+    log_debug("CANONICAL-GNUTLS-DEBUG-LINE tup_from_ssl_ctx ssl_ctx=0x%llx pid_tgid=%llu fd=%lu\n", ssl_ctx, pid_tgid, ssl_sock->fd);
+    log_debug("CANONICAL-GNUTLS-DEBUG-LINE tup_from_ssl_ctx sport=%u dport=%u\n", ssl_sock->tup.sport, ssl_sock->tup.dport);
+    log_debug("CANONICAL-GNUTLS-DEBUG-LINE                  > finished conn tuple initialization\n");
     return &ssl_sock->tup;
 }
 
 static __always_inline void init_ssl_sock(void *ssl_ctx, u32 socket_fd) {
     ssl_sock_t ssl_sock = { 0 };
     ssl_sock.fd = socket_fd;
+    log_debug("CANONICAL-GNUTLS-DEBUG-LINE init_ssl_sock ssl_ctx=0x%llx socket_fd=%lu\n", ssl_ctx, socket_fd);
     bpf_map_update_elem(&ssl_sock_by_ctx, &ssl_ctx, &ssl_sock, BPF_ANY);
 }
 
