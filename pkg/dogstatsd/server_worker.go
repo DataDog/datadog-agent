@@ -32,15 +32,16 @@ func newWorker(s *Server) *worker {
 		server:    s,
 		batcher:   newBatcher(s.aggregator),
 		parser:    newParser(s.sharedFloat64List),
-		flushChan: make(chan chan struct{}, 1),
+		flushChan: make(chan chan struct{}, 0),
 		samples:   make([]metrics.MetricSample, 0, defaultSampleSize),
 	}
 }
 
 func (w *worker) flush() {
-	// Blocks until any
-	notify := make(chan struct{}, 1)
+	notify := make(chan struct{}, 0)
 	w.flushChan <- notify
+	// Blocks until notify has been received in the run loop, and
+	// returned a value.
 	<-notify
 }
 
