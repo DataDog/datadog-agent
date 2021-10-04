@@ -661,7 +661,7 @@ def generate_runtime_files(ctx):
 
 
 @task
-def generate_cgo_types(ctx, windows=is_windows):
+def generate_cgo_types(ctx, windows=is_windows, replace_absolutes=True):
     if windows:
         platform = "windows"
         def_files = ["./pkg/network/driver/types.go"]
@@ -686,12 +686,13 @@ def generate_cgo_types(ctx, windows=is_windows):
                 )
             )
             ctx.run("gofmt -w -s {output_file}".format(output_file=output_file))
-            # replace absolute path with relative ones in generated file
-            ctx.run("sed -i 's={abs}={rel}=gi' {working_file}".format(
-                abs=absolute_input_file,
-                rel=file,
-                working_file=output_file
-            ))
+            if replace_absolutes:
+                # replace absolute path with relative ones in generated file
+                ctx.run("sed -i 's={abs}={rel}=gi' {working_file}".format(
+                    abs=absolute_input_file,
+                    rel=file,
+                    working_file=output_file
+                ))
 
 
 def is_root():
