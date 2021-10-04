@@ -147,7 +147,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		state:                      state,
 		reverseDNS:                 newReverseDNS(!pre410Kernel, config),
 		httpMonitor:                newHTTPMonitor(!pre410Kernel, config, ebpfTracer, constantEditors),
-		activeBuffer:               network.NewConnectionBuffer(512),
+		activeBuffer:               network.NewConnectionBuffer(512, 256),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:               network.ParseConnectionFilters(config.ExcludedDestinationConnections),
@@ -564,7 +564,7 @@ func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, err
 
 // DebugNetworkMaps returns all connections stored in the BPF maps without modifications from network state
 func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
-	activeBuffer := network.NewConnectionBuffer(512)
+	activeBuffer := network.NewConnectionBuffer(512, 512)
 	_, err := t.getConnections(activeBuffer)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)

@@ -8,10 +8,10 @@ type ConnectionBuffer struct {
 }
 
 // NewConnectionBuffer creates a ConnectionBuffer with initial size `size`.
-func NewConnectionBuffer(size int) *ConnectionBuffer {
+func NewConnectionBuffer(initSize, minSize int) *ConnectionBuffer {
 	return &ConnectionBuffer{
-		buf:           make([]ConnectionStats, size),
-		minBufferSize: size,
+		buf:           make([]ConnectionStats, initSize),
+		minBufferSize: minSize,
 	}
 }
 

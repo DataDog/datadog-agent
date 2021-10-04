@@ -56,7 +56,7 @@ const batchSize = 5
 var batchPool = sync.Pool{
 	New: func() interface{} {
 		return &ClosedBatch{
-			Buffer: network.NewConnectionBuffer(batchSize),
+			Buffer: network.NewConnectionBuffer(batchSize, batchSize),
 		}
 	},
 }
