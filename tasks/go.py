@@ -430,7 +430,7 @@ def generate_protobuf(ctx):
             )
         )
         # mockgen
-        mockgen_in = os.path.join(proto_root, "pbgo")
+        pbgo_dir = os.path.join(proto_root, "pbgo")
         mockgen_out = os.path.join(proto_root, "pbgo", "mocks")
         try:
             os.mkdir(mockgen_out)
@@ -439,9 +439,17 @@ def generate_protobuf(ctx):
 
         ctx.run(
             "mockgen -source={in_path}/api.pb.go -destination={out_path}/api_mockgen.pb.go".format(
-                in_path=mockgen_in, out_path=mockgen_out
+                in_path=pbgo_dir, out_path=mockgen_out
             )
         )
+
+    # generate messagepack marshallers
+    ctx.run(
+        "msgp -file {in_path} -o={out_path}".format(
+            in_path='pkg/proto/pbgo/config.pb.go',
+            out_path='pkg/proto/pbgo/config_gen.go',
+        )
+    )
 
 
 @task

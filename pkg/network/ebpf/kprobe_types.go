@@ -16,6 +16,13 @@ type Conn C.conn_t
 type Batch C.batch_t
 type Telemetry C.telemetry_t
 type PortBinding C.port_binding_t
+type PIDFD C.pid_fd_t
+type UDPRecvSock C.udp_recv_sock_t
+type BindSyscallArgs C.bind_syscall_args_t
+
+// udp_recv_sock_t have *sock and *msghdr struct members, we make them opaque here
+type _Ctype_struct_sock uint64
+type _Ctype_struct_msghdr uint64
 
 type TCPState uint8
 

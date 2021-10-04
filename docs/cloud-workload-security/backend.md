@@ -30,6 +30,9 @@ CWS logs have the following JSON schema:
         "process": {
             "$ref": "#/definitions/ProcessContext"
         },
+        "dd": {
+            "$ref": "#/definitions/DDContext"
+        },
         "container": {
             "$ref": "#/definitions/ContainerContext"
         },
@@ -51,6 +54,7 @@ CWS logs have the following JSON schema:
 | `selinux` | $ref | Please see [SELinuxEvent](#selinuxevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
+| `dd` | $ref | Please see [DDContext](#ddcontext) |
 | `container` | $ref | Please see [ContainerContext](#containercontext) |
 | `date` | string |  |
 
@@ -74,6 +78,33 @@ CWS logs have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `id` | Container ID |
+
+
+## `DDContext`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "span_id": {
+            "type": "integer",
+            "description": "Span ID used for APM correlation"
+        },
+        "trace_id": {
+            "type": "integer",
+            "description": "Trace ID used for APM correlation"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `span_id` | Span ID used for APM correlation |
+| `trace_id` | Trace ID used for APM correlation |
 
 
 ## `EventContext`

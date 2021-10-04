@@ -1,4 +1,4 @@
-//+build linux_bpf
+// +build linux_bpf
 
 package kprobe
 
@@ -101,6 +101,7 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
 	m := newManager(perfHandlerTCP, runtimeTracer)
+	setupDumpHandler(m)
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 	for _, p := range m.Probes {
@@ -187,16 +188,21 @@ func (t *kprobeTracer) GetConnections(active, closed *network.ConnectionBuffer, 
 	// Iterate through all key-value pairs in map
 	key, stats := &netebpf.ConnTuple{}, &netebpf.ConnStats{}
 	seen := make(map[netebpf.ConnTuple]struct{})
+
+	// Cached objects
+	conn := new(network.ConnectionStats)
+	tcp := new(netebpf.TCPStats)
+
 	entries := t.conns.IterateFrom(unsafe.Pointer(&netebpf.ConnTuple{}))
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
-		conn := connStats(key, stats)
-		if filter != nil && !filter(&conn) {
+		populateConnStats(conn, key, stats)
+		if filter != nil && !filter(conn) {
 			continue
 		}
-		if tcpStats := t.getTCPStats(key, seen); tcpStats != nil {
-			updateTCPStats(&conn, tcpStats)
+		if t.getTCPStats(tcp, key, seen) {
+			updateTCPStats(conn, tcp)
 		}
-		*active.Next() = conn
+		*active.Next() = *conn
 	}
 
 	if err := entries.Err(); err != nil {
@@ -277,6 +283,11 @@ func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 	}
 }
 
+// DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
+func (t *kprobeTracer) DumpMaps(maps ...string) (string, error) {
+	return t.m.DumpMaps(maps...)
+}
+
 func initializePortBindingMaps(config *config.Config, m *manager.Manager) error {
 	if tcpPorts, err := network.ReadInitialState(config.ProcRoot, network.TCP, config.CollectIPv6Conns); err != nil {
 		return fmt.Errorf("failed to read initial TCP pid->port mapping: %s", err)
@@ -329,16 +340,16 @@ func updateTCPStats(conn *network.ConnectionStats, tcpStats *netebpf.TCPStats) {
 }
 
 // getTCPStats reads tcp related stats for the given ConnTuple
-func (t *kprobeTracer) getTCPStats(tuple *netebpf.ConnTuple, seen map[netebpf.ConnTuple]struct{}) *netebpf.TCPStats {
+func (t *kprobeTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnTuple, seen map[netebpf.ConnTuple]struct{}) bool {
 	if tuple.Type() != netebpf.TCP {
-		return nil
+		return false
 	}
 
 	// The PID isn't used as a key in the stats map, we will temporarily set it to 0 here and reset it when we're done
 	pid := tuple.Pid
 	tuple.Pid = 0
 
-	stats := new(netebpf.TCPStats)
+	*stats = netebpf.TCPStats{}
 	err := t.tcpStats.Lookup(unsafe.Pointer(tuple), unsafe.Pointer(stats))
 	if err == nil {
 		// This is required to avoid (over)reporting retransmits for connections sharing the same socket.
@@ -351,11 +362,11 @@ func (t *kprobeTracer) getTCPStats(tuple *netebpf.ConnTuple, seen map[netebpf.Co
 	}
 
 	tuple.Pid = pid
-	return stats
+	return true
 }
 
-func connStats(t *netebpf.ConnTuple, s *netebpf.ConnStats) network.ConnectionStats {
-	stats := network.ConnectionStats{
+func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats) {
+	*stats = network.ConnectionStats{
 		Pid:                  t.Pid,
 		NetNS:                t.Netns,
 		Source:               t.SourceAddress(),
@@ -392,6 +403,4 @@ func connStats(t *netebpf.ConnTuple, s *netebpf.ConnStats) network.ConnectionSta
 	default:
 		stats.Direction = network.OUTGOING
 	}
-
-	return stats
 }

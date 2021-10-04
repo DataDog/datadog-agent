@@ -242,10 +242,11 @@ func TestUtilizationTrackerAccuracy(t *testing.T) {
 		idleDuration := time.Duration(totalMs-runtimeMs) * time.Millisecond
 		clk.Add(idleDuration)
 
-		// Every cycle, we should be getting closer and closer to 0.3. The
-		// function below goes from 0.5 initially to ~0.1 at the end of the
-		// iterator.
-		assert.InDelta(t, getWorkerUtilizationExpvar(t, "worker"), 0.3, 0.1)
+		// Due to jitter in the aggregation of random data points, we wait a few
+		// collection intervals before comparing the values.
+		if checkIdx > 5 {
+			require.InDelta(t, getWorkerUtilizationExpvar(t, "worker"), 0.3, 0.1)
+		}
 	}
 
 	// Assert after many data points that we're really close to 0.3

@@ -116,6 +116,41 @@ func TestSendProcMessage(t *testing.T) {
 	})
 }
 
+func TestSendProcessDiscoveryMessage(t *testing.T) {
+	m := &process.CollectorProcDiscovery{
+		HostName:  testHostName,
+		GroupId:   1,
+		GroupSize: 1,
+		ProcessDiscoveries: []*process.ProcessDiscovery{
+			{Pid: 1, NsPid: 2, CreateTime: time.Now().Unix()},
+		},
+	}
+
+	check := &testCheck{
+		name: checks.ProcessDiscovery.Name(),
+		data: [][]process.MessageBody{{m}},
+	}
+
+	runCollectorTest(t, check, config.NewDefaultAgentConfig(false), &endpointConfig{}, func(cfg *config.AgentConfig, ep *mockEndpoint) {
+		req := <-ep.Requests
+
+		assert.Equal(t, "/api/v1/discovery", req.uri)
+
+		assert.Equal(t, cfg.HostName, req.headers.Get(headers.HostHeader))
+		assert.Equal(t, cfg.APIEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
+		assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
+		assert.Equal(t, "1", req.headers.Get("X-DD-Agent-Attempts"))
+		assert.NotEmpty(t, req.headers.Get(headers.TimestampHeader))
+
+		reqBody, err := process.DecodeMessage(req.body)
+		require.NoError(t, err)
+
+		b, ok := reqBody.Body.(*process.CollectorProcDiscovery)
+		require.True(t, ok)
+		assert.Equal(t, m, b)
+	})
+}
+
 func TestSendProcMessageWithRetry(t *testing.T) {
 	m := &process.CollectorProc{
 		HostName: testHostName,
@@ -418,6 +453,7 @@ func newMockEndpoint(t *testing.T, config *endpointConfig) *mockEndpoint {
 	collectorMux.HandleFunc("/api/v1/validate", m.handleValidate)
 	collectorMux.HandleFunc("/api/v1/collector", m.handle)
 	collectorMux.HandleFunc("/api/v1/container", m.handle)
+	collectorMux.HandleFunc("/api/v1/discovery", m.handle)
 
 	orchestratorMux := http.NewServeMux()
 	orchestratorMux.HandleFunc("/api/v1/validate", m.handleValidate)

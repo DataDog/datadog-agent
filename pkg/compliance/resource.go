@@ -34,8 +34,8 @@ const (
 	KindCustom = ResourceKind("custom")
 )
 
-// Resource describes supported resource types observed by a Rule
-type Resource struct {
+// ResourceCommon describes the base fields of resource types
+type ResourceCommon struct {
 	File          *File               `yaml:"file,omitempty"`
 	Process       *Process            `yaml:"process,omitempty"`
 	Group         *Group              `yaml:"group,omitempty"`
@@ -44,12 +44,23 @@ type Resource struct {
 	Docker        *DockerResource     `yaml:"docker,omitempty"`
 	KubeApiserver *KubernetesResource `yaml:"kubeApiserver,omitempty"`
 	Custom        *Custom             `yaml:"custom,omitempty"`
-	Condition     string              `yaml:"condition"`
-	Fallback      *Fallback           `yaml:"fallback,omitempty"`
+}
+
+// Resource describes supported resource types observed by a Rule
+type Resource struct {
+	ResourceCommon `yaml:",inline"`
+	Condition      string    `yaml:"condition"`
+	Fallback       *Fallback `yaml:"fallback,omitempty"`
+}
+
+// RegoResource describes supported resource types observed by a Rego Rule
+type RegoResource struct {
+	ResourceCommon `yaml:",inline"`
+	TagName        string `yaml:"tag"`
 }
 
 // Kind returns ResourceKind of the resource
-func (r *Resource) Kind() ResourceKind {
+func (r *ResourceCommon) Kind() ResourceKind {
 	switch {
 	case r.File != nil:
 		return KindFile
@@ -80,10 +91,12 @@ type Fallback struct {
 
 // Fields & functions available for File
 const (
+	FileFieldGlob        = "file.glob"
 	FileFieldPath        = "file.path"
 	FileFieldPermissions = "file.permissions"
 	FileFieldUser        = "file.user"
 	FileFieldGroup       = "file.group"
+	FileFieldContent     = "file.content"
 
 	FileFuncJQ     = "file.jq"
 	FileFuncYAML   = "file.yaml"
@@ -100,6 +113,7 @@ const (
 	ProcessFieldName    = "process.name"
 	ProcessFieldExe     = "process.exe"
 	ProcessFieldCmdLine = "process.cmdLine"
+	ProcessFieldFlags   = "process.flags"
 
 	ProcessFuncFlag    = "process.flag"
 	ProcessFuncHasFlag = "process.hasFlag"
@@ -117,6 +131,7 @@ const (
 	KubeResourceFieldVersion   = "kube.resource.version"
 	KubeResourceFieldNamespace = "kube.resource.namespace"
 	KubeResourceFieldKind      = "kube.resource.kind"
+	KubeResourceFieldResource  = "kube.resource.resource"
 
 	KubeResourceFuncJQ = "kube.resource.jq"
 )
@@ -228,13 +243,18 @@ func (a *Audit) Validate() error {
 const (
 	DockerImageFieldID   = "image.id"
 	DockerImageFieldTags = "image.tags"
+	DockerImageInspect   = "image.inspect"
 
 	DockerContainerFieldID    = "container.id"
 	DockerContainerFieldName  = "container.name"
 	DockerContainerFieldImage = "container.image"
+	DockerContainerInspect    = "container.inspect"
 
-	DockerNetworkFieldID   = "network.id"
-	DockerNetworkFieldName = "network.name"
+	DockerNetworkFieldID      = "network.id"
+	DockerNetworkFieldName    = "network.name"
+	DockerNetworkFieldInspect = "network.inspect"
+
+	DockerInfoInspect = "info.inspect"
 
 	DockerVersionFieldVersion       = "docker.version"
 	DockerVersionFieldAPIVersion    = "docker.apiVersion"

@@ -426,6 +426,8 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 				updateRTStatus = false
 				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
 			case checks.ProcessDiscovery.Name():
+				// A Process Discovery check does not change the RT mode
+				updateRTStatus = false
 				responses, err = fwd.SubmitProcessDiscoveryChecks(forwarderPayload, payload.headers)
 			default:
 				err = fmt.Errorf("unsupported payload type: %s", result.name)

@@ -68,6 +68,7 @@ github.com/spf13/cobra: Steve Francia <spf@spf13.com>
 github.com/xeipuuv/gojsonpointer: xeipuuv ( https://github.com/xeipuuv )
 github.com/xeipuuv/gojsonreference: xeipuuv ( https://github.com/xeipuuv )
 github.com/xeipuuv/gojsonschema: xeipuuv ( https://github.com/xeipuuv )
+github.com/open-policy-agent/opa: The OPA Authors
 
 # These have large AUTHORS/CONTRIBUTORS files but attribute copyright as a group
 github.com/aptly-dev/aptly: aptly authors
@@ -90,3 +91,6 @@ github.com/spf13/afero: The Authors
 github.com/vito/go-sse/sse: The Authors
 github.com/wille/osutil: wille
 gomodules.xyz/jsonpatch: The Authors
+github.com/bytecodealliance/wasmtime-go: Bytecode Alliance
+github.com/OneOfOne/xxhash: OneOfOne (https://github.com/OneOfOne)
+github.com/yashtewari/glob-intersection: yashtewari (https://github.com/yashtewari)

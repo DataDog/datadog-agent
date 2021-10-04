@@ -1131,7 +1131,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
 
     milestone = github.get_milestone_by_name(milestone_name)
 
-    if not milestone or not milestone["number"]:
+    if not milestone or not milestone.get("number"):
         raise Exit(
             color_message(
                 """Could not find milestone {} in the Github repository. Response: {}
@@ -1208,7 +1208,7 @@ Make sure that milestone is open before trying again.""".format(
         target_branch=update_branch,
     )
 
-    if not pr or not pr["number"]:
+    if not pr or not pr.get("number"):
         raise Exit(
             color_message("Could not create PR in the Github repository. Response: {}".format(pr), "red"),
             code=1,
@@ -1224,7 +1224,7 @@ Make sure that milestone is open before trying again.""".format(
         labels=["changelog/no-changelog", "team/agent-platform", "team/agent-core"],
     )
 
-    if not updated_pr or not updated_pr["number"]:
+    if not updated_pr or not updated_pr.get("number") or not updated_pr.get("html_url"):
         raise Exit(
             color_message("Could not update PR in the Github repository. Response: {}".format(updated_pr), "red"),
             code=1,
