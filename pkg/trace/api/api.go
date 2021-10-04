@@ -223,7 +223,7 @@ func (r *HTTPReceiver) attachDebugHandlers(mux *http.ServeMux) {
 			rate = n
 		}
 		runtime.SetBlockProfileRate(rate)
-		w.Write([]byte(fmt.Sprintf("Block profile rate set to %d. It will automatically be disabled again after calling /debug/pprof/block\n", rate)))
+		fmt.Fprintf(w, "Block profile rate set to %d. It will automatically be disabled again after calling /debug/pprof/block\n", rate)
 	})
 
 	mux.HandleFunc("/debug/pprof/block", func(w http.ResponseWriter, r *http.Request) {
