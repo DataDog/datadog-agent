@@ -681,18 +681,16 @@ def generate_cgo_types(ctx, windows=is_windows, replace_absolutes=True):
         with ctx.cd(fdir):
             output_file = "{base}_{platform}.go".format(base=base, platform=platform)
             ctx.run(
-                "go tool cgo -godefs -- -fsigned-char {file} > {output_file}".format(
-                    file=file, output_file=output_file
-                )
+                "go tool cgo -godefs -- -fsigned-char {file} > {output_file}".format(file=file, output_file=output_file)
             )
             ctx.run("gofmt -w -s {output_file}".format(output_file=output_file))
             if replace_absolutes:
                 # replace absolute path with relative ones in generated file
-                ctx.run("sed -i 's={abs}={rel}=gi' {working_file}".format(
-                    abs=absolute_input_file,
-                    rel=file,
-                    working_file=output_file
-                ))
+                ctx.run(
+                    "sed -i 's={abs}={rel}=gi' {working_file}".format(
+                        abs=absolute_input_file, rel=file, working_file=output_file
+                    )
+                )
 
 
 def is_root():
