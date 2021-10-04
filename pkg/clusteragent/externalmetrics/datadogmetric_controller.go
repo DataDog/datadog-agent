@@ -219,14 +219,18 @@ func (c *DatadogMetricController) processDatadogMetric(key interface{}) error {
 }
 
 // Synchronize DatadogMetric state between internal store and Kubernetes objects
+// Make sure any `return` has the proper store Unlock
 func (c *DatadogMetricController) syncDatadogMetric(ns, name, datadogMetricKey string, datadogMetric *datadoghq.DatadogMetric) error {
 	datadogMetricInternal := c.store.LockRead(datadogMetricKey, true)
 	if datadogMetricInternal == nil {
 		if datadogMetric != nil {
 			// If we don't have an instance locally, we trust Kubernetes and store it locally
 			c.store.UnlockSet(datadogMetricKey, model.NewDatadogMetricInternal(datadogMetricKey, *datadogMetric), ddmControllerStoreID)
+		} else {
+			// If datadogMetric == nil, both objects are nil, nothing to do
+			c.store.Unlock(datadogMetricKey)
 		}
-		// If datadogMetric == nil, both objects are nil, nothing to do
+
 		return nil
 	}
 

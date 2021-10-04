@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -198,7 +199,7 @@ func (a *Agent) Process(p *api.Payload) {
 		atomic.AddInt64(&ts.SpansReceived, tracen)
 		err := normalizeTrace(p.Source, t)
 		if err != nil {
-			log.Debug("Dropping invalid trace: %s", err)
+			log.Debugf("Dropping invalid trace: %s", err)
 			atomic.AddInt64(&ts.SpansDropped, tracen)
 			continue
 		}
@@ -207,7 +208,7 @@ func (a *Agent) Process(p *api.Payload) {
 		root := traceutil.GetRoot(t)
 
 		if !a.Blacklister.Allows(root) {
-			log.Debugf("Trace rejected by blacklister. root: %v", root)
+			log.Debugf("Trace rejected by ignore resources rules. root: %v", root)
 			atomic.AddInt64(&ts.TracesFiltered, 1)
 			atomic.AddInt64(&ts.SpansFiltered, tracen)
 			continue
@@ -295,7 +296,7 @@ func (a *Agent) Process(p *api.Payload) {
 	}
 	if len(envtraces) > 0 {
 		in := stats.Input{Traces: envtraces}
-		if !features.Has("disable_cid_stats") && a.conf.IsFargate {
+		if !features.Has("disable_cid_stats") && a.conf.FargateOrchestrator != fargate.Unknown {
 			// only allow the ContainerID stats dimension if we're in a Fargate instance
 			// and it's not prohibited by the disable_cid_stats feature flag.
 			in.ContainerID = p.ContainerID
@@ -307,7 +308,7 @@ func (a *Agent) Process(p *api.Payload) {
 var _ api.StatsProcessor = (*Agent)(nil)
 
 func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion string) pb.ClientStatsPayload {
-	if features.Has("disable_cid_stats") || !a.conf.IsFargate {
+	if features.Has("disable_cid_stats") || a.conf.FargateOrchestrator == fargate.Unknown {
 		// this functionality is disabled by the disable_cid_stats feature flag
 		// or we're not in a Fargate instance.
 		in.ContainerID = ""
@@ -364,20 +365,11 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 func (a *Agent) sample(ts *info.TagStats, pt ProcessedTrace) (events []*pb.Span, keep bool) {
 	priority, hasPriority := sampler.GetSamplingPriority(pt.Root)
 
-	// Depending on the sampling priority, count that trace differently.
-	stat := &ts.TracesPriorityNone
 	if hasPriority {
-		if priority < 0 {
-			stat = &ts.TracesPriorityNeg
-		} else if priority == 0 {
-			stat = &ts.TracesPriority0
-		} else if priority == 1 {
-			stat = &ts.TracesPriority1
-		} else {
-			stat = &ts.TracesPriority2
-		}
+		ts.TracesPerSamplingPriority.CountSamplingPriority(priority)
+	} else {
+		atomic.AddInt64(&ts.TracesPriorityNone, 1)
 	}
-	atomic.AddInt64(stat, 1)
 
 	if priority < 0 {
 		return nil, false

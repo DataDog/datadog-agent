@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -105,6 +104,10 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
+	// Reset the `server_timeout` deadline for this connection as creating a flare can take some time
+	conn := GetConnection(r)
+	_ = conn.SetDeadline(time.Time{})
 
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
@@ -230,11 +233,9 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Reset the `server_timeout` deadline for this connection as streaming holds the connection open.
 	conn := GetConnection(r)
-
-	// Override the default server timeouts so the connection never times out
 	_ = conn.SetDeadline(time.Time{})
-	_ = conn.SetWriteDeadline(time.Time{})
 
 	done := make(chan struct{})
 	defer close(done)
@@ -347,11 +348,7 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	configs := common.AC.GetLoadedConfigs()
-	configSlice := make([]integration.Config, 0)
-	for _, config := range configs {
-		configSlice = append(configSlice, config)
-	}
+	configSlice := common.AC.LoadedConfigs()
 	sort.Slice(configSlice, func(i, j int) bool {
 		return configSlice[i].Name < configSlice[j].Name
 	})

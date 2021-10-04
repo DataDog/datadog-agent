@@ -85,6 +85,7 @@ func GetStatus() (map[string]interface{}, error) {
 	}
 
 	if config.IsContainerized() {
+		stats["adEnabledFeatures"] = config.GetDetectedFeatures()
 		if common.AC != nil {
 			stats["adConfigErrors"] = common.AC.GetAutodiscoveryErrors()
 		}
@@ -335,7 +336,7 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	stats["aggregatorStats"] = aggregatorStats
 	s, err := check.TranslateEventPlatformEventTypes(stats["aggregatorStats"])
 	if err != nil {
-		log.Debug("failed to translate event platform event types in aggregatorStats: %s", err.Error())
+		log.Debugf("failed to translate event platform event types in aggregatorStats: %s", err.Error())
 	} else {
 		stats["aggregatorStats"] = s
 	}

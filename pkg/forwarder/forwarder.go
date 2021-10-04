@@ -23,29 +23,6 @@ import (
 )
 
 const (
-	// PayloadTypePod is the name of the pod payload type
-	PayloadTypePod = "pod"
-	// PayloadTypeDeployment is the name of the deployment payload type
-	PayloadTypeDeployment = "deployment"
-	// PayloadTypeReplicaSet is the name of the replica set payload type
-	PayloadTypeReplicaSet = "replicaset"
-	// PayloadTypeService is the name of the service payload type
-	PayloadTypeService = "service"
-	// PayloadTypeNode is the name of the node payload type
-	PayloadTypeNode = "node"
-	// PayloadTypeCluster is the name of the cluster payload type
-	PayloadTypeCluster = "cluster"
-	// PayloadTypeJob is the name of the job payload type
-	PayloadTypeJob = "job"
-	// PayloadTypeCronJob is the name of the cronjob payload type
-	PayloadTypeCronJob = "cronjob"
-	// PayloadTypeDaemonSet is the name of the daemonset payload type
-	PayloadTypeDaemonSet = "daemonset"
-	// PayloadTypeStatefulSet is the name of the statefulset payload type
-	PayloadTypeStatefulSet = "statefulset"
-)
-
-const (
 	// Stopped represent the internal state of an unstarted Forwarder.
 	Stopped uint32 = iota
 	// Started represent the internal state of an started Forwarder.
@@ -82,7 +59,6 @@ type Forwarder interface {
 	SubmitV1Series(payload Payloads, extra http.Header) error
 	SubmitV1Intake(payload Payloads, extra http.Header) error
 	SubmitV1CheckRuns(payload Payloads, extra http.Header) error
-	SubmitSeries(payload Payloads, extra http.Header) error
 	SubmitEvents(payload Payloads, extra http.Header) error
 	SubmitServiceChecks(payload Payloads, extra http.Header) error
 	SubmitSketchSeries(payload Payloads, extra http.Header) error
@@ -90,11 +66,12 @@ type Forwarder interface {
 	SubmitAgentChecksMetadata(payload Payloads, extra http.Header) error
 	SubmitMetadata(payload Payloads, extra http.Header) error
 	SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error)
+	SubmitProcessDiscoveryChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error)
 	SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error)
-	SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error)
+	SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error)
 }
 
 // Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
@@ -442,17 +419,9 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 	}
 
 	for _, t := range transactions {
-		if err := f.domainForwarders[t.Domain].sendHTTPTransactions(t); err != nil {
-			log.Errorf(err.Error())
-		}
+		f.domainForwarders[t.Domain].sendHTTPTransactions(t)
 	}
 	return nil
-}
-
-// SubmitSeries will send a series type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(seriesEndpoint, payload, false, extra)
-	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitEvents will send an event type payload to Datadog backend.
@@ -536,6 +505,11 @@ func (f *DefaultForwarder) SubmitProcessChecks(payload Payloads, extra http.Head
 	return f.submitProcessLikePayload(processesEndpoint, payload, extra, true)
 }
 
+// SubmitProcessDiscoveryChecks sends process discovery checks
+func (f *DefaultForwarder) SubmitProcessDiscoveryChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	return f.submitProcessLikePayload(processDiscoveryEndpoint, payload, extra, true)
+}
+
 // SubmitRTProcessChecks sends real time process checks
 func (f *DefaultForwarder) SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
 	return f.submitProcessLikePayload(rtProcessesEndpoint, payload, extra, false)
@@ -557,29 +531,8 @@ func (f *DefaultForwarder) SubmitConnectionChecks(payload Payloads, extra http.H
 }
 
 // SubmitOrchestratorChecks sends orchestrator checks
-func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
-	switch payloadType {
-	case PayloadTypePod:
-		transactionsIntakePod.Add(1)
-	case PayloadTypeDeployment:
-		transactionsIntakeDeployment.Add(1)
-	case PayloadTypeReplicaSet:
-		transactionsIntakeReplicaSet.Add(1)
-	case PayloadTypeService:
-		transactionsIntakeService.Add(1)
-	case PayloadTypeNode:
-		transactionsIntakeNode.Add(1)
-	case PayloadTypeJob:
-		transactionsIntakeJob.Add(1)
-	case PayloadTypeCronJob:
-		transactionsIntakeCronJob.Add(1)
-	case PayloadTypeCluster:
-		transactionsIntakeCluster.Add(1)
-	case PayloadTypeDaemonSet:
-		transactionsIntakeDaemonSet.Add(1)
-	case PayloadTypeStatefulSet:
-		transactionsIntakeStatefulSet.Add(1)
-	}
+func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
+	bumpOrchestratorPayload(payloadType)
 
 	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)
 }

@@ -35,6 +35,7 @@ func resetAggregator() {
 	senderPool = &checkSenderPool{
 		senders: make(map[check.ID]Sender),
 	}
+	tagsetTlm.reset()
 }
 
 type senderWithChans struct {

@@ -98,13 +98,30 @@ instances:
     #
     extra_tags: "%%extra_tags%%"
 
+    ## @param extra_min_collection_interval - string - optional
+    ## Used to pass min collection interval from snmp_listener to integration.
+    #
+    extra_min_collection_interval: "%%extra_min_collection_interval%%"
+
     ## @param oid_batch_size - integer - optional - default: 60
     ## The number of OIDs handled by each batch. Increasing this number improves performance but
     ## uses more resources.
     #
     oid_batch_size: "%%extra_oid_batch_size%%"
 
-    ## @param collect_device_metadata - bool - optional - default: false
+    ## @param collect_device_metadata - bool - optional - default: true
     ## Enable device metadata collection
     #
     collect_device_metadata: "%%extra_collect_device_metadata%%"
+
+    ## @param namespace - string - optional - default: default
+    ## Namespace can be used to disambiguate devices with same IPs.
+    ## Changing namespace will cause devices being recreated in NDM app.
+    #
+    namespace: "%%extra_namespace%%"
+
+    ## @param use_device_id_as_hostname - boolean - optional - default: false
+    ## Use an hash of a device ip address and the namespace as `hostname` for metrics and
+    ## service checks. This enables custom tags. It overrides any `hostname` tag.
+    #
+    use_device_id_as_hostname: "%%extra_use_device_id_as_hostname%%"

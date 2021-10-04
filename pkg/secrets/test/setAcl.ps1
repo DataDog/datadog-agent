@@ -41,9 +41,10 @@ if ($removeLocalSystem -eq $True) {
     }
 }
 
-# adding ACL for ddagentuser
+# adding ACL for current user
 if ($addDDUser -eq $True) {
-    $ddAcl = New-Object  system.security.accesscontrol.filesystemaccessrule("ddagentuser", "FullControl","Allow")
+    $ddCurrentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $ddAcl = New-Object  system.security.accesscontrol.filesystemaccessrule($ddCurrentUser, "FullControl","Allow")
     $acl.SetAccessRule($ddAcl)
 }
 

@@ -67,13 +67,10 @@ func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 		m := message.NewMessage([]byte("a"), nil, "", 0)
 		input <- m
 
-		// it should have flushed in this time
-		<-time.After(2 * timerInterval)
-
 		select {
 		case mOut := <-output:
 			assert.EqualValues(t, m, mOut)
-		default:
+		case <-time.After(5 * timerInterval):
 			assert.Fail(t, "the output channel should not be empty")
 		}
 	}

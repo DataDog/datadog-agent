@@ -48,7 +48,6 @@ from .go import (
     vet,
 )
 from .test import (
-    check_gitlab_broken_dependencies,
     e2e_tests,
     install_shellcheck,
     install_tools,
@@ -58,8 +57,6 @@ from .test import (
     lint_python,
     lint_releasenote,
     lint_teamassignment,
-    make_kitchen_gitlab_yml,
-    make_simple_gitlab_yml,
     test,
 )
 
@@ -87,9 +84,6 @@ ns.add_task(lint_filenames)
 ns.add_task(lint_python)
 ns.add_task(audit_tag_impact)
 ns.add_task(e2e_tests)
-ns.add_task(make_kitchen_gitlab_yml)
-ns.add_task(make_simple_gitlab_yml)
-ns.add_task(check_gitlab_broken_dependencies)
 ns.add_task(generate)
 ns.add_task(install_shellcheck)
 ns.add_task(install_tools)

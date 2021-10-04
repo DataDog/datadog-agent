@@ -3,6 +3,7 @@ package util
 import (
 	"encoding/binary"
 	"net"
+	"sync"
 )
 
 // Address is an IP abstraction that is family (v4/v6) agnostic
@@ -32,8 +33,24 @@ func AddressFromString(ip string) Address {
 }
 
 // NetIPFromAddress returns a net.IP from an Address
-func NetIPFromAddress(addr Address) net.IP {
-	return net.IP(addr.Bytes())
+func NetIPFromAddress(addr Address, buf []byte) net.IP {
+	var addrLen int
+	switch addr.(type) {
+	case v4Address:
+		addrLen = 4
+	case v6Address:
+		addrLen = 16
+	default:
+		return nil
+	}
+
+	if len(buf) < addrLen {
+		// if the function is misused we allocate
+		buf = make([]byte, addrLen)
+	}
+
+	n := addr.WriteTo(buf)
+	return net.IP(buf[:n])
 }
 
 // ToLowHigh converts an address into a pair of uint64 numbers
@@ -126,4 +143,11 @@ func (a v6Address) String() string {
 // IsLoopback returns true if this address is the loopback address
 func (a v6Address) IsLoopback() bool {
 	return net.IP(a[:]).IsLoopback()
+}
+
+// IPBufferPool is meant to be used in conjunction with `NetIPFromAddress`
+var IPBufferPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, net.IPv6len)
+	},
 }

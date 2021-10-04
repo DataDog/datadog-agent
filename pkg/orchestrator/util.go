@@ -35,21 +35,20 @@ const (
 	K8sDaemonSet
 	// K8sStatefulSet represents a Kubernetes StatefulSet
 	K8sStatefulSet
-)
-
-var (
-	telemetryTags = map[NodeType][]string{
-		K8sCluster:     getTelemetryTags(K8sCluster),
-		K8sCronJob:     getTelemetryTags(K8sCronJob),
-		K8sDeployment:  getTelemetryTags(K8sDeployment),
-		K8sJob:         getTelemetryTags(K8sJob),
-		K8sNode:        getTelemetryTags(K8sNode),
-		K8sPod:         getTelemetryTags(K8sPod),
-		K8sReplicaSet:  getTelemetryTags(K8sReplicaSet),
-		K8sService:     getTelemetryTags(K8sService),
-		K8sDaemonSet:   getTelemetryTags(K8sDaemonSet),
-		K8sStatefulSet: getTelemetryTags(K8sStatefulSet),
-	}
+	// K8sPersistentVolume represents a Kubernetes PersistentVolume
+	K8sPersistentVolume
+	// K8sPersistentVolumeClaim represents a Kubernetes PersistentVolumeClaim
+	K8sPersistentVolumeClaim
+	// K8sRole represents a Kubernetes Role
+	K8sRole
+	// K8sRoleBinding represents a Kubernetes RoleBinding
+	K8sRoleBinding
+	// K8sClusterRole represents a Kubernetes ClusterRole
+	K8sClusterRole
+	// K8sClusterRoleBinding represents a Kubernetes ClusterRoleBinding
+	K8sClusterRoleBinding
+	// K8sServiceAccount represents a Kubernetes ServiceAccount
+	K8sServiceAccount
 )
 
 // NodeTypes returns the current existing NodesTypes as a slice to iterate over.
@@ -65,6 +64,13 @@ func NodeTypes() []NodeType {
 		K8sReplicaSet,
 		K8sService,
 		K8sStatefulSet,
+		K8sPersistentVolumeClaim,
+		K8sPersistentVolume,
+		K8sRole,
+		K8sRoleBinding,
+		K8sClusterRole,
+		K8sClusterRoleBinding,
+		K8sServiceAccount,
 	}
 }
 
@@ -90,6 +96,20 @@ func (n NodeType) String() string {
 		return "Service"
 	case K8sStatefulSet:
 		return "StatefulSet"
+	case K8sPersistentVolume:
+		return "PersistentVolume"
+	case K8sPersistentVolumeClaim:
+		return "PersistentVolumeClaim"
+	case K8sRole:
+		return "Role"
+	case K8sRoleBinding:
+		return "RoleBinding"
+	case K8sClusterRole:
+		return "ClusterRole"
+	case K8sClusterRoleBinding:
+		return "ClusterRoleBinding"
+	case K8sServiceAccount:
+		return "ServiceAccount"
 	default:
 		log.Errorf("Trying to convert unknown NodeType iota: %d", n)
 		return "Unknown"
@@ -99,8 +119,23 @@ func (n NodeType) String() string {
 // Orchestrator returns the orchestrator name for a node type.
 func (n NodeType) Orchestrator() string {
 	switch n {
-	case K8sCluster, K8sCronJob, K8sDeployment, K8sDaemonSet, K8sJob,
-		K8sNode, K8sPod, K8sReplicaSet, K8sService, K8sStatefulSet:
+	case K8sCluster,
+		K8sCronJob,
+		K8sDeployment,
+		K8sDaemonSet,
+		K8sJob,
+		K8sNode,
+		K8sPod,
+		K8sReplicaSet,
+		K8sService,
+		K8sStatefulSet,
+		K8sPersistentVolume,
+		K8sPersistentVolumeClaim,
+		K8sRole,
+		K8sRoleBinding,
+		K8sClusterRole,
+		K8sClusterRoleBinding,
+		K8sServiceAccount:
 		return "k8s"
 	default:
 		log.Errorf("Unknown NodeType %v", n)
@@ -110,11 +145,11 @@ func (n NodeType) Orchestrator() string {
 
 // TelemetryTags return tags used for telemetry.
 func (n NodeType) TelemetryTags() []string {
-	tags, ok := telemetryTags[n]
-	if !ok {
+	if n.String() == "" {
 		log.Errorf("Unknown NodeType %v", n)
 		return []string{"unknown", "unknown"}
 	}
+	tags := getTelemetryTags(n)
 	return tags
 }
 

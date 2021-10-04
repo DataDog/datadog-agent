@@ -12,19 +12,21 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/process"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/orchestrator"
+	orchutil "github.com/DataDog/datadog-agent/pkg/util/orchestrator"
 
 	v1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 func extractDeployment(d *v1.Deployment) *model.Deployment {
 	deploy := model.Deployment{
-		Metadata: orchestrator.ExtractMetadata(&d.ObjectMeta),
+		Metadata: orchutil.ExtractMetadata(&d.ObjectMeta),
 	}
 	// spec
 	deploy.ReplicasDesired = 1 // default
@@ -58,7 +60,7 @@ func extractDeployment(d *v1.Deployment) *model.Deployment {
 
 func extractJob(j *batchv1.Job) *model.Job {
 	job := model.Job{
-		Metadata: orchestrator.ExtractMetadata(&j.ObjectMeta),
+		Metadata: orchutil.ExtractMetadata(&j.ObjectMeta),
 		Spec:     &model.JobSpec{},
 		Status: &model.JobStatus{
 			Active:           j.Status.Active,
@@ -99,7 +101,7 @@ func extractJob(j *batchv1.Job) *model.Job {
 
 func extractCronJob(cj *batchv1beta1.CronJob) *model.CronJob {
 	cronJob := model.CronJob{
-		Metadata: orchestrator.ExtractMetadata(&cj.ObjectMeta),
+		Metadata: orchutil.ExtractMetadata(&cj.ObjectMeta),
 		Spec: &model.CronJobSpec{
 			ConcurrencyPolicy: string(cj.Spec.ConcurrencyPolicy),
 			Schedule:          cj.Spec.Schedule,
@@ -140,7 +142,7 @@ func extractCronJob(cj *batchv1beta1.CronJob) *model.CronJob {
 
 func extractStatefulSet(sts *v1.StatefulSet) *model.StatefulSet {
 	statefulSet := model.StatefulSet{
-		Metadata: orchestrator.ExtractMetadata(&sts.ObjectMeta),
+		Metadata: orchutil.ExtractMetadata(&sts.ObjectMeta),
 		Spec: &model.StatefulSetSpec{
 			ServiceName:         sts.Spec.ServiceName,
 			PodManagementPolicy: string(sts.Spec.PodManagementPolicy),
@@ -173,7 +175,7 @@ func extractStatefulSet(sts *v1.StatefulSet) *model.StatefulSet {
 
 func extractDaemonSet(ds *v1.DaemonSet) *model.DaemonSet {
 	daemonSet := model.DaemonSet{
-		Metadata: orchestrator.ExtractMetadata(&ds.ObjectMeta),
+		Metadata: orchutil.ExtractMetadata(&ds.ObjectMeta),
 		Spec: &model.DaemonSetSpec{
 			MinReadySeconds: ds.Spec.MinReadySeconds,
 		},
@@ -208,7 +210,7 @@ func extractDaemonSet(ds *v1.DaemonSet) *model.DaemonSet {
 
 func extractReplicaSet(rs *v1.ReplicaSet) *model.ReplicaSet {
 	replicaSet := model.ReplicaSet{
-		Metadata: orchestrator.ExtractMetadata(&rs.ObjectMeta),
+		Metadata: orchutil.ExtractMetadata(&rs.ObjectMeta),
 	}
 	// spec
 	replicaSet.ReplicasDesired = 1 // default
@@ -228,11 +230,110 @@ func extractReplicaSet(rs *v1.ReplicaSet) *model.ReplicaSet {
 	return &replicaSet
 }
 
-// extractServiceMessage returns the protobuf Service message corresponding to
+func extractRole(r *rbacv1.Role) *model.Role {
+	return &model.Role{
+		Metadata: orchestrator.ExtractMetadata(&r.ObjectMeta),
+		Rules:    extractPolicyRules(r.Rules),
+	}
+}
+
+func extractPolicyRules(r []rbacv1.PolicyRule) []*model.PolicyRule {
+	rules := make([]*model.PolicyRule, 0, len(r))
+	for _, rule := range r {
+		rules = append(rules, &model.PolicyRule{
+			ApiGroups:       rule.APIGroups,
+			NonResourceURLs: rule.NonResourceURLs,
+			Resources:       rule.Resources,
+			ResourceNames:   rule.ResourceNames,
+			Verbs:           rule.Verbs,
+		})
+	}
+	return rules
+}
+
+func extractRoleBinding(rb *rbacv1.RoleBinding) *model.RoleBinding {
+	return &model.RoleBinding{
+		Metadata: orchestrator.ExtractMetadata(&rb.ObjectMeta),
+		RoleRef:  extractRoleRef(&rb.RoleRef),
+		Subjects: extractSubjects(rb.Subjects),
+	}
+}
+
+func extractRoleRef(r *rbacv1.RoleRef) *model.TypedLocalObjectReference {
+	return &model.TypedLocalObjectReference{
+		ApiGroup: r.APIGroup,
+		Kind:     r.Kind,
+		Name:     r.Name,
+	}
+}
+
+func extractSubjects(s []rbacv1.Subject) []*model.Subject {
+	subjects := make([]*model.Subject, 0, len(s))
+	for _, subject := range s {
+		subjects = append(subjects, &model.Subject{
+			ApiGroup:  subject.APIGroup,
+			Kind:      subject.Kind,
+			Name:      subject.Name,
+			Namespace: subject.Namespace,
+		})
+	}
+	return subjects
+}
+
+func extractClusterRole(cr *rbacv1.ClusterRole) *model.ClusterRole {
+	clusterRole := &model.ClusterRole{
+		Metadata: orchestrator.ExtractMetadata(&cr.ObjectMeta),
+		Rules:    extractPolicyRules(cr.Rules),
+	}
+	if cr.AggregationRule != nil {
+		for _, rule := range cr.AggregationRule.ClusterRoleSelectors {
+			clusterRole.AggregationRules = append(clusterRole.AggregationRules, extractLabelSelector(&rule)...)
+		}
+	}
+	return clusterRole
+}
+
+func extractClusterRoleBinding(crb *rbacv1.ClusterRoleBinding) *model.ClusterRoleBinding {
+	return &model.ClusterRoleBinding{
+		Metadata: orchestrator.ExtractMetadata(&crb.ObjectMeta),
+		RoleRef:  extractRoleRef(&crb.RoleRef),
+		Subjects: extractSubjects(crb.Subjects),
+	}
+}
+
+func extractServiceAccount(sa *corev1.ServiceAccount) *model.ServiceAccount {
+	serviceAccount := &model.ServiceAccount{
+		Metadata: orchestrator.ExtractMetadata(&sa.ObjectMeta),
+	}
+	if sa.AutomountServiceAccountToken != nil {
+		serviceAccount.AutomountServiceAccountToken = *sa.AutomountServiceAccountToken
+	}
+	// Extract secret references.
+	for _, secret := range sa.Secrets {
+		serviceAccount.Secrets = append(serviceAccount.Secrets, &model.ObjectReference{
+			ApiVersion:      secret.APIVersion,
+			FieldPath:       secret.FieldPath,
+			Kind:            secret.Kind,
+			Name:            secret.Name,
+			Namespace:       secret.Namespace,
+			ResourceVersion: secret.ResourceVersion,
+			Uid:             string(secret.UID),
+		})
+	}
+	// Extract secret references for pulling images.
+	for _, imgPullSecret := range sa.ImagePullSecrets {
+		serviceAccount.ImagePullSecrets = append(serviceAccount.ImagePullSecrets, &model.TypedLocalObjectReference{
+			Name: imgPullSecret.Name,
+		})
+	}
+	return serviceAccount
+}
+
+// extractService returns the protobuf Service message corresponding to
 // a Kubernetes service object.
 func extractService(s *corev1.Service) *model.Service {
 	message := &model.Service{
-		Metadata: orchestrator.ExtractMetadata(&s.ObjectMeta),
+		Metadata: orchutil.ExtractMetadata(&s.ObjectMeta),
 		Spec: &model.ServiceSpec{
 			ExternalIPs:              s.Spec.ExternalIPs,
 			ExternalTrafficPolicy:    string(s.Spec.ExternalTrafficPolicy),
@@ -306,6 +407,219 @@ func extractServiceSelector(ls map[string]string) []*model.LabelSelectorRequirem
 	return labelSelectors
 }
 
+// extractPersistentVolume returns the protobuf Persistent Volume message corresponding to
+// a Kubernetes persistent volume object.
+func extractPersistentVolume(pv *corev1.PersistentVolume) *model.PersistentVolume {
+	message := &model.PersistentVolume{
+		Metadata: orchutil.ExtractMetadata(&pv.ObjectMeta),
+		Spec: &model.PersistentVolumeSpec{
+			Capacity:                      map[string]int64{},
+			PersistentVolumeReclaimPolicy: string(pv.Spec.PersistentVolumeReclaimPolicy),
+			StorageClassName:              pv.Spec.StorageClassName,
+			MountOptions:                  pv.Spec.MountOptions,
+		},
+		Status: &model.PersistentVolumeStatus{
+			Phase:   string(pv.Status.Phase),
+			Message: pv.Status.Message,
+			Reason:  pv.Status.Reason,
+		},
+	}
+
+	if pv.Spec.VolumeMode != nil {
+		message.Spec.VolumeMode = string(*pv.Spec.VolumeMode)
+	}
+
+	modes := pv.Spec.AccessModes
+	if len(modes) > 0 {
+		ams := make([]string, len(modes))
+		for i, mode := range modes {
+			ams[i] = string(mode)
+		}
+		message.Spec.AccessModes = ams
+	}
+
+	claimRef := pv.Spec.ClaimRef
+	if claimRef != nil {
+		message.Spec.ClaimRef = &model.ObjectReference{
+			Kind:            claimRef.Kind,
+			Namespace:       claimRef.Namespace,
+			Name:            claimRef.Name,
+			Uid:             string(claimRef.UID),
+			ApiVersion:      claimRef.APIVersion,
+			ResourceVersion: claimRef.ResourceVersion,
+			FieldPath:       claimRef.FieldPath,
+		}
+	}
+
+	nodeAffinity := pv.Spec.NodeAffinity
+	if nodeAffinity != nil {
+		selectorTerms := make([]*model.NodeSelectorTerm, len(nodeAffinity.Required.NodeSelectorTerms))
+		terms := nodeAffinity.Required.NodeSelectorTerms
+		for i, term := range terms {
+			selectorTerms[i] = &model.NodeSelectorTerm{
+				MatchExpressions: extractPVSelector(term.MatchExpressions),
+				MatchFields:      extractPVSelector(term.MatchFields),
+			}
+		}
+		message.Spec.NodeAffinity = selectorTerms
+	}
+
+	message.Spec.PersistentVolumeType = extractVolumeSource(pv.Spec.PersistentVolumeSource)
+
+	st := pv.Spec.Capacity.Storage()
+	if !st.IsZero() {
+		message.Spec.Capacity[corev1.ResourceStorage.String()] = st.Value()
+	}
+	return message
+}
+
+func extractVolumeSource(volume corev1.PersistentVolumeSource) string {
+	switch {
+	case volume.HostPath != nil:
+		return "HostPath"
+	case volume.GCEPersistentDisk != nil:
+		return "GCEPersistentDisk"
+	case volume.AWSElasticBlockStore != nil:
+		return "AWSElasticBlockStore"
+	case volume.Quobyte != nil:
+		return "Quobyte"
+	case volume.Cinder != nil:
+		return "Cinder"
+	case volume.PhotonPersistentDisk != nil:
+		return "PhotonPersistentDisk"
+	case volume.PortworxVolume != nil:
+		return "PortworxVolume"
+	case volume.ScaleIO != nil:
+		return "ScaleIO"
+	case volume.CephFS != nil:
+		return "CephFS"
+	case volume.StorageOS != nil:
+		return "StorageOS"
+	case volume.FC != nil:
+		return "FC"
+	case volume.AzureFile != nil:
+		return "AzureFile"
+	case volume.FlexVolume != nil:
+		return "FlexVolume"
+	case volume.Flocker != nil:
+		return "Flocker"
+	case volume.CSI != nil:
+		return "CSI"
+	}
+	return "<unknown>"
+}
+
+func extractPVSelector(ls []corev1.NodeSelectorRequirement) []*model.LabelSelectorRequirement {
+	if len(ls) == 0 {
+		return nil
+	}
+
+	labelSelectors := make([]*model.LabelSelectorRequirement, len(ls))
+	for i, v := range ls {
+		labelSelectors[i] = &model.LabelSelectorRequirement{
+			Key:      v.Key,
+			Operator: string(v.Operator),
+			Values:   v.Values,
+		}
+	}
+	return labelSelectors
+}
+
+// extractPersistentVolumeClaim returns the protobuf Persistent Volume Claim message corresponding to
+// a Kubernetes persistent volume claim object.
+func extractPersistentVolumeClaim(pvc *corev1.PersistentVolumeClaim) *model.PersistentVolumeClaim {
+	message := &model.PersistentVolumeClaim{
+		Metadata: orchutil.ExtractMetadata(&pvc.ObjectMeta),
+		Spec: &model.PersistentVolumeClaimSpec{
+			VolumeName: pvc.Spec.VolumeName,
+			Resources:  &model.ResourceRequirements{},
+		},
+		Status: &model.PersistentVolumeClaimStatus{
+			Phase:    string(pvc.Status.Phase),
+			Capacity: map[string]int64{},
+		},
+	}
+	extractSpec(pvc, message)
+	extractStatus(pvc, message)
+
+	return message
+}
+
+func extractStatus(pvc *corev1.PersistentVolumeClaim, message *model.PersistentVolumeClaim) {
+	pvcCons := pvc.Status.Conditions
+	if len(pvcCons) > 0 {
+		cons := make([]*model.PersistentVolumeClaimCondition, len(pvcCons))
+		for i, condition := range pvcCons {
+			cons[i] = &model.PersistentVolumeClaimCondition{
+				Type:    string(condition.Type),
+				Status:  string(condition.Status),
+				Reason:  condition.Reason,
+				Message: condition.Message,
+			}
+			if !condition.LastProbeTime.IsZero() {
+				cons[i].LastProbeTime = condition.LastProbeTime.Unix()
+			}
+			if !condition.LastTransitionTime.IsZero() {
+				cons[i].LastTransitionTime = condition.LastProbeTime.Unix()
+			}
+		}
+		message.Status.Conditions = cons
+	}
+
+	if pvc.Status.AccessModes != nil {
+		strModes := make([]string, len(pvc.Status.AccessModes))
+		for i, am := range pvc.Status.AccessModes {
+			strModes[i] = string(am)
+		}
+		message.Status.AccessModes = strModes
+	}
+
+	st := pvc.Status.Capacity.Storage()
+	if st != nil && !st.IsZero() {
+		message.Status.Capacity[corev1.ResourceStorage.String()] = st.Value()
+	}
+}
+
+func extractSpec(pvc *corev1.PersistentVolumeClaim, message *model.PersistentVolumeClaim) {
+	ds := pvc.Spec.DataSource
+	if ds != nil {
+		t := &model.TypedLocalObjectReference{Kind: ds.Kind, Name: ds.Name}
+		if ds.APIGroup != nil {
+			t.ApiGroup = *ds.APIGroup
+		}
+		message.Spec.DataSource = t
+	}
+
+	if pvc.Spec.VolumeMode != nil {
+		message.Spec.VolumeMode = string(*pvc.Spec.VolumeMode)
+	}
+
+	if pvc.Spec.StorageClassName != nil {
+		message.Spec.StorageClassName = *pvc.Spec.StorageClassName
+	}
+
+	if pvc.Spec.AccessModes != nil {
+		strModes := make([]string, len(pvc.Spec.AccessModes))
+		for i, am := range pvc.Spec.AccessModes {
+			strModes[i] = string(am)
+		}
+		message.Spec.AccessModes = strModes
+	}
+
+	reSt := pvc.Spec.Resources.Requests.Storage()
+	if reSt != nil && !reSt.IsZero() {
+		message.Spec.Resources.Requests = map[string]int64{string(corev1.ResourceStorage): reSt.Value()}
+	}
+	reLt := pvc.Spec.Resources.Limits.Storage()
+	if reLt != nil && !reLt.IsZero() {
+		message.Spec.Resources.Limits = map[string]int64{string(corev1.ResourceStorage): reLt.Value()}
+	}
+
+	if pvc.Spec.Selector != nil {
+		message.Spec.Selector = extractLabelSelector(pvc.Spec.Selector)
+	}
+}
+
 func extractLabelSelector(ls *metav1.LabelSelector) []*model.LabelSelectorRequirement {
 	labelSelectors := make([]*model.LabelSelectorRequirement, 0, len(ls.MatchLabels)+len(ls.MatchExpressions))
 	for k, v := range ls.MatchLabels {
@@ -366,7 +680,7 @@ func extractJobConditionMessage(conditions []batchv1.JobCondition) string {
 
 func extractNode(n *corev1.Node) *model.Node {
 	msg := &model.Node{
-		Metadata:      orchestrator.ExtractMetadata(&n.ObjectMeta),
+		Metadata:      orchutil.ExtractMetadata(&n.ObjectMeta),
 		PodCIDR:       n.Spec.PodCIDR,
 		PodCIDRs:      n.Spec.PodCIDRs,
 		ProviderID:    n.Spec.ProviderID,

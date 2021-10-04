@@ -16,7 +16,7 @@ func initTagger() *Tagger {
 	catalog := collectors.Catalog{}
 	tagger := NewTagger(catalog)
 	tagger.Init()
-	tagger.store.processTagInfo([]*collectors.TagInfo{
+	tagger.store.ProcessTagInfo([]*collectors.TagInfo{
 		{
 			Source:               "source1",
 			Entity:               "test",

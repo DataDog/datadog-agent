@@ -47,8 +47,8 @@ var (
 
 	tlmProcessed = telemetry.NewCounter("dogstatsd", "processed",
 		[]string{"message_type", "state", "origin"}, "Count of service checks/events/metrics processed by dogstatsd")
-	tlmProcessedErrorTags = map[string]string{"message_type": "metrics", "state": "error", "origin": ""}
-	tlmProcessedOkTags    = map[string]string{"message_type": "metrics", "state": "ok", "origin": ""}
+	tlmProcessedOk    = tlmProcessed.WithValues("metrics", "ok", "")
+	tlmProcessedError = tlmProcessed.WithValues("metrics", "error", "")
 
 	// while we try to add the origin tag in the tlmProcessed metric, we want to
 	// avoid having it growing indefinitely, hence this safeguard to limit the
@@ -76,6 +76,8 @@ type cachedTagsOriginMap struct {
 	origin string
 	ok     map[string]string
 	err    map[string]string
+	okCnt  telemetry.SimpleCounter
+	errCnt telemetry.SimpleCounter
 }
 
 func initLatencyTelemetry() {
@@ -138,6 +140,7 @@ type Server struct {
 	histToDistPrefix          string
 	extraTags                 []string
 	Debug                     *dsdServerDebug
+	debugTagsBuilder          *util.HashingTagsBuilder
 	TCapture                  *replay.TrafficCapture
 	mapper                    *mapper.MetricMapper
 	eolTerminationUDP         bool
@@ -407,9 +410,10 @@ func (s *Server) handleMessages() {
 	}
 }
 
-// Capture starts a traffic capture with the specified duration, returns an error if any
-func (s *Server) Capture(d time.Duration, compressed bool) error {
-	return s.TCapture.Start(d, compressed)
+// Capture starts a traffic capture at the specified path and with the specified duration,
+// an empty path will default to the default location. Returns an error if any.
+func (s *Server) Capture(p string, d time.Duration, compressed bool) error {
+	return s.TCapture.Start(p, d, compressed)
 }
 
 func (s *Server) forwarder(fcon net.Conn, packetsChannel chan packets.Packets) {
@@ -581,6 +585,8 @@ func (s *Server) createOriginTagMaps(origin string) cachedTagsOriginMap {
 		origin: origin,
 		ok:     okMap,
 		err:    errorMap,
+		okCnt:  tlmProcessed.WithTags(okMap),
+		errCnt: tlmProcessed.WithTags(errorMap),
 	}
 
 	s.cachedTlmOriginIds[origin] = maps
@@ -600,22 +606,22 @@ func (s *Server) createOriginTagMaps(origin string) cachedTagsOriginMap {
 }
 
 func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, telemetry bool) ([]metrics.MetricSample, error) {
-	okTags := tlmProcessedOkTags
-	errorTags := tlmProcessedErrorTags
+	okCnt := tlmProcessedOk
+	errorCnt := tlmProcessedError
 	if origin != "" && telemetry {
 		var maps cachedTagsOriginMap // errorMap and okMap for this origin
 		var exists bool
 		if maps, exists = s.cachedTlmOriginIds[origin]; !exists {
 			maps = s.createOriginTagMaps(origin)
 		}
-		okTags = maps.ok
-		errorTags = maps.err
+		okCnt = maps.okCnt
+		errorCnt = maps.errCnt
 	}
 
 	sample, err := parser.parseMetricSample(message)
 	if err != nil {
 		dogstatsdMetricParseErrors.Add(1)
-		tlmProcessed.IncWithTags(errorTags)
+		errorCnt.Inc()
 		return metricSamples, err
 	}
 
@@ -642,7 +648,7 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 			metricSamples[idx].Tags = metricSamples[0].Tags
 		}
 		dogstatsdMetricPackets.Add(1)
-		tlmProcessed.IncWithTags(okTags)
+		okCnt.Inc()
 	}
 	return metricSamples, nil
 }
@@ -691,21 +697,29 @@ func (s *Server) Stop() {
 	s.Started = false
 }
 
+// storeMetricStats stores stats on the given metric sample.
+//
+// It can help troubleshooting clients with bad behaviors.
 func (s *Server) storeMetricStats(sample metrics.MetricSample) {
 	now := time.Now()
 	s.Debug.Lock()
 	defer s.Debug.Unlock()
 
+	if s.debugTagsBuilder == nil {
+		s.debugTagsBuilder = util.NewHashingTagsBuilder()
+	}
+
 	// key
-	util.SortUniqInPlace(sample.Tags)
-	key := s.Debug.keyGen.Generate(sample.Name, "", sample.Tags)
+	defer s.debugTagsBuilder.Reset()
+	s.debugTagsBuilder.Append(sample.Tags...)
+	key := s.Debug.keyGen.Generate(sample.Name, "", s.debugTagsBuilder)
 
 	// store
 	ms := s.Debug.Stats[key]
 	ms.Count++
 	ms.LastSeen = now
 	ms.Name = sample.Name
-	ms.Tags = strings.Join(sample.Tags, " ") // we don't want/need to share the underlying array
+	ms.Tags = strings.Join(s.debugTagsBuilder.Get(), " ") // we don't want/need to share the underlying array
 	s.Debug.Stats[key] = ms
 
 	s.Debug.metricsCounts.metricChan <- struct{}{}

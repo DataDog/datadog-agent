@@ -53,7 +53,7 @@ func (c *DockerCollector) Detect(_ context.Context, out chan<- []*TagInfo) (Coll
 
 	// We lower-case the values collected by viper as well as the ones from inspecting the labels of containers.
 	c.labelsAsTags = retrieveMappingFromConfig("docker_labels_as_tags")
-	c.envAsTags = retrieveMappingFromConfig("docker_env_as_tags")
+	c.envAsTags = mergeMaps(retrieveMappingFromConfig("docker_env_as_tags"), retrieveMappingFromConfig("container_env_as_tags"))
 
 	// TODO: list and inspect existing containers once docker utils are merged
 

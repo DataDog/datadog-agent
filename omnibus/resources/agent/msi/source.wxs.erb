@@ -360,16 +360,6 @@
             Source="$(var.EtcFiles)\datadog.yaml.example"/>
       </Component>
 
-      <Component Id="install_info"
-                 Guid="260CEE46-E9E9-4EEF-A065-969524970B68"
-                 Permanent="no">
-        <Condition>
-          <![CDATA[UILevel > 2]]>
-        </Condition>
-        <File Id="install_info"
-            Name="install_info"
-            Source="Resources\assets\install_info"/>
-      </Component>
       <?if $(var.IncludeSysprobe) = true ?>
         <Component Id="system_probe.yaml.example"
                  Guid="a268622a-0305-4b5d-b08a-2371820f6b3f"
@@ -468,7 +458,6 @@
         <ComponentRef Id="conffolder" />
         <ComponentGroupRef Id="ProjectDir" />
         <ComponentRef Id="datadog.yaml.example" />
-        <ComponentRef Id="install_info" />
         <ComponentRef Id="logs" />
         <ComponentRef Id="conf.d" />
         <ComponentRef Id="checks.d" />
@@ -664,6 +653,7 @@
     -->
     <CustomAction Id='SetFinalizeProperty' Return='check' Property='FinalizeInstall'
         Value='
+            UILevel=[UILevel]
             PROJECTLOCATION=[PROJECTLOCATION]
             APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]
             DDAGENTUSER_NAME=[DDAGENTUSER_NAME]
@@ -690,6 +680,7 @@
             HOSTNAME_FQDN_ENABLED=[HOSTNAME_FQDN_ENABLED]
             NPM=[NPM]
             EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION]
+            OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]
             ' />
     <CustomAction Id='FinalizeInstall' BinaryKey='wixcadll' DllEntry='FinalizeInstall' Execute='deferred' Return='check' Impersonate='no'/>
     <CustomAction Id='StopDDServices' BinaryKey='wixcadll' DllEntry='PreStopServices' Execute='deferred' Return='check' Impersonate='no'/>

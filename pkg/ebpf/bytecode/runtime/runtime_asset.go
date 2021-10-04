@@ -31,9 +31,6 @@ var (
 	}
 )
 
-// RuntimeCompilationEnabled indicates whether or not runtime compilation is enabled
-var RuntimeCompilationEnabled = false
-
 // CompilationResult enumerates runtime compilation success & failure modes
 type CompilationResult int
 
@@ -48,6 +45,7 @@ const (
 	compilationErr
 	resultReadErr
 	headerFetchErr
+	compiledOutputFound
 )
 
 type CompiledOutput interface {
@@ -62,6 +60,7 @@ type RuntimeAsset struct {
 	hash     string
 
 	// Telemetry
+	compilationEnabled  bool
 	compilationResult   CompilationResult
 	compilationDuration time.Duration
 	headerFetchResult   kernel.HeaderFetchResult
@@ -69,10 +68,11 @@ type RuntimeAsset struct {
 
 func NewRuntimeAsset(filename, hash string) *RuntimeAsset {
 	return &RuntimeAsset{
-		filename:          filename,
-		hash:              hash,
-		compilationResult: notAttempted,
-		headerFetchResult: kernel.NotAttempted,
+		filename:           filename,
+		hash:               hash,
+		compilationEnabled: false,
+		compilationResult:  notAttempted,
+		headerFetchResult:  kernel.NotAttempted,
 	}
 }
 
@@ -104,6 +104,7 @@ func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOu
 	start := time.Now()
 	defer func() {
 		a.compilationDuration = time.Since(start)
+		a.compilationEnabled = true
 	}()
 
 	kv, err := kernel.HostVersion()
@@ -137,7 +138,7 @@ func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOu
 			a.compilationResult = outputFileErr
 			return nil, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
 		}
-		dirs, res, err := kernel.GetKernelHeaders(config.KernelHeadersDirs, config.KernelHeadersDownloadDir)
+		dirs, res, err := kernel.GetKernelHeaders(config.KernelHeadersDirs, config.KernelHeadersDownloadDir, config.AptConfigDir, config.YumReposDir, config.ZypperReposDir)
 		a.headerFetchResult = res
 		if err != nil {
 			a.compilationResult = headerFetchErr
@@ -154,12 +155,13 @@ func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOu
 			a.compilationResult = compilationErr
 			return nil, fmt.Errorf("failed to compile runtime version of %s: %s", a.filename, err)
 		}
+		a.compilationResult = compilationSuccess
+	} else {
+		a.compilationResult = compiledOutputFound
 	}
 
 	out, err := os.Open(outputFile)
-	if err == nil {
-		a.compilationResult = compilationSuccess
-	} else {
+	if err != nil {
 		a.compilationResult = resultReadErr
 	}
 	return out, err
@@ -167,7 +169,7 @@ func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOu
 
 func (a *RuntimeAsset) GetTelemetry() map[string]int64 {
 	stats := make(map[string]int64)
-	if RuntimeCompilationEnabled {
+	if a.compilationEnabled {
 		stats["runtime_compilation_enabled"] = 1
 		stats["runtime_compilation_result"] = int64(a.compilationResult)
 		stats["kernel_header_fetch_result"] = int64(a.headerFetchResult)

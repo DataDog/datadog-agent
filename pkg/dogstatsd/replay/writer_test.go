@@ -6,10 +6,9 @@
 package replay
 
 import (
-	"bytes"
 	"io"
+	"path"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,14 +16,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/zstd"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 )
 
 func writerTest(t *testing.T, z bool) {
-	atomic.StoreInt64(&inMemoryFs, 1)
-	defer atomic.StoreInt64(&inMemoryFs, 0)
+	captureFs.Lock()
+	originalFs := captureFs.fs
+	captureFs.fs = afero.NewMemMapFs()
+	captureFs.Unlock()
 
-	writer := NewTrafficCaptureWriter("foo/bar", 1)
+	// setup directory
+	captureFs.fs.MkdirAll("foo/bar", 0777)
+
+	defer func() {
+		captureFs.Lock()
+		defer captureFs.Unlock()
+
+		captureFs.fs = originalFs
+	}()
+
+	writer := NewTrafficCaptureWriter(1)
 
 	// register pools
 	manager := packets.NewPoolManager(packets.NewPool(config.Datadog.GetInt("dogstatsd_buffer_size")))
@@ -34,7 +46,10 @@ func writerTest(t *testing.T, z bool) {
 	writer.RegisterOOBPoolManager(oobManager)
 
 	var wg sync.WaitGroup
-	const iterations = 5
+	const (
+		iterations    = 50
+		sleepInterval = 100 * time.Millisecond
+	)
 
 	start := make(chan struct{})
 
@@ -43,9 +58,10 @@ func writerTest(t *testing.T, z bool) {
 		defer wg.Done()
 
 		close(start)
-		writer.Capture(5*time.Second, z)
+		writer.Capture("foo/bar", iterations*sleepInterval, z)
 	}(&wg)
 
+	enqueued := 0
 	wg.Add(1)
 	go func(wg *sync.WaitGroup) {
 		defer wg.Done()
@@ -53,6 +69,7 @@ func writerTest(t *testing.T, z bool) {
 		<-start
 
 		for i := 0; i < iterations; i++ {
+			time.Sleep(sleepInterval)
 			buff := CapPool.Get().(*CaptureBuffer)
 			pkt := manager.Get().(*packets.Packet)
 			pkt.Buffer = []byte("foo.bar|5|#some:tag")
@@ -66,8 +83,9 @@ func writerTest(t *testing.T, z bool) {
 			buff.Pb.PayloadSize = int32(len(pkt.Buffer))
 			buff.Pb.Payload = pkt.Buffer // or packet.Buffer[:n] ?
 
-			writer.Enqueue(buff)
-			time.Sleep(500 * time.Millisecond)
+			if writer.Enqueue(buff) {
+				enqueued++
+			}
 		}
 
 		writer.StopCapture()
@@ -77,32 +95,33 @@ func writerTest(t *testing.T, z bool) {
 
 	// assert file
 	writer.RLock()
-	assert.NotNil(t, writer.testFile)
+	assert.NotNil(t, writer.File)
 	assert.False(t, writer.ongoing)
 
-	stats, _ := writer.testFile.Stat()
+	stats, _ := writer.File.Stat()
 	assert.Greater(t, stats.Size(), int64(0))
 
-	fp := writer.testFile
+	var (
+		err    error
+		buf    []byte
+		reader *TrafficCaptureReader
+	)
+
+	info, err := writer.File.Stat()
+	assert.Nil(t, err)
+	fp, err := captureFs.fs.Open(path.Join(writer.Location, info.Name()))
+	assert.Nil(t, err)
+	buf, err = afero.ReadAll(fp)
+	assert.Nil(t, err)
 	writer.RUnlock()
 
-	fp.Seek(0, io.SeekStart)
-
-	buf := bytes.NewBuffer(nil)
-	_, _ = io.Copy(buf, fp)
-
-	var reader *TrafficCaptureReader
-	var contents []byte
-	var err error
 	if z {
-		contents, err = zstd.Decompress(nil, buf.Bytes())
+		buf, err = zstd.Decompress(nil, buf)
 		assert.Nil(t, err)
-	} else {
-		contents = buf.Bytes()
 	}
 
 	reader = &TrafficCaptureReader{
-		Contents: contents,
+		Contents: buf,
 		Version:  int(datadogFileVersion),
 		Traffic:  make(chan *pb.UnixDogstatsdMsg, 1),
 	}
@@ -121,7 +140,7 @@ func writerTest(t *testing.T, z bool) {
 	for _, err = reader.ReadNext(); err != io.EOF; _, err = reader.ReadNext() {
 		cnt++
 	}
-	assert.Equal(t, cnt, iterations)
+	assert.Equal(t, cnt, enqueued)
 }
 
 func TestWriterUncompressed(t *testing.T) {
@@ -130,4 +149,33 @@ func TestWriterUncompressed(t *testing.T) {
 
 func TestWriterCompressed(t *testing.T) {
 	writerTest(t, true)
+}
+
+func TestValidateLocation(t *testing.T) {
+	captureFs.Lock()
+	originalFs := captureFs.fs
+	captureFs.fs = afero.NewMemMapFs()
+	captureFs.Unlock()
+
+	locationBad := "foo/bar"
+	locationGood := "bar/quz"
+
+	// setup directory
+	captureFs.fs.MkdirAll(locationBad, 0770)
+	captureFs.fs.MkdirAll(locationGood, 0776)
+
+	defer func() {
+		captureFs.Lock()
+		defer captureFs.Unlock()
+
+		captureFs.fs = originalFs
+	}()
+
+	writer := NewTrafficCaptureWriter(1)
+	_, err := writer.ValidateLocation(locationBad)
+	assert.NotNil(t, err)
+	l, err := writer.ValidateLocation(locationGood)
+	assert.Nil(t, err)
+	assert.Equal(t, locationGood, l)
+
 }

@@ -222,6 +222,7 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 		}
 		policy.RulesLoaded = append(policy.RulesLoaded, &RuleLoaded{
 			ID:         rule.ID,
+			Version:    rule.Definition.Version,
 			Expression: rule.Definition.Expression,
 		})
 	}
@@ -238,6 +239,7 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 				}
 				policy.RulesIgnored = append(policy.RulesIgnored, &RuleIgnored{
 					ID:         rerr.Definition.ID,
+					Version:    rerr.Definition.Version,
 					Expression: rerr.Definition.Expression,
 					Reason:     rerr.Err.Error(),
 				})
@@ -293,7 +295,7 @@ func NewNoisyProcessEvent(count uint64,
 
 func resolutionErrorToEventType(err error) model.EventType {
 	switch err.(type) {
-	case ErrTruncatedParents:
+	case ErrTruncatedParents, ErrTruncatedParentsERPC:
 		return model.CustomTruncatedParentsEventType
 	default:
 		return model.UnknownEventType

@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 // getAvailableUDPPort requests a random port number and makes sure it is available
@@ -608,11 +609,11 @@ func TestDebugStats(t *testing.T) {
 	sample3 := metrics.MetricSample{Name: "some.metric3", Tags: make([]string, 0)}
 	sample4 := metrics.MetricSample{Name: "some.metric4", Tags: []string{"b", "c"}}
 	sample5 := metrics.MetricSample{Name: "some.metric4", Tags: []string{"c", "b"}}
-	hash1 := keygen.Generate(sample1.Name, "", sample1.Tags)
-	hash2 := keygen.Generate(sample2.Name, "", sample2.Tags)
-	hash3 := keygen.Generate(sample3.Name, "", sample3.Tags)
-	hash4 := keygen.Generate(sample4.Name, "", sample4.Tags)
-	hash5 := keygen.Generate(sample5.Name, "", sample5.Tags)
+	hash1 := keygen.Generate(sample1.Name, "", util.NewHashingTagsBuilderWithTags(sample1.Tags))
+	hash2 := keygen.Generate(sample2.Name, "", util.NewHashingTagsBuilderWithTags(sample2.Tags))
+	hash3 := keygen.Generate(sample3.Name, "", util.NewHashingTagsBuilderWithTags(sample3.Tags))
+	hash4 := keygen.Generate(sample4.Name, "", util.NewHashingTagsBuilderWithTags(sample4.Tags))
+	hash5 := keygen.Generate(sample5.Name, "", util.NewHashingTagsBuilderWithTags(sample5.Tags))
 
 	// test ingestion and ingestion time
 	s.storeMetricStats(sample1)
@@ -659,8 +660,8 @@ func TestDebugStats(t *testing.T) {
 	require.Equal(t, metric3.Count, uint64(1))
 
 	// test context correctness
-	require.Equal(t, metric4.Tags, "b c")
-	require.Equal(t, metric5.Tags, "b c")
+	require.Equal(t, metric4.Tags, "c b")
+	require.Equal(t, metric5.Tags, "c b")
 	require.Equal(t, hash4, hash5)
 }
 

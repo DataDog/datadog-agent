@@ -110,6 +110,7 @@
 /docs/trace-agent/                      @DataDog/documentation @DataDog/agent-apm
 /docs/cluster-agent/                    @DataDog/documentation @DataDog/container-integrations
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-core
+/docs/cloud-workload-security/          @DataDog/documentation @DataDog/agent-security
 
 /google-marketplace/                    @DataDog/container-integrations
 
@@ -162,7 +163,9 @@
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-platform
 /pkg/config/config_template.yaml        @DataDog/agent-all @DataDog/documentation
 /pkg/config/apm.go                      @DataDog/agent-apm
+/pkg/config/environment*.go             @DataDog/container-integrations @DataDog/container-app
 /pkg/config/system_probe.go             @DataDog/agent-network
+/pkg/otlp/                              @DataDog/agent-platform
 /pkg/tagger/                            @DataDog/container-integrations
 /pkg/tagger/collectors/garden*.go       @DataDog/integrations-tools-and-libraries
 /pkg/util/cloudfoundry/                 @DataDog/integrations-tools-and-libraries
@@ -174,6 +177,8 @@
 /pkg/util/ecs/                          @DataDog/container-integrations
 /pkg/util/kernel/                       @DataDog/agent-network
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-app
+/pkg/util/orchestrator/                 @DataDog/container-app
+/pkg/util/cgroups/                      @DataDog/container-integrations
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/logs/                              @DataDog/agent-core
 /pkg/logs/input/traps/                  @DataDog/infrastructure-integrations @DataDog/agent-core
@@ -194,6 +199,7 @@
 /pkg/snmp/                              @DataDog/infrastructure-integrations
 /pkg/appsec/                            @DataDog/agent-appsec
 /pkg/config/appsec.go                   @DataDog/agent-appsec
+/pkg/workloadmeta/                      @DataDog/container-integrations
 
 /pkg-config/                            @DataDog/agent-platform
 

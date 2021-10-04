@@ -102,11 +102,6 @@ func (tf *MockedForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header
 	return tf.Called(payload, extra).Error(0)
 }
 
-// SubmitSeries updates the internal mock struct
-func (tf *MockedForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
-	return tf.Called(payload, extra).Error(0)
-}
-
 // SubmitEvents updates the internal mock struct
 func (tf *MockedForwarder) SubmitEvents(payload Payloads, extra http.Header) error {
 	return tf.Called(payload, extra).Error(0)
@@ -142,6 +137,11 @@ func (tf *MockedForwarder) SubmitProcessChecks(payload Payloads, extra http.Head
 	return nil, tf.Called(payload, extra).Error(0)
 }
 
+// SubmitProcessDiscoveryChecks mock
+func (tf *MockedForwarder) SubmitProcessDiscoveryChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	return nil, tf.Called(payload, extra).Error(0)
+}
+
 // SubmitRTProcessChecks mock
 func (tf *MockedForwarder) SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
 	return nil, tf.Called(payload, extra).Error(0)
@@ -163,6 +163,6 @@ func (tf *MockedForwarder) SubmitConnectionChecks(payload Payloads, extra http.H
 }
 
 // SubmitOrchestratorChecks mock
-func (tf *MockedForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
+func (tf *MockedForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
 	return nil, tf.Called(payload, extra).Error(0)
 }

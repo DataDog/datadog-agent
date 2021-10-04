@@ -32,8 +32,9 @@ const (
 type LogsConfig struct {
 	Type string
 
-	Port int    // Network
-	Path string // File, Journald
+	Port        int    // Network
+	IdleTimeout string `mapstructure:"idle_timeout" json:"idle_timeout"` // Network
+	Path        string // File, Journald
 
 	Encoding     string   `mapstructure:"encoding" json:"encoding"`             // File
 	ExcludePaths []string `mapstructure:"exclude_paths" json:"exclude_paths"`   // File
@@ -62,6 +63,10 @@ type LogsConfig struct {
 	SourceCategory  string
 	Tags            []string
 	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
+
+	AutoMultiLine               bool    `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection"`
+	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size"`
+	AutoMultiLineMatchThreshold float64 `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold"`
 }
 
 // TailingMode type

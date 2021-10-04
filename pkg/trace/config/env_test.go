@@ -351,6 +351,18 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal("my-site.com", config.Datadog.GetString("apm_config.profiling_dd_url"))
 	})
 
+	env = "DD_APM_DEBUGGER_DD_URL"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, "my-site.com")
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		_, err = Load("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.Equal("my-site.com", config.Datadog.GetString("apm_config.debugger_dd_url"))
+	})
+
 	env = "DD_OTLP_HTTP_PORT"
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
@@ -360,7 +372,7 @@ func TestLoadEnv(t *testing.T) {
 		defer os.Unsetenv(env)
 		_, err = Load("./testdata/full.yaml")
 		assert.NoError(err)
-		assert.Equal(50061, config.Datadog.GetInt("experimental.otlp.http_port"))
+		assert.Equal(50061, config.Datadog.GetInt(config.ExperimentalOTLPHTTPPort))
 	})
 
 	env = "DD_OTLP_GRPC_PORT"
@@ -372,7 +384,7 @@ func TestLoadEnv(t *testing.T) {
 		defer os.Unsetenv(env)
 		_, err = Load("./testdata/full.yaml")
 		assert.NoError(err)
-		assert.Equal(50066, config.Datadog.GetInt("experimental.otlp.grpc_port"))
+		assert.Equal(50066, config.Datadog.GetInt(config.ExperimentalOTLPgRPCPort))
 	})
 
 	env = "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS"

@@ -13,6 +13,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"net"
 	"os"
@@ -53,8 +54,7 @@ var (
 )
 
 const (
-	grpcAddr        = "127.0.0.1:18787"
-	getEventTimeout = 3 * time.Second
+	getEventTimeout = 10 * time.Second
 )
 
 type stringSlice []string
@@ -121,17 +121,11 @@ const (
 	DockerEnvironment = "docker"
 )
 
-type testEvent struct {
-	eval.Event
-	rule *eval.Rule
-}
-
 type testOpts struct {
 	testDir                     string
 	disableFilters              bool
 	disableApprovers            bool
 	disableDiscarders           bool
-	wantProbeEvents             bool
 	eventsCountThreshold        int
 	reuseProbeHandler           bool
 	disableERPCDentryResolution bool
@@ -250,6 +244,32 @@ func getInode(t *testing.T, path string) uint64 {
 	}
 
 	return stats.Ino
+}
+
+func which(name string) string {
+	executable := "/usr/bin/" + name
+	if resolved, err := os.Readlink(executable); err == nil {
+		executable = resolved
+	} else {
+		if os.IsNotExist(err) {
+			executable = "/bin/" + name
+		}
+	}
+	return executable
+}
+
+func copyFile(src string, dst string, mode fs.FileMode) error {
+	input, err := ioutil.ReadFile(src)
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(dst, input, mode)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func assertMode(t *testing.T, actualMode, expectedMode uint32, msgAndArgs ...interface{}) {
@@ -568,7 +588,8 @@ func (tm *testModule) RegisterRuleEventHandler(cb ruleHandler) {
 	tm.ruleHandler.Unlock()
 }
 
-func (tm *testModule) GetProbeCustomEvent(action func() error, cb func(rule *rules.Rule, event *sprobe.CustomEvent) bool, timeout time.Duration, eventType ...model.EventType) error {
+func (tm *testModule) GetProbeCustomEvent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *sprobe.CustomEvent) bool, eventType ...model.EventType) error {
+	tb.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

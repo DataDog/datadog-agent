@@ -12,8 +12,8 @@ import (
 	"sync/atomic"
 
 	"github.com/DataDog/datadog-go/statsd"
-	lib "github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
+	lib "github.com/cilium/ebpf"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
@@ -71,6 +71,8 @@ type PerfBufferMonitor struct {
 
 	// lastTimestamp is used to track the timestamp of the last event retrieved from the perf map
 	lastTimestamp uint64
+	// shouldBumpGeneration is used to track if the dentry cache generations should be bumped
+	shouldBumpGeneration uint64
 }
 
 // NewPerfBufferMonitor instantiates a new event statistics counter
@@ -318,6 +320,7 @@ func (pbm *PerfBufferMonitor) CountEvent(eventType model.EventType, timestamp ui
 	// check event order
 	if timestamp < pbm.lastTimestamp && pbm.lastTimestamp != 0 {
 		atomic.AddInt64(pbm.sortingErrorStats[m.Name][eventType], 1)
+		atomic.SwapUint64(&pbm.shouldBumpGeneration, 1)
 	} else {
 		pbm.lastTimestamp = timestamp
 	}
@@ -445,6 +448,11 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client *statsd.Client) e
 					stats.Lost -= tmpCount
 				}
 
+				// purge dentry resolver generation if needed
+				if evtType == model.FileRenameEventType || evtType == model.FileUnlinkEventType || evtType == model.FileRmdirEventType {
+					atomic.SwapUint64(&pbm.shouldBumpGeneration, 1)
+				}
+
 				if client != nil {
 					if err := pbm.sendKernelStats(client, stats, tags); err != nil {
 						return err
@@ -494,6 +502,10 @@ func (pbm *PerfBufferMonitor) sendKernelStats(client *statsd.Client, stats PerfM
 func (pbm *PerfBufferMonitor) SendStats() error {
 	if err := pbm.collectAndSendKernelStats(pbm.statsdClient); err != nil {
 		return err
+	}
+
+	if atomic.SwapUint64(&pbm.shouldBumpGeneration, 0) == 1 {
+		pbm.probe.resolvers.DentryResolver.BumpCacheGenerations()
 	}
 
 	if err := pbm.sendEventsAndBytesReadStats(pbm.statsdClient); err != nil {

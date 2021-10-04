@@ -71,4 +71,5 @@ experimental:
   otlp:
     http_port: 50051
     grpc_port: 50052
+    internal_traces_port: 50053
     

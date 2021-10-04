@@ -24,6 +24,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
+type stats struct {
+	orchestrator.CheckStats
+	NodeType  string
+	TotalHits int64
+	TotalMiss int64
+}
+
 // GetStatus returns status info for the orchestrator explorer.
 func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]interface{} {
 	status := make(map[string]interface{})
@@ -68,22 +75,33 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 
 	// get cache hits
 	cacheHitsJSON := []byte(expvar.Get("orchestrator-cache").String())
-	cacheHits := make(map[string]interface{})
+	cacheHits := make(map[string]int64)
 	json.Unmarshal(cacheHitsJSON, &cacheHits) //nolint:errcheck
 	status["CacheHits"] = cacheHits
 
 	// get cache Miss
 	cacheMissJSON := []byte(expvar.Get("orchestrator-sends").String())
-	cacheMiss := make(map[string]interface{})
+	cacheMiss := make(map[string]int64)
 	json.Unmarshal(cacheMissJSON, &cacheMiss) //nolint:errcheck
 	status["CacheMiss"] = cacheMiss
+	cacheStats := make(map[string]stats)
 
 	// get cache efficiency
 	for _, node := range orchestrator.NodeTypes() {
 		if value, found := orchestrator.KubernetesResourceCache.Get(orchestrator.BuildStatsKey(node)); found {
-			status[node.String()+"sStats"] = value
+			orcStats := value.(orchestrator.CheckStats)
+			totalMiss := cacheMiss[orcStats.String()]
+			totalHit := cacheHits[orcStats.String()]
+			s := stats{
+				CheckStats: orcStats,
+				NodeType:   orcStats.String(),
+				TotalHits:  totalHit,
+				TotalMiss:  totalMiss,
+			}
+			cacheStats[node.String()+"sStats"] = s
 		}
 	}
+	status["CacheInformation"] = cacheStats
 
 	// get options
 	if config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled") {

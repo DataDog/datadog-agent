@@ -10,8 +10,8 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
+	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
 )
 
@@ -23,12 +23,12 @@ import (
 type Monitor struct {
 	handler func([]httpTX)
 
-	ebpfProgram  *ebpfProgram
-	batchManager *batchManager
-	perfHandler  *ddebpf.PerfHandler
-	telemetry    *telemetry
-	pollRequests chan chan map[Key]RequestStats
-	statkeeper   *httpStatKeeper
+	ebpfProgram            *ebpfProgram
+	batchManager           *batchManager
+	batchCompletionHandler *ddebpf.PerfHandler
+	telemetry              *telemetry
+	pollRequests           chan chan map[Key]RequestStats
+	statkeeper             *httpStatKeeper
 
 	// termination
 	mux           sync.Mutex
@@ -38,8 +38,8 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(c *config.Config) (*Monitor, error) {
-	mgr, err := newEBPFProgram(c)
+func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*Monitor, error) {
+	mgr, err := newEBPFProgram(c, offsets, sockFD)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up http ebpf program: %s", err)
 	}
@@ -48,7 +48,7 @@ func NewMonitor(c *config.Config) (*Monitor, error) {
 		return nil, fmt.Errorf("error initializing http ebpf program: %s", err)
 	}
 
-	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketHTTPFilter)})
+	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: httpSocketFilter})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
@@ -58,17 +58,17 @@ func NewMonitor(c *config.Config) (*Monitor, error) {
 		return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
 	}
 
-	batchMap, _, err := mgr.GetMap(string(probes.HttpBatchesMap))
+	batchMap, _, err := mgr.GetMap(httpBatchesMap)
 	if err != nil {
 		return nil, err
 	}
 
-	batchStateMap, _, err := mgr.GetMap(string(probes.HttpBatchStateMap))
+	batchStateMap, _, err := mgr.GetMap(httpBatchStateMap)
 	if err != nil {
 		return nil, err
 	}
 
-	notificationMap, _, _ := mgr.GetMap(string(probes.HttpNotificationsMap))
+	notificationMap, _, _ := mgr.GetMap(httpNotificationsPerfMap)
 	numCPUs := int(notificationMap.ABI().MaxEntries)
 
 	telemetry := newTelemetry()
@@ -81,14 +81,14 @@ func NewMonitor(c *config.Config) (*Monitor, error) {
 	}
 
 	return &Monitor{
-		handler:       handler,
-		ebpfProgram:   mgr,
-		batchManager:  newBatchManager(batchMap, batchStateMap, numCPUs),
-		perfHandler:   mgr.perfHandler,
-		telemetry:     telemetry,
-		pollRequests:  make(chan chan map[Key]RequestStats),
-		closeFilterFn: closeFilterFn,
-		statkeeper:    statkeeper,
+		handler:                handler,
+		ebpfProgram:            mgr,
+		batchManager:           newBatchManager(batchMap, batchStateMap, numCPUs),
+		batchCompletionHandler: mgr.batchCompletionHandler,
+		telemetry:              telemetry,
+		pollRequests:           make(chan chan map[Key]RequestStats),
+		closeFilterFn:          closeFilterFn,
+		statkeeper:             statkeeper,
 	}, nil
 }
 
@@ -109,7 +109,7 @@ func (m *Monitor) Start() error {
 		defer report.Stop()
 		for {
 			select {
-			case dataEvent, ok := <-m.perfHandler.DataChannel:
+			case dataEvent, ok := <-m.batchCompletionHandler.DataChannel:
 				if !ok {
 					return
 				}
@@ -118,7 +118,7 @@ func (m *Monitor) Start() error {
 				notification := toHTTPNotification(dataEvent.Data)
 				transactions, err := m.batchManager.GetTransactionsFrom(notification)
 				m.process(transactions, err)
-			case _, ok := <-m.perfHandler.LostChannel:
+			case _, ok := <-m.batchCompletionHandler.LostChannel:
 				if !ok {
 					return
 				}
@@ -177,9 +177,8 @@ func (m *Monitor) Stop() {
 		return
 	}
 
-	m.ebpfProgram.Stop(manager.CleanAll)
+	m.ebpfProgram.Close()
 	m.closeFilterFn()
-	m.perfHandler.Stop()
 	close(m.pollRequests)
 	m.eventLoopWG.Wait()
 	m.stopped = true
@@ -191,4 +190,8 @@ func (m *Monitor) process(transactions []httpTX, err error) {
 	if m.handler != nil && len(transactions) > 0 {
 		m.handler(transactions)
 	}
+}
+
+func (m *Monitor) DumpMaps(maps ...string) (string, error) {
+	return m.ebpfProgram.Manager.DumpMaps(maps...)
 }

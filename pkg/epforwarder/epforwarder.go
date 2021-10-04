@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	eventTypeDBMSamples = "dbm-samples"
-	eventTypeDBMMetrics = "dbm-metrics"
+	eventTypeDBMSamples  = "dbm-samples"
+	eventTypeDBMMetrics  = "dbm-metrics"
+	eventTypeDBMActivity = "dbm-activity"
 
 	// EventTypeNetworkDevicesMetadata is the event type for network devices metadata
 	EventTypeNetworkDevicesMetadata = "network-devices-metadata"
@@ -30,7 +31,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	{
 		eventType:              eventTypeDBMSamples,
 		endpointsConfigPrefix:  "database_monitoring.samples.",
-		hostnameEndpointPrefix: "dbquery-http-intake.logs.",
+		hostnameEndpointPrefix: "dbquery-intake.",
 		intakeTrackType:        "databasequery",
 		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 		defaultBatchMaxConcurrentSend: 10,
@@ -42,6 +43,16 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		endpointsConfigPrefix:  "database_monitoring.metrics.",
 		hostnameEndpointPrefix: "dbm-metrics-intake.",
 		intakeTrackType:        "dbmmetrics",
+		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    20e6,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+	},
+	{
+		eventType:              eventTypeDBMActivity,
+		endpointsConfigPrefix:  "database_monitoring.activity.",
+		hostnameEndpointPrefix: "dbm-metrics-intake.",
+		intakeTrackType:        "dbmactivity",
 		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    20e6,
@@ -135,7 +146,8 @@ type passthroughPipeline struct {
 }
 
 type passthroughPipelineDesc struct {
-	eventType                     string
+	eventType string
+	// intakeTrackType is the track type to use for the v2 intake api. When blank, v1 is used instead.
 	intakeTrackType               config.IntakeTrackType
 	endpointsConfigPrefix         string
 	hostnameEndpointPrefix        string
@@ -148,7 +160,7 @@ type passthroughPipelineDesc struct {
 // without any of the processing that exists in regular logs pipelines.
 func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext) (p *passthroughPipeline, err error) {
 	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, coreConfig.Datadog)
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeSource)
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 	if err != nil {
 		return nil, err
 	}

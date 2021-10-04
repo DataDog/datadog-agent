@@ -4,17 +4,20 @@ Release helper tasks
 
 import hashlib
 import json
-import os
 import re
 import sys
 from collections import OrderedDict
 from datetime import date
+from time import sleep
 
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
-from tasks.utils import DEFAULT_BRANCH
+from tasks.libs.common.github_api import GithubAPI, get_github_token
+from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
+from tasks.pipeline import run
+from tasks.utils import DEFAULT_BRANCH, get_version, nightly_entry_for, release_entry_for
 
 from .libs.common.user_interactions import yes_no_question
 from .libs.version import Version
@@ -23,8 +26,11 @@ from .modules import DEFAULT_MODULES
 # Generic version regex. Aims to match:
 # - X.Y.Z
 # - X.Y.Z-rc.t
+# - X.Y.Z-devel
 # - vX.Y(.Z) (security-agent-policies repo)
-VERSION_RE = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-rc\.(\d+))?')
+VERSION_RE = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-devel)?(-rc\.(\d+))?')
+
+REPOSITORY_NAME = "DataDog/datadog-agent"
 
 
 @task
@@ -66,8 +72,13 @@ def add_dca_prelude(ctx, version, agent7_version, agent6_version=""):
             """prelude:
     |
     Released on: {1}
-    Pinned to datadog-agent v{0}: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/{4}/CHANGELOG.rst#{2}{3}>`_.""".format(
-                agent7_version, date.today(), agent7_version.replace('.', ''), agent6_version, DEFAULT_BRANCH,
+    Pinned to datadog-agent v{0}: `CHANGELOG <https://github.com/{5}/blob/{4}/CHANGELOG.rst#{2}{3}>`_.""".format(
+                agent7_version,
+                date.today(),
+                agent7_version.replace('.', ''),
+                agent6_version,
+                DEFAULT_BRANCH,
+                REPOSITORY_NAME,
             )
         )
 
@@ -370,13 +381,7 @@ def list_major_change(_, milestone):
     List all PR labeled "major_changed" for this release.
     """
 
-    github_token = os.environ.get('GITHUB_TOKEN')
-    if github_token is None:
-        print(
-            "Error: set the GITHUB_TOKEN environment variable.\nYou can create one by going to"
-            " https://github.com/settings/tokens. It should have at least the 'repo' permissions."
-        )
-        return Exit(code=1)
+    github_token = get_github_token()
 
     response = _query_github_api(
         github_token,
@@ -424,7 +429,8 @@ def _create_version_from_match(match):
         major=int(groups[1]),
         minor=int(groups[2]),
         patch=int(groups[4]) if groups[4] and groups[4] != 0 else None,
-        rc=int(groups[6]) if groups[6] and groups[6] != 0 else None,
+        devel=True if groups[5] else False,
+        rc=int(groups[7]) if groups[7] and groups[7] != 0 else None,
         prefix=groups[0] if groups[0] else "",
     )
     return version
@@ -460,7 +466,7 @@ def build_compatible_version_re(allowed_major_versions, minor_version):
     the provided minor version.
     """
     return re.compile(
-        r'(v)?({})[.]({})([.](\d+))?(-rc\.(\d+))?'.format("|".join(allowed_major_versions), minor_version)
+        r'(v)?({})[.]({})([.](\d+))?(-devel)?(-rc\.(\d+))?'.format("|".join(allowed_major_versions), minor_version)
     )
 
 
@@ -469,7 +475,9 @@ def build_compatible_version_re(allowed_major_versions, minor_version):
 ##
 
 
-def _get_highest_repo_version(auth, repo, version_prefix, version_re, allowed_major_versions=None):
+def _get_highest_repo_version(
+    auth, repo, version_prefix, version_re, allowed_major_versions=None, max_version: Version = None
+):
     # If allowed_major_versions is not specified, search for all versions by using an empty
     # major version prefix.
     if not allowed_major_versions:
@@ -488,6 +496,13 @@ def _get_highest_repo_version(auth, repo, version_prefix, version_re, allowed_ma
             match = version_re.search(tag["ref"])
             if match:
                 this_version = _create_version_from_match(match)
+                if max_version:
+                    # Get the max version that corresponds to the major version
+                    # of the current tag
+                    this_max_version = max_version.clone()
+                    this_max_version.major = this_version.major
+                    if this_version > this_max_version:
+                        continue
                 if this_version > highest_version:
                     highest_version = this_version
 
@@ -503,39 +518,42 @@ def _get_highest_repo_version(auth, repo, version_prefix, version_re, allowed_ma
     return highest_version
 
 
-def _get_highest_version_from_release_json(release_json, major_version, version_re, release_json_key=None):
+def _get_release_version_from_release_json(release_json, major_version, version_re, release_json_key=None):
     """
     If release_json_key is None, returns the highest version entry in release.json.
     If release_json_key is set, returns the entry for release_json_key of the highest version entry in release.json.
     """
 
-    highest_version = None
-    highest_component_version = None
-    for key, value in release_json.items():
-        match = version_re.match(key)
-        if match:
-            this_version = _create_version_from_match(match)
-            if this_version > highest_version and this_version.major <= major_version:
-                highest_version = this_version
+    release_version = None
+    release_component_version = None
 
-                if release_json_key is not None:
-                    match = version_re.match(value.get(release_json_key, ""))
-                    if match:
-                        highest_component_version = _create_version_from_match(match)
-                    else:
-                        print(
-                            "{} does not have a valid {} ({}), ignoring".format(
-                                this_version, release_json_key, value.get(release_json_key, "")
-                            )
-                        )
+    # Get the release entry for the given Agent major version
+    release_entry_name = release_entry_for(major_version)
+    release_json_entry = release_json.get(release_entry_name, None)
 
-    if not highest_version:
-        raise Exit("Couldn't find any matching {} version.".format(release_json_key), 1)
+    # Check that the release entry exists, otherwise fail
+    if release_json_entry:
+        release_version = release_entry_name
+
+        # Check that the component's version is defined in the release entry
+        if release_json_key is not None:
+            match = version_re.match(release_json_entry.get(release_json_key, ""))
+            if match:
+                release_component_version = _create_version_from_match(match)
+            else:
+                print(
+                    "{} does not have a valid {} ({}), ignoring".format(
+                        release_entry_name, release_json_key, release_json_entry.get(release_json_key, "")
+                    )
+                )
+
+    if not release_version:
+        raise Exit("Couldn't find any matching {} version.".format(release_version), 1)
 
     if release_json_key is not None:
-        return highest_component_version
+        return release_component_version
 
-    return highest_version
+    return release_version
 
 
 ##
@@ -555,7 +573,7 @@ COMPATIBLE_MAJOR_VERSIONS = {6: ["6", "7"], 7: ["7"]}
 # Defined here either because they're long and would make the code less legible,
 # or because they're used multiple times.
 DIFFERENT_TAGS_TEMPLATE = (
-    "The latest version of {} ({}) does not match the latest version found in the release.json file ({})."
+    "The latest version of {} ({}) does not match the version used in the previous release entry ({})."
 )
 TAG_NOT_FOUND_TEMPLATE = "Couldn't find a(n) {} version compatible with the new Agent version entry {}"
 RC_TAG_QUESTION_TEMPLATE = "The {} tag found is an RC tag: {}. Are you sure you want to use it?"
@@ -572,7 +590,7 @@ TAG_FOUND_TEMPLATE = "The {} tag is {}"
 
 
 def _fetch_dependency_repo_version(
-    repo_name, new_agent_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
+    ctx, repo_name, new_agent_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
 ):
     """
     Fetches the latest tag on a given repository whose version scheme matches the one used for the Agent,
@@ -580,13 +598,22 @@ def _fetch_dependency_repo_version(
     - the tag must have a major version that's in allowed_major_versions
     - the tag must match compatible_version_re (the main usage is to restrict the compatible tags to the
       ones with the same minor version as the Agent)?
-    
+
     If check_for_rc is true, a warning will be emitted if the latest version that satisfies
     the constraints is an RC. User confirmation is then needed to check that this is desired.
     """
 
+    # Get the highest repo version that's not higher than the Agent version we're going to build
+    # We don't want to use a tag on dependent repositories that is supposed to be used in a future
+    # release of the Agent (eg. if 7.31.1-rc.1 is tagged on integrations-core while we're releasing 7.30.0).
+    max_allowed_version = next_final_version(ctx, new_agent_version.major)
     version = _get_highest_repo_version(
-        github_token, repo_name, new_agent_version.prefix, compatible_version_re, allowed_major_versions
+        github_token,
+        repo_name,
+        new_agent_version.prefix,
+        compatible_version_re,
+        allowed_major_versions,
+        max_version=max_allowed_version,
     )
 
     if check_for_rc and version.is_rc():
@@ -623,35 +650,34 @@ def _fetch_independent_dependency_repo_version(
     - if the above two versions are different, emit a warning and ask for user confirmation before updating the version.
     """
 
-    highest_version = _get_highest_version_from_release_json(
-        release_json, agent_major_version, VERSION_RE, release_json_key=release_json_key,
+    previous_version = _get_release_version_from_release_json(
+        release_json,
+        agent_major_version,
+        VERSION_RE,
+        release_json_key=release_json_key,
     )
     # NOTE: This assumes that the repository doesn't change the way it prefixes versions.
-    version = _get_highest_repo_version(github_token, repo_name, highest_version.prefix, VERSION_RE)
+    version = _get_highest_repo_version(github_token, repo_name, previous_version.prefix, VERSION_RE)
 
-    version = _confirm_independent_dependency_repo_version(repo_name, version, highest_version)
+    version = _confirm_independent_dependency_repo_version(repo_name, version, previous_version)
     print(TAG_FOUND_TEMPLATE.format(repo_name, version))
 
     return version
 
 
-def _get_windows_ddnpm_release_json_info(
-    release_json, agent_major_version, version_re, is_first_rc=False,
-):
+def _get_windows_ddnpm_release_json_info(release_json, agent_major_version, is_first_rc=False):
     """
     Gets the Windows NPM driver info from the previous entries in the release.json file.
     """
 
     # First RC should use the data from nightly section otherwise reuse the last RC info
     if is_first_rc:
-        print("Using 'nightly' DDNPM values")
-        release_json_version_data = release_json['nightly']
+        previous_release_json_version = nightly_entry_for(agent_major_version)
     else:
-        highest_release_json_version = _get_highest_version_from_release_json(
-            release_json, agent_major_version, version_re
-        )
-        print("Using '{}' DDNPM values".format(highest_release_json_version))
-        release_json_version_data = release_json[str(highest_release_json_version)]
+        previous_release_json_version = release_entry_for(agent_major_version)
+
+    print("Using '{}' DDNPM values".format(previous_release_json_version))
+    release_json_version_data = release_json[previous_release_json_version]
 
     win_ddnpm_driver = release_json_version_data['WINDOWS_DDNPM_DRIVER']
     win_ddnpm_version = release_json_version_data['WINDOWS_DDNPM_VERSION']
@@ -677,9 +703,9 @@ def get_variable(_, name, version='nightly'):
 ##
 
 
-def _add_release_json_entry(
+def _update_release_json_entry(
     release_json,
-    new_version,
+    release_entry,
     integrations_version,
     omnibus_software_version,
     omnibus_ruby_version,
@@ -720,19 +746,12 @@ def _add_release_json_entry(
     # Necessary if we want to maintain the JSON order, so that humans don't get confused
     new_release_json = OrderedDict()
 
-    # The nightlies should be at the top of the file
-    nightly_version_re = re.compile('nightly(-a[0-9])?')
+    # Add all versions from the old release.json
     for key, value in release_json.items():
-        if nightly_version_re.match(key):
-            new_release_json[key] = value
+        new_release_json[key] = value
 
-    # Then the new versions
-    new_release_json[str(new_version)] = _stringify_config(new_version_config)
-
-    # Then the rest of the versions
-    for key, value in release_json.items():
-        if key not in new_release_json:
-            new_release_json[key] = value
+    # Then update the entry
+    new_release_json[release_entry] = _stringify_config(new_version_config)
 
     return new_release_json
 
@@ -742,7 +761,7 @@ def _add_release_json_entry(
 ##
 
 
-def _update_release_json(release_json, new_version, github_token, check_for_rc=False):
+def _update_release_json(ctx, release_json, release_entry, new_version: Version, github_token):
     """
     Updates the provided release.json object by fetching compatible versions for all dependencies
     of the provided Agent version, constructing the new entry, adding it to the release.json object
@@ -758,19 +777,24 @@ def _update_release_json(release_json, new_version, github_token, check_for_rc=F
     # version while a minor version release is ongoing.
     compatible_version_re = build_compatible_version_re(allowed_major_versions, new_version.minor)
 
+    # If the new version is a final version, set the check_for_rc flag to true to warn if a dependency's version
+    # is an RC.
+    check_for_rc = not new_version.is_rc()
+
     integrations_version = _fetch_dependency_repo_version(
-        "integrations-core", new_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
+        ctx, "integrations-core", new_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
     )
 
     omnibus_software_version = _fetch_dependency_repo_version(
-        "omnibus-software", new_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
+        ctx, "omnibus-software", new_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
     )
 
     omnibus_ruby_version = _fetch_dependency_repo_version(
-        "omnibus-ruby", new_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
+        ctx, "omnibus-ruby", new_version, allowed_major_versions, compatible_version_re, github_token, check_for_rc
     )
 
     macos_build_version = _fetch_dependency_repo_version(
+        ctx,
         "datadog-agent-macos-build",
         new_version,
         allowed_major_versions,
@@ -789,13 +813,13 @@ def _update_release_json(release_json, new_version, github_token, check_for_rc=F
     )
 
     windows_ddnpm_driver, windows_ddnpm_version, windows_ddnpm_shasum = _get_windows_ddnpm_release_json_info(
-        release_json, new_version.major, VERSION_RE, is_first_rc=(new_version.rc == 1)
+        release_json, new_version.major, is_first_rc=(new_version.rc == 1)
     )
 
     # Add new entry to the release.json object and return it
-    return _add_release_json_entry(
+    return _update_release_json_entry(
         release_json,
-        new_version,
+        release_entry,
         integrations_version,
         omnibus_software_version,
         omnibus_ruby_version,
@@ -808,110 +832,19 @@ def _update_release_json(release_json, new_version, github_token, check_for_rc=F
     )
 
 
-@task
-def finish(ctx, major_versions="6,7"):
+def update_release_json(ctx, github_token, new_version: Version):
     """
-    Creates a new entry in the release.json file for the new version. Removes all the RC entries.
-
-    Updates internal module dependencies with the new version.
+    Updates the release entries in release.json to prepare the next RC or final build.
     """
-
-    if sys.version_info[0] < 3:
-        print("Must use Python 3 for this task")
-        return Exit(code=1)
-
-    list_major_versions = major_versions.split(",")
-    print("Finishing release for major version(s) {}".format(list_major_versions))
-
-    list_major_versions = [int(x) for x in list_major_versions]
-
-    github_token = os.environ.get('GITHUB_TOKEN')
-    if github_token is None:
-        print(
-            "Error: set the GITHUB_TOKEN environment variable.\nYou can create one by going to"
-            " https://github.com/settings/tokens. It should have at least the 'repo' permissions."
-        )
-        return Exit(code=1)
-
     release_json = _load_release_json()
 
-    for major_version in list_major_versions:
-        highest_version = _get_highest_version_from_release_json(release_json, major_version, VERSION_RE)
+    release_entry = release_entry_for(new_version.major)
+    print("Updating {} for {}".format(release_entry, new_version))
 
-        # Set the new version
-        new_version = highest_version.next_version(rc=False)
-        print("Creating {}".format(new_version))
-
-        # Update release.json object with the entry for the new version
-        release_json = _update_release_json(release_json, new_version, github_token, check_for_rc=True)
-
-        # Erase RCs after we're done processing the new entry
-        while highest_version.is_rc():
-            # In case we have skipped an RC in the file...
-            try:
-                release_json.pop(str(highest_version))
-            finally:
-                highest_version.rc = highest_version.rc - 1
+    # Update release.json object with the entry for the new version
+    release_json = _update_release_json(ctx, release_json, release_entry, new_version, github_token)
 
     _save_release_json(release_json)
-
-    # Update internal module dependencies
-    update_modules(ctx, str(new_version))
-
-
-@task
-def create_rc(ctx, major_versions="6,7", patch_version=False):
-    """
-    Takes whatever version is the highest in release.json and adds a new RC to it.
-    If there was no RC, creates one, and:
-    - by default bumps the minor version.
-    - if --patch-version is specified, bumps the patch version.
-    
-    If there was an RC, create RC + 1.
-
-    Updates internal module dependencies with the new RC.
-    """
-
-    if sys.version_info[0] < 3:
-        print("Must use Python 3 for this task")
-        return Exit(code=1)
-
-    list_major_versions = major_versions.split(",")
-    print("Creating RC for agent version(s) {}".format(list_major_versions))
-
-    list_major_versions = [int(x) for x in list_major_versions]
-
-    github_token = os.environ.get('GITHUB_TOKEN')
-    if github_token is None:
-        print(
-            "Error: set the GITHUB_TOKEN environment variable.\nYou can create one by going to"
-            " https://github.com/settings/tokens. It should have at least the 'repo' permissions."
-        )
-        return Exit(code=1)
-
-    release_json = _load_release_json()
-
-    for major_version in list_major_versions:
-        highest_version = _get_highest_version_from_release_json(release_json, major_version, VERSION_RE)
-
-        if highest_version.is_rc():
-            # We're already on an RC, only bump the RC version
-            new_version = highest_version.next_version(rc=True)
-        else:
-            if patch_version:
-                new_version = highest_version.next_version(bump_patch=True, rc=True)
-            else:
-                new_version = highest_version.next_version(bump_minor=True, rc=True)
-        print("Creating {}".format(new_version))
-
-        # Update release.json object with the entry for the new version
-        release_json = _update_release_json(release_json, new_version, github_token, check_for_rc=False)
-
-    _save_release_json(release_json)
-
-    # Update internal module dependencies
-    # Uses the last major version processed
-    update_modules(ctx, str(new_version))
 
 
 def check_version(agent_version):
@@ -986,3 +919,408 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force
                     print("Pushed tag {tag}".format(tag=tag))
 
     print("Created all tags for version {}".format(agent_version))
+
+
+def current_version(ctx, major_version) -> Version:
+    return _create_version_from_match(VERSION_RE.search(get_version(ctx, major_version=major_version)))
+
+
+def next_final_version(ctx, major_version) -> Version:
+    previous_version = current_version(ctx, major_version)
+
+    # Set the new version
+    if previous_version.is_devel():
+        # If the previous version was a devel version, use the same version without devel
+        # (should never happen during regular releases, we always do at least one RC)
+        return previous_version.non_devel_version()
+
+    return previous_version.next_version(rc=False)
+
+
+def next_rc_version(ctx, major_version, patch_version=False) -> Version:
+    # Fetch previous version from the most recent tag on the branch
+    previous_version = current_version(ctx, major_version)
+
+    if previous_version.is_rc():
+        # We're already on an RC, only bump the RC version
+        new_version = previous_version.next_version(rc=True)
+    else:
+        if patch_version:
+            new_version = previous_version.next_version(bump_patch=True, rc=True)
+        else:
+            # Minor version bump, we're doing a standard release:
+            # - if the previous tag is a devel tag, use it without the devel tag
+            # - otherwise (should not happen during regular release cycles), bump the minor version
+            if previous_version.is_devel():
+                new_version = previous_version.non_devel_version()
+                new_version = new_version.next_version(rc=True)
+            else:
+                new_version = previous_version.next_version(bump_minor=True, rc=True)
+
+    return new_version
+
+
+def check_base_branch(branch, release_version):
+    """
+    Checks if the given branch is either the default branch or the release branch associated
+    with the given release version.
+    """
+    return branch == DEFAULT_BRANCH or branch == release_version.branch()
+
+
+def check_uncommitted_changes(ctx):
+    """
+    Checks if there are uncommitted changes in the local git repository.
+    """
+    modified_files = ctx.run("git --no-pager diff --name-only HEAD | wc -l", hide=True).stdout.strip()
+
+    # Return True if at least one file has uncommitted changes.
+    return modified_files != "0"
+
+
+def check_local_branch(ctx, branch):
+    """
+    Checks if the given branch exists locally
+    """
+    matching_branch = ctx.run("git --no-pager branch --list {} | wc -l".format(branch), hide=True).stdout.strip()
+
+    # Return True if a branch is returned by git branch --list
+    return matching_branch != "0"
+
+
+def check_upstream_branch(github, branch):
+    """
+    Checks if the given branch already exists in the upstream repository
+    """
+    github_branch = github.get_branch(branch)
+
+    # Return True if the branch exists
+    return github_branch and github_branch.get('name', False)
+
+
+def parse_major_versions(major_versions):
+    return sorted(int(x) for x in major_versions.split(","))
+
+
+@task
+def finish(ctx, major_versions="6,7"):
+    """
+    Updates the release entry in the release.json file for the new version.
+
+    Updates internal module dependencies with the new version.
+    """
+
+    if sys.version_info[0] < 3:
+        return Exit(message="Must use Python 3 for this task", code=1)
+
+    list_major_versions = parse_major_versions(major_versions)
+    print("Finishing release for major version(s) {}".format(list_major_versions))
+
+    github_token = get_github_token()
+
+    for major_version in list_major_versions:
+        new_version = next_final_version(ctx, major_version)
+        update_release_json(github_token, new_version)
+
+    # Update internal module dependencies
+    update_modules(ctx, str(new_version))
+
+
+@task(help={'upstream': "Remote repository name (default 'origin')"})
+def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin"):
+    """
+    Updates the release entries in release.json to prepare the next RC build.
+    If the previous version of the Agent (determined as the latest tag on the
+    current branch) is not an RC:
+    - by default, updates the release entries for the next minor version of
+      the Agent.
+    - if --patch-version is specified, updates the release entries for the next
+      patch version of the Agent.
+
+    This changes which tags will be considered on the dependency repositories (only
+    tags that match the same major and minor version as the Agent).
+
+    If the previous version of the Agent was an RC, updates the release entries for RC + 1.
+
+    Examples:
+    If the latest tag on the branch is 7.31.0, and invoke release.create-rc --patch-version
+    is run, then the task will prepare the release entries for 7.31.1-rc.1, and therefore
+    will only use 7.31.X tags on the dependency repositories that follow the Agent version scheme.
+
+    If the latest tag on the branch is 7.32.0-devel or 7.31.0, and invoke release.create-rc
+    is run, then the task will prepare the release entries for 7.32.0-rc.1, and therefore
+    will only use 7.32.X tags on the dependency repositories that follow the Agent version scheme.
+
+    Updates internal module dependencies with the new RC.
+
+    Commits the above changes, and then creates a PR on the upstream repository with the change.
+
+    Notes:
+    This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
+    with 'repo' permissions.
+    This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
+    release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
+    """
+    if sys.version_info[0] < 3:
+        return Exit(message="Must use Python 3 for this task", code=1)
+
+    github = GithubAPI(repository=REPOSITORY_NAME, api_token=get_github_token())
+
+    list_major_versions = parse_major_versions(major_versions)
+
+    # Get the version of the highest major: useful for some logging & to get
+    # the version to use for Go submodules updates
+    new_highest_version = next_rc_version(ctx, max(list_major_versions), patch_version)
+
+    # Get a string representation of the RC, eg. "6/7.32.0-rc.1"
+    versions_string = "{}".format(
+        "/".join([str(n) for n in list_major_versions[:-1]] + [str(new_highest_version)]),
+    )
+
+    print(color_message("Preparing RC for agent version(s) {}".format(list_major_versions), "bold"))
+
+    # Step 0: checks
+
+    print(color_message("Checking repository state", "bold"))
+    ctx.run("git fetch")
+
+    if check_uncommitted_changes(ctx):
+        raise Exit(
+            color_message(
+                "There are uncomitted changes in your repository. Please commit or stash them before trying again.",
+                "red",
+            ),
+            code=1,
+        )
+
+    # Check that the current and update branches are valid
+    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    update_branch = "release/{}".format(new_highest_version)
+
+    if not check_base_branch(current_branch, new_highest_version):
+        raise Exit(
+            color_message(
+                "The branch you are on is neither {} or the correct release branch ({}). Aborting.".format(
+                    DEFAULT_BRANCH, new_highest_version.branch()
+                ),
+                "red",
+            ),
+            code=1,
+        )
+
+    if check_local_branch(ctx, update_branch):
+        raise Exit(
+            color_message(
+                "The branch {} already exists locally. Please remove it before trying again.".format(update_branch),
+                "red",
+            ),
+            code=1,
+        )
+
+    if check_upstream_branch(github, update_branch):
+        raise Exit(
+            color_message(
+                "The branch {} already exists upstream. Please remove it before trying again.".format(update_branch),
+                "red",
+            ),
+            code=1,
+        )
+
+    # Find milestone based on what the next final version is. If the milestone does not exist, fail.
+    milestone_name = str(next_final_version(ctx, max(list_major_versions)))
+
+    milestone = github.get_milestone_by_name(milestone_name)
+
+    if not milestone or not milestone.get("number"):
+        raise Exit(
+            color_message(
+                """Could not find milestone {} in the Github repository. Response: {}
+Make sure that milestone is open before trying again.""".format(
+                    milestone_name, milestone
+                ),
+                "red",
+            ),
+            code=1,
+        )
+
+    # Step 1: Update release entries
+
+    print(color_message("Updating release entries", "bold"))
+    for major_version in list_major_versions:
+        new_version = next_rc_version(ctx, major_version, patch_version)
+        update_release_json(ctx, github.api_token, new_version)
+
+    # Step 2: Update internal module dependencies
+
+    print(color_message("Updating Go modules", "bold"))
+    update_modules(ctx, str(new_highest_version))
+
+    # Step 3: branch out, commit change, push branch
+
+    print(color_message("Branching out to {}".format(update_branch), "bold"))
+    ctx.run("git checkout -b {}".format(update_branch))
+
+    print(color_message("Committing release.json and Go modules updates", "bold"))
+    print(
+        color_message(
+            "If commit signing is enabled, you will have to make sure the commit gets properly signed.", "bold"
+        )
+    )
+    ctx.run("git add release.json")
+    ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
+
+    res = ctx.run("git commit -m 'Update release.json and Go modules for {}'".format(versions_string), warn=True)
+    if res.exited is None or res.exited > 0:
+        raise Exit(
+            color_message(
+                "Could not create commit. Please commit manually, push the {} branch and then open a PR against {}.".format(
+                    update_branch,
+                    current_branch,
+                ),
+                "red",
+            ),
+            code=1,
+        )
+
+    print(color_message("Pushing new branch to the upstream repository", "bold"))
+    res = ctx.run("git push --set-upstream {} {}".format(upstream, update_branch), warn=True)
+    if res.exited is None or res.exited > 0:
+        raise Exit(
+            color_message(
+                "Could not push branch {} to the upstream '{}'. Please push it manually and then open a PR against {}.".format(
+                    update_branch,
+                    upstream,
+                    current_branch,
+                ),
+                "red",
+            ),
+            code=1,
+        )
+
+    print(color_message("Creating PR", "bold"))
+
+    # Step 4: create PR
+
+    pr = github.create_pr(
+        pr_title="[release] Update release.json and Go modules for {}".format(versions_string),
+        pr_body="",
+        base_branch=current_branch,
+        target_branch=update_branch,
+    )
+
+    if not pr or not pr.get("number"):
+        raise Exit(
+            color_message("Could not create PR in the Github repository. Response: {}".format(pr), "red"),
+            code=1,
+        )
+
+    print(color_message("Created PR #{}".format(pr["number"]), "bold"))
+
+    # Step 5: add milestone and labels to PR
+
+    updated_pr = github.update_pr(
+        pull_number=pr["number"],
+        milestone_number=milestone["number"],
+        labels=["changelog/no-changelog", "qa/skip-qa", "team/agent-platform", "team/agent-core"],
+    )
+
+    if not updated_pr or not updated_pr.get("number") or not updated_pr.get("html_url"):
+        raise Exit(
+            color_message("Could not update PR in the Github repository. Response: {}".format(updated_pr), "red"),
+            code=1,
+        )
+
+    print(color_message("Set labels and milestone for PR #{}".format(updated_pr["number"]), "bold"))
+    print(
+        color_message(
+            "Done preparing RC {}. The PR is available here: {}".format(versions_string, updated_pr["html_url"]), "bold"
+        )
+    )
+
+
+@task(help={'redo': "Redo the tag & build for the last RC that was tagged, instead of creating tags for the next RC."})
+def build_rc(ctx, major_versions="6,7", patch_version=False, redo=False):
+    """
+    To be done after the PR created by release.create-rc is merged, with the same options
+    as release.create-rc.
+
+    Tags the new RC versions on the current commit, and creates the build pipeline for these
+    new tags.
+    """
+    if sys.version_info[0] < 3:
+        return Exit(message="Must use Python 3 for this task", code=1)
+
+    gitlab = Gitlab(project_name=REPOSITORY_NAME, api_token=get_gitlab_token())
+    list_major_versions = parse_major_versions(major_versions)
+
+    # Get the version of the highest major: needed for tag_version and to know
+    # which tag to target when creating the pipeline.
+    if redo:
+        # If redo is enabled, we're moving the current RC tag, so we keep the same version
+        new_version = current_version(ctx, max(list_major_versions))
+    else:
+        new_version = next_rc_version(ctx, max(list_major_versions), patch_version)
+
+    # Get a string representation of the RC, eg. "6/7.32.0-rc.1"
+    versions_string = "{}".format(
+        "/".join([str(n) for n in list_major_versions[:-1]] + [str(new_version)]),
+    )
+
+    # Step 0: checks
+
+    print(color_message("Checking repository state", "bold"))
+    # Check that the base branch is valid
+    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+
+    if not check_base_branch(current_branch, new_version):
+        raise Exit(
+            color_message(
+                "The branch you are on is neither {} or the correct release branch ({}). Aborting.".format(
+                    DEFAULT_BRANCH, new_version.branch()
+                ),
+                "red",
+            ),
+            code=1,
+        )
+
+    latest_commit = ctx.run("git --no-pager log --no-color -1 --oneline").stdout.strip()
+
+    if not yes_no_question(
+        "This task will create tags for {} on the current commit: {}. Is this OK?".format(
+            versions_string, latest_commit
+        ),
+        color="orange",
+        default=False,
+    ):
+        raise Exit(color_message("Aborting.", "red"), code=1)
+
+    # Step 1: Tag versions
+
+    print(color_message("Tagging RC for agent version(s) {}".format(list_major_versions), "bold"))
+    print(
+        color_message("If commit signing is enabled, you will have to make sure each tag gets properly signed.", "bold")
+    )
+    # tag_version only takes the highest version (Agent 7 currently), and creates
+    # the tags for all supported versions
+    # TODO: make it possible to do Agent 6-only or Agent 7-only tags?
+    # Note: if redo is enabled, then we need to set the --force option to move the tags.
+    tag_version(ctx, str(new_version), force=redo)
+
+    print(color_message("Waiting until the {} tag appears in Gitlab".format(new_version), "bold"))
+    gitlab_tag = None
+    while not gitlab_tag:
+        gitlab_tag = gitlab.find_tag(str(new_version)).get("name", None)
+        sleep(5)
+
+    print(color_message("Creating RC pipeline", "bold"))
+
+    # Step 2: Run the RC pipeline
+
+    run(
+        ctx,
+        git_ref=gitlab_tag,
+        use_release_entries=True,
+        major_versions=major_versions,
+        repo_branch="beta",
+        deploy=True,
+    )

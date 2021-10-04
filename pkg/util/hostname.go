@@ -65,7 +65,7 @@ func Fqdn(hostname string) string {
 
 func setHostnameProvider(name string) {
 	hostnameProvider.Set(name)
-	inventories.SetAgentMetadata("hostname_source", name)
+	inventories.SetAgentMetadata(inventories.HostnameSourceMetadataName, name)
 }
 
 // isOSHostnameUsable returns `false` if it has the certainty that the agent is running
@@ -237,8 +237,8 @@ func GetHostnameData(ctx context.Context) (HostnameData, error) {
 		}
 	}
 
-	isContainerized, containerName := getContainerHostname(ctx)
-	if isContainerized {
+	if config.IsContainerized() {
+		containerName := getContainerHostname(ctx)
 		if containerName != "" {
 			hostName = containerName
 			provider = "container"

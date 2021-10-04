@@ -94,7 +94,7 @@ func (id ADIdentifier) GetDesiredLRP() *DesiredLRP {
 func (id ADIdentifier) String() string {
 	if id.actualLRP != nil {
 		// For container checks, use processGUID to have 1 check per container, even during rolling redeployments
-		return fmt.Sprintf("%s/%s/%d", id.desiredLRP.ProcessGUID, id.svcName, id.actualLRP.Index)
+		return fmt.Sprintf("%s/%s/%s", id.desiredLRP.ProcessGUID, id.svcName, id.actualLRP.InstanceGUID)
 	}
 	// For non container checks, use appGUID to have one check per service, even during rolling redeployments
 	return fmt.Sprintf("%s/%s", id.desiredLRP.AppGUID, id.svcName)
@@ -128,16 +128,54 @@ type DesiredLRP struct {
 
 // CFApp carries the necessary data about a CF App obtained from the CC API
 type CFApp struct {
+	Name      string
+	SpaceGUID string
+	Tags      []string
+}
+
+// CFOrg carries the necessary data about a CF Org obtained from the CC API
+type CFOrg struct {
 	Name string
-	Tags []string
+}
+
+// CFSpace carries the necessary data about a CF Space obtained from the CC API
+type CFSpace struct {
+	Name    string
+	OrgGUID string
 }
 
 func CFAppFromV3App(app *cfclient.V3App) *CFApp {
 	tags := extractTagsFromAppMeta(app.Metadata.Labels)
 	tags = append(tags, extractTagsFromAppMeta(app.Metadata.Annotations)...)
+	var spaceGUID string
+	if s, ok := app.Relationships["space"]; ok {
+		spaceGUID = s.Data.GUID
+	} else {
+		log.Debugf("Failed to get space GUID for app %s", app.Name)
+	}
 	return &CFApp{
-		Name: app.Name,
-		Tags: tags,
+		Name:      app.Name,
+		Tags:      tags,
+		SpaceGUID: spaceGUID,
+	}
+}
+
+func CFSpaceFromV3Space(space *cfclient.V3Space) *CFSpace {
+	var orgGUID string
+	if s, ok := space.Relationships["organization"]; ok {
+		orgGUID = s.Data.GUID
+	} else {
+		log.Debugf("Failed to get org GUID for space %s", space.Name)
+	}
+	return &CFSpace{
+		Name:    space.Name,
+		OrgGUID: orgGUID,
+	}
+}
+
+func CFOrgFromV3Organization(org *cfclient.V3Organization) *CFOrg {
+	return &CFOrg{
+		Name: org.Name,
 	}
 }
 
@@ -240,7 +278,10 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 	}
 	appName := extractVA[ApplicationNameKey]
 	appGUID := extractVA[ApplicationIDKey]
-
+	orgGUID := extractVA[OrganizationIDKey]
+	orgName := extractVA[OrganizationNameKey]
+	spaceGUID := extractVA[SpaceIDKey]
+	spaceName := extractVA[SpaceNameKey]
 	// try to get updated app name from CC API in case of app renames, as well as tags extracted from app metadata
 	ccCache, err := GetGlobalCCCache()
 	if err == nil {
@@ -249,6 +290,18 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 		} else {
 			appName = ccApp.Name
 			customTags = append(customTags, ccApp.Tags...)
+			spaceGUID = ccApp.SpaceGUID
+			if space, err := ccCache.GetSpace(spaceGUID); err == nil {
+				spaceName = space.Name
+				orgGUID = space.OrgGUID
+			} else {
+				log.Debugf("Could not find space %s in cc cache", spaceGUID)
+			}
+			if org, err := ccCache.GetOrg(orgGUID); err == nil {
+				orgName = org.Name
+			} else {
+				log.Debugf("Could not find org %s in cc cache", orgGUID)
+			}
 		}
 	} else {
 		log.Debugf("Could not get Cloud Foundry CCAPI cache: %v", err)
@@ -260,11 +313,11 @@ func DesiredLRPFromBBSModel(bbsLRP *models.DesiredLRP, includeList, excludeList 
 		EnvAD:              envAD,
 		EnvVcapServices:    envVS,
 		EnvVcapApplication: envVA,
-		OrganizationGUID:   extractVA[OrganizationIDKey],
-		OrganizationName:   extractVA[OrganizationNameKey],
+		OrganizationGUID:   orgGUID,
+		OrganizationName:   orgName,
 		ProcessGUID:        bbsLRP.ProcessGuid,
-		SpaceGUID:          extractVA[SpaceIDKey],
-		SpaceName:          extractVA[SpaceNameKey],
+		SpaceGUID:          spaceGUID,
+		SpaceName:          spaceName,
 		CustomTags:         customTags,
 	}
 	return d

@@ -36,6 +36,9 @@ const bucketSize = 10                         // fixed for now
 // MetricSamplePoolBatchSize is the batch size of the metric sample pool.
 const MetricSamplePoolBatchSize = 32
 
+// tagsetTlm handles telemetry for large tagsets.
+var tagsetTlm *tagsetTelemetry
+
 // Stats stores a statistic from several past flushes allowing computations like median or percentiles
 type Stats struct {
 	Flushes    [32]int64 // circular buffer of recent flushes stat
@@ -79,6 +82,10 @@ func expStatsMap(statsMap map[string]*Stats) func() interface{} {
 	return func() interface{} {
 		return statsMap
 	}
+}
+
+func expMetricTags() interface{} {
+	return tagsetTlm.exp()
 }
 
 func timeNowNano() float64 {
@@ -162,6 +169,10 @@ func init() {
 	aggregatorExpvars.Set("DogstatsdContexts", &aggregatorDogstatsdContexts)
 	aggregatorExpvars.Set("EventPlatformEvents", &aggregatorEventPlatformEvents)
 	aggregatorExpvars.Set("EventPlatformEventsErrors", &aggregatorEventPlatformEventsErrors)
+
+	tagsetTlm = newTagsetTelemetry([]uint64{90, 100})
+
+	aggregatorExpvars.Set("MetricTags", expvar.Func(expMetricTags))
 }
 
 // InitAggregator returns the Singleton instance
@@ -357,7 +368,11 @@ func (agg *BufferedAggregator) registerSender(id check.ID) error {
 	if _, ok := agg.checkSamplers[id]; ok {
 		return fmt.Errorf("Sender with ID '%s' has already been registered, will use existing sampler", id)
 	}
-	agg.checkSamplers[id] = newCheckSampler(config.Datadog.GetInt("check_sampler_bucket_commits_count_expiry"))
+	agg.checkSamplers[id] = newCheckSampler(
+		config.Datadog.GetInt("check_sampler_bucket_commits_count_expiry"),
+		config.Datadog.GetBool("check_sampler_expire_metrics"),
+		config.Datadog.GetDuration("check_sampler_stateful_metric_expiration_time"),
+	)
 	return nil
 }
 
@@ -410,7 +425,9 @@ func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
 		sc.Ts = time.Now().Unix()
 	}
 	tb := util.NewTagsBuilderFromSlice(sc.Tags)
-	metrics.EnrichTags(tb, sc.OriginID, sc.K8sOriginID, sc.Cardinality)
+	tagger.EnrichTags(tb, sc.OriginID, sc.K8sOriginID, sc.Cardinality)
+
+	tb.SortUniq()
 	sc.Tags = tb.Get()
 
 	agg.serviceChecks = append(agg.serviceChecks, &sc)
@@ -422,7 +439,9 @@ func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 		e.Ts = time.Now().Unix()
 	}
 	tb := util.NewTagsBuilderFromSlice(e.Tags)
-	metrics.EnrichTags(tb, e.OriginID, e.K8sOriginID, e.Cardinality)
+	tagger.EnrichTags(tb, e.OriginID, e.K8sOriginID, e.Cardinality)
+
+	tb.SortUniq()
 	e.Tags = tb.Get()
 
 	agg.events = append(agg.events, &e)
@@ -461,6 +480,8 @@ func (agg *BufferedAggregator) pushSketches(start time.Time, sketches metrics.Sk
 	addFlushTime("MetricSketchFlushTime", int64(time.Since(start)))
 	aggregatorSketchesFlushed.Add(int64(len(sketches)))
 	tlmFlush.Add(float64(len(sketches)), "sketches", state)
+
+	tagsetTlm.updateHugeSketchesTelemetry(&sketches)
 }
 
 func (agg *BufferedAggregator) pushSeries(start time.Time, series metrics.Series) {
@@ -475,6 +496,8 @@ func (agg *BufferedAggregator) pushSeries(start time.Time, series metrics.Series
 	addFlushTime("ChecksMetricSampleFlushTime", int64(time.Since(start)))
 	aggregatorSeriesFlushed.Add(int64(len(series)))
 	tlmFlush.Add(float64(len(series)), "series", state)
+
+	tagsetTlm.updateHugeSeriesTelemetry(&series)
 }
 
 func (agg *BufferedAggregator) sendSeries(start time.Time, series metrics.Series, waitForSerializer bool) {
@@ -679,6 +702,7 @@ func (agg *BufferedAggregator) Flush(start time.Time, waitForSerializer bool) {
 	agg.flushSeriesAndSketches(start, waitForSerializer)
 	agg.flushServiceChecks(start, waitForSerializer)
 	agg.flushEvents(start, waitForSerializer)
+	agg.updateChecksTelemetry()
 }
 
 // Stop stops the aggregator. Based on 'flushData' waiting metrics (from checks
@@ -757,8 +781,9 @@ func (agg *BufferedAggregator) run() {
 		case ms := <-agg.bufferedMetricIn:
 			aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
 			tlmProcessed.Add(float64(len(ms)), "dogstatsd_metrics")
+			t := timeNowNano()
 			for i := 0; i < len(ms); i++ {
-				agg.addSample(&ms[i], timeNowNano())
+				agg.addSample(&ms[i], t)
 			}
 			agg.MetricSamplePool.PutBatch(ms)
 		case serviceChecks := <-agg.bufferedServiceCheckIn:
@@ -829,4 +854,12 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 		return append(tags, "version:"+version.AgentVersion)
 	}
 	return tags
+}
+
+func (agg *BufferedAggregator) updateChecksTelemetry() {
+	t := metrics.CheckMetricsTelemetryAccumulator{}
+	for _, sampler := range agg.checkSamplers {
+		t.VisitCheckMetrics(&sampler.metrics)
+	}
+	t.Flush()
 }

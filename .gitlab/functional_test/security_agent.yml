@@ -20,15 +20,31 @@
   script:
     - bash -l tasks/run-test-kitchen.sh security-agent-test $AGENT_MAJOR_VERSION
 
-.kitchen_test_security_agent_x64:
+kitchen_test_security_agent_x64:
   extends:
     - .kitchen_test_security_agent
     - .kitchen_azure_location_north_central_us
   needs: ["tests_ebpf_x64"]
   variables:
     KITCHEN_ARCH: x86_64
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+  parallel:
+    matrix:
+      - KITCHEN_PLATFORM: "centos"
+        KITCHEN_OSVERS: "centos-77,rhel-81"
+      - KITCHEN_PLATFORM: "ubuntu"
+        KITCHEN_OSVERS: "ubuntu-18-04,ubuntu-20-04,ubuntu-20-04-hwe,ubuntu-21-10"
+      - KITCHEN_PLATFORM: "suse"
+        KITCHEN_OSVERS: "sles-12,sles-15"
+      - KITCHEN_PLATFORM: "debian"
+        KITCHEN_OSVERS: "debian-10,debian-11"
+      - KITCHEN_PLATFORM: "oracle"
+        KITCHEN_OSVERS: "oracle-7-9"
 
-.kitchen_test_security_agent_arm64:
+kitchen_test_security_agent_arm64:
   extends:
     - .kitchen_test_security_agent
     - .kitchen_ec2_location_us_east_1
@@ -37,8 +53,16 @@
   variables:
     KITCHEN_ARCH: arm64
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.large"
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
+  parallel:
+    matrix:
+      - KITCHEN_PLATFORM: "ubuntu"
+        KITCHEN_OSVERS: "ubuntu-20-04-hwe,ubuntu-21-04"
 
-.kitchen_stress_security_agent:
+kitchen_stress_security_agent:
   extends:
     - .kitchen_common
     - .kitchen_datadog_agent_flavor
@@ -50,68 +74,13 @@
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+    - cd $DD_AGENT_TESTING_DIR
+    - bash -l tasks/kitchen_setup.sh
   script:
     - bash -l tasks/run-test-kitchen.sh security-agent-stress $AGENT_MAJOR_VERSION
-
-kitchen_centos_security_agent_x64:
-  extends: .kitchen_test_security_agent_x64
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM="centos"
-    - export KITCHEN_OSVERS="centos-77,rhel-81"
-    - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
-
-kitchen_ubuntu_security_agent_x64:
-  extends: .kitchen_test_security_agent_x64
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM=ubuntu
-    - export KITCHEN_OSVERS="ubuntu-18-04,ubuntu-20-04,ubuntu-21-04"
-    - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
-
-kitchen_ubuntu_security_agent_arm64:
-  extends: .kitchen_test_security_agent_arm64
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM=ubuntu
-    - export KITCHEN_OSVERS="ubuntu-20-04-hwe,ubuntu-21-04"
-    - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
-
-kitchen_ubuntu_security_agent_stress:
-  extends: .kitchen_stress_security_agent
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM="ubuntu"
-    - export KITCHEN_OSVERS="ubuntu-20-04"
-    - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
-
-kitchen_suse_security_agent_x64:
-  extends: .kitchen_test_security_agent_x64
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM="suse"
-    - export KITCHEN_OSVERS="sles-12,sles-15"
-    - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
-
-kitchen_debian_security_agent_x64:
-  extends: .kitchen_test_security_agent_x64
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM="debian"
-    - export KITCHEN_OSVERS="debian-10"
-    - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
-
-kitchen_oracle_security_agent_x64:
-  extends: .kitchen_test_security_agent_x64
-  before_script:
-    - rsync -azr --delete ./ $SRC_PATH
-    - export KITCHEN_PLATFORM="oracle"
-    - export KITCHEN_OSVERS="oracle-7-9"
-    - cd $DD_AGENT_TESTING_DIR
-    - bash -l tasks/kitchen_setup.sh
+  parallel:
+    matrix:
+      - KITCHEN_PLATFORM: "ubuntu"
+        KITCHEN_OSVERS: "ubuntu-20-04"

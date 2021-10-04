@@ -26,26 +26,26 @@ type contextResolver struct {
 	keyGenerator  *ckey.KeyGenerator
 	// buffer slice allocated once per contextResolver to combine and sort
 	// tags, origin detection tags and k8s tags.
-	tagsBuffer *util.TagsBuilder
+	tagsBuffer *util.HashingTagsBuilder
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
-func (cr *contextResolver) generateContextKey(metricSampleContext metrics.MetricSampleContext, tags *util.TagsBuilder) ckey.ContextKey {
-	return cr.keyGenerator.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), tags.Get())
+func (cr *contextResolver) generateContextKey(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
+	return cr.keyGenerator.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), cr.tagsBuffer)
 }
 
 func newContextResolver() *contextResolver {
 	return &contextResolver{
 		contextsByKey: make(map[ckey.ContextKey]*Context),
 		keyGenerator:  ckey.NewKeyGenerator(),
-		tagsBuffer:    util.NewTagsBuilder(),
+		tagsBuffer:    util.NewHashingTagsBuilder(),
 	}
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
 func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
-	metricSampleContext.GetTags(cr.tagsBuffer)
-	contextKey := cr.generateContextKey(metricSampleContext, cr.tagsBuffer)
+	metricSampleContext.GetTags(cr.tagsBuffer)               // tags here are not sorted and can contain duplicates
+	contextKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates from cr.tagsBuffer (and doesn't mind the order)
 
 	if _, ok := cr.contextsByKey[contextKey]; !ok {
 		// making a copy of tags for the context since tagsBuffer

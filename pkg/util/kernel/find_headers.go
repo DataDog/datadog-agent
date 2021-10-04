@@ -22,6 +22,7 @@ const sysfsHeadersPath = "/sys/kernel/kheaders.tar.xz"
 const kernelModulesPath = "/lib/modules/%s/build"
 const debKernelModulesPath = "/lib/modules/%s/source"
 const cosKernelModulesPath = "/usr/src/linux-headers-%s"
+const fedoraKernelModulesPath = "/usr"
 
 var versionCodeRegexp = regexp.MustCompile(`^#define[\t ]+LINUX_VERSION_CODE[\t ]+(\d+)$`)
 
@@ -43,7 +44,7 @@ const (
 
 // GetKernelHeaders attempts to find kernel headers on the host, and if they cannot be found it will attempt
 // to  download them to headerDownloadDir
-func GetKernelHeaders(headerDirs []string, headerDownloadDir string) ([]string, HeaderFetchResult, error) {
+func GetKernelHeaders(headerDirs []string, headerDownloadDir, aptConfigDir, yumReposDir, zypperReposDir string) ([]string, HeaderFetchResult, error) {
 	hv, hvErr := HostVersion()
 	if hvErr != nil {
 		return nil, hostVersionErr, fmt.Errorf("unable to determine host kernel version: %w", hvErr)
@@ -78,8 +79,9 @@ func GetKernelHeaders(headerDirs []string, headerDownloadDir string) ([]string, 
 	}
 	log.Debugf("unable to find downloaded kernel headers: %s", err)
 
-	if err = downloadHeaders(headerDownloadDir); err == nil {
-		log.Infof("successfully downloaded kernel headers to %s", dirs)
+	d := headerDownloader{aptConfigDir, yumReposDir, zypperReposDir}
+	if err = d.downloadHeaders(headerDownloadDir); err == nil {
+		log.Infof("successfully downloaded kernel headers to %s", headerDownloadDir)
 		if err = validateHeaderDirs(hv, dirs); err == nil {
 			return dirs, downloadSuccess, nil
 		}
@@ -114,8 +116,13 @@ func getHeaderVersion(path string) (Version, error) {
 	vh := filepath.Join(path, "include/generated/uapi/linux/version.h")
 	f, err := os.Open(vh)
 	if err != nil {
-		return 0, err
+		vh = filepath.Join(path, "include/linux/version.h")
+		f, err = os.Open(vh)
+		if err != nil {
+			return 0, err
+		}
 	}
+
 	defer f.Close()
 	return parseHeaderVersion(f)
 }
@@ -146,12 +153,9 @@ func getDefaultHeaderDirs() []string {
 
 	dirs := []string{
 		fmt.Sprintf(kernelModulesPath, hi.KernelVersion),
-	}
-	switch hi.Platform {
-	case "debian":
-		dirs = append(dirs, fmt.Sprintf(debKernelModulesPath, hi.KernelVersion))
-	case "cos":
-		dirs = append(dirs, fmt.Sprintf(cosKernelModulesPath, hi.KernelVersion))
+		fmt.Sprintf(debKernelModulesPath, hi.KernelVersion),
+		fmt.Sprintf(cosKernelModulesPath, hi.KernelVersion),
+		fedoraKernelModulesPath,
 	}
 	return dirs
 }

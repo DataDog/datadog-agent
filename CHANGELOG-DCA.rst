@@ -2,6 +2,68 @@
 Release Notes
 =============
 
+.. _Release Notes_dca-1.15.0_dca-1.15.X:
+
+dca-1.15.0
+==========
+
+.. _Release Notes_dca-1.15.0_dca-1.15.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2021-09-13
+Pinned to datadog-agent v7.31.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7310>`_.
+
+.. _Release Notes_dca-1.15.0_dca-1.15.X_New Features:
+
+New Features
+------------
+
+- Enable ``StatefulSet`` collection by default in the orchestrator check.
+- Add ``PV`` and ``PVC`` collection in the orchestrator check.
+- Added possibility to use the `maxAge` attribute defined in the datadogMetric CRD overriding the global `maxAge`.
+
+
+.. _Release Notes_dca-1.14.0_dca-1.14.X:
+
+dca-1.14.0
+==========
+
+.. _Release Notes_dca-1.14.0_dca-1.14.X_Prelude:
+
+Prelude
+-------
+
+Released on: 2021-08-12
+Pinned to datadog-agent v7.30.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/master/CHANGELOG.rst#7300>`_.
+
+.. _Release Notes_dca-1.14.0_dca-1.14.X_New Features:
+
+New Features
+------------
+
+- Enable ``DaemonSet`` collection by default in the orchestrator check. Add ``StatefulSet`` collection in the orchestrator check.
+
+.. _Release Notes_dca-1.14.0_dca-1.14.X_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The Cluster Agent's Admission Controller now uses the ``admissionregistration.k8s.io/v1`` kubernetes API when available.
+- The Cluster Agent can be instructed to dispatch cluster checks without decrypting secrets. The node Agent or the cluster check runner will fetch the secrets after receiving the configurations from the Cluster Agent. This can be enabled by setting ``DD_SECRET_BACKEND_SKIP_CHECKS`` to ``true`` in the Cluster Agent config.
+- The Cluster Agent's external metrics provider now serves an OpenAPI endpoint.
+- Add the ability to change log_level at runtime. To set the log_level to ``debug`` the following command should be used: ``agent config set log_level debug``.
+- Improve status and flare for the Cluster Check Runners.
+
+.. _Release Notes_dca-1.14.0_dca-1.14.X_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Show different orchestrator status collection information between follower and leader.
+- Fix an edge case where the Admission Controller doesn't update the certificate according to the Cluster Agent configuration.
+
 .. _Release Notes_dca-1.13.1_dca-1.13.X:
 
 dca-1.13.1

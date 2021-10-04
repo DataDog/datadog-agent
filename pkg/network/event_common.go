@@ -103,13 +103,20 @@ func (e EphemeralPortType) String() string {
 	}
 }
 
+// BufferedData encapsulates data whose underlying memory can be recycled
+type BufferedData struct {
+	Conns  []ConnectionStats
+	buffer *clientBuffer
+}
+
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
+	BufferedData
 	DNS                         map[util.Address][]string
-	Conns                       []ConnectionStats
 	ConnTelemetry               *ConnectionsTelemetry
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
 	HTTP                        map[http.Key]http.RequestStats
+	DNSStats                    dns.StatsByKeyByNameByType
 }
 
 // ConnectionsTelemetry stores telemetry from the system probe related to connections collection
@@ -176,23 +183,17 @@ type ConnectionStats struct {
 	Pid   uint32
 	NetNS uint32
 
-	SPort                       uint16
-	DPort                       uint16
-	Type                        ConnectionType
-	Family                      ConnectionFamily
-	Direction                   ConnectionDirection
-	SPortIsEphemeral            EphemeralPortType
-	IPTranslation               *IPTranslation
-	IntraHost                   bool
-	DNSSuccessfulResponses      uint32
-	DNSFailedResponses          uint32
-	DNSTimeouts                 uint32
-	DNSSuccessLatencySum        uint64
-	DNSFailureLatencySum        uint64
-	DNSCountByRcode             map[uint32]uint32
-	DNSStatsByDomainByQueryType map[string]map[dns.QueryType]dns.Stats
+	SPort            uint16
+	DPort            uint16
+	Type             ConnectionType
+	Family           ConnectionFamily
+	Direction        ConnectionDirection
+	SPortIsEphemeral EphemeralPortType
+	IPTranslation    *IPTranslation
+	IntraHost        bool
+	Via              *Via
 
-	Via *Via
+	IsAssured bool
 }
 
 // Via has info about the routing decision for a flow
@@ -215,6 +216,11 @@ type IPTranslation struct {
 
 func (c ConnectionStats) String() string {
 	return ConnectionSummary(&c, nil)
+}
+
+// IsExpired returns whether the connection is expired according to the provided time and timeout.
+func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
+	return c.LastUpdateEpoch+timeout <= now
 }
 
 // ByteKey returns a unique key for this connection represented as a byte array

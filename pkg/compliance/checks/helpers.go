@@ -26,6 +26,29 @@ import (
 // getter applies jq query to get string value from json or yaml raw data
 type getter func([]byte, string) (string, error)
 
+// readContent unmarshal file
+func readContent(filePath string) (interface{}, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	data, err := ioutil.ReadAll(f)
+	if err != nil {
+		return "", err
+	}
+
+	var content interface{}
+	if err := json.Unmarshal(data, &content); err != nil {
+		if err := yaml.Unmarshal(data, &content); err != nil {
+			return string(data), err
+		}
+	}
+
+	return content, nil
+}
+
 // jsonGetter retrieves a property from a JSON file (jq style syntax)
 func jsonGetter(data []byte, query string) (string, error) {
 	var jsonContent interface{}

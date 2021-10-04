@@ -18,15 +18,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 const (
 	notFoundTTL = 5 * time.Minute
-	deletedTTL  = 5 * time.Minute
 	errTTL      = 30 * time.Second
 )
 
@@ -35,18 +34,16 @@ const (
 // Tagger instead of instantiating one.
 type Tagger struct {
 	sync.RWMutex
-	store           *tagStore
-	candidates      map[string]collectors.CollectorFactory
-	pullers         map[string]collectors.Puller
-	streamers       map[string]collectors.Streamer
-	fetchers        map[string]collectors.Fetcher
-	infoIn          chan []*collectors.TagInfo
-	pullTicker      *time.Ticker
-	pruneTicker     *time.Ticker
-	retryTicker     *time.Ticker
-	telemetryTicker *time.Ticker
-	stop            chan bool
-	health          *health.Handle
+	candidates map[string]collectors.CollectorFactory
+	pullers    map[string]collectors.Puller
+	streamers  map[string]collectors.Streamer
+	fetchers   map[string]fetcherEntry
+
+	store       *tagstore.TagStore
+	retryTicker *time.Ticker
+
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 type collectorReply struct {
@@ -55,23 +52,27 @@ type collectorReply struct {
 	instance collectors.Collector
 }
 
+type fetcherEntry struct {
+	fetcher   collectors.Fetcher
+	telemetry telemetry.FetcherTelemetry
+}
+
 // NewTagger returns an allocated tagger. You still have to run Init()
 // once the config package is ready.
 // You are probably looking for tagger.Tag() using the global instance
 // instead of creating your own.
 func NewTagger(catalog collectors.Catalog) *Tagger {
+	ctx, cancel := context.WithCancel(context.TODO())
 	t := &Tagger{
-		store:           newTagStore(),
-		candidates:      make(map[string]collectors.CollectorFactory),
-		pullers:         make(map[string]collectors.Puller),
-		streamers:       make(map[string]collectors.Streamer),
-		fetchers:        make(map[string]collectors.Fetcher),
-		infoIn:          make(chan []*collectors.TagInfo, 5),
-		pullTicker:      time.NewTicker(5 * time.Second),
-		pruneTicker:     time.NewTicker(1 * time.Minute),
-		retryTicker:     time.NewTicker(30 * time.Second),
-		telemetryTicker: time.NewTicker(1 * time.Minute),
-		stop:            make(chan bool),
+		candidates: make(map[string]collectors.CollectorFactory),
+		pullers:    make(map[string]collectors.Puller),
+		streamers:  make(map[string]collectors.Streamer),
+		fetchers:   make(map[string]fetcherEntry),
+
+		store: tagstore.NewTagStore(),
+
+		ctx:    ctx,
+		cancel: cancel,
 	}
 
 	// Populate collector candidate list from catalog
@@ -87,22 +88,27 @@ func NewTagger(catalog collectors.Catalog) *Tagger {
 // for this host. It then starts the collection logic and is ready for
 // requests.
 func (t *Tagger) Init() error {
-	// Only register the health check when the tagger is started
-	t.health = health.RegisterLiveness("tagger")
+	t.retryTicker = time.NewTicker(30 * time.Second)
 
-	// TODO(deps injection): add a context in the tagger struct to how the restart if the tagger
-	t.startCollectors(context.TODO())
-	go t.run() //nolint:errcheck
-	go t.pull(context.TODO())
+	t.startCollectors(t.ctx)
+
+	go t.runPuller(t.ctx)
+	go t.store.Run(t.ctx)
+
+	go t.run()
 
 	return nil
 }
 
-func (t *Tagger) run() error {
-	ctx, cancel := context.WithCancel(context.Background())
+func (t *Tagger) run() {
 	for {
 		select {
-		case <-t.stop:
+		case <-t.retryTicker.C:
+			t.startCollectors(t.ctx)
+
+		case <-t.ctx.Done():
+			// NOTE: in the future, we could pass a context to
+			// streamers so they can stop themselves.
 			t.RLock()
 			for name, collector := range t.streamers {
 				err := collector.Stop()
@@ -111,26 +117,34 @@ func (t *Tagger) run() error {
 				}
 			}
 			t.RUnlock()
-			t.pullTicker.Stop()
-			t.pruneTicker.Stop()
+
 			t.retryTicker.Stop()
-			t.telemetryTicker.Stop()
-			t.health.Deregister() //nolint:errcheck
-			cancel()
-			return nil
-		case healthDeadline := <-t.health.C:
-			cancel()
-			ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
-		case msg := <-t.infoIn:
-			t.store.processTagInfo(msg)
-		case <-t.retryTicker.C:
-			go t.startCollectors(ctx)
-		case <-t.pullTicker.C:
-			go t.pull(ctx)
-		case <-t.pruneTicker.C:
-			t.store.prune()
-		case <-t.telemetryTicker.C:
-			t.store.collectTelemetry()
+
+			return
+		}
+	}
+}
+
+func (t *Tagger) runPuller(ctx context.Context) {
+	pullTicker := time.NewTicker(5 * time.Second)
+	health := health.RegisterLiveness("tagger-pull")
+
+	for {
+		select {
+		case <-pullTicker.C:
+			t.pull(ctx)
+
+		case <-health.C:
+
+		case <-ctx.Done():
+			pullTicker.Stop()
+
+			err := health.Deregister()
+			if err != nil {
+				log.Warnf("error de-registering health check: %s", err)
+			}
+
+			return
 		}
 	}
 }
@@ -161,7 +175,7 @@ func (t *Tagger) tryCollectors(ctx context.Context) []collectorReply {
 
 	for name, factory := range t.candidates {
 		collector := factory()
-		mode, err := collector.Detect(ctx, t.infoIn)
+		mode, err := collector.Detect(ctx, t.store.InfoIn)
 		if mode == collectors.NoCollection && err == nil {
 			log.Infof("collector %s skipped as feature not activated", name)
 			delete(t.candidates, name)
@@ -197,7 +211,7 @@ func (t *Tagger) registerCollectors(replies []collectorReply) {
 			pull, ok := c.instance.(collectors.Puller)
 			if ok {
 				t.pullers[c.name] = pull
-				t.fetchers[c.name] = pull
+				t.addFetcher(c.name, pull)
 			} else {
 				log.Errorf("error initializing collector %s: does not implement pull", c.name)
 			}
@@ -205,21 +219,21 @@ func (t *Tagger) registerCollectors(replies []collectorReply) {
 			stream, ok := c.instance.(collectors.Streamer)
 			if ok {
 				t.streamers[c.name] = stream
-				t.fetchers[c.name] = stream
+				t.addFetcher(c.name, stream)
 				go stream.Stream() //nolint:errcheck
 			} else {
 				log.Errorf("error initializing collector %s: does not implement stream", c.name)
 			}
-		case collectors.FetchOnlyCollection:
-			fetch, ok := c.instance.(collectors.Fetcher)
-			if ok {
-				t.fetchers[c.name] = fetch
-			} else {
-				log.Errorf("error initializing collector %s: does not implement fetch", c.name)
-			}
 		}
 	}
 	t.Unlock()
+}
+
+func (t *Tagger) addFetcher(name string, collector collectors.Fetcher) {
+	t.fetchers[name] = fetcherEntry{
+		fetcher:   collector,
+		telemetry: telemetry.NewFetcherTelemetry(name),
+	}
 }
 
 func (t *Tagger) pull(ctx context.Context) {
@@ -227,7 +241,7 @@ func (t *Tagger) pull(ctx context.Context) {
 	for name, puller := range t.pullers {
 		err := puller.Pull(ctx)
 		if err != nil {
-			log.Debugf("Error pulling from %s: %s", name, err.Error())
+			log.Warnf("Error pulling from %s: %s", name, err.Error())
 		}
 	}
 	t.RUnlock()
@@ -235,27 +249,26 @@ func (t *Tagger) pull(ctx context.Context) {
 
 // Stop queues a shutdown of Tagger
 func (t *Tagger) Stop() error {
-	t.stop <- true
+	t.cancel()
 	return nil
 }
 
 // getTags returns a read only list of tags for a given entity.
-func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) ([]string, error) {
+func (t *Tagger) getTags(entity string, cardinality collectors.TagCardinality) (util.HashedTags, error) {
 	if entity == "" {
-		telemetry.Queries.Inc(collectors.TagCardinalityToString(cardinality), telemetry.QueryEmptyEntityID)
-		return nil, fmt.Errorf("empty entity ID")
+		telemetry.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
+		return util.HashedTags{}, fmt.Errorf("empty entity ID")
 	}
 
-	cachedTags, sources := t.store.lookup(entity, cardinality)
+	cachedTags, sources := t.store.LookupHashed(entity, cardinality)
 
 	if len(sources) == len(t.fetchers) {
-		telemetry.Queries.Inc(collectors.TagCardinalityToString(cardinality), telemetry.QuerySuccess)
+		telemetry.QueriesByCardinality(cardinality).Success.Inc()
 		return cachedTags, nil
 	}
 
 	// Else, partial cache miss, query missing data
 	// TODO: get logging on that to make sure we should optimize
-	tagArrays := [][]string{cachedTags}
 
 	t.RLock()
 IterCollectors:
@@ -270,35 +283,25 @@ IterCollectors:
 
 		var cacheMiss bool
 		var expiryDate time.Time
-
-		low, orch, high, err := collector.Fetch(context.TODO(), entity)
-
+		low, orch, high, err := collector.fetcher.Fetch(t.ctx, entity)
 		switch {
 		case errors.IsNotFound(err):
 			log.Debugf("entity %s not found in %s, skipping: %v", entity, name, err)
-			telemetry.Fetches.Inc(name, telemetry.FetchNotFound)
+			collector.telemetry.NotFound.Inc()
 
 			cacheMiss = true
 			expiryDate = time.Now().Add(notFoundTTL)
 		case err != nil:
 			log.Warnf("error collecting from %s: %s", name, err)
-			telemetry.Fetches.Inc(name, telemetry.FetchError)
+			collector.telemetry.Error.Inc()
 
 			expiryDate = time.Now().Add(errTTL)
 		default:
-			telemetry.Fetches.Inc(name, telemetry.FetchSuccess)
-		}
-
-		tagArrays = append(tagArrays, low)
-		if cardinality == collectors.OrchestratorCardinality {
-			tagArrays = append(tagArrays, orch)
-		} else if cardinality == collectors.HighCardinality {
-			tagArrays = append(tagArrays, orch)
-			tagArrays = append(tagArrays, high)
+			collector.telemetry.Success.Inc()
 		}
 
 		// Submit to cache for next lookup
-		t.store.processTagInfo([]*collectors.TagInfo{
+		t.store.ProcessTagInfo([]*collectors.TagInfo{
 			{
 				Entity:               entity,
 				Source:               name,
@@ -312,23 +315,21 @@ IterCollectors:
 	}
 	t.RUnlock()
 
-	tags := utils.ConcatenateTags(tagArrays)
+	cachedTags, _ = t.store.LookupHashed(entity, cardinality)
 
-	if len(tags) > 0 {
-		telemetry.Queries.Inc(collectors.TagCardinalityToString(cardinality), telemetry.QuerySuccess)
+	if cachedTags.Len() > 0 {
+		telemetry.QueriesByCardinality(cardinality).Success.Inc()
 	} else {
-		telemetry.Queries.Inc(collectors.TagCardinalityToString(cardinality), telemetry.QueryEmptyTags)
+		telemetry.QueriesByCardinality(cardinality).EmptyTags.Inc()
 	}
 
-	return tags, nil
+	return cachedTags, nil
 }
 
 // TagBuilder appends tags for a given entity from the tagger to the TagsBuilder
-func (t *Tagger) TagBuilder(entity string, cardinality collectors.TagCardinality, tb *util.TagsBuilder) error {
+func (t *Tagger) TagBuilder(entity string, cardinality collectors.TagCardinality, tb types.TagsBuilder) error {
 	tags, err := t.getTags(entity, cardinality)
-	if err == nil {
-		tb.Append(tags...)
-	}
+	tb.AppendHashed(tags)
 	return err
 }
 
@@ -338,8 +339,7 @@ func (t *Tagger) Tag(entity string, cardinality collectors.TagCardinality) ([]st
 	if err != nil {
 		return nil, err
 	}
-
-	return copyArray(tags), nil
+	return tags.Copy(), nil
 }
 
 // Standard returns standard tags for a given entity
@@ -349,14 +349,14 @@ func (t *Tagger) Standard(entity string) ([]string, error) {
 		return nil, fmt.Errorf("empty entity ID")
 	}
 
-	tags, err := t.store.lookupStandard(entity)
-	if err == errNotFound {
+	tags, err := t.store.LookupStandard(entity)
+	if err == tagstore.ErrNotFound {
 		// entity not found yet in the tagger
 		// trigger tagger fetch operations
 		log.Debugf("Entity '%s' not found in tagger cache, will try to fetch it", entity)
 		_, _ = t.Tag(entity, collectors.LowCardinality)
 
-		return t.store.lookupStandard(entity)
+		return t.store.LookupStandard(entity)
 	}
 
 	if err != nil {
@@ -368,60 +368,22 @@ func (t *Tagger) Standard(entity string) ([]string, error) {
 
 // GetEntity returns the entity corresponding to the specified id and an error
 func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
-	tags, err := t.store.getEntityTags(entityID)
-	if err != nil {
-		return nil, err
-	}
-
-	entity := tags.toEntity()
-	return &entity, nil
+	return t.store.GetEntity(entityID)
 }
 
 // List the content of the tagger
 func (t *Tagger) List(cardinality collectors.TagCardinality) response.TaggerListResponse {
-	r := response.TaggerListResponse{
-		Entities: make(map[string]response.TaggerListEntity),
-	}
-
-	t.store.RLock()
-	defer t.store.RUnlock()
-
-	for entityID, et := range t.store.store {
-		entity := response.TaggerListEntity{
-			Tags: make(map[string][]string),
-		}
-
-		for source, sourceTags := range et.sourceTags {
-			tags := append([]string(nil), sourceTags.lowCardTags...)
-			tags = append(tags, sourceTags.orchestratorCardTags...)
-			tags = append(tags, sourceTags.highCardTags...)
-			entity.Tags[source] = tags
-		}
-
-		r.Entities[entityID] = entity
-	}
-
-	return r
+	return t.store.List()
 }
 
-// Subscribe returns a list of existing entities in the store, alongside a
-// channel that receives events whenever an entity is added, modified or
-// deleted.
+// Subscribe returns a channel that receives a slice of events whenever an entity is
+// added, modified or deleted. It can send an initial burst of events only to the new
+// subscriber, without notifying all of the others.
 func (t *Tagger) Subscribe(cardinality collectors.TagCardinality) chan []types.EntityEvent {
-	return t.store.subscribe(cardinality)
+	return t.store.Subscribe(cardinality)
 }
 
 // Unsubscribe ends a subscription to entity events and closes its channel.
 func (t *Tagger) Unsubscribe(ch chan []types.EntityEvent) {
-	t.store.unsubscribe(ch)
-}
-
-// copyArray makes sure the tagger does not return internal slices
-// that could be modified by others, by explicitly copying the slice
-// contents to a new slice. As strings are references, the size of
-// the new array is small enough.
-func copyArray(source []string) []string {
-	copied := make([]string, len(source))
-	copy(copied, source)
-	return copied
+	t.store.Unsubscribe(ch)
 }

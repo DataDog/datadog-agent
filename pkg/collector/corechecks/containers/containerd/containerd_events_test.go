@@ -27,19 +27,32 @@ import (
 )
 
 type mockItf struct {
-	mockEvents      func() containerd.EventService
-	mockContainer   func() ([]containerd.Container, error)
-	mockMetadata    func() (containerd.Version, error)
-	mockImageSize   func(ctn containerd.Container) (int64, error)
-	mockTaskMetrics func(ctn containerd.Container) (*types.Metric, error)
-	mockTaskPids    func(ctn containerd.Container) ([]containerd.ProcessInfo, error)
-	mockInfo        func(ctn containerd.Container) (containers.Container, error)
-	mockNamespace   func() string
-	mockSpec        func(ctn containerd.Container) (*oci.Spec, error)
+	mockEvents            func() containerd.EventService
+	mockContainers        func() ([]containerd.Container, error)
+	mockContainer         func(id string) (containerd.Container, error)
+	mockContainerWithCtx  func(ctx context.Context, id string) (containerd.Container, error)
+	mockMetadata          func() (containerd.Version, error)
+	mockImageSize         func(ctn containerd.Container) (int64, error)
+	mockTaskMetrics       func(ctn containerd.Container) (*types.Metric, error)
+	mockTaskPids          func(ctn containerd.Container) ([]containerd.ProcessInfo, error)
+	mockInfo              func(ctn containerd.Container) (containers.Container, error)
+	mockLabels            func(ctn containerd.Container) (map[string]string, error)
+	mockLabelsWithContext func(ctx context.Context, ctn containerd.Container) (map[string]string, error)
+	mockNamespace         func() string
+	mockSpec              func(ctn containerd.Container) (*oci.Spec, error)
+	mockSpecWithContext   func(ctx context.Context, ctn containerd.Container) (*oci.Spec, error)
 }
 
 func (m *mockItf) ImageSize(ctn containerd.Container) (int64, error) {
 	return m.mockImageSize(ctn)
+}
+
+func (m *mockItf) Labels(ctn containerd.Container) (map[string]string, error) {
+	return m.mockLabels(ctn)
+}
+
+func (m *mockItf) LabelsWithContext(ctx context.Context, ctn containerd.Container) (map[string]string, error) {
+	return m.mockLabelsWithContext(ctx, ctn)
 }
 
 func (m *mockItf) Info(ctn containerd.Container) (containers.Container, error) {
@@ -63,7 +76,15 @@ func (m *mockItf) Namespace() string {
 }
 
 func (m *mockItf) Containers() ([]containerd.Container, error) {
-	return m.mockContainer()
+	return m.mockContainers()
+}
+
+func (m *mockItf) Container(id string) (containerd.Container, error) {
+	return m.mockContainer(id)
+}
+
+func (m *mockItf) ContainerWithContext(ctx context.Context, id string) (containerd.Container, error) {
+	return m.mockContainerWithCtx(ctx, id)
 }
 
 func (m *mockItf) GetEvents() containerd.EventService {
@@ -72,6 +93,10 @@ func (m *mockItf) GetEvents() containerd.EventService {
 
 func (m *mockItf) Spec(ctn containerd.Container) (*oci.Spec, error) {
 	return m.mockSpec(ctn)
+}
+
+func (m *mockItf) SpecWithContext(ctx context.Context, ctn containerd.Container) (*oci.Spec, error) {
+	return m.mockSpecWithContext(ctx, ctn)
 }
 
 type mockEvt struct {

@@ -11,7 +11,7 @@ source :url => "https://github.com/pypa/pip/archive/#{version}.tar.gz",
 relative_path "pip-#{version}"
 
 build do
-  ship_license "https://raw.githubusercontent.com/pypa/pip/develop/LICENSE.txt"
+  ship_license "https://raw.githubusercontent.com/pypa/pip/main/LICENSE.txt"
 
   if ohai["platform"] == "windows"
     python_bin = "#{windows_safe_path(python_3_embedded)}\\python.exe"

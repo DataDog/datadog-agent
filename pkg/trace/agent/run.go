@@ -14,6 +14,7 @@ import (
 	"runtime/pprof"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/manager"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -30,7 +31,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
+
+	// register all workloadmeta collectors
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
 const messageAgentDisabled = `trace-agent not enabled. Set the environment variable
@@ -123,6 +128,12 @@ func Run(ctx context.Context) {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
+	err = manager.ConfigureAutoExit(ctx)
+	if err != nil {
+		osutil.Exitf("Unable to configure auto-exit, err: %v", err)
+		return
+	}
+
 	err = metrics.Configure(cfg, []string{"version:" + info.Version})
 	if err != nil {
 		osutil.Exitf("cannot configure dogstatsd: %v", err)
@@ -138,6 +149,9 @@ func Run(ctx context.Context) {
 	if coreconfig.Datadog.GetBool("apm_config.remote_tagger") {
 		t = remote.NewTagger()
 	} else {
+		// Start workload metadata store before tagger
+		workloadmeta.GetGlobalStore().Start(context.Background())
+
 		t = local.NewTagger(collectors.DefaultCatalog)
 	}
 	tagger.SetDefaultTagger(t)

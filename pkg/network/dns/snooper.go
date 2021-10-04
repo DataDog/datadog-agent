@@ -108,7 +108,7 @@ func (s *socketFilterSnooper) Resolve(ips []util.Address) map[util.Address][]str
 }
 
 // GetDNSStats gets the latest Stats keyed by unique Key, and domain
-func (s *socketFilterSnooper) GetDNSStats() map[Key]map[string]map[QueryType]Stats {
+func (s *socketFilterSnooper) GetDNSStats() StatsByKeyByNameByType {
 	if s.statKeeper == nil {
 		return nil
 	}
@@ -165,7 +165,6 @@ func (s *socketFilterSnooper) processPacket(data []byte, ts time.Time) error {
 			atomic.AddInt64(&s.truncatedPkts, 1)
 		default:
 			atomic.AddInt64(&s.decodingErrors, 1)
-			log.Tracef("error decoding DNS payload: %v", err)
 		}
 		return nil
 	}

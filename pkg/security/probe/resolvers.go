@@ -77,16 +77,16 @@ func (r *Resolvers) resolveBasename(e *model.FileFields) string {
 	return r.DentryResolver.GetName(e.MountID, e.Inode, e.PathID)
 }
 
-// resolveFileFieldsPath resolves the inode to a full path. Returns the path and true if it was entirely resolved
+// resolveFileFieldsPath resolves the inode to a full path
 func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields) (string, error) {
-	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID)
-	if pathStr == dentryPathKeyNotFound {
+	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID, !e.HasHardLinks())
+	if err != nil {
 		return pathStr, err
 	}
 
 	_, mountPath, rootPath, mountErr := r.MountResolver.GetMountPath(e.MountID)
 	if mountErr != nil {
-		return "", mountErr
+		return pathStr, mountErr
 	}
 
 	if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
@@ -95,12 +95,6 @@ func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields) (string, error) {
 	pathStr = path.Join(mountPath, pathStr)
 
 	return pathStr, err
-}
-
-// ResolveFilePath resolves the inode to a full path. Returns the path and true if it was entirely resolved
-func (r *Resolvers) ResolveFilePath(e *model.FileEvent) string {
-	path, _ := r.resolveFileFieldsPath(&e.FileFields)
-	return path
 }
 
 // ResolveFileFieldsUser resolves the user id of the file to a username

@@ -78,12 +78,6 @@ func (f *SyncForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header) e
 	return f.sendHTTPTransactions(transactions)
 }
 
-// SubmitSeries will send a series type payload to Datadog backend.
-func (f *SyncForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(seriesEndpoint, payload, false, extra)
-	return f.sendHTTPTransactions(transactions)
-}
-
 // SubmitEvents will send an event type payload to Datadog backend.
 func (f *SyncForwarder) SubmitEvents(payload Payloads, extra http.Header) error {
 	transactions := f.defaultForwarder.createHTTPTransactions(eventsEndpoint, payload, false, extra)
@@ -122,6 +116,11 @@ func (f *SyncForwarder) SubmitProcessChecks(payload Payloads, extra http.Header)
 	return f.defaultForwarder.submitProcessLikePayload(processesEndpoint, payload, extra, true)
 }
 
+// SubmitProcessDiscoveryChecks sends process discovery checks
+func (f *SyncForwarder) SubmitProcessDiscoveryChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	return f.defaultForwarder.submitProcessLikePayload(processDiscoveryEndpoint, payload, extra, true)
+}
+
 // SubmitRTProcessChecks sends real time process checks
 func (f *SyncForwarder) SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
 	return f.defaultForwarder.submitProcessLikePayload(rtProcessesEndpoint, payload, extra, false)
@@ -143,6 +142,6 @@ func (f *SyncForwarder) SubmitConnectionChecks(payload Payloads, extra http.Head
 }
 
 // SubmitOrchestratorChecks sends orchestrator checks
-func (f *SyncForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
+func (f *SyncForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
 	return f.defaultForwarder.SubmitOrchestratorChecks(payload, extra, payloadType)
 }

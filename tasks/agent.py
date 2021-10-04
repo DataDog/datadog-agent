@@ -3,9 +3,11 @@ Agent namespaced tasks
 """
 
 
+import ast
 import datetime
 import glob
 import os
+import platform
 import re
 import shutil
 import sys
@@ -71,6 +73,11 @@ IOT_AGENT_CORECHECKS = [
     "systemd",
     "jetson",
 ]
+
+CACHED_WHEEL_FILENAME_PATTERN = "datadog_{integration}-*.whl"
+CACHED_WHEEL_DIRECTORY_PATTERN = "integration-wheels/{branch}/{hash}/{python_version}/"
+CACHED_WHEEL_FULL_PATH_PATTERN = CACHED_WHEEL_DIRECTORY_PATTERN + CACHED_WHEEL_FILENAME_PATTERN
+LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} rev-list -1 HEAD {integration}"
 
 
 @task
@@ -182,9 +189,7 @@ def build(
     ctx.run(cmd.format(**args), env=env)
 
     # Remove cross-compiling bits to render config
-    env.update(
-        {"GOOS": "", "GOARCH": "",}
-    )
+    env.update({"GOOS": "", "GOARCH": ""})
 
     # Render the Agent configuration file template
     build_type = "agent-py3"
@@ -352,8 +357,7 @@ def get_omnibus_env(
     python_runtimes='3',
     hardened_runtime=False,
     system_probe_bin=None,
-    libbcc_tarball=None,
-    with_bcc=True,
+    nikos_path=None,
     go_mod_cache=None,
 ):
     env = load_release_versions(ctx, release_version)
@@ -386,15 +390,15 @@ def get_omnibus_env(
     if hardened_runtime:
         env['HARDENED_RUNTIME_MAC'] = 'true'
 
-    env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, major_version=major_version)
+    env['PACKAGE_VERSION'] = get_version(
+        ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
+    )
     env['MAJOR_VERSION'] = major_version
     env['PY_RUNTIMES'] = python_runtimes
-    if with_bcc:
-        env['WITH_BCC'] = 'true'
     if system_probe_bin:
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
-    if libbcc_tarball:
-        env['LIBBCC_TARBALL'] = libbcc_tarball
+    if nikos_path:
+        env['NIKOS_PATH'] = nikos_path
 
     return env
 
@@ -467,8 +471,7 @@ def omnibus_build(
     omnibus_s3_cache=False,
     hardened_runtime=False,
     system_probe_bin=None,
-    libbcc_tarball=None,
-    with_bcc=True,
+    nikos_path=None,
     go_mod_cache=None,
 ):
     """
@@ -499,8 +502,7 @@ def omnibus_build(
         python_runtimes=python_runtimes,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
-        libbcc_tarball=libbcc_tarball,
-        with_bcc=with_bcc,
+        nikos_path=nikos_path,
         go_mod_cache=go_mod_cache,
     )
 
@@ -536,9 +538,7 @@ def omnibus_build(
 
 
 @task
-def build_dep_tree(
-    ctx, git_ref="",
-):
+def build_dep_tree(ctx, git_ref=""):
     """
     Generates a file representing the Golang dependency tree in the current
     directory. Use the "--git-ref=X" argument to specify which tag you would like
@@ -578,8 +578,6 @@ def omnibus_manifest(
     python_runtimes='3',
     hardened_runtime=False,
     system_probe_bin=None,
-    libbcc_tarball=None,
-    with_bcc=True,
     go_mod_cache=None,
 ):
     # base dir (can be overridden through env vars, command line takes precedence)
@@ -593,8 +591,6 @@ def omnibus_manifest(
         python_runtimes=python_runtimes,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
-        libbcc_tarball=libbcc_tarball,
-        with_bcc=with_bcc,
         go_mod_cache=go_mod_cache,
     )
 
@@ -621,6 +617,25 @@ def omnibus_manifest(
         omnibus_s3_cache=False,
         log_level=log_level,
     )
+
+
+@task
+def check_supports_python_version(_, filename, python):
+    """
+    Check if a setup.py file states support for a given major Python version.
+    """
+    if python not in ['2', '3']:
+        raise Exit("invalid Python version", code=2)
+
+    with open(filename, 'r') as f:
+        tree = ast.parse(f.read(), filename=filename)
+
+    prefix = 'Programming Language :: Python :: {}'.format(python)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.keyword) and node.arg == "classifiers":
+            classifiers = ast.literal_eval(node.value)
+            print(any(cls.startswith(prefix) for cls in classifiers), end="")
+            return
 
 
 @task
@@ -652,7 +667,12 @@ def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_v
                     (the windows builder and the default ubuntu version have such an incompatibility)
     """
     version = get_version(
-        ctx, include_git=True, url_safe=url_safe, git_sha_length=git_sha_length, major_version=major_version
+        ctx,
+        include_git=True,
+        url_safe=url_safe,
+        git_sha_length=git_sha_length,
+        major_version=major_version,
+        include_pipeline_id=True,
     )
     if omnibus_format:
         # See: https://github.com/DataDog/omnibus-ruby/blob/datadog-5.5.0/lib/omnibus/packagers/deb.rb#L599
@@ -670,3 +690,124 @@ def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_v
         version = re.sub('-', '~', version)
         version = re.sub(r'[^a-zA-Z0-9\.\+\:\~]+', '_', version)
     print(version)
+
+
+@task
+def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, target_dir, integrations, awscli="aws"):
+    """
+    Get cached integration wheels for given integrations.
+    python: Python version to retrieve integrations for
+    bucket: S3 bucket to retrieve integration wheels from
+    branch: namespace in the bucket to get the integration wheels from
+    integrations_dir: directory with Git repository of integrations
+    target_dir: local directory to put integration wheels to
+    integrations: comma-separated names of the integrations to try to retrieve from cache
+    awscli: AWS CLI executable to call
+    """
+    integrations_hashes = {}
+    for integration in integrations.strip().split(","):
+        integration_path = os.path.join(integrations_dir, integration)
+        if not os.path.exists(integration_path):
+            raise Exit("Integration {} given, but doesn't exist in {}".format(integration, integrations_dir), code=2)
+        last_commit = ctx.run(
+            LAST_DIRECTORY_COMMIT_PATTERN.format(integrations_dir=integrations_dir, integration=integration),
+            hide="both",
+            echo=False,
+        )
+        integrations_hashes[integration] = last_commit.stdout.strip()
+
+    print("Trying to retrieve {} integration wheels from cache".format(len(integrations_hashes)))
+    # On windows, maximum length of a command line call is 8191 characters, therefore
+    # we do multiple syncs that fit within that limit (we use 8100 as a nice round number
+    # and just to make sure we don't do any of-by-one errors that would break this).
+    # WINDOWS NOTES: on Windows, the awscli is usually in program files, so we have to wrap the
+    # executable in quotes; also we have to not put the * in quotes, as there's no
+    # expansion on it, unlike on Linux
+    exclude_wildcard = "*" if platform.system().lower() == "windows" else "'*'"
+    sync_command_prefix = "\"{}\" s3 sync s3://{} {} --no-sign-request --exclude {}".format(
+        awscli, bucket, target_dir, exclude_wildcard
+    )
+    sync_commands = [[[sync_command_prefix], len(sync_command_prefix)]]
+    for integration, hash in integrations_hashes.items():
+        include_arg = " --include " + CACHED_WHEEL_FULL_PATH_PATTERN.format(
+            hash=hash,
+            integration=integration,
+            python_version=python,
+            branch=branch,
+        )
+        if len(include_arg) + sync_commands[-1][1] > 8100:
+            sync_commands.append([[sync_command_prefix], len(sync_command_prefix)])
+        sync_commands[-1][0].append(include_arg)
+        sync_commands[-1][1] += len(include_arg)
+
+    for sync_command in sync_commands:
+        ctx.run("".join(sync_command[0]))
+
+    found = []
+    # move all wheel files directly to the target_dir, so they're easy to find/work with in Omnibus
+    for integration in sorted(integrations_hashes):
+        hash = integrations_hashes[integration]
+        original_path_glob = os.path.join(
+            target_dir,
+            CACHED_WHEEL_FULL_PATH_PATTERN.format(
+                hash=hash,
+                integration=integration,
+                python_version=python,
+                branch=branch,
+            ),
+        )
+        files_matched = glob.glob(original_path_glob)
+        if len(files_matched) == 0:
+            continue
+        elif len(files_matched) > 1:
+            raise Exit(
+                "More than 1 wheel for integration {} matched by {}: {}".format(
+                    integration, original_path_glob, files_matched
+                )
+            )
+        wheel_path = files_matched[0]
+        print("Found cached wheel for integration {}".format(integration))
+        shutil.move(wheel_path, target_dir)
+        found.append(os.path.join(target_dir, os.path.basename(wheel_path)))
+
+    print("Found {} cached integration wheels".format(len(found)))
+    with open(os.path.join(target_dir, "found.txt"), "w") as f:
+        f.write('\n'.join(found))
+
+
+@task
+def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, build_dir, integration, awscli="aws"):
+    """
+    Upload a built integration wheel for given integration.
+    python: Python version the integration is built for
+    bucket: S3 bucket to upload the integration wheel to
+    branch: namespace in the bucket to upload the integration wheels to
+    integrations_dir: directory with Git repository of integrations
+    build_dir: directory containing the built integration wheel
+    integration: name of the integration being cached
+    awscli: AWS CLI executable to call
+    """
+    matching_glob = os.path.join(build_dir, CACHED_WHEEL_FILENAME_PATTERN.format(integration=integration))
+    files_matched = glob.glob(matching_glob)
+    if len(files_matched) == 0:
+        raise Exit("No wheel for integration {} found in {}".format(integration, build_dir))
+    elif len(files_matched) > 1:
+        raise Exit(
+            "More than 1 wheel for integration {} matched by {}: {}".format(integration, matching_glob, files_matched)
+        )
+
+    wheel_path = files_matched[0]
+
+    last_commit = ctx.run(
+        LAST_DIRECTORY_COMMIT_PATTERN.format(integrations_dir=integrations_dir, integration=integration),
+        hide="both",
+        echo=False,
+    )
+    hash = last_commit.stdout.strip()
+
+    target_name = CACHED_WHEEL_DIRECTORY_PATTERN.format(
+        hash=hash, python_version=python, branch=branch
+    ) + os.path.basename(wheel_path)
+    print("Caching wheel {}".format(target_name))
+    # NOTE: on Windows, the awscli is usually in program files, so we have the executable
+    ctx.run("\"{}\" s3 cp {} s3://{}/{} --acl public-read".format(awscli, wheel_path, bucket, target_name))

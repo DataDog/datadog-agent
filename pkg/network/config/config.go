@@ -13,6 +13,7 @@ import (
 const (
 	spNS  = "system_probe_config"
 	netNS = "network_config"
+	smNS  = "service_monitoring_config"
 
 	defaultUDPTimeoutSeconds       = 30
 	defaultUDPStreamTimeoutSeconds = 120
@@ -24,6 +25,9 @@ const (
 // Config stores all flags used by the network eBPF tracer
 type Config struct {
 	ebpf.Config
+
+	// ServiceMonitoringEnabled is whether the service monitoring feature is enabled or not
+	ServiceMonitoringEnabled bool
 
 	// CollectTCPConns specifies whether the tracer should collect traffic statistics for TCP connections
 	CollectTCPConns bool
@@ -58,6 +62,10 @@ type Config struct {
 
 	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTP traffic
 	EnableHTTPMonitoring bool
+
+	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTPS traffic
+	// Supported libraries: OpenSSL
+	EnableHTTPSMonitoring bool
 
 	// UDPConnTimeout determines the length of traffic inactivity between two
 	// (IP, port)-pairs before declaring a UDP connection as inactive. This is
@@ -159,6 +167,8 @@ func New() *Config {
 	c := &Config{
 		Config: *ebpf.NewConfig(),
 
+		ServiceMonitoringEnabled: cfg.GetBool(join(smNS, "enabled")),
+
 		CollectTCPConns:  !cfg.GetBool(join(spNS, "disable_tcp")),
 		TCPConnTimeout:   2 * time.Minute,
 		TCPClosedTimeout: 1 * time.Second,
@@ -186,8 +196,9 @@ func New() *Config {
 		MaxDNSStatsBuffered: 75000,
 		DNSTimeout:          time.Duration(cfg.GetInt(join(spNS, "dns_timeout_in_s"))) * time.Second,
 
-		EnableHTTPMonitoring: cfg.GetBool(join(netNS, "enable_http_monitoring")),
-		MaxHTTPStatsBuffered: 100000,
+		EnableHTTPMonitoring:  cfg.GetBool(join(netNS, "enable_http_monitoring")),
+		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
+		MaxHTTPStatsBuffered:  100000,
 
 		EnableConntrack:              cfg.GetBool(join(spNS, "enable_conntrack")),
 		ConntrackMaxStateSize:        cfg.GetInt(join(spNS, "conntrack_max_state_size")),
@@ -224,6 +235,15 @@ func New() *Config {
 	}
 	if !c.DNSInspection {
 		log.Info("network tracer DNS inspection disabled by configuration")
+	}
+
+	if c.ServiceMonitoringEnabled {
+		cfg.Set(join(netNS, "enable_http_monitoring"), true)
+		c.EnableHTTPMonitoring = true
+		if !cfg.IsSet(join(netNS, "enable_https_monitoring")) {
+			cfg.Set(join(netNS, "enable_https_monitoring"), true)
+			c.EnableHTTPSMonitoring = true
+		}
 	}
 
 	return c

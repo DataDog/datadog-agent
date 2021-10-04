@@ -124,6 +124,8 @@ func easyjsonF642ad3eDecodeGithubComDataDogDatadogAgentPkgSecurityModule1(in *jl
 		switch key {
 		case "rule_id":
 			out.RuleID = string(in.String())
+		case "rule_version":
+			out.RuleVersion = string(in.String())
 		case "policy_name":
 			out.PolicyName = string(in.String())
 		case "policy_version":
@@ -148,6 +150,11 @@ func easyjsonF642ad3eEncodeGithubComDataDogDatadogAgentPkgSecurityModule1(out *j
 		const prefix string = ",\"rule_id\":"
 		out.RawString(prefix[1:])
 		out.String(string(in.RuleID))
+	}
+	if in.RuleVersion != "" {
+		const prefix string = ",\"rule_version\":"
+		out.RawString(prefix)
+		out.String(string(in.RuleVersion))
 	}
 	if in.PolicyName != "" {
 		const prefix string = ",\"policy_name\":"
