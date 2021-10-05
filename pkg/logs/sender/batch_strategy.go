@@ -30,8 +30,8 @@ type batchStrategy struct {
 	buffer *MessageBuffer
 	// pipelineName provides a name for the strategy to differentiate it from other instances in other internal pipelines
 	pipelineName string
-	// pipelineId is a unique id for this pipeline since there are multiple instances of each type of pipeline
-	pipelineId        int
+	// pipelineID is a unique id for this pipeline since there are multiple instances of each type of pipeline
+	pipelineID        int
 	serializer        Serializer
 	batchWait         time.Duration
 	climit            chan struct{}  // semaphore for limiting concurrent sends
@@ -45,7 +45,7 @@ type batchStrategy struct {
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
 // If `maxConcurrent` > 0, then at most that many payloads will be sent concurrently, else there is no concurrency
 // and the pipeline will block while sending each payload.
-func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurrent int, maxBatchSize int, maxContentSize int, pipelineName string, pipelineId int) Strategy {
+func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurrent int, maxBatchSize int, maxContentSize int, pipelineName string, pipelineID int) Strategy {
 	if maxConcurrent < 0 {
 		maxConcurrent = 0
 	}
@@ -57,12 +57,12 @@ func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurr
 		syncFlushTrigger:  make(chan struct{}),
 		syncFlushDone:     make(chan struct{}),
 		pipelineName:      pipelineName,
-		pipelineId:        pipelineId,
+		pipelineID:        pipelineID,
 		senderIdleTimeMs:  expvar.Float{},
 		senderInUseTimeMs: expvar.Float{},
 	}
 
-	// batchStrategyExpVars.Add(fmt.Sprintf("%s_%d", pipelineName, pipelineId), 0)
+	// batchStrategyExpVars.Add(fmt.Sprintf("%s_%d", pipelineName, pipelineID), 0)
 }
 
 func (s *batchStrategy) Flush(ctx context.Context) {
@@ -198,7 +198,7 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 }
 
 func (s *batchStrategy) getExpVarName() string {
-	return fmt.Sprintf("%s_%d", s.pipelineName, s.pipelineId)
+	return fmt.Sprintf("%s_%d", s.pipelineName, s.pipelineID)
 }
 
 func (s *batchStrategy) publishExpVars() interface{} {
