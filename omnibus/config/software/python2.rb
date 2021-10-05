@@ -26,6 +26,7 @@ if ohai["platform"] != "windows"
   dependency "pkg-config"
   dependency "bzip2"
   dependency "libsqlite3"
+  dependency "liblzma" # centos7 runner caused dependency
   dependency "libyaml"
 
   source :url => "http://python.org/ftp/python/#{version}/Python-#{version}.tgz",
