@@ -1,19 +1,17 @@
 package network
 
-import "math"
-
-const minBufferSize = 256
-
 // ConnectionBuffer encapsulates a resizing buffer for ConnectionStat objects
 type ConnectionBuffer struct {
-	buf []ConnectionStats
-	off int
+	buf           []ConnectionStats
+	off           int
+	minBufferSize int
 }
 
 // NewConnectionBuffer creates a ConnectionBuffer with initial size `size`.
-func NewConnectionBuffer(size int) *ConnectionBuffer {
+func NewConnectionBuffer(initSize, minSize int) *ConnectionBuffer {
 	return &ConnectionBuffer{
-		buf: make([]ConnectionStats, int(math.Max(float64(size), minBufferSize))),
+		buf:           make([]ConnectionStats, initSize),
+		minBufferSize: minSize,
 	}
 }
 
@@ -62,8 +60,15 @@ func (b *ConnectionBuffer) Capacity() int {
 func (b *ConnectionBuffer) Reset() {
 	// shrink buffer if less than half used
 	half := cap(b.buf) / 2
-	if b.off <= half && half >= minBufferSize {
+	if b.off <= half && half >= b.minBufferSize {
 		b.buf = make([]ConnectionStats, half)
+		b.off = 0
+		return
+	}
+
+	zero := ConnectionStats{}
+	for i := 0; i < b.off; i++ {
+		b.buf[i] = zero
 	}
 	b.off = 0
 }

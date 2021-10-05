@@ -85,10 +85,12 @@ func buildLogRegistrationPayload(callBackURI string, logsType string, timeoutMs 
 		MaxBytes:  maxBytes,
 		MaxItems:  maxItems,
 	}
+	schemaVersion := "2021-03-18"
 	payload := &LogSubscriptionPayload{
-		Destination: *destination,
-		Types:       logsTypeArray,
-		Buffering:   *buffering,
+		Destination:   *destination,
+		Types:         logsTypeArray,
+		Buffering:     *buffering,
+		SchemaVersion: schemaVersion,
 	}
 	return payload
 }

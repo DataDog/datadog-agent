@@ -1,5 +1,4 @@
 import datetime
-import glob
 import os
 import shutil
 import sys
@@ -165,7 +164,7 @@ def run_functional_tests(ctx, testsuite, verbose=False, testflags=''):
     ctx.run(cmd.format(**args))
 
 
-def build_syscall_tester(ctx, build_dir, static=True):
+def build_syscall_x86_tester(ctx, build_dir, static=True):
     syscall_tester_c_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "c")
     syscall_tester_c_file = os.path.join(syscall_tester_c_dir, "syscall_x86_tester.c")
     syscall_tester_exe_file = os.path.join(build_dir, "syscall_x86_tester")
@@ -177,16 +176,29 @@ def build_syscall_tester(ctx, build_dir, static=True):
     return syscall_tester_exe_file
 
 
+def build_syscall_tester(ctx, build_dir, static=True):
+    syscall_tester_c_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "c")
+    syscall_tester_c_file = os.path.join(syscall_tester_c_dir, "syscall_tester.c")
+    syscall_tester_exe_file = os.path.join(build_dir, "syscall_tester")
+
+    flags = ''
+    if static:
+        flags += ' -static'
+    ctx.run(CLANG_EXE_CMD.format(flags=flags, c_file=syscall_tester_c_file, out_file=syscall_tester_exe_file))
+    return syscall_tester_exe_file
+
+
 @task
 def build_embed_syscall_tester(ctx, static=True):
     syscall_tester_bin = build_syscall_tester(ctx, os.path.join(".", "bin"), static=static)
+    syscall_x86_tester_bin = build_syscall_x86_tester(ctx, os.path.join(".", "bin"), static=static)
     bundle_files(
         ctx,
-        [syscall_tester_bin],
+        [syscall_tester_bin, syscall_x86_tester_bin],
         "bin",
         "pkg/security/tests/syscall_tester/bindata.go",
         "syscall_tester",
-        "functionaltests,amd64",
+        "functionaltests",
         False,
     )
 
@@ -219,17 +231,6 @@ def build_functional_tests(
     if static:
         ldflags += '-extldflags "-static"'
         build_tags += ',osusergo,netgo'
-
-    bindata_files = glob.glob("pkg/security/tests/schemas/*.json")
-    bundle_files(
-        ctx,
-        bindata_files,
-        "pkg/security/tests/schemas",
-        "pkg/security/tests/schemas/schemas.go",
-        "schemas",
-        "functionaltests",
-        False,
-    )
 
     cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
     cmd += '{build_flags} {repo_path}/pkg/security/tests'
@@ -428,3 +429,18 @@ RUN apt-get update -y \
     finally:
         cmd = 'docker rm -f {container_name}'
         ctx.run(cmd.format(**args))
+
+
+@task
+def generate_documentation(ctx, go_generate=False):
+    if go_generate:
+        ctx.run("go generate ./pkg/security/...")
+
+    # secl docs
+    ctx.run(
+        "python3 ./docs/cloud-workload-security/scripts/secl-doc-gen.py --input ./docs/cloud-workload-security/secl.json --output ./docs/cloud-workload-security/agent_expressions.md"
+    )
+    # backend event docs
+    ctx.run(
+        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend.schema.json --output ./docs/cloud-workload-security/backend.md"
+    )

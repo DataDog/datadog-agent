@@ -72,7 +72,7 @@ func dockerKindNotSupported(kind string) error {
 	return fmt.Errorf("unsupported docker object kind '%s'", kind)
 }
 
-func resolveDocker(ctx context.Context, e env.Env, ruleID string, res compliance.Resource) (resolved, error) {
+func resolveDocker(ctx context.Context, e env.Env, ruleID string, res compliance.ResourceCommon) (resolved, error) {
 	if res.Docker == nil {
 		return nil, fmt.Errorf("expecting docker resource in docker check")
 	}
@@ -123,7 +123,9 @@ func newDockerInfoInstance(ctx context.Context, client env.DockerClient) (eval.I
 	}
 
 	return eval.NewInstance(
-		nil,
+		eval.VarMap{
+			compliance.DockerInfoInspect: info,
+		},
 		eval.FunctionMap{
 			compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, info),
 		},
@@ -208,6 +210,7 @@ func (it *dockerImageIterator) Next() (eval.Instance, error) {
 			eval.VarMap{
 				compliance.DockerImageFieldID:   image.ID,
 				compliance.DockerImageFieldTags: imageInspect.RepoTags,
+				compliance.DockerImageInspect:   imageInspect,
 			},
 			eval.FunctionMap{
 				compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, imageInspect),
@@ -261,6 +264,7 @@ func (it *dockerContainerIterator) Next() (eval.Instance, error) {
 				compliance.DockerContainerFieldID:    container.ID,
 				compliance.DockerContainerFieldName:  containerInspect.Name,
 				compliance.DockerContainerFieldImage: containerInspect.Image,
+				compliance.DockerContainerInspect:    containerInspect,
 			},
 			eval.FunctionMap{
 				compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, containerInspect),
@@ -306,8 +310,9 @@ func (it *dockerNetworkIterator) Next() (eval.Instance, error) {
 	return &dockerNetwork{
 		Instance: eval.NewInstance(
 			eval.VarMap{
-				compliance.DockerNetworkFieldID:   network.ID,
-				compliance.DockerNetworkFieldName: network.Name,
+				compliance.DockerNetworkFieldID:      network.ID,
+				compliance.DockerNetworkFieldName:    network.Name,
+				compliance.DockerNetworkFieldInspect: network,
 			},
 			eval.FunctionMap{
 				compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, network),

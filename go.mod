@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.15
+go 1.16
 
 // NOTE: Prefer using simple `require` directives instead of using `replace` if possible.
 // See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
@@ -27,6 +27,7 @@ replace (
 )
 
 replace (
+	github.com/DataDog/datadog-agent/pkg/otlp/model => ./pkg/otlp/model
 	github.com/DataDog/datadog-agent/pkg/quantile => ./pkg/quantile
 	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ./pkg/util/winutil
@@ -47,16 +48,17 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
-	github.com/DataDog/agent-payload v4.80.0+incompatible
-	github.com/DataDog/datadog-agent/pkg/quantile v0.31.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/log v0.31.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.31.0-rc.8
+	github.com/DataDog/agent-payload v4.85.0+incompatible
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.32.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/quantile v0.32.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.32.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.32.0-rc.2
 	github.com/DataDog/datadog-go v4.8.2+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
-	github.com/DataDog/ebpf v0.0.0-20210419131141-ea64821c9793
+	github.com/DataDog/ebpf v0.0.0-20210923171847-87e6c3a89de8
 	github.com/DataDog/ebpf-manager v0.0.0-20210917155050-c174a8b45802
 	github.com/DataDog/gohai v0.0.0-20210303102637-6b668acb50dd
-	github.com/DataDog/gopsutil v0.0.0-20210826200402-bbfc5b0ae6e9
+	github.com/DataDog/gopsutil v0.0.0-20210930103100-d4e8ef640507
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
 	github.com/DataDog/nikos v1.2.1-0.20210908154039-72372ae79f70
 	github.com/DataDog/sketches-go v1.2.0
@@ -68,6 +70,8 @@ require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/Microsoft/go-winio v0.4.17
+	github.com/Microsoft/hcsshim v0.8.18
+	github.com/alecthomas/jsonschema v0.0.0-20210526225647-edb03dcab7bc
 	github.com/alecthomas/participle v0.7.1
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
 	github.com/alexflint/go-memdump v0.0.0-20160830180315-750db99b78d6
@@ -75,6 +79,7 @@ require (
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/aws/aws-sdk-go v1.40.38
 	github.com/beevik/ntp v0.3.0
+	github.com/benbjohnson/clock v1.1.0
 	github.com/benesch/cgosymbolizer v0.0.0-20190515212042-bec6fe6e597b
 	github.com/bhmj/jsonslice v0.0.0-20200323023432-92c3edaad8e2
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
@@ -111,6 +116,8 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.2
+	github.com/golang/snappy v0.0.3 // indirect
+	github.com/google/go-cmp v0.5.6
 	github.com/google/gofuzz v1.2.0
 	github.com/google/gopacket v1.1.19
 	github.com/google/pprof v0.0.0-20210226084205-cbba55b83ad5
@@ -130,6 +137,7 @@ require (
 	github.com/itchyny/gojq v0.12.5
 	github.com/json-iterator/go v1.1.11
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
+	github.com/karrick/godirwalk v1.16.1
 	github.com/klauspost/pgzip v1.2.5 // indirect
 	github.com/kubernetes-sigs/custom-metrics-apiserver v0.0.0-20210311094424-0ca2b1909cdc
 	github.com/lib/pq v1.10.0 // indirect
@@ -144,6 +152,7 @@ require (
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852 // indirect
+	github.com/open-policy-agent/opa v0.31.0
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417
 	github.com/openshift/api v0.0.0-20190924102528-32369d4db2ad
 	github.com/patrickmn/go-cache v2.1.0+incompatible
@@ -161,6 +170,8 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/tedsuo/ifrit v0.0.0-20191009134036-9a97d0632f00 // indirect
+	github.com/tent/canonical-json-go v0.0.0-20130607151641-96e4ba3a7613
+	github.com/theupdateframework/go-tuf v0.0.0-20210921152604-1c7bbcecec00
 	github.com/tinylib/msgp v1.1.6
 	github.com/twmb/murmur3 v1.1.6
 	github.com/ulikunitz/xz v0.5.10 // indirect
@@ -170,16 +181,18 @@ require (
 	github.com/vito/go-sse v1.0.0 // indirect
 	github.com/vmihailenco/msgpack/v4 v4.3.12
 	github.com/xeipuuv/gojsonschema v0.0.0-20180618132009-1d523034197f
+	go.etcd.io/bbolt v1.3.6
 	go.etcd.io/etcd/client/v2 v2.305.0
 	go.opentelemetry.io/collector v0.36.0
 	go.opentelemetry.io/collector/model v0.36.0
 	go.uber.org/automaxprocs v1.4.0
+	go.uber.org/multierr v1.6.0
 	go.uber.org/zap v1.19.1
 	go4.org/intern v0.0.0-20210108033219-3eb7198706b2
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/net v0.0.0-20210614182718-04defd469f4e
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210906170528-6f6e22806c34
+	golang.org/x/sys v0.0.0-20210923061019-b8560ed6a9b7
 	golang.org/x/text v0.3.7
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	golang.org/x/tools v0.1.5
@@ -192,53 +205,57 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	gotest.tools v2.2.0+incompatible
-	k8s.io/api v0.21.1
-	k8s.io/apimachinery v0.21.1
-	k8s.io/apiserver v0.20.6
+	k8s.io/api v0.21.2
+	k8s.io/apimachinery v0.21.2
+	k8s.io/apiserver v0.20.11
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.9.2
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/cri-api v0.20.6
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
 	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
-	k8s.io/kube-state-metrics/v2 v2.0.1-0.20210419063836-dfab196f138a
-	k8s.io/kubernetes v1.20.5
-	k8s.io/metrics v0.20.5
+	k8s.io/kube-state-metrics/v2 v2.1.1
+	k8s.io/kubernetes v1.20.11
+	k8s.io/metrics v0.20.11
 )
 
-// Pinned to kubernetes-v0.20.5
+// Pinned to kubernetes-v0.20.11
 replace (
-	k8s.io/api => k8s.io/api v0.20.5
-	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.20.5
-	k8s.io/apimachinery => k8s.io/apimachinery v0.20.5
-	k8s.io/apiserver => k8s.io/apiserver v0.20.5
-	k8s.io/cli-runtime => k8s.io/cli-runtime v0.20.5
-	k8s.io/client-go => k8s.io/client-go v0.20.5
-	k8s.io/cloud-provider => k8s.io/cloud-provider v0.20.5
-	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.20.5
-	k8s.io/code-generator => k8s.io/code-generator v0.20.5
-	k8s.io/component-base => k8s.io/component-base v0.20.5
-	k8s.io/component-helpers => k8s.io/component-helpers v0.20.5
-	k8s.io/controller-manager => k8s.io/controller-manager v0.20.5
-	k8s.io/cri-api => k8s.io/cri-api v0.20.5
-	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.20.5
-	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.20.5
-	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.20.5
-	k8s.io/kube-proxy => k8s.io/kube-proxy v0.20.5
-	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.20.5
-	k8s.io/kubectl => k8s.io/kubectl v0.20.5
-	k8s.io/kubelet => k8s.io/kubelet v0.20.5
-	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.20.5
-	k8s.io/metrics => k8s.io/metrics v0.20.5
-	k8s.io/mount-utils => k8s.io/mount-utils v0.20.3-rc.0
-	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.20.5
-	k8s.io/sample-cli-plugin => k8s.io/sample-cli-plugin v0.20.5
-	k8s.io/sample-controller => k8s.io/sample-controller v0.20.5
+	k8s.io/api => k8s.io/api v0.20.11
+	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.20.11
+	k8s.io/apimachinery => k8s.io/apimachinery v0.20.11
+	k8s.io/apiserver => k8s.io/apiserver v0.20.11
+	k8s.io/cli-runtime => k8s.io/cli-runtime v0.20.11
+	k8s.io/client-go => k8s.io/client-go v0.20.11
+	k8s.io/cloud-provider => k8s.io/cloud-provider v0.20.11
+	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.20.11
+	k8s.io/code-generator => k8s.io/code-generator v0.20.11
+	k8s.io/component-base => k8s.io/component-base v0.20.11
+	k8s.io/component-helpers => k8s.io/component-helpers v0.20.11
+	k8s.io/controller-manager => k8s.io/controller-manager v0.20.11
+	k8s.io/cri-api => k8s.io/cri-api v0.20.11
+	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.20.11
+	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.20.11
+	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.20.11
+	k8s.io/kube-proxy => k8s.io/kube-proxy v0.20.11
+	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.20.11
+	k8s.io/kubectl => k8s.io/kubectl v0.20.11
+	k8s.io/kubelet => k8s.io/kubelet v0.20.11
+	k8s.io/kubernetes => k8s.io/kubernetes v1.20.11
+	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.20.11
+	k8s.io/metrics => k8s.io/metrics v0.20.11
+	k8s.io/mount-utils => k8s.io/mount-utils v0.20.11
+	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.20.11
+	k8s.io/sample-cli-plugin => k8s.io/sample-cli-plugin v0.20.11
+	k8s.io/sample-controller => k8s.io/sample-controller v0.20.11
 )
+
+// Fixing a CVE indirectly linked to k8s/etcd, will be cleaned-up when K8S Apiserver deps is removed
+replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
 
 replace gopkg.in/DataDog/dd-trace-go.v1 => gopkg.in/DataDog/dd-trace-go.v1 v1.30.0
 
-// Remove once the PR kubernetes/kube-state-metrics#1516 is merged and released.
+// Internal code requires adaptation to support changes introduced in https://github.com/kubernetes/kube-state-metrics/commit/83887f16116cbf9ecc34a32e4ad8b4d8e782348d
 replace k8s.io/kube-state-metrics/v2 => github.com/ahmed-mez/kube-state-metrics/v2 v2.1.0-rc.0.0.20210629115837-e46f17606d22
 
 // Remove once the PR aptly-dev/aptly#967 is merged and released.
-replace github.com/aptly-dev/aptly => github.com/lebauce/aptly v0.7.2-0.20210723103859-345a32860f4d
+replace github.com/aptly-dev/aptly => github.com/lebauce/aptly v0.7.2-0.20210927125351-710eda859941

@@ -103,8 +103,9 @@ func TestExtractPodMessage(t *testing.T) {
 					ResourceVersion: "1234",
 				},
 				Spec: v1.PodSpec{
-					NodeName:   "node",
-					Containers: []v1.Container{{}, {}},
+					NodeName:          "node",
+					Containers:        []v1.Container{{}, {}},
+					PriorityClassName: "high-priority",
 				},
 			}, expected: model.Pod{
 				Metadata: &model.Metadata{
@@ -129,6 +130,7 @@ func TestExtractPodMessage(t *testing.T) {
 				RestartCount:      42,
 				Status:            "chillin",
 				QOSClass:          "Guaranteed",
+				PriorityClass:     "high-priority",
 				ContainerStatuses: []*model.ContainerStatus{
 					{
 						State:        "Running",

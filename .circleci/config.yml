@@ -245,7 +245,7 @@ jobs:
     macos:
       xcode: 11.7.0
     environment:
-      BUILDIMAGES_VERSION: "0f65dfe0488a16bcf63b19e0376185bfcac74503" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
+      BUILDIMAGES_VERSION: "249dd7120e29cf04436a116834f5a3e7f634b6a7" # datadog-agent-buildimages commit to fetch to get the MacOS scripts
     working_directory: ~/go/src/github.com/DataDog/datadog-agent
     steps:
       - checkout
@@ -257,9 +257,9 @@ jobs:
           keys:
             # If incremental dep fails, increase the cache version number
             # See https://github.com/DataDog/datadog-agent/pull/2384
-            - v5-macosdeps-{{ .Branch }}-{{ .Revision }}
-            - v5-macosdeps-{{ .Branch }}-
-            - v5-macosdeps-main-
+            - v6-macosdeps-{{ .Branch }}-{{ .Revision }}
+            - v6-macosdeps-{{ .Branch }}-
+            - v6-macosdeps-main-
       - run:
           name: Setup runner
           command: |
@@ -270,7 +270,7 @@ jobs:
             brew install clang-format || brew link --overwrite clang-format
             python3 -m pip install -r requirements.txt
       - save_cache:
-          key: v5-macosdeps-{{ .Branch }}-{{ .Revision }}
+          key: v6-macosdeps-{{ .Branch }}-{{ .Revision }}
           paths:
             - /usr/local/bin
             - /usr/local/Cellar

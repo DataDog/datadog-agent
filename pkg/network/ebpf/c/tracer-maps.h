@@ -4,11 +4,6 @@
 #include "tracer.h"
 #include "bpf_helpers.h"
 
-typedef struct {
-    struct sock *sk;
-    struct msghdr *msg;
-} udp_recv_sock_t;
-
 /* This is a key/value store with the keys being a conn_tuple_t for send & recv calls
  * and the values being conn_stats_ts_t *.
  */

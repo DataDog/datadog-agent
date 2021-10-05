@@ -32,6 +32,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/appsec"
 	mainconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
@@ -70,12 +71,13 @@ type HTTPReceiver struct {
 	Stats       *info.ReceiverStats
 	RateLimiter *rateLimiter
 
-	out            chan *Payload
-	conf           *config.AgentConfig
-	dynConf        *sampler.DynamicConfig
-	server         *http.Server
-	statsProcessor StatsProcessor
-	appsecHandler  http.Handler
+	out              chan *Payload
+	conf             *config.AgentConfig
+	dynConf          *sampler.DynamicConfig
+	server           *http.Server
+	statsProcessor   StatsProcessor
+	appsecHandler    http.Handler
+	configSubscriber *config.Subscriber
 
 	debug               bool
 	rateLimiterResponse int // HTTP status code when refusing
@@ -98,11 +100,12 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		Stats:       info.NewReceiverStats(),
 		RateLimiter: newRateLimiter(),
 
-		out:            out,
-		statsProcessor: statsProcessor,
-		conf:           conf,
-		dynConf:        dynConf,
-		appsecHandler:  appsecHandler,
+		out:              out,
+		statsProcessor:   statsProcessor,
+		configSubscriber: config.NewSubscriber(),
+		conf:             conf,
+		dynConf:          dynConf,
+		appsecHandler:    appsecHandler,
 
 		debug:               strings.ToLower(conf.LogLevel) == "debug",
 		rateLimiterResponse: rateLimiterResponse,
@@ -117,6 +120,9 @@ func (r *HTTPReceiver) buildMux() *http.ServeMux {
 	hash, infoHandler := r.makeInfoHandler()
 	r.attachDebugHandlers(mux)
 	for _, e := range endpoints {
+		if e.IsEnabled != nil && !e.IsEnabled() {
+			continue
+		}
 		mux.Handle(e.Pattern, replyWithVersion(hash, e.Handler(r)))
 	}
 	mux.HandleFunc("/info", infoHandler)
@@ -403,12 +409,15 @@ func decodeTraces(v Version, req *http.Request) (pb.Traces, error) {
 	}
 }
 
-func (r *HTTPReceiver) replyOK(v Version, w http.ResponseWriter) {
+// replyOK replies to the given http.ReponseWriter w based on the endpoint version, with either status 200/OK
+// or with a list of rates by service. It returns the number of bytes written along with reporting if the operation
+// was successful.
+func (r *HTTPReceiver) replyOK(v Version, w http.ResponseWriter) (n uint64, ok bool) {
 	switch v {
 	case v01, v02, v03:
-		httpOK(w)
+		return httpOK(w)
 	default:
-		httpRateByService(w, r.dynConf)
+		return httpRateByService(w, r.dynConf)
 	}
 }
 
@@ -451,6 +460,51 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	r.statsProcessor.ProcessStats(in, req.Header.Get(headerLang), req.Header.Get(headerTracerVersion))
 }
 
+// handleConfig handles config request.
+func (r *HTTPReceiver) handleConfig(w http.ResponseWriter, req *http.Request) {
+	defer timing.Since("datadog.trace_agent.receiver.config_process_ms", time.Now())
+	tags := r.tagStats(v06, req.Header).AsTags()
+	statusCode := http.StatusOK
+	defer func() {
+		tags = append(tags, fmt.Sprintf("status_code:%d", statusCode))
+		metrics.Count("datadog.trace_agent.receiver.config_request", 1, tags, 1)
+	}()
+
+	buf := getBuffer()
+	defer putBuffer(buf)
+	_, err := io.Copy(buf, req.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+
+	}
+	var configsRequest pbgo.GetConfigsRequest
+	err = json.Unmarshal(buf.Bytes(), &configsRequest)
+	if err != nil {
+		statusCode = http.StatusBadRequest
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	cfg, err := r.configSubscriber.Get(&configsRequest)
+	if err != nil {
+		statusCode = http.StatusInternalServerError
+		http.Error(w, err.Error(), statusCode)
+		return
+	}
+	if cfg == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	content, err := json.Marshal(cfg)
+	if err != nil {
+		statusCode = http.StatusInternalServerError
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Write(content)
+}
+
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
 	ts := r.tagStats(v, req.Header)
@@ -463,8 +517,12 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		atomic.AddInt64(&ts.PayloadRefused, 1)
 		return
 	}
-
+	start := time.Now()
 	traces, err := decodeTraces(v, req)
+	defer func(err error) {
+		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
+		metrics.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
+	}(err)
 	if err != nil {
 		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w)
 		switch err {
@@ -482,7 +540,10 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		log.Errorf("Cannot decode %s traces payload: %v", v, err)
 		return
 	}
-	r.replyOK(v, w)
+	if n, ok := r.replyOK(v, w); ok {
+		tags := append(ts.AsTags(), "endpoint:traces_"+string(v))
+		metrics.Histogram("datadog.trace_agent.receiver.rate_response_bytes", float64(n), tags, 1)
+	}
 
 	atomic.AddInt64(&ts.TracesReceived, int64(len(traces)))
 	atomic.AddInt64(&ts.TracesBytes, req.Body.(*apiutil.LimitedReader).Count)

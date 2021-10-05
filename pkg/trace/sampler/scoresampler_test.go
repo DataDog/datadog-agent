@@ -11,6 +11,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/atomic"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/cihub/seelog"
@@ -92,7 +93,7 @@ func TestTargetTPS(t *testing.T) {
 	initPeriods := 20
 	periods := 50
 
-	s.targetTPS = targetTPS
+	s.targetTPS = atomic.NewFloat(targetTPS)
 	periodSeconds := defaultDecayPeriod.Seconds()
 	tracesPerPeriod := tps * periodSeconds
 	// Set signature score offset high enough not to kick in during the test.
@@ -117,12 +118,12 @@ func TestTargetTPS(t *testing.T) {
 	assert.InEpsilon(tps, s.Backend.GetSampledScore(), 0.01)
 
 	// We should have kept less traces per second than targetTPS
-	assert.True(s.targetTPS >= float64(sampledCount)/(float64(periods)*periodSeconds))
+	assert.True(s.targetTPS.Load() >= float64(sampledCount)/(float64(periods)*periodSeconds))
 
 	// We should have a throughput of sampled traces around targetTPS
 	// Check for 1% epsilon, but the precision also depends on the backend imprecision (error factor = decayFactor).
 	// Combine error rates with L1-norm instead of L2-norm by laziness, still good enough for tests.
-	assert.InEpsilon(s.targetTPS, float64(sampledCount)/(float64(periods)*periodSeconds),
+	assert.InEpsilon(s.targetTPS.Load(), float64(sampledCount)/(float64(periods)*periodSeconds),
 		0.01+defaultDecayFactor-1)
 }
 

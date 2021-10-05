@@ -2,6 +2,25 @@
 Release Notes
 =============
 
+.. _Release Notes_7.31.1:
+
+7.31.1
+======
+
+.. _Release Notes_7.31.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2021-09-28
+
+.. _Release Notes_7.31.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix CSPM not sending intake protocol causing lack of host tags.
+
 .. _Release Notes_7.31.0:
 
 7.31.0 / 6.31.0

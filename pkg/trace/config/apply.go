@@ -281,7 +281,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 
 	var grpcPort int
 	if otlp.IsEnabled(config.Datadog) {
-		grpcPort = config.Datadog.GetInt("experimental.otlp.internal_traces_port")
+		grpcPort = config.Datadog.GetInt(config.ExperimentalOTLPTracePort)
 	}
 	c.OTLPReceiver = &OTLP{
 		BindHost:        c.ReceiverHost,
@@ -381,7 +381,6 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		// set by the user, disable it
 		c.LogThrottling = false
 	}
-
 	return nil
 }
 

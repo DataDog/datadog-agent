@@ -39,3 +39,7 @@ func (h *Historate) flush(timestamp float64) ([]*Serie, error) {
 	h.previousSample, h.previousTimestamp, h.sampled = 0.0, 0, false
 	return h.histogram.flush(timestamp)
 }
+
+func (h *Historate) isStateful() bool {
+	return true
+}

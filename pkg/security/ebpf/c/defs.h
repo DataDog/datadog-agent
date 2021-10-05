@@ -225,6 +225,11 @@ struct syscall_t {
     s64 retval;
 };
 
+struct span_context_t {
+   u64 span_id;
+   u64 trace_id;
+};
+
 struct process_context_t {
     u32 pid;
     u32 tid;
@@ -253,8 +258,9 @@ struct ktimeval {
 struct file_metadata_t {
     u32 uid;
     u32 gid;
+    u32 nlink;
     u16 mode;
-    char padding[6];
+    char padding[2];
 
     struct ktimeval ctime;
     struct ktimeval mtime;

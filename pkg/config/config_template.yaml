@@ -15,6 +15,7 @@ api_key:
 ## The site of the Datadog intake to send Agent data to.
 ## Set to 'datadoghq.eu' to send data to the EU site.
 ## Set to 'us3.datadoghq.com' to send data to the US3 site.
+## Set to 'us5.datadoghq.com' to send data to the US5 site.
 ## Set to 'ddog-gov.com' to send data to the US1-FED site.
 #
 # site: datadoghq.com
@@ -632,6 +633,19 @@ api_key:
   #
   # min_collection_interval: 15
 
+  ## @param collect_device_metadata - boolean - optional - default: true
+  ## Enable device metadata collection
+  ## Only available using corecheck SNMP integration with `loader: core` config.
+  #
+  # collect_device_metadata: true
+
+  ## @param namespace - string - optional - default: default
+  ## Namespace can be used to disambiguate devices with same IPs.
+  ## Changing namespace will cause devices being recreated in NDM app.
+  ## Only available using corecheck SNMP integration with `loader: core` config.
+  #
+  # namespace: default
+
   ## @param configs - list - required
   ## The actual list of configurations used to discover SNMP devices in various subnets.
   ## Example:
@@ -752,6 +766,19 @@ api_key:
     ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
     #
     # min_collection_interval: 15
+
+    ## @param collect_device_metadata - boolean - optional - default: true
+    ## Enable device metadata collection
+    ## Only available using corecheck SNMP integration with `loader: core` config.
+    #
+    # collect_device_metadata: true
+
+    ## @param namespace - string - optional - default: default
+    ## Namespace can be used to disambiguate devices with same IPs.
+    ## Changing namespace will cause devices being recreated in NDM app.
+    ## Only available using corecheck SNMP integration with `loader: core` config.
+    #
+    # namespace: default
 
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
@@ -1113,6 +1140,19 @@ api_key:
   #   container_realtime: 2
   #   process: 10
   #   process_realtime: 2
+
+  ## @param process_discovery - custom object - optional
+  ## Specifies custom settings for the `process_discovery` object.
+  # process_discovery
+      ## @param enabled - boolean - optional - default: false
+      ## Toggles the `process_discovery` check. If enabled, this check gathers information about possible running integrations.
+      ## This check is experimental.
+      # enabled: false
+
+      ## @param interval - duration - optional - default: 4h - minimum: 10m
+      ## An interval in hours that specifies how often the process discovery check should run.
+      # interval: 4h
+
 
   ## @param blacklist_patterns - list of strings - optional
   ## @env DD_PROCESS_CONFIG_BLACKLIST_PATTERNS - space separated list of strings - optional
@@ -1647,6 +1687,7 @@ api_key:
 ###########################
 
 ## @param log_level - string - optional - default: info
+## @env DD_LOG_LEVEL - string - optional - default: info
 ## Minimum log level of the Datadog Agent.
 ## Valid log levels are: trace, debug, info, warn, error, critical, and off.
 ## Note: When using the 'off' log level, quotes are mandatory.
@@ -1654,39 +1695,46 @@ api_key:
 # log_level: 'info'
 
 ## @param log_file - string - optional
+## @env DD_LOG_FILE - string - optional
 ## Path of the log file for the Datadog Agent.
 ## See https://docs.datadoghq.com/agent/guide/agent-log-files/
 #
 # log_file: <AGENT_LOG_FILE_PATH>
 
 ## @param log_format_json - boolean - optional - default: false
+## @env DD_LOG_FORMAT_JSON - boolean - optional - default: false
 ## Set to 'true' to output Agent logs in JSON format.
 #
 # log_format_json: false
 
 ## @param log_to_console - boolean - optional - default: true
+## @env DD_LOG_TO_CONSOLE - boolean - optional - default: true
 ## Set to 'false' to disable Agent logging to stdout.
 #
 # log_to_console: true
 
 ## @param disable_file_logging - boolean - optional - default: false
+## @env DD_DISABLE_FILE_LOGGING - boolean - optional - default: false
 ## Set to 'true' to disable logging to the log file.
 #
 # disable_file_logging: false
 
 ## @param log_file_max_size - custom - optional - default: 10MB
+## @env DD_LOG_FILE_MAX_SIZE - custom - optional - default: 10MB
 ## Maximum size of one log file. Use either a size (e.g. 10MB) or
 ## provide value in bytes: 10485760
 #
 # log_file_max_size: 10MB
 
 ## @param log_file_max_rolls - integer - optional - default: 1
+## @env DD_LOG_FILE_MAX_ROLLS - integer - optional - default: 1
 ## Maximum amount of "old" log files to keep.
 ## Set to 0 to not limit the number of files to create.
 #
 # log_file_max_rolls: 1
 
 ## @param log_to_syslog - boolean - optional - default: false
+## @env DD_LOG_TO_SYSLOG - boolean - optional - default: false
 ## Set to 'true' to enable logging to syslog.
 ## Note: Even if this option is set to 'false', the service launcher of your environment
 ## may redirect the Agent process' stdout/stderr to syslog. In that case, if you wish
@@ -1695,27 +1743,32 @@ api_key:
 # log_to_syslog: false
 
 ## @param syslog_uri - string - optional
+## @env DD_SYSLOG_URI - string - optional
 ## Define a custom remote syslog uri if needed. If 'syslog_uri' is left undefined/empty,
 ## a local domain socket connection is attempted.
 #
 # syslog_uri: <SYSLOG_URI>
 
 ## @param syslog_rfc - boolean - optional - default: false
+## @env DD_SYSLOG_RFC - boolean - optional - default: false
 ## Set to 'true' to output in an RFC 5424-compliant format for Agent logs.
 #
 # syslog_rfc: false
 
 ## @param syslog_pem - string - optional
+## @env DD_SYSLOG_PEM - string - optional
 ## If TLS enabled, you must specify a path to a PEM certificate here.
 #
 # syslog_pem: <PEM_CERTIFICATE_PATH>
 
 ## @param syslog_key - string - optional
+## @env DD_SYSLOG_KEY - string - optional
 ## If TLS enabled, you must specify a path to a private key here.
 #
 # syslog_key: <PEM_KEY_PATH>
 
 ## @param syslog_tls_verify - boolean - optional - default: true
+## @env DD_SYSLOG_TLS_VERIFY - boolean - optional - default: true
 ## If TLS enabled, you may enforce TLS verification here.
 #
 # syslog_tls_verify: true
@@ -1744,6 +1797,7 @@ api_key:
 # autoconf_template_dir: /datadog/check_configs
 
 ## @param config_providers - List of custom object - optional
+## @env DD_CONFIG_PROVIDERS - List of custom object - optional
 ## The providers the Agent should call to collect checks configurations. Available providers are:
 ##   * kubelet - The kubelet provider handles templates embedded in pod annotations.
 ##   * docker -  The Docker provider handles templates embedded in container labels.
@@ -1788,6 +1842,7 @@ api_key:
 #    password:
 
 ## @param extra_config_providers - list of strings - optional
+## @env DD_EXTRA_CONFIG_PROVIDERS - space separated list of strings - optional
 ## Add additional config providers by name using their default settings, and pooling enabled.
 ## This list is available as an environment variable binding.
 #
@@ -1830,6 +1885,7 @@ api_key:
 ###########################################
 
 ## @param container_cgroup_root - string - optional - default: /host/sys/fs/cgroup/
+## @env DD_CONTAINER_CGROUP_ROOT - string - optional - default: /host/sys/fs/cgroup/
 ## Change the root directory to look at to get cgroup statistics.
 ## Default if environment variable "DOCKER_DD_AGENT" is set to "/host/sys/fs/cgroup"
 ## and "/sys/fs/cgroup" if not.
@@ -1837,12 +1893,14 @@ api_key:
 # container_cgroup_root: /host/sys/fs/cgroup/
 
 ## @param container_proc_root - string - optional - default: /host/proc
+## @env DD_CONTAINER_PROC_ROOT - string - optional - default: /host/proc
 ## Change the root directory to look at to get proc statistics.
 ## Default if environment variable "DOCKER_DD_AGENT" is set "/host/proc" and "/proc" if not.
 #
 # container_proc_root: /host/proc
 
 ## @param listeners - list of key:value elements - optional
+## @env DD_LISTENERS - list of key:value elements - optional
 ## Choose "auto" if you want to let the Agent find any relevant listener on your host
 ## At the moment, the only auto listener supported is Docker
 ## If you have already set Docker anywhere in the listeners, the auto listener is ignored
@@ -1852,6 +1910,7 @@ api_key:
 #   - name: docker
 
 ## @param extra_listeners - list of strings - optional
+## @env DD_EXTRA_LISTENERS - space separated list of strings - optional
 ## You can also add additional listeners by name using their default settings.
 ## This list is available as an environment variable binding.
 #
@@ -1859,20 +1918,23 @@ api_key:
 #   - kubelet
 
 ## @param ac_exclude - list of comma separated strings - optional
+## @env DD_AC_EXCLUDE - list of space separated strings - optional
 ## Exclude containers from metrics and AD based on their name or image.
 ## If a container matches an exclude rule, it won't be included unless it first matches an include rule.
 ## An excluded container won't get any individual container metric reported for it.
-## See: https://docs.datadoghq.com/agent/autodiscovery/#include-or-exclude-containers
+## See: https://docs.datadoghq.com/agent/guide/autodiscovery-management/
 #
 # ac_exclude: []
 
 ## @param ac_include - list of comma separated strings - optional
+## @env DD_AC_INCLUDE - list of space separated strings - optional
 ## Include containers from metrics and AD based on their name or image:
-## See: https://docs.datadoghq.com/agent/autodiscovery/#include-or-exclude-containers
+## See: https://docs.datadoghq.com/agent/guide/autodiscovery-management/
 #
 # ac_include: []
 
 ## @param exclude_pause_container - boolean - optional - default: true
+## @env DD_EXCLUDE_PAUSE_CONTAINER - boolean - optional - default: true
 ## Exclude default pause containers from orchestrators.
 ## By default the Agent doesn't monitor kubernetes/openshift pause container.
 ## They are still counted in the container count (just like excluded containers).
@@ -1880,11 +1942,13 @@ api_key:
 # exclude_pause_container: true
 
 ## @param docker_query_timeout - integer - optional - default: 5
+## @env DD_DOCKER_QUERY_TIMEOUT - integer - optional - default: 5
 ## Set the default timeout value when connecting to the Docker daemon.
 #
 # docker_query_timeout: 5
 
 ## @param ad_config_poll_interval - integer - optional - default: 10
+## @env DD_AD_CONFIG_POLL_INTERVAL - integer - optional - default: 10
 ## The default interval in second to check for new autodiscovery configurations
 ## on all registered configuration providers.
 #
@@ -2396,9 +2460,9 @@ api_key:
 {{ end -}}
 {{- if .SNMP }}
 
-########################
-## SNMP Configuration ##
-########################
+###################################
+## Network Devices Configuration ##
+###################################
 
 ## @param snmp_traps_enabled - boolean - optional - default: false
 ## Set to true to enable collection of traps.
