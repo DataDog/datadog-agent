@@ -8,6 +8,8 @@ package info
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -84,4 +86,73 @@ func TestStatsTags(t *testing.T) {
 		"tracer_version:1.21.0",
 		"endpoint_version:v0.4",
 	})
+}
+
+func TestSamplingPriorityStats(t *testing.T) {
+	s := samplingPriorityStats{
+		[21]int64{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3},
+	}
+
+	t.Run("TagValues", func(t *testing.T) {
+		assert.Equal(t, map[string]int64{
+			"-10": 1,
+			"0":   2,
+			"10":  3,
+		}, s.TagValues())
+	})
+
+	t.Run("reset", func(t *testing.T) {
+		s.reset()
+		assert.Equal(t, map[string]int64{}, s.TagValues())
+	})
+
+	s2 := samplingPriorityStats{}
+	t.Run("CountSamplingPriority", func(t *testing.T) {
+		for i := -10; i <= 10; i++ {
+			for j := 0; j <= i+10; j++ {
+				s2.CountSamplingPriority(sampler.SamplingPriority(i))
+			}
+		}
+		assert.Equal(t, map[string]int64{
+			"-10": 1,
+			"-9":  2,
+			"-8":  3,
+			"-7":  4,
+			"-6":  5,
+			"-5":  6,
+			"-4":  7,
+			"-3":  8,
+			"-2":  9,
+			"-1":  10,
+			"0":   11,
+			"1":   12,
+			"2":   13,
+			"3":   14,
+			"4":   15,
+			"5":   16,
+			"6":   17,
+			"7":   18,
+			"8":   19,
+			"9":   20,
+			"10":  21,
+		}, s2.TagValues())
+	})
+
+	s3 := samplingPriorityStats{
+		[21]int64{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3},
+	}
+	s4 := samplingPriorityStats{
+		[21]int64{0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0},
+	}
+	t.Run("update", func(t *testing.T) {
+		s3.update(&s4)
+		assert.Equal(t, map[string]int64{
+			"-10": 1,
+			"-9":  1,
+			"0":   7,
+			"9":   10,
+			"10":  3,
+		}, s3.TagValues())
+	})
+
 }

@@ -218,13 +218,15 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 
 		statusInfo := p.parseStatus(pathForPID)
 		statInfo := p.parseStat(pathForPID, pid, now)
-		memInfoEx := &MemoryInfoExStat{}
 
 		// On linux, setting the `collectStats` parameter to false will only prevent collection of memory stats.
 		// It does not prevent collection of stats from the /proc/(pid)/stat file, since we need to read the
 		// createTime to make a bytekey
+		var memInfoEx *MemoryInfoExStat
 		if collectStats {
 			memInfoEx = p.parseStatm(pathForPID)
+		} else {
+			memInfoEx = &MemoryInfoExStat{}
 		}
 
 		proc := &Process{
