@@ -257,7 +257,7 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 
 		// If the write didn't work, try writing to the default checks directory
 		if e != nil && strings.Contains(e.Error(), "no such file or directory") {
-			path = securejoin.SecureJoin(defaultCheckConfFolderPath, fileName)
+			path, _ = securejoin.SecureJoin(defaultCheckConfFolderPath, fileName)
 			os.MkdirAll(defaultCheckConfFolderPath, os.FileMode(0755)) //nolint:errcheck
 			e = ioutil.WriteFile(path, data, 0600)
 		}
