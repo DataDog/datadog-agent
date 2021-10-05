@@ -212,7 +212,7 @@ UINT doFinalizeInstall(CustomActionData &data)
                 goto LExit;
             }
 
-            auto sidResult = GetSidForUser(nullptr, data.Username().c_str());
+            auto sidResult = GetSidForUser(nullptr, data.FullyQualifiedUsername().c_str());
             if (sidResult.Result != ERROR_SUCCESS)
             {
                 WcaLog(LOGMSG_STANDARD, "Failed to lookup account name: %d", GetLastError());
@@ -223,8 +223,8 @@ UINT doFinalizeInstall(CustomActionData &data)
 
             // store that we created the user, and store the username so we can
             // delete on rollback/uninstall
-            keyRollback.setStringValue(installCreatedDDUser.c_str(), data.Username().c_str());
-            keyInstall.setStringValue(installCreatedDDUser.c_str(), data.Username().c_str());
+            keyRollback.setStringValue(installCreatedDDUser.c_str(), data.FullyQualifiedUsername().c_str());
+            keyInstall.setStringValue(installCreatedDDUser.c_str(), data.FullyQualifiedUsername().c_str());
             if (data.isUserDomainUser())
             {
                 keyRollback.setStringValue(installCreatedDDDomain.c_str(), data.Domain().c_str());
@@ -239,7 +239,7 @@ UINT doFinalizeInstall(CustomActionData &data)
     hr = -1;
     if ((hLsa = GetPolicyHandle()) == NULL)
     {
-        WcaLog(LOGMSG_STANDARD, "Failed to get policy handle for %S", data.Username().c_str());
+        WcaLog(LOGMSG_STANDARD, "Failed to get policy handle for %S", data.FullyQualifiedUsername().c_str());
         goto LExit;
     }
     if (!AddPrivileges(data.Sid(), hLsa, SE_DENY_INTERACTIVE_LOGON_NAME))
@@ -368,8 +368,8 @@ UINT doFinalizeInstall(CustomActionData &data)
         if (!bRet)
         {
             DWORD lastErr = GetLastError();
-            std::string lastErrStr = GetErrorMessageStr(lastErr);
-            WcaLog(LOGMSG_STANDARD, "CreateSymbolicLink: %s (%d)", lastErrStr.c_str(), lastErr);
+            auto lastErrStr = GetErrorMessageStrW(lastErr);
+            WcaLog(LOGMSG_STANDARD, "CreateSymbolicLink: %S (%d)", lastErrStr.c_str(), lastErr);
         }
         else
         {

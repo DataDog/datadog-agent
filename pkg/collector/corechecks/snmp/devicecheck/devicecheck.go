@@ -6,12 +6,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/fetch"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/metadata"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/session"
@@ -22,6 +25,8 @@ const (
 	snmpLoaderTag        = "loader:core"
 	serviceCheckName     = "snmp.can_check"
 	deviceHostnamePrefix = "device:"
+	// 1.3 (iso.org) is the OID used for getNext call to check if the device is reachable
+	deviceReachableGetNextOid = "1.3"
 )
 
 // DeviceCheck hold info necessary to collect info for a single device
@@ -77,7 +82,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	// Fetch and report metrics
 	var checkErr error
 	var deviceStatus metadata.DeviceStatus
-	tags, values, checkErr := d.getValuesAndTags(staticTags)
+	deviceReachable, tags, values, checkErr := d.getValuesAndTags(staticTags)
 	if checkErr != nil {
 		d.sender.ServiceCheck(serviceCheckName, metrics.ServiceCheckCritical, tags, checkErr.Error())
 	} else {
@@ -88,7 +93,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	}
 
 	if d.config.CollectDeviceMetadata {
-		if values != nil {
+		if deviceReachable {
 			deviceStatus = metadata.DeviceStatusReachable
 		} else {
 			deviceStatus = metadata.DeviceStatusUnreachable
@@ -106,14 +111,15 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	return checkErr
 }
 
-func (d *DeviceCheck) getValuesAndTags(staticTags []string) ([]string, *valuestore.ResultValueStore, error) {
+func (d *DeviceCheck) getValuesAndTags(staticTags []string) (bool, []string, *valuestore.ResultValueStore, error) {
+	var deviceReachable bool
 	var checkErrors []string
 	tags := common.CopyStrings(staticTags)
 
 	// Create connection
 	connErr := d.session.Connect()
 	if connErr != nil {
-		return tags, nil, fmt.Errorf("snmp connection error: %s", connErr)
+		return false, tags, nil, fmt.Errorf("snmp connection error: %s", connErr)
 	}
 	defer func() {
 		err := d.session.Close()
@@ -122,7 +128,20 @@ func (d *DeviceCheck) getValuesAndTags(staticTags []string) ([]string, *valuesto
 		}
 	}()
 
-	err := d.doAutodetectProfile(d.session)
+	// Check if the device is reachable
+	getNextValue, err := d.session.GetNext([]string{deviceReachableGetNextOid})
+	if err != nil {
+		deviceReachable = false
+		checkErrors = append(checkErrors, fmt.Sprintf("check device reachable: failed: %s", err))
+	} else {
+		deviceReachable = true
+		if logLevel, err := log.GetLogLevel(); err != nil || logLevel == seelog.DebugLvl {
+			values := gosnmplib.ResultToScalarValues(getNextValue)
+			log.Debugf("check device reachable: success: %+v", values)
+		}
+	}
+
+	err = d.doAutodetectProfile(d.session)
 	if err != nil {
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to autodetect profile: %s", err))
 	}
@@ -142,7 +161,7 @@ func (d *DeviceCheck) getValuesAndTags(staticTags []string) ([]string, *valuesto
 	if len(checkErrors) > 0 {
 		joinedError = errors.New(strings.Join(checkErrors, "; "))
 	}
-	return tags, valuesStore, joinedError
+	return deviceReachable, tags, valuesStore, joinedError
 }
 
 func (d *DeviceCheck) doAutodetectProfile(sess session.Session) error {

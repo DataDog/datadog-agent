@@ -34,7 +34,7 @@
     - mkdir -p /tmp/nikos
     - tar -xf /tmp/nikos.tar.gz -C /tmp/nikos
     # use --skip-deps since the deps are installed by `before_script`
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe $NIKOS_PATH
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --nikos-path=/tmp/nikos
     - ls -la $OMNIBUS_PACKAGE_DIR
     # Copy to a different directory to avoid collisions if a job downloads both the RPM and SUSE RPM artifacts
     - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_PACKAGE_DIR/* $OMNIBUS_PACKAGE_DIR_SUSE
@@ -55,7 +55,6 @@ agent_suse-x64-a6:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 6
-    NIKOS_PATH: '--nikos-path=/tmp/nikos'
     PYTHON_RUNTIMES: '2,3'
     PACKAGE_ARCH: amd64
   before_script:
@@ -74,7 +73,6 @@ agent_suse-x64-a7:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 7
-    NIKOS_PATH: '--nikos-path=/tmp/nikos'
     PYTHON_RUNTIMES: '3'
     PACKAGE_ARCH: amd64
   before_script:

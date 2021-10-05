@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gobwas/glob"
 
@@ -166,7 +167,17 @@ func (c *KubeMetadataCollector) collectUpdates(pods []*kubelet.Pod) []*TagInfo {
 func (c *KubeMetadataCollector) Fetch(ctx context.Context, entity string) ([]string, []string, []string, error) {
 	var lowCards, orchestratorCards, highCards []string
 
-	pod, err := c.kubeUtil.GetPodForEntityID(ctx, entity)
+	kubeEntityID := entity
+
+	// kubeUtil uses `kubernetes_pod://` IDs, while the tagger uses
+	// `kubernetes_pod_uid` so we need to convert between the two
+	prefix, id := containers.SplitEntityName(kubeEntityID)
+	if prefix == kubelet.KubePodTaggerEntityName {
+		kubeEntityID = kubelet.KubePodPrefix + id
+	}
+
+	pod, err := c.kubeUtil.GetPodForEntityID(ctx, kubeEntityID)
+
 	if err != nil {
 		return lowCards, orchestratorCards, highCards, err
 	}

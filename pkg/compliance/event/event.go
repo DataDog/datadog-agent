@@ -22,6 +22,7 @@ type Event struct {
 	AgentRuleID      string      `json:"agent_rule_id,omitempty"`
 	AgentRuleVersion int         `json:"agent_rule_version,omitempty"`
 	AgentFrameworkID string      `json:"agent_framework_id,omitempty"`
+	AgentVersion     string      `json:"agent_version,omitempty"`
 	Result           string      `json:"result,omitempty"`
 	ResourceType     string      `json:"resource_type,omitempty"`
 	ResourceID       string      `json:"resource_id,omitempty"`

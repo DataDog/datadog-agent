@@ -38,6 +38,7 @@ import (
 	batchlisters "k8s.io/client-go/listers/batch/v1"
 	batchlistersBeta1 "k8s.io/client-go/listers/batch/v1beta1"
 	corelisters "k8s.io/client-go/listers/core/v1"
+	rbaclisters "k8s.io/client-go/listers/rbac/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -85,35 +86,45 @@ func (c *OrchestratorInstance) parse(data []byte) error {
 // OrchestratorCheck wraps the config and the informers needed to run the check
 type OrchestratorCheck struct {
 	core.CheckBase
-	orchestratorConfig              *orchcfg.OrchestratorConfig
-	instance                        *OrchestratorInstance
-	stopCh                          chan struct{}
-	clusterID                       string
-	groupID                         int32
-	isCLCRunner                     bool
-	apiClient                       *apiserver.APIClient
-	unassignedPodLister             corelisters.PodLister
-	unassignedPodListerSync         cache.InformerSynced
-	deployLister                    appslisters.DeploymentLister
-	deployListerSync                cache.InformerSynced
-	rsLister                        appslisters.ReplicaSetLister
-	rsListerSync                    cache.InformerSynced
-	serviceLister                   corelisters.ServiceLister
-	serviceListerSync               cache.InformerSynced
-	nodesLister                     corelisters.NodeLister
-	nodesListerSync                 cache.InformerSynced
-	jobsLister                      batchlisters.JobLister
-	jobsListerSync                  cache.InformerSynced
-	cronJobsLister                  batchlistersBeta1.CronJobLister
-	cronJobsListerSync              cache.InformerSynced
-	daemonSetsLister                appslisters.DaemonSetLister
-	daemonSetsListerSync            cache.InformerSynced
-	statefulSetsLister              appslisters.StatefulSetLister
-	statefulSetsListerSync          cache.InformerSynced
-	persistentVolumeLister          corelisters.PersistentVolumeLister
-	persistentVolumeListerSync      cache.InformerSynced
-	persistentVolumeClaimLister     corelisters.PersistentVolumeClaimLister
-	persistentVolumeClaimListerSync cache.InformerSynced
+	orchestratorConfig               *orchcfg.OrchestratorConfig
+	instance                         *OrchestratorInstance
+	stopCh                           chan struct{}
+	clusterID                        string
+	groupID                          int32
+	isCLCRunner                      bool
+	apiClient                        *apiserver.APIClient
+	unassignedPodLister              corelisters.PodLister
+	unassignedPodListerSync          cache.InformerSynced
+	deployLister                     appslisters.DeploymentLister
+	deployListerSync                 cache.InformerSynced
+	rsLister                         appslisters.ReplicaSetLister
+	rsListerSync                     cache.InformerSynced
+	serviceLister                    corelisters.ServiceLister
+	serviceListerSync                cache.InformerSynced
+	nodesLister                      corelisters.NodeLister
+	nodesListerSync                  cache.InformerSynced
+	jobsLister                       batchlisters.JobLister
+	jobsListerSync                   cache.InformerSynced
+	cronJobsLister                   batchlistersBeta1.CronJobLister
+	cronJobsListerSync               cache.InformerSynced
+	daemonSetsLister                 appslisters.DaemonSetLister
+	daemonSetsListerSync             cache.InformerSynced
+	statefulSetsLister               appslisters.StatefulSetLister
+	statefulSetsListerSync           cache.InformerSynced
+	persistentVolumesLister          corelisters.PersistentVolumeLister
+	persistentVolumesListerSync      cache.InformerSynced
+	persistentVolumeClaimsLister     corelisters.PersistentVolumeClaimLister
+	persistentVolumeClaimsListerSync cache.InformerSynced
+	rolesLister                      rbaclisters.RoleLister
+	rolesListerSync                  cache.InformerSynced
+	roleBindingsLister               rbaclisters.RoleBindingLister
+	roleBindingsListerSync           cache.InformerSynced
+	clusterRolesLister               rbaclisters.ClusterRoleLister
+	clusterRolesListerSync           cache.InformerSynced
+	clusterRoleBindingsLister        rbaclisters.ClusterRoleBindingLister
+	clusterRoleBindingsListerSync    cache.InformerSynced
+	serviceAccountsLister            corelisters.ServiceAccountLister
+	serviceAccountsListerSync        cache.InformerSynced
 }
 
 func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *OrchestratorCheck {
@@ -246,16 +257,40 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 			o.statefulSetsListerSync = statefulSetsInformer.Informer().HasSynced
 			informersToSync[apiserver.InformerName(orchestrator.K8sStatefulSet.String())] = statefulSetsInformer.Informer()
 		case "persistentvolumes":
-			persistentVolumeInformer := apiCl.InformerFactory.Core().V1().PersistentVolumes()
-			o.persistentVolumeLister = persistentVolumeInformer.Lister()
-			o.persistentVolumeListerSync = persistentVolumeInformer.Informer().HasSynced
-			informersToSync[apiserver.InformerName(orchestrator.K8sPersistentVolume.String())] = persistentVolumeInformer.Informer()
+			persistentVolumesInformer := apiCl.InformerFactory.Core().V1().PersistentVolumes()
+			o.persistentVolumesLister = persistentVolumesInformer.Lister()
+			o.persistentVolumesListerSync = persistentVolumesInformer.Informer().HasSynced
+			informersToSync[apiserver.InformerName(orchestrator.K8sPersistentVolume.String())] = persistentVolumesInformer.Informer()
 		case "persistentvolumeclaims":
-			persistentVolumeClaimInformer := apiCl.InformerFactory.Core().V1().PersistentVolumeClaims()
-			o.persistentVolumeClaimLister = persistentVolumeClaimInformer.Lister()
-			o.persistentVolumeClaimListerSync = persistentVolumeClaimInformer.Informer().HasSynced
-			informersToSync[apiserver.InformerName(orchestrator.K8sPersistentVolumeClaim.String())] = persistentVolumeClaimInformer.Informer()
-
+			persistentVolumeClaimsInformer := apiCl.InformerFactory.Core().V1().PersistentVolumeClaims()
+			o.persistentVolumeClaimsLister = persistentVolumeClaimsInformer.Lister()
+			o.persistentVolumeClaimsListerSync = persistentVolumeClaimsInformer.Informer().HasSynced
+			informersToSync[apiserver.InformerName(orchestrator.K8sPersistentVolumeClaim.String())] = persistentVolumeClaimsInformer.Informer()
+		case "roles":
+			rolesInformer := apiCl.InformerFactory.Rbac().V1().Roles()
+			o.rolesLister = rolesInformer.Lister()
+			o.rolesListerSync = rolesInformer.Informer().HasSynced
+			informersToSync[apiserver.InformerName(orchestrator.K8sRole.String())] = rolesInformer.Informer()
+		case "rolebindings":
+			roleBindingsInformer := apiCl.InformerFactory.Rbac().V1().RoleBindings()
+			o.roleBindingsLister = roleBindingsInformer.Lister()
+			o.roleBindingsListerSync = roleBindingsInformer.Informer().HasSynced
+			informersToSync[apiserver.InformerName(orchestrator.K8sRole.String())] = roleBindingsInformer.Informer()
+		case "clusterroles":
+			clusterRolesInformer := apiCl.InformerFactory.Rbac().V1().ClusterRoles()
+			o.clusterRolesLister = clusterRolesInformer.Lister()
+			o.clusterRolesListerSync = clusterRolesInformer.Informer().HasSynced
+			informersToSync[apiserver.InformerName(orchestrator.K8sRole.String())] = clusterRolesInformer.Informer()
+		case "clusterrolebindings":
+			clusterRoleBindingsInformer := apiCl.InformerFactory.Rbac().V1().ClusterRoleBindings()
+			o.clusterRoleBindingsLister = clusterRoleBindingsInformer.Lister()
+			o.clusterRoleBindingsListerSync = clusterRoleBindingsInformer.Informer().HasSynced
+			informersToSync[apiserver.InformerName(orchestrator.K8sRole.String())] = clusterRoleBindingsInformer.Informer()
+		case "serviceaccounts":
+			serviceAccountsInformer := apiCl.InformerFactory.Core().V1().ServiceAccounts()
+			o.serviceAccountsLister = serviceAccountsInformer.Lister()
+			o.serviceAccountsListerSync = serviceAccountsInformer.Informer().HasSynced
+			informersToSync[apiserver.InformerName(orchestrator.K8sRole.String())] = serviceAccountsInformer.Informer()
 		default:
 			_ = o.Warnf("Unsupported collector: %s", v)
 		}
@@ -308,8 +343,13 @@ func (o *OrchestratorCheck) Run() error {
 	o.processCronJobs(sender)
 	o.processDaemonSets(sender)
 	o.processStatefulSets(sender)
-	o.processPersistentVolume(sender)
-	o.processPersistentVolumeClaim(sender)
+	o.processPersistentVolumes(sender)
+	o.processPersistentVolumeClaims(sender)
+	o.processRoles(sender)
+	o.processRoleBindings(sender)
+	o.processClusterRoles(sender)
+	o.processClusterRoleBindings(sender)
+	o.processServiceAccounts(sender)
 
 	return nil
 }
@@ -582,18 +622,18 @@ func (o *OrchestratorCheck) processPods(sender aggregator.Sender) {
 	sender.OrchestratorMetadata(messages, o.clusterID, int(orchestrator.K8sPod))
 }
 
-func (o *OrchestratorCheck) processPersistentVolume(sender aggregator.Sender) {
-	if o.persistentVolumeLister == nil {
+func (o *OrchestratorCheck) processPersistentVolumes(sender aggregator.Sender) {
+	if o.persistentVolumesLister == nil {
 		return
 	}
-	pvList, err := o.persistentVolumeLister.List(labels.Everything())
+	pvList, err := o.persistentVolumesLister.List(labels.Everything())
 	if err != nil {
 		_ = o.Warnf("Unable to list pv: %s", err)
 		return
 	}
 	groupID := atomic.AddInt32(&o.groupID, 1)
 
-	messages, err := ProcessPersistentVolumeList(pvList, groupID, o.orchestratorConfig, o.clusterID)
+	messages, err := processPersistentVolumeList(pvList, groupID, o.orchestratorConfig, o.clusterID)
 	if err != nil {
 		_ = o.Warnf("Unable to process pv list: %s", err)
 	}
@@ -609,18 +649,18 @@ func (o *OrchestratorCheck) processPersistentVolume(sender aggregator.Sender) {
 	sender.OrchestratorMetadata(messages, o.clusterID, int(orchestrator.K8sPersistentVolume))
 }
 
-func (o *OrchestratorCheck) processPersistentVolumeClaim(sender aggregator.Sender) {
-	if o.persistentVolumeClaimLister == nil {
+func (o *OrchestratorCheck) processPersistentVolumeClaims(sender aggregator.Sender) {
+	if o.persistentVolumeClaimsLister == nil {
 		return
 	}
-	pvcList, err := o.persistentVolumeClaimLister.List(labels.Everything())
+	pvcList, err := o.persistentVolumeClaimsLister.List(labels.Everything())
 	if err != nil {
-		_ = o.Warnf("Unable to list pvc: %s", err)
+		_ = o.Warnf("Unable to list pvcs: %s", err)
 		return
 	}
 	groupID := atomic.AddInt32(&o.groupID, 1)
 
-	messages, err := ProcessPersistentVolumeClaimList(pvcList, groupID, o.orchestratorConfig, o.clusterID)
+	messages, err := processPersistentVolumeClaimList(pvcList, groupID, o.orchestratorConfig, o.clusterID)
 	if err != nil {
 		_ = o.Warnf("Unable to process pvc list: %s", err)
 	}
@@ -633,6 +673,136 @@ func (o *OrchestratorCheck) processPersistentVolumeClaim(sender aggregator.Sende
 	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sPersistentVolumeClaim), stats, orchestrator.NoExpiration)
 
 	sender.OrchestratorMetadata(messages, o.clusterID, int(orchestrator.K8sPersistentVolumeClaim))
+}
+
+func (o *OrchestratorCheck) processRoles(sender aggregator.Sender) {
+	if o.rolesLister == nil {
+		return
+	}
+	roleList, err := o.rolesLister.List(labels.Everything())
+	if err != nil {
+		_ = o.Warnf("Unable to list roles: %s", err)
+		return
+	}
+	groupID := atomic.AddInt32(&o.groupID, 1)
+
+	messages, err := processRoleList(roleList, groupID, o.orchestratorConfig, o.clusterID)
+	if err != nil {
+		_ = o.Warnf("Unable to process role list: %s", err)
+	}
+
+	stats := orchestrator.CheckStats{
+		CacheHits: len(roleList) - len(messages),
+		CacheMiss: len(messages),
+		NodeType:  orchestrator.K8sRole,
+	}
+	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sRole), stats, orchestrator.NoExpiration)
+
+	sender.OrchestratorMetadata(messages, o.clusterID, int(orchestrator.K8sRole))
+}
+
+func (o *OrchestratorCheck) processRoleBindings(sender aggregator.Sender) {
+	if o.roleBindingsLister == nil {
+		return
+	}
+	roleBindingList, err := o.roleBindingsLister.List(labels.Everything())
+	if err != nil {
+		_ = o.Warnf("Unable to list role bindings: %s", err)
+		return
+	}
+	groupID := atomic.AddInt32(&o.groupID, 1)
+
+	messages, err := processRoleBindingList(roleBindingList, groupID, o.orchestratorConfig, o.clusterID)
+	if err != nil {
+		_ = o.Warnf("Unable to process role binding list: %s", err)
+	}
+
+	stats := orchestrator.CheckStats{
+		CacheHits: len(roleBindingList) - len(messages),
+		CacheMiss: len(messages),
+		NodeType:  orchestrator.K8sRoleBinding,
+	}
+	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sRoleBinding), stats, orchestrator.NoExpiration)
+
+	sender.OrchestratorMetadata(messages, o.clusterID, int(orchestrator.K8sRoleBinding))
+}
+
+func (o *OrchestratorCheck) processClusterRoles(sender aggregator.Sender) {
+	if o.clusterRolesLister == nil {
+		return
+	}
+	clusterRoleList, err := o.clusterRolesLister.List(labels.Everything())
+	if err != nil {
+		_ = o.Warnf("Unable to list cluster roles: %s", err)
+		return
+	}
+	groupID := atomic.AddInt32(&o.groupID, 1)
+
+	messages, err := processClusterRoleList(clusterRoleList, groupID, o.orchestratorConfig, o.clusterID)
+	if err != nil {
+		_ = o.Warnf("Unable to process cluster role list: %s", err)
+	}
+
+	stats := orchestrator.CheckStats{
+		CacheHits: len(clusterRoleList) - len(messages),
+		CacheMiss: len(messages),
+		NodeType:  orchestrator.K8sClusterRole,
+	}
+	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sClusterRole), stats, orchestrator.NoExpiration)
+
+	sender.OrchestratorMetadata(messages, o.clusterID, int(orchestrator.K8sClusterRole))
+}
+
+func (o *OrchestratorCheck) processClusterRoleBindings(sender aggregator.Sender) {
+	if o.clusterRoleBindingsLister == nil {
+		return
+	}
+	clusterRoleBindingList, err := o.clusterRoleBindingsLister.List(labels.Everything())
+	if err != nil {
+		_ = o.Warnf("Unable to list cluster role bindings: %s", err)
+		return
+	}
+	groupID := atomic.AddInt32(&o.groupID, 1)
+
+	messages, err := processClusterRoleBindingList(clusterRoleBindingList, groupID, o.orchestratorConfig, o.clusterID)
+	if err != nil {
+		_ = o.Warnf("Unable to process cluster role binding list: %s", err)
+	}
+
+	stats := orchestrator.CheckStats{
+		CacheHits: len(clusterRoleBindingList) - len(messages),
+		CacheMiss: len(messages),
+		NodeType:  orchestrator.K8sClusterRoleBinding,
+	}
+	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sClusterRoleBinding), stats, orchestrator.NoExpiration)
+
+	sender.OrchestratorMetadata(messages, o.clusterID, int(orchestrator.K8sClusterRoleBinding))
+}
+
+func (o *OrchestratorCheck) processServiceAccounts(sender aggregator.Sender) {
+	if o.serviceAccountsLister == nil {
+		return
+	}
+	serviceAccountList, err := o.serviceAccountsLister.List(labels.Everything())
+	if err != nil {
+		_ = o.Warnf("Unable to list service accounts: %s", err)
+		return
+	}
+	groupID := atomic.AddInt32(&o.groupID, 1)
+
+	messages, err := processServiceAccountList(serviceAccountList, groupID, o.orchestratorConfig, o.clusterID)
+	if err != nil {
+		_ = o.Warnf("Unable to process service account list: %s", err)
+	}
+
+	stats := orchestrator.CheckStats{
+		CacheHits: len(serviceAccountList) - len(messages),
+		CacheMiss: len(messages),
+		NodeType:  orchestrator.K8sServiceAccount,
+	}
+	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sServiceAccount), stats, orchestrator.NoExpiration)
+
+	sender.OrchestratorMetadata(messages, o.clusterID, int(orchestrator.K8sServiceAccount))
 }
 
 // Cancel cancels the orchestrator check

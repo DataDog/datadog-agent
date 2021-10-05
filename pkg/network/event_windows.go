@@ -105,12 +105,6 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 	cs.NetNS = 0
 	cs.IPTranslation = nil
 	cs.IntraHost = false
-	cs.DNSSuccessfulResponses = 0
-	cs.DNSFailedResponses = 0
-	cs.DNSTimeouts = 0
-	cs.DNSSuccessLatencySum = 0
-	cs.DNSFailureLatencySum = 0
-	cs.DNSCountByRcode = nil
 	cs.LastSentBytes = 0
 	cs.LastRecvBytes = 0
 	cs.MonotonicRetransmits = 0

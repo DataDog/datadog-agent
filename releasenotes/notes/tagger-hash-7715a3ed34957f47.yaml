@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Reduced CPU usage when origin detection is used.

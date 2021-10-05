@@ -2,6 +2,7 @@ import base64
 import logging
 import os
 import time
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get('LOGGING_LEVEL', 'INFO'))
@@ -90,7 +91,7 @@ class GithubApp:
                 )
                 time.sleep(1)
                 continue
-            return r.json().get("token")
+            return r.json().get("token"), datetime.strptime(r.json().get("expires_at"), "%Y-%m-%dT%H:%M:%SZ")
         raise GithubAppException(
             """Unable to retrieve an access token.
         Status code: {} Response Text: {}""".format(

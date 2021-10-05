@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestConfigurations(t *testing.T) {
@@ -129,7 +130,7 @@ bulk_max_repetitions: 20
 	assert.Equal(t, "aes", config.PrivProtocol)
 	assert.Equal(t, "my-privKey", config.PrivKey)
 	assert.Equal(t, "my-contextName", config.ContextName)
-	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, config.GetStaticTags())
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.GetStaticTags())
 	metrics := []MetricsConfig{
 		{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.2.1", Name: "ifNumber"}},
 		{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.2.2", Name: "ifNumber2"}, MetricTags: MetricTagConfigList{
@@ -211,8 +212,8 @@ bulk_max_repetitions: 20
 	assert.Equal(t, metrics, config.Metrics)
 	assert.Equal(t, metricsTags, config.MetricTags)
 	assert.Equal(t, 1, len(config.Profiles))
-	assert.Equal(t, "780a58c96c908df8", config.DeviceID)
-	assert.Equal(t, []string{"snmp_device:1.2.3.4", "tag1", "tag2:val2"}, config.DeviceIDTags)
+	assert.Equal(t, "default:1.2.3.4", config.DeviceID)
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.DeviceIDTags)
 	assert.Equal(t, "127.0.0.0/30", config.ResolvedSubnetName)
 	assert.Equal(t, false, config.AutodetectProfile)
 }
@@ -281,7 +282,7 @@ profiles:
 	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
 
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, config.GetStaticTags())
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.GetStaticTags())
 	metrics := []MetricsConfig{
 		{Symbol: SymbolConfig{OID: "1.4.5", Name: "myMetric"}, ForcedType: "gauge"},
 	}
@@ -296,8 +297,8 @@ profiles:
 	assert.Equal(t, metrics, config.Metrics)
 	assert.Equal(t, metricsTags, config.MetricTags)
 	assert.Equal(t, 2, len(config.Profiles))
-	assert.Equal(t, "74f22f3320d2d692", config.DeviceID)
-	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, config.DeviceIDTags)
+	assert.Equal(t, "default:1.2.3.4", config.DeviceID)
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.DeviceIDTags)
 	assert.Equal(t, false, config.AutodetectProfile)
 	assert.Equal(t, 3600, config.DiscoveryInterval)
 	assert.Equal(t, 3, config.DiscoveryAllowedFailures)
@@ -318,6 +319,7 @@ community_string: abc
 	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
 
 	assert.Nil(t, err)
+	assert.Equal(t, "default", config.Namespace)
 	assert.Equal(t, "1.2.3.4", config.IPAddress)
 	assert.Equal(t, uint16(161), config.Port)
 	assert.Equal(t, 2, config.Timeout)
@@ -826,7 +828,7 @@ community_string: abc
 `)
 	config, err := NewCheckConfig(rawInstanceConfig, []byte(``))
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"snmp_device:1.2.3.4"}, config.GetStaticTags())
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.GetStaticTags())
 
 	// language=yaml
 	rawInstanceConfigWithExtraTags := []byte(`
@@ -836,7 +838,7 @@ extra_tags: "extratag1:val1,extratag2:val2"
 `)
 	config, err = NewCheckConfig(rawInstanceConfigWithExtraTags, []byte(``))
 	assert.Nil(t, err)
-	assert.ElementsMatch(t, []string{"snmp_device:1.2.3.4", "extratag1:val1", "extratag2:val2"}, config.GetStaticTags())
+	assert.ElementsMatch(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "extratag1:val1", "extratag2:val2"}, config.GetStaticTags())
 }
 
 func Test_snmpConfig_getDeviceIDTags(t *testing.T) {
@@ -844,10 +846,11 @@ func Test_snmpConfig_getDeviceIDTags(t *testing.T) {
 		IPAddress:    "1.2.3.4",
 		ExtraTags:    []string{"extratag1:val1", "extratag2"},
 		InstanceTags: []string{"instancetag1:val1", "instancetag2"},
+		Namespace:    "hey",
 	}
 	actualTags := c.getDeviceIDTags()
 
-	expectedTags := []string{"extratag1:val1", "extratag2", "instancetag1:val1", "instancetag2", "snmp_device:1.2.3.4"}
+	expectedTags := []string{"device_namespace:hey", "snmp_device:1.2.3.4"}
 	assert.Equal(t, expectedTags, actualTags)
 }
 
@@ -950,7 +953,7 @@ oid_batch_size: 10
 `)
 	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, false, config.CollectDeviceMetadata)
+	assert.Equal(t, true, config.CollectDeviceMetadata)
 
 	// language=yaml
 	rawInstanceConfig = []byte(`
@@ -994,6 +997,97 @@ collect_device_metadata: true
 	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, false, config.CollectDeviceMetadata)
+}
+
+func Test_buildConfig_namespace(t *testing.T) {
+	defer coreconfig.Datadog.Set("network_devices.namespace", "default")
+
+	// Should use namespace defined in instance config
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+namespace: my-ns
+`)
+	rawInitConfig := []byte(``)
+
+	conf, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, "my-ns", conf.Namespace)
+
+	// Should use namespace defined in datadog.yaml network_devices
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	rawInitConfig = []byte(``)
+	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, "default", conf.Namespace)
+
+	// Should use namespace defined in init config
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	rawInitConfig = []byte(`
+namespace: ns-from-datadog-conf`)
+	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, "ns-from-datadog-conf", conf.Namespace)
+
+	// Should use namespace defined in datadog.yaml network_devices
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	rawInitConfig = []byte(``)
+	coreconfig.Datadog.Set("network_devices.namespace", "totoro")
+	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, "totoro", conf.Namespace)
+
+	// Should use namespace defined in init config
+	// when namespace is empty in instance config
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+namespace: ""
+`)
+	rawInitConfig = []byte(`
+namespace: ponyo`)
+	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, "ponyo", conf.Namespace)
+
+	// Should use namespace defined in datadog.yaml network_devices
+	// when namespace is empty in init config
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	rawInitConfig = []byte(`
+namespace: `)
+	coreconfig.Datadog.Set("network_devices.namespace", "mononoke")
+	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, "mononoke", conf.Namespace)
+
+	// Should throw error when namespace is empty in datadog.yaml network_devices
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	rawInitConfig = []byte(``)
+	coreconfig.Datadog.Set("network_devices.namespace", "")
+	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.EqualError(t, err, "namespace cannot be empty")
 }
 
 func Test_buildConfig_UseDeviceIDAsHostname(t *testing.T) {

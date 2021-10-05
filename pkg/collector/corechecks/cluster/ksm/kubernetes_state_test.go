@@ -897,6 +897,73 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 	}
 }
 
+func TestKSMCheck_processLabelsAsTags(t *testing.T) {
+	tests := []struct {
+		name           string
+		config         *KSMConfig
+		expectedJoins  map[string]*JoinsConfig
+		expectedMapper map[string]string
+	}{
+		{
+			name: "Initially empty",
+			config: &KSMConfig{
+				LabelJoins:   map[string]*JoinsConfig{},
+				LabelsMapper: map[string]string{},
+				LabelsAsTags: map[string]map[string]string{
+					"pod": {"my_pod_label": "my_pod_tag"},
+				},
+			},
+			expectedJoins: map[string]*JoinsConfig{
+				"kube_pod_labels": {
+					LabelsToMatch: []string{"pod", "namespace"},
+					LabelsToGet:   []string{"label_my_pod_label"},
+				},
+			},
+			expectedMapper: map[string]string{
+				"label_my_pod_label": "my_pod_tag",
+			},
+		},
+		{
+			name: "Already initialized",
+			config: &KSMConfig{
+				LabelJoins: map[string]*JoinsConfig{
+					"kube_pod_labels": {
+						LabelsToMatch: []string{"pod", "namespace"},
+						LabelsToGet:   []string{"standard_pod_label"},
+					},
+				},
+				LabelsMapper: map[string]string{},
+				LabelsAsTags: map[string]map[string]string{
+					"pod":  {"my_pod_label": "my_pod_tag"},
+					"node": {"my_node_label": "my_node_tag"},
+				},
+			},
+			expectedJoins: map[string]*JoinsConfig{
+				"kube_pod_labels": {
+					LabelsToMatch: []string{"pod", "namespace"},
+					LabelsToGet:   []string{"standard_pod_label", "label_my_pod_label"},
+				},
+				"kube_node_labels": {
+					LabelsToMatch: []string{"node"},
+					LabelsToGet:   []string{"label_my_node_label"},
+				},
+			},
+			expectedMapper: map[string]string{
+				"label_my_pod_label":  "my_pod_tag",
+				"label_my_node_label": "my_node_tag",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := &KSMCheck{instance: tt.config}
+			k.processLabelsAsTags()
+			assert.Equal(t, tt.expectedJoins, k.instance.LabelJoins)
+			assert.Equal(t, tt.expectedMapper, k.instance.LabelsMapper)
+		})
+	}
+}
+
 func TestKSMCheck_mergeLabelsMapper(t *testing.T) {
 	tests := []struct {
 		name     string

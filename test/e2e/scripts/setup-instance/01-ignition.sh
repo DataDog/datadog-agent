@@ -9,16 +9,16 @@ ssh-keygen -b 4096 -t rsa -C "datadog" -N "" -f "id_rsa"
 SSH_RSA=$(cat id_rsa.pub)
 
 case "$(uname)" in
-    Linux)  fcct="fcct-$(uname -m)-unknown-linux-gnu";;
-    Darwin) fcct="fcct-$(uname -m)-apple-darwin";;
+    Linux)  butane="butane-$(uname -m)-unknown-linux-gnu";;
+    Darwin) butane="butane-$(uname -m)-apple-darwin";;
 esac
-curl -LOC - "https://github.com/coreos/fcct/releases/download/v0.6.0/${fcct}"
-curl -LO    "https://github.com/coreos/fcct/releases/download/v0.6.0/${fcct}.asc"
+curl -LOC - "https://github.com/coreos/butane/releases/download/v0.13.1/${butane}"
+curl -LO    "https://github.com/coreos/butane/releases/download/v0.13.1/${butane}.asc"
 curl https://getfedora.org/static/fedora.gpg | gpg --import
-gpg --verify "${fcct}.asc" "$fcct"
-chmod +x "$fcct"
+gpg --verify "${butane}.asc" "$butane"
+chmod +x "$butane"
 
-"./$fcct" --pretty --strict <<EOF | tee ignition.json
+"./$butane" --pretty --strict <<EOF | tee ignition.json
 variant: fcos
 version: 1.1.0
 passwd:
