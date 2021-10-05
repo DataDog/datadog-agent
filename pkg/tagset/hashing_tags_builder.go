@@ -6,8 +6,10 @@ import (
 	"github.com/twmb/murmur3"
 )
 
-// HashingTagsBuilder allows to build a slice of tags to generate the context while
-// reusing the same internal slice.
+// HashingTagsBuilder allows to build a slice of tags, including the hashes
+// of each tag.
+//
+// This type implements TagAccumulator.
 type HashingTagsBuilder struct {
 	hashedTags
 }

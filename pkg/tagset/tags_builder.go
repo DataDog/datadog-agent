@@ -7,8 +7,10 @@ package tagset
 
 import "github.com/DataDog/datadog-agent/pkg/util"
 
-// TagsBuilder allows to build a slice of tags to generate the context while
-// reusing the same internal slice.
+// TagsBuilder allows to build a slice of tags, in a context where the hashes for
+// those tags are not useful.
+//
+// This type implements TagAccumulator.
 type TagsBuilder struct {
 	data []string
 }
