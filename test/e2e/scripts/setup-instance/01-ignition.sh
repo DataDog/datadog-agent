@@ -12,8 +12,8 @@ case "$(uname)" in
     Linux)  butane="butane-$(uname -m)-unknown-linux-gnu";;
     Darwin) butane="butane-$(uname -m)-apple-darwin";;
 esac
-curl -LOC - "https://github.com/coreos/butane/releases/download/v0.13.1/${butane}"
-curl -LO    "https://github.com/coreos/butane/releases/download/v0.13.1/${butane}.asc"
+curl -LOC - "https://github.com/coreos/butane/releases/download/v0.11.0/${butane}"
+curl -LO    "https://github.com/coreos/butane/releases/download/v0.11.0/${butane}.asc"
 curl https://getfedora.org/static/fedora.gpg | gpg --import
 gpg --verify "${butane}.asc" "$butane"
 chmod +x "$butane"
