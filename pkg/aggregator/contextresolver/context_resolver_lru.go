@@ -19,7 +19,7 @@ func NewContextResolverLRU(cacheSize int) *LRU {
 	return &LRU{
 		contextResolverBase: contextResolverBase{
 			keyGenerator: ckey.NewKeyGenerator(),
-			tagsBuffer:   util.NewTagsBuilder(),
+			tagsBuffer:   util.NewHashingTagsBuilder(),
 		},
 		cache: lru.New(cacheSize),
 	}

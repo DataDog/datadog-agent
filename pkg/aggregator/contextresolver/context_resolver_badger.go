@@ -89,7 +89,7 @@ func NewBadger(inMemory bool, path string) *Badger {
 	cr := &Badger{
 		contextResolverBase: contextResolverBase{
 			keyGenerator: ckey.NewKeyGenerator(),
-			tagsBuffer:   util.NewTagsBuilder(),
+			tagsBuffer:   util.NewHashingTagsBuilder(),
 		},
 		db:     db,
 		ticker: ticker,

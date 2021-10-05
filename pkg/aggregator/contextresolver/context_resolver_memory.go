@@ -17,7 +17,7 @@ func NewInMemory() *InMemory {
 	return &InMemory{
 		contextResolverBase: contextResolverBase{
 			keyGenerator: ckey.NewKeyGenerator(),
-			tagsBuffer:   util.NewTagsBuilder(),
+			tagsBuffer:   util.NewHashingTagsBuilder(),
 		},
 		contextsByKey: make(map[ckey.ContextKey]*Context),
 	}
