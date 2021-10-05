@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
@@ -84,6 +85,7 @@ var (
 
 	orchestratorForwarder  *forwarder.DefaultForwarder
 	eventPlatformForwarder epforwarder.EventPlatformForwarder
+	configService          *remoteconfig.Service
 
 	runCmd = &cobra.Command{
 		Use:   "run",
@@ -321,9 +323,20 @@ func StartAgent() error {
 		log.Errorf("Unable to initialize host metadata: %v", err)
 	}
 
+	// start remote configuration management
+	if config.Datadog.GetBool("remote_configuration.enabled") {
+		opts := remoteconfig.Opts{}
+		configService, err = remoteconfig.NewService(opts)
+		if err != nil {
+			log.Errorf("Failed to initialize config management service: %s", err)
+		} else if err := configService.Start(context.Background()); err != nil {
+			log.Errorf("Failed to start config management service: %s", err)
+		}
+	}
+
 	// start the cmd HTTP server
 	if runtime.GOOS != "android" {
-		if err = api.StartServer(); err != nil {
+		if err = api.StartServer(configService); err != nil {
 			return log.Errorf("Error while starting api server, exiting: %v", err)
 		}
 	}
@@ -388,7 +401,7 @@ func StartAgent() error {
 	// Start OTLP intake
 	if otlp.IsEnabled(config.Datadog) {
 		var err error
-		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, config.Datadog)
+		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, config.Datadog, s)
 		if err != nil {
 			log.Errorf("Could not start OTLP: %s", err)
 		}

@@ -216,6 +216,11 @@ func TestExtraConfig(t *testing.T) {
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "0", string(info))
 
+	svc.config.UseDeviceIDAsHostname = false
+	info, err = svc.GetExtraConfig([]byte("use_device_id_as_hostname"))
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "false", string(info))
+
 	svc.config.MinCollectionInterval = 60
 	info, err = svc.GetExtraConfig([]byte("min_collection_interval"))
 	assert.Equal(t, nil, err)

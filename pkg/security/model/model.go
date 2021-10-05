@@ -115,6 +115,7 @@ type Event struct {
 	Timestamp    time.Time `field:"timestamp"` // Timestamp of the event
 
 	ProcessContext   ProcessContext   `field:"process" event:"*"`
+	SpanContext      SpanContext      `field:"-"`
 	ContainerContext ContainerContext `field:"container"`
 
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
@@ -264,6 +265,12 @@ type Process struct {
 	ArgsTruncated bool       `field:"-"`
 }
 
+// SpanContext describes a span context
+type SpanContext struct {
+	SpanID  uint64 `field:"_"`
+	TraceID uint64 `field:"_"`
+}
+
 // ExecEvent represents a exec event
 type ExecEvent struct {
 	Process
@@ -286,11 +293,18 @@ type FileFields struct {
 	CTime uint64 `field:"change_time"`                       // Change time of the file
 	MTime uint64 `field:"modification_time"`                 // Modification time of the file
 
-	MountID      uint32 `field:"mount_id"` // Mount ID of the file
-	Inode        uint64 `field:"inode"`    // Inode of the file
-	PathID       uint32 `field:"-"`
-	Flags        int32  `field:"-"`
+	MountID      uint32 `field:"mount_id"`                                     // Mount ID of the file
+	Inode        uint64 `field:"inode"`                                        // Inode of the file
 	InUpperLayer bool   `field:"in_upper_layer,ResolveFileFieldsInUpperLayer"` // Indicator of the file layer, in an OverlayFS for example
+
+	NLink  uint32 `field:"-"`
+	PathID uint32 `field:"-"`
+	Flags  int32  `field:"-"`
+}
+
+// HasHardLinks returns whether the file has hardlink
+func (f *FileFields) HasHardLinks() bool {
+	return f.NLink > 1
 }
 
 // GetInLowerLayer returns whether a file is in a lower layer
