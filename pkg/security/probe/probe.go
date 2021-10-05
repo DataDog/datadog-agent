@@ -916,6 +916,10 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 			Name:  "getattr2",
 			Value: getAttr2(p),
 		},
+		manager.ConstantEditor{
+			Name:  "vfs_unlink_dentry_position",
+			Value: getVFSLinkDentryPosition(p),
+		},
 	)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, TTYConstants(p)...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
