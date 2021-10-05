@@ -468,6 +468,16 @@ func getVFSRemovexattrDentryPosition(probe *Probe) uint64 {
 	return position
 }
 
+func getVFSRenameInputType(probe *Probe) uint64 {
+	inputType := uint64(1)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		inputType = 2
+	}
+
+	return inputType
+}
+
 // NewMountResolver instantiates a new mount resolver
 func NewMountResolver(probe *Probe) *MountResolver {
 	return &MountResolver{

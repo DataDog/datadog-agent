@@ -936,6 +936,10 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 			Name:  "vfs_removexattr_dentry_position",
 			Value: getVFSRemovexattrDentryPosition(p),
 		},
+		manager.ConstantEditor{
+			Name:  "vfs_rename_input_type",
+			Value: getVFSRenameInputType(p),
+		},
 	)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, TTYConstants(p)...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)

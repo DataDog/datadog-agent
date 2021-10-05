@@ -561,4 +561,25 @@ static __attribute__((always_inline)) u64 get_vfs_removexattr_dentry_position() 
     return vfs_removexattr_dentry_position;
 }
 
+#define VFS_RENAME_REGISTER_INPUT 1
+#define VFS_RENAME_STRUCT_INPUT   2
+
+static __attribute__((always_inline)) u64 get_vfs_rename_input_type() {
+    u64 vfs_rename_input_type;
+    LOAD_CONSTANT("vfs_rename_input_type", vfs_rename_input_type);
+    return vfs_rename_input_type;
+}
+
+static __attribute__((always_inline)) u64 get_vfs_rename_src_dentry_offset() {
+    u64 offset;
+    LOAD_CONSTANT("vfs_rename_src_dentry_offset", offset);
+    return offset ? offset : 16; // offsetof(struct renamedata, old_dentry)
+}
+
+static __attribute__((always_inline)) u64 get_vfs_rename_target_dentry_offset() {
+    u64 offset;
+    LOAD_CONSTANT("vfs_rename_target_dentry_offset", offset);
+    return offset ? offset : 40; // offsetof(struct renamedata, new_dentry)
+}
+
 #endif
