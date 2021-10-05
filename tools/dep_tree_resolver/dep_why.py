@@ -18,7 +18,7 @@ def parse_line(line):
 
     # Strip the minus
     module_dep = trimmed_line[2:]
-
+    # return the depth level and the dependency name
     return int(leading_spaces / 4) + 1, module_dep
 
 
