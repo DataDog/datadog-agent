@@ -46,7 +46,7 @@ jobs:
           setup-python-dependencies: false
           # TODO determine if this can be enabled
           source-root: go/src/github.com/DataDog/datadog-agent
-          queries: security-and-quality
+          queries: security-extended
 
       # Autobuild attempts to build any compiled languages (C/C++, C#, or Java).
       # If this step fails, then you should remove it and run the build manually (see below).
