@@ -23,6 +23,8 @@ var (
 	// tlmSenderWaitTime  = telemetry.NewGauge("logs_sender_batch_strategy_gauge", "sender_wait", nil, "Time spent waiting for a sender")
 	tlmSenderWaitTimeC    = telemetry.NewCounter("logs_sender_batch_strategy_count", "sender_wait", nil, "Time spent waiting for a sender")
 	tlmSenderWaitTimeIdle = telemetry.NewCounter("logs_sender_batch_strategy_count", "sender_idle", nil, "Time spent waiting for a sender")
+	tlmSenderPct          = telemetry.NewCounter("logs_sender_batch_strategy_count", "utilization_pct", nil, "Time spent waiting for a sender")
+	tlmSenderPctG         = telemetry.NewGauge("logs_sender_batch_strategy_gauge", "utilization_pct", nil, "Time spent waiting for a sender")
 	// tlmInputSize       = telemetry.NewGauge("logs_sender_batch_strategy", "input_buffer", nil, "Input buffer size")
 )
 
@@ -37,7 +39,6 @@ type batchStrategy struct {
 	pendingSends     sync.WaitGroup // waitgroup for concurrent sends
 	syncFlushTrigger chan struct{}  // trigger a synchronous flush
 	syncFlushDone    chan struct{}  // wait for a synchronous flush to finish
-	lastTime         time.Time
 }
 
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
@@ -55,7 +56,6 @@ func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurr
 		syncFlushTrigger: make(chan struct{}),
 		syncFlushDone:    make(chan struct{}),
 		pipelineName:     pipelineName,
-		lastTime:         time.Now(),
 	}
 
 }
@@ -106,11 +106,18 @@ func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *m
 				return
 			}
 			var start = time.Now()
-			tlmSenderWaitTimeIdle.Add(float64(time.Since(idle) / time.Millisecond))
+			idleMs := float64(time.Since(idle) / time.Millisecond)
+			tlmSenderWaitTimeIdle.Add(idleMs)
 			s.processMessage(m, outputChan, send)
 			elapsed := time.Since(start)
-			tlmSenderWaitTimeC.Add(float64(elapsed / time.Millisecond))
+			inUseMs := float64(elapsed / time.Millisecond)
+			tlmSenderWaitTimeC.Add(inUseMs)
 			idle = time.Now()
+
+			pct := inUseMs / (inUseMs + idleMs)
+			tlmSenderPct.Add(pct)
+			tlmSenderPctG.Set(pct)
+
 		case <-flushTicker.C:
 			// the first message that was added to the buffer has been here for too long, send the payload now
 			s.flushBuffer(outputChan, send)
