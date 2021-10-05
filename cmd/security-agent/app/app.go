@@ -315,6 +315,9 @@ func handleSignals(stopCh chan struct{}) {
 			// We never want dogstatsd to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
 		default:
 			log.Infof("Received signal '%s', shutting down...", signo)
+
+			_ = tagger.Stop()
+
 			stopCh <- struct{}{}
 			return
 		}

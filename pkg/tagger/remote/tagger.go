@@ -307,7 +307,7 @@ func (t *Tagger) startTaggerStream(maxElapsed time.Duration) error {
 	return backoff.Retry(func() error {
 		select {
 		case <-t.ctx.Done():
-			return errTaggerStreamNotStarted
+			return &backoff.PermanentError{Err: errTaggerStreamNotStarted}
 		default:
 		}
 
