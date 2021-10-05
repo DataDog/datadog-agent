@@ -7,6 +7,8 @@ package sender
 
 import (
 	"context"
+	"expvar"
+	"fmt"
 	"sync"
 	"time"
 
@@ -21,43 +23,62 @@ import (
 var (
 	tlmDroppedTooLarge = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
 	// tlmSenderWaitTime  = telemetry.NewGauge("logs_sender_batch_strategy_gauge", "sender_wait", nil, "Time spent waiting for a sender")
-	tlmSenderWaitTimeC    = telemetry.NewCounter("logs_sender_batch_strategy_count", "sender_wait", nil, "Time spent waiting for a sender")
-	tlmSenderWaitTimeIdle = telemetry.NewCounter("logs_sender_batch_strategy_count", "sender_idle", nil, "Time spent waiting for a sender")
-	tlmSenderPct          = telemetry.NewCounter("logs_sender_batch_strategy_count", "utilization_pct", nil, "Time spent waiting for a sender")
-	tlmSenderPctG         = telemetry.NewGauge("logs_sender_batch_strategy_gauge", "utilization_pct", nil, "Time spent waiting for a sender")
+	// tlmSenderWaitTimeC    = telemetry.NewCounter("logs_sender_batch_strategy_count", "sender_wait", nil, "Time spent waiting for a sender")
+	// tlmSenderWaitTimeIdle = telemetry.NewCounter("logs_sender_batch_strategy_count", "sender_idle", nil, "Time spent waiting for a sender")
+	// tlmSenderPct          = telemetry.NewCounter("logs_sender_batch_strategy_count", "utilization_pct", nil, "Time spent waiting for a sender")
+	// tlmSenderPctG         = telemetry.NewGauge("logs_sender_batch_strategy_gauge", "utilization_pct", nil, "Time spent waiting for a sender")
+	batchStrategyExpVars = expvar.NewMap("batch_strategy")
+	// senderUtilization     = expvar.Float{}
+	// inUse                 = expvar.Float{}
+	// idleUse               = expvar.Float{}
 	// tlmInputSize       = telemetry.NewGauge("logs_sender_batch_strategy", "input_buffer", nil, "Input buffer size")
 )
+
+func init() {
+	// batchStrategyExpVars.Set("SenderUtilization", &senderUtilization)
+	// batchStrategyExpVars.Set("inUse", &inUse)
+	// batchStrategyExpVars.Set("idle", &idleUse)
+	// batchStrategyExpVars.
+}
 
 // batchStrategy contains all the logic to send logs in batch.
 type batchStrategy struct {
 	buffer *MessageBuffer
 	// pipelineName provides a name for the strategy to differentiate it from other instances in other internal pipelines
-	pipelineName     string
-	serializer       Serializer
-	batchWait        time.Duration
-	climit           chan struct{}  // semaphore for limiting concurrent sends
-	pendingSends     sync.WaitGroup // waitgroup for concurrent sends
-	syncFlushTrigger chan struct{}  // trigger a synchronous flush
-	syncFlushDone    chan struct{}  // wait for a synchronous flush to finish
+	pipelineName string
+	// pipelineId is a unique id for this pipeline since there are multiple instances of each type of pipeline
+	pipelineId        int
+	serializer        Serializer
+	batchWait         time.Duration
+	climit            chan struct{}  // semaphore for limiting concurrent sends
+	pendingSends      sync.WaitGroup // waitgroup for concurrent sends
+	syncFlushTrigger  chan struct{}  // trigger a synchronous flush
+	syncFlushDone     chan struct{}  // wait for a synchronous flush to finish
+	senderIdleTimeMs  expvar.Float
+	senderInUseTimeMs expvar.Float
 }
 
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
 // If `maxConcurrent` > 0, then at most that many payloads will be sent concurrently, else there is no concurrency
 // and the pipeline will block while sending each payload.
-func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurrent int, maxBatchSize int, maxContentSize int, pipelineName string) Strategy {
+func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurrent int, maxBatchSize int, maxContentSize int, pipelineName string, pipelineId int) Strategy {
 	if maxConcurrent < 0 {
 		maxConcurrent = 0
 	}
 	return &batchStrategy{
-		buffer:           NewMessageBuffer(maxBatchSize, maxContentSize),
-		serializer:       serializer,
-		batchWait:        batchWait,
-		climit:           make(chan struct{}, maxConcurrent),
-		syncFlushTrigger: make(chan struct{}),
-		syncFlushDone:    make(chan struct{}),
-		pipelineName:     pipelineName,
+		buffer:            NewMessageBuffer(maxBatchSize, maxContentSize),
+		serializer:        serializer,
+		batchWait:         batchWait,
+		climit:            make(chan struct{}, maxConcurrent),
+		syncFlushTrigger:  make(chan struct{}),
+		syncFlushDone:     make(chan struct{}),
+		pipelineName:      pipelineName,
+		pipelineId:        pipelineId,
+		senderIdleTimeMs:  expvar.Float{},
+		senderInUseTimeMs: expvar.Float{},
 	}
 
+	// batchStrategyExpVars.Add(fmt.Sprintf("%s_%d", pipelineName, pipelineId), 0)
 }
 
 func (s *batchStrategy) Flush(ctx context.Context) {
@@ -96,7 +117,7 @@ func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *m
 		flushTicker.Stop()
 		s.pendingSends.Wait()
 	}()
-	var idle = time.Now()
+	var startIdle = time.Now()
 	for {
 		select {
 		case m, isOpen := <-inputChan:
@@ -105,18 +126,15 @@ func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *m
 				// inputChan has been closed, no more payloads are expected
 				return
 			}
-			var start = time.Now()
-			idleMs := float64(time.Since(idle) / time.Millisecond)
-			tlmSenderWaitTimeIdle.Add(idleMs)
-			s.processMessage(m, outputChan, send)
-			elapsed := time.Since(start)
-			inUseMs := float64(elapsed / time.Millisecond)
-			tlmSenderWaitTimeC.Add(inUseMs)
-			idle = time.Now()
+			s.senderIdleTimeMs.Add(float64(time.Since(startIdle) / time.Millisecond))
+			var startInUse = time.Now()
 
-			pct := inUseMs / (inUseMs + idleMs)
-			tlmSenderPct.Add(pct)
-			tlmSenderPctG.Set(pct)
+			s.processMessage(m, outputChan, send)
+
+			s.senderInUseTimeMs.Add(float64(time.Since(startInUse) / time.Millisecond))
+			startIdle = time.Now()
+
+			batchStrategyExpVars.Set(s.getExpVarName(), expvar.Func(s.publishExpVars))
 
 		case <-flushTicker.C:
 			// the first message that was added to the buffer has been here for too long, send the payload now
@@ -192,5 +210,16 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 
 	for _, message := range messages {
 		outputChan <- message
+	}
+}
+
+func (s *batchStrategy) getExpVarName() string {
+	return fmt.Sprintf("%s_%d", s.pipelineName, s.pipelineId)
+}
+
+func (s *batchStrategy) publishExpVars() interface{} {
+	return map[string]float64{
+		"idleMs":  s.senderIdleTimeMs.Value(),
+		"inUseMs": s.senderInUseTimeMs.Value(),
 	}
 }
