@@ -122,7 +122,7 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)
 	}
 
-	closeConsumer, err := newTCPCloseConsumer(config, m, perfHandlerTCP)
+	closeConsumer, err := newTCPCloseConsumer(m, perfHandlerTCP)
 	if err != nil {
 		return nil, fmt.Errorf("could not create tcpCloseConsumer: %s", err)
 	}
@@ -149,7 +149,7 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	return tr, nil
 }
 
-func (t *kprobeTracer) Start() (closedConnections <-chan *connection.ClosedBatch, err error) {
+func (t *kprobeTracer) Start(callback func([]network.ConnectionStats)) (err error) {
 	defer func() {
 		if err != nil {
 			t.Stop()
@@ -158,18 +158,19 @@ func (t *kprobeTracer) Start() (closedConnections <-chan *connection.ClosedBatch
 
 	err = initializePortBindingMaps(t.config, t.m)
 	if err != nil {
-		return nil, fmt.Errorf("error initializing port binding maps: %s", err)
+		return fmt.Errorf("error initializing port binding maps: %s", err)
 	}
 
 	if err := t.m.Start(); err != nil {
-		return nil, fmt.Errorf("could not start ebpf manager: %s", err)
+		return fmt.Errorf("could not start ebpf manager: %s", err)
 	}
 
-	return t.closeConsumer.Start(), nil
+	t.closeConsumer.Start(callback)
+	return nil
 }
 
-func (t *kprobeTracer) FlushPending() *connection.ClosedBatch {
-	return t.closeConsumer.GetPendingConns()
+func (t *kprobeTracer) FlushPending() {
+	t.closeConsumer.FlushPending()
 }
 
 func (t *kprobeTracer) Stop() {
