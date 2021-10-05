@@ -21,25 +21,9 @@ import (
 )
 
 var (
-	tlmDroppedTooLarge = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
-	// tlmSenderWaitTime  = telemetry.NewGauge("logs_sender_batch_strategy_gauge", "sender_wait", nil, "Time spent waiting for a sender")
-	// tlmSenderWaitTimeC    = telemetry.NewCounter("logs_sender_batch_strategy_count", "sender_wait", nil, "Time spent waiting for a sender")
-	// tlmSenderWaitTimeIdle = telemetry.NewCounter("logs_sender_batch_strategy_count", "sender_idle", nil, "Time spent waiting for a sender")
-	// tlmSenderPct          = telemetry.NewCounter("logs_sender_batch_strategy_count", "utilization_pct", nil, "Time spent waiting for a sender")
-	// tlmSenderPctG         = telemetry.NewGauge("logs_sender_batch_strategy_gauge", "utilization_pct", nil, "Time spent waiting for a sender")
+	tlmDroppedTooLarge   = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
 	batchStrategyExpVars = expvar.NewMap("batch_strategy")
-	// senderUtilization     = expvar.Float{}
-	// inUse                 = expvar.Float{}
-	// idleUse               = expvar.Float{}
-	// tlmInputSize       = telemetry.NewGauge("logs_sender_batch_strategy", "input_buffer", nil, "Input buffer size")
 )
-
-func init() {
-	// batchStrategyExpVars.Set("SenderUtilization", &senderUtilization)
-	// batchStrategyExpVars.Set("inUse", &inUse)
-	// batchStrategyExpVars.Set("idle", &idleUse)
-	// batchStrategyExpVars.
-}
 
 // batchStrategy contains all the logic to send logs in batch.
 type batchStrategy struct {
