@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
@@ -180,7 +181,8 @@ func (c *CheckConfig) RefreshWithProfile(profile string) error {
 
 // UpdateDeviceIDAndTags updates DeviceID and DeviceIDTags
 func (c *CheckConfig) UpdateDeviceIDAndTags() {
-	c.DeviceID, c.DeviceIDTags = buildDeviceID(c.getDeviceIDTags())
+	c.DeviceIDTags = util.SortUniqInPlace(c.getDeviceIDTags())
+	c.DeviceID = c.Namespace + ":" + c.IPAddress
 }
 
 func (c *CheckConfig) addUptimeMetric() {
