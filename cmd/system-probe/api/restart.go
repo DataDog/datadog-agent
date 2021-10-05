@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"html"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -27,7 +28,7 @@ func restartModuleHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if target.Name != moduleName {
-		http.Error(w, fmt.Sprintf("invalid module: %s", moduleName), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("invalid module: %s", html.EscapeString(string(moduleName))), http.StatusBadRequest)
 		return
 	}
 
