@@ -1043,7 +1043,7 @@ def finish(ctx, major_versions="6,7"):
 
     for major_version in list_major_versions:
         new_version = next_final_version(ctx, major_version)
-        update_release_json(github_token, new_version)
+        update_release_json(ctx, github_token, new_version)
 
     # Update internal module dependencies
     update_modules(ctx, str(new_version))
