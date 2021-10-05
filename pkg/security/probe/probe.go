@@ -920,6 +920,22 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 			Name:  "vfs_unlink_dentry_position",
 			Value: getVFSLinkDentryPosition(p),
 		},
+		manager.ConstantEditor{
+			Name:  "vfs_mkdir_dentry_position",
+			Value: getVFSMKDirDentryPosition(p),
+		},
+		manager.ConstantEditor{
+			Name:  "vfs_link_target_dentry_position",
+			Value: getVFSLinkTargetDentryPosition(p),
+		},
+		manager.ConstantEditor{
+			Name:  "vfs_setxattr_dentry_position",
+			Value: getVFSSetxattrDentryPosition(p),
+		},
+		manager.ConstantEditor{
+			Name:  "vfs_removexattr_dentry_position",
+			Value: getVFSRemovexattrDentryPosition(p),
+		},
 	)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, TTYConstants(p)...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)

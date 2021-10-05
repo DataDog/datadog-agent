@@ -524,4 +524,41 @@ static __attribute__((always_inline)) void add_event_to_mask(u64 *mask, enum eve
     *mask |= 1 << (event - EVENT_FIRST_DISCARDER);
 }
 
+#define VFS_ARG_POSITION1 1
+#define VFS_ARG_POSITION2 2
+#define VFS_ARG_POSITION3 3
+#define VFS_ARG_POSITION4 4
+#define VFS_ARG_POSITION5 5
+#define VFS_ARG_POSITION6 6
+
+static __attribute__((always_inline)) u64 get_vfs_unlink_dentry_position() {
+    u64 vfs_unlink_dentry_position;
+    LOAD_CONSTANT("vfs_unlink_dentry_position", vfs_unlink_dentry_position);
+    return vfs_unlink_dentry_position;
+}
+
+static __attribute__((always_inline)) u64 get_vfs_mkdir_dentry_position() {
+    u64 vfs_mkdir_dentry_position;
+    LOAD_CONSTANT("vfs_mkdir_dentry_position", vfs_mkdir_dentry_position);
+    return vfs_mkdir_dentry_position;
+}
+
+static __attribute__((always_inline)) u64 get_vfs_link_target_dentry_position() {
+    u64 vfs_link_target_dentry_position;
+    LOAD_CONSTANT("vfs_link_target_dentry_position", vfs_link_target_dentry_position);
+    return vfs_link_target_dentry_position;;
+}
+
+static __attribute__((always_inline)) u64 get_vfs_setxattr_dentry_position() {
+    u64 vfs_setxattr_dentry_position;
+    LOAD_CONSTANT("vfs_setxattr_dentry_position", vfs_setxattr_dentry_position);
+    return vfs_setxattr_dentry_position;
+}
+
+static __attribute__((always_inline)) u64 get_vfs_removexattr_dentry_position() {
+    u64 vfs_removexattr_dentry_position;
+    LOAD_CONSTANT("vfs_removexattr_dentry_position", vfs_removexattr_dentry_position);
+    return vfs_removexattr_dentry_position;
+}
+
 #endif

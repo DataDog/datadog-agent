@@ -41,9 +41,6 @@ SYSCALL_KPROBE3(unlinkat, int, dirfd, const char*, filename, int, flags) {
     return trace__sys_unlink(flags);
 }
 
-#define VFS_UNLINK_POSITION2 1
-#define VFS_UNLINK_POSITION3 2
-
 SEC("kprobe/vfs_unlink")
 int kprobe_vfs_unlink(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
@@ -54,16 +51,11 @@ int kprobe_vfs_unlink(struct pt_regs *ctx) {
         return 0;
     }
 
-    u64 vfs_unlink_dentry_position;
-    LOAD_CONSTANT("vfs_unlink_dentry_position", vfs_unlink_dentry_position);
-
     struct dentry *dentry = (struct dentry *) PT_REGS_PARM2(ctx);
-
-    // prevent a verifier bug
-    bpf_probe_read(&dentry, sizeof(dentry), &dentry);
-
     // change the register based on the value of vfs_unlink_dentry_position
-    if (vfs_unlink_dentry_position == VFS_UNLINK_POSITION3) {
+    if (get_vfs_unlink_dentry_position() == VFS_ARG_POSITION3) {
+        // prevent the verifier from whining
+        bpf_probe_read(&dentry, sizeof(dentry), &dentry);
         dentry = (struct dentry *) PT_REGS_PARM3(ctx);
     }
 

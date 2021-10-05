@@ -419,6 +419,46 @@ func getSuperBlockMagicOffset(probe *Probe) uint64 {
 }
 
 func getVFSLinkDentryPosition(probe *Probe) uint64 {
+	position := uint64(2)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		position = 3
+	}
+
+	return position
+}
+
+func getVFSMKDirDentryPosition(probe *Probe) uint64 {
+	position := uint64(2)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		position = 3
+	}
+
+	return position
+}
+
+func getVFSLinkTargetDentryPosition(probe *Probe) uint64 {
+	position := uint64(3)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		position = 4
+	}
+
+	return position
+}
+
+func getVFSSetxattrDentryPosition(probe *Probe) uint64 {
+	position := uint64(1)
+
+	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+		position = 2
+	}
+
+	return position
+}
+
+func getVFSRemovexattrDentryPosition(probe *Probe) uint64 {
 	position := uint64(1)
 
 	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
