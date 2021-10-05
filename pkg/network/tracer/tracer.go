@@ -158,13 +158,11 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		ebpfTracer:                 ebpfTracer,
 	}
 
-	closedChan, err := ebpfTracer.Start()
+	err = ebpfTracer.Start(tr.storeClosedConnections)
 	if err != nil {
 		tr.Stop()
 		return nil, fmt.Errorf("could not start ebpf manager: %s", err)
 	}
-
-	tr.consumeClosedConnections(closedChan)
 
 	return tr, nil
 }
@@ -257,15 +255,6 @@ func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manag
 	return editors, nil
 }
 
-func (t *Tracer) consumeClosedConnections(closedChan <-chan *connection.ClosedBatch) {
-	go func() {
-		for closedConnBatch := range closedChan {
-			t.storeClosedConnections(closedConnBatch.Buffer.Connections())
-			closedConnBatch.Release()
-		}
-	}()
-}
-
 func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	var rejected int
 	for i := range connections {
@@ -301,9 +290,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	defer t.bufferLock.Unlock()
 	log.Tracef("GetActiveConnections clientID=%s", clientID)
 
-	closedConns := t.ebpfTracer.FlushPending()
-	t.storeClosedConnections(closedConns.Buffer.Connections())
-
+	t.ebpfTracer.FlushPending()
 	latestTime, err := t.getConnections(t.activeBuffer)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
