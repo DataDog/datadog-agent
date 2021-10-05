@@ -7,8 +7,8 @@ security_go_generate_check:
   needs: [ "linux_x64_go_deps" ]
   before_script:
     - !reference [.retrieve_linux_go_deps]
+    - pip3 install -r docs/cloud-workload-security/scripts/requirements-docs.txt
   script:
-    - pip3 install -r requirements.txt # for jinja2
     - go generate ./pkg/security/...
     - inv -e security-agent.generate-documentation
     - git status --porcelain

@@ -31,7 +31,7 @@ var (
 	metadataEndpoint      = transaction.Endpoint{Route: "/api/v2/metadata", Name: "metadata_v2"}
 
 	processesEndpoint        = transaction.Endpoint{Route: "/api/v1/collector", Name: "process"}
-	processDiscoveryEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "process_discovery"}
+	processDiscoveryEndpoint = transaction.Endpoint{Route: "/api/v1/discovery", Name: "process_discovery"}
 	rtProcessesEndpoint      = transaction.Endpoint{Route: "/api/v1/collector", Name: "rtprocess"}
 	containerEndpoint        = transaction.Endpoint{Route: "/api/v1/container", Name: "container"}
 	rtContainerEndpoint      = transaction.Endpoint{Route: "/api/v1/container", Name: "rtcontainer"}

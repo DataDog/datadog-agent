@@ -28,12 +28,11 @@ var defaultAgentDialOpts = []grpc.DialOption{
 	grpc.WithBlock(),
 }
 
-// GetDDAgentClient creates a pb.AgentClient for IPC with the main agent via gRPC. This call is blocking by default, so
-// it is up to the caller to supply a context with appropriate timeout/cancel options
-func GetDDAgentClient(ctx context.Context, opts ...grpc.DialOption) (pb.AgentClient, error) {
+func getGRPCClientConn(ctx context.Context, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 	if config.Datadog.GetString("cmd_port") == "-1" {
 		return nil, errors.New("grpc client disabled via cmd_port: -1")
 	}
+
 	// This is needed as the server hangs when using "grpc.WithInsecure()"
 	tlsConf := tls.Config{InsecureSkipVerify: true}
 
@@ -49,14 +48,31 @@ func GetDDAgentClient(ctx context.Context, opts ...grpc.DialOption) (pb.AgentCli
 	}
 
 	log.Debugf("attempting to create grpc agent client connection to: %s", target)
-	conn, err := grpc.DialContext(ctx, target, opts...)
+	return grpc.DialContext(ctx, target, opts...)
+}
 
+// GetDDAgentClient creates a pb.AgentClient for IPC with the main agent via gRPC. This call is blocking by default, so
+// it is up to the caller to supply a context with appropriate timeout/cancel options
+func GetDDAgentClient(ctx context.Context, opts ...grpc.DialOption) (pb.AgentClient, error) {
+	conn, err := getGRPCClientConn(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
 
 	log.Debug("grpc agent client created")
 	return pb.NewAgentClient(conn), nil
+}
+
+// GetDDAgentSecureClient creates a pb.AgentSecureClient for IPC with the main agent via gRPC. This call is blocking by default, so
+// it is up to the caller to supply a context with appropriate timeout/cancel options
+func GetDDAgentSecureClient(ctx context.Context, opts ...grpc.DialOption) (pb.AgentSecureClient, error) {
+	conn, err := getGRPCClientConn(ctx, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Debug("grpc agent secure client created")
+	return pb.NewAgentSecureClient(conn), nil
 }
 
 // getIPCAddressPort returns the host and port for connecting to the main agent

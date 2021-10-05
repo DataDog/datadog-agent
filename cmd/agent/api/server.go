@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/api/check"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	gorilla "github.com/gorilla/mux"
 )
@@ -64,7 +65,7 @@ func timeoutHandlerFunc(otherHandler http.Handler) http.Handler {
 }
 
 // StartServer creates the router and starts the HTTP server
-func StartServer() error {
+func StartServer(configService *remoteconfig.Service) error {
 	initializeTLS()
 
 	// get the transport we're going to use under HTTP
@@ -91,7 +92,7 @@ func StartServer() error {
 
 	s := grpc.NewServer(opts...)
 	pb.RegisterAgentServer(s, &server{})
-	pb.RegisterAgentSecureServer(s, &serverSecure{})
+	pb.RegisterAgentSecureServer(s, &serverSecure{configService: configService})
 
 	dcreds := credentials.NewTLS(&tls.Config{
 		ServerName: tlsAddr,

@@ -118,7 +118,7 @@ func getEndpointsFromTransactions(transactions []transaction.Transaction) []stri
 }
 
 func newTestOnDiskRetryQueue(a *assert.Assertions, path string, maxSizeInBytes int64) *onDiskRetryQueue {
-	telemetry := onDiskRetryQueueTelemetry{}
+	telemetry := newOnDiskRetryQueueTelemetry("domain")
 	disk := diskUsageRetrieverMock{
 		diskUsage: &filesystem.DiskUsage{
 			Available: 10000,

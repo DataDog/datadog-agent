@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
+	wstats "github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/stats"
 	v1 "github.com/containerd/cgroups/stats/v1"
-	containerdTypes "github.com/containerd/containerd/api/types"
+	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/typeurl"
-	"github.com/gogo/protobuf/types"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"gopkg.in/yaml.v2"
 
@@ -31,7 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	ddContainers "github.com/DataDog/datadog-agent/pkg/util/containers"
-	cgroup "github.com/DataDog/datadog-agent/pkg/util/containers/providers/cgroup"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -187,18 +187,6 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 			continue
 		}
 
-		metricTask, errTask := cu.TaskMetrics(ctn)
-		if errTask != nil {
-			log.Tracef("Could not retrieve metrics from task %s: %s", ctn.ID()[:12], errTask.Error())
-			continue
-		}
-
-		metrics, err := convertTasktoMetrics(metricTask)
-		if err != nil {
-			log.Errorf("Could not process the metrics from %s: %v", ctn.ID(), err.Error())
-			continue
-		}
-
 		tags, err := collectTags(info)
 		if err != nil {
 			log.Errorf("Could not collect tags for container %s: %s", ctn.ID()[:12], err)
@@ -214,25 +202,29 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 
 		currentTime := time.Now()
 		computeUptime(sender, info, currentTime, tags)
-		computeMem(sender, metrics.Memory, tags)
 
-		ociSpec, err := cu.Spec(ctn)
+		metricTask, errTask := cu.TaskMetrics(ctn)
+		if errTask != nil {
+			log.Tracef("Could not retrieve metrics from task %s: %s", ctn.ID()[:12], errTask.Error())
+			continue
+		}
+
+		anyMetrics, err := typeurl.UnmarshalAny(metricTask.Data)
 		if err != nil {
-			log.Warnf("Could not retrieve OCI Spec from: %s: %v", ctn.ID(), err)
+			log.Errorf("Can't convert the metrics data from %s", ctn.ID())
+			continue
 		}
 
-		var cpuLimits *specs.LinuxCPU
-		if ociSpec != nil && ociSpec.Linux != nil && ociSpec.Linux.Resources != nil {
-			cpuLimits = ociSpec.Linux.Resources.CPU
-		}
-		computeCPU(sender, metrics.CPU, cpuLimits, info.CreatedAt, currentTime, tags)
-
-		if metrics.Blkio.Size() > 0 {
-			computeBlkio(sender, metrics.Blkio, tags)
-		}
-
-		if len(metrics.Hugetlb) > 0 {
-			computeHugetlb(sender, metrics.Hugetlb, tags)
+		switch metricsVal := anyMetrics.(type) {
+		case *v1.Metrics:
+			computeLinuxSpecificMetrics(metricsVal, sender, cu, ctn, info.CreatedAt, currentTime, tags)
+		case *wstats.Statistics:
+			if windowsMetrics := metricsVal.GetWindows(); windowsMetrics != nil {
+				computeWindowsSpecificMetrics(windowsMetrics, sender, tags)
+			}
+		default:
+			log.Errorf("Can't convert the metrics data from %s", ctn.ID())
+			continue
 		}
 
 		size, err := cu.ImageSize(ctn)
@@ -251,7 +243,7 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 		fileDescCount := 0
 		for _, p := range processes {
 			pid := p.Pid
-			fdCount, err := cgroup.GetFileDescriptorLen(int(pid))
+			fdCount, err := providers.ContainerImpl().GetNumFileDescriptors(int(pid))
 			if err != nil {
 				log.Debugf("Failed to get file desc length for pid %d, container %s: %s", pid, ctn.ID()[:12], err)
 				continue
@@ -270,16 +262,33 @@ func isExcluded(ctn containers.Container, fil *ddContainers.Filter) bool {
 	return fil.IsExcluded("", ctn.Image, ctn.Labels["io.kubernetes.pod.namespace"])
 }
 
-func convertTasktoMetrics(metricTask *containerdTypes.Metric) (*v1.Metrics, error) {
-	metricAny, err := typeurl.UnmarshalAny(&types.Any{
-		TypeUrl: metricTask.Data.TypeUrl,
-		Value:   metricTask.Data.Value,
-	})
+func computeLinuxSpecificMetrics(metrics *v1.Metrics, sender aggregator.Sender, cu cutil.ContainerdItf, ctn containerd.Container, createdAt time.Time, currentTime time.Time, tags []string) {
+	computeMemLinux(sender, metrics.Memory, tags)
+
+	ociSpec, err := cu.Spec(ctn)
 	if err != nil {
-		log.Errorf(err.Error())
-		return nil, err
+		log.Warnf("Could not retrieve OCI Spec from: %s: %v", ctn.ID(), err)
 	}
-	return metricAny.(*v1.Metrics), nil
+
+	var cpuLimits *specs.LinuxCPU
+	if ociSpec != nil && ociSpec.Linux != nil && ociSpec.Linux.Resources != nil {
+		cpuLimits = ociSpec.Linux.Resources.CPU
+	}
+	computeCPULinux(sender, metrics.CPU, cpuLimits, createdAt, currentTime, tags)
+
+	if metrics.Blkio.Size() > 0 {
+		computeBlkio(sender, metrics.Blkio, tags)
+	}
+
+	if len(metrics.Hugetlb) > 0 {
+		computeHugetlb(sender, metrics.Hugetlb, tags)
+	}
+}
+
+func computeWindowsSpecificMetrics(windowsStats *wstats.WindowsContainerStatistics, sender aggregator.Sender, tags []string) {
+	computeCPUWindows(sender, windowsStats.Processor, tags)
+	computeMemWindows(sender, windowsStats.Memory, tags)
+	computeStorageWindows(sender, windowsStats.Storage, tags)
 }
 
 // TODO when creating a dedicated collector for the tagger, unify the local tagging logic and the Tagger.
@@ -316,7 +325,7 @@ func computeUptime(sender aggregator.Sender, ctn containers.Container, currentTi
 	}
 }
 
-func computeMem(sender aggregator.Sender, mem *v1.MemoryStat, tags []string) {
+func computeMemLinux(sender aggregator.Sender, mem *v1.MemoryStat, tags []string) {
 	if mem == nil {
 		return
 	}
@@ -346,7 +355,17 @@ func parseAndSubmitMem(metricName string, sender aggregator.Sender, stat *v1.Mem
 	sender.Gauge(fmt.Sprintf("%s.max", metricName), float64(stat.Max), "", tags)
 }
 
-func computeCPU(sender aggregator.Sender, cpu *v1.CPUStat, cpuLimits *specs.LinuxCPU, startTime, currentTime time.Time, tags []string) {
+func computeMemWindows(sender aggregator.Sender, memStats *wstats.WindowsContainerMemoryStatistics, tags []string) {
+	if memStats == nil {
+		return
+	}
+
+	sender.Gauge("containerd.mem.commit", float64(memStats.MemoryUsageCommitBytes), "", tags)
+	sender.Gauge("containerd.mem.commit_peak", float64(memStats.MemoryUsageCommitPeakBytes), "", tags)
+	sender.Gauge("containerd.mem.private_working_set", float64(memStats.MemoryUsagePrivateWorkingSetBytes), "", tags)
+}
+
+func computeCPULinux(sender aggregator.Sender, cpu *v1.CPUStat, cpuLimits *specs.LinuxCPU, startTime, currentTime time.Time, tags []string) {
 	if cpu == nil || cpu.Usage == nil {
 		return
 	}
@@ -368,6 +387,16 @@ func computeCPU(sender aggregator.Sender, cpu *v1.CPUStat, cpuLimits *specs.Linu
 		}
 		sender.Rate("containerd.cpu.limit", cpuLimitPct*timeDiff, "", tags)
 	}
+}
+
+func computeCPUWindows(sender aggregator.Sender, cpuStats *wstats.WindowsContainerProcessorStatistics, tags []string) {
+	if cpuStats == nil {
+		return
+	}
+
+	sender.Rate("containerd.cpu.total", float64(cpuStats.TotalRuntimeNS), "", tags)
+	sender.Rate("containerd.cpu.system", float64(cpuStats.RuntimeKernelNS), "", tags)
+	sender.Rate("containerd.cpu.user", float64(cpuStats.RuntimeUserNS), "", tags)
 }
 
 func computeBlkio(sender aggregator.Sender, blkio *v1.BlkIOStat, tags []string) {
@@ -404,4 +433,13 @@ func parseAndSubmitBlkio(metricName string, sender aggregator.Sender, list []*v1
 
 		sender.Rate(metricName, float64(m.Value), "", deviceTags)
 	}
+}
+
+func computeStorageWindows(sender aggregator.Sender, storageStats *wstats.WindowsContainerStorageStatistics, tags []string) {
+	if storageStats == nil {
+		return
+	}
+
+	sender.Rate("containerd.storage.read", float64(storageStats.ReadSizeBytes), "", tags)
+	sender.Rate("containerd.storage.write", float64(storageStats.WriteSizeBytes), "", tags)
 }

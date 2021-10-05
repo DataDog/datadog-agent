@@ -18,31 +18,33 @@ func TestDecode(t *testing.T) {
 	rec := httptest.NewRecorder()
 
 	in := &network.Connections{
-		Conns: []network.ConnectionStats{
-			{
-				Source:               util.AddressFromString("10.1.1.1"),
-				Dest:                 util.AddressFromString("10.2.2.2"),
-				MonotonicSentBytes:   1,
-				LastSentBytes:        2,
-				MonotonicRecvBytes:   100,
-				LastRecvBytes:        101,
-				LastUpdateEpoch:      50,
-				MonotonicRetransmits: 201,
-				LastRetransmits:      201,
-				Pid:                  6000,
-				NetNS:                7,
-				SPort:                1000,
-				DPort:                9000,
-				IPTranslation: &network.IPTranslation{
-					ReplSrcIP:   util.AddressFromString("20.1.1.1"),
-					ReplDstIP:   util.AddressFromString("20.1.1.1"),
-					ReplSrcPort: 40,
-					ReplDstPort: 70,
-				},
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{
+					Source:               util.AddressFromString("10.1.1.1"),
+					Dest:                 util.AddressFromString("10.2.2.2"),
+					MonotonicSentBytes:   1,
+					LastSentBytes:        2,
+					MonotonicRecvBytes:   100,
+					LastRecvBytes:        101,
+					LastUpdateEpoch:      50,
+					MonotonicRetransmits: 201,
+					LastRetransmits:      201,
+					Pid:                  6000,
+					NetNS:                7,
+					SPort:                1000,
+					DPort:                9000,
+					IPTranslation: &network.IPTranslation{
+						ReplSrcIP:   util.AddressFromString("20.1.1.1"),
+						ReplDstIP:   util.AddressFromString("20.1.1.1"),
+						ReplSrcPort: 40,
+						ReplDstPort: 70,
+					},
 
-				Type:      network.UDP,
-				Family:    network.AFINET6,
-				Direction: network.LOCAL,
+					Type:      network.UDP,
+					Family:    network.AFINET6,
+					Direction: network.LOCAL,
+				},
 			},
 		},
 	}

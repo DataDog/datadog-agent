@@ -296,13 +296,25 @@ func cronJobLastScheduleTransformer(s aggregator.Sender, name string, metric ksm
 	s.Gauge(ksmMetricPrefix+"cronjob.duration_since_last_schedule", float64(now().Unix())-metric.Val, hostname, tags)
 }
 
-// jobCompleteTransformer sends a service check based on kube_job_complete
+// jobCompleteTransformer sends a metric and a service check based on kube_job_complete
 func jobCompleteTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+	for i, tag := range tags {
+		if tag == "condition:true" {
+			jobMetric(s, metric, ksmMetricPrefix+"job.completion.succeeded", hostname, append(tags[:i], tags[i+1:]...))
+			break
+		}
+	}
 	jobServiceCheck(s, metric, metrics.ServiceCheckOK, hostname, tags)
 }
 
-// jobFailedTransformer sends a service check based on kube_job_failed
+// jobFailedTransformer sends a metric and a service check based on kube_job_failed
 func jobFailedTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+	for i, tag := range tags {
+		if tag == "condition:true" {
+			jobMetric(s, metric, ksmMetricPrefix+"job.completion.failed", hostname, append(tags[:i], tags[i+1:]...))
+			break
+		}
+	}
 	jobServiceCheck(s, metric, metrics.ServiceCheckCritical, hostname, tags)
 }
 
@@ -348,7 +360,33 @@ func jobStatusSucceededTransformer(s aggregator.Sender, name string, metric ksms
 }
 
 // jobStatusFailedTransformer sends a metric based on kube_job_status_failed
+//
+// The KSM upstream `kube_job_status_failed` metric has the following behavior:
+// If there’s no failed pod, the metric has no `reason` tag and its value is 0.
+// If there are failed pod(s), there are several metrics generated with a different `reason` tag.
+// The metric with the `reason` tag that correspond to the last failure has the value 1 whereas
+// the metrics with the other `reason` tags have a value of 0.
+//
+// In order to reduce the cardinality, we are here removing the `reason` tag.
+// The resulting datadog metric is 0 if there are no failed pods and 1 otherwise.
 func jobStatusFailedTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+	// Remove the `reason` tag to reduce the cardinality
+	reasonTagIndex := -1
+	for idx, tag := range tags {
+		if strings.HasPrefix(tag, "reason:") {
+			reasonTagIndex = idx
+			break
+		}
+	}
+
+	if reasonTagIndex != -1 && metric.Val == 0 {
+		return
+	}
+
+	if reasonTagIndex != -1 {
+		tags = append(tags[:reasonTagIndex], tags[reasonTagIndex+1:]...)
+	}
+
 	jobMetric(s, metric, ksmMetricPrefix+"job.failed", hostname, tags)
 }
 

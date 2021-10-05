@@ -5,8 +5,21 @@
 
 package config
 
-func setupOTLP(config Config) {
-	config.BindEnvAndSetDefault("experimental.otlp.internal_traces_port", 5003)
-	config.BindEnv("experimental.otlp.http_port", "DD_OTLP_HTTP_PORT")
-	config.BindEnv("experimental.otlp.grpc_port", "DD_OTLP_GRPC_PORT")
+// Experimental OTLP configuration paths.
+const (
+	experimentalOTLPPrefix         = "experimental.otlp"
+	ExperimentalOTLPHTTPPort       = experimentalOTLPPrefix + ".http_port"
+	ExperimentalOTLPgRPCPort       = experimentalOTLPPrefix + ".grpc_port"
+	ExperimentalOTLPTracePort      = experimentalOTLPPrefix + ".internal_traces_port"
+	ExperimentalOTLPMetricsEnabled = experimentalOTLPPrefix + ".metrics_enabled"
+	ExperimentalOTLPTracesEnabled  = experimentalOTLPPrefix + ".traces_enabled"
+)
+
+// SetupOTLP related configuration.
+func SetupOTLP(config Config) {
+	config.BindEnvAndSetDefault(ExperimentalOTLPTracePort, 5003)
+	config.BindEnvAndSetDefault(ExperimentalOTLPMetricsEnabled, true)
+	config.BindEnvAndSetDefault(ExperimentalOTLPTracesEnabled, true)
+	config.BindEnv(ExperimentalOTLPHTTPPort, "DD_OTLP_HTTP_PORT")
+	config.BindEnv(ExperimentalOTLPgRPCPort, "DD_OTLP_GRPC_PORT")
 }

@@ -4,11 +4,6 @@
 #include "tracer.h"
 #include <linux/types.h>
 
-typedef struct {
-    __u32 pid;
-    __u32 fd;
-} pid_fd_t;
-
 // This map is used to to temporarily store function arguments (sockfd) for
 // sockfd_lookup_light function calls, so they can be acessed by the corresponding kretprobe.
 // * Key is the pid_tgid;

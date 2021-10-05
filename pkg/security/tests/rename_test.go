@@ -291,7 +291,7 @@ func TestRenameReuseInode(t *testing.T) {
 		assertFieldEqual(t, event, "open.file.inode", int(testNewFileInode))
 		assertFieldEqual(t, event, "open.file.path", testReuseInodeFile)
 
-		if !validateRenameSchema(t, event) {
+		if !validateOpenSchema(t, event) {
 			t.Error(event.String())
 		}
 	})
@@ -339,7 +339,7 @@ func TestRenameFolder(t *testing.T) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "open.file.path", filename.Load().(string))
 
-			if !validateRenameSchema(t, event) {
+			if !validateOpenSchema(t, event) {
 				t.Error(event.String())
 			}
 

@@ -207,6 +207,13 @@ type SELinuxEventSerializer struct {
 	BoolCommit    *selinuxBoolCommitSerializer    `json:"bool_commit,omitempty" jsonschema_description:"SELinux boolean commit"`
 }
 
+// DDContextSerializer serializes a span context to JSON
+// easyjson:json
+type DDContextSerializer struct {
+	SpanID  uint64 `json:"span_id,omitempty" jsonschema_description:"Span ID used for APM correlation"`
+	TraceID uint64 `json:"trace_id,omitempty" jsonschema_description:"Trace ID used for APM correlation"`
+}
+
 // EventSerializer serializes an event to JSON
 // easyjson:json
 type EventSerializer struct {
@@ -215,6 +222,7 @@ type EventSerializer struct {
 	*SELinuxEventSerializer    `json:"selinux,omitempty"`
 	UserContextSerializer      UserContextSerializer       `json:"usr,omitempty"`
 	ProcessContextSerializer   *ProcessContextSerializer   `json:"process,omitempty"`
+	DDContextSerializer        *DDContextSerializer        `json:"dd,omitempty"`
 	ContainerContextSerializer *ContainerContextSerializer `json:"container,omitempty"`
 	Date                       time.Time                   `json:"date,omitempty"`
 }
@@ -228,16 +236,21 @@ func getInUpperLayer(r *Resolvers, f *model.FileFields) *bool {
 	return &upperLayer
 }
 
-func newFileSerializer(fe *model.FileEvent, e *Event) *FileSerializer {
+func newFileSerializer(fe *model.FileEvent, e *Event, forceInode ...uint64) *FileSerializer {
+	inode := fe.Inode
+	if len(forceInode) > 0 {
+		inode = forceInode[0]
+	}
+
 	mode := uint32(fe.FileFields.Mode)
 	return &FileSerializer{
 		Path:                e.ResolveFilePath(fe),
 		PathResolutionError: fe.GetPathResolutionError(),
 		Name:                e.ResolveFileBasename(fe),
-		Inode:               getUint64Pointer(&fe.Inode),
+		Inode:               getUint64Pointer(&inode),
 		MountID:             getUint32Pointer(&fe.MountID),
 		Filesystem:          e.ResolveFileFilesystem(fe),
-		Mode:                getUint32Pointer(&mode),
+		Mode:                getUint32Pointer(&mode), // only used by open events
 		UID:                 fe.UID,
 		GID:                 fe.GID,
 		User:                e.ResolveFileFieldsUser(&fe.FileFields),
@@ -377,11 +390,18 @@ func newProcessCacheEntrySerializer(pce *model.ProcessCacheEntry, e *Event) *Pro
 	return pceSerializer
 }
 
+func newDDContextSerializer(e *Event) *DDContextSerializer {
+	return &DDContextSerializer{
+		SpanID:  e.SpanContext.SpanID,
+		TraceID: e.SpanContext.TraceID,
+	}
+}
+
 func newProcessContextSerializer(entry *model.ProcessCacheEntry, e *Event, r *Resolvers) *ProcessContextSerializer {
 	var ps *ProcessContextSerializer
 
 	if e == nil {
-		// custom events call newProcessContextSerializer with an empty Event
+		// custom events create an empty event
 		e = NewEvent(r, nil)
 		e.ProcessContext = model.ProcessContext{
 			Ancestor: entry,
@@ -472,6 +492,7 @@ func NewEventSerializer(event *Event) *EventSerializer {
 			Category: FIMCategory,
 		},
 		ProcessContextSerializer: newProcessContextSerializer(event.ResolveProcessCacheEntry(), event, event.resolvers),
+		DDContextSerializer:      newDDContextSerializer(event),
 		Date:                     event.ResolveEventTimestamp(),
 	}
 
@@ -503,9 +524,10 @@ func NewEventSerializer(event *Event) *EventSerializer {
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Chown.Retval)
 	case model.FileLinkEventType:
+		// use the source inode as the target one is a fake inode
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Link.Source, event),
-			Destination:    newFileSerializer(&event.Link.Target, event),
+			Destination:    newFileSerializer(&event.Link.Target, event, event.Link.Source.Inode),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Link.Retval)
 	case model.FileOpenEventType:
@@ -541,8 +563,9 @@ func NewEventSerializer(event *Event) *EventSerializer {
 		s.FileSerializer.Flags = model.UnlinkFlags(event.Unlink.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Unlink.Retval)
 	case model.FileRenameEventType:
+		// use the new inode as the old one is a fake inode
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Rename.Old, event),
+			FileSerializer: *newFileSerializer(&event.Rename.Old, event, event.Rename.New.Inode),
 			Destination:    newFileSerializer(&event.Rename.New, event),
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Rename.Retval)

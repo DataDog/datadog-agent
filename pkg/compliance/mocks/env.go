@@ -48,6 +48,20 @@ func (_m *Env) DockerClient() env.DockerClient {
 	return r0
 }
 
+// DumpInputPath provides a mock function with given fields:
+func (_m *Env) DumpInputPath() string {
+	ret := _m.Called()
+
+	var r0 string
+	if rf, ok := ret.Get(0).(func() string); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	return r0
+}
+
 // EtcGroupPath provides a mock function with given fields:
 func (_m *Env) EtcGroupPath() string {
 	ret := _m.Called()
@@ -143,6 +157,22 @@ func (_m *Env) MaxEventsPerRun() int {
 	return r0
 }
 
+// NodeLabels provides a mock function with given fields:
+func (_m *Env) NodeLabels() map[string]string {
+	ret := _m.Called()
+
+	var r0 map[string]string
+	if rf, ok := ret.Get(0).(func() map[string]string); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(map[string]string)
+		}
+	}
+
+	return r0
+}
+
 // NormalizeToHostRoot provides a mock function with given fields: path
 func (_m *Env) NormalizeToHostRoot(path string) string {
 	ret := _m.Called(path)
@@ -152,6 +182,22 @@ func (_m *Env) NormalizeToHostRoot(path string) string {
 		r0 = rf(path)
 	} else {
 		r0 = ret.Get(0).(string)
+	}
+
+	return r0
+}
+
+// ProvidedInput provides a mock function with given fields: ruleID
+func (_m *Env) ProvidedInput(ruleID string) env.ProvidedInputMap {
+	ret := _m.Called(ruleID)
+
+	var r0 env.ProvidedInputMap
+	if rf, ok := ret.Get(0).(func(string) env.ProvidedInputMap); ok {
+		r0 = rf(ruleID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(env.ProvidedInputMap)
+		}
 	}
 
 	return r0
