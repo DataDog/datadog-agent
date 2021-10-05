@@ -36,8 +36,7 @@ def dep_why(dep_tree_filename, target_module):
         for line in infile:
             level, module_dep = parse_line(line)
 
-            if level <= len(current_path):
-                current_path = current_path[: level + 1]
+            current_path = current_path[: level + 1]
 
             current_path.append(module_dep)
 
