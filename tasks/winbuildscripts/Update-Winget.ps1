@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop';
 Set-Location c:\mnt
 
-(New-Object System.Net.WebClient).DownloadFile("https://github.com/microsoft/winget-create/releases/download/v0.4.0.3-preview/wingetcreate.exe", ".\wingetcreate.exe")
+(New-Object System.Net.WebClient).DownloadFile("https://github.com/microsoft/winget-create/releases/download/v0.4.0.3-preview/wingetcreate.exe", "$(Get-Location)\wingetcreate.exe")
 
 # Install dev tools, including invoke
 pip3 install -r requirements.txt
