@@ -151,12 +151,6 @@ func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *mess
 // flushBuffer sends all the messages that are stored in the buffer and forwards them
 // to the next stage of the pipeline.
 func (s *batchStrategy) flushBuffer(outputChan chan *message.Message, send func([]byte) error) {
-	// start := time.Now()
-	// reportElapsed := func() {
-	// 	elapsed := time.Since(start)
-	// 	tlmSenderWaitTime.Set(float64(elapsed / time.Millisecond))
-	// }
-
 	if s.buffer.IsEmpty() {
 		return
 	}
@@ -165,13 +159,9 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Message, send func(
 	// if the channel is non-buffered then there is no concurrency and we block on sending each payload
 	if cap(s.climit) == 0 {
 		s.sendMessages(messages, outputChan, send)
-		// reportElapsed()
 		return
 	}
 	s.climit <- struct{}{}
-	// elapsed := time.Since(s.lastTime)
-	// tlmSenderWaitTime.Set(float64(elapsed / time.Millisecond))
-	// s.lastTime = time.Now()
 	s.pendingSends.Add(1)
 	go func() {
 		s.sendMessages(messages, outputChan, send)
