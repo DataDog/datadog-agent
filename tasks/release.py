@@ -915,15 +915,8 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force
                     ),
                 )
                 if not ok:
-                    raise Exit(
-                        color_message(
-                            "Could not create tag {}. Please rerun the task to retry creating the tags (you may need the --force option)".format(
-                                tag,
-                            ),
-                            "red",
-                        ),
-                        code=1,
-                    )
+                    message = f"Could not create tag {tag}. Please rerun the task to retry creating the tags (you may need the --force option)"
+                    raise Exit(color_message(message, "red"), code=1)
                 print("Created tag {tag}".format(tag=tag))
                 if push:
                     ctx.run("git push origin {tag}{force_option}".format(tag=tag, force_option=force_option))
