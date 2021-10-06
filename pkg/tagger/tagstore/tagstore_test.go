@@ -27,7 +27,7 @@ type StoreTestSuite struct {
 func (s *StoreTestSuite) SetupTest() {
 	s.clock = clock.NewMock()
 	// set the mock clock to the current time
-	s.clock.Add(time.Duration(time.Since(time.Unix(0, 0))))
+	s.clock.Add(time.Since(time.Unix(0, 0)))
 	s.store = newTagStoreWithClock(s.clock)
 }
 
