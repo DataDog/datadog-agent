@@ -21,7 +21,7 @@ import (
 var (
 	tlmDroppedTooLarge   = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
 	batchStrategyExpVars = expvar.NewMap("batch_strategy")
-	expVaridleMsMapKey   = "idleMs"
+	expVarIdleMsMapKey   = "idleMs"
 	expVarInUseMapKey    = "inUseMs"
 )
 
@@ -47,7 +47,7 @@ func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurr
 		maxConcurrent = 0
 	}
 	expVars := &expvar.Map{}
-	expVars.AddFloat(expVaridleMsMapKey, 0)
+	expVars.AddFloat(expVarIdleMsMapKey, 0)
 	expVars.AddFloat(expVarInUseMapKey, 0)
 
 	batchStrategyExpVars.Set(fmt.Sprintf("%s_%d", pipelineName, pipelineID), expVars)
@@ -110,7 +110,7 @@ func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *m
 				// inputChan has been closed, no more payloads are expected
 				return
 			}
-			s.expVars.AddFloat(expVaridleMsMapKey, float64(time.Since(startIdle)/time.Millisecond))
+			s.expVars.AddFloat(expVarIdleMsMapKey, float64(time.Since(startIdle)/time.Millisecond))
 			var startInUse = time.Now()
 
 			s.processMessage(m, outputChan, send)
