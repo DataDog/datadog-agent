@@ -18,9 +18,8 @@ type Context struct {
 	Host string
 }
 
-// UseBadger forces the use of ContextResolverBadger
 // FIXME: make this an option.
-const UseBadger = true
+const Resolver = "dedup"
 
 // ContextResolver allows tracking and expiring contexts
 type ContextResolver interface {
@@ -42,8 +41,13 @@ func newContextResolverBase() contextResolverBase {
 }
 
 func newContextResolver() ContextResolver {
-	if UseBadger {
+	if Resolver == "dedup" {
 		// FIXME: add options to be able to use files.
+		return NewDedup()
+	} else if Resolver == "badger" {
+		return NewBadger(true, "")
+	} else if Resolver == "badger-disk" {
+		// FIXME
 		return NewBadger(true, "")
 	}
 	return NewInMemory()

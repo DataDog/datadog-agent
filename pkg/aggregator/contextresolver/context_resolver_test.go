@@ -8,8 +8,8 @@
 package contextresolver
 
 import (
-	"encoding/json"
 	// stdlib
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -37,13 +37,13 @@ func TestGenerateContextKey(t *testing.T) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       []string{"foo", "bar", "foo:bar", "bar:foo"},
 		Host:       "metric-hostname",
 		SampleRate: 1,
 	}
 
 	contextKey := generateContextKey(&mSample)
-	assert.Equal(t, ckey.ContextKey(0xd28d2867c6dd822c), contextKey)
+	assert.Equal(t, ckey.ContextKey(0x70759ff7dfd6914c), contextKey)
 }
 
 func TestTrackContext(t *testing.T) {
@@ -51,21 +51,21 @@ func TestTrackContext(t *testing.T) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       []string{"foo", "bar", "foo:bar", "bar:foo"},
 		SampleRate: 1,
 	}
 	mSample2 := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar", "baz"},
+		Tags:       []string{"foo", "bar", "baz", "foo:bar", "bar:foo"},
 		SampleRate: 1,
 	}
 	mSample3 := metrics.MetricSample{ // same as mSample2, with different Host
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar", "baz"},
+		Tags:       []string{"foo", "bar", "baz", "foo:bar", "bar:foo"},
 		Host:       "metric-hostname",
 		SampleRate: 1,
 	}
@@ -109,14 +109,14 @@ func TestExpireContexts(t *testing.T) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       []string{"foo", "bar", "foo:bar", "bar:foo"},
 		SampleRate: 1,
 	}
 	mSample2 := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar", "baz"},
+		Tags:       []string{"foo", "bar", "baz", "foo:bar", "bar:foo"},
 		SampleRate: 1,
 	}
 	contextResolver := NewTimestampContextResolver()
@@ -175,50 +175,57 @@ func TestTagDeduplication(t *testing.T) {
 
 	ckey := resolver.TrackContext(&metrics.MetricSample{
 		Name: "foo",
-		Tags: []string{"bar", "bar"},
+		Tags: []string{"bar", "bar", "bar:1"},
 	})
 
 	context, _ := resolver.Get(ckey)
-	assert.Equal(t, len(context.Tags), 1)
-	assert.Equal(t, context.Tags, []string{"bar"})
+	assert.Equal(t, len(context.Tags), 2)
+	assert.Equal(t, context.Tags, []string{"bar", "bar:1"})
 }
 
-// TODO(remy): dedup this method which has been stolen in ckey pkg
-func genTags(count int, div int) ([]string, []string) {
-	var tags []string
-	uniqMap := make(map[string]struct{})
+// genDupTags generates tags with potential duplicates if div > 1
+func genDupTags(count int, div int) []string {
+	tags := make([]string, count)
+
 	for i := 0; i < count; i++ {
 		tag := fmt.Sprintf("tag%d:value%d", i/div, i/div)
-		tags = append(tags, tag)
-		uniqMap[tag] = struct{}{}
+		tags[i] = tag
 	}
 
-	uniq := []string{}
-	for tag := range uniqMap {
-		uniq = append(uniq, tag)
-	}
-
-	return tags, uniq
+	return tags
 }
 
-func benchmarkContextResolverTrackContext(resolver ContextResolver, b *testing.B) {
-	// track 2M contexts with 30 tags
-	for contextsCount := 1 << 15; contextsCount < 2<<21; contextsCount *= 2 {
-		resolver.Clear()
-		tags, _ := genTags(30, 1)
+// genTags generates tags and the value can be made unique by setting a seed
+func genTags(count int64, seed int64) []string {
+	tags := make([]string, count)
 
-		fmt.Println("Overhead")
-		ReportMemStats()
+	for i := int64(0); i < count; i++ {
+		tag := fmt.Sprintf("tagname%d:tagvalue%d", i, i * seed * 12345 + seed)
+		tags[i] = tag
+	}
+
+	return tags
+}
+
+// Run this with -test.benchtime=5s otherwise it won't generate all the contexts!
+func benchmarkContextResolverTrackContextManyMetrics(resolver ContextResolver, b *testing.B) {
+	// track 2M contexts with the 30 same tags
+	for contextsCount := int64(1 << 15); contextsCount < int64(2<<21); contextsCount *= 2 {
+		resolver.Clear()
+		tags := genDupTags(30, 1)
 
 		b.Run(fmt.Sprintf("with-%d-contexts", contextsCount), func(b *testing.B) {
-			fmt.Println("Start bench")
 			b.ReportAllocs()
-			j := 0
+			j := int64(0)
 			for n := 0; n < b.N; n++ {
-				key := resolver.TrackContext(&metrics.MetricSample{
-					Name: fmt.Sprintf("metric.name%d", j),
-					Tags: tags,
-				})
+				var key ckey.ContextKey
+				{
+					sample := &metrics.MetricSample{
+						Name: fmt.Sprintf("metric.name%d", j),
+						Tags: tags,
+					}
+					key = resolver.TrackContext(sample)
+				}
 				j++
 				if j >= contextsCount {
 					j = 0
@@ -226,8 +233,41 @@ func benchmarkContextResolverTrackContext(resolver ContextResolver, b *testing.B
 				// To make sure we don't make the get too expensive
 				resolver.Get(key)
 			}
-			ReportMemStats()
+			ReportMemStats(b)
 		})
+	}
+}
+
+// Run this with -test.benchtime=5s otherwise it won't generate all the contexts!
+func benchmarkContextResolverTrackContextManyTags(resolver ContextResolver, b *testing.B) {
+	// track 2M contexts with one metrics and 30 tags with unique values
+	for contextsCount := int64(1 << 15); contextsCount < int64(2<<21); contextsCount *= 2 {
+		resolver.Clear()
+
+		j := int64(0)
+		b.Run(fmt.Sprintf("with-%d-contexts", contextsCount), func(b *testing.B) {
+
+			b.ReportAllocs()
+			for n := 0; n < b.N; n++ {
+				var key ckey.ContextKey
+				{
+					sample := &metrics.MetricSample{
+						Name: "metric.name",
+						Tags: genTags(30, j),
+					}
+					key = resolver.TrackContext(sample)
+				}
+				j++
+				if j >= contextsCount {
+					j = 0
+				}
+				// To make sure we don't make the get too expensive
+				resolver.Get(key)
+			}
+			ReportMemStats(b)
+		})
+		fmt.Printf("test")
+		break
 	}
 }
 
@@ -235,7 +275,7 @@ func benchmarkContextResolverGetWorstCase(resolver ContextResolver, b *testing.B
 	// track 2M contexts with 30 tags
 	for contextsCount := 1 << 15; contextsCount < 2<<21; contextsCount *= 2 {
 		resolver.Clear()
-		tags, _ := genTags(30, 1)
+		tags := genDupTags(30, 1)
 
 		ckeys := make([]ckey.ContextKey, 0)
 		for i := 0; i < contextsCount; i++ {
@@ -245,12 +285,7 @@ func benchmarkContextResolverGetWorstCase(resolver ContextResolver, b *testing.B
 			}))
 		}
 
-		// All the memory above should not be accounted for
-		fmt.Println("Overhead")
-		ReportMemStats()
-
 		b.Run(fmt.Sprintf("with-%d-contexts", contextsCount), func(b *testing.B) {
-			fmt.Println("Start bench")
 			b.ReportAllocs()
 			j := 0
 			for n := 0; n < b.N; n++ {
@@ -260,7 +295,7 @@ func benchmarkContextResolverGetWorstCase(resolver ContextResolver, b *testing.B
 					j = 0
 				}
 			}
-			ReportMemStats()
+			ReportMemStats(b)
 		})
 	}
 }
@@ -279,11 +314,12 @@ type MemReport struct {
 	NumGoroutine int
 }
 
-func ReportMemStats() {
+func ReportMemStats(b *testing.B) {
 	var m MemReport
 	var rtm runtime.MemStats
 
 	// Read full mem stats after removing useless things.
+	runtime.GC()
 	runtime.GC()
 	runtime.ReadMemStats(&rtm)
 
@@ -305,41 +341,61 @@ func ReportMemStats() {
 	m.PauseTotalNs = rtm.PauseTotalNs
 	m.NumGC = rtm.NumGC
 
-	// Just encode to json and print
-	b, _ := json.Marshal(m)
-	fmt.Println(string(b))
+	if (b != nil) {
+		b.ReportMetric(float64(m.HeapInUse / 1024 / 1024), "heap_mb")
+		b.ReportMetric(float64(m.LiveObjects / 1000), "k_objects")
+	} else {
+		s, _ := json.Marshal(m)
+		fmt.Println(string(s))
+	}
 }
 
-func BenchmarkContextResolverTrackContextInMemory(b *testing.B) {
-	benchmarkContextResolverTrackContext(NewInMemory(), b)
+func BenchmarkContextResolverTrackContextManyMetricsInMemory(b *testing.B) {
+	benchmarkContextResolverTrackContextManyMetrics(NewInMemory(), b)
 }
 
-func BenchmarkContextResolverTrackContextBadgerInMemory(b *testing.B) {
+func BenchmarkContextResolverTrackContextManyMetricsDedup(b *testing.B) {
+	benchmarkContextResolverTrackContextManyMetrics(NewDedup(), b)
+}
+
+func BenchmarkContextResolverTrackContextManyMetricsBadgerInMemory(b *testing.B) {
 	resolver := NewBadger(true, "")
-	benchmarkContextResolverTrackContext(resolver, b)
+	benchmarkContextResolverTrackContextManyMetrics(resolver, b)
 }
 
-func BenchmarkContextResolverTrackContextBadgerOnDisk(b *testing.B) {
+func BenchmarkContextResolverTrackContextManyMetricsBadgerOnDisk(b *testing.B) {
 	path, err := ioutil.TempDir("", "badger")
 	if err != nil {
 		log.Fatal(err)
 	}
 	resolver := NewBadger(false, path+"/db")
-	benchmarkContextResolverTrackContext(resolver, b)
+	benchmarkContextResolverTrackContextManyMetrics(resolver, b)
 }
 
-func BenchmarkContextResolverTrackContextBadgerInMemoryAndLRU(b *testing.B) {
+func BenchmarkContextResolverTrackContextManyMetricsBadgerInMemoryAndLRU(b *testing.B) {
 	resolver := NewWithLRU(NewBadger(true, ""), 1024)
-	benchmarkContextResolverTrackContext(resolver, b)
+	benchmarkContextResolverTrackContextManyMetrics(resolver, b)
+}
+
+func BenchmarkContextResolverTrackContextManyTagsInMemory(b *testing.B) {
+	benchmarkContextResolverTrackContextManyTags(NewInMemory(), b)
+}
+
+func BenchmarkContextResolverTrackContextManyTagsDedup(b *testing.B) {
+	benchmarkContextResolverTrackContextManyTags(NewDedup(), b)
 }
 
 func BenchmarkContextResolverGetWorstCaseInMemory(b *testing.B) {
-	benchmarkContextResolverTrackContext(NewInMemory(), b)
+	benchmarkContextResolverGetWorstCase(NewInMemory(), b)
+}
+
+func BenchmarkContextResolverGetWorstCaseDedup(b *testing.B) {
+	benchmarkContextResolverGetWorstCase(NewDedup(), b)
 }
 
 func BenchmarkContextResolverGetWorstCaseBadgerInMemory(b *testing.B) {
 	resolver := NewBadger(true, "")
-	benchmarkContextResolverTrackContext(resolver, b)
+	benchmarkContextResolverGetWorstCase(resolver, b)
 }
 
 func BenchmarkContextResolverGetWorstCaseBadgerOnDisk(b *testing.B) {
@@ -348,10 +404,10 @@ func BenchmarkContextResolverGetWorstCaseBadgerOnDisk(b *testing.B) {
 		log.Fatal(err)
 	}
 	resolver := NewBadger(false, path+"/db")
-	benchmarkContextResolverTrackContext(resolver, b)
+	benchmarkContextResolverGetWorstCase(resolver, b)
 }
 
 func BenchmarkContextResolverGetWorstCaseBadgerInMemoryAndLRU(b *testing.B) {
 	resolver := NewWithLRU(NewBadger(true, ""), 1024)
-	benchmarkContextResolverTrackContext(resolver, b)
+	benchmarkContextResolverGetWorstCase(resolver, b)
 }
