@@ -917,7 +917,7 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force
                 if not ok:
                     raise Exit(
                         color_message(
-                            "Could not create tag {}. Please rerun the task to retry creating the tags (do you need the --force option?)".format(
+                            "Could not create tag {}. Please rerun the task to retry creating the tags (you may need the --force option)".format(
                                 tag,
                             ),
                             "red",
