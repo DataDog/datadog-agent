@@ -537,7 +537,6 @@ func (ku *KubeUtil) setupKubeletAPIEndpoint() error {
 	// sts begin
 	// Try HTTPS without TLS verification (only useful if it was enabled in the first place)
 	if config.Datadog.GetBool("kubelet_fallback_to_unverified_tls") && tlsVerify {
-		unverifiedTLSAttemptWarning()
 		err := ku.setupKubeletAPIClient(false)
 		if err != nil {
 			return err
@@ -545,6 +544,7 @@ func (ku *KubeUtil) setupKubeletAPIEndpoint() error {
 		_, code, httpsURLErr := ku.QueryKubelet(kubeletPodPath)
 		if httpsURLErr == nil {
 			if code == http.StatusOK {
+				unverifiedTLSConnectionWarning()
 				log.Debugf("Kubelet endpoint is: %s", ku.kubeletAPIEndpoint)
 				return nil
 			}
@@ -576,8 +576,8 @@ func (ku *KubeUtil) setupKubeletAPIEndpoint() error {
 }
 
 // sts begin
-func unverifiedTLSAttemptWarning() {
-	log.Warnf("Failed to securely reach the kubelet over HTTPS with TLS certificate verification. Trying without TLS verification now.")
+func unverifiedTLSConnectionWarning() {
+	log.Warnf("Successfully connected to the kubelet over HTTPS without TLS certificate verification.")
 	log.Warn("This can be disabled via configuration setting 'kubelet_fallback_to_unverified_tls'.")
 	log.Warn("To fix certificate verification make sure the Kubelet uses a certificate signed by a well-known CA or by the configured CA, which usually is the CA of the Kubernetes API server.")
 }
@@ -761,9 +761,9 @@ func (ku *KubeUtil) setKubeletHost(hosts *connectionInfo, httpsPort, httpPort in
 
 		// sts begin
 		if config.Datadog.GetBool("kubelet_fallback_to_unverified_tls") && verifyTLS {
-			unverifiedTLSAttemptWarning()
 			kubeletHost, errors = selectFromPotentialHostsHTTPS(ku, hosts.ips, httpsPort, false)
 			if kubeletHost != "" && errors == nil {
+				unverifiedTLSConnectionWarning()
 				log.Infof("Connection to the kubelet succeeded without TLS verification! %s is set as kubelet host", kubeletHost)
 				return nil
 			}
