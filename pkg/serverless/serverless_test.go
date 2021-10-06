@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build !windows
-
 package serverless
 
 import (
@@ -62,7 +60,7 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 
 func TestComputeTimeout(t *testing.T) {
 	fakeCurrentTime := time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC)
-	// add 10ms
+	// add 10m
 	fakeDeadLineInMs := fakeCurrentTime.UnixNano()/int64(time.Millisecond) + 10
 	safetyBuffer := 3 * time.Millisecond
 	assert.Equal(t, 7*time.Millisecond, computeTimeout(fakeCurrentTime, fakeDeadLineInMs, safetyBuffer))
