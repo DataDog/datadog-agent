@@ -40,22 +40,14 @@ func NewKeyGenerator() *KeyGenerator {
 // generating the hash.
 // Not safe for concurrent usage.
 type KeyGenerator struct {
-	// storage for hash-value-in-progress, avoiding a stack allocation in Generate
-	intb uint64
-	hg   *tagset.HashGenerator
+	hg *tagset.HashGenerator
 }
 
 // Generate returns the ContextKey hash for the given parameters.
 // tagsBuf is re-arranged in place and truncated to only contain unique tags.
 func (g *KeyGenerator) Generate(name, hostname string, tagsBuf *tagset.HashingTagsBuilder) ContextKey {
-	// between two generations, we have to set the hash to something neutral, let's
-	// use this big value seed from the murmur3 implementations
-	g.intb = uint64(0xc6a4a7935bd1e995)
-	g.intb ^= murmur3.StringSum64(name)
-	g.intb ^= murmur3.StringSum64(hostname)
-	g.intb ^= g.hg.Hash(tagsBuf)
-
-	return ContextKey(g.intb)
+	hash := murmur3.StringSum64(name) ^ murmur3.StringSum64(hostname) ^ g.hg.Hash(tagsBuf)
+	return ContextKey(hash)
 }
 
 // Equals returns whether the two context keys are equal or not.

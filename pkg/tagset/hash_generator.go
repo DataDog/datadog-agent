@@ -9,9 +9,6 @@ import "math/bits"
 // operations.  It is not threadsafe and the caller must ensure that an
 // instance's Hash method is not called concurrently.
 type HashGenerator struct {
-	// reused buffer to not create a uint64 on the stack every key generation
-	intb uint64
-
 	// seen is used as a hashset to deduplicate the tags when there is more than
 	// 16 and less than 512 tags.
 	seen [hashSetSize]uint64
@@ -50,11 +47,11 @@ func NewHashGenerator() *HashGenerator {
 // Hash calculates the cumulative XOR of all unique tags in the builder.  As a side-effect,
 // it sorts and deduplicates the hashes contained in the builder.
 func (g *HashGenerator) Hash(tb *HashingTagsBuilder) uint64 {
+	var hash uint64
+
 	// This implementation has been designed to remove all heap
 	// allocations from the intake in order to reduce GC pressure on high volumes.
-
-	g.intb = 0
-
+	//
 	// There are three implementations used here to deduplicate the tags
 	// depending on how many tags we have to process:
 	//  - 16 < n < hashSetSize: // we use a hashset of `hashSetSize` values.
@@ -63,12 +60,12 @@ func (g *HashGenerator) Hash(tb *HashingTagsBuilder) uint64 {
 	//  - n > hashSetSize: sort
 	if tb.Len() > hashSetSize {
 		tb.SortUniq()
-		for _, h := range tb.Hashes() {
-			g.intb = g.intb ^ h
+		for _, h := range tb.hash {
+			hash ^= h
 		}
 	} else if tb.Len() > bruteforceSize {
-		tags := tb.Get()
-		hashes := tb.Hashes()
+		tags := tb.data
+		hashes := tb.hash
 
 		// reset the `seen` hashset.
 		// it copies `g.empty` instead of using make because it's faster
@@ -91,7 +88,7 @@ func (g *HashGenerator) Hash(tb *HashingTagsBuilder) uint64 {
 					// not seen, we will add it to the hash
 					g.seen[j] = h
 					g.seenIdx[j] = int16(i)
-					g.intb = g.intb ^ h // add this tag into the hash
+					hash ^= h // add this tag into the hash
 					i++
 					break
 				} else if g.seen[j] == h && tags[g.seenIdx[j]] == tags[i] {
@@ -110,8 +107,8 @@ func (g *HashGenerator) Hash(tb *HashingTagsBuilder) uint64 {
 		}
 		tb.Truncate(ntags)
 	} else {
-		tags := tb.Get()
-		hashes := tb.Hashes()
+		tags := tb.data
+		hashes := tb.hash
 		ntags := tb.Len()
 	OUTER:
 		for i := 0; i < ntags; {
@@ -124,12 +121,12 @@ func (g *HashGenerator) Hash(tb *HashingTagsBuilder) uint64 {
 					continue OUTER // we do not want to xor multiple times the same tag
 				}
 			}
-			g.intb = g.intb ^ h
+			hash ^= h
 			g.seen[i] = h
 			i++
 		}
 		tb.Truncate(ntags)
 	}
 
-	return g.intb
+	return hash
 }
