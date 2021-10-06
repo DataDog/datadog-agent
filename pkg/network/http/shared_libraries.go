@@ -113,7 +113,7 @@ func (w *soWatcher) Start() {
 
 						// resolving paths is expensive so we cache the libraries we already seen
 						k := seenKey{pidPath, libPath}
-						if _, ok := seen[seenKey{pidPath, libPath}]; ok {
+						if _, ok := seen[k]; ok {
 							break
 						}
 						seen[k] = struct{}{}
