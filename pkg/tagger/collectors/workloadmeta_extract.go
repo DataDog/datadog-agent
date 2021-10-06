@@ -37,7 +37,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 		case workloadmeta.EventTypeSet:
 			switch entityID.Kind {
 			case workloadmeta.KindContainer:
-				tagInfos = append(tagInfos, c.handleContainer(ev)...)
+				// TODO
 			case workloadmeta.KindKubernetesPod:
 				tagInfos = append(tagInfos, c.handleKubePod(ev)...)
 			case workloadmeta.KindECSTask:
@@ -66,29 +66,6 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 	c.out <- tagInfos
 
 	close(evBundle.Ch)
-}
-
-func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInfo {
-	tagInfos := []*TagInfo{}
-	tags := utils.NewTagList()
-
-	container := ev.Entity.(workloadmeta.Container)
-
-	for tag, value := range c.staticTags {
-		tags.AddLow(tag, value)
-	}
-
-	low, orch, high, standard := tags.Compute()
-	tagInfos = append(tagInfos, &TagInfo{
-		Source:               workloadmetaCollectorName,
-		Entity:               buildTaggerEntityID(container.EntityID),
-		HighCardTags:         high,
-		OrchestratorCardTags: orch,
-		LowCardTags:          low,
-		StandardTags:         standard,
-	})
-
-	return tagInfos
 }
 
 func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo {

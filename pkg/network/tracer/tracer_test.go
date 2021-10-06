@@ -1217,10 +1217,20 @@ func TestConnectedUDPSendIPv6(t *testing.T) {
 }
 
 func TestConnectionClobber(t *testing.T) {
-	tr, err := NewTracer(testConfig())
-	if err != nil {
-		t.Fatal(err)
+	cfg := testConfig()
+	cfg.CollectUDPConns = false
+	cfg.ExcludedDestinationConnections = map[string][]string{
+		"0.0.0.0/2":   {"*"},
+		"64.0.0.0/3":  {"*"},
+		"96.0.0.0/4":  {"*"},
+		"112.0.0.0/5": {"*"},
+		"120.0.0.0/6": {"*"},
+		"124.0.0.0/7": {"*"},
+		"126.0.0.0/8": {"*"},
+		"128.0.0.0/1": {"*"},
 	}
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
 	defer tr.Stop()
 
 	// Create TCP Server which, for every line, sends back a message with size=serverMessageSize
@@ -1275,10 +1285,10 @@ func TestConnectionClobber(t *testing.T) {
 
 	// wait for tracer to pick up all connections
 	//
-	// there is not good way do this other than a sleep since we
-	// can't call getConnections in a require.Eventually call
+	// there is not a good way do this other than a sleep since we
+	// can't call getConnections in a `require.Eventually` call
 	// to the get the number of connections as that could
-	// affect the tr.buffer length
+	// affect the `activeBuffer` length
 	time.Sleep(2 * time.Second)
 
 	preCap := tr.activeBuffer.Capacity()
@@ -1288,7 +1298,7 @@ func TestConnectionClobber(t *testing.T) {
 	dst := connections.Conns[0].DPort
 	t.Logf("got %d connections", len(connections.Conns))
 	// ensure we didn't grow or shrink the buffer
-	require.Equal(t, preCap, tr.activeBuffer.Capacity())
+	assert.Equal(t, preCap, tr.activeBuffer.Capacity())
 
 	for _, c := range append(conns, serverConns...) {
 		c.Close()
@@ -1306,9 +1316,9 @@ func TestConnectionClobber(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	t.Logf("got %d connections", len(getConnections(t, tr).Conns))
-	require.Equal(t, src, connections.Conns[0].SPort, "source port should not change")
-	require.Equal(t, dst, connections.Conns[0].DPort, "dest port should not change")
-	require.Equal(t, preCap, tr.activeBuffer.Capacity())
+	assert.Equal(t, src, connections.Conns[0].SPort, "source port should not change")
+	assert.Equal(t, dst, connections.Conns[0].DPort, "dest port should not change")
+	assert.Equal(t, preCap, tr.activeBuffer.Capacity())
 }
 
 func TestTCPDirection(t *testing.T) {

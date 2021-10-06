@@ -19,13 +19,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -903,55 +901,6 @@ func TestConnectionNotAssured(t *testing.T) {
 
 	// verify the connection is marked as not assured
 	require.False(t, conn.IsAssured)
-}
-
-func TestNewConntracker(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	cfg := testConfig()
-
-	mockCreator := func(_ *config.Config) (netlink.Conntracker, error) {
-		return netlink.NewMockConntracker(ctrl), nil
-	}
-
-	errCreator := func(_ *config.Config) (netlink.Conntracker, error) {
-		return nil, assert.AnError
-	}
-
-	mockConntracker := netlink.NewMockConntracker(ctrl)
-	noopConntracker := netlink.NewNoOpConntracker()
-
-	tests := []struct {
-		conntrackEnabled  bool
-		ignoreInitFailure bool
-		creator           func(*config.Config) (netlink.Conntracker, error)
-
-		conntracker netlink.Conntracker
-		err         error
-	}{
-		{false, false, mockCreator, noopConntracker, nil},
-		{true, true, mockCreator, mockConntracker, nil},
-		{true, true, errCreator, noopConntracker, nil},
-		{true, false, mockCreator, mockConntracker, nil},
-		{true, false, errCreator, nil, assert.AnError},
-	}
-
-	for _, te := range tests {
-		cfg.EnableConntrack = te.conntrackEnabled
-		cfg.IgnoreConntrackInitFailure = te.ignoreInitFailure
-		c, err := newConntracker(cfg, te.creator)
-		if te.conntracker != nil {
-			require.IsType(t, te.conntracker, c)
-		} else {
-			require.Nil(t, c)
-		}
-
-		if te.err != nil {
-			require.Error(t, err)
-		} else {
-			require.NoError(t, err)
-		}
-	}
 }
 
 func TestUDPConnExpiryTimeout(t *testing.T) {

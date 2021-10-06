@@ -32,9 +32,9 @@ func (c *KubeletCollector) Detect() error {
 		return errors.New("Kubernetes feature is deactivated")
 	}
 
-	util, retrier := kubelet.GetKubeUtilWithRetrier()
-	if util == nil {
-		return retrier.LastError()
+	util, err := kubelet.GetKubeUtil()
+	if err != nil {
+		return err
 	}
 	c.kubeUtil = util
 	return nil

@@ -1220,8 +1220,8 @@ Make sure that milestone is open before trying again.""".format(
 
     updated_pr = github.update_pr(
         pull_number=pr["number"],
-        milestone=milestone["number"],
-        labels=["changelog/no-changelog", "team/agent-platform", "team/agent-core"],
+        milestone_number=milestone["number"],
+        labels=["changelog/no-changelog", "qa/skip-qa", "team/agent-platform", "team/agent-core"],
     )
 
     if not updated_pr or not updated_pr.get("number") or not updated_pr.get("html_url"):
