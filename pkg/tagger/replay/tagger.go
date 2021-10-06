@@ -72,8 +72,8 @@ func (t *Tagger) Tag(entityID string, cardinality collectors.TagCardinality) ([]
 	return tags, nil
 }
 
-// TagBuilder returns tags for a given entity at the desired cardinality.
-func (t *Tagger) TagBuilder(entityID string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
+// AccumulateTagsFor returns tags for a given entity at the desired cardinality.
+func (t *Tagger) AccumulateTagsFor(entityID string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
 	tags, _ := t.store.LookupHashed(entityID, cardinality)
 
 	if tags.Len() == 0 {

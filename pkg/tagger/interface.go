@@ -19,7 +19,7 @@ type Tagger interface {
 	Stop() error
 
 	Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
-	TagBuilder(entity string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error
+	AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error
 	Standard(entity string) ([]string, error)
 	List(cardinality collectors.TagCardinality) response.TaggerListResponse
 	GetEntity(entityID string) (*types.Entity, error)

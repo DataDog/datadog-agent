@@ -55,7 +55,7 @@ func BenchmarkTagBuilderLowCardinality(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		tb := tagset.NewTagsBuilder()
 		for pb.Next() {
-			tagger.TagBuilder("test", collectors.LowCardinality, tb)
+			tagger.AccumulateTagsFor("test", collectors.LowCardinality, tb)
 			tb.Reset()
 		}
 	})
@@ -81,7 +81,7 @@ func BenchmarkTagBuilderHighCardinality(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		tb := tagset.NewTagsBuilder()
 		for pb.Next() {
-			tagger.TagBuilder("test", collectors.HighCardinality, tb)
+			tagger.AccumulateTagsFor("test", collectors.HighCardinality, tb)
 			tb.Reset()
 		}
 	})

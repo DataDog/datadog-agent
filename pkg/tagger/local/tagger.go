@@ -326,8 +326,8 @@ IterCollectors:
 	return cachedTags, nil
 }
 
-// TagBuilder appends tags for a given entity from the tagger to the TagsBuilder
-func (t *Tagger) TagBuilder(entity string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
+// AccumulateTagsFor appends tags for a given entity from the tagger to the TagsBuilder
+func (t *Tagger) AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
 	tags, err := t.getTags(entity, cardinality)
 	tb.AppendHashed(tags)
 	return err
