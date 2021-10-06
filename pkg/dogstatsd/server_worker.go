@@ -19,8 +19,6 @@ type worker struct {
 	batcher *batcher
 	parser  *parser
 
-	flushChan chan chan struct{}
-
 	// we allocate it once per worker instead of once per packet. This will
 	// be used to store the samples out a of packets. Allocating it every
 	// time is very costly, especially on the GC.
@@ -29,20 +27,11 @@ type worker struct {
 
 func newWorker(s *Server) *worker {
 	return &worker{
-		server:    s,
-		batcher:   newBatcher(s.aggregator),
-		parser:    newParser(s.sharedFloat64List),
-		flushChan: make(chan chan struct{}, 0),
-		samples:   make([]metrics.MetricSample, 0, defaultSampleSize),
+		server:  s,
+		batcher: newBatcher(s.aggregator),
+		parser:  newParser(s.sharedFloat64List),
+		samples: make([]metrics.MetricSample, 0, defaultSampleSize),
 	}
-}
-
-func (w *worker) flush() {
-	notify := make(chan struct{}, 0)
-	w.flushChan <- notify
-	// Blocks until notify has been received in the run loop, and
-	// returned a value.
-	<-notify
 }
 
 func (w *worker) run() {
@@ -56,9 +45,6 @@ func (w *worker) run() {
 			// we return the samples in case the slice was extended
 			// when parsing the packets
 			w.samples = w.server.parsePackets(w.batcher, w.parser, packets, w.samples)
-		case notify := <-w.flushChan:
-			w.batcher.flush()
-			notify <- struct{}{}
 		}
 
 	}
