@@ -275,22 +275,22 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 			roleBindingsInformer := apiCl.InformerFactory.Rbac().V1().RoleBindings()
 			o.roleBindingsLister = roleBindingsInformer.Lister()
 			o.roleBindingsListerSync = roleBindingsInformer.Informer().HasSynced
-			informersToSync[apiserver.InformerName(orchestrator.K8sRole.String())] = roleBindingsInformer.Informer()
+			informersToSync[apiserver.InformerName(orchestrator.K8sRoleBinding.String())] = roleBindingsInformer.Informer()
 		case "clusterroles":
 			clusterRolesInformer := apiCl.InformerFactory.Rbac().V1().ClusterRoles()
 			o.clusterRolesLister = clusterRolesInformer.Lister()
 			o.clusterRolesListerSync = clusterRolesInformer.Informer().HasSynced
-			informersToSync[apiserver.InformerName(orchestrator.K8sRole.String())] = clusterRolesInformer.Informer()
+			informersToSync[apiserver.InformerName(orchestrator.K8sClusterRole.String())] = clusterRolesInformer.Informer()
 		case "clusterrolebindings":
 			clusterRoleBindingsInformer := apiCl.InformerFactory.Rbac().V1().ClusterRoleBindings()
 			o.clusterRoleBindingsLister = clusterRoleBindingsInformer.Lister()
 			o.clusterRoleBindingsListerSync = clusterRoleBindingsInformer.Informer().HasSynced
-			informersToSync[apiserver.InformerName(orchestrator.K8sRole.String())] = clusterRoleBindingsInformer.Informer()
+			informersToSync[apiserver.InformerName(orchestrator.K8sClusterRoleBinding.String())] = clusterRoleBindingsInformer.Informer()
 		case "serviceaccounts":
 			serviceAccountsInformer := apiCl.InformerFactory.Core().V1().ServiceAccounts()
 			o.serviceAccountsLister = serviceAccountsInformer.Lister()
 			o.serviceAccountsListerSync = serviceAccountsInformer.Informer().HasSynced
-			informersToSync[apiserver.InformerName(orchestrator.K8sRole.String())] = serviceAccountsInformer.Informer()
+			informersToSync[apiserver.InformerName(orchestrator.K8sServiceAccount.String())] = serviceAccountsInformer.Informer()
 		default:
 			_ = o.Warnf("Unsupported collector: %s", v)
 		}
