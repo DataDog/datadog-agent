@@ -42,7 +42,7 @@ func init() {
 	AgentCmd.AddCommand(dogstatsdReplayCmd)
 	dogstatsdReplayCmd.Flags().StringVarP(&dsdReplayFilePath, "file", "f", "", "Input file with TCP traffic to replay.")
 	dogstatsdReplayCmd.Flags().BoolVarP(&dsdVerboseReplay, "verbose", "v", false, "Verbose replay.")
-	dogstatsdReplayCmd.Flags().BoolVarP(&dsdMmapReplay, "mmap", "m", true, "Mmap file for replay.")
+	dogstatsdReplayCmd.Flags().BoolVarP(&dsdMmapReplay, "mmap", "m", true, "Mmap file for replay. Set to false to load the entire file into memory instead")
 	dogstatsdReplayCmd.Flags().IntVarP(&dsdReplayIterations, "loops", "l", defaultIterations, "Number of iterationsi to replay.")
 }
 

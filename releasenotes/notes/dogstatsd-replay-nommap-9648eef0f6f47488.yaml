@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Allow replay files to be fully loaded into memory as opposed
+    Allow dogstatsd replay files to be fully loaded into memory as opposed
     to relying on MMAP. We still default to MMAPing replay targets.
