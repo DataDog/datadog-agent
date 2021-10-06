@@ -27,6 +27,8 @@ images:
     newTag: {{ agent_current_branch }}
   - name: docker.io/stackstate/stackstate-cluster-agent-test
     newTag: {{ agent_current_branch }}
+  - name: docker.io/bitnami/kube-state-metrics
+    newTag: 1.9.8
 
 secretGenerator:
   - name: stackstate-auth-token

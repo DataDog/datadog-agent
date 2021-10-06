@@ -1,0 +1,349 @@
+---
+# Source: cluster-agent/charts/kube-state-metrics/templates/psp.yaml
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: stackstate-cluster-agent-kube-state-metrics
+  labels:
+    app.kubernetes.io/name: kube-state-metrics
+    helm.sh/chart: kube-state-metrics-1.1.2
+    app.kubernetes.io/instance: stackstate-cluster-agent
+    app.kubernetes.io/managed-by: Helm
+spec:
+  privileged: false
+  volumes:
+    - 'secret'
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    rule: 'MustRunAs'
+    ranges:
+      - min: 1001
+        max: 1001
+  seLinux:
+    rule: 'RunAsAny'
+  supplementalGroups:
+    rule: 'MustRunAs'
+    ranges:
+      - min: 1001
+        max: 1001
+  fsGroup:
+    rule: 'MustRunAs'
+    ranges:
+      - min: 1001
+        max: 1001
+  readOnlyRootFilesystem: false
+---
+# Source: cluster-agent/charts/kube-state-metrics/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: stackstate-cluster-agent-kube-state-metrics
+  labels:
+    app.kubernetes.io/name: kube-state-metrics
+    helm.sh/chart: kube-state-metrics-1.1.2
+    app.kubernetes.io/instance: stackstate-cluster-agent
+    app.kubernetes.io/managed-by: Helm
+---
+# Source: cluster-agent/charts/kube-state-metrics/templates/clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: stackstate-cluster-agent-kube-state-metrics
+  labels:
+    app.kubernetes.io/name: kube-state-metrics
+    helm.sh/chart: kube-state-metrics-1.1.2
+    app.kubernetes.io/instance: stackstate-cluster-agent
+    app.kubernetes.io/managed-by: Helm
+rules:
+  - apiGroups: ["certificates.k8s.io"]
+    resources:
+      - certificatesigningrequests
+    verbs: ["list", "watch"]
+  - apiGroups: [""]
+    resources:
+      - configmaps
+    verbs: ["list", "watch"]
+  - apiGroups: ["batch"]
+    resources:
+      - cronjobs
+    verbs: ["list", "watch"]
+  - apiGroups: ["extensions", "apps"]
+    resources:
+      - daemonsets
+    verbs: ["list", "watch"]
+  - apiGroups: ["extensions", "apps"]
+    resources:
+      - deployments
+    verbs: ["list", "watch"]
+  - apiGroups: [""]
+    resources:
+      - endpoints
+    verbs: ["list", "watch"]
+  - apiGroups: ["autoscaling"]
+    resources:
+      - horizontalpodautoscalers
+    verbs: ["list", "watch"]
+  - apiGroups: ["extensions", "networking.k8s.io"]
+    resources:
+      - ingresses
+    verbs: ["list", "watch"]
+  - apiGroups: ["batch"]
+    resources:
+      - jobs
+    verbs: ["list", "watch"]
+  - apiGroups: [""]
+    resources:
+      - limitranges
+    verbs: ["list", "watch"]
+  - apiGroups: ["admissionregistration.k8s.io"]
+    resources:
+      - mutatingwebhookconfigurations
+    verbs: ["list", "watch"]
+  - apiGroups: [""]
+    resources:
+      - namespaces
+    verbs: ["list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - networkpolicies
+    verbs: ["list", "watch"]
+  - apiGroups: [""]
+    resources:
+      - nodes
+    verbs: ["list", "watch"]
+  - apiGroups: [""]
+    resources:
+      - persistentvolumeclaims
+    verbs: ["list", "watch"]
+  - apiGroups: [""]
+    resources:
+      - persistentvolumes
+    verbs: ["list", "watch"]
+  - apiGroups: ["policy"]
+    resources:
+      - poddisruptionbudgets
+    verbs: ["list", "watch"]
+  - apiGroups: [""]
+    resources:
+      - pods
+    verbs: ["list", "watch"]
+  - apiGroups: ["extensions", "apps"]
+    resources:
+      - replicasets
+    verbs: ["list", "watch"]
+  - apiGroups: [""]
+    resources:
+      - replicationcontrollers
+    verbs: ["list", "watch"]
+  - apiGroups: [""]
+    resources:
+      - resourcequotas
+    verbs: ["list", "watch"]
+  - apiGroups: [""]
+    resources:
+      - secrets
+    verbs: ["list", "watch"]
+  - apiGroups: [""]
+    resources:
+      - services
+    verbs: ["list", "watch"]
+  - apiGroups: ["apps"]
+    resources:
+      - statefulsets
+    verbs: ["list", "watch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources:
+      - storageclasses
+    verbs: ["list", "watch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources:
+      - volumeattachments
+    verbs: ["list", "watch"]
+---
+# Source: kube-state-metrics/templates/psp-clusterrole.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: stackstate-cluster-agent-kube-state-metrics-psp
+  labels:
+    app.kubernetes.io/name: kube-state-metrics
+    helm.sh/chart: kube-state-metrics-1.1.2
+    app.kubernetes.io/instance: stackstate-cluster-agent
+    app.kubernetes.io/managed-by: Helm
+rules:
+  - apiGroups: ['extensions']
+    resources: ['podsecuritypolicies']
+    verbs: ['use']
+    resourceNames:
+      - stackstate-cluster-agent-kube-state-metrics
+---
+# Source: cluster-agent/charts/kube-state-metrics/templates/clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: stackstate-cluster-agent-kube-state-metrics
+  labels:
+    app.kubernetes.io/name: kube-state-metrics
+    helm.sh/chart: kube-state-metrics-1.1.2
+    app.kubernetes.io/instance: stackstate-cluster-agent
+    app.kubernetes.io/managed-by: Helm
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: stackstate-cluster-agent-kube-state-metrics
+subjects:
+  - kind: ServiceAccount
+    name: stackstate-cluster-agent-kube-state-metrics
+    namespace: monitoring
+---
+# Source: cluster-agent/charts/kube-state-metrics/templates/psp-clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: stackstate-cluster-agent-kube-state-metrics-psp
+  labels:
+    app.kubernetes.io/name: kube-state-metrics
+    helm.sh/chart: kube-state-metrics-1.1.2
+    app.kubernetes.io/instance: stackstate-cluster-agent
+    app.kubernetes.io/managed-by: Helm
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: stackstate-cluster-agent-kube-state-metrics-psp
+subjects:
+  - kind: ServiceAccount
+    name: stackstate-cluster-agent-kube-state-metrics
+    namespace: monitoring
+---
+# Source: cluster-agent/charts/kube-state-metrics/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: stackstate-cluster-agent-kube-state-metrics
+  namespace: monitoring
+  annotations:
+    prometheus.io/scrape: "true"
+  labels:
+    app.kubernetes.io/name: kube-state-metrics
+    helm.sh/chart: kube-state-metrics-1.1.2
+    app.kubernetes.io/instance: stackstate-cluster-agent
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      nodePort: null
+  selector:
+    app.kubernetes.io/name: kube-state-metrics
+    app.kubernetes.io/instance: stackstate-cluster-agent
+---
+# Source: cluster-agent/charts/kube-state-metrics/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stackstate-cluster-agent-kube-state-metrics
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: kube-state-metrics
+    helm.sh/chart: kube-state-metrics-1.1.2
+    app.kubernetes.io/instance: stackstate-cluster-agent
+    app.kubernetes.io/managed-by: Helm
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kube-state-metrics
+      app.kubernetes.io/instance: stackstate-cluster-agent
+  replicas: 1
+  strategy:
+    {}
+  minReadySeconds: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kube-state-metrics
+        helm.sh/chart: kube-state-metrics-1.1.2
+        app.kubernetes.io/instance: stackstate-cluster-agent
+        app.kubernetes.io/managed-by: Helm
+    spec:
+
+      securityContext:
+        runAsUser: 1001
+        fsGroup: 1001
+      hostNetwork: false
+      serviceAccountName: stackstate-cluster-agent-kube-state-metrics
+      affinity:
+        podAffinity:
+
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: kube-state-metrics
+                    app.kubernetes.io/instance: stackstate-cluster-agent
+                namespaces:
+                  - monitoring
+                topologyKey: kubernetes.io/hostname
+              weight: 1
+        nodeAffinity:
+
+      containers:
+        - name: kube-state-metrics
+          image: docker.io/bitnami/kube-state-metrics:1.9.7-debian-10-r143
+          imagePullPolicy: IfNotPresent
+          args:
+            - --collectors=certificatesigningrequests
+            - --collectors=configmaps
+            - --collectors=cronjobs
+            - --collectors=daemonsets
+            - --collectors=deployments
+            - --collectors=endpoints
+            - --collectors=horizontalpodautoscalers
+            - --collectors=ingresses
+            - --collectors=jobs
+            - --collectors=limitranges
+            - --collectors=mutatingwebhookconfigurations
+            - --collectors=namespaces
+            - --collectors=networkpolicies
+            - --collectors=nodes
+            - --collectors=persistentvolumeclaims
+            - --collectors=persistentvolumes
+            - --collectors=poddisruptionbudgets
+            - --collectors=pods
+            - --collectors=replicasets
+            - --collectors=replicationcontrollers
+            - --collectors=resourcequotas
+            - --collectors=secrets
+            - --collectors=services
+            - --collectors=statefulsets
+            - --collectors=storageclasses
+            - --collectors=volumeattachments
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 120
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 6
+          resources:
+            limits: {}
+            requests: {}

@@ -99,9 +99,13 @@
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
 
-    - name: Give the Test Workloads 5 minutes to start performing their actions
-      pause:
-        minutes: 5
+    - name: Wait for the kube-state-metrics to be ready
+      ignore_errors: true
+      command: kubectl -n={{ namespace }} wait --all --for=condition=Ready --timeout=360s -l app.kubernetes.io/name=kube-state-metrics pod
+      args:
+        chdir: /home/ubuntu/deployment/agents
+      environment:
+        KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
 
     - name: Apply the pod-to-service-cluster-ip scenario
       command: kubectl -n={{ namespace }} apply -f pod-to-service-cluster-ip.yaml
@@ -159,9 +163,9 @@
       environment:
         KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig
 
-    - name: Pause for 2 minutes to perform some http requests
+    - name: Give the Test Workloads 5 minutes to start performing their actions and some http requests
       pause:
-        minutes: 2
+        minutes: 5
 
 - name: Encryption
   hosts: localhost
