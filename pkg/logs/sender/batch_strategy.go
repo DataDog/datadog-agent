@@ -23,23 +23,22 @@ import (
 var (
 	tlmDroppedTooLarge   = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
 	batchStrategyExpVars = expvar.NewMap("batch_strategy")
+	expVaridleMsMapKey   = "idleMs"
+	expVarInUseMapKey    = "inUseMs"
 )
 
 // batchStrategy contains all the logic to send logs in batch.
 type batchStrategy struct {
 	buffer *MessageBuffer
 	// pipelineName provides a name for the strategy to differentiate it from other instances in other internal pipelines
-	pipelineName string
-	// pipelineID is a unique id for this pipeline since there are multiple instances of each type of pipeline
-	pipelineID        int
-	serializer        Serializer
-	batchWait         time.Duration
-	climit            chan struct{}  // semaphore for limiting concurrent sends
-	pendingSends      sync.WaitGroup // waitgroup for concurrent sends
-	syncFlushTrigger  chan struct{}  // trigger a synchronous flush
-	syncFlushDone     chan struct{}  // wait for a synchronous flush to finish
-	senderIdleTimeMs  expvar.Float
-	senderInUseTimeMs expvar.Float
+	pipelineName     string
+	serializer       Serializer
+	batchWait        time.Duration
+	climit           chan struct{}  // semaphore for limiting concurrent sends
+	pendingSends     sync.WaitGroup // waitgroup for concurrent sends
+	syncFlushTrigger chan struct{}  // trigger a synchronous flush
+	syncFlushDone    chan struct{}  // wait for a synchronous flush to finish
+	expVars          *expvar.Map
 }
 
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
@@ -49,17 +48,21 @@ func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurr
 	if maxConcurrent < 0 {
 		maxConcurrent = 0
 	}
+	expVars := &expvar.Map{}
+	expVars.AddFloat(expVaridleMsMapKey, 0)
+	expVars.AddFloat(expVarInUseMapKey, 0)
+
+	batchStrategyExpVars.Set(fmt.Sprintf("%s_%d", pipelineName, pipelineID), expVars)
+
 	return &batchStrategy{
-		buffer:            NewMessageBuffer(maxBatchSize, maxContentSize),
-		serializer:        serializer,
-		batchWait:         batchWait,
-		climit:            make(chan struct{}, maxConcurrent),
-		syncFlushTrigger:  make(chan struct{}),
-		syncFlushDone:     make(chan struct{}),
-		pipelineName:      pipelineName,
-		pipelineID:        pipelineID,
-		senderIdleTimeMs:  expvar.Float{},
-		senderInUseTimeMs: expvar.Float{},
+		buffer:           NewMessageBuffer(maxBatchSize, maxContentSize),
+		serializer:       serializer,
+		batchWait:        batchWait,
+		climit:           make(chan struct{}, maxConcurrent),
+		syncFlushTrigger: make(chan struct{}),
+		syncFlushDone:    make(chan struct{}),
+		pipelineName:     pipelineName,
+		expVars:          expVars,
 	}
 
 }
@@ -109,15 +112,13 @@ func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *m
 				// inputChan has been closed, no more payloads are expected
 				return
 			}
-			s.senderIdleTimeMs.Add(float64(time.Since(startIdle) / time.Millisecond))
+			s.expVars.AddFloat(expVaridleMsMapKey, float64(time.Since(startIdle)/time.Millisecond))
 			var startInUse = time.Now()
 
 			s.processMessage(m, outputChan, send)
 
-			s.senderInUseTimeMs.Add(float64(time.Since(startInUse) / time.Millisecond))
+			s.expVars.AddFloat(expVarInUseMapKey, float64(time.Since(startInUse)/time.Millisecond))
 			startIdle = time.Now()
-
-			batchStrategyExpVars.Set(s.getExpVarName(), expvar.Func(s.publishExpVars))
 
 		case <-flushTicker.C:
 			// the first message that was added to the buffer has been here for too long, send the payload now
@@ -183,16 +184,5 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 
 	for _, message := range messages {
 		outputChan <- message
-	}
-}
-
-func (s *batchStrategy) getExpVarName() string {
-	return fmt.Sprintf("%s_%d", s.pipelineName, s.pipelineID)
-}
-
-func (s *batchStrategy) publishExpVars() interface{} {
-	return map[string]float64{
-		"idleMs":  s.senderIdleTimeMs.Value(),
-		"inUseMs": s.senderInUseTimeMs.Value(),
 	}
 }
