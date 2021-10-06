@@ -122,25 +122,17 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer) (*Pipeline, 
 	}),
 	}
 
-	parser, err := newMap(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build parser: %w", err)
-	}
-
 	col, err := service.New(service.CollectorSettings{
 		Factories:               factories,
 		BuildInfo:               buildInfo,
 		DisableGracefulShutdown: true,
-		ParserProvider:          parserProvider(*parser),
+		ConfigMapProvider:       newMapProvider(cfg),
 		LoggingOptions:          options,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	// HACK: ensure flags are not-nil
-	// TODO: fix this upstream.
-	_ = service.NewCommand(col)
 	return &Pipeline{col}, nil
 }
 

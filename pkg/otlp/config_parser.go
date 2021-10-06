@@ -10,9 +10,26 @@ import (
 	"fmt"
 	"strings"
 
-	"go.opentelemetry.io/collector/config/configparser"
+	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/service/parserprovider"
 )
+
+// buildKey creates a key for use in the config.Map.Set function.
+func buildKey(keys ...string) string {
+	return strings.Join(keys, config.KeyDelimiter)
+}
+
+var _ parserprovider.MapProvider = (*mapProvider)(nil)
+
+type mapProvider config.Map
+
+func (p mapProvider) Get(context.Context) (*config.Map, error) {
+	return (*config.Map)(&p), nil
+}
+
+func (p mapProvider) Close(context.Context) error {
+	return nil
+}
 
 // defaultTracesConfig is the base traces OTLP pipeline configuration.
 // This pipeline is extended through the datadog.yaml configuration values.
@@ -34,6 +51,15 @@ service:
       exporters: [otlp]
 `
 
+func newTracesMapProvider(tracePort uint) parserprovider.MapProvider {
+	configMap := config.NewMap()
+	configMap.Set(buildKey("exporters", "otlp", "endpoint"), fmt.Sprintf("%s:%d", "localhost", tracePort))
+	return parserprovider.NewMergeMapProvider(
+		parserprovider.NewInMemoryMapProvider(strings.NewReader(defaultTracesConfig)),
+		mapProvider(*configMap),
+	)
+}
+
 // defaultMetricsConfig is the metrics OTLP pipeline configuration.
 // TODO (AP-1254): Set service-level configuration when available.
 const defaultMetricsConfig string = `
@@ -54,45 +80,12 @@ service:
       exporters: [serializer]
 `
 
-// buildKey creates a key for use in the ConfigMap.Set function.
-func buildKey(keys ...string) string {
-	return strings.Join(keys, configparser.KeyDelimiter)
+func newMetricsMapProvider() parserprovider.MapProvider {
+	return parserprovider.NewInMemoryMapProvider(strings.NewReader(defaultMetricsConfig))
 }
 
-// newMap creates a configparser.ConfigMap with the fixed configuration.
-// TODO (AP-1254): Refactor with MergeProvider when available.
-func newMap(cfg PipelineConfig) (*configparser.ConfigMap, error) {
-	configMap := configparser.NewConfigMap()
-
-	if cfg.TracesEnabled {
-		tracesMap, err := configparser.NewConfigMapFromBuffer(strings.NewReader(defaultTracesConfig))
-		if err != nil {
-			return nil, err
-		}
-
-		err = configMap.MergeStringMap(tracesMap.ToStringMap())
-		if err != nil {
-			return nil, fmt.Errorf("failed to merge traces map: %w", err)
-		}
-
-		configMap.Set(
-			buildKey("exporters", "otlp", "endpoint"),
-			fmt.Sprintf("%s:%d", "localhost", cfg.TracePort),
-		)
-	}
-
-	if cfg.MetricsEnabled {
-		metricsMap, err := configparser.NewConfigMapFromBuffer(strings.NewReader(defaultMetricsConfig))
-		if err != nil {
-			return nil, err
-		}
-
-		err = configMap.MergeStringMap(metricsMap.ToStringMap())
-		if err != nil {
-			return nil, fmt.Errorf("failed to merge metrics map: %w", err)
-		}
-	}
-
+func newReceiverProvider(cfg PipelineConfig) parserprovider.MapProvider {
+	configMap := config.NewMap()
 	if cfg.GRPCPort > 0 {
 		configMap.Set(
 			buildKey("receivers", "otlp", "protocols", "grpc", "endpoint"),
@@ -107,18 +100,18 @@ func newMap(cfg PipelineConfig) (*configparser.ConfigMap, error) {
 		)
 	}
 
-	return configMap, nil
+	return mapProvider(*configMap)
 }
 
-// TODO(AP-1254): Use a  InMemory provider instead of this.
-var _ parserprovider.ParserProvider = (*parserProvider)(nil)
-
-type parserProvider configparser.ConfigMap
-
-func (p parserProvider) Get(context.Context) (*configparser.ConfigMap, error) {
-	return (*configparser.ConfigMap)(&p), nil
-}
-
-func (p parserProvider) Close(context.Context) error {
-	return nil
+// newMapProvider creates a parserprovider.MapProvider with the fixed configuration.
+func newMapProvider(cfg PipelineConfig) parserprovider.MapProvider {
+	var providers []parserprovider.MapProvider
+	if cfg.TracesEnabled {
+		providers = append(providers, newTracesMapProvider(cfg.TracePort))
+	}
+	if cfg.MetricsEnabled {
+		providers = append(providers, newMetricsMapProvider())
+	}
+	providers = append(providers, newReceiverProvider(cfg))
+	return parserprovider.NewMergeMapProvider(providers...)
 }

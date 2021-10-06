@@ -159,7 +159,7 @@ require (
 	github.com/prometheus/client_golang v1.11.0
 	github.com/richardartoul/molecule v0.0.0-20210914193524-25d8911bb85b
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
-	github.com/shirou/gopsutil v3.21.8+incompatible
+	github.com/shirou/gopsutil v3.21.9+incompatible
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
 	github.com/shuLhan/go-bindata v4.0.0+incompatible
 	github.com/spf13/afero v1.6.0
@@ -181,10 +181,10 @@ require (
 	github.com/xeipuuv/gojsonschema v0.0.0-20180618132009-1d523034197f
 	go.etcd.io/bbolt v1.3.6
 	go.etcd.io/etcd/client/v2 v2.305.0
-	go.opentelemetry.io/collector v0.36.0
-	go.opentelemetry.io/collector/model v0.36.0
+	go.opentelemetry.io/collector v0.37.0
+	go.opentelemetry.io/collector/model v0.37.0
 	go.uber.org/automaxprocs v1.4.0
-	go.uber.org/multierr v1.6.0
+	go.uber.org/multierr v1.7.0
 	go.uber.org/zap v1.19.1
 	go4.org/intern v0.0.0-20210108033219-3eb7198706b2
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
@@ -196,7 +196,7 @@ require (
 	golang.org/x/tools v0.1.5
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/genproto v0.0.0-20210604141403-392c879c8b08
-	google.golang.org/grpc v1.40.0
+	google.golang.org/grpc v1.41.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.33.0
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
