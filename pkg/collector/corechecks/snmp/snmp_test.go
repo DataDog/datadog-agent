@@ -402,9 +402,9 @@ profiles:
 	packet := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
 			{
-				Name:  "1.3.6.1.2.1.1.5.0",
-				Type:  gosnmp.OctetString,
-				Value: []byte("foo_sys_name"),
+				Name:  "1.2.3.4.5",
+				Type:  gosnmp.ObjectIdentifier,
+				Value: "1.2.3.4",
 			},
 			{
 				Name:  "1.3.6.1.2.1.1.1.0",
@@ -417,14 +417,24 @@ profiles:
 				Value: "1.2.3.4",
 			},
 			{
+				Name:  "1.3.6.1.2.1.1.3.0",
+				Type:  gosnmp.TimeTicks,
+				Value: 20,
+			},
+			{
+				Name:  "1.3.6.1.2.1.1.5.0",
+				Type:  gosnmp.OctetString,
+				Value: []byte("foo_sys_name"),
+			},
+			{
 				Name:  "1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
 				Type:  gosnmp.Integer,
 				Value: 30,
 			},
 			{
-				Name:  "1.3.6.1.2.1.1.3.0",
-				Type:  gosnmp.TimeTicks,
-				Value: 20,
+				Name:  "1.3.6.1.4.1.3375.2.1.1.2.1.44.999",
+				Type:  gosnmp.Integer,
+				Value: 40,
 			},
 		},
 	}
@@ -556,13 +566,13 @@ profiles:
 
 	sess.On("GetNext", []string{"1.3"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{
-		"1.3.6.1.2.1.1.5.0",
+		"1.2.3.4.5",
 		"1.3.6.1.2.1.1.1.0",
 		"1.3.6.1.2.1.1.2.0",
+		"1.3.6.1.2.1.1.3.0",
+		"1.3.6.1.2.1.1.5.0",
 		"1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
 		"1.3.6.1.4.1.3375.2.1.1.2.1.44.999",
-		"1.2.3.4.5",
-		"1.3.6.1.2.1.1.3.0",
 	}).Return(&packet, nil)
 	sess.On("GetBulk", []string{
 		"1.3.6.1.2.1.2.2.1.13",
@@ -869,7 +879,7 @@ func TestCheck_Run(t *testing.T) {
 			sysObjectIDPacket:     sysObjectIDPacketOkMock,
 			valuesPacket:          valuesPacketErrMock,
 			valuesError:           fmt.Errorf("no value"),
-			expectedErr:           "failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.3.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.999 1.2.3.4.5 1.3.6.1.2.1.1.5.0]`: no value",
+			expectedErr:           "failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.2.3.4.5 1.3.6.1.2.1.1.3.0 1.3.6.1.2.1.1.5.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.999]`: no value",
 		},
 		{
 			name:                  "failed to fetch sysobjectid and failed to fetch values",
@@ -918,7 +928,7 @@ community_string: public
 
 			sess.On("GetNext", []string{"1.3"}).Return(&tt.reachableValuesPacket, tt.reachableGetNextError)
 			sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&tt.sysObjectIDPacket, tt.sysObjectIDError)
-			sess.On("Get", []string{"1.3.6.1.2.1.1.3.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", "1.2.3.4.5", "1.3.6.1.2.1.1.5.0"}).Return(&tt.valuesPacket, tt.valuesError)
+			sess.On("Get", []string{"1.2.3.4.5", "1.3.6.1.2.1.1.3.0", "1.3.6.1.2.1.1.5.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", "1.3.6.1.4.1.3375.2.1.1.2.1.44.999"}).Return(&tt.valuesPacket, tt.valuesError)
 			sess.On("Get", []string{"1.3.6.1.2.1.1.3.0"}).Return(&tt.valuesPacket, tt.valuesError)
 
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -1156,10 +1166,10 @@ tags:
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(sysObjectIDPacket, fmt.Errorf("no value"))
 
 	sess.On("Get", []string{
-		"1.3.6.1.2.1.1.5.0",
 		"1.3.6.1.2.1.1.1.0",
 		"1.3.6.1.2.1.1.2.0",
 		"1.3.6.1.2.1.1.3.0",
+		"1.3.6.1.2.1.1.5.0",
 	}).Return(&packet, nil)
 	sess.On("GetBulk", []string{
 		//"1.3.6.1.2.1.2.2.1.13",
@@ -1281,13 +1291,13 @@ tags:
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(nilPacket, fmt.Errorf("no value"))
 
 	sess.On("Get", []string{
-		"1.3.6.1.2.1.1.5.0",
 		"1.3.6.1.2.1.1.1.0",
 		"1.3.6.1.2.1.1.2.0",
 		"1.3.6.1.2.1.1.3.0",
+		"1.3.6.1.2.1.1.5.0",
 	}).Return(nilPacket, fmt.Errorf("device failure"))
 
-	expectedErrMsg := "check device reachable: failed: no value for GetNext; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.5.0 1.3.6.1.2.1.1.1.0 1.3.6.1.2.1.1.2.0 1.3.6.1.2.1.1.3.0]`: device failure"
+	expectedErrMsg := "check device reachable: failed: no value for GetNext; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.1.0 1.3.6.1.2.1.1.2.0 1.3.6.1.2.1.1.3.0 1.3.6.1.2.1.1.5.0]`: device failure"
 
 	err = chk.Run()
 	assert.EqualError(t, err, expectedErrMsg)
