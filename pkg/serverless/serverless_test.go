@@ -6,12 +6,14 @@
 package serverless
 
 import (
+	"fmt"
 	"os"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
+	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -32,6 +34,7 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 	os.Setenv("DD_EXTRA_TAGS", "a3:valueA3 a4:valueA4")
 
 	callInvocationHandler(d, "arn:aws:lambda:us-east-1:123456789012:function:my-function", deadlineMs, 0, "myRequestID", handleInvocation)
+	architecture := fmt.Sprintf("architecture:%s", tags.ResolveRuntimeArch())
 
 	expectedTagArray := []string{
 		"a1:valuea1",
@@ -40,6 +43,7 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 		"a4:valuea4",
 		"a_maj:valueamaj",
 		"account_id:123456789012",
+		architecture,
 		"aws_account:123456789012",
 		"dd_extension_version:xxx",
 		"function_arn:arn:aws:lambda:us-east-1:123456789012:function:my-function",
@@ -56,7 +60,7 @@ func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 
 func TestComputeTimeout(t *testing.T) {
 	fakeCurrentTime := time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC)
-	// add 10ms
+	// add 10m
 	fakeDeadLineInMs := fakeCurrentTime.UnixNano()/int64(time.Millisecond) + 10
 	safetyBuffer := 3 * time.Millisecond
 	assert.Equal(t, 7*time.Millisecond, computeTimeout(fakeCurrentTime, fakeDeadLineInMs, safetyBuffer))
