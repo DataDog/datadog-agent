@@ -62,7 +62,6 @@ func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurr
 		senderInUseTimeMs: expvar.Float{},
 	}
 
-	// batchStrategyExpVars.Add(fmt.Sprintf("%s_%d", pipelineName, pipelineID), 0)
 }
 
 func (s *batchStrategy) Flush(ctx context.Context) {
