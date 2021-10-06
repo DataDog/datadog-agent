@@ -8,12 +8,9 @@
 package tags
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"strings"
-
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -139,19 +136,4 @@ func addTag(tagMap map[string]string, tag string) map[string]string {
 		tagMap[strings.ToLower(extract[0])] = strings.ToLower(extract[1])
 	}
 	return tagMap
-}
-
-// ResolveRuntimeArch determines the architecture of the lambda at runtime
-func ResolveRuntimeArch() string {
-	var uname unix.Utsname
-	if err := unix.Uname(&uname); err != nil {
-		return "amd64"
-	}
-
-	switch string(uname.Machine[:bytes.IndexByte(uname.Machine[:], 0)]) {
-	case "aarch64":
-		return "arm64"
-	default:
-		return "x86_64"
-	}
 }
