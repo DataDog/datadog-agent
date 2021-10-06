@@ -155,7 +155,7 @@ deps_deb:
 deps_rpm:
   stage: prepare
   interruptible: true
-  image: artifactory.stackstate.io/docker-virtual/stackstate/stackstate-agent-runner-gitlab:centos6_202110011753_v7
+  image: artifactory.stackstate.io/docker-virtual/stackstate/stackstate-agent-runner-gitlab:centos7_20211004_v7_0
   cache:
     key: "deps-rpm-$STS_VER-$CI_COMMIT_REF_SLUG"
     paths:
@@ -406,7 +406,7 @@ build_deb:
 build_rpm:
   stage: build
   interruptible: true
-  image: artifactory.stackstate.io/docker-virtual/stackstate/stackstate-agent-runner-gitlab:centos6_202110011753_v7
+  image: artifactory.stackstate.io/docker-virtual/stackstate/stackstate-agent-runner-gitlab:centos7_20211004_v7_0
   needs:
     - deps_rpm
   tags:
