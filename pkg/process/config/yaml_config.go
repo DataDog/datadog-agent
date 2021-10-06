@@ -301,15 +301,6 @@ func (a *AgentConfig) setCheckInterval(ns, check, checkKey string) {
 func (a *AgentConfig) initProcessDiscoveryCheck() {
 	root := key(ns, "process_discovery")
 
-	// We don't need to check if the key exists since we already bound it to a default in InitConfig.
-	// We use a minimum of 10 minutes for this value.
-	discoveryInterval := config.Datadog.GetDuration(key(root, "interval"))
-	if discoveryInterval < discoveryMinInterval {
-		discoveryInterval = discoveryMinInterval
-		_ = log.Warnf("Invalid interval for process discovery (<= %s) using default value of %[1]s", discoveryMinInterval.String())
-	}
-	a.CheckIntervals[DiscoveryCheckName] = discoveryInterval
-
 	// Discovery check should be only enabled when process_config.process_discovery.enabled = true and
 	// process_config.enabled is set to "false". This effectively makes sure the check only runs when the process check is
 	// disabled, while also respecting the users wishes when they want to disable either the check or the process agent completely.
@@ -317,5 +308,14 @@ func (a *AgentConfig) initProcessDiscoveryCheck() {
 	checkEnabled := config.Datadog.GetBool(key(root, "enabled"))
 	if checkEnabled && processAgentEnabled == "false" {
 		a.EnabledChecks = append(a.EnabledChecks, DiscoveryCheckName)
+
+		// We don't need to check if the key exists since we already bound it to a default in InitConfig.
+		// We use a minimum of 10 minutes for this value.
+		discoveryInterval := config.Datadog.GetDuration(key(root, "interval"))
+		if discoveryInterval < discoveryMinInterval {
+			discoveryInterval = discoveryMinInterval
+			_ = log.Warnf("Invalid interval for process discovery (<= %s) using default value of %[1]s", discoveryMinInterval.String())
+		}
+		a.CheckIntervals[DiscoveryCheckName] = discoveryInterval
 	}
 }
