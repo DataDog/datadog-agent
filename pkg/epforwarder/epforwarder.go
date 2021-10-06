@@ -61,7 +61,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	{
 		eventType:                     EventTypeNetworkDevicesMetadata,
 		endpointsConfigPrefix:         "network_devices.metadata.",
-		hostnameEndpointPrefix:        "network-devices.",
+		hostnameEndpointPrefix:        "ndm-intake.",
+		intakeTrackType:               "ndm",
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
