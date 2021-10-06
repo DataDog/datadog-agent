@@ -67,7 +67,7 @@ func TestBuildSNMPParams(t *testing.T) {
 func TestNewListenerConfig(t *testing.T) {
 	config.Datadog.SetConfigType("yaml")
 
-	// default collect_device_metadata should be true
+	// test default collect_device_metadata
 	err := config.Datadog.ReadConfig(strings.NewReader(`
 snmp_listener:
   configs:
@@ -83,7 +83,7 @@ snmp_listener:
 	assert.NoError(t, err)
 
 	assert.Equal(t, "127.0.0.1/30", conf.Configs[0].Network)
-	assert.Equal(t, true, conf.Configs[0].CollectDeviceMetadata)
+	assert.Equal(t, false, conf.Configs[0].CollectDeviceMetadata)
 	assert.Equal(t, "127.0.0.2/30", conf.Configs[1].Network)
 	assert.Equal(t, true, conf.Configs[1].CollectDeviceMetadata)
 	assert.Equal(t, "127.0.0.3/30", conf.Configs[2].Network)

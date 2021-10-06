@@ -101,7 +101,7 @@ func NewListenerConfig() (ListenerConfig, error) {
 		},
 	)
 	// Set defaults before unmarshalling
-	snmpConfig.CollectDeviceMetadata = true
+	snmpConfig.CollectDeviceMetadata = false
 	if err := coreconfig.Datadog.UnmarshalKey("snmp_listener", &snmpConfig, opt); err != nil {
 		return snmpConfig, err
 	}
