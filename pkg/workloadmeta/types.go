@@ -32,7 +32,8 @@ const (
 	KindKubernetesPod Kind = "kubernetes_pod"
 	KindECSTask       Kind = "ecs_task"
 
-	ContainerRuntimeDocker ContainerRuntime = "docker"
+	ContainerRuntimeDocker     ContainerRuntime = "docker"
+	ContainerRuntimeContainerd ContainerRuntime = "containerd"
 
 	ECSLaunchTypeEC2      ECSLaunchType = "ec2"
 	ECSLaunchTypeFargate  ECSLaunchType = "fargate"
