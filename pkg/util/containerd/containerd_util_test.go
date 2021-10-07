@@ -87,6 +87,24 @@ func TestInfo(t *testing.T) {
 	require.Equal(t, "foo", c.Image)
 }
 
+func TestImage(t *testing.T) {
+	mockUtil := ContainerdUtil{}
+
+	image := &mockImage{
+		size: 5,
+	}
+
+	container := &mockContainer{
+		mockImage: func() (containerd.Image, error) {
+			return image, nil
+		},
+	}
+
+	resultImage, err := mockUtil.Image(container)
+	require.NoError(t, err)
+	require.Equal(t, resultImage, image)
+}
+
 func TestImageSize(t *testing.T) {
 	mockUtil := ContainerdUtil{}
 

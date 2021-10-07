@@ -45,6 +45,7 @@ type ContainerdItf interface {
 	Info(ctn containerd.Container) (containers.Container, error)
 	Labels(ctn containerd.Container) (map[string]string, error)
 	LabelsWithContext(ctx context.Context, ctn containerd.Container) (map[string]string, error)
+	Image(ctn containerd.Container) (containerd.Image, error)
 	ImageSize(ctn containerd.Container) (int64, error)
 	Spec(ctn containerd.Container) (*oci.Spec, error)
 	SpecWithContext(ctx context.Context, ctn containerd.Container) (*oci.Spec, error)
@@ -167,6 +168,15 @@ func (c *ContainerdUtil) Containers() ([]containerd.Container, error) {
 	defer cancel()
 	ctxNamespace := namespaces.WithNamespace(ctx, c.namespace)
 	return c.cl.Containers(ctxNamespace)
+}
+
+// Image interfaces with the containerd api to get an image
+func (c *ContainerdUtil) Image(ctn containerd.Container) (containerd.Image, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
+	defer cancel()
+	ctxNamespace := namespaces.WithNamespace(ctx, c.namespace)
+
+	return ctn.Image(ctxNamespace)
 }
 
 // ImageSize interfaces with the containerd api to get the size of an image
