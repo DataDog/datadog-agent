@@ -6,4 +6,4 @@ set -e
 # This product includes software developed at Datadog (https://www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 
-/opt/datadog-agent/bin/agent/agent secret-helper read --with-provider-prefixes
+/opt/datadog-agent/bin/datadog-cluster-agent secret-helper read --with-provider-prefixes
