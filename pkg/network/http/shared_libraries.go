@@ -48,12 +48,15 @@ type soRule struct {
 
 // soWatcher provides a way to tie callback functions to the lifecycle of shared libraries
 type soWatcher struct {
-	procRoot     string
-	pathResolver *psfilepath.Resolver
-	all          *regexp.Regexp
-	rules        []soRule
-	registered   map[string]func(string) error
-	loadEvents   *ddebpf.PerfHandler
+	procRoot   string
+	all        *regexp.Regexp
+	rules      []soRule
+	registered map[string]func(string) error
+	loadEvents *ddebpf.PerfHandler
+}
+
+type seenKey struct {
+	pid, path string
 }
 
 func newSOWatcher(procRoot string, perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
@@ -64,16 +67,16 @@ func newSOWatcher(procRoot string, perfHandler *ddebpf.PerfHandler, rules ...soR
 
 	all := regexp.MustCompile(fmt.Sprintf("(%s)", strings.Join(allFilters, "|")))
 	return &soWatcher{
-		procRoot:     procRoot,
-		pathResolver: psfilepath.NewResolver(procRoot),
-		all:          all,
-		rules:        rules,
-		loadEvents:   perfHandler,
+		procRoot:   procRoot,
+		all:        all,
+		rules:      rules,
+		loadEvents: perfHandler,
 	}
 }
 
 // Start consuming shared-library events
 func (w *soWatcher) Start() {
+	seen := make(map[seenKey]struct{})
 	sharedLibraries := getSharedLibraries(w.procRoot, w.all)
 	w.sync(sharedLibraries)
 	go func() {
@@ -84,6 +87,7 @@ func (w *soWatcher) Start() {
 		for {
 			select {
 			case <-ticker.C:
+				seen = make(map[seenKey]struct{})
 				sharedLibraries := getSharedLibraries(w.procRoot, w.all)
 				w.sync(sharedLibraries)
 			case event, ok := <-w.loadEvents.DataChannel:
@@ -103,12 +107,20 @@ func (w *soWatcher) Start() {
 				for _, r := range w.rules {
 					if r.re.Match(path) {
 						var (
-							libPath  = string(path)
-							pidPath  = fmt.Sprintf("%s/%d", w.procRoot, lib.pid)
-							hostPath = w.pathResolver.LoadPIDMounts(pidPath).Resolve(libPath)
+							libPath = string(path)
+							pidPath = fmt.Sprintf("%s/%d", w.procRoot, lib.pid)
 						)
 
-						if hostPath != "" {
+						// resolving paths is expensive so we cache the libraries we already seen
+						k := seenKey{pidPath, libPath}
+						if _, ok := seen[k]; ok {
+							break
+						}
+						seen[k] = struct{}{}
+
+						pathResolver := psfilepath.NewResolver(w.procRoot)
+						pathResolver.LoadPIDMounts(pidPath)
+						if hostPath := pathResolver.Resolve(libPath); hostPath != "" {
 							libPath = hostPath
 						}
 
