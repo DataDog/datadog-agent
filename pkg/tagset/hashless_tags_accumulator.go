@@ -7,54 +7,54 @@ package tagset
 
 import "github.com/DataDog/datadog-agent/pkg/util"
 
-// TagsBuilder allows to build a slice of tags, in a context where the hashes for
+// HashlessTagsAccumulator allows to build a slice of tags, in a context where the hashes for
 // those tags are not useful.
 //
 // This type implements TagAccumulator.
-type TagsBuilder struct {
+type HashlessTagsAccumulator struct {
 	data []string
 }
 
-// NewTagsBuilder returns a new empty TagsBuilder.
-func NewTagsBuilder() *TagsBuilder {
-	return &TagsBuilder{
+// NewHashlessTagsAccumulator returns a new empty HashlessTagsAccumulator.
+func NewHashlessTagsAccumulator() *HashlessTagsAccumulator {
+	return &HashlessTagsAccumulator{
 		// Slice will grow as more tags are added to it. 128 tags
 		// should be enough for most metrics.
 		data: make([]string, 0, 128),
 	}
 }
 
-// NewTagsBuilderFromSlice return a new TagsBuilder with the input slice for
-// it's internal buffer.
-func NewTagsBuilderFromSlice(data []string) *TagsBuilder {
-	return &TagsBuilder{
+// NewHashlessTagsAccumulatorFromSlice return a new HashlessTagsAccumulator with the
+// input slice for it's internal buffer.
+func NewHashlessTagsAccumulatorFromSlice(data []string) *HashlessTagsAccumulator {
+	return &HashlessTagsAccumulator{
 		data: data,
 	}
 }
 
 // Append appends tags to the builder
-func (tb *TagsBuilder) Append(tags ...string) {
+func (tb *HashlessTagsAccumulator) Append(tags ...string) {
 	tb.data = append(tb.data, tags...)
 }
 
 // AppendHashed appends tags and corresponding hashes to the builder
-func (tb *TagsBuilder) AppendHashed(src HashedTags) {
+func (tb *HashlessTagsAccumulator) AppendHashed(src HashedTags) {
 	tb.data = append(tb.data, src.data...)
 }
 
 // Get returns the internal slice
-func (tb *TagsBuilder) Get() []string {
+func (tb *HashlessTagsAccumulator) Get() []string {
 	return tb.data
 }
 
 // SortUniq sorts and remove duplicate in place
-func (tb *TagsBuilder) SortUniq() {
+func (tb *HashlessTagsAccumulator) SortUniq() {
 	tb.data = util.SortUniqInPlace(tb.data)
 }
 
 // Reset resets the size of the builder to 0 without discaring the internal
 // buffer
-func (tb *TagsBuilder) Reset() {
+func (tb *HashlessTagsAccumulator) Reset() {
 	// we keep the internal buffer but reset size
 	tb.data = tb.data[0:0]
 }

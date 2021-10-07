@@ -7,7 +7,7 @@ package tagset
 
 import "github.com/twmb/murmur3"
 
-// hashedTags is the base type for HashingTagsBuilder and HashedTags
+// hashedTags is the base type for HashingTagsAccumulator and HashedTags
 type hashedTags struct {
 	data []string
 	hash []uint64

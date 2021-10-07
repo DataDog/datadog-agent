@@ -11,21 +11,21 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewTagsBuilder(t *testing.T) {
-	tb := NewTagsBuilder()
+func TestNewHashlessTagsAccumulator(t *testing.T) {
+	tb := NewHashlessTagsAccumulator()
 	assert.NotNil(t, tb)
 	assert.Equal(t, []string{}, tb.data)
 }
 
-func TestNewTagsBuilderFromSlice(t *testing.T) {
+func TestNewHashlessTagsAccumulatorFromSlice(t *testing.T) {
 	test := []string{"a", "b", "c"}
-	tb := NewTagsBuilderFromSlice(test)
+	tb := NewHashlessTagsAccumulatorFromSlice(test)
 	assert.NotNil(t, tb)
 	assert.Equal(t, test, tb.data)
 }
 
-func TestTagsBuilderAppend(t *testing.T) {
-	tb := NewTagsBuilder()
+func TestHashlessTagsAccumulatorAppend(t *testing.T) {
+	tb := NewHashlessTagsAccumulator()
 
 	tb.Append("a", "b", "c")
 	assert.Equal(t, []string{"a", "b", "c"}, tb.data)
@@ -34,8 +34,8 @@ func TestTagsBuilderAppend(t *testing.T) {
 	assert.Equal(t, []string{"a", "b", "c", "d"}, tb.data)
 }
 
-func TestTagsBuilderReset(t *testing.T) {
-	tb := NewTagsBuilder()
+func TestHashlessTagsAccumulatorReset(t *testing.T) {
+	tb := NewHashlessTagsAccumulator()
 
 	tb.Append("a", "b", "c")
 	assert.Equal(t, []string{"a", "b", "c"}, tb.data)
@@ -44,8 +44,8 @@ func TestTagsBuilderReset(t *testing.T) {
 	assert.Equal(t, []string{}, tb.data)
 }
 
-func TestTagsBuilderGet(t *testing.T) {
-	tb := NewTagsBuilder()
+func TestHashlessTagsAccumulatorGet(t *testing.T) {
+	tb := NewHashlessTagsAccumulator()
 
 	tb.Append("a", "b", "c")
 	internalData := tb.Get()

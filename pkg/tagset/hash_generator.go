@@ -46,7 +46,7 @@ func NewHashGenerator() *HashGenerator {
 
 // Hash calculates the cumulative XOR of all unique tags in the builder.  As a side-effect,
 // it sorts and deduplicates the hashes contained in the builder.
-func (g *HashGenerator) Hash(tb *HashingTagsBuilder) uint64 {
+func (g *HashGenerator) Hash(tb *HashingTagsAccumulator) uint64 {
 	var hash uint64
 
 	// This implementation has been designed to remove all heap

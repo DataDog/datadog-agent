@@ -26,7 +26,7 @@ type contextResolver struct {
 	keyGenerator  *ckey.KeyGenerator
 	// buffer slice allocated once per contextResolver to combine and sort
 	// tags, origin detection tags and k8s tags.
-	tagsBuffer *tagset.HashingTagsBuilder
+	tagsBuffer *tagset.HashingTagsAccumulator
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
@@ -38,7 +38,7 @@ func newContextResolver() *contextResolver {
 	return &contextResolver{
 		contextsByKey: make(map[ckey.ContextKey]*Context),
 		keyGenerator:  ckey.NewKeyGenerator(),
-		tagsBuffer:    tagset.NewHashingTagsBuilder(),
+		tagsBuffer:    tagset.NewHashingTagsAccumulator(),
 	}
 }
 

@@ -10,7 +10,7 @@
 //
 // ## Builders
 //
-// TagsBuilder and HashingTagsBuilder both allow building tagsets bit-by-bit, by
+// TagsBuilder and HashingTagsAccumulator both allow building tagsets bit-by-bit, by
 // appending new tags.
 //
 // ## HashedTags

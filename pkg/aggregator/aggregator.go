@@ -425,7 +425,7 @@ func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
 	if sc.Ts == 0 {
 		sc.Ts = time.Now().Unix()
 	}
-	tb := tagset.NewTagsBuilderFromSlice(sc.Tags)
+	tb := tagset.NewHashlessTagsAccumulatorFromSlice(sc.Tags)
 	tagger.EnrichTags(tb, sc.OriginID, sc.K8sOriginID, sc.Cardinality)
 
 	tb.SortUniq()
@@ -439,7 +439,7 @@ func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 	if e.Ts == 0 {
 		e.Ts = time.Now().Unix()
 	}
-	tb := tagset.NewTagsBuilderFromSlice(e.Tags)
+	tb := tagset.NewHashlessTagsAccumulatorFromSlice(e.Tags)
 	tagger.EnrichTags(tb, e.OriginID, e.K8sOriginID, e.Cardinality)
 
 	tb.SortUniq()

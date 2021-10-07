@@ -21,7 +21,7 @@ func TestIsZero(t *testing.T) {
 func TestGenerateReproductible(t *testing.T) {
 	name := "metric.name"
 	hostname := "hostname"
-	tags := tagset.NewHashingTagsBuilderWithTags([]string{"bar", "foo", "key:value", "key:value2"})
+	tags := tagset.NewHashingTagsAccumulatorWithTags([]string{"bar", "foo", "key:value", "key:value2"})
 
 	generator := NewKeyGenerator()
 
@@ -72,7 +72,7 @@ func BenchmarkKeyGeneration(b *testing.B) {
 	host := "myhost"
 	for i := 1; i < 4096; i *= 2 {
 		tags, _ := genTags(i, 1)
-		tagsBuf := tagset.NewHashingTagsBuilderWithTags(tags)
+		tagsBuf := tagset.NewHashingTagsAccumulatorWithTags(tags)
 		b.Run(fmt.Sprintf("%d-tags", i), func(b *testing.B) {
 			generator := NewKeyGenerator()
 			tags := tagsBuf.Dup()

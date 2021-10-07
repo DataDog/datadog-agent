@@ -63,7 +63,7 @@ func (m MetricType) String() string {
 type MetricSampleContext interface {
 	GetName() string
 	GetHost() string
-	GetTags(*tagset.HashingTagsBuilder)
+	GetTags(*tagset.HashingTagsAccumulator)
 }
 
 // MetricSample represents a raw metric sample
@@ -95,7 +95,7 @@ func (m *MetricSample) GetHost() string {
 }
 
 // GetTags returns the metric sample tags
-func (m *MetricSample) GetTags(tb *tagset.HashingTagsBuilder) {
+func (m *MetricSample) GetTags(tb *tagset.HashingTagsAccumulator) {
 	tb.Append(m.Tags...)
 	tagger.EnrichTags(tb, m.OriginID, m.K8sOriginID, m.Cardinality)
 }

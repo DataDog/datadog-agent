@@ -66,7 +66,7 @@ func TestEnrichTagsOrchestrator(t *testing.T) {
 	SetDefaultTagger(fakeTagger)
 	fakeTagger.SetTags("foo", "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
 
-	tb := tagset.NewHashingTagsBuilder()
+	tb := tagset.NewHashingTagsAccumulator()
 	EnrichTags(tb, "foo", "", "orchestrator")
 	assert.Equal(t, []string{"lowTag", "orchTag"}, tb.Get())
 }

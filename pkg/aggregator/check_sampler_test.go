@@ -26,7 +26,7 @@ import (
 
 func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
 	k := ckey.NewKeyGenerator()
-	tb := tagset.NewHashingTagsBuilder()
+	tb := tagset.NewHashingTagsAccumulator()
 	sample.GetTags(tb)
 	return k.Generate(sample.GetName(), sample.GetHost(), tb)
 }

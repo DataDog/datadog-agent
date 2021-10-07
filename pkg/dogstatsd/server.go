@@ -141,7 +141,7 @@ type Server struct {
 	histToDistPrefix          string
 	extraTags                 []string
 	Debug                     *dsdServerDebug
-	debugTagsBuilder          *tagset.HashingTagsBuilder
+	debugTagsBuilder          *tagset.HashingTagsAccumulator
 	TCapture                  *replay.TrafficCapture
 	mapper                    *mapper.MetricMapper
 	eolTerminationUDP         bool
@@ -707,7 +707,7 @@ func (s *Server) storeMetricStats(sample metrics.MetricSample) {
 	defer s.Debug.Unlock()
 
 	if s.debugTagsBuilder == nil {
-		s.debugTagsBuilder = tagset.NewHashingTagsBuilder()
+		s.debugTagsBuilder = tagset.NewHashingTagsAccumulator()
 	}
 
 	// key

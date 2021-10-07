@@ -131,7 +131,7 @@ func TestTagBuilder(t *testing.T) {
 		},
 	})
 
-	tb := tagset.NewTagsBuilder()
+	tb := tagset.NewHashlessTagsAccumulator()
 	err := tagger.AccumulateTagsFor("entity_name", collectors.HighCardinality, tb)
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []string{"high", "low1", "low2"}, tb.Get())
