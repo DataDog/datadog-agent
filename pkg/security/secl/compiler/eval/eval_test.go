@@ -8,6 +8,7 @@ package eval
 import (
 	"container/list"
 	"fmt"
+	"os"
 	"runtime"
 	"strings"
 	"syscall"
@@ -24,6 +25,18 @@ func NewOptsWithParams(constants map[string]interface{}, legacyAttributes map[Fi
 		Constants:        constants,
 		Macros:           make(map[MacroID]*Macro),
 		LegacyAttributes: legacyAttributes,
+		Variables: map[string]VariableValue{
+			"pid": {
+				IntFnc: func(ctx *Context) int {
+					return os.Getpid()
+				},
+			},
+			"str": {
+				StringFnc: func(ctx *Context) string {
+					return "aaa"
+				},
+			},
+		},
 	}
 }
 
@@ -304,6 +317,36 @@ func TestRegexp(t *testing.T) {
 		{Expr: `process.name =~ r".*/[abc]+/bin/.*"`, Expected: false},
 		{Expr: `process.name == r".*/bin/.*"`, Expected: true},
 		{Expr: `r".*/bin/.*" == process.name`, Expected: true},
+	}
+
+	for _, test := range tests {
+		result, _, err := eval(t, event, test.Expr)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+
+		if result != test.Expected {
+			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, result, test.Expr)
+		}
+	}
+}
+
+func TestVariables(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{
+			name: fmt.Sprintf("/proc/%d/maps/aaa", os.Getpid()),
+			pid:  os.Getpid(),
+		},
+	}
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `process.name == "/proc/${pid}/maps/${str}"`, Expected: true},
+		{Expr: `process.name == "/proc/${pid}/maps/${str"`, Expected: false},
+		{Expr: `process.name == "/proc/${pid/maps/${str"`, Expected: false},
+		{Expr: `process.pid == ${pid}`, Expected: true},
 	}
 
 	for _, test := range tests {
