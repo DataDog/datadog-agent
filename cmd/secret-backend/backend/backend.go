@@ -6,11 +6,11 @@ import (
 	"io/ioutil"
 	"strings"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/rapdev-io/datadog-secret-backend/backend/aws"
 	"github.com/rapdev-io/datadog-secret-backend/backend/file"
 	"github.com/rapdev-io/datadog-secret-backend/secret"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type Backend interface {
@@ -32,14 +32,14 @@ func NewBackends(configFile *string) Backends {
 
 	configYAML, err := ioutil.ReadFile(*configFile)
 	if err != nil {
-		log.WithField("config_file", *configFile).
-			WithError(err).Fatal("failed to read configuration file")
+		log.Fatal().Err(err).Str("config_file", *configFile).
+			Msg("failed to read configuration file")
 	}
 
 	backendConfigs := &BackendConfigurations{}
 	if err := yaml.Unmarshal(configYAML, backendConfigs); err != nil {
-		log.WithField("config_file", *configFile).
-			WithError(err).Fatal("failed to unmarshal configuration yaml")
+		log.Fatal().Err(err).Str("config_file", *configFile).
+			Msg("failed to unmarshal configuration yaml")
 	}
 
 	for k, v := range backendConfigs.Configs {
@@ -55,9 +55,8 @@ func (b *Backends) InitBackend(backendId string, config map[string]interface{}) 
 	}
 
 	if _, ok := config["backend_type"].(string); !ok {
-		log.WithFields(log.Fields{
-			"backend_id": backendId,
-		}).Error("undefined secret backend type in configuration")
+		log.Error().Str("backend_id", backendId).
+			Msg("undefined secret backend type in configuration")
 
 		b.Backends[backendId] = &ErrorBackend{
 			BackendId: backendId,
@@ -96,10 +95,8 @@ func (b *Backends) InitBackend(backendId string, config map[string]interface{}) 
 			b.Backends[backendId] = backend
 		}
 	default:
-		log.WithFields(log.Fields{
-			"backend_id":   backendId,
-			"backend_type": backendType,
-		}).Error("unsupported backend type")
+		log.Error().Str("backend_id", backendId).Str("backend_type", backendType).
+			Msg("unsupported backend type")
 
 		b.Backends[backendId] = &ErrorBackend{
 			BackendId: backendId,
@@ -118,10 +115,8 @@ func (b *Backends) GetSecretOutputs(secrets []string) map[string]secret.SecretOu
 		secretKey := segments[1]
 
 		if _, ok := b.Backends[backendId]; !ok {
-			log.WithFields(log.Fields{
-				"backend_id": backendId,
-				"secret_key": secretKey,
-			}).Error("undefined backend")
+			log.Error().Str("backend_id", backendId).Str("secret_key", secretKey).
+				Msg("undefined backend")
 
 			b.Backends[backendId] = &ErrorBackend{
 				BackendId: backendId,

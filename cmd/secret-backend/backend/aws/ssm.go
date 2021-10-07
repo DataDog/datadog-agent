@@ -3,13 +3,12 @@ package aws
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/mitchellh/mapstructure"
-	"github.com/rapdev-io/datadog-secret-backend/secret"
+	"github.com/rs/zerolog/log"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/rapdev-io/datadog-secret-backend/secret"
 )
 
 type AwsSsmParameterStoreBackendConfig struct {
@@ -31,7 +30,8 @@ func NewAwsSsmParameterStoreBackend(backendId string, bc map[string]interface{})
 	backendConfig := AwsSsmParameterStoreBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		log.WithError(err).Error("failed to map backend configuration")
+		log.Error().Err(err).Str("backend_id", backendId).
+			Msg("failed to map backend configuration")
 		return nil, err
 	}
 
@@ -39,9 +39,8 @@ func NewAwsSsmParameterStoreBackend(backendId string, bc map[string]interface{})
 
 	cfg, err := NewAwsConfigFromBackendConfig(backendId, backendConfig.AwsSession)
 	if err != nil {
-		log.WithFields(log.Fields{
-			"backend_id": backendId,
-		}).WithError(err).Error("failed to initialize aws session")
+		log.Error().Err(err).Str("backend_id", backendId).
+			Msg("failed to initialize aws session")
 		return nil, err
 	}
 	client := ssm.NewFromConfig(*cfg)
@@ -58,14 +57,15 @@ func NewAwsSsmParameterStoreBackend(backendId string, bc map[string]interface{})
 		for pager.HasMorePages() {
 			out, err := pager.NextPage(context.TODO())
 			if err != nil {
-				log.WithFields(log.Fields{
-					"backend_id":        backendId,
-					"backend_type":      backendConfig.BackendType,
-					"parameter_path":    backendConfig.ParameterPath,
-					"aws_access_key_id": backendConfig.AwsSession.AwsAccessKeyId,
-					"aws_profile":       backendConfig.AwsSession.AwsProfile,
-					"aws_region":        backendConfig.AwsSession.AwsRegion,
-				}).WithError(err).Error("failed to retrieve parameters from path")
+				log.Error().Err(err).
+					Str("backend_id", backendId).
+					Str("backend_type", backendConfig.BackendType).
+					Str("parameter_path", backendConfig.ParameterPath).
+					Strs("parameters", backendConfig.Parameters).
+					Str("aws_access_key_id", backendConfig.AwsSession.AwsAccessKeyId).
+					Str("aws_profile", backendConfig.AwsSession.AwsProfile).
+					Str("aws_region", backendConfig.AwsSession.AwsRegion).
+					Msg("failed to retrieve parameters from path")
 				return nil, err
 			}
 
@@ -77,17 +77,20 @@ func NewAwsSsmParameterStoreBackend(backendId string, bc map[string]interface{})
 
 	// GetParameters
 	if len(backendConfig.Parameters) > 0 {
-		input := &ssm.GetParametersInput{Names: backendConfig.Parameters, WithDecryption: true}
+		input := &ssm.GetParametersInput{
+			Names: backendConfig.Parameters, 
+			WithDecryption: true,
+		}
 		out, err := client.GetParameters(context.TODO(), input)
 		if err != nil {
-			log.WithFields(log.Fields{
-				"backend_id":        backendId,
-				"backend_type":      backendConfig.BackendType,
-				"parameters":        strings.Join(backendConfig.Parameters, ","),
-				"aws_access_key_id": backendConfig.AwsSession.AwsAccessKeyId,
-				"aws_profile":       backendConfig.AwsSession.AwsProfile,
-				"aws_region":        backendConfig.AwsSession.AwsRegion,
-			}).WithError(err).Error("failed to retrieve parameters")
+			log.Error().Err(err).
+				Str("backend_id", backendId).
+				Str("backend_type", backendConfig.BackendType).
+				Strs("parameters", backendConfig.Parameters).
+				Str("aws_access_key_id", backendConfig.AwsSession.AwsAccessKeyId).
+				Str("aws_profile", backendConfig.AwsSession.AwsProfile).
+				Str("aws_region", backendConfig.AwsSession.AwsRegion).
+				Msg("failed to retrieve parameters")			
 			return nil, err
 		}
 
@@ -111,12 +114,12 @@ func (b *AwsSsmParameterStoreBackend) GetSecretOutput(secretKey string) secret.S
 	}
 	es := errors.New("backend does not provide secret key").Error()
 
-	log.WithFields(log.Fields{
-		"backend_id":     b.BackendId,
-		"backend_type":   b.Config.BackendType,
-		"parameters":     b.Config.Parameters,
-		"parameter_path": b.Config.ParameterPath,
-		"secret_key":     secretKey,
-	}).Error("backend does not provide secret key")
+	log.Error().
+		Str("backend_id", b.BackendId).
+		Str("backend_type", b.Config.BackendType).
+		Strs("parameters", b.Config.Parameters).
+		Str("parameter_path", b.Config.ParameterPath).
+		Str("secret_key", secretKey).
+		Msg("failed to retrieve parameters")	
 	return secret.SecretOutput{Value: nil, Error: &es}
 }
