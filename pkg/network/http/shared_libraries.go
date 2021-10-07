@@ -111,18 +111,22 @@ func (w *soWatcher) Start() {
 							pidPath = fmt.Sprintf("%s/%d", w.procRoot, lib.pid)
 						)
 
-						// resolving paths is expensive so we cache the libraries we already seen
+						// resolving paths is expensive so we cache the libraries we've already seen
 						k := seenKey{pidPath, libPath}
 						if _, ok := seen[k]; ok {
 							break
 						}
 						seen[k] = struct{}{}
 
+						// resolve namespaced path to host path
 						pathResolver := psfilepath.NewResolver(w.procRoot)
 						pathResolver.LoadPIDMounts(pidPath)
 						if hostPath := pathResolver.Resolve(libPath); hostPath != "" {
 							libPath = hostPath
 						}
+
+						// follow symlink
+						libPath = followSymlink(libPath)
 
 						if _, registered := w.registered[libPath]; registered {
 							break
@@ -188,12 +192,26 @@ func getSharedLibraries(procRoot string, filter *regexp.Regexp) []so.Library {
 	// TODO: should we ensure all entries are unique in the `so` package instead?
 	seen := make(map[string]struct{}, len(libraries))
 	i := 0
-	for j, lib := range libraries {
-		if _, ok := seen[lib.HostPath]; !ok {
-			libraries[i] = libraries[j]
-			seen[lib.HostPath] = struct{}{}
-			i++
+	for _, lib := range libraries {
+		_, ok := seen[lib.HostPath]
+		if ok {
+			continue
 		}
+		seen[lib.HostPath] = struct{}{}
+
+		// this ensures that all symlinks are resolved only once
+		resolved := followSymlink(lib.HostPath)
+		if resolved != lib.HostPath {
+			if _, ok := seen[resolved]; ok {
+				continue
+			} else {
+				seen[resolved] = struct{}{}
+				lib.HostPath = resolved
+			}
+		}
+
+		libraries[i] = lib
+		i++
 	}
 	libraries = libraries[0:i]
 
@@ -206,4 +224,12 @@ func getSharedLibraries(procRoot string, filter *regexp.Regexp) []so.Library {
 	}
 
 	return libraries
+}
+
+func followSymlink(path string) string {
+	if withoutSymLinks, err := filepath.EvalSymlinks(path); err == nil {
+		return withoutSymLinks
+	}
+
+	return path
 }
