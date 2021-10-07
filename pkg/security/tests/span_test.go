@@ -89,7 +89,11 @@ func TestSpan(t *testing.T) {
 	t.Run("exec", func(t *testing.T) {
 		syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 		if err != nil {
-			t.Fatal(err)
+			if _, ok := err.(ErrUnsupportedArch); ok {
+				t.Skip(err)
+			} else {
+				t.Fatal(err)
+			}
 		}
 
 		err = test.GetSignal(t, func() error {
