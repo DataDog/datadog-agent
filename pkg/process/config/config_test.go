@@ -390,9 +390,9 @@ func TestEnvSiteConfig(t *testing.T) {
 
 	newConfig()
 	err = os.Setenv("DD_PROCESS_AGENT_DISCOVERY_ENABLED", "true")
-	assert.NoError(err)
+	require.NoError(t, err)
 	agentConfig, err = NewAgentConfig("test", "./testdata/TestEnvSiteConfig-ProcessDiscovery.yaml", "")
-	assert.NoError(err)
+	require.NoError(t, err)
 	assert.Contains(agentConfig.EnabledChecks, "process_discovery")
 	os.Unsetenv("DD_PROCESS_AGENT_DISCOVERY_ENABLED")
 }
