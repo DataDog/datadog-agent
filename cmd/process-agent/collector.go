@@ -62,9 +62,10 @@ type Collector struct {
 	// Controls the real-time interval, can change live.
 	realTimeInterval time.Duration
 
-	processResults   *api.WeightedQueue
-	rtProcessResults *api.WeightedQueue
-	podResults       *api.WeightedQueue
+	processResults          *api.WeightedQueue
+	rtProcessResults        *api.WeightedQueue
+	podResults              *api.WeightedQueue
+	processDiscoveryResults *api.WeightedQueue
 }
 
 // NewCollector creates a new Collector
@@ -223,6 +224,7 @@ func (l *Collector) run(exit chan struct{}) error {
 	// reuse main queue's ProcessQueueBytes because it's unlikely that it'll reach to that size in bytes, so we don't need a separate config for it
 	l.rtProcessResults = api.NewWeightedQueue(l.cfg.RTQueueSize, int64(l.cfg.ProcessQueueBytes))
 	l.podResults = api.NewWeightedQueue(l.cfg.QueueSize, int64(l.cfg.Orchestrator.PodQueueBytes))
+	l.processDiscoveryResults = api.NewWeightedQueue(l.cfg.ProcessQueueBytes, int64(l.cfg.ProcessQueueBytes))
 
 	var wg sync.WaitGroup
 
@@ -248,14 +250,17 @@ func (l *Collector) run(exit chan struct{}) error {
 			case <-heartbeat.C:
 				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
 			case <-queueSizeTicker.C:
-				updateQueueBytes(l.processResults.Weight(), l.rtProcessResults.Weight(), l.podResults.Weight())
-				updateQueueSize(l.processResults.Len(), l.rtProcessResults.Len(), l.podResults.Len())
+				updateQueueBytes(l.processResults.Weight(), l.rtProcessResults.Weight(), l.podResults.Weight(), l.processDiscoveryResults.Weight())
+				updateQueueSize(l.processResults.Len(), l.rtProcessResults.Len(), l.podResults.Len(), l.processDiscoveryResults.Len())
 			case <-queueLogTicker.C:
-				processSize, rtProcessSize, podSize := l.processResults.Len(), l.rtProcessResults.Len(), l.podResults.Len()
+				processSize, rtProcessSize, podSize, processDiscoverySize := l.processResults.Len(), l.rtProcessResults.Len(), l.podResults.Len(), l.processDiscoveryResults.Len()
 				if processSize > 0 || rtProcessSize > 0 || podSize > 0 {
 					log.Infof(
-						"Delivery queues: process[size=%d, weight=%d], rtprocess [size=%d, weight=%d], pod[size=%d, weight=%d]",
-						processSize, l.processResults.Weight(), rtProcessSize, l.rtProcessResults.Weight(), podSize, l.podResults.Weight(),
+						"Delivery queues: process[size=%d, weight=%d], rtprocess [size=%d, weight=%d], pod[size=%d, weight=%d], process_discovery[size=%d, weight=%d]",
+						processSize, l.processResults.Weight(),
+						rtProcessSize, l.rtProcessResults.Weight(),
+						podSize, l.podResults.Weight(),
+						processDiscoverySize, l.processDiscoveryResults.Weight(),
 					)
 				}
 			case <-exit:
@@ -277,6 +282,8 @@ func (l *Collector) run(exit chan struct{}) error {
 	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.cfg.ProcessQueueBytes // Allow more in-flight requests than the default
 	podForwarder := forwarder.NewDefaultForwarder(podForwarderOpts)
 
+	processDiscoveryForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
+
 	if err := processForwarder.Start(); err != nil {
 		return fmt.Errorf("error starting forwarder: %s", err)
 	}
@@ -287,6 +294,10 @@ func (l *Collector) run(exit chan struct{}) error {
 
 	if err := podForwarder.Start(); err != nil {
 		return fmt.Errorf("error starting pod forwarder: %s", err)
+	}
+
+	if err := processDiscoveryForwarder.Start(); err != nil {
+		return fmt.Errorf("error starting process discovery forwarder #{err}")
 	}
 
 	wg.Add(1)
@@ -305,6 +316,12 @@ func (l *Collector) run(exit chan struct{}) error {
 	go func() {
 		defer wg.Done()
 		l.consumePayloads(l.podResults, podForwarder, exit)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		l.consumePayloads(l.processDiscoveryResults, podForwarder, exit)
 	}()
 
 	for _, c := range l.enabledChecks {
@@ -326,6 +343,7 @@ func (l *Collector) run(exit chan struct{}) error {
 	processForwarder.Stop()
 	rtProcessForwarder.Stop()
 	podForwarder.Stop()
+	processDiscoveryForwarder.Stop()
 	return nil
 }
 
@@ -335,6 +353,8 @@ func (l *Collector) resultsQueueForCheck(name string) *api.WeightedQueue {
 		return l.podResults
 	case checks.Process.RealTimeName(), checks.RTContainer.Name():
 		return l.rtProcessResults
+	case checks.ProcessDiscovery.Name():
+		return l.processDiscoveryResults
 	}
 	return l.processResults
 }
