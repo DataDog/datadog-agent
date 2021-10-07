@@ -168,6 +168,10 @@ OuterLoop:
 
 	// Now we call the unregister callback for every shared library that is no longer mapped into memory
 	for path, unregisterCB := range old {
+		if unregisterCB == nil {
+			continue
+		}
+
 		log.Debugf("unregistering library=%s", path)
 		unregisterCB(path)
 	}
@@ -178,6 +182,7 @@ func (w *soWatcher) register(libPath string, r soRule) {
 	if err != nil {
 		log.Errorf("error registering library=%s: %s", libPath, err)
 		r.unregisterCB(libPath)
+		w.registered[libPath] = nil
 		return
 	}
 
