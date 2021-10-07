@@ -705,7 +705,7 @@ func InitConfig(config Config) {
 	// Enable the agent to use files to collect container logs on standalone docker environment, containers
 	// with an existing registry offset will continue to be tailed from the docker socket unless
 	// logs_config.docker_container_force_use_file is set to true.
-	config.BindEnvAndSetDefault("logs_config.docker_container_use_file", false)
+	config.BindEnvAndSetDefault("logs_config.docker_container_use_file", true)
 	// Force tailing from file for all docker container, even the ones with an existing registry entry
 	config.BindEnvAndSetDefault("logs_config.docker_container_force_use_file", false)
 	// While parsing Kubernetes pod logs, use /var/log/containers to validate that
