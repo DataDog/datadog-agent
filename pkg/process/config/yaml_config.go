@@ -99,8 +99,8 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	// and uses a different unit of time
 	a.initProcessDiscoveryCheck()
 
-	if a.CheckIntervals[ProcessCheckName] <= a.CheckIntervals[RTProcessCheckName] || a.CheckIntervals[ProcessCheckName]%a.CheckIntervals[RTProcessCheckName] != 0 {
-		// Process check interval must be greater than RTProcess check interval and the intervals must be divisible
+	if a.CheckIntervals[ProcessCheckName] < a.CheckIntervals[RTProcessCheckName] || a.CheckIntervals[ProcessCheckName]%a.CheckIntervals[RTProcessCheckName] != 0 {
+		// Process check interval must be greater or equal to RTProcess check interval and the intervals must be divisible
 		// in order to be run on the same goroutine
 		log.Warnf(
 			"Invalid process check interval overrides [%s,%s], resetting to defaults [%s,%s]",
