@@ -1,3 +1,0 @@
----
-features:
-  - The process discovery check can now be enabled or disabled using the DD_PROCESS_AGENT_DISCOVERY_ENABLED environment variable
