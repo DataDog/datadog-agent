@@ -637,6 +637,7 @@ func TestGetHostnameShellCmd(t *testing.T) {
 // TestProcessDiscoveryConfig tests to make sure that the process discovery check is properly configured
 func TestProcessDiscoveryConfig(t *testing.T) {
 	assert := assert.New(t)
+
 	procConfigEnabledValues := []string{"true", "false", "disabled"}
 	procDiscoveryEnabledValues := []bool{true, false}
 	for _, procConfigEnabled := range procConfigEnabledValues {
@@ -647,19 +648,22 @@ func TestProcessDiscoveryConfig(t *testing.T) {
 			cfg := AgentConfig{EnabledChecks: []string{}, CheckIntervals: map[string]time.Duration{}}
 			cfg.initProcessDiscoveryCheck()
 
-			// Make sure that the discovery check interval can be overridden
-			assert.Equal(time.Hour, cfg.CheckIntervals[DiscoveryCheckName])
-
-			// Ensure that the minimum interval for the process_discovery check is enforced
-			config.Datadog.Set("process_config.process_discovery.interval", time.Second)
-			cfg = AgentConfig{EnabledChecks: []string{}, CheckIntervals: map[string]time.Duration{}}
-			cfg.initProcessDiscoveryCheck()
-			assert.Equal(10*time.Minute, cfg.CheckIntervals[DiscoveryCheckName])
-
 			// Make sure that the process discovery check is only enabled when both the process-agent is set to false,
 			// and procDiscoveryEnabled isn't overridden.
 			if procDiscoveryEnabled == true && procConfigEnabled == "false" {
 				assert.ElementsMatch([]string{DiscoveryCheckName}, cfg.EnabledChecks)
+
+				// Interval Tests:
+				// These can only be done while the check is enabled, which is why we do them here.
+
+				// Make sure that the discovery check interval can be overridden.
+				assert.Equal(time.Hour, cfg.CheckIntervals[DiscoveryCheckName])
+
+				// Ensure that the minimum interval for the process_discovery check is enforced
+				config.Datadog.Set("process_config.process_discovery.interval", time.Second)
+				cfg = AgentConfig{EnabledChecks: []string{}, CheckIntervals: map[string]time.Duration{}}
+				cfg.initProcessDiscoveryCheck()
+				assert.Equal(10*time.Minute, cfg.CheckIntervals[DiscoveryCheckName])
 			} else {
 				assert.ElementsMatch([]string{}, cfg.EnabledChecks)
 			}
