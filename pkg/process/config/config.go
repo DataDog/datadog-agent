@@ -435,6 +435,7 @@ func loadEnvVariables() {
 		{"DD_BIND_HOST", "bind_host"},
 		{"HTTPS_PROXY", "proxy.https"},
 		{"DD_PROXY_HTTPS", "proxy.https"},
+		{"DD_PROCESS_AGENT_DISCOVERY_ENABLED", "process_config.process_discovery.enabled"},
 
 		{"DD_LOGS_STDOUT", "log_to_console"},
 		{"LOG_TO_CONSOLE", "log_to_console"},

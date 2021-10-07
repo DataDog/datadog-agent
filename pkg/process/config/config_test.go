@@ -386,8 +386,15 @@ func TestEnvSiteConfig(t *testing.T) {
 	agentConfig, err = NewAgentConfig("test", "./testdata/TestEnvSiteConfig-3.yaml", "")
 	assert.NoError(err)
 	assert.Equal("test.com", agentConfig.APIEndpoints[0].Endpoint.Hostname())
-
 	os.Unsetenv("DD_PROCESS_AGENT_URL")
+
+	newConfig()
+	err = os.Setenv("DD_PROCESS_AGENT_DISCOVERY_ENABLED", "true")
+	assert.NoError(err)
+	agentConfig, err = NewAgentConfig("test", "./testdata/TestEnvSiteConfig-ProcessDiscovery.yaml", "")
+	assert.NoError(err)
+	assert.Contains(agentConfig.EnabledChecks, "process_discovery")
+	os.Unsetenv("DD_PROCESS_AGENT_DISCOVERY_ENABLED")
 }
 
 func TestEnvProcessAdditionalEndpoints(t *testing.T) {
