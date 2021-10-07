@@ -35,13 +35,14 @@ const (
 	// CloudFoundry socket present
 	CloudFoundry Feature = "cloudfoundry"
 
-	defaultLinuxDockerSocket       = "/var/run/docker.sock"
-	defaultWindowsDockerSocketPath = "//./pipe/docker_engine"
-	defaultLinuxContainerdSocket   = "/var/run/containerd/containerd.sock"
-	defaultLinuxCrioSocket         = "/var/run/crio/crio.sock"
-	defaultHostMountPrefix         = "/host"
-	unixSocketPrefix               = "unix://"
-	winNamedPipePrefix             = "npipe://"
+	defaultLinuxDockerSocket           = "/var/run/docker.sock"
+	defaultWindowsDockerSocketPath     = "//./pipe/docker_engine"
+	defaultLinuxContainerdSocket       = "/var/run/containerd/containerd.sock"
+	defaultWindowsContainerdSocketPath = "//./pipe/containerd-containerd"
+	defaultLinuxCrioSocket             = "/var/run/crio/crio.sock"
+	defaultHostMountPrefix             = "/host"
+	unixSocketPrefix                   = "unix://"
+	winNamedPipePrefix                 = "npipe://"
 
 	socketTimeout = 500 * time.Millisecond
 )
@@ -184,6 +185,10 @@ func getDefaultDockerPaths() []string {
 }
 
 func getDefaultCriPaths() []string {
+	if runtime.GOOS == "windows" {
+		return []string{defaultWindowsContainerdSocketPath}
+	}
+
 	paths := []string{}
 	for _, prefix := range getHostMountPrefixes() {
 		paths = append(paths, path.Join(prefix, defaultLinuxContainerdSocket), path.Join(prefix, defaultLinuxCrioSocket))
