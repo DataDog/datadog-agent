@@ -97,15 +97,12 @@ func TestMount(t *testing.T) {
 		}
 		defer os.Remove(file)
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			return os.Chmod(file, 0707)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assert.Equal(t, file, event.Chmod.File.PathnameStr, "wrong path")
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	releaseFile, err := os.Create(path.Join(dstMntPath, "test-release"))
@@ -132,14 +129,11 @@ func TestMount(t *testing.T) {
 	})
 
 	t.Run("release-mount", func(t *testing.T) {
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			return syscall.Fchownat(int(releaseFile.Fd()), "", 123, 123, unix.AT_EMPTY_PATH)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assertTriggeredRule(t, rule, "test_rule_pending")
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 }

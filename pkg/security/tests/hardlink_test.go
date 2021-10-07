@@ -48,15 +48,12 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 	}
 
 	t.Run("hardlink-creation", ifSyscallSupported("SYS_LINK", func(t *testing.T, syscallNB uintptr) {
-		err := test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			cmd := exec.Command(testOrigExecutable, "/tmp/test1")
 			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_orig")
 		})
-		if err != nil {
-			t.Error(err)
-		}
 
 		testNewExecutable, _, err := test.Path("my-touch")
 		if err != nil {
@@ -69,15 +66,12 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 			t.Fatal(err)
 		}
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			cmd := exec.Command(testNewExecutable, "/tmp/test2")
 			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_link")
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	}))
 
 	t.Run("hardlink-created", ifSyscallSupported("SYS_LINK", func(t *testing.T, syscallNB uintptr) {
@@ -92,25 +86,19 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 			t.Fatal(err)
 		}
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			cmd := exec.Command(testOrigExecutable, "/tmp/test1")
 			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_orig")
 		})
-		if err != nil {
-			t.Error(err)
-		}
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			cmd := exec.Command(testNewExecutable, "/tmp/test2")
 			return cmd.Run()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_link")
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	}))
 }
 

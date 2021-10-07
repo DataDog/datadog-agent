@@ -75,17 +75,11 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *sta
 
 	if a.regexp != nil {
 		arrayOp = func(as string, bs string) bool {
-			if a.regexp.MatchString(bs) {
-				return true
-			}
-			return false
+			return a.regexp.MatchString(bs)
 		}
 	} else if b.regexp != nil {
 		arrayOp = func(as string, bs string) bool {
-			if b.regexp.MatchString(as) {
-				return true
-			}
-			return false
+			return b.regexp.MatchString(as)
 		}
 	} else {
 		arrayOp = func(as string, bs string) bool {
