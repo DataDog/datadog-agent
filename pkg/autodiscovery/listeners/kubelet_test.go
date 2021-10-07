@@ -9,6 +9,7 @@ package listeners
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -88,13 +89,15 @@ func TestCreatePodService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ch := make(chan Service)
-			listener := newListener(t, ch)
-			actualServices, doneCh := consumeServiceCh(ch)
+			newCh := make(chan Service)
+			delCh := make(chan Service)
+			listener := newListener(t, newCh, delCh)
+			actualServices, doneCh := consumeServiceCh(newCh, delCh)
 
 			listener.createPodService(tt.pod, tt.containers, false)
 
-			close(ch)
+			close(newCh)
+			close(delCh)
 			<-doneCh
 
 			assertExpectedServices(t, tt.expectedServices, actualServices)
@@ -324,13 +327,15 @@ func TestCreateContainerService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ch := make(chan Service)
-			listener := newListener(t, ch)
-			actualServices, doneCh := consumeServiceCh(ch)
+			newCh := make(chan Service)
+			delCh := make(chan Service)
+			listener := newListener(t, newCh, delCh)
+			actualServices, doneCh := consumeServiceCh(newCh, delCh)
 
 			listener.createContainerService(tt.pod, tt.container, false)
 
-			close(ch)
+			close(newCh)
+			close(delCh)
 			<-doneCh
 
 			assertExpectedServices(t, tt.expectedServices, actualServices)
@@ -338,32 +343,110 @@ func TestCreateContainerService(t *testing.T) {
 	}
 }
 
-func newListener(t *testing.T, ch chan Service) *KubeletListener {
+func TestRemovePodService(t *testing.T) {
+	newCh := make(chan Service)
+	delCh := make(chan Service)
+	listener := newListener(t, newCh, delCh)
+	actualServices, doneCh := consumeServiceCh(newCh, delCh)
+
+	pod := workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   podID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      podName,
+			Namespace: podNamespace,
+		},
+		IP:         "127.0.0.1",
+		Containers: []string{"foo", "bar"},
+	}
+
+	containers := []workloadmeta.Container{
+		{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "foo",
+			},
+			Runtime: workloadmeta.ContainerRuntimeDocker,
+		},
+		{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "bar",
+			},
+			Runtime: workloadmeta.ContainerRuntimeDocker,
+		},
+	}
+
+	listener.createPodService(pod, containers, false)
+	for _, c := range containers {
+		listener.createContainerService(pod, c, false)
+	}
+
+	listener.removePodService(pod.GetID())
+
+	close(newCh)
+	close(delCh)
+	<-doneCh
+
+	assertExpectedServices(t, map[string]Service{}, actualServices)
+}
+
+func newListener(t *testing.T, newCh, deleteCh chan Service) *KubeletListener {
 	filters, err := newContainerFilters()
 	if err != nil {
 		t.Fatalf("cannot initialize container filters: %s", err)
 	}
 
 	return &KubeletListener{
-		services:   make(map[string]Service),
-		newService: ch,
-		filters:    filters,
+		services:      make(map[string]Service),
+		podContainers: make(map[string][]string),
+		newService:    newCh,
+		delService:    deleteCh,
+		filters:       filters,
 	}
 }
 
-func consumeServiceCh(ch chan Service) (map[string]Service, chan struct{}) {
+func consumeServiceCh(newCh, deleteCh chan Service) (map[string]Service, chan struct{}) {
 	doneCh := make(chan struct{})
 	services := make(map[string]Service)
 
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	wg.Add(2)
+
 	go func() {
-		for svc := range ch {
+
+		for svc := range newCh {
 			if svc == nil {
 				break
 			}
 
+			mu.Lock()
 			services[svc.GetEntity()] = svc
+			mu.Unlock()
 		}
 
+		wg.Done()
+	}()
+
+	go func() {
+		for svc := range deleteCh {
+			if svc == nil {
+				break
+			}
+
+			mu.Lock()
+			delete(services, svc.GetEntity())
+			mu.Unlock()
+		}
+
+		wg.Done()
+	}()
+
+	go func() {
+		wg.Wait()
 		close(doneCh)
 	}()
 

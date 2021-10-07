@@ -41,9 +41,10 @@ type KubeletListener struct {
 	store *workloadmeta.Store
 	stop  chan struct{}
 
-	mu       sync.RWMutex
-	filters  *containerFilters
-	services map[string]Service
+	mu            sync.RWMutex
+	filters       *containerFilters
+	services      map[string]Service
+	podContainers map[string][]string
 
 	newService chan<- Service
 	delService chan<- Service
@@ -57,10 +58,11 @@ func NewKubeletListener() (ServiceListener, error) {
 	}
 
 	return &KubeletListener{
-		store:    workloadmeta.GetGlobalStore(),
-		filters:  filters,
-		services: make(map[string]Service),
-		stop:     make(chan struct{}),
+		store:         workloadmeta.GetGlobalStore(),
+		filters:       filters,
+		services:      make(map[string]Service),
+		podContainers: make(map[string][]string),
+		stop:          make(chan struct{}),
 	}, nil
 }
 
@@ -127,7 +129,7 @@ func (l *KubeletListener) processEvents(evBundle workloadmeta.EventBundle, first
 			l.processPod(pod, firstRun)
 
 		case workloadmeta.EventTypeUnset:
-			l.removeService(entityID)
+			l.removePodService(entityID)
 
 		default:
 			log.Errorf("cannot handle event of type %d", ev.Type)
@@ -296,15 +298,32 @@ func (l *KubeletListener) createContainerService(pod workloadmeta.KubernetesPod,
 		l.delService <- old
 	}
 
-	l.services[buildSvcID(container.GetID())] = svc
+	svcID := buildSvcID(container.GetID())
+	podSvcID := buildSvcID(pod.GetID())
+
+	l.services[svcID] = svc
+	l.podContainers[podSvcID] = append(l.podContainers[podSvcID], svcID)
 	l.newService <- svc
 }
 
-func (l *KubeletListener) removeService(entityID workloadmeta.EntityID) {
+func (l *KubeletListener) removePodService(entityID workloadmeta.EntityID) {
+	svcID := buildSvcID(entityID)
+	l.removeService(svcID)
+
+	l.mu.Lock()
+	containerSvcIDs := l.podContainers[svcID]
+	delete(l.podContainers, svcID)
+	l.mu.Unlock()
+
+	for _, containerSvcID := range containerSvcIDs {
+		l.removeService(containerSvcID)
+	}
+}
+
+func (l *KubeletListener) removeService(svcID string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	svcID := buildSvcID(entityID)
 	svc, ok := l.services[svcID]
 	if !ok {
 		log.Debugf("service %q not found, not removing", svcID)
