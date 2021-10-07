@@ -127,12 +127,17 @@ github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 h1:UcKqIrOowv2PjTkOC2
 github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/nikos v1.2.1-0.20210908154039-72372ae79f70 h1:GioQ2pnjkG3aEESQ9PjO2//JUGJ/nyprufJUe+rcnaU=
 github.com/DataDog/nikos v1.2.1-0.20210908154039-72372ae79f70/go.mod h1:olb8xQIYk6Bp/jwnapJpMvB2570/LaY31ZQiVWRZxvE=
+github.com/DataDog/nikos v1.3.1-0.20211007143739-324002c22e2e h1:e2sLlT7yGCEEK4K+jW+k/57bej3CVQTXzWvRZxlJ4OU=
+github.com/DataDog/nikos v1.3.1-0.20211007143739-324002c22e2e/go.mod h1:hQeaaGGsiNDI3tMlsrI/AfXBesf800q5dVKauYnAp1A=
+github.com/DataDog/nikos v1.4.0 h1:6kKjth3C4D0JMeMLCVbQnr9ugHtpnYVUPVZLrk8kkbI=
+github.com/DataDog/nikos v1.4.0/go.mod h1:hQeaaGGsiNDI3tMlsrI/AfXBesf800q5dVKauYnAp1A=
 github.com/DataDog/sketches-go v1.2.0 h1:1fyVz0zNw2WamTu5kL8ZCSIXd7ipB4I9Tm5M9LBSvIY=
 github.com/DataDog/sketches-go v1.2.0/go.mod h1:1xYmPLY1So10AwxV6MJV0J53XVH+WL9Ad1KetxVivVI=
 github.com/DataDog/viper v1.9.0 h1:9Ha1yJebecIKtboH/GXUM3brfoMofvdd8BlMck8Cs8Q=
 github.com/DataDog/viper v1.9.0/go.mod h1:Gx7+/WONkbQIh3ac52KqcFTzipQ1OYHhCQGWAgHlzpc=
 github.com/DataDog/watermarkpodautoscaler v0.2.1-0.20210323121426-cfb2caa5613f h1:MESPSq9d/7I0plUd8M4e4jD8DQ/aMA2sc634hZAsKGQ=
 github.com/DataDog/watermarkpodautoscaler v0.2.1-0.20210323121426-cfb2caa5613f/go.mod h1:9noQqDYq4AoJ+e10Z2jwmQ+bOaewjujW4gVwY2/P+Vc=
+github.com/DataDog/zstd v1.4.5/go.mod h1:1jcaCB/ufaK+sKp1NBhlGmpz41jOoPQ35bpF36t7BBo=
 github.com/DataDog/zstd v1.4.8 h1:Rpmta4xZ/MgZnriKNd24iZMhGpP5dvUcs/uqfBapKZY=
 github.com/DataDog/zstd v1.4.8/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f h1:5Vuo4niPKFkfwW55jV4vY0ih3VQ9RaQqeqY67fvRn8A=
@@ -945,6 +950,7 @@ github.com/kjk/lzma v0.0.0-20161016003348-3fd93898850d/go.mod h1:phT/jsRPBAEqjAi
 github.com/klauspost/compress v1.4.1/go.mod h1:RyIbtBH6LamlWaDj8nUwkbUhJ87Yi3uG0guNDohfE1A=
 github.com/klauspost/compress v1.10.10/go.mod h1:aoV0uJVorq1K+umq18yTdKaF57EivdYsUV+/s2qKfXs=
 github.com/klauspost/compress v1.11.3/go.mod h1:aoV0uJVorq1K+umq18yTdKaF57EivdYsUV+/s2qKfXs=
+github.com/klauspost/compress v1.11.7/go.mod h1:aoV0uJVorq1K+umq18yTdKaF57EivdYsUV+/s2qKfXs=
 github.com/klauspost/compress v1.11.13 h1:eSvu8Tmq6j2psUJqJrLcWH6K3w5Dwc+qipbaA6eVEN4=
 github.com/klauspost/compress v1.11.13/go.mod h1:aoV0uJVorq1K+umq18yTdKaF57EivdYsUV+/s2qKfXs=
 github.com/klauspost/cpuid v1.2.0/go.mod h1:Pj4uuM528wm8OyEC2QMXAi2YiTZ96dNQPGgoMS4s3ek=
@@ -1338,6 +1344,8 @@ github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da h1:p3Vo3i64TCL
 github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da/go.mod h1:gi+0XIa01GRL2eRQVjQkKGqKF3SF9vZR/HnPullcV2E=
 github.com/sassoftware/go-rpmutils v0.1.1 h1:ZHMXpGoMHL/cpQJ1byyhEBW73TDtpNq4inYa9M4FxyY=
 github.com/sassoftware/go-rpmutils v0.1.1/go.mod h1:euhXULoBpvAxqrBHEyJS4Tsu3hHxUmQWNymxoJbzgUY=
+github.com/sassoftware/go-rpmutils v0.2.0 h1:pKW0HDYMFWQ5b4JQPiI3WI12hGsVoW0V8+GMoZiI/JE=
+github.com/sassoftware/go-rpmutils v0.2.0/go.mod h1:TJJQYtLe/BeEmEjelI3b7xNZjzAukEkeWKmoakvaOoI=
 github.com/satori/go.uuid v1.2.0/go.mod h1:dA0hQrYB0VpLJoorglMZABFdXlWrHn1NEOzdhQKdks0=
 github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 h1:nn5Wsu0esKSJiIVhscUtVbo7ada43DJhG55ua/hjS5I=
 github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529/go.mod h1:DxrIzT+xaE7yg65j358z/aeFdxmN0P9QXhEzd20vsDc=
@@ -1462,6 +1470,7 @@ github.com/ugorji/go/codec v1.1.7 h1:2SvQaVZ1ouYrrKKwoSk2pzd4A9evlKJb9oTL+OaLUSs
 github.com/ugorji/go/codec v1.1.7/go.mod h1:Ax+UKWsSmolVDwsd+7N3ZtXu+yMGCf907BLYF3GoBXY=
 github.com/ulikunitz/xz v0.5.6/go.mod h1:2bypXElzHzzJZwzH67Y6wb67pO62Rzfn7BSiF4ABRW8=
 github.com/ulikunitz/xz v0.5.7/go.mod h1:nbz6k7qbPmH4IRqmfOplQw/tblSgqTqBwxkY0oWt/14=
+github.com/ulikunitz/xz v0.5.9/go.mod h1:nbz6k7qbPmH4IRqmfOplQw/tblSgqTqBwxkY0oWt/14=
 github.com/ulikunitz/xz v0.5.10 h1:t92gobL9l3HE202wg3rlk19F6X+JOxl9BBrCCMYEYd8=
 github.com/ulikunitz/xz v0.5.10/go.mod h1:nbz6k7qbPmH4IRqmfOplQw/tblSgqTqBwxkY0oWt/14=
 github.com/urfave/cli v0.0.0-20171014202726-7bc6a0acffa5/go.mod h1:70zkFmudgCuE/ngEzBv17Jvp/497gISqfk5gWijbERA=
@@ -1625,6 +1634,7 @@ golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9/go.mod h1:LzIPMQfyMNhhGPh
 golang.org/x/crypto v0.0.0-20200728195943-123391ffb6de/go.mod h1:LzIPMQfyMNhhGPhUkYOs5KpL4U8rLKemX1yGLhDgUto=
 golang.org/x/crypto v0.0.0-20201002170205-7f63de1d35b0/go.mod h1:LzIPMQfyMNhhGPhUkYOs5KpL4U8rLKemX1yGLhDgUto=
 golang.org/x/crypto v0.0.0-20201208171446-5f87f3452ae9/go.mod h1:jdWPYTVW3xRLrWPugEBEK3UY2ZEsg3UU495nc5E+M+I=
+golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad/go.mod h1:jdWPYTVW3xRLrWPugEBEK3UY2ZEsg3UU495nc5E+M+I=
 golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2 h1:It14KIkyBFYkHkwZ7k45minvA9aorojkyjGk9KJ5B/w=
 golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2/go.mod h1:T9bdIzuCu7OtxOm1hfPfRQxPLYneinmdGuTeoZ9dtd4=
 golang.org/x/exp v0.0.0-20180321215751-8460e604b9de/go.mod h1:CJ0aWSM057203Lf6IL+f9T1iT9GByDxfZKAQTCR3kQA=
