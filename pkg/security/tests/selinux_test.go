@@ -28,7 +28,7 @@ func TestSELinux(t *testing.T) {
 	ruleset := []*rules.RuleDefinition{
 		{
 			ID:         "test_selinux_enforce",
-			Expression: `selinux.enforce.status in ["enabled", "permissive"]`,
+			Expression: `selinux.enforce.status in ["disabled", "permissive"]`,
 		},
 		{
 			ID:         "test_selinux_write_bool_true",
