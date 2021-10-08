@@ -383,14 +383,16 @@ func (r *HTTPReceiver) tagStats(v Version, header http.Header) *info.TagStats {
 	})
 }
 
-func decodeTraces(v Version, req *http.Request) (pb.Traces, error) {
+func decodeTracerPayload(v Version, req *http.Request) (*pb.TracerPayload, error) {
 	switch v {
 	case v01:
 		var spans []pb.Span
 		if err := json.NewDecoder(req.Body).Decode(&spans); err != nil {
 			return nil, err
 		}
-		return tracesFromSpans(spans), nil
+		return &pb.TracerPayload{
+			Chunks: traceChunksFromSpans(spans),
+		}, nil
 	case v05:
 		buf := getBuffer()
 		defer putBuffer(buf)
@@ -398,14 +400,20 @@ func decodeTraces(v Version, req *http.Request) (pb.Traces, error) {
 			return nil, err
 		}
 		var traces pb.Traces
-		err := traces.UnmarshalMsgDictionary(buf.Bytes())
-		return traces, err
+		if err := traces.UnmarshalMsgDictionary(buf.Bytes()); err != nil {
+			return nil, err
+		}
+		return &pb.TracerPayload{
+			Chunks: traceChunksFromTraces(traces),
+		}, nil
 	default:
 		var traces pb.Traces
 		if err := decodeRequest(req, &traces); err != nil {
 			return nil, err
 		}
-		return traces, nil
+		return &pb.TracerPayload{
+			Chunks: traceChunksFromTraces(traces),
+		}, nil
 	}
 }
 
@@ -518,7 +526,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		return
 	}
 	start := time.Now()
-	traces, err := decodeTraces(v, req)
+	tracerPayload, err := decodeTracerPayload(v, req)
 	defer func(err error) {
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
 		metrics.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
@@ -545,14 +553,14 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		metrics.Histogram("datadog.trace_agent.receiver.rate_response_bytes", float64(n), tags, 1)
 	}
 
-	atomic.AddInt64(&ts.TracesReceived, int64(len(traces)))
+	atomic.AddInt64(&ts.TracesReceived, int64(len(tracerPayload.Chunks)))
 	atomic.AddInt64(&ts.TracesBytes, req.Body.(*apiutil.LimitedReader).Count)
 	atomic.AddInt64(&ts.PayloadAccepted, 1)
 
 	cid := req.Header.Get(headerContainerID)
 	payload := &Payload{
 		Source:                 ts,
-		Traces:                 traces,
+		TracerPayload:          tracerPayload,
 		ContainerID:            cid,
 		ContainerTags:          getContainerTags(cid),
 		ClientComputedTopLevel: req.Header.Get(headerComputedTopLevel) != "",
@@ -609,8 +617,8 @@ type Payload struct {
 	// trace (e.g. K8S pod, Docker image, ECS, etc). They are of the type "k1:v1,k2:v2".
 	ContainerTags string
 
-	// Traces contains all the traces received in the payload
-	Traces pb.Traces
+	// TracerPayload TODO
+	TracerPayload *pb.TracerPayload
 
 	// ClientComputedTopLevel specifies that the client has already marked top-level
 	// spans.
@@ -782,17 +790,30 @@ func decodeRequest(req *http.Request, dest *pb.Traces) error {
 	}
 }
 
-func tracesFromSpans(spans []pb.Span) pb.Traces {
-	traces := pb.Traces{}
+func traceChunksFromSpans(spans []pb.Span) []*pb.TraceChunk {
+	traceChunks := []*pb.TraceChunk{}
 	byID := make(map[uint64][]*pb.Span)
 	for _, s := range spans {
 		byID[s.TraceID] = append(byID[s.TraceID], &s)
 	}
 	for _, t := range byID {
-		traces = append(traces, t)
+		traceChunks = append(traceChunks, &pb.TraceChunk{
+			Spans: t,
+		})
 	}
 
-	return traces
+	return traceChunks
+}
+
+func traceChunksFromTraces(traces pb.Traces) []*pb.TraceChunk {
+	traceChunks := make([]*pb.TraceChunk, 0, len(traces))
+	for _, trace := range traces {
+		traceChunks = append(traceChunks, &pb.TraceChunk{
+			Spans: trace,
+		})
+	}
+
+	return traceChunks
 }
 
 // getContainerTag returns container and orchestrator tags belonging to containerID. If containerID

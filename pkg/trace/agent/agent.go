@@ -180,7 +180,7 @@ func (a *Agent) loop() {
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
 func (a *Agent) Process(p *api.Payload) {
-	if len(p.Traces) == 0 {
+	if len(p.TracerPayload.Chunks) == 0 {
 		log.Debugf("Skipping received empty payload")
 		return
 	}
@@ -189,15 +189,15 @@ func (a *Agent) Process(p *api.Payload) {
 	ss := new(writer.SampledSpans)
 	var envtraces []stats.EnvTrace
 	a.PrioritySampler.CountClientDroppedP0s(p.ClientDroppedP0s)
-	for _, t := range p.Traces {
-		if len(t) == 0 {
+	for _, t := range p.TracerPayload.Chunks {
+		if len(t.Spans) == 0 {
 			log.Debugf("Skipping received empty trace")
 			continue
 		}
 
-		tracen := int64(len(t))
+		tracen := int64(len(t.Spans))
 		atomic.AddInt64(&ts.SpansReceived, tracen)
-		err := normalizeTrace(p.Source, t)
+		err := normalizeTrace(p.Source, t.Spans)
 		if err != nil {
 			log.Debugf("Dropping invalid trace: %s", err)
 			atomic.AddInt64(&ts.SpansDropped, tracen)
@@ -205,7 +205,7 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 
 		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
-		root := traceutil.GetRoot(t)
+		root := traceutil.GetRoot(t.Spans)
 
 		if !a.Blacklister.Allows(root) {
 			log.Debugf("Trace rejected by ignore resources rules. root: %v", root)
@@ -222,7 +222,7 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 
 		// Extra sanitization steps of the trace.
-		for _, span := range t {
+		for _, span := range t.Spans {
 			for k, v := range a.conf.GlobalTags {
 				traceutil.SetMeta(span, k, v)
 			}
@@ -232,7 +232,7 @@ func (a *Agent) Process(p *api.Payload) {
 				traceutil.UpdateTracerTopLevel(span)
 			}
 		}
-		a.Replacer.Replace(t)
+		a.Replacer.Replace(t.Spans)
 
 		{
 			// this section sets up any necessary tags on the root:
@@ -250,17 +250,17 @@ func (a *Agent) Process(p *api.Payload) {
 		if !p.ClientComputedTopLevel {
 			// Figure out the top-level spans now as it involves modifying the Metrics map
 			// which is not thread-safe while samplers and Concentrator might modify it too.
-			traceutil.ComputeTopLevel(t)
+			traceutil.ComputeTopLevel(t.Spans)
 		}
 
 		env := a.conf.DefaultEnv
-		if v := traceutil.GetEnv(t); v != "" {
+		if v := traceutil.GetEnv(t.Spans); v != "" {
 			// this trace has a user defined env.
 			env = v
 		}
 		pt := ProcessedTrace{
-			Trace:            t,
-			WeightedTrace:    stats.NewWeightedTrace(t, root),
+			Trace:            t.Spans,
+			WeightedTrace:    stats.NewWeightedTrace(t.Spans, root),
 			Root:             root,
 			Env:              env,
 			ClientDroppedP0s: p.ClientDroppedP0s > 0,
@@ -269,7 +269,7 @@ func (a *Agent) Process(p *api.Payload) {
 		events, keep := a.sample(ts, pt)
 		if !p.ClientComputedStats {
 			if envtraces == nil {
-				envtraces = make([]stats.EnvTrace, 0, len(p.Traces))
+				envtraces = make([]stats.EnvTrace, 0, len(p.TracerPayload.Chunks))
 			}
 			envtraces = append(envtraces, stats.EnvTrace{
 				Trace: pt.WeightedTrace,
@@ -279,8 +279,8 @@ func (a *Agent) Process(p *api.Payload) {
 		// TODO(piochelepiotr): Maybe we can skip some computation if stats are computed in the tracer and the trace is droped.
 		if keep {
 			ss.Traces = append(ss.Traces, traceutil.APITrace(t))
-			ss.Size += t.Msgsize()
-			ss.SpanCount += int64(len(t))
+			ss.Size += pb.Trace(t.Spans).Msgsize()
+			ss.SpanCount += int64(len(t.Spans))
 		}
 		if len(events) > 0 {
 			ss.Events = append(ss.Events, events...)

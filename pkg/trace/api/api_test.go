@@ -190,8 +190,8 @@ func TestLegacyReceiver(t *testing.T) {
 			// now we should be able to read the trace data
 			select {
 			case p := <-tc.r.out:
-				assert.Len(p.Traces, 1)
-				rt := p.Traces[0]
+				assert.Len(p.TracerPayload.Chunks, 1)
+				rt := p.TracerPayload.Chunks[0].Spans
 				assert.Len(rt, 1)
 				span := rt[0]
 				assert.Equal(uint64(42), span.TraceID)
@@ -255,7 +255,7 @@ func TestReceiverJSONDecoder(t *testing.T) {
 			// now we should be able to read the trace data
 			select {
 			case p := <-tc.r.out:
-				rt := p.Traces[0]
+				rt := p.TracerPayload.Chunks[0].Spans
 				assert.Len(rt, 1)
 				span := rt[0]
 				assert.Equal(uint64(42), span.TraceID)
@@ -322,7 +322,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 				// now we should be able to read the trace data
 				select {
 				case p := <-tc.r.out:
-					rt := p.Traces[0]
+					rt := p.TracerPayload.Chunks[0].Spans
 					assert.Len(rt, 1)
 					span := rt[0]
 					assert.Equal(uint64(42), span.TraceID)
@@ -345,7 +345,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 				// now we should be able to read the trace data
 				select {
 				case p := <-tc.r.out:
-					rt := p.Traces[0]
+					rt := p.TracerPayload.Chunks[0].Spans
 					assert.Len(rt, 1)
 					span := rt[0]
 					assert.Equal(uint64(42), span.TraceID)
@@ -497,9 +497,9 @@ func TestDecodeV05(t *testing.T) {
 	assert.NoError(err)
 	req, err := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(b))
 	assert.NoError(err)
-	traces, err := decodeTraces(v05, req)
+	tracerPayload, err := decodeTracerPayload(v05, req)
 	assert.NoError(err)
-	assert.EqualValues(traces, pb.Traces{
+	assert.EqualValues(tracerPayload, pb.Traces{
 		{
 			{
 				Service:  "Service",

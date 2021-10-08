@@ -65,9 +65,9 @@ func GetRoot(t pb.Trace) *pb.Span {
 
 // APITrace returns an APITrace from t, as required by the Datadog API.
 // It also returns an estimated size in bytes.
-func APITrace(t pb.Trace) *pb.APITrace {
+func APITrace(t *pb.TraceChunk) *pb.APITrace {
 	earliest, latest := int64(math.MaxInt64), int64(0)
-	for _, s := range t {
+	for _, s := range t.Spans {
 		start := s.Start
 		if start < earliest {
 			earliest = start
@@ -78,8 +78,8 @@ func APITrace(t pb.Trace) *pb.APITrace {
 		}
 	}
 	return &pb.APITrace{
-		TraceID:   t[0].TraceID,
-		Spans:     t,
+		TraceID:   t.Spans[0].TraceID,
+		Spans:     t.Spans,
 		StartTime: earliest,
 		EndTime:   latest,
 	}
