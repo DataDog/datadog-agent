@@ -1,12 +1,11 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package stats
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -17,49 +16,41 @@ import (
 
 func TestGrain(t *testing.T) {
 	assert := assert.New(t)
-
 	s := pb.Span{Service: "thing", Name: "other", Resource: "yo"}
-	aggr := NewAggregationFromSpan(&s, "default")
-
-	b := strings.Builder{}
-	aggr.WriteKey(&b)
-	assert.Equal("env:default,resource:yo,service:thing", b.String())
-	assert.Equal(TagSet{Tag{"env", "default"}, Tag{"resource", "yo"}, Tag{"service", "thing"}}, aggr.ToTagSet())
+	aggr := NewAggregationFromSpan(&s, "default", "default", "cid")
+	assert.Equal(Aggregation{
+		PayloadAggregationKey: PayloadAggregationKey{
+			Env:         "default",
+			Hostname:    "default",
+			ContainerID: "cid",
+		},
+		BucketsAggregationKey: BucketsAggregationKey{
+			Service:  "thing",
+			Name:     "other",
+			Resource: "yo",
+		},
+	}, aggr)
 }
 
 func TestGrainWithExtraTags(t *testing.T) {
 	assert := assert.New(t)
-
-	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{tagHostname: "host-id", tagVersion: "v0", tagStatusCode: "418"}}
-	aggr := NewAggregationFromSpan(&s, "default")
-
-	b := strings.Builder{}
-	aggr.WriteKey(&b)
-	assert.Equal("env:default,resource:yo,service:thing,_dd.hostname:host-id,http.status_code:418,version:v0", b.String())
-	assert.Equal(TagSet{Tag{"env", "default"}, Tag{"resource", "yo"}, Tag{"service", "thing"}, Tag{"_dd.hostname", "host-id"}, Tag{"http.status_code", "418"}, Tag{"version", "v0"}}, aggr.ToTagSet())
-}
-
-func TestHandleSpanSkipStats(t *testing.T) {
-	span := &WeightedSpan{Span: traceutil.GetRoot(benchTrace)}
-	subdata := []SublayerValue{{"a", Tag{"x", "y"}, 0.5}}
-
-	t.Run("on", func(t *testing.T) {
-		sb := NewRawBucket(0, 1e9)
-		sb.HandleSpan(span, "env", subdata, false)
-		assert.Len(t, sb.data, 1)
-		for _, v := range sb.data {
-			assert.False(t, v.IsSublayersOnly())
-		}
-	})
-
-	t.Run("off", func(t *testing.T) {
-		sb := NewRawBucket(0, 1e9)
-		sb.HandleSpan(span, "env", subdata, true)
-		assert.Len(t, sb.data, 1)
-		for _, v := range sb.data {
-			assert.True(t, v.IsSublayersOnly())
-		}
-	})
+	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{tagHostname: "host-id", tagVersion: "v0", tagStatusCode: "418", tagOrigin: "synthetics-browser"}}
+	aggr := NewAggregationFromSpan(&s, "default", "default", "cid")
+	assert.Equal(Aggregation{
+		PayloadAggregationKey: PayloadAggregationKey{
+			Hostname:    "host-id",
+			Version:     "v0",
+			Env:         "default",
+			ContainerID: "cid",
+		},
+		BucketsAggregationKey: BucketsAggregationKey{
+			Service:    "thing",
+			Resource:   "yo",
+			Name:       "other",
+			StatusCode: 418,
+			Synthetics: true,
+		},
+	}, aggr)
 }
 
 func BenchmarkHandleSpanRandom(b *testing.B) {
@@ -71,7 +62,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		traceutil.ComputeTopLevel(benchTrace)
 		wt := NewWeightedTrace(benchTrace, root)
 		for _, span := range wt {
-			sb.HandleSpan(span, "dev", nil, false)
+			sb.HandleSpan(span, "dev", "hostname", "cid")
 		}
 	}
 }

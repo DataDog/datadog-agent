@@ -1,61 +1,81 @@
 #pragma once
-#include <map>
-#include <string>
-#include "TargetMachine.h"
+
 #include "SID.h"
+#include "TargetMachine.h"
 
-class CustomActionData
+#include <map>
+#include <Msi.h>
+#include <optional>
+#include <string>
+
+
+class ICustomActionData
 {
-    public:
-        CustomActionData();
-        ~CustomActionData();
+  public:
+    virtual bool isUserDomainUser() const = 0;
+    virtual bool isUserLocalUser() const = 0;
+    virtual bool DoesUserExist() const = 0;
+    virtual const std::wstring &UnqualifiedUsername() const = 0;
+    virtual const std::wstring &Domain() const = 0;
+    virtual const std::wstring &FullyQualifiedUsername() const = 0;
+    virtual PSID Sid() const = 0;
+    virtual void Sid(sid_ptr &sid) = 0;
+    virtual bool installSysprobe() const = 0;
+    virtual std::shared_ptr<ITargetMachine> GetTargetMachine() const = 0;
 
-        bool init(MSIHANDLE hInstall);
-        bool init(const std::wstring &initstring);
+  protected:
+    virtual ~ICustomActionData()
+    {
+    }
+};
 
-        bool present(const std::wstring& key) const;
-        bool value(const std::wstring& key, std::wstring &val) const;
+class CustomActionData : ICustomActionData
+{
+  private:
+    struct User
+    {
+        std::wstring Domain;
+        std::wstring Name;
+    };
+  public:
+    CustomActionData(std::shared_ptr<ITargetMachine> targetMachine);
+    CustomActionData();
+    ~CustomActionData();
 
-        bool isUserDomainUser() const;
+    bool init(MSIHANDLE hInstall);
 
-        bool isUserLocalUser() const;
+    bool init(const std::wstring &initstring);
 
-        bool DoesUserExist() const;
+    bool present(const std::wstring &key) const;
+    bool value(const std::wstring &key, std::wstring &val) const;
 
-        const std::wstring& UnqualifiedUsername() const;
+    bool isUserDomainUser() const override;
+    bool isUserLocalUser() const override;
+    bool DoesUserExist() const override;
+    const std::wstring &UnqualifiedUsername() const override;
+    const std::wstring &FullyQualifiedUsername() const override;
+    const std::wstring &Domain() const override;
+    PSID Sid() const override;
+    void Sid(sid_ptr &sid) override;
+    bool installSysprobe() const override;
+    std::shared_ptr<ITargetMachine> GetTargetMachine() const override;
 
-        const std::wstring& Username() const;
+    bool npmPresent() const;
 
-        const std::wstring& Domain() const;
-
-        PSID  Sid() const;
-        void Sid(sid_ptr& sid);
-
-        bool installSysprobe() const;
-
-        bool UserParamMismatch() const {
-            return userParamMismatch;
-        }
-
-        const TargetMachine& GetTargetMachine() const;
-        
-    private:
-        MSIHANDLE hInstall;
-        TargetMachine machine;
-        bool domainUser;
-        bool userParamMismatch;
-        std::map< std::wstring, std::wstring> values;
-        std::wstring _unqualifiedUsername;
-        std::wstring _domain;
-        std::wstring _fqUsername;
-        std::wstring pvsUser;       // previously installed user, read from registry
-        std::wstring pvsDomain;     // previously installed domain for user, read from registry
-        sid_ptr _sid;
-        bool doInstallSysprobe;
-        bool _ddUserExists;
-        bool findPreviousUserInfo();
-        void checkForUserMismatch(bool previousInstall, bool userSupplied, std::wstring& computed_domain, std::wstring& computed_user);
-        void findSuppliedUserInfo(std::wstring& input, std::wstring& computed_domain, std::wstring& computed_user);
-        bool parseUsernameData();
-        bool parseSysprobeData();
+  private:
+    MSIHANDLE _hInstall;
+    bool _domainUser;
+    std::map<std::wstring, std::wstring> values;
+    User _user;
+    std::wstring _fullyQualifiedUsername;
+    sid_ptr _sid;
+    bool _doInstallSysprobe;
+    bool _ddnpmPresent;
+    bool _ddUserExists;
+    std::shared_ptr<ITargetMachine> _targetMachine;
+    std::optional<User> findPreviousUserInfo();
+    std::optional<User> findSuppliedUserInfo();
+    void ensureDomainHasCorrectFormat();
+    bool parseUsernameData();
+    bool parseSysprobeData();
 };

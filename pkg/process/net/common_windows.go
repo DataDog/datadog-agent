@@ -5,10 +5,11 @@ package net
 import "fmt"
 
 const (
-	statusURL      = "http://localhost:3333/status"
 	connectionsURL = "http://localhost:3333/connections"
 	statsURL       = "http://localhost:3333/debug/stats"
-	netType        = "tcp"
+	// procStatsURL is not used in windows, the value is added to avoid compilation error in windows
+	procStatsURL = "http://localhost:3333/proc/stats"
+	netType      = "tcp"
 )
 
 // CheckPath is used to make sure the globalSocketPath has been set before attempting to connect

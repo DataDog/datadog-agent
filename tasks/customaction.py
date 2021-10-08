@@ -1,7 +1,7 @@
 """
 customaction namespaced tasks
 """
-from __future__ import print_function
+
 
 import os
 import shutil
@@ -10,7 +10,7 @@ import sys
 from invoke import task
 from invoke.exceptions import Exit
 
-from .utils import get_version_numeric_only
+from .utils import get_version, get_version_numeric_only
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
@@ -28,7 +28,8 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
         print("Custom action library is only for Win32")
         raise Exit(code=1)
 
-    ver = get_version_numeric_only(ctx, env=os.environ, major_version=major_version)
+    package_version = get_version(ctx, url_safe=True, major_version=major_version)
+    ver = get_version_numeric_only(ctx, major_version=major_version)
     build_maj, build_min, build_patch = ver.split(".")
     verprops = " /p:MAJ_VER={build_maj} /p:MIN_VER={build_min} /p:PATCH_VER={build_patch} ".format(
         build_maj=build_maj, build_min=build_min, build_patch=build_patch
@@ -50,34 +51,32 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
         if arch == "x86":
             batchfile = "vcvars32.bat"
         vs_env_bat = '{}\\VC\\Auxiliary\\Build\\{}'.format(vsroot, batchfile)
-        cmd = 'call \"{}\" && msbuild {}\\cal\\customaction.vcxproj /p:Configuration={} /p:Platform={}'.format(
+        cmd = 'call \"{}\" && msbuild {}\\cal /p:Configuration={} /p:Platform={}'.format(
             vs_env_bat, CUSTOM_ACTION_ROOT_DIR, configuration, arch
         )
     else:
-        cmd = 'msbuild {}\\cal\\customaction.vcxproj /p:Configuration={} /p:Platform={}'.format(
-            CUSTOM_ACTION_ROOT_DIR, configuration, arch
-        )
+        cmd = 'msbuild {}\\cal /p:Configuration={} /p:Platform={}'.format(CUSTOM_ACTION_ROOT_DIR, configuration, arch)
 
     cmd += verprops
     print("Build Command: %s" % cmd)
 
     ctx.run(cmd)
-    srcdll = None
-    if arch is not None and arch == "x86":
-        srcdll = "{}\\cal\\{}\\customaction.dll".format(CUSTOM_ACTION_ROOT_DIR, configuration)
-    else:
-        srcdll = "{}\\cal\\x64\\{}\\customaction.dll".format(CUSTOM_ACTION_ROOT_DIR, configuration)
-    shutil.copy2(srcdll, BIN_PATH)
+    artefacts = [
+        {"source": "customaction.dll", "target": "customaction.dll"},
+        {"source": "customaction.pdb", "target": "customaction-{}.pdb".format(package_version)},
+        {"source": "customaction-tests.exe", "target": "customaction-tests.exe"},
+    ]
+    for artefact in artefacts:
+        shutil.copy2(
+            "{}\\cal\\{}\\{}\\{}".format(CUSTOM_ACTION_ROOT_DIR, arch, configuration, artefact["source"]),
+            BIN_PATH + "\\{}".format(artefact["target"]),
+        )
 
 
 @task
-def clean(ctx, arch="x64", debug=False):
+def clean(_, arch="x64", debug=False):
     configuration = "Release"
     if debug:
         configuration = "Debug"
 
-    if arch is not None and arch == "x86":
-        srcdll = "{}\\cal\\{}".format(CUSTOM_ACTION_ROOT_DIR, configuration)
-    else:
-        srcdll = "{}\\cal\\x64\\{}".format(CUSTOM_ACTION_ROOT_DIR, configuration)
-    shutil.rmtree(srcdll, BIN_PATH)
+    shutil.rmtree("{}\\cal\\{}\\{}".format(CUSTOM_ACTION_ROOT_DIR, arch, configuration), BIN_PATH)

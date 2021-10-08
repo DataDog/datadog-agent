@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 
 package jsonquery
 
@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/itchyny/gojq"
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/yaml.v3"
 )
 
 func TestJsonQueryParse(t *testing.T) {
@@ -49,4 +50,32 @@ func TestQueryRun(t *testing.T) {
 	assert.Equal(t, "", value)
 	assert.False(t, hasValue)
 	assert.Error(t, err)
+}
+
+var yamlTest = `
+apiVersion: kubelet.config.k8s.io/v1beta1
+authentication:
+  anonymous:
+    enabled: false
+  webhook:
+    cacheTTL: 0s
+    enabled: foobar
+  x509:
+    clientCAFile: /etc/kubernetes/pki/ca.crt
+authorization:
+  mode: Webhook
+  webhook:
+    cacheAuthorizedTTL: 0s
+    cacheUnauthorizedTTL: 0s
+`
+
+func TestYAML(t *testing.T) {
+	var yamlContent interface{}
+	err := yaml.Unmarshal([]byte(yamlTest), &yamlContent)
+	assert.NoError(t, err)
+	yamlContent = NormalizeYAMLForGoJQ(yamlContent)
+
+	value, _, err := RunSingleOutput(".authentication.anonymous.enabled", yamlContent)
+	assert.NoError(t, err)
+	assert.Equal(t, "false", value)
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package collector
 
@@ -133,9 +133,11 @@ func (suite *CollectorTestSuite) TestCancelCheck_TimeoutIsApplied() {
 	ch := NewCheckSlowCancel(10 * time.Second)
 
 	start := time.Now()
-	err := suite.c.cancelCheck(ch, time.Millisecond)
+	err := suite.c.cancelCheck(ch, 100*time.Millisecond)
 	assert.NotNil(suite.T(), err)
 	assert.WithinDuration(suite.T(), start, time.Now(), 5*time.Second)
+	// assert that `Cancel` was actually called on the check, which may be flaky if the goroutine
+	// that calls `Cancel` didn't have a chance to be scheduled before the timeout is hit.
 	ch.AssertNumberOfCalls(suite.T(), "Cancel", 1)
 }
 

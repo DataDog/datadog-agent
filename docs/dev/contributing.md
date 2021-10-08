@@ -41,7 +41,7 @@ when submitting your PR:
   * summarize your PR with an explanatory title and a message describing your
     changes, cross-referencing any related bugs/PRs.
   * use [Reno](#reno) to create a releasenote.
-  * open your PR against the `master` branch.
+  * open your PR against the `main` branch.
   * for PRs from contributors with write access to the repository (for community PRs, will be done by Datadog employees):
     + set the relevant `team/` label
     + add a milestone to your PR (by default, use the highest milestone version available, ex: `6.8.0`)
@@ -91,17 +91,19 @@ body to skip the build and give that slot to someone else who does need it.
 
 ### Squash your commits
 
-Please rebase your changes on `master` and squash your commits whenever possible,
+Please rebase your changes on `main` and squash your commits whenever possible,
 it keeps history cleaner and it's easier to revert things. It also makes developers
 happier!
 
 ### Reno
 
 We use `Reno` to create our CHANGELOG. Reno is a pretty simple
-[tool](https://docs.openstack.org/reno/latest/user/usage.html). With each PR
-should come a new releasenotes created with `reno` (unless your change doesn't
-have a single user impact and should not be mentioned in the CHANGELOG, very
-unlikely !).
+[tool](https://docs.openstack.org/reno/latest/user/usage.html).
+
+Each PR should include a `releasenotes` file created with `reno`, unless the PR doesn't
+have any impact on the behavior of the Agent and therefore shouldn't be mentioned in the
+CHANGELOG (examples: repository documentation updates, changes in code comments). PRs that
+don't require a release note file will be labeled `changelog/no-changelog` by maintainers.
 
 To install reno: `pip install reno`
 

@@ -1,0 +1,15 @@
+---
+features:
+  - |
+    The `args_flags` and `args_options` were added to the SECL
+    language to ease the writing of runtime security rules based
+    on command line arguments.
+    `args_flags` is used to catch arguments that start by either one
+    or two hyphen characters but do not accept any associated value.
+
+    Examples:
+
+    - `version` is part of `args_flags` for the command `cat --version`
+    - `l` and `n` both are in `args_flags` for the command `netstat -ln`
+    - `T=8` and `width=8` both are in `args_options` for the command
+      `ls -T 8 --width=8`.

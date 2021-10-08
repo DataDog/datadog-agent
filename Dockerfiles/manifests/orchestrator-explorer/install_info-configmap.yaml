@@ -3,6 +3,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: datadog-installinfo
+  namespace: default
   labels: {}
   annotations: {}
 data:

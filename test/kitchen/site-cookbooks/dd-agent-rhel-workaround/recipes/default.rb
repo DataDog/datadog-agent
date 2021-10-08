@@ -2,7 +2,7 @@
 # Cookbook Name:: dd-agent-rhel-workaround
 # Recipe:: default
 #
-# Copyright (C) 2020 Datadog
+# Copyright (C) 2020-present Datadog
 #
 # All rights reserved - Do Not Redistribute
 #

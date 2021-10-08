@@ -49,7 +49,7 @@ BEGIN
             VALUE "FileDescription", "Datadog Metrics Agent"
             VALUE "FileVersion", FILE_VERSION_STRING
             VALUE "InternalName", "Agent6"
-            VALUE "LegalCopyright", "Copyright (C) 2016-2020"
+            VALUE "LegalCopyright", "Copyright (C) 2016-present"
             VALUE "OriginalFilename", "agent.exe"
             VALUE "ProductName", "Datadog Agent"
             VALUE "ProductVersion", FILE_VERSION_STRING

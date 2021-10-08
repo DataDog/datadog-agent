@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 package checks
 
 import (
@@ -33,18 +33,23 @@ func (f *processFixture) run(t *testing.T) {
 		cache.Cache.Delete(processCacheKey)
 	}
 	processFetcher = func() (processes, error) {
+		for pid, p := range f.processes {
+			p.Pid = pid
+		}
 		return f.processes, nil
 	}
 
 	env := &mocks.Env{}
+	env.On("MaxEventsPerRun").Return(30).Maybe()
+
 	defer env.AssertExpectations(t)
 
 	processCheck, err := newResourceCheck(env, "rule-id", f.resource)
 	assert.NoError(err)
 
-	result, err := processCheck.check(env)
-	assert.Equal(f.expectReport, result)
-	assert.Equal(f.expectError, err)
+	reports := processCheck.check(env)
+	assert.Equal(f.expectReport, reports[0])
+	assert.Equal(f.expectError, reports[0].Error)
 }
 
 func TestProcessCheck(t *testing.T) {
@@ -52,8 +57,10 @@ func TestProcessCheck(t *testing.T) {
 		{
 			name: "simple case",
 			resource: compliance.Resource{
-				Process: &compliance.Process{
-					Name: "proc1",
+				ResourceCommon: compliance.ResourceCommon{
+					Process: &compliance.Process{
+						Name: "proc1",
+					},
 				},
 				Condition: `process.flag("--path") == "foo"`,
 			},
@@ -70,20 +77,28 @@ func TestProcessCheck(t *testing.T) {
 					"process.exe":     "",
 					"process.cmdLine": []string{"arg1", "--path=foo"},
 				},
+				Resource: compliance.ReportResource{
+					ID:   "42",
+					Type: "process",
+				},
 			},
 		},
 		{
 			name: "fallback case",
 			resource: compliance.Resource{
-				Process: &compliance.Process{
-					Name: "proc1",
+				ResourceCommon: compliance.ResourceCommon{
+					Process: &compliance.Process{
+						Name: "proc1",
+					},
 				},
 				Condition: `process.flag("--tlsverify") != ""`,
 				Fallback: &compliance.Fallback{
 					Condition: `!process.hasFlag("--tlsverify")`,
 					Resource: compliance.Resource{
-						Process: &compliance.Process{
-							Name: "proc2",
+						ResourceCommon: compliance.ResourceCommon{
+							Process: &compliance.Process{
+								Name: "proc2",
+							},
 						},
 						Condition: `process.hasFlag("--tlsverify")`,
 					},
@@ -106,13 +121,19 @@ func TestProcessCheck(t *testing.T) {
 					"process.exe":     "",
 					"process.cmdLine": []string{"arg1", "--tlsverify"},
 				},
+				Resource: compliance.ReportResource{
+					ID:   "38",
+					Type: "process",
+				},
 			},
 		},
 		{
 			name: "process not found",
 			resource: compliance.Resource{
-				Process: &compliance.Process{
-					Name: "proc1",
+				ResourceCommon: compliance.ResourceCommon{
+					Process: &compliance.Process{
+						Name: "proc1",
+					},
 				},
 				Condition: `process.flag("--path") == "foo"`,
 			},
@@ -133,8 +154,10 @@ func TestProcessCheck(t *testing.T) {
 		{
 			name: "argument not found",
 			resource: compliance.Resource{
-				Process: &compliance.Process{
-					Name: "proc1",
+				ResourceCommon: compliance.ResourceCommon{
+					Process: &compliance.Process{
+						Name: "proc1",
+					},
 				},
 				Condition: `process.flag("--path") == "foo"`,
 			},
@@ -151,6 +174,10 @@ func TestProcessCheck(t *testing.T) {
 					"process.exe":     "",
 					"process.cmdLine": []string{"arg1", "--paths=foo"},
 				},
+				Resource: compliance.ReportResource{
+					ID:   "42",
+					Type: "process",
+				},
 			},
 		},
 	}
@@ -166,8 +193,10 @@ func TestProcessCheckCache(t *testing.T) {
 	firstContent := processFixture{
 		name: "simple case",
 		resource: compliance.Resource{
-			Process: &compliance.Process{
-				Name: "proc1",
+			ResourceCommon: compliance.ResourceCommon{
+				Process: &compliance.Process{
+					Name: "proc1",
+				},
 			},
 			Condition: `process.flag("--path") == "foo"`,
 		},
@@ -184,6 +213,10 @@ func TestProcessCheckCache(t *testing.T) {
 				"process.exe":     "",
 				"process.cmdLine": []string{"arg1", "--path=foo"},
 			},
+			Resource: compliance.ReportResource{
+				ID:   "42",
+				Type: "process",
+			},
 		},
 	}
 	firstContent.run(t)
@@ -192,8 +225,10 @@ func TestProcessCheckCache(t *testing.T) {
 	secondFixture := processFixture{
 		name: "simple case",
 		resource: compliance.Resource{
-			Process: &compliance.Process{
-				Name: "proc1",
+			ResourceCommon: compliance.ResourceCommon{
+				Process: &compliance.Process{
+					Name: "proc1",
+				},
 			},
 			Condition: `process.flag("--path") == "foo"`,
 		},
@@ -204,6 +239,10 @@ func TestProcessCheckCache(t *testing.T) {
 				"process.name":    "proc1",
 				"process.exe":     "",
 				"process.cmdLine": []string{"arg1", "--path=foo"},
+			},
+			Resource: compliance.ReportResource{
+				ID:   "42",
+				Type: "process",
 			},
 		},
 	}

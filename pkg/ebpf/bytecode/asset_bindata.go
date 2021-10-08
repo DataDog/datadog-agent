@@ -4,6 +4,7 @@ package bytecode
 
 import (
 	"bytes"
+	"io"
 
 	bindata "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/bindata"
 )
@@ -15,5 +16,16 @@ func GetReader(dir, name string) (AssetReader, error) {
 		return nil, err
 	}
 
-	return bytes.NewReader(content), nil
+	return nopCloser{bytes.NewReader(content)}, nil
 }
+
+type readerAt interface {
+	io.Reader
+	io.ReaderAt
+}
+
+type nopCloser struct {
+	readerAt
+}
+
+func (nopCloser) Close() error { return nil }

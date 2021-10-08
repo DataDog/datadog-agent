@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package aggregator
 
@@ -19,39 +19,35 @@ const checksSourceTypeName = "System"
 // CheckSampler aggregates metrics from one Check instance
 type CheckSampler struct {
 	series          []*metrics.Serie
-	sketches        []metrics.SketchSeries
-	contextResolver *ContextResolver
-	metrics         metrics.ContextMetrics
+	sketches        metrics.SketchSeriesList
+	contextResolver *countBasedContextResolver
+	metrics         metrics.CheckMetrics
 	sketchMap       sketchMap
 	lastBucketValue map[ckey.ContextKey]int64
-	lastSeenBucket  map[ckey.ContextKey]time.Time
-	bucketExpiry    time.Duration
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
-func newCheckSampler() *CheckSampler {
+func newCheckSampler(expirationCount int, expireMetrics bool, statefulTimeout time.Duration) *CheckSampler {
 	return &CheckSampler{
 		series:          make([]*metrics.Serie, 0),
-		sketches:        make([]metrics.SketchSeries, 0),
-		contextResolver: newContextResolver(),
-		metrics:         metrics.MakeContextMetrics(),
+		sketches:        make(metrics.SketchSeriesList, 0),
+		contextResolver: newCountBasedContextResolver(expirationCount),
+		metrics:         metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
 		sketchMap:       make(sketchMap),
 		lastBucketValue: make(map[ckey.ContextKey]int64),
-		lastSeenBucket:  make(map[ckey.ContextKey]time.Time),
-		bucketExpiry:    1 * time.Minute,
 	}
 }
 
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
-	contextKey := cs.contextResolver.trackContext(metricSample, metricSample.Timestamp)
+	contextKey := cs.contextResolver.trackContext(metricSample)
 
 	if err := cs.metrics.AddSample(contextKey, metricSample, metricSample.Timestamp, 1); err != nil {
-		log.Debug("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Host, metricSample.Tags, err)
+		log.Debugf("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Host, metricSample.Tags, err)
 	}
 }
 
 func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) metrics.SketchSeries {
-	ctx := cs.contextResolver.contextsByKey[ck]
+	ctx, _ := cs.contextResolver.get(ck)
 	ss := metrics.SketchSeries{
 		Name: ctx.Name,
 		Tags: ctx.Tags,
@@ -83,18 +79,21 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 		return
 	}
 
-	contextKey := cs.contextResolver.trackContext(bucket, bucket.Timestamp)
+	contextKey := cs.contextResolver.trackContext(bucket)
 
 	// if the bucket is monotonic and we have already seen the bucket we only send the delta
 	if bucket.Monotonic {
 		lastBucketValue, bucketFound := cs.lastBucketValue[contextKey]
 		rawValue := bucket.Value
-		if bucketFound {
-			cs.lastSeenBucket[contextKey] = time.Now()
-			bucket.Value = rawValue - lastBucketValue
-		}
+
 		cs.lastBucketValue[contextKey] = rawValue
-		cs.lastSeenBucket[contextKey] = time.Now()
+
+		// Return early so we don't report the first raw value instead of the delta which will cause spikes
+		if !bucketFound && !bucket.FlushFirstValue {
+			return
+		}
+
+		bucket.Value = rawValue - lastBucketValue
 	}
 
 	if bucket.Value < 0 {
@@ -122,7 +121,7 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 func (cs *CheckSampler) commitSeries(timestamp float64) {
 	series, errors := cs.metrics.Flush(timestamp)
 	for ckey, err := range errors {
-		context, ok := cs.contextResolver.contextsByKey[ckey]
+		context, ok := cs.contextResolver.get(ckey)
 		if !ok {
 			log.Errorf("Can't resolve context of error '%s': inconsistent context resolver state: context with key '%v' is not tracked", err, ckey)
 			continue
@@ -131,7 +130,7 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 	}
 	for _, serie := range series {
 		// Resolve context and populate new []Serie
-		context, ok := cs.contextResolver.contextsByKey[serie.ContextKey]
+		context, ok := cs.contextResolver.get(serie.ContextKey)
 		if !ok {
 			log.Errorf("Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", serie.ContextKey)
 			continue
@@ -162,7 +161,17 @@ func (cs *CheckSampler) commitSketches(timestamp float64) {
 func (cs *CheckSampler) commit(timestamp float64) {
 	cs.commitSeries(timestamp)
 	cs.commitSketches(timestamp)
-	cs.contextResolver.expireContexts(timestamp - defaultExpiry)
+
+	cs.metrics.RemoveExpired(timestamp)
+
+	expiredContextKeys := cs.contextResolver.expireContexts()
+
+	// garbage collect unused buckets
+	for _, ctxKey := range expiredContextKeys {
+		delete(cs.lastBucketValue, ctxKey)
+	}
+
+	cs.metrics.Expire(expiredContextKeys, timestamp)
 }
 
 func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
@@ -172,16 +181,7 @@ func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 
 	// sketches
 	sketches := cs.sketches
-	cs.sketches = make([]metrics.SketchSeries, 0)
-
-	// garbage collect unused bucket deltas
-	now := time.Now()
-	for ctxKey, lastSeenBucket := range cs.lastSeenBucket {
-		if now.Sub(lastSeenBucket) > cs.bucketExpiry {
-			delete(cs.lastSeenBucket, ctxKey)
-			delete(cs.lastBucketValue, ctxKey)
-		}
-	}
+	cs.sketches = make(metrics.SketchSeriesList, 0)
 
 	return series, sketches
 }

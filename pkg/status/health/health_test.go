@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package health
 
@@ -109,7 +109,7 @@ func TestGetHealthy(t *testing.T) {
 
 	// Start responding, become healthy
 	<-token.C
-	cat.pingComponents()
+	cat.pingComponents(time.Time{})
 	status = cat.getStatus()
 	assert.Len(t, status.Healthy, 2)
 	assert.Len(t, status.Unhealthy, 0)
@@ -117,7 +117,7 @@ func TestGetHealthy(t *testing.T) {
 	// Make sure we keep staying healthy
 	for i := 1; i < 10; i++ {
 		<-token.C
-		cat.pingComponents()
+		cat.pingComponents(time.Time{})
 	}
 	status = cat.getStatus()
 	assert.Len(t, status.Healthy, 2)

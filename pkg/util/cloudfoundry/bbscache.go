@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build clusterchecks
 
@@ -10,6 +10,7 @@ package cloudfoundry
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sync"
 	"time"
 
@@ -43,6 +44,8 @@ type BBSCache struct {
 	pollInterval       time.Duration
 	pollAttempts       int
 	pollSuccesses      int
+	envIncludeList     []*regexp.Regexp
+	envExcludeList     []*regexp.Regexp
 	// maps Desired LRPs' AppGUID to list of ActualLRPs (IOW this is list of running containers per app)
 	actualLRPsByProcessGUID map[string][]*ActualLRP
 	actualLRPsByCellID      map[string][]*ActualLRP
@@ -57,7 +60,7 @@ var (
 )
 
 // ConfigureGlobalBBSCache configures the global instance of BBSCache from provided config
-func ConfigureGlobalBBSCache(ctx context.Context, bbsURL, cafile, certfile, keyfile string, pollInterval time.Duration, testing bbs.Client) (*BBSCache, error) {
+func ConfigureGlobalBBSCache(ctx context.Context, bbsURL, cafile, certfile, keyfile string, pollInterval time.Duration, includeList, excludeList []*regexp.Regexp, testing bbs.Client) (*BBSCache, error) {
 	globalBBSCacheLock.Lock()
 	defer globalBBSCacheLock.Unlock()
 
@@ -92,6 +95,8 @@ func ConfigureGlobalBBSCache(ctx context.Context, bbsURL, cafile, certfile, keyf
 	globalBBSCache.pollInterval = pollInterval
 	globalBBSCache.lastUpdated = time.Time{} // zero time
 	globalBBSCache.cancelContext = ctx
+	globalBBSCache.envIncludeList = includeList
+	globalBBSCache.envExcludeList = excludeList
 
 	go globalBBSCache.start()
 
@@ -127,7 +132,7 @@ func (bc *BBSCache) GetPollSuccesses() int {
 	return bc.pollSuccesses
 }
 
-// GetActualLRPsForApp returns slice of pointers to ActualLRP objects for given App GUID
+// GetActualLRPsForProcessGUID returns slice of pointers to ActualLRP objects for given App GUID
 func (bc *BBSCache) GetActualLRPsForProcessGUID(processGUID string) ([]*ActualLRP, error) {
 	bc.RLock()
 	defer bc.RUnlock()
@@ -266,7 +271,7 @@ func (bc *BBSCache) readDesiredLRPs() (map[string]*DesiredLRP, error) {
 	}
 	desiredLRPs := make(map[string]*DesiredLRP, len(desiredLRPsBBS))
 	for _, lrp := range desiredLRPsBBS {
-		desiredLRP := DesiredLRPFromBBSModel(lrp)
+		desiredLRP := DesiredLRPFromBBSModel(lrp, bc.envIncludeList, bc.envExcludeList)
 		desiredLRPs[desiredLRP.ProcessGUID] = &desiredLRP
 	}
 	log.Debugf("Successfully read %d Desired LRPs", len(desiredLRPsBBS))
@@ -281,12 +286,6 @@ func (bc *BBSCache) extractNodeTags(nodeActualLRPs []*ActualLRP, desiredLRPsByPr
 		dlrp, ok := desiredLRPsByProcessGUID[alrp.ProcessGUID]
 		if !ok {
 			log.Debugf("Could not find desired LRP for process GUID %s", alrp.ProcessGUID)
-			continue
-		}
-		vcApp := dlrp.EnvVcapApplication
-		_, ok = vcApp[ApplicationNameKey]
-		if !ok {
-			log.Debugf("Could not find application_name of app %s", dlrp.AppGUID)
 			continue
 		}
 		tags[alrp.InstanceGUID] = []string{

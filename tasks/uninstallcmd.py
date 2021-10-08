@@ -1,7 +1,7 @@
 """
 customaction namespaced tasks
 """
-from __future__ import print_function
+
 
 import os
 import shutil
@@ -28,7 +28,7 @@ def build(ctx, major_version='7', vstudio_root=None, arch="x64", debug=False):
         print("Custom action library is only for Win32")
         raise Exit(code=1)
 
-    ver = get_version_numeric_only(ctx, env=os.environ, major_version=major_version)
+    ver = get_version_numeric_only(ctx, major_version=major_version)
     build_maj, build_min, build_patch = ver.split(".")
     verprops = " /p:MAJ_VER={build_maj} /p:MIN_VER={build_min} /p:PATCH_VER={build_patch} ".format(
         build_maj=build_maj, build_min=build_min, build_patch=build_patch
@@ -50,8 +50,10 @@ def build(ctx, major_version='7', vstudio_root=None, arch="x64", debug=False):
         if arch == "x86":
             batchfile = "vcvars32.bat"
         vs_env_bat = '{}\\VC\\Auxiliary\\Build\\{}'.format(vsroot, batchfile)
-        cmd = 'call \"{}\" && msbuild {}\\uninstall-cmd\\uninstall-cmd.vcxproj /p:Configuration={} /p:Platform={}'.format(
-            vs_env_bat, CUSTOM_ACTION_ROOT_DIR, configuration, arch
+        cmd = (
+            'call \"{}\" && msbuild {}\\uninstall-cmd\\uninstall-cmd.vcxproj /p:Configuration={} /p:Platform={}'.format(
+                vs_env_bat, CUSTOM_ACTION_ROOT_DIR, configuration, arch
+            )
         )
     else:
         cmd = 'msbuild {}\\uninstall-cmd\\uninstall-cmd.vcxproj /p:Configuration={} /p:Platform={}'.format(
@@ -71,7 +73,7 @@ def build(ctx, major_version='7', vstudio_root=None, arch="x64", debug=False):
 
 
 @task
-def clean(ctx, arch="x64", debug=False):
+def clean(_, arch="x64", debug=False):
     configuration = "Release"
     if debug:
         configuration = "Debug"

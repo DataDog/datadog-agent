@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package collector
 
@@ -198,7 +198,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 		}
 
 		if len(errors) == numLoaders {
-			log.Debugf("Unable to load a check from instance of config '%s': %s", config.Name, strings.Join(errors, "; "))
+			log.Errorf("Unable to load a check from instance of config '%s': %s", config.Name, strings.Join(errors, "; "))
 		}
 	}
 

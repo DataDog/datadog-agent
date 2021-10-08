@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 /*
 Package clcrunnerapi implements the clc runner IPC api. Using HTTP
@@ -26,17 +26,20 @@ import (
 	"github.com/gorilla/mux"
 )
 
-var (
-	clcListener net.Listener
-)
+var clcListener net.Listener
 
 // StartCLCRunnerServer creates the router and starts the HTTP server
-func StartCLCRunnerServer() error {
+func StartCLCRunnerServer(extraHandlers map[string]http.Handler) error {
 	// create the root HTTP router
 	r := mux.NewRouter()
 
 	// IPC REST API server
 	v1.SetupHandlers(r.PathPrefix("/api/v1").Subrouter())
+
+	// Register extra hanlders
+	for path, handler := range extraHandlers {
+		r.Handle(path, handler)
+	}
 
 	// Validate token for every request
 	r.Use(validateCLCRunnerToken)

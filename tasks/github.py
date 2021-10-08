@@ -1,13 +1,13 @@
 from invoke import task
 
-from .deploy.github_actions_tools import download_artifacts, follow_workflow_run, trigger_macos_workflow
-from .utils import load_release_versions
+from .libs.github_actions_tools import download_artifacts, follow_workflow_run, trigger_macos_workflow
+from .utils import DEFAULT_BRANCH, load_release_versions
 
 
 @task
 def trigger_macos_build(
     ctx,
-    datadog_agent_ref="master",
+    datadog_agent_ref=DEFAULT_BRANCH,
     release_version="nightly-a7",
     major_version="7",
     python_runtimes="3",

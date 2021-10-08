@@ -4,24 +4,28 @@ package ebpf
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ebpf/manager"
 )
 
-const x64SyscallPrefix = "__x64_"
+var indirectSyscallPrefixes = map[string]string{
+	"amd64": "__x64_",
+	"arm64": "__arm64_",
+}
 
 // ChooseSyscallProbeExit chooses between a tracepoint or kretprobe based on configuration and
 // host-supported features.
 func (c *Config) ChooseSyscallProbeExit(tracepoint string, fallback string) (string, error) {
-	// return value doesn't require the x64 indirection
+	// return value doesn't require the indirection
 	return c.ChooseSyscallProbe(tracepoint, "", fallback)
 }
 
 // ChooseSyscallProbe chooses between a tracepoint, arch-specific kprobe, or arch-agnostic kprobe based on
 // configuration and host-supported features.
-func (c *Config) ChooseSyscallProbe(tracepoint string, x64probe string, fallback string) (string, error) {
+func (c *Config) ChooseSyscallProbe(tracepoint string, indirectProbe string, fallback string) (string, error) {
 	tparts := strings.Split(tracepoint, "/")
 	if len(tparts) != 3 || tparts[0] != "tracepoint" || tparts[1] != "syscalls" {
 		return "", fmt.Errorf("invalid tracepoint name")
@@ -33,26 +37,26 @@ func (c *Config) ChooseSyscallProbe(tracepoint string, x64probe string, fallback
 	if len(fparts) != 2 {
 		return "", fmt.Errorf("invalid fallback probe name")
 	}
-	syscall := fparts[1]
+	syscall := strings.TrimPrefix(fparts[1], "sys_")
 
-	if x64probe != "" {
-		xparts := strings.Split(x64probe, "/")
+	if indirectProbe != "" {
+		xparts := strings.Split(indirectProbe, "/")
 		if len(xparts) < 2 {
-			return "", fmt.Errorf("invalid x64 probe name")
+			return "", fmt.Errorf("invalid indirect probe name")
 		}
-		if xparts[1] != syscall {
-			return "", fmt.Errorf("x64 and fallback probe syscalls do not match")
+		if strings.TrimPrefix(xparts[1], "sys_") != syscall {
+			return "", fmt.Errorf("indirect and fallback probe syscalls do not match")
 		}
 	}
 
 	if id, err := manager.GetTracepointID(category, tpName); c.EnableTracepoints && err == nil && id != -1 {
-		log.Info("Using a tracepoint to probe bind syscall")
+		log.Infof("Using a tracepoint to probe %s syscall", syscall)
 		return tracepoint, nil
 	}
 
-	if x64probe != "" {
+	if indirectProbe != "" {
 		// In linux kernel version 4.17(?) they added architecture specific calling conventions to syscalls within the kernel.
-		// When attaching a kprobe to the `__x64_sys_` prefixed syscall, all the arguments are behind an additional layer of
+		// When attaching a kprobe to the `__x64_sys_` or `__arm64_sys_` prefixed syscall, all the arguments are behind an additional layer of
 		// indirection. We are detecting this at runtime, and setting the constant `use_indirect_syscall` so the kprobe code
 		// accesses the arguments correctly.
 		//
@@ -64,8 +68,10 @@ func (c *Config) ChooseSyscallProbe(tracepoint string, x64probe string, fallback
 		// Instead of:
 		// int domain = PT_REGS_PARM1(ctx);
 		//
-		if sysName, err := manager.GetSyscallFnName(syscall); err == nil && strings.HasPrefix(sysName, x64SyscallPrefix) {
-			return x64probe, nil
+		if sysName, err := manager.GetSyscallFnName(syscall); err == nil {
+			if prefix, ok := indirectSyscallPrefixes[runtime.GOARCH]; ok && strings.HasPrefix(sysName, prefix) {
+				return indirectProbe, nil
+			}
 		}
 	}
 	return fallback, nil

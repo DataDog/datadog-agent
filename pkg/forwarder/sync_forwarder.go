@@ -5,13 +5,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	utilhttp "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // SyncForwarder is a very simple Forwarder synchronously sending
 // the data to the intake.
-// It doesn't ship any retry mechanism for now.
 type SyncForwarder struct {
 	defaultForwarder *DefaultForwarder
 	client           *http.Client
@@ -37,10 +37,17 @@ func (f *SyncForwarder) Start() error {
 func (f *SyncForwarder) Stop() {
 }
 
-func (f *SyncForwarder) sendHTTPTransactions(transactions []*HTTPTransaction) error {
+func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTransaction) error {
 	for _, t := range transactions {
 		if err := t.Process(context.Background(), f.client); err != nil {
-			log.Errorf("SyncForwarder.sendHTTPTransactions: %s", err)
+			log.Debugf("SyncForwarder.sendHTTPTransactions first attempt: %s", err)
+			// Retry once after error
+			// The intake may have closed the connection between Lambda invocations.
+			// If so, the first attempt will fail because the closed connection will still be cached.
+			log.Debug("Retrying transaction")
+			if err := t.Process(context.Background(), f.client); err != nil {
+				log.Errorf("SyncForwarder.sendHTTPTransactions final attempt: %s", err)
+			}
 		}
 	}
 	log.Debugf("SyncForwarder has flushed %d transactions", len(transactions))
@@ -55,8 +62,8 @@ func (f *SyncForwarder) SubmitV1Series(payload Payloads, extra http.Header) erro
 }
 
 // SubmitV1Intake will send payloads to the universal `/intake/` endpoint used by Agent v.5
-func (f *SyncForwarder) SubmitV1Intake(payload Payloads, extra http.Header, priority TransactionPriority) error {
-	transactions := f.defaultForwarder.createPriorityHTTPTransactions(v1IntakeEndpoint, payload, true, extra, priority)
+func (f *SyncForwarder) SubmitV1Intake(payload Payloads, extra http.Header) error {
+	transactions := f.defaultForwarder.createHTTPTransactions(v1IntakeEndpoint, payload, true, extra)
 	// the intake endpoint requires the Content-Type header to be set
 	for _, t := range transactions {
 		t.Headers.Set("Content-Type", "application/json")
@@ -68,12 +75,6 @@ func (f *SyncForwarder) SubmitV1Intake(payload Payloads, extra http.Header, prio
 // the backend handles v2 endpoints).
 func (f *SyncForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header) error {
 	transactions := f.defaultForwarder.createHTTPTransactions(v1CheckRunsEndpoint, payload, true, extra)
-	return f.sendHTTPTransactions(transactions)
-}
-
-// SubmitSeries will send a series type payload to Datadog backend.
-func (f *SyncForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(seriesEndpoint, payload, false, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -97,19 +98,27 @@ func (f *SyncForwarder) SubmitSketchSeries(payload Payloads, extra http.Header) 
 
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
 func (f *SyncForwarder) SubmitHostMetadata(payload Payloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(hostMetadataEndpoint, payload, false, extra)
-	return f.sendHTTPTransactions(transactions)
+	return f.SubmitV1Intake(payload, extra)
 }
 
 // SubmitMetadata will send a metadata type payload to Datadog backend.
-func (f *SyncForwarder) SubmitMetadata(payload Payloads, extra http.Header, priority TransactionPriority) error {
-	transactions := f.defaultForwarder.createPriorityHTTPTransactions(metadataEndpoint, payload, false, extra, priority)
-	return f.sendHTTPTransactions(transactions)
+func (f *SyncForwarder) SubmitMetadata(payload Payloads, extra http.Header) error {
+	return f.SubmitV1Intake(payload, extra)
+}
+
+// SubmitAgentChecksMetadata will send a agentchecks_metadata tag type payload to Datadog backend.
+func (f *SyncForwarder) SubmitAgentChecksMetadata(payload Payloads, extra http.Header) error {
+	return f.SubmitV1Intake(payload, extra)
 }
 
 // SubmitProcessChecks sends process checks
 func (f *SyncForwarder) SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
 	return f.defaultForwarder.submitProcessLikePayload(processesEndpoint, payload, extra, true)
+}
+
+// SubmitProcessDiscoveryChecks sends process discovery checks
+func (f *SyncForwarder) SubmitProcessDiscoveryChecks(payload Payloads, extra http.Header) (chan Response, error) {
+	return f.defaultForwarder.submitProcessLikePayload(processDiscoveryEndpoint, payload, extra, true)
 }
 
 // SubmitRTProcessChecks sends real time process checks
@@ -133,6 +142,6 @@ func (f *SyncForwarder) SubmitConnectionChecks(payload Payloads, extra http.Head
 }
 
 // SubmitOrchestratorChecks sends orchestrator checks
-func (f *SyncForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType string) (chan Response, error) {
+func (f *SyncForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
 	return f.defaultForwarder.SubmitOrchestratorChecks(payload, extra, payloadType)
 }

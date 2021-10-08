@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    The cluster agent now uses the same configuration than the security agent for
+    the logs endpoints configuration. The parameters (such as `logs_dd_url` can be
+    either be specified in the `compliance_config.endpoints` section or through
+    environment variables (such as DD_COMPLIANCE_CONFIG_ENDPOINTS_LOGS_DD_URL).

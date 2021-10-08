@@ -1,7 +1,8 @@
 #include "stdafx.h"
 
-extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
-    
+extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall)
+{
+
     HRESULT hr = S_OK;
     UINT er = ERROR_SUCCESS;
     CustomActionData data;
@@ -15,81 +16,80 @@ extern "C" UINT __stdcall FinalizeInstall(MSIHANDLE hInstall) {
 #ifdef _DEBUG
     MessageBox(NULL, L"hi", L"bye", MB_OK);
 #endif
-    if(!data.init(hInstall)){
+    if (!data.init(hInstall))
+    {
         WcaLog(LOGMSG_STANDARD, "Failed to load custom action property data");
         er = ERROR_INSTALL_FAILURE;
         goto LExit;
     }
-    er =  doFinalizeInstall(data);
+    er = doFinalizeInstall(data);
 
 LExit:
-    if (er == ERROR_SUCCESS) {
+    if (er == ERROR_SUCCESS)
+    {
         er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
     }
     return WcaFinalize(er);
-
 }
 
-
-
-
-extern "C" UINT __stdcall PreStopServices(MSIHANDLE hInstall) {
+extern "C" UINT __stdcall PreStopServices(MSIHANDLE hInstall)
+{
     HRESULT hr = S_OK;
     UINT er = ERROR_SUCCESS;
 
     // that's helpful.  WcaInitialize Log header silently limited to 32 chars
     hr = WcaInitialize(hInstall, "CA: PreStopServices");
     ExitOnFailure(hr, "Failed to initialize");
-    
+
     WcaLog(LOGMSG_STANDARD, "Initialized.");
-    DoStopSvc(agentService);
+    DoStopAllServices();
     WcaLog(LOGMSG_STANDARD, "Waiting for prestop to complete");
     Sleep(10000);
     WcaLog(LOGMSG_STANDARD, "Prestop complete");
 LExit:
     er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
     return WcaFinalize(er);
-
 }
 
-extern "C" UINT __stdcall PostStartServices(MSIHANDLE hInstall) {
+extern "C" UINT __stdcall PostStartServices(MSIHANDLE hInstall)
+{
     HRESULT hr = S_OK;
     DWORD er = ERROR_SUCCESS;
 
     // that's helpful.  WcaInitialize Log header silently limited to 32 chars
     hr = WcaInitialize(hInstall, "CA: PostStartServices");
     ExitOnFailure(hr, "Failed to initialize");
-    
+
     WcaLog(LOGMSG_STANDARD, "Initialized.");
 #ifdef _DEBUG
     MessageBox(NULL, L"PostStartServices", L"PostStartServices", MB_OK);
 #endif
 
-
     er = DoStartSvc(agentService);
     WcaLog(LOGMSG_STANDARD, "Waiting for start to complete");
     Sleep(5000);
     WcaLog(LOGMSG_STANDARD, "start complete");
-    if (ERROR_SUCCESS != er) {
+    if (ERROR_SUCCESS != er)
+    {
         hr = -1;
     }
 LExit:
     er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
     return WcaFinalize(er);
-
 }
 
-
-extern "C" UINT __stdcall DoUninstall(MSIHANDLE hInstall) {
+extern "C" UINT __stdcall DoUninstall(MSIHANDLE hInstall)
+{
     // that's helpful.  WcaInitialize Log header silently limited to 32 chars
     HRESULT hr = WcaInitialize(hInstall, "CA: DoUninstall");
     UINT er = 0;
     ExitOnFailure(hr, "Failed to initialize");
-     
+
     WcaLog(LOGMSG_STANDARD, "Initialized.");
     initializeStringsFromStringTable();
     er = doUninstallAs(UNINSTALL_UNINSTALL);
-    if (er != 0) {
+    if (er != 0)
+    {
         hr = -1;
     }
 LExit:
@@ -97,8 +97,8 @@ LExit:
     return WcaFinalize(er);
 }
 
-
-extern "C" UINT __stdcall DoRollback(MSIHANDLE hInstall) {
+extern "C" UINT __stdcall DoRollback(MSIHANDLE hInstall)
+{
     // that's helpful.  WcaInitialize Log header silently limited to 32 chars
     HRESULT hr = WcaInitialize(hInstall, "CA: DoRollback");
     UINT er = 0;
@@ -115,9 +115,10 @@ extern "C" UINT __stdcall DoRollback(MSIHANDLE hInstall) {
     initializeStringsFromStringTable();
     // we'll need to stop the services manually if we got far enough to start
     // them before installation failed.
-    DoStopSvc(agentService);
+    DoStopAllServices();
     er = doUninstallAs(UNINSTALL_ROLLBACK);
-    if (er != 0) {
+    if (er != 0)
+    {
         hr = -1;
     }
     {
@@ -140,13 +141,9 @@ LExit:
 HMODULE hDllModule;
 
 // DllMain - Initialize and cleanup WiX custom action utils.
-extern "C" BOOL WINAPI DllMain(
-    __in HINSTANCE hInst,
-    __in ULONG ulReason,
-    __in LPVOID
-    )
+extern "C" BOOL WINAPI DllMain(__in HINSTANCE hInst, __in ULONG ulReason, __in LPVOID)
 {
-    switch(ulReason)
+    switch (ulReason)
     {
     case DLL_PROCESS_ATTACH:
         WcaGlobalInitialize(hInst);
@@ -162,5 +159,3 @@ extern "C" BOOL WINAPI DllMain(
 
     return TRUE;
 }
-
-

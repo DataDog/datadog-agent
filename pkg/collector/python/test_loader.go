@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build python,test
 
@@ -89,8 +89,7 @@ func testLoadCustomCheck(t *testing.T) {
 		InitConfig: integration.Data("{}"),
 	}
 
-	// init rtloader
-	rtloader = &C.rtloader_t{}
+	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
 	loader, err := NewPythonCheckLoader()
@@ -98,8 +97,8 @@ func testLoadCustomCheck(t *testing.T) {
 
 	// testing loading custom checks
 	C.get_class_return = 1
-	C.get_class_py_module = &C.rtloader_pyobject_t{}
-	C.get_class_py_class = &C.rtloader_pyobject_t{}
+	C.get_class_py_module = newMockPyObjectPtr()
+	C.get_class_py_class = newMockPyObjectPtr()
 	C.get_attr_string_return = 0
 
 	check, err := loader.Load(conf, conf.Instances[0])
@@ -123,8 +122,7 @@ func testLoadWheelCheck(t *testing.T) {
 		InitConfig: integration.Data("{}"),
 	}
 
-	// init rtloader
-	rtloader = &C.rtloader_t{}
+	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
 	loader, err := NewPythonCheckLoader()
@@ -132,8 +130,8 @@ func testLoadWheelCheck(t *testing.T) {
 
 	// testing loading dd wheels
 	C.get_class_dd_wheel_return = 1
-	C.get_class_dd_wheel_py_module = &C.rtloader_pyobject_t{}
-	C.get_class_dd_wheel_py_class = &C.rtloader_pyobject_t{}
+	C.get_class_dd_wheel_py_module = newMockPyObjectPtr()
+	C.get_class_dd_wheel_py_class = newMockPyObjectPtr()
 	C.get_attr_string_return = 1
 	C.get_attr_string_attr_value = C.CString("1.2.3")
 

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package autodiscovery
 
@@ -58,13 +58,22 @@ func TestDel(t *testing.T) {
 	tpl := integration.Config{ADIdentifiers: []string{"foo", "bar"}}
 	err := cache.Set(tpl)
 	require.Nil(t, err)
+	tpl2 := integration.Config{ADIdentifiers: []string{"foo"}}
+	err = cache.Set(tpl2)
+	require.Nil(t, err)
 
 	err = cache.Del(tpl)
 	require.Nil(t, err)
 
-	require.Len(t, cache.adIDToDigests, 2)
-	assert.Len(t, cache.adIDToDigests["foo"], 0)
-	assert.Len(t, cache.adIDToDigests["bar"], 0)
+	require.Len(t, cache.adIDToDigests, 1)
+	assert.Len(t, cache.adIDToDigests["foo"], 1)
+	assert.Len(t, cache.digestToADId, 1)
+	assert.Len(t, cache.digestToTemplate, 1)
+
+	err = cache.Del(tpl2)
+	require.Nil(t, err)
+
+	require.Len(t, cache.adIDToDigests, 0)
 	assert.Len(t, cache.digestToADId, 0)
 	assert.Len(t, cache.digestToTemplate, 0)
 

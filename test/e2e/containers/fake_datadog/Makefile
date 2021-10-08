@@ -1,4 +1,4 @@
-TAG?=latest
+TAG?=$(shell date '+%Y%m%d')
 
 .PHONY: venv pip build default push
 

@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+deprecations:
+  - |
+    APM: Sublayer metrics (trace.<SPAN_NAME>.duration and derivatives) computation
+    is removed from the agent in favor of new sublayer metrics generated in the backend.
+enhancements:
+  - |
+    APM: Removal of sublayer metric computation improves performance of the trace agent (CPU and memory).

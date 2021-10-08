@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build jmx
 
 package jmx
 
 import (
+	"context"
 	"errors"
 	"io/ioutil"
 	"os"
@@ -29,6 +30,7 @@ func getFile() (string, error) {
 }
 
 func TestLoadCheckConfig(t *testing.T) {
+	ctx := context.Background()
 
 	tmp, err := ioutil.TempDir("", "datadog-agent")
 	if err != nil {
@@ -52,7 +54,7 @@ func TestLoadCheckConfig(t *testing.T) {
 	fp := providers.NewFileConfigProvider(paths)
 	assert.NotNil(t, fp)
 
-	cfgs, err := fp.Collect()
+	cfgs, err := fp.Collect(ctx)
 	assert.Nil(t, err)
 	assert.Len(t, cfgs, 5)
 

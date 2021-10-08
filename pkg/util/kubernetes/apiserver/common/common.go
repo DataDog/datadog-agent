@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
 package common
 
 import (
+	"context"
 	"io/ioutil"
 
 	"k8s.io/api/core/v1"
@@ -49,7 +50,7 @@ func GetMyNamespace() string {
 // We use it as the cluster ID so that even if the configmap is removed
 // the new one should get the same ID.
 func GetKubeSystemUID(coreClient corev1.CoreV1Interface) (string, error) {
-	svc, err := coreClient.Namespaces().Get("kube-system", metav1.GetOptions{})
+	svc, err := coreClient.Namespaces().Get(context.TODO(), "kube-system", metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -68,7 +69,7 @@ func GetOrCreateClusterID(coreClient corev1.CoreV1Interface) (string, error) {
 
 	myNS := GetMyNamespace()
 
-	cm, err := coreClient.ConfigMaps(myNS).Get(defaultClusterIDMap, metav1.GetOptions{})
+	cm, err := coreClient.ConfigMaps(myNS).Get(context.TODO(), defaultClusterIDMap, metav1.GetOptions{})
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			log.Errorf("Cannot retrieve ConfigMap %s/%s: %s", myNS, defaultClusterIDMap, err)
@@ -89,7 +90,7 @@ func GetOrCreateClusterID(coreClient corev1.CoreV1Interface) (string, error) {
 				"id": clusterID,
 			},
 		}
-		cm, err = coreClient.ConfigMaps(myNS).Create(cm)
+		cm, err = coreClient.ConfigMaps(myNS).Create(context.TODO(), cm, metav1.CreateOptions{})
 		if err != nil {
 			log.Errorf("Cannot create ConfigMap %s/%s: %s", myNS, defaultClusterIDMap, err)
 			return "", err
@@ -112,7 +113,7 @@ func GetOrCreateClusterID(coreClient corev1.CoreV1Interface) (string, error) {
 		return "", err
 	}
 	cm.Data["id"] = clusterID
-	_, err = coreClient.ConfigMaps(myNS).Update(cm)
+	_, err = coreClient.ConfigMaps(myNS).Update(context.TODO(), cm, metav1.UpdateOptions{})
 	if err != nil {
 		log.Errorf("Failed to update ConfigMap %s/%s with correct cluster ID: %s", myNS, defaultClusterIDMap, err)
 		return "", err

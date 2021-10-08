@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build docker,kubelet
 
 package docker
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -33,7 +34,7 @@ func ContainsADIdentifier(c *Container) bool {
 		return false
 	}
 	entityID := c.service.GetEntityID()
-	pod, err := kubeutil.GetPodForEntityID(entityID)
+	pod, err := kubeutil.GetPodForEntityID(context.TODO(), entityID)
 	if err != nil {
 		return false
 	}

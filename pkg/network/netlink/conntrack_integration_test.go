@@ -5,10 +5,14 @@ package netlink
 
 import (
 	"fmt"
+	"io"
 	"net"
-	"os/exec"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
+	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ct "github.com/florianl/go-conntrack"
 	"github.com/stretchr/testify/require"
@@ -17,28 +21,19 @@ import (
 )
 
 func TestConntrackExists(t *testing.T) {
-	cmd := exec.Command("testdata/setup_cross_ns_dnat.sh")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		require.NoError(t, err, "setup command failed: %s", out)
-	}
+	defer testutil.TeardownCrossNsDNAT(t)
+	testutil.SetupCrossNsDNAT(t)
 
-	defer func() {
-		cmd := exec.Command("testdata/teardown_cross_ns_dnat.sh")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			require.NoError(t, err, "teardown command failed: %s", out)
-		}
-	}()
-
-	tcpCloser := startServerTCPNs(t, net.ParseIP("2.2.2.4"), 8080, "test")
+	tcpCloser := nettestutil.StartServerTCPNs(t, net.ParseIP("2.2.2.4"), 8080, "test")
 	defer tcpCloser.Close()
 
-	udpCloser := startServerUDPNs(t, net.ParseIP("2.2.2.4"), 8080, "test")
+	udpCloser := nettestutil.StartServerUDPNs(t, net.ParseIP("2.2.2.4"), 8080, "test")
 	defer udpCloser.Close()
 
-	tcpConn := pingTCP(t, net.ParseIP("2.2.2.4"), 80)
+	tcpConn := nettestutil.PingTCP(t, net.ParseIP("2.2.2.4"), 80)
 	defer tcpConn.Close()
 
-	udpConn := pingUDP(t, net.ParseIP("2.2.2.4"), 80)
+	udpConn := nettestutil.PingUDP(t, net.ParseIP("2.2.2.4"), 80)
 	defer udpConn.Close()
 
 	testNs, err := netns.GetFromName("test")
@@ -57,6 +52,64 @@ func TestConntrackExists(t *testing.T) {
 	// test a combination of (tcp, udp) x (root ns, test ns)
 	testConntrackExists(t, tcpLaddr.IP.String(), tcpLaddr.Port, "tcp", testNs, ctrks)
 	testConntrackExists(t, udpLaddr.IP.String(), udpLaddr.Port, "udp", testNs, ctrks)
+}
+
+func TestConntrackExistsRootDNAT(t *testing.T) {
+	defer testutil.TeardownCrossNsDNAT(t)
+	testutil.SetupCrossNsDNAT(t)
+	defer nettestutil.RunCommands(t, []string{
+		"iptables --table nat --delete CLUSTERIPS --destination 10.10.1.1 --protocol tcp --match tcp --dport 80 --jump DNAT --to-destination 2.2.2.4:80",
+		"iptables --table nat --delete PREROUTING --jump CLUSTERIPS",
+		"iptables --table nat --delete OUTPUT --jump CLUSTERIPS",
+		"iptables --table nat --delete-chain CLUSTERIPS",
+	}, true)
+	nettestutil.RunCommands(t, []string{
+		"iptables --table nat --new-chain CLUSTERIPS",
+		"iptables --table nat --append PREROUTING --jump CLUSTERIPS",
+		"iptables --table nat --append OUTPUT --jump CLUSTERIPS",
+		"iptables --table nat --append CLUSTERIPS --destination 10.10.1.1 --protocol tcp --match tcp --dport 80 --jump DNAT --to-destination 2.2.2.4:80",
+	}, false)
+
+	testNs, err := netns.GetFromName("test")
+	require.NoError(t, err)
+	defer testNs.Close()
+
+	rootNs, err := util.GetRootNetNamespace("/proc")
+	require.NoError(t, err)
+	defer rootNs.Close()
+
+	destIP := "10.10.1.1"
+	destPort := 80
+	var tcpCloser io.Closer
+	_ = util.WithNS("/proc", testNs, func() error {
+		tcpCloser = nettestutil.StartServerTCP(t, net.ParseIP("2.2.2.4"), 8080)
+		return nil
+	})
+	defer tcpCloser.Close()
+
+	tcpConn := nettestutil.PingTCP(t, net.ParseIP(destIP), destPort)
+	defer tcpConn.Close()
+
+	rootck, err := NewConntrack(int(rootNs))
+	require.NoError(t, err)
+
+	testck, err := NewConntrack(int(testNs))
+	require.NoError(t, err)
+
+	tcpLaddr := tcpConn.LocalAddr().(*net.TCPAddr)
+	c := &Con{
+		Con: ct.Con{
+			Origin: newIPTuple(tcpLaddr.IP.String(), destIP, uint16(tcpLaddr.Port), uint16(destPort), unix.IPPROTO_TCP),
+		},
+	}
+
+	exists, err := rootck.Exists(c)
+	require.NoError(t, err)
+	assert.True(t, exists)
+
+	exists, err = testck.Exists(c)
+	require.NoError(t, err)
+	assert.False(t, exists)
 }
 
 func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto string, testNs netns.NsHandle, ctrks map[int]Conntrack) {

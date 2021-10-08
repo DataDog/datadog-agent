@@ -1,19 +1,93 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
-// +build clusterchecks
+// +build clusterchecks,!windows
 
 package cloudfoundry
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"code.cloudfoundry.org/bbs/models"
+	"github.com/cloudfoundry-community/go-cfclient"
 	"github.com/stretchr/testify/assert"
 )
+
+var v3App1 = cfclient.V3App{
+	Name:          "name_of_app_cc",
+	State:         "running",
+	Lifecycle:     cfclient.V3Lifecycle{},
+	GUID:          "random_app_guid",
+	CreatedAt:     "",
+	UpdatedAt:     "",
+	Relationships: map[string]cfclient.V3ToOneRelationship{"space": {Data: cfclient.V3Relationship{GUID: "space_guid_1"}}},
+	Links:         nil,
+	Metadata: cfclient.V3Metadata{
+		Labels:      map[string]string{"tags.datadoghq.com/env": "test-env", "toto": "tata"},
+		Annotations: map[string]string{"tags.datadoghq.com/service": "test-service", "foo": "bar"},
+	},
+}
+
+var cfApp1 = CFApp{
+	Name:      "name_of_app_cc",
+	Tags:      []string{"env:test-env", "service:test-service"},
+	SpaceGUID: "space_guid_1",
+}
+
+var v3App2 = cfclient.V3App{
+	Name:          "app2",
+	State:         "running",
+	Lifecycle:     cfclient.V3Lifecycle{},
+	GUID:          "guid2",
+	CreatedAt:     "",
+	UpdatedAt:     "",
+	Relationships: map[string]cfclient.V3ToOneRelationship{"space": {Data: cfclient.V3Relationship{GUID: "space_guid_2"}}},
+	Links:         nil,
+	Metadata: cfclient.V3Metadata{
+		Labels:      map[string]string{},
+		Annotations: map[string]string{},
+	},
+}
+
+var cfApp2 = CFApp{
+	Name:      "app2",
+	SpaceGUID: "space_guid_2",
+}
+
+var v3Space1 = cfclient.V3Space{
+	Name:          "space_name_1",
+	GUID:          "space_guid_1",
+	Relationships: map[string]cfclient.V3ToOneRelationship{"organization": {Data: cfclient.V3Relationship{GUID: "org_guid_1"}}},
+}
+
+var cfSpace1 = CFSpace{
+	Name:    "space_name_1",
+	OrgGUID: "org_guid_1",
+}
+
+var v3Space2 = cfclient.V3Space{
+	Name:          "space_name_2",
+	GUID:          "space_guid_2",
+	Relationships: map[string]cfclient.V3ToOneRelationship{"organization": {Data: cfclient.V3Relationship{GUID: "org_guid_2"}}},
+}
+
+var v3Org1 = cfclient.V3Organization{
+	Name: "org_name_1",
+	GUID: "org_guid_1",
+}
+
+var cfOrg1 = CFOrg{
+	Name: "org_name_1",
+}
+
+var v3Org2 = cfclient.V3Organization{
+	Name: "org_name_2",
+	GUID: "org_guid_2",
+}
 
 var BBSModelA1 = models.ActualLRP{
 	ActualLRPNetInfo: models.ActualLRPNetInfo{
@@ -86,6 +160,14 @@ var BBSModelD1 = models.DesiredLRP{
 								Name:  "VCAP_SERVICES",
 								Value: "{\"broker\": [{\"name\": \"yyy\"}]}",
 							},
+							{
+								Name:  "CUSTOM_TAG_1",
+								Value: "TEST1",
+							},
+							{
+								Name:  "CUSTOM_TAG_2",
+								Value: "TEST2",
+							},
 						},
 					},
 				},
@@ -117,6 +199,53 @@ var BBSModelD1 = models.DesiredLRP{
 }
 
 var ExpectedD1 = DesiredLRP{
+	AppGUID:         "random_app_guid",
+	AppName:         "name_of_app_cc",
+	EnvAD:           ADConfig{"xxx": {}},
+	EnvVcapServices: map[string][]byte{"xxx": []byte("{\"name\":\"xxx\"}")},
+	EnvVcapApplication: map[string]string{
+		"application_name":  "name_of_the_app",
+		"application_id":    "random_app_guid",
+		"organization_name": "name_of_the_org",
+		"organization_id":   "random_org_guid",
+		"space_name":        "name_of_the_space",
+		"space_id":          "random_space_guid",
+	},
+	OrganizationGUID: "org_guid_1",
+	OrganizationName: "org_name_1",
+	ProcessGUID:      "0123456789012345678901234567890123456789",
+	SpaceGUID:        "space_guid_1",
+	SpaceName:        "space_name_1",
+	CustomTags:       []string{"env:test-env", "service:test-service"},
+}
+
+var ExpectedD2 = DesiredLRP{
+	AppGUID:         "random_app_guid",
+	AppName:         "name_of_app_cc",
+	EnvAD:           ADConfig{"xxx": {}},
+	EnvVcapServices: map[string][]byte{"xxx": []byte("{\"name\":\"xxx\"}")},
+	EnvVcapApplication: map[string]string{
+		"application_name":  "name_of_the_app",
+		"application_id":    "random_app_guid",
+		"organization_name": "name_of_the_org",
+		"organization_id":   "random_org_guid",
+		"space_name":        "name_of_the_space",
+		"space_id":          "random_space_guid",
+	},
+	OrganizationGUID: "org_guid_1",
+	OrganizationName: "org_name_1",
+	ProcessGUID:      "0123456789012345678901234567890123456789",
+	SpaceGUID:        "space_guid_1",
+	SpaceName:        "space_name_1",
+	CustomTags: []string{
+		"CUSTOM_TAG_1:TEST1",
+		"CUSTOM_TAG_2:TEST2",
+		"env:test-env",
+		"service:test-service",
+	},
+}
+
+var ExpectedD3NoCCCache = DesiredLRP{
 	AppGUID:         "random_app_guid",
 	AppName:         "name_of_the_app",
 	EnvAD:           ADConfig{"xxx": {}},
@@ -159,9 +288,9 @@ func TestADIdentifier(t *testing.T) {
 			},
 			svcName: "flask-app",
 			aLRP: &ActualLRP{
-				Index: 2,
+				InstanceGUID: "instance-guid",
 			},
-			expected: "4321/flask-app/2",
+			expected: "4321/flask-app/instance-guid",
 		},
 	} {
 		t.Run(fmt.Sprintf(""), func(t *testing.T) {
@@ -176,14 +305,44 @@ func TestADIdentifier(t *testing.T) {
 	}
 }
 
+func TestCFAppFromV3App(t *testing.T) {
+	result := CFAppFromV3App(&v3App1)
+	assert.EqualValues(t, cfApp1, *result)
+}
+
+func TestCFSpaceFromV3Space(t *testing.T) {
+	result := CFSpaceFromV3Space(&v3Space1)
+	assert.EqualValues(t, cfSpace1, *result)
+}
+
+func TestCFOrgFromV3Organization(t *testing.T) {
+	result := CFOrgFromV3Organization(&v3Org1)
+	assert.EqualValues(t, cfOrg1, *result)
+}
+
 func TestActualLRPFromBBSModel(t *testing.T) {
 	result := ActualLRPFromBBSModel(&BBSModelA1)
 	assert.EqualValues(t, ExpectedA1, result)
 }
 
 func TestDesiredLRPFromBBSModel(t *testing.T) {
-	result := DesiredLRPFromBBSModel(&BBSModelD1)
+	includeList := []*regexp.Regexp{regexp.MustCompile("CUSTOM_*")}
+	excludeList := []*regexp.Regexp{regexp.MustCompile("NOT_CUSTOM_*")}
+	result := DesiredLRPFromBBSModel(&BBSModelD1, includeList, excludeList)
+	assert.EqualValues(t, ExpectedD2, result)
+
+	includeList = []*regexp.Regexp{}
+	excludeList = []*regexp.Regexp{}
+	result = DesiredLRPFromBBSModel(&BBSModelD1, includeList, excludeList)
 	assert.EqualValues(t, ExpectedD1, result)
+
+	// Temporarily disable global CC cache and acquire lock to prevent any refresh of the BBS cache in the background
+	globalBBSCache.Lock()
+	defer globalBBSCache.Unlock()
+	globalCCCache.configured = false
+	result = DesiredLRPFromBBSModel(&BBSModelD1, includeList, excludeList)
+	globalCCCache.configured = true
+	assert.EqualValues(t, ExpectedD3NoCCCache, result)
 }
 
 func TestGetVcapServicesMap(t *testing.T) {
@@ -199,4 +358,43 @@ func TestGetVcapServicesMap(t *testing.T) {
 	result, err := getVcapServicesMap(input, "xxx")
 	assert.Nil(t, err)
 	assert.EqualValues(t, expected, result)
+}
+
+func TestIsAllowedTag(t *testing.T) {
+	// when both empty, exclude everything
+	includeList := []*regexp.Regexp{}
+	excludeList := []*regexp.Regexp{}
+
+	result := isAllowedTag("aRandomValue", includeList, excludeList)
+	assert.EqualValues(t, false, result)
+
+	// include strings in the includeList and not in the excludeList
+	includeList = []*regexp.Regexp{regexp.MustCompile("include.*")}
+	excludeList = []*regexp.Regexp{}
+
+	result = isAllowedTag("includeTag", includeList, excludeList)
+	assert.EqualValues(t, true, result)
+
+	result = isAllowedTag("excludeTag", includeList, excludeList)
+	assert.EqualValues(t, false, result)
+
+	// reject strings in the excludeList
+	includeList = []*regexp.Regexp{}
+	excludeList = []*regexp.Regexp{regexp.MustCompile("exclude.*")}
+
+	result = isAllowedTag("aRandomValue", includeList, excludeList)
+	assert.EqualValues(t, true, result)
+
+	result = isAllowedTag("excludeTag", includeList, excludeList)
+	assert.EqualValues(t, false, result)
+
+	// reject strings in the excludeList even if they exist in the includeList
+	includeList = []*regexp.Regexp{regexp.MustCompile("include.*")}
+	excludeList = []*regexp.Regexp{regexp.MustCompile("includeExclude.*")}
+
+	result = isAllowedTag("includeTag", includeList, excludeList)
+	assert.EqualValues(t, true, result)
+
+	result = isAllowedTag("includeExcludeTag", includeList, excludeList)
+	assert.EqualValues(t, false, result)
 }

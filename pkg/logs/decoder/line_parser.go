@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package decoder
 
@@ -28,7 +28,7 @@ type SingleLineParser struct {
 	lineHandler LineHandler
 }
 
-// NewSingleLineParser returns a new MultiLineHandler.
+// NewSingleLineParser returns a new SingleLineParser.
 func NewSingleLineParser(parser parser.Parser, lineHandler LineHandler) *SingleLineParser {
 	return &SingleLineParser{
 		parser:      parser,
@@ -83,7 +83,7 @@ type MultiLineParser struct {
 	timestamp    string
 }
 
-// NewMultiLineParser returns a new MultiLineHandler.
+// NewMultiLineParser returns a new MultiLineParser.
 func NewMultiLineParser(flushTimeout time.Duration, parser parser.Parser, lineHandler LineHandler, lineLimit int) *MultiLineParser {
 	return &MultiLineParser{
 		inputChan:    make(chan *DecodedInput),

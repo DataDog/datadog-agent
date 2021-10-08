@@ -49,4 +49,4 @@ startup process).
 
 ### Build
 
-For more information about building a Serverless Agent, see [this README](https://github.com/DataDog/datadog-agent/tree/master/cmd/serverless/README.md).
+For more information about building a Serverless Agent, see [this README](https://github.com/DataDog/datadog-agent/tree/main/cmd/serverless/README.md).

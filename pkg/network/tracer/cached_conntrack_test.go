@@ -39,25 +39,36 @@ func TestEnsureConntrack(t *testing.T) {
 	cache = newCachedConntrack("/proc", creator, 1)
 	defer cache.Close()
 
-	// once when cache.Close() is called, another when eviction happens
+	// one for when eviction happens for the first conntrack instance
+	// and the second one for when the cache is closed, and the second
+	// remaining conntrack instance is closed
 	m.EXPECT().Close().Times(2)
 
 	ctrk, err = cache.ensureConntrack(1234, os.Getpid())
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
-	ctrk.Close()
 
 	// call again, should get the cached Conntrack
 	ctrk, err = cache.ensureConntrack(1234, os.Getpid())
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
-	ctrk.Close()
 
 	// evict the lone conntrack in the cache
 	ctrk, err = cache.ensureConntrack(1235, os.Getpid())
 	require.NoError(t, err)
 	require.Equal(t, 2, n)
-	ctrk.Close()
+}
+
+func TestCachedConntrackIgnoreErrExists(t *testing.T) {
+	cache := newCachedConntrack("/proc", func(_ int) (netlink.Conntrack, error) {
+		require.FailNow(t, "unexpected call to conntrack creator")
+		return nil, nil
+	}, 1)
+	defer cache.Close()
+
+	ctrk, err := cache.ensureConntrack(0, 0)
+	require.Nil(t, ctrk)
+	require.NoError(t, err)
 }
 
 func TestCachedConntrackExists(t *testing.T) {
@@ -80,7 +91,16 @@ func TestCachedConntrackExists(t *testing.T) {
 	daddr := util.AddressFromString("2.3.4.5")
 	var sport uint16 = 23
 	var dport uint16 = 223
-	ct := newConnTuple(os.Getpid(), 1234, saddr, daddr, sport, dport, network.TCP)
+	ct := &network.ConnectionStats{
+		Pid:    uint32(os.Getpid()),
+		NetNS:  1234,
+		Source: saddr,
+		Dest:   daddr,
+		SPort:  sport,
+		DPort:  dport,
+		Type:   network.TCP,
+		Family: network.AFINET,
+	}
 
 	m.EXPECT().Exists(gomock.Not(gomock.Nil())).Times(1).DoAndReturn(func(c *netlink.Con) (bool, error) {
 		require.Equal(t, saddr.String(), c.Origin.Src.String())
@@ -149,11 +169,6 @@ func TestCachedConntrackClose(t *testing.T) {
 		require.NotNil(t, ctrk)
 		ctrks = append(ctrks, ctrk)
 	}
-	defer func() {
-		for _, c := range ctrks {
-			c.Close()
-		}
-	}()
 
 	m.EXPECT().Close().Times(len(ctrks))
 }

@@ -1,13 +1,11 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package telemetry
 
 import (
-	"fmt"
-
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -36,13 +34,7 @@ func NewGauge(subsystem, name string, tags []string, help string) Gauge {
 // NewGaugeWithOpts creates a Gauge with the given options for telemetry purpose.
 // See NewGauge()
 func NewGaugeWithOpts(subsystem, name string, tags []string, help string, opts Options) Gauge {
-	// subsystem is optional
-	if subsystem != "" && !opts.NoDoubleUnderscoreSep {
-		// Prefix metrics with a _, prometheus will add a second _
-		// It will create metrics with a custom separator and
-		// will let us replace it to a dot later in the process.
-		name = fmt.Sprintf("_%s", name)
-	}
+	name = opts.NameWithSeparator(subsystem, name)
 
 	g := &promGauge{
 		pg: prometheus.NewGaugeVec(

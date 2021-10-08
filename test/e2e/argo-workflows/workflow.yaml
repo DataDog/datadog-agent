@@ -4,7 +4,7 @@ metadata:
   generateName: argo-datadog-agent-
 spec:
   entrypoint: main
-  onExit: delete
+  onExit: exit-handler
   arguments:
     parameters:
       - name: datadog-agent-image-repository
@@ -190,6 +190,16 @@ spec:
               - name: namespace
                 value: "{{workflow.namespace}}"
 
+    - name: exit-handler
+      steps:
+        - - name: delete
+            template: delete
+            when: "{{workflow.status}} == Succeeded"
+
+          - name: diagnose
+            template: diagnose
+            when: "{{workflow.status}} != Succeeded"
+
     - name: delete
       steps:
         - - name: stop-datadog-agent
@@ -254,3 +264,30 @@ spec:
               parameters:
                 - name: namespace
                   value: "{{workflow.namespace}}"
+
+    - name: diagnose
+      steps:
+        - - name: diagnose-datadog-agent
+            templateRef:
+              name: datadog-agent
+              template: diagnose
+            arguments:
+              parameters:
+              - name: namespace
+                value: "{{workflow.namespace}}"
+          - name: diagnose-fake-datadog
+            templateRef:
+              name: fake-datadog
+              template: diagnose
+            arguments:
+              parameters:
+              - name: namespace
+                value: "{{workflow.namespace}}"
+          - name: diagnose-nginx
+            templateRef:
+              name: nginx
+              template: diagnose
+            arguments:
+              parameters:
+              - name: namespace
+                value: "{{workflow.namespace}}"

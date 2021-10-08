@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 /*
 Package api implements the agent IPC api. Using HTTP
@@ -19,30 +19,37 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent"
+	v1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (
-	listener net.Listener
+	listener  net.Listener
+	router    *mux.Router
+	apiRouter *mux.Router
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(sc clusteragent.ServerContext) error {
+func StartServer() error {
 	// create the root HTTP router
-	r := mux.NewRouter()
+	router = mux.NewRouter()
+	apiRouter = router.PathPrefix("/api/v1").Subrouter()
 
 	// IPC REST API server
-	agent.SetupHandlers(r, sc)
+	agent.SetupHandlers(router)
+
+	// API V1 Metadata APIs
+	v1.InstallMetadataEndpoints(apiRouter)
 
 	// Validate token for every request
-	r.Use(validateToken)
+	router.Use(validateToken)
 
 	// get the transport we're going to use under HTTP
 	var err error
@@ -80,18 +87,30 @@ func StartServer(sc clusteragent.ServerContext) error {
 		Certificates: []tls.Certificate{rootTLSCert},
 	}
 
+	if config.Datadog.GetBool("force_tls_12") {
+		tlsConfig.MinVersion = tls.VersionTLS12
+	}
+
 	srv := &http.Server{
-		Handler: r,
+		Handler: router,
 		ErrorLog: stdLog.New(&config.ErrorLogWriter{
 			AdditionalDepth: 4, // Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
 		}, "Error from the agent http API server: ", 0), // log errors to seelog,
-		TLSConfig: &tlsConfig,
+		TLSConfig:    &tlsConfig,
+		ReadTimeout:  config.Datadog.GetDuration("cluster_agent.server.read_timeout_seconds") * time.Second,
+		WriteTimeout: config.Datadog.GetDuration("cluster_agent.server.write_timeout_seconds") * time.Second,
+		IdleTimeout:  config.Datadog.GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second,
 	}
 
 	tlsListener := tls.NewListener(listener, &tlsConfig)
 
 	go srv.Serve(tlsListener) //nolint:errcheck
 	return nil
+}
+
+// ModifyAPIRouter allows to pass in a function to modify router used in server
+func ModifyAPIRouter(f func(*mux.Router)) {
+	f(apiRouter)
 }
 
 // StopServer closes the connection and the server
@@ -128,6 +147,7 @@ func isExternalPath(path string) bool {
 		path == "/version" ||
 		strings.HasPrefix(path, "/api/v1/tags/pod/") && (len(strings.Split(path, "/")) == 6 || len(strings.Split(path, "/")) == 8) ||
 		strings.HasPrefix(path, "/api/v1/tags/node/") && len(strings.Split(path, "/")) == 6 ||
+		strings.HasPrefix(path, "/api/v1/tags/namespace/") && len(strings.Split(path, "/")) == 6 ||
 		strings.HasPrefix(path, "/api/v1/clusterchecks/") && len(strings.Split(path, "/")) == 6 ||
 		strings.HasPrefix(path, "/api/v1/endpointschecks/") && len(strings.Split(path, "/")) == 6 ||
 		strings.HasPrefix(path, "/api/v1/tags/cf/apps/") && len(strings.Split(path, "/")) == 7 ||

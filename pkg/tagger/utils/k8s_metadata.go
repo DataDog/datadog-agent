@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package utils
 
@@ -54,9 +54,10 @@ func AddMetadataAsTags(name, value string, metadataAsTags map[string]string, glo
 var templateVariables = map[string]struct{}{
 	"label":      {},
 	"annotation": {},
+	"env":        {},
 }
 
-// resolveTag replaces %%label%% and %%annotation%% by their values
+// resolveTag replaces %%label%%, %%annotation%% and %%env%% by their values
 func resolveTag(tmpl, label string) string {
 	vars := tmplvar.ParseString(tmpl)
 	tagName := tmpl

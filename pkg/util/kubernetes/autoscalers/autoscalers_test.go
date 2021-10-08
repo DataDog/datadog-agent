@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017-2020 Datadog, Inc.
+// Copyright 2017-present Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -18,7 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
-	"github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 )
 
 func TestDiffAutoscalter(t *testing.T) {
@@ -328,6 +328,72 @@ func TestInspect(t *testing.T) {
 				},
 			},
 			[]custommetrics.ExternalMetricValue{},
+		},
+		"skip invalid metric names": {
+			&autoscalingv2.HorizontalPodAutoscaler{
+				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+					Metrics: []autoscalingv2.MetricSpec{
+						{
+							Type: autoscalingv2.ExternalMetricSourceType,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: "valid_name",
+							},
+						},
+						{
+							Type: autoscalingv2.ExternalMetricSourceType,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: "valid_name.with_dots.and_underscores.AndUppercaseLetters",
+							},
+						},
+						{
+							Type: autoscalingv2.ExternalMetricSourceType,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: "0_invalid_name_must_start_with_letter",
+							},
+						},
+						{
+							Type: autoscalingv2.ExternalMetricSourceType,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: "spaces are invalid",
+							},
+						},
+						{
+							Type: autoscalingv2.ExternalMetricSourceType,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: "utf8_invalid_🤷",
+							},
+						},
+						{
+							Type: autoscalingv2.ExternalMetricSourceType,
+							External: &autoscalingv2.ExternalMetricSource{
+								MetricName: "over_200_characters_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding",
+							},
+						},
+					},
+				},
+			},
+			[]custommetrics.ExternalMetricValue{
+				{
+					MetricName: "valid_name",
+					Ref: custommetrics.ObjectReference{
+						Type: "horizontal",
+					},
+					Labels:    nil,
+					Timestamp: 0,
+					Value:     0,
+					Valid:     false,
+				},
+				{
+					MetricName: "valid_name.with_dots.and_underscores.AndUppercaseLetters",
+					Ref: custommetrics.ObjectReference{
+						Type: "horizontal",
+					},
+					Labels:    nil,
+					Timestamp: 0,
+					Value:     0,
+					Valid:     false,
+				},
+			},
 		},
 		"upper cases handled": {
 			&autoscalingv2.HorizontalPodAutoscaler{

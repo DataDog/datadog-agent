@@ -45,8 +45,8 @@ slimmer.
 Please refer to:
 
 - [https://docs.datadoghq.com/](https://docs.datadoghq.com/)
-- [usage instructions](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/agent) for this image
-- [general agent documentation](https://github.com/DataDog/datadog-agent/tree/master/docs) in our repo
+- [usage instructions](https://github.com/DataDog/datadog-agent/tree/main/Dockerfiles/agent) for this image
+- [general agent documentation](https://github.com/DataDog/datadog-agent/tree/main/docs) in our repo
 
 ## Support
 
@@ -54,7 +54,7 @@ For issues and help troubleshooting, please [contact our support team](https://w
 
 ## License
 
-View [license information](https://github.com/DataDog/datadog-agent/blob/master/LICENSE) for the software contained in this image.
+View [license information](https://github.com/DataDog/datadog-agent/blob/main/LICENSE) for the software contained in this image.
 
 As with all Docker images, these likely also contain other software which may be under other licenses (such as Bash, etc from the base distribution, along with any direct or indirect dependencies of the primary software being contained).
 

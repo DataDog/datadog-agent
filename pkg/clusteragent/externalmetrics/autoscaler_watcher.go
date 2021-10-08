@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -12,18 +12,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	wpa_informer "github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
-	wpa_lister "github.com/DataDog/watermarkpodautoscaler/pkg/client/listers/datadoghq/v1alpha1"
-
 	autoscaler "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	dynamic_informer "k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
 	autoscaler_lister "k8s.io/client-go/listers/autoscaling/v2beta1"
 	"k8s.io/client-go/tools/cache"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 )
 
 const (
@@ -37,7 +38,7 @@ type AutoscalerWatcher struct {
 	autogenNamespace        string
 	autoscalerLister        autoscaler_lister.HorizontalPodAutoscalerLister
 	autoscalerListerSynced  cache.InformerSynced
-	wpaLister               wpa_lister.WatermarkPodAutoscalerLister
+	wpaLister               cache.GenericLister
 	wpaListerSynced         cache.InformerSynced
 	isLeader                func() bool
 	store                   *DatadogMetricsInternalStore
@@ -49,9 +50,15 @@ type externalMetric struct {
 	autoscalerReferences []string
 }
 
+var gvr = &schema.GroupVersionResource{
+	Group:    "datadoghq.com",
+	Version:  "v1alpha1",
+	Resource: "watermarkpodautoscalers",
+}
+
 // NewAutoscalerWatcher returns a new AutoscalerWatcher, giving nil `autoscalerInformer` or nil `wpaInformer` disables watching HPA or WPA
 // We need at least one of them
-func NewAutoscalerWatcher(refreshPeriod, autogenExpirationPeriodHours int64, autogenNamespace string, informer informers.SharedInformerFactory, wpaInformer wpa_informer.SharedInformerFactory, isLeader func() bool, store *DatadogMetricsInternalStore) (*AutoscalerWatcher, error) {
+func NewAutoscalerWatcher(refreshPeriod, autogenExpirationPeriodHours int64, autogenNamespace string, informer informers.SharedInformerFactory, wpaInformer dynamic_informer.DynamicSharedInformerFactory, isLeader func() bool, store *DatadogMetricsInternalStore) (*AutoscalerWatcher, error) {
 	if store == nil {
 		return nil, fmt.Errorf("Store must be initialized")
 	}
@@ -70,11 +77,11 @@ func NewAutoscalerWatcher(refreshPeriod, autogenExpirationPeriodHours int64, aut
 	}
 
 	// Setup WPA
-	var wpaLister wpa_lister.WatermarkPodAutoscalerLister
+	var wpaLister cache.GenericLister
 	var wpaListerSynced cache.InformerSynced
 	if wpaInformer != nil {
-		wpaLister = wpaInformer.Datadoghq().V1alpha1().WatermarkPodAutoscalers().Lister()
-		wpaListerSynced = wpaInformer.Datadoghq().V1alpha1().WatermarkPodAutoscalers().Informer().HasSynced
+		wpaLister = wpaInformer.ForResource(*gvr).Lister()
+		wpaListerSynced = wpaInformer.ForResource(*gvr).Informer().HasSynced
 	}
 
 	autoscalerWatcher := &AutoscalerWatcher{
@@ -238,12 +245,18 @@ func (w *AutoscalerWatcher) getAutoscalerReferences() (map[string]*externalMetri
 	}
 
 	if w.wpaLister != nil {
-		wpaList, err := w.wpaLister.WatermarkPodAutoscalers(metav1.NamespaceAll).List(labels.Everything())
+		wpaList, err := w.wpaLister.ByNamespace(metav1.NamespaceAll).List(labels.Everything())
 		if err != nil {
 			return nil, fmt.Errorf("Could not list WPAs (to update DatadogMetric active status): %v", err)
 		}
 
-		for _, wpa := range wpaList {
+		for _, wpaObj := range wpaList {
+			wpa := &v1alpha1.WatermarkPodAutoscaler{}
+			err := apiserver.UnstructuredIntoWPA(wpaObj, wpa)
+			if err != nil {
+				log.Errorf("Error converting wpa from the cache %v", err)
+				continue
+			}
 			for _, metric := range wpa.Spec.Metrics {
 				autoscalerReference := wpa.Namespace + kubernetesNamespaceSep + wpa.Name
 				if metric.External != nil {

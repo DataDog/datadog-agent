@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package processor
 
@@ -33,11 +33,15 @@ type jsonPayload struct {
 
 // Encode encodes a message into a JSON byte array.
 func (j *jsonEncoder) Encode(msg *message.Message, redactedMsg []byte) ([]byte, error) {
+	ts := time.Now().UTC()
+	if !msg.Timestamp.IsZero() {
+		ts = msg.Timestamp
+	}
 	return json.Marshal(jsonPayload{
 		Message:   toValidUtf8(redactedMsg),
 		Status:    msg.GetStatus(),
-		Timestamp: time.Now().UTC().UnixNano() / nanoToMillis,
-		Hostname:  getHostname(),
+		Timestamp: ts.UnixNano() / nanoToMillis,
+		Hostname:  msg.GetHostname(),
 		Service:   msg.Origin.Service(),
 		Source:    msg.Origin.Source(),
 		Tags:      msg.Origin.TagsToString(),

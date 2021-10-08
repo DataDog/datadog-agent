@@ -13,7 +13,6 @@ from .utils import REPO_PATH, bin_name, get_build_flags, get_version
 
 def build_common(
     ctx,
-    command,
     bin_path,
     build_tags,
     bin_suffix,
@@ -23,7 +22,7 @@ def build_common(
     race,
     development,
     skip_assets,
-    go_mod="vendor",
+    go_mod="mod",
     arch="x64",
 ):
     """
@@ -61,9 +60,7 @@ def build_common(
     #
     # We need to remove cross compiling bits if any because go generate must
     # build and execute in the native platform
-    env.update(
-        {"GOOS": "", "GOARCH": "",}
-    )
+    env.update({"GOOS": "", "GOARCH": ""})
 
     cmd = "go generate -mod={go_mod} -tags '{build_tags}' {repo_path}/cmd/cluster-agent{suffix}"
     ctx.run(cmd.format(go_mod=go_mod, build_tags=" ".join(build_tags), repo_path=REPO_PATH, suffix=bin_suffix), env=env)
@@ -74,7 +71,7 @@ def build_common(
         )
 
 
-def refresh_assets_common(ctx, bin_path, additional_dist_folders, development):
+def refresh_assets_common(_, bin_path, additional_dist_folders, development):
     """
     Clean up and refresh cluster agent's assets and config files
     """

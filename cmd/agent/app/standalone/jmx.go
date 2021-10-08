@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build jmx
 
@@ -55,7 +55,7 @@ func ExecJmxListWithRateMetricsJSON(selectedChecks []string, logLevel string) er
 // The common utils, including AutoConfig, must have already been initialized.
 func execJmxCommand(command string, selectedChecks []string, reporter jmxfetch.JMXReporter, output func(...interface{}), logLevel string) error {
 	// start the cmd HTTP server
-	if err := api.StartServer(); err != nil {
+	if err := api.StartServer(nil); err != nil {
 		return fmt.Errorf("Error while starting api server, exiting: %v", err)
 	}
 

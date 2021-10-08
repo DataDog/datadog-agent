@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package traceutil
 
@@ -71,4 +71,15 @@ func GetMeta(s *pb.Span, key string) (string, bool) {
 	}
 	val, ok := s.Meta[key]
 	return val, ok
+}
+
+// GetMetaDefault gets the metadata value in the span Meta map and fallbacks to fallback.
+func GetMetaDefault(s *pb.Span, key, fallback string) string {
+	if s.Meta == nil {
+		return fallback
+	}
+	if val, ok := s.Meta[key]; ok {
+		return val
+	}
+	return fallback
 }

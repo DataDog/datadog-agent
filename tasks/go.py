@@ -1,30 +1,26 @@
 """
 Golang related tasks go here
 """
-from __future__ import print_function
 
-import csv
+
+import copy
 import datetime
+import glob
 import os
 import shutil
-import sys
+import textwrap
+from pathlib import Path
 
 from invoke import task
 from invoke.exceptions import Exit
 
-from .bootstrap import get_deps, process_deps
 from .build_tags import get_default_build_tags
-from .utils import get_build_flags, get_gopath
-
-# We use `basestring` in the code for compat with python2 unicode strings.
-# This makes the same code work in python3 as well.
-try:
-    basestring
-except NameError:
-    basestring = str
+from .licenses import get_licenses_list
+from .modules import DEFAULT_MODULES, generate_dummy_package
+from .utils import get_build_flags
 
 # List of modules to ignore when running lint
-MODULE_WHITELIST = [
+MODULE_ALLOWLIST = [
     # Windows
     "doflare.go",
     "iostats_pdh_windows.go",
@@ -32,12 +28,12 @@ MODULE_WHITELIST = [
     "pdh.go",
     "pdh_amd64.go",
     "pdh_386.go",
+    "pdhformatter.go",
     "pdhhelper.go",
     "shutil.go",
     "tailer_windows.go",
     "winsec.go",
-    "allprocesses_windows.go",
-    "allprocesses_windows_test.go",
+    "process_windows_toolhelp.go",
     "adapters.go",  # pkg/util/winutil/iphelper
     "routes.go",  # pkg/util/winutil/iphelper
     # All
@@ -51,6 +47,7 @@ MISSPELL_IGNORED_TARGETS = [
     os.path.join("cmd", "agent", "gui", "views", "private"),
     os.path.join("pkg", "collector", "corechecks", "system", "testfiles"),
     os.path.join("pkg", "ebpf", "testdata"),
+    os.path.join("pkg", "network", "event_windows_test.go"),
 ]
 
 # Packages that need go:generate
@@ -65,7 +62,7 @@ def fmt(ctx, targets, fail_on_fmt=False):
     Example invokation:
         inv fmt --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')
@@ -83,39 +80,49 @@ def fmt(ctx, targets, fail_on_fmt=False):
 @task
 def lint(ctx, targets):
     """
-    Run golint on targets. If targets are not specified,
+    Run revive (the fork of golint) on targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
 
     Example invokation:
         inv lint --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')
 
     # add the /... suffix to the targets
     targets_list = ["{}/...".format(t) for t in targets]
-    result = ctx.run("golint {}".format(' '.join(targets_list)))
+    result = ctx.run("revive {}".format(' '.join(targets_list)), hide=True)
     if result.stdout:
-        files = []
+        files = set()
         skipped_files = set()
         for line in (out for out in result.stdout.split('\n') if out):
-            fname = os.path.basename(line.split(":")[0])
-            if fname in MODULE_WHITELIST:
-                skipped_files.add(fname)
+            fullname = line.split(":")[0]
+            fname = os.path.basename(fullname)
+            if fname in MODULE_ALLOWLIST:
+                skipped_files.add(fullname)
                 continue
-            files.append(fname)
+            print(line)
+            files.add(fullname)
 
-        if files:
-            print("Linting issues found in {} files.".format(len(files)))
-            raise Exit(code=1)
+        # add whitespace for readability
+        print()
 
         if skipped_files:
             for skipped in skipped_files:
-                print("Allowed errors in whitelisted file {}".format(skipped))
+                print("Allowed errors in allowlisted file {}".format(skipped))
 
-    print("golint found no issues")
+        # add whitespace for readability
+        print()
+
+        if files:
+            print("Linting issues found in {} files.".format(len(files)))
+            for f in files:
+                print("Error in {}".format(f))
+            raise Exit(code=1)
+
+    print("revive found no issues")
 
 
 @task
@@ -126,7 +133,7 @@ def vet(ctx, targets, rtloader_root=None, build_tags=None, arch="x64"):
     Example invokation:
         inv vet --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')
@@ -154,7 +161,7 @@ def cyclo(ctx, targets, limit=15):
     Example invokation:
         inv cyclo --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')
@@ -171,9 +178,9 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, arch="x64")
     Run golangci-lint on targets using .golangci.yml configuration.
 
     Example invocation:
-        inv golangci_lint --targets=./pkg/collector/check,./pkg/aggregator
+        inv golangci-lint --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')
@@ -184,9 +191,7 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, arch="x64")
     for target in targets:
         print("running golangci on {}".format(target))
         ctx.run(
-            "golangci-lint run --timeout 10m0s -c .golangci.yml --build-tags '{}' {}".format(
-                " ".join(tags), "{}/...".format(target)
-            ),
+            "golangci-lint run --timeout 10m0s --build-tags '{}' {}".format(" ".join(tags), "{}/...".format(target)),
             env=env,
         )
 
@@ -203,12 +208,12 @@ def ineffassign(ctx, targets):
     Example invokation:
         inv ineffassign --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')
 
-    ctx.run("ineffassign " + " ".join(targets))
+    ctx.run("ineffassign " + " ".join(target + "/..." for target in targets))
     # ineffassign exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("ineffassign found no issues")
@@ -222,20 +227,20 @@ def staticcheck(ctx, targets, build_tags=None, arch="x64"):
     Example invokation:
         inv statickcheck --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')
 
     # staticcheck checks recursively only if path is in "path/..." format
-    go_targets = [sub + "/..." for sub in targets]
+    pkgs = [sub + "/..." for sub in targets]
 
-    tags = build_tags or get_default_build_tags(build="test", arch=arch)
+    tags = copy.copy(build_tags or get_default_build_tags(build="test", arch=arch))
     # these two don't play well with static checking
     tags.remove("python")
     tags.remove("jmx")
 
-    ctx.run("staticcheck -checks=SA1027 -tags=" + ",".join(tags) + " " + " ".join(go_targets))
+    ctx.run("staticcheck -checks=SA1027 -tags=" + ",".join(tags) + " " + " ".join(pkgs))
     # staticcheck exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("staticcheck found no issues")
@@ -249,7 +254,7 @@ def misspell(ctx, targets):
     Example invokation:
         inv misspell --targets=./pkg/collector/check,./pkg/aggregator
     """
-    if isinstance(targets, basestring):
+    if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         targets = targets.split(',')
@@ -269,89 +274,50 @@ def misspell(ctx, targets):
 
 
 @task
-def deps(
-    ctx, verbose=False, android=False, no_bootstrap=False, no_dep_ensure=False,
-):
+def deps(ctx, verbose=False):
     """
     Setup Go dependencies
     """
-    if not no_bootstrap:
-        deps = get_deps('deps')
-        order = deps.get("order", deps.keys())
-        for dependency in order:
-            tool = deps.get(dependency)
-            if not tool:
-                print("Malformed bootstrap JSON, dependency {} not found".format(dependency))
-                raise Exit(code=1)
-            print("processing checkout tool {}".format(dependency))
-            process_deps(ctx, dependency, tool.get('version'), tool.get('type'), 'checkout', verbose=verbose)
 
-        order = deps.get("order", deps.keys())
-        for dependency in order:
-            tool = deps.get(dependency)
-            if tool.get('install', True):
-                print("processing get tool {}".format(dependency))
-                process_deps(
-                    ctx,
-                    dependency,
-                    tool.get('version'),
-                    tool.get('type'),
-                    'install',
-                    cmd=tool.get('cmd'),
-                    verbose=verbose,
-                )
-
-    if android:
-        ndkhome = os.environ.get('ANDROID_NDK_HOME')
-        if not ndkhome:
-            print("set ANDROID_NDK_HOME to build android")
-            raise Exit(code=1)
-
-        cmd = "gomobile init -ndk {}".format(ndkhome)
-        print("gomobile command {}".format(cmd))
-        ctx.run(cmd)
-
-    if not no_dep_ensure:
-        # source level deps
-        print("calling go mod vendor")
-        start = datetime.datetime.now()
-        verbosity = ' -v' if verbose else ''
-        ctx.run("go mod vendor{}".format(verbosity))
-        # use modvendor to copy missing files dependencies
-        ctx.run('{}/bin/modvendor -copy="**/*.c **/*.h **/*.proto"{}'.format(get_gopath(ctx), verbosity))
-        dep_done = datetime.datetime.now()
-
-        # If github.com/DataDog/datadog-agent gets vendored too - nuke it
-        #
-        # This may happen as a result of having to introduce DEPPROJECTROOT
-        # in our builders to get around a known-issue with go dep, and the
-        # strange GOPATH situation in our builders.
-        #
-        # This is only a workaround, we should eliminate the need to resort
-        # to DEPPROJECTROOT.
-        if os.path.exists('vendor/github.com/DataDog/datadog-agent'):
-            print("Removing vendored github.com/DataDog/datadog-agent")
-            shutil.rmtree('vendor/github.com/DataDog/datadog-agent')
-
-        # make sure PSUTIL is gone on windows; the go mod above will vendor it
-        # in because it's necessary on other platforms
-        if not android and sys.platform == 'win32':
-            print("Removing PSUTIL on Windows")
-            ctx.run("rd /s/q vendor\\github.com\\shirou\\gopsutil")
-
-        # Make sure that golang.org/x/mobile is deleted.  It will get vendored in
-        # because we use it, and there's no way to exclude; however, we must use
-        # the version from $GOPATH
-        if os.path.exists('vendor/golang.org/x/mobile'):
-            print("Removing vendored golang.org/x/mobile")
-            shutil.rmtree('vendor/golang.org/x/mobile')
-
-    if not no_dep_ensure:
-        print("go mod vendor, elapsed: {}".format(dep_done - start))
+    print("downloading dependencies")
+    start = datetime.datetime.now()
+    verbosity = ' -x' if verbose else ''
+    ctx.run("go mod download{}".format(verbosity))
+    dep_done = datetime.datetime.now()
+    print("go mod download, elapsed: {}".format(dep_done - start))
 
 
 @task
-def lint_licenses(ctx, verbose=False):
+def deps_vendored(ctx, verbose=False):
+    """
+    Vendor Go dependencies
+    """
+
+    print("vendoring dependencies")
+    start = datetime.datetime.now()
+    verbosity = ' -v' if verbose else ''
+
+    ctx.run("go mod vendor{}".format(verbosity))
+    ctx.run("go mod tidy{}".format(verbosity))
+
+    # "go mod vendor" doesn't copy files that aren't in a package: https://github.com/golang/go/issues/26366
+    # This breaks when deps include other files that are needed (eg: .java files from gomobile): https://github.com/golang/go/issues/43736
+    # For this reason, we need to use a 3rd party tool to copy these files.
+    # We won't need this if/when we change to non-vendored modules
+    ctx.run('modvendor -copy="**/*.c **/*.h **/*.proto **/*.java"{}'.format(verbosity))
+
+    # If github.com/DataDog/datadog-agent gets vendored too - nuke it
+    # This may happen because of the introduction of nested modules
+    if os.path.exists('vendor/github.com/DataDog/datadog-agent'):
+        print("Removing vendored github.com/DataDog/datadog-agent")
+        shutil.rmtree('vendor/github.com/DataDog/datadog-agent')
+
+    dep_done = datetime.datetime.now()
+    print("go mod vendor, elapsed: {}".format(dep_done - start))
+
+
+@task
+def lint_licenses(ctx):
     """
     Checks that the LICENSE-3rdparty.csv file is up-to-date with contents of go.sum
     """
@@ -359,25 +325,12 @@ def lint_licenses(ctx, verbose=False):
 
     licenses = []
     file = 'LICENSE-3rdparty.csv'
-    with open(file, 'r') as f:
+    with open(file, 'r', encoding='utf-8') as f:
         next(f)
         for line in f:
             licenses.append(line.rstrip())
 
     new_licenses = get_licenses_list(ctx)
-
-    if sys.platform == 'win32':
-        # ignore some licenses because we remove
-        # the deps in a hack for windows
-        ignore_licenses = ['github.com/shirou/gopsutil']
-        to_removed = []
-        for ignore in ignore_licenses:
-            for license in licenses:
-                if ignore in license:
-                    if verbose:
-                        print("[hack-windows] ignore: {}".format(license))
-                    to_removed.append(license)
-        licenses = [x for x in licenses if x not in to_removed]
 
     removed_licenses = [ele for ele in new_licenses if ele not in licenses]
     for license in removed_licenses:
@@ -388,83 +341,115 @@ def lint_licenses(ctx, verbose=False):
         print("- {}".format(license))
 
     if len(removed_licenses) + len(added_licenses) > 0:
-        print("licenses are not up-to-date")
-        raise Exit(code=1)
+        raise Exit(
+            message=textwrap.dedent(
+                """\
+                Licenses are not up-to-date.
 
-    print("licenses ok")
+                Please run 'inv generate-licenses' to update {}."""
+            ).format(file),
+            code=1,
+        )
+
+    print("Licenses are ok.")
 
 
 @task
 def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
     """
-    Generates that the LICENSE-3rdparty.csv file is up-to-date with contents of go.sum
+    Generates the LICENSE-3rdparty.csv file. Run this if `inv lint-licenses` fails.
     """
+    new_licenses = get_licenses_list(ctx)
+
+    # check that all licenses have a non-"UNKNOWN" copyright
+    unknown_licenses = False
+    for license in new_licenses:
+        if license.endswith(',UNKNOWN'):
+            unknown_licenses = True
+            print("! {}".format(license))
+
+    if unknown_licenses:
+        raise Exit(
+            message=textwrap.dedent(
+                """\
+                At least one dependency's copyright could not be determined.
+
+                Consult the dependency's source, update `.copyright-overrides.yml` accordingly, and
+                run `inv generate-licenses` to update {}."""
+            ).format(filename),
+            code=1,
+        )
+
     with open(filename, 'w') as f:
-        f.write("Component,Origin,License\n")
-        for license in get_licenses_list(ctx):
+        f.write("Component,Origin,License,Copyright\n")
+        for license in new_licenses:
             if verbose:
                 print(license)
             f.write('{}\n'.format(license))
     print("licenses files generated")
 
 
-def get_licenses_list(ctx):
-    result = ctx.run('{}/bin/wwhrd list --no-color'.format(get_gopath(ctx)), hide='err')
-    licenses = []
-    licenses.append('core,"github.com/frapposelli/wwhrd",MIT')
-    if result.stderr:
-        for line in result.stderr.split("\n"):
-            index = line.find('msg="Found License"')
-            if index == -1:
-                continue
-            license = ""
-            package = ""
-            for val in line[index + len('msg="Found License"') :].split(" "):
-                if val.startswith('license='):
-                    license = val[len('license=') :]
-                elif val.startswith('package='):
-                    package = val[len('package=') :]
-                    licenses.append("core,{},{}".format(package, license))
-    licenses.sort()
-    return licenses
-
-
 @task
-def lint_licenses_old(ctx):
-    # non-go deps that should be listed in the license file, but not in go.sum
-    NON_GO_DEPS = set(
-        ['github.com/codemirror/CodeMirror', 'github.com/FortAwesome/Font-Awesome', 'github.com/jquery/jquery',]
-    )
+def generate_protobuf(ctx):
+    """
+    Generates protobuf defintions in pkg/proto
+    """
+    base = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(os.path.join(base, ".."))
+    proto_root = os.path.join(repo_root, "pkg", "proto")
 
-    # Read all dep names from go.sum
-    go_deps = set()
-    with open('go.sum') as f:
-        for line in f:
-            gopkg = line.split(" ")
-            if len(gopkg) != 3:
-                continue
-            go_deps.add(gopkg[0])
+    print("nuking old definitions at: {}".format(proto_root))
+    file_list = glob.glob(os.path.join(proto_root, "pbgo", "*.go"))
+    for file_path in file_list:
+        try:
+            os.remove(file_path)
+        except OSError:
+            print("Error while deleting file : ", file_path)
 
-    deps = go_deps | NON_GO_DEPS
+    with ctx.cd(repo_root):
+        # protobuf defs
+        print("generating protobuf code from: {}".format(proto_root))
 
-    # Read all dep names listed in LICENSE-3rdparty
-    licenses = csv.DictReader(open('LICENSE-3rdparty.csv'))
-    license_deps = set()
-    for entry in licenses:
-        if len(entry['License']) == 0:
-            raise Exit(message="LICENSE-3rdparty entry '{}' has an empty license".format(entry['Origin']), code=1)
-        entrysplit = entry['Origin'].split("/")
-        entrysplit = entrysplit[0:3]
-        print('/'.join(entrysplit))
-        license_deps.add('/'.join(entrysplit))
+        files = []
+        for path in Path(os.path.join(proto_root, "datadog")).rglob('*.proto'):
+            files.append(path.as_posix())
 
-    if deps != license_deps:
-        raise Exit(
-            message="LICENSE-3rdparty.csv is outdated compared to deps listed in go.sum:\n"
-            + "missing from LICENSE-3rdparty.csv: {}\n".format(deps - license_deps)
-            + "listed in LICENSE-3rdparty.csv but not in go.sum: {}".format(license_deps - deps),
-            code=1,
+        ctx.run(
+            "protoc -I{include_path} --go_out=plugins=grpc:{out_path} {targets}".format(
+                include_path=proto_root,
+                out_path=repo_root,
+                targets=' '.join(files),
+            )
         )
+        # grpc-gateway logic
+        ctx.run(
+            "protoc -I{include_path} --grpc-gateway_out=logtostderr=true:{out_path} {targets}".format(
+                include_path=proto_root,
+                out_path=repo_root,
+                targets=' '.join(files),
+            )
+        )
+        # mockgen
+        pbgo_dir = os.path.join(proto_root, "pbgo")
+        mockgen_out = os.path.join(proto_root, "pbgo", "mocks")
+        try:
+            os.mkdir(mockgen_out)
+        except FileExistsError:
+            print("{} folder already exists".format(mockgen_out))
+
+        ctx.run(
+            "mockgen -source={in_path}/api.pb.go -destination={out_path}/api_mockgen.pb.go".format(
+                in_path=pbgo_dir, out_path=mockgen_out
+            )
+        )
+
+    # generate messagepack marshallers
+    ctx.run(
+        "msgp -file {in_path} -o={out_path}".format(
+            in_path='pkg/proto/pbgo/config.pb.go',
+            out_path='pkg/proto/pbgo/config_gen.go',
+        )
+    )
 
 
 @task
@@ -486,9 +471,41 @@ def reset(ctx):
 
 
 @task
-def generate(ctx):
+def generate(ctx, mod="mod"):
     """
     Run go generate required package
     """
-    ctx.run("go generate -mod=vendor " + " ".join(GO_GENERATE_TARGETS))
+    ctx.run("go generate -mod={} ".format(mod) + " ".join(GO_GENERATE_TARGETS))
     print("go generate ran successfully")
+
+
+@task
+def check_mod_tidy(ctx, test_folder="testmodule"):
+    errors_found = []
+    for mod in DEFAULT_MODULES.values():
+        with ctx.cd(mod.full_path()):
+            ctx.run("go mod tidy")
+            res = ctx.run("git diff-files --exit-code go.mod go.sum", warn=True)
+            if res.exited is None or res.exited > 0:
+                errors_found.append("go.mod or go.sum for {} module is out of sync".format(mod.import_path))
+
+    generate_dummy_package(ctx, test_folder)
+    with ctx.cd(test_folder):
+        ctx.run("go mod tidy")
+        res = ctx.run("go build main.go", warn=True)
+        if res.exited is None or res.exited > 0:
+            errors_found.append("could not build test module importing external modules")
+        if os.path.isfile(os.path.join(ctx.cwd, "main")):
+            os.remove(os.path.join(ctx.cwd, "main"))
+
+    if errors_found:
+        message = "\nErrors found:\n" + "\n".join("  - " + error for error in errors_found)
+        message += "\n\nRun 'inv tidy-all' to fix 'out of sync' errors."
+        raise Exit(message=message)
+
+
+@task
+def tidy_all(ctx):
+    for mod in DEFAULT_MODULES.values():
+        with ctx.cd(mod.full_path()):
+            ctx.run("go mod tidy")

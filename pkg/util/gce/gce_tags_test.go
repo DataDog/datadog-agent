@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build gce
 
 package gce
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -90,28 +91,31 @@ func testTags(t *testing.T, tags []string, expectedTags []string) {
 }
 
 func TestGetHostTags(t *testing.T) {
+	ctx := context.Background()
 	server := mockMetadataRequest(t)
 	defer server.Close()
 	defer cache.Cache.Delete(tagsCacheKey)
-	tags, err := GetTags()
+	tags, err := GetTags(ctx)
 	require.Nil(t, err)
 	testTags(t, tags, expectedFullTags)
 }
 
 func TestGetHostTagsWithProjectID(t *testing.T) {
+	ctx := context.Background()
 	server := mockMetadataRequest(t)
 	defer server.Close()
 	defer cache.Cache.Delete(tagsCacheKey)
 	config.Datadog.Set("gce_send_project_id_tag", true)
 	defer config.Datadog.Set("gce_send_project_id_tag", false)
-	tags, err := GetTags()
+	tags, err := GetTags(ctx)
 	require.Nil(t, err)
 	testTags(t, tags, expectedTagsWithProjectID)
 }
 
 func TestGetHostTagsSuccessThenError(t *testing.T) {
+	ctx := context.Background()
 	server := mockMetadataRequest(t)
-	tags, err := GetTags()
+	tags, err := GetTags(ctx)
 	require.NotNil(t, tags)
 	require.Nil(t, err)
 	server.Close()
@@ -119,12 +123,13 @@ func TestGetHostTagsSuccessThenError(t *testing.T) {
 	server = mockMetadataRequestError(t)
 	defer server.Close()
 	defer cache.Cache.Delete(tagsCacheKey)
-	tags, err = GetTags()
+	tags, err = GetTags(ctx)
 	require.Nil(t, err)
 	testTags(t, tags, expectedFullTags)
 }
 
 func TestGetHostTagsWithNonDefaultTagFilters(t *testing.T) {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 	defaultExclude := mockConfig.GetStringSlice("exclude_gce_tags")
 	defer mockConfig.Set("exclude_gce_tags", defaultExclude)
@@ -135,7 +140,7 @@ func TestGetHostTagsWithNonDefaultTagFilters(t *testing.T) {
 	defer server.Close()
 	defer cache.Cache.Delete(tagsCacheKey)
 
-	tags, err := GetTags()
+	tags, err := GetTags(ctx)
 	require.Nil(t, err)
 	testTags(t, tags, expectedExcludedTags)
 }

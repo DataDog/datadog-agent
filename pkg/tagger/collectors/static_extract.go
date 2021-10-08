@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package collectors
 
@@ -14,7 +14,7 @@ import (
 
 func (c *StaticCollector) getTagInfo(entity string) []*TagInfo {
 	tags := utils.NewTagList()
-	for _, tag := range c.ddTagsEnvVar {
+	for _, tag := range c.tags {
 		tagParts := strings.SplitN(tag, ":", 2)
 		if len(tagParts) != 2 {
 			log.Warnf("Cannot split tag %s", tag)

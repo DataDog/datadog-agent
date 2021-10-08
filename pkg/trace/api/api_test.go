@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package api
 
@@ -16,11 +16,13 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -45,7 +47,7 @@ var headerFields = map[string]string{
 
 type noopStatsProcessor struct{}
 
-func (noopStatsProcessor) ProcessStats(_ pb.ClientStatsPayload, _ string) {}
+func (noopStatsProcessor) ProcessStats(_ pb.ClientStatsPayload, _, _ string) {}
 
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig("none")
@@ -115,6 +117,40 @@ func TestReceiverRequestBodyLength(t *testing.T) {
 
 	testBody(http.StatusOK, "[]")
 	testBody(http.StatusRequestEntityTooLarge, " []")
+}
+
+func TestStateHeaders(t *testing.T) {
+	assert := assert.New(t)
+	r := newTestReceiverFromConfig(config.New())
+	r.Start()
+	defer r.Stop()
+	data := msgpTraces(t, pb.Traces{
+		testutil.RandomTrace(10, 20),
+		testutil.RandomTrace(10, 20),
+		testutil.RandomTrace(10, 20),
+	})
+
+	for _, e := range []string{
+		"/v0.3/traces",
+		"/v0.4/traces",
+		// this one will return 500, but that's fine, we want to test that all
+		// reponses have the header regardless of status code
+		"/v0.5/traces",
+	} {
+		resp, err := http.Post("http://localhost:8126"+e, "application/msgpack", bytes.NewReader(data))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, ok := resp.Header["Datadog-Agent-Version"]
+		assert.True(ok)
+		v := resp.Header.Get("Datadog-Agent-Version")
+		assert.Equal(v, info.Version)
+
+		_, ok = resp.Header["Datadog-Agent-State"]
+		assert.True(ok)
+		v = resp.Header.Get("Datadog-Agent-State")
+		assert.NotEmpty(v)
+	}
 }
 
 func TestLegacyReceiver(t *testing.T) {
@@ -512,22 +548,24 @@ func TestDecodeV05(t *testing.T) {
 }
 
 type mockStatsProcessor struct {
-	mu       sync.RWMutex
-	lastP    pb.ClientStatsPayload
-	lastLang string
+	mu                sync.RWMutex
+	lastP             pb.ClientStatsPayload
+	lastLang          string
+	lastTracerVersion string
 }
 
-func (m *mockStatsProcessor) ProcessStats(p pb.ClientStatsPayload, lang string) {
+func (m *mockStatsProcessor) ProcessStats(p pb.ClientStatsPayload, lang, tracerVersion string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.lastP = p
 	m.lastLang = lang
+	m.lastTracerVersion = tracerVersion
 }
 
-func (m *mockStatsProcessor) Got() (p pb.ClientStatsPayload, lang string) {
+func (m *mockStatsProcessor) Got() (p pb.ClientStatsPayload, lang, tracerVersion string) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.lastP, m.lastLang
+	return m.lastP, m.lastLang, m.lastTracerVersion
 }
 
 func TestHandleStats(t *testing.T) {
@@ -558,11 +596,6 @@ func TestHandleStats(t *testing.T) {
 	}
 
 	t.Run("on", func(t *testing.T) {
-		defer func(old string) {
-			os.Setenv("DD_APM_FEATURES", old)
-		}(os.Getenv("DD_APM_FEATURES"))
-		os.Setenv("DD_APM_FEATURES", "client_stats")
-
 		cfg := newTestReceiverConfig()
 		rcv := newTestReceiverFromConfig(cfg)
 		mockProcessor := new(mockStatsProcessor)
@@ -574,9 +607,10 @@ func TestHandleStats(t *testing.T) {
 		if err := msgp.Encode(&buf, &p); err != nil {
 			t.Fatal(err)
 		}
-		req, _ := http.NewRequest("POST", server.URL+"/v0.5/stats", &buf)
+		req, _ := http.NewRequest("POST", server.URL+"/v0.6/stats", &buf)
 		req.Header.Set("Content-Type", "application/msgpack")
 		req.Header.Set(headerLang, "lang1")
+		req.Header.Set(headerTracerVersion, "0.1.0")
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -585,26 +619,10 @@ func TestHandleStats(t *testing.T) {
 			slurp, _ := ioutil.ReadAll(resp.Body)
 			t.Fatal(string(slurp), resp.StatusCode)
 		}
-		if gotp, gotlang := mockProcessor.Got(); !reflect.DeepEqual(gotp, p) || gotlang != "lang1" {
+
+		gotp, gotlang, gotTracerVersion := mockProcessor.Got()
+		if !reflect.DeepEqual(gotp, p) || gotlang != "lang1" || gotTracerVersion != "0.1.0" {
 			t.Fatalf("Did not match payload: %v: %v", gotlang, gotp)
-		}
-	})
-
-	t.Run("off", func(t *testing.T) {
-		cfg := newTestReceiverConfig()
-		rcv := newTestReceiverFromConfig(cfg)
-		mockProcessor := new(mockStatsProcessor)
-		rcv.statsProcessor = mockProcessor
-		mux := rcv.buildMux()
-		server := httptest.NewServer(mux)
-
-		req, _ := http.NewRequest("POST", server.URL+"/v0.5/stats", nil)
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if resp.StatusCode != 404 {
-			t.Fail()
 		}
 	})
 }
@@ -633,10 +651,12 @@ func TestClientComputedStatsHeader(t *testing.T) {
 				defer wg.Done()
 				resp, err := http.DefaultClient.Do(req)
 				if err != nil {
-					t.Fatal(err)
+					t.Error(err)
+					return
 				}
 				if resp.StatusCode != 200 {
-					t.Fatal(resp.StatusCode)
+					t.Error(resp.StatusCode)
+					return
 				}
 			}()
 			timeout := time.After(time.Second)
@@ -743,10 +763,12 @@ func TestClientComputedTopLevel(t *testing.T) {
 				defer wg.Done()
 				resp, err := http.DefaultClient.Do(req)
 				if err != nil {
-					t.Fatal(err)
+					t.Error(err)
+					return
 				}
 				if resp.StatusCode != 200 {
-					t.Fatal(resp.StatusCode)
+					t.Error(resp.StatusCode)
+					return
 				}
 			}()
 			timeout := time.After(time.Second)
@@ -765,6 +787,81 @@ func TestClientComputedTopLevel(t *testing.T) {
 
 	t.Run("on", run(true))
 	t.Run("off", run(false))
+}
+
+func TestConfigEndpoint(t *testing.T) {
+	var tcs = []struct {
+		name               string
+		reqBody            string
+		expectedStatusCode int
+		enabled            bool
+		response           string
+	}{
+		{
+			name:               "disabled",
+			expectedStatusCode: http.StatusNotFound,
+			response:           "404 page not found\n",
+		},
+		{
+			name:               "bad",
+			enabled:            true,
+			expectedStatusCode: http.StatusBadRequest,
+			response:           "unexpected end of JSON input\n",
+		},
+		{
+			name:               "stale",
+			reqBody:            `{"Product":1}`,
+			enabled:            true,
+			expectedStatusCode: http.StatusNoContent,
+			response:           "",
+		},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+			if tc.enabled {
+				features.Set("config_endpoint")
+			}
+			conf := newTestReceiverConfig()
+			rcv := newTestReceiverFromConfig(conf)
+			mux := rcv.buildMux()
+			server := httptest.NewServer(mux)
+
+			req, _ := http.NewRequest("POST", server.URL+"/v0.6/config", strings.NewReader(tc.reqBody))
+			req.Header.Set("Content-Type", "application/msgpack")
+			resp, err := http.DefaultClient.Do(req)
+			assert.Nil(err)
+			body, err := ioutil.ReadAll(resp.Body)
+			assert.Nil(err)
+			assert.Equal(tc.expectedStatusCode, resp.StatusCode)
+			assert.Equal(tc.response, string(body))
+		})
+	}
+}
+
+func TestClientDropP0s(t *testing.T) {
+	conf := newTestReceiverConfig()
+	rcv := newTestReceiverFromConfig(conf)
+	mux := rcv.buildMux()
+	server := httptest.NewServer(mux)
+
+	bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
+	assert.Nil(t, err)
+
+	req, _ := http.NewRequest("POST", server.URL+"/v0.4/traces", bytes.NewReader(bts))
+	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set(headerLang, "lang1")
+	req.Header.Set(headerDroppedP0Traces, "153")
+	req.Header.Set(headerDroppedP0Spans, "2331")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatal(resp.StatusCode)
+	}
+	p := <-rcv.out
+	assert.Equal(t, p.ClientDroppedP0s, int64(153))
 }
 
 func TestReceiverRateLimiterCancel(t *testing.T) {
@@ -998,8 +1095,7 @@ func TestWatchdog(t *testing.T) {
 		if testing.Short() {
 			return
 		}
-		os.Setenv("DD_APM_FEATURES", "429")
-		defer os.Unsetenv("DD_APM_FEATURES")
+		defer testutil.WithFeatures("429")()
 
 		conf := config.New()
 		conf.Endpoints[0].APIKey = "apikey_2"

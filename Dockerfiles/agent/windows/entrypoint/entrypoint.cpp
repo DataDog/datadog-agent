@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog
 // (https://www.datadoghq.com/).
-// Copyright 2019-2020 Datadog, Inc.
+// Copyright 2019-present Datadog, Inc.
 
 #include <filesystem>
 #include <fstream>
@@ -12,6 +12,7 @@
 #include <string>
 #include <tchar.h>
 #include <thread>
+#include <cstdlib>
 #include <Windows.h>
 #include "Process.h"
 #include "Service.h"
@@ -22,11 +23,15 @@ namespace
     // Synchronizes the reception of the CTRL signal
     HANDLE CtrlSignalReceivedEvent = INVALID_HANDLE_VALUE;
 
+    const std::wstring TRUE_STR = L"TRUE";
+
+    // The keys between service and entrypoints must be unique
     const std::map<std::wstring, std::filesystem::path> services =
     {
-        {L"datadogagent", "C:\\ProgramData\\Datadog\\logs\\agent.log"},
-        {L"datadog-process-agent", "C:\\ProgramData\\Datadog\\logs\\process-agent.log"},
-        {L"datadog-trace-agent", "C:\\ProgramData\\Datadog\\logs\\trace-agent.log"},
+        {L"datadogagent", L"C:\\ProgramData\\Datadog\\logs\\agent.log"},
+        {L"datadog-process-agent", L"C:\\ProgramData\\Datadog\\logs\\process-agent.log"},
+        {L"datadog-trace-agent", L"C:\\ProgramData\\Datadog\\logs\\trace-agent.log"},
+        {L"datadog-security-agent", L"C:\\ProgramData\\Datadog\\logs\\security-agent.log"},
     };
 
     std::string FormatErrorCode(DWORD errorCode)
@@ -35,6 +40,20 @@ namespace
         sstream << "[" << errorCode << " (0x" << std::hex << errorCode << ")]";
         return sstream.str();
     }
+}
+
+const std::wstring GetEnvVar(std::wstring const& name)
+{
+    _TCHAR* buf = nullptr;
+    size_t sz = 0;
+    std::wstring val;
+    if (_wdupenv_s(&buf, &sz, name.c_str()) == 0 && buf != nullptr)
+    {
+        val.assign(buf);
+        free(buf);
+    }
+
+    return val;
 }
 
 BOOL WINAPI CtrlHandle(DWORD dwCtrlType)
@@ -63,6 +82,7 @@ void ExecuteInitScripts()
     for (auto& script : directoryIt)
     {
         Process pwsh = Process::Create(L"pwsh " + script.path().wstring());
+        std::cout << "[ENTRYPOINT][INFO] Running init script: " << script.path().string() << std::endl;
         DWORD exitCode = pwsh.WaitForExit();
         if (exitCode != 0)
         {
@@ -181,7 +201,8 @@ int _tmain(int argc, _TCHAR** argv)
 {
     DWORD exitCode = -1;
 
-    if (argc <= 1)
+    auto command = GetEnvVar(L"ENTRYPOINT");
+    if (argc <= 1 && command.empty())
     {
         std::cout << "Usage: entrypoint.exe <service> | <executable> <args>" << std::endl;
         return -1;
@@ -209,8 +230,16 @@ int _tmain(int argc, _TCHAR** argv)
 
     try
     {
-        ExecuteInitScripts();
-        const std::wstring command = argv[1];
+        auto runInitScripts = GetEnvVar(L"ENTRYPOINT_INITSCRIPTS");
+        if (runInitScripts.empty() || runInitScripts.compare(TRUE_STR) == 0)
+        {
+            ExecuteInitScripts();
+        }
+
+        // We checked earlier that argc >= 2 if command is empty
+        if (command.empty()) {
+            command.assign(argv[1]);
+        }
 
         auto svcIt = services.find(command);
         if (svcIt != services.end())

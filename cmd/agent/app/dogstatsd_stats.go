@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018-2020 Datadog, Inc.
+// Copyright 2018-present Datadog, Inc.
 
 package app
 
@@ -48,7 +48,7 @@ var dogstatsdStatsCmd = &cobra.Command{
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
 
-		err = config.SetupLogger(loggerName, config.GetEnv("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+		err = config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
 		if err != nil {
 			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 			return err

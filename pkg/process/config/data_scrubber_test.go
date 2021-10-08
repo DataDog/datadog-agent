@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/gopsutil/process"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
 func setupDataScrubber(t *testing.T) *DataScrubber {
@@ -52,7 +53,7 @@ type testCase struct {
 }
 
 type testProcess struct {
-	process.FilledProcess
+	procutil.Process
 	parsedCmdline []string
 }
 
@@ -191,10 +192,12 @@ func setupTestProcesses() (fps []testProcess, sensible int) {
 	fps = make([]testProcess, 0, len(cases))
 	for i, c := range cases {
 		fps = append(fps, testProcess{
-			process.FilledProcess{
-				Pid:        int32(i),
-				CreateTime: time.Now().Unix(),
-				Cmdline:    c.cmdline,
+			procutil.Process{
+				Pid: int32(i),
+				Stats: &procutil.Stats{
+					CreateTime: time.Now().Unix(),
+				},
+				Cmdline: c.cmdline,
 			},
 			c.parsedCmdline,
 		})
@@ -211,10 +214,12 @@ func setupTestProcessesForBench() []testProcess {
 	fps := make([]testProcess, 0, len(cases))
 	for i := 0; i < nbProcesses; i++ {
 		fps = append(fps, testProcess{
-			process.FilledProcess{
-				Pid:        int32(i),
-				CreateTime: time.Now().Unix(),
-				Cmdline:    cases[i%len(cases)].cmdline,
+			procutil.Process{
+				Pid: int32(i),
+				Stats: &procutil.Stats{
+					CreateTime: time.Now().Unix(),
+				},
+				Cmdline: cases[i%len(cases)].cmdline,
 			},
 			cases[i%len(cases)].parsedCmdline,
 		})
@@ -323,7 +328,7 @@ func TestBlacklistedArgsWhenDisabled(t *testing.T) {
 	scrubber.Enabled = false
 
 	for i := range cases {
-		fp := &process.FilledProcess{Cmdline: cases[i].cmdline}
+		fp := &procutil.Process{Cmdline: cases[i].cmdline}
 		cases[i].cmdline = scrubber.ScrubProcessCommand(fp)
 		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
 	}
@@ -358,7 +363,7 @@ func TestScrubberStrippingAllArgument(t *testing.T) {
 	scrubber.StripAllArguments = true
 
 	for i := range cases {
-		fp := &process.FilledProcess{Cmdline: cases[i].cmdline}
+		fp := &procutil.Process{Cmdline: cases[i].cmdline}
 		cases[i].cmdline = scrubber.ScrubProcessCommand(fp)
 		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
 	}
@@ -391,7 +396,7 @@ func TestScrubWithCache(t *testing.T) {
 	// During the cache lifespan, all the processes scrubbed cmdline must live in the cache
 	for i := 0; i < int(scrubber.cacheMaxCycles); i++ {
 		for _, p := range testProcs {
-			scrubbed := scrubber.ScrubProcessCommand(&p.FilledProcess)
+			scrubbed := scrubber.ScrubProcessCommand(&p.Process)
 			assert.Equal(t, p.parsedCmdline, scrubbed)
 		}
 		assert.Equal(t, len(testProcs), len(scrubber.seenProcess))
@@ -405,7 +410,7 @@ func TestScrubWithCache(t *testing.T) {
 
 	// Scrubbing the same processes should put them again on cache
 	for _, p := range testProcs {
-		scrubbed := scrubber.ScrubProcessCommand(&p.FilledProcess)
+		scrubbed := scrubber.ScrubProcessCommand(&p.Process)
 		assert.Equal(t, p.parsedCmdline, scrubbed)
 	}
 	assert.Equal(t, len(testProcs), len(scrubber.seenProcess))
@@ -470,7 +475,7 @@ func benchmarkWithCache(b *testing.B) {
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		for i := 0; i < len(fps); i++ {
-			r = scrubber.ScrubProcessCommand(&fps[i].FilledProcess)
+			r = scrubber.ScrubProcessCommand(&fps[i].Process)
 		}
 	}
 	avoidOptimization = r

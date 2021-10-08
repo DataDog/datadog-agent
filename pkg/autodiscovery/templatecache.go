@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package autodiscovery
 
@@ -105,10 +105,14 @@ func (cache *TemplateCache) Del(tpl integration.Config) error {
 	for _, id := range tpl.ADIdentifiers {
 		digests := cache.adIDToDigests[id]
 		// remove the template from id2templates
-		for i, digest := range digests {
-			if digest == d {
-				cache.adIDToDigests[id] = append(digests[:i], digests[i+1:]...)
-				break
+		if len(digests) == 1 && digests[0] == d {
+			delete(cache.adIDToDigests, id)
+		} else {
+			for i, digest := range digests {
+				if digest == d {
+					cache.adIDToDigests[id] = append(digests[:i], digests[i+1:]...)
+					break
+				}
 			}
 		}
 	}

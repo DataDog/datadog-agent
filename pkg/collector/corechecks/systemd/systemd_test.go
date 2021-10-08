@@ -1,18 +1,20 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build systemd
 
 package systemd
 
 import (
+	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -967,8 +969,8 @@ func TestGetPropertyBool(t *testing.T) {
 
 type mockAutoConfig struct{}
 
-func (*mockAutoConfig) GetLoadedConfigs() map[string]integration.Config {
-	return make(map[string]integration.Config)
+func (*mockAutoConfig) MapOverLoadedConfigs(f func(map[string]integration.Config)) {
+	f(map[string]integration.Config{})
 }
 
 type mockCollector struct{}
@@ -1004,7 +1006,7 @@ unit_names:
 	// run
 	check.Run()
 
-	p := inventories.GetPayload("testHostname", &mockAutoConfig{}, &mockCollector{})
+	p := inventories.GetPayload(context.Background(), "testHostname", &mockAutoConfig{}, &mockCollector{})
 	checkMetadata := *p.CheckMetadata
 	systemdMetadata := *checkMetadata["systemd"][0]
 	assert.Equal(t, systemdVersion, systemdMetadata["version.raw"])
@@ -1013,7 +1015,7 @@ unit_names:
 func TestCheckID(t *testing.T) {
 	check1 := systemdFactory()
 	check2 := systemdFactory()
-	aggregator.InitAggregatorWithFlushInterval(nil, "", 1*time.Hour)
+	aggregator.InitAggregatorWithFlushInterval(nil, nil, "", 1*time.Hour)
 
 	// language=yaml
 	rawInstanceConfig1 := []byte(`

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build docker
 
@@ -81,6 +81,8 @@ func (d *DockerUtil) dispatchEvents(sub *eventSubscriber) {
 	fltrs.Add("type", "container")
 	fltrs.Add("event", "start")
 	fltrs.Add("event", "die")
+	fltrs.Add("event", "died")
+	fltrs.Add("event", "rename")
 
 	// On initial subscribe, don't go back in time. On reconnect, we'll
 	// resume at the latest timestamp we got.
@@ -116,7 +118,7 @@ CONNECT: // Outer loop handles re-connecting in case the docker daemon closes th
 				continue CONNECT // Re-connect to docker
 			case msg := <-messages:
 				latestTimestamp = msg.Time
-				event, err := d.processContainerEvent(msg)
+				event, err := d.processContainerEvent(ctx, msg)
 				if err != nil {
 					log.Debugf("Skipping event: %s", err)
 					continue

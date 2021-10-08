@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build jmx
 
@@ -25,7 +25,7 @@ type jmxState struct {
 	lock        *sync.Mutex
 }
 
-var state jmxState = jmxState{
+var state = jmxState{
 	configs:     cache.NewBasicCache(),
 	runnerError: make(chan struct{}),
 	runner:      &runner{},

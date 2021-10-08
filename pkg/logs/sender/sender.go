@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package sender
 
@@ -17,6 +17,7 @@ import (
 // and forward them the next stage of the pipeline.
 type Strategy interface {
 	Send(inputChan chan *message.Message, outputChan chan *message.Message, send func([]byte) error)
+	Flush(ctx context.Context)
 }
 
 // Sender sends logs to different destinations.
@@ -49,6 +50,11 @@ func (s *Sender) Start() {
 func (s *Sender) Stop() {
 	close(s.inputChan)
 	<-s.done
+}
+
+// Flush sends synchronously the messages that this sender has to send.
+func (s *Sender) Flush(ctx context.Context) {
+	s.strategy.Flush(ctx)
 }
 
 func (s *Sender) run() {

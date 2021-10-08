@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -17,10 +17,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic/fake"
+	kscheme "k8s.io/client-go/kubernetes/scheme"
 )
+
+var scheme = kscheme.Scheme
 
 func Test_injectTagsFromLabels(t *testing.T) {
 	tests := []struct {
@@ -214,7 +216,7 @@ func TestGetAndCacheOwner(t *testing.T) {
 
 	// Cache hit
 	cache.Cache.Set(ownerInfo.buildID(testNamespace), ownerObj, ownerCacheTTL)
-	dc := fake.NewSimpleDynamicClient(runtime.NewScheme())
+	dc := fake.NewSimpleDynamicClient(scheme)
 	obj, err := getAndCacheOwner(ownerInfo, testNamespace, dc)
 	assert.NoError(t, err)
 	assert.NotNil(t, obj)
@@ -223,7 +225,7 @@ func TestGetAndCacheOwner(t *testing.T) {
 	cache.Cache.Flush()
 
 	// Cache miss
-	dc = fake.NewSimpleDynamicClient(runtime.NewScheme(), ownerObj)
+	dc = fake.NewSimpleDynamicClient(scheme, ownerObj)
 	obj, err = getAndCacheOwner(ownerInfo, testNamespace, dc)
 	assert.NoError(t, err)
 	assert.NotNil(t, obj)

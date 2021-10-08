@@ -1,20 +1,21 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
 package custommetrics
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"encoding/json"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
@@ -29,7 +30,7 @@ func TestNewConfigMapStore(t *testing.T) {
 	}
 
 	client := fake.NewSimpleClientset()
-	_, err := client.CoreV1().ConfigMaps("default").Create(cm)
+	_, err := client.CoreV1().ConfigMaps("default").Create(context.TODO(), cm, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	// configmap already exists
@@ -155,7 +156,7 @@ func TestDeprecationStrategy(t *testing.T) {
 
 			// inject the mocked content
 			store.(*configMapStore).cm.Data = tt.toStore
-			_, err = client.CoreV1().ConfigMaps("default").Update(store.(*configMapStore).cm)
+			_, err = client.CoreV1().ConfigMaps("default").Update(context.TODO(), store.(*configMapStore).cm, metav1.UpdateOptions{})
 			require.NoError(t, err)
 
 			// Confirm that we are able to isolate the deprecated templates

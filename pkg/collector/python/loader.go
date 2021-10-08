@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build python
 
@@ -108,11 +108,13 @@ func (cl *PythonCheckLoader) Load(config integration.Config, instance integratio
 	moduleName := config.Name
 
 	// Lock the GIL
-	glock := newStickyLock()
+	glock, err := newStickyLock()
+	if err != nil {
+		return nil, err
+	}
 	defer glock.unlock()
 
 	// Platform-specific preparation
-	var err error
 	if !agentConfig.Datadog.GetBool("win_skip_com_init") {
 		log.Debugf("Performing platform loading prep")
 		err = platformLoaderPrep()
@@ -190,7 +192,10 @@ func (cl *PythonCheckLoader) Load(config integration.Config, instance integratio
 		go reportPy3Warnings(name, goCheckFilePath)
 	}
 
-	c := NewPythonCheck(moduleName, checkClass)
+	c, err := NewPythonCheck(moduleName, checkClass)
+	if err != nil {
+		return c, err
+	}
 
 	// The GIL should be unlocked at this point, `check.Configure` uses its own stickyLock and stickyLocks must not be nested
 	if err := c.Configure(instance, config.InitConfig, config.Source); err != nil {
@@ -293,7 +298,7 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 
 			if err != nil {
 				status = a7TagUnknown
-				log.Errorf("Failed to validate Python 3 linting for check '%s': '%s'", checkName, err)
+				log.Warnf("Failed to validate Python 3 linting for check '%s': '%s'", checkName, err)
 			} else if len(warnings) == 0 {
 				status = a7TagReady
 				metricValue = 1.0

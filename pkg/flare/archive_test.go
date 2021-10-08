@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package flare
 
@@ -19,11 +19,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestCreateArchive(t *testing.T) {
@@ -32,7 +34,7 @@ func TestCreateArchive(t *testing.T) {
 	mockConfig.Set("confd_path", "./test/confd")
 	mockConfig.Set("log_file", "./test/logs/agent.log")
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, nil)
+	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, nil, nil)
 
 	assert.Nil(t, err)
 	assert.Equal(t, zipFilePath, filePath)
@@ -56,7 +58,7 @@ func TestCreateArchiveAndGoRoutines(t *testing.T) {
 	pprofURL = ts.URL
 
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, nil)
+	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, nil, nil)
 
 	assert.Nil(t, err)
 	assert.Equal(t, zipFilePath, filePath)
@@ -100,7 +102,7 @@ func TestCreateArchiveAndGoRoutines(t *testing.T) {
 func TestCreateArchiveBadConfig(t *testing.T) {
 	common.SetupConfig("")
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, nil)
+	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, nil, nil)
 
 	assert.Nil(t, err)
 	assert.Equal(t, zipFilePath, filePath)
@@ -154,7 +156,7 @@ func TestIncludeSystemProbeConfig(t *testing.T) {
 	defer os.Remove("./test/system-probe.yaml")
 
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{"": "./test/confd"}, true, zipFilePath, []string{""}, nil)
+	filePath, err := createArchive(SearchPaths{"": "./test/confd"}, true, zipFilePath, []string{""}, nil, nil)
 	assert.NoError(err)
 	assert.Equal(zipFilePath, filePath)
 
@@ -182,7 +184,7 @@ func TestIncludeConfigFiles(t *testing.T) {
 
 	common.SetupConfig("./test")
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{"": "./test/confd"}, true, zipFilePath, []string{""}, nil)
+	filePath, err := createArchive(SearchPaths{"": "./test/confd"}, true, zipFilePath, []string{""}, nil, nil)
 
 	assert.NoError(err)
 	assert.Equal(zipFilePath, filePath)
@@ -247,11 +249,43 @@ func TestCleanDirectoryName(t *testing.T) {
 	assert.True(t, !directoryNameFilter.MatchString(cleanedHostname))
 }
 
+func TestZipLogFiles(t *testing.T) {
+	srcDir, err := ioutil.TempDir("", "logs")
+	require.NoError(t, err)
+	defer os.RemoveAll(srcDir)
+	dstDir, err := ioutil.TempDir("", "TestZipLogFiles")
+	require.NoError(t, err)
+	defer os.RemoveAll(dstDir)
+
+	_, err = os.Create(filepath.Join(srcDir, "agent.log"))
+	require.NoError(t, err)
+	_, err = os.Create(filepath.Join(srcDir, "trace-agent.log"))
+	require.NoError(t, err)
+	err = os.Mkdir(filepath.Join(srcDir, "archive"), 0700)
+	require.NoError(t, err)
+	_, err = os.Create(filepath.Join(srcDir, "archive", "agent.log"))
+	require.NoError(t, err)
+
+	permsInfos := make(permissionsInfos)
+
+	err = zipLogFiles(dstDir, "test", filepath.Join(srcDir, "agent.log"), permsInfos)
+	assert.NoError(t, err)
+
+	// Check all the log files are in the destination path, at the right subdirectories
+	_, err = os.Stat(filepath.Join(dstDir, "test", "logs", "agent.log"))
+	assert.NoError(t, err)
+	_, err = os.Stat(filepath.Join(dstDir, "test", "logs", "trace-agent.log"))
+	assert.NoError(t, err)
+	_, err = os.Stat(filepath.Join(dstDir, "test", "logs", "archive", "agent.log"))
+	assert.NoError(t, err)
+}
+
 func TestZipTaggerList(t *testing.T) {
 	tagMap := make(map[string]response.TaggerListEntity)
 	tagMap["random_entity_name"] = response.TaggerListEntity{
-		Sources: []string{"docker_source_name"},
-		Tags:    []string{"docker_image:custom-agent:latest", "image_name:custom-agent"},
+		Tags: map[string][]string{
+			"docker_source_name": {"docker_image:custom-agent:latest", "image_name:custom-agent"},
+		},
 	}
 	resp := response.TaggerListResponse{
 		Entities: tagMap,
@@ -289,7 +323,7 @@ func TestPerformanceProfile(t *testing.T) {
 		"third":  []byte{},
 	}
 	zipFilePath := getArchivePath()
-	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, testProfile)
+	filePath, err := createArchive(SearchPaths{}, true, zipFilePath, []string{""}, testProfile, nil)
 
 	assert.NoError(t, err)
 	assert.Equal(t, zipFilePath, filePath)

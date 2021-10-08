@@ -1,17 +1,22 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver,kubelet
 
 package collectors
 
 import (
+	"context"
 	"fmt"
+	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/gobwas/glob"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -27,23 +32,28 @@ const (
 )
 
 type KubeMetadataCollector struct {
-	kubeUtil  kubelet.KubeUtilInterface
-	apiClient *apiserver.APIClient
-	infoOut   chan<- []*TagInfo
-	dcaClient clusteragent.DCAClientInterface
+	kubeUtil            kubelet.KubeUtilInterface
+	apiClient           *apiserver.APIClient
+	infoOut             chan<- []*TagInfo
+	dcaClient           clusteragent.DCAClientInterface
+	clusterAgentEnabled bool
+	updateFreq          time.Duration
+	expire              *expire
+
+	m sync.RWMutex
 	// used to set a custom delay
 	lastUpdate time.Time
-	updateFreq time.Duration
 
-	lastExpire time.Time
-	lastSeen   map[string]time.Time
-	expireFreq time.Duration
-
-	clusterAgentEnabled bool
+	namespaceLabelsAsTags map[string]string
+	globNamespaceLabels   map[string]glob.Glob
 }
 
 // Detect tries to connect to the kubelet and the API Server if the DCA is not used or the DCA.
-func (c *KubeMetadataCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
+func (c *KubeMetadataCollector) Detect(_ context.Context, out chan<- []*TagInfo) (CollectionMode, error) {
+	if !config.IsFeaturePresent(config.Kubernetes) {
+		return NoCollection, nil
+	}
+
 	if config.Datadog.GetBool("kubernetes_collect_metadata_tags") == false {
 		log.Infof("The metadata mapper was configured to be disabled, not collecting metadata for the pods from the API Server")
 		return NoCollection, fmt.Errorf("collection disabled by the configuration")
@@ -75,6 +85,8 @@ func (c *KubeMetadataCollector) Detect(out chan<- []*TagInfo) (CollectionMode, e
 	}
 	// Fallback to local metamapper if DCA not enabled, or in permafail state with fallback enabled.
 	if !config.Datadog.GetBool("cluster_agent.enabled") || errDCA != nil {
+		// Using GetAPIClient as error returned follows the IsErrWillRetry/IsErrPermaFail
+		// Tagger will retry calling this method until permafail
 		c.apiClient, err = apiserver.GetAPIClient()
 		if err != nil {
 			return NoCollection, err
@@ -83,23 +95,28 @@ func (c *KubeMetadataCollector) Detect(out chan<- []*TagInfo) (CollectionMode, e
 
 	c.infoOut = out
 	c.updateFreq = time.Duration(config.Datadog.GetInt("kubernetes_metadata_tag_update_freq")) * time.Second
-	c.expireFreq = kubeMetadataExpireFreq
-	c.lastExpire = time.Now()
-	c.lastSeen = make(map[string]time.Time)
+	c.expire, err = newExpire(kubeMetadataCollectorName, kubeMetadataExpireFreq)
+	if err != nil {
+		return NoCollection, err
+	}
+
+	c.namespaceLabelsAsTags, c.globNamespaceLabels = utils.InitMetadataAsTags(
+		config.Datadog.GetStringMapString("kubernetes_namespace_labels_as_tags"),
+	)
 
 	return PullCollection, nil
 }
 
 // Pull implements an additional time constraints to avoid exhausting the kube-apiserver
-func (c *KubeMetadataCollector) Pull() error {
+func (c *KubeMetadataCollector) Pull(ctx context.Context) error {
 	// Time constraints, get the delta in seconds to display it in the logs:
-	timeDelta := c.lastUpdate.Add(c.updateFreq).Unix() - time.Now().Unix()
+	timeDelta := c.getLastUpdate().Add(c.updateFreq).Unix() - time.Now().Unix()
 	if timeDelta > 0 {
 		log.Tracef("skipping, next effective Pull will be in %d seconds", timeDelta)
 		return nil
 	}
 
-	pods, err := c.kubeUtil.GetLocalPodList()
+	pods, err := c.kubeUtil.GetLocalPodList(ctx)
 	if err != nil {
 		return err
 	}
@@ -111,46 +128,62 @@ func (c *KubeMetadataCollector) Pull() error {
 		}
 	}
 
-	tagInfos := c.getTagInfos(pods)
-	now := time.Now()
+	tagInfos := c.collectUpdates(pods)
 
-	for _, tagInfo := range tagInfos {
-		c.lastSeen[tagInfo.Entity] = now
-	}
-
-	if now.Sub(c.lastExpire) >= c.expireFreq {
-		for id, lastSeen := range c.lastSeen {
-			if now.Sub(lastSeen) >= c.expireFreq {
-				delete(c.lastSeen, id)
-				tagInfos = append(tagInfos, &TagInfo{
-					Source:       kubeMetadataCollectorName,
-					Entity:       id,
-					DeleteEntity: true,
-				})
-			}
-		}
-
-		c.lastExpire = now
-	}
-
-	c.lastUpdate = now
 	c.infoOut <- tagInfos
 
 	return nil
 }
 
+func (c *KubeMetadataCollector) getLastUpdate() time.Time {
+	c.m.RLock()
+	defer c.m.RUnlock()
+	return c.lastUpdate
+}
+
+func (c *KubeMetadataCollector) collectUpdates(pods []*kubelet.Pod) []*TagInfo {
+	tagInfos := c.getTagInfos(pods)
+
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	now := time.Now()
+
+	for _, tagInfo := range tagInfos {
+		c.expire.Update(tagInfo.Entity, now)
+	}
+
+	expires := c.expire.ComputeExpires()
+	if len(expires) > 0 {
+		c.infoOut <- expires
+	}
+
+	c.lastUpdate = now
+	return tagInfos
+}
+
 // Fetch fetches tags for a given entity by iterating on the whole podlist and
 // the metadataMapper
-func (c *KubeMetadataCollector) Fetch(entity string) ([]string, []string, []string, error) {
+func (c *KubeMetadataCollector) Fetch(ctx context.Context, entity string) ([]string, []string, []string, error) {
 	var lowCards, orchestratorCards, highCards []string
 
-	pod, err := c.kubeUtil.GetPodForEntityID(entity)
+	kubeEntityID := entity
+
+	// kubeUtil uses `kubernetes_pod://` IDs, while the tagger uses
+	// `kubernetes_pod_uid` so we need to convert between the two
+	prefix, id := containers.SplitEntityName(kubeEntityID)
+	if prefix == kubelet.KubePodTaggerEntityName {
+		kubeEntityID = kubelet.KubePodPrefix + id
+	}
+
+	pod, err := c.kubeUtil.GetPodForEntityID(ctx, kubeEntityID)
+
 	if err != nil {
 		return lowCards, orchestratorCards, highCards, err
 	}
 
-	if kubelet.IsPodReady(pod) == false {
-		return lowCards, orchestratorCards, highCards, errors.NewNotFound(entity)
+	if !kubelet.IsPodReady(pod) {
+		return lowCards, orchestratorCards, highCards, nil
 	}
 
 	pods := []*kubelet.Pod{pod}
@@ -169,6 +202,7 @@ func (c *KubeMetadataCollector) Fetch(entity string) ([]string, []string, []stri
 			return info.LowCardTags, info.OrchestratorCardTags, info.HighCardTags, nil
 		}
 	}
+
 	return lowCards, orchestratorCards, highCards, errors.NewNotFound(entity)
 }
 
@@ -180,6 +214,10 @@ func (c *KubeMetadataCollector) isClusterAgentEnabled() bool {
 		}
 	}
 	return false
+}
+
+func (c *KubeMetadataCollector) hasNamespaceLabelsAsTags() bool {
+	return len(c.namespaceLabelsAsTags) != 0 || len(c.globNamespaceLabels) != 0
 }
 
 func kubernetesFactory() Collector {

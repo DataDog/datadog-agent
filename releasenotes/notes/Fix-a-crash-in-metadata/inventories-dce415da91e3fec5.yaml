@@ -1,0 +1,5 @@
+fixes:
+  - |
+    Fix "fatal error: concurrent map read and map write" due to reads of
+    a concurrently mutated map in inventories.payload.MarshalJSON()
+

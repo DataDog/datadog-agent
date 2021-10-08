@@ -3,11 +3,13 @@ package util
 import (
 	"encoding/binary"
 	"net"
+	"sync"
 )
 
 // Address is an IP abstraction that is family (v4/v6) agnostic
 type Address interface {
 	Bytes() []byte
+	WriteTo([]byte) int
 	String() string
 	IsLoopback() bool
 }
@@ -31,8 +33,40 @@ func AddressFromString(ip string) Address {
 }
 
 // NetIPFromAddress returns a net.IP from an Address
-func NetIPFromAddress(addr Address) net.IP {
-	return net.IP(addr.Bytes())
+func NetIPFromAddress(addr Address, buf []byte) net.IP {
+	var addrLen int
+	switch addr.(type) {
+	case v4Address:
+		addrLen = 4
+	case v6Address:
+		addrLen = 16
+	default:
+		return nil
+	}
+
+	if len(buf) < addrLen {
+		// if the function is misused we allocate
+		buf = make([]byte, addrLen)
+	}
+
+	n := addr.WriteTo(buf)
+	return net.IP(buf[:n])
+}
+
+// ToLowHigh converts an address into a pair of uint64 numbers
+func ToLowHigh(addr Address) (l, h uint64) {
+	if addr == nil {
+		return
+	}
+
+	switch b := addr.Bytes(); len(b) {
+	case 4:
+		return uint64(binary.LittleEndian.Uint32(b[:4])), uint64(0)
+	case 16:
+		return binary.LittleEndian.Uint64(b[8:]), binary.LittleEndian.Uint64(b[:8])
+	}
+
+	return
 }
 
 type v4Address [4]byte
@@ -57,6 +91,11 @@ func V4AddressFromBytes(buf []byte) Address {
 // Bytes returns a byte array of the underlying array
 func (a v4Address) Bytes() []byte {
 	return a[:]
+}
+
+// WriteTo writes the address byte representation into the supplied buffer
+func (a v4Address) WriteTo(b []byte) int {
+	return copy(b, a[:])
 }
 
 // String returns the human readable string representation of an IP
@@ -91,6 +130,11 @@ func (a v6Address) Bytes() []byte {
 	return a[:]
 }
 
+// WriteTo writes the address byte representation into the supplied buffer
+func (a v6Address) WriteTo(b []byte) int {
+	return copy(b, a[:])
+}
+
 // String returns the human readable string representation of an IP
 func (a v6Address) String() string {
 	return net.IP(a[:]).String()
@@ -99,4 +143,11 @@ func (a v6Address) String() string {
 // IsLoopback returns true if this address is the loopback address
 func (a v6Address) IsLoopback() bool {
 	return net.IP(a[:]).IsLoopback()
+}
+
+// IPBufferPool is meant to be used in conjunction with `NetIPFromAddress`
+var IPBufferPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, net.IPv6len)
+	},
 }

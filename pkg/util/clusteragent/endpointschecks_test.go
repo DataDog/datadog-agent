@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package clusteragent
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/stretchr/testify/assert"
@@ -25,6 +26,7 @@ var dummyEndpointsConfigs = `{
 }`
 
 func (suite *clusterAgentSuite) TestEndpointsChecksNominal() {
+	ctx := context.Background()
 	dca, err := newDummyClusterAgent()
 	require.NoError(suite.T(), err)
 
@@ -38,7 +40,7 @@ func (suite *clusterAgentSuite) TestEndpointsChecksNominal() {
 	ca, err := GetClusterAgentClient()
 	require.NoError(suite.T(), err)
 
-	configs, err := ca.GetEndpointsCheckConfigs("mynode")
+	configs, err := ca.GetEndpointsCheckConfigs(ctx, "mynode")
 	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), int64(42), configs.LastChange)
 	require.Len(suite.T(), configs.Configs, 2)

@@ -24,7 +24,7 @@ func TestUpdateRTStatus(t *testing.T) {
 		{ActiveClients: 3, Interval: 2},
 		{ActiveClients: 0, Interval: 2},
 	}
-	c.updateStatus(statuses)
+	c.updateRTStatus(statuses)
 	assert.Equal(int32(1), atomic.LoadInt32(&c.realTimeEnabled))
 
 	// Validate that we stay that way
@@ -33,7 +33,7 @@ func TestUpdateRTStatus(t *testing.T) {
 		{ActiveClients: 3, Interval: 2},
 		{ActiveClients: 0, Interval: 2},
 	}
-	c.updateStatus(statuses)
+	c.updateRTStatus(statuses)
 	assert.Equal(int32(1), atomic.LoadInt32(&c.realTimeEnabled))
 
 	// And that it can turn back off
@@ -42,7 +42,7 @@ func TestUpdateRTStatus(t *testing.T) {
 		{ActiveClients: 0, Interval: 2},
 		{ActiveClients: 0, Interval: 2},
 	}
-	c.updateStatus(statuses)
+	c.updateRTStatus(statuses)
 	assert.Equal(int32(0), atomic.LoadInt32(&c.realTimeEnabled))
 }
 
@@ -60,7 +60,7 @@ func TestUpdateRTInterval(t *testing.T) {
 		{ActiveClients: 3, Interval: 2},
 		{ActiveClients: 0, Interval: 10},
 	}
-	c.updateStatus(statuses)
+	c.updateRTStatus(statuses)
 	assert.Equal(int32(1), atomic.LoadInt32(&c.realTimeEnabled))
 	assert.Equal(10*time.Second, c.realTimeInterval)
 }

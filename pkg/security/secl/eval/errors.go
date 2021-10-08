@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package eval
 
@@ -13,6 +13,15 @@ import (
 	"github.com/alecthomas/participle/lexer"
 )
 
+// ErrNonStaticPattern when pattern operator is used on a non static value
+type ErrNonStaticPattern struct {
+	Field Field
+}
+
+func (e ErrNonStaticPattern) Error() string {
+	return fmt.Sprintf("unable to apply pattern on non static value `%s`", e.Field)
+}
+
 // ErrInvalidPattern is returned for an invalid regular expression
 type ErrInvalidPattern struct {
 	Pattern string
@@ -20,6 +29,15 @@ type ErrInvalidPattern struct {
 
 func (e ErrInvalidPattern) Error() string {
 	return fmt.Sprintf("invalid pattern `%s`", e.Pattern)
+}
+
+// ErrInvalidRegexp is returned for an invalid regular expression
+type ErrInvalidRegexp struct {
+	Regexp string
+}
+
+func (e ErrInvalidRegexp) Error() string {
+	return fmt.Sprintf("invalid regexp `%s`", e.Regexp)
 }
 
 // ErrAstToEval describes an error that occurred during the conversion from the AST to an evaluator
@@ -52,9 +70,14 @@ func NewOpError(pos lexer.Position, op string, err error) *ErrAstToEval {
 	return NewError(pos, fmt.Sprintf("operator `%s` error: %s", op, err))
 }
 
-// NewRegisterMultipleFields returns a new ErrAstToEval error when an operator was used in an invalid manner
+// NewRegisterMultipleFields returns a new ErrAstToEval error when a register is used across multiple fields
 func NewRegisterMultipleFields(pos lexer.Position, regID RegisterID, err error) *ErrAstToEval {
 	return NewError(pos, fmt.Sprintf("register `%s` error: %s", regID, err))
+}
+
+// NewRegisterNameNotAllowed returns a new ErrAstToEval error when a register name is not allowed
+func NewRegisterNameNotAllowed(pos lexer.Position, regID RegisterID, err error) *ErrAstToEval {
+	return NewError(pos, fmt.Sprintf("register name `%s` error: %s", regID, err))
 }
 
 // ErrRuleParse describes a parsing error and its position in the expression

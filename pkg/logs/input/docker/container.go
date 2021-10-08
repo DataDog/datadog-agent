@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build docker
 
 package docker
 
 import (
+	"context"
 	"regexp"
 	"strings"
 
@@ -38,7 +39,7 @@ func NewContainer(container types.ContainerJSON, service *service.Service) *Cont
 	}
 }
 
-// findSource returns the source that most likely matches the container,
+// FindSource returns the source that most likely matches the container,
 // if no source is found return nil
 func (c *Container) FindSource(sources []*config.LogSource) *config.LogSource {
 	var bestMatch *config.LogSource
@@ -62,7 +63,7 @@ func (c *Container) FindSource(sources []*config.LogSource) *config.LogSource {
 
 // getShortImageName resolves the short image name of a container by calling the docker daemon
 // This call is blocking
-func (c *Container) getShortImageName() (string, error) {
+func (c *Container) getShortImageName(ctx context.Context) (string, error) {
 	var (
 		err       error
 		shortName string
@@ -74,7 +75,7 @@ func (c *Container) getShortImageName() (string, error) {
 		return shortName, err
 	}
 	imageName := c.container.Image
-	imageName, err = du.ResolveImageName(imageName)
+	imageName, err = du.ResolveImageName(ctx, imageName)
 	if err != nil {
 		log.Debugf("Could not resolve image name %s: %s", imageName, err)
 		return shortName, err

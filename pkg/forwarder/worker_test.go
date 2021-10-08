@@ -1,7 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
+
+// +build test
 
 package forwarder
 
@@ -12,13 +14,14 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewWorker(t *testing.T) {
-	highPrio := make(chan Transaction)
-	lowPrio := make(chan Transaction)
-	requeue := make(chan Transaction)
+	highPrio := make(chan transaction.Transaction)
+	lowPrio := make(chan transaction.Transaction)
+	requeue := make(chan transaction.Transaction)
 
 	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
 	assert.NotNil(t, w)
@@ -26,9 +29,9 @@ func TestNewWorker(t *testing.T) {
 }
 
 func TestNewNoSSLWorker(t *testing.T) {
-	highPrio := make(chan Transaction)
-	lowPrio := make(chan Transaction)
-	requeue := make(chan Transaction)
+	highPrio := make(chan transaction.Transaction)
+	lowPrio := make(chan transaction.Transaction)
+	requeue := make(chan transaction.Transaction)
 
 	mockConfig := config.Mock()
 	mockConfig.Set("skip_ssl_validation", true)
@@ -39,9 +42,9 @@ func TestNewNoSSLWorker(t *testing.T) {
 }
 
 func TestWorkerStart(t *testing.T) {
-	highPrio := make(chan Transaction)
-	lowPrio := make(chan Transaction)
-	requeue := make(chan Transaction, 1)
+	highPrio := make(chan transaction.Transaction)
+	lowPrio := make(chan transaction.Transaction)
+	requeue := make(chan transaction.Transaction, 1)
 	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
 
 	mock := newTestTransaction()
@@ -69,9 +72,9 @@ func TestWorkerStart(t *testing.T) {
 }
 
 func TestWorkerRetry(t *testing.T) {
-	highPrio := make(chan Transaction)
-	lowPrio := make(chan Transaction)
-	requeue := make(chan Transaction, 1)
+	highPrio := make(chan transaction.Transaction)
+	lowPrio := make(chan transaction.Transaction)
+	requeue := make(chan transaction.Transaction, 1)
 	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
 
 	mock := newTestTransaction()
@@ -90,9 +93,9 @@ func TestWorkerRetry(t *testing.T) {
 }
 
 func TestWorkerRetryBlockedTransaction(t *testing.T) {
-	highPrio := make(chan Transaction)
-	lowPrio := make(chan Transaction)
-	requeue := make(chan Transaction, 1)
+	highPrio := make(chan transaction.Transaction)
+	lowPrio := make(chan transaction.Transaction)
+	requeue := make(chan transaction.Transaction, 1)
 	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
 
 	mock := newTestTransaction()
@@ -111,9 +114,9 @@ func TestWorkerRetryBlockedTransaction(t *testing.T) {
 }
 
 func TestWorkerResetConnections(t *testing.T) {
-	highPrio := make(chan Transaction)
-	lowPrio := make(chan Transaction)
-	requeue := make(chan Transaction, 1)
+	highPrio := make(chan transaction.Transaction)
+	lowPrio := make(chan transaction.Transaction)
+	requeue := make(chan transaction.Transaction, 1)
 	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
 
 	mock := newTestTransaction()
@@ -154,9 +157,9 @@ func TestWorkerResetConnections(t *testing.T) {
 }
 
 func TestWorkerPurgeOnStop(t *testing.T) {
-	highPrio := make(chan Transaction, 1)
-	lowPrio := make(chan Transaction, 1)
-	requeue := make(chan Transaction, 1)
+	highPrio := make(chan transaction.Transaction, 1)
+	lowPrio := make(chan transaction.Transaction, 1)
+	requeue := make(chan transaction.Transaction, 1)
 	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
 	// making stopChan non blocking on insert and closing stopped channel
 	// to avoid blocking in the Stop method since we don't actually start

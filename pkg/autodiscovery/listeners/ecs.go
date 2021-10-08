@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017-2020 Datadog, Inc.
+// Copyright 2017-present Datadog, Inc.
 
 // +build docker
 
 package listeners
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -15,10 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ECSListener implements the ServiceListener interface for fargate-backed ECS cluster.
@@ -88,15 +88,19 @@ func (l *ECSListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	l.delService = delSvc
 
 	go func() {
-		l.refreshServices(true)
+		ctx, cancel := context.WithCancel(context.Background())
+		l.refreshServices(ctx, true)
 		for {
 			select {
 			case <-l.stop:
 				l.health.Deregister() //nolint:errcheck
+				cancel()
 				return
-			case <-l.health.C:
+			case healthDeadline := <-l.health.C:
+				cancel()
+				ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
 			case <-l.t.C:
-				l.refreshServices(false)
+				l.refreshServices(ctx, false)
 			}
 		}
 	}()
@@ -110,8 +114,8 @@ func (l *ECSListener) Stop() {
 // refreshServices queries the task metadata endpoint for fresh info
 // compares the container list to the local cache and sends new/dead services
 // over newService and delService accordingly
-func (l *ECSListener) refreshServices(firstRun bool) {
-	meta, err := l.client.GetTask()
+func (l *ECSListener) refreshServices(ctx context.Context, firstRun bool) {
+	meta, err := l.client.GetTask(ctx)
 	if err != nil {
 		log.Errorf("failed to get task metadata, not refreshing services - %s", err)
 		return
@@ -236,18 +240,18 @@ func (s *ECSService) GetTaggerEntity() string {
 // If the special label was not set, the priority order is the following:
 //   1. Long image name
 //   2. Short image name
-func (s *ECSService) GetADIdentifiers() ([]string, error) {
+func (s *ECSService) GetADIdentifiers(context.Context) ([]string, error) {
 	return s.ADIdentifiers, nil
 }
 
 // GetHosts returns the container's hosts
 // TODO: using localhost should usually be enough
-func (s *ECSService) GetHosts() (map[string]string, error) {
+func (s *ECSService) GetHosts(context.Context) (map[string]string, error) {
 	return s.hosts, nil
 }
 
 // GetPorts returns nil and an error because port is not supported in Fargate-based ECS
-func (s *ECSService) GetPorts() ([]ContainerPort, error) {
+func (s *ECSService) GetPorts(context.Context) ([]ContainerPort, error) {
 	return nil, ErrNotSupported
 }
 
@@ -258,12 +262,12 @@ func (s *ECSService) GetTags() ([]string, string, error) {
 
 // GetPid inspect the container and return its pid
 // TODO: not supported as pid is not in the metadata api
-func (s *ECSService) GetPid() (int, error) {
+func (s *ECSService) GetPid(context.Context) (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetHostname returns nil and an error because port is not supported in Fargate-based ECS
-func (s *ECSService) GetHostname() (string, error) {
+func (s *ECSService) GetHostname(context.Context) (string, error) {
 	return "", ErrNotSupported
 }
 
@@ -272,12 +276,12 @@ func (s *ECSService) GetCreationTime() integration.CreationTime {
 	return s.creationTime
 }
 
-func (s *ECSService) IsReady() bool {
+func (s *ECSService) IsReady(context.Context) bool {
 	return true
 }
 
 // GetCheckNames returns slice check names defined in docker labels
-func (s *ECSService) GetCheckNames() []string {
+func (s *ECSService) GetCheckNames(context.Context) []string {
 	return s.checkNames
 }
 

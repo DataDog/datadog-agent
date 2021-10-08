@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build docker
 
 package listeners
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"sort"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -100,20 +102,25 @@ func (l *DockerListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	}
 
 	go func() {
+		ctx, cancel := context.WithCancel(context.Background())
 		for {
 			select {
 			case <-l.stop:
 				l.dockerUtil.UnsubscribeFromContainerEvents("DockerListener") //nolint:errcheck
 				l.health.Deregister()                                         //nolint:errcheck
+				cancel()
 				return
-			case <-l.health.C:
+			case healthDeadline := <-l.health.C:
+				cancel()
+				ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
 			case msg := <-messages:
-				l.processEvent(msg)
+				l.processEvent(ctx, msg)
 			case err := <-errs:
 				if err != nil && err != io.EOF {
 					log.Errorf("docker listener error: %v", err)
 					signals.ErrorStopper <- true
 				}
+				cancel()
 				return
 			}
 		}
@@ -129,73 +136,21 @@ func (l *DockerListener) Stop() {
 // creates services for them, and pass them to the AutoConfig.
 // It is typically called at start up.
 func (l *DockerListener) init() {
-	l.m.Lock()
-	defer l.m.Unlock()
+	ctx := context.TODO()
 
-	containersList, err := l.dockerUtil.RawContainerList(types.ContainerListOptions{})
+	containersList, err := l.dockerUtil.RawContainerList(ctx, types.ContainerListOptions{})
 	if err != nil {
 		log.Errorf("Couldn't retrieve container list - %s", err)
 	}
 
 	for _, co := range containersList {
-		if l.isExcluded(co) {
-			continue // helper method already logs
-		}
-		var svc Service
-
-		checkNames, err := getCheckNamesFromLabels(co.Labels)
-		if err != nil {
-			log.Errorf("Error getting check names from docker labels on container %s: %v", co.ID, err)
-		}
-
-		containerImage, err := l.dockerUtil.ResolveImageName(co.Image)
-		if err != nil {
-			log.Warnf("Error while resolving image name: %s", err)
-			containerImage = ""
-		}
-		metricsExcluded := false
-		logsExcluded := false
-		for _, name := range co.Names {
-			if l.filters.IsExcluded(containers.MetricsFilter, name, containerImage, "") {
-				metricsExcluded = true
-			}
-			if l.filters.IsExcluded(containers.LogsFilter, name, containerImage, "") {
-				logsExcluded = true
-			}
-			if metricsExcluded && logsExcluded {
-				break
-			}
-		}
-
-		if findKubernetesInLabels(co.Labels) {
-			svc = &DockerKubeletService{
-				DockerService: DockerService{
-					cID:           co.ID,
-					adIdentifiers: l.getConfigIDFromPs(co),
-					checkNames:    checkNames,
-					// Host and Ports will be looked up when needed
-				},
-			}
-		} else {
-			svc = &DockerService{
-				cID:             co.ID,
-				adIdentifiers:   l.getConfigIDFromPs(co),
-				hosts:           l.getHostsFromPs(co),
-				ports:           l.getPortsFromPs(co),
-				creationTime:    integration.Before,
-				checkNames:      checkNames,
-				metricsExcluded: metricsExcluded,
-				logsExcluded:    logsExcluded,
-			}
-		}
-		l.newService <- svc
-		l.services[co.ID] = svc
+		l.createService(ctx, co.ID)
 	}
 }
 
 // processEvent takes a ContainerEvent, tries to find a service linked to it, and
 // figure out if the AutoConfig could be interested to inspect it.
-func (l *DockerListener) processEvent(e *docker.ContainerEvent) {
+func (l *DockerListener) processEvent(ctx context.Context, e *docker.ContainerEvent) {
 	cID := e.ContainerID
 
 	l.m.RLock()
@@ -204,12 +159,12 @@ func (l *DockerListener) processEvent(e *docker.ContainerEvent) {
 
 	if found {
 		switch e.Action {
-		case "die":
+		case docker.ContainerEventActionDie, docker.ContainerEventActionDied:
 			l.removeService(cID)
-		case "start":
+		case docker.ContainerEventActionStart:
 			// Container restarted with the same ID within 5 seconds.
 			time.AfterFunc(5*time.Second, func() {
-				l.createService(cID)
+				l.createService(ctx, cID)
 			})
 		default:
 			// FIXME sometimes the agent's container's events are picked up twice at startup
@@ -219,39 +174,56 @@ func (l *DockerListener) processEvent(e *docker.ContainerEvent) {
 	} else {
 		// we might receive a `die` event for an unrelated container we don't
 		// care about, let's ignore it.
-		if e.Action == "start" {
-			l.createService(cID)
+		if e.Action == docker.ContainerEventActionStart {
+			l.createService(ctx, cID)
 		}
 	}
 }
 
 // createService takes a container ID, create a service for it in its cache
 // and tells the AutoConfig that this service started.
-func (l *DockerListener) createService(cID string) {
+func (l *DockerListener) createService(ctx context.Context, cID string) {
 	var svc Service
 	var containerName string
 	var containerImage string
 
 	// Detect whether that container is managed by Kubernetes
 	var isKube bool
-	cInspect, err := l.dockerUtil.Inspect(cID, false)
+	cInspect, err := l.dockerUtil.Inspect(ctx, cID, false)
 	if err != nil {
-		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
-	} else {
-		containerImage, err = l.dockerUtil.ResolveImageNameFromContainer(cInspect)
-		if err != nil {
-			log.Warnf("error while resolving image name: %s", err)
-			containerImage = ""
+		log.Errorf("Failed to inspect container '%s', not creating AD service, err: %s", cID[:12], err)
+		return
+	}
+
+	containerImage, err = l.dockerUtil.ResolveImageNameFromContainer(ctx, cInspect)
+	if err != nil {
+		log.Warnf("error while resolving image name: %s", err)
+		containerImage = ""
+	}
+
+	// Detect AD exclusion
+	containerName = cInspect.Name
+	if l.filters.IsExcluded(containers.GlobalFilter, containerName, containerImage, "") {
+		log.Debugf("container %s filtered out: name %q image %q", cID[:12], containerName, containerImage)
+		return
+	}
+
+	// Ignore containers that have been stopped for too long
+	if !cInspect.State.Running && cInspect.State.FinishedAt != "" {
+		finishedAt, err := time.Parse(time.RFC3339, cInspect.State.FinishedAt)
+		if err == nil {
+			excludeAge := time.Duration(config.Datadog.GetInt("container_exclude_stopped_age")) * time.Hour
+			if time.Now().Sub(finishedAt) > excludeAge {
+				log.Debugf("container %q not running for too long, skipping", cID[:12])
+				return
+			}
+		} else {
+			log.Debugf("container %q not running, but can't parse FinishedAt: %s", cID[:12])
 		}
-		// Detect AD exclusion
-		containerName = cInspect.Name
-		if l.filters.IsExcluded(containers.GlobalFilter, containerName, containerImage, "") {
-			log.Debugf("container %s filtered out: name %q image %q", cID[:12], containerName, containerImage)
-			return
-		}
-		if findKubernetesInLabels(cInspect.Config.Labels) {
-			isKube = true
-		}
+	}
+
+	if findKubernetesInLabels(cInspect.Config.Labels) {
+		isKube = true
 	}
 
 	checkNames, err := getCheckNamesFromLabels(cInspect.Config.Labels)
@@ -276,19 +248,19 @@ func (l *DockerListener) createService(cID string) {
 		}
 	}
 
-	_, err = svc.GetADIdentifiers()
+	_, err = svc.GetADIdentifiers(ctx)
 	if err != nil {
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
 	}
-	_, err = svc.GetHosts()
+	_, err = svc.GetHosts(ctx)
 	if err != nil {
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
 	}
-	_, err = svc.GetPorts()
+	_, err = svc.GetPorts(ctx)
 	if err != nil {
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
 	}
-	_, err = svc.GetPid()
+	_, err = svc.GetPid(ctx)
 	if err != nil {
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
 	}
@@ -335,8 +307,8 @@ func (l *DockerListener) removeService(cID string) {
 // If the special label was not set, the priority order is the following:
 //   1. Long image name
 //   2. Short image name
-func (l *DockerListener) getConfigIDFromPs(co types.Container) []string {
-	image, err := l.dockerUtil.ResolveImageName(co.Image)
+func (l *DockerListener) getConfigIDFromPs(ctx context.Context, co types.Container) []string {
+	image, err := l.dockerUtil.ResolveImageName(ctx, co.Image)
 	if err != nil {
 		log.Warnf("error while resolving image name: %s", err)
 	}
@@ -392,21 +364,6 @@ func (s *DockerService) GetTaggerEntity() string {
 	return docker.ContainerIDToTaggerEntityName(s.cID)
 }
 
-func (l *DockerListener) isExcluded(co types.Container) bool {
-	image, err := l.dockerUtil.ResolveImageName(co.Image)
-	if err != nil {
-		log.Warnf("error while resolving image name: %s", err)
-		image = ""
-	}
-	for _, name := range co.Names {
-		if l.filters.IsExcluded(containers.GlobalFilter, name, image, "") {
-			log.Debugf("container %s filtered out: name %q image %q", co.ID[:12], name, image)
-			return true
-		}
-	}
-	return false
-}
-
 // GetADIdentifiers returns a set of AD identifiers for a container.
 // These id are sorted to reflect the priority we want the ConfigResolver to
 // use when matching a template.
@@ -418,17 +375,17 @@ func (l *DockerListener) isExcluded(co types.Container) bool {
 // If the special label was not set, the priority order is the following:
 //   1. Long image name
 //   2. Short image name
-func (s *DockerService) GetADIdentifiers() ([]string, error) {
+func (s *DockerService) GetADIdentifiers(ctx context.Context) ([]string, error) {
 	if len(s.adIdentifiers) == 0 {
 		du, err := docker.GetDockerUtil()
 		if err != nil {
 			return []string{}, err
 		}
-		cj, err := du.Inspect(s.cID, false)
+		cj, err := du.Inspect(ctx, s.cID, false)
 		if err != nil {
 			return []string{}, err
 		}
-		image, err := du.ResolveImageNameFromContainer(cj)
+		image, err := du.ResolveImageNameFromContainer(ctx, cj)
 		if err != nil {
 			log.Warnf("error while resolving image name: %s", err)
 		}
@@ -440,7 +397,7 @@ func (s *DockerService) GetADIdentifiers() ([]string, error) {
 }
 
 // GetHosts returns the container's hosts
-func (s *DockerService) GetHosts() (map[string]string, error) {
+func (s *DockerService) GetHosts(ctx context.Context) (map[string]string, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -453,7 +410,7 @@ func (s *DockerService) GetHosts() (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	cInspect, err := du.Inspect(s.cID, false)
+	cInspect, err := du.Inspect(ctx, s.cID, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to inspect container %s", s.cID[:12])
 	}
@@ -482,7 +439,7 @@ func (s *DockerService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns the container's ports
-func (s *DockerService) GetPorts() ([]ContainerPort, error) {
+func (s *DockerService) GetPorts(ctx context.Context) ([]ContainerPort, error) {
 	if s.ports != nil {
 		return s.ports, nil
 	}
@@ -494,7 +451,7 @@ func (s *DockerService) GetPorts() ([]ContainerPort, error) {
 	if err != nil {
 		return ports, err
 	}
-	cInspect, err := du.Inspect(s.cID, false)
+	cInspect, err := du.Inspect(ctx, s.cID, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to inspect container %s", s.cID[:12])
 	}
@@ -556,14 +513,14 @@ func (s *DockerService) GetTags() ([]string, string, error) {
 }
 
 // GetPid inspect the container an return its pid
-func (s *DockerService) GetPid() (int, error) {
+func (s *DockerService) GetPid(ctx context.Context) (int, error) {
 	// Try to inspect container to get the pid if not defined
 	if s.pid <= 0 {
 		du, err := docker.GetDockerUtil()
 		if err != nil {
 			return -1, err
 		}
-		cj, err := du.Inspect(s.cID, false)
+		cj, err := du.Inspect(ctx, s.cID, false)
 		if err != nil {
 			return -1, err
 		}
@@ -574,7 +531,7 @@ func (s *DockerService) GetPid() (int, error) {
 }
 
 // GetHostname returns hostname.domainname for the container
-func (s *DockerService) GetHostname() (string, error) {
+func (s *DockerService) GetHostname(ctx context.Context) (string, error) {
 	if s.hostname != "" {
 		return s.hostname, nil
 	}
@@ -583,7 +540,7 @@ func (s *DockerService) GetHostname() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	cInspect, err := du.Inspect(s.cID, false)
+	cInspect, err := du.Inspect(ctx, s.cID, false)
 	if err != nil {
 		return "", fmt.Errorf("failed to inspect container %s", s.cID[:12])
 	}
@@ -615,18 +572,18 @@ func findKubernetesInLabels(labels map[string]string) bool {
 }
 
 // IsReady returns if the service is ready
-func (s *DockerService) IsReady() bool {
+func (s *DockerService) IsReady(context.Context) bool {
 	return true
 }
 
 // GetCheckNames returns slice check names defined in docker labels
-func (s *DockerService) GetCheckNames() []string {
+func (s *DockerService) GetCheckNames(ctx context.Context) []string {
 	if s.checkNames == nil {
 		du, err := docker.GetDockerUtil()
 		if err != nil {
 			return nil
 		}
-		cj, err := du.Inspect(s.cID, false)
+		cj, err := du.Inspect(ctx, s.cID, false)
 		if err != nil {
 			return nil
 		}

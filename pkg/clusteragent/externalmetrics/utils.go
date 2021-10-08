@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -15,7 +15,11 @@ import (
 	"sort"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/DataDog/datadog-operator/api/v1alpha1"
 )
 
 const (
@@ -27,10 +31,10 @@ const (
 )
 
 var (
-	datadogMetricFormat regexp.Regexp = *regexp.MustCompile("^" + datadogMetricRefPrefix + kubernetesNameFormat + datadogMetricRefSep + kubernetesNameFormat + "$")
+	datadogMetricFormat = *regexp.MustCompile("^" + datadogMetricRefPrefix + kubernetesNameFormat + datadogMetricRefSep + kubernetesNameFormat + "$")
 	// These values are set by the provider when starting, here are default values for unit tests
-	queryConfigAggregator string = "avg"
-	queryConfigRollup     int    = 30
+	queryConfigAggregator = "avg"
+	queryConfigRollup     = 30
 )
 
 // datadogMetric.ID is namespace/name
@@ -95,4 +99,21 @@ func buildDatadogQueryForExternalMetric(metricName string, labels map[string]str
 func setQueryConfigValues(aggregator string, rollup int) {
 	queryConfigAggregator = aggregator
 	queryConfigRollup = rollup
+}
+
+func UnstructuredIntoDDM(obj interface{}, structDest *v1alpha1.DatadogMetric) error {
+	unstrObj, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		return fmt.Errorf("Could not cast Unstructured object: %v", obj)
+	}
+	return runtime.DefaultUnstructuredConverter.FromUnstructured(unstrObj.UnstructuredContent(), structDest)
+}
+
+func UnstructuredFromDDM(structIn *v1alpha1.DatadogMetric, unstructOut *unstructured.Unstructured) error {
+	content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(structIn)
+	if err != nil {
+		return fmt.Errorf("Unable to convert DatadogMetric %v: %w", structIn, err)
+	}
+	unstructOut.SetUnstructuredContent(content)
+	return nil
 }

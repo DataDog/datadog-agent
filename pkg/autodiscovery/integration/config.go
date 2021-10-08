@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package integration
 
@@ -55,8 +55,8 @@ type Config struct {
 	CreationTime            CreationTime `json:"-"`                         // creation time of service (include in digest: false)
 	Source                  string       `json:"source"`                    // the source of the configuration (include in digest: false)
 	IgnoreAutodiscoveryTags bool         `json:"ignore_autodiscovery_tags"` // used to ignore tags coming from autodiscovery (include in digest: true)
-	MetricsExcluded         bool         `json:"-"`                         // whether metrics collection is disabled (set by container listeners only) (include in digest: false)
-	LogsExcluded            bool         `json:"-"`                         // whether logs collection is disabled (set by container listeners only) (include in digest: false)
+	MetricsExcluded         bool         `json:"metrics_excluded"`          // whether metrics collection is disabled (set by container listeners only) (include in digest: false)
+	LogsExcluded            bool         `json:"logs_excluded"`             // whether logs collection is disabled (set by container listeners only) (include in digest: false)
 }
 
 // CommonInstanceConfig holds the reserved fields for the yaml instance data

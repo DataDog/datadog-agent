@@ -24,7 +24,7 @@ upgrade:
 
     For more details please read the technical note in the `datadog.yaml`_. 
 
-    .. _datadog.yaml: https://github.com/DataDog/datadog-agent/blob/master/pkg/config/config_template.yaml#L130-L140
+    .. _datadog.yaml: https://github.com/DataDog/datadog-agent/blob/main/pkg/config/config_template.yaml#L130-L140
 features:
   - |
     Bump the default number of check runners to 4. This has some

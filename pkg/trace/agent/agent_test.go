@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package agent
 
@@ -22,11 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
+	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/test/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
@@ -36,16 +36,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func newMockSampler(wantSampled bool, wantRate float64) *Sampler {
-	return &Sampler{engine: testutil.NewMockEngine(wantSampled, wantRate)}
-}
-
 // Test to make sure that the joined effort of the quantizer and truncator, in that order, produce the
 // desired string
 func TestFormatTrace(t *testing.T) {
 	assert := assert.New(t)
 	resource := "SELECT name FROM people WHERE age = 42"
-	rep := strings.Repeat(" AND age = 42", 5000)
+	rep := strings.Repeat(" AND age = 42", 25000)
 	resource = resource + rep
 	testTrace := pb.Trace{
 		&pb.Span{
@@ -60,7 +56,7 @@ func TestFormatTrace(t *testing.T) {
 	assert.NotContains(result.Resource, "42")
 	assert.Contains(result.Resource, "SELECT name FROM people WHERE age = ?")
 
-	assert.Equal(5003, len(result.Meta["sql.query"])) // Ellipsis added in quantizer
+	assert.Equal(25003, len(result.Meta["sql.query"])) // Ellipsis added in quantizer
 	assert.NotEqual("Non-parsable SQL query", result.Meta["sql.query"])
 	assert.NotContains(result.Meta["sql.query"], "42")
 	assert.Contains(result.Meta["sql.query"], "SELECT name FROM people WHERE age = ?")
@@ -70,8 +66,8 @@ func TestProcess(t *testing.T) {
 	t.Run("Replacer", func(t *testing.T) {
 		// Ensures that for "sql" type spans:
 		// • obfuscator runs before replacer
-		// • obfuscator obfuscates both resource and "sql.query" tag
-		// • resulting resource is obfuscated with replacements applied
+		// • obfuscator obfuscates both resource and "sql.query" tag
+		// • resulting resource is obfuscated with replacements applied
 		// • resulting "sql.query" tag is obfuscated with no replacements applied
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
@@ -96,7 +92,7 @@ func TestProcess(t *testing.T) {
 		agnt.Process(&api.Payload{
 			Traces: pb.Traces{{span}},
 			Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
-		}, stats.NewSublayerCalculator())
+		})
 
 		assert := assert.New(t)
 		assert.Equal("SELECT name FROM people WHERE age = ? ...", span.Resource)
@@ -135,14 +131,14 @@ func TestProcess(t *testing.T) {
 		agnt.Process(&api.Payload{
 			Traces: pb.Traces{{spanValid}},
 			Source: want,
-		}, stats.NewSublayerCalculator())
+		})
 		assert.EqualValues(0, want.TracesFiltered)
 		assert.EqualValues(0, want.SpansFiltered)
 
 		agnt.Process(&api.Payload{
 			Traces: pb.Traces{{spanInvalid, spanInvalid}},
 			Source: want,
-		}, stats.NewSublayerCalculator())
+		})
 		assert.EqualValues(1, want.TracesFiltered)
 		assert.EqualValues(2, want.SpansFiltered)
 	})
@@ -180,7 +176,7 @@ func TestProcess(t *testing.T) {
 		agnt.Process(&api.Payload{
 			Traces: pb.Traces{{spanInvalid, spanInvalid}, {spanValid}},
 			Source: want,
-		}, stats.NewSublayerCalculator())
+		})
 		assert.EqualValues(1, want.TracesFiltered)
 		assert.EqualValues(2, want.SpansFiltered)
 		var span *pb.Span
@@ -213,7 +209,7 @@ func TestProcess(t *testing.T) {
 			Traces:        pb.Traces{{span}},
 			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
 			ContainerTags: "A:B,C",
-		}, stats.NewSublayerCalculator())
+		})
 
 		assert.Equal(t, "A:B,C", span.Meta[tagContainersTags])
 	})
@@ -259,14 +255,40 @@ func TestProcess(t *testing.T) {
 			agnt.Process(&api.Payload{
 				Traces: pb.Traces{{span}},
 				Source: want,
-			}, stats.NewSublayerCalculator())
+			})
 		}
 
+		samplingPriorityTagValues := want.TracesPerSamplingPriority.TagValues()
 		assert.EqualValues(t, 1, want.TracesPriorityNone)
-		assert.EqualValues(t, 2, want.TracesPriorityNeg)
-		assert.EqualValues(t, 3, want.TracesPriority0)
-		assert.EqualValues(t, 4, want.TracesPriority1)
-		assert.EqualValues(t, 5, want.TracesPriority2)
+		assert.EqualValues(t, 2, samplingPriorityTagValues["-1"])
+		assert.EqualValues(t, 3, samplingPriorityTagValues["0"])
+		assert.EqualValues(t, 4, samplingPriorityTagValues["1"])
+		assert.EqualValues(t, 5, samplingPriorityTagValues["2"])
+	})
+
+	t.Run("GlobalTags", func(t *testing.T) {
+		cfg := config.New()
+		cfg.GlobalTags["_dd.test"] = "value"
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewAgent(ctx, cfg)
+		defer cancel()
+		now := time.Now()
+		span := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
+			Type:     "sql",
+			Start:    now.Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+		}
+		agnt.Process(&api.Payload{
+			Traces: pb.Traces{{span}},
+			Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
+		})
+
+		assert := assert.New(t)
+		assert.Equal("value", span.GetMeta()["_dd.test"])
 	})
 
 	t.Run("normalizing", func(t *testing.T) {
@@ -289,7 +311,7 @@ func TestProcess(t *testing.T) {
 		go agnt.Process(&api.Payload{
 			Traces: traces,
 			Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
-		}, stats.NewSublayerCalculator())
+		})
 		timeout := time.After(2 * time.Second)
 		var span *pb.Span
 		select {
@@ -328,7 +350,7 @@ func TestProcess(t *testing.T) {
 		go agnt.Process(&api.Payload{
 			Traces: traces,
 			Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
-		}, stats.NewSublayerCalculator())
+		})
 
 		var gotCount int
 		timeout := time.After(3 * time.Second)
@@ -343,66 +365,6 @@ func TestProcess(t *testing.T) {
 		}
 		// without missing a trace
 		assert.Equal(t, gotCount, len(traces))
-	})
-
-	t.Run("sublayer", func(t *testing.T) {
-		for _, tt := range []struct {
-			trace pb.Trace
-			f     func(t *testing.T, spans []*pb.Span)
-		}{
-			{
-				trace: pb.Trace{
-					{
-						TraceID: 1,
-						SpanID:  1,
-						Metrics: map[string]float64{sampler.KeySamplingPriority: 2},
-					},
-					{
-						TraceID:  1,
-						SpanID:   2,
-						ParentID: 1,
-						Metrics:  map[string]float64{sampler.KeySamplingPriority: 2},
-					},
-				},
-				f: func(t *testing.T, spans []*pb.Span) {
-					assert.Equal(t, float64(0), spans[0].Metrics["_sublayers.duration.by_service.sublayer_service:unnamed-service"])
-				},
-			},
-			{
-				trace: pb.Trace{
-					{
-						TraceID: 1,
-						SpanID:  1,
-						Metrics: map[string]float64{sampler.KeySamplingPriority: -1},
-					},
-					{
-						TraceID:  1,
-						SpanID:   2,
-						ParentID: 1,
-						Metrics:  map[string]float64{sampler.KeySamplingPriority: -1},
-					},
-				},
-				f: func(t *testing.T, spans []*pb.Span) {
-					assert.NotContains(t, spans[0].Metrics, "_sublayers.duration.by_service.sublayer_service:unnamed-service")
-				},
-			},
-		} {
-			t.Run("", func(t *testing.T) {
-				cfg := config.New()
-				cfg.Endpoints[0].APIKey = "test"
-				ctx, cancel := context.WithCancel(context.Background())
-				agnt := NewAgent(ctx, cfg)
-				cancel()
-
-				traces := pb.Traces{tt.trace}
-				traceutil.SetTopLevel(tt.trace[0], true)
-				agnt.Process(&api.Payload{
-					Traces: traces,
-					Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
-				}, stats.NewSublayerCalculator())
-				tt.f(t, tt.trace)
-			})
-		}
 	})
 }
 
@@ -428,7 +390,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 			Traces:                 traces,
 			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			ClientComputedTopLevel: true,
-		}, stats.NewSublayerCalculator())
+		})
 		timeout := time.After(time.Second)
 		select {
 		case ss := <-agnt.TraceWriter.In:
@@ -445,7 +407,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 			Traces:                 traces,
 			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			ClientComputedTopLevel: false,
-		}, stats.NewSublayerCalculator())
+		})
 		timeout := time.After(time.Second)
 		select {
 		case ss := <-agnt.TraceWriter.In:
@@ -463,7 +425,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 			Traces:                 traces,
 			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			ClientComputedTopLevel: true,
-		}, stats.NewSublayerCalculator())
+		})
 		timeout := time.After(time.Second)
 		select {
 		case ss := <-agnt.TraceWriter.In:
@@ -476,6 +438,82 @@ func TestClientComputedTopLevel(t *testing.T) {
 			t.Fatal("timed out waiting for input")
 		}
 	})
+}
+
+func TestFilteredByTags(t *testing.T) {
+	for _, tt := range []struct {
+		require []*config.Tag
+		reject  []*config.Tag
+		span    pb.Span
+		drop    bool
+	}{
+		{
+			require: []*config.Tag{{K: "key", V: "val"}},
+			span:    pb.Span{Meta: map[string]string{"key": "val"}},
+			drop:    false,
+		},
+		{
+			reject: []*config.Tag{{K: "key", V: "val"}},
+			span:   pb.Span{Meta: map[string]string{"key": "val4"}},
+			drop:   false,
+		},
+		{
+			reject: []*config.Tag{{K: "something", V: "else"}},
+			span:   pb.Span{Meta: map[string]string{"key": "val"}},
+			drop:   false,
+		},
+		{
+			require: []*config.Tag{{K: "something", V: "else"}},
+			reject:  []*config.Tag{{K: "bad-key", V: "bad-value"}},
+			span:    pb.Span{Meta: map[string]string{"something": "else", "bad-key": "other-value"}},
+			drop:    false,
+		},
+		{
+			require: []*config.Tag{{K: "key", V: "value"}, {K: "key-only"}},
+			reject:  []*config.Tag{{K: "bad-key", V: "bad-value"}},
+			span:    pb.Span{Meta: map[string]string{"key": "value", "key-only": "but-also-value", "bad-key": "not-bad-value"}},
+			drop:    false,
+		},
+		{
+			require: []*config.Tag{{K: "key", V: "val"}},
+			span:    pb.Span{Meta: map[string]string{"key": "val2"}},
+			drop:    true,
+		},
+		{
+			require: []*config.Tag{{K: "something", V: "else"}},
+			span:    pb.Span{Meta: map[string]string{"key": "val"}},
+			drop:    true,
+		},
+		{
+			require: []*config.Tag{{K: "valid"}, {K: "test"}},
+			reject:  []*config.Tag{{K: "test"}},
+			span:    pb.Span{Meta: map[string]string{"test": "random", "valid": "random"}},
+			drop:    true,
+		},
+		{
+			require: []*config.Tag{{K: "valid-key", V: "valid-value"}, {K: "test"}},
+			reject:  []*config.Tag{{K: "test"}},
+			span:    pb.Span{Meta: map[string]string{"test": "random", "valid-key": "wrong-value"}},
+			drop:    true,
+		},
+		{
+			reject: []*config.Tag{{K: "key", V: "val"}},
+			span:   pb.Span{Meta: map[string]string{"key": "val"}},
+			drop:   true,
+		},
+		{
+			require: []*config.Tag{{K: "something", V: "else"}, {K: "key-only"}},
+			reject:  []*config.Tag{{K: "bad-key", V: "bad-value"}, {K: "bad-key-only"}},
+			span:    pb.Span{Meta: map[string]string{"something": "else", "key-only": "but-also-value", "bad-key-only": "random"}},
+			drop:    true,
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			if filteredByTags(&tt.span, tt.require, tt.reject) != tt.drop {
+				t.Fatal()
+			}
+		})
+	}
 }
 
 func TestClientComputedStats(t *testing.T) {
@@ -496,43 +534,21 @@ func TestClientComputedStats(t *testing.T) {
 	}}}
 
 	t.Run("on", func(t *testing.T) {
-		go agnt.Process(&api.Payload{
+		agnt.Process(&api.Payload{
 			Traces:              traces,
 			Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			ClientComputedStats: true,
-		}, stats.NewSublayerCalculator())
-		timeout := time.After(time.Second)
-		for {
-			select {
-			case inputs := <-agnt.Concentrator.In:
-				for _, in := range inputs {
-					assert.True(t, in.SublayersOnly)
-				}
-				return
-			case <-timeout:
-				t.Fatal("timed out waiting for input")
-			}
-		}
+		})
+		assert.Len(t, agnt.Concentrator.In, 0)
 	})
 
 	t.Run("off", func(t *testing.T) {
-		go agnt.Process(&api.Payload{
+		agnt.Process(&api.Payload{
 			Traces:              traces,
 			Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			ClientComputedStats: false,
-		}, stats.NewSublayerCalculator())
-		timeout := time.After(time.Second)
-		for {
-			select {
-			case inputs := <-agnt.Concentrator.In:
-				for _, in := range inputs {
-					assert.False(t, in.SublayersOnly)
-				}
-				return
-			case <-timeout:
-				t.Fatal("timed out waiting for input")
-			}
-		}
+		})
+		assert.Len(t, agnt.Concentrator.In, 1)
 	})
 }
 
@@ -542,38 +558,22 @@ func TestSampling(t *testing.T) {
 		// hasPriority will be true if the input trace should have sampling priority set
 		hasErrors, hasPriority bool
 
-		// scoreRate, scoreErrorRate, priorityRate are the rates used by the mock samplers
-		scoreRate, scoreErrorRate, priorityRate float64
+		// noPrioritySampled, errorsSampled, prioritySampled are the sample decisions of the mock samplers
+		noPrioritySampled, errorsSampled, prioritySampled bool
 
-		// scoreSampled, scoreErrorSampled, prioritySampled are the sample decisions of the mock samplers
-		scoreSampled, scoreErrorSampled, prioritySampled bool
-
-		// wantRate and wantSampled are the expected result
-		wantRate    float64
+		// wantSampled is the expected result
 		wantSampled bool
 	}{
-		"score-rate": {
-			scoreRate: 0.5,
-			wantRate:  0.5,
+		"nopriority-unsampled": {
+			noPrioritySampled: false,
+			wantSampled:       false,
 		},
-		"error-priority": {
-			hasErrors:      true,
-			hasPriority:    true,
-			scoreErrorRate: 0.8,
-			priorityRate:   0.2,
-			wantRate:       sampler.CombineRates(0.8, 0.2),
-		},
-		"score-unsampled": {
-			scoreSampled: false,
-			wantSampled:  false,
-		},
-		"score-sampled": {
-			scoreSampled: true,
-			wantSampled:  true,
+		"nopriority-sampled": {
+			noPrioritySampled: true,
+			wantSampled:       true,
 		},
 		"prio-unsampled": {
 			hasPriority:     true,
-			scoreSampled:    true,
 			prioritySampled: false,
 			wantSampled:     false,
 		},
@@ -582,63 +582,60 @@ func TestSampling(t *testing.T) {
 			prioritySampled: true,
 			wantSampled:     true,
 		},
-		"score-prio-sampled": {
+		"error-unsampled": {
+			hasErrors:     true,
+			errorsSampled: false,
+			wantSampled:   false,
+		},
+		"error-sampled": {
+			hasErrors:     true,
+			errorsSampled: true,
+			wantSampled:   true,
+		},
+		"error-sampled-prio-unsampled": {
+			hasErrors:       true,
 			hasPriority:     true,
-			scoreSampled:    true,
+			errorsSampled:   true,
+			prioritySampled: false,
+			wantSampled:     true,
+		},
+		"error-unsampled-prio-sampled": {
+			hasErrors:       true,
+			hasPriority:     true,
+			errorsSampled:   false,
 			prioritySampled: true,
 			wantSampled:     true,
 		},
-		"score-prio-unsampled": {
+		"error-prio-sampled": {
+			hasErrors:       true,
 			hasPriority:     true,
-			scoreSampled:    false,
+			errorsSampled:   true,
+			prioritySampled: true,
+			wantSampled:     true,
+		},
+		"error-prio-unsampled": {
+			hasErrors:       true,
+			hasPriority:     true,
+			errorsSampled:   false,
 			prioritySampled: false,
 			wantSampled:     false,
 		},
-		"error-unsampled": {
-			hasErrors:         true,
-			scoreErrorSampled: false,
-			wantSampled:       false,
-		},
-		"error-sampled": {
-			hasErrors:         true,
-			scoreErrorSampled: true,
-			wantSampled:       true,
-		},
-		"error-sampled-prio-unsampled": {
-			hasErrors:         true,
-			hasPriority:       true,
-			scoreErrorSampled: true,
-			prioritySampled:   false,
-			wantSampled:       true,
-		},
-		"error-unsampled-prio-sampled": {
-			hasErrors:         true,
-			hasPriority:       true,
-			scoreErrorSampled: false,
-			prioritySampled:   true,
-			wantSampled:       true,
-		},
-		"error-prio-sampled": {
-			hasErrors:         true,
-			hasPriority:       true,
-			scoreErrorSampled: true,
-			prioritySampled:   true,
-			wantSampled:       true,
-		},
-		"error-prio-unsampled": {
-			hasErrors:         true,
-			hasPriority:       true,
-			scoreErrorSampled: false,
-			prioritySampled:   false,
-			wantSampled:       false,
-		},
 	} {
 		t.Run(name, func(t *testing.T) {
+			cfg := &config.AgentConfig{}
+			sampledCfg := &config.AgentConfig{ExtraSampleRate: 1}
 			a := &Agent{
-				ScoreSampler:       newMockSampler(tt.scoreSampled, tt.scoreRate),
-				ErrorsScoreSampler: newMockSampler(tt.scoreErrorSampled, tt.scoreErrorRate),
-				PrioritySampler:    newMockSampler(tt.prioritySampled, tt.priorityRate),
+				NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
+				ErrorsSampler:     sampler.NewErrorsSampler(cfg),
+				PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
 			}
+			if tt.errorsSampled {
+				a.ErrorsSampler = sampler.NewErrorsSampler(sampledCfg)
+			}
+			if tt.noPrioritySampled {
+				a.NoPrioritySampler = sampler.NewNoPrioritySampler(sampledCfg)
+			}
+
 			root := &pb.Span{
 				Service:  "serv1",
 				Start:    time.Now().UnixNano(),
@@ -651,11 +648,14 @@ func TestSampling(t *testing.T) {
 			}
 			pt := ProcessedTrace{Trace: pb.Trace{root}, Root: root}
 			if tt.hasPriority {
-				sampler.SetSamplingPriority(pt.Root, 1)
+				if tt.prioritySampled {
+					sampler.SetSamplingPriority(pt.Root, 1)
+				} else {
+					sampler.SetSamplingPriority(pt.Root, 0)
+				}
 			}
 
-			sampled, rate := a.runSamplers(pt, tt.hasPriority)
-			assert.EqualValues(t, tt.wantRate, rate)
+			sampled := a.runSamplers(pt, tt.hasPriority)
 			assert.EqualValues(t, tt.wantSampled, sampled)
 		})
 	}
@@ -851,7 +851,7 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 		ta.Process(&api.Payload{
 			Traces: pb.Traces{testutil.RandomTrace(10, 8)},
 			Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
-		}, stats.NewSublayerCalculator())
+		})
 	}
 }
 
@@ -1007,4 +1007,176 @@ func tracesFromFile(file string) (raw []byte, count int, err error) {
 		return nil, 0, err
 	}
 	return data, count, nil
+}
+
+func TestConvertStats(t *testing.T) {
+	testCases := []struct {
+		in            pb.ClientStatsPayload
+		lang          string
+		tracerVersion string
+		out           pb.ClientStatsPayload
+	}{
+		{
+			in: pb.ClientStatsPayload{
+				Hostname: "tracer_hots",
+				Env:      "tracer_env",
+				Version:  "code_version",
+				Stats: []pb.ClientStatsBucket{
+					{
+						Start:    1,
+						Duration: 2,
+						Stats: []pb.ClientGroupedStats{
+							{
+								Service:        "service",
+								Name:           "name------",
+								Resource:       "resource",
+								HTTPStatusCode: 400,
+								Type:           "web",
+							},
+							{
+								Service:        "service",
+								Name:           "name",
+								Resource:       "blocked_resource",
+								HTTPStatusCode: 400,
+								Type:           "web",
+							},
+							{
+								Service:        "redis_service",
+								Name:           "name-2",
+								Resource:       "SET k v",
+								HTTPStatusCode: 400,
+								Type:           "redis",
+							},
+						},
+					},
+				},
+			},
+			lang:          "java",
+			tracerVersion: "v1",
+			out: pb.ClientStatsPayload{
+				Hostname:      "tracer_hots",
+				Env:           "tracer_env",
+				Version:       "code_version",
+				Lang:          "java",
+				TracerVersion: "v1",
+				Stats: []pb.ClientStatsBucket{
+					{
+						Start:    1,
+						Duration: 2,
+						Stats: []pb.ClientGroupedStats{
+							{
+								Service:        "service",
+								Name:           "name",
+								Resource:       "resource",
+								HTTPStatusCode: 200,
+								Type:           "web",
+							},
+							{
+								Service:        "redis_service",
+								Name:           "name_2",
+								Resource:       "SET",
+								HTTPStatusCode: 200,
+								Type:           "redis",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	a := Agent{
+		Blacklister: filters.NewBlacklister([]string{"blocked_resource"}),
+		obfuscator:  obfuscate.NewObfuscator(nil),
+		Replacer:    filters.NewReplacer([]*config.ReplaceRule{{Name: "http.status_code", Pattern: "400", Re: regexp.MustCompile("400"), Repl: "200"}}),
+		conf:        &config.AgentConfig{DefaultEnv: "agent_env", Hostname: "agent_hostname"},
+	}
+	for _, testCase := range testCases {
+		out := a.processStats(testCase.in, testCase.lang, testCase.tracerVersion)
+		assert.Equal(t, testCase.out, out)
+	}
+}
+
+func TestMergeDuplicates(t *testing.T) {
+	in := pb.ClientStatsBucket{
+		Stats: []pb.ClientGroupedStats{
+			{
+				Service:      "s1",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         2,
+				TopLevelHits: 2,
+				Errors:       1,
+				Duration:     123,
+			},
+			{
+				Service:      "s2",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         2,
+				TopLevelHits: 2,
+				Errors:       0,
+				Duration:     123,
+			},
+			{
+				Service:      "s1",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         2,
+				TopLevelHits: 2,
+				Errors:       1,
+				Duration:     123,
+			},
+			{
+				Service:      "s2",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         2,
+				TopLevelHits: 2,
+				Errors:       0,
+				Duration:     123,
+			},
+		},
+	}
+	expected := pb.ClientStatsBucket{
+		Stats: []pb.ClientGroupedStats{
+			{
+				Service:      "s1",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         4,
+				TopLevelHits: 2,
+				Errors:       2,
+				Duration:     246,
+			},
+			{
+				Service:      "s2",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         4,
+				TopLevelHits: 2,
+				Errors:       0,
+				Duration:     246,
+			},
+			{
+				Service:      "s1",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         0,
+				TopLevelHits: 2,
+				Errors:       0,
+				Duration:     0,
+			},
+			{
+				Service:      "s2",
+				Resource:     "r1",
+				Name:         "n1",
+				Hits:         0,
+				TopLevelHits: 2,
+				Errors:       0,
+				Duration:     0,
+			},
+		},
+	}
+	mergeDuplicates(in)
+	assert.Equal(t, expected, in)
 }

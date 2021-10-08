@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -19,6 +19,9 @@ var (
 	defaultGuiPort              = 5002
 	// defaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
 	defaultSecurityAgentLogFile = "c:\\programdata\\datadog\\logs\\security-agent.log"
+	// defaultSystemProbeAddress is the default address to be used for connecting to the system probe
+	defaultSystemProbeAddress     = "localhost:3333"
+	defaultSystemProbeLogFilePath = "c:\\programdata\\datadog\\logs\\system-probe.log"
 )
 
 // ServiceName is the name that'll be used to register the Agent
@@ -31,6 +34,7 @@ func osinit() {
 		defaultAdditionalChecksPath = filepath.Join(pd, "checks.d")
 		defaultRunPath = filepath.Join(pd, "run")
 		defaultSecurityAgentLogFile = filepath.Join(pd, "logs", "security-agent.log")
+		defaultSystemProbeLogFilePath = filepath.Join(pd, "logs", "system-probe.log")
 	} else {
 		winutil.LogEventViewer(ServiceName, 0x8000000F, defaultConfdPath)
 	}

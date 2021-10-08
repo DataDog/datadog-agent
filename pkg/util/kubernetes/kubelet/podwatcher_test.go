@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubelet
 
 package kubelet
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -419,6 +420,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 }
 
 func (suite *PodwatcherTestSuite) TestPullChanges() {
+	ctx := context.Background()
 	mockConfig := config.Mock()
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
@@ -437,7 +439,7 @@ func (suite *PodwatcherTestSuite) TestPullChanges() {
 	<-kubelet.Requests // Throwing away the first /spec GET
 
 	ResetCache() // If we want to be sure to get a /pods request after
-	pods, err := watcher.PullChanges()
+	pods, err := watcher.PullChanges(ctx)
 	require.Nil(suite.T(), err)
 	<-kubelet.Requests // Throwing away /pods GET
 	require.Len(suite.T(), pods, 7)

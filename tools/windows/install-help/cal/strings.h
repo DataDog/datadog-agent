@@ -27,6 +27,7 @@ extern std::wstring programdataroot;
 extern std::wstring logfilename;
 extern std::wstring authtokenfilename;
 extern std::wstring datadogyamlfile;
+extern std::wstring installInfoFile;
 extern std::wstring confddir;
 extern std::wstring logdir;
 extern std::wstring installdir;
@@ -49,13 +50,27 @@ extern std::wstring installInstalledServices;
 extern std::wstring keyInstalledUser;
 extern std::wstring keyInstalledDomain;
 
-
 void initializeStringsFromStringTable();
 
-
 bool loadDdAgentUserName(MSIHANDLE hInstall, LPCWSTR propertyName = NULL);
-bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, std::wstring& dst);
+bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, std::wstring &dst);
 bool loadPropertyString(MSIHANDLE hInstall, LPCWSTR propertyName, wchar_t **dst, DWORD *len);
 bool loadDdAgentPassword(MSIHANDLE hInstall, wchar_t **dst, DWORD *len);
 
-#define MAX_CUSTOM_PROPERTY_SIZE        128
+#define MAX_CUSTOM_PROPERTY_SIZE 128
+
+template <class Str> void trim_string_left(Str &str)
+{
+    str.erase(str.begin(), std::find_if(str.begin(), str.end(), [](int ch) { return !std::isspace(ch); }));
+}
+
+template <class Str> void trim_string_right(Str &str)
+{
+    str.erase(std::find_if(str.rbegin(), str.rend(), [](int ch) { return !std::isspace(ch); }).base(), str.end());
+}
+
+template <class Str> void trim_string(Str &str)
+{
+    trim_string_left(str);
+    trim_string_right(str);
+}

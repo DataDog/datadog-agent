@@ -8,4 +8,4 @@ ifelse -n
         foreground { /bin/s6-svc -d /var/run/s6/services/sysprobe/ }
     }
     foreground { /initlog.sh "starting system-probe" }
-    system-probe --config=/etc/datadog-agent/system-probe.yaml
+    system-probe run --config=/etc/datadog-agent/system-probe.yaml

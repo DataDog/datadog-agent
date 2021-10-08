@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package test
 
@@ -121,6 +121,8 @@ func (s *Runner) PostMsgpack(path string, data msgp.Encodable) error {
 	}
 	req.Header.Set("Content-Type", "application/msgpack")
 	req.Header.Set("Content-Length", strconv.Itoa(buf.Len()))
+	req.Header.Set("Datadog-Meta-Tracer-Version", "0.2.0")
+	req.Header.Set("Datadog-Meta-Lang", "go")
 
 	return s.doRequest(req)
 }

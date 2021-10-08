@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package scheduler
 
@@ -77,7 +77,7 @@ func newJobQueue(interval time.Duration) *jobQueue {
 		interval:     interval,
 		stop:         make(chan bool),
 		stopped:      make(chan bool),
-		health:       health.RegisterLiveness("collector-queue"),
+		health:       health.RegisterLiveness(fmt.Sprintf("collector-queue-%vs", interval.Seconds())),
 		bucketTicker: time.NewTicker(time.Second),
 	}
 
@@ -206,6 +206,12 @@ func (jq *jobQueue) process(s *Scheduler) bool {
 			case <-jq.stop:
 				jq.health.Deregister() //nolint:errcheck
 				return false
+			}
+
+			select {
+			// we were able to schedule a check so we're not stuck, therefore poll the health chan
+			case <-jq.health.C:
+			default:
 			}
 		}
 		jq.mu.Lock()

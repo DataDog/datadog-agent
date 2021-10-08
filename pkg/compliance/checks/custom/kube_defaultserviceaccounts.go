@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package custom
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -30,7 +31,7 @@ func kubernetesDefaultServiceAccountsCheck(e env.Env, ruleID string, vars map[st
 	serviceAccounts, err := e.KubeClient().Resource(schema.GroupVersionResource{
 		Resource: "serviceaccounts",
 		Version:  "v1",
-	}).List(metav1.ListOptions{
+	}).List(context.TODO(), metav1.ListOptions{
 		FieldSelector: "metadata.name=default",
 	})
 	if err != nil {
@@ -39,9 +40,7 @@ func kubernetesDefaultServiceAccountsCheck(e env.Env, ruleID string, vars map[st
 
 	// No default serviceaccounts
 	if len(serviceAccounts.Items) == 0 {
-		return &compliance.Report{
-			Passed: true,
-		}, nil
+		return &compliance.Report{Passed: true, Aggregated: true}, nil
 	}
 
 	// Checking that all `default` service accounts have `automountServiceAccountToken` set to false
@@ -54,7 +53,8 @@ func kubernetesDefaultServiceAccountsCheck(e env.Env, ruleID string, vars map[st
 		}
 
 		if activated {
-			return compliance.BuildReportForUnstructured(false, sa), nil
+			resource := compliance.NewKubeUnstructuredResource(sa)
+			return compliance.BuildReportForUnstructured(false, true, resource), nil
 		}
 
 		saLookup[sa.GetNamespace()+"/"+sa.GetName()] = sa
@@ -65,7 +65,7 @@ func kubernetesDefaultServiceAccountsCheck(e env.Env, ruleID string, vars map[st
 		Group:    "rbac.authorization.k8s.io",
 		Resource: "clusterrolebindings",
 		Version:  "v1",
-	}).List(metav1.ListOptions{})
+	}).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("error while listing clusterrolebindings - rule: %s - err: %v", ruleID, err)
 	}
@@ -76,14 +76,14 @@ func kubernetesDefaultServiceAccountsCheck(e env.Env, ruleID string, vars map[st
 	}
 
 	if hasRef {
-		return compliance.BuildReportForUnstructured(false, *sa), nil
+		return compliance.BuildReportForUnstructured(false, true, compliance.NewKubeUnstructuredResource(*sa)), nil
 	}
 
 	roles, err := e.KubeClient().Resource(schema.GroupVersionResource{
 		Group:    "rbac.authorization.k8s.io",
 		Resource: "rolebindings",
 		Version:  "v1",
-	}).List(metav1.ListOptions{})
+	}).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("error while listing rolebindings - rule: %s - err: %v", ruleID, err)
 	}
@@ -94,10 +94,12 @@ func kubernetesDefaultServiceAccountsCheck(e env.Env, ruleID string, vars map[st
 	}
 
 	if hasRef {
-		return compliance.BuildReportForUnstructured(false, *sa), nil
+		return compliance.BuildReportForUnstructured(false, true, compliance.NewKubeUnstructuredResource(*sa)), nil
 	}
 
-	return compliance.BuildReportForUnstructured(true, serviceAccounts.Items[0]), nil
+	serviceAccount := compliance.NewKubeUnstructuredResource(serviceAccounts.Items[0])
+	report := compliance.BuildReportForUnstructured(true, true, serviceAccount)
+	return report, nil
 }
 
 func hasReferences(roles *unstructured.UnstructuredList, saLookup map[string]unstructured.Unstructured) (bool, *unstructured.Unstructured, error) {

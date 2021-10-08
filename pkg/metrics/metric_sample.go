@@ -1,9 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package metrics
+
+import (
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/util"
+)
 
 // MetricType is the representation of an aggregator metric type
 type MetricType int
@@ -18,14 +23,15 @@ const (
 	HistogramType
 	HistorateType
 	SetType
-	// NOTE: DistributionType is in development and is NOT supported
 	DistributionType
 )
 
 // DistributionMetricTypes contains the MetricTypes that are used for percentiles
-var DistributionMetricTypes = map[MetricType]struct{}{
-	DistributionType: {},
-}
+var (
+	DistributionMetricTypes = map[MetricType]struct{}{
+		DistributionType: {},
+	}
+)
 
 // String returns a string representation of MetricType
 func (m MetricType) String() string {
@@ -57,7 +63,7 @@ func (m MetricType) String() string {
 type MetricSampleContext interface {
 	GetName() string
 	GetHost() string
-	GetTags() []string
+	GetTags(*util.HashingTagsBuilder)
 }
 
 // MetricSample represents a raw metric sample
@@ -71,6 +77,9 @@ type MetricSample struct {
 	SampleRate      float64
 	Timestamp       float64
 	FlushFirstValue bool
+	OriginID        string
+	K8sOriginID     string
+	Cardinality     string
 }
 
 // Implement the MetricSampleContext interface
@@ -86,8 +95,9 @@ func (m *MetricSample) GetHost() string {
 }
 
 // GetTags returns the metric sample tags
-func (m *MetricSample) GetTags() []string {
-	return m.Tags
+func (m *MetricSample) GetTags(tb *util.HashingTagsBuilder) {
+	tb.Append(m.Tags...)
+	tagger.EnrichTags(tb, m.OriginID, m.K8sOriginID, m.Cardinality)
 }
 
 // Copy returns a deep copy of the m MetricSample

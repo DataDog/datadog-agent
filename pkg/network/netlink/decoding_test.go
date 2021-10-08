@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"testing"
@@ -24,7 +25,9 @@ func TestDecodeAndReleaseEvent(t *testing.T) {
 			},
 		},
 	}
-	connections := DecodeAndReleaseEvent(e)
+
+	decoder := NewDecoder()
+	connections := decoder.DecodeAndReleaseEvent(e)
 	assert.Len(t, connections, 1)
 	c := connections[0]
 
@@ -51,10 +54,11 @@ func BenchmarkDecodeSingleMessage(b *testing.B) {
 	}
 
 	e := Event{msgs: messages[:1]}
+	decoder := NewDecoder()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		DecodeAndReleaseEvent(e)
+		decoder.DecodeAndReleaseEvent(e)
 	}
 }
 
@@ -66,18 +70,20 @@ func BenchmarkDecodeMultipleMessages(b *testing.B) {
 	}
 
 	e := Event{msgs: messages}
+	decoder := NewDecoder()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		DecodeAndReleaseEvent(e)
+		decoder.DecodeAndReleaseEvent(e)
 	}
 }
 
 func loadDumpData() ([]netlink.Message, error) {
-	f, err := os.Open("testdata/message_dump")
+	f, err := ioutil.TempFile("", "message_dump")
 	if err != nil {
 		return nil, err
 	}
+	defer os.Remove(f.Name())
 	defer f.Close()
 
 	var messages []netlink.Message

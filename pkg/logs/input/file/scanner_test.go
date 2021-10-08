@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build !windows
 
@@ -62,7 +62,7 @@ func (suite *ScannerTestSuite) SetupTest() {
 	suite.openFilesLimit = 100
 	suite.source = config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Identifier: suite.configID, Path: suite.testPath})
 	sleepDuration := 20 * time.Millisecond
-	suite.s = NewScanner(config.NewLogSources(), suite.openFilesLimit, suite.pipelineProvider, auditor.NewRegistry(), sleepDuration)
+	suite.s = NewScanner(config.NewLogSources(), suite.openFilesLimit, suite.pipelineProvider, auditor.NewRegistry(), sleepDuration, false, 10*time.Second)
 	suite.s.activeSources = append(suite.s.activeSources, suite.source)
 	status.InitStatus(config.CreateSources([]*config.LogSource{suite.source}))
 	suite.s.scan()
@@ -218,7 +218,7 @@ func TestScannerScanStartNewTailer(t *testing.T) {
 		openFilesLimit := 2
 		sleepDuration := 20 * time.Millisecond
 		registry := auditor.NewRegistry()
-		scanner := NewScanner(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), registry, sleepDuration)
+		scanner := NewScanner(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), registry, sleepDuration, false, 10*time.Second)
 		source := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Identifier: configID, Path: path})
 		scanner.activeSources = append(scanner.activeSources, source)
 		status.Clear()
@@ -244,9 +244,6 @@ func TestScannerScanStartNewTailer(t *testing.T) {
 		assert.Equal(t, "hello", string(msg.Content))
 		msg = <-tailer.outputChan
 		assert.Equal(t, "world", string(msg.Content))
-
-		// Ensure registry has the correct ID
-		assert.Equal(t, configID, registry.GetConfigID())
 	}
 }
 
@@ -259,7 +256,7 @@ func TestScannerWithConcurrentContainerTailer(t *testing.T) {
 	openFilesLimit := 3
 	sleepDuration := 20 * time.Millisecond
 	registry := auditor.NewRegistry()
-	scanner := NewScanner(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), registry, sleepDuration)
+	scanner := NewScanner(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), registry, sleepDuration, false, 10*time.Second)
 	firstSource := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/*.log", testDir), TailingMode: "beginning", Identifier: "123456789"})
 	secondSource := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/*.log", testDir), TailingMode: "beginning", Identifier: "987654321"})
 
@@ -293,17 +290,9 @@ func TestScannerWithConcurrentContainerTailer(t *testing.T) {
 	msg = <-tailer.outputChan
 	assert.Equal(t, "Time", string(msg.Content))
 
-	// Ensure registry has the correct ID
-	assert.Equal(t, firstSource.Config.Identifier, registry.GetConfigID())
-	assert.Equal(t, "file:"+path, registry.GetIdentifier())
-
 	// Add a second source, same file, different container ID, tailing twice the same file is supported in that case
 	scanner.addSource(secondSource)
 	assert.Equal(t, 2, len(scanner.tailers))
-
-	// Ensure registry has been updated
-	assert.Equal(t, secondSource.Config.Identifier, registry.GetConfigID())
-	assert.Equal(t, "file:"+path, registry.GetIdentifier())
 }
 
 func TestScannerTailFromTheBeginning(t *testing.T) {
@@ -314,7 +303,7 @@ func TestScannerTailFromTheBeginning(t *testing.T) {
 	openFilesLimit := 3
 	sleepDuration := 20 * time.Millisecond
 	registry := auditor.NewRegistry()
-	scanner := NewScanner(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), registry, sleepDuration)
+	scanner := NewScanner(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), registry, sleepDuration, false, 10*time.Second)
 	sources := []*config.LogSource{
 		config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/test.log", testDir), TailingMode: "beginning"}),
 		config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/container.log", testDir), TailingMode: "beginning", Identifier: "123456789"}),
@@ -352,9 +341,6 @@ func TestScannerTailFromTheBeginning(t *testing.T) {
 		assert.Equal(t, "A", string(msg.Content))
 		msg = <-tailer.outputChan
 		assert.Equal(t, "Time", string(msg.Content))
-
-		// Ensure registry has the correct ID
-		assert.Equal(t, source.Config.Identifier, registry.GetConfigID())
 	}
 }
 
@@ -382,7 +368,7 @@ func TestScannerScanWithTooManyFiles(t *testing.T) {
 	path = fmt.Sprintf("%s/*.log", testDir)
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
-	scanner := NewScanner(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), auditor.NewRegistry(), sleepDuration)
+	scanner := NewScanner(config.NewLogSources(), openFilesLimit, mock.NewMockProvider(), auditor.NewRegistry(), sleepDuration, false, 10*time.Second)
 	source := config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
 	scanner.activeSources = append(scanner.activeSources, source)
 	status.Clear()
@@ -402,6 +388,57 @@ func TestScannerScanWithTooManyFiles(t *testing.T) {
 
 	scanner.scan()
 	assert.Equal(t, 2, len(scanner.tailers))
+}
+
+func TestContainerIDInContainerLogFile(t *testing.T) {
+	assert := assert.New(t)
+	//func (s *Scanner) shouldIgnore(file *File) bool {
+	logSource := config.NewLogSource("mylogsource", nil)
+	logSource.SetSourceType(config.DockerSourceType)
+	logSource.Config = &config.LogsConfig{
+		Type: config.FileType,
+		Path: "/var/log/pods/file-uuid-foo-bar.log",
+
+		Identifier: "abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd",
+	}
+
+	// create an empty file that will represent the log file that would have been found in /var/log/containers
+	ContainersLogsDir = "/tmp/"
+	os.Remove("/tmp/myapp_my-namespace_myapp-abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd.log")
+
+	err := os.Symlink("/var/log/pods/file-uuid-foo-bar.log", "/tmp/myapp_my-namespace_myapp-abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd.log")
+	defer func() {
+		// cleaning up after the test run
+		os.Remove("/tmp/myapp_my-namespace_myapp-abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd.log")
+		os.Remove("/tmp/myapp_my-namespace_myapp-thisisnotacontainerIDevenifthisispointingtothecorrectfile.log")
+	}()
+
+	assert.NoError(err, "error while creating the temporary file")
+
+	file := File{
+		Path:           "/var/log/pods/file-uuid-foo-bar.log",
+		IsWildcardPath: false,
+		Source:         logSource,
+	}
+
+	scanner := &Scanner{}
+
+	// we've found a symlink validating that the file we have just scanned is concerning the container we're currently processing for this source
+	assert.False(scanner.shouldIgnore(&file), "the file existing in ContainersLogsDir is pointing to the same container, scanned file should be tailed")
+
+	// now, let's change the container for which we are trying to scan files,
+	// because the symlink is pointing from another container, we should ignore
+	// that log file
+	file.Source.Config.Identifier = "1234123412341234123412341234123412341234123412341234123412341234"
+	assert.True(scanner.shouldIgnore(&file), "the file existing in ContainersLogsDir is not pointing to the same container, scanned file should be ignored")
+
+	// in this scenario, no link is found in /var/log/containers, thus, we should not ignore the file
+	os.Remove("/tmp/myapp_my-namespace_myapp-abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd.log")
+	assert.False(scanner.shouldIgnore(&file), "no files existing in ContainersLogsDir, we should not ignore the file we have just scanned")
+
+	// in this scenario, the file we've found doesn't look like a container ID
+	os.Symlink("/var/log/pods/file-uuid-foo-bar.log", "/tmp/myapp_my-namespace_myapp-thisisnotacontainerIDevenifthisispointingtothecorrectfile.log")
+	assert.False(scanner.shouldIgnore(&file), "no container ID found, we don't want to ignore this scanned file")
 }
 
 func getScanKey(path string, source *config.LogSource) string {

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build linux
 
@@ -11,13 +11,13 @@ import (
 	"os/user"
 	"strconv"
 
-	"github.com/hashicorp/golang-lru/simplelru"
+	lru "github.com/hashicorp/golang-lru"
 )
 
 // UserGroupResolver resolves user and group ids to names
 type UserGroupResolver struct {
-	userCache  *simplelru.LRU
-	groupCache *simplelru.LRU
+	userCache  *lru.Cache
+	groupCache *lru.Cache
 }
 
 // ResolveUser resolves a user id to a username
@@ -54,12 +54,12 @@ func (r *UserGroupResolver) ResolveGroup(gid int) (string, error) {
 
 // NewUserGroupResolver instantiates a new user and group resolver
 func NewUserGroupResolver() (*UserGroupResolver, error) {
-	userCache, err := simplelru.NewLRU(64, nil)
+	userCache, err := lru.New(64)
 	if err != nil {
 		return nil, err
 	}
 
-	groupCache, err := simplelru.NewLRU(64, nil)
+	groupCache, err := lru.New(64)
 	if err != nil {
 		return nil, err
 	}

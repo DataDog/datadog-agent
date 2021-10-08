@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build docker
 
@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 )
 
@@ -44,6 +43,7 @@ func TestParseFargateRegion(t *testing.T) {
 }
 
 func TestParseMetadata(t *testing.T) {
+	now := time.Now()
 	raw, err := ioutil.ReadFile("./testdata/fargate_meta.json")
 	require.NoError(t, err)
 	var meta v2.Task
@@ -57,11 +57,13 @@ func TestParseMetadata(t *testing.T) {
 			"mylabel":   "lowtag",
 		},
 	}
-	collector.expire, err = taggerutil.NewExpire(ecsFargateExpireFreq)
+
+	collector.expire, err = newExpire(ecsFargateCollectorName, ecsFargateExpireFreq)
+	collector.expire.lastExpire = now.Add(-15 * time.Minute)
 	require.NoError(t, err)
 
-	collector.expire.Update("3827da9d51f12276b4ed2d2a2dfb624b96b239b20d052b859e26c13853071e7c", time.Now())
-	collector.expire.Update("unknownID", time.Now().Add(-10*time.Minute))
+	collector.expire.Update("container_id://3827da9d51f12276b4ed2d2a2dfb624b96b239b20d052b859e26c13853071e7c", now)
+	collector.expire.Update("unknownID", now.Add(-10*time.Minute))
 
 	expectedUpdates := []*TagInfo{
 		{
@@ -77,19 +79,45 @@ func TestParseMetadata(t *testing.T) {
 		},
 		{
 			Source: "ecs_fargate",
-			Entity: "container_id://1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
+			Entity: "container_id://3827da9d51f12276b4ed2d2a2dfb624b96b239b20d052b859e26c13853071e7c",
 			LowCardTags: []string{
-				"docker_image:datadog/agent-dev:xvello-process-kubelet",
-				"image_name:datadog/agent-dev",
-				"short_image:agent-dev",
-				"image_tag:xvello-process-kubelet",
+				"availability_zone:eu-central-1a",
 				"cluster_name:xvello-fargate",
+				"docker_image:fg-proxy:tinyproxy",
 				"ecs_cluster_name:xvello-fargate",
+				"ecs_container_name:~internal~ecs~pause",
+				"image_name:fg-proxy",
+				"image_tag:tinyproxy",
+				"region:eu-central-1",
+				"short_image:fg-proxy",
 				"task_family:redis-datadog",
 				"task_version:3",
-				"ecs_container_name:datadog-agent",
-				"region:eu-central-1",
+			},
+			OrchestratorCardTags: []string{
+				"task_arn:arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
+			},
+			HighCardTags: []string{
+				"container_id:3827da9d51f12276b4ed2d2a2dfb624b96b239b20d052b859e26c13853071e7c",
+				"container_name:ecs-redis-datadog-3-internalecspause-da86ad89d2bee7ba8501",
+			},
+			StandardTags: []string{},
+			DeleteEntity: false,
+		},
+		{
+			Source: "ecs_fargate",
+			Entity: "container_id://1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
+			LowCardTags: []string{
 				"availability_zone:eu-central-1a",
+				"cluster_name:xvello-fargate",
+				"docker_image:datadog/agent-dev:xvello-process-kubelet",
+				"ecs_cluster_name:xvello-fargate",
+				"ecs_container_name:datadog-agent",
+				"image_name:datadog/agent-dev",
+				"image_tag:xvello-process-kubelet",
+				"region:eu-central-1",
+				"short_image:agent-dev",
+				"task_family:redis-datadog",
+				"task_version:3",
 			},
 			OrchestratorCardTags: []string{
 				"task_arn:arn:aws:ecs:eu-central-1:601427279990:task/5308d232-9002-4224-97b5-e1d4843b5244",
@@ -140,25 +168,19 @@ func TestParseMetadata(t *testing.T) {
 		},
 	}
 
-	// Diff parsing should show 2 containers
-	updates, err := collector.parseMetadata(&meta, false)
+	updates, err := collector.parseMetadata(&meta)
 	assert.NoError(t, err)
 	assertTagInfoListEqual(t, expectedUpdates, updates)
 
 	// One container expires
-	expires, err := collector.expire.ComputeExpires()
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"unknownID"}, expires)
-
-	// Diff parsing should show 0 containers + 1 tag for task_arn
-	updates, err = collector.parseMetadata(&meta, false)
-	assert.NoError(t, err)
-	assert.Len(t, updates, 1)
-
-	// Full parsing should show 3 containers + 1 tag for task_arn
-	updates, err = collector.parseMetadata(&meta, true)
-	assert.NoError(t, err)
-	assert.Len(t, updates, 4)
+	expires := collector.expire.ComputeExpires()
+	assert.Equal(t, []*TagInfo{
+		{
+			Source:       ecsFargateCollectorName,
+			Entity:       "unknownID",
+			DeleteEntity: true,
+		},
+	}, expires)
 }
 
 func TestParseMetadataV10(t *testing.T) {
@@ -170,7 +192,7 @@ func TestParseMetadataV10(t *testing.T) {
 	require.Len(t, meta.Containers, 3)
 
 	collector := &ECSFargateCollector{}
-	collector.expire, err = taggerutil.NewExpire(ecsFargateExpireFreq)
+	collector.expire, err = newExpire(ecsFargateCollectorName, ecsFargateExpireFreq)
 	require.NoError(t, err)
 
 	expectedUpdates := []*TagInfo{
@@ -266,33 +288,7 @@ func TestParseMetadataV10(t *testing.T) {
 		},
 	}
 
-	updates, err := collector.parseMetadata(&meta, false)
+	updates, err := collector.parseMetadata(&meta)
 	assert.NoError(t, err)
 	assertTagInfoListEqual(t, expectedUpdates, updates)
-}
-
-func TestParseExpires(t *testing.T) {
-	collector := &ECSFargateCollector{}
-
-	dead := []string{
-		"1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
-		"0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
-	}
-
-	expected := []*TagInfo{
-		{
-			Source:       "ecs_fargate",
-			Entity:       "container_id://1cd08ea0fc13ee643fa058a8e184861661eb29325c7df59ccc543597018ffcd4",
-			DeleteEntity: true,
-		},
-		{
-			Source:       "ecs_fargate",
-			Entity:       "container_id://0fc5bb7a1b29adc30997eabae1415a98fe85591eb7432c23349703a53aa43280",
-			DeleteEntity: true,
-		},
-	}
-
-	out, err := collector.parseExpires(dead)
-	assert.NoError(t, err)
-	assert.Equal(t, expected, out)
 }

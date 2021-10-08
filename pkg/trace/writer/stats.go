@@ -1,23 +1,30 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package writer
 
 import (
+	"compress/gzip"
+	"errors"
+	"io"
 	"math"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/logutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/tinylib/msgp/msgp"
 )
 
 // pathStats is the target host API path for delivering stats.
@@ -25,36 +32,39 @@ const pathStats = "/api/v0.2/stats"
 
 const (
 	// bytesPerEntry specifies the approximate size an entry in a stat payload occupies.
-	bytesPerEntry = 125
+	bytesPerEntry = 375
 	// maxEntriesPerPayload is the maximum number of entries in a stat payload. An
-	// entry has an average size of 125 bytes in a compressed payload. The current
-	// Datadog intake API limits a compressed payload to ~3MB (24,000 entries), but
-	// let's have the default ensure we don't have paylods > 1.5 MB (12,000
+	// entry has an average size of 375 bytes in a compressed payload. The current
+	// Datadog intake API limits a compressed payload to ~3MB (8,000 entries), but
+	// let's have the default ensure we don't have paylods > 1.5 MB (4,000
 	// entries).
-	maxEntriesPerPayload = 12000
+	maxEntriesPerPayload = 4000
 )
 
 // StatsWriter ingests stats buckets and flushes them to the API.
 type StatsWriter struct {
-	in       <-chan []stats.Bucket
-	hostname string
-	env      string
-	senders  []*sender
-	stop     chan struct{}
-	stats    *info.StatsWriterInfo
+	in      <-chan pb.StatsPayload
+	senders []*sender
+	stop    chan struct{}
+	stats   *info.StatsWriterInfo
+
+	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
+	syncMode  bool
+	payloads  []pb.StatsPayload // payloads buffered for sync mode
+	flushChan chan chan struct{}
 
 	easylog *logutil.ThrottledLogger
 }
 
 // NewStatsWriter returns a new StatsWriter. It must be started using Run.
-func NewStatsWriter(cfg *config.AgentConfig, in <-chan []stats.Bucket) *StatsWriter {
+func NewStatsWriter(cfg *config.AgentConfig, in <-chan pb.StatsPayload) *StatsWriter {
 	sw := &StatsWriter{
-		in:       in,
-		hostname: cfg.Hostname,
-		env:      cfg.DefaultEnv,
-		stats:    &info.StatsWriterInfo{},
-		stop:     make(chan struct{}),
-		easylog:  logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
+		in:        in,
+		stats:     &info.StatsWriterInfo{},
+		stop:      make(chan struct{}),
+		flushChan: make(chan chan struct{}),
+		syncMode:  cfg.SynchronousFlushing,
+		easylog:   logutil.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 	}
 	climit := cfg.StatsWriter.ConnectionLimit
 	if climit == 0 {
@@ -87,12 +97,31 @@ func (w *StatsWriter) Run() {
 		select {
 		case stats := <-w.in:
 			w.addStats(stats)
+			if !w.syncMode {
+				w.sendPayloads()
+			}
+		case notify := <-w.flushChan:
+			w.sendPayloads()
+			notify <- struct{}{}
 		case <-t.C:
 			w.report()
 		case <-w.stop:
 			return
 		}
 	}
+}
+
+// FlushSync blocks and sends pending payloads when syncMode is true
+func (w *StatsWriter) FlushSync() error {
+	if !w.syncMode {
+		return errors.New("not flushing; sync mode not enabled")
+	}
+
+	defer w.report()
+	notify := make(chan struct{}, 1)
+	w.flushChan <- notify
+	<-notify
+	return nil
 }
 
 // Stop stops a running StatsWriter.
@@ -102,146 +131,193 @@ func (w *StatsWriter) Stop() {
 	stopSenders(w.senders)
 }
 
-func (w *StatsWriter) addStats(s []stats.Bucket) {
+func (w *StatsWriter) addStats(sp pb.StatsPayload) {
 	defer timing.Since("datadog.trace_agent.stats_writer.encode_ms", time.Now())
-
-	payloads, bucketCount, entryCount := w.buildPayloads(s, maxEntriesPerPayload)
-	switch n := len(payloads); {
-	case n == 0:
-		return
-	case n > 1:
-		atomic.AddInt64(&w.stats.Splits, 1)
-	}
-	atomic.AddInt64(&w.stats.StatsBuckets, int64(bucketCount))
-	log.Debugf("Flushing %d entries (buckets=%d payloads=%v)", entryCount, bucketCount, len(payloads))
-
-	for _, p := range payloads {
-		w.SendPayload(p)
-	}
+	payloads := w.buildPayloads(sp, maxEntriesPerPayload)
+	w.payloads = append(w.payloads, payloads...)
 }
 
 // SendPayload sends a stats payload to the Datadog backend.
-func (w *StatsWriter) SendPayload(p *stats.Payload) {
+func (w *StatsWriter) SendPayload(p pb.StatsPayload) {
 	req := newPayload(map[string]string{
 		headerLanguages:    strings.Join(info.Languages(), "|"),
-		"Content-Type":     "application/json",
+		"Content-Type":     "application/msgpack",
 		"Content-Encoding": "gzip",
 	})
-	if err := stats.EncodePayload(req.body, p); err != nil {
+	if err := encodePayload(req.body, p); err != nil {
 		log.Errorf("Stats encoding error: %v", err)
 		return
 	}
-	atomic.AddInt64(&w.stats.Bytes, int64(req.body.Len()))
-
-	sendPayloads(w.senders, req)
+	sendPayloads(w.senders, req, w.syncMode)
 }
 
-// buildPayloads returns a set of payload to send out, each paylods guaranteed
-// to have the number of stats buckets under the given maximum.
-func (w *StatsWriter) buildPayloads(s []stats.Bucket, maxEntriesPerPayloads int) ([]*stats.Payload, int, int) {
-	if len(s) == 0 {
-		return []*stats.Payload{}, 0, 0
+func (w *StatsWriter) sendPayloads() {
+	for _, p := range w.payloads {
+		w.SendPayload(p)
 	}
-	// 1. Get an estimate of how many payloads we need, based on the total
-	//    number of map entries (i.e.: sum of number of items in the stats
-	//    bucket's count map).
-	//    NOTE: we use the number of items in the count map as the
-	//    reference, but in reality, what take place are the
-	//    distributions. We are guaranteed the number of entries in the
-	//    count map is > than the number of entries in the distributions
-	//    maps, so the algorithm is correct, but indeed this means we could
-	//    do better.
+	w.payloads = w.payloads[:0]
+}
+
+// encodePayload encodes the payload as Gzipped msgPack into w.
+func encodePayload(w io.Writer, payload pb.StatsPayload) error {
+	gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := gz.Close(); err != nil {
+			log.Errorf("Error closing gzip stream when writing stats payload: %v", err)
+		}
+	}()
+	return msgp.Encode(gz, &payload)
+}
+
+// buildPayloads splits pb.ClientStatsPayload that have more than maxEntriesPerPayload
+// and then groups them into pb.StatsPayload with less than maxEntriesPerPayload
+func (w *StatsWriter) buildPayloads(sp pb.StatsPayload, maxEntriesPerPayload int) []pb.StatsPayload {
+	split := splitPayloads(sp.Stats, maxEntriesPerPayload)
+	grouped := make([]pb.StatsPayload, 0, len(sp.Stats))
+	current := pb.StatsPayload{
+		AgentHostname:  sp.AgentHostname,
+		AgentEnv:       sp.AgentEnv,
+		AgentVersion:   sp.AgentVersion,
+		ClientComputed: sp.ClientComputed,
+	}
+	var nbEntries, nbBuckets int
+	addPayload := func() {
+		log.Debugf("Flushing %d entries (buckets=%d client_payloads=%d)", nbEntries, nbBuckets, len(current.Stats))
+		atomic.AddInt64(&w.stats.StatsBuckets, int64(nbBuckets))
+		atomic.AddInt64(&w.stats.ClientPayloads, int64(len(current.Stats)))
+		atomic.AddInt64(&w.stats.StatsEntries, int64(nbEntries))
+		grouped = append(grouped, current)
+		current.Stats = nil
+		nbEntries = 0
+		nbBuckets = 0
+	}
+	for _, p := range split {
+		if nbEntries+p.nbEntries > maxEntriesPerPayload {
+			addPayload()
+		}
+		nbEntries += p.nbEntries
+		nbBuckets += len(p.Stats)
+		resolveContainerTags(&p.ClientStatsPayload)
+		current.Stats = append(current.Stats, p.ClientStatsPayload)
+	}
+	if nbEntries > 0 {
+		addPayload()
+	}
+	if len(grouped) > 1 {
+		atomic.AddInt64(&w.stats.Splits, 1)
+	}
+	return grouped
+}
+
+// resolveContainerTags takes any ContainerID found in p to fill in the appropriate tags.
+func resolveContainerTags(p *pb.ClientStatsPayload) {
+	if p.ContainerID == "" {
+		p.Tags = nil
+		return
+	}
+	ctags, err := tagger.Tag("container_id://"+p.ContainerID, collectors.HighCardinality)
+	switch {
+	case err != nil:
+		log.Tracef("Error resolving container tags for %q: %v", p.ContainerID, err)
+		p.ContainerID = ""
+		p.Tags = nil
+	case len(ctags) == 0:
+		p.Tags = nil
+	default:
+		p.Tags = ctags
+	}
+}
+
+func splitPayloads(payloads []pb.ClientStatsPayload, maxEntriesPerPayload int) []clientStatsPayload {
+	split := make([]clientStatsPayload, 0, len(payloads))
+	for _, p := range payloads {
+		split = append(split, splitPayload(p, maxEntriesPerPayload)...)
+	}
+	return split
+}
+
+type timeWindow struct{ start, duration uint64 }
+
+type clientStatsPayload struct {
+	pb.ClientStatsPayload
+	nbEntries int
+	// bucketIndexes maps from a timeWindow to a bucket in the ClientStatsPayload.
+	// it allows quick checking of what bucket to add a payload to.
+	bucketIndexes map[timeWindow]int
+}
+
+// splitPayload splits a stats payload to ensure that each stats payload has less than maxEntriesPerPayload entries.
+func splitPayload(p pb.ClientStatsPayload, maxEntriesPerPayload int) []clientStatsPayload {
+	if len(p.Stats) == 0 {
+		return nil
+	}
+	// 1. Get how many payloads we need, based on the total number of entries.
 	nbEntries := 0
-	for _, s := range s {
-		nbEntries += len(s.Counts)
+	for _, b := range p.Stats {
+		nbEntries += len(b.Stats)
 	}
-	if maxEntriesPerPayloads <= 0 || nbEntries < maxEntriesPerPayloads {
+	if maxEntriesPerPayload <= 0 || nbEntries < maxEntriesPerPayload {
 		// nothing to do, break early
-		return []*stats.Payload{{
-			HostName: w.hostname,
-			Env:      w.env,
-			Stats:    s,
-		}}, len(s), nbEntries
+		return []clientStatsPayload{{ClientStatsPayload: p, nbEntries: nbEntries}}
 	}
-	nbPayloads := nbEntries / maxEntriesPerPayloads
-	if nbEntries%maxEntriesPerPayloads != 0 {
+	nbPayloads := nbEntries / maxEntriesPerPayload
+	if nbEntries%maxEntriesPerPayload != 0 {
 		nbPayloads++
 	}
 
-	type timeWindow struct{ start, duration int64 }
-	// 2. Create a slice of nbPayloads maps, mapping a time window (stat +
-	//    duration) to a stat bucket. We will build the payloads from these
-	//    maps. This allows is to have one stat bucket per time window.
-	pMaps := make([]map[timeWindow]stats.Bucket, nbPayloads)
+	// 2. Initialize a slice of nbPayloads indexes maps, mapping a time window (stat +
+	//    duration) to a stats payload.
+	payloads := make([]clientStatsPayload, nbPayloads)
 	for i := 0; i < nbPayloads; i++ {
-		pMaps[i] = make(map[timeWindow]stats.Bucket, nbPayloads)
+		payloads[i] = clientStatsPayload{
+			bucketIndexes: make(map[timeWindow]int, 1),
+			ClientStatsPayload: pb.ClientStatsPayload{
+				Hostname:         p.Hostname,
+				Env:              p.Env,
+				Version:          p.Version,
+				Service:          p.Service,
+				Lang:             p.Lang,
+				TracerVersion:    p.TracerVersion,
+				RuntimeID:        p.RuntimeID,
+				Sequence:         p.Sequence,
+				AgentAggregation: p.AgentAggregation,
+				Stats:            make([]pb.ClientStatsBucket, 0, maxEntriesPerPayload),
+			},
+		}
 	}
 	// 3. Iterate over all entries of each stats. Add the entry to one of
-	//    the payload container mappings, in a round robin fashion. In some
-	//    edge cases, we can end up having the same entry in several
-	//    inputted stat buckets. We must check that we never overwrite an
-	//    entry in the new stats buckets but cleanly merge instead.
+	//    the payloads, in a round robin fashion. Use the bucketIndexes map to
+	//    ensure that we have one ClientStatsBucket per timeWindow for each ClientStatsPayload.
 	i := 0
-	for _, b := range s {
+	for _, b := range p.Stats {
 		tw := timeWindow{b.Start, b.Duration}
-
-		for ekey, e := range b.Counts {
-			pm := pMaps[i%nbPayloads]
-			newsb, ok := pm[tw]
+		for _, g := range b.Stats {
+			j := i % nbPayloads
+			bi, ok := payloads[j].bucketIndexes[tw]
 			if !ok {
-				newsb = stats.NewBucket(tw.start, tw.duration)
+				bi = len(payloads[j].Stats)
+				payloads[j].bucketIndexes[tw] = bi
+				payloads[j].Stats = append(payloads[j].Stats, pb.ClientStatsBucket{Start: tw.start, Duration: tw.duration})
 			}
-			pm[tw] = newsb
-
-			if _, ok := newsb.Counts[ekey]; ok {
-				newsb.Counts[ekey].Merge(e)
-			} else {
-				newsb.Counts[ekey] = e
-			}
-
-			if _, ok := b.Distributions[ekey]; ok {
-				if _, ok := newsb.Distributions[ekey]; ok {
-					newsb.Distributions[ekey].Merge(b.Distributions[ekey])
-				} else {
-					newsb.Distributions[ekey] = b.Distributions[ekey]
-				}
-			}
-			if _, ok := b.ErrDistributions[ekey]; ok {
-				if _, ok := newsb.ErrDistributions[ekey]; ok {
-					newsb.ErrDistributions[ekey].Merge(b.ErrDistributions[ekey])
-				} else {
-					newsb.ErrDistributions[ekey] = b.ErrDistributions[ekey]
-				}
-			}
+			// here, we can just append the group, because there are no duplicate groups in the original stats payloads sent to the writer.
+			payloads[j].Stats[bi].Stats = append(payloads[j].Stats[bi].Stats, g)
+			payloads[j].nbEntries++
 			i++
 		}
 	}
-	// 4. Create the nbPayloads payloads from the maps.
-	nbStats := 0
-	nbEntries = 0
-	payloads := make([]*stats.Payload, 0, nbPayloads)
-	for _, pm := range pMaps {
-		pstats := make([]stats.Bucket, 0, len(pm))
-		for _, sb := range pm {
-			pstats = append(pstats, sb)
-			nbEntries += len(sb.Counts)
-		}
-		payloads = append(payloads, &stats.Payload{
-			HostName: w.hostname,
-			Env:      w.env,
-			Stats:    pstats,
-		})
-
-		nbStats += len(pstats)
-	}
-	return payloads, nbStats, nbEntries
+	return payloads
 }
 
 var _ eventRecorder = (*StatsWriter)(nil)
 
 func (w *StatsWriter) report() {
+	metrics.Count("datadog.trace_agent.stats_writer.client_payloads", atomic.SwapInt64(&w.stats.ClientPayloads, 0), nil, 1)
 	metrics.Count("datadog.trace_agent.stats_writer.payloads", atomic.SwapInt64(&w.stats.Payloads, 0), nil, 1)
 	metrics.Count("datadog.trace_agent.stats_writer.stats_buckets", atomic.SwapInt64(&w.stats.StatsBuckets, 0), nil, 1)
+	metrics.Count("datadog.trace_agent.stats_writer.stats_entries", atomic.SwapInt64(&w.stats.StatsEntries, 0), nil, 1)
 	metrics.Count("datadog.trace_agent.stats_writer.bytes", atomic.SwapInt64(&w.stats.Bytes, 0), nil, 1)
 	metrics.Count("datadog.trace_agent.stats_writer.retries", atomic.SwapInt64(&w.stats.Retries, 0), nil, 1)
 	metrics.Count("datadog.trace_agent.stats_writer.splits", atomic.SwapInt64(&w.stats.Splits, 0), nil, 1)

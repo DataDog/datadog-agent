@@ -1,17 +1,19 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package traceutil
 
-import "github.com/DataDog/datadog-agent/pkg/trace/config"
+import (
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
+)
 
 // MaxResourceLen the maximum length the resource can have
 var MaxResourceLen = 5000
 
 func init() {
-	if config.HasFeature("big_resource") {
+	if features.Has("big_resource") {
 		MaxResourceLen = 15000
 	}
 }
@@ -20,7 +22,7 @@ const (
 	// MaxMetaKeyLen the maximum length of metadata key
 	MaxMetaKeyLen = 200
 	// MaxMetaValLen the maximum length of metadata value
-	MaxMetaValLen = 5000
+	MaxMetaValLen = 25000
 	// MaxMetricsKeyLen the maximum length of a metric name key
 	MaxMetricsKeyLen = MaxMetaKeyLen
 )

@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package flare
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -115,7 +117,7 @@ func readAndPostFlareFile(archivePath, caseID, email, hostname string) (*http.Re
 
 // SendFlare will send a flare and grab the local hostname
 func SendFlare(archivePath string, caseID string, email string) (string, error) {
-	hostname, err := util.GetHostname()
+	hostname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		hostname = "unknown"
 	}
@@ -128,7 +130,7 @@ func analyzeResponse(r *http.Response, err error) (string, error) {
 		return response, err
 	}
 	if r.StatusCode == http.StatusForbidden {
-		apiKey := config.Datadog.GetString("api_key")
+		apiKey := config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
 		var errStr string
 
 		if len(apiKey) == 0 {
@@ -143,12 +145,26 @@ func analyzeResponse(r *http.Response, err error) (string, error) {
 		return response, fmt.Errorf("HTTP 403 Forbidden: %s", errStr)
 	}
 
+	var res flareResponse
 	b, _ := ioutil.ReadAll(r.Body)
-	var res = flareResponse{}
-	err = json.Unmarshal(b, &res)
+	if r.StatusCode != http.StatusOK {
+		err = fmt.Errorf("HTTP %d %s", r.StatusCode, r.Status)
+	} else if contentType := r.Header.Get("Content-Type"); !strings.HasPrefix(contentType, "application/json") {
+		if contentType != "" {
+			err = fmt.Errorf("Server returned unknown content-type %s", contentType)
+		} else {
+			err = fmt.Errorf("Server returned no content-type header")
+		}
+	} else {
+		err = json.Unmarshal(b, &res)
+	}
 	if err != nil {
 		response = fmt.Sprintf("Error: could not deserialize response body -- Please contact support by email.")
-		return response, fmt.Errorf("%v\nServer returned:\n%s", err, string(b)[:150])
+		sample := string(b)
+		if len(sample) > 150 {
+			sample = sample[:150]
+		}
+		return response, fmt.Errorf("%v\nServer returned:\n%s", err, sample)
 	}
 
 	if res.Error != "" {
@@ -177,6 +193,6 @@ func mkURL(caseID string) string {
 	if caseID != "" {
 		url += "/" + caseID
 	}
-	url += "?api_key=" + config.Datadog.GetString("api_key")
+	url += "?api_key=" + config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
 	return url
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package rules
 
@@ -129,7 +129,7 @@ func genFilterValues(rule *eval.Rule, event eval.Event) ([]FilterValues, error) 
 					Type:  fValue.Type,
 				})
 
-				notValue, err := notOfValue(fValue.Value)
+				notValue, err := eval.NotOfValue(fValue.Value)
 				if err != nil {
 					return nil, &ErrValueTypeUnknown{Field: field}
 				}
@@ -191,8 +191,7 @@ func combineFilterValues(filterValues []FilterValues) []FilterValues {
 }
 
 func newTruthTable(rule *eval.Rule, event eval.Event) (*truthTable, error) {
-	ctx := &eval.Context{}
-	ctx.SetObject(event.GetPointer())
+	ctx := eval.NewContext(event.GetPointer())
 
 	if len(rule.GetEvaluator().FieldValues) == 0 {
 		return nil, nil

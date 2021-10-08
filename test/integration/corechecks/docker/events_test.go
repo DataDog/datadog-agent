@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package docker
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -20,6 +21,8 @@ func init() {
 }
 
 func TestEvents(t *testing.T) {
+	ctx := context.Background()
+
 	nowTimestamp := time.Now().Unix()
 	expectedTags := []string{
 		"highcardlabeltag:eventhigh",
@@ -28,7 +31,7 @@ func TestEvents(t *testing.T) {
 		"lowcardenvtag:eventlowenv",
 	}
 
-	localHostname, err := util.GetHostname()
+	localHostname, err := util.GetHostname(ctx)
 	assert.Nil(t, err)
 
 	expectedBusyboxEvent := metrics.Event{

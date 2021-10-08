@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package filters
 
@@ -22,6 +22,16 @@ type Blacklister struct {
 func (f *Blacklister) Allows(span *pb.Span) bool {
 	for _, entry := range f.list {
 		if entry.MatchString(span.Resource) {
+			return false
+		}
+	}
+	return true
+}
+
+// AllowsStat returns true if the Blacklister permits this stat
+func (f *Blacklister) AllowsStat(stat *pb.ClientGroupedStats) bool {
+	for _, entry := range f.list {
+		if entry.MatchString(stat.Resource) {
 			return false
 		}
 	}

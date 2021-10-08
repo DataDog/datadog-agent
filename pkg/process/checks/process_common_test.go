@@ -13,10 +13,10 @@ import (
 
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/gopsutil/cpu"
-	"github.com/DataDog/gopsutil/process"
 )
 
 //nolint:unused
@@ -32,8 +32,8 @@ func makeContainer(id string) *containers.Container {
 }
 
 //nolint:deadcode,unused
-func procCtrGenerator(pCount int, cCount int, containeredProcs int) ([]*process.FilledProcess, []*containers.Container) {
-	procs := make([]*process.FilledProcess, 0, pCount)
+func procCtrGenerator(pCount int, cCount int, containeredProcs int) ([]*procutil.Process, []*containers.Container) {
+	procs := make([]*procutil.Process, 0, pCount)
 	for i := 0; i < pCount; i++ {
 		procs = append(procs, makeProcess(int32(i), strconv.Itoa(i)))
 	}
@@ -69,26 +69,31 @@ func containersByPid(ctrs []*containers.Container) map[int32]string {
 }
 
 //nolint:deadcode,unused
-func procsToHash(procs []*process.FilledProcess) (procsByPid map[int32]*process.FilledProcess) {
-	procsByPid = make(map[int32]*process.FilledProcess)
+func procsToHash(procs []*procutil.Process) (procsByPid map[int32]*procutil.Process) {
+	procsByPid = make(map[int32]*procutil.Process)
 	for _, p := range procs {
 		procsByPid[p.Pid] = p
 	}
 	return
 }
 
-func makeProcess(pid int32, cmdline string) *process.FilledProcess {
-	return &process.FilledProcess{
-		Pid:         pid,
-		Cmdline:     strings.Split(cmdline, " "),
-		MemInfo:     &process.MemoryInfoStat{},
-		CtxSwitches: &process.NumCtxSwitchesStat{},
+func makeProcess(pid int32, cmdline string) *procutil.Process {
+	return &procutil.Process{
+		Pid:     pid,
+		Cmdline: strings.Split(cmdline, " "),
+		Stats: &procutil.Stats{
+			CPUTime:     &procutil.CPUTimesStat{},
+			MemInfo:     &procutil.MemoryInfoStat{},
+			MemInfoEx:   &procutil.MemoryInfoExStat{},
+			IOStat:      &procutil.IOCountersStat{},
+			CtxSwitches: &procutil.NumCtxSwitchesStat{},
+		},
 	}
 }
 
 //nolint:deadcode,unused
 // procMsgsVerification takes raw containers and processes and make sure the chunked messages have all data, and each chunk has the correct grouping
-func procMsgsVerification(t *testing.T, msgs []model.MessageBody, rawContainers []*containers.Container, rawProcesses []*process.FilledProcess, maxSize int, cfg *config.AgentConfig) {
+func procMsgsVerification(t *testing.T, msgs []model.MessageBody, rawContainers []*containers.Container, rawProcesses []*procutil.Process, maxSize int, cfg *config.AgentConfig) {
 	actualProcs := 0
 	for _, msg := range msgs {
 		payload := msg.(*model.CollectorProc)
@@ -123,7 +128,7 @@ func procMsgsVerification(t *testing.T, msgs []model.MessageBody, rawContainers 
 }
 
 func TestProcessChunking(t *testing.T) {
-	p := []*process.FilledProcess{
+	p := []*procutil.Process{
 		makeProcess(1, "git clone google.com"),
 		makeProcess(2, "mine-bitcoins -all -x"),
 		makeProcess(3, "datadog-process-agent -ddconfig datadog.conf"),
@@ -135,43 +140,56 @@ func TestProcessChunking(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 
 	for i, tc := range []struct {
-		cur, last      []*process.FilledProcess
-		maxSize        int
-		blacklist      []string
-		expectedTotal  int
-		expectedChunks int
+		cur, last          []*procutil.Process
+		maxSize            int
+		blacklist          []string
+		expectedProcTotal  int
+		expectedProcChunks int
+		// stats might have different numbers than full Process because stats don't collect command line,
+		// thus doesn't have the ability to filter by blacklist. This is not a real problem as when process-agent runs,
+		// RTProcess will rely on the PIDs that ProcessCheck collected, which already skipped blacklist processes
+		expectedStatTotal  int
+		expectedStatChunks int
 	}{
 		{
-			cur:            []*process.FilledProcess{p[0], p[1], p[2]},
-			last:           []*process.FilledProcess{p[0], p[1], p[2]},
-			maxSize:        1,
-			blacklist:      []string{},
-			expectedTotal:  3,
-			expectedChunks: 3,
+			cur:                []*procutil.Process{p[0], p[1], p[2]},
+			last:               []*procutil.Process{p[0], p[1], p[2]},
+			maxSize:            1,
+			blacklist:          []string{},
+			expectedProcTotal:  3,
+			expectedProcChunks: 3,
+			expectedStatTotal:  3,
+			expectedStatChunks: 3,
 		},
 		{
-			cur:            []*process.FilledProcess{p[0], p[1], p[2]},
-			last:           []*process.FilledProcess{p[0], p[2]},
-			maxSize:        1,
-			blacklist:      []string{},
-			expectedTotal:  2,
-			expectedChunks: 2,
+			cur:                []*procutil.Process{p[0], p[1], p[2]},
+			last:               []*procutil.Process{p[0], p[2]},
+			maxSize:            1,
+			blacklist:          []string{},
+			expectedProcTotal:  2,
+			expectedProcChunks: 2,
+			expectedStatTotal:  2,
+			expectedStatChunks: 2,
 		},
 		{
-			cur:            []*process.FilledProcess{p[0], p[1], p[2], p[3]},
-			last:           []*process.FilledProcess{p[0], p[1], p[2], p[3]},
-			maxSize:        10,
-			blacklist:      []string{"git", "datadog"},
-			expectedTotal:  2,
-			expectedChunks: 1,
+			cur:                []*procutil.Process{p[0], p[1], p[2], p[3]},
+			last:               []*procutil.Process{p[0], p[1], p[2], p[3]},
+			maxSize:            10,
+			blacklist:          []string{"git", "datadog"},
+			expectedProcTotal:  2,
+			expectedProcChunks: 1,
+			expectedStatTotal:  4,
+			expectedStatChunks: 1,
 		},
 		{
-			cur:            []*process.FilledProcess{p[0], p[1], p[2], p[3]},
-			last:           []*process.FilledProcess{p[0], p[1], p[2], p[3]},
-			maxSize:        10,
-			blacklist:      []string{"git", "datadog", "foo", "mine"},
-			expectedTotal:  0,
-			expectedChunks: 0,
+			cur:                []*procutil.Process{p[0], p[1], p[2], p[3]},
+			last:               []*procutil.Process{p[0], p[1], p[2], p[3]},
+			maxSize:            10,
+			blacklist:          []string{"git", "datadog", "foo", "mine"},
+			expectedProcTotal:  0,
+			expectedProcChunks: 0,
+			expectedStatTotal:  4,
+			expectedStatChunks: 1,
 		},
 	} {
 		bl := make([]*regexp.Regexp, 0, len(tc.blacklist))
@@ -181,31 +199,41 @@ func TestProcessChunking(t *testing.T) {
 		cfg.Blacklist = bl
 		cfg.MaxPerMessage = tc.maxSize
 
-		cur := make(map[int32]*process.FilledProcess)
+		cur := make(map[int32]*procutil.Process)
 		for _, c := range tc.cur {
 			cur[c.Pid] = c
 		}
-		last := make(map[int32]*process.FilledProcess)
+		last := make(map[int32]*procutil.Process)
 		for _, c := range tc.last {
 			last[c.Pid] = c
 		}
-		procs := fmtProcesses(cfg, cur, last, containersByPid(containers), syst2, syst1, lastRun)
+		curStats := make(map[int32]*procutil.Stats)
+		for _, c := range tc.cur {
+			curStats[c.Pid] = c.Stats
+		}
+		lastStats := make(map[int32]*procutil.Stats)
+		for _, c := range tc.last {
+			lastStats[c.Pid] = c.Stats
+		}
+		networks := make(map[int32][]*model.Connection)
+
+		procs := fmtProcesses(cfg, cur, last, containersByPid(containers), syst2, syst1, lastRun, networks)
 		// only deal with non-container processes
 		chunked := chunkProcesses(procs[emptyCtrID], cfg.MaxPerMessage)
-		assert.Len(t, chunked, tc.expectedChunks, "len %d", i)
+		assert.Len(t, chunked, tc.expectedProcChunks, "len %d", i)
 		total := 0
 		for _, c := range chunked {
 			total += len(c)
 		}
-		assert.Equal(t, tc.expectedTotal, total, "total test %d", i)
+		assert.Equal(t, tc.expectedProcTotal, total, "total test %d", i)
 
-		chunkedStat := fmtProcessStats(cfg, cur, last, containers, syst2, syst1, lastRun)
-		assert.Len(t, chunkedStat, tc.expectedChunks, "len stat %d", i)
+		chunkedStat := fmtProcessStats(cfg, curStats, lastStats, containers, syst2, syst1, lastRun, networks)
+		assert.Len(t, chunkedStat, tc.expectedStatChunks, "len stat %d", i)
 		total = 0
 		for _, c := range chunkedStat {
 			total += len(c)
 		}
-		assert.Equal(t, tc.expectedTotal, total, "total stat test %d", i)
+		assert.Equal(t, tc.expectedStatTotal, total, "total stat test %d", i)
 	}
 }
 
@@ -239,8 +267,8 @@ func TestRateCalculation(t *testing.T) {
 }
 
 func TestFormatIO(t *testing.T) {
-	fp := &process.FilledProcess{
-		IOStat: &process.IOCountersStat{
+	fp := &procutil.Stats{
+		IOStat: &procutil.IOCountersStat{
 			ReadCount:  6,
 			WriteCount: 8,
 			ReadBytes:  10,
@@ -248,22 +276,40 @@ func TestFormatIO(t *testing.T) {
 		},
 	}
 
-	last := &process.IOCountersStat{
+	last := &procutil.IOCountersStat{
 		ReadCount:  1,
 		WriteCount: 2,
 		ReadBytes:  3,
 		WriteBytes: 4,
 	}
 
-	// fp.IoStat is nil
-	assert.NotNil(t, formatIO(&process.FilledProcess{}, last, time.Now().Add(-2*time.Second)))
+	// fp.IOStat is nil
+	assert.NotNil(t, formatIO(&procutil.Stats{}, last, time.Now().Add(-2*time.Second)))
+
+	// IOStats have 0 values
+	result := formatIO(&procutil.Stats{IOStat: &procutil.IOCountersStat{}}, last, time.Now().Add(-2*time.Second))
+	assert.Equal(t, float32(0), result.ReadRate)
+	assert.Equal(t, float32(0), result.WriteRate)
+	assert.Equal(t, float32(0), result.ReadBytesRate)
+	assert.Equal(t, float32(0), result.WriteBytesRate)
 
 	// Elapsed time < 1s
 	assert.NotNil(t, formatIO(fp, last, time.Now()))
 
-	result := formatIO(fp, last, time.Now().Add(-1*time.Second))
-	require.NotNil(t, result)
+	// IOStats have permission problem
+	result = formatIO(&procutil.Stats{IOStat: &procutil.IOCountersStat{
+		ReadCount:  -1,
+		WriteCount: -1,
+		ReadBytes:  -1,
+		WriteBytes: -1,
+	}}, last, time.Now().Add(-1*time.Second))
+	assert.Equal(t, float32(-1), result.ReadRate)
+	assert.Equal(t, float32(-1), result.WriteRate)
+	assert.Equal(t, float32(-1), result.ReadBytesRate)
+	assert.Equal(t, float32(-1), result.WriteBytesRate)
 
+	result = formatIO(fp, last, time.Now().Add(-1*time.Second))
+	require.NotNil(t, result)
 	assert.Equal(t, float32(5), result.ReadRate)
 	assert.Equal(t, float32(6), result.WriteRate)
 	assert.Equal(t, float32(7), result.ReadBytesRate)
@@ -271,7 +317,66 @@ func TestFormatIO(t *testing.T) {
 
 }
 
+func TestFormatNetworks(t *testing.T) {
+	for _, tc := range []struct {
+		connsByPID map[int32][]*model.Connection
+		interval   int
+		pid        int32
+		expected   *model.ProcessNetworks
+	}{
+		{
+			connsByPID: map[int32][]*model.Connection{
+				1: yieldConnections(10),
+			},
+			interval: 2,
+			pid:      1,
+			expected: &model.ProcessNetworks{ConnectionRate: 5, BytesRate: 150},
+		},
+		{
+			connsByPID: map[int32][]*model.Connection{
+				1: yieldConnections(10),
+			},
+			interval: 10,
+			pid:      1,
+			expected: &model.ProcessNetworks{ConnectionRate: 1, BytesRate: 30},
+		},
+		{
+			connsByPID: map[int32][]*model.Connection{
+				1: yieldConnections(10),
+			},
+			interval: 20,
+			pid:      1,
+			expected: &model.ProcessNetworks{ConnectionRate: 0.5, BytesRate: 15},
+		},
+		{
+			connsByPID: nil,
+			interval:   20,
+			pid:        1,
+			expected:   &model.ProcessNetworks{ConnectionRate: 0, BytesRate: 0},
+		},
+		{
+			connsByPID: map[int32][]*model.Connection{
+				1: yieldConnections(10),
+			},
+			interval: 10,
+			pid:      2,
+			expected: &model.ProcessNetworks{ConnectionRate: 0, BytesRate: 0},
+		},
+	} {
+		result := formatNetworks(tc.connsByPID[tc.pid], tc.interval)
+		assert.EqualValues(t, tc.expected, result)
+	}
+}
+
 func floatEquals(a, b float32) bool {
 	var e float32 = 0.00000001 // Difference less than some epsilon
 	return a-b < e && b-a < e
+}
+
+func yieldConnections(count int) []*model.Connection {
+	result := make([]*model.Connection, count)
+	for i := 0; i < count; i++ {
+		result[i] = &model.Connection{LastBytesReceived: 10, LastBytesSent: 20}
+	}
+	return result
 }

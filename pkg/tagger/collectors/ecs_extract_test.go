@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build docker
 
 package collectors
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -15,14 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	v3 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3"
 )
 
 func TestECSParseTasks(t *testing.T) {
 	ecsExpireFreq := 5 * time.Minute
-	expiretest, _ := taggerutil.NewExpire(ecsExpireFreq)
+	expiretest, err := newExpire(ecsCollectorName, ecsExpireFreq)
+	require.NoError(t, err)
 	ecsCollector := &ECSCollector{
 		expire:      expiretest,
 		clusterName: "test-cluster",
@@ -31,7 +32,7 @@ func TestECSParseTasks(t *testing.T) {
 	for nb, tc := range []struct {
 		input    []v1.Task
 		expected []*TagInfo
-		handler  func(containerID string, tags *utils.TagList)
+		handler  func(ctx context.Context, containerID string, tags *utils.TagList) error
 		err      error
 	}{
 		{
@@ -101,7 +102,7 @@ func TestECSParseTasks(t *testing.T) {
 					},
 				},
 			},
-			handler: func(containerID string, tags *utils.TagList) {
+			handler: func(_ context.Context, containerID string, tags *utils.TagList) error {
 				task := v3.Task{
 					ContainerInstanceTags: map[string]string{
 						"instance_type": "type1",
@@ -113,6 +114,7 @@ func TestECSParseTasks(t *testing.T) {
 				}
 				addResourceTags(tags, task.ContainerInstanceTags)
 				addResourceTags(tags, task.TaskTags)
+				return nil
 			},
 			expected: []*TagInfo{
 				{
@@ -132,8 +134,9 @@ func TestECSParseTasks(t *testing.T) {
 			},
 		},
 	} {
+		ctx := context.Background()
 		t.Logf("test case %d", nb)
-		infos, err := ecsCollector.parseTasks(tc.input, "", tc.handler)
+		infos, err := ecsCollector.parseTasks(ctx, tc.input, tc.handler)
 		if len(infos) > 0 {
 			require.Len(t, infos, 2)
 		}
@@ -148,50 +151,4 @@ func TestECSParseTasks(t *testing.T) {
 			assert.Equal(t, tc.err.Error(), err.Error())
 		}
 	}
-}
-
-func TestECSParseTasksTargetting(t *testing.T) {
-	ecsExpireFreq := 5 * time.Minute
-	expiretest, _ := taggerutil.NewExpire(ecsExpireFreq)
-	ecsCollector := &ECSCollector{
-		expire: expiretest,
-	}
-
-	input := []v1.Task{
-		{
-			Arn:           "arn:aws:ecs:us-east-1:<aws_account_id>:task/example5-58ff-46c9-ae05-543f8example",
-			DesiredStatus: "RUNNING",
-			KnownStatus:   "RUNNING",
-			Family:        "hello_world",
-			Version:       "8",
-			Containers: []v1.Container{
-				{
-					DockerID:   "9581a69a761a557fbfce1d0f6745e4af5b9dbfb86b6b2c5c4df156f1a5932ff1",
-					DockerName: "ecs-hello_world-8-mysql-fcae8ac8f9f1d89d8301",
-					Name:       "mysql",
-				},
-				{
-					DockerID:   "bf25c5c5b2d4dba68846c7236e75b6915e1e778d31611e3c6a06831e39814a15",
-					DockerName: "ecs-hello_world-8-wordpress-e8bfddf9b488dff36c00",
-					Name:       "wordpress",
-				},
-			},
-		},
-	}
-
-	// First run, collect all
-	infos, err := ecsCollector.parseTasks(input, "")
-	assert.NoError(t, err)
-	assert.Len(t, infos, 2)
-
-	// Second run, collect none (all already seen)
-	infos, err = ecsCollector.parseTasks(input, "")
-	assert.NoError(t, err)
-	assert.Len(t, infos, 0)
-
-	// Force a target container ID
-	infos, err = ecsCollector.parseTasks(input, "bf25c5c5b2d4dba68846c7236e75b6915e1e778d31611e3c6a06831e39814a15")
-	assert.NoError(t, err)
-	require.Len(t, infos, 1)
-	assert.Equal(t, "container_id://bf25c5c5b2d4dba68846c7236e75b6915e1e778d31611e3c6a06831e39814a15", infos[0].Entity)
 }

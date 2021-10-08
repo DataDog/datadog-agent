@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix NPM UDP destination address decoding when source address ends with `.8` during offset guessing.

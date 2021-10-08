@@ -1,19 +1,21 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
 package apiserver
 
 import (
+	"context"
 	"math"
 	"time"
 
-	apis_v1alpha1 "github.com/DataDog/watermarkpodautoscaler/pkg/apis/datadoghq/v1alpha1"
-	wpa_client "github.com/DataDog/watermarkpodautoscaler/pkg/client/clientset/versioned"
-	"github.com/DataDog/watermarkpodautoscaler/pkg/client/informers/externalversions"
+	dynamic_client "k8s.io/client-go/dynamic"
+	dynamic_informer "k8s.io/client-go/dynamic/dynamicinformer"
+
+	apis_v1alpha1 "github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 
 	"github.com/cenkalti/backoff"
 
@@ -37,8 +39,10 @@ const (
 	crdCheckMaxElapsedTime  = 0
 )
 
+var gvrWPA = apis_v1alpha1.GroupVersion.WithResource("watermarkpodautoscalers")
+
 // RunWPA starts the controller to process events about Watermark Pod Autoscalers
-func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}, wpaClient wpa_client.Interface, wpaInformerFactory externalversions.SharedInformerFactory) {
+func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}, wpaClient dynamic_client.Interface, wpaInformerFactory dynamic_informer.DynamicSharedInformerFactory) {
 	waitForWPACRD(wpaClient)
 
 	// mutate the Autoscaler controller to embed an informer against the WPAs
@@ -96,9 +100,9 @@ func isWPACRDNotFoundError(err error) bool {
 		details.Kind == "watermarkpodautoscalers"
 }
 
-func checkWPACRD(wpaClient wpa_client.Interface) backoff.Operation {
+func checkWPACRD(wpaClient dynamic_client.Interface) backoff.Operation {
 	check := func() error {
-		_, err := wpaClient.DatadoghqV1alpha1().WatermarkPodAutoscalers(v1.NamespaceAll).List(v1.ListOptions{})
+		_, err := wpaClient.Resource(gvrWPA).List(context.TODO(), v1.ListOptions{})
 		return err
 	}
 	return func() error {
@@ -106,7 +110,7 @@ func checkWPACRD(wpaClient wpa_client.Interface) backoff.Operation {
 	}
 }
 
-func waitForWPACRD(wpaClient wpa_client.Interface) {
+func waitForWPACRD(wpaClient dynamic_client.Interface) {
 	exp := &backoff.ExponentialBackOff{
 		InitialInterval:     crdCheckInitialInterval,
 		RandomizationFactor: 0,
@@ -120,13 +124,15 @@ func waitForWPACRD(wpaClient wpa_client.Interface) {
 }
 
 // enableWPA adds the handlers to the AutoscalersController to support WPAs
-func (h *AutoscalersController) enableWPA(wpaInformerFactory externalversions.SharedInformerFactory) {
+func (h *AutoscalersController) enableWPA(wpaInformerFactory dynamic_informer.DynamicSharedInformerFactory) {
 	log.Info("Enabling WPA controller")
-	wpaInformer := wpaInformerFactory.Datadoghq().V1alpha1().WatermarkPodAutoscalers()
+
+	genericInformer := wpaInformerFactory.ForResource(gvrWPA)
+
 	h.WPAqueue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "wpa-autoscalers")
-	h.wpaLister = wpaInformer.Lister()
-	h.wpaListerSynced = wpaInformer.Informer().HasSynced
-	wpaInformer.Informer().AddEventHandler(
+	h.wpaLister = genericInformer.Lister()
+	h.wpaListerSynced = genericInformer.Informer().HasSynced
+	genericInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    h.addWPAutoscaler,
 			UpdateFunc: h.updateWPAutoscaler,
@@ -178,12 +184,22 @@ func (h *AutoscalersController) syncWPA(key interface{}) error {
 		return err
 	}
 
-	wpaCached, err := h.wpaLister.WatermarkPodAutoscalers(ns).Get(name)
+	wpaCachedObj, err := h.wpaLister.ByNamespace(ns).Get(name)
+	if err != nil {
+		log.Errorf("Could not retrieve key %s from cache: %v", key, err)
+		return err
+	}
+	wpaCached := &apis_v1alpha1.WatermarkPodAutoscaler{}
+	err = UnstructuredIntoWPA(wpaCachedObj, wpaCached)
+	if err != nil {
+		log.Errorf("Could not cast wpa %s retrieved from cache to wpa structure: %v", key, err)
+		return err
+	}
 	switch {
 	case errors.IsNotFound(err):
 		log.Infof("WatermarkPodAutoscaler %v has been deleted but was not caught in the EventHandler. GC will cleanup.", key)
 	case err != nil:
-		log.Errorf("Unable to retrieve Watermark Pod Autoscaler %v from store: %v", key, err)
+		log.Errorf("Unable to retrieve WatermarkPodAutoscaler %v from store: %v", key, err)
 	default:
 		if wpaCached == nil {
 			log.Errorf("Could not parse empty wpa %s/%s from local store", ns, name)
@@ -208,25 +224,25 @@ func (h *AutoscalersController) syncWPA(key interface{}) error {
 }
 
 func (h *AutoscalersController) addWPAutoscaler(obj interface{}) {
-	newAutoscaler, ok := obj.(*apis_v1alpha1.WatermarkPodAutoscaler)
-	if !ok {
-		log.Errorf("Expected an WatermarkPodAutoscaler type, got: %v", obj)
+	newAutoscaler := &apis_v1alpha1.WatermarkPodAutoscaler{}
+	if err := UnstructuredIntoWPA(obj, newAutoscaler); err != nil {
+		log.Errorf("Unable to cast obj %s to a WPA: %v", obj, err)
 		return
 	}
 	log.Debugf("Adding WPA %s/%s", newAutoscaler.Namespace, newAutoscaler.Name)
-	h.EventRecorder.Event(newAutoscaler, corev1.EventTypeNormal, autoscalerNowHandleMsgEvent, "")
+	h.EventRecorder.Event(newAutoscaler.DeepCopyObject(), corev1.EventTypeNormal, autoscalerNowHandleMsgEvent, "")
 	h.enqueueWPA(newAutoscaler)
 }
 
 func (h *AutoscalersController) updateWPAutoscaler(old, obj interface{}) {
-	newAutoscaler, ok := obj.(*apis_v1alpha1.WatermarkPodAutoscaler)
-	if !ok {
-		log.Errorf("Expected an WatermarkPodAutoscaler type, got: %v", obj)
+	newAutoscaler := &apis_v1alpha1.WatermarkPodAutoscaler{}
+	if err := UnstructuredIntoWPA(obj, newAutoscaler); err != nil {
+		log.Errorf("Unable to cast obj %s to a WPA: %v", obj, err)
 		return
 	}
-	oldAutoscaler, ok := old.(*apis_v1alpha1.WatermarkPodAutoscaler)
-	if !ok {
-		log.Errorf("Expected an WatermarkPodAutoscaler type, got: %v", old)
+	oldAutoscaler := &apis_v1alpha1.WatermarkPodAutoscaler{}
+	if err := UnstructuredIntoWPA(obj, oldAutoscaler); err != nil {
+		log.Errorf("Unable to cast obj %s to a WPA: %v", obj, err)
 		h.enqueueWPA(newAutoscaler) // We still want to enqueue the newAutoscaler to get the new change
 		return
 	}
@@ -250,8 +266,8 @@ func (h *AutoscalersController) deleteWPAutoscaler(obj interface{}) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	toDelete := &custommetrics.MetricsBundle{}
-	deletedWPA, ok := obj.(*apis_v1alpha1.WatermarkPodAutoscaler)
-	if ok {
+	deletedWPA := &apis_v1alpha1.WatermarkPodAutoscaler{}
+	if err := UnstructuredIntoWPA(obj, deletedWPA); err == nil {
 		toDelete.External = autoscalers.InspectWPA(deletedWPA)
 		h.deleteFromLocalStore(toDelete.External)
 		log.Debugf("Deleting %s/%s from the local cache", deletedWPA.Namespace, deletedWPA.Name)
@@ -261,8 +277,8 @@ func (h *AutoscalersController) deleteWPAutoscaler(obj interface{}) {
 		log.Infof("Deleting entries of metrics from Ref %s/%s in the Global Store", deletedWPA.Namespace, deletedWPA.Name)
 		if err := h.store.DeleteExternalMetricValues(toDelete); err != nil {
 			h.enqueueWPA(deletedWPA)
-			return
 		}
+		return
 	}
 
 	tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
@@ -270,13 +286,10 @@ func (h *AutoscalersController) deleteWPAutoscaler(obj interface{}) {
 		log.Errorf("Could not get object from tombstone %#v", obj)
 		return
 	}
-
-	deletedWPA, ok = tombstone.Obj.(*apis_v1alpha1.WatermarkPodAutoscaler)
-	if !ok {
+	if err := UnstructuredIntoWPA(tombstone, deletedWPA); err != nil {
 		log.Errorf("Tombstone contained object that is not an Autoscaler: %#v", obj)
 		return
 	}
-
 	log.Debugf("Deleting Metrics from WPA %s/%s", deletedWPA.Namespace, deletedWPA.Name)
 	toDelete.External = autoscalers.InspectWPA(deletedWPA)
 	log.Debugf("Deleting %s/%s from the local cache", deletedWPA.Namespace, deletedWPA.Name)

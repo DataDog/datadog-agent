@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // Package agent implements the Compliance Agent entrypoint
 package agent
@@ -49,7 +49,7 @@ func New(reporter event.Reporter, scheduler Scheduler, configDir string, options
 		return nil, err
 	}
 
-	telemetry, err := newTelemtry()
+	telemetry, err := newTelemetry()
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func (a *Agent) Run() error {
 		}),
 	)
 
-	onCheck := func(rule *compliance.Rule, check compliance.Check, err error) bool {
+	onCheck := func(rule *compliance.RuleCommon, check compliance.Check, err error) bool {
 		if err != nil {
 			log.Errorf("%s: check not scheduled: %v", rule.ID, err)
 			return true
@@ -134,7 +134,7 @@ func (a *Agent) Run() error {
 	return a.buildChecks(onCheck)
 }
 
-func runCheck(rule *compliance.Rule, check compliance.Check, err error) bool {
+func runCheck(rule *compliance.RuleCommon, check compliance.Check, err error) bool {
 	if err != nil {
 		log.Infof("%s: Not running check: %v", rule.ID, err)
 		return true

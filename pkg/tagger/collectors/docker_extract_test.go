@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build docker
 
 package collectors
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -524,7 +525,7 @@ func TestDockerExtractImage(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.testName), func(t *testing.T) {
-			resolve := func(co types.ContainerJSON) (string, error) { return tc.resolveMap[co.Image], nil }
+			resolve := func(_ context.Context, co types.ContainerJSON) (string, error) { return tc.resolveMap[co.Image], nil }
 			tags := utils.NewTagList()
 			dockerExtractImage(tags, tc.co, resolve)
 			low, _, _, _ := tags.Compute()

@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build docker
 
 package collectors
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -20,7 +21,7 @@ import (
 
 // Allows to pass the dockerutil resolving method to
 // dockerExtractImage while using a mock for tests
-type resolveHook func(co types.ContainerJSON) (string, error)
+type resolveHook func(ctx context.Context, co types.ContainerJSON) (string, error)
 
 // extractFromInspect extract tags for a container inspect JSON
 func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, []string, []string, []string) {
@@ -53,7 +54,7 @@ func dockerExtractImage(tags *utils.TagList, co types.ContainerJSON, resolve res
 	}
 
 	// Resolve sha to image based on repotags/repodigests
-	dockerImage, err := resolve(co)
+	dockerImage, err := resolve(context.TODO(), co)
 	if err != nil {
 		log.Debugf("Error resolving image %s: %s", co.Image, err)
 		return

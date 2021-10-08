@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build jmx
 
@@ -78,7 +78,7 @@ type JMXFetch struct {
 	stopped            chan struct{}
 }
 
-// JMXFetch supports different way of reporting the data it has fetched.
+// JMXReporter supports different way of reporting the data it has fetched.
 type JMXReporter string
 
 var (
@@ -107,10 +107,7 @@ type checkInitCfg struct {
 }
 
 func (j *JMXFetch) Monitor() {
-	idx := 0
-	maxRestarts := config.Datadog.GetInt("jmx_max_restarts")
-	ival := float64(config.Datadog.GetInt("jmx_restart_interval"))
-	stopTimes := make([]time.Time, maxRestarts)
+	limiter := newRestartLimiter(config.Datadog.GetInt("jmx_max_restarts"), float64(config.Datadog.GetInt("jmx_restart_interval")))
 	ticker := time.NewTicker(500 * time.Millisecond)
 
 	defer ticker.Stop()
@@ -125,23 +122,13 @@ func (j *JMXFetch) Monitor() {
 			break
 		}
 
-		stopTimes[idx] = time.Now()
-		oldestIdx := (idx + maxRestarts + 1) % maxRestarts
-
-		// Please note that the zero value for `time.Time` is `0001-01-01 00:00:00 +0000 UTC`
-		// therefore for the first iteration (the initial launch attempt), the interval will
-		// always be biger than ival (jmx_restart_interval). In fact, this sub operation with
-		// stopTimes here will only start yielding values potentially <= ival _after_ the first
-		// maxRestarts attempts, which is fine and consistent.
-		if stopTimes[idx].Sub(stopTimes[oldestIdx]).Seconds() <= ival {
-			msg := fmt.Sprintf("Too many JMXFetch restarts (%v) in time interval (%vs) - giving up", maxRestarts, ival)
+		if !limiter.canRestart(time.Now()) {
+			msg := fmt.Sprintf("Too many JMXFetch restarts (%v) in time interval (%vs) - giving up", limiter.maxRestarts, limiter.interval)
 			log.Errorf(msg)
 			s := status.JMXStartupError{LastError: msg, Timestamp: time.Now().Unix()}
 			status.SetJMXStartupError(s)
 			return
 		}
-
-		idx = (idx + 1) % maxRestarts
 
 		select {
 		case <-j.shutdown:
@@ -205,7 +192,7 @@ func (j *JMXFetch) Start(manage bool) error {
 		if common.DSD != nil && common.DSD.UdsListenerRunning {
 			reporter = fmt.Sprintf("statsd:unix://%s", config.Datadog.GetString("dogstatsd_socket"))
 		} else {
-			bindHost := config.Datadog.GetString("bind_host")
+			bindHost := config.GetBindHost()
 			if bindHost == "" || bindHost == "0.0.0.0" {
 				bindHost = "localhost"
 			}
@@ -412,7 +399,7 @@ func (j *JMXFetch) ConfigureFromInitConfig(initConfig integration.Data) error {
 	return nil
 }
 
-// ConfigureFromInitConfig configures various options from the instance
+// ConfigureFromInstance configures various options from the instance
 // section of the configuration
 func (j *JMXFetch) ConfigureFromInstance(instance integration.Data) error {
 

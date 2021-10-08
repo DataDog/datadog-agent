@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package app
 
@@ -22,10 +22,14 @@ import (
 )
 
 var (
-	customerEmail string
-	autoconfirm   bool
-	forceLocal    bool
-	profiling     int
+	customerEmail        string
+	autoconfirm          bool
+	forceLocal           bool
+	profiling            int
+	profileMutex         bool
+	profileMutexFraction int
+	profileBlocking      bool
+	profileBlockingRate  int
 )
 
 func init() {
@@ -35,6 +39,10 @@ func init() {
 	flareCmd.Flags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
 	flareCmd.Flags().BoolVarP(&forceLocal, "local", "l", false, "Force the creation of the flare by the command line instead of the agent process (useful when running in a containerized env)")
 	flareCmd.Flags().IntVarP(&profiling, "profile", "p", -1, "Add performance profiling data to the flare. It will collect a heap profile and a CPU profile for the amount of seconds passed to the flag, with a minimum of 30s")
+	flareCmd.Flags().BoolVarP(&profileMutex, "profile-mutex", "M", false, "Add mutex profile to the performance data in the flare")
+	flareCmd.Flags().IntVarP(&profileMutexFraction, "profile-mutex-fraction", "", 100, "Set the fraction of mutex contention events that are reported in the mutex profile")
+	flareCmd.Flags().BoolVarP(&profileBlocking, "profile-blocking", "B", false, "Add gorouting blocking profile to the performance data in the flare")
+	flareCmd.Flags().IntVarP(&profileBlockingRate, "profile-blocking-rate", "", 10000, "Set the fraction of goroutine blocking events that are reported in the blocking profile")
 	flareCmd.SetArgs([]string{"caseID"})
 }
 
@@ -79,6 +87,12 @@ var flareCmd = &cobra.Command{
 }
 
 func readProfileData(pdata *flare.ProfileData) error {
+	prevSettings, err := setRuntimeProfilingSettings()
+	if err != nil {
+		return err
+	}
+	defer resetRuntimeProfilingSettings(prevSettings)
+
 	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from core.", profiling))
 	coreDebugURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof", config.Datadog.GetString("expvar_port"))
 	if err := flare.CreatePerformanceProfile("core", coreDebugURL, profiling, pdata); err != nil {
@@ -129,7 +143,7 @@ func makeFlare(caseID string) error {
 
 	var filePath string
 	if forceLocal {
-		filePath, err = createArchive(logFiles, profile)
+		filePath, err = createArchive(logFiles, profile, nil)
 	} else {
 		filePath, err = requestArchive(logFiles, profile)
 	}
@@ -168,7 +182,7 @@ func requestArchive(logFiles []string, pdata flare.ProfileData) (string, error) 
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting IPC address for the agent: %s", err)))
-		return createArchive(logFiles, pdata)
+		return createArchive(logFiles, pdata, err)
 	}
 
 	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, config.Datadog.GetInt("cmd_port"))
@@ -177,7 +191,7 @@ func requestArchive(logFiles []string, pdata flare.ProfileData) (string, error) 
 	e = util.SetAuthToken()
 	if e != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error: %s", e)))
-		return createArchive(logFiles, pdata)
+		return createArchive(logFiles, pdata, e)
 	}
 
 	p, err := json.Marshal(pdata)
@@ -190,20 +204,84 @@ func requestArchive(logFiles []string, pdata flare.ProfileData) (string, error) 
 	if e != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintln(color.Output, fmt.Sprintf("The agent ran into an error while making the flare: %s", color.RedString(string(r))))
+			e = fmt.Errorf("Error getting flare from running agent: %s", r)
 		} else {
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make the flare. (is it running?)"))
+			e = fmt.Errorf("Error getting flare from running agent: %w", e)
 		}
-		return createArchive(logFiles, pdata)
+		return createArchive(logFiles, pdata, e)
 	}
 	return string(r), nil
 }
 
-func createArchive(logFiles []string, pdata flare.ProfileData) (string, error) {
+func createArchive(logFiles []string, pdata flare.ProfileData, ipcError error) (string, error) {
 	fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
-	filePath, e := flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFiles, pdata)
+	filePath, e := flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFiles, pdata, ipcError)
 	if e != nil {
 		fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 		return "", e
 	}
 	return filePath, nil
+}
+
+func setRuntimeProfilingSettings() (map[string]interface{}, error) {
+	prev := make(map[string]interface{})
+	if profileMutex && profileMutexFraction > 0 {
+		old, err := setRuntimeSetting("runtime_mutex_profile_fraction", profileMutexFraction)
+		if err != nil {
+			return nil, err
+		}
+		prev["runtime_mutex_profile_fraction"] = old
+	}
+	if profileBlocking && profileBlockingRate > 0 {
+		old, err := setRuntimeSetting("runtime_block_profile_rate", profileBlockingRate)
+		if err != nil {
+			return nil, err
+		}
+		prev["runtime_block_profile_rate"] = old
+	}
+	return prev, nil
+}
+
+func setRuntimeSetting(name string, new int) (interface{}, error) {
+	c, err := common.NewSettingsClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize settings client: %v", err)
+	}
+
+	fmt.Fprintln(color.Output, color.BlueString("Setting %s to %v", name, new))
+
+	if err := util.SetAuthToken(); err != nil {
+		return nil, fmt.Errorf("unable to set up authentication token: %v", err)
+	}
+
+	oldVal, err := c.Get(name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current value of %s: %v", name, err)
+	}
+
+	if _, err := c.Set(name, fmt.Sprint(new)); err != nil {
+		return nil, fmt.Errorf("failed to set %s to %v: %v", name, new, err)
+	}
+
+	return oldVal, nil
+}
+
+func resetRuntimeProfilingSettings(prev map[string]interface{}) {
+	if len(prev) == 0 {
+		return
+	}
+
+	c, err := common.NewSettingsClient()
+	if err != nil {
+		fmt.Fprintln(color.Output, color.RedString("Failed to restore runtime settings: %v", err))
+		return
+	}
+
+	for name, value := range prev {
+		fmt.Fprintln(color.Output, color.BlueString("Restoring %s to %v", name, value))
+		if _, err := c.Set(name, fmt.Sprint(value)); err != nil {
+			fmt.Fprintln(color.Output, color.RedString("Failed to restore previous value of %s: %v", name, err))
+		}
+	}
 }

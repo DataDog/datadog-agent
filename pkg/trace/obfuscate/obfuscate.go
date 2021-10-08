@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // Package obfuscate implements quantizing and obfuscating of tags and resources for
 // a set of spans matching a certain criteria.
@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+//go:generate easyjson -no_std_marshalers $GOFILE
 
 // Obfuscator quantizes and obfuscates spans. The obfuscator is not safe for
 // concurrent use.
@@ -31,6 +33,13 @@ type Obfuscator struct {
 	sqlLiteralEscapes int32
 	// queryCache keeps a cache of already obfuscated queries.
 	queryCache *measuredCache
+}
+
+// SQLOptions holds options that change the behavior of the obfuscator for SQL.
+// easyjson:json
+type SQLOptions struct {
+	// ReplaceDigits causes the obfuscator to replace digits in identifiers and table names with question marks.
+	ReplaceDigits bool `json:"replace_digits"`
 }
 
 // SetSQLLiteralEscapes sets whether or not escape characters should be treated literally by the SQL obfuscator.
@@ -143,4 +152,25 @@ func compactWhitespaces(t string) string {
 	copy(r[nr:], t[nr+offset:n])
 	r = r[:n-offset]
 	return string(bytes.Trim(r, " "))
+}
+
+// replaceDigits replaces consecutive sequences of digits with '?',
+// example: "jobs_2020_1597876964" --> "jobs_?_?"
+func replaceDigits(buffer []byte) []byte {
+	scanningDigit := false
+	filtered := buffer[:0]
+	for _, b := range buffer {
+		// digits are encoded as 1 byte in utf8
+		if isDigit(rune(b)) {
+			if scanningDigit {
+				continue
+			}
+			scanningDigit = true
+			filtered = append(filtered, byte('?'))
+			continue
+		}
+		scanningDigit = false
+		filtered = append(filtered, b)
+	}
+	return filtered
 }

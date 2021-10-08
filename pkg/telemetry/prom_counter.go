@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package telemetry
 
@@ -12,6 +12,16 @@ import (
 // Counter implementation using Prometheus.
 type promCounter struct {
 	pc *prometheus.CounterVec
+}
+
+// Initialize creates the counter with the given tags and initializes it to 0.
+// This method is intended to be used when the counter value is important to
+// send even before any incrementing/addition is done on it.
+func (c *promCounter) Initialize(tagsValue ...string) {
+	// By requesting a counter for a set of tags, we are creating and initializing
+	// the counter at 0. See the following for more info:
+	// https://github.com/prometheus/client_golang/blob/v1.9.0/prometheus/counter.go#L194-L196
+	c.pc.WithLabelValues(tagsValue...)
 }
 
 // Add adds the given value to the counter with the given tags value.
@@ -48,4 +58,14 @@ func (c *promCounter) Delete(tagsValue ...string) {
 // instead of Delete(...string) to avoid escaping the parameters on the heap.
 func (c *promCounter) DeleteWithTags(tags map[string]string) {
 	c.pc.Delete(tags)
+}
+
+// WithValues returns SimpleCounter for this metric with the given tag values.
+func (c *promCounter) WithValues(tagsValue ...string) SimpleCounter {
+	return c.pc.WithLabelValues(tagsValue...)
+}
+
+// Withtags returns SimpleCounter for this metric with the given tag values.
+func (c *promCounter) WithTags(tags map[string]string) SimpleCounter {
+	return c.pc.With(tags)
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package agent
 
@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -54,6 +55,17 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 	}
 	s.Service = svc
 
+	if features.Has("component2name") {
+		// This feature flag determines the component tag to become the span name.
+		//
+		// It works around the incompatibility between Opentracing and Datadog where the
+		// Opentracing operation name is many times invalid as a Datadog operation name (e.g. "/")
+		// and in Datadog terms it's the resource. Here, we aim to make the component the
+		// operation name to provide a better product experience.
+		if v, ok := s.Meta["component"]; ok {
+			s.Name = v
+		}
+	}
 	s.Name, err = traceutil.NormalizeName(s.Name)
 	switch err {
 	case traceutil.ErrEmpty:

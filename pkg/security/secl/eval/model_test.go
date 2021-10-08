@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package eval
 
@@ -15,18 +15,24 @@ import (
 	"github.com/pkg/errors"
 )
 
+var legacyAttributes = map[Field]Field{
+	"process.legacy_name": "process.name",
+}
+
 type testItem struct {
 	key   int
-	value int
+	value string
+	flag  bool
 }
 
 type testProcess struct {
-	name   string
-	uid    int
-	gid    int
-	isRoot bool
-	list   *list.List
-	array  []*testItem
+	name      string
+	uid       int
+	gid       int
+	isRoot    bool
+	list      *list.List
+	array     []*testItem
+	createdAt int64
 }
 
 type testItemListIterator struct {
@@ -106,6 +112,10 @@ type testModel struct {
 
 func (e *testEvent) GetType() string {
 	return e.kind
+}
+
+func (e *testEvent) GetTags() []string {
+	return []string{}
 }
 
 func (e *testEvent) GetPointer() unsafe.Pointer {
@@ -189,17 +199,20 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 
 	case "process.list.key":
 
-		return &IntEvaluator{
-			EvalFnc: func(ctx *Context) int {
+		return &IntArrayEvaluator{
+			EvalFnc: func(ctx *Context) []int {
 				// to test optimisation
 				(*testEvent)(ctx.Object).listEvaluated = true
 
-				reg := ctx.Registers[regID]
-				if element := (*list.Element)(reg.Value); element != nil {
-					return element.Value.(*testItem).key
+				var result []int
+
+				el := (*testEvent)(ctx.Object).process.list.Front()
+				for el != nil {
+					result = append(result, el.Value.(*testItem).key)
+					el = el.Next()
 				}
 
-				return 0
+				return result
 			},
 			Field:  field,
 			Weight: IteratorWeight,
@@ -207,17 +220,41 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 
 	case "process.list.value":
 
-		return &IntEvaluator{
-			EvalFnc: func(ctx *Context) int {
+		return &StringArrayEvaluator{
+			EvalFnc: func(ctx *Context) []string {
 				// to test optimisation
 				(*testEvent)(ctx.Object).listEvaluated = true
 
-				reg := ctx.Registers[regID]
-				if element := (*list.Element)(reg.Value); element != nil {
-					return element.Value.(*testItem).value
+				var result []string
+
+				el := (*testEvent)(ctx.Object).process.list.Front()
+				for el != nil {
+					result = append(result, el.Value.(*testItem).value)
+					el = el.Next()
 				}
 
-				return 0
+				return result
+			},
+			Field:  field,
+			Weight: IteratorWeight,
+		}, nil
+
+	case "process.list.flag":
+
+		return &BoolArrayEvaluator{
+			EvalFnc: func(ctx *Context) []bool {
+				// to test optimisation
+				(*testEvent)(ctx.Object).listEvaluated = true
+
+				var result []bool
+
+				el := (*testEvent)(ctx.Object).process.list.Front()
+				for el != nil {
+					result = append(result, el.Value.(*testItem).flag)
+					el = el.Next()
+				}
+
+				return result
 			},
 			Field:  field,
 			Weight: IteratorWeight,
@@ -225,14 +262,15 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 
 	case "process.array.key":
 
-		return &IntEvaluator{
-			EvalFnc: func(ctx *Context) int {
-				reg := ctx.Registers[regID]
-				if item := (*testItem)(reg.Value); item != nil {
-					return item.key
+		return &IntArrayEvaluator{
+			EvalFnc: func(ctx *Context) []int {
+				var result []int
+
+				for _, el := range (*testEvent)(ctx.Object).process.array {
+					result = append(result, el.key)
 				}
 
-				return 0
+				return result
 			},
 			Field:  field,
 			Weight: IteratorWeight,
@@ -240,17 +278,43 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 
 	case "process.array.value":
 
-		return &IntEvaluator{
-			EvalFnc: func(ctx *Context) int {
-				reg := ctx.Registers[regID]
-				if item := (*testItem)(reg.Value); item != nil {
-					return item.value
+		return &StringArrayEvaluator{
+			EvalFnc: func(ctx *Context) []string {
+				var result []string
+
+				for _, el := range (*testEvent)(ctx.Object).process.array {
+					result = append(result, el.value)
 				}
 
-				return 0
+				return result
 			},
 			Field:  field,
 			Weight: IteratorWeight,
+		}, nil
+
+	case "process.array.flag":
+
+		return &BoolArrayEvaluator{
+			EvalFnc: func(ctx *Context) []bool {
+				var result []bool
+
+				for _, el := range (*testEvent)(ctx.Object).process.array {
+					result = append(result, el.flag)
+				}
+
+				return result
+			},
+			Field:  field,
+			Weight: IteratorWeight,
+		}, nil
+
+	case "process.created_at":
+
+		return &IntEvaluator{
+			EvalFnc: func(ctx *Context) int {
+				return int((*testEvent)(ctx.Object).process.createdAt)
+			},
+			Field: field,
 		}, nil
 
 	case "open.filename":
@@ -311,6 +375,10 @@ func (e *testEvent) GetFieldValue(field Field) (interface{}, error) {
 
 		return e.process.isRoot, nil
 
+	case "process.created_at":
+
+		return e.process.createdAt, nil
+
 	case "open.filename":
 
 		return e.open.filename, nil
@@ -363,11 +431,23 @@ func (e *testEvent) GetFieldEventType(field Field) (string, error) {
 
 		return "*", nil
 
+	case "process.list.flag":
+
+		return "*", nil
+
 	case "process.array.key":
 
 		return "*", nil
 
 	case "process.array.value":
+
+		return "*", nil
+
+	case "process.array.flag":
+
+		return "*", nil
+
+	case "process.created_at":
 
 		return "*", nil
 
@@ -417,6 +497,11 @@ func (e *testEvent) SetFieldValue(field Field, value interface{}) error {
 	case "process.is_root":
 
 		e.process.isRoot = value.(bool)
+		return nil
+
+	case "process.created_at":
+
+		e.process.createdAt = value.(int64)
 		return nil
 
 	case "open.filename":
@@ -474,11 +559,17 @@ func (e *testEvent) GetFieldType(field Field) (reflect.Kind, error) {
 	case "process.list.value":
 		return reflect.Int, nil
 
+	case "process.list.flag":
+		return reflect.Bool, nil
+
 	case "process.array.key":
 		return reflect.Int, nil
 
 	case "process.array.value":
 		return reflect.Int, nil
+
+	case "process.array.flag":
+		return reflect.Bool, nil
 
 	case "open.filename":
 

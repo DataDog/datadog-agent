@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // This file includes software developed at CoreOS, Inc (http://www.coreos.com/).
 
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 // Copyright 2015 CoreOS, Inc.
 //
 // Use of this source code is governed by Apache License 2.0

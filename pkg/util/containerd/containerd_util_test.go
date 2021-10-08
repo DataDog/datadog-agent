@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build containerd
 
@@ -47,7 +47,7 @@ func (cs *mockContainer) Labels(context.Context) (map[string]string, error) {
 }
 
 // Info is from the containerd.Container interface
-func (cs *mockContainer) Info(context.Context) (containers.Container, error) {
+func (cs *mockContainer) Info(context.Context, ...containerd.InfoOpts) (containers.Container, error) {
 	return cs.mockInfo()
 }
 

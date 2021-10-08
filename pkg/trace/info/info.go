@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package info
 
@@ -34,17 +34,14 @@ var (
 	traceWriterInfo TraceWriterInfo
 	statsWriterInfo StatsWriterInfo
 
-	watchdogInfo        watchdog.Info
-	samplerInfo         SamplerInfo
-	prioritySamplerInfo SamplerInfo
-	errorsSamplerInfo   SamplerInfo
-	rateByService       map[string]float64
-	rateLimiterStats    RateLimiterStats
-	start               = time.Now()
-	once                sync.Once
-	infoTmpl            *template.Template
-	notRunningTmpl      *template.Template
-	errorTmpl           *template.Template
+	watchdogInfo     watchdog.Info
+	rateByService    map[string]float64
+	rateLimiterStats RateLimiterStats
+	start            = time.Now()
+	once             sync.Once
+	infoTmpl         *template.Template
+	notRunningTmpl   *template.Template
+	errorTmpl        *template.Template
 )
 
 const (
@@ -139,48 +136,6 @@ func publishReceiverStats() interface{} {
 	return receiverStats
 }
 
-// UpdateSamplerInfo updates internal stats about signature sampling.
-func UpdateSamplerInfo(ss SamplerInfo) {
-	infoMu.Lock()
-	defer infoMu.Unlock()
-
-	samplerInfo = ss
-}
-
-func publishSamplerInfo() interface{} {
-	infoMu.RLock()
-	defer infoMu.RUnlock()
-	return samplerInfo
-}
-
-// UpdatePrioritySamplerInfo updates internal stats about priority sampling.
-func UpdatePrioritySamplerInfo(ss SamplerInfo) {
-	infoMu.Lock()
-	defer infoMu.Unlock()
-
-	prioritySamplerInfo = ss
-}
-
-func publishPrioritySamplerInfo() interface{} {
-	infoMu.RLock()
-	defer infoMu.RUnlock()
-	return prioritySamplerInfo
-}
-
-// UpdateErrorsSamplerInfo updates internal stats about error sampling.
-func UpdateErrorsSamplerInfo(ss SamplerInfo) {
-	infoMu.Lock()
-	defer infoMu.Unlock()
-
-	errorsSamplerInfo = ss
-}
-
-func publishErrorsSamplerInfo() interface{} {
-	infoMu.RLock()
-	defer infoMu.RUnlock()
-	return errorsSamplerInfo
-}
-
 // UpdateRateByService updates the RateByService map.
 func UpdateRateByService(rbs map[string]float64) {
 	infoMu.Lock()
@@ -259,11 +214,8 @@ func InitInfo(conf *config.AgentConfig) error {
 		expvar.Publish("uptime", expvar.Func(publishUptime))
 		expvar.Publish("version", expvar.Func(publishVersion))
 		expvar.Publish("receiver", expvar.Func(publishReceiverStats))
-		expvar.Publish("sampler", expvar.Func(publishSamplerInfo))
 		expvar.Publish("trace_writer", expvar.Func(publishTraceWriterInfo))
 		expvar.Publish("stats_writer", expvar.Func(publishStatsWriterInfo))
-		expvar.Publish("prioritysampler", expvar.Func(publishPrioritySamplerInfo))
-		expvar.Publish("errorssampler", expvar.Func(publishErrorsSamplerInfo))
 		expvar.Publish("ratebyservice", expvar.Func(publishRateByService))
 		expvar.Publish("watchdog", expvar.Func(publishWatchdogInfo))
 		expvar.Publish("ratelimiter", expvar.Func(publishRateLimiterStats))

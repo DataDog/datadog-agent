@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
@@ -37,6 +37,8 @@ type MetadataController struct {
 	nodeLister       corelisters.NodeLister
 	nodeListerSynced cache.InformerSynced
 
+	namespaceListerSynced cache.InformerSynced
+
 	endpointsLister       corelisters.EndpointsLister
 	endpointsListerSynced cache.InformerSynced
 
@@ -46,7 +48,7 @@ type MetadataController struct {
 	queue workqueue.RateLimitingInterface
 }
 
-func NewMetadataController(nodeInformer coreinformers.NodeInformer, endpointsInformer coreinformers.EndpointsInformer) *MetadataController {
+func NewMetadataController(nodeInformer coreinformers.NodeInformer, namespaceInformer coreinformers.NamespaceInformer, endpointsInformer coreinformers.EndpointsInformer) *MetadataController {
 	m := &MetadataController{
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "endpoints"),
 	}
@@ -56,6 +58,8 @@ func NewMetadataController(nodeInformer coreinformers.NodeInformer, endpointsInf
 	})
 	m.nodeLister = nodeInformer.Lister()
 	m.nodeListerSynced = nodeInformer.Informer().HasSynced
+
+	m.namespaceListerSynced = namespaceInformer.Informer().HasSynced
 
 	endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    m.addEndpoints,
@@ -76,7 +80,7 @@ func (m *MetadataController) Run(stopCh <-chan struct{}) {
 	log.Infof("Starting metadata controller")
 	defer log.Infof("Stopping metadata controller")
 
-	if !cache.WaitForCacheSync(stopCh, m.nodeListerSynced, m.endpointsListerSynced) {
+	if !cache.WaitForCacheSync(stopCh, m.nodeListerSynced, m.namespaceListerSynced, m.endpointsListerSynced) {
 		return
 	}
 
@@ -310,11 +314,7 @@ func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 }
 
 // GetNodeLabels retrieves the labels of the queried node from the cache of the shared informer.
-func GetNodeLabels(nodeName string) (map[string]string, error) {
-	as, err := GetAPIClient()
-	if err != nil {
-		return nil, err
-	}
+func GetNodeLabels(as *APIClient, nodeName string) (map[string]string, error) {
 	if !config.Datadog.GetBool("kubernetes_collect_metadata_tags") {
 		return nil, log.Errorf("Metadata collection is disabled on the Cluster Agent")
 	}
@@ -326,4 +326,25 @@ func GetNodeLabels(nodeName string) (map[string]string, error) {
 		return nil, fmt.Errorf("cannot get node %s from the informer's cache", nodeName)
 	}
 	return node.Labels, nil
+}
+
+// GetNamespaceLabels retrieves the labels of the queried namespace from the cache of the shared informer.
+func GetNamespaceLabels(nsName string) (map[string]string, error) {
+	if !config.Datadog.GetBool("kubernetes_collect_metadata_tags") {
+		return nil, log.Errorf("Metadata collection is disabled on the Cluster Agent")
+	}
+
+	as, err := GetAPIClient()
+	if err != nil {
+		return nil, err
+	}
+
+	ns, err := as.InformerFactory.Core().V1().Namespaces().Lister().Get(nsName)
+	if err != nil {
+		return nil, err
+	}
+	if ns == nil {
+		return nil, fmt.Errorf("cannot get namespace %s from the informer's cache", nsName)
+	}
+	return ns.Labels, nil
 }

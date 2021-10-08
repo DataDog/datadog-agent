@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 // +build docker
 
 package docker
@@ -13,7 +13,7 @@ import (
 
 // InitializeDecoder returns a properly initialized Decoder
 func InitializeDecoder(source *config.LogSource, containerID string) *decoder.Decoder {
-	return decoder.NewDecoderWithEndLineMatcher(source, NewParser(containerID), &headerMatcher{})
+	return decoder.NewDecoderWithEndLineMatcher(source, NewParser(containerID), &headerMatcher{}, nil)
 }
 
 const (

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package stats
 
@@ -43,22 +43,22 @@ func TestSpanWeight(t *testing.T) {
 	assert := assert.New(t)
 
 	span := fixedSpan()
-	assert.Equal(1.0, Weight(span))
+	assert.Equal(1., Weight(span))
 
 	span.Metrics[keySamplingRateGlobal] = -1.0
-	assert.Equal(1.0, Weight(span))
+	assert.Equal(1., Weight(span))
 
 	span.Metrics[keySamplingRateGlobal] = 0.0
-	assert.Equal(1.0, Weight(span))
+	assert.Equal(1., Weight(span))
 
 	span.Metrics[keySamplingRateGlobal] = 0.25
-	assert.Equal(4.0, Weight(span))
+	assert.Equal(4., Weight(span))
 
 	span.Metrics[keySamplingRateGlobal] = 1.0
-	assert.Equal(1.0, Weight(span))
+	assert.Equal(1., Weight(span))
 
 	span.Metrics[keySamplingRateGlobal] = 1.5
-	assert.Equal(1.0, Weight(span))
+	assert.Equal(1., Weight(span))
 }
 
 func TestSpanWeightNil(t *testing.T) {
@@ -66,5 +66,5 @@ func TestSpanWeightNil(t *testing.T) {
 
 	var span *pb.Span
 
-	assert.Equal(1.0, Weight(span), "Weight should be callable on nil and return a default value")
+	assert.Equal(1., Weight(span), "Weight should be callable on nil and return a default value")
 }

@@ -1,7 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
+
+// +build test
 
 package split
 
@@ -318,7 +320,7 @@ func testSplitPayloadsSketches(t *testing.T, numPoints int, compress bool) {
 	}
 
 	originalLength := len(testSketchSeries)
-	unrolledSketches := []metrics.SketchSeries{}
+	unrolledSketches := metrics.SketchSeriesList{}
 	for _, sketches := range splitSketches {
 		for _, s := range sketches {
 			unrolledSketches = append(unrolledSketches, s)

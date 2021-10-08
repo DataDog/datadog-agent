@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package redact
 
@@ -10,7 +10,99 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+func TestScrubAnnotations(t *testing.T) {
+	lastAppliedConfiguration := `{
+  "apiVersion": "apps/v1",
+  "kind": "ReplicaSet",
+  "metadata": {
+    "annotations": {},
+    "name": "gitlab-password-all",
+    "namespace": "datadog-agent"
+  },
+  "spec": {
+    "replicas": 1,
+    "selector": {
+      "matchLabels": {
+        "tier": "frontend"
+      }
+    },
+    "template": {
+      "metadata": {
+        "labels": {
+          "tier": "frontend"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "env": [
+              {
+                "name": "GITLAB_TOKEN",
+                "value": "test"
+              },
+              {
+                "name": "TOKEN",
+                "value": "test"
+              },
+              {
+                "name": "password",
+                "value": "test"
+              },
+              {
+                "name": "secret",
+                "value": "test"
+              },
+              {
+                "name": "pwd",
+                "value": "test"
+              },
+              {
+                "name": "api_key",
+                "value": "test"
+              }
+            ],
+            "image": "gcr.io/google_samples/gb-frontend:v3",
+            "name": "php-redis"
+          }
+        ]
+      }
+    }
+  }
+}`
+	objectMeta := metav1.ObjectMeta{Annotations: map[string]string{
+		"kubectl.kubernetes.io/last-applied-configuration": lastAppliedConfiguration,
+	}}
+	RemoveLastAppliedConfigurationAnnotation(objectMeta.Annotations)
+	actual := objectMeta.Annotations["kubectl.kubernetes.io/last-applied-configuration"]
+	expected := replacedValue
+	assert.Equal(t, expected, actual)
+
+}
+
+func TestScrubAnnotationsValueDoesNotExist(t *testing.T) {
+	objectMeta := metav1.ObjectMeta{Annotations: map[string]string{
+		"something/else": "some pseudo yaml",
+	}}
+
+	RemoveLastAppliedConfigurationAnnotation(objectMeta.Annotations)
+	actual := objectMeta.Annotations["kubectl.kubernetes.io/last-applied-configuration"]
+	expected := ""
+	assert.Equal(t, expected, actual)
+}
+
+func TestScrubAnnotationsValueIsEmpty(t *testing.T) {
+	objectMeta := metav1.ObjectMeta{Annotations: map[string]string{
+		"kubectl.kubernetes.io/last-applied-configuration": "",
+	}}
+
+	RemoveLastAppliedConfigurationAnnotation(objectMeta.Annotations)
+	actual := objectMeta.Annotations["kubectl.kubernetes.io/last-applied-configuration"]
+	expected := replacedValue
+	assert.Equal(t, expected, actual)
+}
 
 func TestScrubContainer(t *testing.T) {
 	scrubber := NewDefaultDataScrubber()

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package dogstatsd
 
@@ -17,12 +17,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 )
 
 func mockAggregator() *aggregator.BufferedAggregator {
 	agg := aggregator.NewBufferedAggregator(
-		serializer.NewSerializer(nil),
+		serializer.NewSerializer(nil, nil),
+		nil,
 		"hostname",
 		time.Millisecond*10,
 	)
@@ -47,7 +48,7 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 	config.SetupLogger("", "off", "", "", false, true, false)
 
 	agg := mockAggregator()
-	s, _ := NewServer(agg)
+	s, _ := NewServer(agg, nil)
 	defer s.Stop()
 
 	done := make(chan struct{})
@@ -66,12 +67,12 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 	b.RunParallel(func(pb *testing.PB) {
 		batcher := newBatcher(agg)
 		parser := newParser(newFloat64ListPool())
-		packet := listeners.Packet{
+		packet := packets.Packet{
 			Contents: rawPacket,
-			Origin:   listeners.NoOrigin,
+			Origin:   packets.NoOrigin,
 		}
 
-		packets := listeners.Packets{&packet}
+		packets := packets.Packets{&packet}
 		samples := make([]metrics.MetricSample, 0, 512)
 		for pb.Next() {
 			packet.Contents = rawPacket
@@ -97,7 +98,7 @@ func BenchmarkParseMetricMessage(b *testing.B) {
 	config.SetupLogger("", "off", "", "", false, true, false)
 
 	agg := mockAggregator()
-	s, _ := NewServer(agg)
+	s, _ := NewServer(agg, nil)
 	defer s.Stop()
 
 	done := make(chan struct{})
@@ -114,13 +115,12 @@ func BenchmarkParseMetricMessage(b *testing.B) {
 	defer close(done)
 
 	parser := newParser(newFloat64ListPool())
-	originTagger := originTags{}
 	message := []byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2")
 
 	b.RunParallel(func(pb *testing.PB) {
 		samplesBench = make([]metrics.MetricSample, 0, 512)
 		for pb.Next() {
-			s.parseMetricMessage(samplesBench, parser, message, originTagger.getTags)
+			s.parseMetricMessage(samplesBench, parser, message, "", false)
 			samplesBench = samplesBench[0:0]
 		}
 	})
@@ -159,7 +159,7 @@ func BenchmarkMapperControl(b *testing.B) {
 	config.SetupLogger("", "off", "", "", false, true, false)
 
 	agg := mockAggregator()
-	s, _ := NewServer(agg)
+	s, _ := NewServer(agg, nil)
 	defer s.Stop()
 
 	done := make(chan struct{})
@@ -180,11 +180,11 @@ func BenchmarkMapperControl(b *testing.B) {
 
 	samples := make([]metrics.MetricSample, 0, 512)
 	for n := 0; n < b.N; n++ {
-		packet := listeners.Packet{
+		packet := packets.Packet{
 			Contents: []byte("airflow.job.duration.my_job_type.my_job_name:666|g"),
-			Origin:   listeners.NoOrigin,
+			Origin:   packets.NoOrigin,
 		}
-		packets := listeners.Packets{&packet}
+		packets := packets.Packets{&packet}
 		samples = s.parsePackets(batcher, parser, packets, samples)
 	}
 

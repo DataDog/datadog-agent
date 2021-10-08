@@ -1,7 +1,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
-# Copyright 2016-2020 Datadog, Inc.
+# Copyright 2016-present Datadog, Inc.
 require 'pathname'
 
 name 'datadog-dogstatsd'
@@ -20,6 +20,11 @@ build do
     'GOPATH' => gopath.to_path,
     'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
   }
+
+  unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
+    gomodcache = Pathname.new(ENV["OMNIBUS_GOMODCACHE"])
+    env["GOMODCACHE"] = gomodcache.to_path
+  end
 
   if windows?
     major_version_arg = "%MAJOR_VERSION%"

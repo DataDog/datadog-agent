@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package datadog.model.v1;
+
+option go_package = "pkg/proto/pbgo"; // golang
+
+
+// Hostname types
+
+message HostnameRequest {}
+
+// The response message containing the requested hostname
+message HostnameReply {
+    string hostname = 1;
+}
+
+
+// Dogstatsd capture types
+message CaptureTriggerRequest {
+    string duration = 1;
+    string path = 2;
+    bool compressed = 3;
+}
+
+message CaptureTriggerResponse {
+    string path = 1;
+}
+
+
+// Tagger types
+
+message StreamTagsRequest {
+    TagCardinality cardinality = 1;
+    Filter includeFilter = 2;
+    Filter excludeFilter = 3;
+}
+
+message StreamTagsResponse {
+    repeated StreamTagsEvent events = 1;
+}
+
+message StreamTagsEvent {
+    EventType type = 1;
+    Entity entity = 2;
+}
+
+enum EventType {
+    ADDED = 0;
+    MODIFIED = 1;
+    DELETED = 2;
+}
+
+enum TagCardinality {
+    LOW = 0;
+    ORCHESTRATOR = 1;
+    HIGH = 2;
+}
+
+message Filter {
+    string kubeNamespace = 1;
+    string image = 2;
+    string containerName = 3;
+}
+
+message Entity {
+    EntityId id = 1;
+    string hash = 2;
+    repeated string highCardinalityTags = 3;
+    repeated string orchestratorCardinalityTags = 4;
+    repeated string lowCardinalityTags = 5;
+    repeated string standardTags = 6;
+}
+
+message FetchEntityRequest {
+    EntityId id = 1;
+    TagCardinality cardinality = 2;
+}
+
+message FetchEntityResponse {
+    EntityId id = 1;
+    TagCardinality cardinality = 2;
+    repeated string tags = 3;
+}
+
+message EntityId {
+    string prefix = 1;
+    string uid = 2;
+}
+
+// UDS Capture
+// The message contains the payload and the ancillary info
+message UnixDogstatsdMsg {
+    int64 timestamp = 1;
+    int32 payloadSize = 2;
+    bytes payload = 3;
+    int32 pid = 4;
+    int32 ancillarySize = 5;
+    bytes ancillary = 6;
+}
+
+message TaggerState {
+    map<string, Entity> state = 1;
+    map<int32, string> pidMap = 2;
+}
+
+message TaggerStateResponse {
+    bool loaded = 1;
+}

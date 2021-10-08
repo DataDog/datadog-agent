@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build docker
 
@@ -87,7 +87,7 @@ func NewTestTailer(reader io.ReadCloser, dockerClient *fakeDockerClient, cancelF
 		outputChan:         make(chan *message.Message, 100),
 		decoder:            NewTestDecoder(),
 		source:             source,
-		tagProvider:        tag.NoopProvider,
+		tagProvider:        tag.NewLocalProvider([]string{}),
 		dockerutil:         dockerClient,
 		readTimeout:        time.Millisecond,
 		sleepDuration:      time.Second,
@@ -239,7 +239,7 @@ func TestTailer_readForever(t *testing.T) {
 	}
 }
 
-func NewTestReader(data string, err, closeErr error) *testIOReadCloser {
+func NewTestReader(data string, err, closeErr error) *testIOReadCloser { //nolint:revive
 	entries := []testIOReaderEntry{
 		{
 			data: data,
@@ -287,7 +287,7 @@ func (tr *testIOReadCloser) Close() error {
 	return tr.closeErr
 }
 
-func NewTestDockerClient(reader io.ReadCloser, err error) *fakeDockerClient {
+func NewTestDockerClient(reader io.ReadCloser, err error) *fakeDockerClient { //nolint:revive
 	client := &fakeDockerClient{}
 	client.AddEntry(reader, err)
 	return client

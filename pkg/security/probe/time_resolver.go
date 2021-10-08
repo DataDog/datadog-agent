@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build linux
 
@@ -33,7 +33,15 @@ func NewTimeResolver() (*TimeResolver, error) {
 // ResolveMonotonicTimestamp converts a kernel monotonic timestamp to an absolute time
 func (tr *TimeResolver) ResolveMonotonicTimestamp(timestamp uint64) time.Time {
 	if timestamp > 0 {
-		return tr.bootTime.Add(time.Duration(timestamp) * time.Nanosecond)
+		return tr.bootTime.Add(time.Duration(timestamp))
+	}
+	return time.Time{}
+}
+
+// ApplyBootTime return the time re-aligned from the boot time
+func (tr *TimeResolver) ApplyBootTime(timestamp time.Time) time.Time {
+	if !timestamp.IsZero() {
+		return timestamp.Add(time.Duration(tr.bootTime.UnixNano()))
 	}
 	return time.Time{}
 }

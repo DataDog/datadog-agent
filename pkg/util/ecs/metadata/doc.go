@@ -1,10 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2020 Datadog, Inc.
+// Copyright 2020-present Datadog, Inc.
 
 /*
-
 Package metadata provides clients for Metadata APIs exposed by the ECS agent.
 There are three versions of these APIs:
 
@@ -17,6 +16,5 @@ There are three versions of these APIs:
 	platform version 1.3.0 with the Faragate launch type.
 
 Each of these versions sits in its own subpackage.
-
 */
 package metadata

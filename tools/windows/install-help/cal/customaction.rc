@@ -69,7 +69,7 @@ BEGIN
             VALUE "FileDescription", "Datadog Agent Installation Helper"
             VALUE "FileVersion", FILE_VERSION_STRING
             VALUE "InternalName", "Agent6"
-            VALUE "LegalCopyright", "Copyright (C) 2016-2020"
+            VALUE "LegalCopyright", "Copyright (C) 2016-present"
             VALUE "OriginalFilename", "customaction.dll"
             VALUE "ProductName", "Datadog Agent"
             VALUE "ProductVersion", FILE_VERSION_STRING

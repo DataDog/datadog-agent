@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package checks
 
@@ -19,8 +19,7 @@ func TestCheckableList(t *testing.T) {
 	assert := assert.New(t)
 
 	type outcome struct {
-		report *compliance.Report
-		err    error
+		reports []*compliance.Report
 	}
 
 	tests := []struct {
@@ -29,102 +28,59 @@ func TestCheckableList(t *testing.T) {
 		expected outcome
 	}{
 		{
-			name: "first=passed, second=failed => result=[failed from second]",
+			name: "first=passed, second=passed, third=pass => result=[all passed]",
 			list: []outcome{
 				{
-					report: &compliance.Report{
+					reports: []*compliance.Report{
+						{
+							Passed: true,
+							Data: event.Data{
+								"something": "passed",
+							},
+						},
+					},
+				},
+				{
+					reports: []*compliance.Report{
+						{
+							Passed: true,
+							Data: event.Data{
+								"something else": "passed",
+							},
+						},
+					},
+				},
+				{
+					reports: []*compliance.Report{
+						{
+							Passed: true,
+							Data: event.Data{
+								"something else": "failed",
+							},
+						},
+					},
+				},
+			},
+			expected: outcome{
+				reports: []*compliance.Report{
+					{
 						Passed: true,
 						Data: event.Data{
 							"something": "passed",
 						},
 					},
-				},
-				{
-					report: &compliance.Report{
-						Passed: false,
-						Data: event.Data{
-							"something": "failed",
-						},
-					},
-				},
-			},
-			expected: outcome{
-				report: &compliance.Report{
-					Passed: false,
-					Data: event.Data{
-						"something": "failed",
-					},
-				},
-			},
-		},
-		{
-			name: "first=error, second=passed => result[error from first]",
-			list: []outcome{
-				{
-					err: errors.New("some error"),
-				},
-				{
-					report: &compliance.Report{
+					{
 						Passed: true,
 						Data: event.Data{
 							"something else": "passed",
 						},
 					},
-				},
-			},
-			expected: outcome{
-				err: errors.New("some error"),
-			},
-		},
-		{
-			name: "first=failed, second=passed => result[failed from first]",
-			list: []outcome{
-				{
-					report: &compliance.Report{
+					{
 						Passed: false,
 						Data: event.Data{
-							"something": "failed",
+							"truncated": 1,
 						},
-					},
-				},
-				{
-					report: &compliance.Report{
-						Passed: true,
-						Data: event.Data{
-							"something else": "passed",
-						},
-					},
-				},
-			},
-			expected: outcome{
-				report: &compliance.Report{
-					Passed: false,
-					Data: event.Data{
-						"something": "failed",
-					},
-				},
-			},
-		},
-		{
-			name: "first=failed, second=error => result[failed from first]",
-			list: []outcome{
-				{
-					report: &compliance.Report{
-						Passed: false,
-						Data: event.Data{
-							"something": "failed",
-						},
-					},
-				},
-				{
-					err: errors.New("some other error"),
-				},
-			},
-			expected: outcome{
-				report: &compliance.Report{
-					Passed: false,
-					Data: event.Data{
-						"something": "failed",
+						Error: errors.New("truncated result"),
 					},
 				},
 			},
@@ -134,18 +90,18 @@ func TestCheckableList(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			env := &mocks.Env{}
+			env.On("MaxEventsPerRun").Return(2)
 
 			var list checkableList
 
 			for _, outcome := range test.list {
 				c := &mockCheckable{}
-				c.On("check", env).Return(outcome.report, outcome.err)
+				c.On("check", env).Return(outcome.reports)
 				list = append(list, c)
 			}
 
-			report, err := list.check(env)
-			assert.Equal(test.expected.report, report)
-			assert.Equal(test.expected.err, err)
+			reports := list.check(env)
+			assert.Equal(test.expected.reports, reports)
 		})
 	}
 }

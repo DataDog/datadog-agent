@@ -4,7 +4,7 @@ start on starting datadog-agent
 stop on (runlevel [!2345] or stopping datadog-agent)
 
 respawn
-respawn limit 10 5
+respawn limit 4 25
 normal exit 0
 
 console output
@@ -32,7 +32,7 @@ script
   # Logging to console from the agent is disabled since the agent already logs using file or
   # syslog depending on its configuration. We then redirect the stdout/stderr of the agent process
   # to log panic/crashes.
-  exec <%= install_dir %>/embedded/bin/system-probe --config=<%= etc_dir %>/system-probe.yaml --pid=<%= install_dir %>/run/system-probe.pid &>> /var/log/datadog/system-probe-errors.log
+  exec <%= install_dir %>/embedded/bin/system-probe run --config=<%= etc_dir %>/system-probe.yaml --pid=<%= install_dir %>/run/system-probe.pid &>> /var/log/datadog/system-probe-errors.log
 end script
 
 post-stop script

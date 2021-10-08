@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package legacy
 
@@ -147,6 +147,7 @@ func FromAgentConfig(agentConfig Config, converter *config.LegacyConfigConverter
 
 	if agentConfig["non_local_traffic"] != "" {
 		if enabled, err := isAffirmative(agentConfig["non_local_traffic"]); err == nil {
+			converter.Set("dogstatsd_non_local_traffic", enabled)
 			// trace-agent listen locally by default, convert the config only if configured to listen to more
 			converter.Set("apm_config.apm_non_local_traffic", enabled)
 		}
@@ -244,7 +245,7 @@ func extractURLAPIKeys(agentConfig Config, converter *config.LegacyConfigConvert
 		converter.Set("dd_url", urls[0])
 	}
 
-	converter.Set("api_key", keys[0])
+	converter.Set("api_key", config.SanitizeAPIKey(keys[0]))
 	if len(urls) == 1 {
 		return nil
 	}
@@ -257,6 +258,7 @@ func extractURLAPIKeys(agentConfig Config, converter *config.LegacyConfigConvert
 		if url == "" || keys[idx] == "" {
 			return fmt.Errorf("Found empty additional 'dd_url' or 'api_key'. Please check that you don't have any misplaced commas")
 		}
+		keys[idx] = config.SanitizeAPIKey(keys[idx])
 		if _, ok := additionalEndpoints[url]; ok {
 			additionalEndpoints[url] = append(additionalEndpoints[url], keys[idx])
 		} else {

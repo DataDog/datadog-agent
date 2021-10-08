@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package configresolver
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"testing"
@@ -44,17 +45,17 @@ func (s *dummyService) GetTaggerEntity() string {
 }
 
 // GetADIdentifiers returns dummy identifiers
-func (s *dummyService) GetADIdentifiers() ([]string, error) {
+func (s *dummyService) GetADIdentifiers(context.Context) ([]string, error) {
 	return s.ADIdentifiers, nil
 }
 
 // GetHosts returns dummy hosts
-func (s *dummyService) GetHosts() (map[string]string, error) {
+func (s *dummyService) GetHosts(context.Context) (map[string]string, error) {
 	return s.Hosts, nil
 }
 
 // GetPorts returns dummy ports
-func (s *dummyService) GetPorts() ([]listeners.ContainerPort, error) {
+func (s *dummyService) GetPorts(context.Context) ([]listeners.ContainerPort, error) {
 	return s.Ports, nil
 }
 
@@ -64,12 +65,12 @@ func (s *dummyService) GetTags() ([]string, string, error) {
 }
 
 // GetPid return a dummy pid
-func (s *dummyService) GetPid() (int, error) {
+func (s *dummyService) GetPid(context.Context) (int, error) {
 	return s.Pid, nil
 }
 
 // GetHostname return a dummy hostname
-func (s *dummyService) GetHostname() (string, error) {
+func (s *dummyService) GetHostname(context.Context) (string, error) {
 	return s.Hostname, nil
 }
 
@@ -79,12 +80,12 @@ func (s *dummyService) GetCreationTime() integration.CreationTime {
 }
 
 // IsReady returns if the service is ready
-func (s *dummyService) IsReady() bool {
+func (s *dummyService) IsReady(context.Context) bool {
 	return true
 }
 
 // GetCheckNames returns slice of check names defined in docker labels
-func (s *dummyService) GetCheckNames() []string {
+func (s *dummyService) GetCheckNames(context.Context) []string {
 	return s.CheckNames
 }
 
@@ -341,9 +342,47 @@ func TestResolve(t *testing.T) {
 			},
 			errorString: "no port found for container a5901276aed1 - ignoring it",
 		},
-		//// envvars
+		//// logs config
 		{
-			testName: "simple %%env_test_envvar_key%%",
+			testName: "resolve logs config",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{"bridge": "127.0.0.1"},
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{},
+				LogsConfig:    integration.Data("host: %%host%%"),
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{},
+				Entity:        "a5901276aed1",
+				LogsConfig:    integration.Data("host: 127.0.0.1"),
+			},
+		},
+		{
+			testName: "resolve logs config with %%host%% and no host in service",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Hosts:         map[string]string{},
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{},
+				LogsConfig:    integration.Data("host: %%host%%"),
+				Entity:        "a5901276aed1",
+			},
+			errorString: "no network found for container a5901276aed1, ignoring it",
+		},
+		//// envvars (metrics check)
+		{
+			testName: "simple %%env_test_envvar_key%% (metrics check)",
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
@@ -362,7 +401,7 @@ func TestResolve(t *testing.T) {
 			},
 		},
 		{
-			testName: "not found %%env_test_envvar_not_set%%",
+			testName: "not found %%env_test_envvar_not_set%% (metrics check)",
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
@@ -375,7 +414,7 @@ func TestResolve(t *testing.T) {
 			},
 			errorString: "failed to retrieve envvar test_envvar_not_set, skipping service a5901276aed1"},
 		{
-			testName: "invalid %%env%%",
+			testName: "invalid %%env%% (metrics check)",
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
@@ -385,6 +424,57 @@ func TestResolve(t *testing.T) {
 				Name:          "cpu",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("test: %%env%%")},
+			},
+			errorString: "envvar name is missing, skipping service a5901276aed1",
+		},
+		//// envvars (logs check)
+		{
+			testName: "simple %%env_test_envvar_key%% (logs check)",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{},
+				LogsConfig:    integration.Data("test: %%env_test_envvar_key%%"),
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{},
+				LogsConfig:    integration.Data("test: test_value"),
+				Entity:        "a5901276aed1",
+			},
+		},
+		{
+			testName: "not found %%env_test_envvar_not_set%% (logs check)",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{},
+				LogsConfig:    integration.Data("test: %%env_test_envvar_not_set%%"),
+			},
+			errorString: "failed to retrieve envvar test_envvar_not_set, skipping service a5901276aed1"},
+		{
+			testName: "invalid %%env%% (logs check)",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{},
+				LogsConfig:    integration.Data("test: %%env%%"),
 			},
 			errorString: "envvar name is missing, skipping service a5901276aed1",
 		},
@@ -431,7 +521,7 @@ func TestResolve(t *testing.T) {
 		},
 		//// unknown tag
 		{
-			testName: "invalid %%FOO%% tag",
+			testName: "invalid %%FOO%% tag in metrics check",
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
@@ -510,7 +600,6 @@ func TestResolve(t *testing.T) {
 				Name:          "redis",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("host: localhost\ntags:\n- foo:bar\n")},
-				InitConfig:    integration.Data{},
 				Entity:        "a5901276aed1",
 				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
 				Provider:      "file",
@@ -534,7 +623,6 @@ func TestResolve(t *testing.T) {
 				Name:          "redis",
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("host: localhost\ntags:\n- foo:bar\n")},
-				InitConfig:    integration.Data{},
 				Entity:        "a5901276aed1",
 				Source:        "file:/etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml",
 				Provider:      "file",
@@ -599,8 +687,26 @@ func TestResolve(t *testing.T) {
 				Entity:        "a5901276aed1",
 			},
 		},
+		{
+			testName: "extra kube_* config",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				ExtraConfig:   map[string]string{"pod_name": "redis", "namespace": "default", "pod_uid": "05567616-cb47-41ea-af04-295c1297e957"},
+			},
+			tpl: integration.Config{
+				Name:          "redis",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("pod_name: %%kube_pod_name%%\npod_namespace: %%kube_namespace%%\npod_uid: %%kube_pod_uid%%")},
+			},
+			out: integration.Config{
+				Name:          "redis",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("pod_name: redis\npod_namespace: default\npod_uid: 05567616-cb47-41ea-af04-295c1297e957\ntags:\n- foo:bar\n")},
+				Entity:        "a5901276aed1",
+			},
+		},
 	}
-	validTemplates := 0
 
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("case %d: %s", i, tc.testName), func(t *testing.T) {
@@ -615,7 +721,6 @@ func TestResolve(t *testing.T) {
 				assert.Equal(t, tc.out, cfg)
 				assert.Equal(t, checksum, tc.tpl.Digest())
 				assert.Equal(t, "hash", hash) // Resolve must return a non-empty hash if err == nil
-				validTemplates++
 			}
 		})
 	}

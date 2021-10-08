@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package logs
 
@@ -85,11 +85,13 @@ func createAgent(endpoints *config.Endpoints) (*Agent, *config.LogSources, *serv
 }
 
 func (suite *AgentTestSuite) TestAgent() {
+	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
+	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
 	l := mock.NewMockLogsIntake(suite.T())
 	defer l.Close()
 
 	endpoint := tcp.AddrToEndPoint(l.Addr())
-	endpoints := config.NewEndpoints(endpoint, nil, true, false, 0)
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
 
 	agent, sources, _ := createAgent(endpoints)
 
@@ -119,15 +121,18 @@ func (suite *AgentTestSuite) TestAgent() {
 }
 
 func (suite *AgentTestSuite) TestAgentStopsWithWrongBackend() {
+
+	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
+	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
 	endpoint := config.Endpoint{Host: "fake:", Port: 0}
-	endpoints := config.NewEndpoints(endpoint, nil, true, false, 0)
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
 
 	agent, sources, _ := createAgent(endpoints)
 
 	agent.Start()
 	sources.AddSource(suite.source)
 	// Give the agent at most one second to process the logs.
-	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, time.Second, func() bool {
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
 		return suite.fakeLogs == metrics.LogsProcessed.Value()
 	})
 	agent.Stop()
@@ -140,20 +145,22 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackend() {
 }
 
 func (suite *AgentTestSuite) TestAgentStopsWithWrongAdditionalBackend() {
+	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
+	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
 	l := mock.NewMockLogsIntake(suite.T())
 	defer l.Close()
 
 	endpoint := tcp.AddrToEndPoint(l.Addr())
 	additionalEndpoint := config.Endpoint{Host: "still_fake", Port: 0}
 
-	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{additionalEndpoint}, true, false, 0)
+	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{additionalEndpoint}, true, false)
 
 	agent, sources, _ := createAgent(endpoints)
 
 	agent.Start()
 	sources.AddSource(suite.source)
 	// Give the agent at most one second to send the logs.
-	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, time.Second, func() bool {
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
 		return int64(2) == metrics.LogsSent.Value()
 	})
 	agent.Stop()

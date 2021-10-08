@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The kube state metrics core check now tags pod metrics with a ``reason`` tag.
+    It can be ``NodeLost``, ``Evicted`` or ``UnexpectedAdmissionError``.

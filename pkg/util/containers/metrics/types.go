@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package metrics
 
@@ -91,10 +91,10 @@ type ContainerCPUStats struct {
 	Timestsamp time.Time
 
 	// docker.cpu.system
-	System uint64
+	System float64
 
 	// docker.cpu.user
-	User uint64
+	User float64
 
 	// docker.cpu.usage
 	UsageTotal float64
@@ -102,7 +102,7 @@ type ContainerCPUStats struct {
 	SystemUsage uint64
 
 	// docker.cpu.shares
-	Shares uint64
+	Shares float64
 
 	// docker.cpu.throttled
 	NrThrottled   uint64

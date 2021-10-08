@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build clusterchecks
 
@@ -50,9 +50,9 @@ func (h *Handler) GetState() (types.StateResponse, error) {
 	}
 }
 
-// GetConfigs returns configurations dispatched to a given node
-func (h *Handler) GetConfigs(nodeName string) (types.ConfigResponse, error) {
-	configs, lastChange, err := h.dispatcher.getNodeConfigs(nodeName)
+// GetConfigs returns configurations dispatched to a given agent
+func (h *Handler) GetConfigs(identifier string) (types.ConfigResponse, error) {
+	configs, lastChange, err := h.dispatcher.getClusterCheckConfigs(identifier)
 	response := types.ConfigResponse{
 		Configs:    configs,
 		LastChange: lastChange,
@@ -61,8 +61,8 @@ func (h *Handler) GetConfigs(nodeName string) (types.ConfigResponse, error) {
 }
 
 // PostStatus handles status reports from the node agents
-func (h *Handler) PostStatus(nodeName, clientIP string, status types.NodeStatus) (types.StatusResponse, error) {
-	upToDate, err := h.dispatcher.processNodeStatus(nodeName, clientIP, status)
+func (h *Handler) PostStatus(identifier, clientIP string, status types.NodeStatus) (types.StatusResponse, error) {
+	upToDate, err := h.dispatcher.processNodeStatus(identifier, clientIP, status)
 	response := types.StatusResponse{
 		IsUpToDate: upToDate,
 	}

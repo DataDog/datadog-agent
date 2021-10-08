@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package metrics
 
@@ -51,6 +51,11 @@ var (
 	// TlmEncodedBytesSent is the total number of sent bytes after encoding if any
 	TlmEncodedBytesSent = telemetry.NewCounter("logs", "encoded_bytes_sent",
 		nil, "Total number of sent bytes after encoding if any")
+	// SenderLatency the last reported latency value from the http sender (ms)
+	SenderLatency = expvar.Int{}
+	// TlmSenderLatency a histogram of http sender latency (ms)
+	TlmSenderLatency = telemetry.NewHistogram("logs", "sender_latency",
+		nil, "Histogram of http sender latency in ms", []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000})
 	// TODO: Add LogsCollected for the total number of collected logs.
 
 )
@@ -64,4 +69,5 @@ func init() {
 	LogsExpvars.Set("DestinationLogsDropped", &DestinationLogsDropped)
 	LogsExpvars.Set("BytesSent", &BytesSent)
 	LogsExpvars.Set("EncodedBytesSent", &EncodedBytesSent)
+	LogsExpvars.Set("SenderLatency", &SenderLatency)
 }

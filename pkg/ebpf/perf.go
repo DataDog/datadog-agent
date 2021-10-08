@@ -9,15 +9,20 @@ import (
 )
 
 type PerfHandler struct {
-	DataChannel chan []byte
+	DataChannel chan *DataEvent
 	LostChannel chan uint64
 	once        sync.Once
 	closed      bool
 }
 
+type DataEvent struct {
+	CPU  int
+	Data []byte
+}
+
 func NewPerfHandler(dataChannelSize int) *PerfHandler {
 	return &PerfHandler{
-		DataChannel: make(chan []byte, dataChannelSize),
+		DataChannel: make(chan *DataEvent, dataChannelSize),
 		LostChannel: make(chan uint64, 10),
 	}
 }
@@ -26,7 +31,7 @@ func (c *PerfHandler) DataHandler(CPU int, data []byte, perfMap *manager.PerfMap
 	if c.closed {
 		return
 	}
-	c.DataChannel <- data
+	c.DataChannel <- &DataEvent{CPU, data}
 }
 
 func (c *PerfHandler) LostHandler(CPU int, lostCount uint64, perfMap *manager.PerfMap, manager *manager.Manager) {

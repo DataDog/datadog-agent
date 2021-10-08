@@ -23,7 +23,6 @@ def build(ctx, rebuild=False, build_include=None, build_exclude=None, race=False
     """
     build_common(
         ctx,
-        "cluster-agent-cloudfoundry.build",
         BIN_PATH,
         get_default_build_tags(build="cluster-agent-cloudfoundry"),
         "-cloudfoundry",
@@ -45,7 +44,7 @@ def refresh_assets(ctx, development=True):
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):  # noqa: U100
     """
     Run integration tests for cluster-agent-cloudfoundry
     """

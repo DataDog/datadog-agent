@@ -1,0 +1,50 @@
+---
+# deps_fetch stage
+# Contains jobs which fetch go dependencies for various Linux platforms, in order
+# to reuse them in further jobs that need them.
+
+.retrieve_linux_go_deps:
+  - mkdir -p $GOPATH/pkg/mod && tar xzf modcache.tar.gz -C $GOPATH/pkg/mod
+  - rm -f modcache.tar.gz
+
+.go_deps:
+  stage: deps_fetch
+  needs: []
+  script:
+    - inv -e deps
+    - cd $GOPATH/pkg/mod/ && tar czf $CI_PROJECT_DIR/modcache.tar.gz .
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - $CI_PROJECT_DIR/modcache.tar.gz
+
+linux_x64_go_deps:
+  extends: .go_deps
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main"]
+
+linux_arm64_go_deps:
+  extends: .go_deps
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+
+linux_armhf_go_deps:
+  extends: .go_deps
+  rules:
+    !reference [.on_all_builds]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["runner:docker-arm", "platform:arm64"]
+
+windows_x64_go_deps:
+  extends: .go_deps
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  script:
+    - $ErrorActionPreference = "Stop"
+    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
+    - if (Test-Path modcache.tar) { remove-item -force modcache.tar }
+    - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e WINDOWS_BUILDER=true -e GOMODCACHE="c:\gomodcache" -e AWS_NETWORKING=true -e TARGET_ARCH="$ARCH" -e DEBUG_CUSTOMACTION="$DEBUG_CUSTOMACTION" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_x86:${Env:DATADOG_AGENT_WINBUILDIMAGES} c:\mnt\tasks\winbuildscripts\cache-deps.bat
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - $CI_PROJECT_DIR/modcache.tar

@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build kubeapiserver
 
 package apiserver
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"testing"
@@ -16,7 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
-	"k8s.io/api/autoscaling/v2beta1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,7 +24,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/kubernetes/scheme"
+	kscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -41,18 +41,18 @@ func newFakeConfigMapStore(t *testing.T, ns, name string, metrics map[string]cus
 	return store, client
 }
 
-func newFakeHorizontalPodAutoscaler(name, ns string, uid string, metricName string, labels map[string]string) *v2beta1.HorizontalPodAutoscaler {
-	return &v2beta1.HorizontalPodAutoscaler{
+func newFakeHorizontalPodAutoscaler(name, ns string, uid string, metricName string, labels map[string]string) *autoscalingv2.HorizontalPodAutoscaler {
+	return &autoscalingv2.HorizontalPodAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: ns,
 			UID:       types.UID(uid),
 		},
-		Spec: v2beta1.HorizontalPodAutoscalerSpec{
-			Metrics: []v2beta1.MetricSpec{
+		Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+			Metrics: []autoscalingv2.MetricSpec{
 				{
-					Type: v2beta1.ExternalMetricSourceType,
-					External: &v2beta1.ExternalMetricSource{
+					Type: autoscalingv2.ExternalMetricSourceType,
+					External: &autoscalingv2.ExternalMetricSource{
 						MetricName: metricName,
 						MetricSelector: &metav1.LabelSelector{
 							MatchLabels: labels,
@@ -72,7 +72,7 @@ func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, isLe
 
 	autoscalerController, _ := NewAutoscalersController(
 		client,
-		eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "FakeAutoscalerController"}),
+		eventBroadcaster.NewRecorder(kscheme.Scheme, corev1.EventSource{Component: "FakeAutoscalerController"}),
 		isLeaderFunc,
 		dcl,
 	)
@@ -319,7 +319,7 @@ func TestAutoscalerController(t *testing.T) {
 	)
 	mockedHPA.Annotations = makeAnnotations("foo", map[string]string{"foo": "bar"})
 
-	_, err := c.HorizontalPodAutoscalers("default").Create(mockedHPA)
+	_, err := c.HorizontalPodAutoscalers("default").Create(context.TODO(), mockedHPA, metav1.CreateOptions{})
 	require.NoError(t, err)
 	timeout := time.NewTimer(5 * time.Second)
 	ticker := time.NewTicker(500 * time.Millisecond)
@@ -360,10 +360,10 @@ func TestAutoscalerController(t *testing.T) {
 	}
 
 	// Update the Metrics
-	mockedHPA.Spec.Metrics = []v2beta1.MetricSpec{
+	mockedHPA.Spec.Metrics = []autoscalingv2.MetricSpec{
 		{
-			Type: v2beta1.ExternalMetricSourceType,
-			External: &v2beta1.ExternalMetricSource{
+			Type: autoscalingv2.ExternalMetricSourceType,
+			External: &autoscalingv2.ExternalMetricSource{
 				MetricName: "foo",
 				MetricSelector: &metav1.LabelSelector{
 					MatchLabels: map[string]string{
@@ -385,7 +385,7 @@ func TestAutoscalerController(t *testing.T) {
 		},
 	}
 	mockedHPA.Annotations = makeAnnotations("nginx.net.request_per_s", map[string]string{"dcos_version": "2.1.9"})
-	_, err = c.HorizontalPodAutoscalers(mockedHPA.Namespace).Update(mockedHPA)
+	_, err = c.HorizontalPodAutoscalers(mockedHPA.Namespace).Update(context.TODO(), mockedHPA, metav1.UpdateOptions{})
 	require.NoError(t, err)
 	select {
 	case key := <-hctrl.autoscalers:
@@ -438,7 +438,7 @@ func TestAutoscalerController(t *testing.T) {
 	)
 	mockedHPA.Annotations = makeAnnotations("foo", map[string]string{"foo": "bar"})
 
-	_, err = c.HorizontalPodAutoscalers("default").Create(newMockedHPA)
+	_, err = c.HorizontalPodAutoscalers("default").Create(context.TODO(), newMockedHPA, metav1.CreateOptions{})
 	require.NoError(t, err)
 	select {
 	case key := <-hctrl.autoscalers:
@@ -448,7 +448,7 @@ func TestAutoscalerController(t *testing.T) {
 	}
 
 	// Verify that a Delete removes the Data from the Global Store and decreases metricsProcessdCount
-	err = c.HorizontalPodAutoscalers("default").Delete(newMockedHPA.Name, &metav1.DeleteOptions{})
+	err = c.HorizontalPodAutoscalers("default").Delete(context.TODO(), newMockedHPA.Name, metav1.DeleteOptions{})
 	require.NoError(t, err)
 	select {
 	case <-ticker.C:
@@ -457,7 +457,7 @@ func TestAutoscalerController(t *testing.T) {
 		require.FailNow(t, "Timeout waiting for HPAs to update")
 	}
 	// Verify that a Delete removes the Data from the Global Store
-	err = c.HorizontalPodAutoscalers("default").Delete(mockedHPA.Name, &metav1.DeleteOptions{})
+	err = c.HorizontalPodAutoscalers("default").Delete(context.TODO(), mockedHPA.Name, metav1.DeleteOptions{})
 	require.NoError(t, err)
 	select {
 	case <-ticker.C:
@@ -501,7 +501,7 @@ func TestAutoscalerControllerGC(t *testing.T) {
 	testCases := []struct {
 		caseName string
 		metrics  map[string]custommetrics.ExternalMetricValue
-		hpa      *v2beta1.HorizontalPodAutoscaler
+		hpa      *autoscalingv2.HorizontalPodAutoscaler
 		expected []custommetrics.ExternalMetricValue
 	}{
 		{
@@ -516,7 +516,7 @@ func TestAutoscalerControllerGC(t *testing.T) {
 					Valid:      false,
 				},
 			},
-			hpa: &v2beta1.HorizontalPodAutoscaler{
+			hpa: &autoscalingv2.HorizontalPodAutoscaler{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "foo",
 					Namespace: "default",

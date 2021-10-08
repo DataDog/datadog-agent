@@ -1,7 +1,7 @@
 # Datadog Cluster Agent - DCA
 
-[![CircleCI](https://circleci.com/gh/DataDog/datadog-agent/tree/master.svg?style=svg&circle-token=dbcee3f02b9c3fe5f142bfc5ecb735fdec34b643)](https://circleci.com/gh/DataDog/datadog-agent/tree/master)
-[![Build status](https://ci.appveyor.com/api/projects/status/kcwhmlsc0oq3m49p/branch/master?svg=true)](https://ci.appveyor.com/project/Datadog/datadog-agent/branch/master)
+[![CircleCI](https://circleci.com/gh/DataDog/datadog-agent/tree/main.svg?style=svg&circle-token=dbcee3f02b9c3fe5f142bfc5ecb735fdec34b643)](https://circleci.com/gh/DataDog/datadog-agent/tree/main)
+[![Build status](https://ci.appveyor.com/api/projects/status/kcwhmlsc0oq3m49p/branch/main?svg=true)](https://ci.appveyor.com/project/Datadog/datadog-agent/branch/main)
 [![GoDoc](https://godoc.org/github.com/DataDog/datadog-agent?status.svg)](https://godoc.org/github.com/DataDog/datadog-agent)
 
 The Datadog Cluster Agent (referred to as DCA) faithfully collects events and metrics and brings them to
@@ -23,15 +23,16 @@ currently in Alpha.
 
 ## Getting started
 
-For pre-requisite, refer to the Agent's Getting Started section in the [README](https://github.com/DataDog/datadog-agent/blob/master/README.md)
+For pre-requisite, refer to the Agent's Getting Started section in the [README](https://github.com/DataDog/datadog-agent/blob/main/README.md)
 
-To start working on the Cluster Agent, you can build the `master` branch:
+To start working on the Cluster Agent, you can build the `main` branch:
 
-1. checkout the repo: `git clone https://github.com/DataDog/datadog-agent.git $GOPATH/src/github.com/DataDog/datadog-agent`.
+1. Clone the repo: `git clone https://github.com/DataDog/datadog-agent.git $GOPATH/src/github.com/DataDog/datadog-agent`.
 2. cd into the project folder: `cd $GOPATH/src/github.com/DataDog/datadog-agent`.
-3. install project's dependencies: `invoke deps`.
+3. Install go tools: `invoke install-tools`.
+4. Install go dependencies: `invoke deps`.
    Make sure that `$GOPATH/bin` is in your `$PATH` otherwise this step might fail.
-4. build the whole project with `invoke cluster-agent.build`
+5. Build the whole project with `invoke cluster-agent.build`
 
 Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details.
 
@@ -66,7 +67,7 @@ Secondly, it will start serving the `DD_CLUSTER_AGENT.CMD_PORT` if set or 5005 b
 ## Documentation
 
 The general documentation of the project (including instructions on the Beta builds,
-Agent installation, development, etc) is located under the [docs](https://github.com/DataDog/datadog-agent/tree/master/docs) directory
+Agent installation, development, etc) is located under the [docs](https://github.com/DataDog/datadog-agent/tree/main/docs) directory
 of the present repo.
 
 ## Contributing code

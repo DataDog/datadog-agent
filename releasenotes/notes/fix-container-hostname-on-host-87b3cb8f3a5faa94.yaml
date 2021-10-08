@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix hostname detection when Agent is running on-host and monitoring containerized workload by not using hostname coming from containerized providers (Docker, Kubernetes)

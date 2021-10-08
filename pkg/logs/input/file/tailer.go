@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package file
 
@@ -11,12 +11,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"sync/atomic"
 	"time"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	lineParser "github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/input/docker"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/logs/tag"
 )
 
@@ -35,6 +36,7 @@ const DefaultSleepDuration = 1 * time.Second
 type Tailer struct {
 	readOffset    int64
 	decodedOffset int64
+	bytesRead     int64
 
 	// file contains the logs configuration for the file to parse (path, source, ...)
 	// If you are looking for the os.file use to read on the FS, see osFile.
@@ -60,37 +62,49 @@ type Tailer struct {
 	stopForward    context.CancelFunc
 }
 
-// NewTailer returns an initialized Tailer
-func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.Duration) *Tailer {
+// NewDecoderFromSource creates a new decoder from a log source
+func NewDecoderFromSource(source *config.LogSource) *decoder.Decoder {
+	return NewDecoderFromSourceWithPattern(source, nil)
+}
+
+// NewDecoderFromSourceWithPattern creates a new decoder from a log source with a multiline pattern
+func NewDecoderFromSourceWithPattern(source *config.LogSource, multiLinePattern *regexp.Regexp) *decoder.Decoder {
+
 	// TODO: remove those checks and add to source a reference to a tagProvider and a lineParser.
-	var parser lineParser.Parser
+	var lineParser parser.Parser
 	var matcher decoder.EndLineMatcher
-	switch file.Source.GetSourceType() {
+	switch source.GetSourceType() {
 	case config.KubernetesSourceType:
-		parser = kubernetes.Parser
+		lineParser = kubernetes.Parser
 		matcher = &decoder.NewLineMatcher{}
 	case config.DockerSourceType:
-		parser = docker.JSONParser
+		lineParser = docker.JSONParser
 		matcher = &decoder.NewLineMatcher{}
 	default:
-		switch file.Source.Config.Encoding {
+		switch source.Config.Encoding {
 		case config.UTF16BE:
-			parser = lineParser.NewDecodingParser(lineParser.UTF16BE)
+			lineParser = parser.NewDecodingParser(parser.UTF16BE)
 			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16beEOL)
 		case config.UTF16LE:
-			parser = lineParser.NewDecodingParser(lineParser.UTF16LE)
+			lineParser = parser.NewDecodingParser(parser.UTF16LE)
 			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16leEOL)
 		default:
-			parser = lineParser.NoopParser
+			lineParser = parser.NoopParser
 			matcher = &decoder.NewLineMatcher{}
 		}
 	}
+
+	return decoder.NewDecoderWithEndLineMatcher(source, lineParser, matcher, multiLinePattern)
+}
+
+// NewTailer returns an initialized Tailer
+func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.Duration, decoder *decoder.Decoder) *Tailer {
 
 	var tagProvider tag.Provider
 	if file.Source.Config.Identifier != "" {
 		tagProvider = tag.NewProvider(containers.BuildTaggerEntityName(file.Source.Config.Identifier))
 	} else {
-		tagProvider = tag.NoopProvider
+		tagProvider = tag.NewLocalProvider([]string{})
 	}
 
 	forwardContext, stopForward := context.WithCancel(context.Background())
@@ -99,7 +113,7 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 	return &Tailer{
 		file:           file,
 		outputChan:     outputChan,
-		decoder:        decoder.NewDecoderWithEndLineMatcher(file.Source, parser, matcher),
+		decoder:        decoder,
 		tagProvider:    tagProvider,
 		readOffset:     0,
 		sleepDuration:  sleepDuration,
@@ -147,7 +161,7 @@ func (t *Tailer) readForever() {
 		if err != nil {
 			return
 		}
-		t.file.Source.BytesRead.Add(int64(n))
+		t.recordBytes(int64(n))
 
 		select {
 		case <-t.stop:
@@ -197,7 +211,7 @@ func (t *Tailer) StopAfterFileRotation() {
 	t.file.Source.RemoveInput(t.file.Path)
 }
 
-// startStopTimer initialises and starts a timer to stop the tailor after the timeout
+// startStopTimer initializes and starts a timer to stop the tailor after the timeout
 func (t *Tailer) startStopTimer() {
 	stopTimer := time.NewTimer(t.closeTimeout)
 	<-stopTimer.C
@@ -207,9 +221,9 @@ func (t *Tailer) startStopTimer() {
 
 // onStop finishes to stop the tailer
 func (t *Tailer) onStop() {
-	log.Info("Closing", t.file.Path, "for tailer key", t.file.GetScanKey())
 	t.osFile.Close()
 	t.decoder.Stop()
+	log.Info("Closed", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.bytesRead, "bytes and", t.decoder.GetLineCount(), "lines")
 }
 
 // forwardMessages lets the Tailer forward log messages to the output channel
@@ -240,7 +254,7 @@ func (t *Tailer) forwardMessages() {
 		// We don't return directly to keep the same shutdown sequence that in the
 		// normal case.
 		select {
-		case t.outputChan <- message.NewMessage(output.Content, origin, output.Status):
+		case t.outputChan <- message.NewMessage(output.Content, origin, output.Status, output.IngestionTimestamp):
 		case <-t.forwardContext.Done():
 		}
 	}
@@ -267,6 +281,11 @@ func (t *Tailer) SetDecodedOffset(off int64) {
 	atomic.StoreInt64(&t.decodedOffset, off)
 }
 
+// GetDetectedPattern returns a regexp if a pattern was detected
+func (t *Tailer) GetDetectedPattern() *regexp.Regexp {
+	return t.decoder.GetDetectedPattern()
+}
+
 // shouldTrackOffset returns whether the tailer should track the file offset or not
 func (t *Tailer) shouldTrackOffset() bool {
 	if atomic.LoadInt32(&t.didFileRotate) != 0 {
@@ -278,4 +297,12 @@ func (t *Tailer) shouldTrackOffset() bool {
 // wait lets the tailer sleep for a bit
 func (t *Tailer) wait() {
 	time.Sleep(t.sleepDuration)
+}
+
+func (t *Tailer) recordBytes(n int64) {
+	t.bytesRead += n
+	t.file.Source.BytesRead.Add(n)
+	if t.file.Source.ParentSource != nil {
+		t.file.Source.ParentSource.BytesRead.Add(n)
+	}
 }

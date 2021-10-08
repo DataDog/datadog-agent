@@ -70,7 +70,7 @@ BEGIN
             VALUE "FileDescription", "Datadog Agent Console Installation Helper"
             VALUE "FileVersion", FILE_VERSION_STRING
             VALUE "InternalName", "Agent7"
-            VALUE "LegalCopyright", "Copyright (C) 2016-2020"
+            VALUE "LegalCopyright", "Copyright (C) 2016-present"
             VALUE "OriginalFilename", "uninstall-cmd.exe"
             VALUE "ProductName", "Datadog Agent"
             VALUE "ProductVersion", FILE_VERSION_STRING

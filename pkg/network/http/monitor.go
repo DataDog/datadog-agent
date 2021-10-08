@@ -4,15 +4,13 @@ package http
 
 import (
 	"fmt"
-	"time"
-	"unsafe"
 
-	"C"
+	"sync"
+	"time"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
 )
@@ -23,130 +21,124 @@ import (
 // * Querying these batches by doing a map lookup;
 // * Aggregating and emitting metrics based on the received HTTP transactions;
 type Monitor struct {
-	batchMap      *ebpf.Map
-	perfMap       *manager.PerfMap
-	perfHandler   *ddebpf.PerfHandler
+	handler func([]httpTX)
+
+	ebpfProgram            *ebpfProgram
+	batchManager           *batchManager
+	batchCompletionHandler *ddebpf.PerfHandler
+	telemetry              *telemetry
+	pollRequests           chan chan map[Key]RequestStats
+	statkeeper             *httpStatKeeper
+
+	// termination
+	mux           sync.Mutex
+	eventLoopWG   sync.WaitGroup
 	closeFilterFn func()
+	stopped       bool
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(procRoot string, m *manager.Manager, h *ddebpf.PerfHandler) (*Monitor, error) {
-	filter, _ := m.GetProbe(manager.ProbeIdentificationPair{Section: string(probes.SocketHTTPFilter)})
+func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*Monitor, error) {
+	mgr, err := newEBPFProgram(c, offsets, sockFD)
+	if err != nil {
+		return nil, fmt.Errorf("error setting up http ebpf program: %s", err)
+	}
+
+	if err := mgr.Init(); err != nil {
+		return nil, fmt.Errorf("error initializing http ebpf program: %s", err)
+	}
+
+	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{Section: httpSocketFilter})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
 
-	closeFilterFn, err := network.HeadlessSocketFilter(procRoot, filter)
+	closeFilterFn, err := filterpkg.HeadlessSocketFilter(c.ProcRoot, filter)
 	if err != nil {
 		return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
 	}
 
-	batchMap, _, err := m.GetMap(string(probes.HttpBatchesMap))
+	batchMap, _, err := mgr.GetMap(httpBatchesMap)
 	if err != nil {
 		return nil, err
 	}
 
-	batchStateMap, _, err := m.GetMap(string(probes.HttpBatchStateMap))
+	batchStateMap, _, err := mgr.GetMap(httpBatchStateMap)
 	if err != nil {
 		return nil, err
 	}
 
-	notificationMap, _, _ := m.GetMap(string(probes.HttpNotificationsMap))
+	notificationMap, _, _ := mgr.GetMap(httpNotificationsPerfMap)
 	numCPUs := int(notificationMap.ABI().MaxEntries)
-	batch := new(httpBatch)
-	batchState := new(httpBatchState)
 
-	for i := 0; i < numCPUs; i++ {
-		batchStateMap.Put(unsafe.Pointer(&i), unsafe.Pointer(batchState))
-		for j := 0; j < HTTPBatchPages; j++ {
-			key := &httpBatchKey{cpu: C.uint(i), page_num: C.uint(j)}
-			batchMap.Put(unsafe.Pointer(key), unsafe.Pointer(batch))
+	telemetry := newTelemetry()
+	statkeeper := newHTTPStatkeeper(c.MaxHTTPStatsBuffered, telemetry)
+
+	handler := func(transactions []httpTX) {
+		if statkeeper != nil {
+			statkeeper.Process(transactions)
 		}
 	}
 
-	pm, found := m.GetPerfMap(string(probes.HttpNotificationsMap))
-	if !found {
-		return nil, fmt.Errorf("unable to find perf map %s", probes.HttpNotificationsMap)
-	}
-
 	return &Monitor{
-		batchMap:      batchMap,
-		perfMap:       pm,
-		perfHandler:   h,
-		closeFilterFn: closeFilterFn,
+		handler:                handler,
+		ebpfProgram:            mgr,
+		batchManager:           newBatchManager(batchMap, batchStateMap, numCPUs),
+		batchCompletionHandler: mgr.batchCompletionHandler,
+		telemetry:              telemetry,
+		pollRequests:           make(chan chan map[Key]RequestStats),
+		closeFilterFn:          closeFilterFn,
+		statkeeper:             statkeeper,
 	}, nil
 }
 
 // Start consuming HTTP events
-// Please note the code below is merely an *example* of how to consume the HTTP
-// transaction information sent from the eBPF program
-func (http *Monitor) Start() error {
-	if http == nil {
+func (m *Monitor) Start() error {
+	if m == nil {
 		return nil
 	}
 
-	if err := http.perfMap.Start(); err != nil {
-		return fmt.Errorf("error starting perf map: %s", err)
+	if err := m.ebpfProgram.Start(); err != nil {
+		return err
 	}
 
+	m.eventLoopWG.Add(1)
 	go func() {
-		var (
-			misses int
-			then   = time.Now()
-			hits   = make(map[int]int)
-			report = time.NewTicker(30 * time.Second)
-			key    = new(httpBatchKey)
-		)
+		defer m.eventLoopWG.Done()
+		report := time.NewTicker(30 * time.Second)
 		defer report.Stop()
-
 		for {
 			select {
-			case data, ok := <-http.perfHandler.DataChannel:
+			case dataEvent, ok := <-m.batchCompletionHandler.DataChannel:
 				if !ok {
 					return
 				}
 
-				// The notification we read off the perf ring tells us which HTTP batch of transactions is ready to be read
-				notification := toHTTPNotification(data)
-				key.Prepare(notification)
-				batch := new(httpBatch)
-				err := http.batchMap.Lookup(unsafe.Pointer(key), unsafe.Pointer(batch))
-				if err != nil {
-					log.Errorf("error retrieving http batch for cpu=%d", notification.cpu)
-					continue
-				}
-
-				if batch.IsDirty(notification) {
-					misses++
-					continue
-				}
-
-				txs := batch.GetTransactions(notification)
-				// This is where we would add code handling the HTTP data (eg., generating latency percentiles etc.)
-				// Right now I'm just aggregating the hits per status code just as a placeholder to make sure everything
-				// is working as expected
-				for _, tx := range txs {
-					hits[tx.StatusClass()]++
-				}
-			case _, ok := <-http.perfHandler.LostChannel:
+				// The notification we read from the perf ring tells us which HTTP batch of transactions is ready to be consumed
+				notification := toHTTPNotification(dataEvent.Data)
+				transactions, err := m.batchManager.GetTransactionsFrom(notification)
+				m.process(transactions, err)
+			case _, ok := <-m.batchCompletionHandler.LostChannel:
 				if !ok {
 					return
 				}
-				misses++
-			case now := <-report.C:
-				delta := float64(now.Sub(then).Seconds())
-				log.Infof("http report: 100(%d reqs, %.2f/s) 200(%d reqs, %.2f/s) 300(%d reqs, %.2f/s), 400(%d reqs, %.2f/s) 500(%d reqs, %.2f/s), misses(%d reqs, %.2f/s)",
-					hits[100], float64(hits[100])/delta,
-					hits[200], float64(hits[200])/delta,
-					hits[300], float64(hits[300])/delta,
-					hits[400], float64(hits[400])/delta,
-					hits[500], float64(hits[500])/delta,
-					misses*HTTPBatchSize,
-					float64(misses*HTTPBatchSize)/delta,
-				)
-				hits = make(map[int]int)
-				then = now
-				misses = 0
+
+				m.process(nil, errLostBatch)
+			case reply, ok := <-m.pollRequests:
+				if !ok {
+					return
+				}
+
+				transactions := m.batchManager.GetPendingTransactions()
+				m.process(transactions, nil)
+
+				delta := m.telemetry.reset()
+				delta.report()
+
+				reply <- m.statkeeper.GetAndResetAllStats()
+			case <-report.C:
+				transactions := m.batchManager.GetPendingTransactions()
+				m.process(transactions, nil)
 			}
 		}
 	}()
@@ -154,13 +146,52 @@ func (http *Monitor) Start() error {
 	return nil
 }
 
+// GetHTTPStats returns a map of HTTP stats stored in the following format:
+// [source, dest tuple, request path] -> RequestStats object
+func (m *Monitor) GetHTTPStats() map[Key]RequestStats {
+	if m == nil {
+		return nil
+	}
+
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if m.stopped {
+		return nil
+	}
+
+	reply := make(chan map[Key]RequestStats, 1)
+	defer close(reply)
+	m.pollRequests <- reply
+	return <-reply
+}
+
 // Stop HTTP monitoring
-func (http *Monitor) Stop() {
-	if http == nil {
+func (m *Monitor) Stop() {
+	if m == nil {
 		return
 	}
 
-	http.closeFilterFn()
-	_ = http.perfMap.Stop(manager.CleanAll)
-	http.perfHandler.Stop()
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if m.stopped {
+		return
+	}
+
+	m.ebpfProgram.Close()
+	m.closeFilterFn()
+	close(m.pollRequests)
+	m.eventLoopWG.Wait()
+	m.stopped = true
+}
+
+func (m *Monitor) process(transactions []httpTX, err error) {
+	m.telemetry.aggregate(transactions, err)
+
+	if m.handler != nil && len(transactions) > 0 {
+		m.handler(transactions)
+	}
+}
+
+func (m *Monitor) DumpMaps(maps ...string) (string, error) {
+	return m.ebpfProgram.Manager.DumpMaps(maps...)
 }

@@ -34,3 +34,8 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
+
+// GetProcStats is not supported
+func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPermByPID, error) {
+	return nil, ebpf.ErrNotImplemented
+}

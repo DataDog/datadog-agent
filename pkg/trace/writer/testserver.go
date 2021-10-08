@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package writer
 
@@ -141,10 +141,10 @@ func (ts *testServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	defer req.Body.Close()
 	statusCode := ts.getNextCode(slurp)
 	w.WriteHeader(statusCode)
-	switch statusCode / 100 {
-	case 5: // 5xx
+	switch {
+	case isRetriable(statusCode):
 		atomic.AddUint64(&ts.retried, 1)
-	case 2: // 2xx
+	case statusCode/100 == 2: // 2xx
 		atomic.AddUint64(&ts.accepted, 1)
 		// for 2xx, we store the payload contents too
 		headers := make(map[string]string, len(req.Header))

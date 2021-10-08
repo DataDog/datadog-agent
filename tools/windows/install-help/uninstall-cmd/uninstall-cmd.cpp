@@ -18,10 +18,10 @@ void __cdecl WcaLog(__in LOGLEVEL llv, __in_z __format_string PCSTR fmt, ...)
 
 // replace this function with an error.  We should never be calling this during the
 // console based invocation.
-UINT  WINAPI MsiGetPropertyW(MSIHANDLE hInstall,
-    LPCWSTR szName,           // property identifier, case-sensitive
-    _Out_writes_opt_(*pcchValueBuf)  LPWSTR  szValueBuf,       // buffer for returned property value
-    _Inout_opt_                      LPDWORD  pcchValueBuf)    // in/out buffer character count
+UINT WINAPI MsiGetPropertyW(MSIHANDLE hInstall,
+                            LPCWSTR szName,                                    // property identifier, case-sensitive
+                            _Out_writes_opt_(*pcchValueBuf) LPWSTR szValueBuf, // buffer for returned property value
+                            _Inout_opt_ LPDWORD pcchValueBuf)                  // in/out buffer character count
 {
     return ERROR_INVALID_FUNCTION;
 }
@@ -40,10 +40,11 @@ int wmain(int argc, wchar_t **argv)
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
 // Debug program: F5 or Debug > Start Debugging menu
 
-// Tips for Getting Started: 
+// Tips for Getting Started:
 //   1. Use the Solution Explorer window to add/manage files
 //   2. Use the Team Explorer window to connect to source control
 //   3. Use the Output window to see build output and other messages
 //   4. Use the Error List window to view errors
-//   5. Go to Project > Add New Item to create new code files, or Project > Add Existing Item to add existing code files to the project
+//   5. Go to Project > Add New Item to create new code files, or Project > Add Existing Item to add existing code files
+//   to the project
 //   6. In the future, to open this project again, go to File > Open > Project and select the .sln file

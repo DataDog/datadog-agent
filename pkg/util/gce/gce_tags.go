@@ -1,13 +1,14 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build gce
 
 package gce
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -49,13 +50,13 @@ func getCachedTags(err error) ([]string, error) {
 }
 
 // GetTags gets the tags from the GCE api
-func GetTags() ([]string, error) {
+func GetTags(ctx context.Context) ([]string, error) {
 
 	if !config.IsCloudProviderEnabled(CloudProviderName) {
 		return nil, fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
-	metadataResponse, err := getResponse(metadataURL + "/?recursive=true")
+	metadataResponse, err := getResponse(ctx, metadataURL+"/?recursive=true")
 	if err != nil {
 		return getCachedTags(err)
 	}

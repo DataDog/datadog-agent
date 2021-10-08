@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package cloudfoundry
 
 import (
+	"context"
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -18,7 +19,7 @@ import (
 var getFqdn = util.Fqdn
 
 // GetHostAliases returns the host aliases from Cloud Foundry
-func GetHostAliases() ([]string, error) {
+func GetHostAliases(ctx context.Context) ([]string, error) {
 	if !config.Datadog.GetBool("cloud_foundry") {
 		log.Debugf("cloud_foundry is not enabled in the conf: no cloudfoudry host alias")
 		return nil, nil

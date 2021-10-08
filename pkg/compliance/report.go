@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package compliance
 
@@ -13,6 +13,18 @@ import (
 type Report struct {
 	// Data contains arbitrary data linked to check evaluation
 	Data event.Data
+	// Resource associated with the report
+	Resource ReportResource
 	// Passed defines whether check was successful or not
 	Passed bool
+	// Aggregated defines whether check was aggregated or not
+	Aggregated bool
+	// Error of th check evaluation
+	Error error
+}
+
+// ReportResource holds the id and type of the resource associated with a report
+type ReportResource struct {
+	ID   string
+	Type string
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build !windows
 // UDS won't work in windows
@@ -20,15 +20,19 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 )
 
-var packetPoolUDS = NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
+var (
+	packetPoolUDS        = packets.NewPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
+	packetPoolManagerUDS = packets.NewPoolManager(packetPoolUDS)
+)
 
 func testFileExistsNewUDSListener(t *testing.T, socketPath string) {
 	_, err := os.Create(socketPath)
 	assert.Nil(t, err)
 	defer os.Remove(socketPath)
-	_, err = NewUDSListener(nil, packetPoolUDS)
+	_, err = NewUDSListener(nil, packetPoolManagerUDS, nil)
 	assert.Error(t, err)
 }
 
@@ -41,7 +45,7 @@ func testSocketExistsNewUSDListener(t *testing.T, socketPath string) {
 }
 
 func testWorkingNewUDSListener(t *testing.T, socketPath string) {
-	s, err := NewUDSListener(nil, packetPoolUDS)
+	s, err := NewUDSListener(nil, packetPoolManagerUDS, nil)
 	defer s.Stop()
 
 	assert.Nil(t, err)
@@ -79,7 +83,7 @@ func TestStartStopUDSListener(t *testing.T) {
 	mockConfig := config.Mock()
 	mockConfig.Set("dogstatsd_socket", socketPath)
 	mockConfig.Set("dogstatsd_origin_detection", false)
-	s, err := NewUDSListener(nil, packetPoolUDS)
+	s, err := NewUDSListener(nil, packetPoolManagerUDS, nil)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
@@ -105,8 +109,8 @@ func TestUDSReceive(t *testing.T) {
 
 	var contents = []byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2")
 
-	packetsChannel := make(chan Packets)
-	s, err := NewUDSListener(packetsChannel, packetPoolUDS)
+	packetsChannel := make(chan packets.Packets)
+	s, err := NewUDSListener(packetsChannel, packetPoolManagerUDS, nil)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
@@ -118,12 +122,13 @@ func TestUDSReceive(t *testing.T) {
 	conn.Write(contents)
 
 	select {
-	case packets := <-packetsChannel:
-		packet := packets[0]
+	case pkts := <-packetsChannel:
+		packet := pkts[0]
 		assert.NotNil(t, packet)
-		assert.Equal(t, 1, len(packets))
+		assert.Equal(t, 1, len(pkts))
 		assert.Equal(t, packet.Contents, contents)
 		assert.Equal(t, packet.Origin, "")
+		assert.Equal(t, packet.Source, packets.UDS)
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}

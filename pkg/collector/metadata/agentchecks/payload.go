@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package agentchecks
 
@@ -59,4 +59,9 @@ func (p *Payload) Marshal() ([]byte, error) {
 // SplitPayload breaks the payload into times number of pieces
 func (p *Payload) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 	return nil, fmt.Errorf("AgentChecks Payload splitting is not implemented")
+}
+
+// MarshalSplitCompress not implemented
+func (p *Payload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
+	return nil, fmt.Errorf("AgentChecks MarshalSplitCompress is not implemented")
 }

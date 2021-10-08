@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2018-2020 Datadog, Inc.
+// Copyright 2018-present Datadog, Inc.
 
 // +build kubeapiserver,kubelet
 
@@ -21,7 +21,7 @@ import (
 
 type serviceMapper apiv1.NamespacesPodsStringsSet
 
-func ConvertToServiceMapper(m apiv1.NamespacesPodsStringsSet) serviceMapper {
+func ConvertToServiceMapper(m apiv1.NamespacesPodsStringsSet) serviceMapper { //nolint:revive
 	return serviceMapper(m)
 }
 

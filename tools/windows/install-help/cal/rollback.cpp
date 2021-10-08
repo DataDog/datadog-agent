@@ -1,6 +1,5 @@
 #include "stdafx.h"
 
-
 /*
  * Rollback is initiated in the event of a failed installation.  Rollback
  * should do the following actions
@@ -12,7 +11,7 @@
  * Whether or not those operations were initiated by this installation is indicated
  * by flags set in the registry
  */
- extern "C" UINT __stdcall RollbackInstallation(MSIHANDLE hInstall)
+extern "C" UINT __stdcall RollbackInstallation(MSIHANDLE hInstall)
 {
     HRESULT hr = S_OK;
     UINT er = ERROR_SUCCESS;
@@ -21,18 +20,14 @@
     bool bDDUserFilePermsChanged = false;
     bool bDDUserPerfmon = false;
     bool bDDRegPermsChanged = false;
-   
+
     // that's helpful.  WcaInitialize Log header silently limited to 32 chars
     hr = WcaInitialize(hInstall, "CA: Rollback");
     ExitOnFailure(hr, "Failed to initialize");
     WcaLog(LOGMSG_STANDARD, "Rollback Initialized.");
 
-
-
     WcaLog(LOGMSG_STANDARD, "Custom action rollback complete");
 LExit:
     er = SUCCEEDED(hr) ? ERROR_SUCCESS : ERROR_INSTALL_FAILURE;
     return WcaFinalize(er);
-
-
 }

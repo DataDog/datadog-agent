@@ -1,0 +1,149 @@
+<%
+  ENV['AZURE_LOCATION'] ||= "North Central US"
+  location = ENV['AZURE_LOCATION']
+%>
+
+<%
+  vm_tags = {
+    'dd_agent_testing': 'dd_agent_testing'
+  }
+  if ENV['DD_PIPELINE_ID']
+    vm_tags['pipeline_id'] = ENV['DD_PIPELINE_ID']
+  else
+    vm_tags['pipeline_id'] = 'nopipeline'
+  end
+%>
+
+provisioner:
+  name: chef_solo
+  product_name: chef
+  # allow overriding of chef version since we need >= 15 for arm64 testing
+  product_version: <%= ENV['CHEF_VERSION'] ||= '14.12.9' %>
+  chef_license: accept
+  install_strategy: always
+  # the following settings make it possible to do a reboot during setup
+  # (necessary for FIPS tests which reboot to enable FIPS mode)
+  max_retries: 3
+  wait_for_retry: 90
+  client_rb:
+    client_fork: false
+
+driver:
+  name: azurerm
+
+driver_config:
+  subscription_id: <%= ENV['AZURE_SUBSCRIPTION_ID'] %>
+  location: <%= location %>
+  <% if ENV['DD_PIPELINE_ID'] %>
+  azure_resource_group_suffix: pl<%= ENV['DD_PIPELINE_ID'] %>
+  <% else %>
+  azure_resource_group_suffix: plnone
+  <% end %>
+
+platforms:
+# Loop through two lists and output a total matrix of all possible platform + chef versions,
+# for both drivers
+
+
+<%
+    # TEST_PLATFORMS syntax is `short_name1,azure_full_qualified_name1|short_name2,azure_full_qualified_name1`
+    # TEST_PLATFORMS syntax is `short_name1,parent vhd folder,parent_vhd_name|...`
+    azure_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
+
+    sizes = [
+      "Standard_D1_v2",
+      "Standard_A1_v2",
+    ]
+
+    windows_sizes = [
+      "Standard_D2_v2"
+    ]
+
+    windows_platforms = []
+    sles11_platforms = []
+    sles15_platforms = []
+
+    idx = 0
+    azure_test_platforms.each do |platform|
+      idx += 1
+
+      host = "azure"
+
+      # KITCHEN_PLATFORM_SUFFIX is set for non-standard Agent tests (eg. IoT Agent, FIPS)
+      # that use the same test suites as the standard Agent.
+      # This is needed because the resource group name used by the driver is computed as:
+      # <test suite name>-<platform name>-<timestamp>-<azure_resource_group_suffix>
+      # which means that, without that KITCHEN_PLATFORM_SUFFIX, two types of tests
+      # running at the same time can conflict with each other if they start at the same time,
+      # as they try to use the same resource group name, leading to provisioning errors.
+      if ENV['KITCHEN_PLATFORM_SUFFIX']
+        platform_name = platform[0] + "-" + ENV['KITCHEN_PLATFORM_SUFFIX'] + "-#{host}"
+      else
+        platform_name = platform[0] + "-#{host}"
+      end
+
+      windows = platform_name.include?("win")
+      sles11 = platform_name.include?("sles-11")
+      sles15 = platform_name.include?("sles-15")
+      windows2008 = windows && platform_name.include?("2008")
+
+      if windows
+        windows_platforms << platform_name
+        size = windows_sizes[idx % windows_sizes.length]
+      else
+        if sles15
+          sles15_platforms << platform_name
+        end
+        if sles11
+          sles11_platforms << platform_name
+        end
+        size = sizes[idx % sizes.length]
+      end
+
+      vm_username = ENV['VM_USERNAME'] ? ENV['VM_USERNAME'] : "datadog"
+      vm_password = ENV['SERVER_PASSWORD']
+
+%>
+
+- name: <%= platform_name %>
+  driver_config:
+    machine_size: <%= size %>
+    <% if platform[1] == "urn" %>
+    image_urn: <%= platform[2] %>
+    <% else %>
+    image_id: <%= platform[2] %>
+    <% end %>
+    location: <%= location %>
+    <% if windows %>
+    vm_name: ddat<%= platform[0] %>
+    <% if windows2008 %>
+    winrm_powershell_script: |-
+      winrm quickconfig -q
+      winrm set winrm/config/winrs '@{MaxMemoryPerShellMB="512"}'
+      winrm set winrm/config '@{MaxTimeoutms="1800000"}'
+      winrm set winrm/config/service '@{AllowUnencrypted="true"}'
+      winrm set winrm/config/service/auth '@{Basic="true"}'
+      netsh advfirewall firewall set rule name="Windows Remote Management (HTTP-In)" profile=public protocol=tcp localport=5985 remoteip=localsubnet new remoteip=any
+    <% end %>
+    <% else %>
+    vm_name: dd-agent-testing-<%= platform[0] %>-azure
+    <% end %>
+    vm_tags:
+      <% vm_tags.each do |key,value| %>
+      <%= key %>: <%= value %>
+      <% end %>
+    username: <%= vm_username %>
+    password: <%= vm_password %>
+
+  transport:
+    <% if windows %>
+    name: winrm
+    username: <%= vm_username %>
+    password: <%= vm_password %>
+    <% else %>
+    connection_retries: 30
+    connection_retry_sleep: 2
+    ssh_key: <%= ENV['KITCHEN_SSH_KEY_PATH'] %>
+    <% end %>
+
+<% end %>

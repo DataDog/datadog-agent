@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-2020 Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // +build windows
 
@@ -41,22 +41,21 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	return nil
 }
 
-func (t *Tailer) readAvailable() (err error) {
+func (t *Tailer) readAvailable() (int, error) {
 	f, err := openFile(t.fullpath)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer f.Close()
 
 	st, err := f.Stat()
 	if err != nil {
 		log.Debugf("Error stat()ing file %v", err)
-		return err
+		return 0, err
 	}
 
 	sz := st.Size()
 	offset := t.GetReadOffset()
-	log.Debugf("Size is %d, offset is %d", sz, offset)
 	if sz == 0 {
 		log.Debug("File size now zero, resetting offset")
 		t.SetReadOffset(0)
@@ -67,15 +66,15 @@ func (t *Tailer) readAvailable() (err error) {
 		t.SetDecodedOffset(0)
 	}
 	f.Seek(t.GetReadOffset(), io.SeekStart)
+	bytes := 0
 
 	for {
 		inBuf := make([]byte, 4096)
 		n, err := f.Read(inBuf)
+		bytes += n
 		if n == 0 || err != nil {
-			log.Debugf("Done reading")
-			return err
+			return bytes, err
 		}
-		log.Debugf("Sending %d bytes to input channel", n)
 		t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 		t.incrementReadOffset(n)
 	}
@@ -85,12 +84,12 @@ func (t *Tailer) readAvailable() (err error) {
 // windows version open and close the file between each call to 'read'. This is
 // needed in order not to block the file and prevent the user from renaming it.
 func (t *Tailer) read() (int, error) {
-	err := t.readAvailable()
+	n, err := t.readAvailable()
 	if err == io.EOF || os.IsNotExist(err) {
-		return 0, nil
+		return n, nil
 	} else if err != nil {
 		t.file.Source.Status.Error(err)
-		return 0, log.Error("Err: ", err)
+		return n, log.Error("Err: ", err)
 	}
-	return 0, nil
+	return n, nil
 }

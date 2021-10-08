@@ -1,0 +1,3 @@
+fixes:
+  - |
+     The Windows installer now log only once when it fails to replace a property.

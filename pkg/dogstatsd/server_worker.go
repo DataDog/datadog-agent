@@ -1,6 +1,8 @@
 package dogstatsd
 
-import "github.com/DataDog/datadog-agent/pkg/metrics"
+import (
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+)
 
 var (
 	// defaultSampleSize is the default allocation size used to store

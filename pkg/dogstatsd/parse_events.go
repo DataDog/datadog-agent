@@ -68,24 +68,38 @@ func splitHeaderEvent(message []byte) ([]byte, []byte, error) {
 }
 
 func parseHeader(rawHeader []byte) (eventHeader, error) {
+	// Basic sanity check on the header (minimum length)
 	if len(rawHeader) < 7 {
 		return eventHeader{}, fmt.Errorf("invalid event header: %q", rawHeader)
 	}
+
+	// Extract out the raw title and text lengths
 	rawLengths := rawHeader[3 : len(rawHeader)-1]
 	sepIndex := bytes.Index(rawLengths, commaSeparator)
 	if sepIndex == -1 {
 		return eventHeader{}, fmt.Errorf("invalid event header: %q", rawHeader)
 	}
+
 	rawTitleLength := rawLengths[:sepIndex]
 	rawTextLength := rawLengths[sepIndex+1:]
+
+	// Convert title length to workable type and do a basic validity check on value
 	titleLength, err := parseInt64(rawTitleLength)
-	if err != nil {
+	if err != nil || titleLength < 0 {
 		return eventHeader{}, fmt.Errorf("invalid event header: %q", rawHeader)
 	}
+
+	// Ensure that title isn't empty
+	if titleLength == 0 {
+		return eventHeader{}, fmt.Errorf("invalid event: empty title")
+	}
+
+	// Convert text length to workable type and do a basic validity check on value
 	textLength, err := parseInt64(rawTextLength)
-	if err != nil {
+	if err != nil || textLength < 0 {
 		return eventHeader{}, fmt.Errorf("invalid event header: %q", rawHeader)
 	}
+
 	return eventHeader{
 		titleLength: int(titleLength),
 		textLength:  int(textLength),
@@ -154,16 +168,16 @@ func (p *parser) parseEvent(message []byte) (dogstatsdEvent, error) {
 	if err != nil {
 		return dogstatsdEvent{}, err
 	}
+
 	header, err := parseHeader(rawHeader)
 	if err != nil {
 		return dogstatsdEvent{}, err
 	}
+
 	if len(rawEvent) < header.textLength+header.titleLength+1 {
 		return dogstatsdEvent{}, fmt.Errorf("invalid event")
 	}
-	if header.titleLength == 0 {
-		return dogstatsdEvent{}, fmt.Errorf("invalid event: empty title")
-	}
+
 	title := cleanEventText(rawEvent[:header.titleLength])
 	text := cleanEventText(rawEvent[header.titleLength+1 : header.titleLength+1+header.textLength])
 
