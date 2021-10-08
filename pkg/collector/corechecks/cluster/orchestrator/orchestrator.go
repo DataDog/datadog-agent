@@ -264,8 +264,9 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 		}
 	}
 
-	apiCl.UnassignedPodInformerFactory.Start(o.stopCh)
-	apiCl.InformerFactory.Start(o.stopCh)
+	for _, informer := range informersToSync {
+		go informer.Run(o.stopCh)
+	}
 
 	return apiserver.SyncInformers(informersToSync)
 }
