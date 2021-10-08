@@ -294,7 +294,7 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
     char format[] = "(s)"; // use parentheses to force Tuple creation
 
     // call `AgentCheck.load_config(init_config)`
-    init_config = PyObject_CallMethod(klass, load_config, format, init_config_str);
+    init_config = PyObject_CallMethod(klass, load_config, format, init_config_str, NULL);
     if (init_config == NULL) {
         setError("error parsing init_config: " + _fetchPythonError());
         goto done;
@@ -313,7 +313,7 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
     }
 
     // call `AgentCheck.load_config(instance)`
-    instance = PyObject_CallMethod(klass, load_config, format, instance_str);
+    instance = PyObject_CallMethod(klass, load_config, format, instance_str, NULL);
     if (instance == NULL) {
         setError("error parsing instance: " + _fetchPythonError());
         goto done;
@@ -367,7 +367,7 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
     }
 
     if (agent_config_str != NULL) {
-        agent_config = PyObject_CallMethod(klass, load_config, format, agent_config_str);
+        agent_config = PyObject_CallMethod(klass, load_config, format, agent_config_str, NULL);
         if (agent_config == NULL) {
             setError("error parsing agent_config: " + _fetchPythonError());
             goto done;
