@@ -594,6 +594,7 @@ int kprobe__sockfd_lookup_light(struct pt_regs* ctx) {
         log_debug("CANONICAL-GNUTLS-DEBUG-LINE kprobe/sockfd_lookup_light sockfd=%d pid_tgid=0x%llx\n", sockfd, pid_tgid);
         log_debug("CANONICAL-GNUTLS-DEBUG-LINE                            sock=0x%llx\n", *sock);
         log_debug("CANONICAL-GNUTLS-DEBUG-LINE                            > sock already in sock_by_pid_fd\n");
+        // TODO un-comment this line eventually
         // return 0;
     }
     log_debug("CANONICAL-GNUTLS-DEBUG-LINE kprobe/sockfd_lookup_light sockfd=%d pid_tgid=0x%llx\n", sockfd, pid_tgid);
@@ -635,10 +636,10 @@ int kretprobe__sockfd_lookup_light(struct pt_regs* ctx) {
         .fd = (*sockfd),
     };
 
-    void* debug_exis_sock_raw = 0;
-    struct sock** debug_exis_sock = bpf_map_lookup_elem(&sock_by_pid_fd, &pid_fd);
-    if (debug_exis_sock != NULL) {
-        debug_exis_sock_raw = *debug_exis_sock;
+    void* debug_existing_sock = 0;
+    struct sock** debug_existing_sock_entry = bpf_map_lookup_elem(&sock_by_pid_fd, &pid_fd);
+    if (debug_existing_sock_entry != NULL) {
+        debug_existing_sock = *debug_existing_sock_entry;
     }
 
     // These entries are cleaned up by tcp_close
@@ -646,9 +647,9 @@ int kretprobe__sockfd_lookup_light(struct pt_regs* ctx) {
     bpf_map_update_elem(&sock_by_pid_fd, &pid_fd, &sock, BPF_ANY);
     log_debug("CANONICAL-GNUTLS-DEBUG-LINE kretprobe/sockfd_lookup_light sockfd=%d pid_tgid=0x%llx\n", *sockfd, pid_tgid);
     log_debug("CANONICAL-GNUTLS-DEBUG-LINE                               socket=0x%llx sock_type=%d\n", socket, sock_type);
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE                               sock(old)=0x%llx sock(new)=0x%llx debug_exis_sock=0xllx\n", debug_exis_sock_raw, sock, debug_exis_sock);
+    log_debug("CANONICAL-GNUTLS-DEBUG-LINE                               sock(old)=0x%llx sock(new)=0x%llx\n", debug_existing_sock, sock);
     // log_debug("CANONICAL-GNUTLS-DEBUG-LINE                               sock(new)=0x%llx\n", sock);
-    if (debug_exis_sock_raw == sock) {
+    if (debug_existing_sock == sock) {
         log_debug("CANONICAL-GNUTLS-DEBUG-LINE                               > stored same TCP socket in maps\n");
     } else {
         log_debug("CANONICAL-GNUTLS-DEBUG-LINE                               > stored new TCP socket in maps\n");
