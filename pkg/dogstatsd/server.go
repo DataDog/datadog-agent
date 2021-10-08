@@ -141,7 +141,7 @@ type Server struct {
 	histToDistPrefix          string
 	extraTags                 []string
 	Debug                     *dsdServerDebug
-	debugTagsBuilder          *tagset.HashingTagsAccumulator
+	debugTagsAccumulator      *tagset.HashingTagsAccumulator
 	TCapture                  *replay.TrafficCapture
 	mapper                    *mapper.MetricMapper
 	eolTerminationUDP         bool
@@ -706,21 +706,21 @@ func (s *Server) storeMetricStats(sample metrics.MetricSample) {
 	s.Debug.Lock()
 	defer s.Debug.Unlock()
 
-	if s.debugTagsBuilder == nil {
-		s.debugTagsBuilder = tagset.NewHashingTagsAccumulator()
+	if s.debugTagsAccumulator == nil {
+		s.debugTagsAccumulator = tagset.NewHashingTagsAccumulator()
 	}
 
 	// key
-	defer s.debugTagsBuilder.Reset()
-	s.debugTagsBuilder.Append(sample.Tags...)
-	key := s.Debug.keyGen.Generate(sample.Name, "", s.debugTagsBuilder)
+	defer s.debugTagsAccumulator.Reset()
+	s.debugTagsAccumulator.Append(sample.Tags...)
+	key := s.Debug.keyGen.Generate(sample.Name, "", s.debugTagsAccumulator)
 
 	// store
 	ms := s.Debug.Stats[key]
 	ms.Count++
 	ms.LastSeen = now
 	ms.Name = sample.Name
-	ms.Tags = strings.Join(s.debugTagsBuilder.Get(), " ") // we don't want/need to share the underlying array
+	ms.Tags = strings.Join(s.debugTagsAccumulator.Get(), " ") // we don't want/need to share the underlying array
 	s.Debug.Stats[key] = ms
 
 	s.Debug.metricsCounts.metricChan <- struct{}{}

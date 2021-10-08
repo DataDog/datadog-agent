@@ -14,7 +14,7 @@ type HashingTagsAccumulator struct {
 	hashedTags
 }
 
-// NewHashingTagsAccumulator returns a new empty TagsBuilder.
+// NewHashingTagsAccumulator returns a new empty HashingTagsAccumulator
 func NewHashingTagsAccumulator() *HashingTagsAccumulator {
 	return &HashingTagsAccumulator{
 		hashedTags: newHashedTagsWithCapacity(128),

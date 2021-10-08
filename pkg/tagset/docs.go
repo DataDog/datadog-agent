@@ -8,9 +8,9 @@
 // The package otherwise presents a fairly abstract API that allows performance
 // optimizations without changing semantics.
 //
-// ## Builders
+// ## Accumulators
 //
-// TagsBuilder and HashingTagsAccumulator both allow building tagsets bit-by-bit, by
+// HashlessTagsAccumulator and HashingTagsAccumulator both allow building tagsets bit-by-bit, by
 // appending new tags.
 //
 // ## HashedTags
