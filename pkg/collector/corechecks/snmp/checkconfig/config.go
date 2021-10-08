@@ -379,9 +379,9 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	} else {
 		bulkMaxRepetitions = int(DefaultBulkMaxRepetitions)
 	}
-	if bulkMaxRepetitions <= 0 {
-		return nil, fmt.Errorf("bulk max repetition must be a positive integer. Invalid value: %d", bulkMaxRepetitions)
-	}
+	//if bulkMaxRepetitions <= 0 {
+	//	return nil, fmt.Errorf("bulk max repetition must be a positive integer. Invalid value: %d", bulkMaxRepetitions)
+	//}
 	c.BulkMaxRepetitions = uint32(bulkMaxRepetitions)
 
 	if instance.Namespace != "" {

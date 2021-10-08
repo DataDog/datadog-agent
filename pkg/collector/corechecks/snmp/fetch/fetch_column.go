@@ -81,7 +81,7 @@ func fetchColumnOids(sess session.Session, oids map[string]string, bulkMaxRepeti
 
 func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions uint32) (*gosnmp.SnmpPacket, error) {
 	var results *gosnmp.SnmpPacket
-	if sess.GetVersion() == gosnmp.Version1 {
+	if sess.GetVersion() == gosnmp.Version1 || bulkMaxRepetitions == 0 {
 		// snmp v1 doesn't support GetBulk
 		getNextResults, err := sess.GetNext(requestOids)
 		if err != nil {
