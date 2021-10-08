@@ -9,7 +9,6 @@ package orchestrator
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"hash/fnv"
 	"sort"
 	"strconv"
@@ -22,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
