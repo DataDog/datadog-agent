@@ -9,6 +9,7 @@ package orchestrator
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"hash/fnv"
 	"sort"
 	"strconv"
@@ -67,6 +68,10 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 		// additional tags
 		podModel.Tags = append(tags, fmt.Sprintf("pod_status:%s", strings.ToLower(podModel.Status)))
 
+		if len(tags) == 0 {
+			podModel.Tags = append(tags, extractTags(p)...)
+		}
+
 		// The resource version field collected from the Kubelet can't be
 		// trusted because it's not updated, therefore not reflecting changes in
 		// the pod manifest.
@@ -124,6 +129,18 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 
 	log.Debugf("Collected & enriched %d out of %d pods in %s", len(podMsgs), len(podList), time.Now().Sub(start))
 	return messages, nil
+}
+
+// extractTags extract tags which should be on the tagger
+func extractTags(p *v1.Pod) []string {
+	var extraTags []string
+	for _, volume := range p.Spec.Volumes {
+		if volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.ClaimName != "" {
+			tag := fmt.Sprintf("%s:%s", kubernetes.PersistentVolumeClaimTagName, strings.ToLower(volume.PersistentVolumeClaim.ClaimName))
+			extraTags = append(extraTags, tag)
+		}
+	}
+	return extraTags
 }
 
 // chunkPods formats and chunks the pods into a slice of chunks using a specific number of chunks.
