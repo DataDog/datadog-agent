@@ -31,6 +31,7 @@ type mockItf struct {
 	mockContainers        func() ([]containerd.Container, error)
 	mockContainer         func(id string) (containerd.Container, error)
 	mockContainerWithCtx  func(ctx context.Context, id string) (containerd.Container, error)
+	mockEnvVars           func(ctn containerd.Container) (map[string]string, error)
 	mockMetadata          func() (containerd.Version, error)
 	mockImage             func(ctn containerd.Container) (containerd.Image, error)
 	mockImageSize         func(ctn containerd.Container) (int64, error)
@@ -102,6 +103,10 @@ func (m *mockItf) Spec(ctn containerd.Container) (*oci.Spec, error) {
 
 func (m *mockItf) SpecWithContext(ctx context.Context, ctn containerd.Container) (*oci.Spec, error) {
 	return m.mockSpecWithContext(ctx, ctn)
+}
+
+func (m *mockItf) EnvVars(ctn containerd.Container) (map[string]string, error) {
+	return m.mockEnvVars(ctn)
 }
 
 type mockEvt struct {

@@ -9,11 +9,13 @@ package containerd
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 
@@ -41,6 +43,7 @@ type ContainerdItf interface {
 	Container(id string) (containerd.Container, error)
 	ContainerWithContext(ctx context.Context, id string) (containerd.Container, error)
 	Containers() ([]containerd.Container, error)
+	EnvVars(ctn containerd.Container) (map[string]string, error)
 	GetEvents() containerd.EventService
 	Info(ctn containerd.Container) (containers.Container, error)
 	Labels(ctn containerd.Container) (map[string]string, error)
@@ -156,7 +159,7 @@ func (c *ContainerdUtil) ContainerWithContext(ctx context.Context, id string) (c
 	ctxNamespace := namespaces.WithNamespace(ctx, c.namespace)
 	ctn, err := c.cl.LoadContainer(ctxNamespace, id)
 	if errdefs.IsNotFound(err) {
-		return ctn, errors.NewNotFound(id)
+		return ctn, dderrors.NewNotFound(id)
 	}
 
 	return ctn, err
@@ -168,6 +171,27 @@ func (c *ContainerdUtil) Containers() ([]containerd.Container, error) {
 	defer cancel()
 	ctxNamespace := namespaces.WithNamespace(ctx, c.namespace)
 	return c.cl.Containers(ctxNamespace)
+}
+
+func (c *ContainerdUtil) EnvVars(ctn containerd.Container) (map[string]string, error) {
+	spec, err := c.Spec(ctn)
+	if err != nil {
+		return nil, err
+	}
+
+	envs := make(map[string]string)
+
+	for _, env := range spec.Process.Env {
+		envSplit := strings.SplitN(env, "=", 2)
+
+		if len(envSplit) < 2 {
+			return nil, errors.New("unexpected environment variable format")
+		}
+
+		envs[envSplit[0]] = envSplit[1]
+	}
+
+	return envs, nil
 }
 
 // Image interfaces with the containerd api to get an image

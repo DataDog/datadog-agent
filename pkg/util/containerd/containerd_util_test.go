@@ -18,8 +18,10 @@ import (
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/cio"
 	"github.com/containerd/containerd/containers"
+	"github.com/containerd/containerd/oci"
 	"github.com/containerd/typeurl"
 	prototypes "github.com/gogo/protobuf/types"
+	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,6 +31,7 @@ type mockContainer struct {
 	mockImage  func() (containerd.Image, error)
 	mockLabels func() (map[string]string, error)
 	mockInfo   func() (containers.Container, error)
+	mockSpec   func() (*oci.Spec, error)
 }
 
 // Task is from the containerd.Container interface
@@ -51,6 +54,10 @@ func (cs *mockContainer) Info(context.Context, ...containerd.InfoOpts) (containe
 	return cs.mockInfo()
 }
 
+func (cs *mockContainer) Spec(context.Context) (*oci.Spec, error) {
+	return cs.mockSpec()
+}
+
 type mockTaskStruct struct {
 	containerd.Task
 	mockMectric func(ctx context.Context) (*types.Metric, error)
@@ -69,6 +76,51 @@ type mockImage struct {
 // Name is from the Image interface
 func (i *mockImage) Size(ctx context.Context) (int64, error) {
 	return i.size, nil
+}
+
+func TestEnvVars(t *testing.T) {
+	tests := []struct {
+		name           string
+		specEnvs       []string
+		expectedResult map[string]string
+		expectsErr     bool
+	}{
+		{
+			name:           "valid envs",
+			specEnvs:       []string{"ENV1=val1", "ENV2=val2"},
+			expectedResult: map[string]string{"ENV1": "val1", "ENV2": "val2"},
+		},
+		{
+			name:       "wrong format",
+			specEnvs:   []string{"ENV1/val1"},
+			expectsErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mockUtil := ContainerdUtil{}
+
+			container := &mockContainer{
+				mockSpec: func() (*oci.Spec, error) {
+					return &oci.Spec{
+						Process: &specs.Process{
+							Env: test.specEnvs,
+						},
+					}, nil
+				},
+			}
+
+			envVars, err := mockUtil.EnvVars(container)
+
+			if test.expectsErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expectedResult, envVars)
+			}
+		})
+	}
 }
 
 func TestInfo(t *testing.T) {
