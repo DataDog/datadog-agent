@@ -148,20 +148,18 @@ func (w *soWatcher) sync(libraries []so.Library) {
 	old := w.registered
 	w.registered = make(map[string]func(string) error)
 
-OuterLoop:
 	for _, lib := range libraries {
+		if callback, ok := old[path]; ok {
+			w.registered[path] = callback
+			delete(old, path)
+			continue
+		}
+
 		for _, r := range w.rules {
 			path := lib.HostPath
-
-			if callback, ok := old[path]; ok {
-				w.registered[path] = callback
-				delete(old, path)
-				continue OuterLoop
-			}
-
 			if r.re.MatchString(path) {
 				w.register(path, r)
-				continue OuterLoop
+				break
 			}
 		}
 	}
