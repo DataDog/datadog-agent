@@ -1,6 +1,7 @@
 package network
 
 import (
+	"math"
 	"sync"
 	"time"
 
@@ -28,8 +29,12 @@ func IsPortInEphemeralRange(p uint16) EphemeralPortType {
 
 	low, hi, err := ephemeralIntPair.Get()
 	if err == nil {
-		ephemeralLow = uint16(low)
-		ephemeralHigh = uint16(hi)
+		if low > 0 && low < math.MaxInt16{
+			ephemeralLow = uint16(low)
+		}
+		if hi > 0 && hi < math.MaxInt16{
+			ephemeralHigh = uint16(hi)
+		}
 	}
 	if err != nil || ephemeralLow == 0 || ephemeralHigh == 0 {
 		return EphemeralUnknown
