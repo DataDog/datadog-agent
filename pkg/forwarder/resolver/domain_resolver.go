@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package forwarder
+package resolver
 
 import "github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 
@@ -84,7 +84,8 @@ type MultiDomainResolver struct {
 	baseDomain string
 	apiKeys    []string
 	// endpoint name => overriden hostname map
-	overrides map[string]destination
+	overrides           map[string]destination
+	alternateDomainList []string
 }
 
 // NewMultiDomainResolver initialize a MultiDomainResolver with its API keys and base destination
@@ -93,6 +94,7 @@ func NewMultiDomainResolver(baseDomain string, apiKeys []string) *MultiDomainRes
 		baseDomain,
 		apiKeys,
 		make(map[string]destination),
+		[]string{},
 	}
 }
 
@@ -121,15 +123,7 @@ func (r *MultiDomainResolver) SetBaseDomain(domain string) {
 
 // GetAlternateDomains return a slice with all alternate domain
 func (r *MultiDomainResolver) GetAlternateDomains() []string {
-	dedupDomainMap := make(map[string]bool)
-	for _, dest := range r.overrides {
-		dedupDomainMap[dest.domain] = true
-	}
-	domains := make([]string, 0, len(dedupDomainMap))
-	for domain := range dedupDomainMap {
-		domains = append(domains, domain)
-	}
-	return domains
+	return r.alternateDomainList
 }
 
 // NewDomainResolverWithMetricToVector initialize a resolver with metrics diverted to a vector endpoint
@@ -139,13 +133,14 @@ func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []string, 
 		Vector,
 	}
 	overrides := map[string]destination{
-		v1SeriesEndpoint.Name:     dest,
-		seriesEndpoint.Name:       dest,
-		sketchSeriesEndpoint.Name: dest,
+		"series_v1":   dest,
+		"series_v2":   dest,
+		"sketches_v2": dest,
 	}
 	return &MultiDomainResolver{
 		mainEndpoint,
 		apiKeys,
 		overrides,
+		[]string{vectorEndpoint},
 	}
 }

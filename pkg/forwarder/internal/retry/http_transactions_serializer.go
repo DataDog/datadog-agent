@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -34,12 +35,13 @@ type HTTPTransactionsSerializer struct {
 	collection          HttpTransactionProtoCollection
 	apiKeyToPlaceholder *strings.Replacer
 	placeholderToAPIKey *strings.Replacer
-	domain              string
+	resolver            resolver.DomainResolver
+	// domain              []string
 }
 
 // NewHTTPTransactionsSerializer creates a new instance of HTTPTransactionsSerializer
-func NewHTTPTransactionsSerializer(domain string, apiKeys []string) *HTTPTransactionsSerializer {
-	apiKeyToPlaceholder, placeholderToAPIKey := createReplacers(apiKeys)
+func NewHTTPTransactionsSerializer(resolver resolver.DomainResolver) *HTTPTransactionsSerializer {
+	apiKeyToPlaceholder, placeholderToAPIKey := createReplacers(resolver.GetAPIKeys())
 
 	return &HTTPTransactionsSerializer{
 		collection: HttpTransactionProtoCollection{
@@ -47,7 +49,7 @@ func NewHTTPTransactionsSerializer(domain string, apiKeys []string) *HTTPTransac
 		},
 		apiKeyToPlaceholder: apiKeyToPlaceholder,
 		placeholderToAPIKey: placeholderToAPIKey,
-		domain:              domain,
+		resolver:            resolver,
 	}
 }
 
@@ -55,7 +57,7 @@ func NewHTTPTransactionsSerializer(domain string, apiKeys []string) *HTTPTransac
 // This function uses references on HTTPTransaction.Payload and HTTPTransaction.Headers
 // and so the transaction must not be updated until a call to `GetBytesAndReset`.
 func (s *HTTPTransactionsSerializer) Add(transaction *transaction.HTTPTransaction) error {
-	// if transaction.Domain != s.domain {
+	if transaction.Domain != s.domain {
 	// Ignore this at the moment
 	// This error is not supposed to happen (Sanity check).
 	// return fmt.Errorf("The domain of the transaction %v does not match the domain %v", transaction.Domain, s.domain)
@@ -126,9 +128,12 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 			errorCount++
 			continue
 		}
+
+		endpoint := transaction.Endpoint{Route: route, Name: e.Name}
+		domain, _ := s.resolver.Resolve(endpoint)
 		tr := transaction.HTTPTransaction{
-			Domain:         s.domain,
-			Endpoint:       transaction.Endpoint{Route: route, Name: e.Name},
+			Domain:         domain,
+			Endpoint:       endpoint,
 			Headers:        proto,
 			Payload:        &tr.Payload,
 			ErrorCount:     int(tr.ErrorCount),

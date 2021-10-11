@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/resolver"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
@@ -364,14 +365,14 @@ func StartAgent() error {
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	resolvers := forwarder.NewSingleDomainResolvers(keysPerDomain)
+	resolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
 	vectorMetricsURL, vectorEnabled, err := config.GetVectorURL("metrics")
 	if err != nil {
 		log.Error("Misconfiguration of agent vector endpoint for metrics: ", err)
 	}
 	if r, ok := resolvers[config.GetMainInfraEndpoint()]; ok && vectorEnabled {
 		log.Debugf("Configuring forwarder to send metrics to vector: %s", vectorMetricsURL)
-		resolvers[config.GetMainInfraEndpoint()] = forwarder.NewDomainResolverWithMetricToVector(
+		resolvers[config.GetMainInfraEndpoint()] = resolver.NewDomainResolverWithMetricToVector(
 			r.GetBaseDomain(),
 			r.GetAPIKeys(),
 			vectorMetricsURL,

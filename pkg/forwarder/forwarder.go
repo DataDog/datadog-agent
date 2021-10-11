@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/internal/retry"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -98,7 +99,7 @@ type Options struct {
 	DisableAPIKeyChecking          bool
 	EnabledFeatures                Features
 	APIKeyValidationInterval       time.Duration
-	DomainResolvers                map[string]DomainResolver
+	DomainResolvers                map[string]resolver.DomainResolver
 	ConnectionResetInterval        time.Duration
 	CompletionHandler              transaction.HTTPCompletionHandler
 }
@@ -116,7 +117,7 @@ func ToggleFeature(features, flag Features) Features { return features ^ flag }
 func HasFeature(features, flag Features) bool { return features&flag != 0 }
 
 // NewOptions creates new Options with default values
-func NewOptions(domainResolvers map[string]DomainResolver) *Options {
+func NewOptions(domainResolvers map[string]resolver.DomainResolver) *Options {
 	validationInterval := config.Datadog.GetInt("forwarder_apikey_validation_interval")
 	if validationInterval <= 0 {
 		log.Warnf(
@@ -175,7 +176,7 @@ type DefaultForwarder struct {
 	NumberOfWorkers int
 
 	domainForwarders map[string]*domainForwarder
-	domainResolvers  map[string]DomainResolver
+	domainResolvers  map[string]resolver.DomainResolver
 	healthChecker    *forwarderHealth
 	internalState    uint32
 	m                sync.Mutex // To control Start/Stop races
@@ -188,7 +189,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 	f := &DefaultForwarder{
 		NumberOfWorkers:  options.NumberOfWorkers,
 		domainForwarders: map[string]*domainForwarder{},
-		domainResolvers:  map[string]DomainResolver{},
+		domainResolvers:  map[string]resolver.DomainResolver{},
 		internalState:    Stopped,
 		healthChecker: &forwarderHealth{
 			domainResolvers:       options.DomainResolvers,
@@ -251,8 +252,7 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 				domainFolderPath,
 				storageMaxSize,
 				transactionContainerSort,
-				domain,
-				resolver.GetAPIKeys())
+				resolver)
 			f.domainResolvers[domain] = resolver
 			fwd := newDomainForwarder(
 				domain,

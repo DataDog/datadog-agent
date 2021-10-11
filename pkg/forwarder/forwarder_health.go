@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -53,7 +54,7 @@ type forwarderHealth struct {
 	stop                  chan bool
 	stopped               chan struct{}
 	timeout               time.Duration
-	domainResolvers       map[string]DomainResolver
+	domainResolvers       map[string]resolver.DomainResolver
 	keysPerAPIEndpoint    map[string][]string
 	disableAPIKeyChecking bool
 	validationInterval    time.Duration
