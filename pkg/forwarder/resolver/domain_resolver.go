@@ -126,7 +126,8 @@ func (r *MultiDomainResolver) GetAlternateDomains() []string {
 	return r.alternateDomainList
 }
 
-// RegisterAlternateDestination add an alternate destination to a MultiDomainResolver
+// RegisterAlternateDestination add an alternate destination to a MultiDomainResolver.
+// The diversion will match against a transaction.Endpoint.Name
 func (r *MultiDomainResolver) RegisterAlternateDestination(domain string, forwarderName string, dType DestinationType) {
 	d := destination{
 		domain: domain,

@@ -203,6 +203,75 @@ func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 	assert.Equal(t, txBar[0].Endpoint.Route, "/api/foo?api_key=api-key-3")
 }
 
+func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
+	resolvers := resolver.NewSingleDomainResolvers(keysWithMultipleDomains)
+	additionalResolver := resolver.NewMultiDomainResolver("datadog.vector", []string{"api-key-4"})
+	additionalResolver.RegisterAlternateDestination("diversion.domain", "diverted_name", resolver.Vector)
+	resolvers["datadog.vector"] = additionalResolver
+	forwarder := NewDefaultForwarder(NewOptions(resolvers))
+	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "diverted_name"}
+	p1 := []byte("A payload")
+	payloads := Payloads{&p1}
+	headers := make(http.Header)
+	headers.Set("HTTP-MAGIC", "foo")
+
+	transactions := forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
+	require.Len(t, transactions, 4, "should contain 4 transactions, contains %d", len(transactions))
+
+	var txNormal, txBar, txVector []*transaction.HTTPTransaction
+	for _, t := range transactions {
+		if t.Domain == testVersionDomain {
+			txNormal = append(txNormal, t)
+		}
+		if t.Domain == "datadog.bar" {
+			txBar = append(txBar, t)
+		}
+		if t.Domain == "diversion.domain" {
+			txVector = append(txVector, t)
+		}
+	}
+
+	assert.Equal(t, len(txNormal), 2, "Two transactions should target the normal domain")
+	assert.Equal(t, len(txBar), 1, "One transactions should target the normal domain")
+
+	if strings.HasSuffix(txNormal[0].Endpoint.Route, "api-key-1") {
+		assert.Equal(t, txNormal[0].Endpoint.Route, "/api/foo?api_key=api-key-1")
+		assert.Equal(t, txNormal[1].Endpoint.Route, "/api/foo?api_key=api-key-2")
+	} else {
+		assert.Equal(t, txNormal[0].Endpoint.Route, "/api/foo?api_key=api-key-2")
+		assert.Equal(t, txNormal[1].Endpoint.Route, "/api/foo?api_key=api-key-1")
+	}
+	assert.Equal(t, txBar[0].Endpoint.Route, "/api/foo?api_key=api-key-3")
+	assert.Equal(t, txVector[0].Endpoint.Route, "/api/foo?api_key=api-key-4")
+}
+
+func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
+	resolvers := make(map[string]resolver.DomainResolver)
+	r := resolver.NewMultiDomainResolver(testDomain, []string{"api-key-1"})
+	r.RegisterAlternateDestination("vector.tld", "diverted", resolver.Vector)
+	resolvers[testDomain] = r
+	forwarder := NewDefaultForwarder(NewOptions(resolvers))
+
+	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "no_diverted"}
+	p1 := []byte("A payload")
+	payloads := Payloads{&p1}
+	headers := make(http.Header)
+	headers.Set("HTTP-MAGIC", "foo")
+
+	transactions := forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
+	require.Len(t, transactions, 1, "should contain 1 transaction, contains %d", len(transactions))
+
+	assert.Equal(t, transactions[0].Endpoint.Route, "/api/foo?api_key=api-key-1")
+	assert.Equal(t, transactions[0].Domain, testVersionDomain)
+
+	endpoint.Name = "diverted"
+	transactions = forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
+	require.Len(t, transactions, 1, "should contain 1 transaction, contains %d", len(transactions))
+
+	assert.Equal(t, transactions[0].Endpoint.Route, "/api/foo?api_key=api-key-1")
+	assert.Equal(t, transactions[0].Domain, "vector.tld")
+}
+
 func TestArbitraryTagsHTTPHeader(t *testing.T) {
 	mockConfig := config.Mock()
 	mockConfig.Set("allow_arbitrary_tags", true)

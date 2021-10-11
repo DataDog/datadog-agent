@@ -36,7 +36,6 @@ type HTTPTransactionsSerializer struct {
 	apiKeyToPlaceholder *strings.Replacer
 	placeholderToAPIKey *strings.Replacer
 	resolver            resolver.DomainResolver
-	// domain              []string
 }
 
 // NewHTTPTransactionsSerializer creates a new instance of HTTPTransactionsSerializer
