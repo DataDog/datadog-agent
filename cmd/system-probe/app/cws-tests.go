@@ -11,19 +11,19 @@ import (
 )
 
 var (
-	runtimeEmbeddedTestsCmd = &cobra.Command{
-		Use:   "runtime-embedded-tests",
+	cwsEmbeddedTestsCmd = &cobra.Command{
+		Use:   "cws-tests",
 		Short: "Run the CWS embedded tests",
-		Long:  `Runs the CWS embedded tests`,
-		Run:   runtimeRunEmbeddedTests,
+		Long:  `Run the CWS embedded tests`,
+		Run:   runCWSEmbeddedTests,
 	}
 )
 
 func init() {
 	// attach the command to the root
-	SysprobeCmd.AddCommand(runtimeEmbeddedTestsCmd)
+	SysprobeCmd.AddCommand(cwsEmbeddedTestsCmd)
 }
 
-func runtimeRunEmbeddedTests(cmd *cobra.Command, args []string) {
+func runCWSEmbeddedTests(cmd *cobra.Command, args []string) {
 	embeddedtests.RunEmbeddedTests()
 }
