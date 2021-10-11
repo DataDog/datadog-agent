@@ -7,7 +7,7 @@ package resolver
 
 import "github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 
-// DestinationType is use to identified the expected endpoint
+// DestinationType is used to identified the expected endpoint
 type DestinationType int
 
 const (
@@ -32,7 +32,7 @@ type SingleDomainResolver struct {
 	apiKeys []string
 }
 
-// NewSingleDomainResolver create a SingleDomainResolver with its destination domain & API keys
+// NewSingleDomainResolver creates a SingleDomainResolver with its destination domain & API keys
 func NewSingleDomainResolver(domain string, apiKeys []string) *SingleDomainResolver {
 	return &SingleDomainResolver{
 		domain,
@@ -40,7 +40,7 @@ func NewSingleDomainResolver(domain string, apiKeys []string) *SingleDomainResol
 	}
 }
 
-// NewSingleDomainResolvers convert a map of domain/api keys into a map of SingleDomainResolver
+// NewSingleDomainResolvers converts a map of domain/api keys into a map of SingleDomainResolver
 func NewSingleDomainResolvers(keysPerDomain map[string][]string) map[string]DomainResolver {
 	resolvers := make(map[string]DomainResolver)
 	for domain, keys := range keysPerDomain {
@@ -69,7 +69,7 @@ func (r *SingleDomainResolver) SetBaseDomain(domain string) {
 	r.domain = domain
 }
 
-// GetAlternateDomains always return an empty slice for SingleDomainResolver
+// GetAlternateDomains always returns an empty slice for SingleDomainResolver
 func (r *SingleDomainResolver) GetAlternateDomains() []string {
 	return []string{}
 }
@@ -81,14 +81,13 @@ type destination struct {
 
 // MultiDomainResolver holds a default value and can provide alternate domain for some route
 type MultiDomainResolver struct {
-	baseDomain string
-	apiKeys    []string
-	// endpoint name => overriden hostname map
+	baseDomain          string
+	apiKeys             []string
 	overrides           map[string]destination
 	alternateDomainList []string
 }
 
-// NewMultiDomainResolver initialize a MultiDomainResolver with its API keys and base destination
+// NewMultiDomainResolver initializes a MultiDomainResolver with its API keys and base destination
 func NewMultiDomainResolver(baseDomain string, apiKeys []string) *MultiDomainResolver {
 	return &MultiDomainResolver{
 		baseDomain,
@@ -116,18 +115,19 @@ func (r *MultiDomainResolver) GetBaseDomain() string {
 	return r.baseDomain
 }
 
-// SetBaseDomain update the base domain
+// SetBaseDomain updates the base domain
 func (r *MultiDomainResolver) SetBaseDomain(domain string) {
 	r.baseDomain = domain
 }
 
-// GetAlternateDomains return a slice with all alternate domain
+// GetAlternateDomains returns a slice with all alternate domain
 func (r *MultiDomainResolver) GetAlternateDomains() []string {
 	return r.alternateDomainList
 }
 
-// RegisterAlternateDestination add an alternate destination to a MultiDomainResolver.
-// The diversion will match against a transaction.Endpoint.Name
+// RegisterAlternateDestination adds an alternate destination to a MultiDomainResolver.
+// The resolver will match transaction.Endpoint.Name against forwarderName to check if the request shall
+// be diverted.
 func (r *MultiDomainResolver) RegisterAlternateDestination(domain string, forwarderName string, dType DestinationType) {
 	d := destination{
 		domain: domain,
