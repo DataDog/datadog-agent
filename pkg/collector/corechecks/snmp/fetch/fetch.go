@@ -14,11 +14,10 @@ import (
 // TODO: pass only specific configs instead of the whole CheckConfig
 func Fetch(sess session.Session, config *checkconfig.CheckConfig) (*valuestore.ResultValueStore, error) {
 	// fetch scalar values
-	var scalarResults valuestore.ScalarResultValuesType
-	//scalarResults, err := fetchScalarOidsWithBatching(sess, config.OidConfig.ScalarOids, config.OidBatchSize)
-	//if err != nil {
-	//	return nil, fmt.Errorf("failed to fetch scalar oids with batching: %v", err)
-	//}
+	scalarResults, err := fetchScalarOidsWithBatching(sess, config.OidConfig.ScalarOids, config.OidBatchSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch scalar oids with batching: %v", err)
+	}
 
 	// fetch column values
 	oids := make(map[string]string, len(config.OidConfig.ColumnOids))
