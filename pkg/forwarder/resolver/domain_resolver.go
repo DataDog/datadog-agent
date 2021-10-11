@@ -126,21 +126,17 @@ func (r *MultiDomainResolver) GetAlternateDomains() []string {
 	return r.alternateDomainList
 }
 
-// NewDomainResolverWithMetricToVector initialize a resolver with metrics diverted to a vector endpoint
-func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []string, vectorEndpoint string) *MultiDomainResolver {
-	dest := destination{
-		vectorEndpoint,
-		Vector,
+// RegisterAlternateDestination add an alternate destination to a MultiDomainResolver
+func (r *MultiDomainResolver) RegisterAlternateDestination(domain string, forwarderName string, dType DestinationType) {
+	d := destination{
+		domain: domain,
+		dType:  dType,
 	}
-	overrides := map[string]destination{
-		"series_v1":   dest,
-		"series_v2":   dest,
-		"sketches_v2": dest,
+	r.overrides[forwarderName] = d
+	for _, alternateDomain := range r.alternateDomainList {
+		if alternateDomain == domain {
+			return
+		}
 	}
-	return &MultiDomainResolver{
-		mainEndpoint,
-		apiKeys,
-		overrides,
-		[]string{vectorEndpoint},
-	}
+	r.alternateDomainList = append(r.alternateDomainList, domain)
 }

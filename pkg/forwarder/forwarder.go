@@ -590,3 +590,12 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, pay
 
 	return results, f.sendHTTPTransactions(transactions)
 }
+
+// NewDomainResolverWithMetricToVector initialize a resolver with metrics diverted to a vector endpoint
+func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []string, vectorEndpoint string) *resolver.MultiDomainResolver {
+	r := resolver.NewMultiDomainResolver(mainEndpoint, apiKeys)
+	r.RegisterAlternateDestination(vectorEndpoint, v1SeriesEndpoint.Name, resolver.Vector)
+	r.RegisterAlternateDestination(vectorEndpoint, seriesEndpoint.Name, resolver.Vector)
+	r.RegisterAlternateDestination(vectorEndpoint, sketchSeriesEndpoint.Name, resolver.Vector)
+	return r
+}

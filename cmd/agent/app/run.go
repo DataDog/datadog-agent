@@ -372,7 +372,7 @@ func StartAgent() error {
 	}
 	if r, ok := resolvers[config.GetMainInfraEndpoint()]; ok && vectorEnabled {
 		log.Debugf("Configuring forwarder to send metrics to vector: %s", vectorMetricsURL)
-		resolvers[config.GetMainInfraEndpoint()] = resolver.NewDomainResolverWithMetricToVector(
+		resolvers[config.GetMainInfraEndpoint()] = forwarder.NewDomainResolverWithMetricToVector(
 			r.GetBaseDomain(),
 			r.GetAPIKeys(),
 			vectorMetricsURL,
