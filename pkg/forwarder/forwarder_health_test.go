@@ -12,6 +12,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/resolver"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,7 +31,7 @@ func TestHasValidAPIKey(t *testing.T) {
 		ts2.URL: {"key3"},
 	}
 
-	fh := forwarderHealth{domainResolvers: NewSingleDomainResolvers(keysPerDomains)}
+	fh := forwarderHealth{domainResolvers: resolver.NewSingleDomainResolvers(keysPerDomains)}
 	fh.init()
 	assert.True(t, fh.hasValidAPIKey())
 
@@ -65,7 +66,7 @@ func TestComputeDomainsURL(t *testing.T) {
 		sort.Strings(keys)
 	}
 
-	fh := forwarderHealth{domainResolvers: NewSingleDomainResolvers(keysPerDomains)}
+	fh := forwarderHealth{domainResolvers: resolver.NewSingleDomainResolvers(keysPerDomains)}
 	fh.init()
 
 	// lexicographical sort for assert

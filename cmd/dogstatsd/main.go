@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/resolver"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -183,7 +184,7 @@ func runAgent(ctx context.Context) (err error) {
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(forwarder.NewSingleDomainResolvers(keysPerDomain)))
+	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(resolver.NewSingleDomainResolvers(keysPerDomain)))
 	f.Start() //nolint:errcheck
 	s := serializer.NewSerializer(f, nil)
 

@@ -49,7 +49,7 @@ func TestNewDefaultForwarder(t *testing.T) {
 	assert.NotNil(t, forwarder)
 	assert.Equal(t, 1, forwarder.NumberOfWorkers)
 	require.Len(t, forwarder.domainForwarders, 1) // only one domain has keys
-	assert.Equal(t, NewSingleDomainResolvers(validKeysPerDomain), forwarder.domainResolvers)
+	assert.Equal(t, resolver.NewSingleDomainResolvers(validKeysPerDomain), forwarder.domainResolvers)
 	assert.Len(t, forwarder.domainForwarders, 1) // datadog.bar should have been dropped
 
 	assert.Equal(t, forwarder.internalState, Stopped)

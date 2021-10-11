@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/resolver"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -108,7 +109,7 @@ func buildBufferedAggregator(multipleEndpointConfig MultipleEndpointConfig, forw
 		log.Errorf("Misconfiguration of agent endpoints: %s", err)
 		return nil
 	}
-	f := forwarder.NewSyncForwarder(forwarder.NewSingleDomainResolvers(keysPerDomain), forwarderTimeout)
+	f := forwarder.NewSyncForwarder(resolver.NewSingleDomainResolvers(keysPerDomain), forwarderTimeout)
 	f.Start() //nolint:errcheck
 	serializer := serializer.NewSerializer(f, nil)
 	return aggregator.InitAggregator(serializer, nil, "serverless")

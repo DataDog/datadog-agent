@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/forwarder/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,7 @@ const domain = "domain"
 func TestHTTPSerializeDeserialize(t *testing.T) {
 	a := assert.New(t)
 	tr := createHTTPTransactionTests()
-	serializer := NewHTTPTransactionsSerializer(domain, []string{apiKey1, apiKey2})
+	serializer := NewHTTPTransactionsSerializer(resolver.NewSingleDomainResolver(domain, []string{apiKey1, apiKey2}))
 
 	a.NoError(serializer.Add(tr))
 	bytes, err := serializer.GetBytesAndReset()
@@ -48,7 +49,7 @@ func TestHTTPSerializeDeserialize(t *testing.T) {
 func TestPartialDeserialize(t *testing.T) {
 	a := assert.New(t)
 	initialTransaction := createHTTPTransactionTests()
-	serializer := NewHTTPTransactionsSerializer(domain, nil)
+	serializer := NewHTTPTransactionsSerializer(resolver.NewSingleDomainResolver(domain, nil))
 
 	a.NoError(serializer.Add(initialTransaction))
 	a.NoError(serializer.Add(initialTransaction))
@@ -70,7 +71,7 @@ func TestPartialDeserialize(t *testing.T) {
 func TestHTTPTransactionSerializerMissingAPIKey(t *testing.T) {
 	r := require.New(t)
 
-	serializer := NewHTTPTransactionsSerializer(domain, []string{apiKey1, apiKey2})
+	serializer := NewHTTPTransactionsSerializer(resolver.NewSingleDomainResolver(domain, []string{apiKey1, apiKey2}))
 
 	r.NoError(serializer.Add(createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{apiKey1}})))
 	r.NoError(serializer.Add(createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{apiKey2}})))
@@ -81,7 +82,7 @@ func TestHTTPTransactionSerializerMissingAPIKey(t *testing.T) {
 	r.NoError(err)
 	r.Equal(0, errorCount)
 
-	serializerMissingAPIKey := NewHTTPTransactionsSerializer(domain, []string{apiKey1})
+	serializerMissingAPIKey := NewHTTPTransactionsSerializer(resolver.NewSingleDomainResolver(domain, []string{apiKey1}))
 	_, errorCount, err = serializerMissingAPIKey.Deserialize(bytes)
 	r.NoError(err)
 	r.Equal(1, errorCount)
