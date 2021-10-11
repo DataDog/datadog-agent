@@ -264,6 +264,9 @@ func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, sourc
 		}
 	}
 
+	// we run each enabled informer individually as starting them through the factory
+	// would prevent us to restarting them again if the check is unscheduled/rescheduled
+	// see https://github.com/kubernetes/client-go/blob/3511ef41b1fbe1152ef5cab2c0b950dfd607eea7/informers/factory.go#L64-L66
 	for _, informer := range informersToSync {
 		go informer.Run(o.stopCh)
 	}
