@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/fetch"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/metadata"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/report"
@@ -79,7 +79,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	startTime := time.Now()
 	staticTags := append(d.config.GetStaticTags(), d.config.GetNetworkTags()...)
 
-	// Fetch and report metrics
+	// Fetcher and report metrics
 	var checkErr error
 	var deviceStatus metadata.DeviceStatus
 	deviceReachable, tags, values, checkErr := d.getValuesAndTags(staticTags)
@@ -148,7 +148,8 @@ func (d *DeviceCheck) getValuesAndTags(staticTags []string) (bool, []string, *va
 
 	tags = append(tags, d.config.ProfileTags...)
 
-	valuesStore, err := fetch.Fetch(d.session, d.config)
+	f := fetcher.NewFetcher(d.session, d.config)
+	valuesStore, err := f.Fetch()
 	log.Debugf("fetched values: %v", valuesStore)
 
 	if err != nil {

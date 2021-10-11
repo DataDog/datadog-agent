@@ -1,4 +1,4 @@
-package fetch
+package fetcher
 
 import (
 	"fmt"
@@ -10,22 +10,36 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/valuestore"
 )
 
+// Fetcher is used to fetch oids from snmp device
+type Fetcher struct {
+	session session.Session
+	config  *checkconfig.CheckConfig
+}
+
+// NewFetcher creates a new instance of Fetcher
+func NewFetcher(session session.Session, config *checkconfig.CheckConfig) *Fetcher {
+	return &Fetcher{
+		session: session,
+		config:  config,
+	}
+}
+
 // Fetch oid values from device
 // TODO: pass only specific configs instead of the whole CheckConfig
-func Fetch(sess session.Session, config *checkconfig.CheckConfig) (*valuestore.ResultValueStore, error) {
+func (f *Fetcher) Fetch() (*valuestore.ResultValueStore, error) {
 	// fetch scalar values
-	scalarResults, err := fetchScalarOidsWithBatching(sess, config.OidConfig.ScalarOids, config.OidBatchSize)
+	scalarResults, err := fetchScalarOidsWithBatching(f.session, f.config.OidConfig.ScalarOids, f.config.OidBatchSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch scalar oids with batching: %v", err)
 	}
 
 	// fetch column values
-	oids := make(map[string]string, len(config.OidConfig.ColumnOids))
-	for _, value := range config.OidConfig.ColumnOids {
+	oids := make(map[string]string, len(f.config.OidConfig.ColumnOids))
+	for _, value := range f.config.OidConfig.ColumnOids {
 		oids[value] = value
 	}
 
-	columnResults, err := fetchColumnOidsWithMaxRepAdjustment(sess, oids, config.OidBatchSize, config.BulkMaxRepetitions)
+	columnResults, err := fetchColumnOidsWithMaxRepAdjustment(f.session, oids, f.config.OidBatchSize, f.config.BulkMaxRepetitions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch column oids with batching: %v", err)
 	}
@@ -48,7 +62,7 @@ func fetchColumnOidsWithMaxRepAdjustment(sess session.Session, oids map[string]s
 		} else {
 			return columnResults, nil
 		}
-		bulkMaxRep = bulkMaxRep/2
+		bulkMaxRep = bulkMaxRep / 2
 	}
 	return nil, lastErr
 }
