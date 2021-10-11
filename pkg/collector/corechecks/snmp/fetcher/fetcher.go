@@ -12,16 +12,19 @@ import (
 
 // Fetcher is used to fetch oids from snmp device
 type Fetcher struct {
-	session session.Session
-	config  *checkconfig.CheckConfig
+	session       session.Session
+	config        *checkconfig.CheckConfig
+	curBulkMaxRep uint32
 }
 
 // NewFetcher creates a new instance of Fetcher
 func NewFetcher(session session.Session, config *checkconfig.CheckConfig) *Fetcher {
-	return &Fetcher{
+	f := Fetcher{
 		session: session,
 		config:  config,
 	}
+	f.resetBulkMaxRepetitions()
+	return &f
 }
 
 // Fetch oid values from device
@@ -39,7 +42,7 @@ func (f *Fetcher) Fetch() (*valuestore.ResultValueStore, error) {
 		oids[value] = value
 	}
 
-	columnResults, err := fetchColumnOidsWithMaxRepAdjustment(f.session, oids, f.config.OidBatchSize, f.config.BulkMaxRepetitions)
+	columnResults, err := f.fetchColumnOidsWithMaxRepAdjustment(oids)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch column oids with batching: %v", err)
 	}
@@ -47,22 +50,29 @@ func (f *Fetcher) Fetch() (*valuestore.ResultValueStore, error) {
 	return &valuestore.ResultValueStore{ScalarValues: scalarResults, ColumnValues: columnResults}, nil
 }
 
-func fetchColumnOidsWithMaxRepAdjustment(sess session.Session, oids map[string]string, oidBatchSize int, bulkMaxRep uint32) (valuestore.ColumnResultValuesType, error) {
+func (f *Fetcher) fetchColumnOidsWithMaxRepAdjustment(oids map[string]string) (valuestore.ColumnResultValuesType, error) {
 	var lastErr error
 	var useGetNext bool
 
-	for bulkMaxRep > 0 {
-		log.Debugf("fetch column oids (oidBatchSize=%d, bulkMaxRep=%d)", oidBatchSize, bulkMaxRep)
-		if bulkMaxRep <= 1 {
+	for f.curBulkMaxRep > 0 {
+		log.Debugf("fetch column oids (oidBatchSize=%d, curBulkMaxRep=%d)", f.config.OidBatchSize, f.curBulkMaxRep)
+		if f.curBulkMaxRep <= 1 {
 			useGetNext = true
 		}
-		columnResults, err := fetchColumnOidsWithBatching(sess, oids, oidBatchSize, bulkMaxRep, useGetNext)
+		columnResults, err := fetchColumnOidsWithBatching(f.session, oids, f.config.OidBatchSize, f.curBulkMaxRep, useGetNext)
 		if err != nil {
 			lastErr = err
 		} else {
 			return columnResults, nil
 		}
-		bulkMaxRep = bulkMaxRep / 2
+		f.curBulkMaxRep = f.curBulkMaxRep / 2
+	}
+	if lastErr != nil {
+		f.resetBulkMaxRepetitions()
 	}
 	return nil, lastErr
+}
+
+func (f *Fetcher) resetBulkMaxRepetitions() {
+	f.curBulkMaxRep = f.config.BulkMaxRepetitions
 }

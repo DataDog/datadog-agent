@@ -34,6 +34,7 @@ type DeviceCheck struct {
 	config  *checkconfig.CheckConfig
 	sender  *report.MetricSender
 	session session.Session
+	fetcher *fetcher.Fetcher
 }
 
 // NewDeviceCheck returns a new DeviceCheck
@@ -48,6 +49,7 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string) (*DeviceC
 	return &DeviceCheck{
 		config:  newConfig,
 		session: sess,
+		fetcher: fetcher.NewFetcher(sess, newConfig),
 	}, nil
 }
 
@@ -148,8 +150,7 @@ func (d *DeviceCheck) getValuesAndTags(staticTags []string) (bool, []string, *va
 
 	tags = append(tags, d.config.ProfileTags...)
 
-	f := fetcher.NewFetcher(d.session, d.config)
-	valuesStore, err := f.Fetch()
+	valuesStore, err := d.fetcher.Fetch()
 	log.Debugf("fetched values: %v", valuesStore)
 
 	if err != nil {

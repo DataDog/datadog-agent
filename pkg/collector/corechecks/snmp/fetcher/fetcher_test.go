@@ -652,7 +652,9 @@ func Test_fetchValues_columns_error(t *testing.T) {
 		},
 	}
 
-	_, err := NewFetcher(sess, &config).Fetch()
+	fetcher := NewFetcher(sess, &config)
+	_, err := fetcher.Fetch()
 
 	assert.EqualError(t, err, "failed to fetch column oids with batching: failed to fetch column oids: fetch column: failed getting oids `[1.1 2.2]` using GetNext: getnext error")
+	assert.Equal(t, fetcher.curBulkMaxRep, uint32(0))
 }
