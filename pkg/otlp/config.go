@@ -51,7 +51,7 @@ func fromExperimentalConfig(cfg config.Config) (PipelineConfig, error) {
 
 	httpPort, err := portToUint(cfg.GetInt(config.ExperimentalOTLPHTTPPort))
 	if err != nil {
-		errs = append(errs, fmt.Errorf("http port is invalid: %w", err))
+		errs = append(errs, fmt.Errorf("HTTP port is invalid: %w", err))
 	}
 
 	gRPCPort, err := portToUint(cfg.GetInt(config.ExperimentalOTLPgRPCPort))
