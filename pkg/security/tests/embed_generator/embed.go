@@ -48,7 +48,6 @@ func main() {
 	if err := filepath.Walk(input, func(filepath string, info os.FileInfo, err error) error {
 		opts := newEmbedFileOptions(filepath, input, output)
 		if shouldKeepVerbatim(filepath) {
-			fmt.Printf("KEEPING VERBATIM: %v\n", filepath)
 			if err := embedVerbatimFile(opts, pkgName); err != nil {
 				return err
 			}
