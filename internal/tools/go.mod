@@ -7,7 +7,7 @@ require (
 	github.com/frapposelli/wwhrd v0.4.0
 	github.com/fzipp/gocyclo v0.3.1
 	github.com/go-enry/go-license-detector/v4 v4.3.0
-	github.com/golangci/golangci-lint v1.42.0
+	github.com/golangci/golangci-lint v1.42.1
 	github.com/gordonklaus/ineffassign v0.0.0-20210225214923-2e10b2664254
 	github.com/goware/modvendor v0.5.0
 	github.com/mgechev/revive v1.1.1
