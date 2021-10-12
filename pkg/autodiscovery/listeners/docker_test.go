@@ -59,6 +59,7 @@ func TestDockerCreateContainerService(t *testing.T) {
 					},
 					hosts:        map[string]string{},
 					creationTime: integration.After,
+					ports:        []ContainerPort{},
 				},
 			},
 		},

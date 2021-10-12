@@ -712,10 +712,6 @@ func TestParseJSONValue(t *testing.T) {
 
 			low, _, _, _ := tags.Compute()
 			assert.ElementsMatch(t, tt.want, low)
-			// assert.Len(t, got, len(tt.want))
-			// for k, v := range tt.want {
-			// 	assert.ElementsMatch(t, v, got[k])
-			// }
 		})
 	}
 }
