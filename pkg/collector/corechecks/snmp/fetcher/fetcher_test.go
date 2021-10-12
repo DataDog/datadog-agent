@@ -633,7 +633,7 @@ func Test_fetchValues_errors(t *testing.T) {
 	}
 }
 
-func Test_fetchValues_columns_error(t *testing.T) {
+func Test_fetchColumnOidsWithMaxRepAdjustment_failure(t *testing.T) {
 	sess := session.CreateMockSession()
 	sess.On("Get", []string{"1.1", "2.2"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("get error"))
 	sess.On("GetBulk", []string{"1.1", "2.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
@@ -656,5 +656,118 @@ func Test_fetchValues_columns_error(t *testing.T) {
 	_, err := fetcher.Fetch()
 
 	assert.EqualError(t, err, "failed to fetch column oids with batching: failed to fetch column oids: fetch column: failed getting oids `[1.1 2.2]` using GetNext: getnext error")
+
+	// Test that `fetcher.curBulkMaxRep` is reset to `checkconfig.DefaultBulkMaxRepetitions`
 	assert.Equal(t, fetcher.curBulkMaxRep, uint32(10))
+}
+
+func Test_fetchColumnOidsWithMaxRepAdjustment_successOnGetBulk2(t *testing.T) {
+	bulkPacket := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.1.1",
+				Type:  gosnmp.TimeTicks,
+				Value: 11,
+			},
+			{
+				Name:  "2.2.1",
+				Type:  gosnmp.TimeTicks,
+				Value: 21,
+			},
+		},
+	}
+	bulkPacket2 := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.99",
+				Type:  gosnmp.TimeTicks,
+				Value: 11,
+			},
+			{
+				Name:  "2.99",
+				Type:  gosnmp.TimeTicks,
+				Value: 21,
+			},
+		},
+	}
+	sess := session.CreateMockSession()
+	sess.On("Get", []string{"1.1", "2.2"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("get error"))
+	sess.On("GetBulk", []string{"1.1", "2.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
+	sess.On("GetBulk", []string{"1.1", "2.2"}, uint32(5)).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error1"))
+	sess.On("GetBulk", []string{"1.1", "2.2"}, uint32(2)).Return(&bulkPacket, nil)
+	sess.On("GetBulk", []string{"1.1.1", "2.2.1"}, uint32(2)).Return(&bulkPacket2, nil)
+
+	config := checkconfig.CheckConfig{
+		IPAddress:          "1.2.3.4",
+		CommunityString:    "abc",
+		BulkMaxRepetitions: checkconfig.DefaultBulkMaxRepetitions,
+		OidBatchSize:       10,
+		OidConfig: checkconfig.OidConfig{
+			ScalarOids: []string{},
+			ColumnOids: []string{"1.1", "2.2"},
+		},
+	}
+
+	fetcher := NewFetcher(sess, &config)
+	_, err := fetcher.Fetch()
+
+	assert.Nil(t, err)
+
+	assert.Equal(t, fetcher.curBulkMaxRep, uint32(2))
+}
+
+func Test_fetchColumnOidsWithMaxRepAdjustment_successOnGetNext(t *testing.T) {
+	getnextPacket := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.1.1",
+				Type:  gosnmp.TimeTicks,
+				Value: 11,
+			},
+			{
+				Name:  "2.2.1",
+				Type:  gosnmp.TimeTicks,
+				Value: 21,
+			},
+		},
+	}
+	getnextPacket2 := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.99",
+				Type:  gosnmp.TimeTicks,
+				Value: 11,
+			},
+			{
+				Name:  "2.99",
+				Type:  gosnmp.TimeTicks,
+				Value: 21,
+			},
+		},
+	}
+	sess := session.CreateMockSession()
+	sess.On("Get", []string{"1.1", "2.2"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("get error"))
+	sess.On("GetBulk", []string{"1.1", "2.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
+	sess.On("GetBulk", []string{"1.1", "2.2"}, uint32(5)).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error1"))
+	sess.On("GetBulk", []string{"1.1", "2.2"}, uint32(2)).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error2"))
+	sess.On("GetNext", []string{"1.1", "2.2"}).Return(&getnextPacket, nil)
+	sess.On("GetNext", []string{"1.1.1", "2.2.1"}).Return(&getnextPacket2, nil)
+
+	config := checkconfig.CheckConfig{
+		IPAddress:          "1.2.3.4",
+		CommunityString:    "abc",
+		BulkMaxRepetitions: checkconfig.DefaultBulkMaxRepetitions,
+		OidBatchSize:       10,
+		OidConfig: checkconfig.OidConfig{
+			ScalarOids: []string{},
+			ColumnOids: []string{"1.1", "2.2"},
+		},
+	}
+
+	fetcher := NewFetcher(sess, &config)
+	_, err := fetcher.Fetch()
+
+	assert.Nil(t, err)
+
+	assert.Equal(t, fetcher.curBulkMaxRep, uint32(1))
 }

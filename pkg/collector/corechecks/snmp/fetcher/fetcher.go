@@ -67,8 +67,6 @@ func (f *Fetcher) fetchColumnOidsWithMaxRepAdjustment(oids map[string]string) (v
 		}
 		f.curBulkMaxRep = f.curBulkMaxRep / 2
 	}
-	// TODO: test resetBulkMaxRepetitions
-	// TODO: test f.curBulkMaxRep is persisted over check runs
 	if lastErr != nil {
 		f.resetBulkMaxRepetitions()
 	}
