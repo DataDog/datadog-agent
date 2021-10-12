@@ -165,6 +165,7 @@
 /pkg/config/apm.go                      @DataDog/agent-apm
 /pkg/config/environment*.go             @DataDog/container-integrations @DataDog/container-app
 /pkg/config/system_probe.go             @DataDog/agent-network
+/pkg/config/remote/                     @DataDog/remote-config
 /pkg/otlp/                              @DataDog/agent-platform
 /pkg/tagger/                            @DataDog/container-integrations
 /pkg/tagger/collectors/garden*.go       @DataDog/integrations-tools-and-libraries
