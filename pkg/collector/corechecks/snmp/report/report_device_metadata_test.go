@@ -93,16 +93,16 @@ extra_tags:
             "vendor": "",
             "subnet": "127.0.0.0/29",
             "tags": [
-				"agent_extratag1:val1",
-				"agent_extratag2:val2",
-				"agent_tag1:val1",
-				"agent_tag2:val2",
-				"inst_tag1:val1",
-				"inst_tag2:val2",
+                "agent_extratag1:val1",
+                "agent_extratag2:val2",
+                "agent_tag1:val1",
+                "agent_tag2:val2",
+                "inst_tag1:val1",
+                "inst_tag2:val2",
                 "tag1",
                 "tag2"
             ],
-			"status":1
+            "status":1
         }
     ],
 	"collect_timestamp":1415792726
