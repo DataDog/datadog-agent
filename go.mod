@@ -207,13 +207,14 @@ require (
 	k8s.io/apimachinery v0.21.2
 	k8s.io/apiserver v0.20.11
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.9.2
-	k8s.io/client-go v12.0.0+incompatible
-	k8s.io/cri-api v0.20.6
+	k8s.io/client-go v0.21.0
+	k8s.io/cri-api v0.20.11
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
+	k8s.io/klog/v2 v2.8.0
 	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
 	k8s.io/kube-state-metrics/v2 v2.1.1
-	k8s.io/kubernetes v1.20.11
 	k8s.io/metrics v0.20.11
+	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
 )
 
 // Pinned to kubernetes-v0.20.11
