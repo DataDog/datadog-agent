@@ -61,7 +61,7 @@ func (f *Fetcher) fetchColumnOidsWithMaxRepAdjustment(oids map[string]string) (v
 		}
 		columnResults, err := fetchColumnOidsWithBatching(f.session, oids, f.config.OidBatchSize, f.curBulkMaxRep, useGetNext)
 		if err != nil {
-			log.Debugf("fetch column oids (oidBatchSize=%d, curBulkMaxRep=%d) error: %s", f.config.OidBatchSize, f.curBulkMaxRep, err)
+			log.Debugf("fetch column oids (oidBatchSize=%d, curBulkMaxRep=%d) failed: %s", f.config.OidBatchSize, f.curBulkMaxRep, err)
 			lastErr = err
 		} else {
 			return columnResults, nil
