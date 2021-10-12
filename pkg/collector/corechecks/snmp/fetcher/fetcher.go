@@ -55,7 +55,7 @@ func (f *Fetcher) fetchColumnOidsWithMaxRepAdjustment(oids map[string]string) (v
 	var useGetNext bool
 
 	for f.curBulkMaxRep > 0 {
-		log.Debugf("fetch column oids (oidBatchSize=%d, curBulkMaxRep=%d)", f.config.OidBatchSize, f.curBulkMaxRep)
+		log.Debugf("fetch column oids (oidBatchSize=%d, curBulkMaxRep=%d) starting", f.config.OidBatchSize, f.curBulkMaxRep)
 		if f.curBulkMaxRep <= 1 {
 			useGetNext = true
 		}
