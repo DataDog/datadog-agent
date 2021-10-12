@@ -16,8 +16,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/internal/retry"
-	"github.com/DataDog/datadog-agent/pkg/forwarder/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -117,7 +117,25 @@ func ToggleFeature(features, flag Features) Features { return features ^ flag }
 func HasFeature(features, flag Features) bool { return features&flag != 0 }
 
 // NewOptions creates new Options with default values
-func NewOptions(domainResolvers map[string]resolver.DomainResolver) *Options {
+func NewOptions(keysPerDomain map[string][]string) *Options {
+	resolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
+	vectorMetricsURL, err := config.GetVectorURL(config.Metrics)
+	if err != nil {
+		log.Error("Misconfiguration of agent vector endpoint for metrics: ", err)
+	}
+	if r, ok := resolvers[config.GetMainInfraEndpoint()]; ok && vectorMetricsURL != "" {
+		log.Debugf("Configuring forwarder to send metrics to vector: %s", vectorMetricsURL)
+		resolvers[config.GetMainInfraEndpoint()] = NewDomainResolverWithMetricToVector(
+			r.GetBaseDomain(),
+			r.GetAPIKeys(),
+			vectorMetricsURL,
+		)
+	}
+	return NewOptionsWithResolvers(resolvers)
+}
+
+// NewOptionsWithResolvers creates new Options with default values
+func NewOptionsWithResolvers(domainResolvers map[string]resolver.DomainResolver) *Options {
 	validationInterval := config.Datadog.GetInt("forwarder_apikey_validation_interval")
 	if validationInterval <= 0 {
 		log.Warnf(

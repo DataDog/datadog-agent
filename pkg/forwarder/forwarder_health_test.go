@@ -12,7 +12,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder/resolver"
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/stretchr/testify/assert"
 )
 
