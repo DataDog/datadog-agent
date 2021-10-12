@@ -256,6 +256,22 @@ api_key:
 #
 # forwarder_outdated_file_in_days: 10
 
+## @param forwarder_high_prio_buffer_size - int - optional - default: 100
+## Defines the size of the high prio buffer.
+## Increasing the buffer size can help if payload drops occur due to high prio buffer being full.
+#
+# forwarder_high_prio_buffer_size: 100
+
+## @param forwarder_low_prio_buffer_size - int - optional - default: 100
+## Defines the size of the low prio buffer.
+#
+# forwarder_low_prio_buffer_size: 100
+
+## @param forwarder_requeue_buffer_size - int - optional - default: 100
+## Defines the size of the requeue prio buffer.
+#
+# forwarder_requeue_buffer_size: 100
+
 ## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba"]
 ## This option restricts which cloud provider endpoint will be used by the
 ## agent to retrieve metadata. By default the agent will try # AWS, GCP, Azure
