@@ -8,4 +8,6 @@
 ---
 enhancements:
   - |
-    APM: Added API key configuration parameter for live debugging proxy endpoint
+    APM: Added a configuration option to set the API key separately for Live
+    Debugger. It can be set via `apm_config.debugger_api_key` or
+    `DD_APM_DEBUGGER_API_KEY`.
