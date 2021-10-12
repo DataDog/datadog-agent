@@ -190,6 +190,7 @@ func indexOf(s string, db []string) int32 {
 	}
 	return -1
 }
+
 func TestNetworkConnectionBatchingWithDomainsByQueryType(t *testing.T) {
 	conns := makeConnections(4)
 
@@ -252,6 +253,8 @@ func TestNetworkConnectionBatchingWithDomainsByQueryType(t *testing.T) {
 
 		// verify nothing was put in the DnsStatsByDomain bucket by mistake
 		assert.Equal(t, len(connections.Connections[0].DnsStatsByDomain), 0)
+		assert.Equal(t, len(connections.Connections[0].DnsStatsByDomainByQueryType), 0)
+
 		switch i {
 		case 0:
 			assert.Equal(t, len(domaindb), 0)
@@ -261,9 +264,17 @@ func TestNetworkConnectionBatchingWithDomainsByQueryType(t *testing.T) {
 
 			// check for correctness of the data
 			conn := connections.Connections[0]
-			val, ok := conn.DnsStatsByDomainByQueryType[0]
-			assert.True(t, ok)
-			assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(1))
+			//val, ok := conn.DnsStatsByDomainByQueryType[0]
+			assert.Equal(t, 1, len(conn.DnsStatsByDomainOffsetByQueryType))
+			// we don't know what hte offset will be, but since there's only one
+			// the iteration should only happen once
+			for off, val := range conn.DnsStatsByDomainOffsetByQueryType {
+				// first, verify the hostname is what we expect
+				domainstr, err := connections.GetDNSNameByOffset(off)
+				assert.Nil(t, err)
+				assert.Equal(t, domainstr, domains[0])
+				assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(1))
+			}
 
 		case 2:
 			assert.Equal(t, len(domaindb), 2)
@@ -271,16 +282,24 @@ func TestNetworkConnectionBatchingWithDomainsByQueryType(t *testing.T) {
 			assert.Contains(t, domaindb, domains[2])
 			assert.NotContains(t, domaindb, domains[1])
 
-			indexzero := indexOf(domains[0], domaindb)
-			indextwo := indexOf(domains[2], domaindb)
 			conn := connections.Connections[0]
-			val, ok := conn.DnsStatsByDomainByQueryType[indexzero]
-			assert.True(t, ok)
-			assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(2))
+			for off, val := range conn.DnsStatsByDomainOffsetByQueryType {
+				// first, verify the hostname is what we expect
+				domainstr, err := connections.GetDNSNameByOffset(off)
+				assert.Nil(t, err)
 
-			val, ok = conn.DnsStatsByDomainByQueryType[indextwo]
-			assert.True(t, ok)
-			assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(3))
+				idx := indexOf(domainstr, domains)
+				assert.NotEqual(t, -1, idx)
+
+				switch idx {
+				case 0:
+					assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(2))
+				case 2:
+					assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(3))
+				default:
+					assert.True(t, false, fmt.Sprintf("unexpected index %v", idx))
+				}
+			}
 
 		case 3:
 			assert.Equal(t, len(domaindb), 2)
@@ -288,16 +307,24 @@ func TestNetworkConnectionBatchingWithDomainsByQueryType(t *testing.T) {
 			assert.Contains(t, domaindb, domains[2])
 			assert.NotContains(t, domaindb, domains[0])
 
-			indexone := indexOf(domains[1], domaindb)
-			indextwo := indexOf(domains[2], domaindb)
 			conn := connections.Connections[0]
-			val, ok := conn.DnsStatsByDomainByQueryType[indexone]
-			assert.True(t, ok)
-			assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(4))
+			for off, val := range conn.DnsStatsByDomainOffsetByQueryType {
+				// first, verify the hostname is what we expect
+				domainstr, err := connections.GetDNSNameByOffset(off)
+				assert.Nil(t, err)
 
-			val, ok = conn.DnsStatsByDomainByQueryType[indextwo]
-			assert.True(t, ok)
-			assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(5))
+				idx := indexOf(domainstr, domains)
+				assert.NotEqual(t, -1, idx)
+
+				switch idx {
+				case 1:
+					assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(4))
+				case 2:
+					assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(5))
+				default:
+					assert.True(t, false, fmt.Sprintf("unexpected index %v", idx))
+				}
+			}
 		}
 	}
 	assert.Equal(t, 4, total)
@@ -344,6 +371,7 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 		domaindb := connections.GetDNSNamesV2()
 
 		// verify nothing was put in the DnsStatsByDomain bucket by mistake
+		assert.Equal(t, len(connections.Connections[0].DnsStatsByDomain), 0)
 		assert.Equal(t, len(connections.Connections[0].DnsStatsByDomainByQueryType), 0)
 
 		switch i {
@@ -355,25 +383,39 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 
 			// check for correctness of the data
 			conn := connections.Connections[0]
-			val, ok := conn.DnsStatsByDomain[0]
-			assert.True(t, ok)
-			assert.Equal(t, val.DnsTimeouts, uint32(1))
+			// we don't know what hte offset will be, but since there's only one
+			// the iteration should only happen once
+			for off, val := range conn.DnsStatsByDomainOffsetByQueryType {
+				// first, verify the hostname is what we expect
+				domainstr, err := connections.GetDNSNameByOffset(off)
+				assert.Nil(t, err)
+				assert.Equal(t, domainstr, domains[0])
+				assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(1))
+			}
 		case 2:
 			assert.Equal(t, len(domaindb), 2)
 			assert.Contains(t, domaindb, domains[0])
 			assert.Contains(t, domaindb, domains[2])
 			assert.NotContains(t, domaindb, domains[1])
 
-			indexzero := indexOf(domains[0], domaindb)
-			indextwo := indexOf(domains[2], domaindb)
 			conn := connections.Connections[0]
-			val, ok := conn.DnsStatsByDomain[indexzero]
-			assert.True(t, ok)
-			assert.Equal(t, val.DnsTimeouts, uint32(2))
+			for off, val := range conn.DnsStatsByDomainOffsetByQueryType {
+				// first, verify the hostname is what we expect
+				domainstr, err := connections.GetDNSNameByOffset(off)
+				assert.Nil(t, err)
 
-			val, ok = conn.DnsStatsByDomain[indextwo]
-			assert.True(t, ok)
-			assert.Equal(t, val.DnsTimeouts, uint32(3))
+				idx := indexOf(domainstr, domains)
+				assert.NotEqual(t, -1, idx)
+
+				switch idx {
+				case 0:
+					assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(2))
+				case 2:
+					assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(3))
+				default:
+					assert.True(t, false, fmt.Sprintf("unexpected index %v", idx))
+				}
+			}
 
 		case 3:
 			assert.Equal(t, len(domaindb), 2)
@@ -381,16 +423,24 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 			assert.Contains(t, domaindb, domains[2])
 			assert.NotContains(t, domaindb, domains[0])
 
-			indexone := indexOf(domains[1], domaindb)
-			indextwo := indexOf(domains[2], domaindb)
 			conn := connections.Connections[0]
-			val, ok := conn.DnsStatsByDomain[indexone]
-			assert.True(t, ok)
-			assert.Equal(t, val.DnsTimeouts, uint32(4))
+			for off, val := range conn.DnsStatsByDomainOffsetByQueryType {
+				// first, verify the hostname is what we expect
+				domainstr, err := connections.GetDNSNameByOffset(off)
+				assert.Nil(t, err)
 
-			val, ok = conn.DnsStatsByDomain[indextwo]
-			assert.True(t, ok)
-			assert.Equal(t, val.DnsTimeouts, uint32(5))
+				idx := indexOf(domainstr, domains)
+				assert.NotEqual(t, -1, idx)
+
+				switch idx {
+				case 1:
+					assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(4))
+				case 2:
+					assert.Equal(t, val.DnsStatsByQueryType[int32(dns.TypeA)].DnsTimeouts, uint32(5))
+				default:
+					assert.True(t, false, fmt.Sprintf("unexpected index %v", idx))
+				}
+			}
 		}
 	}
 	assert.Equal(t, 4, total)

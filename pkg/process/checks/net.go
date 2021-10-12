@@ -12,6 +12,7 @@ import (
 	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/dockerproxy"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -236,6 +237,29 @@ func remapDNSStatsByDomainByQueryType(c *model.Connection, namemap map[string]in
 
 }
 
+func remapDNSStatsByOffset(c *model.Connection, indexToOffset []int32) {
+	oldByDomain := c.DnsStatsByDomain
+	oldByDomainByQueryType := c.DnsStatsByDomainByQueryType
+
+	c.DnsStatsByDomainOffsetByQueryType = make(map[int32]*model.DNSStatsByQueryType)
+
+	// first, walk the stats by domain.  Put them in by query type 'A`
+	for key, val := range oldByDomain {
+		off := indexToOffset[key]
+		if _, ok := c.DnsStatsByDomainOffsetByQueryType[off]; !ok {
+			c.DnsStatsByDomainOffsetByQueryType[off] = &model.DNSStatsByQueryType{}
+			c.DnsStatsByDomainOffsetByQueryType[off].DnsStatsByQueryType = make(map[int32]*model.DNSStats)
+		}
+		c.DnsStatsByDomainOffsetByQueryType[off].DnsStatsByQueryType[int32(dns.TypeA)] = val
+	}
+	for key, val := range oldByDomainByQueryType {
+		off := indexToOffset[key]
+		c.DnsStatsByDomainOffsetByQueryType[off] = val
+	}
+	c.DnsStatsByDomain = nil
+	c.DnsStatsByDomainByQueryType = nil
+}
+
 // Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
 func batchConnections(
 	cfg *config.AgentConfig,
@@ -325,6 +349,9 @@ func batchConnections(
 		mappedDNSLookups, err := dnsEncoder.EncodeMapped(batchDNS, indexToOffset)
 		if err != nil {
 			mappedDNSLookups = nil
+		}
+		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
+			remapDNSStatsByOffset(c, indexToOffset)
 		}
 		cc := &model.CollectorConnections{
 			HostName:              cfg.HostName,
