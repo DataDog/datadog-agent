@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixing deadlock when stopping the agent righ when a metadata provider is scheduled.
