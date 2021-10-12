@@ -181,7 +181,6 @@ static __always_inline int http_process(char *buffer, skb_info_t *skb_info, u16 
         bpf_map_update_elem(&http_in_flight, &skb_info->tup, &new_entry, BPF_NOEXIST);
         http = bpf_map_lookup_elem(&http_in_flight, &skb_info->tup);
         if (http == NULL || http->owned_by_src_port != src_port) {
-            // log_debug("http_process > req but no t. or obsp != src_port src_port=%d\n", src_port);
             return 0;
         }
         http_begin_request(http, method, buffer, &skb_info->tup);
@@ -190,7 +189,6 @@ static __always_inline int http_process(char *buffer, skb_info_t *skb_info, u16 
         bpf_map_update_elem(&http_in_flight, &skb_info->tup, &new_entry, BPF_NOEXIST);
         http = bpf_map_lookup_elem(&http_in_flight, &skb_info->tup);
         if (http == NULL) {
-            // log_debug("http_process > res but no t. src_port=%d\n", src_port);
             return 0;
         }
         http_begin_response(http, buffer);
@@ -199,11 +197,6 @@ static __always_inline int http_process(char *buffer, skb_info_t *skb_info, u16 
         // We're either in the middle of either a request or response
         http = bpf_map_lookup_elem(&http_in_flight, &skb_info->tup);
         if (http == NULL) {
-            log_debug("http_process > mid of req/res but no t. src_port=%d\n", src_port);
-            log_debug("             t.saddr_h=%llu t.saddr_l=%llu\n", skb_info->tup.saddr_h, skb_info->tup.saddr_l);
-            log_debug("             t.daddr_h=%llu t.daddr_l=%llu\n", skb_info->tup.daddr_h, skb_info->tup.daddr_l);
-            log_debug("             t.sport=%u t.dport=%u\n", skb_info->tup.sport, skb_info->tup.dport);
-            log_debug("             t.netns=%lu t.pid=%lu t.metadata=%lu\n", skb_info->tup.netns, skb_info->tup.pid, skb_info->tup.metadata);
             return 0;
         }
     }
@@ -217,18 +210,6 @@ static __always_inline int http_process(char *buffer, skb_info_t *skb_info, u16 
     if (skb_info->tcp_flags & TCPHDR_FIN && http->owned_by_src_port == src_port) {
         http_enqueue(http, &skb_info->tup);
         bpf_map_delete_elem(&http_in_flight, &skb_info->tup);
-        log_debug("http_process > end t.\n");
-        // log_debug("http_process > end of t. src_port=%d http->owned_by_src_port=%d\n", src_port, http->owned_by_src_port);
-        // log_debug("             t.saddr_h=%llu t.saddr_l=%llu\n", skb_info->tup.saddr_h, skb_info->tup.saddr_l);
-        // log_debug("             t.daddr_h=%llu t.daddr_l=%llu\n", skb_info->tup.daddr_h, skb_info->tup.daddr_l);
-        // log_debug("             t.sport=%u t.dport=%u\n", skb_info->tup.sport, skb_info->tup.dport);
-        // log_debug("             t.netns=%lu t.pid=%lu t.metadata=%lu\n", skb_info->tup.netns, skb_info->tup.pid, skb_info->tup.metadata);
-    } else {
-        log_debug("http_process > t. src_port=%d http->owned_by_src_port=%d\n", src_port, http->owned_by_src_port);
-        log_debug("             t.saddr_h=%llu t.saddr_l=%llu\n", skb_info->tup.saddr_h, skb_info->tup.saddr_l);
-        log_debug("             t.daddr_h=%llu t.daddr_l=%llu\n", skb_info->tup.daddr_h, skb_info->tup.daddr_l);
-        log_debug("             t.sport=%u t.dport=%u\n", skb_info->tup.sport, skb_info->tup.dport);
-        log_debug("             t.netns=%lu t.pid=%lu t.metadata=%lu\n", skb_info->tup.netns, skb_info->tup.pid, skb_info->tup.metadata);
     }
 
     return 0;

@@ -591,14 +591,9 @@ int kprobe__sockfd_lookup_light(struct pt_regs* ctx) {
     };
     struct sock** sock = bpf_map_lookup_elem(&sock_by_pid_fd, &key);
     if (sock != NULL) {
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE kprobe/sockfd_lookup_light sockfd=%d pid_tgid=0x%llx\n", sockfd, pid_tgid);
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE                            sock=0x%llx\n", *sock);
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE                            > sock already in sock_by_pid_fd\n");
         // TODO un-comment this line eventually
         // return 0;
     }
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE kprobe/sockfd_lookup_light sockfd=%d pid_tgid=0x%llx\n", sockfd, pid_tgid);
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE                            > storing args in map for kretprobe\n");
 
     bpf_map_update_elem(&sockfd_lookup_args, &pid_tgid, &sockfd, BPF_ANY);
     return 0;
@@ -612,7 +607,6 @@ int kretprobe__sockfd_lookup_light(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     int *sockfd = bpf_map_lookup_elem(&sockfd_lookup_args, &pid_tgid);
     if (sockfd == NULL) {
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE kretprobe/sockfd_lookup_light > no stored arguments in map from kprobe\n");
         return 0;
     }
 
@@ -621,9 +615,6 @@ int kretprobe__sockfd_lookup_light(struct pt_regs* ctx) {
     enum sock_type sock_type = 0;
     bpf_probe_read(&sock_type, sizeof(short), &socket->type);
     if (sock_type != SOCK_STREAM) {
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE kretprobe/sockfd_lookup_light sockfd=%d pid_tgid=0x%llx\n", *sockfd, pid_tgid);
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE                               socket=0x%llx sock_type=%d\n", socket, sock_type);
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE                               > socket is not SOCK_STREAM; skipping\n");
         goto cleanup;
     }
 
@@ -636,24 +627,9 @@ int kretprobe__sockfd_lookup_light(struct pt_regs* ctx) {
         .fd = (*sockfd),
     };
 
-    void* debug_existing_sock = 0;
-    struct sock** debug_existing_sock_entry = bpf_map_lookup_elem(&sock_by_pid_fd, &pid_fd);
-    if (debug_existing_sock_entry != NULL) {
-        debug_existing_sock = *debug_existing_sock_entry;
-    }
-
     // These entries are cleaned up by tcp_close
     bpf_map_update_elem(&pid_fd_by_sock, &sock, &pid_fd, BPF_ANY);
     bpf_map_update_elem(&sock_by_pid_fd, &pid_fd, &sock, BPF_ANY);
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE kretprobe/sockfd_lookup_light sockfd=%d pid_tgid=0x%llx\n", *sockfd, pid_tgid);
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE                               socket=0x%llx sock_type=%d\n", socket, sock_type);
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE                               sock(old)=0x%llx sock(new)=0x%llx\n", debug_existing_sock, sock);
-    // log_debug("CANONICAL-GNUTLS-DEBUG-LINE                               sock(new)=0x%llx\n", sock);
-    if (debug_existing_sock == sock) {
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE                               > stored same TCP socket in maps\n");
-    } else {
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE                               > stored new TCP socket in maps\n");
-    }
 cleanup:
     bpf_map_delete_elem(&sockfd_lookup_args, &pid_tgid);
     return 0;

@@ -44,12 +44,8 @@ int socket__http_filter(struct __sk_buff* skb) {
         return 0;
     }
     if ((skb_info.tup.sport == HTTPS_PORT || skb_info.tup.dport == HTTPS_PORT) && !(skb_info.tcp_flags & TCPHDR_FIN)) {
-        // log_debug("socket/http_filter > https, not TCPHDR_FIN skb_info.sport=%d skb_info.dport=%d skb_info.tcp_flags%d\n", skb_info.tup.sport, skb_info.tup.dport, skb_info.tcp_flags);
-        log_debug("socket/http_filter > https, !fin\n");
         return 0;
     }
-    // log_debug("socket/http_filter > inspecting TCP skb_info.sport=%d skb_info.dport=%d skb_info.tcp_flags%d\n", skb_info.tup.sport, skb_info.tup.dport, skb_info.tcp_flags);
-    log_debug("socket/http_filter > i tcp\n");
 
     // src_port represents the source port number *before* normalization
     // for more context please refer to http-types.h comment on `owned_by_src_port` field
@@ -79,15 +75,10 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
 static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgid) {
     ssl_sock_t *ssl_sock = bpf_map_lookup_elem(&ssl_sock_by_ctx, &ssl_ctx);
     if (ssl_sock == NULL) {
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE tup_from_ssl_ctx ssl_ctx=0x%llx pid_tgid=%llu\n", ssl_ctx, pid_tgid);
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE                  > no element in ssl_sock_by_ctx\n");
         return NULL;
     }
 
     if (ssl_sock->tup.sport != 0 && ssl_sock->tup.dport != 0) {
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE tup_from_ssl_ctx ssl_ctx=0x%llx pid_tgid=%llu\n", ssl_ctx, pid_tgid);
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE tup_from_ssl_ctx sport=%u dport=%u\n", ssl_sock->tup.sport, ssl_sock->tup.dport);
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE                  > got conn tuple; already initialized\n");
         return &ssl_sock->tup;
     }
 
@@ -99,15 +90,11 @@ static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgi
 
     struct sock **sock = bpf_map_lookup_elem(&sock_by_pid_fd, &pid_fd);
     if (sock == NULL)  {
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE tup_from_ssl_ctx ssl_ctx=0x%llx pid_tgid=%llu fd=%lu\n", ssl_ctx, pid_tgid, ssl_sock->fd);
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE                  > no element in sock_by_pid_fd\n");
         return NULL;
     }
 
     conn_tuple_t t;
     if (!read_conn_tuple(&t, *sock, pid_tgid, CONN_TYPE_TCP)) {
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE tup_from_ssl_ctx ssl_ctx=0x%llx pid_tgid=%llu fd=%lu\n", ssl_ctx, pid_tgid, ssl_sock->fd);
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE                  > could not read conn tuple from sock\n");
         return NULL;
     }
 
@@ -126,16 +113,12 @@ static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgi
         flip_tuple(&ssl_sock->tup);
     }
 
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE tup_from_ssl_ctx ssl_ctx=0x%llx pid_tgid=%llu fd=%lu\n", ssl_ctx, pid_tgid, ssl_sock->fd);
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE tup_from_ssl_ctx sport=%u dport=%u\n", ssl_sock->tup.sport, ssl_sock->tup.dport);
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE                  > finished conn tuple initialization\n");
     return &ssl_sock->tup;
 }
 
 static __always_inline void init_ssl_sock(void *ssl_ctx, u32 socket_fd) {
     ssl_sock_t ssl_sock = { 0 };
     ssl_sock.fd = socket_fd;
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE init_ssl_sock ssl_ctx=0x%llx socket_fd=%lu\n", ssl_ctx, socket_fd);
     bpf_map_update_elem(&ssl_sock_by_ctx, &ssl_ctx, &ssl_sock, BPF_ANY);
 }
 
@@ -284,7 +267,6 @@ int uprobe__gnutls_transport_set_int2(struct pt_regs* ctx) {
     // in most real-world scenarios, they are the same.
     int recv_fd = (int)PT_REGS_PARM2(ctx);
 
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE uprobe/gnutls_transport_set_int2 ssl_session=0x%llx recv_fd=%d\n", ssl_session, recv_fd);
     init_ssl_sock(ssl_session, (u32)recv_fd);
     return 0;
 }
@@ -298,7 +280,6 @@ int uprobe__gnutls_transport_set_ptr(struct pt_regs* ctx) {
     void *fd_as_ptr = (void *)PT_REGS_PARM2(ctx);
 
     int fd = (int)(uintptr_t)fd_as_ptr;
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE uprobe/gnutls_transport_set_ptr ssl_session=0x%llx fd_as_ptr=0x%llx fd=%d\n", ssl_session, fd_as_ptr, fd);
     init_ssl_sock(ssl_session, (u32)fd);
     return 0;
 }
@@ -314,7 +295,6 @@ int uprobe__gnutls_transport_set_ptr2(struct pt_regs* ctx) {
     void *recv_fd_as_ptr = (void *)PT_REGS_PARM2(ctx);
 
     int recv_fd = (int)(uintptr_t)recv_fd_as_ptr;
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE uprobe/gnutls_transport_set_ptr2 ssl_session=0x%llx recv_fd_as_ptr=0x%llx recv_fd=%d\n", ssl_session, recv_fd_as_ptr, recv_fd);
     init_ssl_sock(ssl_session, (u32)recv_fd);
     return 0;
 }
@@ -331,8 +311,6 @@ int uprobe__gnutls_record_recv(struct pt_regs* ctx) {
         .buf = data,
     };
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE uprobe/gnutls_record_recv ssl_session=0x%llx data=0x%llx data_size=%d\n", ssl_session, data, (size_t)PT_REGS_PARM3(ctx));
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE                           pid_tgid=0x%llx\n", pid_tgid);
     bpf_map_update_elem(&ssl_read_args, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
@@ -346,23 +324,14 @@ int uretprobe__gnutls_record_recv(struct pt_regs* ctx) {
     // Re-use the map for SSL_read
     ssl_read_args_t *args = bpf_map_lookup_elem(&ssl_read_args, &pid_tgid);
     if (args == NULL) {
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE uretprobe/gnutls_record_recv read_len=%d pid_tgid=0x%llx\n", read_len, pid_tgid);
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE                              > no args in map\n");
         return 0;
     }
 
     void *ssl_session = args->ctx;
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_session, pid_tgid);
     if (t == NULL) {
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE uretprobe/gnutls_record_recv args.ctx=0x%llx args.buf=0x%llx read_len=%d\n", args->ctx, args->buf, read_len);
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE                              pid_tgid=0x%llx\n", pid_tgid);
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE                              > no conn tuple from context\n");
         goto cleanup;
     }
-
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE uretprobe/gnutls_record_recv args.ctx=0x%llx args.buf=0x%llx read_len=%d\n", args->ctx, args->buf, read_len);
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE                              pid_tgid=0x%llx\n", pid_tgid);
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE                              > got conn tuple from context\n");
 
     char buffer[HTTP_BUFFER_SIZE];
     __builtin_memset(buffer, 0, sizeof(buffer));
@@ -388,15 +357,8 @@ int uprobe__gnutls_record_send(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_session, pid_tgid);
     if (t == NULL) {
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE uprobe/gnutls_record_send ssl_session=0x%llx data=0x%llx data_size=%d\n", ssl_session, data, data_size);
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE                           pid_tgid=0x%llx\n", pid_tgid);
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE                           > no conn tuple from context\n");
         return 0;
     }
-
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE uprobe/gnutls_record_send ssl_session=0x%llx data=0x%llx data_size=%d\n", ssl_session, data, data_size);
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE                           pid_tgid=0x%llx\n", pid_tgid);
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE                           > got conn tuple from context\n");
 
     char buffer[HTTP_BUFFER_SIZE];
     __builtin_memset(buffer, 0, sizeof(buffer));
@@ -418,13 +380,8 @@ int uprobe__gnutls_bye(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_session, pid_tgid);
     if (t == NULL) {
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE uprobe/gnutls_bye ssl_session=0x%llx pid_tgid=0x%llx\n", ssl_session, pid_tgid);
-        log_debug("CANONICAL-GNUTLS-DEBUG-LINE                   > no conn tuple from context\n");
         return 0;
     }
-
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE uprobe/gnutls_bye ssl_session=0x%llx pid_tgid=0x%llx\n", ssl_session, pid_tgid);
-    log_debug("CANONICAL-GNUTLS-DEBUG-LINE                   > got conn tuple from context\n");
 
     char buffer[HTTP_BUFFER_SIZE];
     __builtin_memset(buffer, 0, sizeof(buffer));
