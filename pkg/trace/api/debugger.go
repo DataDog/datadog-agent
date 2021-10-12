@@ -45,7 +45,11 @@ func (r *HTTPReceiver) debuggerProxyHandler() http.Handler {
 		log.Criticalf("Error parsing debugger intake URL %q: %v", intake, err)
 		return debuggerErrorHandler(fmt.Errorf("error parsing debugger intake URL %q: %v", intake, err))
 	}
-	return newDebuggerProxy(r.conf.NewHTTPTransport(), target, r.conf.APIKey(), tags)
+	apiKey := r.conf.APIKey()
+	if k := config.Datadog.GetString("apm_config.debugger_api_key"); k != "" {
+		apiKey = k
+	}
+	return newDebuggerProxy(r.conf.NewHTTPTransport(), target, config.SanitizeAPIKey(apiKey), tags)
 }
 
 // debuggerErrorHandler always returns http.StatusInternalServerError with a clarifying message.
