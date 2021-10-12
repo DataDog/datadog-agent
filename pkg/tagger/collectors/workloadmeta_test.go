@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/assert"
@@ -646,7 +647,7 @@ func TestParseJSONValue(t *testing.T) {
 	tests := []struct {
 		name    string
 		value   string
-		want    map[string][]string
+		want    []string
 		wantErr bool
 	}{
 		{
@@ -664,35 +665,37 @@ func TestParseJSONValue(t *testing.T) {
 		{
 			name:  "invalid value",
 			value: `{"key1": "val1", "key2": 0}`,
-			want: map[string][]string{
-				"key1": {"val1"},
+			want: []string{
+				"key1:val1",
 			},
 			wantErr: false,
 		},
 		{
 			name:  "strings and arrays",
 			value: `{"key1": "val1", "key2": ["val2"]}`,
-			want: map[string][]string{
-				"key1": {"val1"},
-				"key2": {"val2"},
+			want: []string{
+				"key1:val1",
+				"key2:val2",
 			},
 			wantErr: false,
 		},
 		{
 			name:  "arrays only",
 			value: `{"key1": ["val1", "val11"], "key2": ["val2", "val22"]}`,
-			want: map[string][]string{
-				"key1": {"val1", "val11"},
-				"key2": {"val2", "val22"},
+			want: []string{
+				"key1:val1",
+				"key1:val11",
+				"key2:val2",
+				"key2:val22",
 			},
 			wantErr: false,
 		},
 		{
 			name:  "strings only",
 			value: `{"key1": "val1", "key2": "val2"}`,
-			want: map[string][]string{
-				"key1": {"val1"},
-				"key2": {"val2"},
+			want: []string{
+				"key1:val1",
+				"key2:val2",
 			},
 			wantErr: false,
 		},
@@ -700,15 +703,19 @@ func TestParseJSONValue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseJSONValue(tt.value)
+			tags := utils.NewTagList()
+			err := parseJSONValue(tt.value, tags)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("parseJSONValue() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			assert.Len(t, got, len(tt.want))
-			for k, v := range tt.want {
-				assert.ElementsMatch(t, v, got[k])
-			}
+
+			low, _, _, _ := tags.Compute()
+			assert.ElementsMatch(t, tt.want, low)
+			// assert.Len(t, got, len(tt.want))
+			// for k, v := range tt.want {
+			// 	assert.ElementsMatch(t, v, got[k])
+			// }
 		})
 	}
 }

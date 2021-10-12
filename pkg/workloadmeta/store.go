@@ -84,7 +84,7 @@ type Store struct {
 	candidates map[string]Collector
 	collectors map[string]Collector
 
-	eventCh chan []Event
+	eventCh chan []CollectorEvent
 }
 
 // NewStore creates a new workload metadata store, building a new instance of
@@ -102,7 +102,7 @@ func NewStore(catalog map[string]collectorFactory) *Store {
 
 		candidates: candidates,
 		collectors: make(map[string]Collector),
-		eventCh:    make(chan []Event, eventChBufferSize),
+		eventCh:    make(chan []CollectorEvent, eventChBufferSize),
 	}
 }
 
@@ -258,8 +258,8 @@ func (s *Store) GetKubernetesPod(id string) (*KubernetesPod, error) {
 // GetKubernetesPodForContainer returns a KubernetesPod that contains the
 // specified containerID.
 func (s *Store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error) {
-	entities, err := s.getEntitiesByKind(KindKubernetesPod)
-	if err != nil {
+	entities, ok := s.store[KindKubernetesPod]
+	if !ok {
 		return nil, errors.NewNotFound(containerID)
 	}
 
@@ -286,7 +286,7 @@ func (s *Store) GetECSTask(id string) (*ECSTask, error) {
 }
 
 // Notify notifies the store with a slice of events.
-func (s *Store) Notify(events []Event) {
+func (s *Store) Notify(events []CollectorEvent) {
 	if len(events) > 0 {
 		s.eventCh <- events
 	}
@@ -336,15 +336,10 @@ func (s *Store) pull(ctx context.Context) {
 	}
 }
 
-func (s *Store) handleEvents(evs []Event) {
+func (s *Store) handleEvents(evs []CollectorEvent) {
 	s.storeMut.Lock()
 
 	for _, ev := range evs {
-		if len(ev.Sources) != 1 {
-			log.Errorf("event was generated with either zero or more than one source, store cannot handle it and will skip. event dump: %+v", ev)
-			continue
-		}
-
 		meta := ev.Entity.GetID()
 
 		entitiesOfKind, ok := s.store[meta.Kind]
@@ -363,10 +358,10 @@ func (s *Store) handleEvents(evs []Event) {
 				entityOfSource = entitiesOfKind[meta.ID]
 			}
 
-			entityOfSource[ev.Sources[0]] = ev.Entity
+			entityOfSource[ev.Source] = ev.Entity
 		case EventTypeUnset:
 			if ok {
-				delete(entityOfSource, ev.Sources[0])
+				delete(entityOfSource, ev.Source)
 
 				if len(entityOfSource) == 0 {
 					delete(entitiesOfKind, meta.ID)
@@ -394,7 +389,7 @@ func (s *Store) handleEvents(evs []Event) {
 
 		for _, ev := range evs {
 			entityID := ev.Entity.GetID()
-			evSources, ok := filter.SelectSources(ev.Sources)
+			evSources, ok := filter.SelectSources([]string{ev.Source})
 
 			if !filter.MatchKind(entityID.Kind) || !ok {
 				// event should be filtered out because it
@@ -438,8 +433,8 @@ func (s *Store) handleEvents(evs []Event) {
 }
 
 func (s *Store) getEntityByKind(kind Kind, id string) (Entity, error) {
-	entitiesOfKind, err := s.getEntitiesByKind(kind)
-	if err != nil {
+	entitiesOfKind, ok := s.store[kind]
+	if !ok {
 		return nil, errors.NewNotFound(id)
 	}
 
@@ -452,18 +447,6 @@ func (s *Store) getEntityByKind(kind Kind, id string) (Entity, error) {
 	}
 
 	return entity.merge(nil), nil
-}
-
-func (s *Store) getEntitiesByKind(k Kind) (map[string]sourceToEntity, error) {
-	s.storeMut.RLock()
-	defer s.storeMut.RUnlock()
-
-	entitiesOfKind, ok := s.store[k]
-	if !ok {
-		return nil, errors.NewNotFound(string(k))
-	}
-
-	return entitiesOfKind, nil
 }
 
 func notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) {

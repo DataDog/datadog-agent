@@ -47,10 +47,10 @@ func (f *Filter) MatchKind(k Kind) bool {
 	return ok
 }
 
-// MatchSource returns true if the filter matches any of the passed sources. If
-// the filter is nil, or has no sources, it always matches.
-func (f *Filter) MatchSource(sources []string) bool {
-	_, ok := f.SelectSources(sources)
+// MatchSource returns true if the filter matches the passed sources. If the
+// filter is nil, or has no sources, it always matches.
+func (f *Filter) MatchSource(source string) bool {
+	_, ok := f.SelectSources([]string{source})
 
 	return ok
 }
@@ -78,10 +78,10 @@ func (f *Filter) SelectSources(sources []string) ([]string, bool) {
 }
 
 // Match returns true if the filter matches an event.
-func (f *Filter) Match(ev Event) bool {
+func (f *Filter) Match(ev CollectorEvent) bool {
 	if f == nil {
 		return true
 	}
 
-	return f.MatchKind(ev.Entity.GetID().Kind) && f.MatchSource(ev.Sources)
+	return f.MatchKind(ev.Entity.GetID().Kind) && f.MatchSource(ev.Source)
 }

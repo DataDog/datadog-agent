@@ -27,11 +27,11 @@ func TestHandleEvents(t *testing.T) {
 		},
 	}
 
-	s.handleEvents([]Event{
+	s.handleEvents([]CollectorEvent{
 		{
-			Type:    EventTypeSet,
-			Sources: []string{fooSource},
-			Entity:  container,
+			Type:   EventTypeSet,
+			Source: fooSource,
+			Entity: container,
 		},
 	})
 
@@ -44,11 +44,11 @@ func TestHandleEvents(t *testing.T) {
 		t.Errorf("expected container %q to match the one in the store", container.ID)
 	}
 
-	s.handleEvents([]Event{
+	s.handleEvents([]CollectorEvent{
 		{
-			Type:    EventTypeUnset,
-			Sources: []string{fooSource},
-			Entity:  container,
+			Type:   EventTypeUnset,
+			Source: fooSource,
+			Entity: container,
 		},
 	})
 
@@ -97,8 +97,8 @@ func TestSubscribe(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		preEvents  []Event
-		postEvents [][]Event
+		preEvents  []CollectorEvent
+		postEvents [][]CollectorEvent
 		filter     *Filter
 		expected   []EventBundle
 	}{
@@ -107,21 +107,21 @@ func TestSubscribe(t *testing.T) {
 			// in the store. entities that were deleted before the
 			// subscription should not generate events.
 			name: "receive events for entities in the store pre-subscription",
-			preEvents: []Event{
+			preEvents: []CollectorEvent{
 				{
-					Type:    EventTypeSet,
-					Sources: []string{fooSource},
-					Entity:  fooContainer,
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: fooContainer,
 				},
 				{
-					Type:    EventTypeSet,
-					Sources: []string{fooSource},
-					Entity:  barContainer,
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: barContainer,
 				},
 				{
-					Type:    EventTypeUnset,
-					Sources: []string{fooSource},
-					Entity:  barContainer,
+					Type:   EventTypeUnset,
+					Source: fooSource,
+					Entity: barContainer,
 				},
 			},
 			expected: []EventBundle{
@@ -144,42 +144,42 @@ func TestSubscribe(t *testing.T) {
 			// all should not generate an event.
 			name:   "receive events for entities in the store pre-subscription with filter",
 			filter: NewFilter(nil, []string{fooSource}),
-			preEvents: []Event{
+			preEvents: []CollectorEvent{
 				// set container with two sources, delete one source
 				{
-					Type:    EventTypeSet,
-					Sources: []string{fooSource},
-					Entity:  fooContainer,
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: fooContainer,
 				},
 				{
-					Type:    EventTypeSet,
-					Sources: []string{barSource},
-					Entity:  fooContainer,
+					Type:   EventTypeSet,
+					Source: barSource,
+					Entity: fooContainer,
 				},
 				{
-					Type:    EventTypeUnset,
-					Sources: []string{barSource},
-					Entity:  fooContainer,
+					Type:   EventTypeUnset,
+					Source: barSource,
+					Entity: fooContainer,
 				},
 
 				// set container with two sources, keep them
 				{
-					Type:    EventTypeSet,
-					Sources: []string{fooSource},
-					Entity:  barContainer,
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: barContainer,
 				},
 				{
-					Type:    EventTypeSet,
-					Sources: []string{barSource},
-					Entity:  barContainer,
+					Type:   EventTypeSet,
+					Source: barSource,
+					Entity: barContainer,
 				},
 
 				// set a container for source that should be
 				// filtered out
 				{
-					Type:    EventTypeSet,
-					Sources: []string{barSource},
-					Entity:  bazContainer,
+					Type:   EventTypeSet,
+					Source: barSource,
+					Entity: bazContainer,
 				},
 			},
 			expected: []EventBundle{
@@ -202,19 +202,19 @@ func TestSubscribe(t *testing.T) {
 		{
 			// same as previous test, but now after the subscription started
 			name: "merges entities from different sources post-subscription",
-			postEvents: [][]Event{
+			postEvents: [][]CollectorEvent{
 				{
 					{
-						Type:    EventTypeSet,
-						Sources: []string{fooSource},
-						Entity:  fooContainer,
+						Type:   EventTypeSet,
+						Source: fooSource,
+						Entity: fooContainer,
 					},
 				},
 				{
 					{
-						Type:    EventTypeSet,
-						Sources: []string{barSource},
-						Entity:  fooContainerToMerge,
+						Type:   EventTypeSet,
+						Source: barSource,
+						Entity: fooContainerToMerge,
 					},
 				},
 			},
@@ -257,16 +257,16 @@ func TestSubscribe(t *testing.T) {
 			// different sources gets merged into a single entity
 			// containing data from both events
 			name: "merges entities from different sources pre-subscription",
-			preEvents: []Event{
+			preEvents: []CollectorEvent{
 				{
-					Type:    EventTypeSet,
-					Sources: []string{fooSource},
-					Entity:  fooContainer,
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: fooContainer,
 				},
 				{
-					Type:    EventTypeSet,
-					Sources: []string{barSource},
-					Entity:  fooContainerToMerge,
+					Type:   EventTypeSet,
+					Source: barSource,
+					Entity: fooContainerToMerge,
 				},
 			},
 			expected: []EventBundle{
@@ -290,19 +290,19 @@ func TestSubscribe(t *testing.T) {
 		},
 		{
 			name: "sets and unsets an entity",
-			postEvents: [][]Event{
+			postEvents: [][]CollectorEvent{
 				{
 					{
-						Type:    EventTypeSet,
-						Sources: []string{fooSource},
-						Entity:  fooContainer,
+						Type:   EventTypeSet,
+						Source: fooSource,
+						Entity: fooContainer,
 					},
 				},
 				{
 					{
-						Type:    EventTypeUnset,
-						Sources: []string{fooSource},
-						Entity:  fooContainer.GetID(),
+						Type:   EventTypeUnset,
+						Source: fooSource,
+						Entity: fooContainer.GetID(),
 					},
 				},
 			},
@@ -333,26 +333,26 @@ func TestSubscribe(t *testing.T) {
 			// correctly generates an unset event
 			name:   "sets and unsets an entity with source filters",
 			filter: NewFilter(nil, []string{fooSource}),
-			postEvents: [][]Event{
+			postEvents: [][]CollectorEvent{
 				{
 					{
-						Type:    EventTypeSet,
-						Sources: []string{fooSource},
-						Entity:  fooContainer,
+						Type:   EventTypeSet,
+						Source: fooSource,
+						Entity: fooContainer,
 					},
 				},
 				{
 					{
-						Type:    EventTypeSet,
-						Sources: []string{barSource},
-						Entity:  fooContainer,
+						Type:   EventTypeSet,
+						Source: barSource,
+						Entity: fooContainer,
 					},
 				},
 				{
 					{
-						Type:    EventTypeUnset,
-						Sources: []string{fooSource},
-						Entity:  fooContainer.GetID(),
+						Type:   EventTypeUnset,
+						Source: fooSource,
+						Entity: fooContainer.GetID(),
 					},
 				},
 			},

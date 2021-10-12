@@ -26,11 +26,46 @@ const (
 	podStandardLabelPrefix           = "tags.datadoghq.com/"
 )
 
-var standardEnvKeys = map[string]string{
-	envVarEnv:     tagKeyEnv,
-	envVarVersion: tagKeyVersion,
-	envVarService: tagKeyService,
-}
+var (
+	standardEnvKeys = map[string]string{
+		envVarEnv:     tagKeyEnv,
+		envVarVersion: tagKeyVersion,
+		envVarService: tagKeyService,
+	}
+
+	lowCardOrchestratorEnvKeys = map[string]string{
+		"MARATHON_APP_ID": "marathon_app",
+
+		"CHRONOS_JOB_NAME":  "chronos_job",
+		"CHRONOS_JOB_OWNER": "chronos_job_owner",
+
+		"NOMAD_TASK_NAME":  "nomad_task",
+		"NOMAD_JOB_NAME":   "nomad_job",
+		"NOMAD_GROUP_NAME": "nomad_group",
+	}
+
+	orchCardOrchestratorEnvKeys = map[string]string{
+		"MESOS_TASK_ID": "mesos_task",
+	}
+
+	standardDockerLabels = map[string]string{
+		dockerLabelEnv:     tagKeyEnv,
+		dockerLabelVersion: tagKeyVersion,
+		dockerLabelService: tagKeyService,
+	}
+
+	lowCardOrchestratorLabels = map[string]string{
+		"com.docker.swarm.service.name": "swarm_service",
+		"com.docker.stack.namespace":    "swarm_namespace",
+
+		"io.rancher.stack.name":         "rancher_stack",
+		"io.rancher.stack_service.name": "rancher_service",
+	}
+
+	highCardOrchestratorLabels = map[string]string{
+		"io.rancher.container.name": "rancher_container",
+	}
+)
 
 func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle) {
 	tagInfos := []*TagInfo{}
@@ -93,24 +128,11 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInf
 	}
 
 	// standard tags from labels
-	c.extractFromMapWithFn(container.Labels, map[string]string{
-		dockerLabelEnv:     tagKeyEnv,
-		dockerLabelVersion: tagKeyVersion,
-		dockerLabelService: tagKeyService,
-	}, tags.AddStandard)
+	c.extractFromMapWithFn(container.Labels, standardDockerLabels, tags.AddStandard)
 
 	// orchestrator tags from labels
-	c.extractFromMapWithFn(container.Labels, map[string]string{
-		"com.docker.swarm.service.name": "swarm_service",
-		"com.docker.stack.namespace":    "swarm_namespace",
-
-		"io.rancher.stack.name":         "rancher_stack",
-		"io.rancher.stack_service.name": "rancher_service",
-	}, tags.AddLow)
-
-	c.extractFromMapWithFn(container.Labels, map[string]string{
-		"io.rancher.container.name": "rancher_container",
-	}, tags.AddHigh)
+	c.extractFromMapWithFn(container.Labels, lowCardOrchestratorLabels, tags.AddLow)
+	c.extractFromMapWithFn(container.Labels, highCardOrchestratorLabels, tags.AddHigh)
 
 	// extract labels as tags
 	c.extractFromMapNormalizedWithFn(container.Labels, c.containerLabelsAsTags, tags.AddAuto)
@@ -124,20 +146,8 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInf
 	c.extractFromMapWithFn(container.EnvVars, standardEnvKeys, tags.AddStandard)
 
 	// orchestrator tags from environment
-	c.extractFromMapWithFn(container.EnvVars, map[string]string{
-		"MARATHON_APP_ID": "marathon_app",
-
-		"CHRONOS_JOB_NAME":  "chronos_job",
-		"CHRONOS_JOB_OWNER": "chronos_job_owner",
-
-		"NOMAD_TASK_NAME":  "nomad_task",
-		"NOMAD_JOB_NAME":   "nomad_job",
-		"NOMAD_GROUP_NAME": "nomad_group",
-	}, tags.AddLow)
-
-	c.extractFromMapWithFn(container.EnvVars, map[string]string{
-		"MESOS_TASK_ID": "mesos_task",
-	}, tags.AddOrchestrator)
+	c.extractFromMapWithFn(container.EnvVars, lowCardOrchestratorEnvKeys, tags.AddLow)
+	c.extractFromMapWithFn(container.EnvVars, orchCardOrchestratorEnvKeys, tags.AddOrchestrator)
 
 	// extract env as tags
 	c.extractFromMapNormalizedWithFn(container.EnvVars, c.containerEnvAsTags, tags.AddAuto)
@@ -358,43 +368,34 @@ func (c *WorkloadMetaCollector) extractTagsFromJSONInMap(key string, input map[s
 		return
 	}
 
-	tagsFromJSON, err := parseJSONValue(jsonTags)
+	err := parseJSONValue(jsonTags, tags)
 	if err != nil {
 		log.Errorf("can't parse value for annotation %s: %s", key, err)
-		return
-	}
-
-	for tag, values := range tagsFromJSON {
-		for _, val := range values {
-			tags.AddAuto(tag, val)
-		}
 	}
 }
 
-// parseJSONValue returns a map from the given JSON string.
-func parseJSONValue(value string) (map[string][]string, error) {
+func parseJSONValue(value string, tags *utils.TagList) error {
 	if value == "" {
-		return nil, errors.New("value is empty")
+		return errors.New("value is empty")
 	}
 
 	result := map[string]interface{}{}
 	if err := json.Unmarshal([]byte(value), &result); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal JSON: %s", err)
+		return fmt.Errorf("failed to unmarshal JSON: %s", err)
 	}
 
-	tags := map[string][]string{}
 	for key, value := range result {
 		switch v := value.(type) {
 		case string:
-			tags[key] = append(tags[key], v)
+			tags.AddAuto(key, v)
 		case []interface{}:
 			for _, tag := range v {
-				tags[key] = append(tags[key], fmt.Sprint(tag))
+				tags.AddAuto(key, fmt.Sprint(tag))
 			}
 		default:
 			log.Debugf("Tag value %s is not valid, must be a string or an array, skipping", v)
 		}
 	}
 
-	return tags, nil
+	return nil
 }

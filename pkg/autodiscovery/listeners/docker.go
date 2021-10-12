@@ -102,7 +102,7 @@ func (l *DockerListener) processEvents(evBundle workloadmeta.EventBundle) {
 		entityID := entity.GetID()
 
 		if entityID.Kind != workloadmeta.KindContainer {
-			log.Errorf("got event %d with entity of kind %q. filters broken?", ev.Type, entityID.Kind)
+			log.Errorf("internal error: got event %d with entity of kind %q. filters broken?", ev.Type, entityID.Kind)
 		}
 
 		switch ev.Type {
@@ -140,7 +140,7 @@ func (l *DockerListener) createContainerService(container *workloadmeta.Containe
 		}
 	}
 
-	var ports []ContainerPort
+	ports := make([]ContainerPort, 0, len(container.Ports))
 	for _, port := range container.Ports {
 		ports = append(ports, ContainerPort{
 			Port: port.Port,

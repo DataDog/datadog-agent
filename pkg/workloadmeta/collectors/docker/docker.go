@@ -137,8 +137,8 @@ func (c *collector) generateEventsFromContainerList(ctx context.Context) error {
 }
 
 func (c *collector) handleEvent(ctx context.Context, ev *docker.ContainerEvent) {
-	event := workloadmeta.Event{
-		Sources: []string{collectorID},
+	event := workloadmeta.CollectorEvent{
+		Source: collectorID,
 	}
 
 	entityID := workloadmeta.EntityID{
@@ -151,6 +151,7 @@ func (c *collector) handleEvent(ctx context.Context, ev *docker.ContainerEvent) 
 		container, err := c.dockerUtil.InspectNoCache(ctx, ev.ContainerID, false)
 		if err != nil {
 			log.Errorf("could not inspect container %q: %s", ev.ContainerID, err)
+			return
 		}
 
 		var startedAt time.Time
@@ -199,7 +200,7 @@ func (c *collector) handleEvent(ctx context.Context, ev *docker.ContainerEvent) 
 		return
 	}
 
-	c.store.Notify([]workloadmeta.Event{event})
+	c.store.Notify([]workloadmeta.CollectorEvent{event})
 }
 
 func extractImage(ctx context.Context, container types.ContainerJSON, resolve resolveHook) workloadmeta.ContainerImage {
@@ -300,6 +301,7 @@ func extractPort(port nat.Port) []workloadmeta.ContainerPort {
 	}
 
 	if last > first {
+		output = make([]workloadmeta.ContainerPort, 0, last-first+1)
 		for p := first; p <= last; p++ {
 			output = append(output, workloadmeta.ContainerPort{
 				Port:     p,
@@ -313,10 +315,12 @@ func extractPort(port nat.Port) []workloadmeta.ContainerPort {
 	// Try to parse a single port (most common case)
 	p := port.Int()
 	if p > 0 {
-		output = append(output, workloadmeta.ContainerPort{
-			Port:     p,
-			Protocol: port.Proto(),
-		})
+		output = []workloadmeta.ContainerPort{
+			{
+				Port:     p,
+				Protocol: port.Proto(),
+			},
+		}
 	}
 
 	return output

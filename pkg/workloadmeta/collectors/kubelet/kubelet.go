@@ -80,8 +80,8 @@ func (c *collector) Pull(ctx context.Context) error {
 	return err
 }
 
-func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.Event {
-	events := []workloadmeta.Event{}
+func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
+	events := []workloadmeta.CollectorEvent{}
 
 	for _, pod := range pods {
 		podMeta := pod.Metadata
@@ -133,10 +133,10 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.Event {
 		}
 
 		events = append(events, containerEvents...)
-		events = append(events, workloadmeta.Event{
-			Sources: []string{collectorID},
-			Type:    workloadmeta.EventTypeSet,
-			Entity:  entity,
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: collectorID,
+			Type:   workloadmeta.EventTypeSet,
+			Entity: entity,
 		})
 	}
 
@@ -146,9 +146,9 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.Event {
 func (c *collector) parsePodContainers(
 	containerSpecs []kubelet.ContainerSpec,
 	containerStatuses []kubelet.ContainerStatus,
-) ([]string, []workloadmeta.Event) {
+) ([]string, []workloadmeta.CollectorEvent) {
 	containerIDs := make([]string, 0, len(containerStatuses))
-	events := make([]workloadmeta.Event, 0, len(containerStatuses))
+	events := make([]workloadmeta.CollectorEvent, 0, len(containerStatuses))
 
 	for _, container := range containerStatuses {
 		if container.ID == "" {
@@ -194,9 +194,9 @@ func (c *collector) parsePodContainers(
 			containerState.FinishedAt = st.FinishedAt
 		}
 
-		events = append(events, workloadmeta.Event{
-			Sources: []string{collectorID},
-			Type:    workloadmeta.EventTypeSet,
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: collectorID,
+			Type:   workloadmeta.EventTypeSet,
 			Entity: &workloadmeta.Container{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindContainer,
@@ -273,8 +273,8 @@ func buildImage(imageSpec string) workloadmeta.ContainerImage {
 	return image
 }
 
-func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.Event {
-	events := make([]workloadmeta.Event, 0, len(expiredIDs))
+func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.CollectorEvent {
+	events := make([]workloadmeta.CollectorEvent, 0, len(expiredIDs))
 
 	for _, expiredID := range expiredIDs {
 		prefix, id := containers.SplitEntityName(expiredID)
@@ -286,9 +286,9 @@ func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.Event {
 			kind = workloadmeta.KindContainer
 		}
 
-		events = append(events, workloadmeta.Event{
-			Sources: []string{collectorID},
-			Type:    workloadmeta.EventTypeUnset,
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: collectorID,
+			Type:   workloadmeta.EventTypeUnset,
 			Entity: workloadmeta.EntityID{
 				Kind: kind,
 				ID:   id,

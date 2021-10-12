@@ -120,7 +120,7 @@ func (l *KubeletListener) processEvents(evBundle workloadmeta.EventBundle, first
 		entityID := entity.GetID()
 
 		if entityID.Kind != workloadmeta.KindKubernetesPod {
-			log.Errorf("got event %d with entity of kind %q. filters broken?", ev.Type, entityID.Kind)
+			log.Errorf("internal error: got event %d with entity of kind %q. filters broken?", ev.Type, entityID.Kind)
 		}
 
 		switch ev.Type {
