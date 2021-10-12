@@ -8,6 +8,7 @@ package rules
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"syscall"
 	"testing"
 
@@ -372,6 +373,41 @@ func TestRuleSetFilters6(t *testing.T) {
 		{
 			Field: "open.flags",
 			Types: eval.ScalarValueType | eval.BitmaskValueType,
+		},
+	}
+
+	if _, err := rs.GetEventApprovers("open", caps); err == nil {
+		t.Fatal("shouldn't get any approver")
+	}
+}
+
+func TestRuleSetFilters7(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+	rs := NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, NewOptsWithParams(testConstants, testSupportedDiscarders, enabled, nil, nil))
+
+	addRuleExpr(t, rs, `open.filename == "123456"`)
+
+	caps := FieldCapabilities{
+		{
+			Field: "open.filename",
+			Types: eval.ScalarValueType,
+			ValidateFnc: func(value FilterValue) bool {
+				return strings.HasSuffix(value.Value.(string), "456")
+			},
+		},
+	}
+
+	if _, err := rs.GetEventApprovers("open", caps); err != nil {
+		t.Fatal("expected approver not found")
+	}
+
+	caps = FieldCapabilities{
+		{
+			Field: "open.filename",
+			Types: eval.ScalarValueType,
+			ValidateFnc: func(value FilterValue) bool {
+				return strings.HasSuffix(value.Value.(string), "777")
+			},
 		},
 	}
 
