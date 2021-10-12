@@ -5,7 +5,7 @@ TOTAL_THREESHOLD=$((STARTUP_TIME_THREESHOLD*5))
 
 totalMs=0
 
-# loop 5 times to encure no false positive/negative alarms
+# loop 5 times to incur no false positive/negative alarms
 for i in {1..5}
 do
     # create a new container to ensure cold start
