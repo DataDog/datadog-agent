@@ -1,6 +1,6 @@
 #!/bin/bash
 
-STARTUP_TIME_THREESHOLD=15
+STARTUP_TIME_THREESHOLD=15  
 TOTAL_THREESHOLD=$((STARTUP_TIME_THREESHOLD*5))
 
 totalMs=0
@@ -11,7 +11,6 @@ do
     # create a new container to ensure cold start
     dockerId=$(docker run -d datadogci/lambda-extension)
     sleep 10
-    docker logs $dockerId | grep 'ready in'
     numberOfMillisecs=$(docker logs $dockerId | grep 'ready in' | grep -Eo '[0-9]{1,4}' | tail -3 | head -1)
     totalMs=$((totalMs+numberOfMillisecs))
     echo "Iteration $i - Statup time = $numberOfMillisecs"
