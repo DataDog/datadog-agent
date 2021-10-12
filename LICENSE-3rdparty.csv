@@ -52,7 +52,7 @@ core,github.com/DataDog/gopsutil/process,BSD-3-Clause,The Go Authors | WAKAYAMA 
 core,github.com/DataDog/gopsutil/process/filepath,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
 core,github.com/DataDog/gopsutil/process/so,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
 core,github.com/DataDog/gostackparse,Apache-2.0,"Datadog <info@datadoghq.com> | Datadog, Inc"
-core,github.com/DataDog/mmh3,UNKNOWN,"DataDog, Inc."
+core,github.com/DataDog/mmh3,MIT,"DataDog, Inc."
 core,github.com/DataDog/nikos/apt,MIT,Sylvain Baubeau
 core,github.com/DataDog/nikos/cos,MIT,Sylvain Baubeau
 core,github.com/DataDog/nikos/extract,MIT,Sylvain Baubeau
