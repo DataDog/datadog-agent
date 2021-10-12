@@ -65,6 +65,7 @@ extra_tags:
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
+		InstanceTags:       []string{"inst_tag1:val1", "inst_tag2:val2"},
 	}
 	layout := "2006-01-02 15:04:05"
 	str := "2014-11-12 11:45:26"
@@ -96,6 +97,8 @@ extra_tags:
 				"agent_extratag2:val2",
 				"agent_tag1:val1",
 				"agent_tag2:val2",
+				"inst_tag1:val1",
+				"inst_tag2:val2",
                 "tag1",
                 "tag2"
             ],
