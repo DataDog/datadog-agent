@@ -22,6 +22,12 @@ var interfaceNameTagKey = "interface"
 // ReportNetworkDeviceMetadata reports device metadata
 func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
 	tags := common.CopyStrings(origTags)
+
+	// We include instance tags to `deviceMetadataTags` since device metadata tags are not enriched with `checkSender.checkTags`.
+	// `checkSender.checkTags` are added for metrics, service checks, events only.
+	// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
+	tags = append(tags, config.InstanceTags...)
+
 	tags = append(tags, config.GetAgentLevelTags()...)
 	tags = util.SortUniqInPlace(tags)
 

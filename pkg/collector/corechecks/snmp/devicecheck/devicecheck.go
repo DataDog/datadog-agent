@@ -99,12 +99,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 			deviceStatus = metadata.DeviceStatusUnreachable
 		}
 
-		// We include instance tags to `deviceMetadataTags` since device metadata tags are not enriched with `checkSender.checkTags`.
-		// `checkSender.checkTags` are added for metrics, service checks, events only.
-		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
-		deviceMetadataTags := append(common.CopyStrings(tags), d.config.InstanceTags...)
-
-		d.sender.ReportNetworkDeviceMetadata(d.config, values, deviceMetadataTags, collectionTime, deviceStatus)
+		d.sender.ReportNetworkDeviceMetadata(d.config, values, tags, collectionTime, deviceStatus)
 	}
 
 	d.submitTelemetryMetrics(startTime, tags)
