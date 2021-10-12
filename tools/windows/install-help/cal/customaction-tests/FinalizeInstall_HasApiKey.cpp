@@ -2,12 +2,12 @@
 #include "customaction-tests.h"
 #include "customaction.h"
 
-class ShouldUpdateConfigTest : public testing::Test
+class HasApiKeyTest : public testing::Test
 {
 
 };
 
-TEST_F(ShouldUpdateConfigTest, When_APIKEY_At_Start_Of_Line_Do_NOT_Replace)
+TEST_F(HasApiKeyTest, When_APIKEY_At_Start_Of_Line_Do_NOT_Replace)
 {
     const std::wstring inputConfig =
         L"\n"
@@ -23,10 +23,10 @@ TEST_F(ShouldUpdateConfigTest, When_APIKEY_At_Start_Of_Line_Do_NOT_Replace)
         L"#\n"
         L"# site: datadoghq.com\n"
         L"\n";
-    EXPECT_FALSE(ShouldUpdateConfig(inputConfig));
+    EXPECT_FALSE(HasApiKey(inputConfig));
 }
 
-TEST_F(ShouldUpdateConfigTest, When_APIKEY_NOT_At_Start_Of_Line_Do_Replace)
+TEST_F(HasApiKeyTest, When_APIKEY_NOT_At_Start_Of_Line_Do_Replace)
 {
     const std::wstring inputConfig = L"\n"
                                      L"#########################\n"
@@ -41,5 +41,5 @@ TEST_F(ShouldUpdateConfigTest, When_APIKEY_NOT_At_Start_Of_Line_Do_Replace)
                                      L"#\n"
                                      L"# site: datadoghq.com\n"
                                      L"\n";
-    EXPECT_TRUE(ShouldUpdateConfig(inputConfig));
+    EXPECT_TRUE(HasApiKey(inputConfig));
 }
