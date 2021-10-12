@@ -135,10 +135,7 @@ func (d *DeviceCheck) getValuesAndTags(staticTags []string) (bool, []string, *va
 		checkErrors = append(checkErrors, fmt.Sprintf("check device reachable: failed: %s", err))
 	} else {
 		deviceReachable = true
-		if logLevel, err := log.GetLogLevel(); err != nil || logLevel == seelog.DebugLvl {
-			values := gosnmplib.ResultToScalarValues(getNextValue)
-			log.Debugf("check device reachable: success: %+v", values)
-		}
+		log.Debugf("check device reachable: success: %v", gosnmplib.PacketAsStringIfLoglevel(getNextValue, seelog.DebugLvl))
 	}
 
 	err = d.doAutodetectProfile(d.session)
@@ -149,7 +146,7 @@ func (d *DeviceCheck) getValuesAndTags(staticTags []string) (bool, []string, *va
 	tags = append(tags, d.config.ProfileTags...)
 
 	valuesStore, err := fetch.Fetch(d.session, d.config)
-	log.Debugf("fetched values: %v", valuesStore)
+	log.Debugf("fetched values: %v", valuestore.ResultValueStoreAsStringIfLoglevel(valuesStore, seelog.DebugLvl))
 
 	if err != nil {
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to fetch values: %s", err))
