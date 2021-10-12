@@ -36,12 +36,13 @@ int socket__http_filter(struct __sk_buff* skb) {
         return 0;
     }
 
+    // If the socket is for https and it is finishing,
+    // make sure we pass it on to `http_process` to ensure that any ongoing transaction is flushed.
+    // Otherwise, don't bother to inspect packet contents
+    // when there is no chance we're dealing with plain HTTP (or a finishing HTTPS socket)
     if (!(skb_info.tup.metadata&CONN_TYPE_TCP)) {
         return 0;
     }
-
-    // If the socket is for https and it is finishing,
-    // make sure we pass it on to `http_process` to ensure that any ongoing transaction is flushed.
     if ((skb_info.tup.sport == HTTPS_PORT || skb_info.tup.dport == HTTPS_PORT) && !(skb_info.tcp_flags & TCPHDR_FIN)) {
         // log_debug("socket/http_filter > https, not TCPHDR_FIN skb_info.sport=%d skb_info.dport=%d skb_info.tcp_flags%d\n", skb_info.tup.sport, skb_info.tup.dport, skb_info.tcp_flags);
         log_debug("socket/http_filter > https, !fin\n");
