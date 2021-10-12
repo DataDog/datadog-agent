@@ -14,8 +14,9 @@ type FieldCapabilities []FieldCapability
 
 // FieldCapability represents a field and the type of its value (scalar, pattern, bitmask, ...)
 type FieldCapability struct {
-	Field eval.Field
-	Types eval.FieldValueType
+	Field       eval.Field
+	Types       eval.FieldValueType
+	ValidateFnc func(FilterValue) bool
 }
 
 // GetFields returns all the fields of FieldCapabilities
@@ -38,6 +39,12 @@ func (fcs FieldCapabilities) Validate(approvers map[eval.Field]FilterValues) boo
 		for _, value := range values {
 			if value.Type&fc.Types == 0 {
 				return false
+			}
+
+			if fc.ValidateFnc != nil {
+				if !fc.ValidateFnc(value) {
+					return false
+				}
 			}
 		}
 	}
