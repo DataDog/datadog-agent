@@ -15,6 +15,7 @@ import (
 	"bytes"
 	"fmt"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"syscall"
@@ -51,7 +52,7 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 				return errAbs
 			}
 
-			if matched, err := regexp.Match(`\.\.`, []byte(value)); err != nil || matched {
+			if !filepath.IsAbs(value) && len(value) > 0 && value[0] != '*' {
 				return errAbs
 			}
 
@@ -65,6 +66,9 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 				return errDepth
 			}
 			for _, segment := range segments {
+				if segment == ".." {
+					return errAbs
+				}
 				if len(segment) > MaxSegmentLength {
 					return errSegment
 				}
