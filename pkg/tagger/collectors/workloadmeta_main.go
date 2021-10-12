@@ -21,8 +21,9 @@ import (
 const (
 	workloadmetaCollectorName = "workloadmeta"
 
-	podSource       = workloadmetaCollectorName + "-kubernetes_pod"
-	containerSource = workloadmetaCollectorName + "-container"
+	podSource       = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
+	taskSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
+	containerSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
 )
 
 type metaStore interface {
@@ -34,9 +35,10 @@ type metaStore interface {
 // WorkloadMetaCollector collects tags from the metadata in the workloadmeta
 // store.
 type WorkloadMetaCollector struct {
-	store metaStore
-	out   chan<- []*TagInfo
-	stop  chan struct{}
+	store    metaStore
+	children map[string]map[string]struct{}
+	out      chan<- []*TagInfo
+	stop     chan struct{}
 
 	containerEnvAsTags    map[string]string
 	containerLabelsAsTags map[string]string
@@ -45,12 +47,16 @@ type WorkloadMetaCollector struct {
 	annotationsAsTags map[string]string
 	globLabels        map[string]glob.Glob
 	globAnnotations   map[string]glob.Glob
+
+	collectEC2ResourceTags bool
 }
 
 // Detect initializes the WorkloadMetaCollector.
 func (c *WorkloadMetaCollector) Detect(ctx context.Context, out chan<- []*TagInfo) (CollectionMode, error) {
 	c.out = out
 	c.stop = make(chan struct{})
+	c.children = make(map[string]map[string]struct{})
+	c.collectEC2ResourceTags = config.Datadog.GetBool("ecs_collect_resource_tags_ec2")
 
 	containerLabelsAsTags := retrieveMappingFromConfig("docker_labels_as_tags")
 	containerEnvAsTags := mergeMaps(
@@ -142,5 +148,6 @@ func init() {
 	registerCollector(workloadmetaCollectorName, workloadmetaFactory, NodeRuntime)
 
 	CollectorPriorities[podSource] = NodeOrchestrator
+	CollectorPriorities[taskSource] = NodeOrchestrator
 	CollectorPriorities[containerSource] = NodeRuntime
 }

@@ -37,9 +37,8 @@ const (
 	ContainerRuntimeDocker     ContainerRuntime = "docker"
 	ContainerRuntimeContainerd ContainerRuntime = "containerd"
 
-	ECSLaunchTypeEC2      ECSLaunchType = "ec2"
-	ECSLaunchTypeFargate  ECSLaunchType = "fargate"
-	ECSLaunchTypeExternal ECSLaunchType = "external"
+	ECSLaunchTypeEC2     ECSLaunchType = "ec2"
+	ECSLaunchTypeFargate ECSLaunchType = "fargate"
 
 	EventTypeSet EventType = iota
 	EventTypeUnset
@@ -219,8 +218,13 @@ type KubernetesPodOwner struct {
 type ECSTask struct {
 	EntityID
 	EntityMeta
-	Containers []Container
-	LaunchType ECSLaunchType
+	Tags                  map[string]string
+	ContainerInstanceTags map[string]string
+	ClusterName           string
+	Family                string
+	Version               string
+	LaunchType            ECSLaunchType
+	Containers            []string
 }
 
 // GetID returns an ECSTasks's EntityID.
