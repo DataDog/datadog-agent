@@ -577,6 +577,11 @@ func (c *CheckConfig) IsDiscovery() bool {
 	return c.Network != ""
 }
 
+// GetAgentLevelTags return agent level tags
+func (c *CheckConfig) GetAgentLevelTags() []string {
+	return coreconfig.GetConfiguredTags(false)
+}
+
 func parseScalarOids(metrics []MetricsConfig, metricTags []MetricTagConfig) []string {
 	var oids []string
 	for _, metric := range metrics {

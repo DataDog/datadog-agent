@@ -22,6 +22,7 @@ var interfaceNameTagKey = "interface"
 // ReportNetworkDeviceMetadata reports device metadata
 func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
 	tags := common.CopyStrings(origTags)
+	tags = append(tags, config.GetAgentLevelTags()...)
 	tags = util.SortUniqInPlace(tags)
 
 	device := buildNetworkDeviceMetadata(config.DeviceID, config.DeviceIDTags, config, store, tags, deviceStatus)

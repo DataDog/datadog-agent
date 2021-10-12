@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -21,22 +22,43 @@ import (
 )
 
 func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.T) {
+	// Setup logs capture
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.TraceLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
 	log.SetupLogger(l, "debug")
 
+	// Setup Agent Tags
+	datadogYaml := `
+tags:
+ - agent_tag1:val1
+ - agent_tag2:val2
+extra_tags:
+ - agent_extratag1:val1
+ - agent_extratag2:val2
+`
+	coreconfig.Datadog.SetConfigType("yaml")
+	err = coreconfig.Datadog.ReadConfig(bytes.NewBuffer([]byte(datadogYaml)))
+	assert.NoError(t, err)
+	defer func() {
+		err = coreconfig.Datadog.ReadConfig(bytes.NewBuffer([]byte("")))
+		assert.NoError(t, err)
+	}()
+
+	// Setup value store
 	var storeWithoutIfName = &valuestore.ResultValueStore{
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
+	// Setup mocks
 	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
 	}
 
+	// Setup config
 	config := &checkconfig.CheckConfig{
 		IPAddress:          "1.2.3.4",
 		DeviceID:           "1234",
@@ -70,6 +92,10 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
             "vendor": "",
             "subnet": "127.0.0.0/29",
             "tags": [
+				"agent_extratag1:val1",
+				"agent_extratag2:val2",
+				"agent_tag1:val1",
+				"agent_tag2:val2",
                 "tag1",
                 "tag2"
             ],
