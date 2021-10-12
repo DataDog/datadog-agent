@@ -25,8 +25,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
-	"github.com/DataDog/datadog-agent/pkg/otlp/model/instrumentationlibrary"
-	"github.com/DataDog/datadog-agent/pkg/otlp/model/translator/utils"
+	"github.com/DataDog/datadog-agent/pkg/otlp/model/internal/instrumentationlibrary"
+	"github.com/DataDog/datadog-agent/pkg/otlp/model/internal/utils"
 )
 
 const metricName string = "metric name"
