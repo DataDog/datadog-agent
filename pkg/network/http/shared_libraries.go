@@ -200,13 +200,6 @@ func (w *soWatcher) getSharedLibraries() []so.Library {
 	// libraries will include all host-resolved library paths mapped into memory
 	libraries := so.FindProc(w.procRoot, w.all)
 
-	// Resolve all symlinks in library host paths
-	for i := range libraries {
-		if withoutSymLinks, err := filepath.EvalSymlinks(libraries[i].HostPath); err == nil {
-			libraries[i].HostPath = withoutSymLinks
-		}
-	}
-
 	// TODO: should we ensure all entries are unique in the `so` package instead?
 	seen := make(map[string]struct{}, len(libraries))
 	i := 0
