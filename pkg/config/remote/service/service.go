@@ -1,4 +1,4 @@
-//go:generate go run github.com/shuLhan/go-bindata/cmd/go-bindata -pkg meta -prefix meta/ -include .* -o ./meta/meta.go meta/
+//go:generate go run github.com/shuLhan/go-bindata/cmd/go-bindata -pkg meta -prefix meta/ -o ./meta/meta.go meta/config.json meta/director.json
 
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
@@ -435,11 +435,7 @@ func NewService(opts Opts) (*Service, error) {
 	}
 
 	if opts.APIKey == "" {
-		apiKey := config.Datadog.GetString("api_key")
-		if config.Datadog.IsSet("remote_configuration.api_key") {
-			apiKey = config.Datadog.GetString("remote_configuration.api_key")
-		}
-		opts.APIKey = config.SanitizeAPIKey(apiKey)
+		opts.APIKey = config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
 	}
 
 	if opts.RemoteConfigurationKey == "" {
