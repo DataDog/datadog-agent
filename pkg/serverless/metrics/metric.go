@@ -111,6 +111,5 @@ func buildBufferedAggregator(multipleEndpointConfig MultipleEndpointConfig, forw
 	f := forwarder.NewSyncForwarder(keysPerDomain, forwarderTimeout)
 	f.Start() //nolint:errcheck
 	serializer := serializer.NewSerializer(f, nil)
-	// flushInterval is set to 0 (disabled) because we want to control flushing from the daemon
-	return aggregator.InitAggregatorWithFlushInterval(serializer, nil, "serverless", 0)
+	return aggregator.InitAggregator(serializer, nil, "serverless")
 }
