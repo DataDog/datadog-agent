@@ -212,11 +212,6 @@ type DirectorPartialClient struct {
 	remote *directorRemoteStore
 }
 
-// GetRoot returns the director root metadata bundled into the agent
-func (c *DirectorPartialClient) GetRoot() ([]byte, error) {
-	return getDirectorRoot()
-}
-
 // TrimHash trim the file hash from the name
 // (eg. changing my-product/1234.my.target into my-product/my.target)
 func TrimHash(path string) string {
@@ -245,7 +240,7 @@ func (c *DirectorPartialClient) Verify(response *pbgo.ConfigResponse) error {
 
 	if meta, err := c.local.GetMeta(); err == nil {
 		if _, found := meta["root.json"]; !found {
-			root, err := c.GetRoot()
+			root, err := getDirectorRoot()
 			if err != nil {
 				return err
 			}
