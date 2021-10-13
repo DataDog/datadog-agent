@@ -3,8 +3,9 @@ package valuestore
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/cihub/seelog"
 	"sort"
+
+	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
