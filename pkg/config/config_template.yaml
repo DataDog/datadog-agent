@@ -2181,6 +2181,16 @@ api_key:
 # container_env_as_tags:
 #   <ENV>: <TAG_KEY>
 
+## @param container_labels_as_tags - map - optional
+## @env DD_CONTAINER_LABELS_AS_TAGS - map - optional
+## The Agent can extract container label values and set them as metric tags values associated to a <TAG_KEY>.
+## If you prefix your tag name with `+`, it will only be added to high cardinality metrics. (Supported container
+## runtimes: Containerd, Docker).
+#
+# container_labels_as_tags:
+#   <LABEL_NAME>: <TAG_KEY>
+#   <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
+
 {{ end -}}
 {{- if .ECS }}
 
