@@ -224,7 +224,7 @@ func WithRegoInput(regoInputPath string) BuilderOption {
 		if err != nil {
 			return err
 		}
-		return json.Unmarshal(content, &b.regoInput)
+		return json.Unmarshal(content, &b.regoInputOverride)
 	}
 }
 
@@ -294,7 +294,7 @@ type builder struct {
 	kubeClient   *kubeClient
 	isLeaderFunc func() bool
 
-	regoInput         map[string]map[string]interface{}
+	regoInputOverride map[string]map[string]interface{}
 	regoInputDumpPath string
 
 	status *status
@@ -438,14 +438,17 @@ func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance
 		return nil, err
 	}
 
-	eligible, err := b.hostMatcher(ruleScope, rule.ID, rule.HostSelector)
-	if err != nil {
-		return nil, err
-	}
+	// skip host match check if rego input is overridden
+	if b.regoInputOverride == nil {
+		eligible, err := b.hostMatcher(ruleScope, rule.ID, rule.HostSelector)
+		if err != nil {
+			return nil, err
+		}
 
-	if !eligible {
-		log.Debugf("rule %s/%s discarded by hostMatcher", meta.Framework, rule.ID)
-		return nil, ErrRuleDoesNotApply
+		if !eligible {
+			log.Debugf("rule %s/%s discarded by hostMatcher", meta.Framework, rule.ID)
+			return nil, ErrRuleDoesNotApply
+		}
 	}
 
 	return b.newRegoCheck(meta, ruleScope, rule, fallthroughReporter)
@@ -708,7 +711,7 @@ func (b *builder) KubeClient() env.KubeClient {
 }
 
 func (b *builder) ProvidedInput(ruleID string) env.ProvidedInputMap {
-	return b.regoInput[ruleID]
+	return b.regoInputOverride[ruleID]
 }
 
 func (b *builder) DumpInputPath() string {
