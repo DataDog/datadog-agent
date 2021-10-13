@@ -203,29 +203,19 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	gotest.tools v2.2.0+incompatible
-	k8s.io/api v0.21.2
-	k8s.io/apimachinery v0.21.2
-	k8s.io/apiserver v0.20.11
+	k8s.io/api v0.21.5
+	k8s.io/apimachinery v0.21.5
+	k8s.io/apiserver v0.21.5
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.9.2
-	k8s.io/client-go v0.21.0
-	k8s.io/cri-api v0.20.11
+	k8s.io/client-go v0.21.5
+	k8s.io/cri-api v0.21.5
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
 	k8s.io/klog/v2 v2.8.0
 	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
 	k8s.io/kube-state-metrics/v2 v2.1.1
-	k8s.io/metrics v0.20.11
+	k8s.io/metrics v0.21.5
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
 )
-
-// Pinned to kubernetes-v0.20.11
-replace (
-	k8s.io/api => k8s.io/api v0.20.11
-	k8s.io/apimachinery => k8s.io/apimachinery v0.20.11
-	k8s.io/client-go => k8s.io/client-go v0.20.11
-)
-
-// Fixing a CVE indirectly linked to k8s/etcd, will be cleaned-up when K8S Apiserver deps is removed
-replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
 
 replace gopkg.in/DataDog/dd-trace-go.v1 => gopkg.in/DataDog/dd-trace-go.v1 v1.30.0
 
