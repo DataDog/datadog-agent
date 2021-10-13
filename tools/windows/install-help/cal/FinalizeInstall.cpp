@@ -24,38 +24,31 @@ bool HasApiKey(std::wstring const &inputConfig)
 bool ShouldUpdateConfig()
 {
     std::wifstream inputConfigStream(datadogyamlfile);
-    if (inputConfigStream.is_open())
-    {
-        inputConfigStream.seekg(0, std::ios::end);
-        size_t fileSize = inputConfigStream.tellg();
-        if (fileSize > 0)
-        {
-            std::wstring inputConfig;
-            inputConfig.reserve(fileSize);
-            inputConfigStream.seekg(0, std::ios::beg);
-            inputConfig.assign(std::istreambuf_iterator<wchar_t>(inputConfigStream),
-                               std::istreambuf_iterator<wchar_t>());
-            if (HasApiKey(inputConfig))
-            {
-                WcaLog(LOGMSG_STANDARD, "API key already present in configuration - not modifying it");
-                return false;
-            }
-            else
-            {
-                WcaLog(LOGMSG_STANDARD, "Config file with API key missing - updating");
-            }
-        }
-        else
-        {
-            WcaLog(LOGMSG_STANDARD, "datadog.yaml is empty - updating");
-        }
-    }
-    else
+    if (!inputConfigStream.is_open())
     {
         WcaLog(LOGMSG_STANDARD, "datadog.yaml cannot be opened - trying to update it");
+        return true;
     }
 
-    return true;
+    inputConfigStream.seekg(0, std::ios::end);
+    size_t fileSize = inputConfigStream.tellg();
+    if (fileSize <= 0)
+    {
+        WcaLog(LOGMSG_STANDARD, "datadog.yaml is empty - updating");
+        return true;
+    }
+    std::wstring inputConfig;
+    inputConfig.reserve(fileSize);
+    inputConfigStream.seekg(0, std::ios::beg);
+    inputConfig.assign(std::istreambuf_iterator<wchar_t>(inputConfigStream), std::istreambuf_iterator<wchar_t>());
+    if (!HasApiKey(inputConfig))
+    {
+        WcaLog(LOGMSG_STANDARD, "Config file with API key missing - updating");
+
+        return true;
+    }
+    WcaLog(LOGMSG_STANDARD, "API key already present in configuration - not modifying it");
+    return false;
 }
 
 bool updateYamlConfig(CustomActionData &customActionData)
@@ -77,7 +70,7 @@ bool updateYamlConfig(CustomActionData &customActionData)
     if (fileSize <= 0)
     {
         WcaLog(LOGMSG_STANDARD, "ERROR: datadog.yaml.example is empty !");
-        return false;
+        return true;
     }
 
     std::wstring inputConfig;
