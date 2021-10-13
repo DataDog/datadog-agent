@@ -5,7 +5,6 @@
 
 package meta
 
-
 import (
 	"bytes"
 	"compress/gzip"
@@ -37,7 +36,6 @@ func bindataRead(data []byte, name string) ([]byte, error) {
 
 	return buf.Bytes(), nil
 }
-
 
 type asset struct {
 	bytes []byte
@@ -88,8 +86,6 @@ func bindataConfigJsonBytes() ([]byte, error) {
 	)
 }
 
-
-
 func bindataConfigJson() (*asset, error) {
 	bytes, err := bindataConfigJsonBytes()
 	if err != nil {
@@ -97,11 +93,11 @@ func bindataConfigJson() (*asset, error) {
 	}
 
 	info := bindataFileInfo{
-		name: "config.json",
-		size: 2097,
+		name:        "config.json",
+		size:        2097,
 		md5checksum: "",
-		mode: os.FileMode(420),
-		modTime: time.Unix(1633993850, 0),
+		mode:        os.FileMode(420),
+		modTime:     time.Unix(1633993850, 0),
 	}
 
 	a := &asset{bytes: bytes, info: info}
@@ -118,8 +114,6 @@ func bindataDirectorJsonBytes() ([]byte, error) {
 	)
 }
 
-
-
 func bindataDirectorJson() (*asset, error) {
 	bytes, err := bindataDirectorJsonBytes()
 	if err != nil {
@@ -127,18 +121,17 @@ func bindataDirectorJson() (*asset, error) {
 	}
 
 	info := bindataFileInfo{
-		name: "director.json",
-		size: 2097,
+		name:        "director.json",
+		size:        2097,
 		md5checksum: "",
-		mode: os.FileMode(420),
-		modTime: time.Unix(1633993850, 0),
+		mode:        os.FileMode(420),
+		modTime:     time.Unix(1633993850, 0),
 	}
 
 	a := &asset{bytes: bytes, info: info}
 
 	return a, nil
 }
-
 
 //
 // Asset loads and returns the asset for the given name.
@@ -231,18 +224,18 @@ func AssetDir(name string) ([]string, error) {
 			node = node.Children[p]
 			if node == nil {
 				return nil, &os.PathError{
-					Op: "open",
+					Op:   "open",
 					Path: name,
-					Err: os.ErrNotExist,
+					Err:  os.ErrNotExist,
 				}
 			}
 		}
 	}
 	if node.Func != nil {
 		return nil, &os.PathError{
-			Op: "open",
+			Op:   "open",
 			Path: name,
-			Err: os.ErrNotExist,
+			Err:  os.ErrNotExist,
 		}
 	}
 	rv := make([]string, 0, len(node.Children))
@@ -252,14 +245,13 @@ func AssetDir(name string) ([]string, error) {
 	return rv, nil
 }
 
-
 type bintree struct {
 	Func     func() (*asset, error)
 	Children map[string]*bintree
 }
 
 var _bintree = &bintree{Func: nil, Children: map[string]*bintree{
-	"config.json": {Func: bindataConfigJson, Children: map[string]*bintree{}},
+	"config.json":   {Func: bindataConfigJson, Children: map[string]*bintree{}},
 	"director.json": {Func: bindataDirectorJson, Children: map[string]*bintree{}},
 }}
 

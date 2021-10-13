@@ -1,4 +1,5 @@
 //go:generate go run github.com/shuLhan/go-bindata/cmd/go-bindata -pkg meta -prefix meta/ -o ./meta/meta.go meta/config.json meta/director.json
+//go:generate go fmt ./meta/meta.go
 
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
