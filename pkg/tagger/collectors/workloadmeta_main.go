@@ -62,7 +62,10 @@ func (c *WorkloadMetaCollector) Detect(ctx context.Context, out chan<- []*TagInf
 	c.children = make(map[string]map[string]struct{})
 	c.collectEC2ResourceTags = config.Datadog.GetBool("ecs_collect_resource_tags_ec2")
 
-	containerLabelsAsTags := retrieveMappingFromConfig("docker_labels_as_tags")
+	containerLabelsAsTags := mergeMaps(
+		retrieveMappingFromConfig("docker_labels_as_tags"),
+		retrieveMappingFromConfig("container_labels_as_tags"),
+	)
 	containerEnvAsTags := mergeMaps(
 		retrieveMappingFromConfig("docker_env_as_tags"),
 		retrieveMappingFromConfig("container_env_as_tags"),
