@@ -147,10 +147,10 @@ func (l *KubeletListener) processPod(pod *workloadmeta.KubernetesPod, firstRun b
 	}
 
 	containers := make([]*workloadmeta.Container, 0, len(pod.Containers))
-	for _, containerID := range pod.Containers {
-		container, err := l.store.GetContainer(containerID)
+	for _, podContainer := range pod.Containers {
+		container, err := l.store.GetContainer(podContainer.ID)
 		if err != nil {
-			log.Debugf("pod %q has reference to non-existing container %q", pod.Name, containerID)
+			log.Debugf("pod %q has reference to non-existing container %q", pod.Name, podContainer.ID)
 			continue
 		}
 

@@ -167,9 +167,6 @@ func TestHandleKubePod(t *testing.T) {
 
 				// Phase tags
 				Phase: "Running",
-
-				// Container tags
-				Containers: []string{},
 			},
 			expected: []*TagInfo{
 				{
@@ -210,7 +207,12 @@ func TestHandleKubePod(t *testing.T) {
 					Name:      podName,
 					Namespace: podNamespace,
 				},
-				Containers: []string{fullyFleshedContainerID},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   fullyFleshedContainerID,
+						Name: containerName,
+					},
+				},
 			},
 			expected: []*TagInfo{
 				{
@@ -260,7 +262,12 @@ func TestHandleKubePod(t *testing.T) {
 						"tags.datadoghq.com/agent.version": version,
 					},
 				},
-				Containers: []string{noEnvContainerID},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   noEnvContainerID,
+						Name: containerName,
+					},
+				},
 			},
 			expected: []*TagInfo{
 				{
@@ -395,7 +402,12 @@ func TestHandleECSTask(t *testing.T) {
 				Family:      "datadog-agent",
 				Version:     "1",
 				LaunchType:  workloadmeta.ECSLaunchTypeEC2,
-				Containers:  []string{containerID},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   containerID,
+						Name: containerName,
+					},
+				},
 			},
 			expected: []*TagInfo{
 				{
@@ -755,7 +767,12 @@ func TestHandleDelete(t *testing.T) {
 			Name:      podName,
 			Namespace: podNamespace,
 		},
-		Containers: []string{containerID},
+		Containers: []workloadmeta.OrchestratorContainer{
+			{
+				ID:   containerID,
+				Name: containerName,
+			},
+		},
 	}
 
 	podTaggerEntityID := fmt.Sprintf("kubernetes_pod_uid://%s", podEntityID.ID)
