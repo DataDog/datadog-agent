@@ -435,7 +435,11 @@ func NewService(opts Opts) (*Service, error) {
 	}
 
 	if opts.APIKey == "" {
-		opts.APIKey = config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
+		apiKey := config.Datadog.GetString("api_key")
+		if config.Datadog.IsSet("remote_configuration.api_key") {
+			apiKey = config.Datadog.GetString("remote_configuration.api_key")
+		}
+		opts.APIKey = config.SanitizeAPIKey(apiKey)
 	}
 
 	if opts.RemoteConfigurationKey == "" {

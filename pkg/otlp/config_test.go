@@ -103,7 +103,7 @@ func TestFromAgentConfig(t *testing.T) {
 			name: "invalid",
 			path: "./testdata/invalid.yaml",
 			err: strings.Join([]string{
-				"http port is invalid: -1 is out of [0, 65535] range",
+				"HTTP port is invalid: -1 is out of [0, 65535] range",
 				"gRPC port is invalid: -1 is out of [0, 65535] range",
 				"internal trace port is invalid: -1 is out of [0, 65535] range",
 			},

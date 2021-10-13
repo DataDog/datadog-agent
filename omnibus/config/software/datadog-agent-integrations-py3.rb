@@ -295,9 +295,11 @@ build do
 
       # install all wheels from cache in one pip invocation to speed things up
       if windows?
-        command "#{python} -m pip install --no-deps --no-index -r #{windows_safe_path(cached_wheels_dir)}\\found.txt"
+        command "#{python} -m pip install --no-deps --no-index " \
+          " --find-links #{windows_safe_path(cached_wheels_dir)} -r #{windows_safe_path(cached_wheels_dir)}\\found.txt"
       else
-        command "#{pip} install --no-deps --no-index -r #{cached_wheels_dir}/found.txt"
+        command "#{pip} install --no-deps --no-index " \
+          "--find-links #{cached_wheels_dir} -r #{cached_wheels_dir}/found.txt"
       end
     end
 

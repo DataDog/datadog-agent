@@ -52,8 +52,9 @@ func newStdCmdWrapper() *stdCmdWrapper {
 }
 
 type dockerCmdWrapper struct {
-	executable string
-	root       string
+	executable    string
+	root          string
+	containerName string
 }
 
 func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *exec.Cmd {
@@ -61,7 +62,7 @@ func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *ex
 	for _, env := range envs {
 		dockerArgs = append(dockerArgs, "-e"+env)
 	}
-	dockerArgs = append(dockerArgs, "docker-wrapper", bin)
+	dockerArgs = append(dockerArgs, d.containerName, bin)
 	dockerArgs = append(dockerArgs, args...)
 
 	cmd := exec.Command(d.executable, dockerArgs...)
@@ -71,7 +72,8 @@ func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *ex
 }
 
 func (d *dockerCmdWrapper) start() ([]byte, error) {
-	cmd := exec.Command(d.executable, "run", "-d", "--name", "docker-wrapper", "-v", d.root+":"+d.root, "ubuntu:focal", "sleep", "600")
+	d.containerName = fmt.Sprintf("docker-wrapper-%s", randStringRunes(6))
+	cmd := exec.Command(d.executable, "run", "--rm", "-d", "--name", d.containerName, "-v", d.root+":"+d.root, "ubuntu:focal", "sleep", "600")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return out, err
 	}
@@ -79,10 +81,7 @@ func (d *dockerCmdWrapper) start() ([]byte, error) {
 }
 
 func (d *dockerCmdWrapper) stop() ([]byte, error) {
-	cmd := exec.Command(d.executable, "kill", "docker-wrapper")
-	_ = cmd.Run()
-
-	cmd = exec.Command(d.executable, "rm", "-f", "docker-wrapper")
+	cmd := exec.Command(d.executable, "kill", d.containerName)
 	return cmd.CombinedOutput()
 }
 

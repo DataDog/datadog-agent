@@ -254,7 +254,7 @@ func (s *Store) startCandidates(ctx context.Context) {
 			log.Infof("workloadmeta collector %q started successfully", id)
 			s.collectors[id] = c
 		} else {
-			log.Info("workloadmeta collector %q could not start. error: %s", id, err)
+			log.Infof("workloadmeta collector %q could not start. error: %s", id, err)
 		}
 
 		// Remove non-retriable and successfully started collectors
