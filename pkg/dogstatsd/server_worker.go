@@ -33,10 +33,6 @@ func newWorker(s *Server) *worker {
 	}
 }
 
-func (w *worker) flush() {
-	w.batcher.flush()
-}
-
 func (w *worker) run() {
 	for {
 		select {

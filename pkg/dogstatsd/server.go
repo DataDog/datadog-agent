@@ -436,10 +436,6 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan packets.Packets) {
 // ServerlessFlush flushes all the data to the aggregator to them send it to the Datadog intake.
 func (s *Server) ServerlessFlush() {
 	log.Debug("Received a Flush trigger")
-	// make all workers flush their aggregated data (in the batcher) to the aggregator.
-	for _, w := range s.workers {
-		w.flush()
-	}
 	s.aggregator.ServerlessFlushChan <- true
 }
 
