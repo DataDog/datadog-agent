@@ -221,6 +221,7 @@ func (l *Launcher) overrideSource(container *Container, source *config.LogSource
 
 	if l.collectAllSource == nil {
 		l.collectAllSource = source
+		l.collectAllSource.HideFromStats = true
 		l.collectAllSource.RegisterInfo(l.collectAllInfo)
 	}
 
