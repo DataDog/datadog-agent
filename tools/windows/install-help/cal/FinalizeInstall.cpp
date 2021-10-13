@@ -3,24 +3,6 @@
 #include "TargetMachine.h"
 #include <fstream>
 
-bool HasApiKey(std::wstring const &inputConfig)
-{
-    // If we find an API key entry in the yaml file, don't do anything
-    std::wregex re(L"^api_key:(.*)");
-    std::match_results<std::wstring::const_iterator> results;
-    if (std::regex_search(inputConfig, results, re))
-    {
-        auto api_key = results[1].str();
-        api_key.erase(api_key.begin(),
-                      std::find_if(api_key.begin(), api_key.end(), [](int ch) { return !std::isspace(ch); }));
-        if (api_key.length() > 0)
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
 bool ShouldUpdateConfig()
 {
     std::wifstream inputConfigStream(datadogyamlfile);
@@ -37,17 +19,7 @@ bool ShouldUpdateConfig()
         WcaLog(LOGMSG_STANDARD, "datadog.yaml is empty - updating");
         return true;
     }
-    std::wstring inputConfig;
-    inputConfig.reserve(fileSize);
-    inputConfigStream.seekg(0, std::ios::beg);
-    inputConfig.assign(std::istreambuf_iterator<wchar_t>(inputConfigStream), std::istreambuf_iterator<wchar_t>());
-    if (!HasApiKey(inputConfig))
-    {
-        WcaLog(LOGMSG_STANDARD, "Config file with API key missing - updating");
-
-        return true;
-    }
-    WcaLog(LOGMSG_STANDARD, "API key already present in configuration - not modifying it");
+    WcaLog(LOGMSG_STANDARD, "datadog.yaml exists and is not empty - not modifying it");
     return false;
 }
 
@@ -66,6 +38,7 @@ bool updateYamlConfig(CustomActionData &customActionData)
         WcaLog(LOGMSG_STANDARD, "ERROR: datadog.yaml.example cannot be opened !");
         return false;
     }
+    inputConfigExampleStream.seekg(0, std::ios::end);
     size_t fileSize = inputConfigExampleStream.tellg();
     if (fileSize <= 0)
     {
@@ -95,10 +68,8 @@ bool updateYamlConfig(CustomActionData &customActionData)
         WcaLog(LOGMSG_STANDARD, "Failed to replace %S in datadog.yaml file", v.c_str());
     }
 
-    {
-        std::wofstream inputConfigStream(datadogyamlfile);
-        inputConfigStream << inputConfig;
-    }
+    std::wofstream outputConfigStream(datadogyamlfile);
+    outputConfigStream << inputConfig;
     return true;
 }
 

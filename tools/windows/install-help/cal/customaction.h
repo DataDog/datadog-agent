@@ -104,7 +104,6 @@ extern HMODULE hDllModule;
 */
 
 // FinalizeInstall.cpp
-bool HasApiKey(std::wstring const &inputConfig);
 UINT doFinalizeInstall(CustomActionData &data);
 
 // doUninstall.cpp
