@@ -38,7 +38,7 @@ func newDirectorLocalStore(store *store.Store) *directorLocalStore {
 
 func getDirectorRoot() ([]byte, error) {
 	if directorRoot := config.Datadog.GetString("remote_configuration.director_root"); directorRoot != "" {
-		return ioutil.ReadFile(directorRoot)
+		return []byte(directorRoot), nil
 	}
 	return meta.Asset("director.json")
 }
@@ -214,7 +214,7 @@ type DirectorPartialClient struct {
 
 // GetRoot returns the director root metadata bundled into the agent
 func (c *DirectorPartialClient) GetRoot() ([]byte, error) {
-	return meta.Asset("director.json")
+	return getDirectorRoot()
 }
 
 // TrimHash trim the file hash from the name
