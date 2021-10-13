@@ -91,7 +91,6 @@ func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions u
 			return nil, fmt.Errorf("fetch column: failed getting oids `%v` using GetNext: %s", requestOids, err)
 		}
 		results = getNextResults
-		log.Debugf("fetch column: GetNext results Variables: %v", results.Variables)
 	} else {
 		getBulkResults, err := sess.GetBulk(requestOids, bulkMaxRepetitions)
 		if err != nil {
