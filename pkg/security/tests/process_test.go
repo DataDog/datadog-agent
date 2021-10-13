@@ -129,7 +129,9 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			return f.Close()
-		}, func(event *sprobe.Event, rule *rules.Rule) {})
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			t.Errorf("got event: %s", event)
+		})
 		if err == nil {
 			t.Error("shouldn't get an event")
 		}

@@ -56,7 +56,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 
 	perfBufferMonitor := test.probe.GetMonitor().GetPerfBufferMonitor()
 	perfBufferMonitor.GetAndResetLostCount("events", -1)
-	perfBufferMonitor.GetAndResetKernelLostCount("events", -1)
+	perfBufferMonitor.GetKernelLostCount("events", -1)
 
 	fnc := func() error {
 		f, err := os.Create(testFile)
@@ -100,7 +100,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 	}
 
 	report.AddMetric("lost", float64(perfBufferMonitor.GetLostCount("events", -1)), "lost")
-	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetAndResetKernelLostCount("events", -1)), "lost")
+	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetKernelLostCount("events", -1)), "lost")
 	report.AddMetric("events", float64(events), "events")
 	report.AddMetric("events/sec", float64(events)/report.Duration.Seconds(), "event/s")
 
@@ -202,7 +202,7 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 
 	perfBufferMonitor := test.probe.GetMonitor().GetPerfBufferMonitor()
 	perfBufferMonitor.GetAndResetLostCount("events", -1)
-	perfBufferMonitor.GetAndResetKernelLostCount("events", -1)
+	perfBufferMonitor.GetKernelLostCount("events", -1)
 
 	fnc := func() error {
 		cmd := exec.Command(executable, testFile)
@@ -237,7 +237,7 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 	time.Sleep(2 * time.Second)
 
 	report.AddMetric("lost", float64(perfBufferMonitor.GetLostCount("events", -1)), "lost")
-	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetAndResetKernelLostCount("events", -1)), "lost")
+	report.AddMetric("kernel_lost", float64(perfBufferMonitor.GetKernelLostCount("events", -1)), "lost")
 	report.AddMetric("events", float64(events), "events")
 	report.AddMetric("events/sec", float64(events)/report.Duration.Seconds(), "event/s")
 

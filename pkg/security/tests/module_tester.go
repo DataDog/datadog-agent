@@ -568,6 +568,50 @@ func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb ruleHand
 	return nil
 }
 
+func GetStatusMetrics(probe *sprobe.Probe) string {
+	var status string
+
+	if probe == nil {
+		return status
+	}
+	monitor := probe.GetMonitor()
+	if monitor == nil {
+		return status
+	}
+	perfBufferMonitor := monitor.GetPerfBufferMonitor()
+	if perfBufferMonitor == nil {
+		return status
+	}
+
+	status = fmt.Sprintf("%d lost", perfBufferMonitor.GetKernelLostCount("events", -1))
+
+	for i := model.UnknownEventType; i < model.MaxEventType; i++ {
+		stats, kernelStats := perfBufferMonitor.GetEventStats(i, "events", -1)
+		status = fmt.Sprintf("%s, %s user:%d kernel:%d lost:%d", status, i, stats.Count, kernelStats.Count, kernelStats.Lost)
+	}
+
+	return status
+}
+
+// ErrTimeout is used to indicate that a test timed out
+type ErrTimeout struct {
+	msg string
+}
+
+func (et ErrTimeout) Error() string {
+	return et.msg
+}
+
+// NewTimeoutError returns a new timeout error with the metrics collected during the test
+func NewTimeoutError(probe *sprobe.Probe) ErrTimeout {
+	err := ErrTimeout{
+		"timeout, ",
+	}
+
+	err.msg += GetStatusMetrics(probe)
+	return err
+}
+
 func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb ruleHandler) error {
 	tb.Helper()
 
@@ -589,7 +633,7 @@ func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb ruleHandl
 
 	select {
 	case <-time.After(getEventTimeout):
-		return errors.New("timeout")
+		return NewTimeoutError(tm.probe)
 	case <-ctx.Done():
 		return nil
 	}
@@ -625,7 +669,7 @@ func (tm *testModule) GetProbeCustomEvent(tb testing.TB, action func() error, cb
 
 	select {
 	case <-time.After(getEventTimeout):
-		return errors.New("timeout")
+		return NewTimeoutError(tm.probe)
 	case <-ctx.Done():
 		return nil
 	}
@@ -675,7 +719,7 @@ func (tm *testModule) GetProbeEvent(action func() error, cb func(event *sprobe.E
 
 	select {
 	case <-time.After(getEventTimeout):
-		return errors.New("timeout")
+		return NewTimeoutError(tm.probe)
 	case <-ctx.Done():
 		return nil
 	}
@@ -961,7 +1005,7 @@ func waitForDiscarder(test *testModule, key string, value interface{}, eventType
 				return nil
 			}
 		case <-timeout:
-			return errors.New("timeout")
+			return NewTimeoutError(test.probe)
 		}
 	}
 }
