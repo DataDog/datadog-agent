@@ -162,7 +162,7 @@ func bindataMetaGo() (*asset, error) {
 		size: 12288,
 		md5checksum: "",
 		mode: os.FileMode(420),
-		modTime: time.Unix(1634143045, 0),
+		modTime: time.Unix(1634144606, 0),
 	}
 
 	a := &asset{bytes: bytes, info: info}
