@@ -344,7 +344,7 @@ def get_version(
         ctx, git_sha_length, prefix, major_version_hint=major_version
     )
 
-    is_nightly = is_allowed_repo_nightly_branch(os.getenv("DEB_RPM_BUCKET_BRANCH"))
+    is_nightly = is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH"))
     if pre:
         version = "{0}-{1}".format(version, pre)
 
