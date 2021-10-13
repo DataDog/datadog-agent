@@ -23,11 +23,11 @@ type deviceMeta struct {
 }
 
 type profileDefinition struct {
-	Metrics      []MetricsConfig   `yaml:"metrics"`
-	MetricTags   []MetricTagConfig `yaml:"metric_tags"`
-	Extends      []string          `yaml:"extends"`
-	Device       deviceMeta        `yaml:"device"`
-	SysObjectIds StringArray       `yaml:"sysobjectid"`
+	Metrics      []MetricsConfig     `yaml:"metrics"`
+	MetricTags   MetricTagConfigList `yaml:"metric_tags"`
+	Extends      []string            `yaml:"extends"`
+	Device       deviceMeta          `yaml:"device"`
+	SysObjectIds StringArray         `yaml:"sysobjectid"`
 }
 
 var defaultProfilesMu = &sync.Mutex{}
