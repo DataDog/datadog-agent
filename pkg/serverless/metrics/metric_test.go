@@ -7,6 +7,8 @@ package metrics
 
 import (
 	"fmt"
+	"math/rand"
+	"net/http"
 	"testing"
 	"time"
 
@@ -29,7 +31,7 @@ type MetricConfigMocked struct {
 }
 
 func (m *MetricConfigMocked) GetMultipleEndpoints() (map[string][]string, error) {
-	return nil, fmt.Errorf("error")
+	return map[string][]string{"http://localhost:8888": {"value"}}, nil
 }
 
 func TestStartInvalidConfig(t *testing.T) {
@@ -37,6 +39,8 @@ func TestStartInvalidConfig(t *testing.T) {
 	defer metricAgent.Stop()
 	go metricAgent.Start(1*time.Second, &MetricConfigMocked{}, &MetricDogStatsD{})
 	assert.False(t, metricAgent.IsReady())
+	// allow some time to stop to avoid 'can't listen: listen udp 127.0.0.1:8125: bind: address already in use'
+	time.Sleep(100 * time.Millisecond)
 }
 
 type MetricDogStatsDMocked struct {
@@ -51,4 +55,44 @@ func TestStartInvalidDogStatsD(t *testing.T) {
 	defer metricAgent.Stop()
 	go metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{})
 	assert.False(t, metricAgent.IsReady())
+}
+
+func TestRaceFlushVersusAddSample(t *testing.T) {
+
+	config.DetectFeatures()
+
+	metricAgent := &ServerlessMetricAgent{}
+	defer metricAgent.Stop()
+	metricAgent.Start(10*time.Second, &MetricConfigMocked{}, &MetricDogStatsD{})
+
+	assert.NotNil(t, metricAgent.GetMetricChannel())
+
+	go func() {
+		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(10 * time.Millisecond)
+		})
+
+		err := http.ListenAndServe("localhost:8888", nil)
+		if err != nil {
+			panic(err)
+		}
+	}()
+
+	go func() {
+		for i := 0; i < 50000; i++ {
+			n := rand.Intn(10)
+			time.Sleep(time.Duration(n) * time.Microsecond)
+			go SendTimeoutEnhancedMetric([]string{"tag0:value0", "tag1:value1"}, metricAgent.GetMetricChannel())
+		}
+	}()
+
+	go func() {
+		for i := 0; i < 50000; i++ {
+			n := rand.Intn(10)
+			time.Sleep(time.Duration(n) * time.Microsecond)
+			go metricAgent.Flush()
+		}
+	}()
+
+	time.Sleep(2 * time.Second)
 }
