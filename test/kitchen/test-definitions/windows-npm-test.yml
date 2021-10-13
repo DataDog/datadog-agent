@@ -8,7 +8,7 @@ suites:
     - "recipe[dd-agent-upgrade]"
   attributes:
     datadog:
-      agent_major_version: 7
+      agent_version: <%= ENV['LAST_STABLE_VERSION'] %>
       api_key: <%= api_key %>
       <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>
       agent_flavor: 'datadog-iot-agent'
@@ -48,7 +48,7 @@ suites:
     - "recipe[dd-agent-upgrade]"
   attributes:
     datadog:
-      agent_major_version: 7
+      agent_version: <%= ENV['LAST_STABLE_VERSION'] %>
       api_key: <%= api_key %>
       <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>
       agent_flavor: 'datadog-iot-agent'
