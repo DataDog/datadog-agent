@@ -70,7 +70,7 @@ require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/Microsoft/go-winio v0.4.17
-	github.com/Microsoft/hcsshim v0.8.21
+	github.com/Microsoft/hcsshim v0.9.0
 	github.com/alecthomas/jsonschema v0.0.0-20210526225647-edb03dcab7bc
 	github.com/alecthomas/participle v0.7.1
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
@@ -188,7 +188,7 @@ require (
 	go.uber.org/zap v1.19.1
 	go4.org/intern v0.0.0-20210108033219-3eb7198706b2
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
-	golang.org/x/net v0.0.0-20210614182718-04defd469f4e
+	golang.org/x/net v0.0.0-20210825183410-e898025ed96a
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20210923061019-b8560ed6a9b7
 	golang.org/x/text v0.3.7
@@ -220,32 +220,8 @@ require (
 // Pinned to kubernetes-v0.20.11
 replace (
 	k8s.io/api => k8s.io/api v0.20.11
-	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.20.11
 	k8s.io/apimachinery => k8s.io/apimachinery v0.20.11
-	k8s.io/apiserver => k8s.io/apiserver v0.20.11
-	k8s.io/cli-runtime => k8s.io/cli-runtime v0.20.11
 	k8s.io/client-go => k8s.io/client-go v0.20.11
-	k8s.io/cloud-provider => k8s.io/cloud-provider v0.20.11
-	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.20.11
-	k8s.io/code-generator => k8s.io/code-generator v0.20.11
-	k8s.io/component-base => k8s.io/component-base v0.20.11
-	k8s.io/component-helpers => k8s.io/component-helpers v0.20.11
-	k8s.io/controller-manager => k8s.io/controller-manager v0.20.11
-	k8s.io/cri-api => k8s.io/cri-api v0.20.11
-	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.20.11
-	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.20.11
-	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.20.11
-	k8s.io/kube-proxy => k8s.io/kube-proxy v0.20.11
-	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.20.11
-	k8s.io/kubectl => k8s.io/kubectl v0.20.11
-	k8s.io/kubelet => k8s.io/kubelet v0.20.11
-	k8s.io/kubernetes => k8s.io/kubernetes v1.20.11
-	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.20.11
-	k8s.io/metrics => k8s.io/metrics v0.20.11
-	k8s.io/mount-utils => k8s.io/mount-utils v0.20.11
-	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.20.11
-	k8s.io/sample-cli-plugin => k8s.io/sample-cli-plugin v0.20.11
-	k8s.io/sample-controller => k8s.io/sample-controller v0.20.11
 )
 
 // Fixing a CVE indirectly linked to k8s/etcd, will be cleaned-up when K8S Apiserver deps is removed
@@ -258,3 +234,6 @@ replace k8s.io/kube-state-metrics/v2 => github.com/ahmed-mez/kube-state-metrics/
 
 // Remove once the PR aptly-dev/aptly#967 is merged and released.
 replace github.com/aptly-dev/aptly => github.com/lebauce/aptly v0.7.2-0.20210927125351-710eda859941
+
+// Force use of a recent version of Microsoft/hcsshim because old versions are pulling k8s.io/kubernetes
+replace github.com/Microsoft/hcsshim => github.com/Microsoft/hcsshim v0.9.0
