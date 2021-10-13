@@ -11,7 +11,6 @@ import (
 	"os"
 	"testing"
 
-	bundledmeta "github.com/DataDog/datadog-agent/pkg/config/remote/service/meta"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/store"
 	"github.com/stretchr/testify/assert"
 )
@@ -41,7 +40,7 @@ func TestLocalBoltStore(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rootMetadata, err := bundledmeta.Asset("director.json")
+	rootMetadata, err := getDirectorRoot()
 	if err != nil {
 		t.Fatal(err)
 	}
