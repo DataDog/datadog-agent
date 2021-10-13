@@ -55,6 +55,11 @@ func computeRuleModulesAndQuery(rule *compliance.RegoRule, meta *compliance.Suit
 		}
 	}
 
+	if query == "" {
+		query = "data.datadog.findings"
+		log.Infof("defaulting rego query to `%s`", query)
+	}
+
 	var parentDir string
 	if meta.Source != "" {
 		parentDir = filepath.Dir(meta.Source)
