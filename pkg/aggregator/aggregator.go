@@ -737,7 +737,6 @@ func (agg *BufferedAggregator) run() {
 	aggregatorEventPlatformErrorLogged := false
 
 	for {
-
 		select {
 		case <-agg.stopChan:
 			log.Info("Stopping aggregator")
