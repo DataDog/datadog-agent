@@ -206,29 +206,14 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 		},
 	}
 
-	for _, containerID := range pod.Containers {
-		container, err := c.store.GetContainer(containerID)
+	for _, podContainer := range pod.Containers {
+		cTagInfo, err := c.extractTagsFromPodContainer(pod, podContainer, tags.Copy())
 		if err != nil {
-			log.Debugf("pod %q has reference to non-existing container %q", pod.Name, containerID)
+			log.Debugf("cannot extract tags from pod container: %s", err)
 			continue
 		}
 
-		c.registerChild(pod.EntityID, container.EntityID)
-
-		cTags := tags.Copy()
-		c.extractTagsFromPodContainer(pod, container, cTags)
-
-		low, orch, high, standard := cTags.Compute()
-		tagInfos = append(tagInfos, &TagInfo{
-			// podSource here is not a mistake. the source is
-			// always from the parent resource.
-			Source:               podSource,
-			Entity:               buildTaggerEntityID(container.EntityID),
-			HighCardTags:         high,
-			OrchestratorCardTags: orch,
-			LowCardTags:          low,
-			StandardTags:         standard,
-		})
+		tagInfos = append(tagInfos, cTagInfo)
 	}
 
 	return tagInfos
@@ -238,10 +223,10 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*TagInfo 
 	task := ev.Entity.(*workloadmeta.ECSTask)
 
 	tagInfos := make([]*TagInfo, 0, len(task.Containers))
-	for _, containerID := range task.Containers {
-		container, err := c.store.GetContainer(containerID)
+	for _, taskContainer := range task.Containers {
+		container, err := c.store.GetContainer(taskContainer.ID)
 		if err != nil {
-			log.Debugf("task %q has reference to non-existing container %q", task.Name, containerID)
+			log.Debugf("task %q has reference to non-existing container %q", task.Name, taskContainer.ID)
 			continue
 		}
 
@@ -255,7 +240,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*TagInfo 
 		tags.AddLow("task_name", task.Family)
 		tags.AddLow("task_family", task.Family)
 		tags.AddLow("task_version", task.Version)
-		tags.AddLow("ecs_container_name", container.Name)
+		tags.AddLow("ecs_container_name", taskContainer.Name)
 
 		if task.ClusterName != "" {
 			if !config.Datadog.GetBool("disable_cluster_name_tag_key") {
@@ -354,8 +339,15 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 	}
 }
 
-func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.KubernetesPod, container *workloadmeta.Container, tags *utils.TagList) {
-	tags.AddLow("kube_container_name", container.Name)
+func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.KubernetesPod, podContainer workloadmeta.OrchestratorContainer, tags *utils.TagList) (*TagInfo, error) {
+	container, err := c.store.GetContainer(podContainer.ID)
+	if err != nil {
+		return nil, fmt.Errorf("pod %q has reference to non-existing container %q", pod.Name, podContainer.ID)
+	}
+
+	c.registerChild(pod.EntityID, container.EntityID)
+
+	tags.AddLow("kube_container_name", podContainer.Name)
 	tags.AddHigh("container_id", container.ID)
 
 	if container.Name != "" && pod.Name != "" {
@@ -382,6 +374,18 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 	// container-specific tags provided through pod annotation
 	annotation := fmt.Sprintf(podContainerTagsAnnotationFormat, container.Name)
 	c.extractTagsFromJSONInMap(annotation, pod.Annotations, tags)
+
+	low, orch, high, standard := tags.Compute()
+	return &TagInfo{
+		// podSource here is not a mistake. the source is
+		// always from the parent resource.
+		Source:               podSource,
+		Entity:               buildTaggerEntityID(container.EntityID),
+		HighCardTags:         high,
+		OrchestratorCardTags: orch,
+		LowCardTags:          low,
+		StandardTags:         standard,
+	}, nil
 }
 
 func (c *WorkloadMetaCollector) registerChild(parent, child workloadmeta.EntityID) {

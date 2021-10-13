@@ -108,7 +108,7 @@ func (c *collector) parseTasks(ctx context.Context, tasks []v1.Task) []workloadm
 
 		arnParts := strings.Split(task.Arn, "/")
 		taskID := arnParts[len(arnParts)-1]
-		containerIDs, containerEvents := c.parseTaskContainers(task)
+		taskContainers, containerEvents := c.parseTaskContainers(task)
 		entityID := workloadmeta.EntityID{
 			Kind: workloadmeta.KindECSTask,
 			ID:   task.Arn,
@@ -125,15 +125,15 @@ func (c *collector) parseTasks(ctx context.Context, tasks []v1.Task) []workloadm
 			Family:      task.Family,
 			Version:     task.Version,
 			LaunchType:  workloadmeta.ECSLaunchTypeEC2,
-			Containers:  containerIDs,
+			Containers:  taskContainers,
 		}
 
 		if c.hasResourceTags {
 			var metaURI string
-			for _, containerID := range containerIDs {
-				container, err := c.store.GetContainer(containerID)
+			for _, taskContainer := range taskContainers {
+				container, err := c.store.GetContainer(taskContainer.ID)
 				if err != nil {
-					log.Tracef("cannot find container %q found in task %q: %s", containerID, task.Arn, err)
+					log.Tracef("cannot find container %q found in task %q: %s", taskContainer, task.Arn, err)
 					continue
 				}
 
@@ -154,7 +154,7 @@ func (c *collector) parseTasks(ctx context.Context, tasks []v1.Task) []workloadm
 					log.Errorf("failed to get task with tags from metadata v3 API: %s", err)
 				}
 			} else {
-				log.Errorf("failed to get client for metadata v3 API from task %q and the following containers: %v", task.Arn, containerIDs)
+				log.Errorf("failed to get client for metadata v3 API from task %q and the following containers: %v", task.Arn, taskContainers)
 			}
 		}
 
@@ -169,15 +169,18 @@ func (c *collector) parseTasks(ctx context.Context, tasks []v1.Task) []workloadm
 	return events
 }
 
-func (c *collector) parseTaskContainers(task v1.Task) ([]string, []workloadmeta.CollectorEvent) {
-	containerIDs := make([]string, 0, len(task.Containers))
+func (c *collector) parseTaskContainers(task v1.Task) ([]workloadmeta.OrchestratorContainer, []workloadmeta.CollectorEvent) {
+	taskContainers := make([]workloadmeta.OrchestratorContainer, 0, len(task.Containers))
 	events := make([]workloadmeta.CollectorEvent, 0, len(task.Containers))
 
 	now := time.Now()
 
 	for _, container := range task.Containers {
 		containerID := container.DockerID
-		containerIDs = append(containerIDs, containerID)
+		taskContainers = append(taskContainers, workloadmeta.OrchestratorContainer{
+			ID:   containerID,
+			Name: container.Name,
+		})
 		entityID := workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
 			ID:   containerID,
@@ -191,16 +194,11 @@ func (c *collector) parseTaskContainers(task v1.Task) ([]string, []workloadmeta.
 			Entity: &workloadmeta.Container{
 				EntityID: entityID,
 				EntityMeta: workloadmeta.EntityMeta{
-					// TODO(juliogreff): there's a
-					// difference between the
-					// orchestrator's container name (Name)
-					// and the runtime container's name
-					// (DockerName)
-					Name: container.Name,
+					Name: container.DockerName,
 				},
 			},
 		})
 	}
 
-	return containerIDs, events
+	return taskContainers, events
 }

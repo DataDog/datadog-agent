@@ -132,6 +132,13 @@ type ContainerPort struct {
 	Protocol string
 }
 
+// OrchestratorContainer is a reference to a Container with
+// orchestrator-specific data attached to it.
+type OrchestratorContainer struct {
+	ID   string
+	Name string
+}
+
 // Container is a containerized workload.
 type Container struct {
 	EntityID
@@ -176,7 +183,7 @@ type KubernetesPod struct {
 	EntityMeta
 	Owners                     []KubernetesPodOwner
 	PersistentVolumeClaimNames []string
-	Containers                 []string
+	Containers                 []OrchestratorContainer
 	Ready                      bool
 	Phase                      string
 	IP                         string
@@ -224,7 +231,7 @@ type ECSTask struct {
 	Family                string
 	Version               string
 	LaunchType            ECSLaunchType
-	Containers            []string
+	Containers            []OrchestratorContainer
 }
 
 // GetID returns an ECSTasks's EntityID.

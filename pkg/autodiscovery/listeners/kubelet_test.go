@@ -418,8 +418,11 @@ func TestRemovePodService(t *testing.T) {
 			Name:      podName,
 			Namespace: podNamespace,
 		},
-		IP:         "127.0.0.1",
-		Containers: []string{"foo", "bar"},
+		IP: "127.0.0.1",
+		Containers: []workloadmeta.OrchestratorContainer{
+			{ID: "foo"},
+			{ID: "bar"},
+		},
 	}
 
 	containers := []*workloadmeta.Container{

@@ -265,8 +265,8 @@ func (s *Store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod
 
 	for _, e := range entities {
 		pod := e.merge(nil).(*KubernetesPod)
-		for _, podContainerID := range pod.Containers {
-			if podContainerID == containerID {
+		for _, podContainer := range pod.Containers {
+			if podContainer.ID == containerID {
 				return pod, nil
 			}
 		}

@@ -97,7 +97,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 		containerSpecs = append(containerSpecs, pod.Spec.InitContainers...)
 		containerSpecs = append(containerSpecs, pod.Spec.Containers...)
 
-		containerIDs, containerEvents := c.parsePodContainers(
+		podContainers, containerEvents := c.parsePodContainers(
 			containerSpecs,
 			pod.Status.GetAllContainers(),
 		)
@@ -125,7 +125,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			},
 			Owners:                     owners,
 			PersistentVolumeClaimNames: pod.GetPersistentVolumeClaimNames(),
-			Containers:                 containerIDs,
+			Containers:                 podContainers,
 			Ready:                      kubelet.IsPodReady(pod),
 			Phase:                      pod.Status.Phase,
 			IP:                         pod.Status.PodIP,
@@ -146,8 +146,8 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 func (c *collector) parsePodContainers(
 	containerSpecs []kubelet.ContainerSpec,
 	containerStatuses []kubelet.ContainerStatus,
-) ([]string, []workloadmeta.CollectorEvent) {
-	containerIDs := make([]string, 0, len(containerStatuses))
+) ([]workloadmeta.OrchestratorContainer, []workloadmeta.CollectorEvent) {
+	podContainers := make([]workloadmeta.OrchestratorContainer, 0, len(containerStatuses))
 	events := make([]workloadmeta.CollectorEvent, 0, len(containerStatuses))
 
 	for _, container := range containerStatuses {
@@ -163,7 +163,10 @@ func (c *collector) parsePodContainers(
 		var ports []workloadmeta.ContainerPort
 
 		runtime, containerID := containers.SplitEntityName(container.ID)
-		containerIDs = append(containerIDs, containerID)
+		podContainers = append(podContainers, workloadmeta.OrchestratorContainer{
+			ID:   containerID,
+			Name: container.Name,
+		})
 
 		containerSpec := findContainerSpec(container.Name, containerSpecs)
 		if containerSpec != nil {
@@ -218,7 +221,7 @@ func (c *collector) parsePodContainers(
 		})
 	}
 
-	return containerIDs, events
+	return podContainers, events
 }
 
 func findContainerSpec(name string, specs []kubelet.ContainerSpec) *kubelet.ContainerSpec {
