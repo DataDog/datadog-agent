@@ -174,16 +174,18 @@ suites:
       dd-agent-rspec:
         skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
-  - name: win-upgrade-rollback-7
+  - name: win-upgrade-rollback
     run_list:
         - "recipe[dd-agent-install]"
         - "recipe[dd-agent-upgrade]"
     attributes:
       datadog:
-        agent_major_version: 7
+        <% dd_agent_config.each do |key, value| %>
+        <%= key %>: <%= value %>
+        <% end %>
       dd-agent-install:
         windows_agent_url: https://s3.amazonaws.com/dd-agent-mstesting/builds/tagged/
-        dd_agent_version: 7.30.0
+        dd_agent_version: "<%= ENV['MAJOR_VERSION'] %>.30.0"
         agent_install_options: >
           APIKEY=<%= api_key %>
       dd-agent-upgrade:
@@ -192,7 +194,7 @@ suites:
           WIXFAILWHENDEFERRED=1
       dd-agent-upgrade-rspec:
         # Used by the rspec test to know the version to which the agent should be upgraded
-        agent_expected_version: 7.30.0
+        agent_expected_version: "<%= ENV['MAJOR_VERSION'] %>.30.0"
       dd-agent-rspec:
         skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
