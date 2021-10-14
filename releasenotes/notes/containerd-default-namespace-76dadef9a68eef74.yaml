@@ -1,0 +1,4 @@
+enhancements:
+  - |
+    The default containerd namespace is now set according to the env where the
+    agent is deployed. "k8s.io" on Kubernetes and "default" otherwise.
