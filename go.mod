@@ -133,7 +133,7 @@ require (
 	github.com/iceber/iouring-go v0.0.0-20210726032807-b073cc83b2b8
 	github.com/iovisor/gobpf v0.0.0
 	github.com/itchyny/gojq v0.12.5
-	github.com/json-iterator/go v1.1.11
+	github.com/json-iterator/go v1.1.12
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/karrick/godirwalk v1.16.1
 	github.com/klauspost/pgzip v1.2.5 // indirect
