@@ -61,7 +61,7 @@ require (
 	github.com/DataDog/gopsutil v0.0.0-20210930103100-d4e8ef640507
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
 	github.com/DataDog/nikos v1.4.0
-	github.com/DataDog/sketches-go v1.2.0
+	github.com/DataDog/sketches-go v1.2.1
 	github.com/DataDog/viper v1.9.0
 	github.com/DataDog/watermarkpodautoscaler v0.2.1-0.20210323121426-cfb2caa5613f
 	github.com/DataDog/zstd v1.4.8
