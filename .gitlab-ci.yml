@@ -513,7 +513,7 @@ variables:
     when: manual
     allow_failure: true
 
-.on_build_chocolatey:
+.on_deploy_stable_or_rc_tag_on_beta_repo_branch_a7:
   - <<: *if_not_version_7
     when: never
   - <<: *if_not_stable_or_beta_repo_branch
