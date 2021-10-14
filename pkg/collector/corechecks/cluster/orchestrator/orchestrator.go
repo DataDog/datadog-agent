@@ -336,7 +336,7 @@ func (o *OrchestratorCheck) processDeploys(sender aggregator.Sender) {
 		return
 	}
 
-	messages, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.orchestratorConfig, o.clusterID)
+	messages, manifests, err := processDeploymentList(deployList, atomic.AddInt32(&o.groupID, 1), o.orchestratorConfig, o.clusterID)
 	if err != nil {
 		_ = o.Warnf("Unable to process deployment list: %v", err)
 		return
@@ -351,6 +351,7 @@ func (o *OrchestratorCheck) processDeploys(sender aggregator.Sender) {
 	orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sDeployment), stats, orchestrator.NoExpiration)
 
 	sender.OrchestratorMetadata(messages, o.clusterID, int(orchestrator.K8sDeployment))
+	sender.OrchestratorManifest(manifests, o.orchestratorConfig.KubeClusterName, o.clusterID)
 }
 
 func (o *OrchestratorCheck) processReplicaSets(sender aggregator.Sender) {

@@ -41,6 +41,7 @@ const (
 func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID string, cfg *config.OrchestratorConfig) ([]model.MessageBody, error) {
 	start := time.Now()
 	podMsgs := make([]*model.Pod, 0, len(podList))
+	manifestMsgs := make([]*model.Manifest, 0, len(podList))
 
 	for _, p := range podList {
 		redact.RemoveLastAppliedConfigurationAnnotation(p.Annotations)
@@ -101,6 +102,16 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 		}
 		podModel.Yaml = jsonPod
 
+		manifestMsgs = append(manifestMsgs, &model.Manifest{
+			Orchestrator: "k8s",
+			Type:         "pod",
+			Uid:          podModel.Metadata.Uid,
+			Content:      jsonPod,
+			ContentType:  "json",
+		})
+		// TODO: how to send these?
+		// convert the pod check to a core check?
+
 		podMsgs = append(podMsgs, podModel)
 	}
 
@@ -108,6 +119,7 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 	if len(podMsgs)%cfg.MaxPerMessage != 0 {
 		groupSize++
 	}
+
 	chunked := chunkPods(podMsgs, groupSize, cfg.MaxPerMessage)
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {

@@ -140,8 +140,9 @@ func TestGetAndSetSender(t *testing.T) {
 	eventChan := make(chan metrics.Event, 10)
 	bucketChan := make(chan senderHistogramBucket, 10)
 	orchestratorChan := make(chan senderOrchestratorMetadata, 10)
+	orchestratorManifestChan := make(chan senderOrchestratorManifest, 10)
 	eventPlatformChan := make(chan senderEventPlatformEvent, 10)
-	testCheckSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan, bucketChan, orchestratorChan, eventPlatformChan)
+	testCheckSender := newCheckSender(checkID1, "", senderMetricSampleChan, serviceCheckChan, eventChan, bucketChan, orchestratorChan, orchestratorManifestChan, eventPlatformChan)
 
 	err := SetSender(testCheckSender, checkID1)
 	assert.Nil(t, err)

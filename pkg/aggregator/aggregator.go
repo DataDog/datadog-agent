@@ -12,8 +12,10 @@ import (
 	"sync"
 	"time"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -118,6 +120,8 @@ var (
 	aggregatorHostnameUpdate                   = expvar.Int{}
 	aggregatorOrchestratorMetadata             = expvar.Int{}
 	aggregatorOrchestratorMetadataErrors       = expvar.Int{}
+	aggregatorOrchestratorManifest             = expvar.Int{}
+	aggregatorOrchestratorManifestErrors       = expvar.Int{}
 	aggregatorDogstatsdContexts                = expvar.Int{}
 	aggregatorEventPlatformEvents              = expvar.Map{}
 	aggregatorEventPlatformEventsErrors        = expvar.Map{}
@@ -148,6 +152,7 @@ func init() {
 	newFlushCountStats("Series")
 	newFlushCountStats("Events")
 	newFlushCountStats("Sketches")
+	newFlushCountStats("Manifests")
 	aggregatorExpvars.Set("FlushCount", expvar.Func(expStatsMap(flushCountStats)))
 
 	aggregatorExpvars.Set("SeriesFlushed", &aggregatorSeriesFlushed)
@@ -167,6 +172,8 @@ func init() {
 	aggregatorExpvars.Set("HostnameUpdate", &aggregatorHostnameUpdate)
 	aggregatorExpvars.Set("OrchestratorMetadata", &aggregatorOrchestratorMetadata)
 	aggregatorExpvars.Set("OrchestratorMetadataErrors", &aggregatorOrchestratorMetadataErrors)
+	aggregatorExpvars.Set("OrchestratorManifest", &aggregatorOrchestratorManifest)
+	aggregatorExpvars.Set("OrchestratorManifestErrors", &aggregatorOrchestratorManifestErrors)
 	aggregatorExpvars.Set("DogstatsdContexts", &aggregatorDogstatsdContexts)
 	aggregatorExpvars.Set("EventPlatformEvents", &aggregatorEventPlatformEvents)
 	aggregatorExpvars.Set("EventPlatformEventsErrors", &aggregatorEventPlatformEventsErrors)
@@ -221,6 +228,7 @@ type BufferedAggregator struct {
 	checkMetricIn          chan senderMetricSample
 	checkHistogramBucketIn chan senderHistogramBucket
 	orchestratorMetadataIn chan senderOrchestratorMetadata
+	orchestratorManifestIn chan senderOrchestratorManifest
 	eventPlatformIn        chan senderEventPlatformEvent
 
 	// metricSamplePool is a pool of slices of metric sample to avoid allocations.
@@ -231,6 +239,7 @@ type BufferedAggregator struct {
 	checkSamplers          map[check.ID]*CheckSampler
 	serviceChecks          metrics.ServiceChecks
 	events                 metrics.Events
+	manifests              []*senderOrchestratorManifest
 	flushInterval          time.Duration
 	mu                     sync.Mutex // to protect the checkSamplers field
 	flushMutex             sync.Mutex // to start multiple flushes in parallel
@@ -278,6 +287,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		checkHistogramBucketIn: make(chan senderHistogramBucket, bufferSize),
 
 		orchestratorMetadataIn: make(chan senderOrchestratorMetadata, bufferSize),
+		orchestratorManifestIn: make(chan senderOrchestratorManifest, bufferSize),
 		eventPlatformIn:        make(chan senderEventPlatformEvent, bufferSize),
 
 		MetricSamplePool: metrics.NewMetricSamplePool(MetricSamplePoolBatchSize),
@@ -446,6 +456,11 @@ func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 	e.Tags = tb.Get()
 
 	agg.events = append(agg.events, &e)
+}
+
+// senderOrchestratorManifest
+func (agg *BufferedAggregator) addOrchestratorManifest(manifests *senderOrchestratorManifest) {
+	agg.manifests = append(agg.manifests, manifests)
 }
 
 // addSample adds the metric sample
@@ -651,6 +666,14 @@ func (agg *BufferedAggregator) GetEvents() metrics.Events {
 	return events
 }
 
+func (agg *BufferedAggregator) GetOrchestratorManifests() []*senderOrchestratorManifest {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+	manifests := agg.manifests
+	agg.manifests = nil
+	return manifests
+}
+
 // GetEventPlatformEvents grabs the event platform events from the queue and clears them.
 // Note that this works only if using the 'noop' event platform forwarder
 func (agg *BufferedAggregator) GetEventPlatformEvents() map[string][]*message.Message {
@@ -695,6 +718,74 @@ func (agg *BufferedAggregator) flushEvents(start time.Time, waitForSerializer bo
 	}
 }
 
+func (agg *BufferedAggregator) sendOrchestratorManifests(start time.Time, senderManifests []*senderOrchestratorManifest) {
+	// unfurl all the manifests
+	manifests := []*model.Manifest{}
+	var clusterID, clusterName string
+	for _, smanifest := range senderManifests {
+		// we can get the cluster name and ID in the first message
+		if clusterID == "" {
+			clusterID = smanifest.clusterID
+		}
+		if clusterName == "" {
+			clusterName = smanifest.clusterName
+		}
+		manifests = append(manifests, smanifest.msgs...)
+	}
+
+	log.Debugf("Flushing %d manifests to the forwarder", len(manifests))
+
+	// chunking
+	maxPerMessage := 100
+	groupSize := orchestrator.GroupSize(len(manifests), maxPerMessage)
+	chunkedManifests := make([][]*model.Manifest, 0, groupSize)
+	for counter := 1; counter <= groupSize; counter++ {
+		chunkStart, chunkEnd := orchestrator.ChunkRange(len(manifests), groupSize, maxPerMessage, counter)
+		chunkedManifests = append(chunkedManifests, manifests[chunkStart:chunkEnd])
+	}
+
+	manifestMessages := make([]model.MessageBody, 0, groupSize)
+	for i := 0; i < groupSize; i++ {
+		manifestMessages = append(manifestMessages, &model.CollectorManifest{
+			ClusterName: clusterName,
+			Manifests:   chunkedManifests[i],
+			GroupSize:   int32(groupSize),
+			ClusterId:   clusterID,
+		})
+	}
+
+	err := agg.serializer.SendOrchestratorManifests(
+		manifestMessages,
+		agg.hostname,
+		clusterID,
+	)
+	state := stateOk
+	if err != nil {
+		log.Warnf("Error flushing events: %v", err)
+		aggregatorEventsFlushErrors.Add(1)
+		state = stateError
+	}
+	addFlushTime("EventFlushTime", int64(time.Since(start)))
+	aggregatorEventsFlushed.Add(int64(len(manifests)))
+	tlmFlush.Add(float64(len(manifests)), "events", state)
+}
+
+// flushOrchestratorManifests serializes and forwards events in a separate goroutine
+func (agg *BufferedAggregator) flushOrchestratorManifests(start time.Time, waitForSerializer bool) {
+	// Serialize and forward in a separate goroutine
+	manifests := agg.GetOrchestratorManifests()
+	if len(manifests) == 0 {
+		return
+	}
+	addFlushCount("Manifests", int64(len(manifests)))
+
+	if waitForSerializer {
+		agg.sendOrchestratorManifests(start, manifests)
+	} else {
+		go agg.sendOrchestratorManifests(start, manifests)
+	}
+}
+
 // Flush flushes the data contained in the BufferedAggregator into the Forwarder.
 // This method can be called from multiple routines.
 func (agg *BufferedAggregator) Flush(start time.Time, waitForSerializer bool) {
@@ -704,6 +795,7 @@ func (agg *BufferedAggregator) Flush(start time.Time, waitForSerializer bool) {
 	agg.flushServiceChecks(start, waitForSerializer)
 	agg.flushEvents(start, waitForSerializer)
 	agg.updateChecksTelemetry()
+	agg.flushOrchestratorManifests(start, waitForSerializer)
 }
 
 // Stop stops the aggregator. Based on 'flushData' waiting metrics (from checks
@@ -821,6 +913,12 @@ func (agg *BufferedAggregator) run() {
 					log.Errorf("Error submitting orchestrator data: %s", err)
 				}
 			}(orchestratorMetadata)
+		case orchestratorManifest := <-agg.orchestratorManifestIn:
+			aggregatorOrchestratorManifest.Add(1)
+			tlmProcessed.Inc("histogram_bucket")
+			// each resource send manifests but as it's the same message
+			// we can use the aggregator to buffer them
+			agg.addOrchestratorManifest(&orchestratorManifest)
 		case event := <-agg.eventPlatformIn:
 			state := stateOk
 			tlmProcessed.Add(1, event.eventType)

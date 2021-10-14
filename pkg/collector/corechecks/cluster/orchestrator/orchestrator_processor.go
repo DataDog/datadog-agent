@@ -183,9 +183,10 @@ func chunkCronJobs(cronJobs []*model.CronJob, chunkCount, chunkSize int) [][]*mo
 	return chunks
 }
 
-func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, error) {
+func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *config.OrchestratorConfig, clusterID string) ([]model.MessageBody, []*model.Manifest, error) {
 	start := time.Now()
 	deployMsgs := make([]*model.Deployment, 0, len(deploymentList))
+	manifestMsgs := make([]*model.Manifest, 0, len(deploymentList))
 
 	for d := 0; d < len(deploymentList); d++ {
 		depl := deploymentList[d]
@@ -214,6 +215,14 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 		}
 		deployModel.Yaml = jsonDeploy
 
+		manifestMsgs = append(manifestMsgs, &model.Manifest{
+			Orchestrator: "k8s",
+			Type:         "deployment",
+			Uid:          deployModel.Metadata.Uid,
+			Content:      jsonDeploy,
+			ContentType:  "json",
+		})
+
 		deployMsgs = append(deployMsgs, deployModel)
 	}
 
@@ -233,7 +242,7 @@ func processDeploymentList(deploymentList []*v1.Deployment, groupID int32, cfg *
 	}
 
 	log.Debugf("Collected & enriched %d out of %d Deployments in %s", len(deployMsgs), len(deploymentList), time.Since(start))
-	return messages, nil
+	return messages, manifestMsgs, nil
 }
 
 // chunkDeployments formats and chunks the deployments into a slice of chunks using a specific number of chunks.

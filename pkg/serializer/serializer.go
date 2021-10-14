@@ -99,6 +99,7 @@ type MetricSerializer interface {
 	SendHostMetadata(m marshaler.Marshaler) error
 	SendProcessesMetadata(data interface{}) error
 	SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID string, payloadType int) error
+	SendOrchestratorManifests(msgs []ProcessMessageBody, hostName, clusterID string) error
 }
 
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder
@@ -415,6 +416,37 @@ func (s *Serializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostNam
 
 		payloads := forwarder.Payloads{&body}
 		responses, err := s.orchestratorForwarder.SubmitOrchestratorChecks(payloads, extraHeaders, payloadType)
+		if err != nil {
+			return log.Errorf("Unable to submit payload: %s", err)
+		}
+
+		// Consume the responses so that writers to the channel do not become blocked
+		// we don't need the bodies here though
+		for range responses {
+
+		}
+	}
+	return nil
+}
+
+// SendOrchestratorManifests serializes & send orchestrator manifest payloads
+func (s *Serializer) SendOrchestratorManifests(msgs []ProcessMessageBody, hostName, clusterID string) error {
+	if s.orchestratorForwarder == nil {
+		return errors.New("orchestrator forwarder is not setup")
+	}
+	for _, m := range msgs {
+		extraHeaders := make(http.Header)
+		extraHeaders.Set(headers.HostHeader, hostName)
+		extraHeaders.Set(headers.ClusterIDHeader, clusterID)
+		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
+
+		body, err := processPayloadEncoder(m)
+		if err != nil {
+			return log.Errorf("Unable to encode message: %s", err)
+		}
+
+		payloads := forwarder.Payloads{&body}
+		responses, err := s.orchestratorForwarder.SubmitOrchestratorManifests(payloads, extraHeaders)
 		if err != nil {
 			return log.Errorf("Unable to submit payload: %s", err)
 		}

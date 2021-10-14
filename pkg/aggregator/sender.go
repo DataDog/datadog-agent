@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	model "github.com/DataDog/agent-payload/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -42,6 +43,7 @@ type Sender interface {
 	SetCheckService(service string)
 	FinalizeCheckServiceTag()
 	OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType int)
+	OrchestratorManifest(msgs []*model.Manifest, clusterName string, clusterID string)
 }
 
 // RawSender interface to submit samples to aggregator directly
@@ -63,7 +65,8 @@ type checkSender struct {
 	serviceCheckOut         chan<- metrics.ServiceCheck
 	eventOut                chan<- metrics.Event
 	histogramBucketOut      chan<- senderHistogramBucket
-	orchestratorOut         chan<- senderOrchestratorMetadata
+	orchestratorMetadataOut chan<- senderOrchestratorMetadata
+	orchestratorManifestOut chan<- senderOrchestratorManifest
 	eventPlatformOut        chan<- senderEventPlatformEvent
 	checkTags               []string
 	service                 string
@@ -92,6 +95,12 @@ type senderOrchestratorMetadata struct {
 	payloadType int
 }
 
+type senderOrchestratorManifest struct {
+	msgs        []*model.Manifest
+	clusterName string
+	clusterID   string
+}
+
 type checkSenderPool struct {
 	senders map[check.ID]Sender
 	m       sync.Mutex
@@ -103,18 +112,19 @@ func init() {
 	}
 }
 
-func newCheckSender(id check.ID, defaultHostname string, smsOut chan<- senderMetricSample, serviceCheckOut chan<- metrics.ServiceCheck, eventOut chan<- metrics.Event, bucketOut chan<- senderHistogramBucket, orchestratorOut chan<- senderOrchestratorMetadata, eventPlatformOut chan<- senderEventPlatformEvent) *checkSender {
+func newCheckSender(id check.ID, defaultHostname string, smsOut chan<- senderMetricSample, serviceCheckOut chan<- metrics.ServiceCheck, eventOut chan<- metrics.Event, bucketOut chan<- senderHistogramBucket, orchestratorMetadataOut chan<- senderOrchestratorMetadata, orchestratorManifestOut chan<- senderOrchestratorManifest, eventPlatformOut chan<- senderEventPlatformEvent) *checkSender {
 	return &checkSender{
-		id:                 id,
-		defaultHostname:    defaultHostname,
-		smsOut:             smsOut,
-		serviceCheckOut:    serviceCheckOut,
-		eventOut:           eventOut,
-		metricStats:        check.NewSenderStats(),
-		priormetricStats:   check.NewSenderStats(),
-		histogramBucketOut: bucketOut,
-		orchestratorOut:    orchestratorOut,
-		eventPlatformOut:   eventPlatformOut,
+		id:                      id,
+		defaultHostname:         defaultHostname,
+		smsOut:                  smsOut,
+		serviceCheckOut:         serviceCheckOut,
+		eventOut:                eventOut,
+		metricStats:             check.NewSenderStats(),
+		priormetricStats:        check.NewSenderStats(),
+		histogramBucketOut:      bucketOut,
+		orchestratorMetadataOut: orchestratorMetadataOut,
+		orchestratorManifestOut: orchestratorManifestOut,
+		eventPlatformOut:        eventPlatformOut,
 	}
 }
 
@@ -157,7 +167,7 @@ func GetDefaultSender() (Sender, error) {
 	senderInit.Do(func() {
 		var defaultCheckID check.ID                       // the default value is the zero value
 		aggregatorInstance.registerSender(defaultCheckID) //nolint:errcheck
-		senderInstance = newCheckSender(defaultCheckID, aggregatorInstance.hostname, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn, aggregatorInstance.eventIn, aggregatorInstance.checkHistogramBucketIn, aggregatorInstance.orchestratorMetadataIn, aggregatorInstance.eventPlatformIn)
+		senderInstance = newCheckSender(defaultCheckID, aggregatorInstance.hostname, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn, aggregatorInstance.eventIn, aggregatorInstance.checkHistogramBucketIn, aggregatorInstance.orchestratorMetadataIn, aggregatorInstance.orchestratorManifestIn, aggregatorInstance.eventPlatformIn)
 	})
 
 	return senderInstance, nil
@@ -399,7 +409,16 @@ func (s *checkSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody,
 		clusterID:   clusterID,
 		payloadType: nodeType,
 	}
-	s.orchestratorOut <- om
+	s.orchestratorMetadataOut <- om
+}
+
+func (s *checkSender) OrchestratorManifest(msgs []*model.Manifest, clusterName string, clusterID string) {
+	om := senderOrchestratorManifest{
+		msgs:        msgs,
+		clusterName: clusterName,
+		clusterID:   clusterID,
+	}
+	s.orchestratorManifestOut <- om
 }
 
 // changeAllSendersDefaultHostname u
@@ -430,7 +449,7 @@ func (sp *checkSenderPool) mkSender(id check.ID) (Sender, error) {
 	defer sp.m.Unlock()
 
 	err := aggregatorInstance.registerSender(id)
-	sender := newCheckSender(id, aggregatorInstance.hostname, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn, aggregatorInstance.eventIn, aggregatorInstance.checkHistogramBucketIn, aggregatorInstance.orchestratorMetadataIn, aggregatorInstance.eventPlatformIn)
+	sender := newCheckSender(id, aggregatorInstance.hostname, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn, aggregatorInstance.eventIn, aggregatorInstance.checkHistogramBucketIn, aggregatorInstance.orchestratorMetadataIn, aggregatorInstance.orchestratorManifestIn, aggregatorInstance.eventPlatformIn)
 	sp.senders[id] = sender
 	return sender, err
 }
