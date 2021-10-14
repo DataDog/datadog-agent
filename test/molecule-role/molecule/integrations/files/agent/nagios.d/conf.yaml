@@ -1,5 +1,6 @@
 init_config:
-  min_collection_interval: 30
+  # Changed to collection_interval to test that transfering it into the instance config works
+  collection_interval: 30
 
 instances:
   - nagios_conf: /etc/nagios/nagios.cfg

@@ -14,5 +14,5 @@ init_config:
 instances:
 - cassandra_aliasing: true
   host: localhost
-  min_collection_interval: 40
+  collection_interval: 40
   port: 7199

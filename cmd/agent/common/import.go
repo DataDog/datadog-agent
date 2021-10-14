@@ -317,8 +317,18 @@ func relocateMinCollectionInterval(rawData []byte) ([]byte, error) {
 					insertMinCollectionInterval(data, minCollectionInterval)
 				}
 			}
+			if _, ok := initConfig["collection_interval"]; ok {
+				if collectionInterval, ok := initConfig["collection_interval"].(int); ok {
+					delete(initConfig, "collection_interval")
+					insertCollectionInterval(data, collectionInterval)
+				}
+			}
 		}
 	}
+
+	// Copy the min_collection_interval to collection_interval when no collection_interval was defined
+	moveMinCollectionIntervalToCollectionInterval(data)
+
 	return yaml.Marshal(data)
 }
 
@@ -328,6 +338,36 @@ func insertMinCollectionInterval(rawData map[interface{}]interface{}, interval i
 			for _, rawInstance := range instances {
 				if instance, ok := rawInstance.(map[interface{}]interface{}); ok {
 					instance["min_collection_interval"] = interval
+				}
+			}
+		}
+	}
+}
+
+func moveMinCollectionIntervalToCollectionInterval(rawData map[interface{}]interface{}) {
+	if _, ok := rawData["instances"]; ok {
+		if instances, ok := rawData["instances"].([]interface{}); ok {
+			for _, rawInstance := range instances {
+				if instance, ok := rawInstance.(map[interface{}]interface{}); ok {
+					if _, ok := instance["collection_interval"].(int); !ok {
+						if _, ok := instance["min_collection_interval"].(int); ok {
+							instance["collection_interval"] = instance["min_collection_interval"]
+							delete(instance, "min_collection_interval")
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+
+func insertCollectionInterval(rawData map[interface{}]interface{}, interval int) {
+	if _, ok := rawData["instances"]; ok {
+		if instances, ok := rawData["instances"].([]interface{}); ok {
+			for _, rawInstance := range instances {
+				if instance, ok := rawInstance.(map[interface{}]interface{}); ok {
+					instance["collection_interval"] = interval
 				}
 			}
 		}

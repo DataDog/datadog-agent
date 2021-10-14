@@ -114,8 +114,8 @@ func (c *CheckBase) CommonConfigure(instance integration.Data, source string) er
 	}
 
 	// See if a collection interval was specified
-	if commonOptions.MinCollectionInterval > 0 {
-		c.checkInterval = time.Duration(commonOptions.MinCollectionInterval) * time.Second
+	if commonOptions.CollectionInterval > 0 {
+		c.checkInterval = time.Duration(commonOptions.CollectionInterval) * time.Second
 	}
 
 	// Disable default hostname if specified

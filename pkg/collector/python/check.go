@@ -199,8 +199,8 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 	}
 
 	// See if a collection interval was specified
-	if commonOptions.MinCollectionInterval > 0 {
-		c.interval = time.Duration(commonOptions.MinCollectionInterval) * time.Second
+	if commonOptions.CollectionInterval > 0 {
+		c.interval = time.Duration(commonOptions.CollectionInterval) * time.Second
 	}
 
 	// Disable default hostname if specified

@@ -28,8 +28,35 @@ instances: [{}, {}]`
 	output := `
 init_config: {}
 instances:
+  - collection_interval: 30
+  - collection_interval: 30`
+	assertRelocation(t, input, output)
+}
+
+func TestBasicCollectionIntervalRelocation(t *testing.T) {
+	input := `
+init_config:
+   collection_interval: 30
+instances: [{}, {}]`
+	output := `
+init_config: {}
+instances:
+  - collection_interval: 30
+  - collection_interval: 30`
+	assertRelocation(t, input, output)
+}
+
+func TestBasicMinCollectionIntervalNo(t *testing.T) {
+	input := `
+init_config: {}
+instances:
   - min_collection_interval: 30
-  - min_collection_interval: 30`
+  - collection_interval: 15`
+	output := `
+init_config: {}
+instances:
+  - collection_interval: 30
+  - collection_interval: 15`
 	assertRelocation(t, input, output)
 }
 
