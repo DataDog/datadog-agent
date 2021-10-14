@@ -53,13 +53,13 @@ core,github.com/DataDog/gopsutil/process/filepath,BSD-3-Clause,The Go Authors | 
 core,github.com/DataDog/gopsutil/process/so,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
 core,github.com/DataDog/gostackparse,Apache-2.0,"Datadog <info@datadoghq.com> | Datadog, Inc"
 core,github.com/DataDog/mmh3,MIT,"DataDog, Inc."
-core,github.com/DataDog/nikos/apt,MIT,Sylvain Baubeau
-core,github.com/DataDog/nikos/cos,MIT,Sylvain Baubeau
-core,github.com/DataDog/nikos/extract,MIT,Sylvain Baubeau
-core,github.com/DataDog/nikos/rpm,MIT,Sylvain Baubeau
-core,github.com/DataDog/nikos/rpm/dnf,MIT,Sylvain Baubeau
-core,github.com/DataDog/nikos/types,MIT,Sylvain Baubeau
-core,github.com/DataDog/nikos/wsl,MIT,Sylvain Baubeau
+core,github.com/DataDog/nikos/apt,MIT,"Datadog, Inc"
+core,github.com/DataDog/nikos/cos,MIT,"Datadog, Inc"
+core,github.com/DataDog/nikos/extract,MIT,"Datadog, Inc"
+core,github.com/DataDog/nikos/rpm,MIT,"Datadog, Inc"
+core,github.com/DataDog/nikos/rpm/dnf,MIT,"Datadog, Inc"
+core,github.com/DataDog/nikos/types,MIT,"Datadog, Inc"
+core,github.com/DataDog/nikos/wsl,MIT,"Datadog, Inc"
 core,github.com/DataDog/sketches-go/ddsketch,Apache-2.0,"DataDog, Inc | Datadog, Inc"
 core,github.com/DataDog/sketches-go/ddsketch/encoding,Apache-2.0,"DataDog, Inc | Datadog, Inc"
 core,github.com/DataDog/sketches-go/ddsketch/mapping,Apache-2.0,"DataDog, Inc | Datadog, Inc"
