@@ -288,7 +288,10 @@ func (l *KubeletListener) createContainerService(pod workloadmeta.KubernetesPod,
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if old, found := l.services[entity]; found {
+	svcID := buildSvcID(container.GetID())
+	podSvcID := buildSvcID(pod.GetID())
+
+	if old, found := l.services[svcID]; found {
 		if kubeletSvcEqual(old, svc) {
 			log.Tracef("Received a duplicated kubelet service '%s'", svc.entity)
 			return
@@ -297,9 +300,6 @@ func (l *KubeletListener) createContainerService(pod workloadmeta.KubernetesPod,
 		log.Tracef("Kubelet service '%s' has been updated, removing the old one", svc.entity)
 		l.delService <- old
 	}
-
-	svcID := buildSvcID(container.GetID())
-	podSvcID := buildSvcID(pod.GetID())
 
 	l.services[svcID] = svc
 	l.podContainers[podSvcID] = append(l.podContainers[podSvcID], svcID)

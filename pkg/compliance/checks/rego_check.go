@@ -114,8 +114,9 @@ func (r *regoCheck) compileRule(rule *compliance.RegoRule, ruleScope compliance.
 func (r *regoCheck) normalizeInputMap(vars map[string]interface{}) map[string]interface{} {
 	normalized := make(map[string]interface{})
 	for k, v := range vars {
-		ps := strings.SplitN(k, ".", 2)
-		normalized[ps[1]] = v
+		ps := strings.Split(k, ".")
+		name := ps[len(ps)-1]
+		normalized[name] = v
 	}
 
 	return normalized

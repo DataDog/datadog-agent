@@ -380,6 +380,58 @@ func Test_labelJoiner(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Skip tags with empty value",
+			config: map[string]*JoinsConfig{
+				"kube_pod_info": {
+					LabelsToMatch: []string{"foo_key"},
+					LabelsToGet:   []string{"qux_key"},
+				},
+			},
+			families: map[string][]ksmstore.DDMetricsFam{
+				"uuid1": {
+					{
+						Name: "kube_pod_info",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{
+									"foo_key": "foo_value1",
+									"qux_key": "qux_value1",
+								},
+							},
+						},
+					},
+				},
+				"uuid2": {
+					{
+						Name: "kube_pod_info",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{
+									"foo_key": "foo_value2",
+									"qux_key": "",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: []struct {
+				inputLabels map[string]string
+				labelsToAdd []label
+			}{
+				{
+					inputLabels: map[string]string{"foo_key": "foo_value1"},
+					labelsToAdd: []label{
+						{key: "qux_key", value: "qux_value1"},
+					},
+				},
+				{
+					inputLabels: map[string]string{"foo_key": "foo_value2"},
+					labelsToAdd: []label{},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

@@ -293,6 +293,7 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 	})
 	fileSource.SetSourceType(config.DockerSourceType)
 	fileSource.Status = source.Status
+	source.HideFromStatus()
 	fileSource.ParentSource = source
 	return sourceInfoPair{source: fileSource, info: sourceInfo}
 }

@@ -158,13 +158,13 @@
 : Describes the unschedulable status for the pod. Tags:`kube_namespace` `pod_name` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.pod.status_phase`
-: The pods current phase. Tags:`kube_namespace` `pod_name` `phase` (`env` `service` `version` from standard labels).
+: The pods current phase. Tags:`kube_namespace` `pod_name` `pod_phase` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.pod.age`
-: The time in seconds since the creation of the pod. Tags:`kube_namespace` `pod_name` `phase` (`env` `service` `version` from standard labels).
+: The time in seconds since the creation of the pod. Tags:`kube_namespace` `pod_name` `pod_phase` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.pod.uptime`
-: The time in seconds since the pod has been scheduled and acknowledged by the Kubelet. Tags:`kube_namespace` `pod_name` `phase` (`env` `service` `version` from standard labels).
+: The time in seconds since the pod has been scheduled and acknowledged by the Kubelet. Tags:`kube_namespace` `pod_name` `pod_phase` (`env` `service` `version` from standard labels).
 
 `kubernetes_state.pod.count`
 : Number of Pods. Tags:`kube_namespace` `kube_<owner kind>`.

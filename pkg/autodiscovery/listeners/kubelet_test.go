@@ -92,7 +92,7 @@ func TestCreatePodService(t *testing.T) {
 			newCh := make(chan Service)
 			delCh := make(chan Service)
 			listener := newListener(t, newCh, delCh)
-			actualServices, doneCh := consumeServiceCh(newCh, delCh)
+			actualServices, doneCh := consumeServiceCh(t, newCh, delCh)
 
 			listener.createPodService(tt.pod, tt.containers, false)
 
@@ -330,7 +330,7 @@ func TestCreateContainerService(t *testing.T) {
 			newCh := make(chan Service)
 			delCh := make(chan Service)
 			listener := newListener(t, newCh, delCh)
-			actualServices, doneCh := consumeServiceCh(newCh, delCh)
+			actualServices, doneCh := consumeServiceCh(t, newCh, delCh)
 
 			listener.createContainerService(tt.pod, tt.container, false)
 
@@ -343,11 +343,71 @@ func TestCreateContainerService(t *testing.T) {
 	}
 }
 
+func TestDuplicatedContainer(t *testing.T) {
+	newCh := make(chan Service)
+	delCh := make(chan Service)
+	listener := newListener(t, newCh, delCh)
+	actualServices, doneCh := consumeServiceCh(t, newCh, delCh)
+
+	basicContainer := workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "foo",
+		},
+		Runtime: workloadmeta.ContainerRuntimeDocker,
+	}
+
+	pod := workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   podID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      podName,
+			Namespace: podNamespace,
+		},
+		IP: "127.0.0.1",
+	}
+
+	// Specify basicContainer more than once, expect a single service in
+	// the end
+	containers := []workloadmeta.Container{basicContainer, basicContainer}
+
+	for _, c := range containers {
+		listener.createContainerService(pod, c, false)
+	}
+
+	close(newCh)
+	close(delCh)
+	<-doneCh
+
+	assertExpectedServices(t, map[string]Service{
+		"docker://foo": &KubeContainerService{
+			entity: "docker://foo",
+			adIdentifiers: []string{
+				"docker://foo",
+				"",
+			},
+			hosts: map[string]string{
+				"pod": "127.0.0.1",
+			},
+			ports:           []ContainerPort{},
+			creationTime:    integration.After,
+			metricsExcluded: true,
+			extraConfig: map[string]string{
+				"namespace": podNamespace,
+				"pod_name":  podName,
+				"pod_uid":   podID,
+			},
+		},
+	}, actualServices)
+}
+
 func TestRemovePodService(t *testing.T) {
 	newCh := make(chan Service)
 	delCh := make(chan Service)
 	listener := newListener(t, newCh, delCh)
-	actualServices, doneCh := consumeServiceCh(newCh, delCh)
+	actualServices, doneCh := consumeServiceCh(t, newCh, delCh)
 
 	pod := workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
@@ -408,7 +468,7 @@ func newListener(t *testing.T, newCh, deleteCh chan Service) *KubeletListener {
 	}
 }
 
-func consumeServiceCh(newCh, deleteCh chan Service) (map[string]Service, chan struct{}) {
+func consumeServiceCh(t *testing.T, newCh, deleteCh chan Service) (map[string]Service, chan struct{}) {
 	doneCh := make(chan struct{})
 	services := make(map[string]Service)
 
@@ -424,7 +484,11 @@ func consumeServiceCh(newCh, deleteCh chan Service) (map[string]Service, chan st
 			}
 
 			mu.Lock()
-			services[svc.GetEntity()] = svc
+			if _, exists := services[svc.GetEntity()]; !exists {
+				services[svc.GetEntity()] = svc
+			} else {
+				t.Errorf("trying to overwrite existing service %s", svc.GetEntity())
+			}
 			mu.Unlock()
 		}
 

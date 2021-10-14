@@ -290,7 +290,7 @@ func (a *AgentConfig) setCheckInterval(ns, check, checkKey string) {
 	}
 
 	if interval := config.Datadog.GetInt(k); interval != 0 {
-		log.Infof("Overriding container check interval to %ds", interval)
+		log.Infof("Overriding %s check interval to %ds", checkKey, interval)
 		a.CheckIntervals[checkKey] = time.Duration(interval) * time.Second
 	}
 }
