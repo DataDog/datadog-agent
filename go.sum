@@ -139,8 +139,8 @@ github.com/DataDog/sketches-go v1.2.0 h1:1fyVz0zNw2WamTu5kL8ZCSIXd7ipB4I9Tm5M9LB
 github.com/DataDog/sketches-go v1.2.0/go.mod h1:1xYmPLY1So10AwxV6MJV0J53XVH+WL9Ad1KetxVivVI=
 github.com/DataDog/viper v1.9.0 h1:9Ha1yJebecIKtboH/GXUM3brfoMofvdd8BlMck8Cs8Q=
 github.com/DataDog/viper v1.9.0/go.mod h1:Gx7+/WONkbQIh3ac52KqcFTzipQ1OYHhCQGWAgHlzpc=
-github.com/DataDog/watermarkpodautoscaler v0.3.1-logs-attributes.2.0.20211013080104-e9ed870fbdb8 h1:qwDAUa5CCIuQTIjXxPEpdkXR+zy/yQNNHorVX3OZZok=
-github.com/DataDog/watermarkpodautoscaler v0.3.1-logs-attributes.2.0.20211013080104-e9ed870fbdb8/go.mod h1:p6kKSHVHifUrxvl4KhuazpnuPuqjwdGoyGRempGdZ/w=
+github.com/DataDog/watermarkpodautoscaler v0.3.1-logs-attributes.2.0.20211014120627-6d6a5c559fc9 h1:eTBekOGVnZyX9hBoYjiOpDijtOZZ8VHVC3NyrcYuC7w=
+github.com/DataDog/watermarkpodautoscaler v0.3.1-logs-attributes.2.0.20211014120627-6d6a5c559fc9/go.mod h1:p6kKSHVHifUrxvl4KhuazpnuPuqjwdGoyGRempGdZ/w=
 github.com/DataDog/zstd v1.4.5/go.mod h1:1jcaCB/ufaK+sKp1NBhlGmpz41jOoPQ35bpF36t7BBo=
 github.com/DataDog/zstd v1.4.8 h1:Rpmta4xZ/MgZnriKNd24iZMhGpP5dvUcs/uqfBapKZY=
 github.com/DataDog/zstd v1.4.8/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
