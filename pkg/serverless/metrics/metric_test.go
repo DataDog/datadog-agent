@@ -25,19 +25,28 @@ func TestStartDoesNotBlock(t *testing.T) {
 	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
 	assert.NotNil(t, metricAgent.GetMetricChannel())
 	assert.True(t, metricAgent.IsReady())
+	// allow some time to stop to avoid 'can't listen: listen udp 127.0.0.1:8125: bind: address already in use'
+	time.Sleep(100 * time.Millisecond)
 }
 
-type MetricConfigMocked struct {
+type ValidMetricConfigMocked struct {
 }
 
-func (m *MetricConfigMocked) GetMultipleEndpoints() (map[string][]string, error) {
+func (m *ValidMetricConfigMocked) GetMultipleEndpoints() (map[string][]string, error) {
 	return map[string][]string{"http://localhost:8888": {"value"}}, nil
+}
+
+type InvalidMetricConfigMocked struct {
+}
+
+func (m *InvalidMetricConfigMocked) GetMultipleEndpoints() (map[string][]string, error) {
+	return nil, fmt.Errorf("error")
 }
 
 func TestStartInvalidConfig(t *testing.T) {
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
-	go metricAgent.Start(1*time.Second, &MetricConfigMocked{}, &MetricDogStatsD{})
+	metricAgent.Start(1*time.Second, &InvalidMetricConfigMocked{}, &MetricDogStatsD{})
 	assert.False(t, metricAgent.IsReady())
 	// allow some time to stop to avoid 'can't listen: listen udp 127.0.0.1:8125: bind: address already in use'
 	time.Sleep(100 * time.Millisecond)
@@ -53,8 +62,10 @@ func (m *MetricDogStatsDMocked) NewServer(aggregator *aggregator.BufferedAggrega
 func TestStartInvalidDogStatsD(t *testing.T) {
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
-	go metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{})
+	metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{})
 	assert.False(t, metricAgent.IsReady())
+	// allow some time to stop to avoid 'can't listen: listen udp 127.0.0.1:8125: bind: address already in use'
+	time.Sleep(1 * time.Second)
 }
 
 func TestRaceFlushVersusAddSample(t *testing.T) {
@@ -63,7 +74,7 @@ func TestRaceFlushVersusAddSample(t *testing.T) {
 
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
-	metricAgent.Start(10*time.Second, &MetricConfigMocked{}, &MetricDogStatsD{})
+	metricAgent.Start(10*time.Second, &ValidMetricConfigMocked{}, &MetricDogStatsD{})
 
 	assert.NotNil(t, metricAgent.GetMetricChannel())
 
