@@ -16,6 +16,10 @@ allowlist:
   - NewBSD
   - FreeBSD
 
+overrides:
+  # https://datadoghq.atlassian.net/browse/AC-1296
+  "github.com/DataDog/mmh3": "MIT"
+
 exceptions:
   - "golang.org/x/mobile/..."
   - "golang.org/x/tools/..."

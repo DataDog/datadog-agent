@@ -7,18 +7,22 @@ package sender
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"expvar"
+	"fmt"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	tlmDroppedTooLarge = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
+	tlmDroppedTooLarge   = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
+	batchStrategyExpVars = expvar.NewMap("batch_strategy")
+	expVarIdleMsMapKey   = "idleMs"
+	expVarInUseMapKey    = "inUseMs"
 )
 
 // batchStrategy contains all the logic to send logs in batch.
@@ -32,15 +36,22 @@ type batchStrategy struct {
 	pendingSends     sync.WaitGroup // waitgroup for concurrent sends
 	syncFlushTrigger chan struct{}  // trigger a synchronous flush
 	syncFlushDone    chan struct{}  // wait for a synchronous flush to finish
+	expVars          *expvar.Map
 }
 
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
 // If `maxConcurrent` > 0, then at most that many payloads will be sent concurrently, else there is no concurrency
 // and the pipeline will block while sending each payload.
-func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurrent int, maxBatchSize int, maxContentSize int, pipelineName string) Strategy {
+func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurrent int, maxBatchSize int, maxContentSize int, pipelineName string, pipelineID int) Strategy {
 	if maxConcurrent < 0 {
 		maxConcurrent = 0
 	}
+	expVars := &expvar.Map{}
+	expVars.AddFloat(expVarIdleMsMapKey, 0)
+	expVars.AddFloat(expVarInUseMapKey, 0)
+
+	batchStrategyExpVars.Set(fmt.Sprintf("%s_%d", pipelineName, pipelineID), expVars)
+
 	return &batchStrategy{
 		buffer:           NewMessageBuffer(maxBatchSize, maxContentSize),
 		serializer:       serializer,
@@ -49,6 +60,7 @@ func NewBatchStrategy(serializer Serializer, batchWait time.Duration, maxConcurr
 		syncFlushTrigger: make(chan struct{}),
 		syncFlushDone:    make(chan struct{}),
 		pipelineName:     pipelineName,
+		expVars:          expVars,
 	}
 
 }
@@ -89,14 +101,23 @@ func (s *batchStrategy) Send(inputChan chan *message.Message, outputChan chan *m
 		flushTicker.Stop()
 		s.pendingSends.Wait()
 	}()
+	var startIdle = time.Now()
 	for {
 		select {
 		case m, isOpen := <-inputChan:
+
 			if !isOpen {
 				// inputChan has been closed, no more payloads are expected
 				return
 			}
+			s.expVars.AddFloat(expVarIdleMsMapKey, float64(time.Since(startIdle)/time.Millisecond))
+			var startInUse = time.Now()
+
 			s.processMessage(m, outputChan, send)
+
+			s.expVars.AddFloat(expVarInUseMapKey, float64(time.Since(startInUse)/time.Millisecond))
+			startIdle = time.Now()
+
 		case <-flushTicker.C:
 			// the first message that was added to the buffer has been here for too long, send the payload now
 			s.flushBuffer(outputChan, send)

@@ -60,7 +60,7 @@ require (
 	github.com/DataDog/gohai v0.0.0-20210303102637-6b668acb50dd
 	github.com/DataDog/gopsutil v0.0.0-20210930103100-d4e8ef640507
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
-	github.com/DataDog/nikos v1.4.0
+	github.com/DataDog/nikos v1.5.0
 	github.com/DataDog/sketches-go v1.2.0
 	github.com/DataDog/viper v1.9.0
 	github.com/DataDog/watermarkpodautoscaler v0.2.1-0.20210323121426-cfb2caa5613f
@@ -99,7 +99,7 @@ require (
 	github.com/docker/go-connections v0.4.0
 	github.com/dustin/go-humanize v1.0.0
 	github.com/elastic/go-libaudit v0.4.0
-	github.com/fatih/color v1.12.0
+	github.com/fatih/color v1.13.0
 	github.com/fatih/structtag v1.2.0
 	github.com/florianl/go-conntrack v0.1.1-0.20191002182014-06743d3a59db
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
@@ -133,7 +133,7 @@ require (
 	github.com/iceber/iouring-go v0.0.0-20210726032807-b073cc83b2b8
 	github.com/iovisor/gobpf v0.0.0
 	github.com/itchyny/gojq v0.12.5
-	github.com/json-iterator/go v1.1.11
+	github.com/json-iterator/go v1.1.12
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/karrick/godirwalk v1.16.1
 	github.com/klauspost/pgzip v1.2.5 // indirect
