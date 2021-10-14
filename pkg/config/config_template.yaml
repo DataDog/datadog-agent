@@ -98,7 +98,7 @@ api_key:
 ## Learn more about tagging: https://docs.datadoghq.com/tagging/
 #
 # tags:
-#   - environment:dev
+#   - team:infra
 #   - <TAG_KEY>:<TAG_VALUE>
 
 ## @param env - string - optional
