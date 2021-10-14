@@ -20,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/benbjohnson/clock"
 )
 
 const (
@@ -41,17 +43,21 @@ type TagStore struct {
 
 	subscriber *subscriber.Subscriber
 
-	clock clock
+	clock clock.Clock
 }
 
 // NewTagStore creates new TagStore.
 func NewTagStore() *TagStore {
+	return newTagStoreWithClock(clock.New())
+}
+
+func newTagStoreWithClock(clock clock.Clock) *TagStore {
 	return &TagStore{
 		telemetry:  make(map[string]map[string]float64),
 		store:      make(map[string]*EntityTags),
 		InfoIn:     make(chan []*collectors.TagInfo, tagInfoBufferSize),
 		subscriber: subscriber.NewSubscriber(),
-		clock:      realClock{},
+		clock:      clock,
 	}
 }
 
