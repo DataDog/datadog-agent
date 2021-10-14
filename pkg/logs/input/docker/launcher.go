@@ -221,7 +221,6 @@ func (l *Launcher) overrideSource(container *Container, source *config.LogSource
 
 	if l.collectAllSource == nil {
 		l.collectAllSource = source
-		l.collectAllSource.HideFromStats = true
 		l.collectAllSource.RegisterInfo(l.collectAllInfo)
 	}
 
@@ -294,6 +293,7 @@ func (l *Launcher) getFileSource(container *Container, source *config.LogSource)
 	})
 	fileSource.SetSourceType(config.DockerSourceType)
 	fileSource.Status = source.Status
+	source.HideFromStatus()
 	fileSource.ParentSource = source
 	return sourceInfoPair{source: fileSource, info: sourceInfo}
 }
