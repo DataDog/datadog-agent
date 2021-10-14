@@ -36,11 +36,11 @@ func newDirectorLocalStore(store *store.Store) *directorLocalStore {
 	}
 }
 
-func getDirectorRoot() ([]byte, error) {
+func getDirectorRoot() []byte {
 	if directorRoot := config.Datadog.GetString("remote_configuration.director_root"); directorRoot != "" {
-		return []byte(directorRoot), nil
+		return []byte(directorRoot)
 	}
-	return meta.Asset("director.json")
+	return meta.RootDirector
 }
 
 // directorRemoteStore implements the go-tuf remote store interface
@@ -90,10 +90,7 @@ func (s *directorRemoteStore) GetMeta(name string) (stream io.ReadCloser, size i
 	}
 
 	if role == "root" && version < 1 {
-		content, err = getDirectorRoot()
-		if err != nil {
-			return nil, 0, err
-		}
+		content = getDirectorRoot()
 	} else {
 		switch {
 		case role == "root":
@@ -240,11 +237,7 @@ func (c *DirectorPartialClient) Verify(response *pbgo.ConfigResponse) error {
 
 	if meta, err := c.local.GetMeta(); err == nil {
 		if _, found := meta["root.json"]; !found {
-			root, err := getDirectorRoot()
-			if err != nil {
-				return err
-			}
-
+			root := getDirectorRoot()
 			if err := c.local.SetMeta("root.json", json.RawMessage(root)); err != nil {
 				return err
 			}

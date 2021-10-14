@@ -36,9 +36,9 @@ func (s *localBoltStore) GetMeta() (map[string]json.RawMessage, error) {
 		var err error
 		switch s.name {
 		case "director":
-			rootMetadata, err = getDirectorRoot()
+			rootMetadata = getDirectorRoot()
 		case "config":
-			rootMetadata, err = getConfigRoot()
+			rootMetadata = getConfigRoot()
 		default:
 			return nil, fmt.Errorf("unexpected root name")
 		}

@@ -40,10 +40,7 @@ func TestLocalBoltStore(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rootMetadata, err := getDirectorRoot()
-	if err != nil {
-		t.Fatal(err)
-	}
+	rootMetadata := getDirectorRoot()
 
 	assert.Equal(t, json.RawMessage(rootMetadata), meta["root.json"])
 
