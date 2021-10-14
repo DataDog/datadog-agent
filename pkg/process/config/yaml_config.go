@@ -243,16 +243,13 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	// but use the configuration from main agent to fill the settings
 	if config.Datadog.IsSet(key(ns, "internal_profiling.enabled")) {
 		// allow full url override for development use
-		s := config.DefaultSite
-		cfgSite := config.Datadog.GetString("site")
-		cfgURL := config.Datadog.GetString("internal_profiling.profile_dd_url")
-		if cfgSite != "" {
-			s = cfgSite
-		}
-
-		site := fmt.Sprintf(profiling.ProfileURLTemplate, s)
-		if cfgURL != "" {
-			site = cfgURL
+		site := config.Datadog.GetString("internal_profiling.profile_dd_url")
+		if site == "" {
+			s := config.Datadog.GetString("site")
+			if s == "" {
+				s = config.DefaultSite
+			}
+			site = fmt.Sprintf(profiling.ProfileURLTemplate, s)
 		}
 
 		v, _ := version.Agent()
