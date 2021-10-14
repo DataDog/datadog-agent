@@ -542,6 +542,14 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		log.Errorf("Cannot decode %s traces payload: %v", v, err)
 		return
 	}
+	if !dectraces.RanHook {
+		// The decoder of this request did not run the pb.MetaHook. The user could
+		// be using a deprecated endpoint or Content-Type. If there is a hook set,
+		// warn them. Otherwise be silent because it has no impact.
+		if _, ok := pb.MetaHook(); ok {
+			log.Warn("Received request on deprecated API endpoint or Content-Type. Performance might be affected.")
+		}
+	}
 	if n, ok := r.replyOK(v, w); ok {
 		tags := append(ts.AsTags(), "endpoint:traces_"+string(v))
 		metrics.Histogram("datadog.trace_agent.receiver.rate_response_bytes", float64(n), tags, 1)

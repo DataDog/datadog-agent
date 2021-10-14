@@ -57,14 +57,19 @@ func TestNewObfuscator(t *testing.T) {
 	assert.Nil(o.mongo)
 	assert.Nil(o.creditCards)
 
+	_, ok := pb.MetaHook()
+	assert.False(ok) // there is no hook without CC obfuscation on
 	o = NewObfuscator(&config.ObfuscationConfig{
 		ES:          config.JSONObfuscationConfig{Enabled: true},
 		Mongo:       config.JSONObfuscationConfig{Enabled: true},
 		CreditCards: config.CreditCardsConfig{Enabled: true},
 	})
+	defer o.Stop()
 	assert.NotNil(o.creditCards)
 	assert.NotNil(o.es)
 	assert.NotNil(o.mongo)
+	_, ok = pb.MetaHook()
+	assert.True(ok)
 }
 
 func TestCompactWhitespaces(t *testing.T) {

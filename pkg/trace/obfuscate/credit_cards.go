@@ -22,7 +22,7 @@ func newCreditCardsObfuscator(useLuhn bool) *ccObfuscator {
 	return cco
 }
 
-func (cco *ccObfuscator) unhook() { pb.SetMetaHook(nil) }
+func (cco *ccObfuscator) Disable() { pb.SetMetaHook(nil) }
 
 // MetaHook checks the tag with the given key and val and returns the final
 // value to be assigned to this tag.

@@ -305,6 +305,7 @@ func (c *AgentConfig) applyDatadogConfig() error {
 		MaxRequestBytes: c.MaxRequestBytes,
 	}
 
+	c.Obfuscation = new(ObfuscationConfig)
 	if config.Datadog.IsSet("apm_config.obfuscation") {
 		var o ObfuscationConfig
 		err := config.Datadog.UnmarshalKey("apm_config.obfuscation", &o)
@@ -313,6 +314,17 @@ func (c *AgentConfig) applyDatadogConfig() error {
 			if c.Obfuscation.RemoveStackTraces {
 				c.addReplaceRule("error.stack", `(?s).*`, "?")
 			}
+		}
+	}
+	{
+		// TODO(x): There is an issue with config.Datadog.IsSet("apm_config.obfuscation"), probably coming from Viper,
+		// where it returns false even is "apm_config.obfuscation.credit_cards.enabled" is set via an environment
+		// variable, so we need a temporary workaround by specifically setting env. var. accessible fields.
+		if config.Datadog.IsSet("apm_config.obfuscation.credit_cards.enabled") {
+			c.Obfuscation.CreditCards.Enabled = config.Datadog.GetBool("apm_config.obfuscation.credit_cards.enabled")
+		}
+		if config.Datadog.IsSet("apm_config.obfuscation.credit_cards.luhn") {
+			c.Obfuscation.CreditCards.Luhn = config.Datadog.GetBool("apm_config.obfuscation.credit_cards.luhn")
 		}
 	}
 

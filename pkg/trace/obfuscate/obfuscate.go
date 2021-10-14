@@ -85,7 +85,10 @@ func NewObfuscator(cfg *config.ObfuscationConfig) *Obfuscator {
 }
 
 // Stop cleans up after a finished Obfuscator.
-func (o *Obfuscator) Stop() { o.queryCache.Close() }
+func (o *Obfuscator) Stop() {
+	o.queryCache.Close()
+	o.creditCards.Disable()
+}
 
 // Obfuscate may obfuscate span's properties based on its type and on the Obfuscator's
 // configuration.

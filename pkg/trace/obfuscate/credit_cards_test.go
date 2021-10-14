@@ -18,14 +18,14 @@ func TestNewCreditCardsObfuscator(t *testing.T) {
 	_, ok := pb.MetaHook()
 	assert.False(t, ok)
 	cco := newCreditCardsObfuscator(false)
-	defer cco.unhook()
+	defer cco.Disable()
 	_, ok = pb.MetaHook()
 	assert.True(t, ok)
 }
 
 func TestMetaHook(t *testing.T) {
 	cco := newCreditCardsObfuscator(false)
-	defer cco.unhook()
+	defer cco.Disable()
 	for _, tt := range []struct {
 		k, v string
 		out  string
