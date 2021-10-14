@@ -125,11 +125,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		return nil, err
 	}
 
-	creator := netlink.NewConntracker
-	if config.EnableRuntimeCompiler {
-		creator = NewEBPFConntracker
-	}
-	conntracker, err := newConntracker(config, creator)
+	conntracker, err := newConntracker(config)
 	if err != nil {
 		return nil, err
 	}
@@ -158,34 +154,48 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		ebpfTracer:                 ebpfTracer,
 	}
 
-	closedChan, err := ebpfTracer.Start()
+	err = ebpfTracer.Start(tr.storeClosedConnections)
 	if err != nil {
 		tr.Stop()
 		return nil, fmt.Errorf("could not start ebpf manager: %s", err)
 	}
 
-	tr.consumeClosedConnections(closedChan)
-
 	return tr, nil
 }
 
-func newConntracker(cfg *config.Config, conntrackerCreator func(*config.Config) (netlink.Conntracker, error)) (netlink.Conntracker, error) {
-	conntracker := netlink.NewNoOpConntracker()
+func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	if !cfg.EnableConntrack {
-		return conntracker, nil
+		return netlink.NewNoOpConntracker(), nil
 	}
 
-	if c, err := conntrackerCreator(cfg); err != nil {
-		if cfg.IgnoreConntrackInitFailure {
-			log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
-		} else {
-			return nil, fmt.Errorf("could not initialize conntrack: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
+	var c netlink.Conntracker
+	var err error
+	if cfg.EnableRuntimeCompiler {
+		c, err = NewEBPFConntracker(cfg)
+		if err == nil {
+			return c, nil
 		}
-	} else {
-		conntracker = c
+
+		if !cfg.AllowPrecompiledFallback {
+			if cfg.IgnoreConntrackInitFailure {
+				log.Warnf("could not initialize ebpf conntrack, tracer will continue without NAT tracking: %s", err)
+				return netlink.NewNoOpConntracker(), nil
+			}
+			return nil, fmt.Errorf("error compiling ebpf conntracker: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
+		}
+
+		log.Warnf("error compiling ebpf conntracker, falling back to netlink version: %s", err)
 	}
 
-	return conntracker, nil
+	c, err = netlink.NewConntracker(cfg)
+	if err != nil {
+		if cfg.IgnoreConntrackInitFailure {
+			log.Warnf("could not initialize netlink conntrack, tracer will continue without NAT tracking: %s", err)
+			return netlink.NewNoOpConntracker(), nil
+		}
+		return nil, fmt.Errorf("could not initialize conntrack: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
+	}
+	return c, nil
 }
 
 func newReverseDNS(supported bool, c *config.Config) dns.ReverseDNS {
@@ -257,15 +267,6 @@ func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader) ([]manag
 	return editors, nil
 }
 
-func (t *Tracer) consumeClosedConnections(closedChan <-chan *connection.ClosedBatch) {
-	go func() {
-		for closedConnBatch := range closedChan {
-			t.storeClosedConnections(closedConnBatch.Buffer.Connections())
-			closedConnBatch.Release()
-		}
-	}()
-}
-
 func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	var rejected int
 	for i := range connections {
@@ -301,9 +302,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	defer t.bufferLock.Unlock()
 	log.Tracef("GetActiveConnections clientID=%s", clientID)
 
-	closedConns := t.ebpfTracer.FlushPending()
-	t.storeClosedConnections(closedConns.Buffer.Connections())
-
+	t.ebpfTracer.FlushPending()
 	latestTime, err := t.getConnections(t.activeBuffer)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)

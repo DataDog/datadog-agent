@@ -89,8 +89,8 @@ func (r *runnerWithRealTime) run() {
 }
 
 func getRtRatio(checkInterval, rtInterval time.Duration) (int, error) {
-	if checkInterval <= rtInterval {
-		return -1, errors.New("check interval should be larger than RT interval")
+	if checkInterval < rtInterval {
+		return -1, errors.New("check interval should be larger or equal to RT interval")
 	}
 	if checkInterval%rtInterval != 0 {
 		return -1, errors.New("check interval should be divisible by RT interval")

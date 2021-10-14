@@ -633,12 +633,6 @@ api_key:
   #
   # min_collection_interval: 15
 
-  ## @param collect_device_metadata - boolean - optional - default: true
-  ## Enable device metadata collection
-  ## Only available using corecheck SNMP integration with `loader: core` config.
-  #
-  # collect_device_metadata: true
-
   ## @param namespace - string - optional - default: default
   ## Namespace can be used to disambiguate devices with same IPs.
   ## Changing namespace will cause devices being recreated in NDM app.
@@ -766,12 +760,6 @@ api_key:
     ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
     #
     # min_collection_interval: 15
-
-    ## @param collect_device_metadata - boolean - optional - default: true
-    ## Enable device metadata collection
-    ## Only available using corecheck SNMP integration with `loader: core` config.
-    #
-    # collect_device_metadata: true
 
     ## @param namespace - string - optional - default: default
     ## Namespace can be used to disambiguate devices with same IPs.
@@ -1143,7 +1131,7 @@ api_key:
 
   ## @param process_discovery - custom object - optional
   ## Specifies custom settings for the `process_discovery` object.
-  # process_discovery
+  # process_discovery:
       ## @param enabled - boolean - optional - default: false
       ## Toggles the `process_discovery` check. If enabled, this check gathers information about possible running integrations.
       ## This check is experimental.
@@ -1968,6 +1956,64 @@ api_key:
   ## The address on which the garden API is listening.
   #
   # listen_address: /var/vcap/data/garden/garden.sock
+
+{{ end -}}
+{{- if .ClusterAgent }}
+
+#################################
+## Cluster Agent Configuration ##
+#################################
+
+## @param cluster_agent - custom object - optional
+## Settings for the Cluster Agent.
+## See https://docs.datadoghq.com/agent/cluster_agent/
+#
+# cluster_agent:
+
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the Cluster Agent.
+  #
+  # enabled: false
+
+  ## @param auth_token - string - optional - default: ""
+  ## Auth token used to make requests to the Kubernetes API server.
+  #
+  # auth_token: ""
+
+  ## @param url - string - optional - default: ""
+  ## The Cluster Agent endpoint. There's no need to set it if "kubernetes_service_name" is set.
+  #
+  # url: ""
+
+  ## @param kubernetes_service_name - string - optional - default: "datadog-cluster-agent"
+  ## Name of the Kubernetes service for the Cluster Agent.
+  #
+  # kubernetes_service_name: "datadog-cluster-agent"
+
+  ## @param tagging_fallback - boolean - optional - default: false
+  ## Set to true to enabled fallback to local metamapper when the connection with the Cluster Agent fails.
+  #
+  # tagging_fallback: false
+
+  ## @param server - custom object - optional
+  ## Sets the connection timeouts
+  #
+  # server:
+
+      ## @param read_timeout_seconds - integer - optional - default: 2
+      ## Read timeout in seconds.
+      #
+      # read_timeout_seconds: 2
+
+      ## @param write_timeout_seconds - integer - optional - default: 2
+      ## Write timeout in seconds.
+      #
+      # write_timeout_seconds: 2
+
+      ## @param idle_timeout_seconds - integer - optional - default: 60
+      ## Idle timeout in seconds.
+      #
+      # idle_timeout_seconds: 60
 
 {{ end -}}
 {{- if .ClusterChecks }}

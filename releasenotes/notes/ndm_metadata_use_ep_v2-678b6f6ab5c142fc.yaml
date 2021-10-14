@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-fixes:
+enhancements:
   - |
-    In case of temporary network connectivity issue with the kubelet, let the agent tagger retry instead of definitively giving up.
+    Update EP forwarder config to use intake v2 for ndm metadata

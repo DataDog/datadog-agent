@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
@@ -17,21 +18,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 )
 
-type fakeClock struct {
-	now time.Time
-}
-
-func (f fakeClock) Now() time.Time {
-	return f.now
-}
-
 type StoreTestSuite struct {
 	suite.Suite
+	clock *clock.Mock
 	store *TagStore
 }
 
 func (s *StoreTestSuite) SetupTest() {
-	s.store = NewTagStore()
+	s.clock = clock.NewMock()
+	// set the mock clock to the current time
+	s.clock.Add(time.Since(time.Unix(0, 0)))
+	s.store = newTagStoreWithClock(s.clock)
 }
 
 func (s *StoreTestSuite) TestIngest() {
@@ -131,8 +128,6 @@ func (s *StoreTestSuite) TestLookupNotPresent() {
 }
 
 func (s *StoreTestSuite) TestPrune__deletedEntities() {
-	clock := &fakeClock{now: time.Now()}
-	s.store.clock = clock
 	s.store.ProcessTagInfo([]*collectors.TagInfo{
 		// Adds
 		{
@@ -173,7 +168,7 @@ func (s *StoreTestSuite) TestPrune__deletedEntities() {
 	assert.Len(s.T(), tagsHigh, 2)
 	assert.Len(s.T(), sourcesHigh, 1)
 
-	clock.now = clock.now.Add(10 * time.Minute)
+	s.clock.Add(10 * time.Minute)
 	s.store.Prune()
 
 	// test1 should only have tags from source2, source1 should be removed
@@ -204,7 +199,7 @@ func (s *StoreTestSuite) TestPrune__deletedEntities() {
 		},
 	})
 
-	clock.now = clock.now.Add(10 * time.Minute)
+	s.clock.Add(10 * time.Minute)
 	s.store.Prune()
 
 	tagsHigh, sourcesHigh = s.store.Lookup("test1", collectors.HighCardinality)
@@ -320,13 +315,13 @@ func (s *StoreTestSuite) TestGetExpiredTags() {
 			Source:       "source",
 			Entity:       "entityA",
 			HighCardTags: []string{"expired"},
-			ExpiryDate:   time.Now().Add(-10 * time.Second),
+			ExpiryDate:   s.clock.Now().Add(-10 * time.Second),
 		},
 		{
 			Source:       "source",
 			Entity:       "entityB",
 			HighCardTags: []string{"expiresSoon"},
-			ExpiryDate:   time.Now().Add(10 * time.Second),
+			ExpiryDate:   s.clock.Now().Add(10 * time.Second),
 		},
 	})
 
@@ -398,9 +393,8 @@ type entityEventExpectation struct {
 }
 
 func TestSubscribe(t *testing.T) {
-	clock := &fakeClock{now: time.Now()}
-	store := NewTagStore()
-	store.clock = clock
+	clock := clock.NewMock()
+	store := newTagStoreWithClock(clock)
 
 	collectors.CollectorPriorities["source2"] = collectors.ClusterOrchestrator
 
@@ -448,7 +442,7 @@ func TestSubscribe(t *testing.T) {
 		},
 	})
 
-	clock.now = clock.now.Add(10 * time.Minute)
+	clock.Add(10 * time.Minute)
 	store.Prune()
 
 	store.ProcessTagInfo([]*collectors.TagInfo{
@@ -459,7 +453,7 @@ func TestSubscribe(t *testing.T) {
 		},
 	})
 
-	clock.now = clock.now.Add(10 * time.Minute)
+	clock.Add(10 * time.Minute)
 	store.Prune()
 
 	var wg sync.WaitGroup

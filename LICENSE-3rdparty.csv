@@ -23,53 +23,53 @@ core,code.cloudfoundry.org/lager,Apache-2.0,"CloudFoundry.org Foundation, Inc"
 core,code.cloudfoundry.org/tlsconfig,Apache-2.0,"CloudFoundry.org Foundation, Inc"
 core,contrib.go.opencensus.io/exporter/prometheus,Apache-2.0,OpenCensus Authors
 core,github.com/AlekSi/pointer,MIT,Alexey Palazhchenko
-core,github.com/DataDog/agent-payload/gogen,BSD-3-Clause,"Datadog, Inc."
-core,github.com/DataDog/agent-payload/process,BSD-3-Clause,"Datadog, Inc."
-core,github.com/DataDog/datadog-go/statsd,MIT,"Datadog, Inc."
-core,github.com/DataDog/datadog-operator/api/v1alpha1,Apache-2.0,"Datadog, Inc."
-core,github.com/DataDog/ebpf,MIT,"Datadog, Inc."
-core,github.com/DataDog/ebpf-manager,MIT,"Datadog, Inc."
-core,github.com/DataDog/ebpf/asm,MIT,"Datadog, Inc."
-core,github.com/DataDog/ebpf/internal,MIT,"Datadog, Inc."
-core,github.com/DataDog/ebpf/internal/btf,MIT,"Datadog, Inc."
-core,github.com/DataDog/ebpf/internal/unix,MIT,"Datadog, Inc."
-core,github.com/DataDog/ebpf/manager,MIT,"Datadog, Inc."
-core,github.com/DataDog/ebpf/perf,MIT,"Datadog, Inc."
-core,github.com/DataDog/extendeddaemonset/api/v1alpha1,Apache-2.0,"Datadog, Inc."
-core,github.com/DataDog/gohai/cpu,MIT,"Datadog, Inc."
-core,github.com/DataDog/gohai/filesystem,MIT,"Datadog, Inc."
-core,github.com/DataDog/gohai/memory,MIT,"Datadog, Inc."
-core,github.com/DataDog/gohai/network,MIT,"Datadog, Inc."
-core,github.com/DataDog/gohai/platform,MIT,"Datadog, Inc."
-core,github.com/DataDog/gohai/processes,MIT,"Datadog, Inc."
-core,github.com/DataDog/gohai/processes/gops,MIT,"Datadog, Inc."
-core,github.com/DataDog/gopsutil/cpu,BSD-3-Clause,"Datadog, Inc."
-core,github.com/DataDog/gopsutil/host,BSD-3-Clause,"Datadog, Inc."
-core,github.com/DataDog/gopsutil/internal/common,BSD-3-Clause,"Datadog, Inc."
-core,github.com/DataDog/gopsutil/mem,BSD-3-Clause,"Datadog, Inc."
-core,github.com/DataDog/gopsutil/net,BSD-3-Clause,"Datadog, Inc."
-core,github.com/DataDog/gopsutil/process,BSD-3-Clause,"Datadog, Inc."
-core,github.com/DataDog/gopsutil/process/filepath,BSD-3-Clause,"Datadog, Inc."
-core,github.com/DataDog/gopsutil/process/so,BSD-3-Clause,"Datadog, Inc."
-core,github.com/DataDog/gostackparse,Apache-2.0,"Datadog, Inc."
-core,github.com/DataDog/mmh3,UNKNOWN,"Datadog, Inc."
-core,github.com/DataDog/nikos/apt,MIT,"Datadog, Inc."
-core,github.com/DataDog/nikos/cos,MIT,"Datadog, Inc."
-core,github.com/DataDog/nikos/extract,MIT,"Datadog, Inc."
-core,github.com/DataDog/nikos/rpm,MIT,"Datadog, Inc."
-core,github.com/DataDog/nikos/rpm/dnf,MIT,"Datadog, Inc."
-core,github.com/DataDog/nikos/types,MIT,"Datadog, Inc."
-core,github.com/DataDog/nikos/wsl,MIT,"Datadog, Inc."
-core,github.com/DataDog/sketches-go/ddsketch,Apache-2.0,"Datadog, Inc."
-core,github.com/DataDog/sketches-go/ddsketch/encoding,Apache-2.0,"Datadog, Inc."
-core,github.com/DataDog/sketches-go/ddsketch/mapping,Apache-2.0,"Datadog, Inc."
-core,github.com/DataDog/sketches-go/ddsketch/pb/sketchpb,Apache-2.0,"Datadog, Inc."
-core,github.com/DataDog/sketches-go/ddsketch/stat,Apache-2.0,"Datadog, Inc."
-core,github.com/DataDog/sketches-go/ddsketch/store,Apache-2.0,"Datadog, Inc."
-core,github.com/DataDog/viper,MIT,"Datadog, Inc."
-core,github.com/DataDog/watermarkpodautoscaler/api/v1alpha1,Apache-2.0,"Datadog, Inc."
-core,github.com/DataDog/zstd,BSD-3-Clause,"Datadog, Inc."
-core,github.com/DataDog/zstd_0,BSD-3-Clause,"Datadog, Inc."
+core,github.com/DataDog/agent-payload/gogen,BSD-3-Clause,"Datadog, Inc"
+core,github.com/DataDog/agent-payload/process,BSD-3-Clause,"Datadog, Inc"
+core,github.com/DataDog/datadog-go/statsd,MIT,"Datadog, Inc"
+core,github.com/DataDog/datadog-operator/api/v1alpha1,Apache-2.0,"Datadog, Inc"
+core,github.com/DataDog/ebpf,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
+core,github.com/DataDog/ebpf-manager,MIT,Authors of Datadog
+core,github.com/DataDog/ebpf/asm,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
+core,github.com/DataDog/ebpf/internal,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
+core,github.com/DataDog/ebpf/internal/btf,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
+core,github.com/DataDog/ebpf/internal/unix,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
+core,github.com/DataDog/ebpf/manager,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
+core,github.com/DataDog/ebpf/perf,MIT,Authors of Cilium | Authors of Datadog | Cloudflare | Nathan Sweet
+core,github.com/DataDog/extendeddaemonset/api/v1alpha1,Apache-2.0,"Datadog, Inc"
+core,github.com/DataDog/gohai/cpu,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
+core,github.com/DataDog/gohai/filesystem,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
+core,github.com/DataDog/gohai/memory,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
+core,github.com/DataDog/gohai/network,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
+core,github.com/DataDog/gohai/platform,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
+core,github.com/DataDog/gohai/processes,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
+core,github.com/DataDog/gohai/processes/gops,MIT,Datadog <info@datadoghq.com> | Kentaro Kuribayashi <kentarok@gmail.com>
+core,github.com/DataDog/gopsutil/cpu,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
+core,github.com/DataDog/gopsutil/host,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
+core,github.com/DataDog/gopsutil/internal/common,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
+core,github.com/DataDog/gopsutil/mem,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
+core,github.com/DataDog/gopsutil/net,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
+core,github.com/DataDog/gopsutil/process,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
+core,github.com/DataDog/gopsutil/process/filepath,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
+core,github.com/DataDog/gopsutil/process/so,BSD-3-Clause,The Go Authors | WAKAYAMA Shirou
+core,github.com/DataDog/gostackparse,Apache-2.0,"Datadog <info@datadoghq.com> | Datadog, Inc"
+core,github.com/DataDog/mmh3,MIT,"DataDog, Inc."
+core,github.com/DataDog/nikos/apt,MIT,Sylvain Baubeau
+core,github.com/DataDog/nikos/cos,MIT,Sylvain Baubeau
+core,github.com/DataDog/nikos/extract,MIT,Sylvain Baubeau
+core,github.com/DataDog/nikos/rpm,MIT,Sylvain Baubeau
+core,github.com/DataDog/nikos/rpm/dnf,MIT,Sylvain Baubeau
+core,github.com/DataDog/nikos/types,MIT,Sylvain Baubeau
+core,github.com/DataDog/nikos/wsl,MIT,Sylvain Baubeau
+core,github.com/DataDog/sketches-go/ddsketch,Apache-2.0,"DataDog, Inc | Datadog, Inc"
+core,github.com/DataDog/sketches-go/ddsketch/encoding,Apache-2.0,"DataDog, Inc | Datadog, Inc"
+core,github.com/DataDog/sketches-go/ddsketch/mapping,Apache-2.0,"DataDog, Inc | Datadog, Inc"
+core,github.com/DataDog/sketches-go/ddsketch/pb/sketchpb,Apache-2.0,"DataDog, Inc | Datadog, Inc"
+core,github.com/DataDog/sketches-go/ddsketch/stat,Apache-2.0,"DataDog, Inc | Datadog, Inc"
+core,github.com/DataDog/sketches-go/ddsketch/store,Apache-2.0,"DataDog, Inc | Datadog, Inc"
+core,github.com/DataDog/viper,MIT,Steve Francia
+core,github.com/DataDog/watermarkpodautoscaler/api/v1alpha1,Apache-2.0,"Datadog, Inc"
+core,github.com/DataDog/zstd,BSD-3-Clause,Datadog <info@datadoghq.com>
+core,github.com/DataDog/zstd_0,BSD-3-Clause,Datadog <info@datadoghq.com>
 core,github.com/DisposaBoy/JsonConfigReader,MIT,* Andreas Jaekle `https://github.com/ekle` | * DisposaBoy `https://github.com/DisposaBoy` | * Steven Osborn `https://github.com/steve918` | The JsonConfigReader Authors | This is the official list of JsonConfigReader authors for copyright purposes.
 core,github.com/Masterminds/goutils,Apache-2.0,Alexander Okoli
 core,github.com/Masterminds/semver,MIT,Matt Butcher and Matt Farina
@@ -382,7 +382,7 @@ core,github.com/golang/protobuf/ptypes/duration,BSD-3-Clause,The Go Authors
 core,github.com/golang/protobuf/ptypes/struct,BSD-3-Clause,The Go Authors
 core,github.com/golang/protobuf/ptypes/timestamp,BSD-3-Clause,The Go Authors
 core,github.com/golang/protobuf/ptypes/wrappers,BSD-3-Clause,The Go Authors
-core,github.com/golang/snappy,BSD-3-Clause,The Go Authors
+core,github.com/golang/snappy,BSD-3-Clause,The Snappy-Go Authors
 core,github.com/google/go-cmp/cmp,BSD-3-Clause,The Go Authors
 core,github.com/google/go-cmp/cmp/internal/diff,BSD-3-Clause,The Go Authors
 core,github.com/google/go-cmp/cmp/internal/flags,BSD-3-Clause,The Go Authors
@@ -401,22 +401,22 @@ core,github.com/googleapis/gnostic/extensions,Apache-2.0,Google LLC
 core,github.com/googleapis/gnostic/openapiv2,Apache-2.0,Google LLC
 core,github.com/gorilla/mux,BSD-3-Clause,Google LLC (https://opensource.google.com/) | Kamil Kisielk <kamil@kamilkisiel.net> | Matt Silverlock <matt@eatsleeprepeat.net> | Rodrigo Moraes (https://github.com/moraes) | The Gorilla Authors
 core,github.com/gosnmp/gosnmp,BSD-2-Clause,The GoSNMP authors
-core,github.com/grpc-ecosystem/go-grpc-middleware,Apache-2.0,"Gengo, Inc"
-core,github.com/grpc-ecosystem/go-grpc-middleware/auth,Apache-2.0,"Gengo, Inc"
-core,github.com/grpc-ecosystem/go-grpc-middleware/util/metautils,Apache-2.0,"Gengo, Inc"
-core,github.com/grpc-ecosystem/go-grpc-prometheus,Apache-2.0,"Gengo, Inc"
-core,github.com/grpc-ecosystem/grpc-gateway/codegenerator,BSD-3-Clause,"Gengo, Inc"
-core,github.com/grpc-ecosystem/grpc-gateway/internal,BSD-3-Clause,"Gengo, Inc"
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway,BSD-3-Clause,"Gengo, Inc"
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/descriptor,BSD-3-Clause,"Gengo, Inc"
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/generator,BSD-3-Clause,"Gengo, Inc"
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/gengateway,BSD-3-Clause,"Gengo, Inc"
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/httprule,BSD-3-Clause,"Gengo, Inc"
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger,BSD-3-Clause,"Gengo, Inc"
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/genswagger,BSD-3-Clause,"Gengo, Inc"
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options,BSD-3-Clause,"Gengo, Inc"
-core,github.com/grpc-ecosystem/grpc-gateway/runtime,BSD-3-Clause,"Gengo, Inc"
-core,github.com/grpc-ecosystem/grpc-gateway/utilities,BSD-3-Clause,"Gengo, Inc"
+core,github.com/grpc-ecosystem/go-grpc-middleware,Apache-2.0,gRPC Ecosystem
+core,github.com/grpc-ecosystem/go-grpc-middleware/auth,Apache-2.0,gRPC Ecosystem
+core,github.com/grpc-ecosystem/go-grpc-middleware/util/metautils,Apache-2.0,gRPC Ecosystem
+core,github.com/grpc-ecosystem/go-grpc-prometheus,Apache-2.0,gRPC Ecosystem
+core,github.com/grpc-ecosystem/grpc-gateway/codegenerator,BSD-3-Clause,gRPC Ecosystem
+core,github.com/grpc-ecosystem/grpc-gateway/internal,BSD-3-Clause,gRPC Ecosystem
+core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway,BSD-3-Clause,gRPC Ecosystem
+core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/descriptor,BSD-3-Clause,gRPC Ecosystem
+core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/generator,BSD-3-Clause,gRPC Ecosystem
+core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/gengateway,BSD-3-Clause,gRPC Ecosystem
+core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/httprule,BSD-3-Clause,gRPC Ecosystem
+core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger,BSD-3-Clause,gRPC Ecosystem
+core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/genswagger,BSD-3-Clause,gRPC Ecosystem
+core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options,BSD-3-Clause,gRPC Ecosystem
+core,github.com/grpc-ecosystem/grpc-gateway/runtime,BSD-3-Clause,gRPC Ecosystem
+core,github.com/grpc-ecosystem/grpc-gateway/utilities,BSD-3-Clause,gRPC Ecosystem
 core,github.com/h2non/filetype,MIT,Tomas Aparicio
 core,github.com/h2non/filetype/matchers,MIT,Tomas Aparicio
 core,github.com/h2non/filetype/matchers/isobmff,MIT,Tomas Aparicio
@@ -721,24 +721,24 @@ core,go.etcd.io/etcd/raft/quorum,Apache-2.0,the etcd maintainers
 core,go.etcd.io/etcd/raft/raftpb,Apache-2.0,the etcd maintainers
 core,go.etcd.io/etcd/raft/tracker,Apache-2.0,the etcd maintainers
 core,go.etcd.io/etcd/version,Apache-2.0,the etcd maintainers
-core,go.opencensus.io,Apache-2.0,Google Inc.
-core,go.opencensus.io/internal,Apache-2.0,Google Inc.
-core,go.opencensus.io/internal/tagencoding,Apache-2.0,Google Inc.
-core,go.opencensus.io/metric,Apache-2.0,Google Inc.
-core,go.opencensus.io/metric/metricdata,Apache-2.0,Google Inc.
-core,go.opencensus.io/metric/metricexport,Apache-2.0,Google Inc.
-core,go.opencensus.io/metric/metricproducer,Apache-2.0,Google Inc.
-core,go.opencensus.io/plugin/ochttp,Apache-2.0,Google Inc.
-core,go.opencensus.io/plugin/ochttp/propagation/b3,Apache-2.0,Google Inc.
-core,go.opencensus.io/resource,Apache-2.0,Google Inc.
-core,go.opencensus.io/stats,Apache-2.0,Google Inc.
-core,go.opencensus.io/stats/internal,Apache-2.0,Google Inc.
-core,go.opencensus.io/stats/view,Apache-2.0,Google Inc.
-core,go.opencensus.io/tag,Apache-2.0,Google Inc.
-core,go.opencensus.io/trace,Apache-2.0,Google Inc.
-core,go.opencensus.io/trace/internal,Apache-2.0,Google Inc.
-core,go.opencensus.io/trace/propagation,Apache-2.0,Google Inc.
-core,go.opencensus.io/trace/tracestate,Apache-2.0,Google Inc.
+core,go.opencensus.io,Apache-2.0,OpenCensus Authors
+core,go.opencensus.io/internal,Apache-2.0,OpenCensus Authors
+core,go.opencensus.io/internal/tagencoding,Apache-2.0,OpenCensus Authors
+core,go.opencensus.io/metric,Apache-2.0,OpenCensus Authors
+core,go.opencensus.io/metric/metricdata,Apache-2.0,OpenCensus Authors
+core,go.opencensus.io/metric/metricexport,Apache-2.0,OpenCensus Authors
+core,go.opencensus.io/metric/metricproducer,Apache-2.0,OpenCensus Authors
+core,go.opencensus.io/plugin/ochttp,Apache-2.0,OpenCensus Authors
+core,go.opencensus.io/plugin/ochttp/propagation/b3,Apache-2.0,OpenCensus Authors
+core,go.opencensus.io/resource,Apache-2.0,OpenCensus Authors
+core,go.opencensus.io/stats,Apache-2.0,OpenCensus Authors
+core,go.opencensus.io/stats/internal,Apache-2.0,OpenCensus Authors
+core,go.opencensus.io/stats/view,Apache-2.0,OpenCensus Authors
+core,go.opencensus.io/tag,Apache-2.0,OpenCensus Authors
+core,go.opencensus.io/trace,Apache-2.0,OpenCensus Authors
+core,go.opencensus.io/trace/internal,Apache-2.0,OpenCensus Authors
+core,go.opencensus.io/trace/propagation,Apache-2.0,OpenCensus Authors
+core,go.opencensus.io/trace/tracestate,Apache-2.0,OpenCensus Authors
 core,go.opentelemetry.io/collector/client,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/component,Apache-2.0,Open Telemetry Maintainers
 core,go.opentelemetry.io/collector/component/componenterror,Apache-2.0,Open Telemetry Maintainers
@@ -947,56 +947,56 @@ core,google.golang.org/appengine/internal/modules,Apache-2.0,the Go App Engine M
 core,google.golang.org/appengine/internal/remote_api,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/internal/urlfetch,Apache-2.0,the Go App Engine Maintainers
 core,google.golang.org/appengine/urlfetch,Apache-2.0,the Go App Engine Maintainers
-core,google.golang.org/genproto/googleapis/api/annotations,Apache-2.0,The Go Generated Proto Package Maintainers
-core,google.golang.org/genproto/googleapis/api/httpbody,Apache-2.0,The Go Generated Proto Package Maintainers
-core,google.golang.org/genproto/googleapis/iam/v1,Apache-2.0,The Go Generated Proto Package Maintainers
-core,google.golang.org/genproto/googleapis/rpc/code,Apache-2.0,The Go Generated Proto Package Maintainers
-core,google.golang.org/genproto/googleapis/rpc/errdetails,Apache-2.0,The Go Generated Proto Package Maintainers
-core,google.golang.org/genproto/googleapis/rpc/status,Apache-2.0,The Go Generated Proto Package Maintainers
-core,google.golang.org/genproto/googleapis/type/expr,Apache-2.0,The Go Generated Proto Package Maintainers
-core,google.golang.org/genproto/protobuf/field_mask,Apache-2.0,The Go Generated Proto Package Maintainers
-core,google.golang.org/grpc,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/attributes,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/backoff,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/balancer,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/balancer/base,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/balancer/roundrobin,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/binarylog/grpc_binarylog_v1,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/codes,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/connectivity,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/credentials,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/credentials/internal,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/encoding,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/encoding/gzip,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/encoding/proto,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/grpclog,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/health/grpc_health_v1,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/internal,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/internal/backoff,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/internal/balancerload,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/internal/binarylog,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/internal/buffer,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/internal/channelz,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/internal/envconfig,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/internal/grpclog,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/internal/grpcrand,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/internal/grpcsync,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/internal/grpcutil,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/internal/resolver/dns,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/internal/resolver/passthrough,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/internal/syscall,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/internal/transport,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/keepalive,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/metadata,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/naming,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/peer,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/resolver,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/resolver/dns,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/resolver/passthrough,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/serviceconfig,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/stats,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/status,Apache-2.0,Google Inc.
-core,google.golang.org/grpc/tap,Apache-2.0,Google Inc.
+core,google.golang.org/genproto/googleapis/api/annotations,Apache-2.0,Google LLC
+core,google.golang.org/genproto/googleapis/api/httpbody,Apache-2.0,Google LLC
+core,google.golang.org/genproto/googleapis/iam/v1,Apache-2.0,Google LLC
+core,google.golang.org/genproto/googleapis/rpc/code,Apache-2.0,Google LLC
+core,google.golang.org/genproto/googleapis/rpc/errdetails,Apache-2.0,Google LLC
+core,google.golang.org/genproto/googleapis/rpc/status,Apache-2.0,Google LLC
+core,google.golang.org/genproto/googleapis/type/expr,Apache-2.0,Google LLC
+core,google.golang.org/genproto/protobuf/field_mask,Apache-2.0,Google LLC
+core,google.golang.org/grpc,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/attributes,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/backoff,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/balancer,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/balancer/base,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/balancer/roundrobin,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/binarylog/grpc_binarylog_v1,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/codes,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/connectivity,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/credentials,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/credentials/internal,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/encoding,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/encoding/gzip,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/encoding/proto,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/grpclog,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/health/grpc_health_v1,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/internal,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/internal/backoff,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/internal/balancerload,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/internal/binarylog,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/internal/buffer,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/internal/channelz,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/internal/envconfig,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/internal/grpclog,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/internal/grpcrand,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/internal/grpcsync,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/internal/grpcutil,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/internal/resolver/dns,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/internal/resolver/passthrough,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/internal/syscall,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/internal/transport,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/keepalive,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/metadata,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/naming,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/peer,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/resolver,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/resolver/dns,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/resolver/passthrough,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/serviceconfig,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/stats,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/status,Apache-2.0,gRPC authors
+core,google.golang.org/grpc/tap,Apache-2.0,gRPC authors
 core,google.golang.org/protobuf/cmd/protoc-gen-go/internal_gengo,BSD-3-Clause,The Go Authors
 core,google.golang.org/protobuf/compiler/protogen,BSD-3-Clause,The Go Authors
 core,google.golang.org/protobuf/encoding/protojson,BSD-3-Clause,The Go Authors
@@ -1047,558 +1047,558 @@ core,gopkg.in/natefinch/lumberjack.v2,MIT,Nate Finch
 core,gopkg.in/yaml.v2,Apache-2.0,Canonical Ltd
 core,gopkg.in/yaml.v3,MIT,"Canonical, Ltd. | Kirill Simonov"
 core,gopkg.in/zorkian/go-datadog-api.v2,BSD-3-Clause,authors and contributors
-core,k8s.io/api/admission/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/admission/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/admissionregistration/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/admissionregistration/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/apiserverinternal/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/apps/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/apps/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/apps/v1beta2,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/authentication/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/authentication/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/authorization/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/authorization/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/autoscaling/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/autoscaling/v2beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/autoscaling/v2beta2,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/batch/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/batch/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/batch/v2alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/certificates/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/certificates/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/coordination/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/coordination/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/core/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/discovery/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/discovery/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/events/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/events/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/extensions/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/flowcontrol/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/flowcontrol/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/networking/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/networking/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/node/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/node/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/node/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/policy/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/rbac/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/rbac/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/rbac/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/scheduling/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/scheduling/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/scheduling/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/storage/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/storage/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/api/storage/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/api/equality,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/api/errors,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/api/meta,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/api/resource,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/api/validation,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/api/validation/path,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/apis/meta/internalversion,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/apis/meta/internalversion/scheme,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/apis/meta/internalversion/validation,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/apis/meta/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/apis/meta/v1/unstructured,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/apis/meta/v1/validation,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/apis/meta/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/apis/meta/v1beta1/validation,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/conversion,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/conversion/queryparams,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/fields,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/labels,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/runtime,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/runtime/schema,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/runtime/serializer,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/runtime/serializer/json,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/runtime/serializer/protobuf,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/runtime/serializer/recognizer,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/runtime/serializer/streaming,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/runtime/serializer/versioning,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/selection,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/types,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/cache,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/clock,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/diff,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/errors,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/framer,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/httpstream,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/httpstream/spdy,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/intstr,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/json,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/mergepatch,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/naming,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/net,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/rand,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/remotecommand,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/runtime,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/sets,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/strategicpatch,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/uuid,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/validation,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/validation/field,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/wait,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/waitgroup,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/util/yaml,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/version,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/pkg/watch,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/third_party/forked/golang/json,BSD-3-Clause,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/third_party/forked/golang/netutil,BSD-3-Clause,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apimachinery/third_party/forked/golang/reflect,BSD-3-Clause,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/admission,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/admission/configuration,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/admission/initializer,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/admission/metrics,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/admission/plugin/namespace/lifecycle,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/admission/plugin/webhook,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/admission/plugin/webhook/config,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/admission/plugin/webhook/config/apis/webhookadmission,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/admission/plugin/webhook/config/apis/webhookadmission/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/admission/plugin/webhook/config/apis/webhookadmission/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/admission/plugin/webhook/errors,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/admission/plugin/webhook/generic,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/admission/plugin/webhook/mutating,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/admission/plugin/webhook/namespace,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/admission/plugin/webhook/object,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/admission/plugin/webhook/request,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/admission/plugin/webhook/rules,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/admission/plugin/webhook/validating,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/apis/apiserver,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/apis/apiserver/install,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/apis/apiserver/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/apis/apiserver/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/apis/apiserver/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/apis/audit,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/apis/audit/install,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/apis/audit/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/apis/audit/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/apis/audit/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/apis/audit/validation,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/apis/config,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/apis/config/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/apis/config/validation,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/apis/flowcontrol/bootstrap,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/audit,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/audit/policy,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/authentication/authenticator,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/authentication/authenticatorfactory,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/authentication/group,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/authentication/request/anonymous,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/authentication/request/bearertoken,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/authentication/request/headerrequest,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/authentication/request/union,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/authentication/request/websocket,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/authentication/request/x509,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/authentication/serviceaccount,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/authentication/token/cache,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/authentication/token/tokenfile,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/authentication/user,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/authorization/authorizer,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/authorization/authorizerfactory,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/authorization/path,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/authorization/union,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/endpoints,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/endpoints/deprecation,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/endpoints/discovery,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/endpoints/filterlatency,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/endpoints/filters,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/endpoints/handlers,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/endpoints/handlers/fieldmanager,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/endpoints/handlers/fieldmanager/internal,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/endpoints/handlers/negotiation,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/endpoints/handlers/responsewriters,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/endpoints/metrics,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/endpoints/openapi,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/endpoints/request,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/endpoints/warning,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/features,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/quota/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/registry/generic,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/registry/generic/registry,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/registry/rest,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/server,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/server/dynamiccertificates,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/server/egressselector,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/server/egressselector/metrics,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/server/filters,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/server/healthz,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/server/httplog,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/server/mux,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/server/options,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/server/options/encryptionconfig,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/server/resourceconfig,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/server/routes,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/server/storage,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/storage,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/storage/cacher,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/storage/errors,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/storage/etcd3,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/storage/etcd3/metrics,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/storage/names,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/storage/storagebackend,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/storage/storagebackend/factory,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/storage/value,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/storage/value/encrypt/aes,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/storage/value/encrypt/envelope,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/storage/value/encrypt/envelope/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/storage/value/encrypt/identity,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/storage/value/encrypt/secretbox,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/storageversion,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/util/apihelpers,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/util/dryrun,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/util/feature,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/util/flowcontrol,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/util/flowcontrol/counter,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/util/flowcontrol/debug,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/util/flowcontrol/fairqueuing,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/util/flowcontrol/fairqueuing/promise,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/util/flowcontrol/fairqueuing/promise/lockingpromise,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/util/flowcontrol/fairqueuing/queueset,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/util/flowcontrol/format,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/util/flowcontrol/metrics,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/util/flushwriter,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/util/openapi,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/util/shufflesharding,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/util/webhook,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/util/wsstream,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/pkg/warning,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/plugin/pkg/audit/buffered,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/plugin/pkg/audit/log,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/plugin/pkg/audit/truncate,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/plugin/pkg/audit/webhook,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/plugin/pkg/authenticator/token/webhook,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/apiserver/plugin/pkg/authorizer/webhook,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1beta2,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/poc.autoscaling.k8s.io/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/scheme,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/typed/autoscaling.k8s.io/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/typed/autoscaling.k8s.io/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/typed/autoscaling.k8s.io/v1beta2,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/typed/poc.autoscaling.k8s.io/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/discovery,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/discovery/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/dynamic,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/dynamic/dynamicinformer,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/dynamic/dynamiclister,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/admissionregistration,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/admissionregistration/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/admissionregistration/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/apiserverinternal,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/apiserverinternal/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/apps,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/apps/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/apps/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/apps/v1beta2,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/autoscaling,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/autoscaling/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/autoscaling/v2beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/autoscaling/v2beta2,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/batch,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/batch/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/batch/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/batch/v2alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/certificates,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/certificates/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/certificates/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/coordination,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/coordination/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/coordination/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/core,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/core/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/discovery,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/discovery/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/discovery/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/events,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/events/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/events/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/extensions,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/extensions/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/flowcontrol,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/flowcontrol/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/flowcontrol/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/internalinterfaces,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/networking,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/networking/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/networking/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/node,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/node/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/node/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/node/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/policy,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/policy/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/rbac,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/rbac/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/rbac/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/rbac/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/scheduling,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/scheduling/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/scheduling/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/scheduling/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/storage,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/storage/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/storage/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/informers/storage/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/scheme,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/admissionregistration/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/admissionregistration/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/admissionregistration/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/admissionregistration/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/apiserverinternal/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/apiserverinternal/v1alpha1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/apps/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/apps/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/apps/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/apps/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/apps/v1beta2,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/apps/v1beta2/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/authentication/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/authentication/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/authentication/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/authentication/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/authorization/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/authorization/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/authorization/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/authorization/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/autoscaling/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/autoscaling/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/autoscaling/v2beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/autoscaling/v2beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/autoscaling/v2beta2,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/autoscaling/v2beta2/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/batch/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/batch/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/batch/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/batch/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/batch/v2alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/batch/v2alpha1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/certificates/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/certificates/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/certificates/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/certificates/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/coordination/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/coordination/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/coordination/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/coordination/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/core/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/core/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/discovery/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/discovery/v1alpha1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/discovery/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/discovery/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/events/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/events/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/events/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/events/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/extensions/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/extensions/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/flowcontrol/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/flowcontrol/v1alpha1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/flowcontrol/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/flowcontrol/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/networking/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/networking/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/networking/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/networking/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/node/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/node/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/node/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/node/v1alpha1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/node/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/node/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/policy/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/policy/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/rbac/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/rbac/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/rbac/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/rbac/v1alpha1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/rbac/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/rbac/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/scheduling/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/scheduling/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/scheduling/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/scheduling/v1alpha1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/scheduling/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/scheduling/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/storage/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/storage/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/storage/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/storage/v1alpha1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/storage/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/kubernetes/typed/storage/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/admissionregistration/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/admissionregistration/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/apiserverinternal/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/apps/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/apps/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/apps/v1beta2,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/autoscaling/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/autoscaling/v2beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/autoscaling/v2beta2,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/batch/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/batch/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/batch/v2alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/certificates/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/certificates/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/coordination/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/coordination/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/core/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/discovery/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/discovery/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/events/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/events/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/extensions/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/flowcontrol/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/flowcontrol/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/networking/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/networking/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/node/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/node/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/node/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/policy/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/rbac/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/rbac/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/rbac/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/scheduling/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/scheduling/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/scheduling/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/storage/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/storage/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/listers/storage/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/pkg/apis/clientauthentication,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/pkg/apis/clientauthentication/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/pkg/apis/clientauthentication/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/pkg/version,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/plugin/pkg/client/auth/exec,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/rest,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/rest/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/rest/watch,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/restmapper,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/testing,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/tools/auth,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/tools/cache,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/tools/clientcmd,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/tools/clientcmd/api,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/tools/clientcmd/api/latest,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/tools/clientcmd/api/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/tools/events,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/tools/leaderelection,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/tools/leaderelection/resourcelock,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/tools/metrics,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/tools/pager,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/tools/record,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/tools/record/util,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/tools/reference,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/tools/remotecommand,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/transport,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/transport/spdy,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/util/cert,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/util/connrotation,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/util/exec,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/util/flowcontrol,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/util/homedir,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/util/keyutil,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/client-go/util/workqueue,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/cloud-provider,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/component-base/cli/flag,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/component-base/featuregate,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/component-base/logs,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/component-base/logs/datapol,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/component-base/logs/json,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/component-base/logs/sanitization,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/component-base/metrics,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/component-base/metrics/legacyregistry,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/component-base/metrics/prometheus/workqueue,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/component-base/metrics/testutil,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/component-base/version,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/cri-api/pkg/apis/runtime/v1alpha2,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/gengo/args,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/gengo/examples/set-gen/sets,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/gengo/generator,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/gengo/namer,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/gengo/parser,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/gengo/types,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/klog,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/klog/v2,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-openapi/cmd/openapi-gen,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-openapi/cmd/openapi-gen/args,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-openapi/pkg/builder,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-openapi/pkg/common,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-openapi/pkg/generators,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-openapi/pkg/generators/rules,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-openapi/pkg/handler,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-openapi/pkg/schemaconv,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-openapi/pkg/util,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-openapi/pkg/util/proto,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-openapi/pkg/util/sets,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-state-metrics/v2/internal/store,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-state-metrics/v2/pkg/allowdenylist,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-state-metrics/v2/pkg/builder,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-state-metrics/v2/pkg/builder/types,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-state-metrics/v2/pkg/constant,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-state-metrics/v2/pkg/listwatch,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-state-metrics/v2/pkg/metric,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-state-metrics/v2/pkg/metric_generator,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-state-metrics/v2/pkg/metrics_store,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-state-metrics/v2/pkg/options,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-state-metrics/v2/pkg/sharding,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kube-state-metrics/v2/pkg/watch,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/api/legacyscheme,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/api/v1/pod,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/apis/apps,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/apis/autoscaling,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/apis/core,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/apis/core/helper,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/apis/core/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/apis/core/v1/helper,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/apis/scheduling,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/features,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/kubelet/configmap,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/kubelet/container,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/kubelet/pod,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/kubelet/secret,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/kubelet/types,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/kubelet/util,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/kubelet/util/format,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/kubelet/util/manager,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/proxy/util,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/util/hash,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/util/parsers,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/util/sysctl,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/volume,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/volume/util/fs,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/volume/util/fsquota,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/volume/util/fsquota/common,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/volume/util/hostutil,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/volume/util/recyclerclient,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/pkg/volume/util/subpath,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/kubernetes/third_party/forked/golang/expansion,BSD-3-Clause,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/metrics/pkg/apis/custom_metrics,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/metrics/pkg/apis/custom_metrics/install,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/metrics/pkg/apis/custom_metrics/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/metrics/pkg/apis/custom_metrics/v1beta2,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/metrics/pkg/apis/external_metrics,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/metrics/pkg/apis/external_metrics/install,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/metrics/pkg/apis/external_metrics/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/mount-utils,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/utils/buffer,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/utils/exec,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/utils/integer,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/utils/io,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/utils/keymutex,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/utils/net,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/utils/nsenter,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/utils/path,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/utils/pointer,Apache-2.0,Cloud Native Computing Foundation (CNCF)
-core,k8s.io/utils/trace,Apache-2.0,Cloud Native Computing Foundation (CNCF)
+core,k8s.io/api/admission/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/admission/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/admissionregistration/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/admissionregistration/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/apiserverinternal/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/apps/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/apps/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/apps/v1beta2,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/authentication/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/authentication/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/authorization/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/authorization/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/autoscaling/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/autoscaling/v2beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/autoscaling/v2beta2,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/batch/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/batch/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/batch/v2alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/certificates/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/certificates/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/coordination/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/coordination/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/core/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/discovery/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/discovery/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/events/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/events/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/extensions/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/flowcontrol/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/flowcontrol/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/networking/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/networking/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/node/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/node/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/node/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/policy/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/rbac/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/rbac/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/rbac/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/scheduling/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/scheduling/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/scheduling/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/storage/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/storage/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/api/storage/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/api/equality,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/api/errors,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/api/meta,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/api/resource,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/api/validation,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/api/validation/path,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/apis/meta/internalversion,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/apis/meta/internalversion/scheme,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/apis/meta/internalversion/validation,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/apis/meta/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/apis/meta/v1/unstructured,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/apis/meta/v1/validation,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/apis/meta/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/apis/meta/v1beta1/validation,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/conversion,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/conversion/queryparams,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/fields,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/labels,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/runtime,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/runtime/schema,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/runtime/serializer,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/runtime/serializer/json,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/runtime/serializer/protobuf,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/runtime/serializer/recognizer,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/runtime/serializer/streaming,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/runtime/serializer/versioning,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/selection,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/types,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/cache,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/clock,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/diff,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/errors,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/framer,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/httpstream,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/httpstream/spdy,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/intstr,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/json,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/mergepatch,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/naming,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/net,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/rand,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/remotecommand,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/runtime,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/sets,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/strategicpatch,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/uuid,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/validation,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/validation/field,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/wait,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/waitgroup,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/util/yaml,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/version,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/pkg/watch,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/third_party/forked/golang/json,BSD-3-Clause,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/third_party/forked/golang/netutil,BSD-3-Clause,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apimachinery/third_party/forked/golang/reflect,BSD-3-Clause,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/admission,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/admission/configuration,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/admission/initializer,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/admission/metrics,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/admission/plugin/namespace/lifecycle,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/admission/plugin/webhook,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/admission/plugin/webhook/config,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/admission/plugin/webhook/config/apis/webhookadmission,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/admission/plugin/webhook/config/apis/webhookadmission/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/admission/plugin/webhook/config/apis/webhookadmission/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/admission/plugin/webhook/errors,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/admission/plugin/webhook/generic,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/admission/plugin/webhook/mutating,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/admission/plugin/webhook/namespace,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/admission/plugin/webhook/object,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/admission/plugin/webhook/request,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/admission/plugin/webhook/rules,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/admission/plugin/webhook/validating,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/apis/apiserver,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/apis/apiserver/install,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/apis/apiserver/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/apis/apiserver/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/apis/apiserver/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/apis/audit,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/apis/audit/install,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/apis/audit/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/apis/audit/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/apis/audit/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/apis/audit/validation,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/apis/config,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/apis/config/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/apis/config/validation,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/apis/flowcontrol/bootstrap,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/audit,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/audit/policy,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/authentication/authenticator,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/authentication/authenticatorfactory,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/authentication/group,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/authentication/request/anonymous,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/authentication/request/bearertoken,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/authentication/request/headerrequest,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/authentication/request/union,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/authentication/request/websocket,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/authentication/request/x509,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/authentication/serviceaccount,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/authentication/token/cache,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/authentication/token/tokenfile,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/authentication/user,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/authorization/authorizer,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/authorization/authorizerfactory,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/authorization/path,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/authorization/union,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/endpoints,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/endpoints/deprecation,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/endpoints/discovery,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/endpoints/filterlatency,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/endpoints/filters,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/endpoints/handlers,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/endpoints/handlers/fieldmanager,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/endpoints/handlers/fieldmanager/internal,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/endpoints/handlers/negotiation,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/endpoints/handlers/responsewriters,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/endpoints/metrics,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/endpoints/openapi,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/endpoints/request,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/endpoints/warning,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/features,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/quota/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/registry/generic,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/registry/generic/registry,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/registry/rest,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/server,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/server/dynamiccertificates,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/server/egressselector,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/server/egressselector/metrics,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/server/filters,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/server/healthz,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/server/httplog,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/server/mux,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/server/options,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/server/options/encryptionconfig,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/server/resourceconfig,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/server/routes,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/server/storage,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/storage,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/storage/cacher,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/storage/errors,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/storage/etcd3,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/storage/etcd3/metrics,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/storage/names,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/storage/storagebackend,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/storage/storagebackend/factory,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/storage/value,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/storage/value/encrypt/aes,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/storage/value/encrypt/envelope,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/storage/value/encrypt/envelope/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/storage/value/encrypt/identity,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/storage/value/encrypt/secretbox,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/storageversion,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/util/apihelpers,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/util/dryrun,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/util/feature,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/util/flowcontrol,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/util/flowcontrol/counter,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/util/flowcontrol/debug,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/util/flowcontrol/fairqueuing,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/util/flowcontrol/fairqueuing/promise,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/util/flowcontrol/fairqueuing/promise/lockingpromise,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/util/flowcontrol/fairqueuing/queueset,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/util/flowcontrol/format,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/util/flowcontrol/metrics,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/util/flushwriter,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/util/openapi,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/util/shufflesharding,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/util/webhook,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/util/wsstream,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/pkg/warning,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/plugin/pkg/audit/buffered,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/plugin/pkg/audit/log,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/plugin/pkg/audit/truncate,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/plugin/pkg/audit/webhook,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/plugin/pkg/authenticator/token/webhook,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/apiserver/plugin/pkg/authorizer/webhook,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1beta2,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/poc.autoscaling.k8s.io/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/scheme,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/typed/autoscaling.k8s.io/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/typed/autoscaling.k8s.io/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/typed/autoscaling.k8s.io/v1beta2,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/typed/poc.autoscaling.k8s.io/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/discovery,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/discovery/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/dynamic,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/dynamic/dynamicinformer,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/dynamic/dynamiclister,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/admissionregistration,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/admissionregistration/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/admissionregistration/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/apiserverinternal,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/apiserverinternal/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/apps,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/apps/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/apps/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/apps/v1beta2,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/autoscaling,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/autoscaling/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/autoscaling/v2beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/autoscaling/v2beta2,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/batch,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/batch/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/batch/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/batch/v2alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/certificates,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/certificates/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/certificates/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/coordination,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/coordination/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/coordination/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/core,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/core/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/discovery,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/discovery/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/discovery/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/events,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/events/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/events/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/extensions,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/extensions/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/flowcontrol,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/flowcontrol/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/flowcontrol/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/internalinterfaces,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/networking,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/networking/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/networking/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/node,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/node/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/node/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/node/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/policy,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/policy/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/rbac,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/rbac/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/rbac/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/rbac/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/scheduling,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/scheduling/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/scheduling/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/scheduling/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/storage,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/storage/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/storage/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/informers/storage/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/scheme,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/admissionregistration/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/admissionregistration/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/admissionregistration/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/admissionregistration/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/apiserverinternal/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/apiserverinternal/v1alpha1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/apps/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/apps/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/apps/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/apps/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/apps/v1beta2,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/apps/v1beta2/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/authentication/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/authentication/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/authentication/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/authentication/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/authorization/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/authorization/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/authorization/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/authorization/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/autoscaling/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/autoscaling/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/autoscaling/v2beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/autoscaling/v2beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/autoscaling/v2beta2,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/autoscaling/v2beta2/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/batch/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/batch/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/batch/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/batch/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/batch/v2alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/batch/v2alpha1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/certificates/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/certificates/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/certificates/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/certificates/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/coordination/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/coordination/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/coordination/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/coordination/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/core/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/core/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/discovery/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/discovery/v1alpha1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/discovery/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/discovery/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/events/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/events/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/events/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/events/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/extensions/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/extensions/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/flowcontrol/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/flowcontrol/v1alpha1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/flowcontrol/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/flowcontrol/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/networking/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/networking/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/networking/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/networking/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/node/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/node/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/node/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/node/v1alpha1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/node/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/node/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/policy/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/policy/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/rbac/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/rbac/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/rbac/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/rbac/v1alpha1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/rbac/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/rbac/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/scheduling/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/scheduling/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/scheduling/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/scheduling/v1alpha1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/scheduling/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/scheduling/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/storage/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/storage/v1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/storage/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/storage/v1alpha1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/storage/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/kubernetes/typed/storage/v1beta1/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/admissionregistration/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/admissionregistration/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/apiserverinternal/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/apps/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/apps/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/apps/v1beta2,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/autoscaling/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/autoscaling/v2beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/autoscaling/v2beta2,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/batch/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/batch/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/batch/v2alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/certificates/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/certificates/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/coordination/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/coordination/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/core/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/discovery/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/discovery/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/events/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/events/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/extensions/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/flowcontrol/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/flowcontrol/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/networking/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/networking/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/node/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/node/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/node/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/policy/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/rbac/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/rbac/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/rbac/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/scheduling/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/scheduling/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/scheduling/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/storage/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/storage/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/listers/storage/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/pkg/apis/clientauthentication,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/pkg/apis/clientauthentication/v1alpha1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/pkg/apis/clientauthentication/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/pkg/version,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/plugin/pkg/client/auth/exec,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/rest,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/rest/fake,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/rest/watch,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/restmapper,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/testing,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/tools/auth,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/tools/cache,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/tools/clientcmd,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/tools/clientcmd/api,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/tools/clientcmd/api/latest,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/tools/clientcmd/api/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/tools/events,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/tools/leaderelection,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/tools/leaderelection/resourcelock,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/tools/metrics,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/tools/pager,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/tools/record,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/tools/record/util,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/tools/reference,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/tools/remotecommand,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/transport,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/transport/spdy,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/util/cert,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/util/connrotation,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/util/exec,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/util/flowcontrol,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/util/homedir,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/util/keyutil,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/client-go/util/workqueue,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/cloud-provider,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/component-base/cli/flag,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/component-base/featuregate,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/component-base/logs,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/component-base/logs/datapol,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/component-base/logs/json,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/component-base/logs/sanitization,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/component-base/metrics,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/component-base/metrics/legacyregistry,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/component-base/metrics/prometheus/workqueue,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/component-base/metrics/testutil,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/component-base/version,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/cri-api/pkg/apis/runtime/v1alpha2,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/gengo/args,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/gengo/examples/set-gen/sets,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/gengo/generator,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/gengo/namer,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/gengo/parser,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/gengo/types,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/klog,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/klog/v2,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-openapi/cmd/openapi-gen,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-openapi/cmd/openapi-gen/args,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-openapi/pkg/builder,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-openapi/pkg/common,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-openapi/pkg/generators,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-openapi/pkg/generators/rules,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-openapi/pkg/handler,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-openapi/pkg/schemaconv,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-openapi/pkg/util,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-openapi/pkg/util/proto,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-openapi/pkg/util/sets,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-state-metrics/v2/internal/store,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-state-metrics/v2/pkg/allowdenylist,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-state-metrics/v2/pkg/builder,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-state-metrics/v2/pkg/builder/types,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-state-metrics/v2/pkg/constant,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-state-metrics/v2/pkg/listwatch,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-state-metrics/v2/pkg/metric,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-state-metrics/v2/pkg/metric_generator,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-state-metrics/v2/pkg/metrics_store,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-state-metrics/v2/pkg/options,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-state-metrics/v2/pkg/sharding,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kube-state-metrics/v2/pkg/watch,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/api/legacyscheme,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/api/v1/pod,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/apis/apps,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/apis/autoscaling,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/apis/core,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/apis/core/helper,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/apis/core/v1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/apis/core/v1/helper,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/apis/scheduling,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/features,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/kubelet/configmap,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/kubelet/container,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/kubelet/pod,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/kubelet/secret,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/kubelet/types,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/kubelet/util,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/kubelet/util/format,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/kubelet/util/manager,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/proxy/util,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/util/hash,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/util/parsers,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/util/sysctl,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/volume,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/volume/util/fs,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/volume/util/fsquota,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/volume/util/fsquota/common,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/volume/util/hostutil,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/volume/util/recyclerclient,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/pkg/volume/util/subpath,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/kubernetes/third_party/forked/golang/expansion,BSD-3-Clause,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/metrics/pkg/apis/custom_metrics,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/metrics/pkg/apis/custom_metrics/install,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/metrics/pkg/apis/custom_metrics/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/metrics/pkg/apis/custom_metrics/v1beta2,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/metrics/pkg/apis/external_metrics,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/metrics/pkg/apis/external_metrics/install,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/metrics/pkg/apis/external_metrics/v1beta1,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/mount-utils,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/utils/buffer,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/utils/exec,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/utils/integer,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/utils/io,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/utils/keymutex,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/utils/net,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/utils/nsenter,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/utils/path,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/utils/pointer,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
+core,k8s.io/utils/trace,Apache-2.0,Cloud Native Computing Foundation (CNCF) | The Kubernetes Authors
 core,sigs.k8s.io/apiserver-network-proxy/konnectivity-client/pkg/client,Apache-2.0,The Kubernetes Authors
 core,sigs.k8s.io/apiserver-network-proxy/konnectivity-client/proto/client,Apache-2.0,The Kubernetes Authors
 core,sigs.k8s.io/controller-runtime/pkg/scheme,Apache-2.0,The Kubernetes Authors
