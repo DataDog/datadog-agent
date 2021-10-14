@@ -176,7 +176,7 @@ suites:
 
   - name: win-upgrade-rollback
     run_list:
-        - "recipe[dd-agent-install]"
+      - "recipe[dd-agent-install::_install_windows_base]"
         - "recipe[dd-agent-upgrade]"
     attributes:
       datadog:
@@ -185,7 +185,7 @@ suites:
         <% end %>
       dd-agent-install:
         windows_agent_url: https://s3.amazonaws.com/dd-agent-mstesting/builds/tagged/
-        dd_agent_version: "<%= ENV['MAJOR_VERSION'] %>.30.0"
+        windows_version: "<%= ENV['MAJOR_VERSION'] %>.30.0"
         agent_install_options: >
           APIKEY=<%= api_key %>
       dd-agent-upgrade:
