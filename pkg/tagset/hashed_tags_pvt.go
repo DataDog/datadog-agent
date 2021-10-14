@@ -41,16 +41,6 @@ func (h hashedTags) Len() int {
 	return len(h.data)
 }
 
-// Get returns the internal slice
-func (h hashedTags) Get() []string {
-	return h.data
-}
-
-// Hashes returns the internal slice of tag hashes
-func (h hashedTags) Hashes() []uint64 {
-	return h.hash
-}
-
 // dup returns a full copy of hashedTags
 func (h hashedTags) dup() hashedTags {
 	return hashedTags{

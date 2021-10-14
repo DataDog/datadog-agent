@@ -6,6 +6,7 @@
 package tagset
 
 import (
+	"log"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,4 +17,23 @@ func TestHashedTagsSlice(t *testing.T) {
 	ht2 := ht.Slice(1, 3)
 	assert.Equal(t, ht2.Get(), []string{"b", "c"})
 	assert.Equal(t, ht2.Hashes(), ht.Hashes()[1:3])
+}
+
+func TestHashedTagsGet(t *testing.T) {
+	ht := NewHashedTagsFromSlice([]string{"abc", "def"})
+	tags := ht.Get()
+	assert.Equal(t, ht.data, tags)
+	// check that this is *not* a copy
+	tags[0] = "XXX"
+	assert.Equal(t, "XXX", ht.data[0])
+}
+
+func TestHashedTagsHashes(t *testing.T) {
+	ht := NewHashedTagsFromSlice([]string{"abc", "def"})
+	hashes := ht.Hashes()
+	log.Printf("%p %p", ht.hash, hashes)
+	assert.Equal(t, ht.hash, hashes)
+	// check that this is *not* a copy
+	hashes[0] = 999
+	assert.Equal(t, uint64(999), ht.hash[0])
 }

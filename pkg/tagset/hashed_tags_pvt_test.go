@@ -6,7 +6,6 @@
 package tagset
 
 import (
-	"log"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,25 +36,6 @@ func TestPvtHashedTagsCopy(t *testing.T) {
 func TestPvtHashedTagsLen(t *testing.T) {
 	ht := newHashedTagsFromSlice([]string{"abc", "def"})
 	assert.Equal(t, 2, ht.Len())
-}
-
-func TestPvtHashedTagsGet(t *testing.T) {
-	ht := newHashedTagsFromSlice([]string{"abc", "def"})
-	tags := ht.Get()
-	assert.Equal(t, ht.data, tags)
-	// check that this is *not* a copy
-	tags[0] = "XXX"
-	assert.Equal(t, "XXX", ht.data[0])
-}
-
-func TestPvtHashedTagsHashes(t *testing.T) {
-	ht := newHashedTagsFromSlice([]string{"abc", "def"})
-	hashes := ht.Hashes()
-	log.Printf("%p %p", ht.hash, hashes)
-	assert.Equal(t, ht.hash, hashes)
-	// check that this is *not* a copy
-	hashes[0] = 999
-	assert.Equal(t, uint64(999), ht.hash[0])
 }
 
 func TestPvtHashedTagsDup(t *testing.T) {

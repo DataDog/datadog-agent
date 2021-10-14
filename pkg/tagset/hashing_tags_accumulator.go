@@ -68,6 +68,16 @@ func (tb *HashingTagsAccumulator) SortUniq() {
 	tb.Truncate(j + 1)
 }
 
+// Get returns the internal slice
+func (tb *HashingTagsAccumulator) Get() []string {
+	return tb.data
+}
+
+// Hashes returns the internal slice of tag hashes
+func (tb *HashingTagsAccumulator) Hashes() []uint64 {
+	return tb.hash
+}
+
 // Reset resets the size of the builder to 0 without discaring the internal
 // buffer
 func (tb *HashingTagsAccumulator) Reset() {

@@ -15,6 +15,22 @@ func NewHashedTagsFromSlice(tags []string) HashedTags {
 	return HashedTags{newHashedTagsFromSlice(tags)}
 }
 
+// Get returns the internal slice.
+//
+// NOTE: this returns a mutable reference to data in this immutable data structure.
+// use of this function will be phased out; do not add new uses.
+func (t HashedTags) Get() []string {
+	return t.data
+}
+
+// Hashes returns the internal slice of tag hashes
+//
+// NOTE: this returns a mutable reference to data in this immutable data structure.
+// use of this function will be phased out; do not add new uses.
+func (t HashedTags) Hashes() []uint64 {
+	return t.hash
+}
+
 // Slice returns a shared sub-slice of tags from t.
 func (t HashedTags) Slice(i, j int) HashedTags {
 	return HashedTags{
