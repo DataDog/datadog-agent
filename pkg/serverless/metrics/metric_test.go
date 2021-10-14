@@ -79,7 +79,7 @@ func TestRaceFlushVersusAddSample(t *testing.T) {
 	}()
 
 	go func() {
-		for i := 0; i < 50000; i++ {
+		for i := 0; i < 1000; i++ {
 			n := rand.Intn(10)
 			time.Sleep(time.Duration(n) * time.Microsecond)
 			go SendTimeoutEnhancedMetric([]string{"tag0:value0", "tag1:value1"}, metricAgent.GetMetricChannel())
@@ -87,7 +87,7 @@ func TestRaceFlushVersusAddSample(t *testing.T) {
 	}()
 
 	go func() {
-		for i := 0; i < 50000; i++ {
+		for i := 0; i < 1000; i++ {
 			n := rand.Intn(10)
 			time.Sleep(time.Duration(n) * time.Microsecond)
 			go metricAgent.Flush()
