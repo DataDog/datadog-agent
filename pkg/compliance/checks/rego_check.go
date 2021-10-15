@@ -310,21 +310,6 @@ type regoFinding struct {
 	Data         event.Data `mapstructure:"data"`
 }
 
-func (f *regoFinding) asMap() map[string]interface{} {
-	res := map[string]interface{}{
-		"resource_type": f.ResourceType,
-		"resource_id":   f.ResourceID,
-		"data":          f.Data,
-	}
-	if f.Status {
-		res["status"] = "passed"
-	} else {
-		res["status"] = "failing"
-	}
-
-	return res
-}
-
 func parseFindings(regoData interface{}) ([]regoFinding, error) {
 	arrayData, ok := regoData.([]interface{})
 	if !ok {
