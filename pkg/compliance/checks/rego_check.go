@@ -189,28 +189,33 @@ func (r *regoCheck) buildContextInput(env env.Env) map[string]interface{} {
 	return context
 }
 
+func findingsToReports(findings []regoFinding) []*compliance.Report {
+	var reports []*compliance.Report
+	for _, finding := range findings {
+		reportResource := compliance.ReportResource{
+			ID:   finding.ResourceID,
+			Type: finding.ResourceType,
+		}
+
+		report := &compliance.Report{
+			Resource: reportResource,
+			Passed:   finding.Status,
+			Data:     finding.Data,
+		}
+
+		reports = append(reports, report)
+	}
+	return reports
+}
+
 func (r *regoCheck) check(env env.Env) []*compliance.Report {
 	log.Debugf("%s: rego check starting", r.ruleID)
-
-	var resultFinalizer func([]regoFinding) []*compliance.Report
 
 	var input map[string]interface{}
 	providedInput := env.ProvidedInput(r.ruleID)
 
 	if providedInput != nil {
 		input = providedInput
-
-		resultFinalizer = func(findings []regoFinding) []*compliance.Report {
-			for _, finding := range findings {
-				jsonData, err := prettyPrintJSON(finding.asMap())
-				if err != nil {
-					log.Warnf("failed to pretty-print finding %v", finding)
-					continue
-				}
-				log.Infof("finding: %v", string(jsonData))
-			}
-			return nil
-		}
 	} else {
 		normalInput, err := r.buildNormalInput(env)
 		if err != nil {
@@ -218,25 +223,6 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 		}
 
 		input = normalInput
-
-		resultFinalizer = func(findings []regoFinding) []*compliance.Report {
-			var reports []*compliance.Report
-			for _, finding := range findings {
-				reportResource := compliance.ReportResource{
-					ID:   finding.ResourceID,
-					Type: finding.ResourceType,
-				}
-
-				report := &compliance.Report{
-					Resource: reportResource,
-					Passed:   finding.Status,
-					Data:     finding.Data,
-				}
-
-				reports = append(reports, report)
-			}
-			return reports
-		}
 	}
 
 	log.Debugf("rego eval input: %+v", input)
@@ -269,7 +255,7 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 		return []*compliance.Report{compliance.BuildReportForError(err)}
 	}
 
-	reports := resultFinalizer(findings)
+	reports := findingsToReports(findings)
 
 	log.Debugf("reports: %v", reports)
 	return reports
