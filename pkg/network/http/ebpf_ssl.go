@@ -3,16 +3,19 @@
 package http
 
 import (
-	"fmt"
-	"math"
+	"os"
+	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 
+	"github.com/twmb/murmur3"
+
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/ebpf"
 	"github.com/DataDog/ebpf/manager"
-	"github.com/DataDog/gopsutil/process/so"
-	"golang.org/x/sys/unix"
 )
 
 var sslProbes = []string{
@@ -24,108 +27,201 @@ var sslProbes = []string{
 	"uprobe/SSL_shutdown",
 }
 
+var cryptoProbes = []string{
+	"uprobe/BIO_new_socket",
+	"uretprobe/BIO_new_socket",
+}
+
 const (
-	sslSockByCtxMap = "ssl_sock_by_ctx"
-	sslReadArgsMap  = "ssl_read_args"
-	sslFDByBioMap   = "fd_by_ssl_bio"
+	sslSockByCtxMap        = "ssl_sock_by_ctx"
+	sharedLibrariesPerfMap = "shared_libraries"
+
+	// probe used for streaming shared library events
+	doSysOpen    = "kprobe/do_sys_open"
+	doSysOpenRet = "kretprobe/do_sys_open"
+
+	// UID used to create the base probes
+	baseUID = "base"
 )
 
-var sslMaps = []string{
-	httpInFlightMap,
-	httpBatchesMap,
-	httpBatchStateMap,
-	string(probes.SockByPidFDMap),
-	sslSockByCtxMap,
-	sslReadArgsMap,
-	sslFDByBioMap,
+type openSSLProgram struct {
+	cfg         *config.Config
+	sockFDMap   *ebpf.Map
+	perfHandler *ddebpf.PerfHandler
+	watcher     *soWatcher
+	manager     *manager.Manager
 }
 
-// sslProgram encapsulates the uprobe management for one specific OpenSSL library "instance"
-// TODO: replace `Manager` by something lighter so we can avoid things such as parsing
-// the eBPF ELF repeatedly
-type sslProgram struct {
-	mainProgram *ebpfProgram
-	mgr         *manager.Manager
-	offsets     []manager.ConstantEditor
-	libPath     string
-	uid         string
-}
+var _ subprogram = &openSSLProgram{}
 
-var _ subprogram = &sslProgram{}
-
-func createSSLPrograms(mainProgram *ebpfProgram, offsets []manager.ConstantEditor, libraries []so.Library) []subprogram {
-	var subprograms []subprogram
-	for i, lib := range libraries {
-		if !strings.Contains(lib.HostPath, "ssl") {
-			continue
-		}
-
-		sslProg, err := newSSLProgram(mainProgram, offsets, lib.HostPath, i)
-		if err != nil {
-			log.Errorf("error creating SSL program for %s: %s", lib.HostPath, err)
-			continue
-		}
-
-		subprograms = append(subprograms, sslProg)
+func newOpenSSLProgram(c *config.Config, sockFDMap *ebpf.Map) (*openSSLProgram, error) {
+	if !c.EnableHTTPSMonitoring {
+		return nil, nil
 	}
 
-	return subprograms
-}
-
-func newSSLProgram(mainProgram *ebpfProgram, offsets []manager.ConstantEditor, libPath string, i int) (*sslProgram, error) {
-	if libPath == "" {
-		return nil, fmt.Errorf("path to libssl not provided")
-	}
-
-	uid := strconv.Itoa(i)
-	var probes []*manager.Probe
-	for _, sec := range sslProbes {
-		probes = append(probes, &manager.Probe{
-			Section:    sec,
-			BinaryPath: libPath,
-			UID:        uid,
-		})
-	}
-
-	return &sslProgram{
-		mainProgram: mainProgram,
-		mgr:         &manager.Manager{Probes: probes},
-		offsets:     offsets,
-		libPath:     libPath,
-		uid:         uid,
+	return &openSSLProgram{
+		cfg:         c,
+		sockFDMap:   sockFDMap,
+		perfHandler: ddebpf.NewPerfHandler(batchNotificationsChanSize),
 	}, nil
 }
 
-func (p *sslProgram) Init() error {
-	var selectors []manager.ProbesSelector
-	for _, sec := range sslProbes {
-		selectors = append(selectors, &manager.ProbeSelector{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				Section: sec,
-				UID:     p.uid,
-			},
-		})
+func (o *openSSLProgram) ConfigureManager(m *manager.Manager) {
+	if o == nil {
+		return
 	}
 
-	log.Debugf("https (libssl) tracing enabled. lib=%s", p.libPath)
-	return p.mgr.InitWithOptions(
-		p.mainProgram.bytecode,
-		manager.Options{
-			RLimit: &unix.Rlimit{
-				Cur: math.MaxUint64,
-				Max: math.MaxUint64,
+	o.manager = m
+
+	if !runningOnARM() {
+		m.PerfMaps = append(m.PerfMaps, &manager.PerfMap{
+			Map: manager.Map{Name: sharedLibrariesPerfMap},
+			PerfMapOptions: manager.PerfMapOptions{
+				PerfRingBufferSize: 8 * os.Getpagesize(),
+				Watermark:          1,
+				DataHandler:        o.perfHandler.DataHandler,
+				LostHandler:        o.perfHandler.LostHandler,
 			},
-			ActivatedProbes: selectors,
-			ConstantEditors: p.offsets,
-			MapEditors:      setupSharedMaps(p.mainProgram, sslMaps...),
+		})
+
+		m.Probes = append(m.Probes,
+			&manager.Probe{Section: doSysOpen, KProbeMaxActive: maxActive},
+			&manager.Probe{Section: doSysOpenRet, KProbeMaxActive: maxActive},
+		)
+	}
+
+	// Load SSL & Crypto "base" probes
+	var extraProbes []string
+	extraProbes = append(extraProbes, sslProbes...)
+	extraProbes = append(extraProbes, cryptoProbes...)
+	for _, sec := range extraProbes {
+		m.Probes = append(m.Probes, &manager.Probe{
+			Section: sec,
+			UID:     baseUID,
+		})
+	}
+}
+
+func (o *openSSLProgram) ConfigureOptions(options *manager.Options) {
+	if o == nil {
+		return
+	}
+
+	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
+		Type:       ebpf.Hash,
+		MaxEntries: uint32(o.cfg.MaxTrackedConnections),
+		EditorFlag: manager.EditMaxEntries,
+	}
+
+	if !runningOnARM() {
+		options.ActivatedProbes = append(options.ActivatedProbes,
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					Section: doSysOpen,
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					Section: doSysOpenRet,
+				},
+			},
+		)
+	}
+
+	if options.MapEditors == nil {
+		options.MapEditors = make(map[string]*ebpf.Map)
+	}
+
+	options.MapEditors[string(probes.SockByPidFDMap)] = o.sockFDMap
+}
+
+func (o *openSSLProgram) Start() {
+	if o == nil {
+		return
+	}
+
+	// Setup shared library watcher and configure the appropriate callbacks
+	o.watcher = newSOWatcher(o.cfg.ProcRoot, o.perfHandler,
+		soRule{
+			re:           regexp.MustCompile(`libssl.so`),
+			registerCB:   addHooks(o.manager, sslProbes),
+			unregisterCB: removeHooks(o.manager, sslProbes),
+		},
+		soRule{
+			re:           regexp.MustCompile(`libcrypto.so`),
+			registerCB:   addHooks(o.manager, cryptoProbes),
+			unregisterCB: removeHooks(o.manager, cryptoProbes),
 		},
 	)
+
+	o.watcher.Start()
 }
 
-func (p *sslProgram) Start() error {
-	return p.mgr.Start()
+func (o *openSSLProgram) Stop() {
+	if o == nil {
+		return
+	}
+
+	o.perfHandler.Stop()
 }
 
-func (p *sslProgram) Close() error {
-	return p.mgr.Stop(manager.CleanAll)
+func addHooks(m *manager.Manager, probes []string) func(string) error {
+	return func(libPath string) error {
+		uid := getUID(libPath)
+		for _, sec := range probes {
+			p, found := m.GetProbe(manager.ProbeIdentificationPair{uid, sec})
+			if found {
+				if !p.IsRunning() {
+					err := p.Attach()
+					if err != nil {
+						return err
+					}
+				}
+
+				continue
+			}
+
+			newProbe := manager.Probe{
+				Section:    sec,
+				BinaryPath: libPath,
+				UID:        uid,
+			}
+
+			err := m.AddHook(baseUID, newProbe)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+}
+
+func removeHooks(m *manager.Manager, probes []string) func(string) error {
+	return func(libPath string) error {
+		uid := getUID(libPath)
+		for _, sec := range probes {
+			p, found := m.GetProbe(manager.ProbeIdentificationPair{uid, sec})
+			if !found {
+				continue
+			}
+			p.Detach()
+		}
+
+		return nil
+	}
+}
+
+func runningOnARM() bool {
+	return strings.HasPrefix(runtime.GOARCH, "arm")
+}
+
+func getUID(libPath string) string {
+	sum := murmur3.StringSum64(libPath)
+	hash := strconv.FormatInt(int64(sum), 16)
+	if len(hash) >= 5 {
+		return hash[len(hash)-5:]
+	}
+
+	return libPath
 }

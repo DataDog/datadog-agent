@@ -23,7 +23,7 @@
             ]
         },
         "date": {
-            "$ref": "file:///datetime.json"
+            "$ref": "/schemas/datetime.json"
         }
     },
     "required": [

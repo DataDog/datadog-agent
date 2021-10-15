@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"math"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -20,7 +19,8 @@ import (
 )
 
 const (
-	ns = "process_config"
+	ns                   = "process_config"
+	discoveryMinInterval = 10 * time.Minute
 )
 
 func key(pieces ...string) string {
@@ -99,8 +99,8 @@ func (a *AgentConfig) LoadProcessYamlConfig(path string) error {
 	// and uses a different unit of time
 	a.initProcessDiscoveryCheck()
 
-	if a.CheckIntervals[ProcessCheckName] <= a.CheckIntervals[RTProcessCheckName] || a.CheckIntervals[ProcessCheckName]%a.CheckIntervals[RTProcessCheckName] != 0 {
-		// Process check interval must be greater than RTProcess check interval and the intervals must be divisible
+	if a.CheckIntervals[ProcessCheckName] < a.CheckIntervals[RTProcessCheckName] || a.CheckIntervals[ProcessCheckName]%a.CheckIntervals[RTProcessCheckName] != 0 {
+		// Process check interval must be greater or equal to RTProcess check interval and the intervals must be divisible
 		// in order to be run on the same goroutine
 		log.Warnf(
 			"Invalid process check interval overrides [%s,%s], resetting to defaults [%s,%s]",
@@ -290,7 +290,7 @@ func (a *AgentConfig) setCheckInterval(ns, check, checkKey string) {
 	}
 
 	if interval := config.Datadog.GetInt(k); interval != 0 {
-		log.Infof("Overriding container check interval to %ds", interval)
+		log.Infof("Overriding %s check interval to %ds", checkKey, interval)
 		a.CheckIntervals[checkKey] = time.Duration(interval) * time.Second
 	}
 }
@@ -301,11 +301,6 @@ func (a *AgentConfig) setCheckInterval(ns, check, checkKey string) {
 func (a *AgentConfig) initProcessDiscoveryCheck() {
 	root := key(ns, "process_discovery")
 
-	// We don't need to check if the key exists since we already bound it to a default in InitConfig.
-	// We use a minimum of 10 minutes for this value.
-	a.CheckIntervals[DiscoveryCheckName] =
-		time.Duration(math.Max(float64(config.Datadog.GetDuration(key(root, "interval"))), float64(10*time.Minute)))
-
 	// Discovery check should be only enabled when process_config.process_discovery.enabled = true and
 	// process_config.enabled is set to "false". This effectively makes sure the check only runs when the process check is
 	// disabled, while also respecting the users wishes when they want to disable either the check or the process agent completely.
@@ -313,5 +308,14 @@ func (a *AgentConfig) initProcessDiscoveryCheck() {
 	checkEnabled := config.Datadog.GetBool(key(root, "enabled"))
 	if checkEnabled && processAgentEnabled == "false" {
 		a.EnabledChecks = append(a.EnabledChecks, DiscoveryCheckName)
+
+		// We don't need to check if the key exists since we already bound it to a default in InitConfig.
+		// We use a minimum of 10 minutes for this value.
+		discoveryInterval := config.Datadog.GetDuration(key(root, "interval"))
+		if discoveryInterval < discoveryMinInterval {
+			discoveryInterval = discoveryMinInterval
+			_ = log.Warnf("Invalid interval for process discovery (<= %s) using default value of %[1]s", discoveryMinInterval.String())
+		}
+		a.CheckIntervals[DiscoveryCheckName] = discoveryInterval
 	}
 }

@@ -5,7 +5,11 @@
 
 package api
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
+)
 
 // endpoint specifies an API endpoint definition.
 type endpoint struct {
@@ -18,6 +22,10 @@ type endpoint struct {
 	// Hidden reports whether this endpoint should be hidden in the /info
 	// discovery endpoint.
 	Hidden bool
+
+	// IsEnabled specifies a function which reports whether this endpoint should be enabled
+	// based on the given config conf.
+	IsEnabled func() bool
 }
 
 // endpoints specifies the list of endpoints registered for the trace-agent API.
@@ -87,5 +95,10 @@ var endpoints = []endpoint{
 	{
 		Pattern: "/debugger/v1/input",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.debuggerProxyHandler() },
+	},
+	{
+		Pattern:   "/v0.6/config",
+		Handler:   func(r *HTTPReceiver) http.Handler { return http.HandlerFunc(r.handleConfig) },
+		IsEnabled: func() bool { return features.Has("config_endpoint") },
 	},
 }

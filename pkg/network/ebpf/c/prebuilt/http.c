@@ -11,6 +11,7 @@
 #define EPHEMERAL_RANGE_BEG 32768
 #define EPHEMERAL_RANGE_END 60999
 #define HTTPS_PORT 443
+#define SO_SUFFIX_SIZE 3
 
 static __always_inline int is_ephemeral_port(u16 port) {
     return port >= EPHEMERAL_RANGE_BEG && port <= EPHEMERAL_RANGE_END;
@@ -236,6 +237,72 @@ int uprobe__SSL_shutdown(struct pt_regs* ctx) {
     skb_info.tcp_flags |= TCPHDR_FIN;
     http_process(buffer, &skb_info, skb_info.tup.sport);
     bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
+    return 0;
+}
+
+SEC("kprobe/do_sys_open")
+int kprobe__do_sys_open(struct pt_regs* ctx) {
+    char *path_argument = (char *)PT_REGS_PARM2(ctx);
+    lib_path_t path = {0};
+    bpf_probe_read(path.buf, sizeof(path.buf), path_argument);
+
+    // Find the null character and clean up the garbage following it
+#pragma unroll
+    for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
+        if (path.len) {
+            path.buf[i] = 0;
+        } else if (path.buf[i] == 0) {
+            path.len = i;
+        }
+    }
+
+    // Bail out if the path size is larger than our buffer
+    if (!path.len) {
+        return 0;
+    }
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    path.pid = pid_tgid >> 32;
+    bpf_map_update_elem(&open_at_args, &pid_tgid, &path, BPF_ANY);
+    return 0;
+}
+
+SEC("kretprobe/do_sys_open")
+int kretprobe__do_sys_open(struct pt_regs* ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    // If file couldn't be opened, bail out
+    if (!(long)PT_REGS_RC(ctx)) {
+        goto cleanup;
+    }
+
+    lib_path_t *path = bpf_map_lookup_elem(&open_at_args, &pid_tgid);
+    if (path == NULL) {
+        return 0;
+    }
+
+    // Detect whether the file being opened is a shared library
+    bool is_shared_library = false;
+#pragma unroll
+    for (int i = 0; i < LIB_PATH_MAX_SIZE - SO_SUFFIX_SIZE; i++) {
+        if (path->buf[i] == '.' && path->buf[i+1] == 's' && path->buf[i+2] == 'o') {
+            is_shared_library = true;
+            break;
+        }
+    }
+
+    if (!is_shared_library) {
+        goto cleanup;
+    }
+
+    // Copy map value into eBPF stack
+    lib_path_t lib_path;
+    __builtin_memcpy(&lib_path, path, sizeof(lib_path));
+
+    u32 cpu = bpf_get_smp_processor_id();
+    bpf_perf_event_output(ctx, &shared_libraries, cpu, &lib_path, sizeof(lib_path));
+ cleanup:
+    bpf_map_delete_elem(&open_at_args, &pid_tgid);
     return 0;
 }
 

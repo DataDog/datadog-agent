@@ -14,11 +14,10 @@ import (
 
 const defaultExpiredStateInterval = 60 * time.Second
 
-// perfBatchManager is reponsbile for three things:
+// perfBatchManager is reponsbile for two things:
 //
 // * Keeping track of the state of each batch object we read off the perf ring;
 // * Detecting idle batches (this might happen in hosts with a low connection churn);
-// * Running an optional filter/callback on each of the connections;
 //
 // The motivation is to impose an upper limit on how long a TCP close connection
 // event remains stored in the eBPF map before being processed by the NetworkAgent.
@@ -31,13 +30,11 @@ type perfBatchManager struct {
 	stateByCPU []percpuState
 
 	expiredStateInterval time.Duration
-
-	filter func(*network.ConnectionStats) bool
 }
 
 // newPerfBatchManager returns a new `perfBatchManager` and initializes the
 // eBPF map that holds the tcp_close batch objects.
-func newPerfBatchManager(batchMap *ebpf.Map, numCPUs int, filter func(*network.ConnectionStats) bool) (*perfBatchManager, error) {
+func newPerfBatchManager(batchMap *ebpf.Map, numCPUs int) (*perfBatchManager, error) {
 	if batchMap == nil {
 		return nil, fmt.Errorf("batchMap is nil")
 	}
@@ -57,7 +54,6 @@ func newPerfBatchManager(batchMap *ebpf.Map, numCPUs int, filter func(*network.C
 		batchMap:             batchMap,
 		stateByCPU:           state,
 		expiredStateInterval: defaultExpiredStateInterval,
-		filter:               filter,
 	}, nil
 }
 
@@ -148,14 +144,7 @@ func (p *perfBatchManager) extractBatchInto(buffer *network.ConnectionBuffer, b 
 		}
 
 		conn := buffer.Next()
-		*conn = connStats(&ct.Tup, &ct.Conn_stats)
-
-		// Run callback/filter and verify if the connection should be filtered out
-		if p.filter != nil && !p.filter(conn) {
-			buffer.Reclaim(1)
-			continue
-		}
-
+		populateConnStats(conn, &ct.Tup, &ct.Conn_stats)
 		updateTCPStats(conn, &ct.Tcp_stats)
 	}
 }

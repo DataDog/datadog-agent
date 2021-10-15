@@ -14,11 +14,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/metadata"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // Using high oid batch size might lead to snmp calls timing out.
@@ -57,7 +58,9 @@ type InitConfig struct {
 	OidBatchSize          Number           `yaml:"oid_batch_size"`
 	BulkMaxRepetitions    Number           `yaml:"bulk_max_repetitions"`
 	CollectDeviceMetadata Boolean          `yaml:"collect_device_metadata"`
+	UseDeviceIDAsHostname Boolean          `yaml:"use_device_id_as_hostname"`
 	MinCollectionInterval int              `yaml:"min_collection_interval"`
+	Namespace             string           `yaml:"namespace"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -79,6 +82,7 @@ type InstanceConfig struct {
 	Profile               string            `yaml:"profile"`
 	UseGlobalMetrics      bool              `yaml:"use_global_metrics"`
 	CollectDeviceMetadata *Boolean          `yaml:"collect_device_metadata"`
+	UseDeviceIDAsHostname *Boolean          `yaml:"use_device_id_as_hostname"`
 
 	// ExtraTags is a workaround to pass tags from snmp listener to snmp integration via AD template
 	// (see cmd/agent/dist/conf.d/snmp.d/auto_conf.yaml) that only works with strings.
@@ -136,6 +140,7 @@ type CheckConfig struct {
 	ExtraTags             []string
 	InstanceTags          []string
 	CollectDeviceMetadata bool
+	UseDeviceIDAsHostname bool
 	DeviceID              string
 	DeviceIDTags          []string
 	ResolvedSubnetName    string
@@ -176,7 +181,8 @@ func (c *CheckConfig) RefreshWithProfile(profile string) error {
 
 // UpdateDeviceIDAndTags updates DeviceID and DeviceIDTags
 func (c *CheckConfig) UpdateDeviceIDAndTags() {
-	c.DeviceID, c.DeviceIDTags = buildDeviceID(c.getDeviceIDTags())
+	c.DeviceIDTags = util.SortUniqInPlace(c.getDeviceIDTags())
+	c.DeviceID = c.Namespace + ":" + c.IPAddress
 }
 
 func (c *CheckConfig) addUptimeMetric() {
@@ -279,6 +285,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.CollectDeviceMetadata = bool(initConfig.CollectDeviceMetadata)
 	}
 
+	if instance.UseDeviceIDAsHostname != nil {
+		c.UseDeviceIDAsHostname = bool(*instance.UseDeviceIDAsHostname)
+	} else {
+		c.UseDeviceIDAsHostname = bool(initConfig.UseDeviceIDAsHostname)
+	}
+
 	if instance.ExtraTags != "" {
 		c.ExtraTags = strings.Split(instance.ExtraTags, ",")
 	}
@@ -375,11 +387,14 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	if instance.Namespace != "" {
 		c.Namespace = instance.Namespace
+	} else if initConfig.Namespace != "" {
+		c.Namespace = initConfig.Namespace
 	} else {
-		c.Namespace = config.Datadog.GetString("network_devices.namespace")
+		c.Namespace = coreconfig.Datadog.GetString("network_devices.namespace")
 	}
+
 	if c.Namespace == "" {
-		// Can only happen if network_devices.namespace config is set to empty string in `datadog.yaml`
+		// Can only happen if snmp_listener.namespace config is set to empty string in `datadog.yaml`
 		return nil, fmt.Errorf("namespace cannot be empty")
 	}
 
@@ -538,6 +553,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.ExtraTags = common.CopyStrings(c.ExtraTags)
 	newConfig.InstanceTags = common.CopyStrings(c.InstanceTags)
 	newConfig.CollectDeviceMetadata = c.CollectDeviceMetadata
+	newConfig.UseDeviceIDAsHostname = c.UseDeviceIDAsHostname
 	newConfig.DeviceID = c.DeviceID
 
 	newConfig.DeviceIDTags = common.CopyStrings(c.DeviceIDTags)

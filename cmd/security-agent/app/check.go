@@ -33,10 +33,12 @@ import (
 
 var (
 	checkArgs = struct {
-		framework string
-		file      string
-		verbose   bool
-		report    bool
+		framework         string
+		file              string
+		verbose           bool
+		report            bool
+		overrideRegoInput string
+		dumpRegoInput     string
 	}{}
 )
 
@@ -45,16 +47,18 @@ func setupCheckCmd(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&checkArgs.file, "file", "f", "", "Compliance suite file to read rules from")
 	cmd.Flags().BoolVarP(&checkArgs.verbose, "verbose", "v", false, "Include verbose details")
 	cmd.Flags().BoolVarP(&checkArgs.report, "report", "r", false, "Send report")
+	cmd.Flags().StringVarP(&checkArgs.overrideRegoInput, "override-rego-input", "", "", "Rego input to use when running rego checks")
+	cmd.Flags().StringVarP(&checkArgs.dumpRegoInput, "dump-rego-input", "", "", "Path to file where to dump the Rego input JSON")
 }
 
 // CheckCmd returns a cobra command to run security agent checks
-func CheckCmd(confPathArray []string) *cobra.Command {
+func CheckCmd(confPathArrayGetter func() []string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "check",
 		Short: "Run compliance check(s)",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runCheck(cmd, confPathArray, args)
+			return runCheck(cmd, confPathArrayGetter(), args)
 		},
 	}
 	setupCheckCmd(cmd)
@@ -137,6 +141,15 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 		options = append(options, checks.WithMatchSuite(checks.IsFramework(checkArgs.framework)))
 	}
 
+	if checkArgs.overrideRegoInput != "" {
+		log.Infof("Running on provided rego input: path=%s", checkArgs.overrideRegoInput)
+		options = append(options, checks.WithRegoInput(checkArgs.overrideRegoInput))
+	}
+
+	if checkArgs.dumpRegoInput != "" {
+		options = append(options, checks.WithRegoInputDumpPath(checkArgs.dumpRegoInput))
+	}
+
 	if checkArgs.file != "" {
 		err = agent.RunChecksFromFile(reporter, checkArgs.file, options...)
 	} else {
@@ -216,5 +229,7 @@ func (r *RunCheckReporter) ReportRaw(content []byte, service string, tags ...str
 }
 
 func init() {
-	complianceCmd.AddCommand(CheckCmd(confPathArray))
+	complianceCmd.AddCommand(CheckCmd(func() []string {
+		return confPathArray
+	}))
 }

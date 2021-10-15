@@ -10,5 +10,6 @@ package collectors
 
 import (
 	// this package only loads the collectors
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/docker"
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/kubelet"
 )

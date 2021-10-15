@@ -229,9 +229,10 @@ func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
 
 	e.UID = ByteOrder.Uint32(data[24:28])
 	e.GID = ByteOrder.Uint32(data[28:32])
-	e.Mode = ByteOrder.Uint16(data[32:34])
+	e.NLink = ByteOrder.Uint32(data[32:36])
+	e.Mode = ByteOrder.Uint16(data[36:38])
 
-	// +6 for padding
+	// +2 for padding
 
 	timeSec := ByteOrder.Uint64(data[40:48])
 	timeNsec := ByteOrder.Uint64(data[48:56])
@@ -312,6 +313,18 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.Flags = ByteOrder.Uint32(data[0:4])
 	e.Mode = ByteOrder.Uint32(data[4:8])
 	return n + 8, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (s *SpanContext) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+
+	s.SpanID = ByteOrder.Uint64(data[0:8])
+	s.TraceID = ByteOrder.Uint64(data[8:16])
+
+	return 16, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself

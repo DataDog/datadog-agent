@@ -41,9 +41,10 @@ type KubeletListener struct {
 	store *workloadmeta.Store
 	stop  chan struct{}
 
-	mu       sync.RWMutex
-	filters  *containerFilters
-	services map[string]Service
+	mu            sync.RWMutex
+	filters       *containerFilters
+	services      map[string]Service
+	podContainers map[string][]string
 
 	newService chan<- Service
 	delService chan<- Service
@@ -57,10 +58,11 @@ func NewKubeletListener() (ServiceListener, error) {
 	}
 
 	return &KubeletListener{
-		store:    workloadmeta.GetGlobalStore(),
-		filters:  filters,
-		services: make(map[string]Service),
-		stop:     make(chan struct{}),
+		store:         workloadmeta.GetGlobalStore(),
+		filters:       filters,
+		services:      make(map[string]Service),
+		podContainers: make(map[string][]string),
+		stop:          make(chan struct{}),
 	}, nil
 }
 
@@ -69,7 +71,7 @@ func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	l.newService = newSvc
 	l.delService = delSvc
 
-	const name = "ad-workloadmeta-kubeletlistener"
+	const name = "ad-kubeletlistener"
 
 	ch := l.store.Subscribe(name, workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
@@ -118,16 +120,16 @@ func (l *KubeletListener) processEvents(evBundle workloadmeta.EventBundle, first
 		entityID := entity.GetID()
 
 		if entityID.Kind != workloadmeta.KindKubernetesPod {
-			log.Errorf("got event %d with entity of kind %q. filters broken?", ev.Type, entityID.Kind)
+			log.Errorf("internal error: got event %d with entity of kind %q. filters broken?", ev.Type, entityID.Kind)
 		}
 
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
-			pod := entity.(workloadmeta.KubernetesPod)
+			pod := entity.(*workloadmeta.KubernetesPod)
 			l.processPod(pod, firstRun)
 
 		case workloadmeta.EventTypeUnset:
-			l.removeService(entityID)
+			l.removePodService(entityID)
 
 		default:
 			log.Errorf("cannot handle event of type %d", ev.Type)
@@ -135,8 +137,8 @@ func (l *KubeletListener) processEvents(evBundle workloadmeta.EventBundle, first
 	}
 }
 
-func (l *KubeletListener) processPod(pod workloadmeta.KubernetesPod, firstRun bool) {
-	containers := make([]workloadmeta.Container, 0, len(pod.Containers))
+func (l *KubeletListener) processPod(pod *workloadmeta.KubernetesPod, firstRun bool) {
+	containers := make([]*workloadmeta.Container, 0, len(pod.Containers))
 
 	for _, containerID := range pod.Containers {
 		container, err := l.store.GetContainer(containerID)
@@ -153,7 +155,7 @@ func (l *KubeletListener) processPod(pod workloadmeta.KubernetesPod, firstRun bo
 	l.createPodService(pod, containers, firstRun)
 }
 
-func (l *KubeletListener) createPodService(pod workloadmeta.KubernetesPod, containers []workloadmeta.Container, firstRun bool) {
+func (l *KubeletListener) createPodService(pod *workloadmeta.KubernetesPod, containers []*workloadmeta.Container, firstRun bool) {
 	var crTime integration.CreationTime
 	if firstRun {
 		crTime = integration.Before
@@ -191,10 +193,15 @@ func (l *KubeletListener) createPodService(pod workloadmeta.KubernetesPod, conta
 	l.newService <- svc
 }
 
-func (l *KubeletListener) createContainerService(pod workloadmeta.KubernetesPod, container workloadmeta.Container, firstRun bool) {
+func (l *KubeletListener) createContainerService(pod *workloadmeta.KubernetesPod, container *workloadmeta.Container, firstRun bool) {
 	containerImg := container.Image
-	if l.filters.IsExcluded(containers.GlobalFilter, container.Name, containerImg.RawName, pod.Namespace) {
-		log.Debugf("container %s filtered out: name %q image %q namespace %q", container.ID, container.Name, container.Image.Name, pod.Namespace)
+	if l.filters.IsExcluded(
+		containers.GlobalFilter,
+		container.Name,
+		containerImg.RawName,
+		pod.Namespace,
+	) {
+		log.Debugf("container %s filtered out: name %q image %q namespace %q", container.ID, container.Name, container.Image.RawName, pod.Namespace)
 		return
 	}
 
@@ -286,7 +293,10 @@ func (l *KubeletListener) createContainerService(pod workloadmeta.KubernetesPod,
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if old, found := l.services[entity]; found {
+	svcID := buildSvcID(container.GetID())
+	podSvcID := buildSvcID(pod.GetID())
+
+	if old, found := l.services[svcID]; found {
 		if kubeletSvcEqual(old, svc) {
 			log.Tracef("Received a duplicated kubelet service '%s'", svc.entity)
 			return
@@ -296,15 +306,29 @@ func (l *KubeletListener) createContainerService(pod workloadmeta.KubernetesPod,
 		l.delService <- old
 	}
 
-	l.services[buildSvcID(container.GetID())] = svc
+	l.services[svcID] = svc
+	l.podContainers[podSvcID] = append(l.podContainers[podSvcID], svcID)
 	l.newService <- svc
 }
 
-func (l *KubeletListener) removeService(entityID workloadmeta.EntityID) {
+func (l *KubeletListener) removePodService(entityID workloadmeta.EntityID) {
+	svcID := buildSvcID(entityID)
+	l.removeService(svcID)
+
+	l.mu.Lock()
+	containerSvcIDs := l.podContainers[svcID]
+	delete(l.podContainers, svcID)
+	l.mu.Unlock()
+
+	for _, containerSvcID := range containerSvcIDs {
+		l.removeService(containerSvcID)
+	}
+}
+
+func (l *KubeletListener) removeService(svcID string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	svcID := buildSvcID(entityID)
 	svc, ok := l.services[svcID]
 	if !ok {
 		log.Debugf("service %q not found, not removing", svcID)

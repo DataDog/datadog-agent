@@ -9,13 +9,11 @@ package tests
 
 import (
 	"os"
-	"os/exec"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/tests/syscall_tester"
 	"gotest.tools/assert"
 )
 
@@ -48,12 +46,14 @@ func TestChown32(t *testing.T) {
 	}
 	defer test.Close()
 
-	syscallTester, err := loadSyscallTester(test)
+	syscallTester, err := loadSyscallTester(t, test, "syscall_x86_tester")
 	if err != nil {
-		t.Fatal(err)
+		if _, ok := err.(ErrUnsupportedArch); ok {
+			t.Skip(err)
+		} else {
+			t.Fatal(err)
+		}
 	}
-
-	checkSyscallTester(t, syscallTester)
 
 	prevUID := 98
 	prevGID := 99
@@ -292,48 +292,4 @@ func TestChown32(t *testing.T) {
 			t.Error(err)
 		}
 	})
-}
-
-func loadSyscallTester(t *testModule) (string, error) {
-	testerBin, err := syscall_tester.Asset("/syscall_x86_tester")
-	if err != nil {
-		return "", err
-	}
-
-	perm := 0o700
-	binPath, _, err := t.CreateWithOptions("syscall_x86_tester", -1, -1, perm)
-
-	f, err := os.OpenFile(binPath, os.O_WRONLY|os.O_CREATE, os.FileMode(perm))
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	if _, err = f.Write(testerBin); err != nil {
-		return "", err
-	}
-
-	return binPath, nil
-}
-
-func checkSyscallTester(t *testing.T, path string) {
-	t.Helper()
-	sideTester := exec.Command(path, "check")
-	if _, err := sideTester.CombinedOutput(); err != nil {
-		t.Error("cannot run syscall tester check")
-	}
-}
-
-func runSyscallTesterFunc(t *testing.T, path string, args ...string) error {
-	t.Helper()
-	sideTester := exec.Command(path, args...)
-	output, err := sideTester.CombinedOutput()
-	if err != nil {
-		t.Error(err)
-		output := string(output)
-		if output != "" {
-			t.Error(output)
-		}
-	}
-	return err
 }

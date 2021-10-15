@@ -18,13 +18,14 @@ import (
 )
 
 var fileReportedFields = []string{
+	compliance.FileFieldGlob,
 	compliance.FileFieldPath,
 	compliance.FileFieldPermissions,
 	compliance.FileFieldUser,
 	compliance.FileFieldGroup,
 }
 
-func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Resource) (resolved, error) {
+func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.ResourceCommon) (resolved, error) {
 	if res.File == nil {
 		return nil, fmt.Errorf("expecting file resource in file check")
 	}
@@ -38,6 +39,7 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 		return nil, err
 	}
 
+	initialGlob := path
 	paths, err := filepath.Glob(e.NormalizeToHostRoot(path))
 	if err != nil {
 		return nil, err
@@ -56,8 +58,14 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 		}
 
 		vars := eval.VarMap{
+			compliance.FileFieldGlob:        initialGlob,
 			compliance.FileFieldPath:        relPath,
 			compliance.FileFieldPermissions: uint64(fi.Mode() & os.ModePerm),
+		}
+
+		content, err := readContent(path)
+		if err == nil {
+			vars[compliance.FileFieldContent] = content
 		}
 
 		user, err := getFileUser(fi)

@@ -11,7 +11,8 @@ relative_path 'src/github.com/DataDog/datadog-agent'
 build do
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf"
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf/runtime"
-  mkdir "#{install_dir}/embedded/nikos/embedded"
+  mkdir "#{install_dir}/embedded/nikos/embedded/bin"
+  mkdir "#{install_dir}/embedded/nikos/embedded/lib"
 
   if ENV.has_key?('SYSTEM_PROBE_BIN') and not ENV['SYSTEM_PROBE_BIN'].empty?
     copy "#{ENV['SYSTEM_PROBE_BIN']}/system-probe", "#{install_dir}/embedded/bin/system-probe"
@@ -35,6 +36,24 @@ build do
   copy 'pkg/ebpf/c/COPYING', "#{install_dir}/embedded/share/system-probe/ebpf/"
 
   if ENV.has_key?('NIKOS_PATH') and not ENV['NIKOS_PATH'].empty?
-    copy "#{ENV['NIKOS_PATH']}/*", "#{install_dir}/embedded/nikos/embedded/"
+    copy "#{ENV['NIKOS_PATH']}/bin/gpg", "#{install_dir}/embedded/nikos/embedded/bin/"
+    copy "#{ENV['NIKOS_PATH']}/lib/rpm", "#{install_dir}/embedded/nikos/embedded/lib/"
+    command "rm #{install_dir}/embedded/nikos/embedded/lib/rpm/debugedit"
+    command "rm #{install_dir}/embedded/nikos/embedded/lib/rpm/elfdeps"
+    command "rm #{install_dir}/embedded/nikos/embedded/lib/rpm/rpmdeps"
+    command "rm #{install_dir}/embedded/nikos/embedded/lib/rpm/sepdebugcrcfix"
+    copy "#{ENV['NIKOS_PATH']}/lib/libreadline.so", "#{install_dir}/embedded/nikos/embedded/lib/"
+    copy "#{ENV['NIKOS_PATH']}/lib/libreadline.so.8", "#{install_dir}/embedded/nikos/embedded/lib/"
+    copy "#{ENV['NIKOS_PATH']}/lib/libreadline.so.8.0", "#{install_dir}/embedded/nikos/embedded/lib/"
+    copy "#{ENV['NIKOS_PATH']}/lib/libncursesw.so", "#{install_dir}/embedded/nikos/embedded/lib/"
+    copy "#{ENV['NIKOS_PATH']}/lib/libncursesw.so.5", "#{install_dir}/embedded/nikos/embedded/lib/"
+    copy "#{ENV['NIKOS_PATH']}/lib/libncursesw.so.5.9", "#{install_dir}/embedded/nikos/embedded/lib/"
+    copy "#{ENV['NIKOS_PATH']}/lib/libtinfow.so", "#{install_dir}/embedded/nikos/embedded/lib/"
+    copy "#{ENV['NIKOS_PATH']}/lib/libtinfow.so.5", "#{install_dir}/embedded/nikos/embedded/lib/"
+    copy "#{ENV['NIKOS_PATH']}/lib/libtinfow.so.5.9", "#{install_dir}/embedded/nikos/embedded/lib/"
+    copy "#{ENV['NIKOS_PATH']}/lib/libtinfo.so", "#{install_dir}/embedded/nikos/embedded/lib/"
+    copy "#{ENV['NIKOS_PATH']}/lib/libtinfo.so.5", "#{install_dir}/embedded/nikos/embedded/lib/"
+    copy "#{ENV['NIKOS_PATH']}/lib/libtinfo.so.5.9", "#{install_dir}/embedded/nikos/embedded/lib/"
+    copy "#{ENV['NIKOS_PATH']}/ssl", "#{install_dir}/embedded/nikos/embedded/"
   end
 end

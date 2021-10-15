@@ -13,7 +13,9 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"os"
 	"os/exec"
@@ -243,6 +245,32 @@ func getInode(t *testing.T, path string) uint64 {
 	}
 
 	return stats.Ino
+}
+
+func which(name string) string {
+	executable := "/usr/bin/" + name
+	if resolved, err := os.Readlink(executable); err == nil {
+		executable = resolved
+	} else {
+		if os.IsNotExist(err) {
+			executable = "/bin/" + name
+		}
+	}
+	return executable
+}
+
+func copyFile(src string, dst string, mode fs.FileMode) error {
+	input, err := ioutil.ReadFile(src)
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(dst, input, mode)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func assertMode(t *testing.T, actualMode, expectedMode uint32, msgAndArgs ...interface{}) {
@@ -997,4 +1025,16 @@ func init() {
 	flag.BoolVar(&useReload, "reload", true, "reload rules instead of stopping/starting the agent for every test")
 	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")
+	rand.Seed(time.Now().UnixNano())
+}
+
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+// randStringRunes returns a random string of the requested size
+func randStringRunes(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
 }

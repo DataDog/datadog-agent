@@ -296,13 +296,25 @@ func cronJobLastScheduleTransformer(s aggregator.Sender, name string, metric ksm
 	s.Gauge(ksmMetricPrefix+"cronjob.duration_since_last_schedule", float64(now().Unix())-metric.Val, hostname, tags)
 }
 
-// jobCompleteTransformer sends a service check based on kube_job_complete
+// jobCompleteTransformer sends a metric and a service check based on kube_job_complete
 func jobCompleteTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+	for i, tag := range tags {
+		if tag == "condition:true" {
+			jobMetric(s, metric, ksmMetricPrefix+"job.completion.succeeded", hostname, append(tags[:i], tags[i+1:]...))
+			break
+		}
+	}
 	jobServiceCheck(s, metric, metrics.ServiceCheckOK, hostname, tags)
 }
 
-// jobFailedTransformer sends a service check based on kube_job_failed
+// jobFailedTransformer sends a metric and a service check based on kube_job_failed
 func jobFailedTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+	for i, tag := range tags {
+		if tag == "condition:true" {
+			jobMetric(s, metric, ksmMetricPrefix+"job.completion.failed", hostname, append(tags[:i], tags[i+1:]...))
+			break
+		}
+	}
 	jobServiceCheck(s, metric, metrics.ServiceCheckCritical, hostname, tags)
 }
 
@@ -318,20 +330,24 @@ func trimJobTag(tag string) (string, bool) {
 	return trimmed, tag != trimmed
 }
 
-// validateJob detects active jobs and strips the timestamp from the job_name tag
+// validateJob detects active jobs and adds the `kube_cronjob` tag
 func validateJob(val float64, tags []string) ([]string, bool) {
-	for i, tag := range tags {
+	kubeCronjob := ""
+	for _, tag := range tags {
 		split := strings.Split(tag, ":")
 		if len(split) == 2 && split[0] == "kube_job" || split[0] == "job" || split[0] == "job_name" {
 			// Trim the timestamp suffix to avoid high cardinality
 			if name, trimmed := trimJobTag(split[1]); trimmed {
 				// The trimmed job name corresponds to the parent cronjob name
 				// https://github.com/kubernetes/kubernetes/blob/v1.21.0/pkg/controller/cronjob/utils.go#L240
-				tags[i] = "kube_cronjob:" + name
+				kubeCronjob = name
 			}
 		}
 	}
 
+	if kubeCronjob != "" {
+		tags = append(tags, "kube_cronjob:"+kubeCronjob)
+	}
 	return tags, val == 1.0
 }
 
@@ -348,7 +364,33 @@ func jobStatusSucceededTransformer(s aggregator.Sender, name string, metric ksms
 }
 
 // jobStatusFailedTransformer sends a metric based on kube_job_status_failed
+//
+// The KSM upstream `kube_job_status_failed` metric has the following behavior:
+// If there’s no failed pod, the metric has no `reason` tag and its value is 0.
+// If there are failed pod(s), there are several metrics generated with a different `reason` tag.
+// The metric with the `reason` tag that correspond to the last failure has the value 1 whereas
+// the metrics with the other `reason` tags have a value of 0.
+//
+// In order to reduce the cardinality, we are here removing the `reason` tag.
+// The resulting datadog metric is 0 if there are no failed pods and 1 otherwise.
 func jobStatusFailedTransformer(s aggregator.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string) {
+	// Remove the `reason` tag to reduce the cardinality
+	reasonTagIndex := -1
+	for idx, tag := range tags {
+		if strings.HasPrefix(tag, "reason:") {
+			reasonTagIndex = idx
+			break
+		}
+	}
+
+	if reasonTagIndex != -1 && metric.Val == 0 {
+		return
+	}
+
+	if reasonTagIndex != -1 {
+		tags = append(tags[:reasonTagIndex], tags[reasonTagIndex+1:]...)
+	}
+
 	jobMetric(s, metric, ksmMetricPrefix+"job.failed", hostname, tags)
 }
 

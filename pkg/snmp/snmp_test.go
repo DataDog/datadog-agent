@@ -224,6 +224,7 @@ snmp_listener:
 	assert.Equal(t, 11, conf.DiscoveryInterval)
 	assert.Equal(t, 5, conf.AllowedFailures)
 	assert.Equal(t, true, conf.CollectDeviceMetadata)
+	assert.Equal(t, false, conf.UseDeviceISAsHostname)
 	assert.Equal(t, "core", conf.Loader)
 	assert.Equal(t, "someAuthProtocol", networkConf.AuthProtocol)
 	assert.Equal(t, "someAuthKey", networkConf.AuthKey)
@@ -278,18 +279,197 @@ snmp_listener:
 	networkConf := conf.Configs[0]
 	assert.Equal(t, "default", networkConf.Namespace)
 
-	// Custom Namespace
+	// Custom Namespace in network_devices
 	config.Datadog.SetConfigType("yaml")
 	err = config.Datadog.ReadConfig(strings.NewReader(`
+network_devices:
+  namespace: ponyo
 snmp_listener:
   configs:
-   - community_string: someCommunityString
-     network_address: 127.1.0.0/30
-     namespace: hello
+  - community_string: someCommunityString
+    network_address: 127.1.0.0/30
 `))
 	assert.NoError(t, err)
 	conf, err = NewListenerConfig()
 	assert.NoError(t, err)
 	networkConf = conf.Configs[0]
-	assert.Equal(t, "hello", networkConf.Namespace)
+	assert.Equal(t, "ponyo", networkConf.Namespace)
+
+	// Custom Namespace in snmp_listener
+	config.Datadog.SetConfigType("yaml")
+	err = config.Datadog.ReadConfig(strings.NewReader(`
+snmp_listener:
+  namespace: totoro
+  configs:
+  - community_string: someCommunityString
+    network_address: 127.1.0.0/30
+  - community_string: someCommunityString
+    network_address: 127.2.0.0/30
+    namespace: mononoke
+`))
+	assert.NoError(t, err)
+	conf, err = NewListenerConfig()
+	assert.NoError(t, err)
+	assert.Equal(t, "totoro", conf.Configs[0].Namespace)
+	assert.Equal(t, "mononoke", conf.Configs[1].Namespace)
+}
+
+func TestFirstNonEmpty(t *testing.T) {
+	assert.Equal(t, firstNonEmpty(), "")
+	assert.Equal(t, firstNonEmpty("totoro"), "totoro")
+	assert.Equal(t, firstNonEmpty("", "mononoke"), "mononoke")
+	assert.Equal(t, firstNonEmpty("", "mononoke", "ponyo"), "mononoke")
+	assert.Equal(t, firstNonEmpty("", "", "ponyo"), "ponyo")
+	assert.Equal(t, firstNonEmpty("", "", ""), "")
+}
+
+func Test_UseDeviceIDAsHostname(t *testing.T) {
+	config.Datadog.SetConfigType("yaml")
+	err := config.Datadog.ReadConfig(strings.NewReader(`
+snmp_listener:
+  use_device_id_as_hostname: true
+  configs:
+   - network: 127.1.0.0/30
+     use_device_id_as_hostname: false
+   - network: 127.2.0.0/30
+`))
+	assert.NoError(t, err)
+
+	conf, err := NewListenerConfig()
+	assert.NoError(t, err)
+
+	assert.Equal(t, false, conf.Configs[0].UseDeviceIDAsHostname)
+	assert.Equal(t, true, conf.Configs[1].UseDeviceIDAsHostname)
+}
+
+func TestConfig_Digest(t *testing.T) {
+	tests := []struct {
+		name         string
+		configA      Config
+		configB      Config
+		ipAddressA   string
+		ipAddressB   string
+		isSameDigest bool
+	}{
+		{
+			name:         "same ipaddress",
+			ipAddressA:   "1.2.3.4",
+			ipAddressB:   "1.2.3.4",
+			isSameDigest: true,
+		},
+		{
+			name:       "test different ipaddress",
+			ipAddressA: "1.2.3.4",
+			ipAddressB: "1.2.3.5",
+		},
+		{
+			name:       "test port",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{Port: 123},
+			configB:    Config{Port: 124},
+		},
+		{
+			name:       "test version",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{Version: "1"},
+			configB:    Config{Version: "2"},
+		},
+		{
+			name:       "test community",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{Community: "something"},
+			configB:    Config{Community: "somethingElse"},
+		},
+		{
+			name:       "test user",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{User: "myuser"},
+			configB:    Config{User: "myuser2"},
+		},
+		{
+			name:       "test AuthKey",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{AuthKey: "my-AuthKey"},
+			configB:    Config{AuthKey: "my-AuthKey2"},
+		},
+		{
+			name:       "test AuthProtocol",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{AuthProtocol: "sha"},
+			configB:    Config{AuthProtocol: "md5"},
+		},
+		{
+			name:       "test PrivKey",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{PrivKey: "abc"},
+			configB:    Config{PrivKey: "123"},
+		},
+		{
+			name:       "test PrivProtocol",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{PrivProtocol: "AES"},
+			configB:    Config{PrivProtocol: "DES"},
+		},
+		{
+			name:       "test ContextEngineID",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{ContextEngineID: "engineID"},
+			configB:    Config{ContextEngineID: "engineID2"},
+		},
+		{
+			name:       "test ContextName",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{ContextName: "someContextName"},
+			configB:    Config{ContextName: "someContextName2"},
+		},
+		{
+			name:       "test Loader",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{Loader: "core"},
+			configB:    Config{Loader: "python"},
+		},
+		{
+			name:       "test Namespace",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{Namespace: "ns1"},
+			configB:    Config{Namespace: "ns2"},
+		},
+		{
+			name:       "test different IgnoredIPAddresses",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{IgnoredIPAddresses: map[string]bool{"1.2.3.3": true}},
+			configB:    Config{IgnoredIPAddresses: map[string]bool{"1.2.3.4": true}},
+		},
+		{
+			name:       "test empty IgnoredIPAddresses",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{IgnoredIPAddresses: map[string]bool{}},
+			configB:    Config{IgnoredIPAddresses: map[string]bool{"1.2.3.4": true}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			digestA := tt.configA.Digest(tt.ipAddressA)
+			digestB := tt.configB.Digest(tt.ipAddressB)
+			if tt.isSameDigest {
+				assert.Equal(t, digestA, digestB)
+			} else {
+				assert.NotEqual(t, digestA, digestB)
+			}
+		})
+	}
 }
