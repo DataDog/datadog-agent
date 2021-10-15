@@ -177,7 +177,7 @@ suites:
   - name: win-upgrade-rollback
     run_list:
       - "recipe[dd-agent-install::_install_windows_base]"
-        - "recipe[dd-agent-upgrade]"
+      - "recipe[dd-agent-upgrade]"
     attributes:
       datadog:
         <% dd_agent_config.each do |key, value| %>
