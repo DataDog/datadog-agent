@@ -71,15 +71,10 @@ func getComponents(s serializer.MetricSerializer) (
 }
 
 func getBuildInfo() (component.BuildInfo, error) {
-	version, err := version.Agent()
-	if err != nil {
-		return component.BuildInfo{}, err
-	}
-
 	return component.BuildInfo{
 		Command:     flavor.GetFlavor(),
 		Description: flavor.GetFlavor(),
-		Version:     version.String(),
+		Version:     version.AgentVersion,
 	}, nil
 }
 

@@ -84,9 +84,44 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname stri
 	return bodyReader
 }
 
-func readAndPostFlareFile(archivePath, caseID, email, hostname string) (*http.Response, error) {
+// Resolve a flare URL to the URL at which a POST should be made.  This uses a HEAD request
+// to follow any redirects, avoiding the problematic behavior of a POST that results in a
+// redirect (and often in an early termination of the connection).
+func resolveFlarePOSTURL(url string, client *http.Client) (string, error) {
+	request, err := http.NewRequest("HEAD", url, nil)
+	if err != nil {
+		return "", err
+	}
 
+	r, err := client.Do(request)
+	if err != nil {
+		return "", err
+	}
+
+	// at the end of the chain of redirects, we should either have a 200 OK or a 404 (since
+	// the server is expecting POST, not GET).  Accept either one as successful.
+	if r.StatusCode != http.StatusOK && r.StatusCode != http.StatusNotFound {
+		return "", fmt.Errorf("Could not determine flare URL via redirects: %s", r.Status)
+	}
+
+	// return the URL used to make the latest request (at the end of the chain of redirects)
+	return r.Request.URL.String(), nil
+}
+
+func readAndPostFlareFile(archivePath, caseID, email, hostname string) (*http.Response, error) {
 	var url = mkURL(caseID)
+	client := mkHTTPClient()
+
+	url, err := resolveFlarePOSTURL(url, client)
+	if err != nil {
+		return nil, err
+	}
+
+	// Having resolved the POST URL, we do not expect to see further redirects, so do not
+	// handle them.
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
 
 	request, err := http.NewRequest("POST", url, nil) //nil body, we set it manually later
 	if err != nil {
@@ -111,7 +146,6 @@ func readAndPostFlareFile(archivePath, caseID, email, hostname string) (*http.Re
 		return getFlareReader(boundaryWriter.Boundary(), archivePath, caseID, email, hostname), nil
 	}
 
-	client := mkHTTPClient()
 	return client.Do(request)
 }
 

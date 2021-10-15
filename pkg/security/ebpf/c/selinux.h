@@ -139,7 +139,7 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
         case SELINUX_DISABLE_CHANGE_SOURCE_EVENT:
             syscall.selinux.event_kind = SELINUX_STATUS_CHANGE_EVENT_KIND;
             if (value >= 0) {
-                u32 key = SELINUX_ENFORCE_STATUS_ENFORCE_KEY;
+                u32 key = SELINUX_ENFORCE_STATUS_DISABLE_KEY;
                 bpf_map_update_elem(&selinux_enforce_status, &key, &value, BPF_ANY);
             }
             fill_selinux_status_payload(&syscall);

@@ -8,10 +8,10 @@ package tuf
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"go.etcd.io/bbolt"
 
-	bundledmeta "github.com/DataDog/datadog-agent/pkg/config/remote/service/meta"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/store"
 )
 
@@ -32,7 +32,16 @@ func (s *localBoltStore) GetMeta() (map[string]json.RawMessage, error) {
 	}
 
 	if _, found := meta["root.json"]; !found {
-		rootMetadata, err := bundledmeta.Asset(s.name + ".json")
+		var rootMetadata []byte
+		var err error
+		switch s.name {
+		case "director":
+			rootMetadata = getDirectorRoot()
+		case "config":
+			rootMetadata = getConfigRoot()
+		default:
+			return nil, fmt.Errorf("unexpected root name")
+		}
 		if err != nil {
 			return nil, err
 		}

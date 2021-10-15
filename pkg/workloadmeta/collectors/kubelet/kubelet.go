@@ -9,12 +9,12 @@ package kubelet
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"k8s.io/kubernetes/third_party/forked/golang/expansion"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -22,8 +22,9 @@ import (
 )
 
 const (
-	collectorID = "kubelet"
-	expireFreq  = 15 * time.Second
+	collectorID   = "kubelet"
+	componentName = "workloadmeta-kubelet"
+	expireFreq    = 15 * time.Second
 )
 
 type collector struct {
@@ -41,7 +42,7 @@ func init() {
 
 func (c *collector) Start(_ context.Context, store *workloadmeta.Store) error {
 	if !config.IsFeaturePresent(config.Kubernetes) {
-		return errors.New("the Agent is not running in Kubernetes")
+		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
 
 	var err error
@@ -79,8 +80,8 @@ func (c *collector) Pull(ctx context.Context) error {
 	return err
 }
 
-func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.Event {
-	events := []workloadmeta.Event{}
+func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
+	events := []workloadmeta.CollectorEvent{}
 
 	for _, pod := range pods {
 		podMeta := pod.Metadata
@@ -111,7 +112,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.Event {
 			})
 		}
 
-		entity := workloadmeta.KubernetesPod{
+		entity := &workloadmeta.KubernetesPod{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindKubernetesPod,
 				ID:   podMeta.UID,
@@ -132,7 +133,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.Event {
 		}
 
 		events = append(events, containerEvents...)
-		events = append(events, workloadmeta.Event{
+		events = append(events, workloadmeta.CollectorEvent{
 			Source: collectorID,
 			Type:   workloadmeta.EventTypeSet,
 			Entity: entity,
@@ -145,9 +146,9 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.Event {
 func (c *collector) parsePodContainers(
 	containerSpecs []kubelet.ContainerSpec,
 	containerStatuses []kubelet.ContainerStatus,
-) ([]string, []workloadmeta.Event) {
+) ([]string, []workloadmeta.CollectorEvent) {
 	containerIDs := make([]string, 0, len(containerStatuses))
-	events := make([]workloadmeta.Event, 0, len(containerStatuses))
+	events := make([]workloadmeta.CollectorEvent, 0, len(containerStatuses))
 
 	for _, container := range containerStatuses {
 		if container.ID == "" {
@@ -172,8 +173,9 @@ func (c *collector) parsePodContainers(
 			ports = make([]workloadmeta.ContainerPort, 0, len(containerSpec.Ports))
 			for _, port := range containerSpec.Ports {
 				ports = append(ports, workloadmeta.ContainerPort{
-					Name: port.Name,
-					Port: port.ContainerPort,
+					Name:     port.Name,
+					Port:     port.ContainerPort,
+					Protocol: port.Protocol,
 				})
 			}
 		} else {
@@ -192,10 +194,10 @@ func (c *collector) parsePodContainers(
 			containerState.FinishedAt = st.FinishedAt
 		}
 
-		events = append(events, workloadmeta.Event{
+		events = append(events, workloadmeta.CollectorEvent{
 			Source: collectorID,
 			Type:   workloadmeta.EventTypeSet,
-			Entity: workloadmeta.Container{
+			Entity: &workloadmeta.Container{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindContainer,
 					ID:   containerID,
@@ -271,8 +273,8 @@ func buildImage(imageSpec string) workloadmeta.ContainerImage {
 	return image
 }
 
-func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.Event {
-	events := make([]workloadmeta.Event, 0, len(expiredIDs))
+func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.CollectorEvent {
+	events := make([]workloadmeta.CollectorEvent, 0, len(expiredIDs))
 
 	for _, expiredID := range expiredIDs {
 		prefix, id := containers.SplitEntityName(expiredID)
@@ -284,7 +286,7 @@ func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.Event {
 			kind = workloadmeta.KindContainer
 		}
 
-		events = append(events, workloadmeta.Event{
+		events = append(events, workloadmeta.CollectorEvent{
 			Source: collectorID,
 			Type:   workloadmeta.EventTypeUnset,
 			Entity: workloadmeta.EntityID{

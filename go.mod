@@ -49,10 +49,10 @@ require (
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/DataDog/agent-payload v4.85.0+incompatible
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.32.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/quantile v0.32.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/log v0.32.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.32.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.32.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/quantile v0.32.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/util/log v0.32.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.32.0-rc.6
 	github.com/DataDog/datadog-go v4.8.2+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf v0.0.0-20210923171847-87e6c3a89de8
@@ -60,8 +60,8 @@ require (
 	github.com/DataDog/gohai v0.0.0-20210303102637-6b668acb50dd
 	github.com/DataDog/gopsutil v0.0.0-20210930103100-d4e8ef640507
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
-	github.com/DataDog/nikos v1.4.0
-	github.com/DataDog/sketches-go v1.2.0
+	github.com/DataDog/nikos v1.5.0
+	github.com/DataDog/sketches-go v1.2.1
 	github.com/DataDog/viper v1.9.0
 	github.com/DataDog/watermarkpodautoscaler v0.2.1-0.20210323121426-cfb2caa5613f
 	github.com/DataDog/zstd v1.4.8
@@ -70,7 +70,7 @@ require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/Microsoft/go-winio v0.4.17
-	github.com/Microsoft/hcsshim v0.8.18
+	github.com/Microsoft/hcsshim v0.8.21
 	github.com/alecthomas/jsonschema v0.0.0-20210526225647-edb03dcab7bc
 	github.com/alecthomas/participle v0.7.1
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
@@ -89,7 +89,7 @@ require (
 	github.com/cloudfoundry-community/go-cfclient v0.0.0-20210621174645-7773f7e22665
 	github.com/cobaugh/osrelease v0.0.0-20181218015638-a93a0a55a249
 	github.com/containerd/cgroups v1.0.1
-	github.com/containerd/containerd v1.5.5
+	github.com/containerd/containerd v1.5.7
 	github.com/containerd/typeurl v1.0.2
 	github.com/coreos/go-semver v0.3.0
 	github.com/coreos/go-systemd v0.0.0-20190620071333-e64a0ec8b42a
@@ -99,7 +99,7 @@ require (
 	github.com/docker/go-connections v0.4.0
 	github.com/dustin/go-humanize v1.0.0
 	github.com/elastic/go-libaudit v0.4.0
-	github.com/fatih/color v1.12.0
+	github.com/fatih/color v1.13.0
 	github.com/fatih/structtag v1.2.0
 	github.com/florianl/go-conntrack v0.1.1-0.20191002182014-06743d3a59db
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
@@ -131,9 +131,10 @@ require (
 	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/ianlancetaylor/cgosymbolizer v0.0.0-20201204192058-7acc97e53614 // indirect
 	github.com/iceber/iouring-go v0.0.0-20210726032807-b073cc83b2b8
+	github.com/imdario/mergo v0.3.12
 	github.com/iovisor/gobpf v0.0.0
 	github.com/itchyny/gojq v0.12.5
-	github.com/json-iterator/go v1.1.11
+	github.com/json-iterator/go v1.1.12
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/karrick/godirwalk v1.16.1
 	github.com/klauspost/pgzip v1.2.5 // indirect
@@ -147,6 +148,7 @@ require (
 	github.com/miekg/dns v1.1.43
 	github.com/mitchellh/mapstructure v1.4.2
 	github.com/moby/sys/mountinfo v0.4.1
+	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852 // indirect

@@ -31,11 +31,11 @@ func newConfigLocalStore(store *store.Store) *configLocalStore {
 	}
 }
 
-func getConfigRoot() ([]byte, error) {
+func getConfigRoot() []byte {
 	if configRoot := config.Datadog.GetString("remote_configuration.config_root"); configRoot != "" {
-		return ioutil.ReadFile(configRoot)
+		return []byte(configRoot)
 	}
-	return meta.Asset("config.json")
+	return meta.RootConfig
 }
 
 type configRemoteStore struct {
@@ -59,10 +59,7 @@ func (s *configRemoteStore) GetMeta(name string) (stream io.ReadCloser, size int
 	}
 
 	if role == "root" && version < 1 {
-		content, err = getConfigRoot()
-		if err != nil {
-			return nil, 0, err
-		}
+		content = getConfigRoot()
 	} else {
 		switch {
 		case role == "root":
