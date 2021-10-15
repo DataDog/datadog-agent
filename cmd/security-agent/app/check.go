@@ -224,13 +224,13 @@ func NewCheckReporter(stopper restart.Stopper, report bool, dumpReportsPath stri
 func (r *RunCheckReporter) Report(event *event.Event) {
 	r.events[event.AgentRuleID] = append(r.events[event.AgentRuleID], event)
 
-	eventJSONBytes, err := checks.PrettyPrintJSON(event, "  ")
+	eventJSON, err := checks.PrettyPrintJSON(event, "  ")
 	if err != nil {
 		log.Errorf("Failed to marshal rule event: %v", err)
 		return
 	}
 
-	r.ReportRaw(eventJSONBytes, "")
+	r.ReportRaw(eventJSON, "")
 
 	if r.reporter != nil {
 		r.reporter.Report(event)
@@ -243,12 +243,12 @@ func (r *RunCheckReporter) ReportRaw(content []byte, service string, tags ...str
 
 func (r *RunCheckReporter) dumpReports() error {
 	if r.dumpReportsPath != "" {
-		reportsBytes, err := checks.PrettyPrintJSON(r.events, "\t")
+		reportsJSON, err := checks.PrettyPrintJSON(r.events, "\t")
 		if err != nil {
 			return err
 		}
 
-		return os.WriteFile(r.dumpReportsPath, reportsBytes, 0644)
+		return os.WriteFile(r.dumpReportsPath, reportsJSON, 0644)
 	}
 	return nil
 }
