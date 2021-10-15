@@ -142,8 +142,8 @@ func (l *KubeletListener) processPod(pod *workloadmeta.KubernetesPod, firstRun b
 	// longer present in the pod, to be removed at the end of this func
 	svcID := buildSvcID(pod.GetID())
 	unseen := make(map[string]struct{})
-	for svcID := range l.podContainers[svcID] {
-		unseen[svcID] = struct{}{}
+	for id := range l.podContainers[svcID] {
+		unseen[id] = struct{}{}
 	}
 
 	containers := make([]*workloadmeta.Container, 0, len(pod.Containers))
