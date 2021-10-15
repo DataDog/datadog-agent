@@ -9,12 +9,13 @@
 package otlp
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/config/configparser"
+	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/configunmarshaler"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -152,9 +153,10 @@ service:
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
-			cfg, err := newMap(testInstance.pcfg)
+			cfgProvider := newMapProvider(testInstance.pcfg)
+			cfg, err := cfgProvider.Get(context.Background())
 			require.NoError(t, err)
-			tcfg, err := configparser.NewConfigMapFromBuffer(strings.NewReader(testInstance.ocfg))
+			tcfg, err := config.NewMapFromBuffer(strings.NewReader(testInstance.ocfg))
 			require.NoError(t, err)
 			assert.Equal(t, tcfg.ToStringMap(), cfg.ToStringMap())
 		})
@@ -162,7 +164,7 @@ service:
 }
 
 func TestUnmarshal(t *testing.T) {
-	configMap, err := newMap(PipelineConfig{
+	mapProvider := newMapProvider(PipelineConfig{
 		GRPCPort:       4317,
 		HTTPPort:       4318,
 		TracePort:      5001,
@@ -170,6 +172,7 @@ func TestUnmarshal(t *testing.T) {
 		MetricsEnabled: true,
 		TracesEnabled:  true,
 	})
+	configMap, err := mapProvider.Get(context.Background())
 	require.NoError(t, err)
 
 	components, err := getComponents(&serializer.MockSerializer{})

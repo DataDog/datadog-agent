@@ -363,6 +363,18 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal("my-site.com", config.Datadog.GetString("apm_config.debugger_dd_url"))
 	})
 
+	env = "DD_APM_DEBUGGER_API_KEY"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		err := os.Setenv(env, "my-key")
+		assert.NoError(err)
+		defer os.Unsetenv(env)
+		_, err = Load("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.Equal("my-key", config.Datadog.GetString("apm_config.debugger_api_key"))
+	})
+
 	env = "DD_OTLP_HTTP_PORT"
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()

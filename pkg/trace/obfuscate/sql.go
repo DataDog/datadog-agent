@@ -78,7 +78,9 @@ func (f *discardFilter) Filter(token, lastToken TokenKind, buffer []byte) (Token
 	// filters based on the current token; if the next token should be ignored,
 	// return the same token value (not FilteredGroupable) and nil
 	switch token {
-	case Comment, ';':
+	case Comment:
+		return Filtered, nil, nil
+	case ';':
 		return markFilteredGroupable(token), nil, nil
 	case As:
 		if !features.Has("keep_sql_alias") {
