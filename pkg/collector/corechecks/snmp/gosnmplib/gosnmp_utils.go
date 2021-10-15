@@ -43,6 +43,7 @@ func PacketAsString(packet *gosnmp.SnmpPacket) string {
 	jsonPayload, err := json.Marshal(debugVariables)
 	if err != nil {
 		log.Debugf("error marshaling debugVar: %s", err)
+		jsonPayload = []byte(``)
 	}
 	return fmt.Sprintf("error=%s(code:%d, idx:%d), values=%s", packet.Error, packet.Error, packet.ErrorIndex, jsonPayload)
 }
