@@ -37,10 +37,13 @@ func HostnameProvider(ctx context.Context, options map[string]interface{}) (stri
 		return "", fmt.Errorf("couldn't fetch the host nodename from the kubelet: %s", err)
 	}
 
-	clusterName := getRFC1123CompliantClusterName(ctx, nodeName)
+	clusterName, initialClusterName := getRFC1123CompliantClusterName(ctx, nodeName)
 	if clusterName == "" {
 		log.Debugf("Now using plain kubernetes nodename as an alias: no cluster name was set and none could be autodiscovered")
 		return nodeName, nil
+	}
+	if clusterName != initialClusterName {
+		log.Debugf("hostAlias: cluster name: '%s' contains `_`, replacing it with `-` to be RFC1123 compliant", clusterName)
 	}
 	return nodeName + "-" + clusterName, nil
 }
@@ -48,16 +51,26 @@ func HostnameProvider(ctx context.Context, options map[string]interface{}) (stri
 // getRFC1123CompliantClusterName returns a k8s cluster name if it exists, either directly specified or autodiscovered
 // Some kubernetes cluster-names (EKS,AKS) are not RFC1123 compliant, mostly due to an `_`.
 // This function replaces the invalid `_` with a valid `-`.
-func getRFC1123CompliantClusterName(ctx context.Context, hostname string) string {
+func getRFC1123CompliantClusterName(ctx context.Context, hostname string) (string, string) {
 	clusterName := clustername.GetClusterName(ctx, hostname)
 	return makeClusterNameRFC1123Compliant(clusterName)
 }
 
-func makeClusterNameRFC1123Compliant(clusterName string) string {
-	finalName := clusterName
+// makeClusterNameRFC1123Compliant returns the compliant cluster name and as the second return value the initial clusterName
+func makeClusterNameRFC1123Compliant(clusterName string) (string, string) {
 	if strings.Contains(clusterName, "_") {
-		log.Warnf("hostAlias: cluster name: '%s' contains `_`, replacing it with `-` to be RFC1123 compliant", clusterName)
-		finalName = strings.ReplaceAll(clusterName, "_", "-")
+		finalName := strings.ReplaceAll(clusterName, "_", "-")
+		return finalName, clusterName
 	}
-	return finalName
+	return clusterName, clusterName
+}
+func GetMetaClusterNameText(ctx context.Context, hostname string) string {
+	if !config.IsFeaturePresent(config.Kubernetes) {
+		return ""
+	}
+	compliantClusterName, initialClusterName := getRFC1123CompliantClusterName(ctx, hostname)
+	if compliantClusterName != initialClusterName {
+		return fmt.Sprintf("%s (original name: %s)", compliantClusterName, initialClusterName)
+	}
+	return compliantClusterName
 }
