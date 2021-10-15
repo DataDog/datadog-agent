@@ -27,16 +27,17 @@ func GetValueFromPDU(pduVariable gosnmp.SnmpPDU) (string, valuestore.ResultValue
 		if !ok {
 			return name, valuestore.ResultValue{}, fmt.Errorf("oid %s: OctetString/BitString should be []byte type but got %T type: %#v", pduVariable.Name, pduVariable.Value, pduVariable)
 		}
-		if hasNonPrintableByte(bytesValue) {
-			// We hexify like Python/pysnmp impl (keep compatibility) if the value contains non ascii letters:
-			// https://github.com/etingof/pyasn1/blob/db8f1a7930c6b5826357646746337dafc983f953/pyasn1/type/univ.py#L950-L953
-			// hexifying like pysnmp prettyPrint might lead to unpredictable results since `[]byte` might or might not have
-			// elements outside of 32-126 range
-			// An alternative solution is to explicitly force the conversion to specific type using profile config.
-			value = fmt.Sprintf("%#x", bytesValue)
-		} else {
-			value = string(bytesValue)
-		}
+		//if hasNonPrintableByte(bytesValue) {
+		//	// We hexify like Python/pysnmp impl (keep compatibility) if the value contains non ascii letters:
+		//	// https://github.com/etingof/pyasn1/blob/db8f1a7930c6b5826357646746337dafc983f953/pyasn1/type/univ.py#L950-L953
+		//	// hexifying like pysnmp prettyPrint might lead to unpredictable results since `[]byte` might or might not have
+		//	// elements outside of 32-126 range
+		//	// An alternative solution is to explicitly force the conversion to specific type using profile config.
+		//	value = fmt.Sprintf("%#x", bytesValue)
+		//} else {
+		//	value = string(bytesValue)
+		//}
+		value = string(bytesValue)
 	case gosnmp.Integer, gosnmp.Counter32, gosnmp.Gauge32, gosnmp.TimeTicks, gosnmp.Counter64, gosnmp.Uinteger32:
 		value = float64(gosnmp.ToBigInt(pduVariable.Value).Int64())
 	case gosnmp.OpaqueFloat:

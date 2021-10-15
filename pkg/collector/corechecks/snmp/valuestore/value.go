@@ -29,6 +29,22 @@ func (sv *ResultValue) ToFloat64() (float64, error) {
 
 // ToString converts value to string
 func (sv ResultValue) ToString() (string, error) {
+	// TODO: Add `convert` as argument
+	//       Use hasNonPrintableByte by default
+	//       If convert is string: return string
+	//       If convert is hex: convert to hex
+	
+	//if hasNonPrintableByte(bytesValue) {
+	//	// We hexify like Python/pysnmp impl (keep compatibility) if the value contains non ascii letters:
+	//	// https://github.com/etingof/pyasn1/blob/db8f1a7930c6b5826357646746337dafc983f953/pyasn1/type/univ.py#L950-L953
+	//	// hexifying like pysnmp prettyPrint might lead to unpredictable results since `[]byte` might or might not have
+	//	// elements outside of 32-126 range
+	//	// An alternative solution is to explicitly force the conversion to specific type using profile config.
+	//	value = fmt.Sprintf("%#x", bytesValue)
+	//} else {
+	//	value = string(bytesValue)
+	//}
+
 	switch sv.Value.(type) {
 	case float64:
 		return strconv.Itoa(int(sv.Value.(float64))), nil
