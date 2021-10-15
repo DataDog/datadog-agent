@@ -35,19 +35,8 @@ replace (
 
 require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
-	code.cloudfoundry.org/cfhttp/v2 v2.0.0 // indirect
-	code.cloudfoundry.org/clock v1.0.0 // indirect
-	code.cloudfoundry.org/consuladapter v0.0.0-20200131002136-ac1daf48ba97 // indirect
-	code.cloudfoundry.org/diego-logging-client v0.0.0-20200130234554-60ef08820a45 // indirect
-	code.cloudfoundry.org/executor v0.0.0-20200218194701-024d0bdd52d4 // indirect
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
-	code.cloudfoundry.org/go-diodes v0.0.0-20190809170250-f77fb823c7ee // indirect
-	code.cloudfoundry.org/go-loggregator v7.4.0+incompatible // indirect
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	code.cloudfoundry.org/locket v0.0.0-20200131001124-67fd0a0fdf2d // indirect
-	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
-	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
-	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/DataDog/agent-payload v4.85.0+incompatible
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.32.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/quantile v0.32.0-rc.6
@@ -59,14 +48,12 @@ require (
 	github.com/DataDog/ebpf-manager v0.0.0-20210917155050-c174a8b45802
 	github.com/DataDog/gohai v0.0.0-20210303102637-6b668acb50dd
 	github.com/DataDog/gopsutil v0.0.0-20210930103100-d4e8ef640507
-	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
 	github.com/DataDog/nikos v1.5.0
 	github.com/DataDog/sketches-go v1.2.1
 	github.com/DataDog/viper v1.9.0
 	github.com/DataDog/watermarkpodautoscaler v0.2.1-0.20210323121426-cfb2caa5613f
 	github.com/DataDog/zstd v1.4.8
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f
-	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/Microsoft/go-winio v0.4.17
@@ -74,7 +61,6 @@ require (
 	github.com/alecthomas/jsonschema v0.0.0-20210526225647-edb03dcab7bc
 	github.com/alecthomas/participle v0.7.1
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
-	github.com/andybalholm/brotli v1.0.1 // indirect
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/aws/aws-sdk-go v1.40.38
 	github.com/beevik/ntp v0.3.0
@@ -106,15 +92,12 @@ require (
 	github.com/go-ini/ini v1.62.0
 	github.com/go-ole/go-ole v1.2.5
 	github.com/go-openapi/spec v0.20.3
-	github.com/go-sql-driver/mysql v1.5.0 // indirect
-	github.com/go-test/deep v1.0.5 // indirect
 	github.com/gobwas/glob v0.2.3
 	github.com/godbus/dbus v4.1.0+incompatible
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.2
-	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/go-cmp v0.5.6
 	github.com/google/gofuzz v1.2.0
 	github.com/google/gopacket v1.1.19
@@ -128,8 +111,6 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
-	github.com/huandu/xstrings v1.3.2 // indirect
-	github.com/ianlancetaylor/cgosymbolizer v0.0.0-20201204192058-7acc97e53614 // indirect
 	github.com/iceber/iouring-go v0.0.0-20210726032807-b073cc83b2b8
 	github.com/imdario/mergo v0.3.12
 	github.com/iovisor/gobpf v0.0.0
@@ -137,7 +118,6 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/karrick/godirwalk v1.16.1
-	github.com/klauspost/pgzip v1.2.5 // indirect
 	github.com/kubernetes-sigs/custom-metrics-apiserver v0.0.0-20210311094424-0ca2b1909cdc
 	github.com/lib/pq v1.10.0 // indirect
 	github.com/lxn/walk v0.0.0-20191128110447-55ccb3a9f5c1
@@ -149,14 +129,11 @@ require (
 	github.com/mitchellh/mapstructure v1.4.2
 	github.com/moby/sys/mountinfo v0.4.1
 	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
-	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852 // indirect
 	github.com/open-policy-agent/opa v0.31.0
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417
 	github.com/openshift/api v0.0.0-20190924102528-32369d4db2ad
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/pierrec/lz4/v4 v4.1.3 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.11.0
 	github.com/richardartoul/molecule v0.0.0-20210914193524-25d8911bb85b
@@ -174,11 +151,9 @@ require (
 	github.com/theupdateframework/go-tuf v0.0.0-20210921152604-1c7bbcecec00
 	github.com/tinylib/msgp v1.1.6
 	github.com/twmb/murmur3 v1.1.6
-	github.com/ulikunitz/xz v0.5.10 // indirect
 	github.com/urfave/negroni v1.0.0
 	github.com/vishvananda/netlink v1.1.1-0.20210508154835-66ddd91f7ddd
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f
-	github.com/vito/go-sse v1.0.0 // indirect
 	github.com/vmihailenco/msgpack/v4 v4.3.12
 	github.com/xeipuuv/gojsonschema v0.0.0-20180618132009-1d523034197f
 	go.etcd.io/bbolt v1.3.6
@@ -202,7 +177,6 @@ require (
 	google.golang.org/genproto v0.0.0-20210604141403-392c879c8b08
 	google.golang.org/grpc v1.41.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.33.0
-	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
