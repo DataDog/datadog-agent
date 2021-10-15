@@ -9,9 +9,7 @@
 package app
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"time"
@@ -39,6 +37,7 @@ var (
 		report            bool
 		overrideRegoInput string
 		dumpRegoInput     string
+		dumpReports       string
 	}{}
 )
 
@@ -49,6 +48,7 @@ func setupCheckCmd(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&checkArgs.report, "report", "r", false, "Send report")
 	cmd.Flags().StringVarP(&checkArgs.overrideRegoInput, "override-rego-input", "", "", "Rego input to use when running rego checks")
 	cmd.Flags().StringVarP(&checkArgs.dumpRegoInput, "dump-rego-input", "", "", "Path to file where to dump the Rego input JSON")
+	cmd.Flags().StringVarP(&checkArgs.dumpReports, "dump-reports", "", "", "Path to file where to dump reports")
 }
 
 // CheckCmd returns a cobra command to run security agent checks
@@ -126,7 +126,7 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 	stopper = restart.NewSerialStopper()
 	defer stopper.Stop()
 
-	reporter, err := NewCheckReporter(stopper, checkArgs.report)
+	reporter, err := NewCheckReporter(stopper, checkArgs.report, checkArgs.dumpReports)
 	if err != nil {
 		return err
 	}
@@ -161,6 +161,12 @@ func runCheck(cmd *cobra.Command, confPathArray []string, args []string) error {
 		log.Errorf("Failed to run checks: %v", err)
 		return err
 	}
+
+	if err := reporter.dumpReports(); err != nil {
+		log.Errorf("Failed to dump reports %v", err)
+		return err
+	}
+
 	return nil
 }
 
@@ -184,10 +190,12 @@ func configureLogger() error {
 }
 
 type RunCheckReporter struct {
-	reporter event.Reporter
+	reporter        event.Reporter
+	events          map[string][]*event.Event
+	dumpReportsPath string
 }
 
-func NewCheckReporter(stopper restart.Stopper, report bool) (*RunCheckReporter, error) {
+func NewCheckReporter(stopper restart.Stopper, report bool, dumpReportsPath string) (*RunCheckReporter, error) {
 	r := &RunCheckReporter{}
 
 	if report {
@@ -205,19 +213,24 @@ func NewCheckReporter(stopper restart.Stopper, report bool) (*RunCheckReporter, 
 		r.reporter = reporter
 	}
 
+	if dumpReportsPath != "" {
+		r.dumpReportsPath = dumpReportsPath
+		r.events = make(map[string][]*event.Event)
+	}
+
 	return r, nil
 }
 
 func (r *RunCheckReporter) Report(event *event.Event) {
-	data, err := json.Marshal(event)
+	r.events[event.AgentRuleID] = append(r.events[event.AgentRuleID], event)
+
+	eventJSONBytes, err := checks.PrettyPrintJSON(event, "  ")
 	if err != nil {
 		log.Errorf("Failed to marshal rule event: %v", err)
 		return
 	}
 
-	var buf bytes.Buffer
-	_ = json.Indent(&buf, data, "", "  ")
-	r.ReportRaw(buf.Bytes(), "")
+	r.ReportRaw(eventJSONBytes, "")
 
 	if r.reporter != nil {
 		r.reporter.Report(event)
@@ -226,6 +239,18 @@ func (r *RunCheckReporter) Report(event *event.Event) {
 
 func (r *RunCheckReporter) ReportRaw(content []byte, service string, tags ...string) {
 	fmt.Println(string(content))
+}
+
+func (r *RunCheckReporter) dumpReports() error {
+	if r.dumpReportsPath != "" {
+		reportsBytes, err := checks.PrettyPrintJSON(r.events, "\t")
+		if err != nil {
+			return err
+		}
+
+		return os.WriteFile(r.dumpReportsPath, reportsBytes, 0644)
+	}
+	return nil
 }
 
 func init() {

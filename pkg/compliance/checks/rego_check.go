@@ -6,7 +6,6 @@
 package checks
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -261,20 +260,6 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 	return reports
 }
 
-func prettyPrintJSON(data interface{}) ([]byte, error) {
-	unformatted, err := json.Marshal(data)
-	if err != nil {
-		return nil, err
-	}
-
-	var buffer bytes.Buffer
-	if err := json.Indent(&buffer, unformatted, "", "\t"); err != nil {
-		return nil, err
-	}
-
-	return buffer.Bytes(), nil
-}
-
 func dumpInputToFile(ruleID, path string, input interface{}) error {
 	currentData := make(map[string]interface{})
 	currentContent, err := ioutil.ReadFile(path)
@@ -286,7 +271,7 @@ func dumpInputToFile(ruleID, path string, input interface{}) error {
 
 	currentData[ruleID] = input
 
-	jsonData, err := prettyPrintJSON(currentData)
+	jsonData, err := PrettyPrintJSON(currentData, "\t")
 	if err != nil {
 		return err
 	}
