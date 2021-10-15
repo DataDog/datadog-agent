@@ -131,11 +131,15 @@ func (v *ResultValueStore) GetColumnIndexes(columnOid string) ([]string, error) 
 	return indexes, nil
 }
 
-// ResultValueStoreAsString used to format ResultValueStore for debug logging
+// ResultValueStoreAsString used to format ResultValueStore for debug/trace logging
 func ResultValueStoreAsString(values *ResultValueStore) string {
+	if values == nil {
+		return ""
+	}
 	jsonPayload, err := json.Marshal(values)
 	if err != nil {
 		log.Debugf("error marshaling debugVar: %s", err)
+		return ""
 	}
 	return string(jsonPayload)
 }

@@ -2,10 +2,10 @@ package fetch
 
 import (
 	"fmt"
-	"github.com/cihub/seelog"
 	"sort"
 	"strings"
 
+	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"

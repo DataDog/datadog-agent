@@ -16,7 +16,7 @@ type debugVariable struct {
 	ParseErr string      `json:"parse_err,omitempty"`
 }
 
-// PacketAsString used to format gosnmp.SnmpPacket for debug logging
+// PacketAsString used to format gosnmp.SnmpPacket for debug/trace logging
 func PacketAsString(packet *gosnmp.SnmpPacket) string {
 	if packet == nil {
 		return ""
