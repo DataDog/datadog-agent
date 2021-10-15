@@ -61,11 +61,16 @@ func (cs *mockContainer) Spec(context.Context) (*oci.Spec, error) {
 type mockTaskStruct struct {
 	containerd.Task
 	mockMectric func(ctx context.Context) (*types.Metric, error)
+	mockStatus  func(ctx context.Context) (containerd.Status, error)
 }
 
 // Metrics is from the containerd.Task interface
 func (t *mockTaskStruct) Metrics(ctx context.Context) (*types.Metric, error) {
 	return t.mockMectric(ctx)
+}
+
+func (t *mockTaskStruct) Status(ctx context.Context) (containerd.Status, error) {
+	return t.mockStatus(ctx)
 }
 
 type mockImage struct {
@@ -247,6 +252,30 @@ func TestTaskMetrics(t *testing.T) {
 			require.Equal(t, test.expected, metricAny.(*v1.Metrics))
 		})
 	}
+}
+
+func TestStatus(t *testing.T) {
+	mockUtil := ContainerdUtil{}
+
+	status := containerd.Running
+
+	task := mockTaskStruct{
+		mockStatus: func(ctx context.Context) (containerd.Status, error) {
+			return containerd.Status{
+				Status: status,
+			}, nil
+		},
+	}
+
+	container := &mockContainer{
+		mockTask: func() (containerd.Task, error) {
+			return &task, nil
+		},
+	}
+
+	resultStatus, err := mockUtil.Status(container)
+	require.NoError(t, err)
+	require.Equal(t, resultStatus, status)
 }
 
 func makeCtn(value v1.Metrics, typeURL string, taskMetricsError error) containerd.Container {

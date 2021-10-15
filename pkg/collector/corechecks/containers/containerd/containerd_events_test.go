@@ -43,6 +43,7 @@ type mockItf struct {
 	mockNamespace         func() string
 	mockSpec              func(ctn containerd.Container) (*oci.Spec, error)
 	mockSpecWithContext   func(ctx context.Context, ctn containerd.Container) (*oci.Spec, error)
+	mockStatus            func(ctn containerd.Container) (containerd.ProcessStatus, error)
 }
 
 func (m *mockItf) Image(ctn containerd.Container) (containerd.Image, error) {
@@ -107,6 +108,10 @@ func (m *mockItf) SpecWithContext(ctx context.Context, ctn containerd.Container)
 
 func (m *mockItf) EnvVars(ctn containerd.Container) (map[string]string, error) {
 	return m.mockEnvVars(ctn)
+}
+
+func (m *mockItf) Status(ctn containerd.Container) (containerd.ProcessStatus, error) {
+	return m.mockStatus(ctn)
 }
 
 type mockEvt struct {

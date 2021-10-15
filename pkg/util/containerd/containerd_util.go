@@ -56,6 +56,7 @@ type ContainerdItf interface {
 	Namespace() string
 	TaskMetrics(ctn containerd.Container) (*types.Metric, error)
 	TaskPids(ctn containerd.Container) ([]containerd.ProcessInfo, error)
+	Status(ctn containerd.Container) (containerd.ProcessStatus, error)
 }
 
 // ContainerdUtil is the util used to interact with the Containerd api.
@@ -281,4 +282,23 @@ func (c *ContainerdUtil) TaskPids(ctn containerd.Container) ([]containerd.Proces
 	}
 
 	return t.Pids(ctxNamespace)
+}
+
+// Status interfaces with the containerd api to get the status for a container
+func (c *ContainerdUtil) Status(ctn containerd.Container) (containerd.ProcessStatus, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
+	defer cancel()
+	ctxNamespace := namespaces.WithNamespace(ctx, c.namespace)
+
+	task, err := ctn.Task(ctxNamespace, nil)
+	if err != nil {
+		return "", err
+	}
+
+	taskStatus, err := task.Status(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	return taskStatus.Status, nil
 }
