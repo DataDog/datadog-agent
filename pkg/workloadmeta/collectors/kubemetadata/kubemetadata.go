@@ -40,7 +40,7 @@ func (c *collector) Start(_ context.Context, store *workloadmeta.Store) error {
 }
 
 func (c *collector) Pull(ctx context.Context) error {
-	events := []workloadmeta.Event{}
+	events := []workloadmeta.CollectorEvent{}
 
 	c.store.Notify(events)
 

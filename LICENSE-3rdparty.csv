@@ -515,6 +515,7 @@ core,github.com/moby/locker,Apache-2.0,"Docker, Inc"
 core,github.com/moby/sys/mountinfo,Apache-2.0,"Docker, Inc."
 core,github.com/modern-go/concurrent,Apache-2.0,taowen
 core,github.com/modern-go/reflect2,Apache-2.0,taowen
+core,github.com/mohae/deepcopy,MIT,Joel
 core,github.com/munnerz/goautoneg,BSD-3-Clause,Open Knowledge Foundation Ltd
 core,github.com/mxk/go-flowrate/flowrate,BSD-3-Clause,The Go-FlowRate Authors
 core,github.com/nwaples/rardecode,BSD-2-Clause,Nicholas Waples

@@ -3,12 +3,4 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// +build docker,!kubelet
-
-package listeners
-
-// DockerKubeletService is not compiled if the kubelet tag is not here.
-// Revert to all DockerService methods, that might probably fail though.
-type DockerKubeletService struct {
-	DockerService
-}
+package docker
