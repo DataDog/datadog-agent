@@ -1,5 +1,11 @@
 # StackState Agent v2 releases
 
+## 2.14.0 (2021-10-xx)
+
+**Features**
+- Integrations
+  - [StackState Agent Integrations 1.16.0](https://github.com/StackVista/stackstate-agent-integrations/blob/master/stackstate-changelog.md#1160--2021-10-15)
+
 ## 2.13.0 (2021-08-05)
 
 **Features**
