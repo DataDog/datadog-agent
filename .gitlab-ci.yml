@@ -524,7 +524,7 @@ variables:
     when: on_success
   - when: never
 
-.on_deploy_stable_or_rc_tag_on_beta_repo_branch_a7_manual:
+.on_deploy_stable_or_rc_tag_on_beta_repo_branch_a7_manual_on_stable:
   - <<: *if_not_version_7
     when: never
   - <<: *if_not_stable_or_beta_repo_branch
