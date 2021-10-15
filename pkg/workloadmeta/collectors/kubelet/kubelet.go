@@ -168,7 +168,11 @@ func (c *collector) parsePodContainers(
 		containerSpec := findContainerSpec(container.Name, containerSpecs)
 		if containerSpec != nil {
 			env = extractEnvFromSpec(containerSpec.Env)
-			image = buildImage(containerSpec.Image)
+			var err error
+			image, err = workloadmeta.NewContainerImage(containerSpec.Image)
+			if err != nil {
+				log.Warnf("cannot split image name %q: %s", containerSpec.Image, err)
+			}
 
 			ports = make([]workloadmeta.ContainerPort, 0, len(containerSpec.Ports))
 			for _, port := range containerSpec.Ports {
@@ -247,30 +251,6 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 	}
 
 	return env
-}
-
-func buildImage(imageSpec string) workloadmeta.ContainerImage {
-	image := workloadmeta.ContainerImage{
-		RawName: imageSpec,
-		Name:    imageSpec,
-	}
-
-	name, shortName, tag, err := containers.SplitImageName(imageSpec)
-	if err != nil {
-		log.Debugf("cannot split image name %q: %s", imageSpec, err)
-		return image
-	}
-
-	if tag == "" {
-		// k8s defaults to latest if tag is omitted
-		tag = "latest"
-	}
-
-	image.Name = name
-	image.ShortName = shortName
-	image.Tag = tag
-
-	return image
 }
 
 func (c *collector) parseExpires(expiredIDs []string) []workloadmeta.CollectorEvent {

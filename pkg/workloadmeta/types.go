@@ -12,6 +12,8 @@ import (
 
 	"github.com/imdario/mergo"
 	"github.com/mohae/deepcopy"
+
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // Kind is the kind of an entity.
@@ -32,7 +34,8 @@ const (
 	KindKubernetesPod Kind = "kubernetes_pod"
 	KindECSTask       Kind = "ecs_task"
 
-	ContainerRuntimeDocker ContainerRuntime = "docker"
+	ContainerRuntimeDocker     ContainerRuntime = "docker"
+	ContainerRuntimeContainerd ContainerRuntime = "containerd"
 
 	ECSLaunchTypeEC2      ECSLaunchType = "ec2"
 	ECSLaunchTypeFargate  ECSLaunchType = "fargate"
@@ -91,6 +94,29 @@ type ContainerImage struct {
 	Name      string
 	ShortName string
 	Tag       string
+}
+
+// NewContainerImage builds a ContainerImage from an image name
+func NewContainerImage(imageName string) (ContainerImage, error) {
+	image := ContainerImage{
+		RawName: imageName,
+		Name:    imageName,
+	}
+
+	name, shortName, tag, err := containers.SplitImageName(imageName)
+	if err != nil {
+		return image, err
+	}
+
+	if tag == "" {
+		tag = "latest"
+	}
+
+	image.Name = name
+	image.ShortName = shortName
+	image.Tag = tag
+
+	return image, nil
 }
 
 // ContainerState is the state of a container.
