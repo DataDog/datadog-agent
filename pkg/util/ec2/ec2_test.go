@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,6 +31,12 @@ func resetPackageVars() {
 	metadataURL = initialMetadataURL
 	tokenURL = initialTokenURL
 	token = ec2Token{}
+
+	instanceIDFetcher.Reset()
+	localIPv4Fetcher.Reset()
+	publicIPv4Fetcher.Reset()
+	hostnameFetcher.Reset()
+	networkIDFetcher.Reset()
 }
 
 func TestIsDefaultHostname(t *testing.T) {
@@ -153,7 +158,8 @@ func TestGetHostname(t *testing.T) {
 	assert.Equal(t, lastRequest.URL.Path, "/hostname")
 
 	// clear internal cache
-	cache.Cache.Delete(hostnameCacheKey)
+	hostnameFetcher.Reset()
+
 	// ensure we get an empty string along with the error when not on EC2
 	metadataURL = "foo"
 	val, err = GetHostname(ctx)
