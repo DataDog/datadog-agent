@@ -64,13 +64,3 @@ func makeClusterNameRFC1123Compliant(clusterName string) (string, string) {
 	}
 	return clusterName, clusterName
 }
-func GetMetaClusterNameText(ctx context.Context, hostname string) string {
-	if !config.IsFeaturePresent(config.Kubernetes) {
-		return ""
-	}
-	compliantClusterName, initialClusterName := getRFC1123CompliantClusterName(ctx, hostname)
-	if compliantClusterName != initialClusterName {
-		return fmt.Sprintf("%s (original name: %s)", compliantClusterName, initialClusterName)
-	}
-	return compliantClusterName
-}

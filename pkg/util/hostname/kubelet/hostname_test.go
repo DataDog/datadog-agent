@@ -117,7 +117,7 @@ func Test_makeClusterNameRFC1123Compliant(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := makeClusterNameRFC1123Compliant(tt.clusterName); got != tt.want {
+			if got, _ := makeClusterNameRFC1123Compliant(tt.clusterName); got != tt.want {
 				t.Errorf("makeClusterNameRFC1123Compliant() = %v, want %v", got, tt.want)
 			}
 		})
