@@ -461,7 +461,7 @@ func newListener(t *testing.T, newCh, deleteCh chan Service) *KubeletListener {
 
 	return &KubeletListener{
 		services:      make(map[string]Service),
-		podContainers: make(map[string][]string),
+		podContainers: make(map[string]map[string]struct{}),
 		newService:    newCh,
 		delService:    deleteCh,
 		filters:       filters,
