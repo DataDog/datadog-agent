@@ -89,7 +89,9 @@ func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions u
 			log.Debugf("fetch column: failed getting oids `%v` using GetNext: %s", requestOids, err)
 			return nil, fmt.Errorf("fetch column: failed getting oids `%v` using GetNext: %s", requestOids, err)
 		}
-		log.Debugf("fetch column: GetNext results: %v", gosnmplib.PacketAsStringIfLoglevel(results, seelog.DebugLvl))
+		if log.ShouldLog(seelog.DebugLvl) {
+			log.Debugf("fetch column: GetNext results: %v", gosnmplib.PacketAsString(results))
+		}
 		results = getNextResults
 	} else {
 		getBulkResults, err := sess.GetBulk(requestOids, bulkMaxRepetitions)
@@ -98,7 +100,9 @@ func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions u
 			return nil, fmt.Errorf("fetch column: failed getting oids `%v` using GetBulk: %s", requestOids, err)
 		}
 		results = getBulkResults
-		log.Debugf("fetch column: GetBulk results: %v", gosnmplib.PacketAsStringIfLoglevel(results, seelog.DebugLvl))
+		if log.ShouldLog(seelog.DebugLvl) {
+			log.Debugf("fetch column: GetBulk results: %v", gosnmplib.PacketAsString(results))
+		}
 	}
 	return results, nil
 }

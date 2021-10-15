@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -133,14 +131,11 @@ func (v *ResultValueStore) GetColumnIndexes(columnOid string) ([]string, error) 
 	return indexes, nil
 }
 
-// ResultValueStoreAsStringIfLoglevel used to format ResultValueStore for debug logging
-func ResultValueStoreAsStringIfLoglevel(values *ResultValueStore, logLevel seelog.LogLevel) string {
-	if curLogLevel, err := log.GetLogLevel(); err != nil || curLogLevel <= logLevel {
-		jsonPayload, err := json.Marshal(values)
-		if err != nil {
-			log.Debugf("error marshaling debugVar: %s", err)
-		}
-		return string(jsonPayload)
+// ResultValueStoreAsString used to format ResultValueStore for debug logging
+func ResultValueStoreAsString(values *ResultValueStore) string {
+	jsonPayload, err := json.Marshal(values)
+	if err != nil {
+		log.Debugf("error marshaling debugVar: %s", err)
 	}
-	return ""
+	return string(jsonPayload)
 }

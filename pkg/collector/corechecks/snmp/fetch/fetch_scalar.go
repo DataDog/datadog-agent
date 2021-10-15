@@ -2,10 +2,10 @@ package fetch
 
 import (
 	"fmt"
+	"github.com/cihub/seelog"
 	"sort"
 	"strings"
 
-	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -121,6 +121,8 @@ func doDoFetchScalarOids(session session.Session, oids []string) (*gosnmp.SnmpPa
 		log.Debugf("fetch scalar: error getting oids `%v`: %v", oids, err)
 		return nil, fmt.Errorf("fetch scalar: error getting oids `%v`: %v", oids, err)
 	}
-	log.Debugf("fetch scalar: results: %s", gosnmplib.PacketAsStringIfLoglevel(results, seelog.DebugLvl))
+	if log.ShouldLog(seelog.DebugLvl) {
+		log.Debugf("fetch scalar: results: %s", gosnmplib.PacketAsString(results))
+	}
 	return results, nil
 }
