@@ -16,35 +16,72 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
+	"k8s.io/client-go/kubernetes"
 
+	"github.com/DataDog/datadog-agent/cmd/secrets/providers"
 	s "github.com/DataDog/datadog-agent/pkg/secrets"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
+
+// This executable provides a "read" command to fetch secrets. It can be used in
+// 2 different ways:
+//
+// 1) With the "--with-provider-prefixes" option enabled. Each input secret
+// should follow this format: "providerPrefix/some/path". The provider prefix
+// indicates where to fetch the secrets from. At the moment, we support "file"
+// and "k8s_secret". The path can mean different things depending on the
+// provider. In "file" it's a file system path. In "k8s_secret", it follows this
+// format: "namespace/name/key".
+//
+// 2) Without the "--with-provider-prefixes" option. The program expects a root
+// path in the arguments and input secrets are just paths relative to the root
+// one. So for example, if the secret is "my_secret" and the root path is
+// "/some/path", the fetched value of the secret will be the contents of
+// "/some/path/my_secret". This option was offered before introducing
+// "--with-provider-prefixes" and is kept to avoid breaking compatibility.
 
 const (
-	maxSecretFileSize = 8192
+	providerPrefixesFlag    = "with-provider-prefixes"
+	providerPrefixSeparator = "@"
+	filePrefix              = "file"
+	k8sSecretPrefix         = "k8s_secret"
 )
 
+type NewKubeClient func(timeout time.Duration) (kubernetes.Interface, error)
+
 func init() {
-	SecretHelperCmd.AddCommand(readSecretCmd)
+	cmd := readSecretCmd
+	cmd.Flags().Bool(providerPrefixesFlag, false, "Use prefixes to select the secrets provider (file, k8s_secret)")
+	SecretHelperCmd.AddCommand(cmd)
 }
 
-// SecretHelperCmd implements secrets backend helper commands
+// SecretHelperCmd implements secrets provider helper commands
 var SecretHelperCmd = &cobra.Command{
 	Use:   "secret-helper",
-	Short: "Secret management backend helper",
+	Short: "Secret management provider helper",
 	Long:  ``,
 }
 
-// ReadSecretsCmd implements reading secrets from a directory/volume mount
 var readSecretCmd = &cobra.Command{
 	Use:   "read",
-	Short: "Read secret from a directory",
+	Short: "Read secrets",
 	Long:  ``,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1), // 0 when using the provider prefixes option, 1 when reading a file
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return readSecrets(os.Stdin, os.Stdout, args[0])
+		usePrefixes, err := cmd.Flags().GetBool(providerPrefixesFlag)
+		if err != nil {
+			return err
+		}
+
+		dir := ""
+		if len(args) == 1 {
+			dir = args[0]
+		}
+
+		return readSecrets(os.Stdin, os.Stdout, dir, usePrefixes, apiserver.GetKubeClient)
 	},
 }
 
@@ -53,105 +90,114 @@ type secretsRequest struct {
 	Secrets []string `json:"secrets"`
 }
 
-// ReadSecrets implements a secrets reader from a directory/mount
-func readSecrets(r io.Reader, w io.Writer, dir string) error {
-	in, err := ioutil.ReadAll(r)
+func readSecrets(r io.Reader, w io.Writer, dir string, usePrefixes bool, newKubeClientFunc NewKubeClient) error {
+	inputSecrets, err := parseInputSecrets(r)
 	if err != nil {
 		return err
+	}
+
+	if usePrefixes {
+		return writeFetchedSecrets(w, readSecretsUsingPrefixes(inputSecrets, dir, newKubeClientFunc))
+	}
+
+	return writeFetchedSecrets(w, readSecretsFromFile(inputSecrets, dir))
+}
+
+func parseInputSecrets(r io.Reader) ([]string, error) {
+	in, err := ioutil.ReadAll(r)
+	if err != nil {
+		return nil, err
 	}
 
 	var request secretsRequest
 	err = json.Unmarshal(in, &request)
 	if err != nil {
-		return errors.New("failed to unmarshal json input")
+		return nil, errors.New("failed to unmarshal json input")
 	}
 
 	version := splitVersion(request.Version)
 	compatVersion := splitVersion(s.PayloadVersion)
 	if version[0] != compatVersion[0] {
-		return fmt.Errorf("incompatible protocol version %q", request.Version)
+		return nil, fmt.Errorf("incompatible protocol version %q", request.Version)
 	}
 
 	if len(request.Secrets) == 0 {
-		return errors.New("no secrets listed in input")
+		return nil, errors.New("no secrets listed in input")
 	}
 
-	response := map[string]s.Secret{}
-	for _, name := range request.Secrets {
-		response[name] = readSecret(filepath.Join(dir, name))
-	}
+	return request.Secrets, nil
+}
 
-	out, err := json.Marshal(response)
+func writeFetchedSecrets(w io.Writer, fetchedSecrets map[string]s.Secret) error {
+	out, err := json.Marshal(fetchedSecrets)
 	if err != nil {
 		return err
 	}
+
 	_, err = w.Write(out)
 	return err
 }
 
+func readSecretsFromFile(secrets []string, dir string) map[string]s.Secret {
+	res := make(map[string]s.Secret)
+
+	for _, secretID := range secrets {
+		res[secretID] = providers.ReadSecretFile(filepath.Join(dir, secretID))
+	}
+
+	return res
+}
+
+func readSecretsUsingPrefixes(secrets []string, rootPath string, newKubeClientFunc NewKubeClient) map[string]s.Secret {
+	res := make(map[string]s.Secret)
+
+	for _, secretID := range secrets {
+		prefix, id, err := parseSecretWithPrefix(secretID, rootPath)
+		if err != nil {
+			res[secretID] = s.Secret{Value: "", ErrorMsg: err.Error()}
+			continue
+		}
+
+		switch prefix {
+		case filePrefix:
+			res[secretID] = providers.ReadSecretFile(id)
+		case k8sSecretPrefix:
+			kubeClient, err := newKubeClientFunc(10 * time.Second)
+			if err != nil {
+				res[secretID] = s.Secret{Value: "", ErrorMsg: err.Error()}
+			} else {
+				res[secretID] = providers.ReadKubernetesSecret(kubeClient, id)
+			}
+		default:
+			res[secretID] = s.Secret{Value: "", ErrorMsg: fmt.Sprintf("provider not supported: %s", prefix)}
+		}
+	}
+
+	return res
+}
+
+func parseSecretWithPrefix(secretID string, rootPath string) (prefix string, id string, err error) {
+	split := strings.SplitN(secretID, providerPrefixSeparator, 2)
+
+	// This is to make the migration from "readsecret.sh" (without
+	// "--with-provider-prefixes") to "readsecret_multiple_providers.sh" (uses
+	// "--with-provider-prefixes") easier.
+	// To avoid forcing users to change all their secrets at once, we have
+	// decided that we'll handle secrets without the prefix separator as we
+	// handle them when the "--with-provider-prefixes" is disabled. That is,
+	// they should be fetched from the file system, and they specify a path
+	// that's relative to the one specified in the first arg when calling the
+	// program (rootPath arg of this func).
+	if len(split) < 2 {
+		prefix = filePrefix
+		id, err = filepath.Abs(filepath.Join(rootPath, secretID))
+		return prefix, id, err
+	}
+
+	prefix, id = split[0], split[1]
+	return prefix, id, nil
+}
+
 func splitVersion(ver string) []string {
 	return strings.SplitN(ver, ".", 2)
-}
-
-func readSecret(path string) s.Secret {
-	value, err := readSecretFile(path)
-	var errMsg string
-	if err != nil {
-		errMsg = err.Error()
-	}
-	return s.Secret{Value: value, ErrorMsg: errMsg}
-}
-
-func readSecretFile(path string) (string, error) {
-	fi, err := os.Lstat(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", errors.New("secret does not exist")
-		}
-		return "", err
-	}
-
-	if fi.Mode()&os.ModeSymlink != 0 {
-		// Ensure that the symlink is in the same dir
-		target, err := os.Readlink(path)
-		if err != nil {
-			return "", fmt.Errorf("failed to read symlink target: %v", err)
-		}
-
-		dir := filepath.Dir(path)
-		if !filepath.IsAbs(target) {
-			target, err = filepath.Abs(filepath.Join(dir, target))
-			if err != nil {
-				return "", fmt.Errorf("failed to resolve symlink absolute path: %v", err)
-			}
-		}
-
-		dirAbs, err := filepath.Abs(dir)
-		if err != nil {
-			return "", fmt.Errorf("failed to resolve absolute path of directory: %v", err)
-		}
-
-		if !filepath.HasPrefix(target, dirAbs) {
-			return "", fmt.Errorf("not following symlink %q outside of %q", target, dir)
-		}
-	}
-	fi, err = os.Stat(path)
-	if err != nil {
-		return "", err
-	}
-
-	if fi.Size() > maxSecretFileSize {
-		return "", errors.New("secret exceeds max allowed size")
-	}
-
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-
-	bytes, err := ioutil.ReadAll(file)
-	if err != nil {
-		return "", err
-	}
-	return string(bytes), nil
 }

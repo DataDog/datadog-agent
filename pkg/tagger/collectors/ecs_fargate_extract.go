@@ -21,7 +21,7 @@ import (
 
 // parseMetadata parses the task metadata and its container list, and returns a list of TagInfo for the new ones.
 // It also updates the lastSeen cache of the ECSFargateCollector and return the list of dead containers to be expired.
-func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*TagInfo, error) {
+func (c *ECSFargateCollector) parseMetadata(meta *v2.Task) ([]*TagInfo, error) {
 	if meta.KnownStatus != "RUNNING" {
 		return nil, fmt.Errorf("Task %s is in %s status, skipping", meta.Family, meta.KnownStatus)
 	}
@@ -43,85 +43,85 @@ func (c *ECSFargateCollector) parseMetadata(meta *v2.Task, parseAll bool) ([]*Ta
 
 	for _, ctr := range meta.Containers {
 		entityID := containers.BuildTaggerEntityName(ctr.DockerID)
-		if c.expire.Update(entityID, now) || parseAll {
-			tags := utils.NewTagList()
+		c.expire.Update(entityID, now)
 
-			// cluster
-			clusterName := parseECSClusterName(meta.ClusterName)
-			if !config.Datadog.GetBool("disable_cluster_name_tag_key") {
-				tags.AddLow("cluster_name", clusterName)
-			}
-			tags.AddLow("ecs_cluster_name", clusterName)
+		tags := utils.NewTagList()
 
-			// aws region from cluster arn
-			region := parseFargateRegion(meta.ClusterName)
-			if region != "" {
-				tags.AddLow("region", region)
-			}
-
-			// the AvailabilityZone metadata is only available for
-			// Fargate tasks using platform version 1.4 or later
-			availabilityZone := meta.AvailabilityZone
-			if availabilityZone != "" {
-				tags.AddLow("availability_zone", availabilityZone)
-			}
-
-			// task
-			tags.AddLow("task_family", meta.Family)
-			tags.AddLow("task_version", meta.Version)
-			tags.AddOrchestrator("task_arn", meta.TaskARN)
-
-			// container
-			tags.AddLow("ecs_container_name", ctr.Name)
-			tags.AddHigh("container_id", ctr.DockerID)
-			tags.AddHigh("container_name", ctr.DockerName)
-
-			// container image
-			tags.AddLow("docker_image", ctr.Image)
-			imageName, shortImage, imageTag, err := containers.SplitImageName(ctr.Image)
-			if err != nil {
-				log.Debugf("Cannot split %s: %s", ctr.Image, err)
-			} else {
-				tags.AddLow("image_name", imageName)
-				tags.AddLow("short_image", shortImage)
-				if imageTag == "" {
-					imageTag = "latest"
-				}
-				tags.AddLow("image_tag", imageTag)
-			}
-
-			for labelName, labelValue := range ctr.Labels {
-				switch labelName {
-
-				// Standard tags
-				case dockerLabelEnv:
-					tags.AddStandard(tagKeyEnv, labelValue)
-				case dockerLabelVersion:
-					tags.AddStandard(tagKeyVersion, labelValue)
-				case dockerLabelService:
-					tags.AddStandard(tagKeyService, labelValue)
-
-				// Custom labels as tags
-				case autodiscoveryLabelTagsKey:
-					parseContainerADTagsLabels(tags, labelValue)
-				}
-
-				if tagName, found := c.labelsAsTags[strings.ToLower(labelName)]; found {
-					tags.AddAuto(tagName, labelValue)
-				}
-			}
-
-			low, orch, high, standard := tags.Compute()
-			info := &TagInfo{
-				Source:               ecsFargateCollectorName,
-				Entity:               entityID,
-				HighCardTags:         high,
-				OrchestratorCardTags: orch,
-				LowCardTags:          low,
-				StandardTags:         standard,
-			}
-			output = append(output, info)
+		// cluster
+		clusterName := parseECSClusterName(meta.ClusterName)
+		if !config.Datadog.GetBool("disable_cluster_name_tag_key") {
+			tags.AddLow("cluster_name", clusterName)
 		}
+		tags.AddLow("ecs_cluster_name", clusterName)
+
+		// aws region from cluster arn
+		region := parseFargateRegion(meta.ClusterName)
+		if region != "" {
+			tags.AddLow("region", region)
+		}
+
+		// the AvailabilityZone metadata is only available for
+		// Fargate tasks using platform version 1.4 or later
+		availabilityZone := meta.AvailabilityZone
+		if availabilityZone != "" {
+			tags.AddLow("availability_zone", availabilityZone)
+		}
+
+		// task
+		tags.AddLow("task_family", meta.Family)
+		tags.AddLow("task_version", meta.Version)
+		tags.AddOrchestrator("task_arn", meta.TaskARN)
+
+		// container
+		tags.AddLow("ecs_container_name", ctr.Name)
+		tags.AddHigh("container_id", ctr.DockerID)
+		tags.AddHigh("container_name", ctr.DockerName)
+
+		// container image
+		tags.AddLow("docker_image", ctr.Image)
+		imageName, shortImage, imageTag, err := containers.SplitImageName(ctr.Image)
+		if err != nil {
+			log.Debugf("Cannot split %s: %s", ctr.Image, err)
+		} else {
+			tags.AddLow("image_name", imageName)
+			tags.AddLow("short_image", shortImage)
+			if imageTag == "" {
+				imageTag = "latest"
+			}
+			tags.AddLow("image_tag", imageTag)
+		}
+
+		for labelName, labelValue := range ctr.Labels {
+			switch labelName {
+
+			// Standard tags
+			case dockerLabelEnv:
+				tags.AddStandard(tagKeyEnv, labelValue)
+			case dockerLabelVersion:
+				tags.AddStandard(tagKeyVersion, labelValue)
+			case dockerLabelService:
+				tags.AddStandard(tagKeyService, labelValue)
+
+			// Custom labels as tags
+			case autodiscoveryLabelTagsKey:
+				parseContainerADTagsLabels(tags, labelValue)
+			}
+
+			if tagName, found := c.labelsAsTags[strings.ToLower(labelName)]; found {
+				tags.AddAuto(tagName, labelValue)
+			}
+		}
+
+		low, orch, high, standard := tags.Compute()
+		info := &TagInfo{
+			Source:               ecsFargateCollectorName,
+			Entity:               entityID,
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		}
+		output = append(output, info)
 	}
 
 	return output, nil

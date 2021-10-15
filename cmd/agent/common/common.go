@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
+	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -36,6 +37,9 @@ var (
 
 	// DSD is the global dogstatsd instance
 	DSD *dogstatsd.Server
+
+	// OTLP is the global OTLP pipeline instance
+	OTLP *otlp.Pipeline
 
 	// MetadataScheduler is responsible to orchestrate metadata collection
 	MetadataScheduler *metadata.Scheduler

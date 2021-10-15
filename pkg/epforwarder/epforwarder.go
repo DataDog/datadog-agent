@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	eventTypeDBMSamples = "dbm-samples"
-	eventTypeDBMMetrics = "dbm-metrics"
+	eventTypeDBMSamples  = "dbm-samples"
+	eventTypeDBMMetrics  = "dbm-metrics"
+	eventTypeDBMActivity = "dbm-activity"
 
 	// EventTypeNetworkDevicesMetadata is the event type for network devices metadata
 	EventTypeNetworkDevicesMetadata = "network-devices-metadata"
@@ -30,7 +31,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	{
 		eventType:              eventTypeDBMSamples,
 		endpointsConfigPrefix:  "database_monitoring.samples.",
-		hostnameEndpointPrefix: "dbquery-http-intake.logs.",
+		hostnameEndpointPrefix: "dbquery-intake.",
 		intakeTrackType:        "databasequery",
 		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 		defaultBatchMaxConcurrentSend: 10,
@@ -48,9 +49,20 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
 	},
 	{
+		eventType:              eventTypeDBMActivity,
+		endpointsConfigPrefix:  "database_monitoring.activity.",
+		hostnameEndpointPrefix: "dbm-metrics-intake.",
+		intakeTrackType:        "dbmactivity",
+		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    20e6,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+	},
+	{
 		eventType:                     EventTypeNetworkDevicesMetadata,
 		endpointsConfigPrefix:         "network_devices.metadata.",
-		hostnameEndpointPrefix:        "network-devices.",
+		hostnameEndpointPrefix:        "ndm-intake.",
+		intakeTrackType:               "ndm",
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
@@ -147,7 +159,7 @@ type passthroughPipelineDesc struct {
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
 // without any of the processing that exists in regular logs pipelines.
-func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext) (p *passthroughPipeline, err error) {
+func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext, pipelineID int) (p *passthroughPipeline, err error) {
 	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, coreConfig.Datadog)
 	endpoints, err := config.BuildHTTPEndpointsWithConfig(configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 	if err != nil {
@@ -173,7 +185,7 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	}
 	destinations := client.NewDestinations(main, additionals)
 	inputChan := make(chan *message.Message, 100)
-	strategy := sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, pkgconfig.DefaultBatchMaxSize, endpoints.BatchMaxContentSize, desc.eventType)
+	strategy := sender.NewBatchStrategy(sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxConcurrentSend, pkgconfig.DefaultBatchMaxSize, endpoints.BatchMaxContentSize, desc.eventType, pipelineID)
 	a := auditor.NewNullAuditor()
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHost=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d",
 		desc.eventType, endpoints.Main.Host, joinHosts(endpoints.Additionals), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize)
@@ -208,8 +220,8 @@ func newDefaultEventPlatformForwarder() *defaultEventPlatformForwarder {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 	pipelines := make(map[string]*passthroughPipeline)
-	for _, desc := range passthroughPipelineDescs {
-		p, err := newHTTPPassthroughPipeline(desc, destinationsCtx)
+	for i, desc := range passthroughPipelineDescs {
+		p, err := newHTTPPassthroughPipeline(desc, destinationsCtx, i)
 		if err != nil {
 			log.Errorf("Failed to initialize event platform forwarder pipeline. eventType=%s, error=%s", desc.eventType, err.Error())
 			continue

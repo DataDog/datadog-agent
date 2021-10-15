@@ -10,7 +10,7 @@ package probes
 import (
 	"math"
 
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 // allProbes contain the list of all the probes of the runtime security module
@@ -39,21 +39,33 @@ func AllProbes() []*manager.Probe {
 	allProbes = append(allProbes,
 		// Syscall monitor
 		&manager.Probe{
-			UID:     SecurityAgentUID,
-			Section: "tracepoint/raw_syscalls/sys_enter",
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFSection:  "tracepoint/raw_syscalls/sys_enter",
+				EBPFFuncName: "sys_enter",
+			},
 		},
 		&manager.Probe{
-			UID:     SecurityAgentUID,
-			Section: "tracepoint/raw_syscalls/sys_exit",
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFSection:  "tracepoint/raw_syscalls/sys_exit",
+				EBPFFuncName: "sys_exit",
+			},
 		},
 		&manager.Probe{
-			UID:     SecurityAgentUID,
-			Section: "tracepoint/sched/sched_process_exec",
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFSection:  "tracepoint/sched/sched_process_exec",
+				EBPFFuncName: "sched_process_exec",
+			},
 		},
 		// Snapshot probe
 		&manager.Probe{
-			UID:     SecurityAgentUID,
-			Section: "kprobe/security_inode_getattr",
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFSection:  "kprobe/security_inode_getattr",
+				EBPFFuncName: "kprobe_security_inode_getattr",
+			},
 		},
 	)
 
@@ -121,14 +133,23 @@ func AllPerfMaps() []*manager.PerfMap {
 }
 
 // AllTailRoutes returns the list of all the tail call routes
-func AllTailRoutes() []manager.TailCallRoute {
+func AllTailRoutes(ERPCDentryResolutionEnabled bool) []manager.TailCallRoute {
 	var routes []manager.TailCallRoute
 
 	routes = append(routes, getExecTailCallRoutes()...)
-	routes = append(routes, getDentryResolverTailCallRoutes()...)
+	routes = append(routes, getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled)...)
 	routes = append(routes, getSysExitTailCallRoutes()...)
 
 	return routes
+}
+
+// AllBPFProbeWriteUserSections returns the list of program sections that use the bpf_probe_write_user helper
+func AllBPFProbeWriteUserSections() []string {
+	return []string{
+		"kprobe/dentry_resolver_erpc",
+		"kprobe/dentry_resolver_parent_erpc",
+		"kprobe/dentry_resolver_segment_erpc",
+	}
 }
 
 // GetPerfBufferStatisticsMaps returns the list of maps used to monitor the performances of each perf buffers

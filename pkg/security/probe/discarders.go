@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	lib "github.com/DataDog/ebpf"
-	"github.com/DataDog/ebpf/manager"
+	manager "github.com/DataDog/ebpf-manager"
+	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/pkg/errors"
 
@@ -28,19 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	// DiscardInodeOp discards an inode
-	DiscardInodeOp = iota + 1
-	// DiscardPidOp discards a pid
-	DiscardPidOp
-	// ResolveSegmentOp resolves the requested segment
-	ResolveSegmentOp
-	// ResolvePathOp resolves the requested path
-	ResolvePathOp
-	// ResolveParentOp resolves the parent of the provide path key
-	ResolveParentOp
 )
 
 const (
@@ -227,19 +214,22 @@ func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventTy
 		return false, nil
 	}
 
-	basenameField := strings.Replace(filenameField, ".path", ".name", 1)
-
 	event := discarderEvent
 	defer func() {
 		*discarderEvent = eventZero
 	}()
 
 	if _, err := event.GetFieldType(filenameField); err != nil {
-		return false, nil
+		return false, err
 	}
 
+	if !strings.HasSuffix(filenameField, ".path") {
+		return false, errors.New("path suffix not found")
+	}
+
+	basenameField := strings.Replace(filenameField, ".path", ".name", 1)
 	if _, err := event.GetFieldType(basenameField); err != nil {
-		return false, nil
+		return false, err
 	}
 
 	for _, rule := range bucket.GetRules() {
@@ -287,14 +277,6 @@ func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventTy
 					return false, nil
 				}
 			}
-
-			if err := event.SetFieldValue(filenameField, dirname); err != nil {
-				return false, err
-			}
-
-			if isDiscarder, _ := rs.IsDiscarder(event, filenameField); isDiscarder {
-				return true, nil
-			}
 		}
 
 		// check basename
@@ -307,6 +289,14 @@ func isParentPathDiscarder(rs *rules.RuleSet, regexCache *simplelru.LRU, eventTy
 				return false, nil
 			}
 		}
+	}
+
+	if err := event.SetFieldValue(filenameField, dirname); err != nil {
+		return false, err
+	}
+
+	if isDiscarder, _ := rs.IsDiscarder(event, filenameField); !isDiscarder {
+		return false, nil
 	}
 
 	seclog.Tracef("`%s` discovered as parent discarder", dirname)

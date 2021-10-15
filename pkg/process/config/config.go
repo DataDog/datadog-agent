@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"net"
 	"net/http"
 	"net/url"
@@ -19,6 +18,7 @@ import (
 	model "github.com/DataDog/agent-payload/process"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -46,11 +46,20 @@ const (
 	RTContainerCheckName = "rtcontainer"
 	ConnectionsCheckName = "connections"
 	PodCheckName         = "pod"
+	DiscoveryCheckName   = "process_discovery"
 
 	NetworkCheckName        = "Network"
 	OOMKillCheckName        = "OOM Kill"
 	TCPQueueLengthCheckName = "TCP queue length"
 	ProcessModuleCheckName  = "Process Module"
+
+	ProcessCheckDefaultInterval          = 10 * time.Second
+	RTProcessCheckDefaultInterval        = 2 * time.Second
+	ContainerCheckDefaultInterval        = 10 * time.Second
+	RTContainerCheckDefaultInterval      = 2 * time.Second
+	ConnectionsCheckDefaultInterval      = 30 * time.Second
+	PodCheckDefaultInterval              = 10 * time.Second
+	ProcessDiscoveryCheckDefaultInterval = 4 * time.Hour
 )
 
 var (
@@ -75,6 +84,8 @@ type WindowsConfig struct {
 	ArgsRefreshInterval int
 	// Controls getting process arguments immediately when a new process is discovered
 	AddNewArgs bool
+	// UsePerfCounters enables new process check using performance counters for process collection
+	UsePerfCounters bool
 }
 
 // AgentConfig is the global config for the process-agent. This information
@@ -219,12 +230,13 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		// Check config
 		EnabledChecks: enabledChecks,
 		CheckIntervals: map[string]time.Duration{
-			ProcessCheckName:     10 * time.Second,
-			RTProcessCheckName:   2 * time.Second,
-			ContainerCheckName:   10 * time.Second,
-			RTContainerCheckName: 2 * time.Second,
-			ConnectionsCheckName: 30 * time.Second,
-			PodCheckName:         10 * time.Second,
+			ProcessCheckName:     ProcessCheckDefaultInterval,
+			RTProcessCheckName:   RTProcessCheckDefaultInterval,
+			ContainerCheckName:   ContainerCheckDefaultInterval,
+			RTContainerCheckName: RTContainerCheckDefaultInterval,
+			ConnectionsCheckName: ConnectionsCheckDefaultInterval,
+			PodCheckName:         PodCheckDefaultInterval,
+			DiscoveryCheckName:   ProcessDiscoveryCheckDefaultInterval,
 		},
 
 		// DataScrubber to hide command line sensitive words
@@ -255,7 +267,9 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 	return ac
 }
 
-func loadConfigIfExists(path string) error {
+// LoadConfigIfExists takes a path to either a directory containing datadog.yaml or a direct path to a datadog.yaml file
+// and loads it into ddconfig.Datadog. It does this silently, and does not produce any logs.
+func LoadConfigIfExists(path string) error {
 	if path != "" {
 		if util.PathExists(path) {
 			config.Datadog.AddConfigPath(path)
@@ -276,12 +290,10 @@ func loadConfigIfExists(path string) error {
 // NewAgentConfig returns an AgentConfig using a configuration file. It can be nil
 // if there is no file available. In this case we'll configure only via environment.
 func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) (*AgentConfig, error) {
-	initRuntimeSettings()
-
 	var err error
 
 	// For Agent 6 we will have a YAML config file to use.
-	if err := loadConfigIfExists(yamlPath); err != nil {
+	if err := LoadConfigIfExists(yamlPath); err != nil {
 		return nil, err
 	}
 
@@ -371,6 +383,8 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath, netYamlPath string) 
 		}
 	}
 
+	initRuntimeSettings()
+
 	return cfg, nil
 }
 
@@ -383,7 +397,10 @@ func initRuntimeSettings() {
 
 	// Before we begin listening, register runtime settings
 	for _, setting := range processRuntimeSettings {
-		_ = log.Warn(settings.RegisterRuntimeSetting(setting))
+		err := settings.RegisterRuntimeSetting(setting)
+		if err != nil {
+			_ = log.Warnf("cannot initialize the runtime setting %s: %v", setting.Name(), err)
+		}
 	}
 }
 
@@ -411,6 +428,8 @@ func loadEnvVariables() {
 		{"DD_PROCESS_AGENT_MAX_PER_MESSAGE", "process_config.max_per_message"},
 		{"DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "process_config.max_ctr_procs_per_message"},
 		{"DD_PROCESS_AGENT_CMD_PORT", "process_config.cmd_port"},
+		{"DD_PROCESS_AGENT_WINDOWS_USE_PERF_COUNTERS", "process_config.windows.use_perf_counters"},
+		{"DD_PROCESS_AGENT_DISCOVERY_ENABLED", "process_config.process_discovery.enabled"},
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},

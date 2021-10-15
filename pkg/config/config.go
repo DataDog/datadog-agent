@@ -221,6 +221,15 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 
+	// Remote config
+	config.BindEnvAndSetDefault("remote_configuration.enabled", false)
+	config.BindEnvAndSetDefault("remote_configuration.endpoint", "")
+	config.BindEnvAndSetDefault("remote_configuration.key", "")
+	config.BindEnv("remote_configuration.api_key")
+	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
+	config.BindEnvAndSetDefault("remote_configuration.director_root", "")
+	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", 60) // in seconds
+
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
 	config.BindEnvAndSetDefault("auto_exit.noprocess.enabled", false)
@@ -229,6 +238,11 @@ func InitConfig(config Config) {
 	// The number of commits before expiring a context. The value is 2 to handle
 	// the case where a check miss to send a metric.
 	config.BindEnvAndSetDefault("check_sampler_bucket_commits_count_expiry", 2)
+	// The number of seconds before removing stateful metric data after expiring a
+	// context. Default is 25h, to minimise problems for checks that emit metircs
+	// only occasionally.
+	config.BindEnvAndSetDefault("check_sampler_stateful_metric_expiration_time", 25*time.Hour)
+	config.BindEnvAndSetDefault("check_sampler_expire_metrics", true)
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 
 	// overridden in IoT Agent main
@@ -494,6 +508,7 @@ func InitConfig(config Config) {
 	// Containerd
 	// We only support containerd in Kubernetes. By default containerd cri uses `k8s.io` https://github.com/containerd/cri/blob/release/1.2/pkg/constants/constants.go#L22-L23
 	config.BindEnvAndSetDefault("containerd_namespace", "k8s.io")
+	config.BindEnvAndSetDefault("container_env_as_tags", map[string]string{})
 
 	// Kubernetes
 	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
@@ -540,6 +555,7 @@ func InitConfig(config Config) {
 	config.SetKnown("snmp_listener.configs")
 	config.SetKnown("snmp_listener.loader")
 	config.SetKnown("snmp_listener.min_collection_interval")
+	config.SetKnown("snmp_listener.namespace")
 
 	config.BindEnvAndSetDefault("snmp_traps_enabled", false)
 	config.BindEnvAndSetDefault("snmp_traps_config.port", 162)
@@ -712,14 +728,23 @@ func InitConfig(config Config) {
 
 	bindEnvAndSetLogsConfigKeys(config, "logs_config.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
+	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.activity.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
+	config.BindEnvAndSetDefault("network_devices.namespace", "default")
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
 	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
 	config.BindEnvAndSetDefault("logs_config.close_timeout", 60)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", false)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_extra_patterns", []string{})
+	// The following auto_multi_line settings are experimental and may change
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_sample_size", 500)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_timeout", 30) // Seconds
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
+
 	config.BindEnvAndSetDefault("logs_config.auditor_ttl", DefaultAuditorTTL) // in hours
 	// Timeout in milliseonds used when performing agreggation operations,
 	// including multi-line log processing rules and chunked line reaggregation.
@@ -855,6 +880,7 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.strip_proc_arguments")
 	config.SetKnown("process_config.windows.args_refresh_interval")
 	config.SetKnown("process_config.windows.add_new_args")
+	config.SetKnown("process_config.windows.use_perf_counters")
 	config.SetKnown("process_config.additional_endpoints.*")
 	config.SetKnown("process_config.container_source")
 	config.SetKnown("process_config.intervals.connections")
@@ -862,6 +888,10 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.log_file")
 	config.SetKnown("process_config.internal_profiling.enabled")
 	config.SetKnown("process_config.remote_tagger")
+
+	// Process Discovery Check
+	config.BindEnvAndSetDefault("process_config.process_discovery.enabled", false)
+	config.BindEnvAndSetDefault("process_config.process_discovery.interval", 4*time.Hour)
 
 	// Network
 	config.BindEnv("network.id")
@@ -914,6 +944,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.log_patterns", []string{})
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	config.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
+	config.BindEnvAndSetDefault("runtime_security_config.enable_remote_configuration", false)
 
 	// Serverless Agent
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
@@ -925,6 +956,7 @@ func InitConfig(config Config) {
 	setAssetFs(config)
 	setupAPM(config)
 	setupAppSec(config)
+	SetupOTLP(config)
 }
 
 var ddURLRegexp = regexp.MustCompile(`^app(\.(us|eu)\d)?\.datad(oghq|0g)\.(com|eu)$`)

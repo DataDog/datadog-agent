@@ -10,11 +10,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,6 +37,13 @@ var ChecksCardinality collectors.TagCardinality
 // DogstatsdCardinality defines the cardinality of tags we should send for metrics from
 // dogstatsd.
 var DogstatsdCardinality collectors.TagCardinality
+
+// we use to pull tagger metrics in dogstatsd. Pulling it later in the
+// pipeline improve memory allocation. We kept the old name to be
+// backward compatible and because origin detection only affect
+// dogstatsd metrics.
+var tlmUDPOriginDetectionError = telemetry.NewCounter("dogstatsd", "udp_origin_detection_error",
+	nil, "Dogstatsd UDP origin detection error count")
 
 // Init must be called once config is available, call it in your cmd
 func Init() {
@@ -104,7 +112,7 @@ func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 // sources and appends them to the TagsBuilder.  It can return tags at high
 // cardinality (with tags about individual containers), or at orchestrator
 // cardinality (pod/task level).
-func TagBuilder(entity string, cardinality collectors.TagCardinality, tb *util.TagsBuilder) error {
+func TagBuilder(entity string, cardinality collectors.TagCardinality, tb types.TagsBuilder) error {
 	//TODO: defer unlock once performance overhead of defer is negligible
 	mux.RLock()
 	if captureTagger != nil {
@@ -182,7 +190,7 @@ func OrchestratorScopeTag() ([]string, error) {
 
 // OrchestratorScopeTagBuilder queries tags for orchestrator scope (e.g.
 // task_arn in ECS Fargate) and appends them to the TagsBuilder
-func OrchestratorScopeTagBuilder(tb *util.TagsBuilder) error {
+func OrchestratorScopeTagBuilder(tb types.TagsBuilder) error {
 	mux.RLock()
 	if captureTagger != nil {
 		err := captureTagger.TagBuilder(collectors.OrchestratorScopeEntityID, collectors.OrchestratorCardinality, tb)
@@ -235,4 +243,49 @@ func ResetCaptureTagger() {
 
 func init() {
 	SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
+}
+
+// EnrichTags extends a tag list with origin detection tags
+// NOTE(remy): it is not needed to sort/dedup the tags anymore since after the
+// enrichment, the metric and its tags is sent to the context key generator, which
+// is taking care of deduping the tags while generating the context key.
+func EnrichTags(tb types.TagsBuilder, origin string, k8sOriginID string, cardinalityName string) {
+	cardinality := taggerCardinality(cardinalityName)
+
+	if origin != packets.NoOrigin {
+		if err := TagBuilder(origin, cardinality, tb); err != nil {
+			log.Errorf(err.Error())
+		}
+	}
+
+	// Include orchestrator scope tags if the cardinality is set to orchestrator
+	if cardinality == collectors.OrchestratorCardinality {
+		if err := OrchestratorScopeTagBuilder(tb); err != nil {
+			log.Error(err.Error())
+		}
+	}
+
+	if k8sOriginID != "" {
+		if err := TagBuilder(k8sOriginID, cardinality, tb); err != nil {
+			tlmUDPOriginDetectionError.Inc()
+			log.Tracef("Cannot get tags for entity %s: %s", k8sOriginID, err)
+		}
+
+	}
+}
+
+// taggerCardinality converts tagger cardinality string to collectors.TagCardinality
+// It defaults to DogstatsdCardinality if the string is empty or unknown
+func taggerCardinality(cardinality string) collectors.TagCardinality {
+	if cardinality == "" {
+		return DogstatsdCardinality
+	}
+
+	taggerCardinality, err := collectors.StringToTagCardinality(cardinality)
+	if err != nil {
+		log.Tracef("Couldn't convert cardinality tag: %w", err)
+		return DogstatsdCardinality
+	}
+
+	return taggerCardinality
 }

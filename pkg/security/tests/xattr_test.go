@@ -72,6 +72,9 @@ func TestSetXAttr(t *testing.T) {
 			assertNearTime(t, event.SetXAttr.File.MTime)
 			assertNearTime(t, event.SetXAttr.File.CTime)
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("lsetxattr", func(t *testing.T) {
@@ -110,6 +113,9 @@ func TestSetXAttr(t *testing.T) {
 			assertNearTime(t, event.SetXAttr.File.MTime)
 			assertNearTime(t, event.SetXAttr.File.CTime)
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("fsetxattr", func(t *testing.T) {
@@ -141,6 +147,9 @@ func TestSetXAttr(t *testing.T) {
 			assertNearTime(t, event.SetXAttr.File.MTime)
 			assertNearTime(t, event.SetXAttr.File.CTime)
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 }
 
@@ -208,6 +217,9 @@ func TestRemoveXAttr(t *testing.T) {
 			assertNearTime(t, event.RemoveXAttr.File.MTime)
 			assertNearTime(t, event.RemoveXAttr.File.CTime)
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("lremovexattr", func(t *testing.T) {
@@ -253,6 +265,9 @@ func TestRemoveXAttr(t *testing.T) {
 			assertNearTime(t, event.RemoveXAttr.File.MTime)
 			assertNearTime(t, event.RemoveXAttr.File.CTime)
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("fremovexattr", func(t *testing.T) {
@@ -308,5 +323,8 @@ func TestRemoveXAttr(t *testing.T) {
 				t.Errorf("expected ctime close to %s, got %s", now, ctime)
 			}
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 }

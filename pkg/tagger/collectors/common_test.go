@@ -63,3 +63,39 @@ func assertTagInfoListEqual(t *testing.T, expectedUpdates []*TagInfo, updates []
 		assertTagInfoEqual(t, expectedUpdates[i], updates[i])
 	}
 }
+
+func Test_mergeMaps(t *testing.T) {
+	tests := []struct {
+		name   string
+		first  map[string]string
+		second map[string]string
+		want   map[string]string
+	}{
+		{
+			name:   "no conflict",
+			first:  map[string]string{"first-k1": "first-v1", "first-k2": "first-v2"},
+			second: map[string]string{"second-k1": "second-v1", "second-k2": "second-v2"},
+			want: map[string]string{
+				"first-k1":  "first-v1",
+				"first-k2":  "first-v2",
+				"second-k1": "second-v1",
+				"second-k2": "second-v2",
+			},
+		},
+		{
+			name:   "conflict",
+			first:  map[string]string{"first-k1": "first-v1", "first-k2": "first-v2"},
+			second: map[string]string{"first-k2": "second-v1", "second-k2": "second-v2"},
+			want: map[string]string{
+				"first-k1":  "first-v1",
+				"first-k2":  "first-v2",
+				"second-k2": "second-v2",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.EqualValues(t, tt.want, mergeMaps(tt.first, tt.second))
+		})
+	}
+}

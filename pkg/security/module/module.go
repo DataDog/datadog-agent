@@ -14,6 +14,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -24,14 +25,19 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/service/tuf"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/statsd"
@@ -54,6 +60,7 @@ type Module struct {
 	sigupChan        chan os.Signal
 	ctx              context.Context
 	cancelFnc        context.CancelFunc
+	cancelSubscriber context.CancelFunc
 	rulesLoaded      func(rs *rules.RuleSet)
 	policiesVersions []string
 
@@ -69,8 +76,37 @@ func (m *Module) Register(_ *module.Router) error {
 	return m.Start()
 }
 
+func (m *Module) sanityChecks() error {
+	// make sure debugfs is mounted
+	if mounted, err := kernel.IsDebugFSMounted(); !mounted {
+		return err
+	}
+
+	version, err := skernel.NewKernelVersion()
+	if err != nil {
+		return err
+	}
+
+	if version.Code >= skernel.Kernel5_13 && kernel.GetLockdownMode() == kernel.Confidentiality {
+		return errors.New("eBPF not supported in lockdown `confidentiality` mode")
+	}
+
+	isWriteUserNotSupported := version.Code >= skernel.Kernel5_13 && kernel.GetLockdownMode() == kernel.Integrity
+
+	if m.config.ERPCDentryResolutionEnabled && isWriteUserNotSupported {
+		log.Warn("eRPC path resolution is not supported in lockdown `integrity` mode")
+		m.config.ERPCDentryResolutionEnabled = false
+	}
+
+	return nil
+}
+
 // Init initializes the module
 func (m *Module) Init() error {
+	if err := m.sanityChecks(); err != nil {
+		return err
+	}
+
 	// force socket cleanup of previous socket not cleanup
 	os.Remove(m.config.SocketPath)
 
@@ -141,6 +177,29 @@ func (m *Module) Start() error {
 			}
 		}
 	}()
+
+	if m.config.EnableRemoteConfig {
+		cancelSubscriber, err := service.NewGRPCSubscriber(pbgo.Product_RUNTIME_SECURITY, func(config *pbgo.ConfigResponse) error {
+			log.Infof("Fetched config version %d from remote config management", config.DirectoryTargets.Version)
+
+			for _, targetFile := range config.TargetFiles {
+				policyFile, err := os.Create(filepath.Join(m.config.PoliciesDir, filepath.Base(tuf.TrimHash(targetFile.Path))))
+				if err != nil {
+					return err
+				}
+
+				if _, err := policyFile.Write(targetFile.Raw); err != nil {
+					return err
+				}
+			}
+
+			return m.Reload()
+		})
+		if err != nil {
+			return errors.Wrap(err, "failed to subscribe to remote config management")
+		}
+		m.cancelSubscriber = cancelSubscriber
+	}
 
 	return nil
 }
@@ -294,6 +353,9 @@ func (m *Module) Reload() error {
 // Close the module
 func (m *Module) Close() {
 	close(m.sigupChan)
+	if m.cancelSubscriber != nil {
+		m.cancelSubscriber()
+	}
 	m.cancelFnc()
 
 	if m.grpcServer != nil {

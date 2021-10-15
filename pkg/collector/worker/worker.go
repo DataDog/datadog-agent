@@ -21,17 +21,24 @@ import (
 
 const (
 	serviceCheckStatusKey = "datadog.agent.check_status"
+
+	// Variables for the utilization expvars
+	windowSize      = 5 * time.Minute
+	pollingInterval = 15 * time.Second
 )
 
 // Worker is an object that encapsulates the logic to manage a loop of processing
 // checks over the provided `PendingCheckChan`
 type Worker struct {
-	ID                      int
+	ID   int
+	Name string
+
 	checksTracker           *tracker.RunningChecksTracker
 	getDefaultSenderFunc    func() (aggregator.Sender, error)
 	pendingChecksChan       chan check.Check
 	runnerID                int
 	shouldAddCheckStatsFunc func(id check.ID) bool
+	utilizationTracker      UtilizationTracker
 }
 
 // NewWorker returns an instance of a `Worker` after parameter sanity checks are passed
@@ -62,6 +69,8 @@ func NewWorker(
 		checksTracker,
 		shouldAddCheckStatsFunc,
 		aggregator.GetDefaultSender,
+		windowSize,
+		pollingInterval,
 	)
 }
 
@@ -75,19 +84,29 @@ func newWorkerWithOptions(
 	checksTracker *tracker.RunningChecksTracker,
 	shouldAddCheckStatsFunc func(id check.ID) bool,
 	getDefaultSenderFunc func() (aggregator.Sender, error),
+	windowSize time.Duration,
+	pollingInterval time.Duration,
 ) (*Worker, error) {
 
 	if getDefaultSenderFunc == nil {
 		return nil, fmt.Errorf("worker cannot initialize using a nil getDefaultSenderFunc")
 	}
 
+	workerName := fmt.Sprintf("worker_%d", ID)
+	utilizationTracker, err := NewUtilizationTracker(workerName, windowSize, pollingInterval)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Worker{
 		ID:                      ID,
+		Name:                    workerName,
 		checksTracker:           checksTracker,
 		pendingChecksChan:       pendingChecksChan,
 		runnerID:                runnerID,
 		shouldAddCheckStatsFunc: shouldAddCheckStatsFunc,
 		getDefaultSenderFunc:    getDefaultSenderFunc,
+		utilizationTracker:      utilizationTracker,
 	}, nil
 }
 
@@ -95,8 +114,18 @@ func newWorkerWithOptions(
 func (w *Worker) Run() {
 	log.Debugf("Runner %d, worker %d: Ready to process checks...", w.runnerID, w.ID)
 
+	if err := w.utilizationTracker.Start(); err != nil {
+		log.Warnf("Runner %d, worker %d: %s", err)
+	}
+	defer func() {
+		if err := w.utilizationTracker.Stop(); err != nil {
+			log.Warnf("Runner %d, worker %d: %s", err)
+		}
+	}()
+
 	for check := range w.pendingChecksChan {
 		checkLogger := CheckLogger{Check: check}
+		longRunning := check.Interval() == 0
 
 		// Add check to tracker if it's not already running
 		if !w.checksTracker.AddCheck(check) {
@@ -104,19 +133,23 @@ func (w *Worker) Run() {
 			continue
 		}
 
+		checkStartTime := time.Now()
+
 		checkLogger.CheckStarted()
 
-		checkStartTime := time.Now()
 		expvars.AddRunningCheckCount(1)
 		expvars.SetRunningStats(check.ID(), checkStartTime)
+
+		w.utilizationTracker.CheckStarted(longRunning)
 
 		// Run the check
 		var checkErr error
 		checkErr = check.Run()
 
+		w.utilizationTracker.CheckFinished()
+
 		expvars.DeleteRunningStats(check.ID())
 
-		longRunning := check.Interval() == 0
 		checkWarnings := check.GetWarnings()
 
 		// Use the default sender for the service checks

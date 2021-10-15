@@ -201,7 +201,7 @@ func (s *onDiskRetryQueue) reloadExistingRetryFiles() error {
 		fullPath := path.Join(s.storagePath, file.Name())
 		filenames = append(filenames, fullPath)
 	}
-	s.telemetry.addReloadedRetryFilesCount(len(filenames))
+	s.telemetry.setReloadedRetryFilesCount(len(filenames))
 	s.filenames = append(s.filenames, filenames...)
 	return nil
 }

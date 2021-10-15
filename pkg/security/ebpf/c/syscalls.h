@@ -125,6 +125,7 @@ struct syscall_cache_t {
             struct file_t file;
             struct str_array_ref_t args;
             struct str_array_ref_t envs;
+            struct span_context_t span_context;
             u32 next_tail;
             u8 is_parsed;
         } exec;

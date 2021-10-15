@@ -322,6 +322,12 @@ func (mp *provider) GetDefaultHostIPs() ([]string, error) {
 	return []string{fields[3]}, nil
 }
 
+// GetNumFileDescriptors returns the number of open file descriptors for a given
+// pid
+func (mp *provider) GetNumFileDescriptors(pid int) (int, error) {
+	return 0, fmt.Errorf("not supported on windows")
+}
+
 // Output from route print 0.0.0.0:
 //
 // λ route print 0.0.0.0

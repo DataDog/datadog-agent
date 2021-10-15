@@ -69,6 +69,16 @@ type KSMConfig struct {
 	//       - label_addonmanager_kubernetes_io_mode
 	LabelJoins map[string]*JoinsConfig `yaml:"label_joins"`
 
+	// LabelsAsTags
+	// Example:
+	// labels_as_tags:
+	//   pod:
+	//     - "app_*"
+	//   node:
+	//     - "zone"
+	//     - "team_*"
+	LabelsAsTags map[string]map[string]string `yaml:"labels_as_tags"`
+
 	// LabelsMapper can be used to translate kube-state-metrics labels to other tags.
 	// Example: Adding kube_namespace tag instead of namespace.
 	// labels_mapper:
@@ -170,6 +180,8 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 	}
 
 	k.mergeLabelJoins(defaultLabelJoins)
+
+	k.processLabelsAsTags()
 
 	// Prepare labels mapper
 	k.mergeLabelsMapper(defaultLabelsMapper)
@@ -331,15 +343,17 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 				// So, let’s continue the processing.
 			}
 			if transform, found := metricTransformers[metricFamily.Name]; found {
+				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
-					hostname, tags := k.hostnameAndTags(m.Labels, labelJoiner)
+					hostname, tags := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
 					transform(sender, metricFamily.Name, m, hostname, tags)
 				}
 				continue
 			}
 			if ddname, found := metricNamesMapper[metricFamily.Name]; found {
+				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
-					hostname, tags := k.hostnameAndTags(m.Labels, labelJoiner)
+					hostname, tags := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
 					sender.Gauge(ksmMetricPrefix+ddname, m.Val, hostname, tags)
 				}
 				continue
@@ -363,7 +377,7 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 }
 
 // hostnameAndTags returns the tags and the hostname for a metric based on the metric labels and the check configuration
-func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJoiner) (string, []string) {
+func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJoiner, lMapperOverride map[string]string) (string, []string) {
 	hostname := ""
 
 	labelsToAdd := labelJoiner.getLabelsToAdd(labels)
@@ -377,7 +391,7 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 		case createdByNameKey, ownerNameKey:
 			ownerName = value
 		default:
-			tag, hostTag := k.buildTag(key, value)
+			tag, hostTag := k.buildTag(key, value, lMapperOverride)
 			tags = append(tags, tag)
 			if hostTag != "" {
 				if k.clusterName != "" {
@@ -397,7 +411,7 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 		case createdByNameKey, ownerNameKey:
 			ownerName = label.value
 		default:
-			tag, hostTag := k.buildTag(label.key, label.value)
+			tag, hostTag := k.buildTag(label.key, label.value, lMapperOverride)
 			tags = append(tags, tag)
 			if hostTag != "" {
 				if k.clusterName != "" {
@@ -436,9 +450,15 @@ func (k *KSMCheck) metricFilter(m ksmstore.DDMetric) bool {
 
 // buildTag applies the LabelsMapper config and returns the tag in a key:value string format
 // The second return value is the hostname of the metric if a 'node' or 'host' tag is found, empty string otherwise
-func (k *KSMCheck) buildTag(key, value string) (tag, hostname string) {
+func (k *KSMCheck) buildTag(key, value string, lMapperOverride map[string]string) (tag, hostname string) {
 	if newKey, found := k.instance.LabelsMapper[key]; found {
 		key = newKey
+	}
+
+	if lMapperOverride != nil {
+		if keyOverride, found := lMapperOverride[key]; found {
+			key = keyOverride
+		}
 	}
 
 	var sb strings.Builder
@@ -470,6 +490,32 @@ func (k *KSMCheck) mergeLabelJoins(extra map[string]*JoinsConfig) {
 	for key, value := range extra {
 		if _, found := k.instance.LabelJoins[key]; !found {
 			k.instance.LabelJoins[key] = value
+		}
+	}
+}
+
+func (k *KSMCheck) processLabelsAsTags() {
+	for resourceKind, labelsMapper := range k.instance.LabelsAsTags {
+		labels := make([]string, 0, len(labelsMapper))
+		for label, tag := range labelsMapper {
+			label = "label_" + label
+			if _, ok := k.instance.LabelsMapper[label]; !ok {
+				k.instance.LabelsMapper[label] = tag
+			}
+			labels = append(labels, label)
+		}
+
+		if joinsConfig, ok := k.instance.LabelJoins["kube_"+resourceKind+"_labels"]; ok {
+			joinsConfig.LabelsToGet = append(joinsConfig.LabelsToGet, labels...)
+		} else {
+			joinsConfig := &JoinsConfig{
+				LabelsToMatch: []string{resourceKind, "namespace"},
+				LabelsToGet:   labels,
+			}
+			if resourceKind == "node" {
+				joinsConfig.LabelsToMatch = []string{"node"}
+			}
+			k.instance.LabelJoins["kube_"+resourceKind+"_labels"] = joinsConfig
 		}
 	}
 }
@@ -648,4 +694,20 @@ func ownerTags(kind, name string) []string {
 	}
 
 	return tags
+}
+
+// podLabelsMapperOverride defines the label mapper overrides
+// that should be applied on pod metrics only.
+var podLabelsMapperOverride = map[string]string{"phase": "pod_phase"}
+
+// labelsMapperOverride allows overriding the default label mapping for
+// a given metric depending on the metric family.
+// Current use-case:
+//   - `phase` tag should be mapped to `pod_phase` on pod metrics only.
+func labelsMapperOverride(metricName string) map[string]string {
+	if strings.HasPrefix(metricName, "kube_pod") {
+		return podLabelsMapperOverride
+	}
+
+	return nil
 }

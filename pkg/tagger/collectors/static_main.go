@@ -30,7 +30,12 @@ func (c *StaticCollector) Detect(_ context.Context, out chan<- []*TagInfo) (Coll
 	c.infoOut = out
 	c.tags = fargateStaticTags()
 
-	return FetchOnlyCollection, nil
+	return PullCollection, nil
+}
+
+// Pull is a no-op for StaticCollector
+func (c *StaticCollector) Pull(context.Context) error {
+	return nil
 }
 
 // Fetch fetches static tags

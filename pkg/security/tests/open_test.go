@@ -64,6 +64,9 @@ func TestOpen(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	}))
 
 	t.Run("openat", func(t *testing.T) {
@@ -81,6 +84,9 @@ func TestOpen(t *testing.T) {
 			assertRights(t, uint16(event.Open.Mode), 0711)
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	openHow := unix.OpenHow{
@@ -106,6 +112,9 @@ func TestOpen(t *testing.T) {
 			assertRights(t, uint16(event.Open.Mode), 0711)
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("creat", ifSyscallSupported("SYS_CREAT", func(t *testing.T, syscallNB uintptr) {
@@ -123,6 +132,9 @@ func TestOpen(t *testing.T) {
 			assertRights(t, uint16(event.Open.Mode), 0711)
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	}))
 
 	t.Run("truncate", func(t *testing.T) {
@@ -153,6 +165,9 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, int(event.Open.Flags), "wrong flags")
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("open_by_handle_at", func(t *testing.T) {
@@ -199,6 +214,9 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	t.Run("io_uring", func(t *testing.T) {
@@ -259,6 +277,9 @@ func TestOpen(t *testing.T) {
 			assertRights(t, uint16(event.Open.Mode), 0747)
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 		})
+		if err != nil {
+			t.Error(err)
+		}
 
 		prepRequest, err = iouring.Openat2(unix.AT_FDCWD, testFile, &openHow)
 		if err != nil {
@@ -289,6 +310,9 @@ func TestOpen(t *testing.T) {
 			assertRights(t, uint16(event.Open.Mode), 0711)
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 		})
+		if err != nil {
+			t.Error(err)
+		}
 	})
 
 	_ = os.Remove(testFile)
