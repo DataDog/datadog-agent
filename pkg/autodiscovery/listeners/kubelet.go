@@ -44,7 +44,7 @@ type KubeletListener struct {
 	mu            sync.RWMutex
 	filters       *containerFilters
 	services      map[string]Service
-	podContainers map[string][]string
+	podContainers map[string]map[string]struct{}
 
 	newService chan<- Service
 	delService chan<- Service
@@ -61,7 +61,7 @@ func NewKubeletListener() (ServiceListener, error) {
 		store:         workloadmeta.GetGlobalStore(),
 		filters:       filters,
 		services:      make(map[string]Service),
-		podContainers: make(map[string][]string),
+		podContainers: make(map[string]map[string]struct{}),
 		stop:          make(chan struct{}),
 	}, nil
 }
@@ -138,8 +138,15 @@ func (l *KubeletListener) processEvents(evBundle workloadmeta.EventBundle, first
 }
 
 func (l *KubeletListener) processPod(pod *workloadmeta.KubernetesPod, firstRun bool) {
-	containers := make([]*workloadmeta.Container, 0, len(pod.Containers))
+	// unseen keeps track of which previous container services are no
+	// longer present in the pod, to be removed at the end of this func
+	svcID := buildSvcID(pod.GetID())
+	unseen := make(map[string]struct{})
+	for id := range l.podContainers[svcID] {
+		unseen[id] = struct{}{}
+	}
 
+	containers := make([]*workloadmeta.Container, 0, len(pod.Containers))
 	for _, containerID := range pod.Containers {
 		container, err := l.store.GetContainer(containerID)
 		if err != nil {
@@ -150,9 +157,18 @@ func (l *KubeletListener) processPod(pod *workloadmeta.KubernetesPod, firstRun b
 		l.createContainerService(pod, container, firstRun)
 
 		containers = append(containers, container)
+
+		containerSvcID := buildSvcID(container.GetID())
+		delete(unseen, containerSvcID)
 	}
 
 	l.createPodService(pod, containers, firstRun)
+
+	// remove the container services that weren't seen when processing this
+	// pod
+	for containerSvcID := range unseen {
+		l.removeService(containerSvcID)
+	}
 }
 
 func (l *KubeletListener) createPodService(pod *workloadmeta.KubernetesPod, containers []*workloadmeta.Container, firstRun bool) {
@@ -306,8 +322,12 @@ func (l *KubeletListener) createContainerService(pod *workloadmeta.KubernetesPod
 		l.delService <- old
 	}
 
+	if _, ok := l.podContainers[podSvcID]; !ok {
+		l.podContainers[podSvcID] = make(map[string]struct{})
+	}
+
 	l.services[svcID] = svc
-	l.podContainers[podSvcID] = append(l.podContainers[podSvcID], svcID)
+	l.podContainers[podSvcID][svcID] = struct{}{}
 	l.newService <- svc
 }
 
@@ -320,7 +340,7 @@ func (l *KubeletListener) removePodService(entityID workloadmeta.EntityID) {
 	delete(l.podContainers, svcID)
 	l.mu.Unlock()
 
-	for _, containerSvcID := range containerSvcIDs {
+	for containerSvcID := range containerSvcIDs {
 		l.removeService(containerSvcID)
 	}
 }
