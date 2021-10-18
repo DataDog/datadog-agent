@@ -178,7 +178,7 @@ func (w *soWatcher) sync(libraries []so.Library) {
 func (w *soWatcher) register(libPath string, r soRule) {
 	err := r.registerCB(libPath)
 	if err != nil {
-		log.Errorf("error registering library=%s: %s", libPath, err)
+		log.Debugf("error registering library=%s: %s", libPath, err)
 		r.unregisterCB(libPath)
 		w.registered[libPath] = nil
 		return
