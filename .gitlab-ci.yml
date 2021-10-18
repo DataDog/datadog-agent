@@ -489,14 +489,6 @@ variables:
     when: manual
     allow_failure: true
 
-.on_deploy_stable_or_beta_repo_branch_a6_always:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - <<: *if_deploy
-    when: always
-
 .on_deploy_stable_or_beta_repo_branch_a7:
   - <<: *if_not_version_7
     when: never
@@ -551,14 +543,6 @@ variables:
   - <<: *if_deploy
     when: manual
     allow_failure: true
-
-.on_deploy_stable_or_beta_repo_branch_a7_always:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - <<: *if_deploy
-    when: always
 
 .on_deploy_stable_repo_branch_a7_manual:
   - <<: *if_not_version_7
