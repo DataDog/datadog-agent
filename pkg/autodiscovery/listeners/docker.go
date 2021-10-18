@@ -103,6 +103,7 @@ func (l *DockerListener) processEvents(evBundle workloadmeta.EventBundle) {
 
 		if entityID.Kind != workloadmeta.KindContainer {
 			log.Errorf("internal error: got event %d with entity of kind %q. filters broken?", ev.Type, entityID.Kind)
+			continue
 		}
 
 		switch ev.Type {

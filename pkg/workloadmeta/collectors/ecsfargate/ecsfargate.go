@@ -154,6 +154,22 @@ func (c *collector) parseTaskContainers(task *v2.Task) ([]workloadmeta.Orchestra
 			log.Warnf("cannot split image name %q: %s", container.Image, err)
 		}
 
+		ips := make(map[string]string)
+
+		for _, net := range container.Networks {
+			if net.NetworkMode == "awsvpc" && len(net.IPv4Addresses) > 0 {
+				ips["awsvpc"] = net.IPv4Addresses[0]
+			}
+		}
+
+		var startedAt time.Time
+		if container.StartedAt != "" {
+			startedAt, err = time.Parse(time.RFC3339, container.StartedAt)
+			if err != nil {
+				log.Debugf("cannot parse StartedAt %q for container %q: %s", container.StartedAt, container.DockerID, err)
+			}
+		}
+
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: collectorID,
 			Type:   workloadmeta.EventTypeSet,
@@ -163,8 +179,13 @@ func (c *collector) parseTaskContainers(task *v2.Task) ([]workloadmeta.Orchestra
 					Name:   container.DockerName,
 					Labels: container.Labels,
 				},
-				Image:   image,
-				Runtime: workloadmeta.ContainerRuntimeDocker,
+				Image:      image,
+				Runtime:    workloadmeta.ContainerRuntimeDocker,
+				NetworkIPs: ips,
+				State: workloadmeta.ContainerState{
+					StartedAt: startedAt,
+					Running:   container.KnownStatus == "RUNNING",
+				},
 			},
 		})
 	}
