@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/errdefs"
 
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -50,7 +51,14 @@ func buildWorkloadMetaContainer(container containerd.Container, containerdClient
 
 	status, err := containerdClient.Status(container)
 	if err != nil {
-		return workloadmeta.Container{}, err
+		if !errdefs.IsNotFound(err) {
+			return workloadmeta.Container{}, err
+		}
+
+		// The container exists, but there isn't a task associated to it. That
+		// means that the container is not running, which is all we need to know
+		// in this function (we can set any status != containerd.Running).
+		status = ""
 	}
 
 	// Some attributes in workloadmeta.Container cannot be fetched from
