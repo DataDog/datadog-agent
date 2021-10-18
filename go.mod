@@ -229,5 +229,5 @@ replace k8s.io/kube-state-metrics/v2 => github.com/ahmed-mez/kube-state-metrics/
 // Remove once the PR aptly-dev/aptly#967 is merged and released.
 replace github.com/aptly-dev/aptly => github.com/lebauce/aptly v0.7.2-0.20210927125351-710eda859941
 
-// Exclude this version of conatinerd because it depends on github.com/Microsoft/hcsshim@v0.8.7 which depends on k8s.io/kubernetes which is a dependency we’d like to avoid
+// Exclude this version of containerd because it depends on github.com/Microsoft/hcsshim@v0.8.7 which depends on k8s.io/kubernetes which is a dependency we’d like to avoid
 exclude github.com/containerd/containerd v1.5.0-beta.1
