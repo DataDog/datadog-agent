@@ -41,14 +41,17 @@ func TestProviderExpectedTags(t *testing.T) {
 	var tt []string
 
 	// this will block for two (mock) seconds, so do it in a goroutine
+	gotTags := make(chan struct{})
 	go func() {
 		tt = pp.GetTags()
+		close(gotTags)
 	}()
 
 	clock.Add(time.Second)
 	require.Empty(t, tt) // still waiting..
 
 	clock.Add(2 * time.Second)
+	<-gotTags // got the tags now!
 	sort.Strings(tags)
 	sort.Strings(tt)
 	require.Equal(t, tags, tt)
