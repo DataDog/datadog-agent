@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -43,6 +44,7 @@ type WorkloadMetaCollector struct {
 	containerEnvAsTags    map[string]string
 	containerLabelsAsTags map[string]string
 
+	staticTags        map[string]string
 	labelsAsTags      map[string]string
 	annotationsAsTags map[string]string
 	nsLabelsAsTags    map[string]string
@@ -71,6 +73,8 @@ func (c *WorkloadMetaCollector) Detect(ctx context.Context, out chan<- []*TagInf
 	annotationsAsTags := config.Datadog.GetStringMapString("kubernetes_pod_annotations_as_tags")
 	nsLabelsAsTags := config.Datadog.GetStringMapString("kubernetes_namespace_labels_as_tags")
 	c.initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags)
+
+	c.staticTags = fargateStaticTags(ctx)
 
 	return StreamCollection, nil
 }
@@ -139,6 +143,40 @@ func workloadmetaFactory() Collector {
 	return &WorkloadMetaCollector{
 		store: workloadmeta.GetGlobalStore(),
 	}
+}
+
+func fargateStaticTags(ctx context.Context) map[string]string {
+	// fargate (ECS or EKS) does not have host tags, so we need to
+	// add static tags to each container manually
+
+	if !fargate.IsFargateInstance(ctx) {
+		return nil
+	}
+
+	tags := make(map[string]string)
+
+	// DD_TAGS
+	for _, tag := range config.GetConfiguredTags(false) {
+		tagParts := strings.SplitN(tag, ":", 2)
+		if len(tagParts) != 2 {
+			log.Warnf("Cannot split tag %s", tag)
+			continue
+		}
+		tags[tagParts[0]] = tagParts[1]
+	}
+
+	// EKS Fargate specific tags
+	if fargate.IsEKSFargateInstance() {
+		node, err := fargate.GetEKSFargateNodename()
+		if err != nil {
+			tags["eks_fargate_node"] = node
+		} else {
+			log.Infof("Couldn't build the 'eks_fargate_node' tag: %w", err)
+		}
+
+	}
+
+	return tags
 }
 
 func init() {

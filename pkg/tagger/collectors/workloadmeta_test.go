@@ -404,7 +404,7 @@ func TestHandleECSTask(t *testing.T) {
 		expected []*TagInfo
 	}{
 		{
-			name: "basic ECS task",
+			name: "basic ECS EC2 task",
 			task: workloadmeta.ECSTask{
 				EntityID: entityID,
 				EntityMeta: workloadmeta.EntityMeta{
@@ -431,10 +431,12 @@ func TestHandleECSTask(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source:               taskSource,
-					Entity:               taggerEntityID,
-					HighCardTags:         []string{},
-					OrchestratorCardTags: []string{},
+					Source:       taskSource,
+					Entity:       taggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						"task_arn:foobar",
+					},
 					LowCardTags: []string{
 						"cluster_name:ecs-cluster",
 						"ecs_cluster_name:ecs-cluster",
@@ -445,6 +447,54 @@ func TestHandleECSTask(t *testing.T) {
 						"task_name:datadog-agent",
 						"task_version:1",
 					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "basic ECS Fargate task",
+			task: workloadmeta.ECSTask{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "foobar",
+				},
+				ClusterName: "ecs-cluster",
+				Family:      "datadog-agent",
+				Version:     "1",
+				LaunchType:  workloadmeta.ECSLaunchTypeFargate,
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   containerID,
+						Name: containerName,
+					},
+				},
+			},
+			expected: []*TagInfo{
+				{
+					Source:       taskSource,
+					Entity:       taggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						"task_arn:foobar",
+					},
+					LowCardTags: []string{
+						"cluster_name:ecs-cluster",
+						"ecs_cluster_name:ecs-cluster",
+						"ecs_container_name:agent",
+						"task_family:datadog-agent",
+						"task_name:datadog-agent",
+						"task_version:1",
+					},
+					StandardTags: []string{},
+				},
+				{
+					Source:       taskSource,
+					Entity:       OrchestratorScopeEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						"task_arn:foobar",
+					},
+					LowCardTags:  []string{},
 					StandardTags: []string{},
 				},
 			},
@@ -838,6 +888,41 @@ func TestHandleDelete(t *testing.T) {
 	actual := collector.handleDelete(workloadmeta.Event{
 		Type:   workloadmeta.EventTypeUnset,
 		Entity: pod,
+	})
+
+	assertTagInfoListEqual(t, expected, actual)
+}
+
+func TestHandleContainerStaticTags(t *testing.T) {
+	collector := &WorkloadMetaCollector{
+		staticTags: map[string]string{
+			"eks_fargate_node": "foobar",
+		},
+	}
+
+	container := workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "foo",
+		},
+	}
+
+	expected := []*TagInfo{
+		{
+			Source: sourceContainer,
+			Entity: fmt.Sprintf("container_id://%s", container.ID),
+			HighCardTags: []string{
+				fmt.Sprintf("container_id:%s", container.ID),
+			},
+			OrchestratorCardTags: []string{},
+			LowCardTags:          []string{"eks_fargate_node:foobar"},
+			StandardTags:         []string{},
+		},
+	}
+
+	actual := collector.handleContainer(workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: &container,
 	})
 
 	assertTagInfoListEqual(t, expected, actual)
