@@ -295,7 +295,11 @@ func (c *ContainerdUtil) Status(ctn containerd.Container) (containerd.ProcessSta
 		return "", err
 	}
 
-	taskStatus, err := task.Status(ctx)
+	ctx, cancel = context.WithTimeout(context.Background(), c.queryTimeout)
+	defer cancel()
+	ctxNamespace = namespaces.WithNamespace(ctx, c.namespace)
+
+	taskStatus, err := task.Status(ctxNamespace)
 	if err != nil {
 		return "", err
 	}

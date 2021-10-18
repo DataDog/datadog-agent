@@ -38,18 +38,48 @@ func TestBuildCollectorEvent(t *testing.T) {
 	workloadMetaContainer, err := buildWorkloadMetaContainer(&container, &client)
 	assert.NoError(t, err)
 
-	creationEvent, err := proto.Marshal(&events.ContainerCreate{
+	containerCreationEvent, err := proto.Marshal(&events.ContainerCreate{
 		ID: containerID,
 	})
 	assert.NoError(t, err)
 
-	updateEvent, err := proto.Marshal(&events.ContainerUpdate{
+	containerUpdateEvent, err := proto.Marshal(&events.ContainerUpdate{
 		ID: containerID,
 	})
 	assert.NoError(t, err)
 
-	deleteEvent, err := proto.Marshal(&events.ContainerDelete{
+	containerDeleteEvent, err := proto.Marshal(&events.ContainerDelete{
 		ID: containerID,
+	})
+	assert.NoError(t, err)
+
+	taskStartEvent, err := proto.Marshal(&events.TaskStart{
+		ContainerID: containerID,
+	})
+	assert.NoError(t, err)
+
+	taskOOMEvent, err := proto.Marshal(&events.TaskOOM{
+		ContainerID: containerID,
+	})
+	assert.NoError(t, err)
+
+	taskExitEvent, err := proto.Marshal(&events.TaskExit{
+		ContainerID: containerID,
+	})
+	assert.NoError(t, err)
+
+	taskDeleteEvent, err := proto.Marshal(&events.TaskDelete{
+		ContainerID: containerID,
+	})
+	assert.NoError(t, err)
+
+	taskPausedEvent, err := proto.Marshal(&events.TaskPaused{
+		ContainerID: containerID,
+	})
+	assert.NoError(t, err)
+
+	taskResumedEvent, err := proto.Marshal(&events.TaskResumed{
+		ContainerID: containerID,
 	})
 	assert.NoError(t, err)
 
@@ -65,11 +95,11 @@ func TestBuildCollectorEvent(t *testing.T) {
 		expectsError  bool
 	}{
 		{
-			name: "create event",
+			name: "container create event",
 			event: containerdevents.Envelope{
 				Topic: containerCreationTopic,
 				Event: &types.Any{
-					TypeUrl: "containerd.events.ContainerCreate", Value: creationEvent,
+					TypeUrl: "containerd.events.ContainerCreate", Value: containerCreationEvent,
 				},
 			},
 			expectedEvent: workloadmeta.CollectorEvent{
@@ -79,11 +109,11 @@ func TestBuildCollectorEvent(t *testing.T) {
 			},
 		},
 		{
-			name: "update event",
+			name: "container update event",
 			event: containerdevents.Envelope{
 				Topic: containerUpdateTopic,
 				Event: &types.Any{
-					TypeUrl: "containerd.events.ContainerUpdate", Value: updateEvent,
+					TypeUrl: "containerd.events.ContainerUpdate", Value: containerUpdateEvent,
 				},
 			},
 			expectedEvent: workloadmeta.CollectorEvent{
@@ -93,11 +123,11 @@ func TestBuildCollectorEvent(t *testing.T) {
 			},
 		},
 		{
-			name: "delete event",
+			name: "container delete event",
 			event: containerdevents.Envelope{
 				Topic: containerDeletionTopic,
 				Event: &types.Any{
-					TypeUrl: "containerd.events.ContainerDelete", Value: deleteEvent,
+					TypeUrl: "containerd.events.ContainerDelete", Value: containerDeleteEvent,
 				},
 			},
 			expectedEvent: workloadmeta.CollectorEvent{
@@ -115,7 +145,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 				Topic: "Unknown Topic", // This causes the error
 				Event: &types.Any{
 					// Uses delete, but could be any other event in this test
-					TypeUrl: "containerd.events.ContainerDelete", Value: deleteEvent,
+					TypeUrl: "containerd.events.ContainerDelete", Value: containerDeleteEvent,
 				},
 			},
 			expectsError: true,
@@ -129,6 +159,90 @@ func TestBuildCollectorEvent(t *testing.T) {
 				},
 			},
 			expectsError: true,
+		},
+		{
+			name: "task start event",
+			event: containerdevents.Envelope{
+				Topic: TaskStartTopic,
+				Event: &types.Any{
+					TypeUrl: "containerd.events.TaskStart", Value: taskStartEvent,
+				},
+			},
+			expectedEvent: workloadmeta.CollectorEvent{
+				Type:   workloadmeta.EventTypeSet,
+				Source: collectorID,
+				Entity: &workloadMetaContainer,
+			},
+		},
+		{
+			name: "task OOM event",
+			event: containerdevents.Envelope{
+				Topic: TaskOOMTopic,
+				Event: &types.Any{
+					TypeUrl: "containerd.events.TaskOOM", Value: taskOOMEvent,
+				},
+			},
+			expectedEvent: workloadmeta.CollectorEvent{
+				Type:   workloadmeta.EventTypeSet,
+				Source: collectorID,
+				Entity: &workloadMetaContainer,
+			},
+		},
+		{
+			name: "task exit event",
+			event: containerdevents.Envelope{
+				Topic: TaskExitTopic,
+				Event: &types.Any{
+					TypeUrl: "containerd.events.TaskExit", Value: taskExitEvent,
+				},
+			},
+			expectedEvent: workloadmeta.CollectorEvent{
+				Type:   workloadmeta.EventTypeSet,
+				Source: collectorID,
+				Entity: &workloadMetaContainer,
+			},
+		},
+		{
+			name: "task delete event",
+			event: containerdevents.Envelope{
+				Topic: TaskDeleteTopic,
+				Event: &types.Any{
+					TypeUrl: "containerd.events.TaskDelete", Value: taskDeleteEvent,
+				},
+			},
+			expectedEvent: workloadmeta.CollectorEvent{
+				Type:   workloadmeta.EventTypeSet,
+				Source: collectorID,
+				Entity: &workloadMetaContainer,
+			},
+		},
+		{
+			name: "task paused event",
+			event: containerdevents.Envelope{
+				Topic: TaskStartTopic,
+				Event: &types.Any{
+					TypeUrl: "containerd.events.TaskPaused", Value: taskPausedEvent,
+				},
+			},
+			expectedEvent: workloadmeta.CollectorEvent{
+				Type:   workloadmeta.EventTypeSet,
+				Source: collectorID,
+				Entity: &workloadMetaContainer,
+			},
+		},
+		{
+			name: "task resumed event",
+			event: containerdevents.Envelope{
+				Topic: TaskStartTopic,
+				Event: &types.Any{
+					TypeUrl: "containerd.events.TaskResumed", Value: taskResumedEvent,
+				},
+			},
+			expectedEvent: workloadmeta.CollectorEvent{
+				Type:   workloadmeta.EventTypeSet,
+				Source: collectorID,
+				Entity: &workloadMetaContainer,
+			},
 		},
 	}
 

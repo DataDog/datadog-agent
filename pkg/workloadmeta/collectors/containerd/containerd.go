@@ -32,6 +32,16 @@ const (
 	containerCreationTopic = "/containers/create"
 	containerUpdateTopic   = "/containers/update"
 	containerDeletionTopic = "/containers/delete"
+
+	// These are not all the task-related topics, but enough to detect changes
+	// in the state of the container (only need to know if it's running or not).
+
+	TaskStartTopic   = "/tasks/start"
+	TaskOOMTopic     = "/tasks/oom"
+	TaskExitTopic    = "/tasks/exit"
+	TaskDeleteTopic  = "/tasks/delete"
+	TaskPausedTopic  = "/tasks/paused"
+	TaskResumedTopic = "/tasks/resumed"
 )
 
 // containerLifecycleFilters allows subscribing to containers lifecycle updates only.
@@ -39,6 +49,12 @@ var containerLifecycleFilters = []string{
 	fmt.Sprintf(`topic==%q`, containerCreationTopic),
 	fmt.Sprintf(`topic==%q`, containerUpdateTopic),
 	fmt.Sprintf(`topic==%q`, containerDeletionTopic),
+	fmt.Sprintf(`topic==%q`, TaskStartTopic),
+	fmt.Sprintf(`topic==%q`, TaskOOMTopic),
+	fmt.Sprintf(`topic==%q`, TaskExitTopic),
+	fmt.Sprintf(`topic==%q`, TaskDeleteTopic),
+	fmt.Sprintf(`topic==%q`, TaskPausedTopic),
+	fmt.Sprintf(`topic==%q`, TaskResumedTopic),
 }
 
 type collector struct {
