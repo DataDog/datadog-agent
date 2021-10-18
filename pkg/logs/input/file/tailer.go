@@ -76,7 +76,13 @@ func NewDecoderFromSourceWithPattern(source *config.LogSource, multiLinePattern 
 		lineParser = parser.KubernetesFormat
 		matcher = &decoder.NewLineMatcher{}
 	case config.DockerSourceType:
-		lineParser = parser.DockerFileFormat
+		switch coreConfig.Datadog.GetBool("logs_config.use_podman_logs") {
+		case false:
+			lineParser = parser.DockerFileFormat
+		case true:
+			// podman's on-disk logs are in kubernetes format
+			lineParser = parser.KubernetesFormat
+		}
 		matcher = &decoder.NewLineMatcher{}
 	default:
 		switch source.Config.Encoding {
