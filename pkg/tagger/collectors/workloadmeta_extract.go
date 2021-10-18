@@ -177,6 +177,14 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 		utils.AddMetadataAsTags(name, value, c.annotationsAsTags, c.globAnnotations, tags)
 	}
 
+	for name, value := range pod.NamespaceLabels {
+		utils.AddMetadataAsTags(name, value, c.nsLabelsAsTags, c.globNsLabels, tags)
+	}
+
+	for _, svc := range pod.KubeServices {
+		tags.AddLow("kube_service", svc)
+	}
+
 	c.extractTagsFromJSONInMap(podTagsAnnotation, pod.Annotations, tags)
 
 	// OpenShift pod annotations

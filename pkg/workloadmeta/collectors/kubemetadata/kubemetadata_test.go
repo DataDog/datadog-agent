@@ -5,7 +5,7 @@
 
 // +build kubeapiserver,kubelet
 
-package collectors
+package kubemetadata
 
 import (
 	"context"
@@ -17,12 +17,13 @@ import (
 
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/util"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
@@ -106,7 +107,7 @@ func (f *FakeDCAClient) GetCFAppsMetadataForNode(nodename string) (map[string][]
 	panic("implement me")
 }
 
-func TestKubeMetadataCollector_getMetadaNames(t *testing.T) {
+func TestKubeMetadataCollector_getMetadata(t *testing.T) {
 	type fields struct {
 		dcaClient           clusteragent.DCAClientInterface
 		clusterAgentEnabled bool
@@ -261,11 +262,11 @@ func TestKubeMetadataCollector_getMetadaNames(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &KubeMetadataCollector{
-				dcaClient:           tt.fields.dcaClient,
-				clusterAgentEnabled: tt.fields.clusterAgentEnabled,
+			c := &collector{
+				dcaClient:  tt.fields.dcaClient,
+				dcaEnabled: tt.fields.clusterAgentEnabled,
 			}
-			got, err := c.getMetadaNames(tt.args.getPodMetaDataFromAPIServerFunc, tt.args.metadataByNsPods, tt.args.po)
+			got, err := c.getMetadata(tt.args.getPodMetaDataFromAPIServerFunc, tt.args.metadataByNsPods, tt.args.po)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("KubeMetadataCollector.getMetadaNames() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -277,7 +278,7 @@ func TestKubeMetadataCollector_getMetadaNames(t *testing.T) {
 	}
 }
 
-func TestKubeMetadataCollector_getNamespaceTags(t *testing.T) {
+func TestKubeMetadataCollector_getNamespaceLabels(t *testing.T) {
 	type fields struct {
 		dcaClient           clusteragent.DCAClientInterface
 		clusterAgentEnabled bool
@@ -291,13 +292,13 @@ func TestKubeMetadataCollector_getNamespaceTags(t *testing.T) {
 		fields                fields
 		args                  args
 		namespaceLabelsAsTags map[string]string
-		wantLow               []string
-		wantHigh              []string
-		wantOrch              []string
-		wantStandard          []string
+		want                  map[string]string
+		wantErr               bool
 	}{
 		{
-			name: "no namespace labels as tags",
+			name:    "no namespace labels as tags",
+			want:    nil,
+			wantErr: false,
 		},
 		{
 			name: "cluster agent not enabled",
@@ -315,7 +316,8 @@ func TestKubeMetadataCollector_getNamespaceTags(t *testing.T) {
 			namespaceLabelsAsTags: map[string]string{
 				"label": "tag",
 			},
-			wantLow: []string{"tag:value"},
+			want:    map[string]string{"label": "tag"},
+			wantErr: false,
 		},
 		{
 			name: "cluster agent not enabled and failed to get namespace labels",
@@ -331,6 +333,8 @@ func TestKubeMetadataCollector_getNamespaceTags(t *testing.T) {
 			namespaceLabelsAsTags: map[string]string{
 				"label": "tag",
 			},
+			want:    nil,
+			wantErr: true,
 		},
 		{
 			name: "cluster agent enabled",
@@ -347,7 +351,8 @@ func TestKubeMetadataCollector_getNamespaceTags(t *testing.T) {
 			namespaceLabelsAsTags: map[string]string{
 				"label": "tag",
 			},
-			wantLow: []string{"tag:value"},
+			want:    map[string]string{"label": "tag"},
+			wantErr: false,
 		},
 		{
 			name: "cluster agent enabled and failed to get namespace labels",
@@ -362,29 +367,26 @@ func TestKubeMetadataCollector_getNamespaceTags(t *testing.T) {
 			namespaceLabelsAsTags: map[string]string{
 				"label": "tag",
 			},
+			want:    nil,
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &KubeMetadataCollector{
-				dcaClient:           tt.fields.dcaClient,
-				clusterAgentEnabled: tt.fields.clusterAgentEnabled,
+			c := &collector{
+				dcaClient:              tt.fields.dcaClient,
+				dcaEnabled:             tt.fields.clusterAgentEnabled,
+				collectNamespaceLabels: len(tt.namespaceLabelsAsTags) > 0,
 			}
-			c.namespaceLabelsAsTags, c.globNamespaceLabels = utils.InitMetadataAsTags(tt.namespaceLabelsAsTags)
-			tags := c.getNamespaceTags(tt.args.getNamespaceLabelsFromAPIServerFunc, "foo")
-			var low, orch, high, standard []string
-			if tags != nil {
-				low, orch, high, standard = tags.Compute()
-			}
-			assert.ElementsMatch(t, tt.wantLow, low)
-			assert.ElementsMatch(t, tt.wantOrch, orch)
-			assert.ElementsMatch(t, tt.wantHigh, high)
-			assert.ElementsMatch(t, tt.wantStandard, standard)
+
+			labels, err := c.getNamespaceLabels(tt.args.getNamespaceLabelsFromAPIServerFunc, "foo")
+			assert.True(t, (err != nil) == tt.wantErr)
+			assert.EqualValues(&testing.T{}, tt.want, labels)
 		})
 	}
 }
 
-func TestKubeMetadataCollector_getTagInfos(t *testing.T) {
+func TestKubeMetadataCollector_parsePods(t *testing.T) {
 	pods := []*kubelet.Pod{{
 		Metadata: kubelet.PodMetadata{
 			Name:      "foo",
@@ -411,13 +413,13 @@ func TestKubeMetadataCollector_getTagInfos(t *testing.T) {
 	kubeUtilFake := &kubelet.KubeUtil{}
 
 	type fields struct {
-		kubeUtil            *kubelet.KubeUtil
-		apiClient           *apiserver.APIClient
-		infoOut             chan<- []*TagInfo
-		dcaClient           clusteragent.DCAClientInterface
-		lastUpdate          time.Time
-		updateFreq          time.Duration
-		clusterAgentEnabled bool
+		kubeUtil               *kubelet.KubeUtil
+		apiClient              *apiserver.APIClient
+		dcaClient              clusteragent.DCAClientInterface
+		lastUpdate             time.Time
+		updateFreq             time.Duration
+		dcaEnabled             bool
+		collectNamespaceLabels bool
 	}
 	type args struct {
 		pods []*kubelet.Pod
@@ -427,16 +429,18 @@ func TestKubeMetadataCollector_getTagInfos(t *testing.T) {
 		fields                fields
 		args                  args
 		namespaceLabelsAsTags map[string]string
-		want                  []*TagInfo
+		want                  []workloadmeta.CollectorEvent
+		wantErr               bool
 	}{
 		{
-			name: "clusterAgentEnabled enable cluster-agent 1.3.x >=",
+			name: "clusterAgentEnabled enabled, cluster-agent 1.3.x >=",
 			args: args{
 				pods: pods,
 			},
 			fields: fields{
-				kubeUtil:            kubeUtilFake,
-				clusterAgentEnabled: true,
+				kubeUtil:               kubeUtilFake,
+				dcaEnabled:             true,
+				collectNamespaceLabels: true,
 				dcaClient: &FakeDCAClient{
 					LocalVersion:            version.Version{Major: 1, Minor: 3},
 					KubernetesMetadataNames: []string{"svc1", "svc2"},
@@ -448,56 +452,101 @@ func TestKubeMetadataCollector_getTagInfos(t *testing.T) {
 			namespaceLabelsAsTags: map[string]string{
 				"label": "tag",
 			},
-			want: []*TagInfo{
+			want: []workloadmeta.CollectorEvent{
 				{
-					Source:               kubeMetadataCollectorName,
-					Entity:               kubelet.PodUIDToTaggerEntityName("foouid"),
-					HighCardTags:         []string{},
-					OrchestratorCardTags: []string{},
-					LowCardTags: []string{
-						"tag:value",
-						"kube_service:svc1",
-						"kube_service:svc2",
+					Type:   workloadmeta.EventTypeSet,
+					Source: collectorID,
+					Entity: &workloadmeta.KubernetesPod{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindKubernetesPod,
+							ID:   "foouid",
+						},
+						KubeServices: []string{"svc1", "svc2"},
+						NamespaceLabels: map[string]string{
+							"label": "value",
+						},
 					},
 				},
 			},
+			wantErr: false,
 		},
 		{
-			name: "clusterAgentEnabled enable but client init failed",
+			name: "clusterAgentEnabled enabled, ns labels disabled",
 			args: args{
 				pods: pods,
 			},
 			fields: fields{
-				kubeUtil:            kubeUtilFake,
-				clusterAgentEnabled: true,
-				dcaClient:           &FakeDCAClient{},
-			},
-			want: []*TagInfo{
-				{
-					Source:               kubeMetadataCollectorName,
-					Entity:               kubelet.PodUIDToTaggerEntityName("foouid"),
-					HighCardTags:         []string{},
-					OrchestratorCardTags: []string{},
-					LowCardTags:          []string{},
+				kubeUtil:               kubeUtilFake,
+				dcaEnabled:             true,
+				collectNamespaceLabels: false,
+				dcaClient: &FakeDCAClient{
+					LocalVersion:            version.Version{Major: 1, Minor: 3},
+					KubernetesMetadataNames: []string{"svc1", "svc2"},
+					NamespaceLabels: map[string]string{
+						"label": "value",
+					},
 				},
 			},
+			namespaceLabelsAsTags: map[string]string{
+				"label": "tag",
+			},
+			want: []workloadmeta.CollectorEvent{
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Source: collectorID,
+					Entity: &workloadmeta.KubernetesPod{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindKubernetesPod,
+							ID:   "foouid",
+						},
+						KubeServices: []string{"svc1", "svc2"},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "clusterAgentEnabled enabled, but client init failed",
+			args: args{
+				pods: pods,
+			},
+			fields: fields{
+				kubeUtil:   kubeUtilFake,
+				dcaEnabled: true,
+				dcaClient:  &FakeDCAClient{},
+			},
+			want: []workloadmeta.CollectorEvent{
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Source: collectorID,
+					Entity: &workloadmeta.KubernetesPod{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindKubernetesPod,
+							ID:   "foouid",
+						},
+						KubeServices: []string{},
+					},
+				},
+			},
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &KubeMetadataCollector{
-				kubeUtil:            tt.fields.kubeUtil,
-				apiClient:           tt.fields.apiClient,
-				infoOut:             tt.fields.infoOut,
-				dcaClient:           tt.fields.dcaClient,
-				lastUpdate:          tt.fields.lastUpdate,
-				updateFreq:          tt.fields.updateFreq,
-				clusterAgentEnabled: tt.fields.clusterAgentEnabled,
+			c := &collector{
+				kubeUtil:               tt.fields.kubeUtil,
+				apiClient:              tt.fields.apiClient,
+				dcaClient:              tt.fields.dcaClient,
+				lastUpdate:             tt.fields.lastUpdate,
+				updateFreq:             tt.fields.updateFreq,
+				dcaEnabled:             tt.fields.dcaEnabled,
+				collectNamespaceLabels: tt.fields.collectNamespaceLabels,
+				expire:                 util.NewExpire(expireFreq),
 			}
-			c.namespaceLabelsAsTags, c.globNamespaceLabels = utils.InitMetadataAsTags(tt.namespaceLabelsAsTags)
 
-			got := c.getTagInfos(tt.args.pods)
-			assertTagInfoListEqual(t, tt.want, got)
+			got, err := c.parsePods(context.TODO(), tt.args.pods)
+			assert.True(t, (err != nil) == tt.wantErr)
+			assert.ElementsMatch(t, tt.want, got)
 		})
 	}
 }
