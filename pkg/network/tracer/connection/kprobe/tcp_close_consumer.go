@@ -12,6 +12,11 @@ import (
 	"github.com/DataDog/ebpf/manager"
 )
 
+const (
+	perfReceivedStat = "perf_recv"
+	perfLostStat     = "perf_lost"
+)
+
 type tcpCloseConsumer struct {
 	perfHandler  *ddebpf.PerfHandler
 	batchManager *perfBatchManager
@@ -60,8 +65,8 @@ func (c *tcpCloseConsumer) FlushPending() {
 
 func (c *tcpCloseConsumer) GetStats() map[string]int64 {
 	return map[string]int64{
-		"perf_recv": atomic.SwapInt64(&c.perfReceived, 0),
-		"perf_lost": atomic.SwapInt64(&c.perfLost, 0),
+		perfReceivedStat: atomic.SwapInt64(&c.perfReceived, 0),
+		perfLostStat:     atomic.SwapInt64(&c.perfLost, 0),
 	}
 }
 
