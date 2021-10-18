@@ -121,6 +121,7 @@ func (l *KubeletListener) processEvents(evBundle workloadmeta.EventBundle, first
 
 		if entityID.Kind != workloadmeta.KindKubernetesPod {
 			log.Errorf("internal error: got event %d with entity of kind %q. filters broken?", ev.Type, entityID.Kind)
+			continue
 		}
 
 		switch ev.Type {
@@ -237,7 +238,7 @@ func (l *KubeletListener) createContainerService(pod *workloadmeta.KubernetesPod
 		crTime = integration.After
 	}
 
-	ports := []ContainerPort{}
+	ports := make([]ContainerPort, 0, len(container.Ports))
 	for _, port := range container.Ports {
 		ports = append(ports, ContainerPort{
 			Port: port.Port,
