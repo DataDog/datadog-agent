@@ -188,6 +188,8 @@ type KubernetesPod struct {
 	Phase                      string
 	IP                         string
 	PriorityClass              string
+	KubeServices               []string
+	NamespaceLabels            map[string]string
 }
 
 // GetID returns the KubernetesPod's EntityID.

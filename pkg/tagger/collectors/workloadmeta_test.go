@@ -106,6 +106,7 @@ func TestHandleKubePod(t *testing.T) {
 		name              string
 		labelsAsTags      map[string]string
 		annotationsAsTags map[string]string
+		nsLabelsAsTags    map[string]string
 		pod               workloadmeta.KubernetesPod
 		expected          []*TagInfo
 	}{
@@ -118,6 +119,10 @@ func TestHandleKubePod(t *testing.T) {
 			labelsAsTags: map[string]string{
 				"ownerteam": "team",
 				"tier":      "tier",
+			},
+			nsLabelsAsTags: map[string]string{
+				"ns_env":       "ns_env",
+				"ns-ownerteam": "ns-team",
 			},
 			pod: workloadmeta.KubernetesPod{
 				EntityID: podEntityID,
@@ -153,6 +158,16 @@ func TestHandleKubePod(t *testing.T) {
 						"app.kubernetes.io/managed-by": "helm",
 					},
 				},
+
+				// NS labels as tags
+				NamespaceLabels: map[string]string{
+					"ns_env":       "dev",
+					"ns-ownerteam": "containers",
+					"foo":          "bar",
+				},
+
+				// kube_service tags
+				KubeServices: []string{"service1", "service2"},
 
 				// Owner tags
 				Owners: []workloadmeta.KubernetesPodOwner{
@@ -190,6 +205,10 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_app_managed_by:helm",
 						"kube_app_part_of:datadog",
 						"kube_ownerref_kind:deployment",
+						"kube_service:service1",
+						"kube_service:service2",
+						"ns-team:containers",
+						"ns_env:dev",
 						"pod_phase:running",
 						"pod_template_version:1.0.0",
 						"team:container-integrations",
@@ -339,7 +358,8 @@ func TestHandleKubePod(t *testing.T) {
 				store:    store,
 				children: make(map[string]map[string]struct{}),
 			}
-			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags)
+
+			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags)
 
 			actual := collector.handleKubePod(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,

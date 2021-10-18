@@ -45,8 +45,10 @@ type WorkloadMetaCollector struct {
 
 	labelsAsTags      map[string]string
 	annotationsAsTags map[string]string
+	nsLabelsAsTags    map[string]string
 	globLabels        map[string]glob.Glob
 	globAnnotations   map[string]glob.Glob
+	globNsLabels      map[string]glob.Glob
 
 	collectEC2ResourceTags bool
 }
@@ -67,7 +69,8 @@ func (c *WorkloadMetaCollector) Detect(ctx context.Context, out chan<- []*TagInf
 
 	labelsAsTags := config.Datadog.GetStringMapString("kubernetes_pod_labels_as_tags")
 	annotationsAsTags := config.Datadog.GetStringMapString("kubernetes_pod_annotations_as_tags")
-	c.initPodMetaAsTags(labelsAsTags, annotationsAsTags)
+	nsLabelsAsTags := config.Datadog.GetStringMapString("kubernetes_namespace_labels_as_tags")
+	c.initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags)
 
 	return StreamCollection, nil
 }
@@ -84,9 +87,10 @@ func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags 
 	}
 }
 
-func (c *WorkloadMetaCollector) initPodMetaAsTags(labelsAsTags, annotationsAsTags map[string]string) {
+func (c *WorkloadMetaCollector) initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags map[string]string) {
 	c.labelsAsTags, c.globLabels = utils.InitMetadataAsTags(labelsAsTags)
 	c.annotationsAsTags, c.globAnnotations = utils.InitMetadataAsTags(annotationsAsTags)
+	c.nsLabelsAsTags, c.globNsLabels = utils.InitMetadataAsTags(nsLabelsAsTags)
 }
 
 // Stream runs the continuous event watching loop and sends new tags to the
