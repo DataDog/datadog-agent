@@ -9,6 +9,7 @@ deploy_staging_windows_master-a7:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
+    - if [ "$DEB_RPM_BUCKET_BRANCH" = "oldnightly" ]; then BUCKET_BRANCH="oldnightly"; else BUCKET_BRANCH="master"; fi
     - $S3_CP_CMD
       --recursive
       --exclude "*"
@@ -17,7 +18,7 @@ deploy_staging_windows_master-a7:
       --include "datadog-agent-7*.wixpdb"
       --include "customaction-7*.pdb"
       $OMNIBUS_PACKAGE_DIR
-      s3://$WINDOWS_BUILDS_S3_BUCKET/master/
+      s3://$WINDOWS_BUILDS_S3_BUCKET/$BUCKET_BRANCH/
       --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
       full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
@@ -31,9 +32,10 @@ deploy_staging_windows_master-latest-a7:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
+    - if [ "$DEB_RPM_BUCKET_BRANCH" = "oldnightly" ]; then BUCKET_BRANCH="oldnightly"; else BUCKET_BRANCH="master"; fi
     - $S3_CP_CMD
       $OMNIBUS_PACKAGE_DIR/datadog-agent-7*-x86_64.msi
-      "s3://$WINDOWS_BUILDS_S3_BUCKET/master/datadog-agent-7-latest.amd64.msi"
+      "s3://$WINDOWS_BUILDS_S3_BUCKET/$BUCKET_BRANCH/datadog-agent-7-latest.amd64.msi"
       --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
       full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 

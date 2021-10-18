@@ -49,10 +49,10 @@ require (
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/DataDog/agent-payload v4.85.0+incompatible
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.32.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/quantile v0.32.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.32.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.32.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.32.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/quantile v0.32.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/util/log v0.32.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.32.0-rc.6
 	github.com/DataDog/datadog-go v4.8.2+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a
 	github.com/DataDog/ebpf v0.0.0-20210923171847-87e6c3a89de8
@@ -60,17 +60,17 @@ require (
 	github.com/DataDog/gohai v0.0.0-20210303102637-6b668acb50dd
 	github.com/DataDog/gopsutil v0.0.0-20210930103100-d4e8ef640507
 	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
-	github.com/DataDog/nikos v1.2.1-0.20210908154039-72372ae79f70
-	github.com/DataDog/sketches-go v1.2.0
+	github.com/DataDog/nikos v1.5.0
+	github.com/DataDog/sketches-go v1.2.1
 	github.com/DataDog/viper v1.9.0
-	github.com/DataDog/watermarkpodautoscaler v0.2.1-0.20210323121426-cfb2caa5613f
+	github.com/DataDog/watermarkpodautoscaler v0.3.1-logs-attributes.2.0.20211014120627-6d6a5c559fc9
 	github.com/DataDog/zstd v1.4.8
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/Microsoft/go-winio v0.4.17
-	github.com/Microsoft/hcsshim v0.8.18
+	github.com/Microsoft/hcsshim v0.9.0
 	github.com/alecthomas/jsonschema v0.0.0-20210526225647-edb03dcab7bc
 	github.com/alecthomas/participle v0.7.1
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
@@ -88,8 +88,8 @@ require (
 	github.com/clbanning/mxj v1.8.4
 	github.com/cloudfoundry-community/go-cfclient v0.0.0-20210621174645-7773f7e22665
 	github.com/cobaugh/osrelease v0.0.0-20181218015638-a93a0a55a249
-	github.com/containerd/cgroups v1.0.1
-	github.com/containerd/containerd v1.5.5
+	github.com/containerd/cgroups v1.0.2
+	github.com/containerd/containerd v1.5.7
 	github.com/containerd/typeurl v1.0.2
 	github.com/coreos/go-semver v0.3.0
 	github.com/coreos/go-systemd v0.0.0-20190620071333-e64a0ec8b42a
@@ -100,7 +100,7 @@ require (
 	github.com/docker/go-connections v0.4.0
 	github.com/dustin/go-humanize v1.0.0
 	github.com/elastic/go-libaudit v0.4.0
-	github.com/fatih/color v1.12.0
+	github.com/fatih/color v1.13.0
 	github.com/fatih/structtag v1.2.0
 	github.com/florianl/go-conntrack v0.1.1-0.20191002182014-06743d3a59db
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
@@ -125,16 +125,17 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/h2non/filetype v1.1.2-0.20210602110014-3305bbb7ac7b
-	github.com/hashicorp/consul/api v1.9.1
+	github.com/hashicorp/consul/api v1.11.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
 	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/ianlancetaylor/cgosymbolizer v0.0.0-20201204192058-7acc97e53614 // indirect
 	github.com/iceber/iouring-go v0.0.0-20210726032807-b073cc83b2b8
+	github.com/imdario/mergo v0.3.12
 	github.com/iovisor/gobpf v0.0.0
 	github.com/itchyny/gojq v0.12.5
-	github.com/json-iterator/go v1.1.11
+	github.com/json-iterator/go v1.1.12
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/karrick/godirwalk v1.16.1
 	github.com/klauspost/pgzip v1.2.5 // indirect
@@ -148,6 +149,7 @@ require (
 	github.com/miekg/dns v1.1.43
 	github.com/mitchellh/mapstructure v1.4.2
 	github.com/moby/sys/mountinfo v0.4.1
+	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852 // indirect
@@ -160,7 +162,7 @@ require (
 	github.com/prometheus/client_golang v1.11.0
 	github.com/richardartoul/molecule v0.0.0-20210914193524-25d8911bb85b
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
-	github.com/shirou/gopsutil v3.21.8+incompatible
+	github.com/shirou/gopsutil v3.21.9+incompatible
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
 	github.com/shuLhan/go-bindata v4.0.0+incompatible
 	github.com/spf13/afero v1.6.0
@@ -182,14 +184,16 @@ require (
 	github.com/xeipuuv/gojsonschema v0.0.0-20180618132009-1d523034197f
 	go.etcd.io/bbolt v1.3.6
 	go.etcd.io/etcd/client/v2 v2.305.0
-	go.opentelemetry.io/collector v0.36.0
-	go.opentelemetry.io/collector/model v0.36.0
+	go.opentelemetry.io/collector v0.37.0
+	go.opentelemetry.io/collector/model v0.37.0
+	// Fix vanity import issue
+	go.opentelemetry.io/otel/internal/metric v0.24.1-0.20211006140346-3d4ae8d0b75f // indirect
 	go.uber.org/automaxprocs v1.4.0
-	go.uber.org/multierr v1.6.0
+	go.uber.org/multierr v1.7.0
 	go.uber.org/zap v1.19.1
 	go4.org/intern v0.0.0-20210108033219-3eb7198706b2
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
-	golang.org/x/net v0.0.0-20210614182718-04defd469f4e
+	golang.org/x/net v0.0.0-20210825183410-e898025ed96a
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20210923061019-b8560ed6a9b7
 	golang.org/x/text v0.3.7
@@ -197,59 +201,26 @@ require (
 	golang.org/x/tools v0.1.5
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/genproto v0.0.0-20210604141403-392c879c8b08
-	google.golang.org/grpc v1.40.0
+	google.golang.org/grpc v1.41.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.33.0
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	gotest.tools v2.2.0+incompatible
-	k8s.io/api v0.21.2
-	k8s.io/apimachinery v0.21.2
-	k8s.io/apiserver v0.20.11
+	k8s.io/api v0.21.5
+	k8s.io/apimachinery v0.21.5
+	k8s.io/apiserver v0.21.5
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.9.2
-	k8s.io/client-go v12.0.0+incompatible
-	k8s.io/cri-api v0.20.6
+	k8s.io/client-go v0.21.5
+	k8s.io/cri-api v0.21.5
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
+	k8s.io/klog/v2 v2.8.0
 	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
 	k8s.io/kube-state-metrics/v2 v2.1.1
-	k8s.io/kubernetes v1.20.11
-	k8s.io/metrics v0.20.11
+	k8s.io/metrics v0.21.5
+	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
 )
-
-// Pinned to kubernetes-v0.20.11
-replace (
-	k8s.io/api => k8s.io/api v0.20.11
-	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.20.11
-	k8s.io/apimachinery => k8s.io/apimachinery v0.20.11
-	k8s.io/apiserver => k8s.io/apiserver v0.20.11
-	k8s.io/cli-runtime => k8s.io/cli-runtime v0.20.11
-	k8s.io/client-go => k8s.io/client-go v0.20.11
-	k8s.io/cloud-provider => k8s.io/cloud-provider v0.20.11
-	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.20.11
-	k8s.io/code-generator => k8s.io/code-generator v0.20.11
-	k8s.io/component-base => k8s.io/component-base v0.20.11
-	k8s.io/component-helpers => k8s.io/component-helpers v0.20.11
-	k8s.io/controller-manager => k8s.io/controller-manager v0.20.11
-	k8s.io/cri-api => k8s.io/cri-api v0.20.11
-	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.20.11
-	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.20.11
-	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.20.11
-	k8s.io/kube-proxy => k8s.io/kube-proxy v0.20.11
-	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.20.11
-	k8s.io/kubectl => k8s.io/kubectl v0.20.11
-	k8s.io/kubelet => k8s.io/kubelet v0.20.11
-	k8s.io/kubernetes => k8s.io/kubernetes v1.20.11
-	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.20.11
-	k8s.io/metrics => k8s.io/metrics v0.20.11
-	k8s.io/mount-utils => k8s.io/mount-utils v0.20.11
-	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.20.11
-	k8s.io/sample-cli-plugin => k8s.io/sample-cli-plugin v0.20.11
-	k8s.io/sample-controller => k8s.io/sample-controller v0.20.11
-)
-
-// Fixing a CVE indirectly linked to k8s/etcd, will be cleaned-up when K8S Apiserver deps is removed
-replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
 
 replace gopkg.in/DataDog/dd-trace-go.v1 => gopkg.in/DataDog/dd-trace-go.v1 v1.30.0
 
@@ -258,3 +229,6 @@ replace k8s.io/kube-state-metrics/v2 => github.com/ahmed-mez/kube-state-metrics/
 
 // Remove once the PR aptly-dev/aptly#967 is merged and released.
 replace github.com/aptly-dev/aptly => github.com/lebauce/aptly v0.7.2-0.20210927125351-710eda859941
+
+// Exclude this version of containerd because it depends on github.com/Microsoft/hcsshim@v0.8.7 which depends on k8s.io/kubernetes which is a dependency we’d like to avoid
+exclude github.com/containerd/containerd v1.5.0-beta.1

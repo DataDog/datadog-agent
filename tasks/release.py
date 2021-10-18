@@ -691,13 +691,6 @@ def _get_windows_ddnpm_release_json_info(release_json, agent_major_version, is_f
     return win_ddnpm_driver, win_ddnpm_version, win_ddnpm_shasum
 
 
-@task
-def get_variable(_, name, version='nightly'):
-    with open("release.json", "r") as release_json_stream:
-        release_json = json.load(release_json_stream, object_pairs_hook=OrderedDict)
-    print(release_json[version][name])
-
-
 ##
 ## release_json object update function
 ##
@@ -908,11 +901,15 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force
     for module in DEFAULT_MODULES.values():
         if module.should_tag:
             for tag in module.tag(agent_version):
-                ctx.run(
+                ok = try_git_command(
+                    ctx,
                     "git tag -m {tag} {tag} {commit}{force_option}".format(
                         tag=tag, commit=commit, force_option=force_option
-                    )
+                    ),
                 )
+                if not ok:
+                    message = f"Could not create tag {tag}. Please rerun the task to retry creating the tags (you may need the --force option)"
+                    raise Exit(color_message(message, "red"), code=1)
                 print("Created tag {tag}".format(tag=tag))
                 if push:
                     ctx.run("git push origin {tag}{force_option}".format(tag=tag, force_option=force_option))
@@ -1000,6 +997,32 @@ def check_upstream_branch(github, branch):
 
 def parse_major_versions(major_versions):
     return sorted(int(x) for x in major_versions.split(","))
+
+
+def try_git_command(ctx, git_command):
+    """
+    Try a git command that should be retried (after user confirmation) if it fails.
+    Primarily useful for commands which can fail if commit signing fails: we don't want the
+    whole workflow to fail if that happens, we want to retry.
+    """
+
+    do_retry = True
+
+    while do_retry:
+        res = ctx.run(git_command, warn=True)
+        if res.exited is None or res.exited > 0:
+            print(
+                color_message(
+                    "Failed to run \"{}\" (did the commit/tag signing operation fail?)".format(git_command),
+                    "orange",
+                )
+            )
+            do_retry = yes_no_question("Do you want to retry this operation?", color="orange", default=True)
+            continue
+
+        return True
+
+    return False
 
 
 @task
@@ -1169,8 +1192,8 @@ Make sure that milestone is open before trying again.""".format(
     ctx.run("git add release.json")
     ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
 
-    res = ctx.run("git commit -m 'Update release.json and Go modules for {}'".format(versions_string), warn=True)
-    if res.exited is None or res.exited > 0:
+    ok = try_git_command(ctx, "git commit -m 'Update release.json and Go modules for {}'".format(versions_string))
+    if not ok:
         raise Exit(
             color_message(
                 "Could not create commit. Please commit manually, push the {} branch and then open a PR against {}.".format(
@@ -1324,3 +1347,19 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, redo=False):
         repo_branch="beta",
         deploy=True,
     )
+
+
+@task(help={'key': "Path to the release.json key, separated with double colons, eg. 'last_stable::6'"})
+def get_release_json_value(_, key):
+
+    release_json = _load_release_json()
+
+    path = key.split('::')
+
+    for element in path:
+        if element not in release_json:
+            raise Exit(code=1, message=f"Couldn't find '{key}' in release.json")
+
+        release_json = release_json.get(element)
+
+    print(release_json)

@@ -48,12 +48,15 @@ type soRule struct {
 
 // soWatcher provides a way to tie callback functions to the lifecycle of shared libraries
 type soWatcher struct {
-	procRoot     string
-	pathResolver *psfilepath.Resolver
-	all          *regexp.Regexp
-	rules        []soRule
-	registered   map[string]func(string) error
-	loadEvents   *ddebpf.PerfHandler
+	procRoot   string
+	all        *regexp.Regexp
+	rules      []soRule
+	registered map[string]func(string) error
+	loadEvents *ddebpf.PerfHandler
+}
+
+type seenKey struct {
+	pid, path string
 }
 
 func newSOWatcher(procRoot string, perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
@@ -64,16 +67,16 @@ func newSOWatcher(procRoot string, perfHandler *ddebpf.PerfHandler, rules ...soR
 
 	all := regexp.MustCompile(fmt.Sprintf("(%s)", strings.Join(allFilters, "|")))
 	return &soWatcher{
-		procRoot:     procRoot,
-		pathResolver: psfilepath.NewResolver(procRoot),
-		all:          all,
-		rules:        rules,
-		loadEvents:   perfHandler,
+		procRoot:   procRoot,
+		all:        all,
+		rules:      rules,
+		loadEvents: perfHandler,
 	}
 }
 
 // Start consuming shared-library events
 func (w *soWatcher) Start() {
+	seen := make(map[seenKey]struct{})
 	sharedLibraries := getSharedLibraries(w.procRoot, w.all)
 	w.sync(sharedLibraries)
 	go func() {
@@ -84,6 +87,7 @@ func (w *soWatcher) Start() {
 		for {
 			select {
 			case <-ticker.C:
+				seen = make(map[seenKey]struct{})
 				sharedLibraries := getSharedLibraries(w.procRoot, w.all)
 				w.sync(sharedLibraries)
 			case event, ok := <-w.loadEvents.DataChannel:
@@ -103,14 +107,26 @@ func (w *soWatcher) Start() {
 				for _, r := range w.rules {
 					if r.re.Match(path) {
 						var (
-							libPath  = string(path)
-							pidPath  = fmt.Sprintf("%s/%d", w.procRoot, lib.pid)
-							hostPath = w.pathResolver.LoadPIDMounts(pidPath).Resolve(libPath)
+							libPath = string(path)
+							pidPath = fmt.Sprintf("%s/%d", w.procRoot, lib.pid)
 						)
 
-						if hostPath != "" {
+						// resolving paths is expensive so we cache the libraries we've already seen
+						k := seenKey{pidPath, libPath}
+						if _, ok := seen[k]; ok {
+							break
+						}
+						seen[k] = struct{}{}
+
+						// resolve namespaced path to host path
+						pathResolver := psfilepath.NewResolver(w.procRoot)
+						pathResolver.LoadPIDMounts(pidPath)
+						if hostPath := pathResolver.Resolve(libPath); hostPath != "" {
 							libPath = hostPath
 						}
+
+						// follow symlink
+						libPath = followSymlink(libPath)
 
 						if _, registered := w.registered[libPath]; registered {
 							break
@@ -152,6 +168,10 @@ OuterLoop:
 
 	// Now we call the unregister callback for every shared library that is no longer mapped into memory
 	for path, unregisterCB := range old {
+		if unregisterCB == nil {
+			continue
+		}
+
 		log.Debugf("unregistering library=%s", path)
 		unregisterCB(path)
 	}
@@ -162,6 +182,7 @@ func (w *soWatcher) register(libPath string, r soRule) {
 	if err != nil {
 		log.Errorf("error registering library=%s: %s", libPath, err)
 		r.unregisterCB(libPath)
+		w.registered[libPath] = nil
 		return
 	}
 
@@ -176,12 +197,26 @@ func getSharedLibraries(procRoot string, filter *regexp.Regexp) []so.Library {
 	// TODO: should we ensure all entries are unique in the `so` package instead?
 	seen := make(map[string]struct{}, len(libraries))
 	i := 0
-	for j, lib := range libraries {
-		if _, ok := seen[lib.HostPath]; !ok {
-			libraries[i] = libraries[j]
-			seen[lib.HostPath] = struct{}{}
-			i++
+	for _, lib := range libraries {
+		_, ok := seen[lib.HostPath]
+		if ok {
+			continue
 		}
+		seen[lib.HostPath] = struct{}{}
+
+		// this ensures that all symlinks are resolved only once
+		resolved := followSymlink(lib.HostPath)
+		if resolved != lib.HostPath {
+			if _, ok := seen[resolved]; ok {
+				continue
+			} else {
+				seen[resolved] = struct{}{}
+				lib.HostPath = resolved
+			}
+		}
+
+		libraries[i] = lib
+		i++
 	}
 	libraries = libraries[0:i]
 
@@ -194,4 +229,12 @@ func getSharedLibraries(procRoot string, filter *regexp.Regexp) []so.Library {
 	}
 
 	return libraries
+}
+
+func followSymlink(path string) string {
+	if withoutSymLinks, err := filepath.EvalSymlinks(path); err == nil {
+		return withoutSymLinks
+	}
+
+	return path
 }

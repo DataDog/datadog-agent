@@ -6,7 +6,10 @@ import (
 	"os"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
+
+	"github.com/twmb/murmur3"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -164,7 +167,7 @@ func (o *openSSLProgram) Stop() {
 
 func addHooks(m *manager.Manager, probes []string) func(string) error {
 	return func(libPath string) error {
-		uid := libPath
+		uid := getUID(libPath)
 		for _, sec := range probes {
 			p, found := m.GetProbe(manager.ProbeIdentificationPair{uid, sec})
 			if found {
@@ -196,7 +199,7 @@ func addHooks(m *manager.Manager, probes []string) func(string) error {
 
 func removeHooks(m *manager.Manager, probes []string) func(string) error {
 	return func(libPath string) error {
-		uid := libPath
+		uid := getUID(libPath)
 		for _, sec := range probes {
 			p, found := m.GetProbe(manager.ProbeIdentificationPair{uid, sec})
 			if !found {
@@ -211,4 +214,14 @@ func removeHooks(m *manager.Manager, probes []string) func(string) error {
 
 func runningOnARM() bool {
 	return strings.HasPrefix(runtime.GOARCH, "arm")
+}
+
+func getUID(libPath string) string {
+	sum := murmur3.StringSum64(libPath)
+	hash := strconv.FormatInt(int64(sum), 16)
+	if len(hash) >= 5 {
+		return hash[len(hash)-5:]
+	}
+
+	return libPath
 }

@@ -48,7 +48,11 @@ func TestChown32(t *testing.T) {
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_x86_tester")
 	if err != nil {
-		t.Fatal(err)
+		if _, ok := err.(ErrUnsupportedArch); ok {
+			t.Skip(err)
+		} else {
+			t.Fatal(err)
+		}
 	}
 
 	prevUID := 98

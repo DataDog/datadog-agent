@@ -52,13 +52,13 @@ func setupCheckCmd(cmd *cobra.Command) {
 }
 
 // CheckCmd returns a cobra command to run security agent checks
-func CheckCmd(confPathArray []string) *cobra.Command {
+func CheckCmd(confPathArrayGetter func() []string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "check",
 		Short: "Run compliance check(s)",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runCheck(cmd, confPathArray, args)
+			return runCheck(cmd, confPathArrayGetter(), args)
 		},
 	}
 	setupCheckCmd(cmd)
@@ -229,5 +229,7 @@ func (r *RunCheckReporter) ReportRaw(content []byte, service string, tags ...str
 }
 
 func init() {
-	complianceCmd.AddCommand(CheckCmd(confPathArray))
+	complianceCmd.AddCommand(CheckCmd(func() []string {
+		return confPathArray
+	}))
 }

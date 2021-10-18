@@ -20,6 +20,7 @@ import (
 const (
 	defaultPollInterval = int(15)
 	defaultBufferSize   = 512
+	minBufferSize       = 256
 )
 
 // Tracer struct for tracking network state and connections
@@ -78,8 +79,8 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		stopChan:        make(chan struct{}),
 		timerInterval:   defaultPollInterval,
 		state:           state,
-		activeBuffer:    network.NewConnectionBuffer(defaultBufferSize),
-		closedBuffer:    network.NewConnectionBuffer(defaultBufferSize),
+		activeBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
+		closedBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		reverseDNS:      reverseDNS,
 		sourceExcludes:  network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:    network.ParseConnectionFilters(config.ExcludedDestinationConnections),
@@ -103,24 +104,25 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.connLock.Lock()
 	defer t.connLock.Unlock()
 
-	t.activeBuffer.Reset()
-	t.closedBuffer.Reset()
-
 	_, _, err := t.driverInterface.GetConnectionStats(t.activeBuffer, t.closedBuffer, func(c *network.ConnectionStats) bool {
 		return !t.shouldSkipConnection(c)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections from driver: %w", err)
 	}
-
 	activeConnStats := t.activeBuffer.Connections()
 	closedConnStats := t.closedBuffer.Connections()
 
 	// check for expired clients in the state
 	t.state.RemoveExpiredClients(time.Now())
 
-	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, closedConnStats, t.reverseDNS.GetDNSStats(), nil)
-	var ips []util.Address
+	t.state.StoreClosedConnections(closedConnStats)
+	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
+
+	t.activeBuffer.Reset()
+	t.closedBuffer.Reset()
+
+	ips := make([]util.Address, 0, len(delta.Conns)*2)
 	for _, conn := range delta.Conns {
 		ips = append(ips, conn.Source, conn.Dest)
 	}

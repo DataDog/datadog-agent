@@ -1,4 +1,5 @@
 ## Note
+
 This package is a fork of the [weaveworks tcptracer-bpf](https://github.com/weaveworks/tcptracer-bpf) package which focused on tracing TCP state events (connect, accept, close) without kernel specific runtime dependencies.
 
 This fork adds support for UDP, as well as collection of metrics like bytes sent/received. It also opts for event collection via polling (using BPF maps) instead of being pushed event updates via perf buffers.

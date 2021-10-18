@@ -23,7 +23,6 @@ var (
 		"job_name":                            "kube_job",
 		"cronjob":                             "kube_cronjob",
 		"pod":                                 "pod_name",
-		"phase":                               "pod_phase",
 		"priority_class":                      "kube_priority_class",
 		"daemonset":                           "kube_daemon_set",
 		"replicationcontroller":               "kube_replication_controller",

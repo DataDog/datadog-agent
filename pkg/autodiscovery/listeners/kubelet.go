@@ -41,9 +41,10 @@ type KubeletListener struct {
 	store *workloadmeta.Store
 	stop  chan struct{}
 
-	mu       sync.RWMutex
-	filters  *containerFilters
-	services map[string]Service
+	mu            sync.RWMutex
+	filters       *containerFilters
+	services      map[string]Service
+	podContainers map[string]map[string]struct{}
 
 	newService chan<- Service
 	delService chan<- Service
@@ -57,10 +58,11 @@ func NewKubeletListener() (ServiceListener, error) {
 	}
 
 	return &KubeletListener{
-		store:    workloadmeta.GetGlobalStore(),
-		filters:  filters,
-		services: make(map[string]Service),
-		stop:     make(chan struct{}),
+		store:         workloadmeta.GetGlobalStore(),
+		filters:       filters,
+		services:      make(map[string]Service),
+		podContainers: make(map[string]map[string]struct{}),
+		stop:          make(chan struct{}),
 	}, nil
 }
 
@@ -69,7 +71,7 @@ func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	l.newService = newSvc
 	l.delService = delSvc
 
-	const name = "ad-workloadmeta-kubeletlistener"
+	const name = "ad-kubeletlistener"
 
 	ch := l.store.Subscribe(name, workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
@@ -118,16 +120,16 @@ func (l *KubeletListener) processEvents(evBundle workloadmeta.EventBundle, first
 		entityID := entity.GetID()
 
 		if entityID.Kind != workloadmeta.KindKubernetesPod {
-			log.Errorf("got event %d with entity of kind %q. filters broken?", ev.Type, entityID.Kind)
+			log.Errorf("internal error: got event %d with entity of kind %q. filters broken?", ev.Type, entityID.Kind)
 		}
 
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
-			pod := entity.(workloadmeta.KubernetesPod)
+			pod := entity.(*workloadmeta.KubernetesPod)
 			l.processPod(pod, firstRun)
 
 		case workloadmeta.EventTypeUnset:
-			l.removeService(entityID)
+			l.removePodService(entityID)
 
 		default:
 			log.Errorf("cannot handle event of type %d", ev.Type)
@@ -135,25 +137,41 @@ func (l *KubeletListener) processEvents(evBundle workloadmeta.EventBundle, first
 	}
 }
 
-func (l *KubeletListener) processPod(pod workloadmeta.KubernetesPod, firstRun bool) {
-	containers := make([]workloadmeta.Container, 0, len(pod.Containers))
+func (l *KubeletListener) processPod(pod *workloadmeta.KubernetesPod, firstRun bool) {
+	// unseen keeps track of which previous container services are no
+	// longer present in the pod, to be removed at the end of this func
+	svcID := buildSvcID(pod.GetID())
+	unseen := make(map[string]struct{})
+	for id := range l.podContainers[svcID] {
+		unseen[id] = struct{}{}
+	}
 
-	for _, containerID := range pod.Containers {
-		container, err := l.store.GetContainer(containerID)
+	containers := make([]*workloadmeta.Container, 0, len(pod.Containers))
+	for _, podContainer := range pod.Containers {
+		container, err := l.store.GetContainer(podContainer.ID)
 		if err != nil {
-			log.Debugf("pod %q has reference to non-existing container %q", pod.Name, containerID)
+			log.Debugf("pod %q has reference to non-existing container %q", pod.Name, podContainer.ID)
 			continue
 		}
 
 		l.createContainerService(pod, container, firstRun)
 
 		containers = append(containers, container)
+
+		containerSvcID := buildSvcID(container.GetID())
+		delete(unseen, containerSvcID)
 	}
 
 	l.createPodService(pod, containers, firstRun)
+
+	// remove the container services that weren't seen when processing this
+	// pod
+	for containerSvcID := range unseen {
+		l.removeService(containerSvcID)
+	}
 }
 
-func (l *KubeletListener) createPodService(pod workloadmeta.KubernetesPod, containers []workloadmeta.Container, firstRun bool) {
+func (l *KubeletListener) createPodService(pod *workloadmeta.KubernetesPod, containers []*workloadmeta.Container, firstRun bool) {
 	var crTime integration.CreationTime
 	if firstRun {
 		crTime = integration.Before
@@ -191,10 +209,15 @@ func (l *KubeletListener) createPodService(pod workloadmeta.KubernetesPod, conta
 	l.newService <- svc
 }
 
-func (l *KubeletListener) createContainerService(pod workloadmeta.KubernetesPod, container workloadmeta.Container, firstRun bool) {
+func (l *KubeletListener) createContainerService(pod *workloadmeta.KubernetesPod, container *workloadmeta.Container, firstRun bool) {
 	containerImg := container.Image
-	if l.filters.IsExcluded(containers.GlobalFilter, container.Name, containerImg.RawName, pod.Namespace) {
-		log.Debugf("container %s filtered out: name %q image %q namespace %q", container.ID, container.Name, container.Image.Name, pod.Namespace)
+	if l.filters.IsExcluded(
+		containers.GlobalFilter,
+		container.Name,
+		containerImg.RawName,
+		pod.Namespace,
+	) {
+		log.Debugf("container %s filtered out: name %q image %q namespace %q", container.ID, container.Name, container.Image.RawName, pod.Namespace)
 		return
 	}
 
@@ -286,7 +309,10 @@ func (l *KubeletListener) createContainerService(pod workloadmeta.KubernetesPod,
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if old, found := l.services[entity]; found {
+	svcID := buildSvcID(container.GetID())
+	podSvcID := buildSvcID(pod.GetID())
+
+	if old, found := l.services[svcID]; found {
 		if kubeletSvcEqual(old, svc) {
 			log.Tracef("Received a duplicated kubelet service '%s'", svc.entity)
 			return
@@ -296,15 +322,33 @@ func (l *KubeletListener) createContainerService(pod workloadmeta.KubernetesPod,
 		l.delService <- old
 	}
 
-	l.services[buildSvcID(container.GetID())] = svc
+	if _, ok := l.podContainers[podSvcID]; !ok {
+		l.podContainers[podSvcID] = make(map[string]struct{})
+	}
+
+	l.services[svcID] = svc
+	l.podContainers[podSvcID][svcID] = struct{}{}
 	l.newService <- svc
 }
 
-func (l *KubeletListener) removeService(entityID workloadmeta.EntityID) {
+func (l *KubeletListener) removePodService(entityID workloadmeta.EntityID) {
+	svcID := buildSvcID(entityID)
+	l.removeService(svcID)
+
+	l.mu.Lock()
+	containerSvcIDs := l.podContainers[svcID]
+	delete(l.podContainers, svcID)
+	l.mu.Unlock()
+
+	for containerSvcID := range containerSvcIDs {
+		l.removeService(containerSvcID)
+	}
+}
+
+func (l *KubeletListener) removeService(svcID string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	svcID := buildSvcID(entityID)
 	svc, ok := l.services[svcID]
 	if !ok {
 		log.Debugf("service %q not found, not removing", svcID)

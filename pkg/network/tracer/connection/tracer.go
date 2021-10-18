@@ -8,12 +8,14 @@ import (
 // Tracer is the common interface implemented by all connection tracers.
 type Tracer interface {
 	// Start begins collecting network connection data.
-	Start(closedFilter func(*network.ConnectionStats) bool) error
+	Start(func([]network.ConnectionStats)) error
 	// Stop halts all network data collection.
 	Stop()
 	// GetConnections returns the list of currently active connections, using the buffer provided.
 	// The optional filter function is used to prevent unwanted connections from being returned and consuming resources.
-	GetConnections(active, closed *network.ConnectionBuffer, activeFilter func(*network.ConnectionStats) bool) error
+	GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error
+	// FlushPending forces any closed connections waiting for batching to be processed immediately.
+	FlushPending()
 	// Remove deletes the connection from tracking state.
 	// It does not prevent the connection from re-appearing later, if additional traffic occurs.
 	Remove(conn *network.ConnectionStats) error

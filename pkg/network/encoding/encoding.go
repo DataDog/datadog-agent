@@ -90,7 +90,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 		routes[v.Idx] = &v.Route
 	}
 
-	payload := connsPool.Get().(*model.Connections)
+	payload := new(model.Connections)
 	payload.AgentConfiguration = agentCfg
 	payload.Conns = agentConns
 	payload.Domains = dnsFormatter.Domains()

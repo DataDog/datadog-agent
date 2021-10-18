@@ -330,20 +330,24 @@ func trimJobTag(tag string) (string, bool) {
 	return trimmed, tag != trimmed
 }
 
-// validateJob detects active jobs and strips the timestamp from the job_name tag
+// validateJob detects active jobs and adds the `kube_cronjob` tag
 func validateJob(val float64, tags []string) ([]string, bool) {
-	for i, tag := range tags {
+	kubeCronjob := ""
+	for _, tag := range tags {
 		split := strings.Split(tag, ":")
 		if len(split) == 2 && split[0] == "kube_job" || split[0] == "job" || split[0] == "job_name" {
 			// Trim the timestamp suffix to avoid high cardinality
 			if name, trimmed := trimJobTag(split[1]); trimmed {
 				// The trimmed job name corresponds to the parent cronjob name
 				// https://github.com/kubernetes/kubernetes/blob/v1.21.0/pkg/controller/cronjob/utils.go#L240
-				tags[i] = "kube_cronjob:" + name
+				kubeCronjob = name
 			}
 		}
 	}
 
+	if kubeCronjob != "" {
+		tags = append(tags, "kube_cronjob:"+kubeCronjob)
+	}
 	return tags, val == 1.0
 }
 

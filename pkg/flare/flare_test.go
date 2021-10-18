@@ -42,11 +42,29 @@ func TestFlareHasRightForm(t *testing.T) {
 	var lastRequest *http.Request
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		lastRequest = r
-		err := lastRequest.ParseMultipartForm(1000000)
-		assert.Nil(t, err)
-		io.WriteString(w, "{}")
+		// This server serves two requests:
+		//  * the original flare request URL, which redirects on HEAD to /post-target
+		//  * HEAD /post-target - responds with 200 OK
+		//  * POST /post-target - the final POST
+
+		if r.Method == "HEAD" && r.RequestURI == "/support/flare/12345?api_key=" {
+			// redirect to /post-target.
+			w.Header().Set("Location", "/post-target")
+			w.WriteHeader(307)
+		} else if r.Method == "HEAD" && r.RequestURI == "/post-target" {
+			// accept a HEAD to /post-target
+			w.WriteHeader(200)
+		} else if r.Method == "POST" && r.RequestURI == "/post-target" {
+			// handle the actual POST
+			w.Header().Set("Content-Type", "application/json")
+			lastRequest = r
+			err := lastRequest.ParseMultipartForm(1000000)
+			assert.Nil(t, err)
+			io.WriteString(w, "{}")
+		} else {
+			w.WriteHeader(500)
+			io.WriteString(w, "path not recognized by httptest server")
+		}
 	}))
 	defer ts.Close()
 
