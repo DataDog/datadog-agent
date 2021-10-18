@@ -372,12 +372,14 @@ def generate_failure_messages(base):
 
 
 @task
-def trigger_child_pipeline(_, git_ref, project_name, variables=""):
+def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
     """
     Trigger a child pipeline on a target repository and git ref.
     Used in CI jobs only (requires CI_JOB_TOKEN).
 
     Use --variables to specify the environment variables that should be passed to the child pipeline, as a comma-separated list.
+
+    Use --follow to make this task wait for the pipeline to finish, and return 1 if it fails.
 
     Examples:
     inv pipeline.trigger-child-pipeline --git-ref "master" --project-name "DataDog/agent-release-management" --variables "RELEASE_VERSION"
@@ -409,12 +411,25 @@ def trigger_child_pipeline(_, git_ref, project_name, variables=""):
     res = gitlab.trigger_pipeline(data)
 
     if 'id' not in res:
-        raise Exit("Failed to create child pipeline: {}".format(res), 1)
+        raise Exit("Failed to create child pipeline: {}".format(res), code=1)
 
-    print("Created a child pipeline with id={}, url={}".format(res['id'], res['web_url']))
+    pipeline_id = res['id']
+    pipeline_url = res['web_url']
+    print("Created a child pipeline with id={}, url={}".format(pipeline_id, pipeline_url))
 
-    # TODO: Add mode where we follow the pipeline, for jobs that need to depend on the child
-    # pipeline.
+    if follow:
+        print("Waiting for child pipeline to finish...")
+
+        wait_for_pipeline(gitlab, pipeline_id)
+
+        # Check pipeline status
+        pipeline = gitlab.pipeline(pipeline_id)
+        pipestatus = pipeline["status"].lower().strip()
+
+        if pipestatus != "success":
+            raise Exit("Error: child pipeline status {}".format(pipestatus.title()), code=1)
+
+        print("Child pipeline finished successfully")
 
 
 @task
