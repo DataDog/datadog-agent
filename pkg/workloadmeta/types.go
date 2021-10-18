@@ -230,6 +230,8 @@ type ECSTask struct {
 	Tags                  map[string]string
 	ContainerInstanceTags map[string]string
 	ClusterName           string
+	Region                string
+	AvailabilityZone      string
 	Family                string
 	Version               string
 	LaunchType            ECSLaunchType
