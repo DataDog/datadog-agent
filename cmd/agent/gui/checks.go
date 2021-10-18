@@ -20,8 +20,8 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/gorilla/mux"
 	securejoin "github.com/cyphar/filepath-securejoin"
+	"github.com/gorilla/mux"
 	yaml "gopkg.in/yaml.v2"
 )
 
