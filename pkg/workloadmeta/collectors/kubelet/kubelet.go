@@ -11,7 +11,7 @@ import (
 	"context"
 	"time"
 
-	"k8s.io/kubernetes/third_party/forked/golang/expansion"
+	"github.com/DataDog/datadog-agent/third_party/golang/expansion"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"

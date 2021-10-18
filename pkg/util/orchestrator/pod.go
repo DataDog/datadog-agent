@@ -25,11 +25,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	kubetypes "github.com/DataDog/datadog-agent/third_party/kubernetes/pkg/kubelet/types"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/twmb/murmur3"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/kubernetes/pkg/kubelet/pod"
 )
 
 const (
@@ -50,7 +50,7 @@ func ProcessPodList(podList []*v1.Pod, groupID int32, hostName string, clusterID
 
 		// static pods "uid" are actually not unique across nodes.
 		// we differ from the k8 uuid format in purpose to differentiate those static pods.
-		if pod.IsStaticPod(p) {
+		if kubetypes.IsStaticPod(p) {
 			newUID := generateUniqueStaticPodHash(hostName, p.Name, p.Namespace, cfg.KubeClusterName)
 			// modify it in the original pod for the YAML and in our model
 			p.UID = types.UID(newUID)
