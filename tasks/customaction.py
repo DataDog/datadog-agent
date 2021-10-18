@@ -26,9 +26,7 @@ def try_run(ctx, cmd, n):
     fails, returns False.
     """
 
-    i = 0
-    while i < n:
-        i += 1
+    for _ in range(n):
         res = ctx.run(cmd, warn=True)
         if res.exited is None or res.exited > 0:
             print(
@@ -88,8 +86,7 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
     # network failures
     succeeded = try_run(ctx, cmd, 3)
     if not succeeded:
-        print("Failed to build the customaction.")
-        raise Exit(code=1)
+        raise Exit("Failed to build the customaction.", code=1)
 
     artefacts = [
         {"source": "customaction.dll", "target": "customaction.dll"},
