@@ -2374,6 +2374,7 @@ api_key:
 ####################################################
 
 ## @param kubernetes_kubeconfig_path - string - optional - default: ""
+## @env DD_KUBERNETES_KUBECONFIG_PATH - string - optional - default: ""
 ## When running in a pod, the Agent automatically uses the pod's service account
 ## to authenticate with the API server.
 ## Provide the path to a custom KubeConfig file if you wish to install the Agent out of a pod
@@ -2397,12 +2398,14 @@ api_key:
 # kubernetes_apiserver_tls_verify: true
 
 ## @param kubernetes_apiserver_use_protobuf - boolean - optional - default: false
+## @env DD_KUBERNETES_APISERVER_USE_PROTOBUF - boolean - optional - default: false
 ## By default, communication with the apiserver is in json format. Setting the following
 ## option to true allows communication in the binary protobuf format.
 #
 # kubernetes_apiserver_use_protobuf: false
 
 ## @param kubernetes_collect_metadata_tags - boolean - optional - default: true
+## @env DD_KUBERNETES_COLLECT_METADATA_TAGS - boolean - optional - default: true
 ## Set this to false to disable tag collection for the Agent.
 ## Note: In order to collect Kubernetes service names, the Agent needs certain rights.
 ## See https://github.com/DataDog/datadog-agent/blob/main/Dockerfiles/agent/README.md#kubernetes
@@ -2410,16 +2413,19 @@ api_key:
 # kubernetes_collect_metadata_tags: true
 
 ## @param kubernetes_metadata_tag_update_freq - integer - optional - default: 60
+## @env DD_KUBERNETES_METADATA_TAG_UPDATE_FREQ - integer - optional - default: 60
 ## Set how often in secons the Agent refreshes the internal mapping of services to ContainerIDs.
 #
 # kubernetes_metadata_tag_update_freq: 60
 
 ## @param kubernetes_apiserver_client_timeout - integer - optional - default: 10
+## @env DD_KUBERNETES_APISERVER_CLIENT_TIMEOUT - integer - optional - default: 10
 ## Set the timeout for the Agent when connecting to the Kubernetes API server.
 #
 # kubernetes_apiserver_client_timeout: 10
 
 ## @param collect_kubernetes_events - boolean - optional - default: false
+## @env DD_COLLECT_KUBERNETES_EVENTS - boolean - optional - default: false
 ## Set `collect_kubernetes_events` to true to enable log collection.
 ## Note: leader election must be enabled must be enabled  bellow to to collect events.
 ##       Only the leader Agent collects events.
@@ -2428,30 +2434,37 @@ api_key:
 # collect_kubernetes_events: false
 
 ## @param kubernetes_event_collection_timeout - integer - optional - default: 100
+## @env DD_KUBERNETES_EVENT_COLLECTION_TIMEOUT - integer - optional - default: 100
 ## Set the timeout between two successful event collections in milliseconds.
 #
 # kubernetes_event_collection_timeout: 100
 
 ## @param leader_election - boolean - optional - default: false
+## @env DD_LEADER_ELECTION - boolean - optional - default: false
 ## Set the parameter to true to enable leader election on this node.
 ## See https://github.com/DataDog/datadog-agent/blob/main/Dockerfiles/agent/README.md#leader-election
 #
 # leader_election: false
 
 ## @param leader_lease_duration - integer - optional - default: 60
+## @env DD_LEADER_LEASE_DURATION - integer - optional - default: 60
 ## Set the leader election lease in seconds.
 #
 # leader_lease_duration: 60
 
 ## @param kubernetes_node_labels_as_tags - map - optional
+## @env DD_KUBERNETES_NODE_LABELS_AS_TAGS - json - optional
 ## Configure node labels that should be collected and their name as host tags.
 ## Note: Some of these labels are redundant with metadata collected by cloud provider crawlers (AWS, GCE, Azure)
 #
 # kubernetes_node_labels_as_tags:
 #   kubernetes.io/hostname: nodename
 #   beta.kubernetes.io/os: os
+#
+# DD_KUBERNETES_NODE_LABELS_AS_TAGS='{"NODE_LABEL": "TAG_KEY"}'
 
 ## @param cluster_name - string - optional
+## @env DD_CLUSTER_NAME - string - optional
 ## Set a custom kubernetes cluster identifier to avoid host alias collisions.
 ## The cluster name can be up to 40 characters with the following restrictions:
 ## * Lowercase letters, numbers, and hyphens only.
