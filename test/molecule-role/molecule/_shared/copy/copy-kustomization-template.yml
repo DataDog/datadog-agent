@@ -1,5 +1,5 @@
 ---
 - name: Kustomization template
   template:
-    src: files/template/kustomization.yaml
+    src: ../../files/template/kustomization.yaml
     dest: /home/ubuntu/deployment/agents/overlays

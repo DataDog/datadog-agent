@@ -48,11 +48,11 @@
   tasks:
     - include_tasks: ./prepare.tasks.prepare.windows.agent.connecting.yml
 
-# - name: Prepare Windows Agents (post)
-#   hosts: agent_win_vm
-#   gather_facts: false
-#   tasks:
-#     - include_tasks: ./prepare.tasks.prepare.windows.agent.yml
+- name: Prepare Windows Agents (post)
+  hosts: agent_win_vm
+  gather_facts: false
+  tasks:
+    - include_tasks: ./prepare.tasks.prepare.windows.agent.yml
 
 - name: Prepare Win Agent for Short-Lived tests (post installation configuration)
   hosts: agent_win_vm
