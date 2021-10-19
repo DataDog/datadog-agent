@@ -26,7 +26,7 @@ jobs:
           python-version: '3.x'
       - working-directory: go/src/github.com/DataDog/datadog-agent
         run: |
-          pip install -r requirements.txt
+          pip3 install -r requirements.txt
           echo "CODEQL_PYTHON=$(which python3)" >> $GITHUB_ENV
           echo "$GOPATH/bin" >> $GITHUB_PATH
           echo "CGO_LDFLAGS= -L${GITHUB_WORKSPACE}/go/src/github.com/DataDog/datadog-agent/rtloader/build/rtloader -ldl " >> $GITHUB_ENV
