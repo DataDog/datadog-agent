@@ -20,11 +20,14 @@ jobs:
         with:
           fetch-depth: 0
           path: go/src/github.com/DataDog/datadog-agent
-
+      - name: Setup Python3
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
       - working-directory: go/src/github.com/DataDog/datadog-agent
         run: |
           pip install -r requirements.txt
-          echo "CODEQL_PYTHON=$(which python)" >> $GITHUB_ENV
+          echo "CODEQL_PYTHON=$(which python3)" >> $GITHUB_ENV
           echo "$GOPATH/bin" >> $GITHUB_PATH
           echo "CGO_LDFLAGS= -L${GITHUB_WORKSPACE}/go/src/github.com/DataDog/datadog-agent/rtloader/build/rtloader -ldl " >> $GITHUB_ENV
           echo "CGO_CFLAGS= -I${GITHUB_WORKSPACE}/go/src/github.com/DataDog/datadog-agent/rtloader/include  -I${GITHUB_WORKSPACE}/go/src/github.com/DataDog/datadog-agent/rtloader/common " >> $GITHUB_ENV
