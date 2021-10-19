@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package docker
@@ -60,7 +61,12 @@ func (c *collector) Start(ctx context.Context, store *workloadmeta.Store) error 
 		return err
 	}
 
-	c.eventCh, c.errCh, err = c.dockerUtil.SubscribeToContainerEvents(componentName)
+	filter, err := containers.GetPauseContainerFilter()
+	if err != nil {
+		log.Warnf("Can't get pause container filter, no filtering will be applied: %w", err)
+	}
+
+	c.eventCh, c.errCh, err = c.dockerUtil.SubscribeToContainerEvents(componentName, filter)
 	if err != nil {
 		return err
 	}
@@ -133,7 +139,6 @@ func (c *collector) generateEventsFromContainerList(ctx context.Context) error {
 	}
 
 	return nil
-
 }
 
 func (c *collector) handleEvent(ctx context.Context, ev *docker.ContainerEvent) {
