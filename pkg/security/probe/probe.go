@@ -261,7 +261,8 @@ func (p *Probe) sendDiscardersStats() {
 	for eventType, value := range p.inodeDiscardersCounters {
 		val := atomic.SwapInt64(value, 0)
 		if val > 0 {
-			_ = p.statsdClient.Count(metrics.MetricInodeDiscardersAdded, val, []string{eventType.String()}, 1.0)
+			tag := fmt.Sprintf("event_type:%s", eventType)
+			_ = p.statsdClient.Count(metrics.MetricInodeDiscardersAdded, val, []string{tag}, 1.0)
 		}
 	}
 }
