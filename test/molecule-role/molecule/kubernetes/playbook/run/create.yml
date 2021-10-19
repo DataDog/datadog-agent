@@ -24,5 +24,5 @@
     - include_tasks: ./../setup/create.tasks.yml
       when: hostvars['localhost']['block_ec2_creation'] is not defined
 
-    # Default tasks from this script
+    # Default tasks  from this script
     - include_tasks: ./create.tasks.yml
