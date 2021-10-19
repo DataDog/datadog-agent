@@ -1,0 +1,115 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package cleaner
+
+import (
+	"fmt"
+	"regexp"
+)
+
+// DefaultCleaner is the cleaner used by the package-level cleaning functions.
+//
+// It includes a set of agent-specific replacers defined in default.go.
+var DefaultCleaner = &Cleaner{}
+
+func init() {
+	hintedAPIKeyReplacer := Replacer{
+		// If hinted, mask the value regardless if it doesn't match 32-char hexadecimal string
+		Regex: regexp.MustCompile(`(api_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{5})\b`),
+		Hints: []string{"api_key", "apikey"},
+		Repl:  []byte(`$1***************************$2`),
+	}
+	hintedAPPKeyReplacer := Replacer{
+		// If hinted, mask the value regardless if it doesn't match 40-char hexadecimal string
+		Regex: regexp.MustCompile(`(ap(?:p|plication)_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{5})\b`),
+		Hints: []string{"app_key", "appkey", "application_key"},
+		Repl:  []byte(`$1***********************************$2`),
+	}
+	apiKeyReplacer := Replacer{
+		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
+		Repl:  []byte(`***************************$1`),
+	}
+	appKeyReplacer := Replacer{
+		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{35}([a-fA-F0-9]{5})\b`),
+		Repl:  []byte(`***********************************$1`),
+	}
+	// URI Generic Syntax
+	// https://tools.ietf.org/html/rfc3986
+	uriPasswordReplacer := Replacer{
+		Regex: regexp.MustCompile(`([A-Za-z][A-Za-z0-9+-.]+\:\/\/|\b)([^\:]+)\:([^\s]+)\@`),
+		Repl:  []byte(`$1$2:********@`),
+	}
+	passwordReplacer := Replacer{
+		Regex: matchYAMLKeyPart(`(pass(word)?|pwd)`),
+		Hints: []string{"pass", "pwd"},
+		Repl:  []byte(`$1 ********`),
+	}
+	tokenReplacer := Replacer{
+		Regex: matchYAMLKeyEnding(`token`),
+		Hints: []string{"token"},
+		Repl:  []byte(`$1 ********`),
+	}
+	snmpReplacer := Replacer{
+		Regex: matchYAMLKey(`(community_string|authKey|privKey|community|authentication_key|privacy_key)`),
+		Hints: []string{"community_string", "authKey", "privKey", "community", "authentication_key", "privacy_key"},
+		Repl:  []byte(`$1 ********`),
+	}
+	certReplacer := Replacer{
+		Regex: matchCert(),
+		Hints: []string{"BEGIN"},
+		Repl:  []byte(`********`),
+	}
+	DefaultCleaner.AddReplacer(SingleLine, hintedAPIKeyReplacer)
+	DefaultCleaner.AddReplacer(SingleLine, hintedAPPKeyReplacer)
+	DefaultCleaner.AddReplacer(SingleLine, apiKeyReplacer)
+	DefaultCleaner.AddReplacer(SingleLine, appKeyReplacer)
+	DefaultCleaner.AddReplacer(SingleLine, uriPasswordReplacer)
+	DefaultCleaner.AddReplacer(SingleLine, passwordReplacer)
+	DefaultCleaner.AddReplacer(SingleLine, tokenReplacer)
+	DefaultCleaner.AddReplacer(SingleLine, snmpReplacer)
+	DefaultCleaner.AddReplacer(MultiLine, certReplacer)
+}
+
+func matchYAMLKeyPart(part string) *regexp.Regexp {
+	return regexp.MustCompile(fmt.Sprintf(`(\s*(\w|_)*%s(\w|_)*\s*:).+`, part))
+}
+
+func matchYAMLKey(key string) *regexp.Regexp {
+	return regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:).+`, key))
+}
+
+func matchYAMLKeyEnding(ending string) *regexp.Regexp {
+	return regexp.MustCompile(fmt.Sprintf(`(^\s*(\w|_)*%s\s*:).+`, ending))
+}
+
+func matchCert() *regexp.Regexp {
+	/*
+	   Try to match as accurately as possible. RFC 7468's ABNF
+	   Backreferences are not available in go, so we cannot verify
+	   here that the BEGIN label is the same as the END label.
+	*/
+	return regexp.MustCompile(
+		`-----BEGIN (?:.*)-----[A-Za-z0-9=\+\/\s]*-----END (?:.*)-----`,
+	)
+}
+
+// CredentialsCleanerFile scrubs credentials from the given file, using the
+// default cleaner.
+func CredentialsCleanerFile(filePath string) ([]byte, error) {
+	return DefaultCleaner.CredentialsCleanerFile(filePath)
+}
+
+// CredentialsCleanerBytes scrubs credentials from the given slice of bytes,
+// using the default cleaner.
+func CredentialsCleanerBytes(file []byte) ([]byte, error) {
+	return DefaultCleaner.CredentialsCleanerBytes(file)
+}
+
+// SanitizeURL sanitizes credentials from a message containing a URL, and returns
+// a string that can be logged safely, using the default cleaner.
+func SanitizeURL(url string) string {
+	return DefaultCleaner.SanitizeURL(url)
+}
