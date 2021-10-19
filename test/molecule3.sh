@@ -164,6 +164,12 @@ elif [[ $2 == "test" ]]; then
     execute_molecule "$1" run test
 
 elif [[ $2 == "login" ]]; then
+    # Login is used on dev only, thus we restore the .cache file that contains the ssh key
+    # This allows the dev to connect back into the server
+    # For some reason the ssh key is deleted after the prepare phase is done thus why we have a backup and
+    # we can not setup a custom scenario for login thus we have to restore the key inside the sh script
+    cp ".cache/molecule/molecule-role/$1/ssh_key" "$HOME/.cache/molecule/molecule-role/$1/ssh_key"
+    chmod 600 "$HOME/.cache/molecule/molecule-role/$1/ssh_key"
     execute_molecule "$1" run login
 
 elif [[ $2 == "destroy" ]]; then
