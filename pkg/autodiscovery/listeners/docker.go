@@ -153,8 +153,8 @@ func (l *DockerListener) createContainerService(container *workloadmeta.Containe
 		return ports[i].Port < ports[j].Port
 	})
 
-	dockerSvc := &DockerService{
-		containerID:  container.ID,
+	svc := &service{
+		entity:       container,
 		creationTime: integration.After,
 		adIdentifiers: ComputeContainerServiceIDs(
 			containers.BuildEntityName(string(container.Runtime), container.ID),
@@ -166,21 +166,14 @@ func (l *DockerListener) createContainerService(container *workloadmeta.Containe
 		hostname: container.Hostname,
 	}
 
-	var svc Service
 	if findKubernetesInLabels(container.Labels) {
-		kubeSvc := &DockerKubeletService{
-			DockerService: *dockerSvc,
-		}
-
 		pod, err := l.store.GetKubernetesPodForContainer(container.ID)
 		if err == nil {
-			kubeSvc.hosts = map[string]string{"pod": pod.IP}
-			kubeSvc.ready = pod.Ready
+			svc.hosts = map[string]string{"pod": pod.IP}
+			svc.ready = pod.Ready
 		} else {
 			log.Debugf("container %q belongs to a pod but was not found: %s", container.ID, err)
 		}
-
-		svc = kubeSvc
 	} else {
 		checkNames, err := getCheckNamesFromLabels(container.Labels)
 		if err != nil {
@@ -203,22 +196,21 @@ func (l *DockerListener) createContainerService(container *workloadmeta.Containe
 			hosts["hostname"] = container.Hostname
 		}
 
-		dockerSvc.hosts = hosts
-		dockerSvc.checkNames = checkNames
-		dockerSvc.metricsExcluded = l.filters.IsExcluded(
+		svc.ready = true
+		svc.hosts = hosts
+		svc.checkNames = checkNames
+		svc.metricsExcluded = l.filters.IsExcluded(
 			containers.MetricsFilter,
 			container.Name,
 			containerImg.RawName,
 			"",
 		)
-		dockerSvc.logsExcluded = l.filters.IsExcluded(
+		svc.logsExcluded = l.filters.IsExcluded(
 			containers.LogsFilter,
 			container.Name,
 			containerImg.RawName,
 			"",
 		)
-
-		svc = dockerSvc
 	}
 
 	l.mu.Lock()

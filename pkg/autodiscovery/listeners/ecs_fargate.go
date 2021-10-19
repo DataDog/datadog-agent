@@ -8,35 +8,14 @@
 package listeners
 
 import (
-	"context"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
-
-// ECSService implements and store results from the Service interface for the
-// ECS Fargate listener
-type ECSService struct {
-	cID             string
-	runtime         string
-	ADIdentifiers   []string
-	hosts           map[string]string
-	clusterName     string
-	taskFamily      string
-	taskVersion     string
-	creationTime    integration.CreationTime
-	checkNames      []string
-	metricsExcluded bool
-	logsExcluded    bool
-}
-
-// Make sure ECSService implements the Service interface
-var _ Service = &ECSService{}
 
 func init() {
 	Register("ecs", NewECSFargateListener)
@@ -200,17 +179,13 @@ func (l *ECSFargateListener) createContainerService(task *workloadmeta.ECSTask, 
 		hosts[host] = ip
 	}
 
-	svc := &ECSService{
-		cID: container.ID,
-		ADIdentifiers: ComputeContainerServiceIDs(
+	svc := &service{
+		entity: container,
+		adIdentifiers: ComputeContainerServiceIDs(
 			containers.BuildEntityName(string(container.Runtime), container.ID),
 			containerImg.RawName,
 			container.Labels,
 		),
-		runtime:      string(container.Runtime),
-		clusterName:  task.ClusterName,
-		taskFamily:   task.Family,
-		taskVersion:  task.Version,
 		creationTime: crTime,
 		hosts:        hosts,
 		metricsExcluded: l.filters.IsExcluded(
@@ -225,6 +200,7 @@ func (l *ECSFargateListener) createContainerService(task *workloadmeta.ECSTask, 
 			containerImg.RawName,
 			"",
 		),
+		ready: true,
 	}
 
 	var err error
@@ -278,88 +254,4 @@ func (l *ECSFargateListener) removeService(svcID string) {
 // Stop stops the ECSFargateListener.
 func (l *ECSFargateListener) Stop() {
 	l.stop <- struct{}{}
-}
-
-// GetEntity returns the unique entity name linked to that service
-func (s *ECSService) GetEntity() string {
-	return containers.BuildEntityName(s.runtime, s.cID)
-}
-
-// GetTaggerEntity returns the tagger entity ID for the service.
-func (s *ECSService) GetTaggerEntity() string {
-	return containers.BuildTaggerEntityName(s.cID)
-}
-
-// GetADIdentifiers returns a set of AD identifiers for a container.
-// These id are sorted to reflect the priority we want the ConfigResolver to
-// use when matching a template.
-//
-// When the special identifier label in `identifierLabel` is set by the user,
-// it overrides any other meaning of template identification for the service
-// and the return value will contain only the label value.
-//
-// If the special label was not set, the priority order is the following:
-//   1. Long image name
-//   2. Short image name
-func (s *ECSService) GetADIdentifiers(context.Context) ([]string, error) {
-	return s.ADIdentifiers, nil
-}
-
-// GetHosts returns the container's hosts
-// TODO: using localhost should usually be enough
-func (s *ECSService) GetHosts(context.Context) (map[string]string, error) {
-	return s.hosts, nil
-}
-
-// GetPorts returns nil and an error because port is not supported in Fargate-based ECS
-func (s *ECSService) GetPorts(context.Context) ([]ContainerPort, error) {
-	return nil, ErrNotSupported
-}
-
-// GetTags retrieves a container's tags
-func (s *ECSService) GetTags() ([]string, string, error) {
-	return tagger.TagWithHash(s.GetTaggerEntity(), tagger.ChecksCardinality)
-}
-
-// GetPid inspect the container and return its pid
-// TODO: not supported as pid is not in the metadata api
-func (s *ECSService) GetPid(context.Context) (int, error) {
-	return -1, ErrNotSupported
-}
-
-// GetHostname returns nil and an error because port is not supported in Fargate-based ECS
-func (s *ECSService) GetHostname(context.Context) (string, error) {
-	return "", ErrNotSupported
-}
-
-// GetCreationTime returns the creation time of the container compare to the agent start.
-func (s *ECSService) GetCreationTime() integration.CreationTime {
-	return s.creationTime
-}
-
-// IsReady returns whether the service is ready or not.
-func (s *ECSService) IsReady(context.Context) bool {
-	return true
-}
-
-// GetCheckNames returns slice check names defined in docker labels
-func (s *ECSService) GetCheckNames(context.Context) []string {
-	return s.checkNames
-}
-
-// HasFilter returns true if metrics or logs collection must be excluded for this service
-// no containers.GlobalFilter case here because we don't create services that are globally excluded in AD
-func (s *ECSService) HasFilter(filter containers.FilterType) bool {
-	switch filter {
-	case containers.MetricsFilter:
-		return s.metricsExcluded
-	case containers.LogsFilter:
-		return s.logsExcluded
-	}
-	return false
-}
-
-// GetExtraConfig isn't supported
-func (s *ECSService) GetExtraConfig(key []byte) ([]byte, error) {
-	return []byte{}, ErrNotSupported
 }

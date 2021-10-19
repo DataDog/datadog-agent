@@ -39,6 +39,22 @@ func TestECSFargateCreateContainerService(t *testing.T) {
 		Name: containerName,
 	}
 
+	container := &workloadmeta.Container{
+		EntityID:   containerEntityID,
+		EntityMeta: containerEntityMeta,
+		Image: workloadmeta.ContainerImage{
+			RawName:   "gcr.io/foobar:latest",
+			ShortName: "foobar",
+		},
+		State: workloadmeta.ContainerState{
+			Running: true,
+		},
+		NetworkIPs: map[string]string{
+			"awsvpc": "127.0.0.1",
+		},
+		Runtime: workloadmeta.ContainerRuntimeDocker,
+	}
+
 	tests := []struct {
 		name             string
 		task             *workloadmeta.ECSTask
@@ -46,28 +62,13 @@ func TestECSFargateCreateContainerService(t *testing.T) {
 		expectedServices map[string]Service
 	}{
 		{
-			name: "basic container setup",
-			task: task,
-			container: &workloadmeta.Container{
-				EntityID:   containerEntityID,
-				EntityMeta: containerEntityMeta,
-				Image: workloadmeta.ContainerImage{
-					RawName:   "gcr.io/foobar:latest",
-					ShortName: "foobar",
-				},
-				State: workloadmeta.ContainerState{
-					Running: true,
-				},
-				NetworkIPs: map[string]string{
-					"awsvpc": "127.0.0.1",
-				},
-				Runtime: workloadmeta.ContainerRuntimeDocker,
-			},
+			name:      "basic container setup",
+			task:      task,
+			container: container,
 			expectedServices: map[string]Service{
-				"docker://foobarquux": &ECSService{
-					cID:     containerID,
-					runtime: "docker",
-					ADIdentifiers: []string{
+				"docker://foobarquux": &service{
+					entity: container,
+					adIdentifiers: []string{
 						"docker://foobarquux",
 						"gcr.io/foobar",
 						"foobar",
@@ -76,6 +77,7 @@ func TestECSFargateCreateContainerService(t *testing.T) {
 						"awsvpc": "127.0.0.1",
 					},
 					creationTime: integration.After,
+					ready:        true,
 				},
 			},
 		},

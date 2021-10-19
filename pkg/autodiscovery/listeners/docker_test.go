@@ -30,28 +30,50 @@ func TestDockerCreateContainerService(t *testing.T) {
 		ShortName: "foobar",
 	}
 
+	basicContainer := &workloadmeta.Container{
+		EntityID:   containerEntityID,
+		EntityMeta: containerEntityMeta,
+		Image: workloadmeta.ContainerImage{
+			RawName:   "gcr.io/foobar:latest",
+			ShortName: "foobar",
+		},
+		State: workloadmeta.ContainerState{
+			Running: true,
+		},
+		Runtime: workloadmeta.ContainerRuntimeDocker,
+	}
+
+	multiplePortsContainer := &workloadmeta.Container{
+		EntityID:   containerEntityID,
+		EntityMeta: containerEntityMeta,
+		Image:      basicImage,
+		Ports: []workloadmeta.ContainerPort{
+			{
+				Name: "http",
+				Port: 80,
+			},
+			{
+				Name: "ssh",
+				Port: 22,
+			},
+		},
+		State: workloadmeta.ContainerState{
+			Running: true,
+		},
+		Runtime: workloadmeta.ContainerRuntimeDocker,
+	}
+
 	tests := []struct {
 		name             string
 		container        *workloadmeta.Container
 		expectedServices map[string]Service
 	}{
 		{
-			name: "basic container setup",
-			container: &workloadmeta.Container{
-				EntityID:   containerEntityID,
-				EntityMeta: containerEntityMeta,
-				Image: workloadmeta.ContainerImage{
-					RawName:   "gcr.io/foobar:latest",
-					ShortName: "foobar",
-				},
-				State: workloadmeta.ContainerState{
-					Running: true,
-				},
-				Runtime: workloadmeta.ContainerRuntimeDocker,
-			},
+			name:      "basic container setup",
+			container: basicContainer,
 			expectedServices: map[string]Service{
-				"docker://foobarquux": &DockerService{
-					containerID: "foobarquux",
+				"docker://foobarquux": &service{
+					entity: basicContainer,
 					adIdentifiers: []string{
 						"docker://foobarquux",
 						"gcr.io/foobar",
@@ -60,6 +82,7 @@ func TestDockerCreateContainerService(t *testing.T) {
 					hosts:        map[string]string{},
 					creationTime: integration.After,
 					ports:        []ContainerPort{},
+					ready:        true,
 				},
 			},
 		},
@@ -77,29 +100,11 @@ func TestDockerCreateContainerService(t *testing.T) {
 			expectedServices: map[string]Service{},
 		},
 		{
-			name: "container with multiple ports collects them in ascending order",
-			container: &workloadmeta.Container{
-				EntityID:   containerEntityID,
-				EntityMeta: containerEntityMeta,
-				Image:      basicImage,
-				Ports: []workloadmeta.ContainerPort{
-					{
-						Name: "http",
-						Port: 80,
-					},
-					{
-						Name: "ssh",
-						Port: 22,
-					},
-				},
-				State: workloadmeta.ContainerState{
-					Running: true,
-				},
-				Runtime: workloadmeta.ContainerRuntimeDocker,
-			},
+			name:      "container with multiple ports collects them in ascending order",
+			container: multiplePortsContainer,
 			expectedServices: map[string]Service{
-				"docker://foobarquux": &DockerService{
-					containerID: "foobarquux",
+				"docker://foobarquux": &service{
+					entity: multiplePortsContainer,
 					adIdentifiers: []string{
 						"docker://foobarquux",
 						"foobar",
@@ -116,6 +121,7 @@ func TestDockerCreateContainerService(t *testing.T) {
 						},
 					},
 					creationTime: integration.After,
+					ready:        true,
 				},
 			},
 		},

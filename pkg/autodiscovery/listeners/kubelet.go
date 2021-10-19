@@ -195,12 +195,13 @@ func (l *KubeletListener) createPodService(pod *workloadmeta.KubernetesPod, cont
 	})
 
 	entity := kubelet.PodUIDToEntityName(pod.ID)
-	svc := &KubePodService{
-		entity:        entity,
+	svc := &service{
+		entity:        pod,
 		adIdentifiers: []string{entity},
 		hosts:         map[string]string{"pod": pod.IP},
 		ports:         ports,
 		creationTime:  crTime,
+		ready:         true,
 	}
 
 	l.mu.Lock()
@@ -250,11 +251,9 @@ func (l *KubeletListener) createContainerService(pod *workloadmeta.KubernetesPod
 		return ports[i].Port < ports[j].Port
 	})
 
-	// TODO(juliogreff): we can get rid of the runtime after we've migrated
-	// the kubelet provider to the workloadmeta backed as well
 	entity := containers.BuildEntityName(string(container.Runtime), container.ID)
-	svc := &KubeContainerService{
-		entity:       entity,
+	svc := &service{
+		entity:       container,
 		creationTime: crTime,
 		ready:        pod.Ready,
 		ports:        ports,
@@ -314,7 +313,7 @@ func (l *KubeletListener) createContainerService(pod *workloadmeta.KubernetesPod
 	podSvcID := buildSvcID(pod.GetID())
 
 	if old, found := l.services[svcID]; found {
-		if kubeletSvcEqual(old, svc) {
+		if svcEqual(old, svc) {
 			log.Tracef("Received a duplicated kubelet service '%s'", svc.entity)
 			return
 		}
