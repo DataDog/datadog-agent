@@ -3,7 +3,7 @@
 ## 2.14.0 (2021-10-xx)
 
 **Features**
-- Reintroduce ’kubelet_fallback_to_unverified_tls` flag. [(STAC-14046)](https://stackstate.atlassian.net/browse/STAC-14046)
+- Reintroduce `kubelet_fallback_to_unverified_tls` flag. [(STAC-14046)](https://stackstate.atlassian.net/browse/STAC-14046)
 - Integrations
   - [StackState Agent Integrations 1.16.0](https://github.com/StackVista/stackstate-agent-integrations/blob/master/stackstate-changelog.md#1160--2021-10-15)
 
