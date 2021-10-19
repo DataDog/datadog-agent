@@ -27,6 +27,17 @@ const (
 )
 
 func TestKubeletCreatePodService(t *testing.T) {
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   podID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      podName,
+			Namespace: podNamespace,
+		},
+		IP: "127.0.0.1",
+	}
 	tests := []struct {
 		name             string
 		pod              *workloadmeta.KubernetesPod
@@ -35,17 +46,7 @@ func TestKubeletCreatePodService(t *testing.T) {
 	}{
 		{
 			name: "pod with several containers collects ports in ascending order",
-			pod: &workloadmeta.KubernetesPod{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindKubernetesPod,
-					ID:   podID,
-				},
-				EntityMeta: workloadmeta.EntityMeta{
-					Name:      podName,
-					Namespace: podNamespace,
-				},
-				IP: "127.0.0.1",
-			},
+			pod:  pod,
 			containers: []*workloadmeta.Container{
 				{
 					Ports: []workloadmeta.ContainerPort{
@@ -65,8 +66,8 @@ func TestKubeletCreatePodService(t *testing.T) {
 				},
 			},
 			expectedServices: map[string]Service{
-				"kubernetes_pod://foobar": &KubePodService{
-					entity:        "kubernetes_pod://foobar",
+				"kubernetes_pod://foobar": &service{
+					entity:        pod,
 					adIdentifiers: []string{"kubernetes_pod://foobar"},
 					ports: []ContainerPort{
 						{
@@ -82,6 +83,7 @@ func TestKubeletCreatePodService(t *testing.T) {
 						"pod": "127.0.0.1",
 					},
 					creationTime: integration.After,
+					ready:        true,
 				},
 			},
 		},
@@ -149,6 +151,59 @@ func TestKubeletCreateContainerService(t *testing.T) {
 		ShortName: "foobar",
 	}
 
+	basicContainer := &workloadmeta.Container{
+		EntityID:   containerEntityID,
+		EntityMeta: containerEntityMeta,
+		Image: workloadmeta.ContainerImage{
+			RawName:   "gcr.io/foobar:latest",
+			ShortName: "foobar",
+		},
+		State: workloadmeta.ContainerState{
+			Running: true,
+		},
+		Runtime: workloadmeta.ContainerRuntimeDocker,
+	}
+
+	recentlyStoppedContainer := &workloadmeta.Container{
+		EntityID:   containerEntityID,
+		EntityMeta: containerEntityMeta,
+		Image:      basicImage,
+		State: workloadmeta.ContainerState{
+			Running: false,
+		},
+		Runtime: workloadmeta.ContainerRuntimeDocker,
+	}
+
+	multiplePortsContainer := &workloadmeta.Container{
+		EntityID:   containerEntityID,
+		EntityMeta: containerEntityMeta,
+		Image:      basicImage,
+		Ports: []workloadmeta.ContainerPort{
+			{
+				Name: "http",
+				Port: 80,
+			},
+			{
+				Name: "ssh",
+				Port: 22,
+			},
+		},
+		State: workloadmeta.ContainerState{
+			Running: true,
+		},
+		Runtime: workloadmeta.ContainerRuntimeDocker,
+	}
+
+	customIDsContainer := &workloadmeta.Container{
+		EntityID:   containerEntityID,
+		EntityMeta: containerEntityMeta,
+		Image:      basicImage,
+		State: workloadmeta.ContainerState{
+			Running: true,
+		},
+		Runtime: workloadmeta.ContainerRuntimeDocker,
+	}
+
 	tests := []struct {
 		name             string
 		pod              *workloadmeta.KubernetesPod
@@ -156,23 +211,12 @@ func TestKubeletCreateContainerService(t *testing.T) {
 		expectedServices map[string]Service
 	}{
 		{
-			name: "basic container setup",
-			pod:  pod,
-			container: &workloadmeta.Container{
-				EntityID:   containerEntityID,
-				EntityMeta: containerEntityMeta,
-				Image: workloadmeta.ContainerImage{
-					RawName:   "gcr.io/foobar:latest",
-					ShortName: "foobar",
-				},
-				State: workloadmeta.ContainerState{
-					Running: true,
-				},
-				Runtime: workloadmeta.ContainerRuntimeDocker,
-			},
+			name:      "basic container setup",
+			pod:       pod,
+			container: basicContainer,
 			expectedServices: map[string]Service{
-				"docker://foobarquux": &KubeContainerService{
-					entity: "docker://foobarquux",
+				"docker://foobarquux": &service{
+					entity: basicContainer,
 					adIdentifiers: []string{
 						"docker://foobarquux",
 						"gcr.io/foobar:latest",
@@ -192,20 +236,12 @@ func TestKubeletCreateContainerService(t *testing.T) {
 			},
 		},
 		{
-			name: "recently stopped container excludes metrics but not logs",
-			pod:  pod,
-			container: &workloadmeta.Container{
-				EntityID:   containerEntityID,
-				EntityMeta: containerEntityMeta,
-				Image:      basicImage,
-				State: workloadmeta.ContainerState{
-					Running: false,
-				},
-				Runtime: workloadmeta.ContainerRuntimeDocker,
-			},
+			name:      "recently stopped container excludes metrics but not logs",
+			pod:       pod,
+			container: recentlyStoppedContainer,
 			expectedServices: map[string]Service{
-				"docker://foobarquux": &KubeContainerService{
-					entity: "docker://foobarquux",
+				"docker://foobarquux": &service{
+					entity: recentlyStoppedContainer,
 					adIdentifiers: []string{
 						"docker://foobarquux",
 						"foobar",
@@ -239,30 +275,12 @@ func TestKubeletCreateContainerService(t *testing.T) {
 			expectedServices: map[string]Service{},
 		},
 		{
-			name: "container with multiple ports collects them in ascending order",
-			pod:  pod,
-			container: &workloadmeta.Container{
-				EntityID:   containerEntityID,
-				EntityMeta: containerEntityMeta,
-				Image:      basicImage,
-				Ports: []workloadmeta.ContainerPort{
-					{
-						Name: "http",
-						Port: 80,
-					},
-					{
-						Name: "ssh",
-						Port: 22,
-					},
-				},
-				State: workloadmeta.ContainerState{
-					Running: true,
-				},
-				Runtime: workloadmeta.ContainerRuntimeDocker,
-			},
+			name:      "container with multiple ports collects them in ascending order",
+			pod:       pod,
+			container: multiplePortsContainer,
 			expectedServices: map[string]Service{
-				"docker://foobarquux": &KubeContainerService{
-					entity: "docker://foobarquux",
+				"docker://foobarquux": &service{
+					entity: multiplePortsContainer,
 					adIdentifiers: []string{
 						"docker://foobarquux",
 						"foobar",
@@ -290,20 +308,12 @@ func TestKubeletCreateContainerService(t *testing.T) {
 			},
 		},
 		{
-			name: "pod with custom check names and identifiers",
-			pod:  podWithAnnotations,
-			container: &workloadmeta.Container{
-				EntityID:   containerEntityID,
-				EntityMeta: containerEntityMeta,
-				Image:      basicImage,
-				State: workloadmeta.ContainerState{
-					Running: true,
-				},
-				Runtime: workloadmeta.ContainerRuntimeDocker,
-			},
+			name:      "pod with custom check names and identifiers",
+			pod:       podWithAnnotations,
+			container: customIDsContainer,
 			expectedServices: map[string]Service{
-				"docker://foobarquux": &KubeContainerService{
-					entity: "docker://foobarquux",
+				"docker://foobarquux": &service{
+					entity: customIDsContainer,
 					adIdentifiers: []string{
 						"customid",
 						"docker://foobarquux",
@@ -382,8 +392,8 @@ func TestDuplicatedContainer(t *testing.T) {
 	<-doneCh
 
 	assertExpectedServices(t, map[string]Service{
-		"docker://foo": &KubeContainerService{
-			entity: "docker://foo",
+		"docker://foo": &service{
+			entity: basicContainer,
 			adIdentifiers: []string{
 				"docker://foo",
 				"",
