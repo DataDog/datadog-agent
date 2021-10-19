@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker && !darwin
 // +build docker,!darwin
 
 package docker
@@ -28,7 +29,7 @@ func (d *DockerCheck) retrieveEvents(du *docker.DockerUtil) ([]*docker.Container
 	if d.lastEventTime.IsZero() {
 		d.lastEventTime = time.Now().Add(-60 * time.Second)
 	}
-	events, latest, err := du.LatestContainerEvents(context.TODO(), d.lastEventTime)
+	events, latest, err := du.LatestContainerEvents(context.TODO(), d.lastEventTime, d.containerFilter)
 	if err != nil {
 		return events, err
 	}
