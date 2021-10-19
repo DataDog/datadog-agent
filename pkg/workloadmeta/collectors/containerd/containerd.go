@@ -58,7 +58,7 @@ var containerLifecycleFilters = []string{
 }
 
 type collector struct {
-	store            *workloadmeta.Store
+	store            workloadmeta.Store
 	containerdClient cutil.ContainerdItf
 	eventsChan       <-chan *containerdevents.Envelope
 	errorsChan       <-chan error
@@ -70,7 +70,7 @@ func init() {
 	})
 }
 
-func (c *collector) Start(ctx context.Context, store *workloadmeta.Store) error {
+func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	if !config.IsFeaturePresent(config.Containerd) {
 		return errors.NewDisabled(componentName, "Agent is not running on containerd")
 	}

@@ -12,7 +12,7 @@ type Collector interface {
 	// Start starts a collector. The collector should run until the context
 	// is done. It also gets a reference to the store that started it so it
 	// can use Notify, or get access to other entities in the store.
-	Start(context.Context, *Store) error
+	Start(context.Context, Store) error
 
 	// Pull triggers an entity collection. To be used by collectors that
 	// don't have streaming functionality, and called periodically by the
