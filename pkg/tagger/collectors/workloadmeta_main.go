@@ -44,13 +44,15 @@ type WorkloadMetaCollector struct {
 	containerEnvAsTags    map[string]string
 	containerLabelsAsTags map[string]string
 
-	staticTags        map[string]string
-	labelsAsTags      map[string]string
-	annotationsAsTags map[string]string
-	nsLabelsAsTags    map[string]string
-	globLabels        map[string]glob.Glob
-	globAnnotations   map[string]glob.Glob
-	globNsLabels      map[string]glob.Glob
+	staticTags             map[string]string
+	labelsAsTags           map[string]string
+	annotationsAsTags      map[string]string
+	nsLabelsAsTags         map[string]string
+	globLabels             map[string]glob.Glob
+	globAnnotations        map[string]glob.Glob
+	globNsLabels           map[string]glob.Glob
+	globContainerLabels    map[string]glob.Glob
+	globContainerEnvLabels map[string]glob.Glob
 
 	collectEC2ResourceTags bool
 }
@@ -62,7 +64,10 @@ func (c *WorkloadMetaCollector) Detect(ctx context.Context, out chan<- []*TagInf
 	c.children = make(map[string]map[string]struct{})
 	c.collectEC2ResourceTags = config.Datadog.GetBool("ecs_collect_resource_tags_ec2")
 
-	containerLabelsAsTags := retrieveMappingFromConfig("docker_labels_as_tags")
+	containerLabelsAsTags := mergeMaps(
+		retrieveMappingFromConfig("docker_labels_as_tags"),
+		retrieveMappingFromConfig("container_labels_as_tags"),
+	)
 	containerEnvAsTags := mergeMaps(
 		retrieveMappingFromConfig("docker_env_as_tags"),
 		retrieveMappingFromConfig("container_env_as_tags"),
@@ -80,15 +85,8 @@ func (c *WorkloadMetaCollector) Detect(ctx context.Context, out chan<- []*TagInf
 }
 
 func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags map[string]string) {
-	c.containerLabelsAsTags = make(map[string]string)
-	for label, tag := range labelsAsTags {
-		c.containerLabelsAsTags[strings.ToLower(label)] = tag
-	}
-
-	c.containerEnvAsTags = make(map[string]string)
-	for label, tag := range envAsTags {
-		c.containerEnvAsTags[strings.ToLower(label)] = tag
-	}
+	c.containerLabelsAsTags, c.globContainerLabels = utils.InitMetadataAsTags(labelsAsTags)
+	c.containerEnvAsTags, c.globContainerEnvLabels = utils.InitMetadataAsTags(envAsTags)
 }
 
 func (c *WorkloadMetaCollector) initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags map[string]string) {

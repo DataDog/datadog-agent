@@ -662,6 +662,45 @@ func TestHandleContainer(t *testing.T) {
 			},
 		},
 		{
+			name: "tags from labels and envs with prefix (using *)",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+					Labels: map[string]string{
+						"team": "container-integrations",
+					},
+				},
+				EnvVars: map[string]string{
+					"some_env": "some_env_val",
+				},
+			},
+			labelsAsTags: map[string]string{
+				"*": "custom_label_prefix_%%label%%",
+			},
+			envAsTags: map[string]string{
+				"*": "custom_env_prefix_%%env%%",
+			},
+			expected: []*TagInfo{
+				{
+					Source: sourceContainer,
+					Entity: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: append([]string{
+						// Notice that the names include the custom prefixes
+						// added in labelsAsTags and envAsTags.
+						"custom_label_prefix_team:container-integrations",
+						"custom_env_prefix_some_env:some_env_val",
+					}),
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
 			name: "nomad container",
 			container: workloadmeta.Container{
 				EntityID: entityID,
