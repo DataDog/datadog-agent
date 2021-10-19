@@ -39,7 +39,7 @@ func (f *testHandler) EventDiscarderFound(rs *RuleSet, event eval.Event, field s
 
 	ctx := eval.NewContext(event.GetPointer())
 
-	value := evaluator.(eval.Evaluator).Eval(ctx)
+	value := evaluator.Eval(ctx)
 
 	found := false
 	for _, d := range discarders {
@@ -49,7 +49,7 @@ func (f *testHandler) EventDiscarderFound(rs *RuleSet, event eval.Event, field s
 	}
 
 	if !found {
-		discarders = append(discarders, evaluator.(eval.Evaluator).Eval(ctx))
+		discarders = append(discarders, evaluator.Eval(ctx))
 	}
 	values[field] = discarders
 }

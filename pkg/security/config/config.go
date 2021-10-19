@@ -151,7 +151,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		c.EnableKernelFilters = false
 	}
 
-	if c.ERPCDentryResolutionEnabled == false && c.MapDentryResolutionEnabled == false {
+	if !c.ERPCDentryResolutionEnabled && !c.MapDentryResolutionEnabled {
 		c.MapDentryResolutionEnabled = true
 	}
 

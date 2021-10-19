@@ -156,6 +156,13 @@ func TestIsParentDiscarder(t *testing.T) {
 	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileOpenEventType, "open.file.path", "/tmp/runc"); is {
 		t.Error("shouldn't be a parent discarder")
 	}
+
+	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, rules.NewOptsWithParams(model.SECLConstants, nil, enabled, nil, model.SECLLegacyAttributes, &log.PatternLogger{}))
+	addRuleExpr(t, rs, `open.file.path =~ "/run/secrets/kubernetes.io/serviceaccount/*/token"`, `open.file.path == "/etc/secret"`)
+
+	if is, _ := isParentPathDiscarder(rs, regexCache, model.FileOpenEventType, "open.file.path", "/tmp/token"); !is {
+		t.Error("should be a parent discarder")
+	}
 }
 
 func TestApproverAncestors1(t *testing.T) {

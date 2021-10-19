@@ -279,7 +279,7 @@ func TestDiscarderFilterMask(t *testing.T) {
 		defer os.Remove(testFile)
 
 		// not check that we still have the open allowed
-		if err := test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			testFile, testFilePtr, err = test.CreateWithOptions("test-mask", 98, 99, 0o447)
 			if err != nil {
 				t.Fatal(err)
@@ -287,9 +287,7 @@ func TestDiscarderFilterMask(t *testing.T) {
 			return nil
 		}, func(event *probe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mask_open_rule")
-		}); err != nil {
-			t.Error(err)
-		}
+		})
 
 		utimbuf := &syscall.Utimbuf{
 			Actime:  123,
@@ -314,7 +312,7 @@ func TestDiscarderFilterMask(t *testing.T) {
 		}
 
 		// not check that we still have the open allowed
-		if err := test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			f, err := os.OpenFile(testFile, os.O_CREATE, 0)
 			if err != nil {
 				t.Fatal(err)
@@ -324,9 +322,7 @@ func TestDiscarderFilterMask(t *testing.T) {
 			return nil
 		}, func(event *probe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mask_open_rule")
-		}); err != nil {
-			t.Error(err)
-		}
+		})
 	}))
 }
 
@@ -516,7 +512,7 @@ func TestDiscarderRetentionFilter(t *testing.T) {
 		t.Fatalf("should be discarded")
 	}
 
-	if diff := time.Now().Sub(start); uint64(diff) < uint64(probe.DiscardRetention)-uint64(time.Second) {
+	if diff := time.Since(start); uint64(diff) < uint64(probe.DiscardRetention)-uint64(time.Second) {
 		t.Errorf("discarder retention (%s) not reached: %s", time.Duration(uint64(probe.DiscardRetention)-uint64(time.Second)), diff)
 	}
 }

@@ -110,7 +110,7 @@ func TestExecArgsFlags(t *testing.T) {
 	}
 
 	flags := e.ResolveExecArgsFlags(&e.Exec)
-	sort.Sort(sort.StringSlice(flags))
+	sort.Strings(flags)
 
 	hasFlag := func(flags []string, flag string) bool {
 		i := sort.SearchStrings(flags, flag)

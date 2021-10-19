@@ -27,6 +27,7 @@ import (
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"google.golang.org/grpc"
 )
 
@@ -111,15 +112,10 @@ type AgentConfig struct {
 	StatsdHost                string
 	StatsdPort                int
 	ProcessExpVarPort         int
-	ProfilingEnabled          bool
-	ProfilingSite             string
-	ProfilingURL              string
-	ProfilingEnvironment      string
-	ProfilingPeriod           time.Duration
-	ProfilingCPUDuration      time.Duration
-	ProfilingMutexFraction    int
-	ProfilingBlockRate        int
-	ProfilingWithGoroutines   bool
+
+	// profiling settings, or nil if profiling is not enabled
+	ProfilingSettings *profiling.Settings
+
 	// host type of the agent, used to populate container payload with additional host information
 	ContainerHostType model.ContainerHostType
 

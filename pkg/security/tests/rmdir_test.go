@@ -47,7 +47,7 @@ func TestRmdir(t *testing.T) {
 
 		inode := getInode(t, testFile)
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if _, _, err := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0, 0); err != 0 {
 				t.Fatal(error(err))
 			}
@@ -60,9 +60,6 @@ func TestRmdir(t *testing.T) {
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	}))
 
 	t.Run("unlinkat-at_removedir", func(t *testing.T) {
@@ -78,7 +75,7 @@ func TestRmdir(t *testing.T) {
 
 		inode := getInode(t, testDir)
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testDirPtr), 512); err != 0 {
 				t.Fatal(err)
 			}
@@ -91,9 +88,6 @@ func TestRmdir(t *testing.T) {
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 }
 
@@ -119,7 +113,7 @@ func TestRmdirInvalidate(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if err := syscall.Rmdir(testFile); err != nil {
 				t.Fatal(err)
 			}
@@ -128,8 +122,5 @@ func TestRmdirInvalidate(t *testing.T) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "rmdir.file.path", testFile)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	}
 }

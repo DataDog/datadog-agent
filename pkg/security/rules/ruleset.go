@@ -135,7 +135,7 @@ func (rs *RuleSet) ListMacroIDs() []MacroID {
 }
 
 // AddMacros parses the macros AST and adds them to the list of macros of the ruleset
-func (rs *RuleSet) AddMacros(macros []*MacroDefinition) error {
+func (rs *RuleSet) AddMacros(macros []*MacroDefinition) *multierror.Error {
 	var result *multierror.Error
 
 	// Build the list of macros for the ruleset

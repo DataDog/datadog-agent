@@ -256,3 +256,24 @@ func TestAddColdStartTagWithColdStart(t *testing.T) {
 		"cold_start:true",
 	})
 }
+
+func TestBuildTagMapWithRuntimeAndMemoryTag(t *testing.T) {
+	os.Setenv("AWS_EXECUTION_ENV", "AWS_Lambda_java")
+	os.Setenv("AWS_LAMBDA_FUNCTION_MEMORY_SIZE", "128")
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
+	tagMap := BuildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
+	assert.Equal(t, 14, len(tagMap))
+	assert.Equal(t, "lambda", tagMap["_dd.origin"])
+	assert.Equal(t, "1", tagMap["_dd.compute_stats"])
+	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-function", tagMap["function_arn"])
+	assert.Equal(t, "us-east-1", tagMap["region"])
+	assert.Equal(t, "123456789012", tagMap["aws_account"])
+	assert.Equal(t, "123456789012", tagMap["account_id"])
+	assert.Equal(t, "my-function", tagMap["functionname"])
+	assert.Equal(t, "my-function:888", tagMap["resource"])
+	assert.Equal(t, "xxx", tagMap["dd_extension_version"])
+	assert.Equal(t, "value0", tagMap["tag0"])
+	assert.Equal(t, "value1", tagMap["tag1"])
+	assert.Equal(t, "java", tagMap["runtime"])
+	assert.Equal(t, "128", tagMap["memorysize"])
+}

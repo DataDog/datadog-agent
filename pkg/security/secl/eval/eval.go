@@ -764,10 +764,8 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *state) (interface{}, le
 					return boolEvaluator, obj.Pos, nil
 				}
 			case *IntEvaluator:
-				switch next.(type) {
+				switch nextInt := next.(type) {
 				case *IntEvaluator:
-					nextInt := next.(*IntEvaluator)
-
 					if nextInt.isDuration {
 						switch *obj.ScalarComparison.Op {
 						case "<":

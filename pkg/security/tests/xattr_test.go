@@ -56,7 +56,7 @@ func TestSetXAttr(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			_, _, errno := syscall.Syscall6(syscall.SYS_SETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, unix.XATTR_CREATE, 0)
 			if errno != 0 {
 				return error(errno)
@@ -67,14 +67,11 @@ func TestSetXAttr(t *testing.T) {
 			assert.Equal(t, "user.test_xattr", event.SetXAttr.Name)
 			assert.Equal(t, "user", event.SetXAttr.Namespace)
 			assert.Equal(t, getInode(t, testFile), event.SetXAttr.File.Inode, "wrong inode")
-			assertRights(t, event.SetXAttr.File.Mode, uint16(expectedMode))
+			assertRights(t, event.SetXAttr.File.Mode, expectedMode)
 
 			assertNearTime(t, event.SetXAttr.File.MTime)
 			assertNearTime(t, event.SetXAttr.File.CTime)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("lsetxattr", func(t *testing.T) {
@@ -94,7 +91,7 @@ func TestSetXAttr(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			_, _, errno := syscall.Syscall6(syscall.SYS_LSETXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, unix.XATTR_CREATE, 0)
 			// Linux and Android don't support xattrs on symlinks according
 			// to xattr(7), so just test that we get the proper error.
@@ -113,9 +110,6 @@ func TestSetXAttr(t *testing.T) {
 			assertNearTime(t, event.SetXAttr.File.MTime)
 			assertNearTime(t, event.SetXAttr.File.CTime)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("fsetxattr", func(t *testing.T) {
@@ -131,7 +125,7 @@ func TestSetXAttr(t *testing.T) {
 		defer f.Close()
 		defer os.Remove(testFile)
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			_, _, errno := syscall.Syscall6(syscall.SYS_FSETXATTR, f.Fd(), uintptr(xattrNamePtr), uintptr(xattrValuePtr), 0, unix.XATTR_CREATE, 0)
 			if errno != 0 {
 				t.Fatal(error(errno))
@@ -142,14 +136,11 @@ func TestSetXAttr(t *testing.T) {
 			assert.Equal(t, "user.test_xattr", event.SetXAttr.Name)
 			assert.Equal(t, "user", event.SetXAttr.Namespace)
 			assert.Equal(t, getInode(t, testFile), event.SetXAttr.File.Inode, "wrong inode")
-			assertRights(t, event.SetXAttr.File.Mode, uint16(expectedMode))
+			assertRights(t, event.SetXAttr.File.Mode, expectedMode)
 
 			assertNearTime(t, event.SetXAttr.File.MTime)
 			assertNearTime(t, event.SetXAttr.File.CTime)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 }
 
@@ -201,7 +192,7 @@ func TestRemoveXAttr(t *testing.T) {
 			t.Fatal(error(errno))
 		}
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			_, _, errno = syscall.Syscall(syscall.SYS_REMOVEXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), 0)
 			if errno != 0 {
 				t.Fatal(error(errno))
@@ -217,9 +208,6 @@ func TestRemoveXAttr(t *testing.T) {
 			assertNearTime(t, event.RemoveXAttr.File.MTime)
 			assertNearTime(t, event.RemoveXAttr.File.CTime)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("lremovexattr", func(t *testing.T) {
@@ -247,7 +235,7 @@ func TestRemoveXAttr(t *testing.T) {
 			t.Fatal(error(errno))
 		}
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			_, _, errno = syscall.Syscall(syscall.SYS_LREMOVEXATTR, uintptr(testFilePtr), uintptr(xattrNamePtr), 0)
 			// Linux and Android don't support xattrs on symlinks according
 			// to xattr(7), so just test that we get the proper error.
@@ -265,9 +253,6 @@ func TestRemoveXAttr(t *testing.T) {
 			assertNearTime(t, event.RemoveXAttr.File.MTime)
 			assertNearTime(t, event.RemoveXAttr.File.CTime)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("fremovexattr", func(t *testing.T) {
@@ -289,7 +274,7 @@ func TestRemoveXAttr(t *testing.T) {
 			t.Fatal(error(errno))
 		}
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			_, _, errno = syscall.Syscall(syscall.SYS_FREMOVEXATTR, f.Fd(), uintptr(xattrNamePtr), 0)
 			if errno != 0 {
 				t.Fatal(error(errno))
@@ -323,8 +308,5 @@ func TestRemoveXAttr(t *testing.T) {
 				t.Errorf("expected ctime close to %s, got %s", now, ctime)
 			}
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 }
