@@ -92,7 +92,7 @@ var _ Store = &store{}
 // NewStore creates a new workload metadata store, building a new instance of
 // each collector in the catalog. Call Start to start the store and its
 // collectors.
-func NewStore(catalog map[string]collectorFactory) *store {
+func NewStore(catalog map[string]collectorFactory) Store {
 	candidates := make(map[string]Collector)
 	for id, c := range catalog {
 		candidates[id] = c()
