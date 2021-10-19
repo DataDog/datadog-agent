@@ -230,3 +230,6 @@ replace github.com/aptly-dev/aptly => github.com/lebauce/aptly v0.7.2-0.20210927
 
 // Exclude this version of containerd because it depends on github.com/Microsoft/hcsshim@v0.8.7 which depends on k8s.io/kubernetes which is a dependency we’d like to avoid
 exclude github.com/containerd/containerd v1.5.0-beta.1
+
+// Remove once the issue https://github.com/microsoft/Windows-Containers/issues/72 is resolved
+replace github.com/golang/glog v1.0.0 => github.com/paulcacheux/glog v1.0.1-0.20211019114809-ec0f43a655b9
