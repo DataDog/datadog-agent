@@ -31,7 +31,7 @@ func TestGenerateContextKey(t *testing.T) {
 	}
 
 	contextKey := generateContextKey(&mSample)
-	assert.Equal(t, ckey.ContextKey(0xd28d2867c6dd822c), contextKey)
+	assert.Equal(t, ckey.ContextKey(0x14298ff49d0c6bb9), contextKey)
 }
 
 func TestTrackContext(t *testing.T) {
