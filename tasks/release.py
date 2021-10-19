@@ -1363,3 +1363,94 @@ def get_release_json_value(_, key):
         release_json = release_json.get(element)
 
     print(release_json)
+
+def create_release_branch(ctx, repo, release_branch, upstream="origin"):
+    with ctx.cd("~/dd/{}".format(repo)):
+        print(color_message("Working repository: {}".format(repo), "bold"))
+        main_branch = ctx.run("git remote show {} | grep \"HEAD branch\" | sed 's/.*: //'".format(upstream)).stdout.strip()
+        ctx.run("git checkout {}".format(main_branch))
+        print(color_message("Branching out to {}".format(release_branch), "bold"))
+        ctx.run("git checkout -b {}".format(release_branch))
+        print(color_message("Pushing new branch to the upstream repository", "bold"))
+        res = ctx.run("git push --set-upstream {} {}".format(upstream, release_branch), warn=True)
+        if res.exited is None or res.exited > 0:
+            raise Exit(
+                color_message(
+                    "Could not push branch {} to the upstream '{}'. Please push it manually.".format(
+                        release_branch,
+                        upstream,
+                    ),
+                    "red",
+                ),
+                code=1,
+        )
+        #print("Cleanup")
+        #ctx.run("git checkout {}".format(main_branch))
+        #ctx.run("git branch -D {}".format(release_branch))
+
+@task(help={'upstream': "Remote repository name (default 'origin')"})
+def unfreeze(ctx, major_versions="6,7", patch_version=False, upstream="origin"):
+    """
+    Updates the release entries in release.json to prepare the next RC build.
+    If the previous version of the Agent (determined as the latest tag on the
+    current branch) is not an RC:
+    - by default, updates the release entries for the next minor version of
+      the Agent.
+    - if --patch-version is specified, updates the release entries for the next
+      patch version of the Agent.
+
+    This changes which tags will be considered on the dependency repositories (only
+    tags that match the same major and minor version as the Agent).
+
+    If the previous version of the Agent was an RC, updates the release entries for RC + 1.
+
+    Examples:
+    If the latest tag on the branch is 7.31.0, and invoke release.create-rc --patch-version
+    is run, then the task will prepare the release entries for 7.31.1-rc.1, and therefore
+    will only use 7.31.X tags on the dependency repositories that follow the Agent version scheme.
+
+    Notes:
+    This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
+    with 'repo' permissions.
+    This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
+    release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
+    """
+    if sys.version_info[0] < 3:
+        return Exit(message="Must use Python 3 for this task", code=1)
+
+    github = GithubAPI(repository=REPOSITORY_NAME, api_token=get_github_token())
+
+    list_major_versions = parse_major_versions(major_versions)
+
+    new_version = current_version(ctx, max(list_major_versions))
+
+    # Get a release branch name
+    release_branch_name = "{}".format(
+        str(new_version.major) + "." + str(new_version.minor) + ".x")
+
+    # Step 0: checks
+
+    print(color_message("Checking repository state", "bold"))
+    ctx.run("git fetch")
+
+    if check_uncommitted_changes(ctx):
+        raise Exit(
+            color_message(
+                "There are uncomitted changes in your repository. Please commit or stash them before trying again.",
+                "red",
+            ),
+            code=1,
+        )
+
+    if not yes_no_question(
+        "This task will create new branches with the name \"{}\" in repositories: datadog-agent, omnibus-ruby and omnibus-software Is this OK?".format(
+            release_branch_name
+        ),
+        color="orange",
+        default=False,
+    ):
+        raise Exit(color_message("Aborting.", "red"), code=1)
+
+    repos = ["datadog-agent", "omnibus-software", "omnibus-ruby"]
+    for repo in repos:
+        create_release_branch(ctx, repo, release_branch_name + "_test")
