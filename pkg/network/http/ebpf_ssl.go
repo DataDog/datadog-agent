@@ -191,7 +191,12 @@ func removeHooks(m *manager.Manager, probes []string) func(string) error {
 			if !found {
 				continue
 			}
-			p.Detach()
+
+			program := p.Program()
+			m.DetachHook(sec, uid)
+			if program != nil {
+				program.Close()
+			}
 		}
 
 		return nil
