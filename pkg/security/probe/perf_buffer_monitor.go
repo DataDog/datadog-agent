@@ -163,7 +163,6 @@ func (pbm *PerfBufferMonitor) GetLostCount(perfMap string, cpu int) uint64 {
 		for i := range pbm.readLostEvents[perfMap] {
 			total += pbm.getLostCount(perfMap, i)
 		}
-		break
 	case cpu >= 0 && pbm.numCPU > cpu:
 		total += pbm.getLostCount(perfMap, cpu)
 	}
@@ -222,7 +221,6 @@ func (pbm *PerfBufferMonitor) GetAndResetLostCount(perfMap string, cpu int) uint
 		for i := range pbm.readLostEvents[perfMap] {
 			total += pbm.getAndResetReadLostCount(perfMap, i)
 		}
-		break
 	case cpu >= 0 && pbm.numCPU > cpu:
 		total += pbm.getAndResetReadLostCount(perfMap, cpu)
 	}
@@ -268,7 +266,6 @@ func (pbm *PerfBufferMonitor) GetEventStats(eventType model.EventType, perfMap s
 		for m := range pbm.stats {
 			maps = append(maps, m)
 		}
-		break
 	case pbm.stats[perfMap] != nil:
 		maps = append(maps, perfMap)
 	}
@@ -281,7 +278,6 @@ func (pbm *PerfBufferMonitor) GetEventStats(eventType model.EventType, perfMap s
 				stats.Count += pbm.getEventCount(eventType, perfMap, i)
 				stats.Bytes += pbm.getEventBytes(eventType, perfMap, i)
 			}
-			break
 		case cpu >= 0 && pbm.numCPU > cpu:
 			stats.Count += pbm.getEventCount(eventType, perfMap, cpu)
 			stats.Bytes += pbm.getEventBytes(eventType, perfMap, cpu)

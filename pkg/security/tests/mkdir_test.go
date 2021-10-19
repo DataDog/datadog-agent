@@ -48,7 +48,7 @@ func TestMkdir(t *testing.T) {
 		}
 		defer syscall.Rmdir(testFile)
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(mkdirMode), 0); errno != 0 {
 				t.Fatal(errno)
 			}
@@ -62,9 +62,6 @@ func TestMkdir(t *testing.T) {
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	}))
 
 	t.Run("mkdirat", func(t *testing.T) {
@@ -74,7 +71,7 @@ func TestMkdir(t *testing.T) {
 		}
 		defer syscall.Rmdir(testatFile)
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall(syscall.SYS_MKDIRAT, 0, uintptr(testatFilePtr), uintptr(0777)); errno != 0 {
 				t.Fatal(error(errno))
 			}
@@ -90,9 +87,6 @@ func TestMkdir(t *testing.T) {
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 }
 
@@ -120,7 +114,7 @@ func TestMkdirError(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			var wg sync.WaitGroup
 			wg.Add(1)
 
@@ -149,8 +143,5 @@ func TestMkdirError(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_rule_mkdirat_error")
 			assertReturnValue(t, event.Mkdir.Retval, -int64(syscall.EACCES))
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 }

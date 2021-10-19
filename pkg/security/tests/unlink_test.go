@@ -42,7 +42,7 @@ func TestUnlink(t *testing.T) {
 	inode := getInode(t, testFile)
 
 	t.Run("unlink", ifSyscallSupported("SYS_UNLINK", func(t *testing.T, syscallNB uintptr) {
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if _, _, err := syscall.Syscall(syscallNB, uintptr(testFilePtr), 0, 0); err != 0 {
 				t.Fatal(err)
 			}
@@ -55,9 +55,6 @@ func TestUnlink(t *testing.T) {
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	}))
 
 	testAtFile, testAtFilePtr, err := test.CreateWithOptions("test-unlinkat", 98, 99, fileMode)
@@ -69,7 +66,7 @@ func TestUnlink(t *testing.T) {
 	inode = getInode(t, testAtFile)
 
 	t.Run("unlinkat", func(t *testing.T) {
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(testAtFilePtr), 0); err != 0 {
 				t.Fatal(err)
 			}
@@ -82,9 +79,6 @@ func TestUnlink(t *testing.T) {
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 }
 
@@ -114,15 +108,12 @@ func TestUnlinkInvalidate(t *testing.T) {
 		}
 		f.Close()
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			os.Remove(testFile)
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assert.Equal(t, "unlink", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "unlink.file.path", testFile)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	}
 }

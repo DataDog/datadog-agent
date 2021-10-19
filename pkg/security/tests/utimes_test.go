@@ -46,7 +46,7 @@ func TestUtimes(t *testing.T) {
 			Modtime: 456,
 		}
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
 				t.Fatal(errno)
 			}
@@ -57,14 +57,11 @@ func TestUtimes(t *testing.T) {
 			assert.Equal(t, int64(456), event.Utimes.Mtime.Unix())
 			assert.Equal(t, getInode(t, testFile), event.Utimes.File.Inode, "wrong inode")
 
-			assertRights(t, uint16(event.Utimes.File.Mode), expectedMode)
+			assertRights(t, event.Utimes.File.Mode, expectedMode)
 
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	}))
 
 	t.Run("utimes", ifSyscallSupported("SYS_UTIMES", func(t *testing.T, syscallNB uintptr) {
@@ -87,7 +84,7 @@ func TestUtimes(t *testing.T) {
 			},
 		}
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(&times[0])), 0); errno != 0 {
 				t.Fatal(errno)
 			}
@@ -98,14 +95,11 @@ func TestUtimes(t *testing.T) {
 
 			assert.Equal(t, int64(222), event.Utimes.Atime.UnixNano()%int64(time.Second)/int64(time.Microsecond))
 			assert.Equal(t, getInode(t, testFile), event.Utimes.File.Inode)
-			assertRights(t, uint16(event.Utimes.File.Mode), expectedMode)
+			assertRights(t, event.Utimes.File.Mode, expectedMode)
 
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	}))
 
 	t.Run("utimensat", func(t *testing.T) {
@@ -128,7 +122,7 @@ func TestUtimes(t *testing.T) {
 			},
 		}
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall6(syscall.SYS_UTIMENSAT, 0, uintptr(testFilePtr), uintptr(unsafe.Pointer(&ntimes[0])), 0, 0, 0); errno != 0 {
 				if errno == syscall.EINVAL {
 					t.Skip("utimensat not supported")
@@ -142,13 +136,10 @@ func TestUtimes(t *testing.T) {
 
 			assert.Equal(t, int64(666), event.Utimes.Mtime.UnixNano()%int64(time.Second)/int64(time.Nanosecond))
 			assert.Equal(t, getInode(t, testFile), event.Utimes.File.Inode)
-			assertRights(t, uint16(event.Utimes.File.Mode), expectedMode)
+			assertRights(t, event.Utimes.File.Mode, expectedMode)
 
 			assertNearTime(t, event.Utimes.File.MTime)
 			assertNearTime(t, event.Utimes.File.CTime)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 }

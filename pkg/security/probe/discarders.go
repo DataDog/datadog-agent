@@ -389,16 +389,14 @@ func isInvalidDiscarder(field eval.Field, value interface{}) bool {
 func createInvalidDiscardersCache() map[eval.Field]map[interface{}]bool {
 	invalidDiscarders := make(map[eval.Field]map[interface{}]bool)
 
-	if InvalidDiscarders != nil {
-		for field, values := range InvalidDiscarders {
-			ivalues := invalidDiscarders[field]
-			if ivalues == nil {
-				ivalues = make(map[interface{}]bool)
-				invalidDiscarders[field] = ivalues
-			}
-			for _, value := range values {
-				ivalues[value] = true
-			}
+	for field, values := range InvalidDiscarders {
+		ivalues := invalidDiscarders[field]
+		if ivalues == nil {
+			ivalues = make(map[interface{}]bool)
+			invalidDiscarders[field] = ivalues
+		}
+		for _, value := range values {
+			ivalues[value] = true
 		}
 	}
 
