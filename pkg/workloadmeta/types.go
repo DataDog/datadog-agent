@@ -6,6 +6,7 @@
 package workloadmeta
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -15,6 +16,20 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
+
+// Store is a central storage of metadata about workloads. A workload is any
+// unit of work being done by a piece of software, like a process, a container,
+// a kubernetes pod, or a task in any cloud provider.
+type Store interface {
+	Start(ctx context.Context)
+	Subscribe(name string, filter *Filter) chan EventBundle
+	Unsubscribe(ch chan EventBundle)
+	GetContainer(id string) (*Container, error)
+	GetKubernetesPod(id string) (*KubernetesPod, error)
+	GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error)
+	GetECSTask(id string) (*ECSTask, error)
+	Notify(events []CollectorEvent)
+}
 
 // Kind is the kind of an entity.
 type Kind string

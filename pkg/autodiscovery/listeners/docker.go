@@ -29,7 +29,7 @@ func init() {
 // DockerListener listens to container creation through a subscription to the
 // workloadmeta store.
 type DockerListener struct {
-	store *workloadmeta.Store
+	store workloadmeta.Store
 	stop  chan struct{}
 
 	mu       sync.RWMutex

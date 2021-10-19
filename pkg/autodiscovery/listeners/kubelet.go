@@ -38,7 +38,7 @@ func init() {
 // KubeletListener listens to pod creation through a subscription
 // to the workloadmeta store.
 type KubeletListener struct {
-	store *workloadmeta.Store
+	store workloadmeta.Store
 	stop  chan struct{}
 
 	mu            sync.RWMutex

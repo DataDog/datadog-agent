@@ -9,36 +9,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	workloadmetatesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 	"github.com/stretchr/testify/assert"
 )
-
-const (
-	sourcePod       = "workloadmeta-kubernetes_pod"
-	sourceContainer = "workloadmeta-container"
-)
-
-type store struct {
-	containers map[string]*workloadmeta.Container
-}
-
-func (s *store) Subscribe(string, *workloadmeta.Filter) chan workloadmeta.EventBundle {
-	return nil
-}
-
-func (s *store) Unsubscribe(chan workloadmeta.EventBundle) {}
-
-func (s *store) GetContainer(id string) (*workloadmeta.Container, error) {
-	c, ok := s.containers[id]
-	if !ok {
-		return c, errors.NewNotFound(id)
-	}
-
-	return c, nil
-}
 
 func TestHandleKubePod(t *testing.T) {
 	const (
@@ -67,40 +43,37 @@ func TestHandleKubePod(t *testing.T) {
 	fullyFleshedContainerTaggerEntityID := fmt.Sprintf("container_id://%s", fullyFleshedContainerID)
 	noEnvContainerTaggerEntityID := fmt.Sprintf("container_id://%s", noEnvContainerID)
 
-	store := &store{
-		containers: map[string]*workloadmeta.Container{
-			fullyFleshedContainerID: {
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindContainer,
-					ID:   fullyFleshedContainerID,
-				},
-				EntityMeta: workloadmeta.EntityMeta{
-					Name: containerName,
-				},
-				Image: workloadmeta.ContainerImage{
-					ID:        "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
-					RawName:   "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
-					Name:      "datadog/agent",
-					ShortName: "agent",
-					Tag:       "latest",
-				},
-				EnvVars: map[string]string{
-					"DD_ENV":     env,
-					"DD_SERVICE": svc,
-					"DD_VERSION": version,
-				},
-			},
-			noEnvContainerID: {
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindContainer,
-					ID:   noEnvContainerID,
-				},
-				EntityMeta: workloadmeta.EntityMeta{
-					Name: containerName,
-				},
-			},
+	store := workloadmetatesting.NewStore()
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   fullyFleshedContainerID,
 		},
-	}
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: containerName,
+		},
+		Image: workloadmeta.ContainerImage{
+			ID:        "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+			RawName:   "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+			Name:      "datadog/agent",
+			ShortName: "agent",
+			Tag:       "latest",
+		},
+		EnvVars: map[string]string{
+			"DD_ENV":     env,
+			"DD_SERVICE": svc,
+			"DD_VERSION": version,
+		},
+	})
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   noEnvContainerID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: containerName,
+		},
+	})
 
 	tests := []struct {
 		name              string
@@ -185,7 +158,7 @@ func TestHandleKubePod(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source: sourcePod,
+					Source: podSource,
 					Entity: podTaggerEntityID,
 					HighCardTags: []string{
 						"gitcommit:foobar",
@@ -235,7 +208,7 @@ func TestHandleKubePod(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source:       sourcePod,
+					Source:       podSource,
 					Entity:       podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
@@ -247,7 +220,7 @@ func TestHandleKubePod(t *testing.T) {
 					StandardTags: []string{},
 				},
 				{
-					Source: sourcePod,
+					Source: podSource,
 					Entity: fullyFleshedContainerTaggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_id:%s", fullyFleshedContainerID),
@@ -290,7 +263,7 @@ func TestHandleKubePod(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source:       sourcePod,
+					Source:       podSource,
 					Entity:       podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
@@ -302,7 +275,7 @@ func TestHandleKubePod(t *testing.T) {
 					StandardTags: []string{},
 				},
 				{
-					Source: sourcePod,
+					Source: podSource,
 					Entity: noEnvContainerTaggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_id:%s", noEnvContainerID),
@@ -335,7 +308,7 @@ func TestHandleKubePod(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source:       sourcePod,
+					Source:       podSource,
 					Entity:       podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
@@ -384,19 +357,16 @@ func TestHandleECSTask(t *testing.T) {
 
 	taggerEntityID := fmt.Sprintf("container_id://%s", containerID)
 
-	store := &store{
-		containers: map[string]*workloadmeta.Container{
-			containerID: {
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindContainer,
-					ID:   containerID,
-				},
-				EntityMeta: workloadmeta.EntityMeta{
-					Name: containerName,
-				},
-			},
+	store := workloadmetatesting.NewStore()
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
 		},
-	}
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: containerName,
+		},
+	})
 
 	tests := []struct {
 		name     string
@@ -571,7 +541,7 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source: sourceContainer,
+					Source: containerSource,
 					Entity: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
@@ -611,7 +581,7 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source: sourceContainer,
+					Source: containerSource,
 					Entity: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
@@ -646,7 +616,7 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source: sourceContainer,
+					Source: containerSource,
 					Entity: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
@@ -715,7 +685,7 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source: sourceContainer,
+					Source: containerSource,
 					Entity: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
@@ -747,7 +717,7 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source: sourceContainer,
+					Source: containerSource,
 					Entity: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
@@ -791,7 +761,7 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source: sourceContainer,
+					Source: containerSource,
 					Entity: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
@@ -826,7 +796,7 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source: sourceContainer,
+					Source: containerSource,
 					Entity: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
@@ -887,19 +857,16 @@ func TestHandleDelete(t *testing.T) {
 	podTaggerEntityID := fmt.Sprintf("kubernetes_pod_uid://%s", podEntityID.ID)
 	containerTaggerEntityID := fmt.Sprintf("container_id://%s", containerID)
 
-	store := &store{
-		containers: map[string]*workloadmeta.Container{
-			containerID: {
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindContainer,
-					ID:   containerID,
-				},
-				EntityMeta: workloadmeta.EntityMeta{
-					Name: containerName,
-				},
-			},
+	store := workloadmetatesting.NewStore()
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
 		},
-	}
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: containerName,
+		},
+	})
 
 	collector := &WorkloadMetaCollector{
 		store:    store,
@@ -948,7 +915,7 @@ func TestHandleContainerStaticTags(t *testing.T) {
 
 	expected := []*TagInfo{
 		{
-			Source: sourceContainer,
+			Source: containerSource,
 			Entity: fmt.Sprintf("container_id://%s", container.ID),
 			HighCardTags: []string{
 				fmt.Sprintf("container_id:%s", container.ID),

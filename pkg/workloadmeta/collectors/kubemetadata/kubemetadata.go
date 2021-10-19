@@ -32,7 +32,7 @@ const (
 )
 
 type collector struct {
-	store                  *workloadmeta.Store
+	store                  workloadmeta.Store
 	kubeUtil               kubelet.KubeUtilInterface
 	apiClient              *apiserver.APIClient
 	dcaClient              clusteragent.DCAClientInterface
@@ -50,7 +50,7 @@ func init() {
 }
 
 // Start tries to connect to the kubelet, the DCA and the API Server if the DCA is not available.
-func (c *collector) Start(_ context.Context, store *workloadmeta.Store) error {
+func (c *collector) Start(_ context.Context, store workloadmeta.Store) error {
 	if !config.IsFeaturePresent(config.Kubernetes) {
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}

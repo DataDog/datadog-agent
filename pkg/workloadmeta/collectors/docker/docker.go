@@ -35,7 +35,7 @@ const (
 type resolveHook func(ctx context.Context, co types.ContainerJSON) (string, error)
 
 type collector struct {
-	store *workloadmeta.Store
+	store workloadmeta.Store
 
 	dockerUtil *docker.DockerUtil
 	eventCh    <-chan *docker.ContainerEvent
@@ -48,7 +48,7 @@ func init() {
 	})
 }
 
-func (c *collector) Start(ctx context.Context, store *workloadmeta.Store) error {
+func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	if !config.IsFeaturePresent(config.Docker) {
 		return errors.NewDisabled(componentName, "Agent is not running on Docker")
 	}

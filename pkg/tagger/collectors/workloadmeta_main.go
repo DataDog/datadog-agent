@@ -27,16 +27,10 @@ const (
 	containerSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
 )
 
-type metaStore interface {
-	Subscribe(string, *workloadmeta.Filter) chan workloadmeta.EventBundle
-	Unsubscribe(chan workloadmeta.EventBundle)
-	GetContainer(string) (*workloadmeta.Container, error)
-}
-
 // WorkloadMetaCollector collects tags from the metadata in the workloadmeta
 // store.
 type WorkloadMetaCollector struct {
-	store    metaStore
+	store    workloadmeta.Store
 	children map[string]map[string]struct{}
 	out      chan<- []*TagInfo
 	stop     chan struct{}

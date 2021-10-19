@@ -29,7 +29,7 @@ const (
 
 type collector struct {
 	watcher    *kubelet.PodWatcher
-	store      *workloadmeta.Store
+	store      workloadmeta.Store
 	lastExpire time.Time
 	expireFreq time.Duration
 }
@@ -40,7 +40,7 @@ func init() {
 	})
 }
 
-func (c *collector) Start(_ context.Context, store *workloadmeta.Store) error {
+func (c *collector) Start(_ context.Context, store workloadmeta.Store) error {
 	if !config.IsFeaturePresent(config.Kubernetes) {
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
