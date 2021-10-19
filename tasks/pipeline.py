@@ -284,12 +284,13 @@ def run(
 
 
 @task
-def follow(ctx, id=None, git_ref=None, here=False):
+def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog-agent"):
     """
     Follow a pipeline's progress in the CLI.
     Use --here to follow the latest pipeline on your current branch.
     Use --git-ref to follow the latest pipeline on a given tag or branch.
     Use --id to follow a specific pipeline.
+    Use --project-name to specify a repo other than DataDog/datadog-agent (default)
 
     Examples:
     inv pipeline.follow --git-ref my-branch
@@ -297,7 +298,6 @@ def follow(ctx, id=None, git_ref=None, here=False):
     inv pipeline.follow --id 1234567
     """
 
-    project_name = "DataDog/datadog-agent"
     gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
     gitlab.test_project_found()
 
