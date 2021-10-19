@@ -1,3 +1,5 @@
+# convert /dev/root device to real path
+# https://github.com/giampaolo/psutil/pull/2000
 diff --git a/psutil/_pslinux.py b/psutil/_pslinux.py
 index 1917e20d0..f6a833017 100644
 --- a/psutil/_pslinux.py
