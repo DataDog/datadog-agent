@@ -11,15 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNoopParserHandleMessages(t *testing.T) {
-	parser := NoopParser
-	testMsg := []byte("Foo")
-	msg, _, _, partial, err := parser.Parse(testMsg)
-	assert.Nil(t, err)
-	assert.False(t, partial)
-	assert.Equal(t, testMsg, msg)
-}
-
 func TestUTF16LEParserHandleMessages(t *testing.T) {
 	parser := NewDecodingParser(UTF16LE)
 	testMsg := []byte{'F', 0x0, 'o', 0x0, 'o', 0x0}
