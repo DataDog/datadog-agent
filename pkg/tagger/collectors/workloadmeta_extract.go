@@ -127,6 +127,11 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInf
 	// standard tags from labels
 	c.extractFromMapWithFn(container.Labels, standardDockerLabels, tags.AddStandard)
 
+	// container labels as tags
+	for labelName, labelValue := range container.Labels {
+		utils.AddMetadataAsTags(labelName, labelValue, c.containerLabelsAsTags, c.globContainerLabels, tags)
+	}
+
 	// orchestrator tags from labels
 	c.extractFromMapWithFn(container.Labels, lowCardOrchestratorLabels, tags.AddLow)
 	c.extractFromMapWithFn(container.Labels, highCardOrchestratorLabels, tags.AddHigh)
@@ -147,7 +152,9 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInf
 	c.extractFromMapWithFn(container.EnvVars, orchCardOrchestratorEnvKeys, tags.AddOrchestrator)
 
 	// extract env as tags
-	c.extractFromMapNormalizedWithFn(container.EnvVars, c.containerEnvAsTags, tags.AddAuto)
+	for envName, envValue := range container.EnvVars {
+		utils.AddMetadataAsTags(envName, envValue, c.containerEnvAsTags, c.globContainerEnvLabels, tags)
+	}
 
 	// static tags for ECS Fargate
 	for tag, value := range c.staticTags {
