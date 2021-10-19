@@ -48,7 +48,7 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20180905210152-236a6d29298a // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
-	github.com/DataDog/agent-payload v4.85.0+incompatible
+	github.com/DataDog/agent-payload v4.87.0+incompatible
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.32.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/quantile v0.32.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/util/log v0.32.0-rc.6
@@ -59,7 +59,7 @@ require (
 	github.com/DataDog/ebpf-manager v0.0.0-20210917155050-c174a8b45802
 	github.com/DataDog/gohai v0.0.0-20210303102637-6b668acb50dd
 	github.com/DataDog/gopsutil v0.0.0-20210930103100-d4e8ef640507
-	github.com/DataDog/mmh3 v0.0.0-20200316233529-f5b682d8c981 // indirect
+	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/nikos v1.5.0
 	github.com/DataDog/sketches-go v1.2.1
 	github.com/DataDog/viper v1.9.0
