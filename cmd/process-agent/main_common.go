@@ -33,7 +33,6 @@ import (
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	// register all workloadmeta collectors
@@ -240,8 +239,8 @@ func runAgent(exit chan struct{}) {
 	// we just pass down empty string
 	updateDockerSocket(dockerSock)
 
-	if cfg.ProfilingEnabled {
-		if err := enableProfiling(cfg); err != nil {
+	if cfg.ProfilingSettings != nil {
+		if err := profiling.Start(*cfg.ProfilingSettings); err != nil {
 			log.Warnf("failed to enable profiling: %s", err)
 		} else {
 			log.Info("start profiling process-agent")
@@ -409,21 +408,4 @@ func cleanupAndExit(status int) {
 	}
 
 	os.Exit(status)
-}
-
-func enableProfiling(cfg *config.AgentConfig) error {
-	// allow full url override for development use
-	s := ddconfig.DefaultSite
-	if cfg.ProfilingSite != "" {
-		s = cfg.ProfilingSite
-	}
-
-	site := fmt.Sprintf(profiling.ProfileURLTemplate, s)
-	if cfg.ProfilingURL != "" {
-		site = cfg.ProfilingURL
-	}
-
-	v, _ := version.Agent()
-
-	return profiling.Start(site, cfg.ProfilingEnvironment, "process-agent", cfg.ProfilingPeriod, cfg.ProfilingCPUDuration, cfg.ProfilingMutexFraction, cfg.ProfilingBlockRate, cfg.ProfilingWithGoroutines, fmt.Sprintf("version:%v", v))
 }
