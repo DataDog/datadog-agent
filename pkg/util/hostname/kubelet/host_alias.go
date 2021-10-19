@@ -11,7 +11,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 )
 
@@ -24,11 +23,8 @@ func GetHostAlias(ctx context.Context) (string, error) {
 	return "", fmt.Errorf("couldn't extract a host alias from the kubelet: %s", err)
 }
 
-// GetMetaClusterNameText returns the clusterName text for the agent status output
+// GetMetaClusterNameText returns the clusterName text for the agent status output. Returns "" if the feature kubernetes is not activated
 func GetMetaClusterNameText(ctx context.Context, hostname string) string {
-	if !config.IsFeaturePresent(config.Kubernetes) {
-		return ""
-	}
 	compliantClusterName, initialClusterName := getRFC1123CompliantClusterName(ctx, hostname)
 	if compliantClusterName != initialClusterName {
 		return fmt.Sprintf("%s (original name: %s)", compliantClusterName, initialClusterName)

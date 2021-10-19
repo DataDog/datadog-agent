@@ -52,6 +52,9 @@ func HostnameProvider(ctx context.Context, options map[string]interface{}) (stri
 // Some kubernetes cluster-names (EKS,AKS) are not RFC1123 compliant, mostly due to an `_`.
 // This function replaces the invalid `_` with a valid `-`.
 func getRFC1123CompliantClusterName(ctx context.Context, hostname string) (string, string) {
+	if !config.IsFeaturePresent(config.Kubernetes) {
+		return "", ""
+	}
 	clusterName := clustername.GetClusterName(ctx, hostname)
 	return makeClusterNameRFC1123Compliant(clusterName)
 }
