@@ -1,0 +1,35 @@
+---
+- name: Wait a bit for the ubuntu machine to start
+  pause:
+    seconds: 10
+- name: "Wait for {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }} port {{ connection_port_after_start_windows }}  to become open on the host, don't start checking for 10 seconds"
+  win_wait_for:
+    host: "{{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }}"
+    port: "{{ connection_port_after_start_windows }}"
+    delay: 10
+  retries: 10
+  delay: 10
+  register: wait_result
+  until: wait_result is succeeded
+- name: Create temp directory
+  win_file:
+    path: C:\Temp
+    state: directory
+- name: Write file for stable request
+  win_copy:
+    content: |
+      :loop
+      echo y
+      goto loop
+    dest: C:\Temp\win_yes.bat
+- name: Write file for stable request
+  win_copy:
+    content: |
+      :loop
+      C:\Temp\win_yes.bat | nc {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }} {{ connection_port_after_start_windows }}
+      goto loop
+    dest: C:\Temp\stable_request.bat
+- name: Start stable request loop to hit ubuntu P2P
+  win_command: C:\Temp\stable_request.bat
+  async: "{{ max_test_time }}"
+  poll: 0

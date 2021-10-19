@@ -1,0 +1,6 @@
+---
+- name: Prepare Receiver
+  hosts: receiver_vm
+  gather_facts: false
+  tasks:
+    - include_tasks: ./prepare.tasks.yml

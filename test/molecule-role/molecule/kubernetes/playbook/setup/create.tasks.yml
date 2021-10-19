@@ -1,0 +1,10 @@
+---
+- include_tasks: ../_shared/wait/wait-for-3-minutes-ci.yml
+- include_tasks: ../_shared/aws/create-security-group.yml
+- include_tasks: ../_shared/keypair/revoke-and-create-new-key.yml
+- include_tasks: ../_shared/aws/create-instance.yml
+- include_tasks: ../_shared/aws/wait-for-create.yml
+- include_tasks: ../_shared/aws/populate-instance-inventory.yml
+- include_tasks: ../_shared/wait/wait-for-ssh.yml
+- include_tasks: ../_shared/persistence/molecule-inventory-cache.yml
+- include_tasks: ../_shared/encryption/encrypt-ssh-key.yml

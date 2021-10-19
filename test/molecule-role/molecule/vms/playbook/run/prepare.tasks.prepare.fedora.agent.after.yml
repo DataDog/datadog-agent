@@ -1,0 +1,12 @@
+---
+- name: Wait a bit for the ubuntu machine to start
+  pause:
+    seconds: 10
+- name: Connect to Ubuntu agent P2P
+  shell: yes | ncat {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }} {{ connection_port_after_start_fedora }}
+  async: "{{ max_test_time }}"
+  poll: 0
+- name: Connect to Ubuntu agent DNAT
+  shell: yes | ncat {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }} {{ dnat_service_port }}
+  async: "{{ max_test_time }}"
+  poll: 0

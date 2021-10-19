@@ -1,0 +1,7 @@
+---
+- name: Wait for the stackstate cluster agent to start doing it's thing
+  command: kubectl -n={{ namespace }} wait --all --for=condition=Ready --timeout=360s -l app=stackstate-cluster-agent pod
+  args:
+    chdir: /home/ubuntu/deployment/agents
+  environment:
+    KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig

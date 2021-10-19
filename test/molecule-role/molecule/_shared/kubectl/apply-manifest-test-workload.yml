@@ -1,0 +1,7 @@
+---
+- name: Apply manifests for test workloads
+  command: kubectl -n={{ namespace }} apply -f test_workloads
+  args:
+    chdir: /home/ubuntu/deployment
+  environment:
+    KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig

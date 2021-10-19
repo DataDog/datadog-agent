@@ -1,5 +1,0 @@
----
-- name: (CI) Pause for 6 minutes, We slow down the EC2 creation to allow a more synced up state to the pre-release stage and reduce EC2 uptime
-  when: ci_project_dir is defined and ci_project_dir != ""
-  pause:
-    minutes: 6

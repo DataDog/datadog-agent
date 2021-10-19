@@ -1,0 +1,22 @@
+---
+- include_tasks: ../_shared/install-and-update/updates-ubuntu18-automatic.yml
+- include_tasks: ../_shared/install-and-update/install-provisioning-dependencies.yml
+- include_tasks: ../_shared/aws/configure-aws-credentials.yml
+- include_tasks: ../_shared/docker/login.yml
+
+- name: Copy Receiver files
+  copy:
+    src: "../../files/receiver/"
+    dest: "/home/ubuntu/"
+
+- name: Copy Verify and Create Script file
+  copy:
+    src: ./../../../verify-or-create-topics.sh
+    dest: /home/ubuntu
+    mode: u+x
+
+- name: Configure .env file used by docker-compose
+  copy:
+    content: |
+      STACKSTATE_BRANCH={{ stackstate_branch }}
+    dest: /home/ubuntu/.env

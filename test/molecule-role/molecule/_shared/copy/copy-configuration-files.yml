@@ -1,0 +1,6 @@
+---
+- name: Copy Configuration files
+  copy:
+    src: ../../files/
+    dest: /home/ubuntu
+    mode: preserve

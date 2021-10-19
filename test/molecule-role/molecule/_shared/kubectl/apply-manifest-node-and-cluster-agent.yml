@@ -1,0 +1,7 @@
+---
+- name: Apply manifests for stackstate node agent and cluster agent
+  command: kubectl apply -k overlays
+  args:
+    chdir: /home/ubuntu/deployment/agents
+  environment:
+    KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig

@@ -1,0 +1,5 @@
+---
+- name: Create a global nginx service
+  shell: "docker service create --name nginx --mode global nginx"
+  when: nginx_status.rc != 0
+  run_once: true

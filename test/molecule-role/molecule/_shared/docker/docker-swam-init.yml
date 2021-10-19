@@ -1,0 +1,5 @@
+---
+- name: Initialize Docker Swarm
+  shell: "docker swarm init --advertise-addr={{ hostvars['agent-swarm-master']['ansible_default_ipv4']['address'] }}:2377"
+  when: swarm_status.rc != 0
+  run_once: true

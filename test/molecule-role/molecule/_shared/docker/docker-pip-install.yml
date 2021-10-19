@@ -1,0 +1,4 @@
+---
+- name: Installing docker in Ansible
+  pip:
+    name: docker

@@ -1,0 +1,6 @@
+---
+- name: Prepare Trace Java
+  hosts: trace-java-demo-compose
+  gather_facts: true
+  tasks:
+    - include_tasks: ./prepare.tasks.yml

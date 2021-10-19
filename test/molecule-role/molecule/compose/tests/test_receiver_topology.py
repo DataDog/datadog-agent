@@ -4,7 +4,7 @@ import re
 import util
 from testinfra.utils.ansible_runner import AnsibleRunner
 
-testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('trace-java-demo')
+testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('trace-java-demo-compose')
 
 
 def _component_data(json_data, type_name, external_id_assert_fn, data_assert_fn):

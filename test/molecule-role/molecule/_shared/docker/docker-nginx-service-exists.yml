@@ -1,0 +1,5 @@
+---
+- name: Check if nginx service already exists, otherwise create it
+  shell: "docker service ps nginx"
+  register: nginx_status
+  ignore_errors: true

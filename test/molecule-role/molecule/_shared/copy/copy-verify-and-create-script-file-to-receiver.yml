@@ -1,0 +1,6 @@
+---
+- name: Copy Verify and Create Script file
+  copy:
+    src: ./../../../verify-or-create-topics.sh
+    dest: /home/ubuntu/receiver
+    mode: u+x

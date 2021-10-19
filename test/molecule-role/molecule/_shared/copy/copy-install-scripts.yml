@@ -1,0 +1,9 @@
+---
+- name: Prepare installation script
+  copy:
+    src: ../../files/agent/install_script.sh
+    dest: /tmp/install_script.sh
+    owner: "{{ ansible_user_id }}"
+    group: root
+    mode: u=rwx,g=rx,o=rx
+  become: yes

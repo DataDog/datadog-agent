@@ -1,6 +1,0 @@
----
-- name: Copy nagios config files
-  copy:
-    src: files/agent/nagios.d/conf.yaml
-    dest: /home/ubuntu/agent/nagios.d/
-    mode: preserve

@@ -1,0 +1,8 @@
+---
+- name: Wait for instance(s) creation to complete
+  async_status:
+    jid: "{{ item.ansible_job_id }}"
+  register: "ec2_jobs"
+  until: "ec2_jobs.finished"
+  retries: 300
+  with_items: "{{ server.results }}"

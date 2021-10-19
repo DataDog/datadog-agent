@@ -1,0 +1,14 @@
+---
+- name: Add test-stackstate-agent.sts to /etc/hosts
+  become: true
+  lineinfile:
+    path: /etc/hosts
+    line: "{{ hostvars['receiver']['ansible_host'] }} test-stackstate-agent.sts"
+- name: Install stackstate-agent
+  shell: "curl -o- {{ agent_repo_url }}/install.sh | bash"
+  environment:
+    STS_API_KEY: "API_KEY"
+    STS_URL: "https://test-stackstate-agent.sts/stsAgent"
+    STS_HOSTNAME: "{{ inventory_hostname }}"
+    CODE_NAME: "{{ agent_current_branch }}"
+    SKIP_SSL_VALIDATION: "true"

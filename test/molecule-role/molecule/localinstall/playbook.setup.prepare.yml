@@ -1,9 +1,0 @@
----
-- name: Prepare Linux Agents
-  hosts: agent_linux_vm
-  gather_facts: false
-  tasks:
-    - name: Install python for Ansible
-      raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal python-zipstream python-pip) || ((yum check-update || test $? -eq 100) && yum install -y python2) || true
-      become: true
-      changed_when: false

@@ -1,0 +1,19 @@
+---
+- name: Create global service on Master
+  hosts: swarm_master_vm
+  gather_facts: true
+  tasks:
+    # This is the task that belongs to the setup playbook
+    # Only trigger this is there is no existing EC2 instance for this run execution
+    # block_ec2_creation variable is ran inside the determine-create-state.yml script
+    - include_tasks: ./../setup/prepare.tasks.yml
+      when: hostvars['localhost']['block_ec2_creation'] is not defined
+    - include_tasks: ./../setup/prepare.tasks.master.yml
+      when: hostvars['localhost']['block_ec2_creation'] is not defined
+    - include_tasks: ./../setup/prepare.tasks.worker.yml
+      when: hostvars['localhost']['block_ec2_creation'] is not defined
+    - include_tasks: ./../setup/prepare.tasks.global.yml
+      when: hostvars['localhost']['block_ec2_creation'] is not defined
+
+    # Default tasks from this script
+    - include_tasks: ./prepare.tasks.yml

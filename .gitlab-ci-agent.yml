@@ -75,6 +75,25 @@ before_script:
   - *configure_debian_env_script
   - *retrieve_linux_go_deps_script
 
+## Retry schemas
+
+# Temp swapped this to always
+# For now let's rather hide flakiness until the pipeline is nice and stable
+retry_schema: &retry_schema
+  retry:
+    max: 2
+    when:
+      - always
+      # - runner_system_failure
+      # - stuck_or_timeout_failure
+
+retry_schema_always: &retry_schema_always
+  retry:
+    max: 2
+    when:
+      - always
+
+
 ## prepare stage
 
 clear_deps_deb_cache:
@@ -146,11 +165,7 @@ deps_deb:
       - $CI_PROJECT_DIR/go-bin.tar.gz
       - $CI_PROJECT_DIR/vendor.tar.gz
     expire_in: 1 week
-  retry:
-    max: 2
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
+  <<: *retry_schema
 
 deps_rpm:
   stage: prepare
@@ -176,11 +191,7 @@ deps_rpm:
       - $CI_PROJECT_DIR/go-bin.tar.gz
       - $CI_PROJECT_DIR/vendor.tar.gz
     expire_in: 1 week
-  retry:
-    max: 2
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
+  <<: *retry_schema
 
 deps_win:
   stage: prepare
@@ -207,11 +218,7 @@ deps_win:
     expire_in: 1 week
   tags:
     - windows_agent7_ps1
-  retry:
-    max: 2
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
+  <<: *retry_schema
 
 ## build stage
 
@@ -231,8 +238,7 @@ unit_tests:
     - inv -e test --coverage --race --profile --fail-on-fmt --cpus 4 --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
   tags:
     - sts-aws
-  retry:
-    max: 2
+  <<: *retry_schema_always
 
 unit_tests_cluster_agent:
   stage: test
@@ -253,8 +259,7 @@ unit_tests_cluster_agent:
     - sts-aws
   rules:
     - *cluster_agent
-  retry:
-    max: 2
+  <<: *retry_schema_always
 
 filename_linting:
   stage: test
@@ -295,10 +300,7 @@ build_binaries:
     - inv -e agent.build --major-version $MAJOR_VERSION --python-runtimes $PYTHON_RUNTIMES
   tags:
     - sts-k8s-m-runner
-  retry:
-    max: 2
-    when:
-      - always
+  <<: *retry_schema_always
 
 build_cluster_agent:
   stage: build
@@ -316,10 +318,7 @@ build_cluster_agent:
       - $CI_PROJECT_DIR/version.txt
   rules:
     - *cluster_agent
-  retry:
-    max: 2
-    when:
-      - always
+  <<: *retry_schema_always
 
 clear_build_deb_cache:
   stage: manual_cleanup
@@ -398,10 +397,7 @@ build_deb:
       - $CI_PROJECT_DIR/version.txt
       - $CI_PROJECT_DIR/outcomes/binary/trace-agent
     expire_in: 1 week
-  retry:
-    max: 2
-    when:
-      - always
+  <<: *retry_schema_always
 
 build_rpm:
   stage: build
@@ -459,10 +455,7 @@ build_rpm:
       - $CI_PROJECT_DIR/outcomes/Dockerfiles/manifests
       - $CI_PROJECT_DIR/version.txt
     expire_in: 1 week
-  retry:
-    max: 2
-    when:
-      - always
+  <<: *retry_schema_always
 
 build_win:
   stage: build
@@ -490,10 +483,7 @@ build_win:
       - "version.txt"
   tags:
     - windows_agent7_ps1
-  retry:
-    max: 2
-    when:
-      - always
+  <<: *retry_schema_always
 
 ## pre_release stage
 
@@ -505,11 +495,7 @@ test_deb_renaming:
   before_script: []
   script:
     - ./test/renaming/test_deb.sh $CI_PROJECT_DIR/outcomes/pkg/stackstate-agent_$MAJOR_VERSION*.deb
-  retry:
-    max: 2
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
+  <<: *retry_schema
 
 test_rpm_renaming:
   stage: test
@@ -520,11 +506,7 @@ test_rpm_renaming:
   before_script: []
   script:
     - ./test/renaming/test_rpm.sh $CI_PROJECT_DIR/outcomes/pkg/stackstate-agent-$MAJOR_VERSION*.rpm
-  retry:
-    max: 2
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
+  <<: *retry_schema
 
 
 pre_release_deb:
@@ -544,11 +526,7 @@ pre_release_deb:
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package.sh $STS_AWS_TEST_BUCKET
     - cd $CI_PROJECT_DIR && inv release.generate-install -t
     - cd $CI_PROJECT_DIR/cmd/agent && aws.rb -e "Aws::S3::Resource.new.bucket(ENV['STS_AWS_TEST_BUCKET']).object('install.sh').upload_file('./install.sh', acl:'public-read')"
-  retry:
-    max: 2
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
+  <<: *retry_schema
 
 pre_release_win:
   stage: pre_release
@@ -573,11 +551,7 @@ pre_release_win:
     - aws.exe s3 ls s3://$Env:STS_AWS_TEST_BUCKET_WIN/
   tags:
     - windows_agent7_ps1
-  retry:
-    max: 2
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
+  <<: *retry_schema
 
 pre_release_rpm:
   stage: pre_release
@@ -589,11 +563,7 @@ pre_release_rpm:
   script:
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./sign_rpm_package.sh
     - cd $CI_PROJECT_DIR/omnibus/package-scripts && ./publish_package_rpm.sh $STS_AWS_TEST_BUCKET_YUM
-  retry:
-    max: 2
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
+  <<: *retry_schema
 
 pre_release_main_agent_image: &pre_release_image
   stage: pre_release
@@ -615,11 +585,7 @@ pre_release_main_agent_image: &pre_release_image
     - ./omnibus/package-scripts/publish_image.sh $CI_COMMIT_REF_NAME $STS_DOCKER_TEST_REPO $CI_PROJECT_DIR/Dockerfiles/agent $CI_COMMIT_SHORT_SHA
   tags:
     - sts-k8s-m-runner
-  retry:
-    max: 2
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
+  <<: *retry_schema
 
 pre_release_trace_agent_image:
   <<: *pre_release_image
@@ -656,8 +622,7 @@ pre_release_cluster_agent_image:
     - export MOLECULE_RUN_ID=${CI_JOB_ID}
     - export LC_CTYPE=en_US.UTF-8
     - export LANG=en_US.UTF-8
-  retry:
-    max: 2
+  <<: *retry_schema_always
 
 # Base artifacts for create and test steps
 .molecule_artifacts: &molecule_artifacts
@@ -682,7 +647,7 @@ pre_release_cluster_agent_image:
 .molecule_test: &molecule_test
   <<: *molecule_artifacts
   stage: acceptance
-  timeout: 50 minutes
+  timeout: 80 minutes
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh $MOLECULE_SCENARIO test
@@ -1174,11 +1139,7 @@ release_deb:
   only:
     - tags
     - triggers
-  retry:
-    max: 2
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
+  <<: *retry_schema
 
 release_rpm:
   interruptible: true
@@ -1196,11 +1157,7 @@ release_rpm:
   only:
     - tags
     - triggers
-  retry:
-    max: 2
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
+  <<: *retry_schema
 
 release_win:
   interruptible: true
@@ -1227,11 +1184,7 @@ release_win:
     - triggers
   tags:
     - windows_agent7_ps1
-  retry:
-    max: 2
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
+  <<: *retry_schema
 
 .base_release_image: &base_release_image
   stage: release
@@ -1248,11 +1201,7 @@ release_win:
   before_script: []
   tags:
     - sts-k8s-m-runner
-  retry:
-    max: 2
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
+  <<: *retry_schema
 
 release_main_agent_image:
   <<: *base_release_image

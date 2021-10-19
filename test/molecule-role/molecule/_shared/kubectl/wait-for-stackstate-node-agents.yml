@@ -1,0 +1,8 @@
+---
+- name: Wait for the stackstate node agents to start doing their thing (otherwise connections might occur after agent startup)
+  ignore_errors: true
+  command: kubectl -n={{ namespace }} wait --all --for=condition=Ready --timeout=360s -l app=stackstate-agent pod
+  args:
+    chdir: /home/ubuntu/deployment/agents
+  environment:
+    KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig

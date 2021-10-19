@@ -1,0 +1,14 @@
+---
+- block:
+    - name: Predownload rpm
+      get_url:
+        url: https://stackstate-agent-2-rpm.s3.amazonaws.com/stable/stackstate-agent-2.0.5-1.x86_64.rpm
+        dest: /tmp/current.rpm
+        mode: 'u=rw,g=rw,o=r'
+        owner: "{{ ansible_user_id }}"
+        group: root
+      become: yes
+    - name: Set installation path
+      set_fact:
+        custom_installer: /tmp/current.rpm
+  when: ansible_distribution != "Ubuntu"

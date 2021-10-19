@@ -1,0 +1,36 @@
+---
+- name: Install python for Ansible
+  raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal python-zipstream python-pip) || ((yum check-update || test $? -eq 100) && yum install -y python2) || true
+  become: true
+  changed_when: false
+- name: Gather facts
+  setup:
+# - debug: msg={{ ansible_facts }}
+- name: Install nmap (for ncat binary) and stress in Ubuntu
+  become: true
+  apt:
+    name: [nmap, stress]
+    state: present
+  register: nmap_stress_result
+  retries: 10
+  delay: 30
+  until: nmap_stress_result is not failed
+  when: ansible_distribution == "Ubuntu"
+- name: Install nc (for ncat binary), libselinux-python and stresss in Fedora
+  become: true
+  yum:
+    name: [nc, libselinux-python, stress]
+    state: present
+  when: ansible_distribution == "Fedora"
+- name: Install epel-release for stress in CentOS
+  become: true
+  yum:
+    name: epel-release
+    state: present
+  when: ansible_distribution == "CentOS"
+- name: Install stress in CentOS
+  become: true
+  yum:
+    name: stress
+    state: present
+  when: ansible_distribution == "CentOS"

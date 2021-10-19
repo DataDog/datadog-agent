@@ -1,0 +1,5 @@
+---
+- name: (CI) Pause for 3 minutes
+  when: ci_project_dir is defined and ci_project_dir != ""
+  pause:
+    minutes: 3

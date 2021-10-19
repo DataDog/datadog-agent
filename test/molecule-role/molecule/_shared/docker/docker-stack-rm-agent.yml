@@ -1,0 +1,8 @@
+---
+- name: Stop docker stack
+  command: docker stack rm agent
+  args:
+    chdir: /home/ubuntu/
+  environment:
+    AGENT_VERSION: "{{ agent_current_branch }}"
+    STACKSTATE_BRANCH: "{{ stackstate_branch }}"
