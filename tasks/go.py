@@ -237,8 +237,10 @@ def staticcheck(ctx, targets, build_tags=None, arch="x64"):
 
     tags = copy.copy(build_tags or get_default_build_tags(build="test", arch=arch))
     # these two don't play well with static checking
-    tags.remove("python")
-    tags.remove("jmx")
+    if "python" in tags:
+        tags.remove("python")
+    if "jmx" in tags:
+        tags.remove("jmx")
 
     ctx.run("staticcheck -checks=SA1027 -tags=" + ",".join(tags) + " " + " ".join(pkgs))
     # staticcheck exits with status 1 when it finds an issue, if we're here

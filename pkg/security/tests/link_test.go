@@ -43,7 +43,7 @@ func TestLink(t *testing.T) {
 	}
 
 	t.Run("link", ifSyscallSupported("SYS_LINK", func(t *testing.T, syscallNB uintptr) {
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			_, _, errno := syscall.Syscall(syscallNB, uintptr(testOldFilePtr), uintptr(testNewFilePtr), 0)
 			if errno != 0 {
 				t.Fatal(errno)
@@ -65,9 +65,6 @@ func TestLink(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-		if err != nil {
-			t.Error(err)
-		}
 
 		if err := os.Remove(testNewFile); err != nil {
 			t.Error(err)
@@ -75,7 +72,7 @@ func TestLink(t *testing.T) {
 	}))
 
 	t.Run("linkat", func(t *testing.T) {
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			_, _, errno := syscall.Syscall6(syscall.SYS_LINKAT, 0, uintptr(testOldFilePtr), 0, uintptr(testNewFilePtr), 0, 0)
 			if errno != 0 {
 				t.Fatal(errno)
@@ -97,8 +94,5 @@ func TestLink(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 }

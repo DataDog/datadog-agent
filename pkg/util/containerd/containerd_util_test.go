@@ -18,8 +18,10 @@ import (
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/cio"
 	"github.com/containerd/containerd/containers"
+	"github.com/containerd/containerd/oci"
 	"github.com/containerd/typeurl"
 	prototypes "github.com/gogo/protobuf/types"
+	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,6 +31,7 @@ type mockContainer struct {
 	mockImage  func() (containerd.Image, error)
 	mockLabels func() (map[string]string, error)
 	mockInfo   func() (containers.Container, error)
+	mockSpec   func() (*oci.Spec, error)
 }
 
 // Task is from the containerd.Container interface
@@ -51,14 +54,23 @@ func (cs *mockContainer) Info(context.Context, ...containerd.InfoOpts) (containe
 	return cs.mockInfo()
 }
 
+func (cs *mockContainer) Spec(context.Context) (*oci.Spec, error) {
+	return cs.mockSpec()
+}
+
 type mockTaskStruct struct {
 	containerd.Task
 	mockMectric func(ctx context.Context) (*types.Metric, error)
+	mockStatus  func(ctx context.Context) (containerd.Status, error)
 }
 
 // Metrics is from the containerd.Task interface
 func (t *mockTaskStruct) Metrics(ctx context.Context) (*types.Metric, error) {
 	return t.mockMectric(ctx)
+}
+
+func (t *mockTaskStruct) Status(ctx context.Context) (containerd.Status, error) {
+	return t.mockStatus(ctx)
 }
 
 type mockImage struct {
@@ -69,6 +81,51 @@ type mockImage struct {
 // Name is from the Image interface
 func (i *mockImage) Size(ctx context.Context) (int64, error) {
 	return i.size, nil
+}
+
+func TestEnvVars(t *testing.T) {
+	tests := []struct {
+		name           string
+		specEnvs       []string
+		expectedResult map[string]string
+		expectsErr     bool
+	}{
+		{
+			name:           "valid envs",
+			specEnvs:       []string{"ENV1=val1", "ENV2=val2"},
+			expectedResult: map[string]string{"ENV1": "val1", "ENV2": "val2"},
+		},
+		{
+			name:       "wrong format",
+			specEnvs:   []string{"ENV1/val1"},
+			expectsErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mockUtil := ContainerdUtil{}
+
+			container := &mockContainer{
+				mockSpec: func() (*oci.Spec, error) {
+					return &oci.Spec{
+						Process: &specs.Process{
+							Env: test.specEnvs,
+						},
+					}, nil
+				},
+			}
+
+			envVars, err := mockUtil.EnvVars(container)
+
+			if test.expectsErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expectedResult, envVars)
+			}
+		})
+	}
 }
 
 func TestInfo(t *testing.T) {
@@ -85,6 +142,24 @@ func TestInfo(t *testing.T) {
 	c, err := mockUtil.Info(ctn)
 	require.NoError(t, err)
 	require.Equal(t, "foo", c.Image)
+}
+
+func TestImage(t *testing.T) {
+	mockUtil := ContainerdUtil{}
+
+	image := &mockImage{
+		size: 5,
+	}
+
+	container := &mockContainer{
+		mockImage: func() (containerd.Image, error) {
+			return image, nil
+		},
+	}
+
+	resultImage, err := mockUtil.Image(container)
+	require.NoError(t, err)
+	require.Equal(t, resultImage, image)
 }
 
 func TestImageSize(t *testing.T) {
@@ -177,6 +252,30 @@ func TestTaskMetrics(t *testing.T) {
 			require.Equal(t, test.expected, metricAny.(*v1.Metrics))
 		})
 	}
+}
+
+func TestStatus(t *testing.T) {
+	mockUtil := ContainerdUtil{}
+
+	status := containerd.Running
+
+	task := mockTaskStruct{
+		mockStatus: func(ctx context.Context) (containerd.Status, error) {
+			return containerd.Status{
+				Status: status,
+			}, nil
+		},
+	}
+
+	container := &mockContainer{
+		mockTask: func() (containerd.Task, error) {
+			return &task, nil
+		},
+	}
+
+	resultStatus, err := mockUtil.Status(container)
+	require.NoError(t, err)
+	require.Equal(t, resultStatus, status)
 }
 
 func makeCtn(value v1.Metrics, typeURL string, taskMetricsError error) containerd.Container {

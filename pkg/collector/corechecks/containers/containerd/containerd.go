@@ -183,7 +183,19 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 			log.Errorf("Could not retrieve the metadata of the container: %s", ctn.ID()[:12])
 			continue
 		}
+
 		if isExcluded(info, fil) {
+			continue
+		}
+
+		// we need a running task before calling tagger.Tag. if the
+		// task isn't running, no tags will ever be returned, and it
+		// will cause a lot of unnecessary and expensive cache misses
+		// in the tagger. see 6e2ee06db6e4394b728d527a596d4c3e3393054a
+		// for more context.
+		metricTask, errTask := cu.TaskMetrics(ctn)
+		if errTask != nil {
+			log.Tracef("Could not retrieve metrics from task %s: %s", ctn.ID()[:12], errTask.Error())
 			continue
 		}
 
@@ -202,12 +214,6 @@ func computeMetrics(sender aggregator.Sender, cu cutil.ContainerdItf, fil *ddCon
 
 		currentTime := time.Now()
 		computeUptime(sender, info, currentTime, tags)
-
-		metricTask, errTask := cu.TaskMetrics(ctn)
-		if errTask != nil {
-			log.Tracef("Could not retrieve metrics from task %s: %s", ctn.ID()[:12], errTask.Error())
-			continue
-		}
 
 		anyMetrics, err := typeurl.UnmarshalAny(metricTask.Data)
 		if err != nil {

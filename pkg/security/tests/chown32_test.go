@@ -48,7 +48,11 @@ func TestChown32(t *testing.T) {
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_x86_tester")
 	if err != nil {
-		t.Fatal(err)
+		if _, ok := err.(ErrUnsupportedArch); ok {
+			t.Skip(err)
+		} else {
+			t.Fatal(err)
+		}
 	}
 
 	prevUID := 98
@@ -67,7 +71,7 @@ func TestChown32(t *testing.T) {
 			prevGID = 200
 		}()
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			// fchown syscall
 			return runSyscallTesterFunc(t, syscallTester, "chown", testFile, "100", "200")
 		}, func(event *sprobe.Event, r *rules.Rule) {
@@ -86,10 +90,6 @@ func TestChown32(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("fchown", func(t *testing.T) {
@@ -98,7 +98,7 @@ func TestChown32(t *testing.T) {
 			prevGID = 201
 		}()
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			// fchown syscall
 			return runSyscallTesterFunc(t, syscallTester, "fchown", testFile, "101", "201")
 		}, func(event *sprobe.Event, r *rules.Rule) {
@@ -117,10 +117,6 @@ func TestChown32(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("fchownat", func(t *testing.T) {
@@ -129,7 +125,7 @@ func TestChown32(t *testing.T) {
 			prevGID = 202
 		}()
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			// fchown syscall
 			return runSyscallTesterFunc(t, syscallTester, "fchownat", testFile, "102", "202")
 		}, func(event *sprobe.Event, r *rules.Rule) {
@@ -148,10 +144,6 @@ func TestChown32(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("lchown", func(t *testing.T) {
@@ -165,7 +157,7 @@ func TestChown32(t *testing.T) {
 		}
 		defer os.Remove(testSymlink)
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			// fchown syscall
 			return runSyscallTesterFunc(t, syscallTester, "lchown", testSymlink, "103", "203")
 		}, func(event *sprobe.Event, r *rules.Rule) {
@@ -184,10 +176,6 @@ func TestChown32(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("lchown32", func(t *testing.T) {
@@ -201,7 +189,7 @@ func TestChown32(t *testing.T) {
 		}
 		defer os.Remove(testSymlink)
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			// fchown syscall
 			return runSyscallTesterFunc(t, syscallTester, "lchown32", testSymlink, "104", "204")
 		}, func(event *sprobe.Event, r *rules.Rule) {
@@ -220,10 +208,6 @@ func TestChown32(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("fchown32", func(t *testing.T) {
@@ -233,7 +217,7 @@ func TestChown32(t *testing.T) {
 			prevGID = 205
 		}()
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			// fchown syscall
 			return runSyscallTesterFunc(t, syscallTester, "fchown32", testFile, "105", "205")
 		}, func(event *sprobe.Event, r *rules.Rule) {
@@ -252,10 +236,6 @@ func TestChown32(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("chown32", func(t *testing.T) {
@@ -264,7 +244,7 @@ func TestChown32(t *testing.T) {
 			prevGID = 206
 		}()
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			// fchown syscall
 			return runSyscallTesterFunc(t, syscallTester, "chown32", testFile, "106", "206")
 		}, func(event *sprobe.Event, r *rules.Rule) {
@@ -283,9 +263,5 @@ func TestChown32(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-
-		if err != nil {
-			t.Error(err)
-		}
 	})
 }

@@ -48,7 +48,7 @@ func TestChmod(t *testing.T) {
 			expectedMode = 0o707
 		}()
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall(syscall.SYS_FCHMOD, f.Fd(), uintptr(0o707), 0); errno != 0 {
 				return errno
 			}
@@ -66,15 +66,12 @@ func TestChmod(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("fchmodat", func(t *testing.T) {
 		defer func() { expectedMode = 0o757 }()
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall6(syscall.SYS_FCHMODAT, 0, uintptr(testFilePtr), uintptr(0o757), 0, 0, 0); errno != 0 {
 				t.Fatal(errno)
 			}
@@ -92,13 +89,10 @@ func TestChmod(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("chmod", ifSyscallSupported("SYS_CHMOD", func(t *testing.T, syscallNB uintptr) {
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(0o717), 0); errno != 0 {
 				t.Fatal(errno)
 			}
@@ -116,9 +110,5 @@ func TestChmod(t *testing.T) {
 				t.Error(event.String())
 			}
 		})
-
-		if err != nil {
-			t.Error(err)
-		}
 	}))
 }

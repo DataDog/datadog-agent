@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker && !darwin
 // +build docker,!darwin
 
 package docker
@@ -45,6 +46,7 @@ type DockerCheck struct {
 	dockerHostname              string
 	cappedSender                *cappedSender
 	collectContainerSizeCounter uint64
+	containerFilter             *containers.Filter
 }
 
 func updateContainerRunningCount(images map[string]*containerPerImage, c *containers.Container) {
@@ -424,8 +426,14 @@ func (d *DockerCheck) Configure(config, initConfig integration.Data, source stri
 	// different than the agent hostname depending on the environment (like EC2 or GCE).
 	d.dockerHostname, err = util.GetHostname(context.TODO())
 	if err != nil {
-		log.Warnf("Can't get hostname from docker, events will not have it: %s", err)
+		log.Warnf("Can't get hostname from docker, events will not have it: %w", err)
 	}
+
+	d.containerFilter, err = containers.GetSharedMetricFilter()
+	if err != nil {
+		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %w", err)
+	}
+
 	return nil
 }
 

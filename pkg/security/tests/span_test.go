@@ -67,7 +67,7 @@ func TestSpan(t *testing.T) {
 		tls[offset] = 123
 		tls[offset+1] = 456
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			testFile, _, err := test.Create("test-span")
 			os.Remove(testFile)
 			return err
@@ -81,18 +81,19 @@ func TestSpan(t *testing.T) {
 			assert.Equal(t, uint64(123), event.SpanContext.SpanID)
 			assert.Equal(t, uint64(456), event.SpanContext.TraceID)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 
 	t.Run("exec", func(t *testing.T) {
 		syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 		if err != nil {
-			t.Fatal(err)
+			if _, ok := err.(ErrUnsupportedArch); ok {
+				t.Skip(err)
+			} else {
+				t.Fatal(err)
+			}
 		}
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(t, syscallTester, "span-exec", "104", "204", executable, "/tmp/test_span_rule_exec")
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_span_rule_exec")
@@ -104,8 +105,5 @@ func TestSpan(t *testing.T) {
 			assert.Equal(t, uint64(204), event.SpanContext.SpanID)
 			assert.Equal(t, uint64(104), event.SpanContext.TraceID)
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 }

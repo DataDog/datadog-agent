@@ -38,7 +38,7 @@ func SyncInformers(informers map[InformerName]cache.SharedInformer) error {
 			if !cache.WaitForCacheSync(ctx.Done(), informers[name].HasSynced) {
 				return fmt.Errorf("couldn't sync informer %s in %v", name, time.Now().Sub(start))
 			}
-			log.Debugf("Sync done for informer %s in %v", name, time.Now().Sub(start))
+			log.Debugf("Sync done for informer %s in %v, last resource version: %s", name, time.Now().Sub(start), informers[name].LastSyncResourceVersion())
 			return nil
 		})
 	}

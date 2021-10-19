@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package providers
@@ -12,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -29,21 +31,28 @@ const (
 // DockerConfigProvider implements the ConfigProvider interface for the docker labels.
 type DockerConfigProvider struct {
 	sync.RWMutex
-	dockerUtil   *docker.DockerUtil
-	upToDate     bool
-	streaming    bool
-	health       *health.Handle
-	labelCache   map[string]map[string]string
-	syncInterval int
-	syncCounter  int
+	dockerUtil      *docker.DockerUtil
+	upToDate        bool
+	streaming       bool
+	health          *health.Handle
+	labelCache      map[string]map[string]string
+	syncInterval    int
+	syncCounter     int
+	containerFilter *containers.Filter
 }
 
 // NewDockerConfigProvider returns a new ConfigProvider connected to docker.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
 func NewDockerConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
+	containerFilter, err := containers.NewAutodiscoveryFilter(containers.GlobalFilter)
+	if err != nil {
+		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %w", err)
+	}
+
 	return &DockerConfigProvider{
 		// periodically resync every 30 runs if we're missing events
-		syncInterval: 30,
+		syncInterval:    30,
+		containerFilter: containerFilter,
 	}, nil
 }
 
@@ -106,7 +115,7 @@ func (d *DockerConfigProvider) listen() {
 	ctx, cancel := context.WithCancel(context.Background())
 CONNECT:
 	for {
-		eventChan, errChan, err := d.dockerUtil.SubscribeToContainerEvents(d.String())
+		eventChan, errChan, err := d.dockerUtil.SubscribeToContainerEvents(d.String(), d.containerFilter)
 		if err != nil {
 			log.Warnf("error subscribing to docker events: %s", err)
 			break CONNECT // We disable streaming and revert to always-pull behaviour

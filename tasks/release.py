@@ -691,13 +691,6 @@ def _get_windows_ddnpm_release_json_info(release_json, agent_major_version, is_f
     return win_ddnpm_driver, win_ddnpm_version, win_ddnpm_shasum
 
 
-@task
-def get_variable(_, name, version='nightly'):
-    with open("release.json", "r") as release_json_stream:
-        release_json = json.load(release_json_stream, object_pairs_hook=OrderedDict)
-    print(release_json[version][name])
-
-
 ##
 ## release_json object update function
 ##
@@ -1354,3 +1347,19 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, redo=False):
         repo_branch="beta",
         deploy=True,
     )
+
+
+@task(help={'key': "Path to the release.json key, separated with double colons, eg. 'last_stable::6'"})
+def get_release_json_value(_, key):
+
+    release_json = _load_release_json()
+
+    path = key.split('::')
+
+    for element in path:
+        if element not in release_json:
+            raise Exit(code=1, message=f"Couldn't find '{key}' in release.json")
+
+        release_json = release_json.get(element)
+
+    print(release_json)
