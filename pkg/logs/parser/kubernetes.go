@@ -12,18 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-const (
-	// Kubernetes log stream types
-	stdout             = "stdout"
-	stderr             = "stderr"
-	numberOfComponents = 4 // timestamp stream flag message
-)
-
-var (
-	// log line timestamp/stream/flag/content delimiter
-	delimiter = []byte{' '}
-)
-
 // KubernetesParser parses Kubernetes-formatted log lines.  Kubernetes log
 // lines follow the pattern '<timestamp> <stream> <flag> <content>'; see
 // https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/kuberuntime/logs/logs.go.
@@ -47,12 +35,12 @@ func parseKubernetes(msg []byte) ([]byte, string, string, string, error) {
 	var status = message.StatusInfo
 	var flag string
 	var timestamp string
-	components := bytes.SplitN(msg, delimiter, numberOfComponents)
-	if len(components) < numberOfComponents-1 {
+	components := bytes.SplitN(msg, spaceByte, 4)
+	if len(components) < 3 {
 		return msg, status, timestamp, flag, errors.New("cannot parse the log line")
 	}
 	var content []byte
-	if len(components) > numberOfComponents-1 {
+	if len(components) > 3 {
 		content = components[3]
 	}
 	status = getStatus(components[1])

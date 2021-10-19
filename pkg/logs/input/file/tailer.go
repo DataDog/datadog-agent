@@ -22,7 +22,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/docker"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/parser"
 	"github.com/DataDog/datadog-agent/pkg/logs/tag"
@@ -77,7 +76,7 @@ func NewDecoderFromSourceWithPattern(source *config.LogSource, multiLinePattern 
 		lineParser = parser.KubernetesParser
 		matcher = &decoder.NewLineMatcher{}
 	case config.DockerSourceType:
-		lineParser = docker.JSONParser
+		lineParser = parser.DockerFileParser
 		matcher = &decoder.NewLineMatcher{}
 	default:
 		switch source.Config.Encoding {
