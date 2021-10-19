@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/model"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
@@ -72,6 +73,8 @@ type Probe struct {
 	inodeDiscarders    *inodeDiscarders
 	flushingDiscarders int64
 	approvers          map[eval.EventType]activeApprovers
+
+	inodeDiscardersCounters map[model.EventType]*int64
 }
 
 // GetResolvers returns the resolvers of Probe
@@ -250,8 +253,23 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *CustomEvent) {
 	}
 }
 
+func (p *Probe) countNewInodeDiscarder(eventType model.EventType) {
+	atomic.AddInt64(p.inodeDiscardersCounters[eventType], 1)
+}
+
+func (p *Probe) sendDiscardersStats() {
+	for eventType, value := range p.inodeDiscardersCounters {
+		val := atomic.SwapInt64(value, 0)
+		if val > 0 {
+			_ = p.statsdClient.Count(metrics.MetricInodeDiscardersAdded, val, []string{eventType.String()}, 1.0)
+		}
+	}
+}
+
 // SendStats sends statistics about the probe to Datadog
 func (p *Probe) SendStats() error {
+	p.sendDiscardersStats()
+
 	return p.monitor.SendStats()
 }
 
@@ -856,6 +874,15 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 
 	if !p.config.EnableKernelFilters {
 		log.Warn("Forcing in-kernel filter policy to `pass`: filtering not enabled")
+	}
+
+	// discarders stats
+	p.inodeDiscardersCounters = make(map[model.EventType]*int64)
+	for eventType := range allDiscarderHandlers {
+		value := int64(0)
+
+		evt := model.ParseEvalEventType(eventType)
+		p.inodeDiscardersCounters[evt] = &value
 	}
 
 	if p.config.SyscallMonitor {
