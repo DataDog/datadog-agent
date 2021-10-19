@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package kubernetes
+package parser
 
 import (
 	"bytes"
@@ -24,26 +24,26 @@ var (
 	delimiter = []byte{' '}
 )
 
-// Parser parses Kubernetes log lines
-var Parser *parser
+// KubernetesParser parses Kubernetes-formatted log lines.  Kubernetes log
+// lines follow the pattern '<timestamp> <stream> <flag> <content>'; see
+// https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/kuberuntime/logs/logs.go.
+// For example: `2018-09-20T11:54:11.753589172Z stdout F This is my message`
+var KubernetesParser Parser = &kubernetesParser{}
 
-type parser struct{}
+type kubernetesParser struct{}
 
-// Parse parses a Kubernetes log line.
-// Kubernetes log lines follow this pattern '<timestamp> <stream> <flag> <content>',
-// see https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/kuberuntime/logs/logs.go
-// Example:
-// 2018-09-20T11:54:11.753589172Z stdout F This is my message
-func (p *parser) Parse(msg []byte) ([]byte, string, string, bool, error) {
-	content, status, timestamp, flag, err := parse(msg)
+// Parse implements Parser#Parse
+func (p *kubernetesParser) Parse(msg []byte) ([]byte, string, string, bool, error) {
+	content, status, timestamp, flag, err := parseKubernetes(msg)
 	return content, status, timestamp, isPartial(flag), err
 }
 
-func (p *parser) SupportsPartialLine() bool {
+// SupportsPartialLine implements Parser#SupportsPartialLine
+func (p *kubernetesParser) SupportsPartialLine() bool {
 	return true
 }
 
-func parse(msg []byte) ([]byte, string, string, string, error) {
+func parseKubernetes(msg []byte) ([]byte, string, string, string, error) {
 	var status = message.StatusInfo
 	var flag string
 	var timestamp string
