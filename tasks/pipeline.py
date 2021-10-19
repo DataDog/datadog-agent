@@ -379,7 +379,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
 
     Use --variables to specify the environment variables that should be passed to the child pipeline, as a comma-separated list.
 
-    Use --follow to make this task wait for the pipeline to finish, and return 1 if it fails.
+    Use --follow to make this task wait for the pipeline to finish, and return 1 if it fails. (requires GITLAB_TOKEN).
 
     Examples:
     inv pipeline.trigger-child-pipeline --git-ref "master" --project-name "DataDog/agent-release-management" --variables "RELEASE_VERSION"
@@ -390,9 +390,13 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
     if not os.environ.get('CI_JOB_TOKEN'):
         raise Exit("CI_JOB_TOKEN variable needed to create child pipelines.", 1)
 
-    # The Gitlab lib requires `GITLAB_TOKEN` to be set, though
-    # we won't use it here
-    os.environ["GITLAB_TOKEN"] = os.environ['CI_JOB_TOKEN']
+    if not os.environ.get('GITLAB_TOKEN'):
+        if follow:
+            raise Exit("GITLAB_TOKEN variable needed to follow child pipelines.", 1)
+        else:
+            # The Gitlab lib requires `GITLAB_TOKEN` to be
+            # set, but trigger_pipeline doesn't use it
+            os.environ["GITLAB_TOKEN"] = os.environ['CI_JOB_TOKEN']
 
     gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
 
