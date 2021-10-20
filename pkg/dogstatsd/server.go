@@ -440,7 +440,8 @@ func (s *Server) ServerlessFlush() {
 	for _, w := range s.workers {
 		w.flush()
 	}
-	s.aggregator.ServerlessFlushChan <- true
+	s.aggregator.ServerlessFlush <- true
+	<-s.aggregator.ServerlessFlushDone
 }
 
 // dropCR drops a terminal \r from the data.
