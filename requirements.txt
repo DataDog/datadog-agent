@@ -5,5 +5,5 @@ dulwich<=0.20.18
 docker==5.0.3
 docker-squash==1.0.8
 requests==2.23.0
-PyYAML==5.4
+PyYAML==6.0
 toml==0.9.4
