@@ -189,6 +189,16 @@ suites:
         agent_install_options: >
           APIKEY=<%= api_key %>
       dd-agent-upgrade:
+        add_new_repo: true
+        <% dd_agent_config.each do |key, value| %>
+        <%= key %>: <%= value %>
+        <% end %>
+        <% if ENV['AGENT_VERSION'] %>
+        windows_version: "<%= ENV['AGENT_VERSION'] %>"
+        <% end %>
+        <% if ENV['WINDOWS_AGENT_FILE'] %>
+        windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
+        <% end %>
         agent_install_options: >
           APIKEY=<%= api_key %>
           WIXFAILWHENDEFERRED=1
