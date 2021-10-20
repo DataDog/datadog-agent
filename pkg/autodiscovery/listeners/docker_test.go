@@ -66,23 +66,25 @@ func TestDockerCreateContainerService(t *testing.T) {
 	tests := []struct {
 		name             string
 		container        *workloadmeta.Container
-		expectedServices map[string]Service
+		expectedServices map[string]wlmListenerSvc
 	}{
 		{
 			name:      "basic container setup",
 			container: basicContainer,
-			expectedServices: map[string]Service{
-				"docker://foobarquux": &service{
-					entity: basicContainer,
-					adIdentifiers: []string{
-						"docker://foobarquux",
-						"gcr.io/foobar",
-						"foobar",
+			expectedServices: map[string]wlmListenerSvc{
+				"container://foobarquux": {
+					service: &service{
+						entity: basicContainer,
+						adIdentifiers: []string{
+							"docker://foobarquux",
+							"gcr.io/foobar",
+							"foobar",
+						},
+						hosts:        map[string]string{},
+						creationTime: integration.After,
+						ports:        []ContainerPort{},
+						ready:        true,
 					},
-					hosts:        map[string]string{},
-					creationTime: integration.After,
-					ports:        []ContainerPort{},
-					ready:        true,
 				},
 			},
 		},
@@ -97,31 +99,33 @@ func TestDockerCreateContainerService(t *testing.T) {
 				},
 				Runtime: workloadmeta.ContainerRuntimeDocker,
 			},
-			expectedServices: map[string]Service{},
+			expectedServices: map[string]wlmListenerSvc{},
 		},
 		{
 			name:      "container with multiple ports collects them in ascending order",
 			container: multiplePortsContainer,
-			expectedServices: map[string]Service{
-				"docker://foobarquux": &service{
-					entity: multiplePortsContainer,
-					adIdentifiers: []string{
-						"docker://foobarquux",
-						"foobar",
-					},
-					hosts: map[string]string{},
-					ports: []ContainerPort{
-						{
-							Port: 22,
-							Name: "ssh",
+			expectedServices: map[string]wlmListenerSvc{
+				"container://foobarquux": {
+					service: &service{
+						entity: multiplePortsContainer,
+						adIdentifiers: []string{
+							"docker://foobarquux",
+							"foobar",
 						},
-						{
-							Port: 80,
-							Name: "http",
+						hosts: map[string]string{},
+						ports: []ContainerPort{
+							{
+								Port: 22,
+								Name: "ssh",
+							},
+							{
+								Port: 80,
+								Name: "http",
+							},
 						},
+						creationTime: integration.After,
+						ready:        true,
 					},
-					creationTime: integration.After,
-					ready:        true,
 				},
 			},
 		},
@@ -129,32 +133,17 @@ func TestDockerCreateContainerService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			newCh := make(chan Service)
-			delCh := make(chan Service)
-			listener := newDockerListener(t, newCh, delCh)
-			actualServices, doneCh := consumeServiceCh(t, newCh, delCh)
+			listener, wlm := newDockerListener(t)
 
-			listener.createContainerService(tt.container)
+			listener.createContainerService(tt.container, integration.After)
 
-			close(newCh)
-			close(delCh)
-			<-doneCh
-
-			assertExpectedServices(t, tt.expectedServices, actualServices)
+			wlm.assertServices(tt.expectedServices)
 		})
 	}
 }
 
-func newDockerListener(t *testing.T, newCh, delCh chan Service) *DockerListener {
-	filters, err := newContainerFilters()
-	if err != nil {
-		t.Fatalf("cannot initialize container filters: %s", err)
-	}
+func newDockerListener(t *testing.T) (*DockerListener, *testWorkloadmetaListener) {
+	wlm := newTestWorkloadmetaListener(t)
 
-	return &DockerListener{
-		services:   make(map[string]Service),
-		newService: newCh,
-		delService: delCh,
-		filters:    filters,
-	}
+	return &DockerListener{workloadmetaListener: wlm}, wlm
 }

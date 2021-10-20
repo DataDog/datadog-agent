@@ -11,13 +11,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,148 +36,55 @@ func init() {
 // KubeletListener listens to pod creation through a subscription
 // to the workloadmeta store.
 type KubeletListener struct {
-	store workloadmeta.Store
-	stop  chan struct{}
-
-	mu            sync.RWMutex
-	filters       *containerFilters
-	services      map[string]Service
-	podContainers map[string]map[string]struct{}
-
-	newService chan<- Service
-	delService chan<- Service
+	workloadmetaListener
 }
 
 // NewKubeletListener returns a new KubeletListener.
 func NewKubeletListener() (ServiceListener, error) {
-	filters, err := newContainerFilters()
+	const name = "ad-kubeletlistener"
+
+	l := &KubeletListener{}
+	f := workloadmeta.NewFilter(
+		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
+		[]string{"kubelet"},
+	)
+
+	var err error
+	l.workloadmetaListener, err = newWorkloadmetaListener(name, f, l.processPod)
 	if err != nil {
 		return nil, err
 	}
 
-	return &KubeletListener{
-		store:         workloadmeta.GetGlobalStore(),
-		filters:       filters,
-		services:      make(map[string]Service),
-		podContainers: make(map[string]map[string]struct{}),
-		stop:          make(chan struct{}),
-	}, nil
+	return l, nil
 }
 
-// Listen starts listening to events from the workloadmeta store.
-func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
-	l.newService = newSvc
-	l.delService = delSvc
-
-	const name = "ad-kubeletlistener"
-
-	ch := l.store.Subscribe(name, workloadmeta.NewFilter(
-		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
-		[]string{"kubelet"},
-	))
-	health := health.RegisterLiveness(name)
-	firstRun := true
-
-	log.Info("kubelet listener initialized successfully")
-
-	go func() {
-		for {
-			select {
-			case evBundle := <-ch:
-				l.processEvents(evBundle, firstRun)
-				firstRun = false
-
-			case <-health.C:
-
-			case <-l.stop:
-				err := health.Deregister()
-				if err != nil {
-					log.Warnf("error de-registering health check: %s", err)
-				}
-
-				l.store.Unsubscribe(ch)
-
-				return
-			}
-		}
-	}()
-}
-
-// Stop stops the KubeletListener.
-func (l *KubeletListener) Stop() {
-	l.stop <- struct{}{}
-}
-
-func (l *KubeletListener) processEvents(evBundle workloadmeta.EventBundle, firstRun bool) {
-	// close the bundle channel asap since there are no downstream
-	// collectors that depend on AD having up to date data.
-	close(evBundle.Ch)
-
-	for _, ev := range evBundle.Events {
-		entity := ev.Entity
-		entityID := entity.GetID()
-
-		if entityID.Kind != workloadmeta.KindKubernetesPod {
-			log.Errorf("internal error: got event %d with entity of kind %q. filters broken?", ev.Type, entityID.Kind)
-			continue
-		}
-
-		switch ev.Type {
-		case workloadmeta.EventTypeSet:
-			pod := entity.(*workloadmeta.KubernetesPod)
-			l.processPod(pod, firstRun)
-
-		case workloadmeta.EventTypeUnset:
-			l.removePodService(entityID)
-
-		default:
-			log.Errorf("cannot handle event of type %d", ev.Type)
-		}
-	}
-}
-
-func (l *KubeletListener) processPod(pod *workloadmeta.KubernetesPod, firstRun bool) {
-	// unseen keeps track of which previous container services are no
-	// longer present in the pod, to be removed at the end of this func
-	svcID := buildSvcID(pod.GetID())
-	unseen := make(map[string]struct{})
-	for id := range l.podContainers[svcID] {
-		unseen[id] = struct{}{}
-	}
+func (l *KubeletListener) processPod(
+	entity workloadmeta.Entity,
+	creationTime integration.CreationTime,
+) {
+	pod := entity.(*workloadmeta.KubernetesPod)
 
 	containers := make([]*workloadmeta.Container, 0, len(pod.Containers))
 	for _, podContainer := range pod.Containers {
-		container, err := l.store.GetContainer(podContainer.ID)
+		container, err := l.Store().GetContainer(podContainer.ID)
 		if err != nil {
 			log.Debugf("pod %q has reference to non-existing container %q", pod.Name, podContainer.ID)
 			continue
 		}
 
-		l.createContainerService(pod, container, firstRun)
+		l.createContainerService(pod, container, creationTime)
 
 		containers = append(containers, container)
-
-		containerSvcID := buildSvcID(container.GetID())
-		delete(unseen, containerSvcID)
 	}
 
-	l.createPodService(pod, containers, firstRun)
-
-	// remove the container services that weren't seen when processing this
-	// pod
-	for containerSvcID := range unseen {
-		l.removeService(containerSvcID)
-	}
+	l.createPodService(pod, containers, creationTime)
 }
 
-func (l *KubeletListener) createPodService(pod *workloadmeta.KubernetesPod, containers []*workloadmeta.Container, firstRun bool) {
-	var crTime integration.CreationTime
-	if firstRun {
-		crTime = integration.Before
-	} else {
-		crTime = integration.After
-	}
-
+func (l *KubeletListener) createPodService(
+	pod *workloadmeta.KubernetesPod,
+	containers []*workloadmeta.Container,
+	creationTime integration.CreationTime,
+) {
 	var ports []ContainerPort
 	for _, container := range containers {
 		for _, port := range container.Ports {
@@ -200,20 +105,21 @@ func (l *KubeletListener) createPodService(pod *workloadmeta.KubernetesPod, cont
 		adIdentifiers: []string{entity},
 		hosts:         map[string]string{"pod": pod.IP},
 		ports:         ports,
-		creationTime:  crTime,
+		creationTime:  creationTime,
 		ready:         true,
 	}
 
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	l.services[buildSvcID(pod.GetID())] = svc
-	l.newService <- svc
+	svcID := buildSvcID(pod.GetID())
+	l.AddService(svcID, svc, "")
 }
 
-func (l *KubeletListener) createContainerService(pod *workloadmeta.KubernetesPod, container *workloadmeta.Container, firstRun bool) {
+func (l *KubeletListener) createContainerService(
+	pod *workloadmeta.KubernetesPod,
+	container *workloadmeta.Container,
+	creationTime integration.CreationTime,
+) {
 	containerImg := container.Image
-	if l.filters.IsExcluded(
+	if l.IsExcluded(
 		containers.GlobalFilter,
 		container.Name,
 		containerImg.RawName,
@@ -232,13 +138,6 @@ func (l *KubeletListener) createContainerService(pod *workloadmeta.KubernetesPod
 		}
 	}
 
-	var crTime integration.CreationTime
-	if firstRun {
-		crTime = integration.Before
-	} else {
-		crTime = integration.After
-	}
-
 	ports := make([]ContainerPort, 0, len(container.Ports))
 	for _, port := range container.Ports {
 		ports = append(ports, ContainerPort{
@@ -254,7 +153,7 @@ func (l *KubeletListener) createContainerService(pod *workloadmeta.KubernetesPod
 	entity := containers.BuildEntityName(string(container.Runtime), container.ID)
 	svc := &service{
 		entity:       container,
-		creationTime: crTime,
+		creationTime: creationTime,
 		ready:        pod.Ready,
 		ports:        ports,
 		extraConfig: map[string]string{
@@ -266,13 +165,13 @@ func (l *KubeletListener) createContainerService(pod *workloadmeta.KubernetesPod
 
 		// Exclude non-running containers (including init containers)
 		// from metrics collection but keep them for collecting logs.
-		metricsExcluded: l.filters.IsExcluded(
+		metricsExcluded: l.IsExcluded(
 			containers.MetricsFilter,
 			container.Name,
 			containerImg.RawName,
 			pod.Namespace,
 		) || !container.State.Running,
-		logsExcluded: l.filters.IsExcluded(
+		logsExcluded: l.IsExcluded(
 			containers.LogsFilter,
 			container.Name,
 			containerImg.RawName,
@@ -306,61 +205,9 @@ func (l *KubeletListener) createContainerService(pod *workloadmeta.KubernetesPod
 		svc.adIdentifiers = append(svc.adIdentifiers, containerImg.ShortName)
 	}
 
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	svcID := buildSvcID(container.GetID())
 	podSvcID := buildSvcID(pod.GetID())
-
-	if old, found := l.services[svcID]; found {
-		if svcEqual(old, svc) {
-			log.Tracef("Received a duplicated kubelet service '%s'", svc.entity)
-			return
-		}
-
-		log.Tracef("Kubelet service '%s' has been updated, removing the old one", svc.entity)
-		l.delService <- old
-	}
-
-	if _, ok := l.podContainers[podSvcID]; !ok {
-		l.podContainers[podSvcID] = make(map[string]struct{})
-	}
-
-	l.services[svcID] = svc
-	l.podContainers[podSvcID][svcID] = struct{}{}
-	l.newService <- svc
-}
-
-func (l *KubeletListener) removePodService(entityID workloadmeta.EntityID) {
-	svcID := buildSvcID(entityID)
-	l.removeService(svcID)
-
-	l.mu.Lock()
-	containerSvcIDs := l.podContainers[svcID]
-	delete(l.podContainers, svcID)
-	l.mu.Unlock()
-
-	for containerSvcID := range containerSvcIDs {
-		l.removeService(containerSvcID)
-	}
-}
-
-func (l *KubeletListener) removeService(svcID string) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	svc, ok := l.services[svcID]
-	if !ok {
-		log.Debugf("service %q not found, not removing", svcID)
-		return
-	}
-
-	delete(l.services, svcID)
-	l.delService <- svc
-}
-
-func buildSvcID(entityID workloadmeta.EntityID) string {
-	return fmt.Sprintf("%s://%s", entityID.Kind, entityID.ID)
+	l.AddService(svcID, svc, podSvcID)
 }
 
 // podHasADTemplate looks in pod annotations and looks for annotations containing an
