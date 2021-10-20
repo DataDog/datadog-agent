@@ -9,4 +9,4 @@
   when: ci_project_dir is not defined or ci_project_dir == ""
   copy:
     src: "{{ molecule_ephemeral_directory | dirname | dirname  }}"
-    dest: "{{playbook_dir | dirname | dirname}}/.cache"
+    dest: "{{playbook_dir | dirname | dirname | dirname | dirname}}/.cache"

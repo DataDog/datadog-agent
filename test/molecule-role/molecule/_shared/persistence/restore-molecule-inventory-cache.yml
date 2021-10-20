@@ -8,5 +8,5 @@
 - name: (Localhost) Copy Molecule Cache Files
   when: ci_project_dir is not defined or ci_project_dir == ""
   copy:
-    src: "{{playbook_dir | dirname | dirname}}/.cache"
+    src: "{{playbook_dir | dirname | dirname | dirname | dirname}}/.cache"
     dest: "{{ molecule_ephemeral_directory | dirname | dirname | dirname | dirname  }}"
