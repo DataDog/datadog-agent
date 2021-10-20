@@ -93,7 +93,7 @@ property2: "ENC[MySecretBackend:/DatadogAgent/Production/ParameterKey2]"
 property3: "ENC[MySecretBackend:/DatadogAgent/Production/ParameterKey3]"
 ```
 
-Currently, `StringList` parameter store values will be retained as a comma-separated list. `SecureString` will be properly decrypted automatically assuming the `aws_session` credentials have appropriate rights to the KMS key used to encrypt the `SecureString` value.
+Currently, `StringList` parameter store values will be retained as a comma-separated list. `SecureString` will be properly decrypted automatically, assuming the `aws_session` credentials have appropriate rights to the KMS key used to encrypt the `SecureString` value.
 
 Multiple secret backends, of the same or different types, can be defined in your `datadog-secret-backend` yaml configuration. As a result, you can leverage multiple supported backends (file.yaml, file.json, aws.ssm, and aws.secrets) in your Datadog Agent configuration.
 

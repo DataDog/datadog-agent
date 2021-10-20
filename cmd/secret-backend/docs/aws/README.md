@@ -6,8 +6,9 @@ The `datadog-secret-backend` utility currently supports the following AWS servic
 
 | Backend Type | AWS Service |
 | --- | --- |
-| [aws.ssm](ssm.md) | [AWS Systems Manager Parameter Store](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html) |
 | [aws.secrets](secrets.md) | [AWS Secrets Manager](https://docs.aws.amazon.com/secretsmanager/latest/userguide/intro.html) |
+| [aws.ssm](ssm.md) | [AWS Systems Manager Parameter Store](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html) |
+
 
 ## AWS Session
 
