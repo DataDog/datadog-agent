@@ -213,10 +213,8 @@ func NewCheckReporter(stopper restart.Stopper, report bool, dumpReportsPath stri
 		r.reporter = reporter
 	}
 
-	if dumpReportsPath != "" {
-		r.dumpReportsPath = dumpReportsPath
-		r.events = make(map[string][]*event.Event)
-	}
+	r.events = make(map[string][]*event.Event)
+	r.dumpReportsPath = dumpReportsPath
 
 	return r, nil
 }
