@@ -16,7 +16,6 @@ type EntityTags struct {
 	entityID           string
 	sourceTags         map[string]sourceTags
 	cacheValid         bool
-	cachedSource       []string
 	cachedAll          tagset.HashedTags // Low + orchestrator + high
 	cachedOrchestrator tagset.HashedTags // Low + orchestrator (subslice of cachedAll)
 	cachedLow          tagset.HashedTags // Sub-slice of cachedAll
@@ -38,20 +37,19 @@ func (e *EntityTags) getStandard() []string {
 	return tags
 }
 
-func (e *EntityTags) get(cardinality collectors.TagCardinality) ([]string, []string) {
-	tags, sources := e.getHashedTags(cardinality)
-	return tags.Get(), sources
+func (e *EntityTags) get(cardinality collectors.TagCardinality) []string {
+	return e.getHashedTags(cardinality).Get()
 }
 
-func (e *EntityTags) getHashedTags(cardinality collectors.TagCardinality) (tagset.HashedTags, []string) {
+func (e *EntityTags) getHashedTags(cardinality collectors.TagCardinality) tagset.HashedTags {
 	e.computeCache()
 
 	if cardinality == collectors.HighCardinality {
-		return e.cachedAll, e.cachedSource
+		return e.cachedAll
 	} else if cardinality == collectors.OrchestratorCardinality {
-		return e.cachedOrchestrator, e.cachedSource
+		return e.cachedOrchestrator
 	}
-	return e.cachedLow, e.cachedSource
+	return e.cachedLow
 }
 
 func (e *EntityTags) toEntity() types.Entity {
@@ -127,7 +125,6 @@ func (e *EntityTags) computeCache() {
 
 	// Write cache
 	e.cacheValid = true
-	e.cachedSource = sources
 	e.cachedAll = cached
 	e.cachedLow = cached.Slice(0, len(lowCardTags))
 	e.cachedOrchestrator = cached.Slice(0, len(lowCardTags)+len(orchestratorCardTags))
