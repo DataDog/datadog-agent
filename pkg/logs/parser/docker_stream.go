@@ -24,28 +24,28 @@ const dockerBufferSize = 16 * 1024
 // Escaped CRLF, used for determine empty messages
 var escapedCRLF = []byte{'\\', 'r', '\\', 'n'}
 
-// DockerStreamParser parses docker log messages as provided by the log-streaming
+// DockerStreamFormat parses docker log messages as provided by the log-streaming
 // API.  The format is documented at
 // https://pkg.go.dev/github.com/moby/moby/client?utm_source=godoc#Client.ContainerLogs
-type DockerStreamParser struct {
+type DockerStreamFormat struct {
 	containerID string
 }
 
-// NewDockerStreamParser create a new instance of docker parser for a specific container.  The given
+// NewDockerStreamFormat create a new instance of docker parser for a specific container.  The given
 // container ID is only used to generate error messages for invalid log data.
-func NewDockerStreamParser(containerID string) *DockerStreamParser {
-	return &DockerStreamParser{
+func NewDockerStreamFormat(containerID string) *DockerStreamFormat {
+	return &DockerStreamFormat{
 		containerID: containerID,
 	}
 }
 
 // Parse implements Parser#Parse
-func (p *DockerStreamParser) Parse(msg []byte) ([]byte, string, string, bool, error) {
+func (p *DockerStreamFormat) Parse(msg []byte) ([]byte, string, string, bool, error) {
 	return parseDockerStream(msg, p.containerID)
 }
 
 // SupportsPartialLine implements Parser#SupportsPartialLine
-func (p *DockerStreamParser) SupportsPartialLine() bool {
+func (p *DockerStreamFormat) SupportsPartialLine() bool {
 	return false
 }
 

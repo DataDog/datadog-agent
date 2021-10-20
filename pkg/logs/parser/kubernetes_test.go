@@ -23,7 +23,7 @@ func TestKubernetesGetStatus(t *testing.T) {
 
 func TestKubernetesParserShouldSucceedWithValidInput(t *testing.T) {
 	validMessage := containerdHeaderOut + " " + "anything"
-	content, status, _, partial, err := KubernetesParser.Parse([]byte(validMessage))
+	content, status, _, partial, err := KubernetesFormat.Parse([]byte(validMessage))
 	assert.Nil(t, err)
 	assert.False(t, partial)
 	assert.Equal(t, message.StatusInfo, status)
@@ -31,7 +31,7 @@ func TestKubernetesParserShouldSucceedWithValidInput(t *testing.T) {
 }
 func TestKubernetesParserShouldSucceedWithPartialFlag(t *testing.T) {
 	validMessage := partialContainerdHeaderOut + " " + "anything"
-	content, status, _, partial, err := KubernetesParser.Parse([]byte(validMessage))
+	content, status, _, partial, err := KubernetesFormat.Parse([]byte(validMessage))
 	assert.Nil(t, err)
 	assert.True(t, partial)
 	assert.Equal(t, message.StatusInfo, status)
@@ -39,7 +39,7 @@ func TestKubernetesParserShouldSucceedWithPartialFlag(t *testing.T) {
 }
 
 func TestKubernetesParserShouldHandleEmptyMessage(t *testing.T) {
-	msg, status, timestamp, partial, err := KubernetesParser.Parse([]byte(containerdHeaderOut))
+	msg, status, timestamp, partial, err := KubernetesFormat.Parse([]byte(containerdHeaderOut))
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(msg))
 	assert.False(t, partial)
@@ -51,7 +51,7 @@ func TestKubernetesParserShouldFailWithInvalidInput(t *testing.T) {
 	// Only timestamp
 	var err error
 	log := []byte("2018-09-20T11:54:11.753589172Z foo")
-	msg, status, timestamp, partial, err := KubernetesParser.Parse(log)
+	msg, status, timestamp, partial, err := KubernetesFormat.Parse(log)
 	assert.False(t, partial)
 	assert.NotNil(t, err)
 	assert.Equal(t, log, msg)
@@ -61,6 +61,6 @@ func TestKubernetesParserShouldFailWithInvalidInput(t *testing.T) {
 	// Missing timestamp but with 3 spaces, the message is valid
 	// FIXME: We might want to handle that
 	log = []byte("stdout F foo bar")
-	_, _, _, _, err = KubernetesParser.Parse(log)
+	_, _, _, _, err = KubernetesFormat.Parse(log)
 	assert.Nil(t, err)
 }

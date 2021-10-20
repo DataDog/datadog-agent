@@ -12,7 +12,7 @@ import (
 )
 
 func TestNoopParserHandleMessages(t *testing.T) {
-	parser := NoopParser
+	parser := Noop
 	testMsg := []byte("Foo")
 	msg, _, _, partial, err := parser.Parse(testMsg)
 	assert.Nil(t, err)

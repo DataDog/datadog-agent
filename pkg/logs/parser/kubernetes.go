@@ -12,22 +12,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// KubernetesParser parses Kubernetes-formatted log lines.  Kubernetes log
+// KubernetesFormat parses Kubernetes-formatted log lines.  Kubernetes log
 // lines follow the pattern '<timestamp> <stream> <flag> <content>'; see
 // https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/kuberuntime/logs/logs.go.
 // For example: `2018-09-20T11:54:11.753589172Z stdout F This is my message`
-var KubernetesParser Parser = &kubernetesParser{}
+var KubernetesFormat Parser = &kubernetesFormat{}
 
-type kubernetesParser struct{}
+type kubernetesFormat struct{}
 
 // Parse implements Parser#Parse
-func (p *kubernetesParser) Parse(msg []byte) ([]byte, string, string, bool, error) {
+func (p *kubernetesFormat) Parse(msg []byte) ([]byte, string, string, bool, error) {
 	content, status, timestamp, flag, err := parseKubernetes(msg)
 	return content, status, timestamp, isPartial(flag), err
 }
 
 // SupportsPartialLine implements Parser#SupportsPartialLine
-func (p *kubernetesParser) SupportsPartialLine() bool {
+func (p *kubernetesFormat) SupportsPartialLine() bool {
 	return true
 }
 

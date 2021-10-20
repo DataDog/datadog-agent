@@ -255,7 +255,7 @@ func TestDecoderInputNotDockerHeader(t *testing.T) {
 
 func TestDecoderWithDockerHeader(t *testing.T) {
 	source := config.NewLogSource("config", &config.LogsConfig{})
-	d := InitializeDecoder(source, parser.NoopParser)
+	d := InitializeDecoder(source, parser.Noop)
 	d.Start()
 
 	input := []byte("hello\n")
@@ -287,7 +287,7 @@ func TestDecoderWithDockerHeaderSingleline(t *testing.T) {
 	var lineLen int
 
 	d := InitializeDecoder(
-		config.NewLogSource("", &config.LogsConfig{}), parser.NewDockerStreamParser("abc123"))
+		config.NewLogSource("", &config.LogsConfig{}), parser.NewDockerStreamFormat("abc123"))
 	d.Start()
 	defer d.Stop()
 
@@ -339,7 +339,7 @@ func TestDecoderWithDockerHeaderMultiline(t *testing.T) {
 		},
 	}
 
-	d := InitializeDecoder(config.NewLogSource("", c), parser.NewDockerStreamParser("abc123"))
+	d := InitializeDecoder(config.NewLogSource("", c), parser.NewDockerStreamFormat("abc123"))
 	d.Start()
 	defer d.Stop()
 
@@ -374,7 +374,7 @@ func TestDecoderWithDockerJSONSingleline(t *testing.T) {
 	var line []byte
 	var lineLen int
 
-	d := InitializeDecoder(config.NewLogSource("", &config.LogsConfig{}), parser.DockerFileParser)
+	d := InitializeDecoder(config.NewLogSource("", &config.LogsConfig{}), parser.DockerFileFormat)
 	d.Start()
 	defer d.Stop()
 
@@ -413,7 +413,7 @@ func TestDecoderWithDockerJSONMultiline(t *testing.T) {
 		},
 	}
 
-	d := InitializeDecoder(config.NewLogSource("", c), parser.DockerFileParser)
+	d := InitializeDecoder(config.NewLogSource("", c), parser.DockerFileFormat)
 	d.Start()
 	defer d.Stop()
 
@@ -447,7 +447,7 @@ func TestDecoderWithDockerJSONSplittedByDocker(t *testing.T) {
 	var output *Message
 	var line []byte
 
-	d := InitializeDecoder(config.NewLogSource("", &config.LogsConfig{}), parser.DockerFileParser)
+	d := InitializeDecoder(config.NewLogSource("", &config.LogsConfig{}), parser.DockerFileFormat)
 	d.Start()
 	defer d.Stop()
 
@@ -471,7 +471,7 @@ func TestDecoderWithDockerJSONSplittedByDocker(t *testing.T) {
 func TestDecoderWithDecodingParser(t *testing.T) {
 	source := config.NewLogSource("config", &config.LogsConfig{})
 
-	d := NewDecoderWithEndLineMatcher(source, parser.NewDecodingParser(parser.UTF16LE), NewBytesSequenceMatcher(Utf16leEOL), nil)
+	d := NewDecoderWithEndLineMatcher(source, parser.NewEncodedText(parser.UTF16LE), NewBytesSequenceMatcher(Utf16leEOL), nil)
 	d.Start()
 
 	input := []byte{'h', 0x0, 'e', 0x0, 'l', 0x0, 'l', 0x0, 'o', 0x0, '\n', 0x0}
@@ -498,7 +498,7 @@ func TestDecoderWithSinglelineKubernetes(t *testing.T) {
 	var line []byte
 	var lineLen int
 
-	d := InitializeDecoder(config.NewLogSource("", &config.LogsConfig{}), parser.KubernetesParser)
+	d := InitializeDecoder(config.NewLogSource("", &config.LogsConfig{}), parser.KubernetesFormat)
 	d.Start()
 	defer d.Stop()
 
@@ -536,7 +536,7 @@ func TestDecoderWithMultilineKubernetes(t *testing.T) {
 			},
 		},
 	}
-	d := InitializeDecoder(config.NewLogSource("", c), parser.KubernetesParser)
+	d := InitializeDecoder(config.NewLogSource("", c), parser.KubernetesFormat)
 	d.Start()
 	defer d.Stop()
 

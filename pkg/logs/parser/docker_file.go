@@ -12,13 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// DockerFileParser parses a raw JSON lines as found in docker log files, or
+// DockerFileFormat parses a raw JSON lines as found in docker log files, or
 // returns an error if it failed.
 // For example:
 // `{"log":"a message","stream":"stderr","time":"2019-06-06T16:35:55.930852911Z"}`
 // returns:
 // `"a message", "error", "2019-06-06T16:35:55.930852911Z", false, nil`
-var DockerFileParser Parser = &dockerFileParser{}
+var DockerFileFormat Parser = &dockerFileFormat{}
 
 type logLine struct {
 	Log    string
@@ -26,10 +26,10 @@ type logLine struct {
 	Time   string
 }
 
-type dockerFileParser struct{}
+type dockerFileFormat struct{}
 
 // Parse implements Parser#Parse
-func (p *dockerFileParser) Parse(data []byte) ([]byte, string, string, bool, error) {
+func (p *dockerFileFormat) Parse(data []byte) ([]byte, string, string, bool, error) {
 	var log *logLine
 	err := json.Unmarshal(data, &log)
 	if err != nil {
@@ -60,6 +60,6 @@ func (p *dockerFileParser) Parse(data []byte) ([]byte, string, string, bool, err
 }
 
 // SupportsPartialLine implements Parser#SupportsPartialLine
-func (p *dockerFileParser) SupportsPartialLine() bool {
+func (p *dockerFileFormat) SupportsPartialLine() bool {
 	return true
 }

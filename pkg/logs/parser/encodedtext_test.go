@@ -12,7 +12,7 @@ import (
 )
 
 func TestUTF16LEParserHandleMessages(t *testing.T) {
-	parser := NewDecodingParser(UTF16LE)
+	parser := NewEncodedText(UTF16LE)
 	testMsg := []byte{'F', 0x0, 'o', 0x0, 'o', 0x0}
 	msg, _, _, _, err := parser.Parse(testMsg)
 	assert.Nil(t, err)
@@ -32,7 +32,7 @@ func TestUTF16LEParserHandleMessages(t *testing.T) {
 }
 
 func TestUTF16BEParserHandleMessages(t *testing.T) {
-	parser := NewDecodingParser(UTF16BE)
+	parser := NewEncodedText(UTF16BE)
 	testMsg := []byte{0x0, 'F', 0x0, 'o', 0x0, 'o'}
 	msg, _, _, _, err := parser.Parse(testMsg)
 	assert.Nil(t, err)

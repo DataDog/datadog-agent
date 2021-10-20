@@ -73,21 +73,21 @@ func NewDecoderFromSourceWithPattern(source *config.LogSource, multiLinePattern 
 	var matcher decoder.EndLineMatcher
 	switch source.GetSourceType() {
 	case config.KubernetesSourceType:
-		lineParser = parser.KubernetesParser
+		lineParser = parser.KubernetesFormat
 		matcher = &decoder.NewLineMatcher{}
 	case config.DockerSourceType:
-		lineParser = parser.DockerFileParser
+		lineParser = parser.DockerFileFormat
 		matcher = &decoder.NewLineMatcher{}
 	default:
 		switch source.Config.Encoding {
 		case config.UTF16BE:
-			lineParser = parser.NewDecodingParser(parser.UTF16BE)
+			lineParser = parser.NewEncodedText(parser.UTF16BE)
 			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16beEOL)
 		case config.UTF16LE:
-			lineParser = parser.NewDecodingParser(parser.UTF16LE)
+			lineParser = parser.NewEncodedText(parser.UTF16LE)
 			matcher = decoder.NewBytesSequenceMatcher(decoder.Utf16leEOL)
 		default:
-			lineParser = parser.NoopParser
+			lineParser = parser.Noop
 			matcher = &decoder.NewLineMatcher{}
 		}
 	}

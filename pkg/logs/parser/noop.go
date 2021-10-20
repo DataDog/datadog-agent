@@ -5,17 +5,17 @@
 
 package parser
 
-// NoopParser is the default parser and simply returns lines unchanged as messages
-var NoopParser *noopParser
+// Noop is the default parser and simply returns lines unchanged as messages
+var Noop *noop
 
-type noopParser struct{}
+type noop struct{}
 
 // Parse implements Parser#Parse
-func (p *noopParser) Parse(msg []byte) ([]byte, string, string, bool, error) {
+func (p *noop) Parse(msg []byte) ([]byte, string, string, bool, error) {
 	return msg, "", "", false, nil
 }
 
 // SupportsPartialLine implements Parser#SupportsPartialLine
-func (p *noopParser) SupportsPartialLine() bool {
+func (p *noop) SupportsPartialLine() bool {
 	return false
 }
