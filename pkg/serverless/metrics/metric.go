@@ -78,7 +78,7 @@ func (c *ServerlessMetricAgent) IsReady() bool {
 // Flush triggers a DogStatsD flush
 func (c *ServerlessMetricAgent) Flush() {
 	if c.IsReady() {
-		c.dogStatDServer.Flush()
+		c.dogStatDServer.ServerlessFlush()
 	}
 }
 
