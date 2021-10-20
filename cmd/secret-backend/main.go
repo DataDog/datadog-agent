@@ -7,8 +7,11 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 
 	"github.com/rapdev-io/datadog-secret-backend/backend"
 )
@@ -18,10 +21,22 @@ type InputPayload struct {
 	Version string   `json:"version"`
 }
 
-const appVersion = "0.1.3"
+const appVersion = "0.1.7"
+
+var Log zerolog.Logger
 
 func init() {
-	log.SetFormatter(&log.JSONFormatter{})
+	zerolog.TimestampFunc = func() time.Time {
+		return time.Now().UTC()
+	}
+	output := zerolog.ConsoleWriter{
+		Out:        os.Stderr,
+		TimeFormat: time.RFC3339,
+		FormatLevel: func(i interface{}) string {
+			return strings.ToUpper(fmt.Sprintf("| %-6s|", i))
+		},
+	}
+	log.Logger = zerolog.New(output).With().Timestamp().Logger()
 }
 
 func printVersion() {
@@ -48,12 +63,12 @@ func main() {
 
 	input, err := ioutil.ReadAll(os.Stdin)
 	if err != nil {
-		log.WithError(err).Fatal("failed to read from input")
+		log.Fatal().Err(err).Msg("failed to read from stdin")
 	}
 
 	inputPayload := &InputPayload{}
 	if err := json.Unmarshal(input, inputPayload); err != nil {
-		log.WithError(err).Fatal("failed to unmarshal input")
+		log.Fatal().Err(err).Msg("failed to unmarshal input")
 	}
 
 	backends := backend.NewBackends(configFile)
@@ -61,7 +76,7 @@ func main() {
 
 	output, err := json.Marshal(secretOutputs)
 	if err != nil {
-		log.WithError(err).Fatal("failed to marshal output")
+		log.Fatal().Err(err).Msg("failed to marshal output")
 	}
 
 	fmt.Printf(string(output))

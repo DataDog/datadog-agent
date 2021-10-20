@@ -16,7 +16,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.10.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.7.0
 	github.com/mitchellh/mapstructure v1.4.1
-	github.com/sirupsen/logrus v1.8.1
+	github.com/rs/zerolog v1.25.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
@@ -26,6 +26,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.3.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.4.0 // indirect
 	github.com/aws/smithy-go v1.8.0 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
-	golang.org/x/sys v0.0.0-20191026070338-33540a1f6037 // indirect
 )
