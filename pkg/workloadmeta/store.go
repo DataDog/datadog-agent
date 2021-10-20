@@ -112,16 +112,11 @@ func (s *Store) Start(ctx context.Context) {
 	pullTicker := time.NewTicker(pullCollectorInterval)
 	health := health.RegisterLiveness("workloadmeta-store")
 
-	// Start collectors immediately
-	s.startCandidates(ctx)
-
-	// Start a pull immediately to fill the store without waiting for the
-	// next tick.
 	pullCtx, pullCancel := context.WithTimeout(ctx, pullCollectorInterval)
-	s.pull(pullCtx)
 
-	log.Info("workloadmeta store initialized successfully")
-
+	// Start processing events before starting collectors, as in some cases
+	// they may be able to generate more events than what fits in eventCh's
+	// buffer, and the store will deadlock.
 	go func() {
 		for {
 			select {
@@ -159,6 +154,15 @@ func (s *Store) Start(ctx context.Context) {
 			}
 		}
 	}()
+
+	// Start collectors immediately
+	s.startCandidates(ctx)
+
+	// Start a pull immediately to fill the store without waiting for the
+	// next tick.
+	s.pull(pullCtx)
+
+	log.Info("workloadmeta store initialized successfully")
 }
 
 // Subscribe returns a channel where workload metadata events will be streamed
