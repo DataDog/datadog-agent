@@ -251,9 +251,8 @@ func (d *Daemon) TriggerFlush(isLastFlushBeforeShutdown bool) {
 // It is protected by a mutex to ensure only one metrics flush can be in progress at any given time.
 func (d *Daemon) flushMetrics(wg *sync.WaitGroup) {
 	d.metricsFlushMutex.Lock()
-	correlationID := generateCorrelationID()
 	flushStartTime := time.Now().Unix()
-	log.Debugf("Beginning metrics flush #%d", correlationID)
+	log.Debugf("Beginning metrics flush at time %d", flushStartTime)
 	if d.MetricAgent != nil {
 		d.MetricAgent.Flush()
 	}
