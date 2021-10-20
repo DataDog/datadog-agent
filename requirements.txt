@@ -6,4 +6,4 @@ docker==5.0.3
 docker-squash==1.0.8
 requests==2.23.0
 PyYAML==6.0
-toml==0.9.4
+toml==0.10.2
