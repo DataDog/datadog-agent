@@ -17,14 +17,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
+// workloadmetaListener is a generic subscriber to workloadmeta events that
+// generates AD services.
 type workloadmetaListener interface {
 	ServiceListener
 
+	// Store returns a reference to the workloadmeta store being used by
+	// the listener.
 	Store() workloadmeta.Store
+
+	// AddService creates a new AD service under the svcID name (only used
+	// internally to identify a service). If a non-empty parentSvcID is
+	// passed, the service will be deleted when the parent service is
+	// removed.
 	AddService(svcID string, svc Service, parentSvcID string)
+
+	// IsExcluded returns whether a container should be excluded according
+	// to the chosen ft filter.
 	IsExcluded(ft containers.FilterType, name, image, ns string) bool
 }
 
+// workloadmetaListenerImpl implements workloadmetaListener.
 type workloadmetaListenerImpl struct {
 	name string
 	stop chan struct{}
@@ -42,6 +55,14 @@ type workloadmetaListenerImpl struct {
 	delService chan<- Service
 }
 
+var _ workloadmetaListener = &workloadmetaListenerImpl{}
+
+// newWorkloadmetaListener returns a new workloadmetaListener. It filters
+// workloadmeta events with the passed in workloadFilters, and processes each
+// event with processFn. processFn is expected to create AD services by calling
+// AddService. Services are removed automatically on
+// workloadmeta.EventTypeUnset events, including child services when the parent
+// service is removed.
 func newWorkloadmetaListener(
 	name string,
 	workloadFilters *workloadmeta.Filter,
