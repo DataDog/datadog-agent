@@ -188,15 +188,15 @@ func (_m *Env) NormalizeToHostRoot(path string) string {
 }
 
 // ProvidedInput provides a mock function with given fields: ruleID
-func (_m *Env) ProvidedInput(ruleID string) env.ProvidedInputMap {
+func (_m *Env) ProvidedInput(ruleID string) eval.RegoInputMap {
 	ret := _m.Called(ruleID)
 
-	var r0 env.ProvidedInputMap
-	if rf, ok := ret.Get(0).(func(string) env.ProvidedInputMap); ok {
+	var r0 eval.RegoInputMap
+	if rf, ok := ret.Get(0).(func(string) eval.RegoInputMap); ok {
 		r0 = rf(ruleID)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(env.ProvidedInputMap)
+			r0 = ret.Get(0).(eval.RegoInputMap)
 		}
 	}
 

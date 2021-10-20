@@ -117,7 +117,7 @@ func (r *regoCheck) compileRule(rule *compliance.RegoRule, ruleScope compliance.
 	return nil
 }
 
-func (r *regoCheck) normalizeInputMap(vars map[string]interface{}) map[string]interface{} {
+func (r *regoCheck) normalizeInputMap(vars eval.RegoInputMap) eval.RegoInputMap {
 	normalized := make(map[string]interface{})
 	for k, v := range vars {
 		ps := strings.Split(k, ".")
@@ -128,7 +128,7 @@ func (r *regoCheck) normalizeInputMap(vars map[string]interface{}) map[string]in
 	return normalized
 }
 
-func (r *regoCheck) buildNormalInput(env env.Env) (map[string]interface{}, error) {
+func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 	inputPerTags := make(map[string][]interface{})
 
 	for _, resource := range r.resources {
@@ -176,7 +176,7 @@ func (r *regoCheck) buildNormalInput(env env.Env) (map[string]interface{}, error
 	return input, nil
 }
 
-func (r *regoCheck) buildContextInput(env env.Env) map[string]interface{} {
+func (r *regoCheck) buildContextInput(env env.Env) eval.RegoInputMap {
 	context := make(map[string]interface{})
 	context["hostname"] = env.Hostname()
 	context["constants"] = r.constants
@@ -210,7 +210,7 @@ func findingsToReports(findings []regoFinding) []*compliance.Report {
 func (r *regoCheck) check(env env.Env) []*compliance.Report {
 	log.Debugf("%s: rego check starting", r.ruleID)
 
-	var input map[string]interface{}
+	var input eval.RegoInputMap
 	providedInput := env.ProvidedInput(r.ruleID)
 
 	if providedInput != nil {
@@ -284,7 +284,7 @@ func (r *regoCheck) appendInstance(input map[string][]interface{}, key string, i
 	if !exists {
 		vars = []interface{}{}
 	}
-	normalized := r.normalizeInputMap(instance.Vars().GoMap())
+	normalized := r.normalizeInputMap(instance.RegoInput())
 	input[key] = append(vars, normalized)
 }
 

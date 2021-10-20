@@ -25,12 +25,9 @@ type Clients interface {
 	KubeClient() KubeClient
 }
 
-// ProvidedInputMap represents the datastructure of the cmd line provided rego input
-type ProvidedInputMap map[string]interface{}
-
 // RegoConfiguration provides the rego specific configuration
 type RegoConfiguration interface {
-	ProvidedInput(ruleID string) ProvidedInputMap
+	ProvidedInput(ruleID string) eval.RegoInputMap
 	DumpInputPath() string
 }
 
