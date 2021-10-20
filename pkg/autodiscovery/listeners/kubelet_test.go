@@ -9,13 +9,11 @@ package listeners
 
 import (
 	"fmt"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -42,7 +40,7 @@ func TestKubeletCreatePodService(t *testing.T) {
 		name             string
 		pod              *workloadmeta.KubernetesPod
 		containers       []*workloadmeta.Container
-		expectedServices map[string]Service
+		expectedServices map[string]wlmListenerSvc
 	}{
 		{
 			name: "pod with several containers collects ports in ascending order",
@@ -65,25 +63,27 @@ func TestKubeletCreatePodService(t *testing.T) {
 					},
 				},
 			},
-			expectedServices: map[string]Service{
-				"kubernetes_pod://foobar": &service{
-					entity:        pod,
-					adIdentifiers: []string{"kubernetes_pod://foobar"},
-					ports: []ContainerPort{
-						{
-							Port: 22,
-							Name: "ssh",
+			expectedServices: map[string]wlmListenerSvc{
+				"kubernetes_pod://foobar": {
+					service: &service{
+						entity:        pod,
+						adIdentifiers: []string{"kubernetes_pod://foobar"},
+						ports: []ContainerPort{
+							{
+								Port: 22,
+								Name: "ssh",
+							},
+							{
+								Port: 80,
+								Name: "http",
+							},
 						},
-						{
-							Port: 80,
-							Name: "http",
+						hosts: map[string]string{
+							"pod": "127.0.0.1",
 						},
+						creationTime: integration.After,
+						ready:        true,
 					},
-					hosts: map[string]string{
-						"pod": "127.0.0.1",
-					},
-					creationTime: integration.After,
-					ready:        true,
 				},
 			},
 		},
@@ -91,18 +91,11 @@ func TestKubeletCreatePodService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			newCh := make(chan Service)
-			delCh := make(chan Service)
-			listener := newKubeletListener(t, newCh, delCh)
-			actualServices, doneCh := consumeServiceCh(t, newCh, delCh)
+			listener, wlm := newKubeletListener(t)
 
-			listener.createPodService(tt.pod, tt.containers, false)
+			listener.createPodService(tt.pod, tt.containers, integration.After)
 
-			close(newCh)
-			close(delCh)
-			<-doneCh
-
-			assertExpectedServices(t, tt.expectedServices, actualServices)
+			wlm.assertServices(tt.expectedServices)
 		})
 	}
 }
@@ -208,29 +201,32 @@ func TestKubeletCreateContainerService(t *testing.T) {
 		name             string
 		pod              *workloadmeta.KubernetesPod
 		container        *workloadmeta.Container
-		expectedServices map[string]Service
+		expectedServices map[string]wlmListenerSvc
 	}{
 		{
 			name:      "basic container setup",
 			pod:       pod,
 			container: basicContainer,
-			expectedServices: map[string]Service{
-				"docker://foobarquux": &service{
-					entity: basicContainer,
-					adIdentifiers: []string{
-						"docker://foobarquux",
-						"gcr.io/foobar:latest",
-						"foobar",
-					},
-					hosts: map[string]string{
-						"pod": "127.0.0.1",
-					},
-					ports:        []ContainerPort{},
-					creationTime: integration.After,
-					extraConfig: map[string]string{
-						"namespace": podNamespace,
-						"pod_name":  podName,
-						"pod_uid":   podID,
+			expectedServices: map[string]wlmListenerSvc{
+				"container://foobarquux": {
+					parent: "kubernetes_pod://foobar",
+					service: &service{
+						entity: basicContainer,
+						adIdentifiers: []string{
+							"docker://foobarquux",
+							"gcr.io/foobar:latest",
+							"foobar",
+						},
+						hosts: map[string]string{
+							"pod": "127.0.0.1",
+						},
+						ports:        []ContainerPort{},
+						creationTime: integration.After,
+						extraConfig: map[string]string{
+							"namespace": podNamespace,
+							"pod_name":  podName,
+							"pod_uid":   podID,
+						},
 					},
 				},
 			},
@@ -239,23 +235,26 @@ func TestKubeletCreateContainerService(t *testing.T) {
 			name:      "recently stopped container excludes metrics but not logs",
 			pod:       pod,
 			container: recentlyStoppedContainer,
-			expectedServices: map[string]Service{
-				"docker://foobarquux": &service{
-					entity: recentlyStoppedContainer,
-					adIdentifiers: []string{
-						"docker://foobarquux",
-						"foobar",
-					},
-					hosts: map[string]string{
-						"pod": "127.0.0.1",
-					},
-					ports:           []ContainerPort{},
-					creationTime:    integration.After,
-					metricsExcluded: true,
-					extraConfig: map[string]string{
-						"namespace": podNamespace,
-						"pod_name":  podName,
-						"pod_uid":   podID,
+			expectedServices: map[string]wlmListenerSvc{
+				"container://foobarquux": {
+					parent: "kubernetes_pod://foobar",
+					service: &service{
+						entity: recentlyStoppedContainer,
+						adIdentifiers: []string{
+							"docker://foobarquux",
+							"foobar",
+						},
+						hosts: map[string]string{
+							"pod": "127.0.0.1",
+						},
+						ports:           []ContainerPort{},
+						creationTime:    integration.After,
+						metricsExcluded: true,
+						extraConfig: map[string]string{
+							"namespace": podNamespace,
+							"pod_name":  podName,
+							"pod_uid":   podID,
+						},
 					},
 				},
 			},
@@ -272,37 +271,40 @@ func TestKubeletCreateContainerService(t *testing.T) {
 				},
 				Runtime: workloadmeta.ContainerRuntimeDocker,
 			},
-			expectedServices: map[string]Service{},
+			expectedServices: map[string]wlmListenerSvc{},
 		},
 		{
 			name:      "container with multiple ports collects them in ascending order",
 			pod:       pod,
 			container: multiplePortsContainer,
-			expectedServices: map[string]Service{
-				"docker://foobarquux": &service{
-					entity: multiplePortsContainer,
-					adIdentifiers: []string{
-						"docker://foobarquux",
-						"foobar",
-					},
-					hosts: map[string]string{
-						"pod": "127.0.0.1",
-					},
-					ports: []ContainerPort{
-						{
-							Port: 22,
-							Name: "ssh",
+			expectedServices: map[string]wlmListenerSvc{
+				"container://foobarquux": {
+					parent: "kubernetes_pod://foobar",
+					service: &service{
+						entity: multiplePortsContainer,
+						adIdentifiers: []string{
+							"docker://foobarquux",
+							"foobar",
 						},
-						{
-							Port: 80,
-							Name: "http",
+						hosts: map[string]string{
+							"pod": "127.0.0.1",
 						},
-					},
-					creationTime: integration.After,
-					extraConfig: map[string]string{
-						"namespace": podNamespace,
-						"pod_name":  podName,
-						"pod_uid":   podID,
+						ports: []ContainerPort{
+							{
+								Port: 22,
+								Name: "ssh",
+							},
+							{
+								Port: 80,
+								Name: "http",
+							},
+						},
+						creationTime: integration.After,
+						extraConfig: map[string]string{
+							"namespace": podNamespace,
+							"pod_name":  podName,
+							"pod_uid":   podID,
+						},
 					},
 				},
 			},
@@ -311,24 +313,27 @@ func TestKubeletCreateContainerService(t *testing.T) {
 			name:      "pod with custom check names and identifiers",
 			pod:       podWithAnnotations,
 			container: customIDsContainer,
-			expectedServices: map[string]Service{
-				"docker://foobarquux": &service{
-					entity: customIDsContainer,
-					adIdentifiers: []string{
-						"customid",
-						"docker://foobarquux",
-						"foobar",
-					},
-					hosts: map[string]string{
-						"pod": "127.0.0.1",
-					},
-					ports:        []ContainerPort{},
-					creationTime: integration.After,
-					checkNames:   []string{"customcheck"},
-					extraConfig: map[string]string{
-						"namespace": podNamespace,
-						"pod_name":  podName,
-						"pod_uid":   podID,
+			expectedServices: map[string]wlmListenerSvc{
+				"container://foobarquux": {
+					parent: "kubernetes_pod://foobar",
+					service: &service{
+						entity: customIDsContainer,
+						adIdentifiers: []string{
+							"customid",
+							"docker://foobarquux",
+							"foobar",
+						},
+						hosts: map[string]string{
+							"pod": "127.0.0.1",
+						},
+						ports:        []ContainerPort{},
+						creationTime: integration.After,
+						checkNames:   []string{"customcheck"},
+						extraConfig: map[string]string{
+							"namespace": podNamespace,
+							"pod_name":  podName,
+							"pod_uid":   podID,
+						},
 					},
 				},
 			},
@@ -337,212 +342,17 @@ func TestKubeletCreateContainerService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			newCh := make(chan Service)
-			delCh := make(chan Service)
-			listener := newKubeletListener(t, newCh, delCh)
-			actualServices, doneCh := consumeServiceCh(t, newCh, delCh)
+			listener, wlm := newKubeletListener(t)
 
-			listener.createContainerService(tt.pod, tt.container, false)
+			listener.createContainerService(tt.pod, tt.container, integration.After)
 
-			close(newCh)
-			close(delCh)
-			<-doneCh
-
-			assertExpectedServices(t, tt.expectedServices, actualServices)
+			wlm.assertServices(tt.expectedServices)
 		})
 	}
 }
 
-func TestDuplicatedContainer(t *testing.T) {
-	newCh := make(chan Service)
-	delCh := make(chan Service)
-	listener := newKubeletListener(t, newCh, delCh)
-	actualServices, doneCh := consumeServiceCh(t, newCh, delCh)
+func newKubeletListener(t *testing.T) (*KubeletListener, *testWorkloadmetaListener) {
+	wlm := newTestWorkloadmetaListener(t)
 
-	basicContainer := &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainer,
-			ID:   "foo",
-		},
-		Runtime: workloadmeta.ContainerRuntimeDocker,
-	}
-
-	pod := &workloadmeta.KubernetesPod{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesPod,
-			ID:   podID,
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name:      podName,
-			Namespace: podNamespace,
-		},
-		IP: "127.0.0.1",
-	}
-
-	// Specify basicContainer more than once, expect a single service in
-	// the end
-	containers := []*workloadmeta.Container{basicContainer, basicContainer}
-
-	for _, c := range containers {
-		listener.createContainerService(pod, c, false)
-	}
-
-	close(newCh)
-	close(delCh)
-	<-doneCh
-
-	assertExpectedServices(t, map[string]Service{
-		"docker://foo": &service{
-			entity: basicContainer,
-			adIdentifiers: []string{
-				"docker://foo",
-				"",
-			},
-			hosts: map[string]string{
-				"pod": "127.0.0.1",
-			},
-			ports:           []ContainerPort{},
-			creationTime:    integration.After,
-			metricsExcluded: true,
-			extraConfig: map[string]string{
-				"namespace": podNamespace,
-				"pod_name":  podName,
-				"pod_uid":   podID,
-			},
-		},
-	}, actualServices)
-}
-
-func TestRemovePodService(t *testing.T) {
-	newCh := make(chan Service)
-	delCh := make(chan Service)
-	listener := newKubeletListener(t, newCh, delCh)
-	actualServices, doneCh := consumeServiceCh(t, newCh, delCh)
-
-	pod := &workloadmeta.KubernetesPod{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesPod,
-			ID:   podID,
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name:      podName,
-			Namespace: podNamespace,
-		},
-		IP: "127.0.0.1",
-		Containers: []workloadmeta.OrchestratorContainer{
-			{ID: "foo"},
-			{ID: "bar"},
-		},
-	}
-
-	containers := []*workloadmeta.Container{
-		{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindContainer,
-				ID:   "foo",
-			},
-			Runtime: workloadmeta.ContainerRuntimeDocker,
-		},
-		{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindContainer,
-				ID:   "bar",
-			},
-			Runtime: workloadmeta.ContainerRuntimeDocker,
-		},
-	}
-
-	listener.createPodService(pod, containers, false)
-	for _, c := range containers {
-		listener.createContainerService(pod, c, false)
-	}
-
-	listener.removePodService(pod.GetID())
-
-	close(newCh)
-	close(delCh)
-	<-doneCh
-
-	assertExpectedServices(t, map[string]Service{}, actualServices)
-}
-
-func newKubeletListener(t *testing.T, newCh, delCh chan Service) *KubeletListener {
-	filters, err := newContainerFilters()
-	if err != nil {
-		t.Fatalf("cannot initialize container filters: %s", err)
-	}
-
-	return &KubeletListener{
-		services:      make(map[string]Service),
-		podContainers: make(map[string]map[string]struct{}),
-		newService:    newCh,
-		delService:    delCh,
-		filters:       filters,
-	}
-}
-
-func consumeServiceCh(t *testing.T, newCh, deleteCh chan Service) (map[string]Service, chan struct{}) {
-	doneCh := make(chan struct{})
-	services := make(map[string]Service)
-
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func() {
-		for svc := range newCh {
-			if svc == nil {
-				break
-			}
-
-			mu.Lock()
-			if _, exists := services[svc.GetEntity()]; !exists {
-				services[svc.GetEntity()] = svc
-			} else {
-				t.Errorf("trying to overwrite existing service %s", svc.GetEntity())
-			}
-			mu.Unlock()
-		}
-
-		wg.Done()
-	}()
-
-	go func() {
-		for svc := range deleteCh {
-			if svc == nil {
-				break
-			}
-
-			mu.Lock()
-			delete(services, svc.GetEntity())
-			mu.Unlock()
-		}
-
-		wg.Done()
-	}()
-
-	go func() {
-		wg.Wait()
-		close(doneCh)
-	}()
-
-	return services, doneCh
-}
-
-func assertExpectedServices(t *testing.T, expectedServices, actualServices map[string]Service) {
-	for entity, expectedSvc := range expectedServices {
-		actualSvc, ok := actualServices[entity]
-		if !ok {
-			t.Errorf("expected to find service %q, but it was not generated", entity)
-			continue
-		}
-
-		assert.Equal(t, expectedSvc, actualSvc)
-
-		delete(actualServices, entity)
-	}
-
-	if len(actualServices) > 0 {
-		t.Errorf("got unexpected services: %+v", actualServices)
-	}
+	return &KubeletListener{workloadmetaListener: wlm}, wlm
 }

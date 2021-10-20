@@ -10,12 +10,10 @@ package listeners
 import (
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,100 +27,35 @@ func init() {
 // DockerListener listens to container creation through a subscription to the
 // workloadmeta store.
 type DockerListener struct {
-	store workloadmeta.Store
-	stop  chan struct{}
-
-	mu       sync.RWMutex
-	filters  *containerFilters
-	services map[string]Service
-
-	newService chan<- Service
-	delService chan<- Service
+	workloadmetaListener
 }
 
 // NewDockerListener returns a new DockerListener.
 func NewDockerListener() (ServiceListener, error) {
-	filters, err := newContainerFilters()
+	const name = "ad-dockerlistener"
+	l := &DockerListener{}
+	f := workloadmeta.NewFilter(
+		[]workloadmeta.Kind{workloadmeta.KindContainer},
+		[]string{"docker"},
+	)
+
+	var err error
+	l.workloadmetaListener, err = newWorkloadmetaListener(name, f, l.createContainerService)
 	if err != nil {
 		return nil, err
 	}
 
-	return &DockerListener{
-		store:    workloadmeta.GetGlobalStore(),
-		filters:  filters,
-		services: make(map[string]Service),
-		stop:     make(chan struct{}),
-	}, nil
+	return l, nil
 }
 
-// Listen starts listening to events from the workloadmeta store.
-func (l *DockerListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
-	l.newService = newSvc
-	l.delService = delSvc
+func (l *DockerListener) createContainerService(
+	entity workloadmeta.Entity,
+	creationTime integration.CreationTime,
+) {
+	container := entity.(*workloadmeta.Container)
 
-	const name = "ad-dockerlistener"
-
-	ch := l.store.Subscribe(name, workloadmeta.NewFilter(
-		[]workloadmeta.Kind{workloadmeta.KindContainer},
-		[]string{"docker"},
-	))
-	health := health.RegisterLiveness(name)
-
-	log.Info("docker listener initialized successfully")
-
-	go func() {
-		for {
-			select {
-			case evBundle := <-ch:
-				l.processEvents(evBundle)
-
-			case <-health.C:
-
-			case <-l.stop:
-				err := health.Deregister()
-				if err != nil {
-					log.Warnf("error de-registering health check: %s", err)
-				}
-
-				l.store.Unsubscribe(ch)
-
-				return
-			}
-		}
-	}()
-}
-
-func (l *DockerListener) processEvents(evBundle workloadmeta.EventBundle) {
-	// close the bundle channel asap since there are no downstream
-	// collectors that depend on AD having up to date data.
-	close(evBundle.Ch)
-
-	for _, ev := range evBundle.Events {
-		entity := ev.Entity
-		entityID := entity.GetID()
-
-		if entityID.Kind != workloadmeta.KindContainer {
-			log.Errorf("internal error: got event %d with entity of kind %q. filters broken?", ev.Type, entityID.Kind)
-			continue
-		}
-
-		switch ev.Type {
-		case workloadmeta.EventTypeSet:
-			container := entity.(*workloadmeta.Container)
-			l.createContainerService(container)
-
-		case workloadmeta.EventTypeUnset:
-			l.removeService(entityID)
-
-		default:
-			log.Errorf("cannot handle event of type %d", ev.Type)
-		}
-	}
-}
-
-func (l *DockerListener) createContainerService(container *workloadmeta.Container) {
 	containerImg := container.Image
-	if l.filters.IsExcluded(
+	if l.IsExcluded(
 		containers.GlobalFilter,
 		container.Name,
 		containerImg.RawName,
@@ -167,7 +100,7 @@ func (l *DockerListener) createContainerService(container *workloadmeta.Containe
 	}
 
 	if findKubernetesInLabels(container.Labels) {
-		pod, err := l.store.GetKubernetesPodForContainer(container.ID)
+		pod, err := l.Store().GetKubernetesPodForContainer(container.ID)
 		if err == nil {
 			svc.hosts = map[string]string{"pod": pod.IP}
 			svc.ready = pod.Ready
@@ -199,13 +132,13 @@ func (l *DockerListener) createContainerService(container *workloadmeta.Containe
 		svc.ready = true
 		svc.hosts = hosts
 		svc.checkNames = checkNames
-		svc.metricsExcluded = l.filters.IsExcluded(
+		svc.metricsExcluded = l.IsExcluded(
 			containers.MetricsFilter,
 			container.Name,
 			containerImg.RawName,
 			"",
 		)
-		svc.logsExcluded = l.filters.IsExcluded(
+		svc.logsExcluded = l.IsExcluded(
 			containers.LogsFilter,
 			container.Name,
 			containerImg.RawName,
@@ -213,32 +146,8 @@ func (l *DockerListener) createContainerService(container *workloadmeta.Containe
 		)
 	}
 
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	svcID := buildSvcID(container.GetID())
-	l.services[svcID] = svc
-	l.newService <- svc
-}
-
-func (l *DockerListener) removeService(entityID workloadmeta.EntityID) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	svcID := buildSvcID(entityID)
-	svc, ok := l.services[svcID]
-	if !ok {
-		log.Debugf("service %q not found, not removing", svcID)
-		return
-	}
-
-	delete(l.services, svcID)
-	l.delService <- svc
-}
-
-// Stop stops the DockerListener.
-func (l *DockerListener) Stop() {
-	l.stop <- struct{}{}
+	l.AddService(svcID, svc, "")
 }
 
 // findKubernetesInLabels traverses a map of container labels and

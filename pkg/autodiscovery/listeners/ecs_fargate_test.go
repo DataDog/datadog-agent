@@ -59,25 +59,28 @@ func TestECSFargateCreateContainerService(t *testing.T) {
 		name             string
 		task             *workloadmeta.ECSTask
 		container        *workloadmeta.Container
-		expectedServices map[string]Service
+		expectedServices map[string]wlmListenerSvc
 	}{
 		{
 			name:      "basic container setup",
 			task:      task,
 			container: container,
-			expectedServices: map[string]Service{
-				"docker://foobarquux": &service{
-					entity: container,
-					adIdentifiers: []string{
-						"docker://foobarquux",
-						"gcr.io/foobar",
-						"foobar",
+			expectedServices: map[string]wlmListenerSvc{
+				"container://foobarquux": {
+					parent: "ecs_task://foobar",
+					service: &service{
+						entity: container,
+						adIdentifiers: []string{
+							"docker://foobarquux",
+							"gcr.io/foobar",
+							"foobar",
+						},
+						hosts: map[string]string{
+							"awsvpc": "127.0.0.1",
+						},
+						creationTime: integration.After,
+						ready:        true,
 					},
-					hosts: map[string]string{
-						"awsvpc": "127.0.0.1",
-					},
-					creationTime: integration.After,
-					ready:        true,
 				},
 			},
 		},
@@ -85,83 +88,17 @@ func TestECSFargateCreateContainerService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			newCh := make(chan Service)
-			delCh := make(chan Service)
-			listener := newECSFargateListener(t, newCh, delCh)
-			actualServices, doneCh := consumeServiceCh(t, newCh, delCh)
+			listener, wlm := newECSFargateListener(t)
 
-			listener.createContainerService(tt.task, tt.container, false)
+			listener.createContainerService(tt.task, tt.container, integration.After)
 
-			close(newCh)
-			close(delCh)
-			<-doneCh
-
-			assertExpectedServices(t, tt.expectedServices, actualServices)
+			wlm.assertServices(tt.expectedServices)
 		})
 	}
 }
 
-func TestECSFargateRemoveTaskService(t *testing.T) {
-	newCh := make(chan Service)
-	delCh := make(chan Service)
-	listener := newECSFargateListener(t, newCh, delCh)
-	actualServices, doneCh := consumeServiceCh(t, newCh, delCh)
+func newECSFargateListener(t *testing.T) (*ECSFargateListener, *testWorkloadmetaListener) {
+	wlm := newTestWorkloadmetaListener(t)
 
-	task := &workloadmeta.ECSTask{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindECSTask,
-			ID:   taskID,
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name: taskName,
-		},
-		Containers: []workloadmeta.OrchestratorContainer{
-			{ID: "foo"},
-			{ID: "bar"},
-		},
-	}
-
-	containers := []*workloadmeta.Container{
-		{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindContainer,
-				ID:   "foo",
-			},
-			Runtime: workloadmeta.ContainerRuntimeDocker,
-		},
-		{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindContainer,
-				ID:   "bar",
-			},
-			Runtime: workloadmeta.ContainerRuntimeDocker,
-		},
-	}
-
-	for _, c := range containers {
-		listener.createContainerService(task, c, false)
-	}
-
-	listener.removeTaskService(task.GetID())
-
-	close(newCh)
-	close(delCh)
-	<-doneCh
-
-	assertExpectedServices(t, map[string]Service{}, actualServices)
-}
-
-func newECSFargateListener(t *testing.T, newCh, delCh chan Service) *ECSFargateListener {
-	filters, err := newContainerFilters()
-	if err != nil {
-		t.Fatalf("cannot initialize container filters: %s", err)
-	}
-
-	return &ECSFargateListener{
-		services:       make(map[string]Service),
-		taskContainers: make(map[string]map[string]struct{}),
-		newService:     newCh,
-		delService:     delCh,
-		filters:        filters,
-	}
+	return &ECSFargateListener{workloadmetaListener: wlm}, wlm
 }
