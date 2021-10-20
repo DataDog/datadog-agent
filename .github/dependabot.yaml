@@ -92,3 +92,7 @@ updates:
     milestone: 22
     schedule:
       interval: monthly
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
