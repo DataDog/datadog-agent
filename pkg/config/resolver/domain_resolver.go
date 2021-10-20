@@ -5,7 +5,10 @@
 
 package resolver
 
-import "github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+import (
+	"github.com/DataDog/datadog-agent/pkg/forwarder/endpoints"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+)
 
 // DestinationType is used to identified the expected endpoint
 type DestinationType int
@@ -140,4 +143,13 @@ func (r *MultiDomainResolver) RegisterAlternateDestination(domain string, forwar
 		}
 	}
 	r.alternateDomainList = append(r.alternateDomainList, domain)
+}
+
+// NewDomainResolverWithMetricToVector initialize a resolver with metrics diverted to a vector endpoint
+func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []string, vectorEndpoint string) *MultiDomainResolver {
+	r := NewMultiDomainResolver(mainEndpoint, apiKeys)
+	r.RegisterAlternateDestination(vectorEndpoint, endpoints.V1SeriesEndpoint.Name, Vector)
+	r.RegisterAlternateDestination(vectorEndpoint, endpoints.SeriesEndpoint.Name, Vector)
+	r.RegisterAlternateDestination(vectorEndpoint, endpoints.SketchSeriesEndpoint.Name, Vector)
+	return r
 }

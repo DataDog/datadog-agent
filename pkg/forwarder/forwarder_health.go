@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -157,7 +158,7 @@ func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
 		return true, nil
 	}
 
-	url := fmt.Sprintf("%s%s?api_key=%s", domain, v1ValidateEndpoint, apiKey)
+	url := fmt.Sprintf("%s%s?api_key=%s", domain, endpoints.V1ValidateEndpoint, apiKey)
 
 	transport := httputils.CreateHTTPTransport()
 

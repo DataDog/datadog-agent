@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -407,7 +408,7 @@ func TestTransactionEventHandlers(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(metadataEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.MetadataEndpoint, payload, false, headers)
 	require.Len(t, transactions, 1)
 
 	attempts := int64(0)
@@ -434,10 +435,10 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	requests := int64(0)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(v1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(endpoints.V1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	mux.HandleFunc(metadataEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(endpoints.MetadataEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		if v := atomic.AddInt64(&requests, 1); v == 1 {
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
@@ -465,7 +466,7 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(metadataEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.MetadataEndpoint, payload, false, headers)
 	require.Len(t, transactions, 1)
 
 	attempts := int64(0)
@@ -492,10 +493,10 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	requests := int64(0)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(v1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(endpoints.V1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	mux.HandleFunc(metadataEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(endpoints.MetadataEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt64(&requests, 1)
 		w.WriteHeader(http.StatusInternalServerError)
 	})
@@ -519,7 +520,7 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(metadataEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.MetadataEndpoint, payload, false, headers)
 	require.Len(t, transactions, 1)
 
 	attempts := int64(0)
@@ -578,10 +579,10 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(metadataEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.MetadataEndpoint, payload, false, headers)
 	require.Len(t, transactions, 1)
 
-	responses, err := f.submitProcessLikePayload(metadataEndpoint, payload, headers, true)
+	responses, err := f.submitProcessLikePayload(endpoints.MetadataEndpoint, payload, headers, true)
 	require.NoError(t, err)
 
 	_, ok := <-responses

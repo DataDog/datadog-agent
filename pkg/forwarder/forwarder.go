@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -125,7 +126,7 @@ func NewOptions(keysPerDomain map[string][]string) *Options {
 	}
 	if r, ok := resolvers[config.GetMainInfraEndpoint()]; ok && vectorMetricsURL != "" {
 		log.Debugf("Configuring forwarder to send metrics to vector: %s", vectorMetricsURL)
-		resolvers[config.GetMainInfraEndpoint()] = NewDomainResolverWithMetricToVector(
+		resolvers[config.GetMainInfraEndpoint()] = resolver.NewDomainResolverWithMetricToVector(
 			r.GetBaseDomain(),
 			r.GetAPIKeys(),
 			vectorMetricsURL,
@@ -449,19 +450,19 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 
 // SubmitEvents will send an event type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitEvents(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(eventsEndpoint, payload, false, extra)
+	transactions := f.createHTTPTransactions(endpoints.EventsEndpoint, payload, false, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitServiceChecks will send a service check type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitServiceChecks(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(serviceChecksEndpoint, payload, false, extra)
+	transactions := f.createHTTPTransactions(endpoints.ServiceChecksEndpoint, payload, false, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitSketchSeries will send payloads to Datadog backend - PROTOTYPE FOR PERCENTILE
 func (f *DefaultForwarder) SubmitSketchSeries(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(sketchSeriesEndpoint, payload, true, extra)
+	transactions := f.createHTTPTransactions(endpoints.SketchSeriesEndpoint, payload, true, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -493,14 +494,14 @@ func (f *DefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header) e
 // SubmitV1Series will send timeserie to v1 endpoint (this will be remove once
 // the backend handles v2 endpoints).
 func (f *DefaultForwarder) SubmitV1Series(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(v1SeriesEndpoint, payload, true, extra)
+	transactions := f.createHTTPTransactions(endpoints.V1SeriesEndpoint, payload, true, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitV1CheckRuns will send service checks to v1 endpoint (this will be removed once
 // the backend handles v2 endpoints).
 func (f *DefaultForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header) error {
-	transactions := f.createHTTPTransactions(v1CheckRunsEndpoint, payload, true, extra)
+	transactions := f.createHTTPTransactions(endpoints.V1CheckRunsEndpoint, payload, true, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -513,7 +514,7 @@ func (f *DefaultForwarder) submitV1IntakeWithTransactionsFactory(
 	payload Payloads,
 	extra http.Header,
 	createHTTPTransactions func(endpoint transaction.Endpoint, payload Payloads, apiKeyInQueryString bool, extra http.Header) []*transaction.HTTPTransaction) error {
-	transactions := createHTTPTransactions(v1IntakeEndpoint, payload, true, extra)
+	transactions := createHTTPTransactions(endpoints.V1IntakeEndpoint, payload, true, extra)
 
 	// the intake endpoint requires the Content-Type header to be set
 	for _, t := range transactions {
@@ -525,39 +526,39 @@ func (f *DefaultForwarder) submitV1IntakeWithTransactionsFactory(
 
 // SubmitProcessChecks sends process checks
 func (f *DefaultForwarder) SubmitProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.submitProcessLikePayload(processesEndpoint, payload, extra, true)
+	return f.submitProcessLikePayload(endpoints.ProcessesEndpoint, payload, extra, true)
 }
 
 // SubmitProcessDiscoveryChecks sends process discovery checks
 func (f *DefaultForwarder) SubmitProcessDiscoveryChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.submitProcessLikePayload(processDiscoveryEndpoint, payload, extra, true)
+	return f.submitProcessLikePayload(endpoints.ProcessDiscoveryEndpoint, payload, extra, true)
 }
 
 // SubmitRTProcessChecks sends real time process checks
 func (f *DefaultForwarder) SubmitRTProcessChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.submitProcessLikePayload(rtProcessesEndpoint, payload, extra, false)
+	return f.submitProcessLikePayload(endpoints.RtProcessesEndpoint, payload, extra, false)
 }
 
 // SubmitContainerChecks sends container checks
 func (f *DefaultForwarder) SubmitContainerChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.submitProcessLikePayload(containerEndpoint, payload, extra, true)
+	return f.submitProcessLikePayload(endpoints.ContainerEndpoint, payload, extra, true)
 }
 
 // SubmitRTContainerChecks sends real time container checks
 func (f *DefaultForwarder) SubmitRTContainerChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.submitProcessLikePayload(rtContainerEndpoint, payload, extra, false)
+	return f.submitProcessLikePayload(endpoints.RtContainerEndpoint, payload, extra, false)
 }
 
 // SubmitConnectionChecks sends connection checks
 func (f *DefaultForwarder) SubmitConnectionChecks(payload Payloads, extra http.Header) (chan Response, error) {
-	return f.submitProcessLikePayload(connectionsEndpoint, payload, extra, true)
+	return f.submitProcessLikePayload(endpoints.ConnectionsEndpoint, payload, extra, true)
 }
 
 // SubmitOrchestratorChecks sends orchestrator checks
 func (f *DefaultForwarder) SubmitOrchestratorChecks(payload Payloads, extra http.Header, payloadType int) (chan Response, error) {
 	bumpOrchestratorPayload(payloadType)
 
-	return f.submitProcessLikePayload(orchestratorEndpoint, payload, extra, true)
+	return f.submitProcessLikePayload(endpoints.OrchestratorEndpoint, payload, extra, true)
 }
 
 func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, payload Payloads, extra http.Header, retryable bool) (chan Response, error) {
@@ -607,13 +608,4 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, pay
 	}()
 
 	return results, f.sendHTTPTransactions(transactions)
-}
-
-// NewDomainResolverWithMetricToVector initialize a resolver with metrics diverted to a vector endpoint
-func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []string, vectorEndpoint string) *resolver.MultiDomainResolver {
-	r := resolver.NewMultiDomainResolver(mainEndpoint, apiKeys)
-	r.RegisterAlternateDestination(vectorEndpoint, v1SeriesEndpoint.Name, resolver.Vector)
-	r.RegisterAlternateDestination(vectorEndpoint, seriesEndpoint.Name, resolver.Vector)
-	r.RegisterAlternateDestination(vectorEndpoint, sketchSeriesEndpoint.Name, resolver.Vector)
-	return r
 }
