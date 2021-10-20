@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
@@ -38,28 +39,42 @@ func IsRunningOn(ctx context.Context) bool {
 	return false
 }
 
+var vmIDFetcher = cachedfetch.Fetcher{
+	Name: "Azure vmID",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		res, err := getResponseWithMaxLength(ctx,
+			metadataURL+"/metadata/instance/compute/vmId?api-version=2017-04-02&format=text",
+			config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+		if err != nil {
+			return "", fmt.Errorf("Azure HostAliases: unable to query metadata endpoint: %s", err)
+		}
+		return res, nil
+	},
+}
+
 // GetHostAlias returns the VM ID from the Azure Metadata api
 func GetHostAlias(ctx context.Context) (string, error) {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
-	}
-	res, err := getResponseWithMaxLength(ctx, metadataURL+"/metadata/instance/compute/vmId?api-version=2017-04-02&format=text",
-		config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
-	if err != nil {
-		return "", fmt.Errorf("Azure HostAliases: unable to query metadata endpoint: %s", err)
-	}
-	return res, nil
+	return vmIDFetcher.FetchString(ctx)
+}
+
+var resourceGroupNameFetcher = cachedfetch.Fetcher{
+	Name: "Azure Cluster Name",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		rg, err := getResponse(ctx,
+			metadataURL+"/metadata/instance/compute/resourceGroupName?api-version=2017-08-01&format=text")
+		if err != nil {
+			return "", fmt.Errorf("unable to query metadata endpoint: %s", err)
+		}
+		return rg, nil
+	},
 }
 
 // GetClusterName returns the name of the cluster containing the current VM by parsing the resource group name.
 // It expects the resource group name to have the format (MC|mc)_resource-group_cluster-name_zone
 func GetClusterName(ctx context.Context) (string, error) {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
-	}
-	all, err := getResponse(ctx, metadataURL+"/metadata/instance/compute/resourceGroupName?api-version=2017-08-01&format=text")
+	all, err := resourceGroupNameFetcher.FetchString(ctx)
 	if err != nil {
-		return "", fmt.Errorf("unable to query metadata endpoint: %s", err)
+		return "", err
 	}
 
 	splitAll := strings.Split(all, "_")
@@ -92,6 +107,10 @@ func getResponseWithMaxLength(ctx context.Context, endpoint string, maxLength in
 }
 
 func getResponse(ctx context.Context, url string) (string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	}
+
 	client := http.Client{
 		Transport: httputils.CreateHTTPTransport(),
 		Timeout:   timeout,
@@ -123,11 +142,19 @@ func getResponse(ctx context.Context, url string) (string, error) {
 
 // GetHostname returns hostname based on Azure instance metadata.
 func GetHostname(ctx context.Context, options map[string]interface{}) (string, error) {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
-	}
-
 	return getHostnameWithConfig(ctx, config.Datadog)
+}
+
+var instanceMetaFetcher = cachedfetch.Fetcher{
+	Name: "Azure Instance Metadata",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		metadataJSON, err := getResponse(ctx,
+			metadataURL+"/metadata/instance/compute?api-version=2017-08-01")
+		if err != nil {
+			return "", fmt.Errorf("failed to get Azure instance metadata: %s", err)
+		}
+		return metadataJSON, nil
+	},
 }
 
 func getHostnameWithConfig(ctx context.Context, config config.Config) (string, error) {
@@ -137,9 +164,9 @@ func getHostnameWithConfig(ctx context.Context, config config.Config) (string, e
 		return "", fmt.Errorf("azure_hostname_style is set to 'os'")
 	}
 
-	metadataJSON, err := getResponse(ctx, metadataURL+"/metadata/instance/compute?api-version=2017-08-01")
+	metadataJSON, err := instanceMetaFetcher.FetchString(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to get Azure instance metadata: %s", err)
+		return "", err
 	}
 
 	var metadata struct {
