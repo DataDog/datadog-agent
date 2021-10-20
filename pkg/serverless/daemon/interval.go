@@ -54,9 +54,9 @@ func (d *Daemon) InvocationInterval() time.Duration {
 // AutoSelectStrategy uses the invocation interval of the function to select the
 // best flush strategy.
 // This function doesn't mind if the flush strategy has been overridden through
-// configuration / environment var, the caller is responsible of that.
+// configuration / environment var, the caller is responsible for that.
 func (d *Daemon) AutoSelectStrategy() flush.Strategy {
-	flushInterval := 10 * time.Second
+	flushInterval := 20 * time.Second
 	freq := d.InvocationInterval()
 
 	if !d.clientLibReady {
@@ -69,8 +69,7 @@ func (d *Daemon) AutoSelectStrategy() flush.Strategy {
 	}
 
 	// if running more than 1 time every 5 minutes, we can switch to the flush strategy
-	// flushing at least every 10 seconds (at the start of the invocation)
-	// TODO(remy): compute a proper interval instead of hard-coding 10 seconds
+	// of flushing at least every 20 seconds (at the start of the invocation)
 	if freq.Seconds() < 60*5 {
 		return flush.NewPeriodically(flushInterval)
 	}

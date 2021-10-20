@@ -26,7 +26,7 @@ func TestAutoSelectStrategy(t *testing.T) {
 	// when the client library hasn't registered with the extension,
 	// fallback to periodically strategy
 	d.clientLibReady = false
-	assert.Equal((flush.NewPeriodically(10 * time.Second)).String(), d.AutoSelectStrategy().String(), "wrong strategy has been selected") // default strategy
+	assert.Equal((flush.NewPeriodically(20 * time.Second)).String(), d.AutoSelectStrategy().String(), "wrong strategy has been selected") // default strategy
 
 	// when not enough data, the flush at the end strategy should be selected
 	// -----
@@ -141,13 +141,13 @@ func TestUpdateStrategy(t *testing.T) {
 
 	d := Daemon{
 		lastInvocations:  make([]time.Time, 0),
-		flushStrategy:    flush.NewPeriodically(10 * time.Second),
+		flushStrategy:    flush.NewPeriodically(20 * time.Second),
 		clientLibReady:   true,
 		useAdaptiveFlush: false,
 	}
 
 	d.UpdateStrategy()
-	assert.Equal(d.flushStrategy, flush.NewPeriodically(10*time.Second), "strategy changed when useAdaptiveFlush was false")
+	assert.Equal(d.flushStrategy, flush.NewPeriodically(20*time.Second), "strategy changed when useAdaptiveFlush was false")
 
 	d.useAdaptiveFlush = true
 	d.UpdateStrategy()
