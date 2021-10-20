@@ -13,7 +13,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/open-policy-agent/opa/ast"
@@ -115,17 +114,6 @@ func (r *regoCheck) compileRule(rule *compliance.RegoRule, ruleScope compliance.
 	r.constants = rule.Constants
 
 	return nil
-}
-
-func (r *regoCheck) normalizeInputMap(vars eval.RegoInputMap) eval.RegoInputMap {
-	normalized := make(map[string]interface{})
-	for k, v := range vars {
-		ps := strings.Split(k, ".")
-		name := ps[len(ps)-1]
-		normalized[name] = v
-	}
-
-	return normalized
 }
 
 func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
@@ -284,8 +272,7 @@ func (r *regoCheck) appendInstance(input map[string][]interface{}, key string, i
 	if !exists {
 		vars = []interface{}{}
 	}
-	normalized := r.normalizeInputMap(instance.RegoInput())
-	input[key] = append(vars, normalized)
+	input[key] = append(vars, instance.RegoInput())
 }
 
 type regoFinding struct {

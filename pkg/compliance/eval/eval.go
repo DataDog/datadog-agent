@@ -83,11 +83,11 @@ func (i *instance) RegoInput() RegoInputMap {
 }
 
 // NewInstance instantiates a new evaluation instance
-func NewInstance(vars VarMap, functions FunctionMap) Instance {
+func NewInstance(vars VarMap, functions FunctionMap, regoInput RegoInputMap) Instance {
 	return &instance{
 		vars:      vars,
 		functions: functions,
-		regoInput: RegoInputMap(vars),
+		regoInput: regoInput,
 	}
 }
 

@@ -129,6 +129,9 @@ func newDockerInfoInstance(ctx context.Context, client env.DockerClient) (eval.I
 		eval.FunctionMap{
 			compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, info),
 		},
+		eval.RegoInputMap{
+			"inspect": info,
+		},
 	), nil
 }
 
@@ -150,6 +153,15 @@ func newDockerVersionInstance(ctx context.Context, client env.DockerClient) (eva
 		},
 		eval.FunctionMap{
 			compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, version),
+		},
+		eval.RegoInputMap{
+			"version":       version.Version,
+			"apiVersion":    version.APIVersion,
+			"platform":      version.Platform.Name,
+			"experimental":  version.Experimental,
+			"os":            version.Os,
+			"arch":          version.Arch,
+			"kernelVersion": version.KernelVersion,
 		},
 	), nil
 }
@@ -215,6 +227,11 @@ func (it *dockerImageIterator) Next() (eval.Instance, error) {
 			eval.FunctionMap{
 				compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, imageInspect),
 			},
+			eval.RegoInputMap{
+				"id":      image.ID,
+				"tags":    imageInspect.RepoTags,
+				"inspect": imageInspect,
+			},
 		),
 		summary: &image,
 	}, nil
@@ -269,6 +286,12 @@ func (it *dockerContainerIterator) Next() (eval.Instance, error) {
 			eval.FunctionMap{
 				compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, containerInspect),
 			},
+			eval.RegoInputMap{
+				"id":      container.ID,
+				"name":    containerInspect.Name,
+				"image":   containerInspect.Image,
+				"inspect": containerInspect,
+			},
 		),
 		container: &container,
 	}, nil
@@ -316,6 +339,11 @@ func (it *dockerNetworkIterator) Next() (eval.Instance, error) {
 			},
 			eval.FunctionMap{
 				compliance.DockerFuncTemplate: dockerTemplateQuery(compliance.DockerFuncTemplate, network),
+			},
+			eval.RegoInputMap{
+				"id":      network.ID,
+				"name":    network.Name,
+				"inspect": network,
 			},
 		),
 		network: &network,

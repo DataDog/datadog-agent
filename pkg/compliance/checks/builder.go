@@ -576,13 +576,17 @@ func (b *builder) isKubernetesNodeEligible(hostSelector string) (bool, error) {
 		return false, err
 	}
 
+	labelKeys := b.nodeLabelKeys()
 	nodeInstance := eval.NewInstance(
 		eval.VarMap{
-			"node.labels": b.nodeLabelKeys(),
+			"node.labels": labelKeys,
 		},
 		eval.FunctionMap{
 			"node.hasLabel": b.nodeHasLabel,
 			"node.label":    b.nodeLabel,
+		},
+		eval.RegoInputMap{
+			"labels": labelKeys,
 		},
 	)
 
@@ -765,6 +769,7 @@ func (b *builder) EvaluateFromCache(ev eval.Evaluatable) (interface{}, error) {
 			builderFuncJSON:        b.withValueCache(builderFuncJSON, b.evalValueFromFile(jsonGetter)),
 			builderFuncYAML:        b.withValueCache(builderFuncYAML, b.evalValueFromFile(yamlGetter)),
 		},
+		nil,
 	)
 
 	return ev.Evaluate(instance)
