@@ -653,7 +653,7 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source: sourceContainer,
+					Source: containerSource,
 					Entity: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),

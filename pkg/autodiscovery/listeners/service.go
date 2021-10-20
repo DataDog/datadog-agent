@@ -15,7 +15,6 @@ import (
 
 type service struct {
 	entity          workloadmeta.Entity
-	taggerEntity    string
 	adIdentifiers   []string
 	hosts           map[string]string
 	ports           []ContainerPort
