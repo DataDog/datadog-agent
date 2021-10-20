@@ -94,5 +94,13 @@ updates:
       interval: monthly
   - package-ecosystem: "pip"
     directory: "/"
+    labels:
+      - dependencies
+      - python
+      - team/agent-platform
+      - changelog/no-changelog
+      - qa/skip-qa
+      - dev/tooling
+    milestone: 22
     schedule:
       interval: "weekly"
