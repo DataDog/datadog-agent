@@ -41,8 +41,8 @@ The operation takes around 20 minutes.
 Once the deployment is done, the kubeconfig will let kubectl know how to connect to cluster:
 ```bash
 $ make kubeconfig
-run the suggested EXPORT
 ```
+Run the suggested EXPORT from the previous command.
 
 To make workers join the cluster they need to be have a role associated with it:
 ```bash
