@@ -60,11 +60,6 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags = setIfNotEmpty(tags, versionKey, os.Getenv(versionEnvVar))
 	tags = setIfNotEmpty(tags, serviceKey, os.Getenv(serviceEnvVar))
 
-	cleanedRuntime := strings.Replace(os.Getenv(runtimeVar), "AWS_Lambda_", "", 1)
-
-	tags = setIfNotEmpty(tags, runtimeKey, cleanedRuntime)
-	tags = setIfNotEmpty(tags, memorySizeKey, os.Getenv(memorySizeVar))
-
 	for _, tag := range configTags {
 		splitTags := strings.Split(tag, ",")
 		for _, singleTag := range splitTags {
