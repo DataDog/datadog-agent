@@ -105,7 +105,8 @@ const (
 
 // File describes a file resource
 type File struct {
-	Path string `yaml:"path"`
+	Path   string `yaml:"path"`
+	Parser string `yaml:"parser,omitempty"`
 }
 
 // Fields & functions available for Process

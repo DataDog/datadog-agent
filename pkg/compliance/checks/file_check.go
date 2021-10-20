@@ -34,6 +34,11 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 
 	log.Debugf("%s: running file check for %q", ruleID, file.Path)
 
+	fileContentParser, err := validateParserKind(file.Parser)
+	if err != nil {
+		return nil, err
+	}
+
 	path, err := resolvePath(e, file.Path)
 	if err != nil {
 		return nil, err
@@ -70,7 +75,7 @@ func resolveFile(_ context.Context, e env.Env, ruleID string, res compliance.Res
 			"permissions": filePermissions,
 		}
 
-		content, err := readContent(path)
+		content, err := readContent(path, fileContentParser)
 		if err == nil {
 			vars[compliance.FileFieldContent] = content
 			regoInput["content"] = content
