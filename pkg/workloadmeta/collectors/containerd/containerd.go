@@ -86,17 +86,10 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	eventsCtx, cancelEvents := context.WithCancel(ctx)
 	c.eventsChan, c.errorsChan = c.containerdClient.GetEvents().Subscribe(eventsCtx, containerLifecycleFilters...)
 
-	// Handle containers that are already present when the collector starts
-	initialEvents, err := c.generateInitialEvents()
+	err = c.generateEventsFromContainerList(ctx)
 	if err != nil {
 		cancelEvents()
 		return err
-	}
-
-	for _, event := range initialEvents {
-		if err = c.handleEvent(ctx, &event, c.containerdClient); err != nil {
-			log.Warnf(err.Error())
-		}
 	}
 
 	go func() {
@@ -140,6 +133,29 @@ func (c *collector) stream(ctx context.Context) {
 			return
 		}
 	}
+}
+
+func (c *collector) generateEventsFromContainerList(ctx context.Context) error {
+	containerdEvents, err := c.generateInitialEvents()
+	if err != nil {
+		return err
+	}
+
+	events := make([]workloadmeta.CollectorEvent, 0, len(containerdEvents))
+	for _, containerdEvent := range containerdEvents {
+		ev, err := buildCollectorEvent(ctx, &containerdEvent, c.containerdClient)
+		if err != nil {
+			log.Warnf(err.Error())
+		}
+
+		events = append(events, ev)
+	}
+
+	if len(events) > 0 {
+		c.store.Notify(events)
+	}
+
+	return nil
 }
 
 func (c *collector) generateInitialEvents() ([]containerdevents.Envelope, error) {
