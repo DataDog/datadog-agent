@@ -6,7 +6,7 @@
 - include_tasks: ../_shared/docker/login.yml
 - include_tasks: ../_shared/copy/copy-terraform-and-manifests.yml
 - include_tasks: ../_shared/copy/copy-receiver-files.yml
-- include_tasks: ../_shared/copy/copy-verify-and-create-script-file-to-receiver.yml
+- include_tasks: ../_shared/copy/copy-verify-create-script-receiver.yml
 - include_tasks: ../_shared/kubectl/generate-env-token.yml
 - include_tasks: ../_shared/copy/copy-kustomization-template.yml
 - include_tasks: ../_shared/env/branch-cluster-env.yml
