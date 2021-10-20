@@ -18,6 +18,10 @@ import (
 	assert "github.com/stretchr/testify/require"
 )
 
+func simpleInstanceWithVars(vars eval.VarMap) eval.Instance {
+	return eval.NewInstance(vars, nil, eval.RegoInputMap(vars))
+}
+
 func TestResourceCheck(t *testing.T) {
 	assert := assert.New(t)
 
@@ -38,26 +42,26 @@ func TestResourceCheck(t *testing.T) {
 
 	iterator := &mockIterator{els: []eval.Instance{
 		newResolvedInstance(
-			eval.NewInstance(
-				map[string]interface{}{
+			simpleInstanceWithVars(
+				eval.VarMap{
 					"a": 14,
-				}, nil,
+				},
 			),
 			"test-id", "test-resource-type",
 		),
 		newResolvedInstance(
-			eval.NewInstance(
-				map[string]interface{}{
+			simpleInstanceWithVars(
+				eval.VarMap{
 					"a": 6,
-				}, nil,
+				},
 			),
 			"test-id", "test-resource-type",
 		),
 		newResolvedInstance(
-			eval.NewInstance(
-				map[string]interface{}{
+			simpleInstanceWithVars(
+				eval.VarMap{
 					"a": 4,
-				}, nil,
+				},
 			),
 			"test-id", "test-resource-type",
 		),
@@ -80,11 +84,11 @@ func TestResourceCheck(t *testing.T) {
 			name:              "no fallback provided",
 			resourceCondition: "a > 3",
 			resourceResolved: newResolvedInstance(
-				eval.NewInstance(
-					map[string]interface{}{
+				simpleInstanceWithVars(
+					eval.VarMap{
 						"a": 4,
 						"b": 8,
-					}, nil,
+					},
 				), "test-id", "test-resource-type",
 			),
 			reportedFields: []string{"a"},
@@ -105,10 +109,10 @@ func TestResourceCheck(t *testing.T) {
 			name:              "fallback not used",
 			resourceCondition: "a >= 3",
 			resourceResolved: newResolvedInstance(
-				eval.NewInstance(
-					map[string]interface{}{
+				simpleInstanceWithVars(
+					eval.VarMap{
 						"a": 4,
-					}, nil,
+					},
 				), "test-id", "test-resource-type",
 			),
 			fallbackCondition: "a == 3",
@@ -131,10 +135,10 @@ func TestResourceCheck(t *testing.T) {
 			name:              "fallback used",
 			resourceCondition: "a >= 3",
 			resourceResolved: newResolvedInstance(
-				eval.NewInstance(
-					map[string]interface{}{
+				simpleInstanceWithVars(
+					eval.VarMap{
 						"a": 3,
-					}, nil,
+					},
 				), "test-id", "test-resource-type",
 			),
 			fallbackCondition: "a == 3",
@@ -147,10 +151,10 @@ func TestResourceCheck(t *testing.T) {
 			resourceResolved: newResolvedIterator(
 				newInstanceIterator(
 					[]eval.Instance{newResolvedInstance(
-						eval.NewInstance(
-							map[string]interface{}{
+						simpleInstanceWithVars(
+							eval.VarMap{
 								"a": 3,
-							}, nil,
+							},
 						), "test-id", "test-resource-type",
 					)},
 				),
@@ -169,10 +173,10 @@ func TestResourceCheck(t *testing.T) {
 			name:              "fallback missing",
 			resourceCondition: "a >= 3",
 			resourceResolved: newResolvedInstance(
-				eval.NewInstance(
-					map[string]interface{}{
+				simpleInstanceWithVars(
+					eval.VarMap{
 						"a": 3,
-					}, nil,
+					},
 				), "test-id", "test-resource-type",
 			),
 			fallbackCondition: "a == 3",
