@@ -45,7 +45,7 @@ func TestAutoSelectStrategy(t *testing.T) {
 	// -----
 
 	assert.True(d.StoreInvocationTime(now.Add(-time.Second * 1)))
-	assert.Equal(flush.NewPeriodically(10*time.Second).String(), d.AutoSelectStrategy().String(), "not the good strategy has been selected")
+	assert.Equal(flush.NewPeriodically(20*time.Second).String(), d.AutoSelectStrategy().String(), "not the good strategy has been selected")
 
 	// simulate a function invoked less than 1 time a minute
 	// -----
