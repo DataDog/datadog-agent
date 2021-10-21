@@ -45,7 +45,6 @@ jobs:
         with:
           languages: go, javascript, python, cpp
           setup-python-dependencies: false
-          # TODO determine if this can be enabled
           source-root: go/src/github.com/DataDog/datadog-agent
 
       - env:
