@@ -38,7 +38,7 @@ kitchen_test_security_agent_x64:
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-18-04,ubuntu-18-04-3"
       - KITCHEN_PLATFORM: "ubuntu"
-        KITCHEN_OSVERS: "ubuntu-20-04,ubuntu-20-04-hwe,ubuntu-21-10"
+        KITCHEN_OSVERS: "ubuntu-20-04,ubuntu-20-04-2,ubuntu-21-10"
       - KITCHEN_PLATFORM: "suse"
         KITCHEN_OSVERS: "sles-12,sles-15"
       - KITCHEN_PLATFORM: "debian"
@@ -62,7 +62,7 @@ kitchen_test_security_agent_arm64:
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
-        KITCHEN_OSVERS: "ubuntu-20-04-hwe,ubuntu-21-04"
+        KITCHEN_OSVERS: "ubuntu-20-04-2,ubuntu-21-04"
 
 kitchen_stress_security_agent:
   extends:
