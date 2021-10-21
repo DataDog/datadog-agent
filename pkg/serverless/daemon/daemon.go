@@ -88,8 +88,6 @@ type Daemon struct {
 // The DogStatsD server is provided when ready (slightly later), to have the
 // hello route available as soon as possible. However, the HELLO route is blocking
 // to have a way for the runtime function to know when the Serverless Agent is ready.
-// If the Flush route is called before the statsd server has been set, a 503
-// is returned by the HTTP route.
 func StartDaemon(addr string) *Daemon {
 	log.Debug("Starting daemon to receive messages from runtime...")
 	mux := http.NewServeMux()
@@ -133,15 +131,25 @@ func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.daemon.SetClientReady(true)
 }
 
-// Flush is the route to call to do an immediate flush on the serverless agent.
-// Returns 503 if the DogStatsD is not ready yet, 200 otherwise.
+// Flush is a route called by the Lambda Library when the runtime is done.
+// It is no longer used, but the route is maintained for backwards compatability.
 type Flush struct {
 	daemon *Daemon
 }
 
 // ServeHTTP - see type Flush comment.
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Debug("Hit on the serverless.Flush route.")
+	return
+}
+
+// SetClientReady indicates that the client library has initialised and called the /hello route on the agent
+func (d *Daemon) SetClientReady(isReady bool) {
+	d.clientLibReady = isReady
+}
+
+// HandleRuntimeDone should be called when the runtime is done handling an invocation. It will finish
+// the invocation, and may also flush telemetry.
+func (d *Daemon) HandleRuntimeDone() {
 	if !f.daemon.ShouldFlush(flush.Stopping, time.Now()) {
 		log.Debugf("The flush strategy %s has decided to not flush at moment: %s", f.daemon.LogFlushStategy(), flush.Stopping)
 		f.daemon.FinishInvocation()
@@ -152,24 +160,15 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// if the DogStatsD daemon isn't ready, wait for it.
 	if !f.daemon.MetricAgent.IsReady() {
-		w.WriteHeader(503)
-		w.Write([]byte("DogStatsD server not ready"))
+		log.Debug("The metric agent wasn't ready, skipping flush.")
 		f.daemon.FinishInvocation()
 		return
 	}
 
-	// note that I am not using the request context because I think that we don't
-	// want the flush to be canceled if the client is closing the request.
 	go func() {
 		f.daemon.TriggerFlush(false)
 		f.daemon.FinishInvocation()
 	}()
-
-}
-
-// SetClientReady indicates that the client library has initialised and called the /hello route on the agent
-func (d *Daemon) SetClientReady(isReady bool) {
-	d.clientLibReady = isReady
 }
 
 // ShouldFlush indicated whether or a flush is needed
@@ -182,15 +181,16 @@ func (d *Daemon) LogFlushStategy() string {
 	return d.flushStrategy.String()
 }
 
-//SetupLogCollectionHandler configures the log collection route handler
+// SetupLogCollectionHandler configures the log collection route handler
 func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool) {
-	d.mux.Handle(route, &serverlessLog.CollectionRouteInfo{
+	d.mux.Handle(route, &serverlessLog.LambdaLogsCollector{
 		ExtraTags:              d.ExtraTags,
 		ExecutionContext:       d.ExecutionContext,
 		LogChannel:             logsChan,
 		MetricChannel:          d.MetricAgent.GetMetricChannel(),
 		LogsEnabled:            logsEnabled,
 		EnhancedMetricsEnabled: enhancedMetricsEnabled,
+		Daemon:                 d,
 	})
 }
 

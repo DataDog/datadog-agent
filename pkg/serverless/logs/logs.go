@@ -17,6 +17,7 @@ import (
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,16 +38,17 @@ type ExecutionContext struct {
 	StartTime          time.Time
 }
 
-// CollectionRouteInfo is the route on which the AWS environment is sending the logs
+// LambdaLogsCollector is the route on which the AWS environment is sending the logs
 // for the extension to collect them. It is attached to the main HTTP server
 // already receiving hits from the libraries client.
-type CollectionRouteInfo struct {
+type LambdaLogsCollector struct {
 	LogChannel             chan *logConfig.ChannelMessage
 	MetricChannel          chan []metrics.MetricSample
 	ExtraTags              *Tags
 	ExecutionContext       *ExecutionContext
 	LogsEnabled            bool
 	EnhancedMetricsEnabled bool
+	Daemon                 *daemon.Daemon
 }
 
 // platformObjectRecord contains additional information found in Platform log messages
@@ -263,8 +265,8 @@ func GetLambdaSource() *logConfig.LogSource {
 	return nil
 }
 
-// ServeHTTP - see type CollectionRouteInfo comment.
-func (c *CollectionRouteInfo) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// ServeHTTP - see type LambdaLogsCollector comment.
+func (c *LambdaLogsCollector) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data, _ := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
 	messages, err := parseLogsAPIPayload(data)
@@ -276,9 +278,9 @@ func (c *CollectionRouteInfo) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-func processLogMessages(c *CollectionRouteInfo, messages []logMessage) {
+func processLogMessages(c *LambdaLogsCollector, messages []logMessage) {
 	for _, message := range messages {
-		processMessage(message, c.ExecutionContext, c.EnhancedMetricsEnabled, c.ExtraTags.Tags, c.MetricChannel)
+		processMessage(message, c.ExecutionContext, c.EnhancedMetricsEnabled, c.ExtraTags.Tags, c.MetricChannel, c.Daemon)
 		// We always collect and process logs for the purpose of extracting enhanced metrics.
 		// However, if logs are not enabled, we do not send them to the intake.
 		if c.LogsEnabled {
@@ -289,7 +291,7 @@ func processLogMessages(c *CollectionRouteInfo, messages []logMessage) {
 }
 
 // processMessage performs logic about metrics and tags on the message
-func processMessage(message logMessage, executionContext *ExecutionContext, enhancedMetricsEnabled bool, metricTags []string, metricsChan chan []metrics.MetricSample) {
+func processMessage(message logMessage, executionContext *ExecutionContext, enhancedMetricsEnabled bool, metricTags []string, metricsChan chan []metrics.MetricSample, daemon *daemon.Daemon) {
 	// Do not send logs or metrics if we can't associate them with an ARN or Request ID
 	if !shouldProcessLog(executionContext, message) {
 		return
@@ -321,5 +323,9 @@ func processMessage(message logMessage, executionContext *ExecutionContext, enha
 
 	if message.logType == logTypePlatformLogsDropped {
 		log.Debug("Logs were dropped by the AWS Lambda Logs API")
+	}
+
+	if message.logType == logTypePlatformRuntimeDone {
+		daemon.HandleRuntimeDone()
 	}
 }
