@@ -34,7 +34,6 @@ type DockerConfigProvider struct {
 	workloadmetaStore workloadmeta.Store
 	upToDate          bool
 	streaming         bool
-	health            *health.Handle
 	labelCache        map[string]map[string]string
 	stop              chan struct{}
 	containerFilter   *containers.Filter
@@ -77,7 +76,7 @@ func (d *DockerConfigProvider) Collect(ctx context.Context) ([]integration.Confi
 func (d *DockerConfigProvider) listen() {
 	d.Lock()
 	d.streaming = true
-	d.health = health.RegisterLiveness("ad-dockerprovider")
+	health := health.RegisterLiveness("ad-dockerprovider")
 	d.Unlock()
 
 	workloadmetaEventsChannel := d.workloadmetaStore.Subscribe("ad-dockerprovider", workloadmeta.NewFilter(
@@ -90,10 +89,10 @@ func (d *DockerConfigProvider) listen() {
 		case evBundle := <-workloadmetaEventsChannel:
 			d.processEvents(evBundle)
 
-		case <-d.health.C:
+		case <- health.C:
 
 		case <-d.stop:
-			err := d.health.Deregister()
+			err := health.Deregister()
 			if err != nil {
 				log.Warnf("error de-registering health check: %s", err)
 			}
@@ -102,7 +101,7 @@ func (d *DockerConfigProvider) listen() {
 
 			d.Lock()
 			d.streaming = false
-			d.health.Deregister() //nolint:errcheck
+			health.Deregister() //nolint:errcheck
 			d.Unlock()
 		}
 	}
