@@ -8,6 +8,7 @@ package cleaner
 import (
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 // DefaultCleaner is the cleaner used by the package-level cleaning functions.
@@ -112,4 +113,17 @@ func CredentialsCleanerBytes(file []byte) ([]byte, error) {
 // a string that can be logged safely, using the default cleaner.
 func SanitizeURL(url string) string {
 	return DefaultCleaner.SanitizeURL(url)
+}
+
+// AddStrippedKeys adds to the set of YAML keys that will be recognized and have
+// their values stripped.  This modifies the DefaultCleaner directly.
+func AddStrippedKeys(strippedKeys []string) {
+	if len(strippedKeys) > 0 {
+		configReplacer := Replacer{
+			Regex: matchYAMLKey(fmt.Sprintf("(%s)", strings.Join(strippedKeys, "|"))),
+			Hints: strippedKeys,
+			Repl:  []byte(`$1 ********`),
+		}
+		DefaultCleaner.AddReplacer(SingleLine, configReplacer)
+	}
 }

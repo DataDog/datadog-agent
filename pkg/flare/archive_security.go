@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cleaner"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -133,7 +134,7 @@ func zipSecurityAgentStatusFile(tempDir, hostname string, runtimeStatus map[stri
 	}
 
 	// Clean it up
-	cleaned, err := log.CredentialsCleanerBytes(s)
+	cleaned, err := cleaner.CredentialsCleanerBytes(s)
 	if err != nil {
 		log.Infof("Error redacting the log files: %q", err)
 		return err

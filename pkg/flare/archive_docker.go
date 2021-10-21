@@ -18,6 +18,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/DataDog/datadog-agent/pkg/util/cleaner"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -63,7 +64,7 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 	}
 	defer w.Close()
 
-	w.RegisterReplacer(log.Replacer{
+	w.RegisterReplacer(cleaner.Replacer{
 		Regex: regexp.MustCompile(`\"Image\": \"sha256:\w+"`),
 		ReplFunc: func(s []byte) []byte {
 			m := string(s[10 : len(s)-1])
