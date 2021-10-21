@@ -23,20 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-var (
-	defaultFlags = []string{
-		"-DCONFIG_64BIT",
-		"-D__BPF_TRACING__",
-		`-DKBUILD_MODNAME="ddsysprobe"`,
-		"-Wno-unused-value",
-		"-Wno-pointer-sign",
-		"-Wno-compare-distinct-pointer-types",
-		"-Wunused",
-		"-Wall",
-		"-Werror",
-	}
-)
-
 // CompilationResult enumerates runtime compilation success & failure modes
 type CompilationResult int
 
@@ -130,10 +116,7 @@ func (a *RuntimeAsset) Compile(config *ebpf.Config, cflags []string) (CompiledOu
 		return nil, fmt.Errorf("unable to create compiler output directory %s: %w", config.RuntimeCompilerOutputDir, err)
 	}
 
-	flags := make([]string, len(defaultFlags)+len(cflags))
-	copy(flags, defaultFlags)
-	copy(flags[len(defaultFlags):], cflags)
-	flagHash := hashFlags(flags)
+	flags, flagHash := ComputeFlagsAndHash(cflags)
 
 	// filename includes kernel version, input file hash, and cflags hash
 	// this ensures we re-compile when either of the input changes
@@ -184,12 +167,4 @@ func (a *RuntimeAsset) GetTelemetry() map[string]int64 {
 		stats["runtime_compilation_enabled"] = 0
 	}
 	return stats
-}
-
-func hashFlags(flags []string) string {
-	h := sha256.New()
-	for _, f := range flags {
-		h.Write([]byte(f))
-	}
-	return fmt.Sprintf("%x", h.Sum(nil))
 }

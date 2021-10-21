@@ -895,6 +895,17 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
 	}
 
+	constantFetcher := NewRuntimeCompilationConstantFetcher(&config.Config)
+	constantFetcher.AppendSizeofRequest("inode_size", "struct inode", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest("magic_super_block_offset", "struct super_block", "s_magic", "linux/fs.h")
+	constants, err := constantFetcher.FinishAndGetResults()
+	if err != nil {
+		log.Errorf("runtime compilation of constant fetcher failed: ", err)
+		return nil, err
+	}
+	log.Warnf("constants: %v", constants)
+	return nil, errors.New("Please stop thanks")
+
 	// Add global constant editors
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
 		manager.ConstantEditor{
