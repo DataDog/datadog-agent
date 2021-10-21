@@ -122,6 +122,8 @@ func (d *DockerConfigProvider) processEvents(eventBundle workloadmeta.EventBundl
 			d.RUnlock()
 			if containerSeen {
 				// Container restarted with the same ID within 5 seconds.
+				// This delay is needed because of the delay introduced in the
+				// EventTypeUnset case.
 				time.AfterFunc(delayDuration, func() {
 					d.addLabels(containerID, container.Labels)
 				})
