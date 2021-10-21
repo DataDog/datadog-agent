@@ -20,7 +20,7 @@ quay_password: "{{ lookup('env', 'quay_password') or QUAY_PASSWORD }}"
 quay_user: "{{ lookup('env', 'quay_user') or QUAY_USER }}"
 stackstate_branch: "{{ lookup('env', 'STACKSTATE_BRANCH') or STACKSTATE_BRANCH }}"
 
-cluster_name: "molecule_k8s_test"
+cluster_name: "molecule-test-1-17"
 dnat_service_port: 321
 dnat_server_port: 123
 container_to_container_server_port: 234

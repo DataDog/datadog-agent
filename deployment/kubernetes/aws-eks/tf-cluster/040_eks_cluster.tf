@@ -4,7 +4,7 @@
 resource "aws_eks_cluster" "eks-cluster" {
   name     = local.cluster_name
   role_arn = aws_iam_role.EKSClusterRole.arn
-  version  = "1.16"
+  version  = "1.17"
 
   vpc_config {
     security_group_ids = [aws_security_group.eks-control-plane-sg.id]
