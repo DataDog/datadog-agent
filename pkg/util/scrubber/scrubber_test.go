@@ -81,5 +81,5 @@ func TestScrubURL(t *testing.T) {
 		Repl:  []byte("UHOH"),
 	})
 	res := scrubber.ScrubURL("https://foo:bar@example.com")
-	require.Equal(t, "https://foo:********@example.com", string(res))
+	require.Equal(t, "https://foo:********@example.com", res)
 }
