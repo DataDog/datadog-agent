@@ -41,7 +41,7 @@ import (
 func TestFormatTrace(t *testing.T) {
 	assert := assert.New(t)
 	resource := "SELECT name FROM people WHERE age = 42"
-	rep := strings.Repeat(" AND age = 42", 5000)
+	rep := strings.Repeat(" AND age = 42", 25000)
 	resource = resource + rep
 	testTrace := pb.Trace{
 		&pb.Span{
@@ -56,7 +56,7 @@ func TestFormatTrace(t *testing.T) {
 	assert.NotContains(result.Resource, "42")
 	assert.Contains(result.Resource, "SELECT name FROM people WHERE age = ?")
 
-	assert.Equal(5003, len(result.Meta["sql.query"])) // Ellipsis added in quantizer
+	assert.Equal(25003, len(result.Meta["sql.query"])) // Ellipsis added in quantizer
 	assert.NotEqual("Non-parsable SQL query", result.Meta["sql.query"])
 	assert.NotContains(result.Meta["sql.query"], "42")
 	assert.Contains(result.Meta["sql.query"], "SELECT name FROM people WHERE age = ?")
@@ -258,11 +258,12 @@ func TestProcess(t *testing.T) {
 			})
 		}
 
+		samplingPriorityTagValues := want.TracesPerSamplingPriority.TagValues()
 		assert.EqualValues(t, 1, want.TracesPriorityNone)
-		assert.EqualValues(t, 2, want.TracesPriorityNeg)
-		assert.EqualValues(t, 3, want.TracesPriority0)
-		assert.EqualValues(t, 4, want.TracesPriority1)
-		assert.EqualValues(t, 5, want.TracesPriority2)
+		assert.EqualValues(t, 2, samplingPriorityTagValues["-1"])
+		assert.EqualValues(t, 3, samplingPriorityTagValues["0"])
+		assert.EqualValues(t, 4, samplingPriorityTagValues["1"])
+		assert.EqualValues(t, 5, samplingPriorityTagValues["2"])
 	})
 
 	t.Run("GlobalTags", func(t *testing.T) {

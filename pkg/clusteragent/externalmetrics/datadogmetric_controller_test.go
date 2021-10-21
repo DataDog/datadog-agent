@@ -618,6 +618,16 @@ func TestLeaderDeleteCleanup(t *testing.T) {
 	assert.Equal(t, 0, f.store.Count())
 }
 
+// Scenario: Another event comes after Kubernetes object and internal store has been cleaned up
+func TestLeaderDuplicatedDelete(t *testing.T) {
+	f := newFixture(t)
+
+	f.runControllerSync(true, "default/dd-metric-0", nil)
+
+	// Check internal store content has not changed
+	assert.Equal(t, 0, f.store.Count())
+}
+
 // Scenario: Test that followers only follows (no action, always update store) even if local content is newer
 func TestFollower(t *testing.T) {
 	f := newFixture(t)

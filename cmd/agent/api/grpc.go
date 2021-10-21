@@ -12,6 +12,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	dsdReplay "github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	pbutils "github.com/DataDog/datadog-agent/pkg/proto/utils"
@@ -40,7 +42,8 @@ type server struct {
 }
 
 type serverSecure struct {
-	pb.UnimplementedAgentServer
+	pb.UnimplementedAgentSecureServer
+	configService *remoteconfig.Service
 }
 
 func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.HostnameReply, error) {
@@ -91,7 +94,6 @@ func (s *serverSecure) DogstatsdCaptureTrigger(ctx context.Context, req *pb.Capt
 // progress. An empty state or nil request will result in the Tagger
 // capture state being reset to nil.
 func (s *serverSecure) DogstatsdSetTaggerState(ctx context.Context, req *pb.TaggerState) (*pb.TaggerStateResponse, error) {
-
 	// Reset and return if no state pushed
 	if req == nil || req.State == nil {
 		log.Debugf("API: empty request or state")
@@ -134,31 +136,36 @@ func (s *serverSecure) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.Age
 	eventCh := t.Subscribe(cardinality)
 	defer t.Unsubscribe(eventCh)
 
-	for events := range eventCh {
-		responseEvents := make([]*pb.StreamTagsEvent, 0, len(events))
-		for _, event := range events {
-			e, err := pbutils.Tagger2PbEntityEvent(event)
-			if err != nil {
-				log.Warnf("can't convert tagger entity to protobuf: %s", err)
-				continue
+	for {
+		select {
+		case events := <-eventCh:
+			responseEvents := make([]*pb.StreamTagsEvent, 0, len(events))
+			for _, event := range events {
+				e, err := pbutils.Tagger2PbEntityEvent(event)
+				if err != nil {
+					log.Warnf("can't convert tagger entity to protobuf: %s", err)
+					continue
+				}
+
+				responseEvents = append(responseEvents, e)
 			}
 
-			responseEvents = append(responseEvents, e)
-		}
+			err = grpc.DoWithTimeout(func() error {
+				return out.Send(&pb.StreamTagsResponse{
+					Events: responseEvents,
+				})
+			}, taggerStreamSendTimeout)
 
-		err = grpc.DoWithTimeout(func() error {
-			return out.Send(&pb.StreamTagsResponse{
-				Events: responseEvents,
-			})
-		}, taggerStreamSendTimeout)
-		if err != nil {
-			log.Warnf("error sending tagger event: %s", err)
-			telemetry.ServerStreamErrors.Inc()
-			return err
+			if err != nil {
+				log.Warnf("error sending tagger event: %s", err)
+				telemetry.ServerStreamErrors.Inc()
+				return err
+			}
+
+		case <-out.Context().Done():
+			return nil
 		}
 	}
-
-	return nil
 }
 
 // FetchEntity fetches an entity from the Tagger with the desired cardinality tags.
@@ -183,6 +190,63 @@ func (s *serverSecure) TaggerFetchEntity(ctx context.Context, in *pb.FetchEntity
 		Cardinality: in.Cardinality,
 		Tags:        tags,
 	}, nil
+}
+
+func (s *serverSecure) GetConfigs(ctx context.Context, in *pb.GetConfigsRequest) (*pb.GetConfigsResponse, error) {
+	if s.configService == nil {
+		log.Debug("Remote configuration service not initialized")
+		return nil, errors.New("remote configuration service not initialized")
+	}
+
+	configs, err := s.configService.GetConfigs(in.Product.String())
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.GetConfigsResponse{
+		ConfigResponses: configs,
+	}, nil
+}
+
+func (s *serverSecure) GetConfigUpdates(in *pb.SubscribeConfigRequest, out pb.AgentSecure_GetConfigUpdatesServer) error {
+	if s.configService == nil {
+		log.Debug("Remote configuration service not initialized")
+		return errors.New("remote config service not initialized")
+	}
+
+	ctx := out.Context()
+	configs := make(chan *pb.ConfigResponse, 1)
+
+	log.Debugf("New remote configuration subscriber request for product %s", in.Product)
+	subscriber := remoteconfig.NewSubscriber(in.Product, time.Second, func(config *pb.ConfigResponse) error {
+		log.Debug("Pushing configuration for gRPC client")
+		select {
+		case configs <- config:
+			log.Debug("Pushed configuration to gRPC client")
+			return nil
+		default:
+			return errors.New("failed to notify gRPC subscriber")
+		}
+	})
+
+	log.Debugf("New remote configuration subscriber for product %s", in.Product)
+	s.configService.RegisterSubscriber(subscriber)
+	defer s.configService.UnregisterSubscriber(subscriber)
+
+	for {
+		log.Debug("Streaming config to gRPC client")
+		select {
+		case config := <-configs:
+			log.Debugf("Sending configuration for product %s", in.Product)
+			if err := out.Send(config); err != nil {
+				log.Errorf("error sending config event: %s", err)
+				return nil
+			}
+		case <-ctx.Done():
+			log.Infof("Unsubscribing gRPC client for product %s", in.Product)
+			return nil
+		}
+	}
 }
 
 func init() {

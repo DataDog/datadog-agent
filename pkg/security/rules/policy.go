@@ -140,7 +140,7 @@ func LoadPolicies(policiesDir string, ruleSet *RuleSet) *multierror.Error {
 
 		if len(macros) > 0 {
 			// Add the macros to the ruleset and generate macros evaluators
-			if err := ruleSet.AddMacros(macros); err != nil {
+			if mErr := ruleSet.AddMacros(macros); mErr.ErrorOrNil() != nil {
 				result = multierror.Append(result, err)
 			}
 		}

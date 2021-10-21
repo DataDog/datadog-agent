@@ -6,17 +6,16 @@ Golang related tasks go here
 import copy
 import datetime
 import glob
-import json
 import os
 import shutil
-import tempfile
+import textwrap
 from pathlib import Path
 
-import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
+from .licenses import get_licenses_list
 from .modules import DEFAULT_MODULES, generate_dummy_package
 from .utils import get_build_flags
 
@@ -29,12 +28,12 @@ MODULE_ALLOWLIST = [
     "pdh.go",
     "pdh_amd64.go",
     "pdh_386.go",
+    "pdhformatter.go",
     "pdhhelper.go",
     "shutil.go",
     "tailer_windows.go",
     "winsec.go",
-    "allprocesses_windows.go",
-    "allprocesses_windows_test.go",
+    "process_windows_toolhelp.go",
     "adapters.go",  # pkg/util/winutil/iphelper
     "routes.go",  # pkg/util/winutil/iphelper
     # All
@@ -112,7 +111,7 @@ def lint(ctx, targets):
 
         if skipped_files:
             for skipped in skipped_files:
-                print("Allowed errors in whitelisted file {}".format(skipped))
+                print("Allowed errors in allowlisted file {}".format(skipped))
 
         # add whitespace for readability
         print()
@@ -238,8 +237,10 @@ def staticcheck(ctx, targets, build_tags=None, arch="x64"):
 
     tags = copy.copy(build_tags or get_default_build_tags(build="test", arch=arch))
     # these two don't play well with static checking
-    tags.remove("python")
-    tags.remove("jmx")
+    if "python" in tags:
+        tags.remove("python")
+    if "jmx" in tags:
+        tags.remove("jmx")
 
     ctx.run("staticcheck -checks=SA1027 -tags=" + ",".join(tags) + " " + " ".join(pkgs))
     # staticcheck exits with status 1 when it finds an issue, if we're here
@@ -326,7 +327,7 @@ def lint_licenses(ctx):
 
     licenses = []
     file = 'LICENSE-3rdparty.csv'
-    with open(file, 'r') as f:
+    with open(file, 'r', encoding='utf-8') as f:
         next(f)
         for line in f:
             licenses.append(line.rstrip())
@@ -343,7 +344,12 @@ def lint_licenses(ctx):
 
     if len(removed_licenses) + len(added_licenses) > 0:
         raise Exit(
-            message="Licenses are not up-to-date.\n\nPlease run 'inv generate-licenses' to update licenses file.",
+            message=textwrap.dedent(
+                """\
+                Licenses are not up-to-date.
+
+                Please run 'inv generate-licenses' to update {}."""
+            ).format(file),
             code=1,
         )
 
@@ -355,102 +361,34 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
     """
     Generates the LICENSE-3rdparty.csv file. Run this if `inv lint-licenses` fails.
     """
+    new_licenses = get_licenses_list(ctx)
+
+    # check that all licenses have a non-"UNKNOWN" copyright
+    unknown_licenses = False
+    for license in new_licenses:
+        if license.endswith(',UNKNOWN'):
+            unknown_licenses = True
+            print("! {}".format(license))
+
+    if unknown_licenses:
+        raise Exit(
+            message=textwrap.dedent(
+                """\
+                At least one dependency's copyright could not be determined.
+
+                Consult the dependency's source, update `.copyright-overrides.yml` accordingly, and
+                run `inv generate-licenses` to update {}."""
+            ).format(filename),
+            code=1,
+        )
+
     with open(filename, 'w') as f:
-        f.write("Component,Origin,License\n")
-        for license in get_licenses_list(ctx):
+        f.write("Component,Origin,License,Copyright\n")
+        for license in new_licenses:
             if verbose:
                 print(license)
             f.write('{}\n'.format(license))
     print("licenses files generated")
-
-
-# FIXME: This doesn't include licenses for non-go dependencies, like the javascript libs we use for the web gui
-def get_licenses_list(ctx):
-
-    # local imports
-    from urllib.parse import urlparse
-
-    import requests
-    from requests.exceptions import RequestException
-
-    # FIXME: Remove when https://github.com/frapposelli/wwhrd/issues/39 is fixed
-    deps_vendored(ctx)
-
-    # Read the list of packages to exclude from the list from wwhrd's
-    exceptions_wildcard = []
-    exceptions = []
-    additional = {}
-    with open('.wwhrd.yml') as wwhrd_conf_yml:
-        wwhrd_conf = yaml.safe_load(wwhrd_conf_yml)
-        for pkg in wwhrd_conf['exceptions']:
-            if pkg.endswith("/..."):
-                # TODO(python3.9): use removesuffix
-                exceptions_wildcard.append(pkg[: -len("/...")])
-            else:
-                exceptions.append(pkg)
-
-        for pkg, license in wwhrd_conf.get('additional', {}).items():
-            additional[pkg] = license
-
-    def is_excluded(pkg):
-        if package in exceptions:
-            return True
-        for exception in exceptions_wildcard:
-            if package.startswith(exception):
-                return True
-        return False
-
-    # Parse the output of wwhrd to generate the list
-    result = ctx.run('wwhrd list --no-color', hide='err')
-    licenses = []
-    if result.stderr:
-        for line in result.stderr.split("\n"):
-            index = line.find('msg="Found License"')
-            if index == -1:
-                continue
-            license = ""
-            package = ""
-            for val in line[index + len('msg="Found License"') :].split(" "):
-                if val.startswith('license='):
-                    license = val[len('license=') :]
-                elif val.startswith('package='):
-                    package = val[len('package=') :]
-                    if is_excluded(package):
-                        print("Skipping {} ({}) excluded in .wwhrd.yml".format(package, license))
-                    else:
-                        licenses.append("core,\"{}\",{}".format(package, license))
-
-    # Additional Licenses
-    for pkg, lic in additional.items():
-        url = urlparse(lic)
-        url = url._replace(scheme='https', netloc=url.path, path='')
-        try:
-            resp = requests.get(url.geturl())
-            resp.raise_for_status()
-
-            with tempfile.TemporaryDirectory() as tempdir:
-                with open(os.path.join(tempdir, 'LICENSE'), 'w') as lfp:
-                    lfp.write(resp.text)
-                    lfp.flush()
-
-                    temp_path = os.path.dirname(lfp.name)
-                    result = ctx.run("license-detector -f json {}".format(temp_path))
-                    if result.stdout:
-                        results = json.loads(result.stdout)
-                        for project in results:
-                            if 'error' in project:
-                                continue
-
-                            # we get the first match
-                            license = project['matches'][0]['license']
-                            licenses.append("core,\"{}\",{}".format(pkg, license))
-        except RequestException:
-            print("There was an issue reaching license {} for pkg {}".format(pkg, lic))
-            raise Exit(code=1)
-
-    licenses.sort()
-    shutil.rmtree("vendor/")
-    return licenses
 
 
 @task
@@ -480,17 +418,21 @@ def generate_protobuf(ctx):
 
         ctx.run(
             "protoc -I{include_path} --go_out=plugins=grpc:{out_path} {targets}".format(
-                include_path=proto_root, out_path=repo_root, targets=' '.join(files),
+                include_path=proto_root,
+                out_path=repo_root,
+                targets=' '.join(files),
             )
         )
         # grpc-gateway logic
         ctx.run(
             "protoc -I{include_path} --grpc-gateway_out=logtostderr=true:{out_path} {targets}".format(
-                include_path=proto_root, out_path=repo_root, targets=' '.join(files),
+                include_path=proto_root,
+                out_path=repo_root,
+                targets=' '.join(files),
             )
         )
         # mockgen
-        mockgen_in = os.path.join(proto_root, "pbgo")
+        pbgo_dir = os.path.join(proto_root, "pbgo")
         mockgen_out = os.path.join(proto_root, "pbgo", "mocks")
         try:
             os.mkdir(mockgen_out)
@@ -499,9 +441,17 @@ def generate_protobuf(ctx):
 
         ctx.run(
             "mockgen -source={in_path}/api.pb.go -destination={out_path}/api_mockgen.pb.go".format(
-                in_path=mockgen_in, out_path=mockgen_out
+                in_path=pbgo_dir, out_path=mockgen_out
             )
         )
+
+    # generate messagepack marshallers
+    ctx.run(
+        "msgp -file {in_path} -o={out_path}".format(
+            in_path='pkg/proto/pbgo/config.pb.go',
+            out_path='pkg/proto/pbgo/config_gen.go',
+        )
+    )
 
 
 @task

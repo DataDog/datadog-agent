@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector/worker"
@@ -127,9 +126,6 @@ func (r *Runner) newWorker() (*worker.Worker, error) {
 	}
 
 	go func() {
-		expvars.AddWorkerCount(1)
-		defer expvars.AddWorkerCount(-1)
-
 		defer r.removeWorker(worker.ID)
 
 		worker.Run()

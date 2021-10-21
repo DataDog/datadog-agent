@@ -74,7 +74,7 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		cfg.MaxConnsPerMessage = tc.maxSize
 		ctm := &model.CollectorConnectionsTelemetry{}
 		rctm := map[string]*model.RuntimeCompilationTelemetry{}
-		chunks := batchConnections(cfg, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", ctm, rctm, nil, nil)
+		chunks := batchConnections(cfg, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", ctm, rctm, nil, nil, nil)
 
 		assert.Len(t, chunks, tc.expectedChunks, "len %d", i)
 		total := 0
@@ -115,7 +115,7 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 1
 
-	chunks := batchConnections(cfg, 0, p, dns, "nid", nil, nil, nil, nil)
+	chunks := batchConnections(cfg, 0, p, dns, "nid", nil, nil, nil, nil, nil)
 
 	assert.Len(t, chunks, 4)
 	total := 0
@@ -156,7 +156,7 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 2
 
-	chunks := batchConnections(cfg, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil, nil, nil)
+	chunks := batchConnections(cfg, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil, nil, nil, nil)
 
 	assert.Len(t, chunks, 3)
 	total := 0
@@ -232,7 +232,7 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 1
 
-	chunks := batchConnections(cfg, 0, conns, dns, "nid", nil, nil, domains, nil)
+	chunks := batchConnections(cfg, 0, conns, dns, "nid", nil, nil, domains, nil, nil)
 
 	assert.Len(t, chunks, 4)
 	total := 0
@@ -276,7 +276,7 @@ func TestNetworkConnectionBatchingWithRoutes(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig(false)
 	cfg.MaxConnsPerMessage = 4
 
-	chunks := batchConnections(cfg, 0, conns, nil, "nid", nil, nil, nil, routes)
+	chunks := batchConnections(cfg, 0, conns, nil, "nid", nil, nil, nil, routes, nil)
 
 	assert.Len(t, chunks, 2)
 	total := 0

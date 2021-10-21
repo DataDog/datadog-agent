@@ -293,26 +293,6 @@ func TestSendV1ServiceChecks(t *testing.T) {
 	require.NotNil(t, err)
 }
 
-func TestSendServiceChecks(t *testing.T) {
-	mockConfig := config.Mock()
-
-	f := &forwarder.MockedForwarder{}
-	f.On("SubmitServiceChecks", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
-	mockConfig.Set("use_v2_api.service_checks", true)
-	defer mockConfig.Set("use_v2_api.service_checks", nil)
-
-	s := NewSerializer(f, nil)
-
-	payload := &testPayload{}
-	err := s.SendServiceChecks(payload)
-	require.Nil(t, err)
-	f.AssertExpectations(t)
-
-	errPayload := &testErrorPayload{}
-	err = s.SendServiceChecks(errPayload)
-	require.NotNil(t, err)
-}
-
 func TestSendV1Series(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitV1Series", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)

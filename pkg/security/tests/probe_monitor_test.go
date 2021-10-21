@@ -8,7 +8,6 @@
 package tests
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"strings"
@@ -18,7 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/model"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 )
@@ -40,7 +38,7 @@ func TestRulesetLoaded(t *testing.T) {
 			test.reloadConfiguration()
 			return nil
 		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
-			assert.Equal(t, probe.RulesetLoadedRuleID, rule.ID, "wrong rule")
+			assert.Equal(t, sprobe.RulesetLoadedRuleID, rule.ID, "wrong rule")
 			return true
 		}, model.CustomRulesetLoadedEventType); err != nil {
 			t.Error(err)
@@ -64,7 +62,7 @@ func truncatedParents(t *testing.T, opts testOpts) {
 		t.Fatal(err)
 	}
 
-	truncatedParentsFile, _, err := test.Path(fmt.Sprintf("%s", truncatedParents))
+	truncatedParentsFile, _, err := test.Path(truncatedParents)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,14 +81,14 @@ func truncatedParents(t *testing.T, opts testOpts) {
 			}
 			return f.Close()
 		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
-			assert.Equal(t, probe.AbnormalPathRuleID, rule.ID, "wrong rule")
+			assert.Equal(t, sprobe.AbnormalPathRuleID, rule.ID, "wrong rule")
 			return true
 		}, model.CustomTruncatedParentsEventType)
 		if err != nil {
 			t.Error(err)
 		}
 
-		err = test.GetSignal(t, func() error {
+		test.WaitSignal(t, func() error {
 			f, err := os.OpenFile(truncatedParentsFile, os.O_CREATE, 0755)
 			if err != nil {
 				t.Fatal(err)
@@ -111,9 +109,6 @@ func truncatedParents(t *testing.T, opts testOpts) {
 				assert.Equal(t, model.MaxPathDepth, len(splittedFilepath), "invalid path depth")
 			}
 		})
-		if err != nil {
-			t.Error(err)
-		}
 	})
 }
 
@@ -154,7 +149,7 @@ func TestNoisyProcess(t *testing.T) {
 			}
 			return nil
 		}, func(rule *rules.Rule, customEvent *sprobe.CustomEvent) bool {
-			assert.Equal(t, probe.NoisyProcessRuleID, rule.ID, "wrong rule")
+			assert.Equal(t, sprobe.NoisyProcessRuleID, rule.ID, "wrong rule")
 			return true
 		}, model.CustomNoisyProcessEventType)
 		if err != nil {

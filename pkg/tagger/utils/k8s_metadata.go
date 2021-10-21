@@ -54,9 +54,10 @@ func AddMetadataAsTags(name, value string, metadataAsTags map[string]string, glo
 var templateVariables = map[string]struct{}{
 	"label":      {},
 	"annotation": {},
+	"env":        {},
 }
 
-// resolveTag replaces %%label%% and %%annotation%% by their values
+// resolveTag replaces %%label%%, %%annotation%% and %%env%% by their values
 func resolveTag(tmpl, label string) string {
 	vars := tmplvar.ParseString(tmpl)
 	tagName := tmpl

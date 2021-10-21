@@ -18,9 +18,9 @@ BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe", android=False))
 
 BPF_TAG = "linux_bpf"
 BUNDLE_TAG = "ebpf_bindata"
-BCC_TAG = "bcc"
 NPM_TAG = "npm"
 GIMME_ENV_VARS = ['GOROOT', 'PATH']
+DNF_TAG = "dnf"
 
 CLANG_CMD = "clang {flags} -c '{c_file}' -o '{bc_file}'"
 LLC_CMD = "llc -march=bpf -filetype=obj -o '{obj_file}' '{bc_file}'"
@@ -29,7 +29,7 @@ DATADOG_AGENT_EMBEDDED_PATH = '/opt/datadog-agent/embedded'
 
 KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
-TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/..."]
+TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/...", "./pkg/collector/corechecks/ebpf/..."]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 
 is_windows = sys.platform == "win32"
@@ -42,13 +42,14 @@ def build(
     incremental_build=False,
     major_version='7',
     python_runtimes='3',
-    with_bcc=True,
     go_mod="mod",
     windows=is_windows,
     arch="x64",
     embedded_path=DATADOG_AGENT_EMBEDDED_PATH,
     compile_ebpf=True,
+    nikos_embedded_path=None,
     bundle_ebpf=False,
+    parallel_build=True,
 ):
     """
     Build the system_probe
@@ -84,20 +85,23 @@ def build(
         )
     elif compile_ebpf:
         # Only build ebpf files on unix
-        build_object_files(ctx)
+        build_object_files(ctx, parallel_build=parallel_build)
 
     generate_cgo_types(ctx, windows=windows)
     ldflags, gcflags, env = get_build_flags(
-        ctx, major_version=major_version, python_runtimes=python_runtimes, embedded_path=embedded_path
+        ctx,
+        major_version=major_version,
+        python_runtimes=python_runtimes,
+        embedded_path=embedded_path,
+        nikos_embedded_path=nikos_embedded_path,
     )
 
     build_tags = get_default_build_tags(build="system-probe", arch=arch)
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
-    if with_bcc:
-        build_tags.append(BCC_TAG)
+    if nikos_embedded_path:
+        build_tags.append(DNF_TAG)
 
-    # TODO static option
     cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
 
@@ -126,6 +130,7 @@ def test(
     skip_linters=False,
     run=None,
     windows=is_windows,
+    parallel_build=True,
 ):
     """
     Run tests on eBPF parts
@@ -145,7 +150,7 @@ def test(
         clang_tidy(ctx)
 
     if not skip_object_files and not windows:
-        build_object_files(ctx)
+        build_object_files(ctx, parallel_build=parallel_build)
 
     build_tags = [NPM_TAG]
     if not windows:
@@ -166,7 +171,7 @@ def test(
         env['DD_TESTS_RUNTIME_COMPILED'] = "1"
 
     cmd = 'go test -mod=mod -v -tags "{build_tags}" {output_params} {pkgs} {run}'
-    if not windows and not is_root():
+    if not windows and not output_path and not is_root():
         cmd = 'sudo -E ' + cmd
 
     ctx.run(cmd.format(**args), env=env)
@@ -260,11 +265,11 @@ def kitchen_test(ctx, target=None, arch="x86_64"):
 
 
 @task
-def nettop(ctx, incremental_build=False, go_mod="mod"):
+def nettop(ctx, incremental_build=False, go_mod="mod", parallel_build=True):
     """
     Build and run the `nettop` utility for testing
     """
-    build_object_files(ctx)
+    build_object_files(ctx, parallel_build=parallel_build)
 
     cmd = 'go build -mod={go_mod} {build_type} -tags {tags} -o {bin_path} {path}'
     bin_path = os.path.join(BIN_DIR, "nettop")
@@ -301,11 +306,7 @@ def clang_format(ctx, targets=None, fix=False, fail_on_issue=False):
         targets = get_ebpf_targets()
 
     # remove externally maintained files
-    ignored_files = [
-        "pkg/ebpf/c/bpf_helpers.h",
-        "pkg/ebpf/c/bpf_endian.h",
-        "pkg/ebpf/compiler/clang-stdarg.h",
-    ]
+    ignored_files = ["pkg/ebpf/c/bpf_helpers.h", "pkg/ebpf/c/bpf_endian.h", "pkg/ebpf/compiler/clang-stdarg.h"]
     for f in ignored_files:
         if f in targets:
             targets.remove(f)
@@ -368,9 +369,9 @@ def run_tidy(ctx, files, build_flags, fix=False, fail_on_issue=False):
 
 
 @task
-def object_files(ctx):
+def object_files(ctx, parallel_build=True):
     """object_files builds the eBPF object files"""
-    build_object_files(ctx)
+    build_object_files(ctx, parallel_build=parallel_build)
 
 
 def get_ebpf_c_files():
@@ -410,6 +411,13 @@ def get_linux_header_dirs():
             linux_headers = [
                 os.path.join(debian_headers_dir, d) for d in os.listdir(debian_headers_dir) if d.startswith("linux-")
             ]
+
+    # fallback to the running kernel/build headers via /lib/modules/$(uname -r)/build/
+    if len(linux_headers) == 0:
+        uname_r = check_output('''uname -r''', shell=True).decode('utf-8').strip()
+        build_dir = "/lib/modules/{}/build".format(uname_r)
+        if os.path.isdir(build_dir):
+            linux_headers = [build_dir]
 
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
     arch = (
@@ -478,35 +486,78 @@ def get_ebpf_build_flags():
     return flags
 
 
-def build_network_ebpf_files(ctx, build_dir):
+def build_network_ebpf_compile_file(ctx, parallel_build, build_dir, p, debug, network_prebuilt_dir, network_flags):
+    src_file = os.path.join(network_prebuilt_dir, "{}.c".format(p))
+    if not debug:
+        bc_file = os.path.join(build_dir, "{}.bc".format(p))
+        return ctx.run(
+            CLANG_CMD.format(flags=" ".join(network_flags), bc_file=bc_file, c_file=src_file),
+            asynchronous=parallel_build,
+        )
+    else:
+        debug_bc_file = os.path.join(build_dir, "{}-debug.bc".format(p))
+        return ctx.run(
+            CLANG_CMD.format(flags=" ".join(network_flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file),
+            asynchronous=parallel_build,
+        )
+
+
+def build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, network_flags):
+    if not debug:
+        bc_file = os.path.join(build_dir, "{}.bc".format(p))
+        obj_file = os.path.join(build_dir, "{}.o".format(p))
+        return ctx.run(
+            LLC_CMD.format(flags=" ".join(network_flags), bc_file=bc_file, obj_file=obj_file),
+            asynchronous=parallel_build,
+        )
+    else:
+        debug_bc_file = os.path.join(build_dir, "{}-debug.bc".format(p))
+        debug_obj_file = os.path.join(build_dir, "{}-debug.o".format(p))
+        return ctx.run(
+            LLC_CMD.format(flags=" ".join(network_flags), bc_file=debug_bc_file, obj_file=debug_obj_file),
+            asynchronous=parallel_build,
+        )
+
+
+def build_network_ebpf_files(ctx, build_dir, parallel_build=True):
     network_bpf_dir = os.path.join(".", "pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
     network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
-    compiled_programs = [
-        "tracer",
-        "offset-guess",
-        "http",
-        "dns",
-    ]
+    compiled_programs = ["dns", "http", "offset-guess", "tracer"]
 
     network_flags = get_ebpf_build_flags()
     network_flags.append("-I{}".format(network_c_dir))
-    for p in compiled_programs:
-        # Build both the standard and debug version
-        src_file = os.path.join(network_prebuilt_dir, "{}.c".format(p))
-        bc_file = os.path.join(build_dir, "{}.bc".format(p))
-        obj_file = os.path.join(build_dir, "{}.o".format(p))
-        ctx.run(CLANG_CMD.format(flags=" ".join(network_flags), bc_file=bc_file, c_file=src_file))
-        ctx.run(LLC_CMD.format(flags=" ".join(network_flags), bc_file=bc_file, obj_file=obj_file))
 
-        debug_bc_file = os.path.join(build_dir, "{}-debug.bc".format(p))
-        debug_obj_file = os.path.join(build_dir, "{}-debug.o".format(p))
-        ctx.run(CLANG_CMD.format(flags=" ".join(network_flags + ["-DDEBUG=1"]), bc_file=debug_bc_file, c_file=src_file))
-        ctx.run(LLC_CMD.format(flags=" ".join(network_flags), bc_file=debug_bc_file, obj_file=debug_obj_file))
+    flavor = []
+    for prog in compiled_programs:
+        for debug in [False, True]:
+            flavor.append((prog, debug))
+
+    promises = []
+    for p, debug in flavor:
+        promises.append(
+            build_network_ebpf_compile_file(
+                ctx, parallel_build, build_dir, p, debug, network_prebuilt_dir, network_flags
+            )
+        )
+        if not parallel_build:
+            build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, network_flags)
+
+    if not parallel_build:
+        return
+
+    promises_link = []
+    for i, promise in enumerate(promises):
+        promise.join()
+        (p, debug) = flavor[i]
+        promises_link.append(build_network_ebpf_link_file(ctx, parallel_build, build_dir, p, debug, network_flags))
+
+    for promise in promises_link:
+        promise.join()
 
 
-def build_security_ebpf_files(ctx, build_dir):
+def build_security_ebpf_files(ctx, build_dir, parallel_build=True):
     security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
     security_c_file = os.path.join(security_agent_prebuilt_dir, "probe.c")
@@ -516,51 +567,64 @@ def build_security_ebpf_files(ctx, build_dir):
     security_flags = get_ebpf_build_flags()
     security_flags.append("-I{}".format(security_agent_c_dir))
 
-    ctx.run(
-        CLANG_CMD.format(
-            flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=0"]),
-            c_file=security_c_file,
-            bc_file=security_bc_file,
+    # compile
+    promises = []
+    promises.append(
+        ctx.run(
+            CLANG_CMD.format(
+                flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=0"]),
+                c_file=security_c_file,
+                bc_file=security_bc_file,
+            ),
+            asynchronous=parallel_build,
         )
     )
-    ctx.run(LLC_CMD.format(flags=" ".join(security_flags), bc_file=security_bc_file, obj_file=security_agent_obj_file))
-
     security_agent_syscall_wrapper_bc_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.bc")
+    promises.append(
+        ctx.run(
+            CLANG_CMD.format(
+                flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
+                c_file=security_c_file,
+                bc_file=security_agent_syscall_wrapper_bc_file,
+            ),
+            asynchronous=parallel_build,
+        )
+    )
+
+    if parallel_build:
+        for p in promises:
+            p.join()
+
+    # link
+    promises = []
+    promises.append(
+        ctx.run(
+            LLC_CMD.format(flags=" ".join(security_flags), bc_file=security_bc_file, obj_file=security_agent_obj_file),
+            asynchronous=parallel_build,
+        )
+    )
+
     security_agent_syscall_wrapper_obj_file = os.path.join(build_dir, "runtime-security-syscall-wrapper.o")
-    ctx.run(
-        CLANG_CMD.format(
-            flags=" ".join(security_flags + ["-DUSE_SYSCALL_WRAPPER=1"]),
-            c_file=security_c_file,
-            bc_file=security_agent_syscall_wrapper_bc_file,
+    promises.append(
+        ctx.run(
+            LLC_CMD.format(
+                flags=" ".join(security_flags),
+                bc_file=security_agent_syscall_wrapper_bc_file,
+                obj_file=security_agent_syscall_wrapper_obj_file,
+            ),
+            asynchronous=parallel_build,
         )
     )
-    ctx.run(
-        LLC_CMD.format(
-            flags=" ".join(security_flags),
-            bc_file=security_agent_syscall_wrapper_bc_file,
-            obj_file=security_agent_syscall_wrapper_obj_file,
-        )
-    )
+
+    if parallel_build:
+        for p in promises:
+            p.join()
+
     return [security_agent_obj_file, security_agent_syscall_wrapper_obj_file]
 
 
-def build_bcc_files(ctx, build_dir):
-    corechecks_c_dir = os.path.join(".", "pkg", "collector", "corechecks", "ebpf", "c")
-    corechecks_bcc_dir = os.path.join(corechecks_c_dir, "bcc")
-    bcc_files = [
-        os.path.join(corechecks_bcc_dir, "tcp-queue-length-kern.c"),
-        os.path.join(corechecks_c_dir, "tcp-queue-length-kern-user.h"),
-        os.path.join(corechecks_bcc_dir, "oom-kill-kern.c"),
-        os.path.join(corechecks_c_dir, "oom-kill-kern-user.h"),
-        os.path.join(corechecks_bcc_dir, "bpf-common.h"),
-    ]
-    for f in bcc_files:
-        ctx.run("cp {file} {dest}".format(file=f, dest=build_dir))
-
-
-def build_object_files(ctx):
-    """build_object_files builds only the eBPF object
-    """
+def build_object_files(ctx, parallel_build):
+    """build_object_files builds only the eBPF object"""
 
     # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
     print("checking for clang executable...")
@@ -574,9 +638,8 @@ def build_object_files(ctx):
     ctx.run("mkdir -p {build_runtime_dir}".format(build_runtime_dir=build_runtime_dir))
 
     bindata_files = []
-    build_bcc_files(ctx, build_dir=build_dir)
-    build_network_ebpf_files(ctx, build_dir=build_dir)
-    bindata_files.extend(build_security_ebpf_files(ctx, build_dir=build_dir))
+    build_network_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build)
+    bindata_files.extend(build_security_ebpf_files(ctx, build_dir=build_dir, parallel_build=parallel_build))
 
     generate_runtime_files(ctx)
 
@@ -587,7 +650,10 @@ def build_object_files(ctx):
 @task
 def generate_runtime_files(ctx):
     runtime_compiler_files = [
+        "./pkg/collector/corechecks/ebpf/probe/oom_kill.go",
+        "./pkg/collector/corechecks/ebpf/probe/tcp_queue_length.go",
         "./pkg/network/tracer/compile.go",
+        "./pkg/network/tracer/connection/kprobe/compile.go",
         "./pkg/security/probe/compile.go",
     ]
     for f in runtime_compiler_files:
@@ -598,19 +664,24 @@ def generate_runtime_files(ctx):
 def generate_cgo_types(ctx, windows=is_windows):
     if windows:
         platform = "windows"
-        def_files = [
-            "./pkg/network/driver/types.go",
-        ]
+        def_files = ["./pkg/network/driver/types.go"]
     else:
         platform = "linux"
-        def_files = []
+        def_files = [
+            "./pkg/network/ebpf/offsetguess_types.go",
+            "./pkg/network/ebpf/conntrack_types.go",
+            "./pkg/network/ebpf/tuple_types.go",
+            "./pkg/network/ebpf/kprobe_types.go",
+        ]
 
     for f in def_files:
         fdir, file = os.path.split(f)
         base, _ = os.path.splitext(file)
         with ctx.cd(fdir):
             ctx.run(
-                "go tool cgo -godefs -- {file} > {base}_{platform}.go".format(file=file, base=base, platform=platform)
+                "go tool cgo -godefs -- -fsigned-char {file} > {base}_{platform}.go".format(
+                    file=file, base=base, platform=platform
+                )
             )
             ctx.run("gofmt -w -s {base}_{platform}.go".format(base=base, platform=platform))
 

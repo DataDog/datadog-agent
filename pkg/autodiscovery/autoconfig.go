@@ -415,10 +415,7 @@ func (ac *AutoConfig) AddScheduler(name string, s scheduler.Scheduler, replayCon
 		return
 	}
 
-	var configs []integration.Config
-	for _, c := range ac.store.getLoadedConfigs() {
-		configs = append(configs, c)
-	}
+	configs := ac.LoadedConfigs()
 	s.Schedule(configs)
 }
 
@@ -476,9 +473,8 @@ func (ac *AutoConfig) removeConfigTemplates(configs []integration.Config) {
 		if c.IsTemplate() {
 			// Remove the resolved configurations
 			tplDigest := c.Digest()
-			configs := ac.store.getConfigsForTemplate(tplDigest)
-			ac.store.removeConfigsForTemplate(tplDigest)
-			ac.processRemovedConfigs(configs)
+			removedConfigs := ac.store.removeConfigsForTemplate(tplDigest)
+			ac.processRemovedConfigs(removedConfigs)
 
 			// Remove template from the cache
 			err := ac.store.templateCache.Del(c)
@@ -563,13 +559,30 @@ func (ac *AutoConfig) resolveTemplateForService(tpl integration.Config, svc list
 	return resolvedConfig, nil
 }
 
-// GetLoadedConfigs returns configs loaded
-func (ac *AutoConfig) GetLoadedConfigs() map[string]integration.Config {
+// MapOverLoadedConfigs calls the given function with the map of all
+// loaded configs.  This is done with the config store locked, so
+// callers should perform minimal work within f.
+func (ac *AutoConfig) MapOverLoadedConfigs(f func(map[string]integration.Config)) {
 	if ac == nil || ac.store == nil {
 		log.Error("Autoconfig store not initialized")
-		return map[string]integration.Config{}
+		f(map[string]integration.Config{})
+		return
 	}
-	return ac.store.getLoadedConfigs()
+	ac.store.mapOverLoadedConfigs(f)
+}
+
+// LoadedConfigs returns a slice of all loaded configs.  This slice
+// is freshly created and will not be modified after return.
+func (ac *AutoConfig) LoadedConfigs() []integration.Config {
+	var configs []integration.Config
+	ac.store.mapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
+		configs = make([]integration.Config, 0, len(loadedConfigs))
+		for _, c := range loadedConfigs {
+			configs = append(configs, c)
+		}
+	})
+
+	return configs
 }
 
 // GetUnresolvedTemplates returns templates in cache yet to be resolved
@@ -641,9 +654,8 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 // processDelService takes a service, stops its associated checks, and updates the cache
 func (ac *AutoConfig) processDelService(svc listeners.Service) {
 	ac.store.removeServiceForEntity(svc.GetEntity())
-	configs := ac.store.getConfigsForService(svc.GetEntity())
-	ac.store.removeConfigsForService(svc.GetEntity())
-	ac.processRemovedConfigs(configs)
+	removedConfigs := ac.store.removeConfigsForService(svc.GetEntity())
+	ac.processRemovedConfigs(removedConfigs)
 	ac.store.removeTagsHashForService(svc.GetTaggerEntity())
 	// FIXME: unschedule remove services as well
 	ac.unschedule([]integration.Config{

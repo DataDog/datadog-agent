@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
@@ -38,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
@@ -83,6 +85,7 @@ var (
 
 	orchestratorForwarder  *forwarder.DefaultForwarder
 	eventPlatformForwarder epforwarder.EventPlatformForwarder
+	configService          *remoteconfig.Service
 
 	runCmd = &cobra.Command{
 		Use:   "run",
@@ -320,9 +323,20 @@ func StartAgent() error {
 		log.Errorf("Unable to initialize host metadata: %v", err)
 	}
 
+	// start remote configuration management
+	if config.Datadog.GetBool("remote_configuration.enabled") {
+		opts := remoteconfig.Opts{}
+		configService, err = remoteconfig.NewService(opts)
+		if err != nil {
+			log.Errorf("Failed to initialize config management service: %s", err)
+		} else if err := configService.Start(context.Background()); err != nil {
+			log.Errorf("Failed to start config management service: %s", err)
+		}
+	}
+
 	// start the cmd HTTP server
 	if runtime.GOOS != "android" {
-		if err = api.StartServer(); err != nil {
+		if err = api.StartServer(configService); err != nil {
 			return log.Errorf("Error while starting api server, exiting: %v", err)
 		}
 	}
@@ -383,6 +397,16 @@ func StartAgent() error {
 		}
 	}
 	log.Debugf("statsd started")
+
+	// Start OTLP intake
+	if otlp.IsEnabled(config.Datadog) {
+		var err error
+		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, config.Datadog, s)
+		if err != nil {
+			log.Errorf("Could not start OTLP: %s", err)
+		}
+	}
+	log.Debug("OTLP pipeline started")
 
 	// Start SNMP trap server
 	if traps.IsEnabled() {
@@ -463,6 +487,9 @@ func StopAgent() {
 
 	if common.DSD != nil {
 		common.DSD.Stop()
+	}
+	if common.OTLP != nil {
+		common.OTLP.Stop()
 	}
 	if common.AC != nil {
 		common.AC.Stop()

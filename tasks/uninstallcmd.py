@@ -50,8 +50,10 @@ def build(ctx, major_version='7', vstudio_root=None, arch="x64", debug=False):
         if arch == "x86":
             batchfile = "vcvars32.bat"
         vs_env_bat = '{}\\VC\\Auxiliary\\Build\\{}'.format(vsroot, batchfile)
-        cmd = 'call \"{}\" && msbuild {}\\uninstall-cmd\\uninstall-cmd.vcxproj /p:Configuration={} /p:Platform={}'.format(
-            vs_env_bat, CUSTOM_ACTION_ROOT_DIR, configuration, arch
+        cmd = (
+            'call \"{}\" && msbuild {}\\uninstall-cmd\\uninstall-cmd.vcxproj /p:Configuration={} /p:Platform={}'.format(
+                vs_env_bat, CUSTOM_ACTION_ROOT_DIR, configuration, arch
+            )
         )
     else:
         cmd = 'msbuild {}\\uninstall-cmd\\uninstall-cmd.vcxproj /p:Configuration={} /p:Platform={}'.format(

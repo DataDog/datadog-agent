@@ -39,7 +39,7 @@ var Process = module.Factory{
 
 var _ module.Module = &process{}
 
-type process struct{ probe *procutil.Probe }
+type process struct{ probe procutil.Probe }
 
 // GetStats returns stats for the module
 func (t *process) GetStats() map[string]interface{} {

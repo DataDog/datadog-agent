@@ -35,13 +35,14 @@ const (
 	// CloudFoundry socket present
 	CloudFoundry Feature = "cloudfoundry"
 
-	defaultLinuxDockerSocket       = "/var/run/docker.sock"
-	defaultWindowsDockerSocketPath = "//./pipe/docker_engine"
-	defaultLinuxContainerdSocket   = "/var/run/containerd/containerd.sock"
-	defaultLinuxCrioSocket         = "/var/run/crio/crio.sock"
-	defaultHostMountPrefix         = "/host"
-	unixSocketPrefix               = "unix://"
-	winNamedPipePrefix             = "npipe://"
+	defaultLinuxDockerSocket           = "/var/run/docker.sock"
+	defaultWindowsDockerSocketPath     = "//./pipe/docker_engine"
+	defaultLinuxContainerdSocket       = "/var/run/containerd/containerd.sock"
+	defaultWindowsContainerdSocketPath = "//./pipe/containerd-containerd"
+	defaultLinuxCrioSocket             = "/var/run/crio/crio.sock"
+	defaultHostMountPrefix             = "/host"
+	unixSocketPrefix                   = "unix://"
+	winNamedPipePrefix                 = "npipe://"
 
 	socketTimeout = 500 * time.Millisecond
 )
@@ -120,10 +121,7 @@ func detectContainerd(features FeatureMap) {
 	}
 
 	if criSocket != "" {
-		// Containerd support was historically meant for K8S
-		// However, containerd is now used standalone elsewhere.
-		// TODO: Consider having a dedicated setting for containerd standalone
-		if IsKubernetes() {
+		if isCriSupported() {
 			features[Cri] = struct{}{}
 		}
 
@@ -131,6 +129,14 @@ func detectContainerd(features FeatureMap) {
 			features[Containerd] = struct{}{}
 		}
 	}
+}
+
+func isCriSupported() bool {
+	// Containerd support was historically meant for K8S
+	// However, containerd is now used standalone elsewhere.
+	// TODO: Consider having a dedicated setting for containerd standalone
+	// Also, cri is not enabled on Windows (check build_tags.py).
+	return IsKubernetes() && runtime.GOOS != "windows"
 }
 
 func detectFargate(features FeatureMap) {
@@ -179,6 +185,10 @@ func getDefaultDockerPaths() []string {
 }
 
 func getDefaultCriPaths() []string {
+	if runtime.GOOS == "windows" {
+		return []string{defaultWindowsContainerdSocketPath}
+	}
+
 	paths := []string{}
 	for _, prefix := range getHostMountPrefixes() {
 		paths = append(paths, path.Join(prefix, defaultLinuxContainerdSocket), path.Join(prefix, defaultLinuxCrioSocket))

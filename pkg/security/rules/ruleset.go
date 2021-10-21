@@ -36,6 +36,7 @@ type RuleID = string
 // RuleDefinition holds the definition of a rule
 type RuleDefinition struct {
 	ID          RuleID            `yaml:"id"`
+	Version     string            `yaml:"version"`
 	Expression  string            `yaml:"expression"`
 	Description string            `yaml:"description"`
 	Tags        map[string]string `yaml:"tags"`
@@ -134,7 +135,7 @@ func (rs *RuleSet) ListMacroIDs() []MacroID {
 }
 
 // AddMacros parses the macros AST and adds them to the list of macros of the ruleset
-func (rs *RuleSet) AddMacros(macros []*MacroDefinition) error {
+func (rs *RuleSet) AddMacros(macros []*MacroDefinition) *multierror.Error {
 	var result *multierror.Error
 
 	// Build the list of macros for the ruleset

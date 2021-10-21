@@ -288,4 +288,5 @@ func TestBuildTagMapWithRuntimeAndMemoryTag(t *testing.T) {
 	assert.Equal(t, "value1", tagMap["tag1"])
 	assert.Equal(t, "java", tagMap["runtime"])
 	assert.Equal(t, "128", tagMap["memorysize"])
+	assert.True(t, tagMap["architecture"] == "x86_64" || tagMap["architecture"] == "arm64")
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -372,7 +373,11 @@ func (agg *BufferedAggregator) registerSender(id check.ID) error {
 	if _, ok := agg.checkSamplers[id]; ok {
 		return fmt.Errorf("Sender with ID '%s' has already been registered, will use existing sampler", id)
 	}
-	agg.checkSamplers[id] = newCheckSampler(config.Datadog.GetInt("check_sampler_bucket_commits_count_expiry"))
+	agg.checkSamplers[id] = newCheckSampler(
+		config.Datadog.GetInt("check_sampler_bucket_commits_count_expiry"),
+		config.Datadog.GetBool("check_sampler_expire_metrics"),
+		config.Datadog.GetDuration("check_sampler_stateful_metric_expiration_time"),
+	)
 	return nil
 }
 
@@ -424,8 +429,8 @@ func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
 	if sc.Ts == 0 {
 		sc.Ts = time.Now().Unix()
 	}
-	tb := util.NewTagsBuilderFromSlice(sc.Tags)
-	metrics.EnrichTags(tb, sc.OriginID, sc.K8sOriginID, sc.Cardinality)
+	tb := tagset.NewHashlessTagsAccumulatorFromSlice(sc.Tags)
+	tagger.EnrichTags(tb, sc.OriginID, sc.K8sOriginID, sc.Cardinality)
 
 	tb.SortUniq()
 	sc.Tags = tb.Get()
@@ -438,8 +443,8 @@ func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 	if e.Ts == 0 {
 		e.Ts = time.Now().Unix()
 	}
-	tb := util.NewTagsBuilderFromSlice(e.Tags)
-	metrics.EnrichTags(tb, e.OriginID, e.K8sOriginID, e.Cardinality)
+	tb := tagset.NewHashlessTagsAccumulatorFromSlice(e.Tags)
+	tagger.EnrichTags(tb, e.OriginID, e.K8sOriginID, e.Cardinality)
 
 	tb.SortUniq()
 	e.Tags = tb.Get()
@@ -702,6 +707,7 @@ func (agg *BufferedAggregator) Flush(start time.Time, waitForSerializer bool) {
 	agg.flushSeriesAndSketches(start, waitForSerializer)
 	agg.flushServiceChecks(start, waitForSerializer)
 	agg.flushEvents(start, waitForSerializer)
+	agg.updateChecksTelemetry()
 }
 
 // Stop stops the aggregator. Based on 'flushData' waiting metrics (from checks
@@ -789,8 +795,9 @@ func (agg *BufferedAggregator) run() {
 		case ms := <-agg.bufferedMetricIn:
 			aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
 			tlmProcessed.Add(float64(len(ms)), "dogstatsd_metrics")
+			t := timeNowNano()
 			for i := 0; i < len(ms); i++ {
-				agg.addSample(&ms[i], timeNowNano())
+				agg.addSample(&ms[i], t)
 			}
 			agg.MetricSamplePool.PutBatch(ms)
 		case serviceChecks := <-agg.bufferedServiceCheckIn:
@@ -861,4 +868,12 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 		return append(tags, "version:"+version.AgentVersion)
 	}
 	return tags
+}
+
+func (agg *BufferedAggregator) updateChecksTelemetry() {
+	t := metrics.CheckMetricsTelemetryAccumulator{}
+	for _, sampler := range agg.checkSamplers {
+		t.VisitCheckMetrics(&sampler.metrics)
+	}
+	t.Flush()
 }

@@ -9,18 +9,19 @@ package cri
 
 import (
 	"os"
+	"strings"
 	"testing"
 	"time"
 
+	fakeremote "github.com/DataDog/datadog-agent/third_party/kubernetes/pkg/kubelet/cri/remote/fake"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	fakeremote "k8s.io/kubernetes/pkg/kubelet/cri/remote/fake"
 )
 
 func TestCRIUtilInit(t *testing.T) {
 	fakeRuntime, endpoint := createAndStartFakeRemoteRuntime(t)
 	defer fakeRuntime.Stop()
-	socketFile := endpoint[7:] // remove unix://
+	socketFile := strings.TrimPrefix(endpoint, "unix://")
 	fileInfo, err := os.Stat(socketFile)
 	require.NoError(t, err)
 	assert.Equal(t, fileInfo.Mode()&os.ModeSocket, os.ModeSocket)
@@ -38,7 +39,7 @@ func TestCRIUtilInit(t *testing.T) {
 func TestCRIUtilListContainerStats(t *testing.T) {
 	fakeRuntime, endpoint := createAndStartFakeRemoteRuntime(t)
 	defer fakeRuntime.Stop()
-	socketFile := endpoint[7:] // remove unix://
+	socketFile := strings.TrimPrefix(endpoint, "unix://")
 	util := &CRIUtil{
 		queryTimeout:      1 * time.Second,
 		connectionTimeout: 1 * time.Second,
