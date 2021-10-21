@@ -20,7 +20,7 @@ var (
 	// Scrubber is called to clean secret or sensitive information from log
 	// messages, error messages, etc.  Its default value returns the given
 	// message unchanged.  Within the datadog-agent, this is replaced at init()
-	// time by a function from ./pkg/util/cleaner.
+	// time by a function from ./pkg/util/scrubber.
 	Scrubber = func(msg []byte) ([]byte, error) { return msg, nil }
 
 	logger    *DatadogLogger

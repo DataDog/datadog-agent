@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package cleaner implements support for cleaning sensitive information out of strings
+// Package scrubber implements support for cleaning sensitive information out of strings
 // and files.
-package cleaner
+package scrubber
 
 import (
 	"bufio"
@@ -47,31 +47,31 @@ const (
 var commentRegex = regexp.MustCompile(`^\s*#.*$`)
 var blankRegex = regexp.MustCompile(`^\s*$`)
 
-// Cleaner implements support for cleaning sensitive information out of strings
+// Scrubber implements support for cleaning sensitive information out of strings
 // and files.  Its intended use is to "clean" data before it is logged or
 // transmitted to a remote system, so that the meaning of the data remains
 // clear without disclosing any sensitive information.
 //
-// Cleaner works by applying a set of replacers, in order.  It first applies
+// Scrubber works by applying a set of replacers, in order.  It first applies
 // all SingleLine replacers to each non-comment, non-blank line of the input.
 //
 // Comments and blank lines are omitted. Comments are considered to begin with `#`.
 //
 // It then applies all MultiLine replacers to the entire text of the input.
-type Cleaner struct {
+type Scrubber struct {
 	singleLineReplacers, multiLineReplacers []Replacer
 }
 
-// New creates a new cleaner with no replacers installed.
-func New() *Cleaner {
-	return &Cleaner{
+// New creates a new scrubber with no replacers installed.
+func New() *Scrubber {
+	return &Scrubber{
 		singleLineReplacers: make([]Replacer, 0),
 		multiLineReplacers:  make([]Replacer, 0),
 	}
 }
 
-// AddReplacer adds a replacer of the given kind to the cleaner.
-func (c *Cleaner) AddReplacer(kind ReplacerKind, replacer Replacer) {
+// AddReplacer adds a replacer of the given kind to the scrubber.
+func (c *Scrubber) AddReplacer(kind ReplacerKind, replacer Replacer) {
 	switch kind {
 	case SingleLine:
 		c.singleLineReplacers = append(c.singleLineReplacers, replacer)
@@ -80,31 +80,31 @@ func (c *Cleaner) AddReplacer(kind ReplacerKind, replacer Replacer) {
 	}
 }
 
-// CredentialsCleanerFile scrubs credentials from file given by pathname
-func (c *Cleaner) CredentialsCleanerFile(filePath string) ([]byte, error) {
+// ScrubFile scrubs credentials from file given by pathname
+func (c *Scrubber) ScrubFile(filePath string) ([]byte, error) {
 	file, err := os.Open(filePath)
 	defer file.Close()
 	if err != nil {
 		return nil, err
 	}
-	return c.credentialsCleaner(file)
+	return c.scrubReader(file)
 }
 
-// CredentialsCleanerBytes scrubs credentials from slice of bytes
-func (c *Cleaner) CredentialsCleanerBytes(file []byte) ([]byte, error) {
+// ScrubBytes scrubs credentials from slice of bytes
+func (c *Scrubber) ScrubBytes(file []byte) ([]byte, error) {
 	r := bytes.NewReader(file)
-	return c.credentialsCleaner(r)
+	return c.scrubReader(r)
 }
 
-// SanitizeURL sanitizes credentials from a message containing a URL, and returns
+// ScrubURL sanitizes credentials from a message containing a URL, and returns
 // a string that can be logged safely.  This method applies only the SingleLine
 // replacers.
-func (c *Cleaner) SanitizeURL(message string) string {
-	return string(c.scrubCredentials([]byte(message), c.singleLineReplacers))
+func (c *Scrubber) ScrubURL(message string) string {
+	return string(c.scrub([]byte(message), c.singleLineReplacers))
 }
 
-// credentialsCleaner applies the cleaning algorithm to a Reader
-func (c *Cleaner) credentialsCleaner(file io.Reader) ([]byte, error) {
+// scrubReader applies the cleaning algorithm to a Reader
+func (c *Scrubber) scrubReader(file io.Reader) ([]byte, error) {
 	var cleanedFile []byte
 
 	scanner := bufio.NewScanner(file)
@@ -115,7 +115,7 @@ func (c *Cleaner) credentialsCleaner(file io.Reader) ([]byte, error) {
 	for scanner.Scan() {
 		b := scanner.Bytes()
 		if !commentRegex.Match(b) && !blankRegex.Match(b) && string(b) != "" {
-			b = c.scrubCredentials(b, c.singleLineReplacers)
+			b = c.scrub(b, c.singleLineReplacers)
 			if !first {
 				cleanedFile = append(cleanedFile, byte('\n'))
 			}
@@ -130,13 +130,13 @@ func (c *Cleaner) credentialsCleaner(file io.Reader) ([]byte, error) {
 	}
 
 	// Then we apply multiline replacers on the cleaned file
-	cleanedFile = c.scrubCredentials(cleanedFile, c.multiLineReplacers)
+	cleanedFile = c.scrub(cleanedFile, c.multiLineReplacers)
 
 	return cleanedFile, nil
 }
 
-// scrubCredentials applies the given replacers to the given data.
-func (c *Cleaner) scrubCredentials(data []byte, replacers []Replacer) []byte {
+// scrub applies the given replacers to the given data.
+func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
 	for _, repl := range replacers {
 		containsHint := false
 		for _, hint := range repl.Hints {

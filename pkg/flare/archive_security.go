@@ -16,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/cleaner"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // CreateSecurityAgentArchive packages up the files
@@ -134,7 +134,7 @@ func zipSecurityAgentStatusFile(tempDir, hostname string, runtimeStatus map[stri
 	}
 
 	// Clean it up
-	cleaned, err := cleaner.CredentialsCleanerBytes(s)
+	cleaned, err := scrubber.ScrubBytes(s)
 	if err != nil {
 		log.Infof("Error redacting the log files: %q", err)
 		return err

@@ -12,8 +12,8 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/util/cleaner"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 //RedactingWriter is a writer that will redact content before writing to target
@@ -21,7 +21,7 @@ type RedactingWriter struct {
 	target    *os.File
 	targetBuf *bufio.Writer
 	perm      os.FileMode
-	r         []cleaner.Replacer
+	r         []scrubber.Replacer
 }
 
 //NewRedactingWriter instantiates a RedactingWriter to target with given permissions
@@ -40,12 +40,12 @@ func NewRedactingWriter(t string, p os.FileMode, buffered bool) (*RedactingWrite
 		target:    f,
 		targetBuf: b,
 		perm:      p,
-		r:         []cleaner.Replacer{},
+		r:         []scrubber.Replacer{},
 	}, nil
 }
 
 //RegisterReplacer register additional replacers to run on stream
-func (f *RedactingWriter) RegisterReplacer(r cleaner.Replacer) {
+func (f *RedactingWriter) RegisterReplacer(r scrubber.Replacer) {
 	f.r = append(f.r, r)
 }
 
@@ -79,7 +79,7 @@ func (f *RedactingWriter) Write(p []byte) (int, error) {
 		return 0, errors.New("No viable target defined")
 	}
 
-	cleaned, err := cleaner.CredentialsCleanerBytes(p)
+	cleaned, err := scrubber.ScrubBytes(p)
 	if err != nil {
 		return 0, err
 	}

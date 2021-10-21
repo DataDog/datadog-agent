@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package cleaner
+package scrubber
 
 import (
 	"io/ioutil"
@@ -16,40 +16,40 @@ import (
 )
 
 func TestRepl(t *testing.T) {
-	cleaner := New()
-	cleaner.AddReplacer(SingleLine, Replacer{
+	scrubber := New()
+	scrubber.AddReplacer(SingleLine, Replacer{
 		Regex: regexp.MustCompile("foo"),
 		Repl:  []byte("bar"),
 	})
-	res, err := cleaner.CredentialsCleanerBytes([]byte("dog food"))
+	res, err := scrubber.ScrubBytes([]byte("dog food"))
 	require.NoError(t, err)
 	require.Equal(t, "dog bard", string(res))
 }
 
 func TestReplFunc(t *testing.T) {
-	cleaner := New()
-	cleaner.AddReplacer(SingleLine, Replacer{
+	scrubber := New()
+	scrubber.AddReplacer(SingleLine, Replacer{
 		Regex: regexp.MustCompile("foo"),
 		ReplFunc: func(match []byte) []byte {
 			return []byte(strings.ToUpper(string(match)))
 		},
 	})
-	res, err := cleaner.CredentialsCleanerBytes([]byte("dog food"))
+	res, err := scrubber.ScrubBytes([]byte("dog food"))
 	require.NoError(t, err)
 	require.Equal(t, "dog FOOd", string(res))
 }
 
 func TestSkipCommentsAndBlanks(t *testing.T) {
-	cleaner := New()
-	cleaner.AddReplacer(SingleLine, Replacer{
+	scrubber := New()
+	scrubber.AddReplacer(SingleLine, Replacer{
 		Regex: regexp.MustCompile("foo"),
 		Repl:  []byte("bar"),
 	})
-	cleaner.AddReplacer(MultiLine, Replacer{
+	scrubber.AddReplacer(MultiLine, Replacer{
 		Regex: regexp.MustCompile("with bar\nanother"),
 		Repl:  []byte("..."),
 	})
-	res, err := cleaner.CredentialsCleanerBytes([]byte("a line with foo\n\n  \n  # a comment with foo\nanother line"))
+	res, err := scrubber.ScrubBytes([]byte("a line with foo\n\n  \n  # a comment with foo\nanother line"))
 	require.NoError(t, err)
 	require.Equal(t, "a line ... line", string(res))
 }
@@ -59,27 +59,27 @@ func TestCleanFile(t *testing.T) {
 	filename := filepath.Join(dir, "test.yml")
 	ioutil.WriteFile(filename, []byte("a line with foo\n\na line with bar"), 0666)
 
-	cleaner := New()
-	cleaner.AddReplacer(SingleLine, Replacer{
+	scrubber := New()
+	scrubber.AddReplacer(SingleLine, Replacer{
 		Regex: regexp.MustCompile("foo"),
 		Repl:  []byte("bar"),
 	})
-	res, err := cleaner.CredentialsCleanerFile(filename)
+	res, err := scrubber.ScrubFile(filename)
 	require.NoError(t, err)
 	require.Equal(t, "a line with bar\na line with bar", string(res))
 }
 
-func TestSanitizeURL(t *testing.T) {
-	cleaner := New()
-	cleaner.AddReplacer(SingleLine, Replacer{
+func TestScrubURL(t *testing.T) {
+	scrubber := New()
+	scrubber.AddReplacer(SingleLine, Replacer{
 		Regex: regexp.MustCompile(`([A-Za-z][A-Za-z0-9+-.]+\:\/\/|\b)([^\:]+)\:([^\s]+)\@`),
 		Repl:  []byte(`$1$2:********@`),
 	})
 	// this replacer should not be used on URLs!
-	cleaner.AddReplacer(MultiLine, Replacer{
+	scrubber.AddReplacer(MultiLine, Replacer{
 		Regex: regexp.MustCompile(".*"),
 		Repl:  []byte("UHOH"),
 	})
-	res := cleaner.SanitizeURL("https://foo:bar@example.com")
+	res := scrubber.ScrubURL("https://foo:bar@example.com")
 	require.Equal(t, "https://foo:********@example.com", string(res))
 }

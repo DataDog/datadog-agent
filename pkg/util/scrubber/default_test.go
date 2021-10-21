@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package cleaner
+package scrubber
 
 import (
 	"os"
@@ -15,7 +15,7 @@ import (
 )
 
 func assertClean(t *testing.T, contents, cleanContents string) {
-	cleaned, err := CredentialsCleanerBytes([]byte(contents))
+	cleaned, err := ScrubBytes([]byte(contents))
 	assert.Nil(t, err)
 	cleanedString := string(cleaned)
 
@@ -296,7 +296,7 @@ func TestSNMPConfig(t *testing.T) {
 
 func TestYamlConfig(t *testing.T) {
 	contents := `foobar: baz`
-	cleaned, err := CredentialsCleanerBytes([]byte(contents))
+	cleaned, err := ScrubBytes([]byte(contents))
 	assert.Nil(t, err)
 	cleanedString := string(cleaned)
 
@@ -383,7 +383,7 @@ log_level: info`
 
 	wd, _ := os.Getwd()
 	filePath := filepath.Join(wd, "test", "datadog.yaml")
-	cleaned, err := CredentialsCleanerFile(filePath)
+	cleaned, err := ScrubFile(filePath)
 	assert.Nil(t, err)
 	cleanedString := string(cleaned)
 

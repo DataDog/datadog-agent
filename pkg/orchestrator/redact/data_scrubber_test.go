@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/cleaner"
+	scrubberpkg "github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 )
@@ -161,7 +161,7 @@ func benchmarkEnvScrubbing(nEnvs int, b *testing.B) {
 	b.Run(fmt.Sprintf("default"), func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			for _, p := range runningEnvs {
-				if scrubbedVal, _ := cleaner.CredentialsCleanerBytes([]byte(p)); scrubbedVal != nil {
+				if scrubbedVal, _ := scrubberpkg.ScrubBytes([]byte(p)); scrubbedVal != nil {
 					c = true
 				}
 

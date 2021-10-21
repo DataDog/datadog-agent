@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package cleaner
+package scrubber
 
 import (
 	"fmt"
@@ -11,10 +11,10 @@ import (
 	"strings"
 )
 
-// DefaultCleaner is the cleaner used by the package-level cleaning functions.
+// DefaultScrubber is the scrubber used by the package-level cleaning functions.
 //
 // It includes a set of agent-specific replacers defined in default.go.
-var DefaultCleaner = &Cleaner{}
+var DefaultScrubber = &Scrubber{}
 
 func init() {
 	hintedAPIKeyReplacer := Replacer{
@@ -63,15 +63,15 @@ func init() {
 		Hints: []string{"BEGIN"},
 		Repl:  []byte(`********`),
 	}
-	DefaultCleaner.AddReplacer(SingleLine, hintedAPIKeyReplacer)
-	DefaultCleaner.AddReplacer(SingleLine, hintedAPPKeyReplacer)
-	DefaultCleaner.AddReplacer(SingleLine, apiKeyReplacer)
-	DefaultCleaner.AddReplacer(SingleLine, appKeyReplacer)
-	DefaultCleaner.AddReplacer(SingleLine, uriPasswordReplacer)
-	DefaultCleaner.AddReplacer(SingleLine, passwordReplacer)
-	DefaultCleaner.AddReplacer(SingleLine, tokenReplacer)
-	DefaultCleaner.AddReplacer(SingleLine, snmpReplacer)
-	DefaultCleaner.AddReplacer(MultiLine, certReplacer)
+	DefaultScrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
+	DefaultScrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
+	DefaultScrubber.AddReplacer(SingleLine, apiKeyReplacer)
+	DefaultScrubber.AddReplacer(SingleLine, appKeyReplacer)
+	DefaultScrubber.AddReplacer(SingleLine, uriPasswordReplacer)
+	DefaultScrubber.AddReplacer(SingleLine, passwordReplacer)
+	DefaultScrubber.AddReplacer(SingleLine, tokenReplacer)
+	DefaultScrubber.AddReplacer(SingleLine, snmpReplacer)
+	DefaultScrubber.AddReplacer(MultiLine, certReplacer)
 }
 
 func matchYAMLKeyPart(part string) *regexp.Regexp {
@@ -97,26 +97,26 @@ func matchCert() *regexp.Regexp {
 	)
 }
 
-// CredentialsCleanerFile scrubs credentials from the given file, using the
-// default cleaner.
-func CredentialsCleanerFile(filePath string) ([]byte, error) {
-	return DefaultCleaner.CredentialsCleanerFile(filePath)
+// ScrubFile scrubs credentials from the given file, using the
+// default scrubber.
+func ScrubFile(filePath string) ([]byte, error) {
+	return DefaultScrubber.ScrubFile(filePath)
 }
 
-// CredentialsCleanerBytes scrubs credentials from the given slice of bytes,
-// using the default cleaner.
-func CredentialsCleanerBytes(file []byte) ([]byte, error) {
-	return DefaultCleaner.CredentialsCleanerBytes(file)
+// ScrubBytes scrubs credentials from the given slice of bytes,
+// using the default scrubber.
+func ScrubBytes(file []byte) ([]byte, error) {
+	return DefaultScrubber.ScrubBytes(file)
 }
 
-// SanitizeURL sanitizes credentials from a message containing a URL, and returns
-// a string that can be logged safely, using the default cleaner.
-func SanitizeURL(url string) string {
-	return DefaultCleaner.SanitizeURL(url)
+// ScrubURL sanitizes credentials from a message containing a URL, and returns
+// a string that can be logged safely, using the default scrubber.
+func ScrubURL(url string) string {
+	return DefaultScrubber.ScrubURL(url)
 }
 
 // AddStrippedKeys adds to the set of YAML keys that will be recognized and have
-// their values stripped.  This modifies the DefaultCleaner directly.
+// their values stripped.  This modifies the DefaultScrubber directly.
 func AddStrippedKeys(strippedKeys []string) {
 	if len(strippedKeys) > 0 {
 		configReplacer := Replacer{
@@ -124,6 +124,6 @@ func AddStrippedKeys(strippedKeys []string) {
 			Hints: strippedKeys,
 			Repl:  []byte(`$1 ********`),
 		}
-		DefaultCleaner.AddReplacer(SingleLine, configReplacer)
+		DefaultScrubber.AddReplacer(SingleLine, configReplacer)
 	}
 }
