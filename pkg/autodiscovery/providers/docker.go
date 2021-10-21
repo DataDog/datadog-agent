@@ -118,9 +118,9 @@ func (d *DockerConfigProvider) processEvents(eventBundle workloadmeta.EventBundl
 		case workloadmeta.EventTypeSet:
 			container := event.Entity.(*workloadmeta.Container)
 
-			d.Lock()
+			d.RLock()
 			_, containerSeen := d.labelCache[container.ID]
-			d.Unlock()
+			d.RUnlock()
 			if containerSeen {
 				// Container restarted with the same ID within 5 seconds.
 				time.AfterFunc(delayDuration, func() {
