@@ -35,7 +35,6 @@ type DockerConfigProvider struct {
 	upToDate          bool
 	streaming         bool
 	labelCache        map[string]map[string]string
-	stop              chan struct{}
 	containerFilter   *containers.Filter
 	once              sync.Once
 }
@@ -89,20 +88,8 @@ func (d *DockerConfigProvider) listen() {
 		case evBundle := <-workloadmetaEventsChannel:
 			d.processEvents(evBundle)
 
-		case <- health.C:
+		case <-health.C:
 
-		case <-d.stop:
-			err := health.Deregister()
-			if err != nil {
-				log.Warnf("error de-registering health check: %s", err)
-			}
-
-			d.workloadmetaStore.Unsubscribe(workloadmetaEventsChannel)
-
-			d.Lock()
-			d.streaming = false
-			health.Deregister() //nolint:errcheck
-			d.Unlock()
 		}
 	}
 }
