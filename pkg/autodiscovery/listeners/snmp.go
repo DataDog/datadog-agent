@@ -426,6 +426,8 @@ func (s *SNMPService) GetExtraConfig(key []byte) ([]byte, error) {
 		return []byte(convertToCommaSepTags(s.config.Tags)), nil
 	case "min_collection_interval":
 		return []byte(fmt.Sprintf("%d", s.config.MinCollectionInterval)), nil
+	case "disable_global_tags":
+		return []byte(strconv.FormatBool(s.config.DisableGlobalTags)), nil
 	}
 	return []byte{}, ErrNotSupported
 }

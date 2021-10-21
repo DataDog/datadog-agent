@@ -71,6 +71,9 @@ type Config struct {
 	Tags                        []string `mapstructure:"tags"`
 	MinCollectionInterval       uint     `mapstructure:"min_collection_interval"`
 
+	// DisableGlobalTags disables adding the global host tags defined via tags/DD_TAG in the Agent config, default false.
+	DisableGlobalTags bool `mapstructure:"disable_global_tags"`
+
 	// Legacy
 	NetworkLegacy      string `mapstructure:"network"`
 	VersionLegacy      string `mapstructure:"version"`

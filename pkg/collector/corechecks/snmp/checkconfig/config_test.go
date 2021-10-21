@@ -6,6 +6,7 @@
 package checkconfig
 
 import (
+	"bytes"
 	"fmt"
 	"regexp"
 	"testing"
@@ -1525,6 +1526,7 @@ func TestCheckConfig_Copy(t *testing.T) {
 		ResolvedSubnetName:    "1.2.3.4/28",
 		AutodetectProfile:     true,
 		MinCollectionInterval: 120,
+		DisableGlobalTags:     true,
 	}
 	configCopy := config.Copy()
 
@@ -1563,6 +1565,7 @@ func TestCheckConfig_Copy(t *testing.T) {
 	assert.Equal(t, config.ResolvedSubnetName, configCopy.ResolvedSubnetName)
 	assert.Equal(t, config.AutodetectProfile, configCopy.AutodetectProfile)
 	assert.Equal(t, config.MinCollectionInterval, configCopy.MinCollectionInterval)
+	assert.Equal(t, config.DisableGlobalTags, configCopy.DisableGlobalTags)
 }
 
 func TestCheckConfig_CopyWithNewIP(t *testing.T) {
@@ -1609,4 +1612,81 @@ func TestCheckConfig_getResolvedSubnetName(t *testing.T) {
 			assert.Equal(t, tt.expectedSubnetName, c.getResolvedSubnetName())
 		})
 	}
+}
+
+func Test_buildConfig_disableGlobalTags(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// Default case
+	// language=yaml
+	rawInitConfig := []byte(``)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, false, config.DisableGlobalTags)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+disable_global_tags: true
+`)
+	// language=yaml
+	rawInitConfig = []byte(``)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, true, config.DisableGlobalTags)
+}
+
+func TestCheckConfig_GetAgentLevelTags(t *testing.T) {
+	// Setup Agent Tags
+	datadogYaml := `
+tags:
+ - agent_tag1:val1
+ - agent_tag2:val2
+extra_tags:
+ - agent_extratag1:val1
+ - agent_extratag2:val2
+`
+	coreconfig.Datadog.SetConfigType("yaml")
+	err := coreconfig.Datadog.ReadConfig(bytes.NewBuffer([]byte(datadogYaml)))
+	assert.NoError(t, err)
+	defer func() {
+		err = coreconfig.Datadog.ReadConfig(bytes.NewBuffer([]byte("")))
+		assert.NoError(t, err)
+	}()
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig := []byte(``)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+
+	tags := config.GetAgentLevelTags()
+	assert.ElementsMatch(t, tags, []string{
+		"agent_extratag1:val1",
+		"agent_extratag2:val2",
+		"agent_tag1:val1",
+		"agent_tag2:val2",
+	})
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+disable_global_tags: true
+`)
+	// language=yaml
+	rawInitConfig = []byte(``)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+
+	tags = config.GetAgentLevelTags()
+	assert.ElementsMatch(t, tags, []string{})
 }

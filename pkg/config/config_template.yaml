@@ -768,6 +768,12 @@ api_key:
     #
     # namespace: default
 
+    ## @param disable_global_tags - boolean - optional - default: false
+    ## DisableGlobalTags disables adding the global host tags defined via tags/DD_TAG
+    ## in the Agent config.
+    #
+    # disable_global_tags: false
+
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
 ## Enter specific configurations for internal profiling.

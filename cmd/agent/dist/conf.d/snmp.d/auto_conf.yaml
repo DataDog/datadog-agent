@@ -125,3 +125,9 @@ instances:
     ## service checks. This enables custom tags. It overrides any `hostname` tag.
     #
     use_device_id_as_hostname: "%%extra_use_device_id_as_hostname%%"
+
+    ## @param disable_global_tags - boolean - optional - default: false
+    ## DisableGlobalTags disables adding the global host tags defined via tags/DD_TAG
+    ## in the Agent config.
+    #
+    disable_global_tags: "%%extra_disable_global_tags%%"

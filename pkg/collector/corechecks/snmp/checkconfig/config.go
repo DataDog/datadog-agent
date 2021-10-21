@@ -112,6 +112,9 @@ type InstanceConfig struct {
 	DiscoveryWorkers         int      `yaml:"discovery_workers"`
 	Workers                  int      `yaml:"workers"`
 	Namespace                string   `yaml:"namespace"`
+
+	// DisableGlobalTags disables adding the global host tags defined via tags/DD_TAG in the Agent config, default false.
+	DisableGlobalTags Boolean `yaml:"disable_global_tags"`
 }
 
 // CheckConfig holds config needed for an integration instance to run
@@ -154,6 +157,7 @@ type CheckConfig struct {
 	DiscoveryInterval        int
 	IgnoredIPAddresses       map[string]bool
 	DiscoveryAllowedFailures int
+	DisableGlobalTags        bool
 }
 
 // RefreshWithProfile refreshes config based on profile
@@ -397,6 +401,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, fmt.Errorf("namespace cannot be empty")
 	}
 
+	c.DisableGlobalTags = bool(instance.DisableGlobalTags)
+
 	// metrics Configs
 	if instance.UseGlobalMetrics {
 		c.Metrics = append(c.Metrics, initConfig.GlobalMetrics...)
@@ -560,6 +566,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.Namespace = c.Namespace
 	newConfig.AutodetectProfile = c.AutodetectProfile
 	newConfig.MinCollectionInterval = c.MinCollectionInterval
+	newConfig.DisableGlobalTags = c.DisableGlobalTags
 
 	return &newConfig
 }
@@ -579,6 +586,9 @@ func (c *CheckConfig) IsDiscovery() bool {
 
 // GetAgentLevelTags return agent level tags
 func (c *CheckConfig) GetAgentLevelTags() []string {
+	if c.DisableGlobalTags {
+		return []string{}
+	}
 	return coreconfig.GetConfiguredTags(false)
 }
 

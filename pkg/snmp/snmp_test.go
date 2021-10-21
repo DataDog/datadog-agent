@@ -266,6 +266,37 @@ snmp_listener:
 	assert.Equal(t, "mononoke", conf.Configs[1].Namespace)
 }
 
+func Test_DisableGlobalTagsConfig(t *testing.T) {
+	// Default Namespace
+	config.Datadog.SetConfigType("yaml")
+	err := config.Datadog.ReadConfig(strings.NewReader(`
+snmp_listener:
+  configs:
+   - community_string: someCommunityString
+     network_address: 127.1.0.0/30
+`))
+	assert.NoError(t, err)
+	conf, err := NewListenerConfig()
+	assert.NoError(t, err)
+	networkConf := conf.Configs[0]
+	assert.Equal(t, false, networkConf.DisableGlobalTags)
+
+	// Custom Namespace in network_devices
+	config.Datadog.SetConfigType("yaml")
+	err = config.Datadog.ReadConfig(strings.NewReader(`
+snmp_listener:
+  configs:
+    - community_string: somxeCommunityString
+      network_address: 127.1.0.0/30
+      disable_global_tags: true
+`))
+	assert.NoError(t, err)
+	conf, err = NewListenerConfig()
+	assert.NoError(t, err)
+	networkConf = conf.Configs[0]
+	assert.Equal(t, true, networkConf.DisableGlobalTags)
+}
+
 func TestFirstNonEmpty(t *testing.T) {
 	assert.Equal(t, firstNonEmpty(), "")
 	assert.Equal(t, firstNonEmpty("totoro"), "totoro")
