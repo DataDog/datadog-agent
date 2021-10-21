@@ -20,7 +20,6 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/gorilla/mux"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -190,8 +189,7 @@ func getCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	var file []byte
 	var e error
 	for _, path := range configPaths {
-		filePath, _ := securejoin.SecureJoin(path, fileName)
-		file, e = ioutil.ReadFile(filePath)
+		file, e = ioutil.ReadFile(filepath.Join(path, fileName))
 		if e == nil {
 			break
 		}
@@ -252,13 +250,13 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Attempt to write new configs to custom checks directory
-		path, _ := securejoin.SecureJoin(checkConfFolderPath, fileName)
+		path := filepath.Join(checkConfFolderPath, fileName)
 		os.MkdirAll(checkConfFolderPath, os.FileMode(0755)) //nolint:errcheck
 		e = ioutil.WriteFile(path, data, 0600)
 
 		// If the write didn't work, try writing to the default checks directory
 		if e != nil && strings.Contains(e.Error(), "no such file or directory") {
-			path, _ = securejoin.SecureJoin(defaultCheckConfFolderPath, fileName)
+			path = filepath.Join(defaultCheckConfFolderPath, fileName)
 			os.MkdirAll(defaultCheckConfFolderPath, os.FileMode(0755)) //nolint:errcheck
 			e = ioutil.WriteFile(path, data, 0600)
 		}
@@ -273,12 +271,12 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Success"))
 	} else if r.Method == "DELETE" {
 		// Attempt to write new configs to custom checks directory
-		path, _ := securejoin.SecureJoin(checkConfFolderPath, fileName)
+		path := filepath.Join(checkConfFolderPath, fileName)
 		e := os.Rename(path, path+".disabled")
 
 		// If the move didn't work, try writing to the dev checks directory
 		if e != nil {
-			path, _ = securejoin.SecureJoin(defaultCheckConfFolderPath, fileName)
+			path = filepath.Join(defaultCheckConfFolderPath, fileName)
 			e = os.Rename(path, path+".disabled")
 		}
 
