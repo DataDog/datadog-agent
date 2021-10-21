@@ -13,14 +13,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -31,18 +31,16 @@ const (
 // DockerConfigProvider implements the ConfigProvider interface for the docker labels.
 type DockerConfigProvider struct {
 	sync.RWMutex
-	dockerUtil      *docker.DockerUtil
-	upToDate        bool
-	streaming       bool
-	health          *health.Handle
-	labelCache      map[string]map[string]string
-	syncInterval    int
-	syncCounter     int
-	containerFilter *containers.Filter
+	workloadmetaStore workloadmeta.Store
+	upToDate          bool
+	streaming         bool
+	health            *health.Handle
+	labelCache        map[string]map[string]string
+	stop              chan struct{}
+	containerFilter   *containers.Filter
+	once              sync.Once
 }
 
-// NewDockerConfigProvider returns a new ConfigProvider connected to docker.
-// Connectivity is not checked at this stage to allow for retries, Collect will do it.
 func NewDockerConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
 	containerFilter, err := containers.NewAutodiscoveryFilter(containers.GlobalFilter)
 	if err != nil {
@@ -50,9 +48,9 @@ func NewDockerConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 	}
 
 	return &DockerConfigProvider{
-		// periodically resync every 30 runs if we're missing events
-		syncInterval:    30,
-		containerFilter: containerFilter,
+		workloadmetaStore: workloadmeta.GetGlobalStore(),
+		labelCache:        make(map[string]map[string]string),
+		containerFilter:   containerFilter,
 	}, nil
 }
 
@@ -63,115 +61,86 @@ func (d *DockerConfigProvider) String() string {
 
 // Collect retrieves all running containers and extract AD templates from their labels.
 func (d *DockerConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
-	var err error
-	firstCollection := false
+	d.once.Do(func() {
+		go d.listen()
+	})
 
 	d.Lock()
-	if d.dockerUtil == nil {
-		d.dockerUtil, err = docker.GetDockerUtil()
-		if err != nil {
-			d.Unlock()
-			return []integration.Config{}, err
-		}
-		firstCollection = true
-	}
-
-	var containers map[string]map[string]string
-	// on the first run we collect all labels, then rely on individual events to
-	// avoid listing all containers too often
-	if d.labelCache == nil || d.syncCounter == d.syncInterval {
-		containers, err = d.dockerUtil.AllContainerLabels(ctx)
-		if err != nil {
-			d.Unlock()
-			return []integration.Config{}, err
-		}
-		d.labelCache = containers
-		d.syncCounter = 0
-	} else {
-		containers = d.labelCache
-	}
-
-	d.syncCounter++
 	d.upToDate = true
 	d.Unlock()
 
-	// start listening after the first collection to avoid race in cache map init
-	if firstCollection {
-		go d.listen()
-	}
-
 	d.RLock()
 	defer d.RUnlock()
-	return parseDockerLabels(containers)
+	return parseDockerLabels(d.labelCache)
 }
 
-// We listen to docker events and invalidate our cache when we receive a start/die event
 func (d *DockerConfigProvider) listen() {
 	d.Lock()
 	d.streaming = true
 	d.health = health.RegisterLiveness("ad-dockerprovider")
 	d.Unlock()
 
-	ctx, cancel := context.WithCancel(context.Background())
-CONNECT:
-	for {
-		eventChan, errChan, err := d.dockerUtil.SubscribeToContainerEvents(d.String(), d.containerFilter)
-		if err != nil {
-			log.Warnf("error subscribing to docker events: %s", err)
-			break CONNECT // We disable streaming and revert to always-pull behaviour
-		}
+	workloadmetaEventsChannel := d.workloadmetaStore.Subscribe("ad-dockerprovider", workloadmeta.NewFilter(
+		[]workloadmeta.Kind{workloadmeta.KindContainer},
+		[]string{"docker"},
+	))
 
-		for {
-			select {
-			case healthDeadline := <-d.health.C:
-				cancel()
-				ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
-			case ev := <-eventChan:
-				// As our input is the docker `client.ContainerList`, which lists running containers,
-				// only these two event types will change what containers appear.
-				// Container labels cannot change once they are created, so we don't need to react on
-				// other lifecycle events.
-				if ev.Action == docker.ContainerEventActionStart {
-					container, err := d.dockerUtil.Inspect(ctx, ev.ContainerID, false)
-					if err != nil {
-						log.Warnf("Error inspecting container: %s", err)
-					} else {
-						d.Lock()
-						_, containerSeen := d.labelCache[ev.ContainerID]
-						d.Unlock()
-						if containerSeen {
-							// Container restarted with the same ID within 5 seconds.
-							time.AfterFunc(delayDuration, func() {
-								d.addLabels(ev.ContainerID, container.Config.Labels)
-							})
-						} else {
-							d.addLabels(ev.ContainerID, container.Config.Labels)
-						}
-					}
-				} else if ev.Action == docker.ContainerEventActionDie || ev.Action == docker.ContainerEventActionDied {
-					// delay for short lived detection
-					time.AfterFunc(delayDuration, func() {
-						d.Lock()
-						delete(d.labelCache, ev.ContainerID)
-						d.upToDate = false
-						d.Unlock()
-					})
-				}
-			case err := <-errChan:
-				log.Warnf("Error getting docker events: %s", err)
-				d.Lock()
-				d.upToDate = false
-				d.Unlock()
-				continue CONNECT // Re-connect to dockerutils
+	for {
+		select {
+		case evBundle := <-workloadmetaEventsChannel:
+			d.processEvents(evBundle)
+
+		case <-d.health.C:
+
+		case <-d.stop:
+			err := d.health.Deregister()
+			if err != nil {
+				log.Warnf("error de-registering health check: %s", err)
 			}
+
+			d.workloadmetaStore.Unsubscribe(workloadmetaEventsChannel)
+
+			d.Lock()
+			d.streaming = false
+			d.health.Deregister() //nolint:errcheck
+			d.Unlock()
+		}
+	}
+}
+
+func (d *DockerConfigProvider) processEvents(eventBundle workloadmeta.EventBundle) {
+	close(eventBundle.Ch)
+
+	for _, event := range eventBundle.Events {
+		containerID := event.Entity.GetID().ID
+
+		switch event.Type {
+		case workloadmeta.EventTypeSet:
+			container := event.Entity.(*workloadmeta.Container)
+
+			d.Lock()
+			_, containerSeen := d.labelCache[container.ID]
+			d.Unlock()
+			if containerSeen {
+				// Container restarted with the same ID within 5 seconds.
+				time.AfterFunc(delayDuration, func() {
+					d.addLabels(containerID, container.Labels)
+				})
+			} else {
+				d.addLabels(containerID, container.Labels)
+			}
+
+		case workloadmeta.EventTypeUnset:
+			// delay for short-lived detection
+			time.AfterFunc(delayDuration, func() {
+				d.deleteLabels(containerID)
+			})
+
+		default:
+			log.Errorf("cannot handle event of type %d", event.Type)
 		}
 	}
 
-	d.Lock()
-	d.streaming = false
-	d.health.Deregister() //nolint:errcheck
-	d.Unlock()
-	cancel()
 }
 
 // IsUpToDate checks whether we have new containers to parse, based on events received by the listen goroutine.
@@ -179,7 +148,7 @@ CONNECT:
 func (d *DockerConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	d.RLock()
 	defer d.RUnlock()
-	return (d.streaming && d.upToDate), nil
+	return d.streaming && d.upToDate, nil
 }
 
 // addLabels updates the label cache for a given container
@@ -190,14 +159,21 @@ func (d *DockerConfigProvider) addLabels(containerID string, labels map[string]s
 	d.upToDate = false
 }
 
-func parseDockerLabels(containers map[string]map[string]string) ([]integration.Config, error) {
+func (d *DockerConfigProvider) deleteLabels(containerID string) {
+	d.Lock()
+	defer d.Unlock()
+	delete(d.labelCache, containerID)
+	d.upToDate = false
+}
+
+func parseDockerLabels(containerLabels map[string]map[string]string) ([]integration.Config, error) {
 	var configs []integration.Config
-	for cID, labels := range containers {
-		dockerEntityName := docker.ContainerIDToEntityName(cID)
+	for containerID, labels := range containerLabels {
+		dockerEntityName := docker.ContainerIDToEntityName(containerID)
 		c, errors := extractTemplatesFromMap(dockerEntityName, labels, dockerADLabelPrefix)
 
 		for _, err := range errors {
-			log.Errorf("Can't parse template for container %s: %s", cID, err)
+			log.Errorf("Can't parse template for container %s: %s", containerID, err)
 		}
 
 		for idx := range c {
