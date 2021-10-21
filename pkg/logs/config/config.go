@@ -184,13 +184,29 @@ func buildTCPEndpoints(logsConfig *LogsConfigKeys) (*Endpoints, error) {
 		main.UseSSL = !logsConfig.devModeNoSSL()
 	}
 
+	backup := main
+
+	if logsDDURL, defined := logsConfig.logsDDURLBackup(); defined {
+		// Proxy settings, expect 'logs_config.logs_dd_url' to respect the format '<HOST>:<PORT>'
+		// and '<PORT>' to be an integer.
+		// By default ssl is enabled ; to disable ssl set 'logs_config.logs_no_ssl' to true.
+		host, port, err := parseAddress(logsDDURL)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
+		}
+		backup.Host = host
+		backup.Port = port
+		backup.UseSSL = !logsConfig.logsNoSSL()
+
+	}
+
 	additionals := logsConfig.getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
 		additionals[i].ProxyAddress = proxyAddress
 		additionals[i].APIKey = coreConfig.SanitizeAPIKey(additionals[i].APIKey)
 	}
-	return NewEndpoints(main, additionals, useProto, false), nil
+	return NewEndpoints(main, backup, additionals, useProto, false), nil
 }
 
 // BuildHTTPEndpoints returns the HTTP endpoints to send logs to.
@@ -237,6 +253,8 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 		main.UseSSL = !logsConfig.devModeNoSSL()
 	}
 
+	backup := main
+
 	additionals := logsConfig.getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
@@ -256,7 +274,7 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 	batchMaxSize := logsConfig.batchMaxSize()
 	batchMaxContentSize := logsConfig.batchMaxContentSize()
 
-	return NewEndpointsWithBatchSettings(main, additionals, false, true, batchWait, batchMaxConcurrentSend, batchMaxSize, batchMaxContentSize), nil
+	return NewEndpointsWithBatchSettings(main, backup, additionals, false, true, batchWait, batchMaxConcurrentSend, batchMaxSize, batchMaxContentSize), nil
 }
 
 // parseAddress returns the host and the port of the address.

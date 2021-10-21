@@ -57,6 +57,11 @@ func (l *LogsConfigKeys) logsDDURL() (string, bool) {
 	return l.getConfig().GetString(configKey), l.isSetAndNotEmpty(configKey)
 }
 
+func (l *LogsConfigKeys) logsDDURLBackup() (string, bool) {
+	configKey := l.getConfigKey("logs_dd_url_backup")
+	return l.getConfig().GetString(configKey), l.isSetAndNotEmpty(configKey)
+}
+
 func (l *LogsConfigKeys) ddPort() int {
 	return l.getConfig().GetInt(l.getConfigKey("dd_port"))
 }

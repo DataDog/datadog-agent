@@ -20,9 +20,10 @@ import (
 
 // Pipeline processes and sends messages to the backend
 type Pipeline struct {
-	InputChan chan *message.Message
-	processor *processor.Processor
-	sender    *sender.Sender
+	InputChan   chan *message.Message
+	processor   *processor.Processor
+	sender      *sender.Sender
+	extraSender *sender.Sender
 }
 
 // NewPipeline returns a new Pipeline
@@ -45,6 +46,8 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	}
 
 	senderChan := make(chan *message.Message, config.ChanSize)
+	senderSplit1 := make(chan *message.Message, config.ChanSize)
+	senderSplit2 := make(chan *message.Message, config.ChanSize)
 
 	var strategy sender.Strategy
 	if endpoints.UseHTTP || serverless {
@@ -52,7 +55,14 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	} else {
 		strategy = sender.StreamStrategy
 	}
-	sender := sender.NewSender(senderChan, outputChan, destinations, strategy)
+
+	sender.SplitChannel(senderChan, senderSplit1, senderSplit2)
+	sender1 := sender.NewSender(senderSplit1, outputChan, destinations, strategy)
+
+	backup := http.NewDestination(endpoints.Backup, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
+	destinations1 := client.NewDestinations(backup, []client.Destination{})
+
+	sender2 := sender.NewSender(senderSplit2, outputChan, destinations1, strategy)
 
 	var encoder processor.Encoder
 	if serverless {
@@ -69,9 +79,10 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	processor := processor.New(inputChan, senderChan, processingRules, encoder, diagnosticMessageReceiver)
 
 	return &Pipeline{
-		InputChan: inputChan,
-		processor: processor,
-		sender:    sender,
+		InputChan:   inputChan,
+		processor:   processor,
+		sender:      sender1,
+		extraSender: sender2,
 	}
 }
 

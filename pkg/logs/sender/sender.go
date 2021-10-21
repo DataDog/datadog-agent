@@ -96,3 +96,28 @@ func (s *Sender) send(payload []byte) error {
 func shouldStopSending(err error) bool {
 	return err == context.Canceled
 }
+
+// SplitChannel splits a single stream of message into 2 equal streams.
+// Acts like an AND gate in that the input will only block if both outputs block.
+// This ensures backpressure is propagated to the input to prevent loss of measages in the pipeline.
+func SplitChannel(inputChan chan *message.Message, output1 chan *message.Message, output2 chan *message.Message) {
+	go func() {
+		for v := range inputChan {
+			select {
+			case output1 <- v:
+				select {
+				case output2 <- v:
+				default:
+					continue
+				}
+			case output2 <- v:
+				select {
+				case output1 <- v:
+				default:
+					continue
+				}
+			}
+
+		}
+	}()
+}

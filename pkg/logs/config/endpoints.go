@@ -57,6 +57,7 @@ type Endpoint struct {
 // Endpoints holds the main endpoint and additional ones to dualship logs.
 type Endpoints struct {
 	Main                   Endpoint
+	Backup                 Endpoint
 	Additionals            []Endpoint
 	UseProto               bool
 	UseHTTP                bool
@@ -67,9 +68,10 @@ type Endpoints struct {
 }
 
 // NewEndpoints returns a new endpoints composite with default batching settings
-func NewEndpoints(main Endpoint, additionals []Endpoint, useProto bool, useHTTP bool) *Endpoints {
+func NewEndpoints(main Endpoint, backup Endpoint, additionals []Endpoint, useProto bool, useHTTP bool) *Endpoints {
 	return &Endpoints{
 		Main:                   main,
+		Backup:                 backup,
 		Additionals:            additionals,
 		UseProto:               useProto,
 		UseHTTP:                useHTTP,
@@ -81,9 +83,10 @@ func NewEndpoints(main Endpoint, additionals []Endpoint, useProto bool, useHTTP 
 }
 
 // NewEndpointsWithBatchSettings returns a new endpoints composite with non-default batching settings specified
-func NewEndpointsWithBatchSettings(main Endpoint, additionals []Endpoint, useProto bool, useHTTP bool, batchWait time.Duration, batchMaxConcurrentSend int, batchMaxSize int, batchMaxContentSize int) *Endpoints {
+func NewEndpointsWithBatchSettings(main Endpoint, backup Endpoint, additionals []Endpoint, useProto bool, useHTTP bool, batchWait time.Duration, batchMaxConcurrentSend int, batchMaxSize int, batchMaxContentSize int) *Endpoints {
 	return &Endpoints{
 		Main:                   main,
+		Backup:                 backup,
 		Additionals:            additionals,
 		UseProto:               useProto,
 		UseHTTP:                useHTTP,
