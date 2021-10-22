@@ -20,6 +20,8 @@ EXCLUDED_FOLDERS = {
     "./pkg/util/containers/providers/cgroup",
     "./pkg/util/containers/providers/windows",
     "./pkg/util/hostname/apiserver",
+    "./pkg/util/log",
+    "./pkg/util/log/zap",
     "./pkg/util/winutil",
     "./pkg/util/winutil/iphelper",
     "./pkg/util/winutil/pdhutil",
