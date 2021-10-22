@@ -1,4 +1,4 @@
-ipackage gui
+package gui
 
 import (
 	"encoding/json"
