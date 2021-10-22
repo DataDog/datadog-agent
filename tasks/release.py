@@ -1427,6 +1427,10 @@ def unfreeze(ctx, major_versions="6,7", patch_version=False, upstream="origin"):
     # Get a release branch name
     release_branch_name = "{}".format(
         str(new_version.major) + "." + str(new_version.minor) + ".x")
+    # Get a release branch name
+    release_branch_name = "{}".format(
+        str(new_version.major) + "." + str(new_version.minor) + ".x")
+    
 
     # Step 0: checks
 
@@ -1451,6 +1455,12 @@ def unfreeze(ctx, major_versions="6,7", patch_version=False, upstream="origin"):
     ):
         raise Exit(color_message("Aborting.", "red"), code=1)
 
+    # Step 1: Create release branch
     repos = ["datadog-agent", "omnibus-software", "omnibus-ruby"]
     for repo in repos:
-        create_release_branch(ctx, repo, release_branch_name + "_test")
+        #create_release_branch(ctx, repo, release_branch_name + "_test")
+    
+    # Step 2: Empty commit in datadog-agent repo (main)
+
+    # Step 3: Create tags for next version
+    
