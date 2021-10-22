@@ -22,6 +22,7 @@ EXCLUDED_FOLDERS = {
     "./pkg/util/hostname/apiserver",
     "./pkg/util/log",
     "./pkg/util/log/zap",
+    "./pkg/util/scrubber",
     "./pkg/util/winutil",
     "./pkg/util/winutil/iphelper",
     "./pkg/util/winutil/pdhutil",

@@ -13,9 +13,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
@@ -155,16 +157,16 @@ func TestLogBufferWithContext(t *testing.T) {
 	assert.Equal(t, strings.Count(b.String(), "baz"), 5)
 }
 
-// Set up for scrubbing tests, by temporarily setting Scrubber
+// Set up for scrubbing tests, by temporarily setting Scrubber; this avoids testing
+// the default scrubber's functionality in this module
 func setupScrubbing(t *testing.T) {
-	oldScrubber := Scrubber
-	Scrubber = func(message []byte) ([]byte, error) {
-		m := string(message)
-		m = strings.ReplaceAll(m, "SECRET", "******")
-		return []byte(m), nil
-	}
-
-	t.Cleanup(func() { Scrubber = oldScrubber })
+	oldScrubber := scrubber.DefaultScrubber
+	scrubber.DefaultScrubber = scrubber.New()
+	scrubber.DefaultScrubber.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
+		Regex: regexp.MustCompile("SECRET"),
+		Repl:  []byte("******"),
+	})
+	t.Cleanup(func() { scrubber.DefaultScrubber = oldScrubber })
 }
 
 func TestCredentialScrubbingLogging(t *testing.T) {

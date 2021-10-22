@@ -70,8 +70,9 @@ DEFAULT_MODULES = {
     ".": GoModule(
         ".",
         targets=["./pkg", "./cmd"],
-        dependencies=["pkg/util/log", "pkg/util/winutil", "pkg/quantile", "pkg/otlp/model"],
+        dependencies=["pkg/util/scrubber", "pkg/util/log", "pkg/util/winutil", "pkg/quantile", "pkg/otlp/model"],
     ),
+    "pkg/util/scrubber": GoModule("pkg/util/scrubber"),
     "pkg/util/log": GoModule("pkg/util/log"),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "pkg/util/winutil": GoModule(

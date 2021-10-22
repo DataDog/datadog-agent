@@ -5,6 +5,10 @@
 
 // Package scrubber implements support for cleaning sensitive information out of strings
 // and files.
+//
+// Compatibility
+//
+// This module's API is not yet stable, and may change incompatibly from version to version.
 package scrubber
 
 import (
