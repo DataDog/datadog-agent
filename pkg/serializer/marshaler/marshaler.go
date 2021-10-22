@@ -28,7 +28,7 @@ type MarshalerProto interface {
 }
 
 type AbstractMarshaler interface {
-	SplitPayload(int) ([]Marshaler, error)
+	SplitPayload(int) ([]AbstractMarshaler, error)
 	MarshalSplitCompress(*BufferContext) ([]*[]byte, error)
 }
 

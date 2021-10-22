@@ -43,7 +43,7 @@ func (p *Payload) Marshal() ([]byte, error) {
 }
 
 // SplitPayload breaks the payload into times number of pieces
-func (p *Payload) SplitPayload(times int) ([]marshaler.Marshaler, error) {
+func (p *Payload) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	return nil, fmt.Errorf("Inventories Payload splitting is not implemented")
 }
 

@@ -153,7 +153,7 @@ func (series Series) MarshalJSON() ([]byte, error) {
 }
 
 // SplitPayload breaks the payload into, at least, "times" number of pieces
-func (series Series) SplitPayload(times int) ([]marshaler.Marshaler, error) {
+func (series Series) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	seriesExpvar.Add("TimesSplit", 1)
 	tlmSeries.Inc("times_split")
 
@@ -177,7 +177,7 @@ func (series Series) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 
 	nbSeriesPerPayload := len(series) / times
 
-	payloads := []marshaler.Marshaler{}
+	payloads := []marshaler.AbstractMarshaler{}
 	current := Series{}
 	for _, m := range metricsPerName {
 		// If on metric is bigger than the targeted size we directly
