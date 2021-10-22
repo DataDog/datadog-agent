@@ -29,3 +29,10 @@ func getRuntimeCompiledProbe(config *config.Config, useSyscallWrapper bool) (byt
 
 	return runtime.RuntimeSecurity.Compile(&config.Config, cflags)
 }
+
+func getRuntimeCompiledConstants(config *config.Config) (map[string]uint64, error) {
+	constantFetcher := NewRuntimeCompilationConstantFetcher(&config.Config)
+	constantFetcher.AppendSizeofRequest("inode_size", "struct inode", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest("magic_super_block_offset", "struct super_block", "s_magic", "linux/fs.h")
+	return constantFetcher.FinishAndGetResults()
+}
