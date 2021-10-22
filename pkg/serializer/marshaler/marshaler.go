@@ -13,8 +13,21 @@ import (
 
 // Marshaler is an interface for metrics that are able to serialize themselves to JSON and protobuf
 type Marshaler interface {
+	MarshalerJSON
+	MarshalerProto
+}
+
+type MarshalerJSON interface {
+	AbstractMarshaler
 	MarshalJSON() ([]byte, error)
+}
+
+type MarshalerProto interface {
+	AbstractMarshaler
 	Marshal() ([]byte, error)
+}
+
+type AbstractMarshaler interface {
 	SplitPayload(int) ([]Marshaler, error)
 	MarshalSplitCompress(*BufferContext) ([]*[]byte, error)
 }

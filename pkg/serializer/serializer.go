@@ -168,7 +168,7 @@ func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool,
 	return s.serializePayloadProto(payload, compress)
 }
 
-func (s Serializer) serializePayloadJSON(payload marshaler.Marshaler, compress bool) (forwarder.Payloads, http.Header, error) {
+func (s Serializer) serializePayloadJSON(payload marshaler.MarshalerJSON, compress bool) (forwarder.Payloads, http.Header, error) {
 	var extraHeaders http.Header
 
 	if compress {
@@ -180,7 +180,7 @@ func (s Serializer) serializePayloadJSON(payload marshaler.Marshaler, compress b
 	return s.serializePayloadInternal(payload, compress, extraHeaders, split.JSONMarshalFct)
 }
 
-func (s Serializer) serializePayloadProto(payload marshaler.Marshaler, compress bool) (forwarder.Payloads, http.Header, error) {
+func (s Serializer) serializePayloadProto(payload marshaler.MarshalerProto, compress bool) (forwarder.Payloads, http.Header, error) {
 	var extraHeaders http.Header
 	if compress {
 		extraHeaders = protobufExtraHeadersWithCompression
@@ -190,7 +190,7 @@ func (s Serializer) serializePayloadProto(payload marshaler.Marshaler, compress 
 	return s.serializePayloadInternal(payload, compress, extraHeaders, split.ProtoMarshalFct)
 }
 
-func (s Serializer) serializePayloadInternal(payload marshaler.Marshaler, compress bool, extraHeaders http.Header, marshalFct split.MarshalFct) (forwarder.Payloads, http.Header, error) {
+func (s Serializer) serializePayloadInternal(payload marshaler.AbstractMarshaler, compress bool, extraHeaders http.Header, marshalFct split.MarshalFct) (forwarder.Payloads, http.Header, error) {
 	payloads, err := split.Payloads(payload, compress, marshalFct)
 
 	if err != nil {
