@@ -427,7 +427,6 @@ func TestTCPCollectionDisabled(t *testing.T) {
 
 func TestUDPSendAndReceive(t *testing.T) {
 	// incoming.MonotonicSentBytes is 0, when it should be 512
-	skipIfWindows(t)
 
 	// Enable BPF-based system probe
 	cfg := testConfig()
