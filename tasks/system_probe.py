@@ -677,6 +677,7 @@ def replace_cgo_tag_absolute_path(file_path, absolute_path, relative_path):
     f.write(res)
     f.close()
 
+
 @task
 def generate_cgo_types(ctx, windows=is_windows, replace_absolutes=True):
     if windows:
