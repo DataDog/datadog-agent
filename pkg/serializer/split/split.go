@@ -23,11 +23,14 @@ var maxPayloadSizeUnCompressed = 64 * 1024 * 1024
 // MarshalFct marshal m. Must be either JSONMarshalFct or ProtoMarshalFct.
 type MarshalFct func(m marshaler.AbstractMarshaler) ([]byte, error)
 
+// JSONMarshalFct marshal with MarshalJSON method.
 func JSONMarshalFct(m marshaler.AbstractMarshaler) ([]byte, error) {
-	return (m.(marshaler.MarshalerJSON)).MarshalJSON()
+	return (m.(marshaler.JSONMarshaler)).MarshalJSON()
 }
+
+// ProtoMarshalFct marshal with Marshal method.
 func ProtoMarshalFct(m marshaler.AbstractMarshaler) ([]byte, error) {
-	return (m.(marshaler.MarshalerProto)).Marshal()
+	return (m.(marshaler.ProtoMarshaler)).Marshal()
 }
 
 var (

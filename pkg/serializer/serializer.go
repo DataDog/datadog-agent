@@ -95,8 +95,8 @@ type MetricSerializer interface {
 	SendServiceChecks(sc marshaler.StreamJSONMarshaler) error
 	SendSeries(series marshaler.StreamJSONMarshaler) error
 	SendSketch(sketches marshaler.Marshaler) error
-	SendMetadata(m marshaler.MarshalerJSON) error
-	SendHostMetadata(m marshaler.MarshalerJSON) error
+	SendMetadata(m marshaler.JSONMarshaler) error
+	SendHostMetadata(m marshaler.JSONMarshaler) error
 	SendProcessesMetadata(data interface{}) error
 	SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID string, payloadType int) error
 }
@@ -168,7 +168,7 @@ func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool,
 	return s.serializePayloadProto(payload, compress)
 }
 
-func (s Serializer) serializePayloadJSON(payload marshaler.MarshalerJSON, compress bool) (forwarder.Payloads, http.Header, error) {
+func (s Serializer) serializePayloadJSON(payload marshaler.JSONMarshaler, compress bool) (forwarder.Payloads, http.Header, error) {
 	var extraHeaders http.Header
 
 	if compress {
@@ -180,7 +180,7 @@ func (s Serializer) serializePayloadJSON(payload marshaler.MarshalerJSON, compre
 	return s.serializePayloadInternal(payload, compress, extraHeaders, split.JSONMarshalFct)
 }
 
-func (s Serializer) serializePayloadProto(payload marshaler.MarshalerProto, compress bool) (forwarder.Payloads, http.Header, error) {
+func (s Serializer) serializePayloadProto(payload marshaler.ProtoMarshaler, compress bool) (forwarder.Payloads, http.Header, error) {
 	var extraHeaders http.Header
 	if compress {
 		extraHeaders = protobufExtraHeadersWithCompression
@@ -348,21 +348,21 @@ func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
 }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder
-func (s *Serializer) SendMetadata(m marshaler.MarshalerJSON) error {
+func (s *Serializer) SendMetadata(m marshaler.JSONMarshaler) error {
 	return s.sendMetadata(m, s.Forwarder.SubmitMetadata)
 }
 
 // SendHostMetadata serializes a metadata payload and sends it to the forwarder
-func (s *Serializer) SendHostMetadata(m marshaler.MarshalerJSON) error {
+func (s *Serializer) SendHostMetadata(m marshaler.JSONMarshaler) error {
 	return s.sendMetadata(m, s.Forwarder.SubmitHostMetadata)
 }
 
 // SendAgentchecksMetadata serializes a metadata payload and sends it to the forwarder
-func (s *Serializer) SendAgentchecksMetadata(m marshaler.MarshalerJSON) error {
+func (s *Serializer) SendAgentchecksMetadata(m marshaler.JSONMarshaler) error {
 	return s.sendMetadata(m, s.Forwarder.SubmitAgentChecksMetadata)
 }
 
-func (s *Serializer) sendMetadata(m marshaler.MarshalerJSON, submit func(payload forwarder.Payloads, extra http.Header) error) error {
+func (s *Serializer) sendMetadata(m marshaler.JSONMarshaler, submit func(payload forwarder.Payloads, extra http.Header) error) error {
 	mustSplit, compressedPayload, payload, err := split.CheckSizeAndSerialize(m, true, split.JSONMarshalFct)
 	if err != nil {
 		return fmt.Errorf("could not determine size of metadata payload: %s", err)

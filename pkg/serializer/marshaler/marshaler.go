@@ -13,20 +13,23 @@ import (
 
 // Marshaler is an interface for metrics that are able to serialize themselves to JSON and protobuf
 type Marshaler interface {
-	MarshalerJSON
-	MarshalerProto
+	JSONMarshaler
+	ProtoMarshaler
 }
 
-type MarshalerJSON interface {
+// JSONMarshaler is a AbstractMarshaler that implement JSON marshaling.
+type JSONMarshaler interface {
 	AbstractMarshaler
 	MarshalJSON() ([]byte, error)
 }
 
-type MarshalerProto interface {
+// ProtoMarshaler is a AbstractMarshaler that implement proto marshaling.
+type ProtoMarshaler interface {
 	AbstractMarshaler
 	Marshal() ([]byte, error)
 }
 
+// AbstractMarshaler is an abstract marshaler.
 type AbstractMarshaler interface {
 	SplitPayload(int) ([]AbstractMarshaler, error)
 	MarshalSplitCompress(*BufferContext) ([]*[]byte, error)
@@ -34,7 +37,7 @@ type AbstractMarshaler interface {
 
 // StreamJSONMarshaler is an interface for metrics that are able to serialize themselves in a stream
 type StreamJSONMarshaler interface {
-	MarshalerJSON
+	JSONMarshaler
 	WriteHeader(*jsoniter.Stream) error
 	WriteFooter(*jsoniter.Stream) error
 	WriteItem(*jsoniter.Stream, int) error
