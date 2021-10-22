@@ -164,7 +164,8 @@ def test(
 
             with ctx.cd(module.full_path()):
                 vet(ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch)
-                fmt(ctx, targets=module.targets, fail_on_fmt=fail_on_fmt)
+                if fail_on_fmt:
+                    fmt(ctx, targets=module.targets, fail_on_fmt=True)
                 lint(ctx, targets=module.targets)
                 misspell(ctx, targets=module.targets)
                 ineffassign(ctx, targets=module.targets)
