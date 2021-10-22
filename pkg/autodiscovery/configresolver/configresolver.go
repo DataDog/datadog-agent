@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 	"os"
 	"strconv"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
 
 type variableGetter func(ctx context.Context, key []byte, svc listeners.Service) ([]byte, error)
@@ -82,14 +82,14 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		checkNames := svc.GetCheckNames(ctx)
 		lenCheckNames := len(checkNames)
 		if lenCheckNames == 0 || (lenCheckNames == 1 && checkNames[0] == "") {
-			// Empty check names on k8s annotations or docker labels override the check config from file
+			// Empty check names on k8s annotations or container labels override the check config from file
 			// Used to deactivate unneeded OOTB autodiscovery checks defined in files
 			// The checkNames slice is considered empty also if it contains one single empty string
 			return resolvedConfig, "", fmt.Errorf("ignoring config from %s: another empty config is defined with the same AD identifier: %v", tpl.Source, tpl.ADIdentifiers)
 		}
 		for _, checkName := range checkNames {
 			if tpl.Name == checkName {
-				// Ignore config from file when the same check is activated on the same service via other config providers (k8s annotations or docker labels)
+				// Ignore config from file when the same check is activated on the same service via other config providers (k8s annotations or container labels)
 				return resolvedConfig, "", fmt.Errorf("ignoring config from %s: another config is defined for the check %s", tpl.Source, tpl.Name)
 			}
 		}
