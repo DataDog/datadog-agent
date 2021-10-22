@@ -87,7 +87,7 @@ def build(
         # Only build ebpf files on unix
         build_object_files(ctx, parallel_build=parallel_build)
 
-    generate_cgo_types(ctx, windows=windows)
+    generate_cgo_types(ctx, windows=windows, replace_absolutes=not windows)
     ldflags, gcflags, env = get_build_flags(
         ctx,
         major_version=major_version,
