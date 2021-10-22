@@ -8,8 +8,8 @@
 package probe
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/secl_compiler/eval"
 )
 
 // PolicyReport describes the result of the kernel policy and the approvers for an event type

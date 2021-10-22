@@ -16,7 +16,7 @@ import (
 	"github.com/alecthomas/participle/lexer"
 	"github.com/pkg/errors"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/secl_compiler/ast"
 )
 
 // Field name
