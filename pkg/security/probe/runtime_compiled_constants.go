@@ -189,7 +189,7 @@ func sortAndDedup(in []string) []string {
 	}
 
 	out := make([]string, 0, len(in))
-	for value, _ := range set {
+	for value := range set {
 		out = append(out, value)
 	}
 	sort.Strings(out)
