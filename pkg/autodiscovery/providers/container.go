@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build docker
-// +build docker
+//go:build !serverless
+// +build !serverless
 
 package providers
 
@@ -18,47 +18,47 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
-	dockerADLabelPrefix = "com.datadoghq.ad."
-	delayDuration       = 5 * time.Second
+	containerADLabelPrefix = "com.datadoghq.ad."
+	delayDuration          = 5 * time.Second
 )
 
-// DockerConfigProvider implements the ConfigProvider interface for the docker labels.
-type DockerConfigProvider struct {
+// ContainerConfigProvider implements the ConfigProvider interface for container labels.
+type ContainerConfigProvider struct {
 	sync.RWMutex
 	workloadmetaStore workloadmeta.Store
 	upToDate          bool
 	streaming         bool
-	labelCache        map[string]map[string]string
+	containerCache    map[string]*workloadmeta.Container
 	containerFilter   *containers.Filter
 	once              sync.Once
 }
 
-func NewDockerConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
+// NewContainerConfigProvider creates a new ContainerConfigProvider
+func NewContainerConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
 	containerFilter, err := containers.NewAutodiscoveryFilter(containers.GlobalFilter)
 	if err != nil {
 		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %w", err)
 	}
 
-	return &DockerConfigProvider{
+	return &ContainerConfigProvider{
 		workloadmetaStore: workloadmeta.GetGlobalStore(),
-		labelCache:        make(map[string]map[string]string),
+		containerCache:    make(map[string]*workloadmeta.Container),
 		containerFilter:   containerFilter,
 	}, nil
 }
 
-// String returns a string representation of the DockerConfigProvider
-func (d *DockerConfigProvider) String() string {
-	return names.Docker
+// String returns a string representation of the ContainerConfigProvider
+func (d *ContainerConfigProvider) String() string {
+	return names.Container
 }
 
 // Collect retrieves all running containers and extract AD templates from their labels.
-func (d *DockerConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
+func (d *ContainerConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	d.once.Do(func() {
 		go d.listen()
 	})
@@ -69,18 +69,18 @@ func (d *DockerConfigProvider) Collect(ctx context.Context) ([]integration.Confi
 
 	d.RLock()
 	defer d.RUnlock()
-	return parseDockerLabels(d.labelCache)
+	return d.generateConfigs()
 }
 
-func (d *DockerConfigProvider) listen() {
+func (d *ContainerConfigProvider) listen() {
 	d.Lock()
 	d.streaming = true
-	health := health.RegisterLiveness("ad-dockerprovider")
+	health := health.RegisterLiveness("ad-containerprovider")
 	d.Unlock()
 
-	workloadmetaEventsChannel := d.workloadmetaStore.Subscribe("ad-dockerprovider", workloadmeta.NewFilter(
+	workloadmetaEventsChannel := d.workloadmetaStore.Subscribe("ad-containerprovider", workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindContainer},
-		[]string{"docker"},
+		[]string{"docker", "containerd"},
 	))
 
 	for {
@@ -94,7 +94,7 @@ func (d *DockerConfigProvider) listen() {
 	}
 }
 
-func (d *DockerConfigProvider) processEvents(eventBundle workloadmeta.EventBundle) {
+func (d *ContainerConfigProvider) processEvents(eventBundle workloadmeta.EventBundle) {
 	close(eventBundle.Ch)
 
 	for _, event := range eventBundle.Events {
@@ -105,23 +105,23 @@ func (d *DockerConfigProvider) processEvents(eventBundle workloadmeta.EventBundl
 			container := event.Entity.(*workloadmeta.Container)
 
 			d.RLock()
-			_, containerSeen := d.labelCache[container.ID]
+			_, containerSeen := d.containerCache[container.ID]
 			d.RUnlock()
 			if containerSeen {
 				// Container restarted with the same ID within 5 seconds.
 				// This delay is needed because of the delay introduced in the
 				// EventTypeUnset case.
 				time.AfterFunc(delayDuration, func() {
-					d.addLabels(containerID, container.Labels)
+					d.addContainer(containerID, container)
 				})
 			} else {
-				d.addLabels(containerID, container.Labels)
+				d.addContainer(containerID, container)
 			}
 
 		case workloadmeta.EventTypeUnset:
 			// delay for short-lived detection
 			time.AfterFunc(delayDuration, func() {
-				d.deleteLabels(containerID)
+				d.deleteContainer(containerID)
 			})
 
 		default:
@@ -133,39 +133,39 @@ func (d *DockerConfigProvider) processEvents(eventBundle workloadmeta.EventBundl
 
 // IsUpToDate checks whether we have new containers to parse, based on events received by the listen goroutine.
 // If listening fails, we fallback to Collecting everytime.
-func (d *DockerConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
+func (d *ContainerConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	d.RLock()
 	defer d.RUnlock()
 	return d.streaming && d.upToDate, nil
 }
 
-// addLabels updates the label cache for a given container
-func (d *DockerConfigProvider) addLabels(containerID string, labels map[string]string) {
+// addLabels updates the cache for a given container
+func (d *ContainerConfigProvider) addContainer(containerID string, container *workloadmeta.Container) {
 	d.Lock()
 	defer d.Unlock()
-	d.labelCache[containerID] = labels
+	d.containerCache[containerID] = container
 	d.upToDate = false
 }
 
-func (d *DockerConfigProvider) deleteLabels(containerID string) {
+func (d *ContainerConfigProvider) deleteContainer(containerID string) {
 	d.Lock()
 	defer d.Unlock()
-	delete(d.labelCache, containerID)
+	delete(d.containerCache, containerID)
 	d.upToDate = false
 }
 
-func parseDockerLabels(containerLabels map[string]map[string]string) ([]integration.Config, error) {
+func (d *ContainerConfigProvider) generateConfigs() ([]integration.Config, error) {
 	var configs []integration.Config
-	for containerID, labels := range containerLabels {
-		dockerEntityName := docker.ContainerIDToEntityName(containerID)
-		c, errors := extractTemplatesFromMap(dockerEntityName, labels, dockerADLabelPrefix)
+	for containerID, container := range d.containerCache {
+		containerEntityName := containers.BuildEntityName(string(container.Runtime), containerID)
+		c, errors := extractTemplatesFromMap(containerEntityName, container.Labels, containerADLabelPrefix)
 
 		for _, err := range errors {
 			log.Errorf("Can't parse template for container %s: %s", containerID, err)
 		}
 
 		for idx := range c {
-			c[idx].Source = "docker:" + dockerEntityName
+			c[idx].Source = names.Container + ":" + containerEntityName
 		}
 
 		configs = append(configs, c...)
@@ -174,10 +174,10 @@ func parseDockerLabels(containerLabels map[string]map[string]string) ([]integrat
 }
 
 func init() {
-	RegisterProvider("docker", NewDockerConfigProvider)
+	RegisterProvider(names.Container, NewContainerConfigProvider)
 }
 
-// GetConfigErrors is not implemented for the DockerConfigProvider
-func (d *DockerConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+// GetConfigErrors is not implemented for the ContainerConfigProvider
+func (d *ContainerConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
 	return make(map[string]ErrorMsgSet)
 }
