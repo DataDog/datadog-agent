@@ -73,7 +73,7 @@ DEFAULT_MODULES = {
         dependencies=["pkg/util/scrubber", "pkg/util/log", "pkg/util/winutil", "pkg/quantile", "pkg/otlp/model"],
     ),
     "pkg/util/scrubber": GoModule("pkg/util/scrubber"),
-    "pkg/util/log": GoModule("pkg/util/log"),
+    "pkg/util/log": GoModule("pkg/util/log", dependencies=["pkg/util/scrubber"]),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "pkg/util/winutil": GoModule(
         "pkg/util/winutil", condition=lambda: sys.platform == 'win32', dependencies=["pkg/util/log"]
