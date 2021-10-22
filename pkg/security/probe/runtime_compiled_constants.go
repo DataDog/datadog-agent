@@ -12,14 +12,13 @@ import (
 	"debug/elf"
 	"fmt"
 	"io"
-	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"text/template"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -158,34 +157,28 @@ var additionalFlags = []string{
 	"-fno-jump-tables",
 }
 
+type constantFetcherRCProvider struct {
+	cCode string
+}
+
+func (p *constantFetcherRCProvider) GetInputFilename() string {
+	return "constant_fetcher.c"
+}
+
+func (p *constantFetcherRCProvider) GetInputReader(config *ebpf.Config, tm *runtime.RuntimeCompilationTelemetry) (io.Reader, error) {
+	return strings.NewReader(p.cCode), nil
+}
+
+func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, kernelVersion kernel.Version, flagHash string, tm *runtime.RuntimeCompilationTelemetry) string {
+	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%d-%s.o", kernelVersion, flagHash))
+}
+
 func compileConstantFetcher(config *ebpf.Config, cCode string) (io.ReaderAt, error) {
-	dirs, _, err := kernel.GetKernelHeaders(config.KernelHeadersDirs, config.KernelHeadersDownloadDir, config.AptConfigDir, config.YumReposDir, config.ZypperReposDir)
-	if err != nil {
-		return nil, fmt.Errorf("unable to find kernel headers: %w", err)
+	provider := &constantFetcherRCProvider{
+		cCode: cCode,
 	}
-	comp, err := compiler.NewEBPFCompiler(dirs, config.BPFDebug)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create compiler: %w", err)
-	}
-	defer comp.Close()
-
-	flags, _ := runtime.ComputeFlagsAndHash(additionalFlags)
-
-	outputFile, err := os.CreateTemp("", "datadog_cws_constants_fetcher")
-	if err != nil {
-		return nil, err
-	}
-
-	if err := outputFile.Close(); err != nil {
-		return nil, err
-	}
-
-	inputReader := strings.NewReader(cCode)
-	if err := comp.CompileToObjectFile(inputReader, outputFile.Name(), flags); err != nil {
-		return nil, err
-	}
-
-	return os.Open(outputFile.Name())
+	telemetry := runtime.NewRuntimeCompilationTelemetry()
+	return runtime.RuntimeCompileObjectFile(config, additionalFlags, provider, &telemetry)
 }
 
 func sortAndDedup(in []string) []string {
