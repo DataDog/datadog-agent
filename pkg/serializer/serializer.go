@@ -181,6 +181,10 @@ func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool,
 		}
 	}
 
+	return s.serializePayloadInternal(payload, compress, extraHeaders, marshalFct)
+}
+
+func (s Serializer) serializePayloadInternal(payload marshaler.Marshaler, compress bool, extraHeaders http.Header, marshalFct split.MarshalFct) (forwarder.Payloads, http.Header, error) {
 	payloads, err := split.Payloads(payload, compress, marshalFct)
 
 	if err != nil {
