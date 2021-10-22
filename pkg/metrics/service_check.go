@@ -88,11 +88,6 @@ type ServiceCheck struct {
 // ServiceChecks represents a list of service checks ready to be serialize
 type ServiceChecks []*ServiceCheck
 
-// Marshal serializes service checks using protobuf (v2)
-func (sc ServiceChecks) Marshal() ([]byte, error) {
-	return nil, fmt.Errorf("ServiceChecks payload serialization is not implemented")
-}
-
 // MarshalJSON serializes service checks to JSON so it can be sent to V1 endpoints
 //FIXME(olivier): to be removed when v2 endpoints are available
 func (sc ServiceChecks) MarshalJSON() ([]byte, error) {

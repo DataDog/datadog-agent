@@ -284,7 +284,7 @@ func (s *Serializer) SendServiceChecks(sc marshaler.StreamJSONMarshaler) error {
 	if useV1API && s.enableServiceChecksJSONStream {
 		serviceCheckPayloads, extraHeaders, err = s.serializeStreamablePayload(sc, stream.DropItemOnErrItemTooBig)
 	} else {
-		serviceCheckPayloads, extraHeaders, err = s.serializePayload(sc, true, useV1API)
+		serviceCheckPayloads, extraHeaders, err = s.serializePayloadJSON(sc, true)
 	}
 	if err != nil {
 		return fmt.Errorf("dropping service check payload: %s", err)
@@ -312,7 +312,7 @@ func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 	if useV1API && s.enableJSONStream {
 		seriesPayloads, extraHeaders, err = s.serializeStreamablePayload(series, stream.DropItemOnErrItemTooBig)
 	} else {
-		seriesPayloads, extraHeaders, err = s.serializePayload(series, true, useV1API)
+		seriesPayloads, extraHeaders, err = s.serializePayloadJSON(series, true)
 	}
 
 	if err != nil {

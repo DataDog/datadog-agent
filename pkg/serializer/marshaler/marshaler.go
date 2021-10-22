@@ -34,7 +34,7 @@ type AbstractMarshaler interface {
 
 // StreamJSONMarshaler is an interface for metrics that are able to serialize themselves in a stream
 type StreamJSONMarshaler interface {
-	Marshaler
+	MarshalerJSON
 	WriteHeader(*jsoniter.Stream) error
 	WriteFooter(*jsoniter.Stream) error
 	WriteItem(*jsoniter.Stream, int) error

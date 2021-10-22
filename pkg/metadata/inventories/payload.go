@@ -37,11 +37,6 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 	return json.Marshal((*PayloadAlias)(p))
 }
 
-// Marshal not implemented
-func (p *Payload) Marshal() ([]byte, error) {
-	return nil, fmt.Errorf("V5 Payload serialization is not implemented")
-}
-
 // SplitPayload breaks the payload into times number of pieces
 func (p *Payload) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	return nil, fmt.Errorf("Inventories Payload splitting is not implemented")

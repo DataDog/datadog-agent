@@ -59,11 +59,6 @@ type Serie struct {
 // Series represents a list of Serie ready to be serialize
 type Series []*Serie
 
-// Marshal serialize timeseries using protobuf
-func (series Series) Marshal() ([]byte, error) {
-	return nil, fmt.Errorf("Series payload serialization is not implemented")
-}
-
 // MarshalStrings converts the timeseries to a sorted slice of string slices
 func (series Series) MarshalStrings() ([]string, [][]string) {
 	var headers = []string{"Metric", "Type", "Timestamp", "Value", "Tags"}
