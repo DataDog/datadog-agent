@@ -162,18 +162,18 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder forwarde
 }
 
 func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool, useV1API bool) (forwarder.Payloads, http.Header, error) {
-	var marshalType split.MarshalType
+	var marshalFct split.MarshalFct
 	var extraHeaders http.Header
 
 	if useV1API {
-		marshalType = split.MarshalJSON
+		marshalFct = split.JSONMarshalFct
 		if compress {
 			extraHeaders = jsonExtraHeadersWithCompression
 		} else {
 			extraHeaders = jsonExtraHeaders
 		}
 	} else {
-		marshalType = split.Marshal
+		marshalFct = split.ProtoMarshalFct
 		if compress {
 			extraHeaders = protobufExtraHeadersWithCompression
 		} else {
@@ -181,7 +181,7 @@ func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool,
 		}
 	}
 
-	payloads, err := split.Payloads(payload, compress, marshalType)
+	payloads, err := split.Payloads(payload, compress, marshalFct)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not split payload into small enough chunks: %s", err)
@@ -353,7 +353,7 @@ func (s *Serializer) SendAgentchecksMetadata(m marshaler.Marshaler) error {
 }
 
 func (s *Serializer) sendMetadata(m marshaler.Marshaler, submit func(payload forwarder.Payloads, extra http.Header) error) error {
-	mustSplit, compressedPayload, payload, err := split.CheckSizeAndSerialize(m, true, split.MarshalJSON)
+	mustSplit, compressedPayload, payload, err := split.CheckSizeAndSerialize(m, true, split.JSONMarshalFct)
 	if err != nil {
 		return fmt.Errorf("could not determine size of metadata payload: %s", err)
 	}
