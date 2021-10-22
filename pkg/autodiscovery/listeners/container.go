@@ -21,22 +21,22 @@ import (
 )
 
 func init() {
-	Register("docker", NewDockerListener)
+	Register("container", NewContainerListener)
 }
 
-// DockerListener listens to container creation through a subscription to the
+// ContainerListener listens to container creation through a subscription to the
 // workloadmeta store.
-type DockerListener struct {
+type ContainerListener struct {
 	workloadmetaListener
 }
 
-// NewDockerListener returns a new DockerListener.
-func NewDockerListener() (ServiceListener, error) {
-	const name = "ad-dockerlistener"
-	l := &DockerListener{}
+// NewContainerListener returns a new ContainerListener.
+func NewContainerListener() (ServiceListener, error) {
+	const name = "ad-containerlistener"
+	l := &ContainerListener{}
 	f := workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindContainer},
-		[]string{"docker"},
+		[]string{"docker", "containerd"},
 	)
 
 	var err error
@@ -48,7 +48,7 @@ func NewDockerListener() (ServiceListener, error) {
 	return l, nil
 }
 
-func (l *DockerListener) createContainerService(
+func (l *ContainerListener) createContainerService(
 	entity workloadmeta.Entity,
 	creationTime integration.CreationTime,
 ) {
@@ -110,7 +110,7 @@ func (l *DockerListener) createContainerService(
 	} else {
 		checkNames, err := getCheckNamesFromLabels(container.Labels)
 		if err != nil {
-			log.Errorf("error getting check names from docker labels on container %s: %v", container.ID, err)
+			log.Errorf("error getting check names from labels on container %s: %v", container.ID, err)
 		}
 
 		hosts := make(map[string]string)
