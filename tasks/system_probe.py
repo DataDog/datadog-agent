@@ -687,7 +687,7 @@ def generate_cgo_types(ctx, windows=is_windows, replace_absolutes=True):
             if replace_absolutes:
                 # replace absolute path with relative ones in generated file
                 ctx.run(
-                    "sed -i 's={abs}={rel}=gi' {working_file}".format(
+                    "sed -i '2 s={abs}={rel}=gi' {working_file}".format(
                         abs=absolute_input_file, rel=file, working_file=output_file
                     )
                 )
