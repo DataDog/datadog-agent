@@ -458,6 +458,7 @@ def generate_documentation(ctx, go_generate=False):
         "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend.schema.json --output ./docs/cloud-workload-security/backend.md"
     )
 
+
 @task
 def cws_go_generate(ctx):
     with ctx.cd("./pkg/security/secl"):
