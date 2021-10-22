@@ -660,6 +660,23 @@ def generate_runtime_files(ctx):
         ctx.run("go generate -mod=mod -tags {tags} {file}".format(file=f, tags=BPF_TAG))
 
 
+def replace_cgo_tag_absolute_path(file_path, absolute_path, relative_path):
+    # read
+    f = open(file_path)
+    lines = []
+    for line in f:
+        if line.startswith("// cgo -godefs"):
+            lines.append(line.replace(absolute_path, relative_path))
+        else:
+            lines.append(line)
+    f.close()
+
+    # write
+    f = open(file_path, "w")
+    res = "".join(lines)
+    f.write(res)
+    f.close()
+
 @task
 def generate_cgo_types(ctx, windows=is_windows, replace_absolutes=True):
     if windows:
@@ -686,11 +703,7 @@ def generate_cgo_types(ctx, windows=is_windows, replace_absolutes=True):
             ctx.run("gofmt -w -s {output_file}".format(output_file=output_file))
             if replace_absolutes:
                 # replace absolute path with relative ones in generated file
-                ctx.run(
-                    "sed -i '2 s={abs}={rel}=gi' {working_file}".format(
-                        abs=absolute_input_file, rel=file, working_file=output_file
-                    )
-                )
+                replace_cgo_tag_absolute_path(os.path.join(fdir, output_file), absolute_input_file, file)
 
 
 def is_root():
