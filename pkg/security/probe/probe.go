@@ -903,8 +903,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		log.Errorf("runtime compilation of constant fetcher failed: ", err)
 		return nil, err
 	}
-	log.Warnf("constants: %v", constants)
-	return nil, errors.New("Please stop thanks")
+	log.Errorf("constants: %v", constants)
 
 	// Add global constant editors
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
