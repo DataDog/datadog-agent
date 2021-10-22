@@ -135,3 +135,92 @@ send_pkg_size-a7:
 
     - DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key --with-decryption --query "Parameter.Value" --out text)
     - 'curl --fail -X POST -H "Content-type: application/json" -d "$post_body" "https://api.datadoghq.com/api/v1/series?api_key=$DD_API_KEY"'
+
+.check_pkg_size:
+  stage: pkg_metrics
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:main"]
+  script:
+    - ls -l $OMNIBUS_PACKAGE_DIR
+    - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
+    - source /root/.bashrc && conda activate ddpy3
+    - export failures=""
+    - export last_stable=$(inv release.get-release-json-value "last_stable::${MAJOR_VERSION}")
+    - |
+        compare_size() {
+            local package_type="${1}"
+            local max_diff="${2}"
+            local stable_package="${3}"
+            local new_package="${4}"
+
+            stable_size=$(stat --printf="%s" $stable_package)
+            new_size=$(stat --printf="%s" $new_package)
+            diff=$((new_size-stable_size))
+
+            if [ $diff -gt $max_diff ]; then
+                failures="${failures}${package_type} size increase is too large:\n"
+                failures="${failures}  New package size is ${new_size}B\n"
+                failures="${failures}  Stable package (${last_stable}) size is ${stable_size}B\n"
+                failures="${failures}  Diff is ${diff}B ${max_diff}B (max allowed diff)\n"
+            else
+              echo "${package_type} is OK"
+              echo "  New package size is ${new_size}B"
+              echo "  Stable package (${last_stable}) size is ${stable_size}B"
+              echo "  Diff is ${diff}B (max allowed diff is ${max_diff}B)"
+            fi
+        }
+    # Get stable packages from S3 buckets & compare sizes
+    # The loop assumes that all flavors start with "da", which is currently the case
+    - |
+        for flavor in ${FLAVORS}; do
+            mkdir -p "/tmp/stable/${flavor}" "/tmp/stable/${flavor}/suse"
+            curl -sSL "https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/${flavor}_${last_stable}-1_amd64.deb" -o "/tmp/stable/${flavor}/${flavor}_${last_stable}-1_amd64.deb"
+            curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/stable/${MAJOR_VERSION}/x86_64/${flavor}-${last_stable}-1.x86_64.rpm" -o "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.x86_64.rpm"
+            curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/suse/stable/${MAJOR_VERSION}/x86_64/${flavor}-${last_stable}-1.x86_64.rpm" -o "/tmp/stable/${flavor}/suse/${flavor}-${last_stable}-1.x86_64.rpm"
+            compare_size "${flavor} deb" "${max_sizes[${flavor}]}" "/tmp/stable/${flavor}/${flavor}_${last_stable}-1_amd64.deb" "$OMNIBUS_PACKAGE_DIR/${flavor}_${MAJOR_VERSION}*_amd64.deb"
+            compare_size "${flavor} rpm" "${max_sizes[${flavor}]}" "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.x86_64.rpm" "$OMNIBUS_PACKAGE_DIR/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm"
+            compare_size "${flavor} suse rpm" "${max_sizes[${flavor}]}" "/tmp/stable/${flavor}/suse/${flavor}-${last_stable}-1.x86_64.rpm" "$OMNIBUS_PACKAGE_DIR_SUSE/${flavor}-${MAJOR_VERSION}.*.x86_64.rpm"
+        done
+    - if [ "${failures}" != "" ]; then echo -e "${failures}" && false; fi
+
+check_pkg_size-a6:
+  extends: .check_pkg_size
+  rules:
+    !reference [.on_a6]
+  needs:
+    - agent_deb-x64-a6
+    - agent_rpm-x64-a6
+    - agent_suse-x64-a6
+  variables:
+    MAJOR_VERSION: 6
+    FLAVORS: "datadog-agent"
+  before_script:
+    - |
+        declare -Ar max_sizes=(
+            ["datadog-agent"]="15000000"
+        )
+
+check_pkg_size-a7:
+  extends: .check_pkg_size
+  rules:
+    !reference [.on_a7]
+  needs:
+    - agent_deb-x64-a7
+    - iot_agent_deb-x64
+    - dogstatsd_deb-x64
+    - agent_rpm-x64-a7
+    - iot_agent_rpm-x64
+    - dogstatsd_rpm-x64
+    - agent_suse-x64-a7
+    - dogstatsd_suse-x64
+    - iot_agent_suse-x64
+  variables:
+    MAJOR_VERSION: 7
+    FLAVORS: "datadog-agent datadog-iot-agent datadog-dogstatsd"
+  before_script:
+    - |
+        declare -Ar max_sizes=(
+            ["datadog-agent"]="15000000"
+            ["datadog-iot-agent"]="10000000"
+            ["datadog-dogstatsd"]="10000000"
+        )
