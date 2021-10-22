@@ -79,6 +79,7 @@ DEFAULT_MODULES = {
     ),
     "pkg/quantile": GoModule("pkg/quantile"),
     "pkg/otlp/model": GoModule("pkg/otlp/model", dependencies=["pkg/quantile"]),
+    "pkg/security/secl": GoModule("pkg/security/secl"),
 }
 
 MAIN_TEMPLATE = """package main

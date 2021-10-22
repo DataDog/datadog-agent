@@ -36,6 +36,7 @@ replace (
 replace (
 	github.com/DataDog/datadog-agent/pkg/otlp/model => ./pkg/otlp/model
 	github.com/DataDog/datadog-agent/pkg/quantile => ./pkg/quantile
+	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ./pkg/util/winutil
 )
@@ -58,6 +59,7 @@ require (
 	github.com/DataDog/agent-payload v4.87.0+incompatible
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.32.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/quantile v0.32.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/log v0.32.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.32.0-rc.6
 	github.com/DataDog/datadog-go v4.8.2+incompatible
@@ -107,7 +109,6 @@ require (
 	github.com/dustin/go-humanize v1.0.0
 	github.com/elastic/go-libaudit v0.4.0
 	github.com/fatih/color v1.13.0
-	github.com/fatih/structtag v1.2.0
 	github.com/florianl/go-conntrack v0.2.0
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
 	github.com/go-ini/ini v1.62.0

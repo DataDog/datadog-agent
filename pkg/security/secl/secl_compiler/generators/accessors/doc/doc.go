@@ -15,7 +15,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors/common"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/secl_compiler/generators/accessors/common"
 )
 
 // easyjson:json
