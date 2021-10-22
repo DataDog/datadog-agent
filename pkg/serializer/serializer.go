@@ -162,26 +162,32 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder forwarde
 }
 
 func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool, useV1API bool) (forwarder.Payloads, http.Header, error) {
-	var marshalFct split.MarshalFct
+	if useV1API {
+		return s.serializePayloadJSON(payload, compress)
+	}
+	return s.serializePayloadProto(payload, compress)
+}
+
+func (s Serializer) serializePayloadJSON(payload marshaler.Marshaler, compress bool) (forwarder.Payloads, http.Header, error) {
 	var extraHeaders http.Header
 
-	if useV1API {
-		marshalFct = split.JSONMarshalFct
-		if compress {
-			extraHeaders = jsonExtraHeadersWithCompression
-		} else {
-			extraHeaders = jsonExtraHeaders
-		}
+	if compress {
+		extraHeaders = jsonExtraHeadersWithCompression
 	} else {
-		marshalFct = split.ProtoMarshalFct
-		if compress {
-			extraHeaders = protobufExtraHeadersWithCompression
-		} else {
-			extraHeaders = protobufExtraHeaders
-		}
+		extraHeaders = jsonExtraHeaders
 	}
 
-	return s.serializePayloadInternal(payload, compress, extraHeaders, marshalFct)
+	return s.serializePayloadInternal(payload, compress, extraHeaders, split.JSONMarshalFct)
+}
+
+func (s Serializer) serializePayloadProto(payload marshaler.Marshaler, compress bool) (forwarder.Payloads, http.Header, error) {
+	var extraHeaders http.Header
+	if compress {
+		extraHeaders = protobufExtraHeadersWithCompression
+	} else {
+		extraHeaders = protobufExtraHeaders
+	}
+	return s.serializePayloadInternal(payload, compress, extraHeaders, split.ProtoMarshalFct)
 }
 
 func (s Serializer) serializePayloadInternal(payload marshaler.Marshaler, compress bool, extraHeaders http.Header, marshalFct split.MarshalFct) (forwarder.Payloads, http.Header, error) {
