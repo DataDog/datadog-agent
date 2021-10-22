@@ -357,7 +357,7 @@ func batchConnections(
 				c.DnsStatsByDomainOffsetByQueryType = nil
 			}
 		} else {
-			
+
 			// Now we have all available information.  EncodeMapped with take the string indices
 			// that are used, and encode (using the indexToOffset array) the offset into the buffer
 			// this way individual strings can be directly accessed on decode.
