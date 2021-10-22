@@ -186,7 +186,9 @@ func getConnectionsByPID(conns *model.Connections) map[int32][]*model.Connection
 }
 
 func convertDNSEntry(dnstable map[string]*model.DNSDatabaseEntry, namemap map[string]int32, namedb *[]string, ip string, entry *model.DNSEntry) {
-	dbentry := &model.DNSDatabaseEntry{}
+	dbentry := &model.DNSDatabaseEntry{
+		NameOffsets: make([]int32, len(entry.Names)),
+	}
 	for _, name := range entry.Names {
 		// at this point, the NameOffsets slice is actually a slice of indices into
 		// the name slice.  It will be converted prior to encoding.
@@ -205,6 +207,9 @@ func convertDNSEntry(dnstable map[string]*model.DNSDatabaseEntry, namemap map[st
 
 func remapDNSStatsByDomain(c *model.Connection, namemap map[string]int32, namedb *[]string, dnslist []string) {
 	old := c.DnsStatsByDomain
+	if old == nil || len(old) == 0 {
+		return
+	}
 	c.DnsStatsByDomain = make(map[int32]*model.DNSStats)
 	for key, val := range old {
 		// key is the index into the old array (dnslist)
@@ -219,6 +224,7 @@ func remapDNSStatsByDomain(c *model.Connection, namemap map[string]int32, namedb
 		}
 	}
 }
+
 func remapDNSStatsByDomainByQueryType(c *model.Connection, namemap map[string]int32, namedb *[]string, dnslist []string) {
 	old := c.DnsStatsByDomainByQueryType
 	c.DnsStatsByDomainByQueryType = make(map[int32]*model.DNSStatsByQueryType)
@@ -339,20 +345,29 @@ func batchConnections(
 		// EncodeDomainDatabase will take the namedb (a simple slice of strings with each unique
 		// domain string) and convert it into a buffer of all of the strings.
 		// indexToOffset contains the map from the string index to where it occurs in the encodedNameDb
+		var mappedDNSLookups []byte
 		encodedNameDb, indexToOffset, err := dnsEncoder.EncodeDomainDatabase(namedb)
 		if err != nil {
 			encodedNameDb = nil
-		}
-
-		// Now we have all available information.  EncodeMapped with take the string indices
-		// that are used, and encode (using the indexToOffset array) the offset into the buffer
-		// this way individual strings can be directly accessed on decode.
-		mappedDNSLookups, err := dnsEncoder.EncodeMapped(batchDNS, indexToOffset)
-		if err != nil {
-			mappedDNSLookups = nil
-		}
-		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
-			remapDNSStatsByOffset(c, indexToOffset)
+			// since we were unable to properly encode the indexToOffet map, the
+			// rest of the maps will now be unreadable by the back-end.  Just clear them
+			for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
+				c.DnsStatsByDomain = nil
+				c.DnsStatsByDomainByQueryType = nil
+				c.DnsStatsByDomainOffsetByQueryType = nil
+			}
+		} else {
+			
+			// Now we have all available information.  EncodeMapped with take the string indices
+			// that are used, and encode (using the indexToOffset array) the offset into the buffer
+			// this way individual strings can be directly accessed on decode.
+			mappedDNSLookups, err = dnsEncoder.EncodeMapped(batchDNS, indexToOffset)
+			if err != nil {
+				mappedDNSLookups = nil
+			}
+			for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
+				remapDNSStatsByOffset(c, indexToOffset)
+			}
 		}
 		cc := &model.CollectorConnections{
 			AgentConfiguration:    agentCfg,

@@ -372,6 +372,7 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 
 		// verify nothing was put in the DnsStatsByDomain bucket by mistake
 		assert.Equal(t, len(connections.Connections[0].DnsStatsByDomain), 0)
+		// verify nothing was put in the DnsStatsByDomainByQueryType bucket by mistake
 		assert.Equal(t, len(connections.Connections[0].DnsStatsByDomainByQueryType), 0)
 
 		switch i {
