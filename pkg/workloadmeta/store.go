@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	globalStore *Store
+	globalStore Store
 	initOnce    sync.Once
 )
 
@@ -71,35 +71,36 @@ func (s sourceToEntity) sources() []string {
 	return sources
 }
 
-// Store is a central storage of metadata about workloads. A workload is any
+// store is a central storage of metadata about workloads. A workload is any
 // unit of work being done by a piece of software, like a process, a container,
 // a kubernetes pod, or a task in any cloud provider.
-type Store struct {
+type store struct {
 	storeMut sync.RWMutex
 	store    map[Kind]map[string]sourceToEntity
 
 	subscribersMut sync.RWMutex
 	subscribers    []subscriber
 
-	candidates map[string]Collector
-	collectors map[string]Collector
+	collectorMut sync.RWMutex
+	candidates   map[string]Collector
+	collectors   map[string]Collector
 
 	eventCh chan []CollectorEvent
 }
 
+var _ Store = &store{}
+
 // NewStore creates a new workload metadata store, building a new instance of
 // each collector in the catalog. Call Start to start the store and its
 // collectors.
-func NewStore(catalog map[string]collectorFactory) *Store {
+func NewStore(catalog map[string]collectorFactory) Store {
 	candidates := make(map[string]Collector)
 	for id, c := range catalog {
 		candidates[id] = c()
 	}
 
-	return &Store{
-		store:       make(map[Kind]map[string]sourceToEntity),
-		subscribers: []subscriber{},
-
+	return &store{
+		store:      make(map[Kind]map[string]sourceToEntity),
 		candidates: candidates,
 		collectors: make(map[string]Collector),
 		eventCh:    make(chan []CollectorEvent, eventChBufferSize),
@@ -107,21 +108,16 @@ func NewStore(catalog map[string]collectorFactory) *Store {
 }
 
 // Start starts the workload metadata store.
-func (s *Store) Start(ctx context.Context) {
+func (s *store) Start(ctx context.Context) {
 	retryTicker := time.NewTicker(retryCollectorInterval)
 	pullTicker := time.NewTicker(pullCollectorInterval)
 	health := health.RegisterLiveness("workloadmeta-store")
 
-	// Start collectors immediately
-	s.startCandidates(ctx)
-
-	// Start a pull immediately to fill the store without waiting for the
-	// next tick.
 	pullCtx, pullCancel := context.WithTimeout(ctx, pullCollectorInterval)
-	s.pull(pullCtx)
 
-	log.Info("workloadmeta store initialized successfully")
-
+	// Start processing events before starting collectors, as in some cases
+	// they may be able to generate more events than what fits in eventCh's
+	// buffer, and the store will deadlock.
 	go func() {
 		for {
 			select {
@@ -140,9 +136,9 @@ func (s *Store) Start(ctx context.Context) {
 				s.handleEvents(evs)
 
 			case <-retryTicker.C:
-				s.startCandidates(ctx)
+				stop := s.startCandidates(ctx)
 
-				if len(s.candidates) == 0 {
+				if stop {
 					retryTicker.Stop()
 				}
 
@@ -159,12 +155,21 @@ func (s *Store) Start(ctx context.Context) {
 			}
 		}
 	}()
+
+	// Start collectors immediately
+	s.startCandidates(ctx)
+
+	// Start a pull immediately to fill the store without waiting for the
+	// next tick.
+	s.pull(pullCtx)
+
+	log.Info("workloadmeta store initialized successfully")
 }
 
 // Subscribe returns a channel where workload metadata events will be streamed
 // as they happen. On first subscription, it will also generate an EventTypeSet
 // event for each entity present in the store that matches filter.
-func (s *Store) Subscribe(name string, filter *Filter) chan EventBundle {
+func (s *store) Subscribe(name string, filter *Filter) chan EventBundle {
 	// ch needs to be buffered since we'll send it events before the
 	// subscriber has the chance to start receiving from it. if it's
 	// unbuffered, it'll deadlock.
@@ -221,7 +226,7 @@ func (s *Store) Subscribe(name string, filter *Filter) chan EventBundle {
 }
 
 // Unsubscribe ends a subscription to entity events and closes its channel.
-func (s *Store) Unsubscribe(ch chan EventBundle) {
+func (s *store) Unsubscribe(ch chan EventBundle) {
 	s.subscribersMut.Lock()
 	defer s.subscribersMut.Unlock()
 
@@ -236,7 +241,7 @@ func (s *Store) Unsubscribe(ch chan EventBundle) {
 }
 
 // GetContainer returns metadata about a container.
-func (s *Store) GetContainer(id string) (*Container, error) {
+func (s *store) GetContainer(id string) (*Container, error) {
 	entity, err := s.getEntityByKind(KindContainer, id)
 	if err != nil {
 		return nil, err
@@ -246,7 +251,7 @@ func (s *Store) GetContainer(id string) (*Container, error) {
 }
 
 // GetKubernetesPod returns metadata about a Kubernetes pod.
-func (s *Store) GetKubernetesPod(id string) (*KubernetesPod, error) {
+func (s *store) GetKubernetesPod(id string) (*KubernetesPod, error) {
 	entity, err := s.getEntityByKind(KindKubernetesPod, id)
 	if err != nil {
 		return nil, err
@@ -257,7 +262,7 @@ func (s *Store) GetKubernetesPod(id string) (*KubernetesPod, error) {
 
 // GetKubernetesPodForContainer returns a KubernetesPod that contains the
 // specified containerID.
-func (s *Store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error) {
+func (s *store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error) {
 	entities, ok := s.store[KindKubernetesPod]
 	if !ok {
 		return nil, errors.NewNotFound(containerID)
@@ -276,7 +281,7 @@ func (s *Store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod
 }
 
 // GetECSTask returns metadata about an ECS task.
-func (s *Store) GetECSTask(id string) (*ECSTask, error) {
+func (s *store) GetECSTask(id string) (*ECSTask, error) {
 	entity, err := s.getEntityByKind(KindECSTask, id)
 	if err != nil {
 		return nil, err
@@ -286,15 +291,16 @@ func (s *Store) GetECSTask(id string) (*ECSTask, error) {
 }
 
 // Notify notifies the store with a slice of events.
-func (s *Store) Notify(events []CollectorEvent) {
+func (s *store) Notify(events []CollectorEvent) {
 	if len(events) > 0 {
 		s.eventCh <- events
 	}
 }
 
-func (s *Store) startCandidates(ctx context.Context) {
-	// NOTE: s.candidates is not guarded by a mutex as it's only called by
-	// the store itself, and the store runs on a single goroutine
+func (s *store) startCandidates(ctx context.Context) bool {
+	s.collectorMut.Lock()
+	defer s.collectorMut.Unlock()
+
 	for id, c := range s.candidates {
 		err := c.Start(ctx, s)
 
@@ -318,12 +324,14 @@ func (s *Store) startCandidates(ctx context.Context) {
 		// next tick
 		delete(s.candidates, id)
 	}
+
+	return len(s.candidates) == 0
 }
 
-func (s *Store) pull(ctx context.Context) {
-	// NOTE: s.collectors is not guarded by a mutex as it's only called by
-	// the store itself, and the store runs on a single goroutine. If this
-	// method is made public in the future, we need to guard it.
+func (s *store) pull(ctx context.Context) {
+	s.collectorMut.RLock()
+	defer s.collectorMut.RUnlock()
+
 	for id, c := range s.collectors {
 		// Run each pull in its own separate goroutine to reduce
 		// latency and unlock the main goroutine to do other work.
@@ -336,7 +344,7 @@ func (s *Store) pull(ctx context.Context) {
 	}
 }
 
-func (s *Store) handleEvents(evs []CollectorEvent) {
+func (s *store) handleEvents(evs []CollectorEvent) {
 	s.storeMut.Lock()
 
 	for _, ev := range evs {
@@ -432,7 +440,7 @@ func (s *Store) handleEvents(evs []CollectorEvent) {
 	}
 }
 
-func (s *Store) getEntityByKind(kind Kind, id string) (Entity, error) {
+func (s *store) getEntityByKind(kind Kind, id string) (Entity, error) {
 	entitiesOfKind, ok := s.store[kind]
 	if !ok {
 		return nil, errors.NewNotFound(id)
@@ -476,7 +484,7 @@ func notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) 
 // GetGlobalStore returns a global instance of the workloadmeta store,
 // creating one if it doesn't exist. Start() needs to be called before any data
 // collection happens.
-func GetGlobalStore() *Store {
+func GetGlobalStore() Store {
 	initOnce.Do(func() {
 		if globalStore == nil {
 			globalStore = NewStore(collectorCatalog)

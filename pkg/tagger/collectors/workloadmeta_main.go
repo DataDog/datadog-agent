@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -26,16 +27,10 @@ const (
 	containerSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
 )
 
-type metaStore interface {
-	Subscribe(string, *workloadmeta.Filter) chan workloadmeta.EventBundle
-	Unsubscribe(chan workloadmeta.EventBundle)
-	GetContainer(string) (*workloadmeta.Container, error)
-}
-
 // WorkloadMetaCollector collects tags from the metadata in the workloadmeta
 // store.
 type WorkloadMetaCollector struct {
-	store    metaStore
+	store    workloadmeta.Store
 	children map[string]map[string]struct{}
 	out      chan<- []*TagInfo
 	stop     chan struct{}
@@ -43,12 +38,15 @@ type WorkloadMetaCollector struct {
 	containerEnvAsTags    map[string]string
 	containerLabelsAsTags map[string]string
 
-	labelsAsTags      map[string]string
-	annotationsAsTags map[string]string
-	nsLabelsAsTags    map[string]string
-	globLabels        map[string]glob.Glob
-	globAnnotations   map[string]glob.Glob
-	globNsLabels      map[string]glob.Glob
+	staticTags             map[string]string
+	labelsAsTags           map[string]string
+	annotationsAsTags      map[string]string
+	nsLabelsAsTags         map[string]string
+	globLabels             map[string]glob.Glob
+	globAnnotations        map[string]glob.Glob
+	globNsLabels           map[string]glob.Glob
+	globContainerLabels    map[string]glob.Glob
+	globContainerEnvLabels map[string]glob.Glob
 
 	collectEC2ResourceTags bool
 }
@@ -60,7 +58,10 @@ func (c *WorkloadMetaCollector) Detect(ctx context.Context, out chan<- []*TagInf
 	c.children = make(map[string]map[string]struct{})
 	c.collectEC2ResourceTags = config.Datadog.GetBool("ecs_collect_resource_tags_ec2")
 
-	containerLabelsAsTags := retrieveMappingFromConfig("docker_labels_as_tags")
+	containerLabelsAsTags := mergeMaps(
+		retrieveMappingFromConfig("docker_labels_as_tags"),
+		retrieveMappingFromConfig("container_labels_as_tags"),
+	)
 	containerEnvAsTags := mergeMaps(
 		retrieveMappingFromConfig("docker_env_as_tags"),
 		retrieveMappingFromConfig("container_env_as_tags"),
@@ -72,19 +73,14 @@ func (c *WorkloadMetaCollector) Detect(ctx context.Context, out chan<- []*TagInf
 	nsLabelsAsTags := config.Datadog.GetStringMapString("kubernetes_namespace_labels_as_tags")
 	c.initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags)
 
+	c.staticTags = fargateStaticTags(ctx)
+
 	return StreamCollection, nil
 }
 
 func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags map[string]string) {
-	c.containerLabelsAsTags = make(map[string]string)
-	for label, tag := range labelsAsTags {
-		c.containerLabelsAsTags[strings.ToLower(label)] = tag
-	}
-
-	c.containerEnvAsTags = make(map[string]string)
-	for label, tag := range envAsTags {
-		c.containerEnvAsTags[strings.ToLower(label)] = tag
-	}
+	c.containerLabelsAsTags, c.globContainerLabels = utils.InitMetadataAsTags(labelsAsTags)
+	c.containerEnvAsTags, c.globContainerEnvLabels = utils.InitMetadataAsTags(envAsTags)
 }
 
 func (c *WorkloadMetaCollector) initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags map[string]string) {
@@ -139,6 +135,40 @@ func workloadmetaFactory() Collector {
 	return &WorkloadMetaCollector{
 		store: workloadmeta.GetGlobalStore(),
 	}
+}
+
+func fargateStaticTags(ctx context.Context) map[string]string {
+	// fargate (ECS or EKS) does not have host tags, so we need to
+	// add static tags to each container manually
+
+	if !fargate.IsFargateInstance(ctx) {
+		return nil
+	}
+
+	tags := make(map[string]string)
+
+	// DD_TAGS
+	for _, tag := range config.GetConfiguredTags(false) {
+		tagParts := strings.SplitN(tag, ":", 2)
+		if len(tagParts) != 2 {
+			log.Warnf("Cannot split tag %s", tag)
+			continue
+		}
+		tags[tagParts[0]] = tagParts[1]
+	}
+
+	// EKS Fargate specific tags
+	if fargate.IsEKSFargateInstance() {
+		node, err := fargate.GetEKSFargateNodename()
+		if err != nil {
+			tags["eks_fargate_node"] = node
+		} else {
+			log.Infof("Couldn't build the 'eks_fargate_node' tag: %w", err)
+		}
+
+	}
+
+	return tags
 }
 
 func init() {

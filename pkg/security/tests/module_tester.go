@@ -16,7 +16,6 @@ import (
 	"io/fs"
 	"io/ioutil"
 	"math/rand"
-	"net"
 	"os"
 	"os/exec"
 	"path"
@@ -48,8 +47,6 @@ import (
 )
 
 var (
-	eventChanLength     = 10000
-	handlerChanLength   = 20000
 	discarderChanLength = 10000
 	logger              seelog.LoggerInterface
 )
@@ -110,11 +107,10 @@ rules:
 `
 
 var (
-	disableERPCDentryResolution bool
-	testEnvironment             string
-	useReload                   bool
-	logLevelStr                 string
-	logPatterns                 stringSlice
+	testEnvironment string
+	useReload       bool
+	logLevelStr     string
+	logPatterns     stringSlice
 )
 
 const (
@@ -131,7 +127,6 @@ type testOpts struct {
 	reuseProbeHandler           bool
 	disableERPCDentryResolution bool
 	disableMapDentryResolution  bool
-	logPatterns                 []string
 }
 
 func (s *stringSlice) String() string {
@@ -161,7 +156,6 @@ type testModule struct {
 	module       *module.Module
 	probe        *sprobe.Probe
 	probeHandler *testProbeHandler
-	listener     net.Listener
 	discarders   chan *testDiscarder
 	cmdWrapper   cmdWrapper
 	ruleHandler  testRuleHandler
@@ -233,6 +227,7 @@ func (h *testProbeHandler) HandleCustomEvent(rule *rules.Rule, event *sprobe.Cus
 	}
 }
 
+//nolint:deadcode,unused
 func getInode(t *testing.T, path string) uint64 {
 	fileInfo, err := os.Lstat(path)
 	if err != nil {
@@ -247,6 +242,7 @@ func getInode(t *testing.T, path string) uint64 {
 	return stats.Ino
 }
 
+//nolint:deadcode,unused
 func which(name string) string {
 	executable := "/usr/bin/" + name
 	if resolved, err := os.Readlink(executable); err == nil {
@@ -259,6 +255,7 @@ func which(name string) string {
 	return executable
 }
 
+//nolint:deadcode,unused
 func copyFile(src string, dst string, mode fs.FileMode) error {
 	input, err := ioutil.ReadFile(src)
 	if err != nil {
@@ -273,6 +270,7 @@ func copyFile(src string, dst string, mode fs.FileMode) error {
 	return nil
 }
 
+//nolint:deadcode,unused
 func assertMode(t *testing.T, actualMode, expectedMode uint32, msgAndArgs ...interface{}) {
 	t.Helper()
 	if len(msgAndArgs) == 0 {
@@ -281,11 +279,13 @@ func assertMode(t *testing.T, actualMode, expectedMode uint32, msgAndArgs ...int
 	assert.Equal(t, strconv.FormatUint(uint64(expectedMode), 8), strconv.FormatUint(uint64(actualMode), 8), msgAndArgs...)
 }
 
+//nolint:deadcode,unused
 func assertRights(t *testing.T, actualMode, expectedMode uint16, msgAndArgs ...interface{}) {
 	t.Helper()
 	assertMode(t, uint32(actualMode)&01777, uint32(expectedMode), msgAndArgs...)
 }
 
+//nolint:deadcode,unused
 func assertNearTime(t *testing.T, ns uint64) {
 	t.Helper()
 	now, event := time.Now(), time.Unix(0, int64(ns))
@@ -294,16 +294,19 @@ func assertNearTime(t *testing.T, ns uint64) {
 	}
 }
 
+//nolint:deadcode,unused
 func assertTriggeredRule(t *testing.T, r *rules.Rule, id string) {
 	t.Helper()
 	assert.Equal(t, id, r.ID, "wrong triggered rule")
 }
 
+//nolint:deadcode,unused
 func assertReturnValue(t *testing.T, retval, expected int64) {
 	t.Helper()
 	assert.Equal(t, expected, retval, "wrong return value")
 }
 
+//nolint:deadcode,unused
 func assertFieldEqual(t *testing.T, e *sprobe.Event, field string, value interface{}, msgAndArgs ...interface{}) {
 	t.Helper()
 	fieldValue, err := e.GetFieldValue(field)
@@ -314,6 +317,7 @@ func assertFieldEqual(t *testing.T, e *sprobe.Event, field string, value interfa
 	}
 }
 
+//nolint:deadcode,unused
 func assertFieldOneOf(t *testing.T, e *sprobe.Event, field string, values []interface{}, msgAndArgs ...interface{}) {
 	t.Helper()
 	fieldValue, err := e.GetFieldValue(field)
@@ -509,7 +513,7 @@ func (tm *testModule) reset() {
 DRAIN_DISCARDERS:
 	for {
 		select {
-		case _ = <-tm.discarders:
+		case <-tm.discarders:
 		default:
 			break DRAIN_DISCARDERS
 		}
@@ -554,6 +558,14 @@ func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, f
 	default:
 		log.Tracef("Discarding discarder %+v", discarder)
 	}
+}
+
+func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb ruleHandler) error {
+	if err := tm.GetSignal(tb, action, cb); err != nil {
+		tb.Error(err)
+		return err
+	}
+	return nil
 }
 
 func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb ruleHandler) error {
@@ -709,12 +721,14 @@ func (tm *testModule) Create(filename string) (string, unsafe.Pointer, error) {
 	return testFile, testPtr, err
 }
 
+//nolint:unused
 type tracePipeLogger struct {
 	*TracePipe
 	stop       chan struct{}
 	executable string
 }
 
+//nolint:unused
 func (l *tracePipeLogger) handleEvent(event *TraceEvent) {
 	// for some reason, the event task is resolved to "<...>"
 	// so we check that event.PID is the ID of a task of the running process
@@ -726,6 +740,7 @@ func (l *tracePipeLogger) handleEvent(event *TraceEvent) {
 	}
 }
 
+//nolint:unused
 func (l *tracePipeLogger) Start() {
 	channelEvents, channelErrors := l.Channel()
 
@@ -746,6 +761,7 @@ func (l *tracePipeLogger) Start() {
 	}()
 }
 
+//nolint:unused
 func (l *tracePipeLogger) Stop() {
 	time.Sleep(time.Millisecond * 200)
 
@@ -753,6 +769,7 @@ func (l *tracePipeLogger) Stop() {
 	l.Close()
 }
 
+//nolint:unused
 func (tm *testModule) startTracing() (*tracePipeLogger, error) {
 	tracePipe, err := NewTracePipe()
 	if err != nil {
@@ -902,8 +919,9 @@ func newSimpleTest(macros []*rules.MacroDefinition, rules []*rules.RuleDefinitio
 }
 
 // systemUmask caches the system umask between tests
-var systemUmask int
+var systemUmask int //nolint:unused
 
+//nolint:deadcode,unused
 func applyUmask(fileMode int) int {
 	if systemUmask == 0 {
 		// Get the system umask to compute the right access mode
@@ -914,30 +932,7 @@ func applyUmask(fileMode int) int {
 	return fileMode &^ systemUmask
 }
 
-func testStringFieldContains(t *testing.T, event *sprobe.Event, fieldPath string, expected string) {
-	t.Helper()
-
-	// check container path
-	value, err := event.GetFieldValue(fieldPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	switch value.(type) {
-	case string:
-		if !strings.Contains(value.(string), expected) {
-			t.Errorf("expected value `%s` for `%s` not found: %+v", expected, fieldPath, event)
-		}
-	case []string:
-		for _, v := range value.([]string) {
-			if strings.Contains(v, expected) {
-				return
-			}
-		}
-		t.Errorf("expected value `%s` for `%s` not found in for `%+v`: %+v", expected, fieldPath, value, event)
-	}
-}
-
+//nolint:deadcode,unused
 func (tm *testModule) flushChannels(duration time.Duration) {
 	timeout := time.After(duration)
 	for {
@@ -949,6 +944,7 @@ func (tm *testModule) flushChannels(duration time.Duration) {
 	}
 }
 
+//nolint:deadcode,unused
 func waitForDiscarder(test *testModule, key string, value interface{}, eventType model.EventType) error {
 	timeout := time.After(5 * time.Second)
 
@@ -970,6 +966,7 @@ func waitForDiscarder(test *testModule, key string, value interface{}, eventType
 	}
 }
 
+//nolint:deadcode,unused
 func ifSyscallSupported(syscall string, test func(t *testing.T, syscallNB uintptr)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
@@ -986,6 +983,7 @@ func ifSyscallSupported(syscall string, test func(t *testing.T, syscallNB uintpt
 // waitForProbeEvent returns the first open event with the provided filename.
 // WARNING: this function may yield a "fatal error: concurrent map writes" error if the ruleset of testModule does not
 // contain a rule on "open.file.path"
+//nolint:deadcode,unused
 func waitForProbeEvent(test *testModule, action func() error, key string, value interface{}, eventType model.EventType) error {
 	return test.GetProbeEvent(action, func(event *sprobe.Event) bool {
 		if v, _ := event.GetFieldValue(key); v == value {
@@ -996,10 +994,12 @@ func waitForProbeEvent(test *testModule, action func() error, key string, value 
 	}, getEventTimeout, eventType)
 }
 
+//nolint:deadcode,unused
 func waitForOpenDiscarder(test *testModule, filename string) error {
 	return waitForDiscarder(test, "open.file.path", filename, model.FileOpenEventType)
 }
 
+//nolint:deadcode,unused
 func waitForOpenProbeEvent(test *testModule, action func() error, filename string) error {
 	return waitForProbeEvent(test, action, "open.file.path", filename, model.FileOpenEventType)
 }

@@ -89,12 +89,12 @@ func (rb *RuleBucket) GetApprovers(event eval.Event, fieldCaps FieldCapabilities
 
 			// only one approver is currently required to ensure that the rule will be applied
 			// this could be improve by adding weight to use the most valuable one
-			if ruleApprovers != nil && len(ruleApprovers) > 0 && fieldCaps.Validate(ruleApprovers) {
+			if len(ruleApprovers) > 0 && fieldCaps.Validate(ruleApprovers) {
 				break
 			}
 		}
 
-		if ruleApprovers == nil || len(ruleApprovers) == 0 || !fieldCaps.Validate(ruleApprovers) {
+		if len(ruleApprovers) == 0 || !fieldCaps.Validate(ruleApprovers) {
 			return nil, &ErrNoApprover{Fields: fieldCaps.GetFields()}
 		}
 		for field, values := range ruleApprovers {

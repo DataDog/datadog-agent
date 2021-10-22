@@ -183,15 +183,8 @@ core,github.com/bits-and-blooms/bitset,BSD-3-Clause,Will Fitzgerald
 core,github.com/blabber/go-freebsd-sysctl/sysctl,0BSD,Tobias Rehbein <tobias.rehbein@web.de>
 core,github.com/blang/semver,MIT,Benedikt Lang <github at benediktlang.de>
 core,github.com/bmizerany/pat,UNKNOWN,"Keith Rarick, Blake Mizerany"
-core,github.com/bytecodealliance/wasmtime-go,Apache-2.0,Bytecode Alliance
-core,github.com/bytecodealliance/wasmtime-go/build/include,Apache-2.0,Bytecode Alliance
-core,github.com/bytecodealliance/wasmtime-go/build/include/wasmtime,Apache-2.0,Bytecode Alliance
-core,github.com/bytecodealliance/wasmtime-go/build/linux-x86_64,Apache-2.0,Bytecode Alliance
-core,github.com/bytecodealliance/wasmtime-go/build/macos-x86_64,Apache-2.0,Bytecode Alliance
-core,github.com/bytecodealliance/wasmtime-go/build/windows-x86_64,Apache-2.0,Bytecode Alliance
 core,github.com/cenkalti/backoff,MIT,Cenk Altı
 core,github.com/cenkalti/backoff/v4,MIT,Cenk Altı
-core,github.com/cespare/xxhash,MIT,Caleb Spare
 core,github.com/cespare/xxhash/v2,MIT,Caleb Spare
 core,github.com/cihub/seelog,BSD-3-Clause,"Cloud Instruments Co., Ltd. <info@cin.io>"
 core,github.com/cilium/ebpf,MIT,Authors of Cilium | Cloudflare | Nathan Sweet
@@ -279,6 +272,7 @@ core,github.com/cyphar/filepath-securejoin,BSD-3-Clause,Docker Inc & Go Authors 
 core,github.com/davecgh/go-spew/spew,ISC,Dave Collins <dave@davec.name>
 core,github.com/dgraph-io/ristretto,Apache-2.0,"Dgraph Labs, Inc. and Contributors"
 core,github.com/dgraph-io/ristretto/z,MIT,"Andreas Briese, eduToolbox@Bri-C GmbH, Sarstedt | Dgraph Labs, Inc. and Contributors | Ewan Chou"
+core,github.com/dgraph-io/ristretto/z/simd,MIT,"Andreas Briese, eduToolbox@Bri-C GmbH, Sarstedt | Dgraph Labs, Inc. and Contributors | Ewan Chou"
 core,github.com/dgryski/go-jump,MIT,Damian Gryski <damian@gryski.com>
 core,github.com/docker/distribution/digestset,Apache-2.0,"Docker, Inc"
 core,github.com/docker/distribution/reference,Apache-2.0,"Docker, Inc"
@@ -461,13 +455,14 @@ core,github.com/jstemmer/go-junit-report/parser,MIT,Joel Stemmer
 core,github.com/kardianos/osext,BSD-3-Clause,The Go Authors
 core,github.com/karrick/godirwalk,BSD-2-Clause,Karrick McDermott
 core,github.com/kjk/lzma,BSD-3-Clause,Andrei Vieru
-core,github.com/klauspost/compress/flate,BSD-3-Clause,Klaus Post | The Go Authors
-core,github.com/klauspost/compress/fse,BSD-3-Clause,Klaus Post | The Go Authors
-core,github.com/klauspost/compress/gzip,BSD-3-Clause,Klaus Post | The Go Authors
-core,github.com/klauspost/compress/huff0,BSD-3-Clause,Klaus Post | The Go Authors
-core,github.com/klauspost/compress/snappy,BSD-3-Clause,The Snappy-Go Authors
-core,github.com/klauspost/compress/zstd,BSD-3-Clause,Caleb Spare | Klaus Post | The Go Authors
-core,github.com/klauspost/compress/zstd/internal/xxhash,MIT,Caleb Spare | Klaus Post | The Go Authors
+core,github.com/klauspost/compress,BSD-3-Clause,Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors
+core,github.com/klauspost/compress/flate,BSD-3-Clause,Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors
+core,github.com/klauspost/compress/fse,BSD-3-Clause,Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors
+core,github.com/klauspost/compress/gzip,BSD-3-Clause,Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors
+core,github.com/klauspost/compress/huff0,BSD-3-Clause,Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors
+core,github.com/klauspost/compress/internal/snapref,BSD-3-Clause,Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors
+core,github.com/klauspost/compress/zstd,BSD-3-Clause,Caleb Spare | Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors
+core,github.com/klauspost/compress/zstd/internal/xxhash,MIT,Caleb Spare | Klaus Post | The Go Authors | The New York Times Company | The Snappy-Go Authors
 core,github.com/klauspost/pgzip,MIT,Klaus Post
 core,github.com/knadh/koanf,MIT,Kailash Nadh. https://github.com/knadh
 core,github.com/knadh/koanf/maps,MIT,Kailash Nadh. https://github.com/knadh
@@ -553,10 +548,7 @@ core,github.com/open-policy-agent/opa/internal/wasm/encoding,Apache-2.0,The OPA 
 core,github.com/open-policy-agent/opa/internal/wasm/instruction,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/wasm/module,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/wasm/opcode,Apache-2.0,The OPA Authors
-core,github.com/open-policy-agent/opa/internal/wasm/sdk/internal/wasm,Apache-2.0,The OPA Authors
-core,github.com/open-policy-agent/opa/internal/wasm/sdk/opa,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/wasm/sdk/opa/capabilities,Apache-2.0,The OPA Authors
-core,github.com/open-policy-agent/opa/internal/wasm/sdk/opa/errors,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/internal/wasm/types,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/keys,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/loader,Apache-2.0,The OPA Authors
@@ -566,6 +558,8 @@ core,github.com/open-policy-agent/opa/resolver,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/resolver/wasm,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/storage,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/storage/inmem,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/storage/internal/errors,Apache-2.0,The OPA Authors
+core,github.com/open-policy-agent/opa/storage/internal/ptr,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/topdown,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/topdown/builtins,Apache-2.0,The OPA Authors
 core,github.com/open-policy-agent/opa/topdown/cache,Apache-2.0,The OPA Authors

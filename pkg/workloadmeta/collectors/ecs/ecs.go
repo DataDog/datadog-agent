@@ -30,7 +30,7 @@ const (
 )
 
 type collector struct {
-	store           *workloadmeta.Store
+	store           workloadmeta.Store
 	expire          *util.Expire
 	metaV1          *v1.Client
 	clusterName     string
@@ -43,7 +43,7 @@ func init() {
 	})
 }
 
-func (c *collector) Start(ctx context.Context, store *workloadmeta.Store) error {
+func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	if !config.IsFeaturePresent(config.Docker) {
 		return errors.NewDisabled(componentName, "Agent is not running on Docker")
 	}

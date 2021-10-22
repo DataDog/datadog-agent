@@ -10,7 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // Context holds the elements that form a context, and can be serialized into a context key
@@ -26,7 +26,7 @@ type contextResolver struct {
 	keyGenerator  *ckey.KeyGenerator
 	// buffer slice allocated once per contextResolver to combine and sort
 	// tags, origin detection tags and k8s tags.
-	tagsBuffer *util.HashingTagsBuilder
+	tagsBuffer *tagset.HashingTagsAccumulator
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
@@ -38,7 +38,7 @@ func newContextResolver() *contextResolver {
 	return &contextResolver{
 		contextsByKey: make(map[ckey.ContextKey]*Context),
 		keyGenerator:  ckey.NewKeyGenerator(),
-		tagsBuffer:    util.NewHashingTagsBuilder(),
+		tagsBuffer:    tagset.NewHashingTagsAccumulator(),
 	}
 }
 

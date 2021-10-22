@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package docker
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"strings"
 	"time"
@@ -34,7 +36,7 @@ const (
 type resolveHook func(ctx context.Context, co types.ContainerJSON) (string, error)
 
 type collector struct {
-	store *workloadmeta.Store
+	store workloadmeta.Store
 
 	dockerUtil *docker.DockerUtil
 	eventCh    <-chan *docker.ContainerEvent
@@ -47,7 +49,7 @@ func init() {
 	})
 }
 
-func (c *collector) Start(ctx context.Context, store *workloadmeta.Store) error {
+func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	if !config.IsFeaturePresent(config.Docker) {
 		return errors.NewDisabled(componentName, "Agent is not running on Docker")
 	}
@@ -60,7 +62,12 @@ func (c *collector) Start(ctx context.Context, store *workloadmeta.Store) error 
 		return err
 	}
 
-	c.eventCh, c.errCh, err = c.dockerUtil.SubscribeToContainerEvents(componentName)
+	filter, err := containers.GetPauseContainerFilter()
+	if err != nil {
+		log.Warnf("Can't get pause container filter, no filtering will be applied: %w", err)
+	}
+
+	c.eventCh, c.errCh, err = c.dockerUtil.SubscribeToContainerEvents(componentName, filter)
 	if err != nil {
 		return err
 	}
@@ -88,7 +95,10 @@ func (c *collector) stream(ctx context.Context) {
 		case <-health.C:
 
 		case ev := <-c.eventCh:
-			c.handleEvent(ctx, ev)
+			err := c.handleEvent(ctx, ev)
+			if err != nil {
+				log.Warnf(err.Error())
+			}
 
 		case err := <-c.errCh:
 			if err != nil && err != io.EOF {
@@ -125,18 +135,38 @@ func (c *collector) generateEventsFromContainerList(ctx context.Context) error {
 		return err
 	}
 
+	events := make([]workloadmeta.CollectorEvent, 0, len(containers))
 	for _, container := range containers {
-		c.handleEvent(ctx, &docker.ContainerEvent{
+		ev, err := c.buildCollectorEvent(ctx, &docker.ContainerEvent{
 			ContainerID: container.ID,
 			Action:      docker.ContainerEventActionStart,
 		})
+		if err != nil {
+			log.Warnf(err.Error())
+		}
+
+		events = append(events, ev)
+	}
+
+	if len(events) > 0 {
+		c.store.Notify(events)
 	}
 
 	return nil
-
 }
 
-func (c *collector) handleEvent(ctx context.Context, ev *docker.ContainerEvent) {
+func (c *collector) handleEvent(ctx context.Context, ev *docker.ContainerEvent) error {
+	event, err := c.buildCollectorEvent(ctx, ev)
+	if err != nil {
+		return err
+	}
+
+	c.store.Notify([]workloadmeta.CollectorEvent{event})
+
+	return nil
+}
+
+func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.ContainerEvent) (workloadmeta.CollectorEvent, error) {
 	event := workloadmeta.CollectorEvent{
 		Source: collectorID,
 	}
@@ -150,8 +180,7 @@ func (c *collector) handleEvent(ctx context.Context, ev *docker.ContainerEvent) 
 	case docker.ContainerEventActionStart, docker.ContainerEventActionRename:
 		container, err := c.dockerUtil.InspectNoCache(ctx, ev.ContainerID, false)
 		if err != nil {
-			log.Errorf("could not inspect container %q: %s", ev.ContainerID, err)
-			return
+			return event, fmt.Errorf("could not inspect container %q: %s", ev.ContainerID, err)
 		}
 
 		var startedAt time.Time
@@ -196,11 +225,10 @@ func (c *collector) handleEvent(ctx context.Context, ev *docker.ContainerEvent) 
 		event.Entity = entityID
 
 	default:
-		log.Debugf("unknown action type %q, ignoring", ev.Action)
-		return
+		return event, fmt.Errorf("unknown action type %q, ignoring", ev.Action)
 	}
 
-	c.store.Notify([]workloadmeta.CollectorEvent{event})
+	return event, nil
 }
 
 func extractImage(ctx context.Context, container types.ContainerJSON, resolve resolveHook) workloadmeta.ContainerImage {

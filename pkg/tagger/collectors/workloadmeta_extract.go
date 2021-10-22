@@ -127,6 +127,11 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInf
 	// standard tags from labels
 	c.extractFromMapWithFn(container.Labels, standardDockerLabels, tags.AddStandard)
 
+	// container labels as tags
+	for labelName, labelValue := range container.Labels {
+		utils.AddMetadataAsTags(labelName, labelValue, c.containerLabelsAsTags, c.globContainerLabels, tags)
+	}
+
 	// orchestrator tags from labels
 	c.extractFromMapWithFn(container.Labels, lowCardOrchestratorLabels, tags.AddLow)
 	c.extractFromMapWithFn(container.Labels, highCardOrchestratorLabels, tags.AddHigh)
@@ -147,7 +152,14 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInf
 	c.extractFromMapWithFn(container.EnvVars, orchCardOrchestratorEnvKeys, tags.AddOrchestrator)
 
 	// extract env as tags
-	c.extractFromMapNormalizedWithFn(container.EnvVars, c.containerEnvAsTags, tags.AddAuto)
+	for envName, envValue := range container.EnvVars {
+		utils.AddMetadataAsTags(envName, envValue, c.containerEnvAsTags, c.globContainerEnvLabels, tags)
+	}
+
+	// static tags for ECS Fargate
+	for tag, value := range c.staticTags {
+		tags.AddLow(tag, value)
+	}
 
 	low, orch, high, standard := tags.Compute()
 	return []*TagInfo{
@@ -248,6 +260,8 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*TagInfo 
 		tags.AddLow("task_name", task.Family)
 		tags.AddLow("task_family", task.Family)
 		tags.AddLow("task_version", task.Version)
+		tags.AddOrchestrator("task_arn", task.ID)
+
 		tags.AddLow("ecs_container_name", taskContainer.Name)
 
 		if task.ClusterName != "" {
@@ -257,7 +271,10 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*TagInfo 
 			tags.AddLow("ecs_cluster_name", task.ClusterName)
 		}
 
-		if c.collectEC2ResourceTags {
+		if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
+			tags.AddLow("region", task.Region)
+			tags.AddLow("availability_zone", task.AvailabilityZone)
+		} else if c.collectEC2ResourceTags {
 			addResourceTags(tags, task.ContainerInstanceTags)
 			addResourceTags(tags, task.Tags)
 		}
@@ -268,6 +285,22 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*TagInfo 
 			// always from the parent resource.
 			Source:               taskSource,
 			Entity:               buildTaggerEntityID(container.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		})
+	}
+
+	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
+		tags := utils.NewTagList()
+
+		tags.AddOrchestrator("task_arn", task.ID)
+
+		low, orch, high, standard := tags.Compute()
+		tagInfos = append(tagInfos, &TagInfo{
+			Source:               taskSource,
+			Entity:               OrchestratorScopeEntityID,
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,

@@ -36,12 +36,7 @@ func (v ValidInodeFormatChecker) IsFormat(input interface{}) bool {
 	default:
 		return false
 	}
-
-	if sprobe.IsFakeInode(inode) {
-		return false
-	}
-
-	return true
+	return !sprobe.IsFakeInode(inode)
 }
 
 func validateSchema(t *testing.T, event *sprobe.Event, path string) bool {

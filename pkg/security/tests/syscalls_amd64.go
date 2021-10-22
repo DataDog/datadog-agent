@@ -4,6 +4,7 @@ package tests
 
 import "syscall"
 
+//nolint:unused
 var supportedSyscalls = map[string]uintptr{
 	"SYS_CHMOD":  syscall.SYS_CHMOD,
 	"SYS_CHOWN":  syscall.SYS_CHOWN,

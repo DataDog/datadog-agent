@@ -17,9 +17,8 @@ type wrapperType string
 
 const (
 	stdWrapperType    wrapperType = "std"
-	dockerWrapperType             = "docker"
-	multiWrapperType              = "multi"
-	skipWrapperType               = "skip"
+	dockerWrapperType wrapperType = "docker"
+	multiWrapperType  wrapperType = "multi"
 )
 
 type cmdWrapper interface {
