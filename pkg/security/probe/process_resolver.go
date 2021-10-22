@@ -813,7 +813,7 @@ func (p *ProcessResolver) cacheFlush(ctx context.Context) {
 
 	for {
 		select {
-		case _ = <-ticker.C:
+		case <-ticker.C:
 			var pids []uint32
 
 			p.RLock()

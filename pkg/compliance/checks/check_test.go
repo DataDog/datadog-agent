@@ -8,11 +8,14 @@ package checks
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/mock"
 	assert "github.com/stretchr/testify/require"
 )
 
@@ -123,7 +126,10 @@ func TestCheckRun(t *testing.T) {
 			env.On("Hostname").Return(resourceID)
 			env.On("IsLeader").Return(true)
 			env.On("Reporter").Return(reporter)
-			reporter.On("Report", test.expectEvent).Maybe()
+			reporter.On("Report", mock.MatchedBy(func(e *event.Event) bool {
+				e.ExpireAt = time.Time{}
+				return cmp.Equal(e, test.expectEvent)
+			})).Maybe()
 			checkable.On("check", check).Return(test.checkReports)
 
 			err := check.Run()

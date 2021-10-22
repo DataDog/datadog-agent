@@ -15,10 +15,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gogo/protobuf/proto"
 	jsoniter "github.com/json-iterator/go"
 
-	agentpayload "github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	utiljson "github.com/DataDog/datadog-agent/pkg/util/json"
@@ -90,26 +88,9 @@ type ServiceCheck struct {
 // ServiceChecks represents a list of service checks ready to be serialize
 type ServiceChecks []*ServiceCheck
 
-// Marshal serialize service checks using agent-payload definition
+// Marshal serializes service checks using protobuf (v2)
 func (sc ServiceChecks) Marshal() ([]byte, error) {
-	payload := &agentpayload.ServiceChecksPayload{
-		ServiceChecks: []*agentpayload.ServiceChecksPayload_ServiceCheck{},
-		Metadata:      &agentpayload.CommonMetadata{},
-	}
-
-	for _, c := range sc {
-		payload.ServiceChecks = append(payload.ServiceChecks,
-			&agentpayload.ServiceChecksPayload_ServiceCheck{
-				Name:    c.CheckName,
-				Host:    c.Host,
-				Ts:      c.Ts,
-				Status:  int32(c.Status),
-				Message: c.Message,
-				Tags:    c.Tags,
-			})
-	}
-
-	return proto.Marshal(payload)
+	return nil, fmt.Errorf("ServiceChecks payload serialization is not implemented")
 }
 
 // MarshalJSON serializes service checks to JSON so it can be sent to V1 endpoints

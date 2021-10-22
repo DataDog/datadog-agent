@@ -3,51 +3,53 @@
 #include "TargetMachine.h"
 #include <fstream>
 
-bool ShouldUpdateConfig(std::wstring const &inputConfig)
+bool ShouldUpdateConfig()
 {
-    // If we find an API key entry in the yaml file, don't do anything
-    std::wregex re(L"^api_key:(.*)");
-    std::match_results<std::wstring::const_iterator> results;
-    if (std::regex_search(inputConfig, results, re))
+    std::wifstream inputConfigStream(datadogyamlfile);
+    if (!inputConfigStream.is_open())
     {
-        auto api_key = results[1].str();
-        api_key.erase(api_key.begin(),
-                      std::find_if(api_key.begin(), api_key.end(), [](int ch) { return !std::isspace(ch); }));
-        if (api_key.length() > 0)
-        {
-            return false;
-        }
+        WcaLog(LOGMSG_STANDARD, "datadog.yaml cannot be opened - trying to update it");
+        return true;
     }
-    return true;
+
+    inputConfigStream.seekg(0, std::ios::end);
+    size_t fileSize = inputConfigStream.tellg();
+    if (fileSize <= 0)
+    {
+        WcaLog(LOGMSG_STANDARD, "datadog.yaml is empty - updating");
+        return true;
+    }
+    WcaLog(LOGMSG_STANDARD, "datadog.yaml exists and is not empty - not modifying it");
+    return false;
 }
 
 bool updateYamlConfig(CustomActionData &customActionData)
 {
-    std::wstring inputConfig;
-
-    // Read config in memory. The config should be small enough
-    // and we control its source - so it's fine to allocate up front.
+    // check if datadog.yaml file needs to be updated.
+    if (!ShouldUpdateConfig())
     {
-        std::wifstream inputConfigStream(datadogyamlfile);
-
-        inputConfigStream.seekg(0, std::ios::end);
-        size_t fileSize = inputConfigStream.tellg();
-        if (fileSize <= 0)
-        {
-            WcaLog(LOGMSG_STANDARD, "ERROR: datadog.yaml file empty !");
-            return false;
-        }
-        inputConfig.reserve(fileSize);
-        inputConfigStream.seekg(0, std::ios::beg);
-
-        inputConfig.assign(std::istreambuf_iterator<wchar_t>(inputConfigStream), std::istreambuf_iterator<wchar_t>());
-    }
-
-    if (!ShouldUpdateConfig(inputConfig))
-    {
-        WcaLog(LOGMSG_STANDARD, "API key already present in configuration - not modifying it");
         return true;
     }
+
+    // Read example config in memory.
+    std::wifstream inputConfigExampleStream(datadogyamlfile + L".example");
+    if (!inputConfigExampleStream.is_open())
+    {
+        WcaLog(LOGMSG_STANDARD, "ERROR: datadog.yaml.example cannot be opened !");
+        return false;
+    }
+    inputConfigExampleStream.seekg(0, std::ios::end);
+    size_t fileSize = inputConfigExampleStream.tellg();
+    if (fileSize <= 0)
+    {
+        WcaLog(LOGMSG_STANDARD, "ERROR: datadog.yaml.example is empty !");
+        return true;
+    }
+
+    std::wstring inputConfig;
+    inputConfig.reserve(fileSize);
+    inputConfigExampleStream.seekg(0, std::ios::beg);
+    inputConfig.assign(std::istreambuf_iterator<wchar_t>(inputConfigExampleStream), std::istreambuf_iterator<wchar_t>());
 
     std::vector<std::wstring> failedToReplace;
     inputConfig =
@@ -66,10 +68,8 @@ bool updateYamlConfig(CustomActionData &customActionData)
         WcaLog(LOGMSG_STANDARD, "Failed to replace %S in datadog.yaml file", v.c_str());
     }
 
-    {
-        std::wofstream inputConfigStream(datadogyamlfile);
-        inputConfigStream << inputConfig;
-    }
+    std::wofstream outputConfigStream(datadogyamlfile);
+    outputConfigStream << inputConfig;
     return true;
 }
 

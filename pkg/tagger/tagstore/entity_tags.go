@@ -5,7 +5,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -17,9 +17,9 @@ type EntityTags struct {
 	sourceTags         map[string]sourceTags
 	cacheValid         bool
 	cachedSource       []string
-	cachedAll          util.HashedTags // Low + orchestrator + high
-	cachedOrchestrator util.HashedTags // Low + orchestrator (subslice of cachedAll)
-	cachedLow          util.HashedTags // Sub-slice of cachedAll
+	cachedAll          tagset.HashedTags // Low + orchestrator + high
+	cachedOrchestrator tagset.HashedTags // Low + orchestrator (subslice of cachedAll)
+	cachedLow          tagset.HashedTags // Sub-slice of cachedAll
 }
 
 func newEntityTags(entityID string) *EntityTags {
@@ -43,7 +43,7 @@ func (e *EntityTags) get(cardinality collectors.TagCardinality) ([]string, []str
 	return tags.Get(), sources
 }
 
-func (e *EntityTags) getHashedTags(cardinality collectors.TagCardinality) (util.HashedTags, []string) {
+func (e *EntityTags) getHashedTags(cardinality collectors.TagCardinality) (tagset.HashedTags, []string) {
 	e.computeCache()
 
 	if cardinality == collectors.HighCardinality {
@@ -123,7 +123,7 @@ func (e *EntityTags) computeCache() {
 	tags := append(lowCardTags, orchestratorCardTags...)
 	tags = append(tags, highCardTags...)
 
-	cached := util.NewHashedTagsFromSlice(tags)
+	cached := tagset.NewHashedTagsFromSlice(tags)
 
 	// Write cache
 	e.cacheValid = true

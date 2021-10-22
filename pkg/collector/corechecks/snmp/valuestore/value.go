@@ -8,8 +8,8 @@ import (
 
 // ResultValue represent a snmp value
 type ResultValue struct {
-	SubmissionType string      // used when sending the metric
-	Value          interface{} // might be a `string` or `float64` type
+	SubmissionType string      `json:"sub_type,omitempty"` // used when sending the metric
+	Value          interface{} `json:"value"`              // might be a `string` or `float64` type
 }
 
 // ToFloat64 converts value to float64

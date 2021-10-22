@@ -346,11 +346,36 @@ func parseFindings(regoData interface{}) ([]regoFinding, error) {
 		}
 
 		var finding regoFinding
-		if err := mapstructure.Decode(m, &finding); err != nil {
+		var decodeMetadata mapstructure.Metadata
+		if err := mapstructure.DecodeMetadata(m, &finding, &decodeMetadata); err != nil {
 			return nil, err
 		}
+
+		if err := checkFindingsRequiredFields(&decodeMetadata); err != nil {
+			return nil, err
+		}
+
 		res = append(res, finding)
 	}
 
 	return res, nil
+}
+
+func checkFindingsRequiredFields(metadata *mapstructure.Metadata) error {
+	requiredFields := make(map[string]bool)
+	requiredFields["status"] = false
+
+	for _, decodedField := range metadata.Keys {
+		if _, present := requiredFields[decodedField]; present {
+			requiredFields[decodedField] = true
+		}
+	}
+
+	for field, present := range requiredFields {
+		if !present {
+			return fmt.Errorf("missing field `%s` when decoding rego finding", field)
+		}
+	}
+
+	return nil
 }

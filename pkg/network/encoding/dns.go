@@ -34,7 +34,7 @@ func newDNSFormatter(conns *network.Connections, ipc ipCache) *dnsFormatter {
 		domainSet:         make(map[string]int),
 		seen:              make(map[dns.Key]struct{}),
 		queryTypeEnabled:  config.Datadog.GetBool("network_config.enable_dns_by_querytype"),
-		dnsDomainsEnabled: config.Datadog.GetBool("network_config.collect_dns_domains"),
+		dnsDomainsEnabled: config.Datadog.GetBool("system_probe_config.collect_dns_domains"),
 	}
 }
 

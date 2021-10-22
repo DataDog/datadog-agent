@@ -13,7 +13,7 @@ const (
 )
 
 func TestFilterMatch(t *testing.T) {
-	ev := Event{
+	ev := CollectorEvent{
 		Source: fooSource,
 		Entity: EntityID{
 			Kind: KindContainer,
@@ -23,7 +23,7 @@ func TestFilterMatch(t *testing.T) {
 	tests := []struct {
 		name     string
 		filter   *Filter
-		event    Event
+		event    CollectorEvent
 		expected bool
 	}{
 		{
