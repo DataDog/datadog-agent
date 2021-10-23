@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
-	securejoin "github.com/cyphar/filepath-securejoin"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -251,7 +250,7 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Attempt to write new configs to custom checks directory
-		path := filepath.Join(checkConfFolderPath, fileName)
+		path = filepath.Join(defaultCheckConfFolderPath, fileName)
 		os.MkdirAll(checkConfFolderPath, os.FileMode(0755)) //nolint:errcheck
 		e = ioutil.WriteFile(path, data, 0600)
 
