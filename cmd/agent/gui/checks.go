@@ -250,13 +250,13 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Attempt to write new configs to custom checks directory
-		path = filepath.Join(defaultCheckConfFolderPath, fileName)
+		path := filepath.Join(checkConfFolderPath, fileName)
 		os.MkdirAll(checkConfFolderPath, os.FileMode(0755)) //nolint:errcheck
 		e = ioutil.WriteFile(path, data, 0600)
 
 		// If the write didn't work, try writing to the default checks directory
 		if e != nil && strings.Contains(e.Error(), "no such file or directory") {
-			path, _ = securejoin.SecureJoin(defaultCheckConfFolderPath, fileName)
+			path = filepath.Join(defaultCheckConfFolderPath, fileName)
 			os.MkdirAll(defaultCheckConfFolderPath, os.FileMode(0755)) //nolint:errcheck
 			e = ioutil.WriteFile(path, data, 0600)
 		}
