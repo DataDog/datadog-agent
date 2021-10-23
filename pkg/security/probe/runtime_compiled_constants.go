@@ -9,6 +9,7 @@ package probe
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"debug/elf"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -124,6 +126,7 @@ func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]u
 		return nil, err
 	}
 	for _, sym := range symbols {
+		log.Infof("symbol: %v", sym)
 		if _, present := cf.result[sym.Name]; !present {
 			continue
 		}
@@ -169,8 +172,14 @@ func (p *constantFetcherRCProvider) GetInputReader(config *ebpf.Config, tm *runt
 	return strings.NewReader(p.cCode), nil
 }
 
-func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, kernelVersion kernel.Version, flagHash string, tm *runtime.RuntimeCompilationTelemetry) string {
-	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%d-%s.o", kernelVersion, flagHash))
+func (a *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, kernelVersion kernel.Version, flagHash string, tm *runtime.RuntimeCompilationTelemetry) (string, error) {
+	hasher := sha256.New()
+	if _, err := hasher.Write([]byte(a.cCode)); err != nil {
+		return "", err
+	}
+	cCodeHash := hasher.Sum(nil)
+
+	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%d-%s-%s.o", kernelVersion, cCodeHash, flagHash)), nil
 }
 
 func compileConstantFetcher(config *ebpf.Config, cCode string) (io.ReaderAt, error) {

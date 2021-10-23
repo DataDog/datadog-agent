@@ -76,7 +76,7 @@ func (tm *RuntimeCompilationTelemetry) GetTelemetry() map[string]int64 {
 type RuntimeCompilationFileProvider interface {
 	GetInputFilename() string
 	GetInputReader(config *ebpf.Config, tm *RuntimeCompilationTelemetry) (io.Reader, error)
-	GetOutputFilePath(config *ebpf.Config, kernelVersion kernel.Version, flagHash string, tm *RuntimeCompilationTelemetry) string
+	GetOutputFilePath(config *ebpf.Config, kernelVersion kernel.Version, flagHash string, tm *RuntimeCompilationTelemetry) (string, error)
 }
 
 func RuntimeCompileObjectFile(config *ebpf.Config, cflags []string, provider RuntimeCompilationFileProvider, tm *RuntimeCompilationTelemetry) (CompiledOutput, error) {
@@ -104,7 +104,11 @@ func RuntimeCompileObjectFile(config *ebpf.Config, cflags []string, provider Run
 
 	flags, flagHash := ComputeFlagsAndHash(cflags)
 
-	outputFile := provider.GetOutputFilePath(config, kv, flagHash, tm)
+	outputFile, err := provider.GetOutputFilePath(config, kv, flagHash, tm)
+	if err != nil {
+		return nil, err
+	}
+
 	if _, err := os.Stat(outputFile); err != nil {
 		if !os.IsNotExist(err) {
 			tm.compilationResult = outputFileErr

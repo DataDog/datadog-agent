@@ -897,7 +897,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 
 	constants, err := getRuntimeCompiledConstants(config)
 	if err != nil {
-		log.Warnf("runtime compilation of constant fetcher failed: ", err)
+		log.Warnf("runtime compilation of constant fetcher failed: %v", err)
 	} else {
 		log.Errorf("constants: %v", constants)
 	}
