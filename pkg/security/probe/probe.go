@@ -895,13 +895,23 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
 	}
 
-	constants, err := getRuntimeCompiledConstants(config, p)
+	constants, err := getOffsetConstants(config, p)
 	if err != nil {
-		log.Warnf("runtime compilation of constant fetcher failed: %v", err)
-	} else {
-		log.Errorf("constants: %v", constants)
+		log.Warnf("constant fetcher failed: %v", err)
+		return nil, err
 	}
-	return nil, errors.New("thank you !")
+
+	for name, value := range constants {
+		if value == errorSentinel {
+			log.Warnf("failed to fetch constant for %s", name)
+			value = 0
+		}
+
+		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, manager.ConstantEditor{
+			Name:  name,
+			Value: value,
+		})
+	}
 
 	// Add global constant editors
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
@@ -916,14 +926,6 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		manager.ConstantEditor{
 			Name:  "mount_id_offset",
 			Value: getMountIDOffset(p),
-		},
-		manager.ConstantEditor{
-			Name:  "sizeof_inode",
-			Value: getSizeOfStructInode(p),
-		},
-		manager.ConstantEditor{
-			Name:  "sb_magic_offset",
-			Value: getSuperBlockMagicOffset(p),
 		},
 		manager.ConstantEditor{
 			Name:  "getattr2",
@@ -958,7 +960,6 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 			Value: getCheckHelperCallInputType(p),
 		},
 	)
-	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, TTYConstants(p)...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, getCGroupWriteConstants())
 
@@ -1016,7 +1017,7 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	return p, nil
 }
 
-func getRuntimeCompiledConstants(config *config.Config, probe *Probe) (map[string]uint64, error) {
+func getOffsetConstants(config *config.Config, probe *Probe) (map[string]uint64, error) {
 	constantFetcher := ComposeConstantFetchers(getAvailableConstantFetchers(config, probe))
 
 	constantFetcher.AppendSizeofRequest("sizeof_inode", "struct inode", "linux/fs.h")

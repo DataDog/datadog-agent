@@ -11,17 +11,23 @@ import "github.com/DataDog/datadog-agent/pkg/security/log"
 
 const errorSentinel uint64 = ^uint64(0)
 
+// ConstantFetcher represents a source of constants that can be used to fill up
+// eBPF relocations
 type ConstantFetcher interface {
 	AppendSizeofRequest(id, typeName, headerName string)
 	AppendOffsetofRequest(id, typeName, fieldName, headerName string)
 	FinishAndGetResults() (map[string]uint64, error)
 }
 
+// ComposeConstantFetcher represents a composition of child constant fetchers
+// It allows the usage of fallbacks if the main source is not working
 type ComposeConstantFetcher struct {
 	fetchers []ConstantFetcher
 	requests []*composeRequest
 }
 
+// ComposeConstantFetchers creates a new ComposeConstantFetcher based on the
+// passed fetchers
 func ComposeConstantFetchers(fetchers []ConstantFetcher) *ComposeConstantFetcher {
 	return &ComposeConstantFetcher{
 		fetchers: fetchers,
@@ -32,6 +38,7 @@ func (f *ComposeConstantFetcher) appendRequest(req *composeRequest) {
 	f.requests = append(f.requests, req)
 }
 
+// AppendSizeofRequest appends a sizeof request
 func (f *ComposeConstantFetcher) AppendSizeofRequest(id, typeName, headerName string) {
 	f.appendRequest(&composeRequest{
 		id:         id,
@@ -43,6 +50,7 @@ func (f *ComposeConstantFetcher) AppendSizeofRequest(id, typeName, headerName st
 	})
 }
 
+// AppendOffsetofRequest appends an offset request
 func (f *ComposeConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
 	f.appendRequest(&composeRequest{
 		id:         id,
@@ -54,6 +62,7 @@ func (f *ComposeConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, 
 	})
 }
 
+// FinishAndGetResults does the actual fetching and returns the results
 func (f *ComposeConstantFetcher) FinishAndGetResults() (map[string]uint64, error) {
 	for _, fetcher := range f.fetchers {
 		for _, req := range f.requests {
@@ -95,11 +104,14 @@ type composeRequest struct {
 	value               uint64
 }
 
+// FallbackConstantFetcher is a constant fetcher that uses the old fallback
+// heuristics to fetch constants
 type FallbackConstantFetcher struct {
 	probe *Probe
 	res   map[string]uint64
 }
 
+// NewFallbackConstantFetcher returns a new FallbackConstantFetcher
 func NewFallbackConstantFetcher(probe *Probe) *FallbackConstantFetcher {
 	return &FallbackConstantFetcher{
 		probe: probe,
@@ -108,7 +120,7 @@ func NewFallbackConstantFetcher(probe *Probe) *FallbackConstantFetcher {
 }
 
 func (f *FallbackConstantFetcher) appendRequest(id string) {
-	var value uint64 = errorSentinel
+	var value = errorSentinel
 	switch id {
 	case "sizeof_inode":
 		value = getSizeOfStructInode(f.probe)
@@ -122,14 +134,17 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 	f.res[id] = value
 }
 
+// AppendSizeofRequest appends a sizeof request
 func (f *FallbackConstantFetcher) AppendSizeofRequest(id, typeName, headerName string) {
 	f.appendRequest(id)
 }
 
+// AppendOffsetofRequest appends an offset request
 func (f *FallbackConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
 	f.appendRequest(id)
 }
 
+// FinishAndGetResults returns the results
 func (f *FallbackConstantFetcher) FinishAndGetResults() (map[string]uint64, error) {
 	return f.res, nil
 }

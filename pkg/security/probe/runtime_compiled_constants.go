@@ -20,7 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
-	"github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -118,7 +117,6 @@ func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]u
 		return nil, err
 	}
 	for _, sym := range symbols {
-		log.Infof("symbol: %v", sym)
 		if _, present := cf.result[sym.Name]; !present {
 			continue
 		}
