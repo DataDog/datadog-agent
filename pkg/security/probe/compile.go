@@ -32,7 +32,9 @@ func getRuntimeCompiledProbe(config *config.Config, useSyscallWrapper bool) (byt
 
 func getRuntimeCompiledConstants(config *config.Config) (map[string]uint64, error) {
 	constantFetcher := NewRuntimeCompilationConstantFetcher(&config.Config)
-	constantFetcher.AppendSizeofRequest("inode_size", "struct inode", "linux/fs.h")
-	constantFetcher.AppendOffsetofRequest("magic_super_block_offset", "struct super_block", "s_magic", "linux/fs.h")
+	constantFetcher.AppendSizeofRequest("sizeof_inode", "struct inode", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest("sb_magic_offset", "struct super_block", "s_magic", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest("tty_offset", "struct signal_struct", "tty", "linux/sched/signal.h")
+	constantFetcher.AppendOffsetofRequest("tty_name_offset", "struct tty_struct", "name", "linux/tty.h")
 	return constantFetcher.FinishAndGetResults()
 }
