@@ -30,11 +30,11 @@ func getRuntimeCompiledProbe(config *config.Config, useSyscallWrapper bool) (byt
 	return runtime.RuntimeSecurity.Compile(&config.Config, cflags)
 }
 
-func getRuntimeCompiledConstants(config *config.Config) (map[string]uint64, error) {
-	constantFetcher := NewRuntimeCompilationConstantFetcher(&config.Config)
-	constantFetcher.AppendSizeofRequest("sizeof_inode", "struct inode", "linux/fs.h")
-	constantFetcher.AppendOffsetofRequest("sb_magic_offset", "struct super_block", "s_magic", "linux/fs.h")
-	constantFetcher.AppendOffsetofRequest("tty_offset", "struct signal_struct", "tty", "linux/sched/signal.h")
-	constantFetcher.AppendOffsetofRequest("tty_name_offset", "struct tty_struct", "name", "linux/tty.h")
-	return constantFetcher.FinishAndGetResults()
+func getAvailableConstantFetchers(config *config.Config, probe *Probe) []ConstantFetcher {
+	rcConstantFetcher := NewRuntimeCompilationConstantFetcher(&config.Config)
+	fallbackConstantFetcher := NewFallbackConstantFetcher(probe)
+	return []ConstantFetcher{
+		rcConstantFetcher,
+		fallbackConstantFetcher,
+	}
 }

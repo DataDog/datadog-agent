@@ -24,14 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-const errorSentinel uint64 = ^uint64(0)
-
-type ConstantFetcher interface {
-	AppendSizeofRequest(id, typeName, headerName string)
-	AppendOffsetofRequest(id, typeName, fieldName, headerName string)
-	FinishAndGetResults() (map[string]uint64, error)
-}
-
 type rcSymbolPair struct {
 	Id        string
 	Operation string

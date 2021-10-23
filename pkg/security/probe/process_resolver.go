@@ -77,22 +77,48 @@ func getCGroupWriteConstants() manager.ConstantEditor {
 	}
 }
 
-// TTYConstants returns the tty constants
-func TTYConstants(probe *Probe) []manager.ConstantEditor {
-	ttyOffset, nameOffset := uint64(400), uint64(368)
+func getSignalTTYOffset(probe *Probe) uint64 {
+	ttyOffset := uint64(400)
 
 	switch {
 	case probe.kernelVersion.IsRH7Kernel():
-		ttyOffset, nameOffset = 416, 312
+		ttyOffset = 416
 	case probe.kernelVersion.IsRH8Kernel():
-		ttyOffset, nameOffset = 392, 368
+		ttyOffset = 392
 	case probe.kernelVersion.IsSLES12Kernel():
-		ttyOffset, nameOffset = 376, 368
+		ttyOffset = 376
 	case probe.kernelVersion.IsSLES15Kernel():
-		ttyOffset, nameOffset = 408, 368
+		ttyOffset = 408
 	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < kernel.Kernel5_3:
-		ttyOffset, nameOffset = 368, 368
+		ttyOffset = 368
 	}
+
+	return ttyOffset
+}
+
+func getTTYNameOffset(probe *Probe) uint64 {
+	nameOffset := uint64(368)
+
+	switch {
+	case probe.kernelVersion.IsRH7Kernel():
+		nameOffset = 312
+	case probe.kernelVersion.IsRH8Kernel():
+		nameOffset = 368
+	case probe.kernelVersion.IsSLES12Kernel():
+		nameOffset = 368
+	case probe.kernelVersion.IsSLES15Kernel():
+		nameOffset = 368
+	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < kernel.Kernel5_3:
+		nameOffset = 368
+	}
+
+	return nameOffset
+}
+
+// TTYConstants returns the tty constants
+func TTYConstants(probe *Probe) []manager.ConstantEditor {
+	ttyOffset := getSignalTTYOffset(probe)
+	nameOffset := getTTYNameOffset(probe)
 
 	return []manager.ConstantEditor{
 		{

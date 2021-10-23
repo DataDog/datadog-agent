@@ -19,6 +19,9 @@ func getRuntimeCompiledProbe(config *config.Config, useSyscallWrapper bool) (byt
 	return nil, fmt.Errorf("runtime compilation unsupported")
 }
 
-func getRuntimeCompiledConstants(config *config.Config) (map[string]uint64, error) {
-	return nil, fmt.Errorf("runtime compilation unsupported")
+func getAvailableConstantFetchers(config *config.Config, probe *Probe) []ConstantFetcher {
+	fallbackConstantFetcher := NewFallbackConstantFetcher(probe)
+	return []ConstantFetcher{
+		fallbackConstantFetcher,
+	}
 }

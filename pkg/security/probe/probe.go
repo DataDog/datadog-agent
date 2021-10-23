@@ -895,12 +895,13 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
 	}
 
-	constants, err := getRuntimeCompiledConstants(config)
+	constants, err := getRuntimeCompiledConstants(config, p)
 	if err != nil {
 		log.Warnf("runtime compilation of constant fetcher failed: %v", err)
 	} else {
 		log.Errorf("constants: %v", constants)
 	}
+	return nil, errors.New("thank you !")
 
 	// Add global constant editors
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
@@ -1013,4 +1014,14 @@ func NewProbe(config *config.Config, client *statsd.Client) (*Probe, error) {
 	eventZero.scrubber = p.scrubber
 
 	return p, nil
+}
+
+func getRuntimeCompiledConstants(config *config.Config, probe *Probe) (map[string]uint64, error) {
+	constantFetcher := ComposeConstantFetchers(getAvailableConstantFetchers(config, probe))
+
+	constantFetcher.AppendSizeofRequest("sizeof_inode", "struct inode", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest("sb_magic_offset", "struct super_block", "s_magic", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest("tty_offset", "struct signal_struct", "tty", "linux/sched/signal.h")
+	constantFetcher.AppendOffsetofRequest("tty_name_offset", "struct tty_struct", "name", "linux/tty.h")
+	return constantFetcher.FinishAndGetResults()
 }
