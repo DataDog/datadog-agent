@@ -24,7 +24,7 @@ func PatternToRegexp(pattern string) (*regexp.Regexp, error) {
 	return regexp.Compile("^" + quoted + "$")
 }
 
-func toPattern(se *StringEvaluator) error {
+func compilePattern(se *StringEvaluator) error {
 	if se.regexp != nil {
 		return nil
 	}
@@ -33,7 +33,7 @@ func toPattern(se *StringEvaluator) error {
 	if err != nil {
 		return fmt.Errorf("invalid pattern '%s': %s", se.Value, err)
 	}
-	se.valueType = PatternValueType
+	se.ValueType = PatternValueType
 	se.regexp = reg
 
 	return nil

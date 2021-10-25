@@ -6,6 +6,8 @@
 package eval
 
 import (
+	"fmt"
+
 	"github.com/pkg/errors"
 )
 
@@ -115,7 +117,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *sta
 		ea, eb := a.EvalFnc, b.Value
 
 		if a.Field != "" {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: b.valueType, Regexp: b.regexp}); err != nil {
+			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: eb, Type: b.ValueType, Regexp: b.regexp}); err != nil {
 				return nil, err
 			}
 		}
@@ -134,7 +136,7 @@ func StringEquals(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *sta
 	ea, eb := a.Value, b.EvalFnc
 
 	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: a.valueType, Regexp: a.regexp}); err != nil {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: a.ValueType, Regexp: a.regexp}); err != nil {
 			return nil, err
 		}
 	}
@@ -313,7 +315,7 @@ func ArrayStringContains(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts
 	ea, eb := a.Value, b.EvalFnc
 
 	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: a.valueType, Regexp: a.regexp}); err != nil {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: ea, Type: a.ValueType, Regexp: a.regexp}); err != nil {
 			return nil, err
 		}
 	}

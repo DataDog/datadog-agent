@@ -7,11 +7,13 @@ package eval
 
 import (
 	"reflect"
+	"sync"
 	"syscall"
 	"unsafe"
 
 	"container/list"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
 	"github.com/pkg/errors"
 )
 
@@ -34,6 +36,7 @@ type testProcess struct {
 	list      *list.List
 	array     []*testItem
 	createdAt int64
+	overriden string
 }
 
 type testItemListIterator struct {
@@ -109,6 +112,9 @@ type testEvent struct {
 }
 
 type testModel struct {
+	overrideLock        sync.RWMutex
+	overrideInvalidated bool
+	overridenValues     []string
 }
 
 func (e *testEvent) GetType() string {
@@ -330,6 +336,18 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 			Field: field,
 		}, nil
 
+	case "process.overriden":
+
+		return &StringEvaluator{
+			EvalFnc: func(ctx *Context) string {
+				return (*testEvent)(ctx.Object).process.overriden
+			},
+			Field: field,
+			OpOverrides: &OpOverrides{
+				StringEquals: m.StringEqualsOverride,
+			},
+		}, nil
+
 	case "open.filename":
 
 		return &StringEvaluator{
@@ -395,6 +413,10 @@ func (e *testEvent) GetFieldValue(field Field) (interface{}, error) {
 	case "process.created_at":
 
 		return e.process.createdAt, nil
+
+	case "process.overriden":
+
+		return e.process.overriden, nil
 
 	case "open.filename":
 
@@ -472,6 +494,10 @@ func (e *testEvent) GetFieldEventType(field Field) (string, error) {
 
 		return "*", nil
 
+	case "process.overriden":
+
+		return "*", nil
+
 	case "open.filename":
 
 		return "open", nil
@@ -528,6 +554,11 @@ func (e *testEvent) SetFieldValue(field Field, value interface{}) error {
 	case "process.created_at":
 
 		e.process.createdAt = value.(int64)
+		return nil
+
+	case "process.overriden":
+
+		e.process.overriden = value.(string)
 		return nil
 
 	case "open.filename":
@@ -624,6 +655,40 @@ func (e *testEvent) GetFieldType(field Field) (reflect.Kind, error) {
 	}
 
 	return reflect.Invalid, &ErrFieldNotFound{Field: field}
+}
+
+func (m *testModel) AddOverridenValue(value string) {
+	m.overrideLock.Lock()
+
+	m.overridenValues = append(m.overridenValues, value)
+	m.overrideInvalidated = true
+
+	m.overrideLock.Unlock()
+}
+
+// wrap BoolEvaluator
+
+// StringEqualsOverride operator override
+func (m *testModel) StringEqualsOverride(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *state) (*BoolEvaluator, error) {
+	var scalar *StringEvaluator
+	if a.EvalFnc == nil {
+		scalar = a
+	} else if b.EvalFnc == nil {
+		scalar = b
+	} else {
+		return nil, errors.New("not scalar overriden not supported")
+	}
+
+	var evaluator StringArrayEvaluator
+	if err := evaluator.AppendStringEvaluator(scalar); err != nil {
+		return nil, err
+	}
+
+	value := "abc"
+	if err := evaluator.AppendMembers(ast.StringMember{String: &value}); err != nil {
+		return nil, err
+	}
+	return ArrayStringContains(a, &evaluator, opts, state)
 }
 
 var testConstants = map[string]interface{}{

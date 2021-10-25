@@ -1017,6 +1017,32 @@ func TestDuration(t *testing.T) {
 	}
 }
 
+func TestOpOverride(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{
+			overriden: "abc",
+		},
+	}
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `process.overriden == "not"`, Expected: true},
+	}
+
+	for _, test := range tests {
+		result, _, err := eval(t, event, test.Expr)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+
+		if result != test.Expected {
+			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, result, test.Expr)
+		}
+	}
+}
+
 func BenchmarkArray(b *testing.B) {
 	event := &testEvent{
 		process: testProcess{
