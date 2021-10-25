@@ -30,7 +30,7 @@ func createPayload(ctx context.Context, ac inventories.AutoConfigInterface, coll
 }
 
 // Send collects the data needed and submits the payload
-func (c inventoriesCollector) Send(ctx context.Context, s *serializer.Serializer) error {
+func (c inventoriesCollector) Send(ctx context.Context, s serializer.MetricSerializer) error {
 	if s == nil {
 		return nil
 	}

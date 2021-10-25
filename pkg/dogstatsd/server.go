@@ -118,9 +118,12 @@ func initLatencyTelemetry() {
 type Server struct {
 	// listeners are the instantiated socket listener (UDS or UDP or both)
 	listeners []listeners.StatsdListener
-	// aggregator is a pointer to the aggregator that the dogstatsd daemon
-	// will send the metrics samples, events and service checks to.
-	aggregator *aggregator.BufferedAggregator
+
+	// demultiplexer will receive the metrics processed by the DogStatsD server,
+	// will take care of processing them in multiple routines if possible, and will
+	// also take care of forwarding the metrics to the intake.
+	demultiplexer aggregator.Demultiplexer
+
 	// running in their own routine, workers are responsible of parsing the packets
 	// and pushing them to the aggregator
 	workers []*worker
@@ -196,7 +199,7 @@ type metricsCountBuckets struct {
 
 // NewServer returns a running DogStatsD server.
 // If extraTags is nil, they will be read from DD_DOGSTATSD_TAGS if set.
-func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*Server, error) {
+func NewServer(demultiplexer aggregator.Demultiplexer, extraTags []string) (*Server, error) {
 	// This needs to be done after the configuration is loaded
 	once.Do(initLatencyTelemetry)
 
@@ -309,7 +312,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 		sharedPacketPool:          sharedPacketPool,
 		sharedPacketPoolManager:   sharedPacketPoolManager,
 		sharedFloat64List:         newFloat64ListPool(),
-		aggregator:                aggregator,
+		demultiplexer:             demultiplexer,
 		listeners:                 tmpListeners,
 		stopChan:                  make(chan bool),
 		health:                    health.RegisterLiveness("dogstatsd-main"),
@@ -443,7 +446,7 @@ func (s *Server) Flush() {
 	}
 	// flush the aggregator to have the serializer/forwarder send data to the backend.
 	// We add 10 seconds to the interval to ensure that we're getting the whole sketches bucket
-	s.aggregator.Flush(time.Now().Add(time.Second*10), true)
+	s.demultiplexer.FlushAggregatedData(time.Now().Add(time.Second*10), true)
 }
 
 // dropCR drops a terminal \r from the data.
@@ -550,12 +553,12 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 					if debugEnabled {
 						s.storeMetricStats(samples[idx])
 					}
-					batcher.appendSample(samples[idx])
+					batcher.appendSample(samples[idx]) // TODO(remy): use the Demultiplexer
 					if s.histToDist && samples[idx].Mtype == metrics.HistogramType {
 						distSample := samples[idx].Copy()
 						distSample.Name = s.histToDistPrefix + distSample.Name
 						distSample.Mtype = metrics.DistributionType
-						batcher.appendSample(*distSample)
+						batcher.appendSample(*distSample) // TODO(remy): use the Demultiplexer
 					}
 				}
 			}

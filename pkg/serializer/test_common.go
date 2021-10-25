@@ -48,6 +48,11 @@ func (s *MockSerializer) SendHostMetadata(m marshaler.Marshaler) error {
 	return s.Called(m).Error(0)
 }
 
+// SendAgentchecksMetadata serializes a metadata payload and sends it to the forwarder
+func (s *MockSerializer) SendAgentchecksMetadata(m marshaler.Marshaler) error {
+	return s.Called(m).Error(0)
+}
+
 // SendProcessesMetadata serializes a legacy process metadata payload and sends it to the forwarder.
 func (s *MockSerializer) SendProcessesMetadata(data interface{}) error {
 	return s.Called(data).Error(0)

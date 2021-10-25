@@ -27,7 +27,7 @@ type worker struct {
 func newWorker(s *Server) *worker {
 	return &worker{
 		server:  s,
-		batcher: newBatcher(s.aggregator),
+		batcher: newBatcher(s.demultiplexer),
 		parser:  newParser(s.sharedFloat64List),
 		samples: make([]metrics.MetricSample, 0, defaultSampleSize),
 	}

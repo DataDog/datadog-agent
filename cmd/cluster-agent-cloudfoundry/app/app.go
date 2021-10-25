@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -159,17 +158,16 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 	log.Infof("Hostname is: %s", hostname)
 
-	// setup the forwarder
 	keysPerDomain, err := config.GetMultipleEndpoints()
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
-	f.Start() //nolint:errcheck
-	s := serializer.NewSerializer(f, nil)
-
-	aggregatorInstance := aggregator.InitAggregator(s, nil, hostname)
-	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
+	opts := aggregator.DefaultDemultiplexerOptions(keysPerDomain)
+	opts.NoEventPlatformForwarder = true
+	opts.NoOrchestratorForwarder = true
+	opts.StartForwarders = true
+	opts.StartupTelemetry = fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion)
+	aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
 
 	log.Infof("Datadog Cluster Agent is now running.")
 

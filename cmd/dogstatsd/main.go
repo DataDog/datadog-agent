@@ -178,15 +178,18 @@ func runAgent(ctx context.Context) (err error) {
 		log.Debugf("Health check listening on port %d", healthPort)
 	}
 
-	// setup the forwarder
+	// setup the demultiplexer
 	keysPerDomain, err := config.GetMultipleEndpoints()
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
-	f.Start() //nolint:errcheck
-	s := serializer.NewSerializer(f, nil)
-
+	opts := aggregator.DemultiplexerOptions{
+		Forwarder:                  forwarder.NewOptions(keysPerDomain),
+		NoopEventPlatformForwarder: false,
+		NoOrchestratorForwarder:    true,
+		FlushInterval:              aggregator.DefaultFlushInterval,
+		StartForwarders:            true,
+	}
 	hname, err := util.GetHostname(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting hostname: %s", err)
@@ -194,8 +197,10 @@ func runAgent(ctx context.Context) (err error) {
 	}
 	log.Debugf("Using hostname: %s", hname)
 
+	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hname)
+
 	// setup the metadata collector
-	metaScheduler = metadata.NewScheduler(s)
+	metaScheduler = metadata.NewScheduler(demux)
 	if err = metadata.SetupMetadataCollection(metaScheduler, []string{"host"}); err != nil {
 		metaScheduler.Stop()
 		return
@@ -216,16 +221,11 @@ func runAgent(ctx context.Context) (err error) {
 		tagger.Init()
 	}
 
-	aggregatorInstance := aggregator.InitAggregator(s, nil, hname)
-
-	statsd, err = dogstatsd.NewServer(aggregatorInstance, nil)
+	statsd, err = dogstatsd.NewServer(demux, nil)
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return
 	}
-
-	// send a starting metric and event
-	aggregatorInstance.AddAgentStartupTelemetry(version.AgentVersion)
 	return
 }
 

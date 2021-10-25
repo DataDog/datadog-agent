@@ -37,8 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -97,10 +95,9 @@ metadata for their metrics.`,
 		},
 	}
 
-	confPath              string
-	flagNoColor           bool
-	stopCh                chan struct{}
-	orchestratorForwarder *forwarder.DefaultForwarder
+	confPath    string
+	flagNoColor bool
+	stopCh      chan struct{}
 )
 
 func init() {
@@ -211,23 +208,14 @@ func start(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	forwarderOpts := forwarder.NewOptions(keysPerDomain)
-	// If a cluster-agent looses the connectivity to DataDog, we still want it to remain ready so that its endpoint remains in the service because:
-	// * It is still able to serve metrics to the WPA controller and
-	// * The metrics reported are reported as stale so that there is no "lie" about the accuracy of the reported metrics.
-	// Serving stale data is better than serving no data at all.
-	forwarderOpts.DisableAPIKeyChecking = true
-	f := forwarder.NewDefaultForwarder(forwarderOpts)
-	f.Start() //nolint:errcheck
-	// setup the orchestrator forwarder
-	orchestratorForwarder = orchcfg.NewOrchestratorForwarder()
-	if orchestratorForwarder != nil {
-		orchestratorForwarder.Start() //nolint:errcheck
-	}
-	s := serializer.NewSerializer(f, orchestratorForwarder)
 
-	aggregatorInstance := aggregator.InitAggregator(s, nil, hostname)
-	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
+	opts := aggregator.DefaultDemultiplexerOptions(keysPerDomain)
+	opts.Forwarder.DisableAPIKeyChecking = true
+	opts.NoEventPlatformForwarder = true
+	opts.StartForwarders = true
+	opts.StartupTelemetry = fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion)
+
+	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
 
 	le, err := leaderelection.GetLeaderEngine()
 	if err != nil {
@@ -387,13 +375,7 @@ func start(cmd *cobra.Command, args []string) error {
 		close(stopCh)
 	}
 
-	// stopping forwarders
-	if f != nil {
-		f.Stop()
-	}
-	if orchestratorForwarder != nil {
-		orchestratorForwarder.Stop()
-	}
+	demux.Stop(true)
 
 	log.Info("See ya!")
 	log.Flush()

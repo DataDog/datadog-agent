@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -249,12 +248,12 @@ func RunAgent(ctx context.Context) (err error) {
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
-	f := forwarder.NewDefaultForwarder(forwarder.NewOptions(keysPerDomain))
-	f.Start() //nolint:errcheck
-	s := serializer.NewSerializer(f, nil)
-
-	aggregatorInstance := aggregator.InitAggregator(s, nil, hostname)
-	aggregatorInstance.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", version.AgentVersion))
+	opts := aggregator.DefaultDemultiplexerOptions(keysPerDomain)
+	opts.NoEventPlatformForwarder = true
+	opts.NoOrchestratorForwarder = true
+	opts.StartForwarders = true // will only run the default forwarder
+	opts.StartupTelemetry = fmt.Sprintf("%s - Datadog Security Agent", version.AgentVersion)
+	aggregator.InitAndStartAgentDemultiplexer(opts, hostname)
 
 	stopper = restart.NewSerialStopper()
 

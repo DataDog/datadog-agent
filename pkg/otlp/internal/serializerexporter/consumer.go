@@ -58,9 +58,5 @@ func (c *serializerConsumer) flush(s serializer.MetricSerializer) error {
 	if err := s.SendSketch(c.sketches); err != nil {
 		return err
 	}
-	if err := s.SendSeries(c.series); err != nil {
-		return err
-	}
-
-	return nil
+	return s.SendSeries(c.series)
 }

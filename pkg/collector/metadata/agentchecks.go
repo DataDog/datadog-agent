@@ -19,7 +19,7 @@ import (
 type AgentChecksCollector struct{}
 
 // Send collects the data needed and submits the payload
-func (hp *AgentChecksCollector) Send(ctx context.Context, s *serializer.Serializer) error {
+func (hp *AgentChecksCollector) Send(ctx context.Context, s serializer.MetricSerializer) error {
 	payload := agentchecks.GetPayload(ctx)
 	if err := s.SendAgentchecksMetadata(payload); err != nil {
 		return fmt.Errorf("unable to submit agentchecks metadata payload, %s", err)

@@ -91,7 +91,7 @@ func eventMatcher(m eventMatch) interface{} {
 func TestRun(t *testing.T) {
 	assert := assert.New(t)
 
-	aggregator.InitAggregator(nil, nil, "foo")
+	aggregator.InitAndStartAgentDemultiplexer(aggregator.DefaultDemultiplexerOptions(nil), "foo")
 
 	e := enterTempEnv(t)
 	defer e.leave()
@@ -190,7 +190,7 @@ func TestRun(t *testing.T) {
 func TestRunChecks(t *testing.T) {
 	assert := assert.New(t)
 
-	aggregator.InitAggregator(nil, nil, "foo")
+	aggregator.InitAndStartAgentDemultiplexer(aggregator.DefaultDemultiplexerOptions(nil), "foo")
 
 	e := enterTempEnv(t)
 	defer e.leave()

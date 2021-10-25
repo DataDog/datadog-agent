@@ -8,13 +8,9 @@
 package aggregator
 
 import (
-	// stdlib
 	"fmt"
-	"sync"
 	"testing"
 	"time"
-
-	// 3p
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,21 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
-
-func resetAggregator() {
-	if aggregatorInstance != nil {
-		aggregatorInstance.stopChan <- struct{}{}
-	}
-	recurrentSeries = metrics.Series{}
-	aggregatorInstance = nil
-	aggregatorInit = sync.Once{}
-	senderInstance = nil
-	senderInit = sync.Once{}
-	senderPool = &checkSenderPool{
-		senders: make(map[check.ID]Sender),
-	}
-	tagsetTlm.reset()
-}
 
 type senderWithChans struct {
 	senderMetricSampleChan chan senderMetricSample
@@ -60,8 +41,11 @@ func initSender(id check.ID, defaultHostname string) (s senderWithChans) {
 }
 
 func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
-	resetAggregator()
-	InitAggregator(nil, nil, "")
+	// this test IS USING globals (demultiplexerInstance holding the senders)
+	// -
+
+	aggregatorInstance := demultiplexerInstance.Aggregator()
+	aggregatorInstance.checkSamplers = make(map[check.ID]*CheckSampler)
 
 	s, err := GetDefaultSender()
 	assert.Nil(t, err)
@@ -76,8 +60,12 @@ func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 }
 
 func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
-	resetAggregator()
-	InitAggregator(nil, nil, "")
+	// this test IS USING globals (demultiplexerInstance holding the senders)
+	// -
+
+	aggregatorInstance := demultiplexerInstance.Aggregator()
+	aggregatorInstance.checkSamplers = make(map[check.ID]*CheckSampler)
+	demultiplexerInstance.cleanSenders()
 
 	s, err := GetSender(checkID1)
 	assert.Nil(t, err)
@@ -99,25 +87,34 @@ func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
 }
 
 func TestGetSenderWithSameIDsReturnsSameSender(t *testing.T) {
-	resetAggregator()
-	InitAggregator(nil, nil, "")
+	// this test IS USING globals (demultiplexerInstance holding the senders)
+	// -
+
+	demux := demultiplexerInstance.(*AgentDemultiplexer)
+	aggregatorInstance := demultiplexerInstance.Aggregator()
+	aggregatorInstance.checkSamplers = make(map[check.ID]*CheckSampler)
+	demux.cleanSenders()
 
 	sender1, err := GetSender(checkID1)
 	assert.Nil(t, err)
 	assert.Len(t, aggregatorInstance.checkSamplers, 1)
-	assert.Len(t, senderPool.senders, 1)
+	assert.Len(t, demux.senderPool.senders, 1)
 
 	sender2, err := GetSender(checkID1)
 	assert.Nil(t, err)
 	assert.Equal(t, sender1, sender2)
 
 	assert.Len(t, aggregatorInstance.checkSamplers, 1)
-	assert.Len(t, senderPool.senders, 1)
+	assert.Len(t, demux.senderPool.senders, 1)
 }
 
 func TestDestroySender(t *testing.T) {
-	resetAggregator()
-	InitAggregator(nil, nil, "")
+	// this test IS USING globals (demultiplexerInstance holding the senders)
+	// -
+
+	aggregatorInstance := demultiplexerInstance.Aggregator()
+	aggregatorInstance.checkSamplers = make(map[check.ID]*CheckSampler)
+	demultiplexerInstance.cleanSenders()
 
 	_, err := GetSender(checkID1)
 	assert.Nil(t, err)
@@ -132,8 +129,12 @@ func TestDestroySender(t *testing.T) {
 }
 
 func TestGetAndSetSender(t *testing.T) {
-	resetAggregator()
-	InitAggregator(nil, nil, "")
+	// this test IS USING globals (demultiplexerInstance holding the senders)
+	// -
+
+	aggregatorInstance := demultiplexerInstance.Aggregator()
+	aggregatorInstance.checkSamplers = make(map[check.ID]*CheckSampler)
+	demultiplexerInstance.cleanSenders()
 
 	senderMetricSampleChan := make(chan senderMetricSample, 10)
 	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
@@ -152,8 +153,14 @@ func TestGetAndSetSender(t *testing.T) {
 }
 
 func TestGetSenderDefaultHostname(t *testing.T) {
-	resetAggregator()
-	InitAggregator(nil, nil, "testhostname")
+	// this test IS USING globals (demultiplexerInstance holding the senders)
+	// -
+
+	aggregatorInstance := demultiplexerInstance.Aggregator()
+	aggregatorInstance.checkSamplers = make(map[check.ID]*CheckSampler)
+	demultiplexerInstance.cleanSenders()
+
+	aggregatorInstance.SetHostname(altDefaultHostname)
 
 	sender, err := GetSender(checkID1)
 	require.NoError(t, err)
@@ -161,13 +168,15 @@ func TestGetSenderDefaultHostname(t *testing.T) {
 	checksender, ok := sender.(*checkSender)
 	require.True(t, ok)
 
-	assert.Equal(t, "testhostname", checksender.defaultHostname)
+	assert.Equal(t, altDefaultHostname, checksender.defaultHostname)
 	assert.Equal(t, false, checksender.defaultHostnameDisabled)
+
+	aggregatorInstance.SetHostname(defaultHostname)
 }
 
 func TestGetSenderServiceTagMetrics(t *testing.T) {
-	resetAggregator()
-	InitAggregator(nil, nil, "testhostname")
+	// this test not using anything global
+	// -
 
 	s := initSender(checkID1, "")
 	checkTags := []string{"check:tag1", "check:tag2"}
@@ -189,8 +198,8 @@ func TestGetSenderServiceTagMetrics(t *testing.T) {
 }
 
 func TestGetSenderServiceTagServiceCheck(t *testing.T) {
-	resetAggregator()
-	InitAggregator(nil, nil, "testhostname")
+	// this test not using anything global
+	// -
 
 	s := initSender(checkID1, "")
 	checkTags := []string{"check:tag1", "check:tag2"}
@@ -212,8 +221,8 @@ func TestGetSenderServiceTagServiceCheck(t *testing.T) {
 }
 
 func TestGetSenderServiceTagEvent(t *testing.T) {
-	resetAggregator()
-	InitAggregator(nil, nil, "testhostname")
+	// this test not using anything global
+	// -
 
 	s := initSender(checkID1, "")
 	checkTags := []string{"check:tag1", "check:tag2"}
@@ -243,8 +252,8 @@ func TestGetSenderServiceTagEvent(t *testing.T) {
 }
 
 func TestGetSenderAddCheckCustomTagsMetrics(t *testing.T) {
-	resetAggregator()
-	InitAggregator(nil, nil, "testhostname")
+	// this test not using anything global
+	// -
 
 	s := initSender(checkID1, "")
 	// no custom tags
@@ -275,8 +284,8 @@ func TestGetSenderAddCheckCustomTagsMetrics(t *testing.T) {
 }
 
 func TestGetSenderAddCheckCustomTagsService(t *testing.T) {
-	resetAggregator()
-	InitAggregator(nil, nil, "testhostname")
+	// this test not using anything global
+	// -
 
 	s := initSender(checkID1, "")
 
@@ -308,8 +317,8 @@ func TestGetSenderAddCheckCustomTagsService(t *testing.T) {
 }
 
 func TestGetSenderAddCheckCustomTagsEvent(t *testing.T) {
-	resetAggregator()
-	InitAggregator(nil, nil, "testhostname")
+	// this test not using anything global
+	// -
 
 	s := initSender(checkID1, "")
 
@@ -352,8 +361,8 @@ func TestGetSenderAddCheckCustomTagsEvent(t *testing.T) {
 }
 
 func TestGetSenderAddCheckCustomTagsHistogramBucket(t *testing.T) {
-	resetAggregator()
-	InitAggregator(nil, nil, "testhostname")
+	// this test not using anything global
+	// -
 
 	s := initSender(checkID1, "")
 
@@ -385,6 +394,9 @@ func TestGetSenderAddCheckCustomTagsHistogramBucket(t *testing.T) {
 }
 
 func TestCheckSenderInterface(t *testing.T) {
+	// this test not using anything global
+	// -
+
 	s := initSender(checkID1, "default-hostname")
 	s.sender.Gauge("my.metric", 1.0, "my-hostname", []string{"foo", "bar"})
 	s.sender.Rate("my.rate_metric", 2.0, "my-hostname", []string{"foo", "bar"})
@@ -478,6 +490,9 @@ func TestCheckSenderInterface(t *testing.T) {
 }
 
 func TestCheckSenderHostname(t *testing.T) {
+	// this test not using anything global
+	// -
+
 	defaultHostname := "default-host"
 
 	for nb, tc := range []struct {
@@ -549,6 +564,9 @@ func TestCheckSenderHostname(t *testing.T) {
 }
 
 func TestChangeAllSendersDefaultHostname(t *testing.T) {
+	// this test IS USING globals (demultiplexerInstance holding the senders)
+	// -
+
 	s := initSender(checkID1, "hostname1")
 	SetSender(s.sender, checkID1)
 

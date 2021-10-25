@@ -11,16 +11,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ServerlessMetricAgent represents the DogStatsD server and the aggregator
 type ServerlessMetricAgent struct {
 	dogStatDServer *dogstatsd.Server
-	aggregator     *aggregator.BufferedAggregator
+	demux          aggregator.Demultiplexer
 }
 
 // MetricConfig abstacts the config package
@@ -38,7 +36,7 @@ type MultipleEndpointConfig interface {
 
 // DogStatsDFactory allows create a new DogStatsD server
 type DogStatsDFactory interface {
-	NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*dogstatsd.Server, error)
+	NewServer(demux aggregator.Demultiplexer, extraTags []string) (*dogstatsd.Server, error)
 }
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
@@ -47,8 +45,8 @@ func (m *MetricConfig) GetMultipleEndpoints() (map[string][]string, error) {
 }
 
 // NewServer returns a running DogStatsD server
-func (m *MetricDogStatsD) NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*dogstatsd.Server, error) {
-	return dogstatsd.NewServer(aggregator, extraTags)
+func (m *MetricDogStatsD) NewServer(demux aggregator.Demultiplexer, extraTags []string) (*dogstatsd.Server, error) {
+	return dogstatsd.NewServer(demux, extraTags)
 }
 
 // Start starts the DogStatsD agent
@@ -56,16 +54,16 @@ func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEn
 	// prevents any UDP packets from being stuck in the buffer and not parsed during the current invocation
 	// by setting this option to 1ms, all packets received will directly be sent to the parser
 	config.Datadog.Set("dogstatsd_packet_buffer_flush_timeout", 1*time.Millisecond)
-	aggregatorInstance := buildBufferedAggregator(multipleEndpointConfig, forwarderTimeout)
+	demux := buildDemultiplexer(multipleEndpointConfig, forwarderTimeout)
 
-	if aggregatorInstance != nil {
-		statsd, err := dogstatFactory.NewServer(aggregatorInstance, nil)
+	if demux != nil {
+		statsd, err := dogstatFactory.NewServer(demux, nil)
 		if err != nil {
 			log.Errorf("Unable to start the DogStatsD server: %s", err)
 		} else {
 			statsd.ServerlessMode = true // we're running in a serverless environment (will removed host field from samples)
 			c.dogStatDServer = statsd
-			c.aggregator = aggregatorInstance
+			c.demux = demux
 		}
 	}
 }
@@ -87,6 +85,7 @@ func (c *ServerlessMetricAgent) Stop() {
 	if c.IsReady() {
 		c.dogStatDServer.Stop()
 	}
+	// FIXME(remy): should we close the Demultiplexer here?
 }
 
 // SetExtraTags sets extra tags on the DogStatsD server
@@ -98,18 +97,15 @@ func (c *ServerlessMetricAgent) SetExtraTags(tagArray []string) {
 
 // GetMetricChannel returns a channel where metrics can be sent to
 func (c *ServerlessMetricAgent) GetMetricChannel() chan []metrics.MetricSample {
-	return c.aggregator.GetBufferedMetricsWithTsChannel()
+	return c.demux.Aggregator().GetBufferedMetricsWithTsChannel()
 }
 
-func buildBufferedAggregator(multipleEndpointConfig MultipleEndpointConfig, forwarderTimeout time.Duration) *aggregator.BufferedAggregator {
+func buildDemultiplexer(multipleEndpointConfig MultipleEndpointConfig, forwarderTimeout time.Duration) aggregator.Demultiplexer {
 	log.Debugf("Using a SyncForwarder with a %v timeout", forwarderTimeout)
 	keysPerDomain, err := multipleEndpointConfig.GetMultipleEndpoints()
 	if err != nil {
 		log.Errorf("Misconfiguration of agent endpoints: %s", err)
 		return nil
 	}
-	f := forwarder.NewSyncForwarder(keysPerDomain, forwarderTimeout)
-	f.Start() //nolint:errcheck
-	serializer := serializer.NewSerializer(f, nil)
-	return aggregator.InitAggregator(serializer, nil, "serverless")
+	return aggregator.InitAndStartServerlessDemultiplexer(keysPerDomain, "serverless", forwarderTimeout)
 }
