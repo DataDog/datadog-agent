@@ -17,7 +17,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"gotest.tools/assert"
 )
 

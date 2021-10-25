@@ -23,15 +23,15 @@ import (
 	"text/template"
 	"unicode"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors/common"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/generators/accessors/doc"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/common"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors/doc"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/structtag"
 	"golang.org/x/tools/go/loader"
 )
 
 const (
-	pkgPrefix = "github.com/DataDog/datadog-agent/pkg/security"
+	pkgPrefix = "github.com/DataDog/datadog-agent/pkg/security/secl"
 )
 
 var (
@@ -420,7 +420,7 @@ import (
 	"unsafe"
 
 	{{if ne $.SourcePkg $.TargetPkg}}"{{.SourcePkg}}"{{end}}
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 // suppress unused package warning
