@@ -55,10 +55,9 @@ type Daemon struct {
 	// through configuration.
 	useAdaptiveFlush bool
 
-	// TODO: Delete clientLibReady
 	// clientLibReady indicates whether the datadog client library has initialised
 	// and called the /hello route on the agent
-	clientLibReady bool
+	// clientLibReady bool
 
 	// stopped represents whether the Daemon has been stopped
 	stopped bool
@@ -101,8 +100,7 @@ func StartDaemon(addr string) *Daemon {
 		InvcWg:           &sync.WaitGroup{},
 		lastInvocations:  make([]time.Time, 0),
 		useAdaptiveFlush: true,
-		// TODO: delete clientLibReady
-		clientLibReady:    false,
+		// clientLibReady:    false,
 		flushStrategy:     &flush.AtTheEnd{},
 		ExtraTags:         &serverlessLog.Tags{},
 		ExecutionContext:  &serverlessLog.ExecutionContext{},
@@ -169,11 +167,10 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 }
 
-// TODO: Delete
 // SetClientReady indicates that the client library has initialised and called the /hello route on the agent
-func (d *Daemon) SetClientReady(isReady bool) {
-	d.clientLibReady = isReady
-}
+// func (d *Daemon) SetClientReady(isReady bool) {
+// 	d.clientLibReady = isReady
+// }
 
 // ShouldFlush indicated whether or a flush is needed
 func (d *Daemon) ShouldFlush(moment flush.Moment, t time.Time) bool {
