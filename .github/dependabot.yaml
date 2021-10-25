@@ -76,7 +76,19 @@ updates:
       - team/agent-platform
       - changelog/no-changelog
     milestone: 22
-    ignore: 
+    ignore:
+      # Ignore internal modules
+      - dependency-name: github.com/DataDog/datadog-agent/*
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /pkg/security/secl
+    labels:
+      - dependencies
+      - team/agent-security
+      - changelog/no-changelog
+    milestone: 22
+    ignore:
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
     schedule:
