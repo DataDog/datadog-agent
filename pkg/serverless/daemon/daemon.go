@@ -132,7 +132,7 @@ func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // Flush is a route called by the Lambda Library when the runtime is done.
-// It is no longer used, but the route is maintained for backwards compatability.
+// It is no longer used, but the route is maintained for backwards compatibility.
 type Flush struct {
 	daemon *Daemon
 }
