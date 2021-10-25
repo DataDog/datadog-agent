@@ -112,7 +112,7 @@ func StartDaemon(addr string) *Daemon {
 	mux.Handle("/lambda/hello", &Hello{daemon})
 	mux.Handle("/lambda/flush", &Flush{daemon})
 
-	// start the HTTP server used to communicate with the clients
+	// start the HTTP server used to communicate with the runtime and the Lambda platform
 	go func() {
 		_ = daemon.httpServer.ListenAndServe()
 	}()
