@@ -11,8 +11,8 @@ import (
 	"path"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/secl_compiler/eval"
 )
 
 // allCapabilities hold all the supported filtering capabilities

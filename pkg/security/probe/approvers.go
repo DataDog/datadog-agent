@@ -11,9 +11,9 @@ import (
 	"path"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/secl_compiler/eval"
 )
 
 type onApproverHandler func(probe *Probe, approvers rules.Approvers) (activeApprovers, error)
