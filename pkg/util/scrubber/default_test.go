@@ -303,11 +303,9 @@ func TestYamlConfig(t *testing.T) {
 	// Sanity check
 	assert.Equal(t, contents, cleanedString)
 
-	/*
-		AddStrippedKeys([]string{"foobar"})
+	AddStrippedKeys([]string{"foobar"})
 
-		assertClean(t, contents, `foobar: ********`)
-	*/
+	assertClean(t, contents, `foobar: ********`)
 }
 
 func TestCertConfig(t *testing.T) {
