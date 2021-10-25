@@ -3,6 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
-// Package secl provides utilities related to Datadog’s Security Language.
+// Package secl provides utilities related to Datadog Cloud Workload Security Policy Language.
 // This module has no API stability guarantees.
 package secl
