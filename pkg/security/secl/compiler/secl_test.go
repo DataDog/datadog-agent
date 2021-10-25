@@ -10,7 +10,7 @@ import (
 
 	"github.com/alecthomas/participle/lexer"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
 
 func TestExprAt(t *testing.T) {

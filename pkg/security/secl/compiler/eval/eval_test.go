@@ -15,7 +15,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
 
 // NewOptsWithParams initializes a new Opts instance with Constants parameters
