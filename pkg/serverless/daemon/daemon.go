@@ -150,24 +150,24 @@ func (d *Daemon) SetClientReady(isReady bool) {
 // HandleRuntimeDone should be called when the runtime is done handling an invocation. It will finish
 // the invocation, and may also flush telemetry.
 func (d *Daemon) HandleRuntimeDone() {
-	if !f.daemon.ShouldFlush(flush.Stopping, time.Now()) {
-		log.Debugf("The flush strategy %s has decided to not flush at moment: %s", f.daemon.LogFlushStategy(), flush.Stopping)
-		f.daemon.FinishInvocation()
+	if !d.ShouldFlush(flush.Stopping, time.Now()) {
+		log.Debugf("The flush strategy %s has decided to not flush at moment: %s", d.GetFlushStrategy(), flush.Stopping)
+		d.FinishInvocation()
 		return
 	}
 
-	log.Debugf("The flush strategy %s has decided to flush at moment: %s", f.daemon.LogFlushStategy(), flush.Stopping)
+	log.Debugf("The flush strategy %s has decided to flush at moment: %s", d.GetFlushStrategy(), flush.Stopping)
 
 	// if the DogStatsD daemon isn't ready, wait for it.
-	if !f.daemon.MetricAgent.IsReady() {
+	if !d.MetricAgent.IsReady() {
 		log.Debug("The metric agent wasn't ready, skipping flush.")
-		f.daemon.FinishInvocation()
+		d.FinishInvocation()
 		return
 	}
 
 	go func() {
-		f.daemon.TriggerFlush(false)
-		f.daemon.FinishInvocation()
+		d.TriggerFlush(false)
+		d.FinishInvocation()
 	}()
 }
 
@@ -176,8 +176,8 @@ func (d *Daemon) ShouldFlush(moment flush.Moment, t time.Time) bool {
 	return d.flushStrategy.ShouldFlush(moment, t)
 }
 
-// LogFlushStategy returns the flush stategy
-func (d *Daemon) LogFlushStategy() string {
+// GetFlushStrategy returns the flush stategy
+func (d *Daemon) GetFlushStrategy() string {
 	return d.flushStrategy.String()
 }
 
@@ -190,7 +190,7 @@ func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfi
 		MetricChannel:          d.MetricAgent.GetMetricChannel(),
 		LogsEnabled:            logsEnabled,
 		EnhancedMetricsEnabled: enhancedMetricsEnabled,
-		Daemon:                 d,
+		HandleRuntimeDone:      d.HandleRuntimeDone,
 	})
 }
 
@@ -207,7 +207,7 @@ func (d *Daemon) SetTraceAgent(traceAgent *trace.ServerlessTraceAgent) {
 
 // SetFlushStrategy sets the flush strategy to use.
 func (d *Daemon) SetFlushStrategy(strategy flush.Strategy) {
-	log.Debugf("Set flush strategy: %s (was: %s)", strategy.String(), d.LogFlushStategy())
+	log.Debugf("Set flush strategy: %s (was: %s)", strategy.String(), d.GetFlushStrategy())
 	d.flushStrategy = strategy
 }
 
