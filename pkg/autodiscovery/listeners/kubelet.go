@@ -189,7 +189,18 @@ func (l *KubeletListener) createPodService(pod workloadmeta.KubernetesPod, conta
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	l.services[buildSvcID(pod.GetID())] = svc
+	svcID := buildSvcID(pod.GetID())
+	if old, found := l.services[svcID]; found {
+		if kubeletSvcEqual(old, svc) {
+			log.Debugf("Received a duplicated kubelet service '%s'", svc.entity)
+			return
+		}
+
+		log.Debugf("Kubelet service '%s' has been updated, removing the old one", svc.entity)
+		l.delService <- old
+	}
+
+	l.services[svcID] = svc
 	l.newService <- svc
 }
 

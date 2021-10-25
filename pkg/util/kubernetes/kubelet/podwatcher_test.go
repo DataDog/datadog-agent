@@ -49,6 +49,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
 		lastSeenReady:  make(map[string]time.Time),
+		oldReadiness:   make(map[string]bool),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -90,6 +91,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
 		lastSeenReady:  make(map[string]time.Time),
+		oldReadiness:   make(map[string]bool),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -131,6 +133,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherWithInitContainers() {
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
 		lastSeenReady:  make(map[string]time.Time),
+		oldReadiness:   make(map[string]bool),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -159,6 +162,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherWithShortLivedContainers() {
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
 		lastSeenReady:  make(map[string]time.Time),
+		oldReadiness:   make(map[string]bool),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -187,6 +191,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherReadinessChange() {
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
 		lastSeenReady:  make(map[string]time.Time),
+		oldReadiness:   make(map[string]bool),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -218,7 +223,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherReadinessChange() {
 	require.Len(suite.T(), sourcePods, 5)
 	changes, err = watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 0)
+	require.Len(suite.T(), changes, 1)
 	expire, err = watcher.Expire()
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), expire, 0)
@@ -244,7 +249,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherReadinessChange() {
 	require.Len(suite.T(), sourcePods, 5)
 	changes, err = watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 0)
+	require.Len(suite.T(), changes, 1)
 	expire, err = watcher.Expire()
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), expire, 0)
@@ -257,7 +262,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherReadinessChange() {
 	require.Len(suite.T(), sourcePods, 5)
 	changes, err = watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 0)
+	require.Len(suite.T(), changes, 1)
 	require.Len(suite.T(), watcher.lastSeenReady, 5)
 	expire, err = watcher.Expire()
 	require.Nil(suite.T(), err)
@@ -288,6 +293,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireUnready() {
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
 		lastSeenReady:  make(map[string]time.Time),
+		oldReadiness:   make(map[string]bool),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -331,6 +337,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
 		lastSeenReady:  make(map[string]time.Time),
+		oldReadiness:   make(map[string]bool),
 		tagsDigest:     make(map[string]string),
 		oldPhase:       make(map[string]string),
 		expiryDuration: 5 * time.Minute,
@@ -373,6 +380,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
 		lastSeenReady:  make(map[string]time.Time),
+		oldReadiness:   make(map[string]bool),
 		tagsDigest:     make(map[string]string),
 		oldPhase:       make(map[string]string),
 		expiryDuration: 5 * time.Minute,
@@ -454,6 +462,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherLabelsValueChange() {
 		lastSeen:       make(map[string]time.Time),
 		lastSeenReady:  make(map[string]time.Time),
 		tagsDigest:     make(map[string]string),
+		oldReadiness:   make(map[string]bool),
 		oldPhase:       make(map[string]string),
 		expiryDuration: 5 * time.Minute,
 	}
@@ -496,6 +505,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherPhaseChange() {
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
 		lastSeenReady:  make(map[string]time.Time),
+		oldReadiness:   make(map[string]bool),
 		tagsDigest:     make(map[string]string),
 		oldPhase:       make(map[string]string),
 		expiryDuration: 5 * time.Minute,
@@ -521,6 +531,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherPhaseChangeNotRegistered() {
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
 		lastSeenReady:  make(map[string]time.Time),
+		oldReadiness:   make(map[string]bool),
 		expiryDuration: 5 * time.Minute,
 	}
 	twoPods := sourcePods[:2]
@@ -542,6 +553,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherAnnotationsValueChange() {
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
 		lastSeenReady:  make(map[string]time.Time),
+		oldReadiness:   make(map[string]bool),
 		tagsDigest:     make(map[string]string),
 		oldPhase:       make(map[string]string),
 		expiryDuration: 5 * time.Minute,
@@ -585,6 +597,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherContainerCreating() {
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
 		lastSeenReady:  make(map[string]time.Time),
+		oldReadiness:   make(map[string]bool),
 		expiryDuration: 5 * time.Minute,
 	}
 
@@ -601,6 +614,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherContainerCreatingTags() {
 	watcher := &PodWatcher{
 		lastSeen:       make(map[string]time.Time),
 		lastSeenReady:  make(map[string]time.Time),
+		oldReadiness:   make(map[string]bool),
 		tagsDigest:     make(map[string]string),
 		oldPhase:       make(map[string]string),
 		expiryDuration: 5 * time.Minute,

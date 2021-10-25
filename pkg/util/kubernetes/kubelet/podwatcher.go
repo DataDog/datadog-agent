@@ -30,6 +30,7 @@ type PodWatcher struct {
 	lastSeenReady  map[string]time.Time
 	tagsDigest     map[string]string
 	oldPhase       map[string]string
+	oldReadiness   map[string]bool
 }
 
 // NewPodWatcher creates a new watcher given an expiry duration
@@ -44,6 +45,7 @@ func NewPodWatcher(expiryDuration time.Duration, isWatchingTags bool) (*PodWatch
 		kubeUtil:       kubeutil,
 		lastSeen:       make(map[string]time.Time),
 		lastSeenReady:  make(map[string]time.Time),
+		oldReadiness:   make(map[string]bool),
 		expiryDuration: expiryDuration,
 	}
 	if isWatchingTags {
@@ -112,12 +114,15 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 				}
 				w.lastSeen[container.ID] = now
 
-				// for existing ones we look at the readiness state
-				if _, found := w.lastSeenReady[container.ID]; !found && isPodReady {
+				// for existing containers, check whether the
+				// readiness has changed since last time
+				if oldReadiness, found := w.oldReadiness[container.ID]; !found || oldReadiness != isPodReady {
 					// the pod has never been seen ready or was removed when
 					// reaching the unreadinessTimeout
 					updatedContainer = true
 				}
+
+				w.oldReadiness[container.ID] = isPodReady
 
 				// update the readiness expiry cache
 				if isPodReady {
@@ -167,6 +172,7 @@ func (w *PodWatcher) Expire() ([]string, error) {
 		if now.Sub(lastSeen) > w.expiryDuration {
 			delete(w.lastSeen, id)
 			delete(w.lastSeenReady, id)
+			delete(w.oldReadiness, id)
 			if w.isWatchingTags() {
 				delete(w.tagsDigest, id)
 				delete(w.oldPhase, id)
