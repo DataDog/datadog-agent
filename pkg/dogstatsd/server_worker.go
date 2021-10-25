@@ -18,6 +18,7 @@ type worker struct {
 	// the flushing logic to the aggregator is actually in the batcher.
 	batcher *batcher
 	parser  *parser
+
 	// we allocate it once per worker instead of once per packet. This will
 	// be used to store the samples out a of packets. Allocating it every
 	// time is very costly, especially on the GC.
@@ -33,10 +34,6 @@ func newWorker(s *Server) *worker {
 	}
 }
 
-func (w *worker) flush() {
-	w.batcher.flush()
-}
-
 func (w *worker) run() {
 	for {
 		select {
@@ -49,5 +46,6 @@ func (w *worker) run() {
 			// when parsing the packets
 			w.samples = w.server.parsePackets(w.batcher, w.parser, packets, w.samples)
 		}
+
 	}
 }
