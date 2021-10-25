@@ -11,10 +11,10 @@
 
 ### Commands
 - cd test
-- ./molecule3.sh swarm create
-- ./molecule3.sh swarm prepare
-- (optional) ./molecule3.sh swarm login
-- ./molecule3.sh swarm test
+- ./molecule3.sh vms create
+- ./molecule3.sh vms prepare
+- (optional) ./molecule3.sh vms login
+- ./molecule3.sh vms test
 
 ## Folder Structure
 
@@ -29,20 +29,20 @@
 
 - `playbook/setup`
   - The scripts inside this folder is used with the following commands
-    - `./molecule3.sh swarm create`
-    - `./molecule3.sh swarm destroy`
+    - `./molecule3.sh vms create`
+    - `./molecule3.sh vms destroy`
   - The `playbook/run` will also use these files if there is no EC2 present when the `./molecule3.sh compose prepare` step is executed
 
 
 - `playbook/run`
   - The scripts inside this folder is used with the following commands
-    - `./molecule3.sh swarm prepare`
-    - `./molecule3.sh swarm test`
+    - `./molecule3.sh vms prepare`
+    - `./molecule3.sh vms test`
 
 
 - `tests`
   - Contains all the unit tests ran with the following commands
-    - `./molecule3.sh swarm test`
+    - `./molecule3.sh vms test`
 
 ## Execution Order
 
