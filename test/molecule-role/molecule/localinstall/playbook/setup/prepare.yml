@@ -3,4 +3,4 @@
   hosts: agent_linux_vm
   gather_facts: false
   tasks:
-    - include_tasks: ./create.tasks.yml
+    - include_tasks: ./prepare.tasks.yml
