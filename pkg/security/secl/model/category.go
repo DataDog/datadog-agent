@@ -7,7 +7,7 @@
 
 package model
 
-import "github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 
 // EventCategory category type
 type EventCategory = string
