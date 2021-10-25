@@ -39,7 +39,7 @@ updates:
       - team/agent-platform
       - changelog/no-changelog
     milestone: 22
-    ignore: 
+    ignore:
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
     schedule:
@@ -51,7 +51,7 @@ updates:
       - team/metrics-aggregation
       - changelog/no-changelog
     milestone: 22
-    ignore: 
+    ignore:
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
     schedule:
@@ -63,7 +63,7 @@ updates:
       - team/agent-platform
       - changelog/no-changelog
     milestone: 22
-    ignore: 
+    ignore:
       - dependency-name: github.com/cihub/seelog
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
