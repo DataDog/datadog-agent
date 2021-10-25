@@ -1,0 +1,23 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    This change is potentially breaking for users setting `DD_ENTITY_ID` to something other than `metadata.uid`
+    in Kubernetes environments.
+
+    Datadog documentation indicates that `metadata.uid` should be used for the value of `DD_ENTITY_ID`. This change
+    enforces that standard. Users that are not using that value should change their configuration to use `metadata.uid`
+    instead.
+features:
+  - |
+    Adding support for setting a container ID as the origin for UDP Dogstatsd metrics.
+
+    Applications using a Dogstatsd client can use the `DD_ENTITY_ID` environment variable to set the container ID
+    as the origin for the metric. Alternatively, the Statsd metric tag `dd.internal.entity_id` can be
+    used to do the same (ex. `some.metric:1|c#dd.internal.entity_id:<container id>`).

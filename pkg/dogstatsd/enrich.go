@@ -4,7 +4,9 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"github.com/google/uuid"
 )
 
 var (
@@ -43,13 +45,18 @@ func extractTagsMetadata(tags []string, defaultHostname string, originTags strin
 	}
 
 	k8sOrigin := ""
-	// We set k8sOriginID if the metrics contain a 'dd.internal.entity_id' tag different from 'none'.
+	// We set k8sOriginID or origin if the metrics contain a 'dd.internal.entity_id' tag different from 'none'.
 	if entityIDValue != "" && entityIDValue != entityIDIgnoreValue {
 		// Check if the value is not "none" in order to avoid calling
 		// the tagger for entity that doesn't exist.
 
-		// currently only supported for pods
-		k8sOrigin = kubelet.KubePodTaggerEntityPrefix + entityIDValue
+		// All Kubernetes pod entityIDs are in UUID format. If the entityIDValueis a valid UUID, set
+		// k8sOrigin using the KubePodTaggerEntityPrefix, otherwise set origin with the ContainerEntityPrefix
+		if _, err := uuid.Parse(entityIDValue); err == nil {
+			k8sOrigin = kubelet.KubePodTaggerEntityPrefix + entityIDValue
+		} else {
+			origin = containers.ContainerEntityPrefix + entityIDValue
+		}
 	}
 
 	return tags, host, origin, k8sOrigin, cardinality

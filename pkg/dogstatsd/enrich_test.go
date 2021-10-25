@@ -460,7 +460,7 @@ func TestConvertServiceCheckMetadataMultiple(t *testing.T) {
 }
 
 func TestServiceCheckOriginTag(t *testing.T) {
-	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|d:21|h:localhost|#tag1:test,tag2,dd.internal.entity_id:testID|m:this is fine"), "default-hostname")
+	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|d:21|h:localhost|#tag1:test,tag2,dd.internal.entity_id:b52c1937-992d-448a-a0d5-8a4f1c3eee73|m:this is fine"), "default-hostname")
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "localhost", sc.Host)
@@ -468,7 +468,20 @@ func TestServiceCheckOriginTag(t *testing.T) {
 	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "this is fine", sc.Message)
 	assert.Equal(t, "", sc.OriginID)
-	assert.Equal(t, "kubernetes_pod_uid://testID", sc.K8sOriginID)
+	assert.Equal(t, "kubernetes_pod_uid://b52c1937-992d-448a-a0d5-8a4f1c3eee73", sc.K8sOriginID)
+	assert.Equal(t, []string{"tag1:test", "tag2"}, sc.Tags)
+}
+
+func TestServiceCheckOriginTagContainer(t *testing.T) {
+	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|d:21|h:localhost|#tag1:test,tag2,dd.internal.entity_id:12345678|m:this is fine"), "default-hostname")
+	require.Nil(t, err)
+	assert.Equal(t, "agent.up", sc.CheckName)
+	assert.Equal(t, "localhost", sc.Host)
+	assert.Equal(t, int64(21), sc.Ts)
+	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
+	assert.Equal(t, "this is fine", sc.Message)
+	assert.Equal(t, "container_id://12345678", sc.OriginID)
+	assert.Equal(t, "", sc.K8sOriginID)
 	assert.Equal(t, []string{"tag1:test", "tag2"}, sc.Tags)
 }
 
@@ -772,7 +785,7 @@ func TestConvertEventMetadataMultiple(t *testing.T) {
 }
 
 func TestEventOriginTag(t *testing.T) {
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test,dd.internal.entity_id:testID"), "default-hostname")
+	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test,dd.internal.entity_id:b52c1937-992d-448a-a0d5-8a4f1c3eee73"), "default-hostname")
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -786,7 +799,7 @@ func TestEventOriginTag(t *testing.T) {
 	assert.Equal(t, "source test", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
 	assert.Equal(t, "", e.OriginID)
-	assert.Equal(t, "kubernetes_pod_uid://testID", e.K8sOriginID)
+	assert.Equal(t, "kubernetes_pod_uid://b52c1937-992d-448a-a0d5-8a4f1c3eee73", e.K8sOriginID)
 }
 func TestConvertNamespace(t *testing.T) {
 	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:21|ms"), "testNamespace.", nil, "default-hostname")
@@ -807,7 +820,7 @@ func TestConvertNamespaceBlacklist(t *testing.T) {
 }
 
 func TestConvertEntityOriginDetectionNoTags(t *testing.T) {
-	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
+	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:b52c1937-992d-448a-a0d5-8a4f1c3eee73,sometag2:somevalue2"), "", nil, "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -818,12 +831,12 @@ func TestConvertEntityOriginDetectionNoTags(t *testing.T) {
 	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[1])
 	assert.Equal(t, "my-hostname", parsed.Host)
 	assert.Equal(t, "", parsed.OriginID)
-	assert.Equal(t, "kubernetes_pod_uid://foo", parsed.K8sOriginID)
+	assert.Equal(t, "kubernetes_pod_uid://b52c1937-992d-448a-a0d5-8a4f1c3eee73", parsed.K8sOriginID)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
 func TestConvertEntityOriginDetectionTags(t *testing.T) {
-	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
+	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:b52c1937-992d-448a-a0d5-8a4f1c3eee73,sometag2:somevalue2"), "", nil, "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -833,12 +846,12 @@ func TestConvertEntityOriginDetectionTags(t *testing.T) {
 	assert.ElementsMatch(t, []string{"sometag1:somevalue1", "sometag2:somevalue2"}, parsed.Tags)
 	assert.Equal(t, "my-hostname", parsed.Host)
 	assert.Equal(t, "", parsed.OriginID)
-	assert.Equal(t, "kubernetes_pod_uid://foo", parsed.K8sOriginID)
+	assert.Equal(t, "kubernetes_pod_uid://b52c1937-992d-448a-a0d5-8a4f1c3eee73", parsed.K8sOriginID)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
 func TestConvertEntityOriginDetectionTagsError(t *testing.T) {
-	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), "", nil, "default-hostname")
+	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:b52c1937-992d-448a-a0d5-8a4f1c3eee73,sometag2:somevalue2"), "", nil, "default-hostname")
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -849,7 +862,7 @@ func TestConvertEntityOriginDetectionTagsError(t *testing.T) {
 	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[1])
 	assert.Equal(t, "my-hostname", parsed.Host)
 	assert.Equal(t, "", parsed.OriginID)
-	assert.Equal(t, "kubernetes_pod_uid://foo", parsed.K8sOriginID)
+	assert.Equal(t, "kubernetes_pod_uid://b52c1937-992d-448a-a0d5-8a4f1c3eee73", parsed.K8sOriginID)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
@@ -913,7 +926,7 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "entityId present, host=foo, should not return origin tags",
 			args: args{
-				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "my-id")},
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "61a15212-3744-4da4-bd23-c1ec356c3fbd")},
 				defaultHostname:            "foo",
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: true,
@@ -921,7 +934,35 @@ func TestEnrichTags(t *testing.T) {
 			wantedTags:        []string{"env:prod"},
 			wantedHost:        "foo",
 			wantedOrigin:      "",
-			wantedK8sOrigin:   "kubernetes_pod_uid://my-id",
+			wantedK8sOrigin:   "kubernetes_pod_uid://61a15212-3744-4da4-bd23-c1ec356c3fbd",
+			wantedCardinality: "",
+		},
+		{
+			name: "entityId present, host=foo, should not return origin tags",
+			args: args{
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "8ae0df2e3336")},
+				defaultHostname:            "foo",
+				originTags:                 "originID",
+				entityIDPrecendenceEnabled: true,
+			},
+			wantedTags:        []string{"env:prod"},
+			wantedHost:        "foo",
+			wantedOrigin:      "container_id://8ae0df2e3336",
+			wantedK8sOrigin:   "",
+			wantedCardinality: "",
+		},
+		{
+			name: "entityId present, host=foo, should not return origin tags",
+			args: args{
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "my-id")},
+				defaultHostname:            "foo",
+				originTags:                 "originID",
+				entityIDPrecendenceEnabled: true,
+			},
+			wantedTags:        []string{"env:prod"},
+			wantedHost:        "foo",
+			wantedOrigin:      "container_id://my-id",
+			wantedK8sOrigin:   "",
 			wantedCardinality: "",
 		},
 		{
@@ -939,9 +980,9 @@ func TestEnrichTags(t *testing.T) {
 			wantedCardinality: "",
 		},
 		{
-			name: "entityId=42 present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
+			name: "entityId=61a15212-3744-4da4-bd23-c1ec356c3fbd present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
 			args: args{
-				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42")},
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "61a15212-3744-4da4-bd23-c1ec356c3fbd")},
 				defaultHostname:            "foo",
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: false,
@@ -949,13 +990,13 @@ func TestEnrichTags(t *testing.T) {
 			wantedTags:        []string{"env:prod"},
 			wantedHost:        "foo",
 			wantedOrigin:      "originID",
-			wantedK8sOrigin:   "kubernetes_pod_uid://42",
+			wantedK8sOrigin:   "kubernetes_pod_uid://61a15212-3744-4da4-bd23-c1ec356c3fbd",
 			wantedCardinality: "",
 		},
 		{
-			name: "entityId=42 cardinality=high present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
+			name: "entityId=61a15212-3744-4da4-bd23-c1ec356c3fbd cardinality=high present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
 			args: args{
-				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.HighCardinalityString},
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "61a15212-3744-4da4-bd23-c1ec356c3fbd"), CardinalityTagPrefix + collectors.HighCardinalityString},
 				defaultHostname:            "foo",
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: false,
@@ -963,13 +1004,13 @@ func TestEnrichTags(t *testing.T) {
 			wantedTags:        []string{"env:prod"},
 			wantedHost:        "foo",
 			wantedOrigin:      "originID",
-			wantedK8sOrigin:   "kubernetes_pod_uid://42",
+			wantedK8sOrigin:   "kubernetes_pod_uid://61a15212-3744-4da4-bd23-c1ec356c3fbd",
 			wantedCardinality: "high",
 		},
 		{
-			name: "entityId=42 cardinality=orchestrator present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
+			name: "entityId=61a15212-3744-4da4-bd23-c1ec356c3fbd cardinality=orchestrator present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
 			args: args{
-				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.OrchestratorCardinalityString},
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "61a15212-3744-4da4-bd23-c1ec356c3fbd"), CardinalityTagPrefix + collectors.OrchestratorCardinalityString},
 				defaultHostname:            "foo",
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: false,
@@ -977,13 +1018,13 @@ func TestEnrichTags(t *testing.T) {
 			wantedTags:        []string{"env:prod"},
 			wantedHost:        "foo",
 			wantedOrigin:      "originID",
-			wantedK8sOrigin:   "kubernetes_pod_uid://42",
+			wantedK8sOrigin:   "kubernetes_pod_uid://61a15212-3744-4da4-bd23-c1ec356c3fbd",
 			wantedCardinality: "orchestrator",
 		},
 		{
-			name: "entityId=42 cardinality=low present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
+			name: "entityId=61a15212-3744-4da4-bd23-c1ec356c3fbd cardinality=low present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
 			args: args{
-				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.LowCardinalityString},
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "61a15212-3744-4da4-bd23-c1ec356c3fbd"), CardinalityTagPrefix + collectors.LowCardinalityString},
 				defaultHostname:            "foo",
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: false,
@@ -991,13 +1032,13 @@ func TestEnrichTags(t *testing.T) {
 			wantedTags:        []string{"env:prod"},
 			wantedHost:        "foo",
 			wantedOrigin:      "originID",
-			wantedK8sOrigin:   "kubernetes_pod_uid://42",
+			wantedK8sOrigin:   "kubernetes_pod_uid://61a15212-3744-4da4-bd23-c1ec356c3fbd",
 			wantedCardinality: "low",
 		},
 		{
-			name: "entityId=42 cardinality=unknown present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
+			name: "entityId=61a15212-3744-4da4-bd23-c1ec356c3fbd cardinality=unknown present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
 			args: args{
-				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix + collectors.UnknownCardinalityString},
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "61a15212-3744-4da4-bd23-c1ec356c3fbd"), CardinalityTagPrefix + collectors.UnknownCardinalityString},
 				defaultHostname:            "foo",
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: false,
@@ -1005,13 +1046,13 @@ func TestEnrichTags(t *testing.T) {
 			wantedTags:        []string{"env:prod"},
 			wantedHost:        "foo",
 			wantedOrigin:      "originID",
-			wantedK8sOrigin:   "kubernetes_pod_uid://42",
+			wantedK8sOrigin:   "kubernetes_pod_uid://61a15212-3744-4da4-bd23-c1ec356c3fbd",
 			wantedCardinality: "unknown",
 		},
 		{
-			name: "entityId=42 cardinality='' present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
+			name: "entityId=61a15212-3744-4da4-bd23-c1ec356c3fbd cardinality='' present entityIDPrecendenceEnabled=false, host=foo, should call the originTagsFunc()",
 			args: args{
-				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "42"), CardinalityTagPrefix},
+				tags:                       []string{"env:prod", fmt.Sprintf("%s%s", entityIDTagPrefix, "61a15212-3744-4da4-bd23-c1ec356c3fbd"), CardinalityTagPrefix},
 				defaultHostname:            "foo",
 				originTags:                 "originID",
 				entityIDPrecendenceEnabled: false,
@@ -1019,7 +1060,7 @@ func TestEnrichTags(t *testing.T) {
 			wantedTags:        []string{"env:prod"},
 			wantedHost:        "foo",
 			wantedOrigin:      "originID",
-			wantedK8sOrigin:   "kubernetes_pod_uid://42",
+			wantedK8sOrigin:   "kubernetes_pod_uid://61a15212-3744-4da4-bd23-c1ec356c3fbd",
 			wantedCardinality: "",
 		},
 	}
