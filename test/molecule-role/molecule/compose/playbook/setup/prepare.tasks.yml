@@ -1,0 +1,9 @@
+---
+- include_tasks: ../_shared/install-and-update/updates-ubuntu18-automatic.yml
+- include_tasks: ../_shared/install-and-update/install-provisioning-dependencies.yml
+- include_tasks: ../_shared/docker/login.yml
+- include_tasks: ../_shared/copy/copy-configuration-files.yml
+- include_tasks: ../_shared/docker/copy-docker-base.yml
+- include_tasks: ../_shared/copy/copy-verify-and-create-script-file.yml
+- include_tasks: ../_shared/process/gather-facts.yml
+- include_tasks: ../_shared/env/agent-host-branch-env.yml

@@ -1,0 +1,9 @@
+---
+- name: Configure .env file used by docker-compose
+  copy:
+    content: |
+      AGENT_DOCKER_REPO={{ agent_docker_repo }}
+      AGENT_VERSION={{ agent_current_branch }}
+      DOCKER_HOST_IP={{ ansible_docker0['ipv4']['address'] }}
+      STACKSTATE_BRANCH={{ stackstate_branch }}
+    dest: /home/ubuntu/.env

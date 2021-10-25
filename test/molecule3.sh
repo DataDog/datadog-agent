@@ -52,6 +52,8 @@ export MAJOR_VERSION=${MAJOR_VERSION:-3}
 export STS_AWS_TEST_BUCKET=${STS_AWS_TEST_BUCKET:-stackstate-agent-3-test}
 export STS_DOCKER_TEST_REPO=${STS_DOCKER_TEST_REPO:-stackstate-agent-test}
 export STS_DOCKER_TEST_REPO_CLUSTER=${STS_DOCKER_TEST_REPO_CLUSTER:-stackstate-cluster-agent-test}
+export LC_ALL=en_US.utf-8
+export LANG=en_US.utf-8
 
 if [[ -z $CI_COMMIT_REF_NAME ]]; then
   export AGENT_CURRENT_BRANCH=`git rev-parse --abbrev-ref HEAD`
@@ -64,14 +66,12 @@ conda activate molecule
 pip3 install -r molecule-role/requirements-molecule3.txt
 
 # reads env file to file variables for molecule jobs locally
-ENV_FILE=./.env
-if test -f "$ENV_FILE"; then
-    echo ""
-    echo "------------ Sourcing env file with contents ------------"
-    echo "$(cat $ENV_FILE)"
-    echo "---------------------------------------------------------"
-    echo ""
-    source $ENV_FILE
+if test -f "./.envrc"; then
+    source "./.envrc"
+elif test -f "./.env"; then
+    source "./.env"
+else
+    echo "No env variables file found, Create either a .envrc or .env file to auto load env variables if required"
 fi
 
 cd molecule-role

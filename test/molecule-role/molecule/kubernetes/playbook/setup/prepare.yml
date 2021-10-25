@@ -1,0 +1,10 @@
+---
+- name: Prepare Receiver and EKS cluster
+  hosts: kubernetes-cluster-agent
+  gather_facts: true
+  tasks:
+    - name: Include vars
+      include_vars: ./prepare.vars.yml
+
+    # Default tasks from this script
+    - include_tasks: ./prepare.tasks.yml

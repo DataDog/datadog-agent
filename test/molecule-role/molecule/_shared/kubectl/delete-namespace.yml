@@ -1,0 +1,5 @@
+---
+- name: Delete namespace '{{namespace}}'
+  shell: "kubectl delete ns {{ namespace }}"
+  environment:
+    KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig

@@ -2,9 +2,9 @@
 provisioner:
   name: ansible
   playbooks:
-    create: playbook.setup.create.yml
-    prepare: playbook.setup.prepare.yml
-    destroy: playbook.setup.destroy.yml
+    create: playbook/setup/create.yml
+    prepare: playbook/setup/prepare.yml
+    destroy: playbook/setup/destroy.yml
   lint:
     name: ansible-lint
   inventory:

@@ -1,0 +1,16 @@
+---
+- name: "Set process_config.filters.short_lived_processes and process_config.filters.short_lived_network_relations to get deterministic behaviour in the short-lived filtering tests"
+  win_lineinfile:
+    path: C:\ProgramData\StackState\stackstate.yaml
+    insertafter: "process_config:"
+    line: |2
+        filters:
+          short_lived_processes:
+            enabled: true
+            qualifier_secs: {{ process_filter_short_lived_qualifier_secs }}
+          short_lived_network_relations:
+            enabled: true
+            qualifier_secs: {{ network_relation_filter_short_lived_qualifier_secs }}
+- name: "Restart StackState Agent Service"
+  win_command: |
+    "C:\\Program Files\\StackState\\StackState Agent\\embedded\\agent.exe" restart-service

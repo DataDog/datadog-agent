@@ -1,0 +1,28 @@
+---
+- name: Create
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Include vars
+      include_vars: ./create.vars.yml
+
+    # This first task runs and determines if there is a EC2 instance for the run state, if there is not then the
+    # block_ec2_creation variable will not be set thus below we then trigger the create step from the setup playbook
+    - include_tasks: ../../../_shared/aws/determine-create-state.yml
+
+    # This is the vars that belongs to the setup playbook
+    # Only trigger this is there is no existing EC2 instance for this run execution
+    # block_ec2_creation variable is ran inside the determine-create-state.yml script
+    - name: Include the Setup Create Playbook vars
+      include_vars: ./../setup/create.vars.yml
+      when: hostvars['localhost']['block_ec2_creation'] is not defined
+
+    # This is the task that belongs to the setup playbook
+    # Only trigger this is there is no existing EC2 instance for this run execution
+    # block_ec2_creation variable is ran inside the determine-create-state.yml script
+    - include_tasks: ./../setup/create.tasks.yml
+      when: hostvars['localhost']['block_ec2_creation'] is not defined
+
+    # Default tasks  from this script
+    - include_tasks: ./create.tasks.yml

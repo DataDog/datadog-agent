@@ -1,0 +1,10 @@
+---
+- include_tasks: ../_shared/process/gather-facts.yml
+- include_tasks: ../_shared/install-and-update/install-provisioning-dependencies.yml
+- include_tasks: ../_shared/docker/login.yml
+- include_tasks: ../_shared/docker/compose-copy.yml
+- include_tasks: ../_shared/copy/copy-verify-and-create-script-file.yml
+- include_tasks: ../_shared/env/agent-host-branch-env.yml
+- include_tasks: ../_shared/copy/copy-nagios-files.yml
+- include_tasks: ../_shared/copy/copy-nagios-config-files.yml
+- include_tasks: ../_shared/copy/copy-agent-integration-files.yml

@@ -1,0 +1,121 @@
+---
+- name: Prepare Receiver
+  hosts: receiver_vm
+  gather_facts: false
+  tasks:
+    # This is the task that belongs to the setup playbook
+    # Only trigger this is there is no existing EC2 instance for this run execution
+    # block_ec2_creation variable is ran inside the determine-create-state.yml script
+    - include_tasks: ./../setup/prepare.tasks.yml
+      when: hostvars['localhost']['block_ec2_creation'] is not defined
+
+    # Default tasks from this script
+    - include_tasks: ./prepare.tasks.prepare.receiver.yml
+
+- name: Prepare Linux Agents (pre)
+  hosts: agent_linux_vm
+  gather_facts: false
+  tasks:
+    - include_tasks: ./prepare.tasks.prepare.linux.yml
+
+- name: Prepare Network Connection Namespaces VM (pre)
+  hosts: agent-connection-namespaces
+  gather_facts: false
+  tasks:
+    - include_tasks: ./prepare.tasks.prepare.network.yml
+
+- name: Prepare Windows Agent (pre)
+  hosts: agent_win_vm
+  gather_facts: false
+  tasks:
+    - include_tasks: ./prepare.tasks.prepare.windows.yml
+
+- name: Prepare Ubuntu Agent listening before start
+  hosts: agent-ubuntu
+  gather_facts: false
+  tasks:
+    - include_tasks: ./prepare.tasks.prepare.ubuntu.yml
+
+- name: Prepare Fedora Agent connecting before start
+  hosts: agent-fedora
+  gather_facts: false
+  tasks:
+    - include_tasks: ./prepare.tasks.prepare.fedora.yml
+
+- name: Prepare Windows Agent connecting before start
+  hosts: agent-win
+  gather_facts: false
+  tasks:
+    - include_tasks: ./prepare.tasks.prepare.windows.agent.connecting.yml
+
+- name: Prepare Windows Agents (post)
+  hosts: agent_win_vm
+  gather_facts: false
+  tasks:
+    - include_tasks: ./prepare.tasks.prepare.windows.agent.yml
+
+- name: Prepare Win Agent for Short-Lived tests (post installation configuration)
+  hosts: agent_win_vm
+  gather_facts: false
+  tasks:
+    - include_tasks: ./prepare.tasks.prepare.windows.agent.short.yml
+
+- name: Prepare Linux Agents (post)
+  hosts: agent_linux_vm
+  gather_facts: false
+  tasks:
+    - include_tasks: ./prepare.tasks.prepare.linux.agent.yml
+
+- name: Prepare Ubuntu Agent for Short-Lived tests (post installation configuration)
+  hosts: agent-ubuntu
+  gather_facts: false
+  tasks:
+    - include_tasks: ./prepare.tasks.prepare.ubuntu.agent.short.yml
+
+- name: Prepare Ubuntu Agent listening after start
+  hosts: agent-ubuntu
+  gather_facts: false
+  tasks:
+    - include_tasks: ./prepare.tasks.prepare.ubuntu.agent.after.yml
+
+- name: Prepare Fedora Agent connecting after start
+  hosts: agent-fedora
+  gather_facts: false
+  tasks:
+    - include_tasks: ./prepare.tasks.prepare.fedora.agent.after.yml
+
+- name: Prepare Windows Agent connecting after start
+  hosts: agent-win
+  gather_facts: false
+  tasks:
+    - include_tasks: ./prepare.tasks.prepare.windows.agent.after.yml
+
+- name: Prepare Agent for blacklist inclusion test
+  hosts: agent-ubuntu, agent-fedora, agent-centos
+  gather_facts: false
+  tasks:
+    - include_tasks: ./prepare.tasks.agent.blacklist.yml
+
+- name: Prepare Agent for short-lived filtering test
+  hosts: agent-ubuntu
+  gather_facts: false
+  tasks:
+    - include_tasks: ./prepare.tasks.agent.short.filtering.yml
+
+- name: Prepare Agent for short-lived relation test
+  hosts: agent-ubuntu
+  gather_facts: false
+  tasks:
+    - include_tasks: ./prepare.tasks.agent.short.relation.yml
+
+- name: Prepare Connection Namespace VM with local docker connections
+  hosts: agent-connection-namespaces
+  gather_facts: false
+  tasks:
+    - include_tasks: ./prepare.tasks.connection.namespace.yml
+
+- name: Prepare Receiver
+  hosts: receiver_vm
+  gather_facts: false
+  tasks:
+    - include_tasks: ./prepare.tasks.receiver.yml

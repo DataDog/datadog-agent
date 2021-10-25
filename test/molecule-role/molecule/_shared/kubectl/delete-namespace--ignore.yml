@@ -1,0 +1,6 @@
+---
+- name: Delete namespace '{{namespace}}'
+  ignore_errors: true
+  shell: kubectl delete ns --ignore-not-found=true {{namespace}}
+  environment:
+    KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig

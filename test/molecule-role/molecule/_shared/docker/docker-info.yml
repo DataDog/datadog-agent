@@ -1,0 +1,4 @@
+---
+- name: Check to see if swarm is already active before trying to join
+  shell: "docker info --format '{{ '{{' }} .Swarm.LocalNodeState {{ '}}' }}'"  # weird format required to avoid replacement
+  register: swarm_status

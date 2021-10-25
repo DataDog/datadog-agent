@@ -1,0 +1,5 @@
+---
+- include_tasks: ../_shared/encryption/decrypt-ssh-key.yml
+- include_tasks: ../_shared/persistence/restore-molecule-inventory-cache.yml
+- include_tasks: ../_shared/persistence/instance-inventory.yml
+- include_tasks: ../_shared/wait/wait-for-ssh.yml

@@ -1,0 +1,31 @@
+---
+- name: Wait a bit for the process agent to start
+  pause:
+    seconds: 60
+# We use ncat to keep a listening port open and get a direction
+- name: Open listening port for fedora {{ connection_port_after_start_fedora }}
+  shell: "ncat --listen --broker -p {{ connection_port_after_start_fedora }}"
+  become: true
+  async: "{{ max_test_time }}"
+  poll: 0
+- name: Open listening port for windows {{ connection_port_after_start_windows }}
+  shell: "ncat --listen --broker -p {{ connection_port_after_start_windows }}"
+  become: true
+  async: "{{ max_test_time }}"
+  poll: 0
+- name: Forward DNAT port {{ dnat_service_port }} to {{ dnat_server_port }}
+  iptables:
+    table: nat
+    # PREROUTING for connections from outside, otherwise OUTPUT for local ones
+    chain: PREROUTING
+    protocol: tcp
+    destination_port: "{{ dnat_service_port }}"
+    jump: DNAT
+    to_destination: "{{ ansible_default_ipv4['address'] }}:{{ dnat_server_port }}"
+    comment: "Redirect traffic with dnat"
+  become: yes
+- name: Open dnat_server listening port {{ dnat_server_port }}
+  shell: "ncat --listen --broker -p {{ dnat_server_port }}"
+  become: true
+  async: "{{ max_test_time }}"
+  poll: 0

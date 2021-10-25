@@ -1,0 +1,5 @@
+---
+- name: Connect to Ubuntu Agent
+  shell: yes | ncat {{ hostvars['agent-ubuntu']['ansible_default_ipv4']['address'] }} {{ connection_port_before_start_fedora }}
+  async: "{{ max_test_time }}"
+  poll: 0

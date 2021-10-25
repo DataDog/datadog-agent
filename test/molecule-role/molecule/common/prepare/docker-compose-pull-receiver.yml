@@ -1,7 +1,0 @@
----
-- name: Docker compose pull images (cache purposes)
-  shell:
-    cmd: docker-compose pull
-    chdir: /home/ubuntu/receiver
-  ignore_errors: true
-  register: compose

@@ -1,0 +1,24 @@
+---
+- name: Gather facts (we need the docker network interface ip)
+  setup:
+
+- name: Stop and Remove Existing Docker Compose
+  command: docker-compose rm --stop -v --force
+  ignore_errors: true
+  args:
+    chdir: /home/ubuntu/
+
+- name: Run Docker compose (1/2)
+  command: docker-compose up -d
+  args:
+    chdir: /home/ubuntu/
+  ignore_errors: True
+  register: docker_compose_result
+
+- name: Run Docker compose (2/2)
+  command: docker-compose up -d
+  args:
+    chdir: /home/ubuntu/
+  when: docker_compose_result is failed
+
+- import_tasks: ../_shared/wait/wait-for-receiver.yml

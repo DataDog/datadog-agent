@@ -1,0 +1,8 @@
+---
+- name: Removing existing config files if exists
+  file:
+    path: "/home/ubuntu/deployment/aws-eks/tf-cluster/{{ item }}"
+    state: absent
+  with_items:
+    - .terraform
+    - kubeconfig

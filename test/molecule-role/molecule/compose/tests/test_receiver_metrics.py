@@ -3,7 +3,7 @@ import os
 import util
 from testinfra.utils.ansible_runner import AnsibleRunner
 
-testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('trace-java-demo')
+testinfra_hosts = AnsibleRunner(os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('trace-java-demo-compose')
 
 
 def test_container_metrics(host):

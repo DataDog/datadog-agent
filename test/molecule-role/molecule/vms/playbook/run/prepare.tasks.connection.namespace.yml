@@ -1,0 +1,5 @@
+---
+- name: Connect to netcat 1 docker container
+  shell: "docker exec -itd netcat-1 sh -c 'yes | ncat 127.0.0.1 9091'"
+- name: Connect to netcat 2 docker container
+  shell: "docker exec -itd netcat-2 sh -c 'yes | ncat 127.0.0.1 9091'"

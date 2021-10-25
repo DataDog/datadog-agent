@@ -1,0 +1,7 @@
+---
+- name: Wait for the pod-http-metrics scenario to become ready
+  command: kubectl -n={{ namespace }} wait --all --for=condition=Ready --timeout=360s -l test=pod-http-metrics pod
+  args:
+    chdir: /home/ubuntu/deployment/agents
+  environment:
+    KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig

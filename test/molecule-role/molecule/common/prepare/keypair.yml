@@ -1,4 +1,0 @@
----
-- name: Wait (SSH Key Restore)
-  pause:
-    seconds: 15

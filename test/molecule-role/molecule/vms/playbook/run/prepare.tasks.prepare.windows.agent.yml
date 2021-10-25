@@ -1,0 +1,10 @@
+---
+- name: Add test-stackstate-agent.sts to /etc/hosts
+  win_lineinfile:
+    path: C:\\Windows\\System32\\drivers\\etc\\hosts
+    line: "{{ hostvars['receiver']['ansible_host'] }} test-stackstate-agent.sts"
+    state: present
+- name: Install stackstate-agent
+  win_shell: ". { iwr -useb {{ agent_repo_url }}/install.ps1 } | iex; install -stsApiKey API_KEY -stsUrl https://test-stackstate-agent.sts/stsAgent -hostname {{ inventory_hostname }} -codeName {{ agent_current_branch }} -skipSSLValidation true"
+  register: install_result
+# - debug: var="install_result"

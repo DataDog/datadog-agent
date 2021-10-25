@@ -1,0 +1,7 @@
+---
+- name: Configure .env file used by docker-compose
+  copy:
+    content: |
+      STACKSTATE_BRANCH={{ stackstate_branch }}
+      CLUSTER_NAME={{ cluster_name }}
+    dest: /home/ubuntu/receiver/.env

@@ -1,0 +1,18 @@
+---
+- name: Install stackstate-agent (wait for lock)
+  shell: "while fuser /var/lib/dpkg/lock >/dev/null 2>&1; do sleep 10; done;"
+  become: yes
+  when: ansible_distribution == "Ubuntu"
+
+- name: Install stackstate-agent
+  shell: "/tmp/install_script.sh {{ custom_installer }}"
+  environment:
+    STS_API_KEY: "API_KEY"
+    STS_URL: "https://test-stackstate-agent.sts/stsAgent"
+    STS_HOSTNAME: "{{ inventory_hostname }}"
+    CODE_NAME: "{{ agent_current_branch }}"
+    SKIP_SSL_VALIDATION: "true"
+    STS_INSTALL_NO_REPO: "true"
+  register: install_agent_result
+  until: install_agent_result is not failed
+  retries: 5

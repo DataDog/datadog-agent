@@ -1,0 +1,9 @@
+---
+- name: Create StacSktate Agent Service on Master
+  command: docker stack deploy -c docker-compose.yml --with-registry-auth agent
+  args:
+    chdir: /home/ubuntu/
+  environment:
+    AGENT_VERSION: "{{ agent_current_branch }}"
+    STACKSTATE_BRANCH: "{{ stackstate_branch }}"
+  register: output

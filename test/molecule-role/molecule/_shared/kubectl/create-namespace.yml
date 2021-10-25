@@ -1,0 +1,7 @@
+---
+- name: Create test namespace '{{namespace}}'
+  shell: kubectl create ns {{ namespace }}
+  args:
+    chdir: /home/ubuntu/deployment
+  environment:
+    KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig

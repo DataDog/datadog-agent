@@ -1,0 +1,5 @@
+---
+- name: Run Docker compose
+  command: docker-compose up -d
+  args:
+    chdir: /home/ubuntu/receiver

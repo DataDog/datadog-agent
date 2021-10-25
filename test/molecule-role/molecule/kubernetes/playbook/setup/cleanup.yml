@@ -1,0 +1,20 @@
+---
+- name: Create
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Include vars
+      include_vars: ./cleanup.vars.yml
+
+    # Default tasks from this script
+    - include_tasks: ./cleanup.tasks.yml
+
+- name: Cleanup EKS cluster
+  hosts: kubernetes-cluster-agent
+  ignore_errors: true
+  ignore_unreachable: true
+  gather_facts: false
+  tasks:
+    # Default tasks from this script
+    - include_tasks: ./cleanup.tasks-cluster.yml

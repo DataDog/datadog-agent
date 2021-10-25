@@ -682,7 +682,7 @@ pre_release_cluster_agent_image:
 .molecule_test: &molecule_test
   <<: *molecule_artifacts
   stage: acceptance
-  timeout: 50 minutes
+  timeout: 80 minutes
   script:
     - cd $CI_PROJECT_DIR/test
     - ./molecule3.sh $MOLECULE_SCENARIO test

@@ -1,0 +1,9 @@
+---
+# We use ncat to keep a listening port open and get a direction
+- debug: msg="Starting listening for fedora and windows"
+- name: Open listening port for fedora {{ connection_port_before_start_fedora }}
+  shell: "nohup ncat --broker --listen -p {{ connection_port_before_start_fedora }} &"
+  become: true
+- name: Open listening port for windows {{ connection_port_before_start_windows }}
+  shell: "nohup ncat --broker --listen -p {{ connection_port_before_start_windows }} &"
+  become: true

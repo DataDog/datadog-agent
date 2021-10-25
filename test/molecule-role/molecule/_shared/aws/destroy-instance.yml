@@ -1,0 +1,46 @@
+---
+- name: "Dev Mode for gathering EC2 instances enabled"
+  debug:
+    msg: "{{ dev_mode }}"
+
+# Do not edit or change this function, If the filters are removed then you will delete ec2 instance that do not belong to molecule
+- name: "Gather existing EC2 instances for the branch '{{ agent_current_branch }}'"
+  ec2_instance_info:
+    filters:
+      instance-state-name: [ "running" ]
+      "tag:ci_sts_major_python_version": "{{ ci_sts_major_python_version }}"
+      "tag:agent_current_branch": "{{ agent_current_branch }}"
+      "tag:molecule_scenario_name": "{{ molecule_scenario_name }}"
+      "tag:dev": "{{ dev_mode }}"
+      "tag:usage": "molecule-build"
+  register: branch_instances
+
+- name: Instances found
+  debug:
+    msg: "{{ branch_instances }}"
+  when: branch_instances is defined
+
+- name: Destroy molecule instance(s)
+  ec2_instance:
+    state: absent
+    instance_ids: "{{ item.instance_id }}"
+  register: branch_instances_server
+  with_items: "{{ branch_instances.instances }}"
+  async: 7200
+  poll: 0
+  when: >
+    branch_instances is defined and
+    branch_instances.instances is defined and
+    branch_instances.instances|length < 18
+
+- name: Wait for instance(s) deletion to complete
+  async_status:
+    jid: "{{ item.ansible_job_id }}"
+  register: ec2_jobs
+  until: ec2_jobs.finished
+  retries: 300
+  with_items: "{{ branch_instances_server.results }}"
+  when: >
+    branch_instances is defined and
+    branch_instances.instances is defined and
+    branch_instances.instances|length < 18

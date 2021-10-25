@@ -1,0 +1,24 @@
+---
+- name: Prepare Swarm Nodes before running cluster
+  hosts: all
+  gather_facts: false
+  tasks:
+    - include_tasks: ./prepare.tasks.yml
+
+- name: Register Swarm Master Node
+  hosts: swarm_master_vm
+  gather_facts: true
+  tasks:
+    - include_tasks: ./prepare.tasks.master.yml
+
+- name: Join Worker node to Master
+  hosts: swarm_worker_vm
+  gather_facts: true
+  tasks:
+    - include_tasks: ./prepare.tasks.worker.yml
+
+- name: Create global service on Master
+  hosts: swarm_master_vm
+  gather_facts: true
+  tasks:
+    - include_tasks: ./prepare.tasks.global.yml

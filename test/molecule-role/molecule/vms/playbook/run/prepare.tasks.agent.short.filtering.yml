@@ -1,0 +1,8 @@
+---
+- name: Wait a bit for the process agent to start
+  pause:
+    seconds: 10
+- name: "Start a python process that only runs for {{ process_filter_short_lived_qualifier_secs }} seconds"
+  shell: "python -c \"import time; time.sleep({{ process_filter_short_lived_qualifier_secs }});\""
+  async: "{{ max_test_time }}"
+  poll: 0

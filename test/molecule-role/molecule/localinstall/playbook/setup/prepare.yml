@@ -1,0 +1,6 @@
+---
+- name: Prepare Linux Agents
+  hosts: agent_linux_vm
+  gather_facts: false
+  tasks:
+    - include_tasks: ./create.tasks.yml

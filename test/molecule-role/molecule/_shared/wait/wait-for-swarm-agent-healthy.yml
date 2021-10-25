@@ -1,0 +1,8 @@
+---
+- name: Wait for agent to be healthy (swarm stack)
+  shell: docker stack ps agent | grep 'stackstate-agent' | grep Running
+  register: agent_healthy
+  until: agent_healthy.rc == 0
+  retries: 20
+  delay: 5
+  changed_when: false

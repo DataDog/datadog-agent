@@ -1,5 +1,0 @@
----
-- name: Copy Receiver files
-  copy:
-    src: "files/receiver"
-    dest: "/home/ubuntu/"

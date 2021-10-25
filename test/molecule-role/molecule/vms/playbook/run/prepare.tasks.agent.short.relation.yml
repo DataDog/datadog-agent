@@ -1,0 +1,69 @@
+---
+- name: Wait a bit for the process agent to start
+  pause:
+    seconds: 10
+- name: Installing requests library for test connections
+  shell: pip install requests
+- name: "Start a python http server to make requests to http://localhost:{{ network_relation_test_server_port_single_request }}"
+  shell: "python -m SimpleHTTPServer {{ network_relation_test_server_port_single_request }}"
+  async: "{{ max_test_time }}"
+  poll: 0
+- name: "Start a python http server to make multiple new requests to http://localhost:{{ network_relation_test_server_port_multiple_requests }}"
+  shell: "python -m SimpleHTTPServer {{ network_relation_test_server_port_multiple_requests }}"
+  async: "{{ max_test_time }}"
+  poll: 0
+- name: "Start a python http server to make multiple requests on a shared connection to http://localhost:{{ network_relation_test_server_port_shared_connection }}"
+  shell: "python -m SimpleHTTPServer {{ network_relation_test_server_port_shared_connection }}"
+  async: "{{ max_test_time }}"
+  poll: 0
+- name: Wait a bit for the SimpleHTTPServers to start
+  pause:
+    seconds: 5
+- name: Write single-request.py that makes a once off connection that we expect to be filtered
+  lineinfile:
+    create: yes
+    path: "/home/ubuntu/single-request.py"
+    line: |
+      import time
+      import requests
+      requests.get("http://localhost:{{ network_relation_test_server_port_single_request }}")
+      time.sleep({{ max_test_time }})
+- name: "Start single-request.py"
+  shell: "python single-request.py"
+  async: "{{ max_test_time }}"
+  args:
+    chdir: /home/ubuntu/
+  poll: 0
+- name: Write multiple-requests.py that makes a new connection to the same endpoint every 5 seconds that we expect to be reported
+  lineinfile:
+    create: yes
+    path: "/home/ubuntu/multiple-requests.py"
+    line: |
+      import time
+      import requests
+      while True:
+        requests.get("http://localhost:{{ network_relation_test_server_port_multiple_requests }}")
+        time.sleep(5)
+- name: "Start multiple-requests.py"
+  shell: "python multiple-requests.py"
+  async: "{{ max_test_time }}"
+  args:
+    chdir: /home/ubuntu/
+  poll: 0
+- name: Write shared-connection-requests.py that makes a connection (re-using the underlying tcp connection) every 5 seconds that we expect to be reported
+  lineinfile:
+    create: yes
+    path: "/home/ubuntu/shared-connection-requests.py"
+    line: |
+      import time
+      import requests
+      s = requests.Session()
+      while True:
+        s.get("http://localhost:{{ network_relation_test_server_port_shared_connection }}")
+        time.sleep(5)
+- name: "Start shared-connection-requests.py"
+  shell: "python shared-connection-requests.py"
+  async: "{{ max_test_time }}"
+  args:
+    chdir: /home/ubuntu/
+  poll: 0

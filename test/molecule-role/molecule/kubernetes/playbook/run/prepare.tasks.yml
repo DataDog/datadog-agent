@@ -1,0 +1,21 @@
+---
+- include_tasks: ../_shared/docker/compose-run-receiver.yml
+- include_tasks: ../_shared/wait/wait-for-receiver.yml
+- include_tasks: ../_shared/kubectl/create-secret-for-private-docker.yml
+- include_tasks: ../_shared/kubectl/delete-namespace--ignore.yml
+- include_tasks: ../_shared/kubectl/delete-manifests--ignore.yml
+- include_tasks: ../_shared/kubectl/create-namespace.yml
+- include_tasks: ../_shared/kubectl/apply-manifest-test-workload.yml
+- include_tasks: ../_shared/kubectl/apply-manifest-cluster-agent.yml
+- include_tasks: ../_shared/kubectl/wait-for-stackstate-cluster.yml
+- include_tasks: ../_shared/kubectl/wait-for-stackstate-node-agents.yml
+- include_tasks: ../_shared/kubectl/wait-for-kube-state-metrics.yml
+- include_tasks: ../_shared/kubectl/scenario-pod-to-service-ip.yml
+- include_tasks: ../_shared/kubectl/scenario-pod-localhost.yml
+- include_tasks: ../_shared/kubectl/scenario-pod-headless.yml
+- include_tasks: ../_shared/kubectl/scenario-pod-http-metrics.yml
+- include_tasks: ../_shared/kubectl/scenario-pod-to-service-ip-wait.yml
+- include_tasks: ../_shared/kubectl/scenario-pod-localhost-wait.yml
+- include_tasks: ../_shared/kubectl/scenario-pod-headless-wait.yml
+- include_tasks: ../_shared/kubectl/scenario-pod-http-metrics-wait.yml
+- include_tasks: ../_shared/kubectl/test-workload.yml

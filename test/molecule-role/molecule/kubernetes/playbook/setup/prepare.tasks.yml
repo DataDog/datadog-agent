@@ -1,0 +1,14 @@
+---
+- include_tasks: ../_shared/install-and-update/updates-ubuntu18-automatic.yml
+- include_tasks: ../_shared/install-and-update/install-provisioning-dependencies.yml
+- include_tasks: ../_shared/aws/configure-aws-credentials.yml
+- include_tasks: ../_shared/process/gather-facts.yml
+- include_tasks: ../_shared/docker/login.yml
+- include_tasks: ../_shared/copy/copy-terraform-and-manifests.yml
+- include_tasks: ../_shared/copy/copy-receiver-files.yml
+- include_tasks: ../_shared/copy/copy-verify-create-script-receiver.yml
+- include_tasks: ../_shared/kubectl/generate-env-token.yml
+- include_tasks: ../_shared/copy/copy-kustomization-template.yml
+- include_tasks: ../_shared/env/branch-cluster-env.yml
+- include_tasks: ../_shared/kubectl/remove-existing-conf.yml
+- include_tasks: ../_shared/kubectl/terraform-make.yml

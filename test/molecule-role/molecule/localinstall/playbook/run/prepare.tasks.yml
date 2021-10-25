@@ -1,0 +1,6 @@
+---
+- include_tasks: ../_shared/process/gather-facts.yml
+- include_tasks: ../_shared/copy/copy-install-scripts.yml
+- include_tasks: ../_shared/download/stackstate-agent-deb.yml
+- include_tasks: ../_shared/download/stackstate-agent-rpm.yml
+- include_tasks: ../_shared/install-and-update/install-sts-agent-installer.yml

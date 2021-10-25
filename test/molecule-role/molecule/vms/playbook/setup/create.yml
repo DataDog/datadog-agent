@@ -1,0 +1,9 @@
+---
+- name: Create
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Include vars
+      include_vars: ./create.vars.yml
+    - include_tasks: ./create.tasks.yml

@@ -1,0 +1,13 @@
+---
+- name: Prepare Trace Java
+  hosts: trace-java-demo-compose
+  gather_facts: false
+  tasks:
+    # This is the task that belongs to the setup playbook
+    # Only trigger this is there is no existing EC2 instance for this run execution
+    # block_ec2_creation variable is ran inside the determine-create-state.yml script
+    - include_tasks: ./../setup/prepare.tasks.yml
+      when: hostvars['localhost']['block_ec2_creation'] is not defined
+
+    # Default tasks from this script
+    - include_tasks: ./prepare.tasks.yml

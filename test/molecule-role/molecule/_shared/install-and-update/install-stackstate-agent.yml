@@ -1,0 +1,13 @@
+---
+- name: Install stackstate-agent
+  shell: "curl -o- {{ agent_repo_url }}/install.sh | bash"
+  register: agent_install_result
+  until: agent_install_result is not failed
+  retries: 5
+  delay: 60
+  environment:
+    STS_API_KEY: "API_KEY"
+    STS_URL: "https://test-stackstate-agent.sts/stsAgent"
+    STS_HOSTNAME: "{{ inventory_hostname }}"
+    CODE_NAME: "{{ agent_current_branch }}"
+    SKIP_SSL_VALIDATION: "true"

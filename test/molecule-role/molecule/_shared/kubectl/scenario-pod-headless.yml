@@ -1,0 +1,7 @@
+---
+- name: Apply the pod-to-pod-headless scenario
+  command: kubectl -n={{ namespace }} apply -f pod-to-pod-headless.yaml
+  args:
+    chdir: /home/ubuntu/deployment/test_connections
+  environment:
+    KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig

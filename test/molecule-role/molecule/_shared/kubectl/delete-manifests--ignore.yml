@@ -1,0 +1,8 @@
+---
+- name: Delete manifests for stackstate node agent and cluster agent
+  ignore_errors: true
+  command: kubectl delete -k overlays --ignore-not-found=true
+  args:
+    chdir: /home/ubuntu/deployment/agents
+  environment:
+    KUBECONFIG: /home/ubuntu/deployment/aws-eks/tf-cluster/kubeconfig

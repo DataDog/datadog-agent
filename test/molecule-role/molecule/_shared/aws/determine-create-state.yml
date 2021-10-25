@@ -1,0 +1,33 @@
+---
+# This is an optional script
+# When this script is included and any EC2 machines is found then the creation of any new information like machines and keys will be stopped
+- name: "Gather existing EC2 instances for the branch '{{ agent_current_branch }}' for pipeline {{ ci_commit_sha }}"
+  ec2_instance_info:
+    filters:
+      instance-state-name: [ "running" ]
+      "tag:Name": "{{ item.name }}"
+      "tag:instance": "{{ item.name }}"
+      "tag:user": "{{ item.ssh_user }}"
+      "tag:agent_current_branch": "{{ agent_current_branch }}"
+      "tag:molecule_scenario_name": "{{ molecule_scenario_name }}"
+      "tag:ci_sts_major_python_version": "{{ ci_sts_major_python_version }}"
+      "tag:ci_commit_sha": "{{ ci_commit_sha }}"
+      "tag:usage": "molecule-build"
+      "tag:dev": "{{ dev_mode }}"
+  with_items: "{{ molecule_yml.platforms }}"
+  register: create_state_instances
+
+- name: "Determine existing state as as EC2 create blocker"
+  set_fact:
+    block_ec2_creation: true
+  when: >
+    create_state_instances is defined and
+    create_state_instances.results is defined and
+    create_state_instances.results|length > 0 and
+    create_state_instances.results[0].instances is defined and
+    create_state_instances.results[0].instances|length > 0
+
+- name: "Testing if a EC2 instance does not exist. EC2, Keypair and Security group creations should be stopped"
+  debug:
+    msg: "Existing EC2 machines has been found, Stopping creation on a new EC2 machine"
+  when: block_ec2_creation is defined
