@@ -29,6 +29,7 @@ type Store interface {
 	GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error)
 	GetECSTask(id string) (*ECSTask, error)
 	Notify(events []CollectorEvent)
+	ListContainers() ([]Container, error)
 }
 
 // Kind is the kind of an entity.

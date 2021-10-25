@@ -251,7 +251,7 @@ func (s *store) GetContainer(id string) (*Container, error) {
 }
 
 // ListContainers returns metadata about all known containers.
-func (s *Store) ListContainers() ([]Container, error) {
+func (s *store) ListContainers() ([]Container, error) {
 	entities, err := s.listEntitiesByKind(KindContainer)
 	if err != nil {
 		return nil, err
@@ -260,7 +260,7 @@ func (s *Store) ListContainers() ([]Container, error) {
 	// Not very efficient
 	containers := make([]Container, 0, len(entities))
 	for _, entity := range entities {
-		containers = append(containers, entity.(Container))
+		containers = append(containers, *entity.(*Container))
 	}
 
 	return containers, nil
@@ -473,7 +473,7 @@ func (s *store) getEntityByKind(kind Kind, id string) (Entity, error) {
 	return entity.merge(nil), nil
 }
 
-func (s *Store) listEntitiesByKind(kind Kind) ([]Entity, error) {
+func (s *store) listEntitiesByKind(kind Kind) ([]Entity, error) {
 	s.storeMut.RLock()
 	defer s.storeMut.RUnlock()
 
@@ -484,7 +484,7 @@ func (s *Store) listEntitiesByKind(kind Kind) ([]Entity, error) {
 
 	entities := make([]Entity, 0, len(entitiesOfKind))
 	for _, entity := range entitiesOfKind {
-		entities = append(entities, entity)
+		entities = append(entities, entity.merge([]string{}))
 	}
 
 	return entities, nil
