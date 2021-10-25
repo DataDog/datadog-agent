@@ -55,6 +55,7 @@ type Daemon struct {
 	// through configuration.
 	useAdaptiveFlush bool
 
+	// TODO: Delete clientLibReady
 	// clientLibReady indicates whether the datadog client library has initialised
 	// and called the /hello route on the agent
 	clientLibReady bool
@@ -95,11 +96,12 @@ func StartDaemon(addr string) *Daemon {
 	mux := http.NewServeMux()
 
 	daemon := &Daemon{
-		httpServer:        &http.Server{Addr: addr, Handler: mux},
-		mux:               mux,
-		InvcWg:            &sync.WaitGroup{},
-		lastInvocations:   make([]time.Time, 0),
-		useAdaptiveFlush:  true,
+		httpServer:       &http.Server{Addr: addr, Handler: mux},
+		mux:              mux,
+		InvcWg:           &sync.WaitGroup{},
+		lastInvocations:  make([]time.Time, 0),
+		useAdaptiveFlush: true,
+		// TODO: delete clientLibReady
 		clientLibReady:    false,
 		flushStrategy:     &flush.AtTheEnd{},
 		ExtraTags:         &serverlessLog.Tags{},
@@ -167,6 +169,7 @@ func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 }
 
+// TODO: Delete
 // SetClientReady indicates that the client library has initialised and called the /hello route on the agent
 func (d *Daemon) SetClientReady(isReady bool) {
 	d.clientLibReady = isReady
@@ -341,24 +344,25 @@ func (d *Daemon) FinishInvocation() {
 
 // WaitForDaemon waits until invocation finished any pending work
 func (d *Daemon) WaitForDaemon() {
-	if d.clientLibReady {
-		d.InvcWg.Wait()
-	}
+	// if d.clientLibReady {
+	// 	d.InvcWg.Wait()
+	// }
+	d.InvcWg.Wait()
 }
 
 // WaitUntilClientReady will wait until the client library has called the /hello route, or timeout
-func (d *Daemon) WaitUntilClientReady(timeout time.Duration) bool {
-	checkInterval := 10 * time.Millisecond
-	for timeout > checkInterval {
-		if d.clientLibReady {
-			return true
-		}
-		<-time.After(checkInterval)
-		timeout -= checkInterval
-	}
-	<-time.After(timeout)
-	return d.clientLibReady
-}
+// func (d *Daemon) WaitUntilClientReady(timeout time.Duration) bool {
+// 	checkInterval := 10 * time.Millisecond
+// 	for timeout > checkInterval {
+// 		if d.clientLibReady {
+// 			return true
+// 		}
+// 		<-time.After(checkInterval)
+// 		timeout -= checkInterval
+// 	}
+// 	<-time.After(timeout)
+// 	return d.clientLibReady
+// }
 
 // ComputeGlobalTags extracts tags from the ARN, merges them with any user-defined tags and adds them to traces, logs and metrics
 func (d *Daemon) ComputeGlobalTags(configTags []string) {

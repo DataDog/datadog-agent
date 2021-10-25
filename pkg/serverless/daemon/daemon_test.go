@@ -23,11 +23,11 @@ func TestWaitForDaemonBlocking(t *testing.T) {
 
 	// WaitForDaemon doesn't block if the client library hasn't
 	// registered with the extension's /hello route
-	d.clientLibReady = false
-	d.WaitForDaemon()
+	// d.clientLibReady = false
+	// d.WaitForDaemon()
 
 	// WaitForDaemon blocks if the client library has registered with the extension's /hello route
-	d.clientLibReady = true
+	// d.clientLibReady = true
 
 	d.StartInvocation()
 
@@ -41,14 +41,14 @@ func TestWaitForDaemonBlocking(t *testing.T) {
 	assert.Equal(complete, true, "daemon didn't block until FinishInvocation")
 }
 
-func TestWaitUntilReady(t *testing.T) {
-	assert := assert.New(t)
-	d := StartDaemon("http://localhost:8124")
-	defer d.Stop()
+// func TestWaitUntilReady(t *testing.T) {
+// 	assert := assert.New(t)
+// 	d := StartDaemon("http://localhost:8124")
+// 	defer d.Stop()
 
-	ready := d.WaitUntilClientReady(50 * time.Millisecond)
-	assert.Equal(ready, false, "client was ready")
-}
+// 	ready := d.WaitUntilClientReady(50 * time.Millisecond)
+// 	assert.Equal(ready, false, "client was ready")
+// }
 
 func GetValueSyncOnce(so *sync.Once) uint64 {
 	return reflect.ValueOf(so).Elem().FieldByName("done").Uint()
