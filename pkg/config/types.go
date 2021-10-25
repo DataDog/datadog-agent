@@ -76,6 +76,8 @@ type Config interface {
 	// GetKnownKeys returns all the keys that meet at least one of these criteria:
 	// 1) have a default, 2) have an environment variable binded, 3) are an alias or 4) have been SetKnown()
 	GetKnownKeys() map[string]interface{}
+	// GetKnownEnvVars returns all the nev vars defined via BindEnv and similar methods.
+	GetKnownEnvVars() map[string]struct{}
 
 	// API not implemented by viper.Viper and that have proven useful for our config usage
 

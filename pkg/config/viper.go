@@ -62,6 +62,19 @@ func (c *safeConfig) GetKnownKeys() map[string]interface{} {
 	return c.Viper.GetKnownKeys()
 }
 
+// GetKnownEnvVars returns all the nev vars defined via BindEnv and similar methods.
+func (c *safeConfig) GetKnownEnvVars() map[string]struct{} {
+	c.Lock()
+	defer c.Unlock()
+
+	rv := map[string]struct{}{}
+	for _, v := range c.configEnvVars {
+		rv[v] = struct{}{}
+	}
+
+	return rv
+}
+
 // SetEnvKeyTransformer allows defining a transformer function which decides
 // how an environment variables value gets assigned to key.
 func (c *safeConfig) SetEnvKeyTransformer(key string, fn func(string) interface{}) {
