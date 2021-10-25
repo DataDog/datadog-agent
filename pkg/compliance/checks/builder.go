@@ -379,6 +379,9 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 
 		log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)
 		check, err := b.checkFromRule(&suite.Meta, &r)
+		if err != nil {
+			return err
+		}
 
 		if err := b.addCheckAndRun(suite, r.Common(), check, onCheck, err); err != nil {
 			return err
@@ -392,6 +395,9 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 
 		log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)
 		check, err := b.checkFromRegoRule(&suite.Meta, &r)
+		if err != nil {
+			return err
+		}
 
 		if err := b.addCheckAndRun(suite, r.Common(), check, onCheck, err); err != nil {
 			return err
