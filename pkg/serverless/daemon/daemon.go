@@ -121,7 +121,7 @@ func StartDaemon(addr string) *Daemon {
 }
 
 // Hello implements the basic Hello route, creating a way for the Datadog Lambda Library
-// to know that the serverless agent is running. It is blocking until the DogStatsD daemon is ready.
+// to know that the serverless agent is running.
 type Hello struct {
 	daemon *Daemon
 }
@@ -130,7 +130,7 @@ type Hello struct {
 func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Hello route.")
 	// if the DogStatsD daemon isn't ready, wait for it.
-	h.daemon.SetClientReady(true)
+	// h.daemon.SetClientReady(true)
 }
 
 // Flush is the route to call to do an immediate flush on the serverless agent.
