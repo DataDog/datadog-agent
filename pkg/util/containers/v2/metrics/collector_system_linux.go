@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
@@ -200,10 +199,4 @@ func buildPIDStats(cgs *cgroups.PIDStats) *ContainerPIDStats {
 	convertField(cgs.HierarchicalThreadLimit, &cs.ThreadLimit)
 
 	return cs
-}
-
-func convertField(s *uint64, t **float64) {
-	if s != nil {
-		*t = util.Float64Ptr(float64(*s))
-	}
 }
