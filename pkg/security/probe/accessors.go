@@ -327,6 +327,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "chmod.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Chmod.File)
@@ -517,6 +518,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "chown.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Chown.File)
@@ -877,6 +879,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "exec.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Exec.Process.PathnameStr
@@ -1147,6 +1150,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "link.file.destination.path":
 		return &eval.StringEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Link.Target)
@@ -1277,6 +1281,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "link.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Link.Source)
@@ -1427,6 +1432,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "load_module.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).LoadModule.File)
@@ -1617,6 +1623,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "mkdir.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Mkdir.File)
@@ -1767,6 +1774,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "mmap.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).MMap.File)
@@ -1977,6 +1985,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "open.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Open.File)
@@ -2936,6 +2945,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "process.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) []string {
 				if ptr := ctx.Cache[field]; ptr != nil {
 					if result := (*[]string)(ptr); result != nil {
@@ -3722,6 +3732,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "process.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ProcessContext.Process.PathnameStr
@@ -4801,6 +4812,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "ptrace.tracee.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) []string {
 				if ptr := ctx.Cache[field]; ptr != nil {
 					if result := (*[]string)(ptr); result != nil {
@@ -5587,6 +5599,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "ptrace.tracee.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.PathnameStr
@@ -5867,6 +5880,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "removexattr.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).RemoveXAttr.File)
@@ -6027,6 +6041,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "rename.file.destination.path":
 		return &eval.StringEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Rename.New)
@@ -6157,6 +6172,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "rename.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Rename.Old)
@@ -6307,6 +6323,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "rmdir.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Rmdir.File)
@@ -6637,6 +6654,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "setxattr.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).SetXAttr.File)
@@ -7606,6 +7624,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) []string {
 				if ptr := ctx.Cache[field]; ptr != nil {
 					if result := (*[]string)(ptr); result != nil {
@@ -8392,6 +8411,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "signal.target.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).Signal.Target.Process.PathnameStr
@@ -8832,6 +8852,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "unlink.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Unlink.File)
@@ -9002,6 +9023,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "utimes.file.path":
 		return &eval.StringEvaluator{
+			OpOverrides: OverridePathnames,
 			EvalFnc: func(ctx *eval.Context) string {
 
 				return (*Event)(ctx.Object).ResolveFilePath(&(*Event)(ctx.Object).Utimes.File)

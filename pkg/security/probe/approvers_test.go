@@ -28,7 +28,11 @@ func TestApproverAncestors1(t *testing.T) {
 		WithLogger(&seclog.PatternLogger{})
 
 	m := &model.Model{}
+<<<<<<< HEAD
 	rs := rules.NewRuleSet(m, m.NewEvent, &opts)
+=======
+	rs := rules.NewRuleSet(m, m.NewEvent, rules.NewOptsWithParams(model.SECLConstants, nil, enabled, nil, model.SECLLegacyAttributes, nil, &log.PatternLogger{}))
+>>>>>>> 3d93879a3 (Introduce a cache)
 	addRuleExpr(t, rs, `open.file.path == "/etc/passwd" && process.ancestors.file.name == "vipw"`, `open.file.path == "/etc/shadow" && process.ancestors.file.name == "vipw"`)
 
 	capabilities, exists := allCapabilities["open"]
@@ -57,7 +61,11 @@ func TestApproverAncestors2(t *testing.T) {
 		WithLogger(&seclog.PatternLogger{})
 
 	m := &model.Model{}
+<<<<<<< HEAD
 	rs := rules.NewRuleSet(m, m.NewEvent, &opts)
+=======
+	rs := rules.NewRuleSet(m, m.NewEvent, rules.NewOptsWithParams(model.SECLConstants, nil, enabled, nil, model.SECLLegacyAttributes, nil, &log.PatternLogger{}))
+>>>>>>> 3d93879a3 (Introduce a cache)
 	addRuleExpr(t, rs, `(open.file.path == "/etc/shadow" || open.file.path == "/etc/gshadow") && process.ancestors.file.path not in ["/usr/bin/dpkg"]`)
 	capabilities, exists := allCapabilities["open"]
 	if !exists {
