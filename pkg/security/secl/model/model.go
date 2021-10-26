@@ -12,7 +12,6 @@
 package model
 
 import (
-	"bytes"
 	"fmt"
 	"path"
 	"path/filepath"
@@ -393,7 +392,7 @@ type MountEvent struct {
 // GetFSType returns the filesystem type of the mountpoint
 func (m *MountEvent) GetFSType() string {
 	if len(m.FSType) == 0 {
-		m.FSType = string(bytes.Trim(m.FSTypeRaw[:], "\x00"))
+		m.FSType, _ = UnmarshalString(m.FSTypeRaw[:], 16)
 	}
 	return m.FSType
 }
