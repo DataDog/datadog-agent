@@ -22,7 +22,6 @@ var (
 	}
 )
 
-// TODO(remy): add an unit test using the serverless mode and validate that there is no Host set
 func parseAndEnrichSingleMetricMessage(message []byte, namespace string, namespaceBlacklist []string, metricBlocklist []string, defaultHostname string) (metrics.MetricSample, error) {
 	parser := newParser(newFloat64ListPool())
 	parsed, err := parser.parseMetricSample(message)
@@ -818,6 +817,19 @@ func TestMetricBlocklistShouldBlock(t *testing.T) {
 	samples = enrichMetricSample(samples, parsed, "", nil, metricBlocklist, "default", "", true, false)
 
 	assert.Equal(t, 0, len(samples))
+}
+
+func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
+	message := []byte("custom.metric.a:21|ms")
+	metricBlocklist := []string{}
+	parser := newParser(newFloat64ListPool())
+	parsed, err := parser.parseMetricSample(message)
+	assert.NoError(t, err)
+	samples := []metrics.MetricSample{}
+	samples = enrichMetricSample(samples, parsed, "", nil, metricBlocklist, "default", "", true, true)
+
+	assert.Equal(t, 1, len(samples))
+	assert.Equal(t, "", samples[0].Host)
 }
 
 func TestMetricBlocklistShouldNotBlock(t *testing.T) {

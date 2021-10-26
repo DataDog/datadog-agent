@@ -136,7 +136,7 @@ type Server struct {
 	health                    *health.Handle
 	metricPrefix              string
 	metricPrefixBlacklist     []string
-	metricBlockList           []string
+	metricBlocklist           []string
 	defaultHostname           string
 	histToDist                bool
 	histToDistPrefix          string
@@ -273,7 +273,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 	}
 
 	metricPrefixBlacklist := config.Datadog.GetStringSlice("statsd_metric_namespace_blacklist")
-	metricBlockList := config.Datadog.GetStringSlice("statsd_metric_blocklist")
+	metricBlocklist := config.Datadog.GetStringSlice("statsd_metric_blocklist")
 
 	defaultHostname, err := util.GetHostname(context.TODO())
 	if err != nil {
@@ -319,7 +319,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 		health:                    health.RegisterLiveness("dogstatsd-main"),
 		metricPrefix:              metricPrefix,
 		metricPrefixBlacklist:     metricPrefixBlacklist,
-		metricBlockList:           metricBlockList,
+		metricBlocklist:           metricBlocklist,
 		defaultHostname:           defaultHostname,
 		histToDist:                histToDist,
 		histToDistPrefix:          histToDistPrefix,
@@ -637,7 +637,7 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 			sample.tags = append(sample.tags, mapResult.Tags...)
 		}
 	}
-	metricSamples = enrichMetricSample(metricSamples, sample, s.metricPrefix, s.metricPrefixBlacklist, s.metricBlockList, s.defaultHostname, origin, s.entityIDPrecedenceEnabled, s.ServerlessMode)
+	metricSamples = enrichMetricSample(metricSamples, sample, s.metricPrefix, s.metricPrefixBlacklist, s.metricBlocklist, s.defaultHostname, origin, s.entityIDPrecedenceEnabled, s.ServerlessMode)
 
 	if len(sample.values) > 0 {
 		s.sharedFloat64List.put(sample.values)

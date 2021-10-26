@@ -84,8 +84,8 @@ func isExcluded(metricName, namespace string, excludedNamespaces []string) bool 
 	return false
 }
 
-func isMetricBlockListed(metricName string, metricBlockList []string) bool {
-	for _, item := range metricBlockList {
+func isMetricBlocklisted(metricName string, metricBlocklist []string) bool {
+	for _, item := range metricBlocklist {
 		if metricName == item {
 			return true
 		}
@@ -94,7 +94,7 @@ func isMetricBlockListed(metricName string, metricBlockList []string) bool {
 }
 
 func enrichMetricSample(metricSamples []metrics.MetricSample, ddSample dogstatsdMetricSample, namespace string, excludedNamespaces []string,
-	metricBlockList []string, defaultHostname string, origin string, entityIDPrecedenceEnabled bool, serverlessMode bool) []metrics.MetricSample {
+	metricBlocklist []string, defaultHostname string, origin string, entityIDPrecedenceEnabled bool, serverlessMode bool) []metrics.MetricSample {
 	metricName := ddSample.name
 	tags, hostnameFromTags, originID, k8sOriginID, cardinality := extractTagsMetadata(ddSample.tags, defaultHostname, origin, entityIDPrecedenceEnabled)
 
@@ -102,7 +102,7 @@ func enrichMetricSample(metricSamples []metrics.MetricSample, ddSample dogstatsd
 		metricName = namespace + metricName
 	}
 
-	if isMetricBlockListed(metricName, metricBlockList) {
+	if isMetricBlocklisted(metricName, metricBlocklist) {
 		return make([]metrics.MetricSample, 0)
 	}
 
