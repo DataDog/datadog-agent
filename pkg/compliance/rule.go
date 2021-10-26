@@ -43,7 +43,7 @@ func (r *ConditionFallbackRule) Common() *RuleCommon {
 type RegoRule struct {
 	RuleCommon `yaml:",inline"`
 	Constants  map[string]interface{} `yaml:"constants,omitempty"`
-	Resources  []RegoResource         `yaml:"inputs,omitempty"`
+	Resources  []RegoResource         `yaml:"input,omitempty"`
 	Module     string                 `yaml:"module,omitempty"`
 	Imports    []string               `yaml:"imports,omitempty"`
 	Findings   string                 `yaml:"findings,omitempty"`
