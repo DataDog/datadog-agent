@@ -76,11 +76,15 @@ func (f *dnsFormatter) FormatConnectionDNS(nc network.ConnectionStats, mc *model
 	}
 
 	if f.queryTypeEnabled {
+		mc.DnsStatsByDomain = nil
 		mc.DnsStatsByDomainByQueryType = formatDNSStatsByDomainByQueryType(stats, f.domainSet)
 	} else {
 		// downconvert to simply by domain
 		mc.DnsStatsByDomain = formatDNSStatsByDomain(stats, f.domainSet)
+		mc.DnsStatsByDomainByQueryType = nil
 	}
+	mc.DnsStatsByDomainOffsetByQueryType = nil
+
 }
 
 func (f *dnsFormatter) DNS() map[string]*model.DNSEntry {
