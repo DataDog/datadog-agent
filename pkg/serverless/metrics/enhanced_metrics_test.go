@@ -240,3 +240,32 @@ func TestGenerateRuntimeDurationMetricOK(t *testing.T) {
 	}})
 
 }
+
+func TestHandleErrorMetricNoOp(t *testing.T) {
+	metricsChan := make(chan []metrics.MetricSample)
+	tags := []string{"functionname:test-function"}
+	go HandleErrorMetric(time.Now(), "success", tags, metricsChan)
+	select {
+	case <-metricsChan:
+		assert.Fail(t, "This should not happen since the channel should be empty")
+	default:
+		// nothing to do here
+	}
+}
+
+func TestHandleErrorMetricOK(t *testing.T) {
+	metricsChan := make(chan []metrics.MetricSample)
+	tags := []string{"functionname:test-function"}
+	currentTime := time.Now()
+	go HandleErrorMetric(currentTime, "failure", tags, metricsChan)
+	generatedMetrics := <-metricsChan
+	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
+		Name:       "aws.lambda.enhanced.errors",
+		Value:      1,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  float64(currentTime.UnixNano()),
+	}})
+
+}

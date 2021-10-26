@@ -117,6 +117,7 @@ func TestBuildMetricBlocklist(t *testing.T) {
 		"user.defined.a",
 		"user.defined.b",
 		"aws.lambda.enhanced.invocations",
+		"aws.lambda.enhanced.errors",
 	}
 	result := buildMetricBlocklist(userProvidedBlocklist)
 	assert.Equal(t, expected, result)

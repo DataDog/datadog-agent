@@ -121,5 +121,7 @@ func buildBufferedAggregator(multipleEndpointConfig MultipleEndpointConfig, forw
 }
 
 func buildMetricBlocklist(userProvidedList []string) []string {
-	return append(userProvidedList, "aws.lambda.enhanced.invocations")
+	metricBlockList := append(userProvidedList, "aws.lambda.enhanced.invocations")
+	metricBlockList = append(metricBlockList, "aws.lambda.enhanced.errors")
+	return metricBlockList
 }
