@@ -163,9 +163,6 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	}
 
 	if payload.EventType == Invoke {
-		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, daemon.ExecutionContext.Coldstart)
-		metricsChan := daemon.MetricAgent.GetMetricChannel()
-		metrics.SendInvocationEnhancedMetric(metricTags, metricsChan)
 		callInvocationHandler(daemon, payload.InvokedFunctionArn, payload.DeadlineMs, safetyBufferTimeout, payload.RequestID, handleInvocation)
 	}
 	if payload.EventType == Shutdown {
@@ -208,6 +205,9 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 	log.Debug("Received invocation event...")
 	daemon.SetExecutionContext(arn, requestID)
 	daemon.ComputeGlobalTags(config.GetConfiguredTags(true))
+	metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, daemon.ExecutionContext.Coldstart)
+	metricsChan := daemon.MetricAgent.GetMetricChannel()
+	metrics.SendInvocationEnhancedMetric(metricTags, metricsChan)
 	if daemon.ExecutionContext.Coldstart {
 		ready := daemon.WaitUntilClientReady(clientReadyTimeout)
 		if ready {
