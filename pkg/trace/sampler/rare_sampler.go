@@ -20,20 +20,20 @@ const (
 	priorityTTL = 10 * time.Minute
 	// ttlRenewalPeriod specifies the frequency at which we will upload cached entries.
 	ttlRenewalPeriod = 1 * time.Minute
-	// exceptionSamplerTPS traces per second allowed by the rate limiter.
-	exceptionSamplerTPS = 5
-	// exceptionSamplerBurst sizes the token store used by the rate limiter.
-	exceptionSamplerBurst = 50
-	exceptionKey          = "_dd.exception"
+	// rareSamplerTPS traces per second allowed by the rate limiter.
+	rareSamplerTPS = 5
+	// rareSamplerBurst sizes the token store used by the rate limiter.
+	rareSamplerBurst = 50
+	rareKey          = "_dd.rare"
 )
 
-// ExceptionSampler samples traces that are not caught by the Priority sampler.
+// RareSampler samples traces that are not caught by the Priority sampler.
 // It ensures that we sample traces for each combination of
 // (env, service, name, resource, error type, http status) seen on a top level or measured span
 // for which we did not see any span with a priority > 0 (sampled by Priority).
 // The resulting sampled traces will likely be incomplete and will be flagged with
 // a exceptioKey metric set at 1.
-type ExceptionSampler struct {
+type RareSampler struct {
 	// Variables access through the 'atomic' package must be 64bits aligned.
 	hits    int64
 	misses  int64
@@ -45,11 +45,11 @@ type ExceptionSampler struct {
 	seen      map[Signature]*seenSpans
 }
 
-// NewExceptionSampler returns a NewExceptionSampler that ensures that we sample combinations
+// NewRareSampler returns a NewRareSampler that ensures that we sample combinations
 // of env, service, name, resource, http-status, error type for each top level or measured spans
-func NewExceptionSampler() *ExceptionSampler {
-	e := &ExceptionSampler{
-		limiter:   rate.NewLimiter(exceptionSamplerTPS, exceptionSamplerBurst),
+func NewRareSampler() *RareSampler {
+	e := &RareSampler{
+		limiter:   rate.NewLimiter(rareSamplerTPS, rareSamplerBurst),
 		seen:      make(map[Signature]*seenSpans),
 		tickStats: time.NewTicker(10 * time.Second),
 	}
@@ -62,11 +62,11 @@ func NewExceptionSampler() *ExceptionSampler {
 }
 
 // Sample a trace and returns true if trace was sampled (should be kept)
-func (e *ExceptionSampler) Sample(t pb.Trace, root *pb.Span, env string) bool {
+func (e *RareSampler) Sample(t pb.Trace, root *pb.Span, env string) bool {
 	return e.sample(time.Now(), env, root, t)
 }
 
-func (e *ExceptionSampler) sample(now time.Time, env string, root *pb.Span, t pb.Trace) bool {
+func (e *RareSampler) sample(now time.Time, env string, root *pb.Span, t pb.Trace) bool {
 	if priority, ok := GetSamplingPriority(root); priority > 0 && ok {
 		e.handlePriorityTrace(now, env, t)
 		return false
@@ -75,11 +75,11 @@ func (e *ExceptionSampler) sample(now time.Time, env string, root *pb.Span, t pb
 }
 
 // Stop stops reporting stats
-func (e *ExceptionSampler) Stop() {
+func (e *RareSampler) Stop() {
 	e.tickStats.Stop()
 }
 
-func (e *ExceptionSampler) handlePriorityTrace(now time.Time, env string, t pb.Trace) {
+func (e *RareSampler) handlePriorityTrace(now time.Time, env string, t pb.Trace) {
 	expire := now.Add(priorityTTL)
 	for _, s := range t {
 		if !traceutil.HasTopLevel(s) && !traceutil.IsMeasured(s) {
@@ -89,7 +89,7 @@ func (e *ExceptionSampler) handlePriorityTrace(now time.Time, env string, t pb.T
 	}
 }
 
-func (e *ExceptionSampler) handleTrace(now time.Time, env string, t pb.Trace) bool {
+func (e *RareSampler) handleTrace(now time.Time, env string, t pb.Trace) bool {
 	var sampled bool
 	expire := now.Add(defaultTTL)
 	for _, s := range t {
@@ -106,7 +106,7 @@ func (e *ExceptionSampler) handleTrace(now time.Time, env string, t pb.Trace) bo
 }
 
 // addSpan adds a span to the seenSpans with an expire time.
-func (e *ExceptionSampler) addSpan(expire time.Time, env string, s *pb.Span) {
+func (e *RareSampler) addSpan(expire time.Time, env string, s *pb.Span) {
 	shardSig := ServiceSignature{env, s.Service}.Hash()
 	ss := e.loadSeenSpans(shardSig)
 	ss.add(expire, s)
@@ -114,7 +114,7 @@ func (e *ExceptionSampler) addSpan(expire time.Time, env string, s *pb.Span) {
 
 // sampleSpan samples a span if it's not in the seenSpan set. If the span is sampled
 // it's added to the seenSpans set.
-func (e *ExceptionSampler) sampleSpan(now time.Time, env string, s *pb.Span) bool {
+func (e *RareSampler) sampleSpan(now time.Time, env string, s *pb.Span) bool {
 	var sampled bool
 	shardSig := ServiceSignature{env, s.Service}.Hash()
 	ss := e.loadSeenSpans(shardSig)
@@ -125,7 +125,7 @@ func (e *ExceptionSampler) sampleSpan(now time.Time, env string, s *pb.Span) boo
 		if sampled {
 			ss.add(now.Add(defaultTTL), s)
 			atomic.AddInt64(&e.hits, 1)
-			traceutil.SetMetric(s, exceptionKey, 1)
+			traceutil.SetMetric(s, rareKey, 1)
 		} else {
 			atomic.AddInt64(&e.misses, 1)
 		}
@@ -133,7 +133,7 @@ func (e *ExceptionSampler) sampleSpan(now time.Time, env string, s *pb.Span) boo
 	return sampled
 }
 
-func (e *ExceptionSampler) loadSeenSpans(shardSig Signature) *seenSpans {
+func (e *RareSampler) loadSeenSpans(shardSig Signature) *seenSpans {
 	e.mu.RLock()
 	s, ok := e.seen[shardSig]
 	e.mu.RUnlock()
@@ -147,10 +147,10 @@ func (e *ExceptionSampler) loadSeenSpans(shardSig Signature) *seenSpans {
 	return s
 }
 
-func (e *ExceptionSampler) report() {
-	metrics.Count("datadog.trace_agent.sampler.exception.hits", atomic.SwapInt64(&e.hits, 0), nil, 1)
-	metrics.Count("datadog.trace_agent.sampler.exception.misses", atomic.SwapInt64(&e.misses, 0), nil, 1)
-	metrics.Gauge("datadog.trace_agent.sampler.exception.shrinks", float64(atomic.LoadInt64(&e.shrinks)), nil, 1)
+func (e *RareSampler) report() {
+	metrics.Count("datadog.trace_agent.sampler.rare.hits", atomic.SwapInt64(&e.hits, 0), nil, 1)
+	metrics.Count("datadog.trace_agent.sampler.rare.misses", atomic.SwapInt64(&e.misses, 0), nil, 1)
+	metrics.Gauge("datadog.trace_agent.sampler.rare.shrinks", float64(atomic.LoadInt64(&e.shrinks)), nil, 1)
 }
 
 // seenSpans keeps record of a set of spans.
@@ -160,7 +160,7 @@ type seenSpans struct {
 	expires map[spanHash]time.Time
 	// shrunk caracterize seenSpans when it's limited in size by capacityLimit.
 	shrunk bool
-	// totalSamplerShrinks is the reference to the total number of shrinks reported by ExceptionSampler.
+	// totalSamplerShrinks is the reference to the total number of shrinks reported by RareSampler.
 	totalSamplerShrinks *int64
 }
 
