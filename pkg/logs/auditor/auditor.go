@@ -232,7 +232,7 @@ func (a *RegistryAuditor) updateRegistry(identifier string, offset string, taili
 	// Don't update the registry with a value older than the current one
 	// This can happen when dual shipping and 2 destinations are sending the same payload successfully
 	if v, ok := a.registry[identifier]; ok {
-		if v.IngestionTimestamp < ingestionTimestamp {
+		if v.IngestionTimestamp > ingestionTimestamp {
 			return
 		}
 	}

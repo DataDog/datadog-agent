@@ -82,7 +82,7 @@ func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistry() {
 	suite.a.flushRegistry()
 	r, err := ioutil.ReadFile(suite.testPath)
 	suite.Nil(err)
-	suite.Equal("{\"Version\":2,\"Registry\":{\"testpath\":{\"LastUpdated\":\"2006-01-12T01:01:01.000000001Z\",\"Offset\":\"42\",\"TailingMode\":\"end\"}}}", string(r))
+	suite.Equal("{\"Version\":2,\"Registry\":{\"testpath\":{\"LastUpdated\":\"2006-01-12T01:01:01.000000001Z\",\"Offset\":\"42\",\"TailingMode\":\"end\",\"IngestionTimestamp\":0}}}", string(r))
 
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.a.registry = suite.a.recoverRegistry()
