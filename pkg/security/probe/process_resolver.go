@@ -556,7 +556,7 @@ func (p *ProcessResolver) ApplyBootTime(entry *model.ProcessCacheEntry) {
 
 func (p *ProcessResolver) unmarshalFromKernelMaps(entry *model.ProcessCacheEntry, data []byte) (int, error) {
 	// unmarshal container ID first
-	id, err := model.UnmarshalString(data, 64)
+	id, err := model.UnmarshalPrintableString(data, 64)
 	if err != nil {
 		return 0, err
 	}

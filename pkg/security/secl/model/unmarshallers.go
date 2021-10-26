@@ -8,7 +8,6 @@
 package model
 
 import (
-	"bytes"
 	"time"
 	"unsafe"
 )
@@ -147,7 +146,7 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 
 	var ttyRaw [64]byte
 	SliceToArray(data[read:read+64], unsafe.Pointer(&ttyRaw))
-	ttyName := string(bytes.Trim(ttyRaw[:], "\x00"))
+	ttyName, _ := UnmarshalString(ttyRaw[:], 64)
 	if IsPrintableASCII(ttyName) {
 		e.TTYName = ttyName
 	}
@@ -155,7 +154,7 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 
 	var commRaw [16]byte
 	SliceToArray(data[read:read+16], unsafe.Pointer(&commRaw))
-	e.Comm = string(bytes.Trim(commRaw[:], "\x00"))
+	e.Comm, _ = UnmarshalString(commRaw[:], 16)
 	read += 16
 
 	// Unmarshal pid_cache_t

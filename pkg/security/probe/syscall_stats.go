@@ -9,7 +9,6 @@ package probe
 
 import (
 	"C"
-	"bytes"
 	"fmt"
 	"strings"
 	"unsafe"
@@ -37,7 +36,7 @@ func (p *ProcessSyscall) UnmarshalBinary(data []byte) error {
 	var comm [16]byte
 	model.SliceToArray(data[0:16], unsafe.Pointer(&comm))
 
-	p.Process = string(bytes.Trim(comm[:], "\x00"))
+	p.Process, _ = model.UnmarshalString(comm[:], 16)
 	p.Pid = model.ByteOrder.Uint32(data[16:20])
 	p.ID = model.ByteOrder.Uint32(data[20:24])
 	return nil
