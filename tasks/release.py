@@ -870,13 +870,14 @@ def update_modules(ctx, agent_version, verify=True):
 
 
 @task
-def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force=False):
+def tag_version(ctx, agent_version, commit="HEAD", verify=True, tag_modules=True, push=True, force=False):
     """
     Create tags for a given Datadog Agent version.
     The version should be given as an Agent 7 version.
 
     * --commit COMMIT will tag COMMIT with the tags (default HEAD)
     * --verify checks for correctness on the Agent version (on by default).
+    * --tag_modules tags Go modules in addition to the agent repository
     * --push will push the tags to the origin remote (on by default).
     * --force will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
 
@@ -899,24 +900,24 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force
             print("Continuing without the --force option.")
 
     for module in DEFAULT_MODULES.values():
-        if module.should_tag:
-            for tag in module.tag(agent_version):
-                ok = try_git_command(
-                    ctx,
-                    "git tag -m {tag} {tag} {commit}{force_option}".format(
-                        tag=tag, commit=commit, force_option=force_option
-                    ),
-                )
-                if not ok:
-                    message = f"Could not create tag {tag}. Please rerun the task to retry creating the tags (you may need the --force option)"
-                    raise Exit(color_message(message, "red"), code=1)
-                print("Created tag {tag}".format(tag=tag))
-                if push:
-                    ctx.run("git push origin {tag}{force_option}".format(tag=tag, force_option=force_option))
-                    print("Pushed tag {tag}".format(tag=tag))
+        if tag_modules or module.path == ".":
+            if module.should_tag:
+                for tag in module.tag(agent_version):
+                    ok = try_git_command(
+                        ctx,
+                        "git tag -m {tag} {tag} {commit}{force_option}".format(
+                            tag=tag, commit=commit, force_option=force_option
+                        ),
+                    )
+                    if not ok:
+                        message = f"Could not create tag {tag}. Please rerun the task to retry creating the tags (you may need the --force option)"
+                        raise Exit(color_message(message, "red"), code=1)
+                    print("Created tag {tag}".format(tag=tag))
+                    if push:
+                        ctx.run("git push origin {tag}{force_option}".format(tag=tag, force_option=force_option))
+                        print("Pushed tag {tag}".format(tag=tag))
 
     print("Created all tags for version {}".format(agent_version))
-
 
 def current_version(ctx, major_version) -> Version:
     return _create_version_from_match(VERSION_RE.search(get_version(ctx, major_version=major_version)))
@@ -1393,7 +1394,7 @@ def create_release_branch(ctx, repo, release_branch, upstream="origin"):
         )
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
-def unfreeze(ctx, major_versions="6,7", patch_version=False, upstream="origin"):
+def unfreeze(ctx, major_versions="6,7", patch_version=False, upstream="origin", redo=False):
     """
     Updates the release entries in release.json to prepare the next RC build.
     If the previous version of the Agent (determined as the latest tag on the
@@ -1426,66 +1427,44 @@ def unfreeze(ctx, major_versions="6,7", patch_version=False, upstream="origin"):
 
     list_major_versions = parse_major_versions(major_versions)
 
-    new_version = current_version(ctx, max(list_major_versions))
-    next_version = next_final_version(ctx, max(list_major_versions))
+    current = current_version(ctx, max(list_major_versions))
+    next = current.next_version(bump_minor=True)
+    next.devel = True
 
-    print("NEXT VERSION: {}".format(next_version))
-
-    # Get a release branch name
-    release_branch_name = "{}".format(
-        str(new_version.major) + "." + str(new_version.minor) + ".x")
+    # Strings with proper branch/tag names
+    release_branch = current.branch()
+    devel_tag = str(next)
 
     # Step 0: checks
 
     print(color_message("Checking repository state", "bold"))
-    ctx.run("git fetch")
+    #ctx.run("git fetch")
 
-    if check_uncommitted_changes(ctx):
-        raise Exit(
-            color_message(
-                "There are uncomitted changes in your repository. Please commit or stash them before trying again.",
-                "red",
-            ),
-            code=1,
-        )
+    #if check_uncommitted_changes(ctx):
+    #    raise Exit(
+    #        color_message(
+    #            "There are uncomitted changes in your repository. Please commit or stash them before trying again.",
+    #            "red",
+    #        ),
+    #        code=1,
+    #    )
 
     if not yes_no_question(
         "This task will create new branches with the name '{}' in repositories: datadog-agent, omnibus-ruby and omnibus-software Is this OK?".format(
-            release_branch_name
+            release_branch
         ),
         color="orange",
         default=False,
     ):
         raise Exit(color_message("Aborting.", "red"), code=1)
 
-    # Step 1: Create release branch
-    repos = ["datadog-agent", "omnibus-software", "omnibus-ruby"]
-    for repo in repos:
-        #create_release_branch(ctx, repo, release_branch_name + "_test")
-        pass
-    
-    with ctx.cd("~/dd/datadog-agent"):
-        #ok = try_git_command(ctx, "git commit --allow-empty -m 'Empty commit for next release devel tags {}'")
-        if not ok:
-            raise Exit(
-                color_message(
-                    "Could not create commit. Please commit manually, push the commit manually to the main branch.",
-                    "red",
-                ),
-                code=1,
-            )
 
-        print(color_message("Pushing new commit", "bold"))
-        #res = ctx.run("git push {}".format(upstream), warn=True)
-        if res.exited is None or res.exited > 0:
-            raise Exit(
-                color_message(
-                    "Could not push commit to the upstream '{}'. Please push it manually.".format(
-                        upstream,
-                    ),
-                    "red",
-                ),
-                code=1,
-            )
 
-        # Step 3: Create tags for next version
+    # Step 3: Create tags for next version
+    print(color_message("Tagging RC for agent version(s) {}".format(list_major_versions), "bold"))
+    print(
+        color_message("If commit signing is enabled, you will have to make sure each tag gets properly signed.", "bold")
+    )
+
+    tag_version(ctx, devel_tag, tag_modules=False, push=False, force=redo)
+
