@@ -38,6 +38,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/quantile => ./pkg/quantile
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ./pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ./pkg/util/winutil
 )
 
@@ -61,6 +62,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/quantile v0.32.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/log v0.32.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.0.0
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.32.0-rc.6
 	github.com/DataDog/datadog-go v4.8.2+incompatible
 	github.com/DataDog/datadog-operator v0.5.0-rc.2.0.20210402083916-25ba9a22e67a

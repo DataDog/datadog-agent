@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package log
+package scrubber
 
 import (
 	"os"
@@ -13,6 +13,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 )
+
+func assertClean(t *testing.T, contents, cleanContents string) {
+	cleaned, err := ScrubBytes([]byte(contents))
+	assert.Nil(t, err)
+	cleanedString := string(cleaned)
+
+	assert.Equal(t, strings.TrimSpace(cleanContents), strings.TrimSpace(cleanedString))
+}
 
 func TestConfigStripApiKey(t *testing.T) {
 	assertClean(t,
@@ -288,7 +296,7 @@ func TestSNMPConfig(t *testing.T) {
 
 func TestYamlConfig(t *testing.T) {
 	contents := `foobar: baz`
-	cleaned, err := CredentialsCleanerBytes([]byte(contents))
+	cleaned, err := ScrubBytes([]byte(contents))
 	assert.Nil(t, err)
 	cleanedString := string(cleaned)
 
@@ -343,13 +351,6 @@ func TestCertConfig(t *testing.T) {
 			********`)
 }
 
-func assertClean(t *testing.T, contents, cleanContents string) {
-	cleaned, err := CredentialsCleanerBytes([]byte(contents))
-	assert.Nil(t, err)
-	cleanedString := string(cleaned)
-
-	assert.Equal(t, strings.TrimSpace(cleanContents), strings.TrimSpace(cleanedString))
-}
 func TestConfig(t *testing.T) {
 	assertClean(t,
 		`dd_url: https://app.datadoghq.com
@@ -380,7 +381,7 @@ log_level: info`
 
 	wd, _ := os.Getwd()
 	filePath := filepath.Join(wd, "test", "datadog.yaml")
-	cleaned, err := CredentialsCleanerFile(filePath)
+	cleaned, err := ScrubFile(filePath)
 	assert.Nil(t, err)
 	cleanedString := string(cleaned)
 
