@@ -32,11 +32,11 @@
     KITCHEN_OSVERS: "win2012r2"
   before_script:  # Use a smaller set of TEST_PLATFORMS than .kitchen_os_windows
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
-    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::7"); else export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::6"); fi
     - rsync -azr --delete ./ $SRC_PATH
     - cd $DD_AGENT_TESTING_DIR
     - bash -l tasks/kitchen_setup.sh
   script:
+    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::7"); else export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::6"); fi
     - bash -l tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
 
 .kitchen_test_windows_npm_driver:
