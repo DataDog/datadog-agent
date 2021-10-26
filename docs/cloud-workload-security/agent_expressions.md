@@ -70,7 +70,7 @@ SECL operators are used to combine event attributes together into a full express
 | `||`                  | File             | Logical or                               | 7.27          |
 
 ## Patterns and regular expressions
-Patterns or regular expressions can be used in SECL expressions. They can be used with the `in`, `not in`, `=~` and `!~` operators.
+Patterns or regular expressions can be used in SECL expressions. They can be used with the `in`, `not in`, `=~`, and `!~` operators.
 
 | Format           |  Example             | Agent Version |
 |------------------|----------------------|---------------|
