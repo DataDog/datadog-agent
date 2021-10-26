@@ -1085,15 +1085,19 @@ func findUnknownKeys(config Config) []string {
 
 func findUnknownEnvVars(config Config) []string {
 	var unknownVars []string
-	knownVars := config.GetKnownEnvVars()
+
+	knownVars := map[string]struct{}{}
+	for _, key := range config.GetEnvVars() {
+		knownVars[key] = struct{}{}
+	}
 
 	for _, equality := range os.Environ() {
-		v := strings.SplitN(equality, "=", 2)[0]
-		if !strings.HasPrefix(v, "DD_") {
+		key := strings.SplitN(equality, "=", 2)[0]
+		if !strings.HasPrefix(key, "DD_") {
 			continue
 		}
-		if _, known := knownVars[v]; !known {
-			unknownVars = append(unknownVars, v)
+		if _, known := knownVars[key]; !known {
+			unknownVars = append(unknownVars, key)
 		}
 	}
 	return unknownVars
