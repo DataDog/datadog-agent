@@ -200,7 +200,7 @@ func TestGenerateRuntimeDurationMetricNoStartDate(t *testing.T) {
 	tags := []string{"functionname:test-function"}
 	startTime := time.Time{}
 	endTime := time.Now()
-	go GenerateRuntimeDurationMetric(startTime, endTime, "myStatus", tags, metricsChan)
+	go GenerateRuntimeDurationMetric(startTime, endTime, tags, metricsChan)
 	select {
 	case <-metricsChan:
 		assert.Fail(t, "This should not happen since the channel should be empty")
@@ -214,7 +214,7 @@ func TestGenerateRuntimeDurationMetricNoEndDate(t *testing.T) {
 	tags := []string{"functionname:test-function"}
 	startTime := time.Now()
 	endTime := time.Time{}
-	go GenerateRuntimeDurationMetric(startTime, endTime, "myStatus", tags, metricsChan)
+	go GenerateRuntimeDurationMetric(startTime, endTime, tags, metricsChan)
 	select {
 	case <-metricsChan:
 		assert.Fail(t, "This should not happen since the channel should be empty")
@@ -228,7 +228,7 @@ func TestGenerateRuntimeDurationMetricOK(t *testing.T) {
 	tags := []string{"functionname:test-function"}
 	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
 	endTime := time.Date(2020, 01, 01, 01, 01, 01, 653000000, time.UTC) //153 ms later
-	go GenerateRuntimeDurationMetric(startTime, endTime, "myStatus", tags, metricsChan)
+	go GenerateRuntimeDurationMetric(startTime, endTime, tags, metricsChan)
 	generatedMetrics := <-metricsChan
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
 		Name:       "aws.lambda.enhanced.runtime_duration",

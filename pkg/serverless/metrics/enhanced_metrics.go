@@ -52,14 +52,14 @@ func GenerateRuntimeDurationMetric(start time.Time, end time.Time, tags []string
 
 // HandleErrorMetric generates the error metric if needed
 func HandleErrorMetric(time time.Time, status string, tags []string, metricsChan chan []metrics.MetricSample) {
-	if strings.ToLower(status) == "failure" 
+	if strings.ToLower(status) == "failure" {
 		metricsChan <- []metrics.MetricSample{{
 			Name:       "aws.lambda.enhanced.errors",
-			Value:      float64(duration),
+			Value:      1.0,
 			Mtype:      metrics.DistributionType,
 			Tags:       tags,
 			SampleRate: 1,
-			Timestamp:  float64(end.UnixNano()),
+			Timestamp:  float64(time.UnixNano()),
 		}}
 	}
 }
