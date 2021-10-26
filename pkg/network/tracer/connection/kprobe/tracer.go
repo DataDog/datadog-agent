@@ -36,7 +36,6 @@ type kprobeTracer struct {
 
 	// tcp_close events
 	closeConsumer *tcpCloseConsumer
-	closeHandler  *ddebpf.PerfHandler
 
 	pidCollisions int64
 	removeTuple   *netebpf.ConnTuple
@@ -123,11 +122,16 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)
 	}
 
+	closeConsumer, err := newTCPCloseConsumer(m, perfHandlerTCP)
+	if err != nil {
+		return nil, fmt.Errorf("could not create tcpCloseConsumer: %s", err)
+	}
+
 	tr := &kprobeTracer{
-		m:            m,
-		config:       config,
-		closeHandler: perfHandlerTCP,
-		removeTuple:  &netebpf.ConnTuple{},
+		m:             m,
+		config:        config,
+		closeConsumer: closeConsumer,
+		removeTuple:   &netebpf.ConnTuple{},
 	}
 
 	tr.conns, _, err = m.GetMap(string(probes.ConnMap))
@@ -145,18 +149,12 @@ func New(config *config.Config, constants []manager.ConstantEditor) (connection.
 	return tr, nil
 }
 
-func (t *kprobeTracer) Start(closeFilter func(*network.ConnectionStats) bool) (err error) {
+func (t *kprobeTracer) Start(callback func([]network.ConnectionStats)) (err error) {
 	defer func() {
 		if err != nil {
 			t.Stop()
 		}
 	}()
-
-	closeConsumer, err := newTCPCloseConsumer(t.config, t.m, t.closeHandler, closeFilter)
-	if err != nil {
-		return fmt.Errorf("could not create tcpCloseConsumer: %s", err)
-	}
-	t.closeConsumer = closeConsumer
 
 	err = initializePortBindingMaps(t.config, t.m)
 	if err != nil {
@@ -166,7 +164,13 @@ func (t *kprobeTracer) Start(closeFilter func(*network.ConnectionStats) bool) (e
 	if err := t.m.Start(); err != nil {
 		return fmt.Errorf("could not start ebpf manager: %s", err)
 	}
+
+	t.closeConsumer.Start(callback)
 	return nil
+}
+
+func (t *kprobeTracer) FlushPending() {
+	t.closeConsumer.FlushPending()
 }
 
 func (t *kprobeTracer) Stop() {
@@ -184,7 +188,7 @@ func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
 	}
 }
 
-func (t *kprobeTracer) GetConnections(active, closed *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error {
+func (t *kprobeTracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error {
 	// Iterate through all key-value pairs in map
 	key, stats := &netebpf.ConnTuple{}, &netebpf.ConnStats{}
 	seen := make(map[netebpf.ConnTuple]struct{})
@@ -202,15 +206,13 @@ func (t *kprobeTracer) GetConnections(active, closed *network.ConnectionBuffer, 
 		if t.getTCPStats(tcp, key, seen) {
 			updateTCPStats(conn, tcp)
 		}
-		*active.Next() = *conn
+		*buffer.Next() = *conn
 	}
 
 	if err := entries.Err(); err != nil {
 		return fmt.Errorf("unable to iterate connection map: %s", err)
 	}
 
-	// Add all connections that were closed since the last `GetConnections` call
-	t.closeConsumer.GetClosedConnections(closed)
 	return nil
 }
 
@@ -270,8 +272,8 @@ func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 	pidCollisions := atomic.LoadInt64(&t.pidCollisions)
 
 	return map[string]int64{
-		"closed_conn_polling_lost":     closeStats["lost"],
-		"closed_conn_polling_received": closeStats["rcvd"],
+		"closed_conn_polling_lost":     closeStats[perfLostStat],
+		"closed_conn_polling_received": closeStats[perfReceivedStat],
 		"pid_collisions":               pidCollisions,
 
 		"tcp_sent_miscounts":         int64(telemetry.Tcp_sent_miscounts),

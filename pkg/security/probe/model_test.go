@@ -12,26 +12,26 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 func TestPathValidation(t *testing.T) {
 	mod := &Model{}
 	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "/var/log/*"}); err != nil {
-		t.Fatalf("shouldn't return an error: %s", err)
+		t.Errorf("shouldn't return an error: %s", err)
 	}
 	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "~/apache/httpd.conf"}); err == nil {
-		t.Fatal("should return an error")
+		t.Error("should return an error")
 	}
 	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "../../../etc/apache/httpd.conf"}); err == nil {
-		t.Fatal("should return an error")
+		t.Error("should return an error")
 	}
 	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "/etc/apache/./httpd.conf"}); err == nil {
-		t.Fatal("should return an error")
+		t.Error("should return an error")
 	}
 	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "*/"}); err == nil {
-		t.Fatal("should return an error")
+		t.Error("should return an error")
 	}
 
 	var val string
@@ -39,7 +39,7 @@ func TestPathValidation(t *testing.T) {
 		val += "a/"
 	}
 	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: val}); err == nil {
-		t.Fatal("should return an error")
+		t.Error("should return an error")
 	}
 
 	val = ""
@@ -47,15 +47,35 @@ func TestPathValidation(t *testing.T) {
 		val += "a"
 	}
 	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: val}); err == nil {
-		t.Fatal("should return an error")
+		t.Error("should return an error")
+	}
+
+	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "/run/..data", Type: eval.PatternValueType}); err != nil {
+		t.Error("shouldn't return an error")
+	}
+
+	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "./data", Type: eval.PatternValueType}); err == nil {
+		t.Error("should return an error")
+	}
+
+	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "../data", Type: eval.PatternValueType}); err == nil {
+		t.Error("should return an error")
+	}
+
+	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "/data/../a", Type: eval.PatternValueType}); err == nil {
+		t.Error("should return an error")
+	}
+
+	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "*/data", Type: eval.PatternValueType}); err != nil {
+		t.Error("shouldn't return an error")
 	}
 
 	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: ".*", Type: eval.RegexpValueType}); err == nil {
-		t.Fatal("should return an error")
+		t.Error("should return an error")
 	}
 
 	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "/etc/*", Type: eval.PatternValueType}); err != nil {
-		t.Fatal("shouldn't return an error")
+		t.Error("shouldn't return an error")
 	}
 }
 
@@ -71,18 +91,18 @@ func TestSetFieldValue(t *testing.T) {
 		switch kind {
 		case reflect.String:
 			if err = event.SetFieldValue(field, "aaa"); err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 		case reflect.Int:
 			if err = event.SetFieldValue(field, 123); err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 		case reflect.Bool:
 			if err = event.SetFieldValue(field, true); err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 		default:
-			t.Fatalf("type unknown: %v", kind)
+			t.Errorf("type unknown: %v", kind)
 		}
 	}
 }
@@ -110,7 +130,7 @@ func TestExecArgsFlags(t *testing.T) {
 	}
 
 	flags := e.ResolveExecArgsFlags(&e.Exec)
-	sort.Sort(sort.StringSlice(flags))
+	sort.Strings(flags)
 
 	hasFlag := func(flags []string, flag string) bool {
 		i := sort.SearchStrings(flags, flag)

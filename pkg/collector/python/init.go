@@ -88,6 +88,7 @@ void WritePersistentCache(char *, char *);
 bool TracemallocEnabled();
 char* ObfuscateSQL(char *, char *, char **);
 char* ObfuscateSQLExecPlan(char *, bool, char **);
+double getProcessStartTime();
 
 void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_clustername_cb(rtloader, GetClusterName);
@@ -102,6 +103,7 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_tracemalloc_enabled_cb(rtloader, TracemallocEnabled);
 	set_obfuscate_sql_cb(rtloader, ObfuscateSQL);
 	set_obfuscate_sql_exec_plan_cb(rtloader, ObfuscateSQLExecPlan);
+	set_get_process_start_time_cb(rtloader, getProcessStartTime);
 }
 
 //

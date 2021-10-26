@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
@@ -128,32 +127,4 @@ func getAgentV3URLFromEnv() (string, error) {
 		return "", fmt.Errorf("Could not initialize client: missing metadata v3 URL")
 	}
 	return agentURL, nil
-}
-
-func getAgentV3URLFromDocker(ctx context.Context, containerID string) (string, error) {
-	du, err := docker.GetDockerUtil()
-	if err != nil {
-		return "", err
-	}
-
-	container, err := du.Inspect(ctx, containerID, false)
-	if err != nil {
-		return "", err
-	}
-
-	for _, env := range container.Config.Env {
-		substrings := strings.Split(env, "=")
-		if len(substrings) != 2 {
-			log.Tracef("invalid container env format: %s", env)
-		}
-
-		k := substrings[0]
-		v := substrings[1]
-
-		if k == v3.DefaultMetadataURIEnvVariable {
-			return v, nil
-		}
-	}
-
-	return "", fmt.Errorf("metadata v3 URL not found in container %s", containerID)
 }

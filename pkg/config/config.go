@@ -225,6 +225,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("remote_configuration.enabled", false)
 	config.BindEnvAndSetDefault("remote_configuration.endpoint", "")
 	config.BindEnvAndSetDefault("remote_configuration.key", "")
+	config.BindEnv("remote_configuration.api_key")
 	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
 	config.BindEnvAndSetDefault("remote_configuration.director_root", "")
 	config.BindEnvAndSetDefault("remote_configuration.refresh_interval", 60) // in seconds
@@ -508,6 +509,7 @@ func InitConfig(config Config) {
 	// We only support containerd in Kubernetes. By default containerd cri uses `k8s.io` https://github.com/containerd/cri/blob/release/1.2/pkg/constants/constants.go#L22-L23
 	config.BindEnvAndSetDefault("containerd_namespace", "k8s.io")
 	config.BindEnvAndSetDefault("container_env_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("container_labels_as_tags", map[string]string{})
 
 	// Kubernetes
 	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
@@ -705,7 +707,7 @@ func InitConfig(config Config) {
 	// Enable the agent to use files to collect container logs on standalone docker environment, containers
 	// with an existing registry offset will continue to be tailed from the docker socket unless
 	// logs_config.docker_container_force_use_file is set to true.
-	config.BindEnvAndSetDefault("logs_config.docker_container_use_file", false)
+	config.BindEnvAndSetDefault("logs_config.docker_container_use_file", true)
 	// Force tailing from file for all docker container, even the ones with an existing registry entry
 	config.BindEnvAndSetDefault("logs_config.docker_container_force_use_file", false)
 	// While parsing Kubernetes pod logs, use /var/log/containers to validate that
@@ -886,8 +888,7 @@ func InitConfig(config Config) {
 	config.SetKnown("process_config.expvar_port")
 	config.SetKnown("process_config.log_file")
 	config.SetKnown("process_config.internal_profiling.enabled")
-
-	config.BindEnvAndSetDefault("process_config.remote_tagger", true)
+	config.SetKnown("process_config.remote_tagger")
 
 	// Process Discovery Check
 	config.BindEnvAndSetDefault("process_config.process_discovery.enabled", false)
@@ -905,7 +906,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 	config.BindEnvAndSetDefault("security_agent.log_file", defaultSecurityAgentLogFile)
-	config.BindEnvAndSetDefault("security_agent.remote_tagger", true)
+	config.BindEnvAndSetDefault("security_agent.remote_tagger", false)
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)

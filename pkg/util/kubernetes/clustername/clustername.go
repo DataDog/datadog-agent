@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -110,8 +111,17 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 				data.clusterName = clusterName
 			}
 		}
+
+		if data.clusterName != "" {
+			if lower := strings.ToLower(data.clusterName); lower != data.clusterName {
+				log.Infof("Putting cluster name %q in lowercase, became: %q", data.clusterName, lower)
+				data.clusterName = lower
+			}
+		}
+
 		data.initDone = true
 	}
+
 	return data.clusterName
 }
 
@@ -163,4 +173,9 @@ func GetClusterID() (string, error) {
 
 	cache.Cache.Set(cacheClusterIDKey, clusterID, cache.NoExpiration)
 	return clusterID, nil
+}
+
+// setProviderCatalog should only be used for testing.
+func setProviderCatalog(catalog map[string]Provider) {
+	ProviderCatalog = catalog
 }

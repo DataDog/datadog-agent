@@ -21,45 +21,72 @@ import (
 
 const (
 	workloadmetaCollectorName = "workloadmeta"
-)
 
-type metaStore interface {
-	Subscribe(string, *workloadmeta.Filter) chan workloadmeta.EventBundle
-	Unsubscribe(chan workloadmeta.EventBundle)
-	GetContainer(string) (workloadmeta.Container, error)
-}
+	podSource       = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
+	taskSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
+	containerSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
+)
 
 // WorkloadMetaCollector collects tags from the metadata in the workloadmeta
 // store.
 type WorkloadMetaCollector struct {
-	store metaStore
-	out   chan<- []*TagInfo
-	stop  chan struct{}
+	store    workloadmeta.Store
+	children map[string]map[string]struct{}
+	out      chan<- []*TagInfo
+	stop     chan struct{}
 
-	staticTags        map[string]string
-	labelsAsTags      map[string]string
-	annotationsAsTags map[string]string
-	globLabels        map[string]glob.Glob
-	globAnnotations   map[string]glob.Glob
+	containerEnvAsTags    map[string]string
+	containerLabelsAsTags map[string]string
+
+	staticTags             map[string]string
+	labelsAsTags           map[string]string
+	annotationsAsTags      map[string]string
+	nsLabelsAsTags         map[string]string
+	globLabels             map[string]glob.Glob
+	globAnnotations        map[string]glob.Glob
+	globNsLabels           map[string]glob.Glob
+	globContainerLabels    map[string]glob.Glob
+	globContainerEnvLabels map[string]glob.Glob
+
+	collectEC2ResourceTags bool
 }
 
 // Detect initializes the WorkloadMetaCollector.
 func (c *WorkloadMetaCollector) Detect(ctx context.Context, out chan<- []*TagInfo) (CollectionMode, error) {
 	c.out = out
 	c.stop = make(chan struct{})
+	c.children = make(map[string]map[string]struct{})
+	c.collectEC2ResourceTags = config.Datadog.GetBool("ecs_collect_resource_tags_ec2")
+
+	containerLabelsAsTags := mergeMaps(
+		retrieveMappingFromConfig("docker_labels_as_tags"),
+		retrieveMappingFromConfig("container_labels_as_tags"),
+	)
+	containerEnvAsTags := mergeMaps(
+		retrieveMappingFromConfig("docker_env_as_tags"),
+		retrieveMappingFromConfig("container_env_as_tags"),
+	)
+	c.initContainerMetaAsTags(containerLabelsAsTags, containerEnvAsTags)
 
 	labelsAsTags := config.Datadog.GetStringMapString("kubernetes_pod_labels_as_tags")
 	annotationsAsTags := config.Datadog.GetStringMapString("kubernetes_pod_annotations_as_tags")
-	c.init(labelsAsTags, annotationsAsTags)
+	nsLabelsAsTags := config.Datadog.GetStringMapString("kubernetes_namespace_labels_as_tags")
+	c.initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags)
 
-	c.staticTags = fargateStaticTags()
+	c.staticTags = fargateStaticTags(ctx)
 
 	return StreamCollection, nil
 }
 
-func (c *WorkloadMetaCollector) init(labelsAsTags, annotationsAsTags map[string]string) {
+func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags map[string]string) {
+	c.containerLabelsAsTags, c.globContainerLabels = utils.InitMetadataAsTags(labelsAsTags)
+	c.containerEnvAsTags, c.globContainerEnvLabels = utils.InitMetadataAsTags(envAsTags)
+}
+
+func (c *WorkloadMetaCollector) initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags map[string]string) {
 	c.labelsAsTags, c.globLabels = utils.InitMetadataAsTags(labelsAsTags)
 	c.annotationsAsTags, c.globAnnotations = utils.InitMetadataAsTags(annotationsAsTags)
+	c.nsLabelsAsTags, c.globNsLabels = utils.InitMetadataAsTags(nsLabelsAsTags)
 }
 
 // Stream runs the continuous event watching loop and sends new tags to the
@@ -110,11 +137,11 @@ func workloadmetaFactory() Collector {
 	}
 }
 
-func fargateStaticTags() map[string]string {
+func fargateStaticTags(ctx context.Context) map[string]string {
 	// fargate (ECS or EKS) does not have host tags, so we need to
 	// add static tags to each container manually
 
-	if !fargate.IsFargateInstance(context.TODO()) {
+	if !fargate.IsFargateInstance(ctx) {
 		return nil
 	}
 
@@ -146,7 +173,15 @@ func fargateStaticTags() map[string]string {
 
 func init() {
 	// NOTE: WorkloadMetaCollector is meant to be used as the single
-	// collector, so priority doesn't matter and should be removed entirely
-	// after migration is done.
+	// collector, while emitting TagInfos with different sources. This is
+	// different from the way older collectors work, where they have a
+	// single priority. Until they all go away, we need to register the
+	// collector with a dummy priority, then set the priority for the
+	// actual sources we emit manually
+
 	registerCollector(workloadmetaCollectorName, workloadmetaFactory, NodeRuntime)
+
+	CollectorPriorities[podSource] = NodeOrchestrator
+	CollectorPriorities[taskSource] = NodeOrchestrator
+	CollectorPriorities[containerSource] = NodeRuntime
 }

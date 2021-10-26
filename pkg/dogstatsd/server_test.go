@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // getAvailableUDPPort requests a random port number and makes sure it is available
@@ -609,11 +609,11 @@ func TestDebugStats(t *testing.T) {
 	sample3 := metrics.MetricSample{Name: "some.metric3", Tags: make([]string, 0)}
 	sample4 := metrics.MetricSample{Name: "some.metric4", Tags: []string{"b", "c"}}
 	sample5 := metrics.MetricSample{Name: "some.metric4", Tags: []string{"c", "b"}}
-	hash1 := keygen.Generate(sample1.Name, "", util.NewHashingTagsBuilderWithTags(sample1.Tags))
-	hash2 := keygen.Generate(sample2.Name, "", util.NewHashingTagsBuilderWithTags(sample2.Tags))
-	hash3 := keygen.Generate(sample3.Name, "", util.NewHashingTagsBuilderWithTags(sample3.Tags))
-	hash4 := keygen.Generate(sample4.Name, "", util.NewHashingTagsBuilderWithTags(sample4.Tags))
-	hash5 := keygen.Generate(sample5.Name, "", util.NewHashingTagsBuilderWithTags(sample5.Tags))
+	hash1 := keygen.Generate(sample1.Name, "", tagset.NewHashingTagsAccumulatorWithTags(sample1.Tags))
+	hash2 := keygen.Generate(sample2.Name, "", tagset.NewHashingTagsAccumulatorWithTags(sample2.Tags))
+	hash3 := keygen.Generate(sample3.Name, "", tagset.NewHashingTagsAccumulatorWithTags(sample3.Tags))
+	hash4 := keygen.Generate(sample4.Name, "", tagset.NewHashingTagsAccumulatorWithTags(sample4.Tags))
+	hash5 := keygen.Generate(sample5.Name, "", tagset.NewHashingTagsAccumulatorWithTags(sample5.Tags))
 
 	// test ingestion and ingestion time
 	s.storeMetricStats(sample1)

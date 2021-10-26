@@ -597,7 +597,7 @@ profiles:
   "namespace":"default",
   "devices": [
     {
-      "id": "5eb4b5284574c173",
+      "id": "default:1.2.3.4",
       "id_tags": [
         "device_namespace:default",
         "snmp_device:1.2.3.4"
@@ -626,7 +626,7 @@ profiles:
   ],
   "interfaces": [
     {
-      "device_id": "5eb4b5284574c173",
+      "device_id": "default:1.2.3.4",
       "id_tags": ["interface:nameRow1"],
       "index": 1,
       "name": "nameRow1",
@@ -637,7 +637,7 @@ profiles:
       "oper_status": 1
     },
     {
-      "device_id": "5eb4b5284574c173",
+      "device_id": "default:1.2.3.4",
 	  "id_tags": ["interface:nameRow2"],
       "index": 2,
       "name": "nameRow2",
@@ -1187,7 +1187,7 @@ tags:
   "namespace":"default",
   "devices": [
     {
-      "id": "5eb4b5284574c173",
+      "id": "default:1.2.3.4",
       "id_tags": [
         "device_namespace:default",
         "snmp_device:1.2.3.4"
@@ -1210,7 +1210,7 @@ tags:
   ],
   "interfaces": [
     {
-      "device_id": "5eb4b5284574c173",
+      "device_id": "default:1.2.3.4",
       "id_tags": ["interface:nameRow1"],
       "index": 1,
       "name": "nameRow1",
@@ -1221,7 +1221,7 @@ tags:
       "oper_status": 1
     },
     {
-      "device_id": "5eb4b5284574c173",
+      "device_id": "default:1.2.3.4",
       "id_tags": ["interface:nameRow2"],
       "index": 2,
       "name": "nameRow2",
@@ -1303,7 +1303,7 @@ tags:
   "namespace":"default",
   "devices": [
     {
-      "id": "5eb4b5284574c172",
+      "id": "default:1.2.3.5",
       "id_tags": [
         "device_namespace:default",
         "snmp_device:1.2.3.5"
@@ -1533,10 +1533,10 @@ metric_tags:
 		ipAddress string
 		deviceID  string
 	}{
-		{ipAddress: "10.10.0.0", deviceID: "fb83a12c4a90c1d1"},
-		{ipAddress: "10.10.0.1", deviceID: "fb83a12c4a90c1d0"},
-		{ipAddress: "10.10.0.2", deviceID: "fb83a12c4a90c1d3"},
-		{ipAddress: "10.10.0.3", deviceID: "fb83a12c4a90c1d2"},
+		{ipAddress: "10.10.0.0", deviceID: "default:10.10.0.0"},
+		{ipAddress: "10.10.0.1", deviceID: "default:10.10.0.1"},
+		{ipAddress: "10.10.0.2", deviceID: "default:10.10.0.2"},
+		{ipAddress: "10.10.0.3", deviceID: "default:10.10.0.3"},
 	}
 
 	err = chk.Run()
@@ -1837,7 +1837,7 @@ use_device_id_as_hostname: true
 	err = chk.Run()
 	assert.Nil(t, err)
 
-	hostname := "device:5eb4b5284574c173"
+	hostname := "device:default:1.2.3.4"
 	snmpTags := []string{"snmp_device:1.2.3.4"}
 	snmpGlobalTags := common.CopyStrings(snmpTags)
 	snmpGlobalTagsWithLoader := append(common.CopyStrings(snmpGlobalTags), "loader:core")
@@ -1997,10 +1997,10 @@ metrics:
 		ipAddress string
 		deviceID  string
 	}{
-		{ipAddress: "10.10.0.0", deviceID: "fb83a12c4a90c1d1"},
-		{ipAddress: "10.10.0.1", deviceID: "fb83a12c4a90c1d0"},
-		{ipAddress: "10.10.0.2", deviceID: "fb83a12c4a90c1d3"},
-		{ipAddress: "10.10.0.3", deviceID: "fb83a12c4a90c1d2"},
+		{ipAddress: "10.10.0.0", deviceID: "default:10.10.0.0"},
+		{ipAddress: "10.10.0.1", deviceID: "default:10.10.0.1"},
+		{ipAddress: "10.10.0.2", deviceID: "default:10.10.0.2"},
+		{ipAddress: "10.10.0.3", deviceID: "default:10.10.0.3"},
 	}
 
 	err = chk.Run()

@@ -13,12 +13,6 @@ import (
 
 const maxRoutes = math.MaxInt32
 
-var connsPool = sync.Pool{
-	New: func() interface{} {
-		return new(model.Connections)
-	},
-}
-
 var connPool = sync.Pool{
 	New: func() interface{} {
 		return new(model.Connection)
@@ -84,19 +78,13 @@ func FormatConnection(
 	return c
 }
 
-var telemetryPool = sync.Pool{
-	New: func() interface{} {
-		return new(model.ConnectionsTelemetry)
-	},
-}
-
 // FormatConnTelemetry converts telemetry from its internal representation to a protobuf message
 func FormatConnTelemetry(tel *network.ConnectionsTelemetry) *model.ConnectionsTelemetry {
 	if tel == nil {
 		return nil
 	}
 
-	t := telemetryPool.Get().(*model.ConnectionsTelemetry)
+	t := new(model.ConnectionsTelemetry)
 	t.MonotonicKprobesTriggered = tel.MonotonicKprobesTriggered
 	t.MonotonicKprobesMissed = tel.MonotonicKprobesMissed
 	t.MonotonicConntrackRegisters = tel.MonotonicConntrackRegisters
@@ -205,11 +193,10 @@ func returnToPool(c *model.Connections) {
 	}
 	if c.Dns != nil {
 		for _, e := range c.Dns {
+			e.Reset()
 			dnsPool.Put(e)
 		}
 	}
-	telemetryPool.Put(c.ConnTelemetry)
-	connsPool.Put(c)
 }
 
 func formatAddr(addr util.Address, port uint16, ipc ipCache) *model.Addr {

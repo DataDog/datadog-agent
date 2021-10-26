@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,22 +36,23 @@ func IsRunningOn(ctx context.Context) bool {
 
 // GetHostAlias returns the VM ID from the Tencent Metadata api
 func GetHostAlias(ctx context.Context) (string, error) {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
-	}
 	return GetInstanceID(ctx)
+}
+
+var instanceIDFetcher = cachedfetch.Fetcher{
+	Name: "Tencent InstanceID",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		res, err := getMetadataItemWithMaxLength(ctx, metadataURL+"/meta-data/instance-id", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+		if err != nil {
+			return "", fmt.Errorf("unable to get TencentCloud CVM instanceID: %s", err)
+		}
+		return res, err
+	},
 }
 
 // GetInstanceID fetches the instance id for current host from the Tencent metadata API
 func GetInstanceID(ctx context.Context) (string, error) {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
-	}
-	res, err := getMetadataItemWithMaxLength(ctx, metadataURL+"/meta-data/instance-id", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
-	if err != nil {
-		return "", fmt.Errorf("unable to get TencentCloud CVM instanceID: %s", err)
-	}
-	return res, err
+	return instanceIDFetcher.FetchString(ctx)
 }
 
 // HostnameProvider gets the hostname
@@ -81,6 +83,10 @@ func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, maxLengt
 }
 
 func getMetadataItem(ctx context.Context, endpoint string) (string, error) {
+	if !config.IsCloudProviderEnabled(CloudProviderName) {
+		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	}
+
 	res, err := getResponse(ctx, endpoint)
 	if err != nil {
 		return "", fmt.Errorf("unable to fetch Tencent Metadata API, %s", err)

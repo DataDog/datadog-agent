@@ -46,7 +46,7 @@ test_script:
   - inv -e rtloader.install
   - inv -e rtloader.format --raise-if-changed
   - inv -e rtloader.test
-  - inv -e test --python-runtimes 3 --coverage --profile --fail-on-fmt --python-home-2=%Python2_ROOT_DIR% --python-home-3=%Python3_ROOT_DIR%
+  - inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --profile --fail-on-fmt --python-home-2=%Python2_ROOT_DIR% --python-home-3=%Python3_ROOT_DIR%
   - codecov -f profile.cov -F windows
 
 # uncomment to debug builds

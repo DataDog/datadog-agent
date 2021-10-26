@@ -70,7 +70,7 @@ DEFAULT_MODULES = {
     ".": GoModule(
         ".",
         targets=["./pkg", "./cmd"],
-        dependencies=["pkg/util/log", "pkg/util/winutil", "pkg/quantile", "pkg/otlp/model"],
+        dependencies=["pkg/util/log", "pkg/util/winutil", "pkg/quantile", "pkg/otlp/model", "pkg/security/secl"],
     ),
     "pkg/util/log": GoModule("pkg/util/log"),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
@@ -79,6 +79,7 @@ DEFAULT_MODULES = {
     ),
     "pkg/quantile": GoModule("pkg/quantile"),
     "pkg/otlp/model": GoModule("pkg/otlp/model", dependencies=["pkg/quantile"]),
+    "pkg/security/secl": GoModule("pkg/security/secl"),
 }
 
 MAIN_TEMPLATE = """package main

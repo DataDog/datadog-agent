@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -140,7 +141,7 @@ type Server struct {
 	histToDistPrefix          string
 	extraTags                 []string
 	Debug                     *dsdServerDebug
-	debugTagsBuilder          *util.HashingTagsBuilder
+	debugTagsAccumulator      *tagset.HashingTagsAccumulator
 	TCapture                  *replay.TrafficCapture
 	mapper                    *mapper.MetricMapper
 	eolTerminationUDP         bool
@@ -434,16 +435,15 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan packets.Packets) {
 	}
 }
 
-// Flush flushes all the data to the aggregator to them send it to the Datadog intake.
-func (s *Server) Flush() {
+// ServerlessFlush flushes all the data to the aggregator to them send it to the Datadog intake.
+func (s *Server) ServerlessFlush() {
 	log.Debug("Received a Flush trigger")
 	// make all workers flush their aggregated data (in the batcher) to the aggregator.
 	for _, w := range s.workers {
 		w.flush()
 	}
-	// flush the aggregator to have the serializer/forwarder send data to the backend.
-	// We add 10 seconds to the interval to ensure that we're getting the whole sketches bucket
-	s.aggregator.Flush(time.Now().Add(time.Second*10), true)
+	s.aggregator.ServerlessFlush <- true
+	<-s.aggregator.ServerlessFlushDone
 }
 
 // dropCR drops a terminal \r from the data.
@@ -705,21 +705,21 @@ func (s *Server) storeMetricStats(sample metrics.MetricSample) {
 	s.Debug.Lock()
 	defer s.Debug.Unlock()
 
-	if s.debugTagsBuilder == nil {
-		s.debugTagsBuilder = util.NewHashingTagsBuilder()
+	if s.debugTagsAccumulator == nil {
+		s.debugTagsAccumulator = tagset.NewHashingTagsAccumulator()
 	}
 
 	// key
-	defer s.debugTagsBuilder.Reset()
-	s.debugTagsBuilder.Append(sample.Tags...)
-	key := s.Debug.keyGen.Generate(sample.Name, "", s.debugTagsBuilder)
+	defer s.debugTagsAccumulator.Reset()
+	s.debugTagsAccumulator.Append(sample.Tags...)
+	key := s.Debug.keyGen.Generate(sample.Name, "", s.debugTagsAccumulator)
 
 	// store
 	ms := s.Debug.Stats[key]
 	ms.Count++
 	ms.LastSeen = now
 	ms.Name = sample.Name
-	ms.Tags = strings.Join(s.debugTagsBuilder.Get(), " ") // we don't want/need to share the underlying array
+	ms.Tags = strings.Join(s.debugTagsAccumulator.Get(), " ") // we don't want/need to share the underlying array
 	s.Debug.Stats[key] = ms
 
 	s.Debug.metricsCounts.metricChan <- struct{}{}

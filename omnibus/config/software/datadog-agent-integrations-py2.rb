@@ -292,9 +292,11 @@ build do
 
       # install all wheels from cache in one pip invocation to speed things up
       if windows?
-        command "#{python} -m pip install --no-deps --no-index -r #{windows_safe_path(cached_wheels_dir)}\\found.txt"
+        command "#{python} -m pip install --no-deps --no-index " \
+          "--find-links #{windows_safe_path(cached_wheels_dir)} -r #{windows_safe_path(cached_wheels_dir)}\\found.txt"
       else
-        command "#{pip} install --no-deps --no-index -r #{cached_wheels_dir}/found.txt"
+        command "#{pip} install --no-deps --no-index " \
+          " --find-links #{cached_wheels_dir} -r #{cached_wheels_dir}/found.txt"
       end
     end
 
@@ -398,8 +400,14 @@ build do
       # Patch applies to only one file: set it explicitly as a target, no need for -p
       if windows?
         patch :source => "create-regex-at-runtime.patch", :target => "#{python_2_embedded}/Lib/site-packages/yaml/reader.py"
+        patch :source => "tuf-0.17.0-cve-2021-41131.patch", :target => "#{python_2_embedded}/Lib/site-packages/tuf/client/updater.py"
       else
         patch :source => "create-regex-at-runtime.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/yaml/reader.py"
+        patch :source => "tuf-0.17.0-cve-2021-41131.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/tuf/client/updater.py"
+      end
+
+      if linux?
+        patch :source => "psutil-pr2000.patch", :target => "#{install_dir}/embedded/lib/python2.7/site-packages/psutil/_pslinux.py"
       end
 
       # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible

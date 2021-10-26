@@ -303,6 +303,8 @@ jobs:
             inv -e install-tools
             inv -e deps
             inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --fail-on-fmt --cpus 3
+            python3 -m tasks.release_tests
+            python3 -m tasks.libs.version_tests
 
 workflows:
   version: 2
