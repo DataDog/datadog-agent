@@ -43,9 +43,8 @@ func importModule(importPath, parentDir string, required bool) (string, error) {
 	if err != nil {
 		if required {
 			return "", err
-		} else {
-			return "", nil
 		}
+		return "", nil
 	}
 	return string(mod), nil
 }
