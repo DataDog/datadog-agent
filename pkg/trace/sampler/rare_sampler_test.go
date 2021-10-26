@@ -27,7 +27,7 @@ func TestSpanSeenTTLExpiration(t *testing.T) {
 		{"p0-ttl-expired", true, testTime.Add(priorityTTL + defaultTTL + 2*time.Nanosecond), map[string]float64{"_dd.measured": 1}},
 	}
 
-	e := NewExceptionSampler()
+	e := NewRareSampler()
 	e.Stop()
 
 	for _, tc := range testCases {
@@ -56,7 +56,7 @@ func TestConsideredSpans(t *testing.T) {
 		{"p0-non-top-non-measured-blocked", false, "s4", nil},
 	}
 
-	e := NewExceptionSampler()
+	e := NewRareSampler()
 	e.Stop()
 
 	for _, tc := range testCases {
@@ -71,7 +71,7 @@ func TestConsideredSpans(t *testing.T) {
 }
 
 func TestExceptionSamplerRace(t *testing.T) {
-	e := NewExceptionSampler()
+	e := NewRareSampler()
 	e.Stop()
 	for i := 0; i < 2; i++ {
 		go func() {
@@ -87,7 +87,7 @@ func TestExceptionSamplerRace(t *testing.T) {
 
 func TestCardinalityLimit(t *testing.T) {
 	assert := assert.New(t)
-	e := NewExceptionSampler()
+	e := NewRareSampler()
 	e.Stop()
 	for j := 1; j <= cardinalityLimit; j++ {
 		tr := pb.Trace{
