@@ -19,16 +19,16 @@ func NewHashedTagsFromSlice(tags []string) HashedTags {
 //
 // NOTE: this returns a mutable reference to data in this immutable data structure.
 // It is still used by pkg/tagger/tagstore, but new uses should not be added.
-func (t HashedTags) Get() []string {
-	return t.data
+func (h HashedTags) Get() []string {
+	return h.data
 }
 
 // Slice returns a shared sub-slice of tags from t.
-func (t HashedTags) Slice(i, j int) HashedTags {
+func (h HashedTags) Slice(i, j int) HashedTags {
 	return HashedTags{
 		hashedTags{
-			data: t.data[i:j],
-			hash: t.hash[i:j],
+			data: h.data[i:j],
+			hash: h.hash[i:j],
 		},
 	}
 }

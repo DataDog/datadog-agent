@@ -17,6 +17,7 @@
     expire_in: 1 day
     paths:
       - $CI_PROJECT_DIR/modcache.tar.gz
+  retry: 1
 
 linux_x64_go_deps:
   extends: .go_deps

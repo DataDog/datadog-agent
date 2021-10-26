@@ -240,6 +240,8 @@ type BufferedAggregator struct {
 	hostnameUpdate         chan string
 	hostnameUpdateDone     chan struct{}    // signals that the hostname update is finished
 	TickerChan             <-chan time.Time // For test/benchmark purposes: it allows the flush to be controlled from the outside
+	ServerlessFlush        chan bool
+	ServerlessFlushDone    chan struct{}
 	stopChan               chan struct{}
 	health                 *health.Handle
 	agentName              string // Name of the agent for telemetry metrics
@@ -295,6 +297,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		agentName:               agentName,
 		tlmContainerTagsEnabled: config.Datadog.GetBool("basic_telemetry_add_container_tags"),
 		agentTags:               tagger.AgentTags,
+		ServerlessFlush:         make(chan bool),
+		ServerlessFlushDone:     make(chan struct{}),
 	}
 
 	return aggregator
@@ -752,6 +756,15 @@ func (agg *BufferedAggregator) run() {
 			addFlushTime("MainFlushTime", int64(time.Since(start)))
 			aggregatorNumberOfFlush.Add(1)
 			aggregatorEventPlatformErrorLogged = false
+		case <-agg.ServerlessFlush:
+			start := time.Now()
+			// flush the aggregator to have the serializer/forwarder send data to the backend.
+			// We add 10 seconds to the interval to ensure that we're getting the whole sketches bucket
+			agg.Flush(start.Add(time.Second*10), true)
+			addFlushTime("MainFlushTime", int64(time.Since(start)))
+			aggregatorNumberOfFlush.Add(1)
+			aggregatorEventPlatformErrorLogged = false
+			agg.ServerlessFlushDone <- struct{}{}
 		case checkMetric := <-agg.checkMetricIn:
 			aggregatorChecksMetricSample.Add(1)
 			tlmProcessed.Inc("metrics")

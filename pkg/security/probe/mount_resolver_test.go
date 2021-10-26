@@ -14,7 +14,7 @@ import (
 
 	"gotest.tools/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/security/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 func TestMountResolver(t *testing.T) {

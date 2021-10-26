@@ -159,23 +159,31 @@ func (c *collector) parsePodContainers(
 		}
 
 		var env map[string]string
-		var image workloadmeta.ContainerImage
 		var ports []workloadmeta.ContainerPort
 
+		image, err := workloadmeta.NewContainerImage(container.Image)
+		if err != nil {
+			log.Warnf("cannot split image name %q: %s", container.Image, err)
+		}
+
+		image.ID = container.ImageID
+
 		runtime, containerID := containers.SplitEntityName(container.ID)
-		podContainers = append(podContainers, workloadmeta.OrchestratorContainer{
+		podContainer := workloadmeta.OrchestratorContainer{
 			ID:   containerID,
 			Name: container.Name,
-		})
+		}
 
 		containerSpec := findContainerSpec(container.Name, containerSpecs)
 		if containerSpec != nil {
 			env = extractEnvFromSpec(containerSpec.Env)
-			var err error
-			image, err = workloadmeta.NewContainerImage(containerSpec.Image)
+
+			podContainer.Image, err = workloadmeta.NewContainerImage(containerSpec.Image)
 			if err != nil {
 				log.Warnf("cannot split image name %q: %s", containerSpec.Image, err)
 			}
+
+			podContainer.Image.ID = container.ImageID
 
 			ports = make([]workloadmeta.ContainerPort, 0, len(containerSpec.Ports))
 			for _, port := range containerSpec.Ports {
@@ -189,8 +197,6 @@ func (c *collector) parsePodContainers(
 			log.Debugf("cannot find spec for container %q", container.Name)
 		}
 
-		image.ID = container.ImageID
-
 		containerState := workloadmeta.ContainerState{}
 		if st := container.State.Running; st != nil {
 			containerState.Running = true
@@ -201,6 +207,7 @@ func (c *collector) parsePodContainers(
 			containerState.FinishedAt = st.FinishedAt
 		}
 
+		podContainers = append(podContainers, podContainer)
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: collectorID,
 			Type:   workloadmeta.EventTypeSet,

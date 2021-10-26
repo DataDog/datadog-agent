@@ -26,9 +26,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/syndtr/gocapability/capability"
 
-	"github.com/DataDog/datadog-agent/pkg/security/model"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -353,14 +353,7 @@ func TestProcessContext(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		executable := "/usr/bin/tail"
-		if resolved, err := os.Readlink(executable); err == nil {
-			executable = resolved
-		} else {
-			if os.IsNotExist(err) {
-				executable = "/bin/tail"
-			}
-		}
+		executable := which("tail")
 
 		test.WaitSignal(t, func() error {
 			var wg sync.WaitGroup
@@ -490,14 +483,7 @@ func TestProcessContext(t *testing.T) {
 }
 
 func TestProcessExecCTime(t *testing.T) {
-	executable := "/usr/bin/touch"
-	if resolved, err := os.Readlink(executable); err == nil {
-		executable = resolved
-	} else {
-		if os.IsNotExist(err) {
-			executable = "/bin/touch"
-		}
-	}
+	executable := which("touch")
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_exec_ctime",
@@ -529,14 +515,7 @@ func TestProcessExecCTime(t *testing.T) {
 }
 
 func TestProcessExec(t *testing.T) {
-	executable := "/usr/bin/touch"
-	if resolved, err := os.Readlink(executable); err == nil {
-		executable = resolved
-	} else {
-		if os.IsNotExist(err) {
-			executable = "/bin/touch"
-		}
-	}
+	executable := which("touch")
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
@@ -635,14 +614,7 @@ func TestProcessMetadata(t *testing.T) {
 }
 
 func TestProcessExecExit(t *testing.T) {
-	executable := "/usr/bin/touch"
-	if resolved, err := os.Readlink(executable); err == nil {
-		executable = resolved
-	} else {
-		if os.IsNotExist(err) {
-			executable = "/bin/touch"
-		}
-	}
+	executable := which("touch")
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",

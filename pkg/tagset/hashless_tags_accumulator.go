@@ -33,28 +33,28 @@ func NewHashlessTagsAccumulatorFromSlice(data []string) *HashlessTagsAccumulator
 }
 
 // Append appends tags to the builder
-func (tb *HashlessTagsAccumulator) Append(tags ...string) {
-	tb.data = append(tb.data, tags...)
+func (h *HashlessTagsAccumulator) Append(tags ...string) {
+	h.data = append(h.data, tags...)
 }
 
 // AppendHashed appends tags and corresponding hashes to the builder
-func (tb *HashlessTagsAccumulator) AppendHashed(src HashedTags) {
-	tb.data = append(tb.data, src.data...)
+func (h *HashlessTagsAccumulator) AppendHashed(src HashedTags) {
+	h.data = append(h.data, src.data...)
 }
 
 // Get returns the internal slice
-func (tb *HashlessTagsAccumulator) Get() []string {
-	return tb.data
+func (h *HashlessTagsAccumulator) Get() []string {
+	return h.data
 }
 
 // SortUniq sorts and remove duplicate in place
-func (tb *HashlessTagsAccumulator) SortUniq() {
-	tb.data = util.SortUniqInPlace(tb.data)
+func (h *HashlessTagsAccumulator) SortUniq() {
+	h.data = util.SortUniqInPlace(h.data)
 }
 
 // Reset resets the size of the builder to 0 without discaring the internal
 // buffer
-func (tb *HashlessTagsAccumulator) Reset() {
+func (h *HashlessTagsAccumulator) Reset() {
 	// we keep the internal buffer but reset size
-	tb.data = tb.data[0:0]
+	h.data = h.data[0:0]
 }

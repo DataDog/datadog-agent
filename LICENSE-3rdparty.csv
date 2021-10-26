@@ -318,7 +318,6 @@ core,github.com/emicklei/go-restful-swagger12,MIT,Ernest Micklei
 core,github.com/emicklei/go-restful/log,MIT,Ernest Micklei
 core,github.com/evanphx/json-patch,BSD-3-Clause,Evan Phoenix
 core,github.com/fatih/color,MIT,Fatih Arslan
-core,github.com/fatih/structtag,BSD-3-Clause,Fatih Arslan | The Go Authors
 core,github.com/felixge/httpsnoop,MIT,Felix Geisendörfer (felix@debuggable.com)
 core,github.com/florianl/go-conntrack,MIT,Florian Lehner <dev@der-flo.net>
 core,github.com/florianl/go-conntrack/internal/unix,MIT,Florian Lehner <dev@der-flo.net>

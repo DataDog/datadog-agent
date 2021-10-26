@@ -34,77 +34,77 @@ func NewHashingTagsAccumulatorWithTags(tags []string) *HashingTagsAccumulator {
 }
 
 // Append appends tags to the builder
-func (tb *HashingTagsAccumulator) Append(tags ...string) {
+func (h *HashingTagsAccumulator) Append(tags ...string) {
 	for _, t := range tags {
-		tb.data = append(tb.data, t)
-		tb.hash = append(tb.hash, murmur3.StringSum64(t))
+		h.data = append(h.data, t)
+		h.hash = append(h.hash, murmur3.StringSum64(t))
 	}
 }
 
 // AppendHashed appends tags and corresponding hashes to the builder
-func (tb *HashingTagsAccumulator) AppendHashed(src HashedTags) {
-	tb.data = append(tb.data, src.data...)
-	tb.hash = append(tb.hash, src.hash...)
+func (h *HashingTagsAccumulator) AppendHashed(src HashedTags) {
+	h.data = append(h.data, src.data...)
+	h.hash = append(h.hash, src.hash...)
 }
 
 // SortUniq sorts and remove duplicate in place
-func (tb *HashingTagsAccumulator) SortUniq() {
-	if tb.Len() < 2 {
+func (h *HashingTagsAccumulator) SortUniq() {
+	if h.Len() < 2 {
 		return
 	}
 
-	sort.Sort(tb)
+	sort.Sort(h)
 
 	j := 0
-	for i := 1; i < len(tb.data); i++ {
-		if tb.hash[i] == tb.hash[j] && tb.data[i] == tb.data[j] {
+	for i := 1; i < len(h.data); i++ {
+		if h.hash[i] == h.hash[j] && h.data[i] == h.data[j] {
 			continue
 		}
 		j++
-		tb.data[j] = tb.data[i]
-		tb.hash[j] = tb.hash[i]
+		h.data[j] = h.data[i]
+		h.hash[j] = h.hash[i]
 	}
 
-	tb.Truncate(j + 1)
+	h.Truncate(j + 1)
 }
 
 // Get returns the internal slice
-func (tb *HashingTagsAccumulator) Get() []string {
-	return tb.data
+func (h *HashingTagsAccumulator) Get() []string {
+	return h.data
 }
 
 // Hashes returns the internal slice of tag hashes
-func (tb *HashingTagsAccumulator) Hashes() []uint64 {
-	return tb.hash
+func (h *HashingTagsAccumulator) Hashes() []uint64 {
+	return h.hash
 }
 
 // Reset resets the size of the builder to 0 without discaring the internal
 // buffer
-func (tb *HashingTagsAccumulator) Reset() {
+func (h *HashingTagsAccumulator) Reset() {
 	// we keep the internal buffer but reset size
-	tb.data = tb.data[0:0]
-	tb.hash = tb.hash[0:0]
+	h.data = h.data[0:0]
+	h.hash = h.hash[0:0]
 }
 
 // Truncate retains first n tags in the buffer without discarding the internal buffer
-func (tb *HashingTagsAccumulator) Truncate(len int) {
-	tb.data = tb.data[0:len]
-	tb.hash = tb.hash[0:len]
+func (h *HashingTagsAccumulator) Truncate(len int) {
+	h.data = h.data[0:len]
+	h.hash = h.hash[0:len]
 }
 
 // Less implements sort.Interface.Less
-func (tb *HashingTagsAccumulator) Less(i, j int) bool {
+func (h *HashingTagsAccumulator) Less(i, j int) bool {
 	// FIXME(vickenty): could sort using hashes, which is faster, but a lot of tests check for order.
-	return tb.data[i] < tb.data[j]
+	return h.data[i] < h.data[j]
 }
 
 // Swap implements sort.Interface.Swap
-func (tb *HashingTagsAccumulator) Swap(i, j int) {
-	tb.hash[i], tb.hash[j] = tb.hash[j], tb.hash[i]
-	tb.data[i], tb.data[j] = tb.data[j], tb.data[i]
+func (h *HashingTagsAccumulator) Swap(i, j int) {
+	h.hash[i], h.hash[j] = h.hash[j], h.hash[i]
+	h.data[i], h.data[j] = h.data[j], h.data[i]
 }
 
 // Dup returns a complete copy of HashingTagsAccumulator
-func (tb *HashingTagsAccumulator) Dup() *HashingTagsAccumulator {
-	return &HashingTagsAccumulator{tb.dup()}
+func (h *HashingTagsAccumulator) Dup() *HashingTagsAccumulator {
+	return &HashingTagsAccumulator{h.dup()}
 }

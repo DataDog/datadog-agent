@@ -10,7 +10,7 @@ package probes
 import (
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 // SyscallMonitorSelectors is the list of probes that should be activated for the syscall monitor feature
