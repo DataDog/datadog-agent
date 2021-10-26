@@ -57,7 +57,7 @@ func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEn
 	// by setting this option to 1ms, all packets received will directly be sent to the parser
 	config.Datadog.Set("dogstatsd_packet_buffer_flush_timeout", 1*time.Millisecond)
 
-	// ensure backward compatibily by preventing lambda layers from sending the invocation metric
+	// ensure backward compatibility by preventing lambda layers from sending the invocation metric
 	config.Datadog.Set("statsd_metric_blocklist", "aws.lambda.enhanced.invocations")
 
 	aggregatorInstance := buildBufferedAggregator(multipleEndpointConfig, forwarderTimeout)
