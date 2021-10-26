@@ -58,6 +58,7 @@ TODO
 | Listener | AD identifiers | Host | Port | Tag | Pid | Env | Hostname
 |---|---|---|---|---|---|---|---|
 | Docker | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Containerd | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ |
 | ECS | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ |
 | Kubelet | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
 | KubeService | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ |
