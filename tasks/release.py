@@ -1365,12 +1365,19 @@ def get_release_json_value(_, key):
     print(release_json)
 
 def create_release_branch(ctx, repo, release_branch, upstream="origin"):
+    # Perform branch out in all required repositories
     with ctx.cd("~/dd/{}".format(repo)):
+
+        # Step 1 - Create a local branch out from the default branch
+
         print(color_message("Working repository: {}".format(repo), "bold"))
         main_branch = ctx.run("git remote show {} | grep \"HEAD branch\" | sed 's/.*: //'".format(upstream)).stdout.strip()
         ctx.run("git checkout {}".format(main_branch))
         print(color_message("Branching out to {}".format(release_branch), "bold"))
         ctx.run("git checkout -b {}".format(release_branch))
+
+        # Step 2 - Push newly created release branch to the remote repository
+
         print(color_message("Pushing new branch to the upstream repository", "bold"))
         res = ctx.run("git push --set-upstream {} {}".format(upstream, release_branch), warn=True)
         if res.exited is None or res.exited > 0:
@@ -1384,9 +1391,6 @@ def create_release_branch(ctx, repo, release_branch, upstream="origin"):
                 ),
                 code=1,
         )
-        #print("Cleanup")
-        #ctx.run("git checkout {}".format(main_branch))
-        #ctx.run("git branch -D {}".format(release_branch))
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
 def unfreeze(ctx, major_versions="6,7", patch_version=False, upstream="origin"):
@@ -1423,14 +1427,13 @@ def unfreeze(ctx, major_versions="6,7", patch_version=False, upstream="origin"):
     list_major_versions = parse_major_versions(major_versions)
 
     new_version = current_version(ctx, max(list_major_versions))
+    next_version = next_final_version(ctx, max(list_major_versions))
+
+    print("NEXT VERSION: {}".format(next_version))
 
     # Get a release branch name
     release_branch_name = "{}".format(
         str(new_version.major) + "." + str(new_version.minor) + ".x")
-    # Get a release branch name
-    release_branch_name = "{}".format(
-        str(new_version.major) + "." + str(new_version.minor) + ".x")
-    
 
     # Step 0: checks
 
@@ -1447,7 +1450,7 @@ def unfreeze(ctx, major_versions="6,7", patch_version=False, upstream="origin"):
         )
 
     if not yes_no_question(
-        "This task will create new branches with the name \"{}\" in repositories: datadog-agent, omnibus-ruby and omnibus-software Is this OK?".format(
+        "This task will create new branches with the name '{}' in repositories: datadog-agent, omnibus-ruby and omnibus-software Is this OK?".format(
             release_branch_name
         ),
         color="orange",
@@ -1459,8 +1462,30 @@ def unfreeze(ctx, major_versions="6,7", patch_version=False, upstream="origin"):
     repos = ["datadog-agent", "omnibus-software", "omnibus-ruby"]
     for repo in repos:
         #create_release_branch(ctx, repo, release_branch_name + "_test")
+        pass
     
-    # Step 2: Empty commit in datadog-agent repo (main)
+    with ctx.cd("~/dd/datadog-agent"):
+        #ok = try_git_command(ctx, "git commit --allow-empty -m 'Empty commit for next release devel tags {}'")
+        if not ok:
+            raise Exit(
+                color_message(
+                    "Could not create commit. Please commit manually, push the commit manually to the main branch.",
+                    "red",
+                ),
+                code=1,
+            )
 
-    # Step 3: Create tags for next version
-    
+        print(color_message("Pushing new commit", "bold"))
+        #res = ctx.run("git push {}".format(upstream), warn=True)
+        if res.exited is None or res.exited > 0:
+            raise Exit(
+                color_message(
+                    "Could not push commit to the upstream '{}'. Please push it manually.".format(
+                        upstream,
+                    ),
+                    "red",
+                ),
+                code=1,
+            )
+
+        # Step 3: Create tags for next version
