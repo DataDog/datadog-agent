@@ -465,7 +465,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("statsd_forward_port", 0)
 	config.BindEnvAndSetDefault("statsd_metric_namespace", "")
 	config.BindEnvAndSetDefault("statsd_metric_namespace_blacklist", StandardStatsdPrefixes)
-	config.BindEnvAndSetDefault("statsd_metric_blocklist", "")
+	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
 	// Autoconfig
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
 	config.BindEnvAndSetDefault("exclude_pause_container", true)

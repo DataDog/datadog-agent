@@ -103,7 +103,7 @@ func enrichMetricSample(metricSamples []metrics.MetricSample, ddSample dogstatsd
 	}
 
 	if isMetricBlocklisted(metricName, metricBlocklist) {
-		return make([]metrics.MetricSample, 0)
+		return []metrics.MetricSample{}
 	}
 
 	if serverlessMode { // we don't want to set the host while running in serverless mode
