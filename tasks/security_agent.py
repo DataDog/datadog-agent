@@ -447,7 +447,7 @@ RUN apt-get update -y \
 @task
 def generate_documentation(ctx, go_generate=False):
     if go_generate:
-        ctx.run("go generate ./pkg/security/...")
+        cws_go_generate(ctx)
 
     # secl docs
     ctx.run(
@@ -457,3 +457,10 @@ def generate_documentation(ctx, go_generate=False):
     ctx.run(
         "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend.schema.json --output ./docs/cloud-workload-security/backend.md"
     )
+
+
+@task
+def cws_go_generate(ctx):
+    with ctx.cd("./pkg/security/secl"):
+        ctx.run("go generate ./...")
+    ctx.run("go generate ./pkg/security/...")

@@ -265,7 +265,7 @@ func (s *Serializer) SendServiceChecks(sc marshaler.StreamJSONMarshaler) error {
 		return nil
 	}
 
-	useV1API := !config.Datadog.GetBool("use_v2_api.service_checks")
+	useV1API := true
 
 	var serviceCheckPayloads forwarder.Payloads
 	var extraHeaders http.Header

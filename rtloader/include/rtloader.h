@@ -441,6 +441,15 @@ public:
     */
     virtual void setObfuscateSqlExecPlanCb(cb_obfuscate_sql_exec_plan_t) = 0;
 
+    //! setGetProcessStartTimeCb member.
+    /*!
+      \param A cb_get_process_start_time_t function pointer to the CGO callback.
+
+      This allows us to set the relevant CGO callback that will allow retrieving value for
+      specific check instances.
+    */
+    virtual void setGetProcessStartTimeCb(cb_get_process_start_time_t) = 0;
+
 private:
     mutable std::string _error; /*!< string containing a RtLoader error */
     mutable bool _errorFlag; /*!< boolean indicating whether an error was set on RtLoader */

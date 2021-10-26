@@ -435,16 +435,15 @@ func (s *Server) forwarder(fcon net.Conn, packetsChannel chan packets.Packets) {
 	}
 }
 
-// Flush flushes all the data to the aggregator to them send it to the Datadog intake.
-func (s *Server) Flush() {
+// ServerlessFlush flushes all the data to the aggregator to them send it to the Datadog intake.
+func (s *Server) ServerlessFlush() {
 	log.Debug("Received a Flush trigger")
 	// make all workers flush their aggregated data (in the batcher) to the aggregator.
 	for _, w := range s.workers {
 		w.flush()
 	}
-	// flush the aggregator to have the serializer/forwarder send data to the backend.
-	// We add 10 seconds to the interval to ensure that we're getting the whole sketches bucket
-	s.aggregator.Flush(time.Now().Add(time.Second*10), true)
+	s.aggregator.ServerlessFlush <- true
+	<-s.aggregator.ServerlessFlushDone
 }
 
 // dropCR drops a terminal \r from the data.

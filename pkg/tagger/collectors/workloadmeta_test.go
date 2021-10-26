@@ -43,6 +43,14 @@ func TestHandleKubePod(t *testing.T) {
 	fullyFleshedContainerTaggerEntityID := fmt.Sprintf("container_id://%s", fullyFleshedContainerID)
 	noEnvContainerTaggerEntityID := fmt.Sprintf("container_id://%s", noEnvContainerID)
 
+	image := workloadmeta.ContainerImage{
+		ID:        "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+		RawName:   "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+		Name:      "datadog/agent",
+		ShortName: "agent",
+		Tag:       "latest",
+	}
+
 	store := workloadmetatesting.NewStore()
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -52,13 +60,7 @@ func TestHandleKubePod(t *testing.T) {
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: containerName,
 		},
-		Image: workloadmeta.ContainerImage{
-			ID:        "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
-			RawName:   "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
-			Name:      "datadog/agent",
-			ShortName: "agent",
-			Tag:       "latest",
-		},
+		Image: image,
 		EnvVars: map[string]string{
 			"DD_ENV":     env,
 			"DD_SERVICE": svc,
@@ -201,8 +203,9 @@ func TestHandleKubePod(t *testing.T) {
 				},
 				Containers: []workloadmeta.OrchestratorContainer{
 					{
-						ID:   fullyFleshedContainerID,
-						Name: containerName,
+						ID:    fullyFleshedContainerID,
+						Name:  containerName,
+						Image: image,
 					},
 				},
 			},

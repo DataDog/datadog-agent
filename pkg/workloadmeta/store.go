@@ -81,8 +81,9 @@ type store struct {
 	subscribersMut sync.RWMutex
 	subscribers    []subscriber
 
-	candidates map[string]Collector
-	collectors map[string]Collector
+	collectorMut sync.RWMutex
+	candidates   map[string]Collector
+	collectors   map[string]Collector
 
 	eventCh chan []CollectorEvent
 }
@@ -135,9 +136,9 @@ func (s *store) Start(ctx context.Context) {
 				s.handleEvents(evs)
 
 			case <-retryTicker.C:
-				s.startCandidates(ctx)
+				stop := s.startCandidates(ctx)
 
-				if len(s.candidates) == 0 {
+				if stop {
 					retryTicker.Stop()
 				}
 
@@ -296,9 +297,10 @@ func (s *store) Notify(events []CollectorEvent) {
 	}
 }
 
-func (s *store) startCandidates(ctx context.Context) {
-	// NOTE: s.candidates is not guarded by a mutex as it's only called by
-	// the store itself, and the store runs on a single goroutine
+func (s *store) startCandidates(ctx context.Context) bool {
+	s.collectorMut.Lock()
+	defer s.collectorMut.Unlock()
+
 	for id, c := range s.candidates {
 		err := c.Start(ctx, s)
 
@@ -322,12 +324,14 @@ func (s *store) startCandidates(ctx context.Context) {
 		// next tick
 		delete(s.candidates, id)
 	}
+
+	return len(s.candidates) == 0
 }
 
 func (s *store) pull(ctx context.Context) {
-	// NOTE: s.collectors is not guarded by a mutex as it's only called by
-	// the store itself, and the store runs on a single goroutine. If this
-	// method is made public in the future, we need to guard it.
+	s.collectorMut.RLock()
+	defer s.collectorMut.RUnlock()
+
 	for id, c := range s.collectors {
 		// Run each pull in its own separate goroutine to reduce
 		// latency and unlock the main goroutine to do other work.

@@ -43,7 +43,6 @@ func (ms *MetricSender) GetCheckInstanceMetricTags(metricTags []checkconfig.Metr
 	for _, metricTag := range metricTags {
 		value, err := values.GetScalarValue(metricTag.OID)
 		if err != nil {
-			log.Debugf("metric tags: error getting scalar value: %v", err)
 			continue
 		}
 		strValue, err := value.ToString()
@@ -73,14 +72,12 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 	for _, symbol := range metricConfig.Symbols {
 		metricValues, err := values.GetColumnValues(symbol.OID)
 		if err != nil {
-			log.Debugf("report column: error getting column value: %v", err)
 			continue
 		}
 		for fullIndex, value := range metricValues {
 			// cache row tags by fullIndex to avoid rebuilding it for every column rows
 			if _, ok := rowTagsCache[fullIndex]; !ok {
 				rowTagsCache[fullIndex] = append(common.CopyStrings(tags), metricConfig.GetTags(fullIndex, values)...)
-				log.Debugf("report column: caching tags `%v` for fullIndex `%s`", rowTagsCache[fullIndex], fullIndex)
 			}
 			rowTags := rowTagsCache[fullIndex]
 			ms.sendMetric(symbol.Name, value, rowTags, metricConfig.ForcedType, metricConfig.Options, symbol.ExtractValuePattern)
