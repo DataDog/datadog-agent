@@ -315,7 +315,9 @@ func processMessage(message logMessage, executionContext *ExecutionContext, enha
 				message.time, tags, metricsChan)
 		}
 		if message.logType == logTypePlatformRuntimeDone {
-			serverlessMetrics.GenerateRuntimeDurationMetric(executionContext.StartTime, message.time, message.objectRecord.runtimeDoneItem.status, tags, metricsChan)
+			serverlessMetrics.GenerateRuntimeDurationMetric(executionContext.StartTime, message.time, tags, metricsChan)
+			serverlessMetrics.HandleErrorMetric(message.time, message.objectRecord.runtimeDoneItem.status, tags, metricsChan)
+
 		}
 	}
 

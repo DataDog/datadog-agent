@@ -33,7 +33,7 @@ func getOutOfMemorySubstrings() []string {
 }
 
 // GenerateRuntimeDurationMetric generates the runtime duration metric
-func GenerateRuntimeDurationMetric(start time.Time, end time.Time, status string, tags []string, metricsChan chan []metrics.MetricSample) {
+func GenerateRuntimeDurationMetric(start time.Time, end time.Time, tags []string, metricsChan chan []metrics.MetricSample) {
 	// first check if both date are set
 	if start.IsZero() || end.IsZero() {
 		log.Debug("Impossible to compute aws.lambda.enhanced.runtime_duration due to an invalid interval")
@@ -41,6 +41,20 @@ func GenerateRuntimeDurationMetric(start time.Time, end time.Time, status string
 		duration := end.Sub(start).Milliseconds()
 		metricsChan <- []metrics.MetricSample{{
 			Name:       "aws.lambda.enhanced.runtime_duration",
+			Value:      float64(duration),
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  float64(end.UnixNano()),
+		}}
+	}
+}
+
+// HandleErrorMetric generates the error metric if needed
+func HandleErrorMetric(time time.Time, status string, tags []string, metricsChan chan []metrics.MetricSample) {
+	if strings.ToLower(status) == "failure" 
+		metricsChan <- []metrics.MetricSample{{
+			Name:       "aws.lambda.enhanced.errors",
 			Value:      float64(duration),
 			Mtype:      metrics.DistributionType,
 			Tags:       tags,
