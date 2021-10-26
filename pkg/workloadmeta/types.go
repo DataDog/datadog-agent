@@ -150,8 +150,9 @@ type ContainerPort struct {
 // OrchestratorContainer is a reference to a Container with
 // orchestrator-specific data attached to it.
 type OrchestratorContainer struct {
-	ID   string
-	Name string
+	ID    string
+	Name  string
+	Image ContainerImage
 }
 
 // Container is a containerized workload.
