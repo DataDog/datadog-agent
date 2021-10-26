@@ -111,7 +111,7 @@ require (
 	github.com/fatih/color v1.13.0
 	github.com/florianl/go-conntrack v0.2.0
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
-	github.com/go-ini/ini v1.62.0
+	github.com/go-ini/ini v1.63.2
 	github.com/go-ole/go-ole v1.2.5
 	github.com/go-openapi/spec v0.20.3
 	github.com/go-sql-driver/mysql v1.5.0 // indirect
@@ -127,7 +127,7 @@ require (
 	github.com/google/gopacket v1.1.19
 	github.com/google/pprof v0.0.0-20210226084205-cbba55b83ad5
 	github.com/gorilla/mux v1.8.0
-	github.com/gosnmp/gosnmp v1.32.0
+	github.com/gosnmp/gosnmp v1.33.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/h2non/filetype v1.1.2-0.20210602110014-3305bbb7ac7b
