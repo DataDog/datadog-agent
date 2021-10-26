@@ -20,10 +20,10 @@ import (
 
 // Pipeline processes and sends messages to the backend
 type Pipeline struct {
-	InputChan   chan *message.Message
-	processor   *processor.Processor
-	sender      *sender.Sender
-	extraSender *sender.Sender
+	InputChan    chan *message.Message
+	processor    *processor.Processor
+	mainSender   *sender.Sender
+	backupSender *sender.Sender
 }
 
 // NewPipeline returns a new Pipeline
@@ -73,18 +73,18 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	processor := processor.New(inputChan, senderChan, processingRules, encoder, diagnosticMessageReceiver)
 
 	return &Pipeline{
-		InputChan:   inputChan,
-		processor:   processor,
-		sender:      mainSender,
-		extraSender: backupSender,
+		InputChan:    inputChan,
+		processor:    processor,
+		mainSender:   mainSender,
+		backupSender: backupSender,
 	}
 }
 
 // Start launches the pipeline
 func (p *Pipeline) Start() {
-	p.sender.Start()
-	if p.extraSender != nil {
-		p.extraSender.Start()
+	p.mainSender.Start()
+	if p.backupSender != nil {
+		p.backupSender.Start()
 	}
 	p.processor.Start()
 }
@@ -92,18 +92,18 @@ func (p *Pipeline) Start() {
 // Stop stops the pipeline
 func (p *Pipeline) Stop() {
 	p.processor.Stop()
-	if p.extraSender != nil {
-		p.extraSender.Stop()
+	p.mainSender.Stop()
+	if p.backupSender != nil {
+		p.backupSender.Stop()
 	}
-	p.sender.Stop()
 }
 
 // Flush flushes synchronously the processor and sender managed by this pipeline.
 func (p *Pipeline) Flush(ctx context.Context) {
-	p.processor.Flush(ctx) // flush messages in the processor into the sender
-	p.sender.Flush(ctx)    // flush the sender
-	if p.extraSender != nil {
-		p.extraSender.Flush(ctx)
+	p.processor.Flush(ctx)  // flush messages in the processor into the sender
+	p.mainSender.Flush(ctx) // flush the sender
+	if p.backupSender != nil {
+		p.backupSender.Flush(ctx)
 	}
 }
 
@@ -115,22 +115,20 @@ func getMainDestinations(endpoints *config.Endpoints, destinationsContext *clien
 			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend))
 		}
 		return client.NewDestinations(main, additionals)
-	} else {
-		main := tcp.NewDestination(endpoints.Main, endpoints.UseProto, destinationsContext)
-		additionals := []client.Destination{}
-		for _, endpoint := range endpoints.Additionals {
-			additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext))
-		}
-		return client.NewDestinations(main, additionals)
 	}
+	main := tcp.NewDestination(endpoints.Main, endpoints.UseProto, destinationsContext)
+	additionals := []client.Destination{}
+	for _, endpoint := range endpoints.Additionals {
+		additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext))
+	}
+	return client.NewDestinations(main, additionals)
 }
 
 func getBackupDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *client.Destinations {
 	if endpoints.UseHTTP {
 		backup := http.NewDestination(*endpoints.Backup, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
 		return client.NewDestinations(backup, []client.Destination{})
-	} else {
-		backup := tcp.NewDestination(*endpoints.Backup, endpoints.UseProto, destinationsContext)
-		return client.NewDestinations(backup, []client.Destination{})
 	}
+	backup := tcp.NewDestination(*endpoints.Backup, endpoints.UseProto, destinationsContext)
+	return client.NewDestinations(backup, []client.Destination{})
 }

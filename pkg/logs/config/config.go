@@ -184,7 +184,7 @@ func buildTCPEndpoints(logsConfig *LogsConfigKeys) (*Endpoints, error) {
 		main.UseSSL = !logsConfig.devModeNoSSL()
 	}
 
-	var backup *Endpoint = nil
+	var backup *Endpoint
 
 	if logsDDBackupURL, defined := logsConfig.logsDDURLBackup(); defined {
 		// Copy the main endpoint since all the settings are shared except the host + port
@@ -252,7 +252,7 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 		main.UseSSL = !logsConfig.devModeNoSSL()
 	}
 
-	var backup *Endpoint = nil
+	var backup *Endpoint
 
 	if logsDDBackupURL, logsDDURLDefined := logsConfig.logsDDURLBackup(); logsDDURLDefined {
 		// Copy the main endpoint since all the settings are shared except the host + port
