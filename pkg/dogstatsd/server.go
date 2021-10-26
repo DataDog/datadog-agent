@@ -136,6 +136,7 @@ type Server struct {
 	health                    *health.Handle
 	metricPrefix              string
 	metricPrefixBlacklist     []string
+	metricBlockList           []string
 	defaultHostname           string
 	histToDist                bool
 	histToDistPrefix          string
@@ -270,7 +271,9 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 	if metricPrefix != "" && !strings.HasSuffix(metricPrefix, ".") {
 		metricPrefix = metricPrefix + "."
 	}
+
 	metricPrefixBlacklist := config.Datadog.GetStringSlice("statsd_metric_namespace_blacklist")
+	metricBlockList := config.Datadog.GetStringSlice("statsd_metric_blocklist")
 
 	defaultHostname, err := util.GetHostname(context.TODO())
 	if err != nil {
@@ -316,6 +319,7 @@ func NewServer(aggregator *aggregator.BufferedAggregator, extraTags []string) (*
 		health:                    health.RegisterLiveness("dogstatsd-main"),
 		metricPrefix:              metricPrefix,
 		metricPrefixBlacklist:     metricPrefixBlacklist,
+		metricBlockList:           metricBlockList,
 		defaultHostname:           defaultHostname,
 		histToDist:                histToDist,
 		histToDistPrefix:          histToDistPrefix,
@@ -551,6 +555,7 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 						s.storeMetricStats(samples[idx])
 					}
 					batcher.appendSample(samples[idx])
+
 					if s.histToDist && samples[idx].Mtype == metrics.HistogramType {
 						distSample := samples[idx].Copy()
 						distSample.Name = s.histToDistPrefix + distSample.Name
@@ -633,7 +638,7 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 			sample.tags = append(sample.tags, mapResult.Tags...)
 		}
 	}
-	metricSamples = enrichMetricSample(metricSamples, sample, s.metricPrefix, s.metricPrefixBlacklist, s.defaultHostname, origin, s.entityIDPrecedenceEnabled, s.ServerlessMode)
+	metricSamples = enrichMetricSample(metricSamples, sample, s.metricPrefix, s.metricPrefixBlacklist, s.metricBlockList, s.defaultHostname, origin, s.entityIDPrecedenceEnabled, s.ServerlessMode)
 
 	if len(sample.values) > 0 {
 		s.sharedFloat64List.put(sample.values)
