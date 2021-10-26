@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package resolver contains logic to perform per `transaction.Endpoint` domain resolution. The idea behind this package
+// is to allow the forwarder to send some data to a given domain and other kinds of data to other domains based on the
+// targeted `transaction.Endpoint`.
 package resolver
 
 import (
@@ -20,12 +23,18 @@ const (
 	Vector
 )
 
-// DomainResolver interface abstracts endpoints host selection
+// DomainResolver interface abstracts domain selection by `transaction.Endpoint`
 type DomainResolver interface {
+	// Resolve returns the domain to be used to send data for a given `transaction.Endpoint` along with a
+	// destination type
 	Resolve(endpoint transaction.Endpoint) (string, DestinationType)
+	// GetAPIKeys returns the list of API Keys associated with this `DomainResolver`
 	GetAPIKeys() []string
+	// GetBaseDomain returns the base domain for this `DomainResolver`
 	GetBaseDomain() string
+	// GetAlternateDomains returns all the domains that can be returned by `Resolve()` minus the base domain
 	GetAlternateDomains() []string
+	// SetBaseDomain sets the base domain to a new value
 	SetBaseDomain(domain string)
 }
 

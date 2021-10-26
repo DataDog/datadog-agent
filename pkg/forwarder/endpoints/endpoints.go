@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package endpoints stores a collection of `transaction.Endpoint` mainly used by the forwarder package to send data to
+// Datadog using the right request path for a given type of data.
 package endpoints
 
 import "github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
