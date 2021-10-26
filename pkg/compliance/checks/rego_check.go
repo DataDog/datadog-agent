@@ -33,6 +33,23 @@ type regoCheck struct {
 	preparedEvalQuery rego.PreparedEvalQuery
 }
 
+func importModule(importPath, parentDir string, required bool) (string, error) {
+	// look for relative file if we have a source
+	if parentDir != "" {
+		importPath = filepath.Join(parentDir, importPath)
+	}
+
+	mod, err := os.ReadFile(importPath)
+	if err != nil {
+		if required {
+			return "", err
+		} else {
+			return "", nil
+		}
+	}
+	return string(mod), nil
+}
+
 func computeRuleModulesAndQuery(rule *compliance.RegoRule, meta *compliance.SuiteMeta) ([]func(*rego.Rego), string, error) {
 	options := make([]func(*rego.Rego), 0)
 
@@ -63,21 +80,34 @@ func computeRuleModulesAndQuery(rule *compliance.RegoRule, meta *compliance.Suit
 		parentDir = filepath.Dir(meta.Source)
 	}
 
+	alreadyImported := make(map[string]bool)
+
+	// import rego file with the same name as the rule id
+	imp := fmt.Sprintf("%s.rego", rule.ID)
+	mod, err := importModule(imp, parentDir, false)
+	if err != nil {
+		return nil, "", err
+	}
+	if mod != "" {
+		options = append(options, rego.Module(imp, mod))
+	}
+	alreadyImported[imp] = true
+
+	// import explicitly required imports
 	for _, imp := range rule.Imports {
-		if imp == "" {
+		if imp == "" || alreadyImported[imp] {
 			continue
 		}
 
-		// look for relative file if we have a source
-		if parentDir != "" {
-			imp = filepath.Join(parentDir, imp)
-		}
-
-		mod, err := os.ReadFile(imp)
+		mod, err := importModule(imp, parentDir, true)
 		if err != nil {
 			return nil, "", err
 		}
-		options = append(options, rego.Module(imp, string(mod)))
+
+		if mod != "" {
+			options = append(options, rego.Module(imp, mod))
+		}
+		alreadyImported[imp] = true
 	}
 
 	return options, query, nil
