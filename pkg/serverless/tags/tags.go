@@ -36,6 +36,7 @@ const (
 	serviceKey               = "service"
 	runtimeKey               = "runtime"
 	memorySizeKey            = "memorysize"
+	architectureKey          = "architecture"
 )
 
 // currentExtensionVersion represents the current version of the Datadog Lambda Extension.
@@ -47,14 +48,17 @@ var currentExtensionVersion = "xxx"
 func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags := make(map[string]string)
 
-	tags = setIfNotEmpty(tags, envKey, os.Getenv(envEnvVar))
-	tags = setIfNotEmpty(tags, versionKey, os.Getenv(versionEnvVar))
-	tags = setIfNotEmpty(tags, serviceKey, os.Getenv(serviceEnvVar))
+	architecture := ResolveRuntimeArch()
+	tags = setIfNotEmpty(tags, architectureKey, architecture)
 
 	cleanedRuntime := strings.Replace(os.Getenv(runtimeVar), "AWS_Lambda_", "", 1)
 
 	tags = setIfNotEmpty(tags, runtimeKey, cleanedRuntime)
 	tags = setIfNotEmpty(tags, memorySizeKey, os.Getenv(memorySizeVar))
+
+	tags = setIfNotEmpty(tags, envKey, os.Getenv(envEnvVar))
+	tags = setIfNotEmpty(tags, versionKey, os.Getenv(versionEnvVar))
+	tags = setIfNotEmpty(tags, serviceKey, os.Getenv(serviceEnvVar))
 
 	for _, tag := range configTags {
 		splitTags := strings.Split(tag, ",")
