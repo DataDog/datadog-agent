@@ -1533,7 +1533,7 @@ func GetConfiguredTags(includeDogstatsd bool) []string {
 
 func bindVectorOptions(config Config, datatype DataType) {
 	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.enabled", datatype), false)
-	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.url", datatype), false)
+	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.url", datatype), "")
 }
 
 // GetVectorURL returns the URL under the 'vector.' prefix for the given datatype
