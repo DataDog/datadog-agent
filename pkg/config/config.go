@@ -1196,9 +1196,9 @@ func GetMultipleEndpoints() (map[string][]string, error) {
 }
 
 func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
-	config.BindEnv(prefix + "logs_dd_url") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnv(prefix + "logs_dd_url")        // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnv(prefix + "logs_dd_url_backup") // Send the logs to an alternative intake. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
 	config.BindEnv(prefix + "dd_url")
-	config.BindEnv(prefix + "dd_url_backup")
 	config.BindEnv(prefix + "additional_endpoints")
 	config.BindEnvAndSetDefault(prefix+"use_compression", true)
 	config.BindEnvAndSetDefault(prefix+"compression_level", 6) // Default level for the gzip/deflate algorithm
