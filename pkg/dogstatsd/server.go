@@ -555,7 +555,6 @@ func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 						s.storeMetricStats(samples[idx])
 					}
 					batcher.appendSample(samples[idx])
-
 					if s.histToDist && samples[idx].Mtype == metrics.HistogramType {
 						distSample := samples[idx].Copy()
 						distSample.Name = s.histToDistPrefix + distSample.Name
