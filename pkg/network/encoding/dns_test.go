@@ -69,8 +69,8 @@ func TestFormatConnectionDNS(t *testing.T) {
 					},
 				},
 			},
-			DnsStatsByDomainByQueryType:       map[int32]*model.DNSStatsByQueryType{},
-			DnsStatsByDomainOffsetByQueryType: map[int32]*model.DNSStatsByQueryType{},
+			DnsStatsByDomainByQueryType:       nil,
+			DnsStatsByDomainOffsetByQueryType: nil,
 		}
 
 		assert.Equal(t, expected, out)
@@ -87,7 +87,7 @@ func TestFormatConnectionDNS(t *testing.T) {
 
 		formatter.FormatConnectionDNS(in, out)
 		expected := &model.Connection{
-			DnsStatsByDomain: map[int32]*model.DNSStats{},
+			DnsStatsByDomain: nil,
 			DnsStatsByDomainByQueryType: map[int32]*model.DNSStatsByQueryType{
 				0: {
 					DnsStatsByQueryType: map[int32]*model.DNSStats{
@@ -100,7 +100,7 @@ func TestFormatConnectionDNS(t *testing.T) {
 					},
 				},
 			},
-			DnsStatsByDomainOffsetByQueryType: map[int32]*model.DNSStatsByQueryType{},
+			DnsStatsByDomainOffsetByQueryType: nil,
 		}
 
 		assert.Equal(t, expected, out)
