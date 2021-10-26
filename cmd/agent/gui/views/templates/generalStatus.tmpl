@@ -254,6 +254,7 @@
           </span>
         {{- end}}
       {{- end -}}
+      {{/* The subsection `On-disk storage` is not inside `{{- with .forwarderStats -}}` as it need to access `.config` */}}
       <span class="stat_subtitle">On-disk storage</span>
       <span class="stat_subdata">
       {{- if .config.forwarder_storage_max_size_in_bytes }}
@@ -282,7 +283,7 @@
       {{- end -}}
     </span>
   </div>
-  
+
   <div class="stat">
     <span class="stat_title">Endpoints</span>
     <span class="stat_data">
