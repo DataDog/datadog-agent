@@ -184,20 +184,19 @@ func buildTCPEndpoints(logsConfig *LogsConfigKeys) (*Endpoints, error) {
 		main.UseSSL = !logsConfig.devModeNoSSL()
 	}
 
-	backup := main
+	var backup *Endpoint = nil
 
-	if logsDDURL, defined := logsConfig.logsDDURLBackup(); defined {
-		// Proxy settings, expect 'logs_config.logs_dd_url' to respect the format '<HOST>:<PORT>'
-		// and '<PORT>' to be an integer.
-		// By default ssl is enabled ; to disable ssl set 'logs_config.logs_no_ssl' to true.
-		host, port, err := parseAddress(logsDDURL)
+	if logsDDBackupURL, defined := logsConfig.logsDDURLBackup(); defined {
+		// Copy the main endpoint since all the settings are shared except the host + port
+		copiedEndpoint := main
+		host, port, err := parseAddress(logsDDBackupURL)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
+			return nil, fmt.Errorf("could not parse %s: %v", logsDDBackupURL, err)
 		}
-		backup.Host = host
-		backup.Port = port
-		backup.UseSSL = !logsConfig.logsNoSSL()
+		copiedEndpoint.Host = host
+		copiedEndpoint.Port = port
 
+		backup = &copiedEndpoint
 	}
 
 	additionals := logsConfig.getAdditionalEndpoints()
@@ -243,7 +242,7 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 	if logsDDURL, logsDDURLDefined := logsConfig.logsDDURL(); logsDDURLDefined {
 		host, port, err := parseAddress(logsDDURL)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse %s: %v", logsConfig.getConfigKey("logs_dd_url"), err)
+			return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
 		}
 		main.Host = host
 		main.Port = port
@@ -253,7 +252,20 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 		main.UseSSL = !logsConfig.devModeNoSSL()
 	}
 
-	backup := main
+	var backup *Endpoint = nil
+
+	if logsDDBackupURL, logsDDURLDefined := logsConfig.logsDDURLBackup(); logsDDURLDefined {
+		// Copy the main endpoint since all the settings are shared except the host + port
+		copiedEndpoint := main
+
+		host, port, err := parseAddress(logsDDBackupURL)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse %s: %v", logsDDBackupURL, err)
+		}
+		copiedEndpoint.Host = host
+		copiedEndpoint.Port = port
+		backup = &copiedEndpoint
+	}
 
 	additionals := logsConfig.getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {

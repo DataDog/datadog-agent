@@ -28,26 +28,13 @@ type Pipeline struct {
 
 // NewPipeline returns a new Pipeline
 func NewPipeline(outputChan chan *message.Message, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, diagnosticMessageReceiver diagnostic.MessageReceiver, serverless bool, pipelineID int) *Pipeline {
-	var destinations *client.Destinations
-	if endpoints.UseHTTP {
-		main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
-		additionals := []client.Destination{}
-		for _, endpoint := range endpoints.Additionals {
-			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend))
-		}
-		destinations = client.NewDestinations(main, additionals)
-	} else {
-		main := tcp.NewDestination(endpoints.Main, endpoints.UseProto, destinationsContext)
-		additionals := []client.Destination{}
-		for _, endpoint := range endpoints.Additionals {
-			additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext))
-		}
-		destinations = client.NewDestinations(main, additionals)
+	mainDestinations := getMainDestinations(endpoints, destinationsContext)
+	var backupDestinations *client.Destinations
+	if endpoints.Backup != nil {
+		backupDestinations = getBackupDestinations(endpoints, destinationsContext)
 	}
 
 	senderChan := make(chan *message.Message, config.ChanSize)
-	senderSplit1 := make(chan *message.Message, config.ChanSize)
-	senderSplit2 := make(chan *message.Message, config.ChanSize)
 
 	var strategy sender.Strategy
 	if endpoints.UseHTTP || serverless {
@@ -56,13 +43,20 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 		strategy = sender.StreamStrategy
 	}
 
-	sender.SplitChannel(senderChan, senderSplit1, senderSplit2)
-	sender1 := sender.NewSender(senderSplit1, outputChan, destinations, strategy)
+	var mainSender *sender.Sender
+	var backupSender *sender.Sender
 
-	backup := http.NewDestination(endpoints.Backup, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
-	destinations1 := client.NewDestinations(backup, []client.Destination{})
+	// If there is a backup endpoint - we are dual-shipping so we need to spawn an additional sender.
+	if backupDestinations != nil {
+		mainSenderChannel := make(chan *message.Message, config.ChanSize)
+		backupSenderChannel := make(chan *message.Message, config.ChanSize)
+		sender.SplitChannel(senderChan, mainSenderChannel, backupSenderChannel)
 
-	sender2 := sender.NewSender(senderSplit2, outputChan, destinations1, strategy)
+		mainSender = sender.NewSender(mainSenderChannel, outputChan, mainDestinations, strategy)
+		backupSender = sender.NewSender(backupSenderChannel, outputChan, backupDestinations, strategy)
+	} else {
+		mainSender = sender.NewSender(senderChan, outputChan, mainDestinations, strategy)
+	}
 
 	var encoder processor.Encoder
 	if serverless {
@@ -81,20 +75,26 @@ func NewPipeline(outputChan chan *message.Message, processingRules []*config.Pro
 	return &Pipeline{
 		InputChan:   inputChan,
 		processor:   processor,
-		sender:      sender1,
-		extraSender: sender2,
+		sender:      mainSender,
+		extraSender: backupSender,
 	}
 }
 
 // Start launches the pipeline
 func (p *Pipeline) Start() {
 	p.sender.Start()
+	if p.extraSender != nil {
+		p.extraSender.Start()
+	}
 	p.processor.Start()
 }
 
 // Stop stops the pipeline
 func (p *Pipeline) Stop() {
 	p.processor.Stop()
+	if p.extraSender != nil {
+		p.extraSender.Stop()
+	}
 	p.sender.Stop()
 }
 
@@ -102,4 +102,35 @@ func (p *Pipeline) Stop() {
 func (p *Pipeline) Flush(ctx context.Context) {
 	p.processor.Flush(ctx) // flush messages in the processor into the sender
 	p.sender.Flush(ctx)    // flush the sender
+	if p.extraSender != nil {
+		p.extraSender.Flush(ctx)
+	}
+}
+
+func getMainDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *client.Destinations {
+	if endpoints.UseHTTP {
+		main := http.NewDestination(endpoints.Main, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
+		additionals := []client.Destination{}
+		for _, endpoint := range endpoints.Additionals {
+			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend))
+		}
+		return client.NewDestinations(main, additionals)
+	} else {
+		main := tcp.NewDestination(endpoints.Main, endpoints.UseProto, destinationsContext)
+		additionals := []client.Destination{}
+		for _, endpoint := range endpoints.Additionals {
+			additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext))
+		}
+		return client.NewDestinations(main, additionals)
+	}
+}
+
+func getBackupDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) *client.Destinations {
+	if endpoints.UseHTTP {
+		backup := http.NewDestination(*endpoints.Backup, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend)
+		return client.NewDestinations(backup, []client.Destination{})
+	} else {
+		backup := tcp.NewDestination(*endpoints.Backup, endpoints.UseProto, destinationsContext)
+		return client.NewDestinations(backup, []client.Destination{})
+	}
 }
